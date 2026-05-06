@@ -1,6 +1,6 @@
 # Backup manifest
 
-Created UTC: `2026-05-06T13:36:27.867705+00:00`
+Created UTC: `2026-05-06T14:00:11.587420+00:00`
 
 Hermes home: `/home/konstantin/.hermes`
 
@@ -18,12 +18,12 @@ Skill CLIs source: `/home/konstantin/code/clis`
 ## Encrypted artifacts
 
 ### secret_artifacts
-- `secrets-encrypted/hermes-secrets-20260506-133627.tar.zst.age`
+- `secrets-encrypted/hermes-secrets-20260506-140011.tar.zst.age`
 
 ### state_artifacts
-- `session-history-encrypted/hermes-state-and-sessions-20260506-133627.tar.zst.age.part000`
-- `session-history-encrypted/hermes-state-and-sessions-20260506-133627.tar.zst.age.part001`
-- `session-history-encrypted/hermes-state-and-sessions-20260506-133627.tar.zst.age.part002`
-- `session-history-encrypted/hermes-state-and-sessions-20260506-133627.tar.zst.age.part003`
+- `session-history-encrypted/hermes-state-and-sessions-20260506-140011.tar.zst.age.part000`
+- `session-history-encrypted/hermes-state-and-sessions-20260506-140011.tar.zst.age.part001`
+- `session-history-encrypted/hermes-state-and-sessions-20260506-140011.tar.zst.age.part002`
+- `session-history-encrypted/hermes-state-and-sessions-20260506-140011.tar.zst.age.part003`
 
 Raw secret values and transcript contents are intentionally absent from this manifest.
