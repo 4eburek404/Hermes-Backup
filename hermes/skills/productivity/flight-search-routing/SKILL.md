@@ -81,7 +81,8 @@ Load linked topical references only when the request needs them:
 - airline-specific or aggregator-specific quirks;
 - London airport ranking when the destination is London or the user questions airport priority;
 - one-way assembly/ranking workflow when round-trip search is empty or sparse;
-- route-specific regression/golden examples only for that old route/date or answer-style calibration, never as generic source of truth.
+- `references/aeroflot-live-kupibilet-frontend-search.md`;
+- flights CLI refactor/cache-contract review notes when auditing or troubleshooting `route plan`, `route kb-assemble`, catalog refresh, or offline-first test failures (`references/flights-cli-refactor-cache-contract-2026-05-06.md`).]
 
 For exact CLI syntax, call `flights <cmd> --help` or `fli --help`; do not copy stale help text into this skill.
 

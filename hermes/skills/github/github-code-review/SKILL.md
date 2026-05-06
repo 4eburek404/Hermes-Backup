@@ -56,12 +56,21 @@ git diff --staged
 # All changes vs main (what a PR would contain)
 git diff main...HEAD
 
+# Remote branch without disturbing current checkout
+git fetch origin main feature-branch
+tmp=$(mktemp -d /tmp/review-feature-branch.XXXXXX)
+git worktree add --detach "$tmp" origin/feature-branch
+# review/test inside "$tmp", then clean up:
+git worktree remove --force "$tmp"
+
 # File names only
 git diff main...HEAD --name-only
 
 # Stat summary (insertions/deletions per file)
 git diff main...HEAD --stat
 ```
+
+When reviewing a remote branch from a backup/integration repo, prefer a detached temporary worktree so the user's main checkout and uncommitted state remain untouched. Report the base/head SHAs and verify cleanup with `git worktree list` before finalizing.
 
 ### Review Strategy
 
@@ -301,6 +310,7 @@ When performing a code review (local or PR), systematically check:
 - New code paths tested?
 - Happy path and error cases covered?
 - Tests readable and maintainable?
+- Tests hermetic? Flag reliance on the reviewer's local cache, `$HOME`, credentials, network, timezone, or stale provider state unless the test intentionally marks and controls that dependency.
 
 ### Performance
 - No N+1 queries or unnecessary loops
