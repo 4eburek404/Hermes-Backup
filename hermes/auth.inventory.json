@@ -1,0 +1,23 @@
+{
+  "top_level_keys": [
+    "active_provider",
+    "credential_pool",
+    "providers",
+    "updated_at",
+    "version"
+  ],
+  "providers": {
+    "openai-codex": {
+      "keys": [
+        "auth_mode",
+        "last_refresh",
+        "tokens"
+      ],
+      "token_keys": [
+        "access_token",
+        "id_token",
+        "refresh_token"
+      ]
+    }
+  }
+}

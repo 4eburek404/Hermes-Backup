@@ -1,0 +1,8 @@
+{
+  "last_report_path": "/home/konstantin/.hermes/logs/curator/20260430-040818",
+  "last_run_at": "2026-04-30T04:08:18.833705+00:00",
+  "last_run_duration_seconds": 621.023989,
+  "last_run_summary": "auto: no changes; llm: ## Consolidation Summary\n\n### Cluster Processed\n\n**Note-taking / Knowledge-architecture cluster** (4 skills → 1 umbrella)\n\nAll four skills served Konstantin's personal knowledge architecture: the same user, same docs directory (`/home/konst…",
+  "paused": false,
+  "run_count": 1
+}
