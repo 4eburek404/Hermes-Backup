@@ -416,7 +416,11 @@ Pitfalls:
 
 #### Backing up the personal Hermes overlay
 
-Use this when the user asks to back up Hermes Agent settings, memory, skills, plugins, cron, or custom docs that live on top of the upstream `~/.hermes/hermes-agent` repo. See `references/hermes-personal-overlay-backup-2026-05-06.md` for Konstantin's session-specific scope and inventory.
+Use this when the user asks to back up Hermes Agent settings, memory, skills, plugins, cron, or custom docs that live on top of the upstream `~/.hermes/hermes-agent` repo. See `references/hermes-personal-overlay-backup-2026-05-06.md` for Konstantin's session-specific scope and inventory. For the hybrid retention design that emerged later (daily plaintext/redacted diff + weekly/on-change encrypted refresh), see `references/hermes-hybrid-backup-retention-2026-05-06.md`.
+
+For backup design recommendations to Konstantin, lead with a short actionable recommendation before any rationale. If he asks for a recommendation specifically, keep it concise: decision, 3–4 actions, final next step. Do not repeat the full storage-model explanation unless requested.
+
+Hybrid retention default for this repo class: keep `main` as the latest restoreable snapshot; update plaintext/redacted overlay daily; refresh heavy `age` encrypted state/session bundles weekly and secrets weekly plus on safe metadata change; verify freshness and require a single active encrypted generation in HEAD. Do not use daily branch-per-backup, binary diffs of encrypted archives, or plaintext secret/state diffs.
 
 Workflow:
 
