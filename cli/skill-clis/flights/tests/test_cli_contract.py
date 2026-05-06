@@ -81,7 +81,7 @@ class CliContractTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["command"], "doctor")
         self.assertIn("cache_counts", payload["data"])
-        self.assertEqual(payload["data"]["safety"]["travelpayouts_cached_fetch_requires"], "request search --fetch")
+        self.assertEqual(payload["data"]["safety"]["travelpayouts_cached_fetch_requires"], "request ... --fetch")
         self.assertEqual(payload["data"]["safety"]["live_provider_commands"], ["kb-search", "u6-prices", "route kb-assemble"])
         self.assertNotIn("live_calls_require_flag", payload["data"]["safety"])
 
@@ -94,7 +94,7 @@ class CliContractTests(unittest.TestCase):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        self.assertIn("Travelpayouts cached fetch: request search --fetch", human_proc.stdout)
+        self.assertIn("Travelpayouts cached fetch: request ... --fetch", human_proc.stdout)
         self.assertIn("provider live commands: kb-search, u6-prices, route kb-assemble", human_proc.stdout)
 
     def test_json_route_plan_envelope_and_repeatable_hubs(self) -> None:

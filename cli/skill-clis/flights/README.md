@@ -5,9 +5,9 @@ Offline-first flight routing helper for Hermes/Travelpayouts workflows.
 The CLI reads local Hermes Travelpayouts cache files, prepares segment-level
 search plans, validates airport compatibility, and builds sanitized
 Travelpayouts requests. It does not book, buy, or write to Hermes.
-Travelpayouts cached API fetches require `request search --fetch`; provider-specific
-commands such as `kb-search`, `u6-prices`, and `route kb-assemble` are live by
-command name.
+Travelpayouts cached API fetches require explicit `request ... --fetch`
+commands; provider-specific commands such as `kb-search`, `u6-prices`, and
+`route kb-assemble` are live by command name.
 
 ## Install
 

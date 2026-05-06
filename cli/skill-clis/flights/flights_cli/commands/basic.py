@@ -55,7 +55,7 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         "safety": {
             "booking_or_purchase": False,
             "docker_touched": False,
-            "travelpayouts_cached_fetch_requires": "request search --fetch",
+            "travelpayouts_cached_fetch_requires": "request ... --fetch",
             "live_provider_commands": ["kb-search", "u6-prices", "route kb-assemble"],
         },
         "risk_profiles": {
