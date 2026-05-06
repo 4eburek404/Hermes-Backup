@@ -27,8 +27,8 @@ Create a Hermes cron job that runs Konstantin's personal Hermes backup once ever
 - [x] Create daily cron job with a self-contained safe prompt.
 - [x] Verify cron metadata/listing and next run.
 - [x] Record durable cron metadata in skill/fact_store.
-- [ ] Archive this plan after verification.
-- [ ] Run one immediate backup after creating the cron job so the new cron config and archived plan are captured in GitHub.
+- [x] Archive this plan after verification.
+- [x] Run one immediate backup after creating the cron job so the new cron config is captured in GitHub.
 
 ## Verification
 - `cronjob(action="list")` shows a new enabled job for Hermes personal backup.
@@ -46,10 +46,13 @@ Create a Hermes cron job that runs Konstantin's personal Hermes backup once ever
 - If remote branch diverges, the job should report divergence instead of pulling/merging automatically.
 
 ## Status
-Current status: in_progress
+Current status: done
 
 ## Notes
 - Host timezone at plan creation: `2026-05-06 15:26:13 CEST +0200`.
 - No existing backup cron was present in the initial cron list.
 - Created cron job `0849e94b782d`: name `Hermes personal backup — every 24h`, schedule `every 1440m`, delivery `origin`, workdir `/home/konstantin/code/Hermes`, enabled toolsets `terminal`.
 - Next run reported by scheduler: `2026-05-07T15:28:35.129322+02:00`.
+
+- Immediate backup after cron creation passed verifier: `ok: true`, `memory_store_integrity: ok`, `state_db_integrity: ok`, `plaintext_secret_findings: 0`, `forbidden_plaintext_paths: 0`, `files_over_github_limit: 0`.
+- Immediate backup commit pushed: `dfc67eec33e23402a239e54f7128d637c82b18c1` (`backup: daily hermes snapshot 2026-05-06T13:36Z`).
