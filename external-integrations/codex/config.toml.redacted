@@ -1,0 +1,11 @@
+model = "gpt-5.5"
+model_reasoning_effort = "xhigh"
+approvals_reviewer = "user"
+[projects."/home/konstantin"]
+trust_level = "trusted"
+
+[plugins."github@openai-curated"]
+enabled = true
+
+[notice]
+hide_full_access_warning =[REDACTED]

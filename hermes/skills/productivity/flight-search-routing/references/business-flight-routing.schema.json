@@ -1,0 +1,881 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:hermes:skill:flight-search-routing:business-flight-routing-policy:2.4.3",
+  "title": "Business Flight Routing Policy Contract",
+  "description": "Route-independent policy contract for the flight-search-routing skill. It defines preferred-airport, airport-compatibility, live-first source, candidate-construction, ranking, answer, and validation-gate requirements for business-travel flight searches. This file is a skill reference schema for agents, not a provider structured-output enforcement mode.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "policy_id",
+    "version",
+    "default_profile",
+    "preferred_airports",
+    "airport_compatibility",
+    "secondary_airport_policy",
+    "source_policy",
+    "artifact_policy",
+    "tool_economy",
+    "cached_api_policy",
+    "search_pipeline",
+    "candidate_construction",
+    "connection_buffer_policy",
+    "ranking_policy",
+    "answer_contract",
+    "validation_gates"
+  ],
+  "properties": {
+    "policy_id": {
+      "const": "business-flight-routing",
+      "description": "Stable identifier for the route-independent business-flight routing policy."
+    },
+    "version": {
+      "const": "2.4.3",
+      "description": "Policy contract version aligned with the dispatcher skill version."
+    },
+    "default_profile": {
+      "const": "business_travel",
+      "description": "Default interpretation unless the user explicitly requests cheapest-first, any airport, or low-cost/secondary-airport routing."
+    },
+    "preferred_airports": {
+      "type": "object",
+      "description": "Map of city or airport-system labels to preferred-airport rules. This is the existing airport-quality policy surface; do not create a separate top-level taxonomy for connection points.",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/preferred_airport_rule"
+      },
+      "default": {
+        "Istanbul": {
+          "preferred": [
+            "IST"
+          ],
+          "acceptable_fallback": [],
+          "secondary": [
+            "SAW"
+          ],
+          "secondary_requires": [
+            "explicit_user_acceptance",
+            "named_tradeoff_with_reason"
+          ],
+          "notes": "Do not silently substitute the secondary airport for business routing."
+        },
+        "Dubai": {
+          "preferred": [
+            "DXB"
+          ],
+          "acceptable_fallback": [],
+          "secondary": [
+            "DWC",
+            "SHJ"
+          ],
+          "secondary_requires": [
+            "explicit_user_acceptance",
+            "named_tradeoff_with_reason"
+          ],
+          "notes": "Treat the nearby airport systems as distinct airports."
+        },
+        "London": {
+          "preferred": [
+            "LHR"
+          ],
+          "acceptable_fallback": [
+            "LCY",
+            "LGW"
+          ],
+          "secondary": [
+            "STN",
+            "LTN"
+          ],
+          "secondary_requires": [
+            "explicit_user_acceptance",
+            "named_tradeoff_with_reason"
+          ],
+          "notes": "For business trips, rank preferred airports before raw price unless the user overrides."
+        },
+        "Moscow": {
+          "preferred": [],
+          "acceptable_fallback": [
+            "SVO",
+            "DME",
+            "VKO"
+          ],
+          "secondary": [],
+          "secondary_requires": [
+            "same_airport_continuity_or_explicit_transfer_acceptance"
+          ],
+          "notes": "Airport equality matters; do not stitch separate Moscow airport systems without explicit transfer handling."
+        }
+      }
+    },
+    "airport_compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "same_airport_required_for_separate_tickets",
+        "incompatible_groups",
+        "cross_airport_policy"
+      ],
+      "properties": {
+        "same_airport_required_for_separate_tickets": {
+          "const": true,
+          "description": "For separate-ticket connections, arrival airport must equal next departure airport unless the user explicitly accepts a cross-airport transfer."
+        },
+        "incompatible_groups": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/incompatible_airport_group"
+          },
+          "default": [
+            {
+              "system": "Istanbul",
+              "airports": [
+                "IST",
+                "SAW"
+              ],
+              "rule": "separate airport systems; do not auto-substitute"
+            },
+            {
+              "system": "Dubai",
+              "airports": [
+                "DXB",
+                "DWC",
+                "SHJ"
+              ],
+              "rule": "separate airport systems; require explicit transfer handling"
+            },
+            {
+              "system": "Moscow",
+              "airports": [
+                "SVO",
+                "DME",
+                "VKO"
+              ],
+              "rule": "separate airport systems; require same-airport continuity or explicit transfer acceptance"
+            },
+            {
+              "system": "London",
+              "airports": [
+                "LHR",
+                "LGW",
+                "STN",
+                "LTN"
+              ],
+              "rule": "separate airport systems; rank preferred airport quality before price"
+            }
+          ]
+        },
+        "cross_airport_policy": {
+          "enum": [
+            "reject_by_default",
+            "allow_only_with_explicit_acceptance_and_named_risk"
+          ],
+          "default": "reject_by_default"
+        }
+      }
+    },
+    "secondary_airport_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "default",
+        "allowed_when",
+        "answer_requirement"
+      ],
+      "properties": {
+        "default": {
+          "const": "demote_or_reject_for_business_routing"
+        },
+        "allowed_when": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "explicit_user_acceptance",
+              "named_tradeoff_with_reason",
+              "no_viable_preferred_airport_option",
+              "protected_ticket_or_official_source"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "default": [
+            "explicit_user_acceptance",
+            "named_tradeoff_with_reason",
+            "no_viable_preferred_airport_option"
+          ]
+        },
+        "answer_requirement": {
+          "const": "state_airport_tradeoff_explicitly"
+        }
+      }
+    },
+    "source_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "priority",
+        "live_sources_required_for",
+        "source_labels_required"
+      ],
+      "properties": {
+        "priority": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source_type"
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "default": [
+            "live_cli_artifact",
+            "airline_calendar",
+            "non_russian_segment_schedule_crosscheck",
+            "browser_page",
+            "cached_api_reconnaissance"
+          ]
+        },
+        "live_sources_required_for": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "multi_step_search",
+              "high_stakes_recommendation",
+              "final_itinerary_claim",
+              "absence_of_viable_options_claim"
+            ]
+          },
+          "uniqueItems": true,
+          "default": [
+            "multi_step_search",
+            "high_stakes_recommendation",
+            "final_itinerary_claim",
+            "absence_of_viable_options_claim"
+          ]
+        },
+        "source_labels_required": {
+          "const": true,
+          "description": "Every user-facing itinerary, schedule, airport, carrier, availability, or price claim must identify its source type."
+        }
+      }
+    },
+    "artifact_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_for",
+        "path_pattern",
+        "allowed_artifact_kinds"
+      ],
+      "properties": {
+        "required_for": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "multi_step_search",
+              "high_stakes_recommendation",
+              "final_itinerary_claim",
+              "delegated_research_summary"
+            ]
+          },
+          "uniqueItems": true,
+          "default": [
+            "multi_step_search",
+            "high_stakes_recommendation",
+            "final_itinerary_claim"
+          ]
+        },
+        "path_pattern": {
+          "type": "string",
+          "default": "~/flight_search_artifacts/<route>_<dates>_<source>/",
+          "description": "Use deterministic artifact folders; do not put secrets or raw credential material in artifacts."
+        },
+        "allowed_artifact_kinds": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "json",
+              "text",
+              "html",
+              "screenshot",
+              "manual_link"
+            ]
+          },
+          "uniqueItems": true,
+          "default": [
+            "json",
+            "text",
+            "html",
+            "screenshot",
+            "manual_link"
+          ]
+        }
+      }
+    },
+    "tool_economy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "prefer_batched_cli",
+        "parse_saved_artifacts_locally",
+        "avoid_many_single_lookup_calls"
+      ],
+      "properties": {
+        "prefer_batched_cli": {
+          "const": true
+        },
+        "parse_saved_artifacts_locally": {
+          "const": true
+        },
+        "avoid_many_single_lookup_calls": {
+          "const": true
+        }
+      }
+    },
+    "cached_api_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "forbidden_as_sole_basis_for",
+        "required_caveat",
+        "position_in_pipeline",
+        "negative_evidence_policy"
+      ],
+      "properties": {
+        "role": {
+          "const": "reconnaissance_only",
+          "description": "Reconnaissance only, demoted behind live/direct/carrier/airline sources; never negative evidence."
+        },
+        "forbidden_as_sole_basis_for": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "no_flights_claim",
+              "best_business_recommendation",
+              "final_purchase_advice",
+              "airport_substitution_acceptance",
+              "no_direct_flight_claim",
+              "no_roundtrip_claim",
+              "not_available_claim"
+            ]
+          },
+          "uniqueItems": true,
+          "default": [
+            "no_flights_claim",
+            "best_business_recommendation",
+            "final_purchase_advice",
+            "no_direct_flight_claim",
+            "no_roundtrip_claim",
+            "not_available_claim"
+          ]
+        },
+        "required_caveat": {
+          "const": "cached_prices_and_availability_must_be_rechecked_before_purchase"
+        },
+        "position_in_pipeline": {
+          "const": "last_sanity_or_price_link_layer",
+          "description": "Travelpayouts/Aviasales-style cached APIs must be queried after live/direct/carrier/airline checks for business routing, unless the user explicitly requests a cache-only lookup."
+        },
+        "negative_evidence_policy": {
+          "const": "cached_absence_is_not_negative_evidence",
+          "description": "Cached absence or 0 results must not support no-flights, no-direct-flight, no-round-trip, or not-available claims."
+        }
+      }
+    },
+    "search_pipeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "steps",
+        "fallbacks"
+      ],
+      "properties": {
+        "steps": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "discover_direct_segments",
+              "assemble_compatible_candidates",
+              "cross_check_non_russian_segments_when_useful",
+              "cross_check_airline_calendar_when_relevant",
+              "parse_artifacts",
+              "rank_business_value",
+              "run_validation_gates"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "default": [
+            "discover_direct_segments",
+            "assemble_compatible_candidates",
+            "cross_check_non_russian_segments_when_useful",
+            "cross_check_airline_calendar_when_relevant",
+            "parse_artifacts",
+            "rank_business_value",
+            "run_validation_gates"
+          ]
+        },
+        "fallbacks": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "if_roundtrip_empty_search_one_ways",
+              "if_ranked_output_invalid_manually_assemble_segments",
+              "if_live_source_blocked_label_cache_only_reconnaissance"
+            ]
+          },
+          "uniqueItems": true,
+          "default": [
+            "if_roundtrip_empty_search_one_ways",
+            "if_ranked_output_invalid_manually_assemble_segments",
+            "if_live_source_blocked_label_cache_only_reconnaissance"
+          ]
+        }
+      }
+    },
+    "candidate_construction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "segment_required_fields",
+        "airport_equality_gate",
+        "dedupe_key",
+        "ticketing_fields"
+      ],
+      "properties": {
+        "segment_required_fields": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "marketing_carrier",
+              "operating_carrier",
+              "flight_number",
+              "origin_airport",
+              "destination_airport",
+              "departure_local",
+              "arrival_local",
+              "duration_minutes",
+              "source_type",
+              "price_hint"
+            ]
+          },
+          "uniqueItems": true,
+          "default": [
+            "marketing_carrier",
+            "flight_number",
+            "origin_airport",
+            "destination_airport",
+            "departure_local",
+            "arrival_local",
+            "duration_minutes",
+            "source_type"
+          ]
+        },
+        "airport_equality_gate": {
+          "const": "arrival_airport_must_equal_next_departure_airport_for_same_airport_connections"
+        },
+        "dedupe_key": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "flight_number",
+              "origin_airport",
+              "destination_airport",
+              "departure_local",
+              "arrival_local"
+            ]
+          },
+          "uniqueItems": true,
+          "default": [
+            "flight_number",
+            "origin_airport",
+            "destination_airport",
+            "departure_local",
+            "arrival_local"
+          ]
+        },
+        "ticketing_fields": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "separate_ticket_risk",
+              "protected_ticket_evidence",
+              "same_carrier_roundtrip_possible",
+              "baggage_self_transfer_risk",
+              "practical_purchase_grouping"
+            ]
+          },
+          "uniqueItems": true,
+          "default": [
+            "separate_ticket_risk",
+            "protected_ticket_evidence",
+            "same_carrier_roundtrip_possible",
+            "baggage_self_transfer_risk",
+            "practical_purchase_grouping"
+          ]
+        }
+      }
+    },
+    "connection_buffer_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "same_airport_separate_ticket_min_minutes",
+        "same_airport_business_preferred_minutes",
+        "cross_airport_min_minutes",
+        "protected_ticket_policy"
+      ],
+      "properties": {
+        "same_airport_separate_ticket_min_minutes": {
+          "type": "integer",
+          "minimum": 90,
+          "default": 90,
+          "description": "Minimum acceptable same-airport buffer for separate-ticket routing. Connections from 90 to 119 minutes are tight/minimum-acceptable and should be labeled as such."
+        },
+        "same_airport_business_preferred_minutes": {
+          "type": "integer",
+          "minimum": 120,
+          "default": 120,
+          "description": "Business-preferred same-airport buffer for separate-ticket routing. Connections at or above 120 minutes clear the preferred threshold, subject to route-specific risk multipliers."
+        },
+        "cross_airport_min_minutes": {
+          "type": "integer",
+          "minimum": 300,
+          "default": 300
+        },
+        "protected_ticket_policy": {
+          "const": "lower_buffers_allowed_only_with_source_evidence"
+        }
+      }
+    },
+    "ranking_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "default_mode",
+        "priority_order",
+        "frontier_representatives",
+        "rejected_option_reporting"
+      ],
+      "properties": {
+        "default_mode": {
+          "const": "business_value_before_price"
+        },
+        "priority_order": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "operational_viability",
+              "same_airport_compatibility",
+              "connection_safety",
+              "elapsed_time",
+              "preferred_airport_quality",
+              "schedule_quality",
+              "ticketing_practicality",
+              "carrier_reliability",
+              "visa_border_baggage_exposure",
+              "price"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "default": [
+            "operational_viability",
+            "same_airport_compatibility",
+            "connection_safety",
+            "elapsed_time",
+            "preferred_airport_quality",
+            "schedule_quality",
+            "ticketing_practicality",
+            "carrier_reliability",
+            "visa_border_baggage_exposure",
+            "price"
+          ]
+        },
+        "frontier_representatives": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "main_recommendation",
+              "safer_connection_alternative",
+              "schedule_alternative",
+              "materially_cheaper_acceptable_option"
+            ]
+          },
+          "uniqueItems": true,
+          "default": [
+            "main_recommendation",
+            "safer_connection_alternative",
+            "schedule_alternative",
+            "materially_cheaper_acceptable_option"
+          ]
+        },
+        "rejected_option_reporting": {
+          "const": "report_only_when_it_prevents_plausible_bad_purchase_or_explains_tradeoff"
+        }
+      }
+    },
+    "answer_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "order",
+        "required_claim_fields",
+        "required_caveats"
+      ],
+      "properties": {
+        "order": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "brief_status",
+              "verified_sources",
+              "main_recommendation",
+              "why_this_ranked_first",
+              "alternatives_or_rejections",
+              "purchase_recheck_caveat"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "default": [
+            "brief_status",
+            "verified_sources",
+            "main_recommendation",
+            "why_this_ranked_first",
+            "alternatives_or_rejections",
+            "purchase_recheck_caveat"
+          ]
+        },
+        "required_claim_fields": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "local_times",
+              "timezones",
+              "layover_minutes",
+              "elapsed_time",
+              "airport_equality_or_mismatch",
+              "carrier_source",
+              "source_type",
+              "ticketing_risk",
+              "price_or_availability_caveat"
+            ]
+          },
+          "uniqueItems": true,
+          "default": [
+            "local_times",
+            "timezones",
+            "layover_minutes",
+            "elapsed_time",
+            "airport_equality_or_mismatch",
+            "carrier_source",
+            "source_type",
+            "ticketing_risk",
+            "price_or_availability_caveat"
+          ]
+        },
+        "required_caveats": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "recheck_before_purchase",
+              "cached_data_approximate",
+              "self_transfer_baggage_visa_risk_when_applicable"
+            ]
+          },
+          "uniqueItems": true,
+          "default": [
+            "recheck_before_purchase",
+            "cached_data_approximate",
+            "self_transfer_baggage_visa_risk_when_applicable"
+          ]
+        }
+      }
+    },
+    "validation_gates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/validation_gate"
+      },
+      "default": [
+        {
+          "id": "actual_airports",
+          "must_pass": true,
+          "evidence": [
+            "segment_origin_destination_airports"
+          ]
+        },
+        {
+          "id": "connection_buffers",
+          "must_pass": true,
+          "evidence": [
+            "layover_minutes",
+            "ticketing_type"
+          ]
+        },
+        {
+          "id": "local_dates_timezones",
+          "must_pass": true,
+          "evidence": [
+            "departure_local",
+            "arrival_local",
+            "timezone_offsets"
+          ]
+        },
+        {
+          "id": "carrier_and_source",
+          "must_pass": true,
+          "evidence": [
+            "marketing_carrier",
+            "operating_carrier",
+            "source_type"
+          ]
+        },
+        {
+          "id": "price_availability_caveat",
+          "must_pass": true,
+          "evidence": [
+            "source_type",
+            "recheck_statement"
+          ]
+        },
+        {
+          "id": "visa_border_baggage_exposure",
+          "must_pass": true,
+          "evidence": [
+            "self_transfer",
+            "airport_change",
+            "baggage_policy_if_known"
+          ]
+        },
+        {
+          "id": "artifact_grounding",
+          "must_pass": true,
+          "evidence": [
+            "artifact_path_or_source_url"
+          ]
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "iata_airport_code": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "iata_airport_code_list": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/iata_airport_code"
+      },
+      "uniqueItems": true
+    },
+    "preferred_airport_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preferred",
+        "acceptable_fallback",
+        "secondary",
+        "secondary_requires",
+        "notes"
+      ],
+      "properties": {
+        "preferred": {
+          "$ref": "#/$defs/iata_airport_code_list"
+        },
+        "acceptable_fallback": {
+          "$ref": "#/$defs/iata_airport_code_list"
+        },
+        "secondary": {
+          "$ref": "#/$defs/iata_airport_code_list"
+        },
+        "secondary_requires": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "explicit_user_acceptance",
+              "named_tradeoff_with_reason",
+              "no_viable_preferred_airport_option",
+              "protected_ticket_or_official_source",
+              "same_airport_continuity_or_explicit_transfer_acceptance"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "notes": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "incompatible_airport_group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "system",
+        "airports",
+        "rule"
+      ],
+      "properties": {
+        "system": {
+          "type": "string",
+          "minLength": 1
+        },
+        "airports": {
+          "$ref": "#/$defs/iata_airport_code_list"
+        },
+        "rule": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "source_type": {
+      "enum": [
+        "live_cli_artifact",
+        "airline_calendar",
+        "non_russian_segment_schedule_crosscheck",
+        "browser_page",
+        "official_airline_or_api",
+        "cached_api_reconnaissance",
+        "manual_link"
+      ]
+    },
+    "validation_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "must_pass",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "actual_airports",
+            "connection_buffers",
+            "local_dates_timezones",
+            "carrier_and_source",
+            "price_availability_caveat",
+            "visa_border_baggage_exposure",
+            "artifact_grounding"
+          ]
+        },
+        "must_pass": {
+          "const": true
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

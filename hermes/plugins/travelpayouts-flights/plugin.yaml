@@ -1,0 +1,15 @@
+name: travelpayouts-flights
+version: 0.2.0
+description: "Travelpayouts flight search tool for Hermes. Search/advisory only; no booking or purchase. Uses TRAVELPAYOUTS_TOKEN via X-Access-Token. Supports city name resolution and enriched output with airline/airport/aircraft names."
+author: Konstantin Orlov / Hermes Agent
+kind: standalone
+provides_tools:
+  - travelpayouts_flight_search
+requires_env:
+  - name: TRAVELPAYOUTS_TOKEN
+    description: "Travelpayouts Data API token. Stored in ~/.hermes/.env; never pass via URL query."
+    url: "https://api.travelpayouts.com/documentation/"
+    secret: true
+  - name: TRAVELPAYOUTS_MARKER
+    description: "Optional Travelpayouts/Aviasales partner marker for booking links. Appended to ticket_link URLs."
+    secret: false
