@@ -4,8 +4,10 @@ Offline-first flight routing helper for Hermes/Travelpayouts workflows.
 
 The CLI reads local Hermes Travelpayouts cache files, prepares segment-level
 search plans, validates airport compatibility, and builds sanitized
-Travelpayouts requests. It does not book, buy, or write to Hermes. Live API
-calls are disabled unless `--live` is passed explicitly.
+Travelpayouts requests. It does not book, buy, or write to Hermes.
+Travelpayouts cached API fetches require explicit `request ... --fetch`
+commands; provider-specific commands such as `kb-search`, `u6-prices`, and
+`route kb-assemble` are live by command name.
 
 ## Install
 
@@ -55,6 +57,41 @@ Runtime check:
 flights --json doctor
 ```
 
+Static catalog refresh is automatic. Commands that depend on the local
+catalog (`cities search`, `airports explain`, `route plan`, `route
+kb-assemble`, and `metrics workflow`) refresh missing or stale static files
+before running. The default TTL is 7 days.
+
+Useful controls:
+
+```bash
+flights --catalog-refresh always --json route plan SVX LHR --depart-date 2026-07-19
+flights --catalog-refresh never --json route plan SVX LHR --depart-date 2026-07-19
+flights --catalog-max-age 12h --json cities search London
+```
+
+Manual no-token Travelpayouts static catalog commands are still available:
+
+```bash
+flights --json catalog update
+flights --json catalog manifest
+```
+
+The static updater writes only canonical files:
+
+```text
+countries.json
+cities_en.json
+cities_ru.json
+airports_en.json
+airports_ru.json
+airlines_en.json
+airlines_ru.json
+alliances.json
+planes.json
+catalog_manifest.json
+```
+
 Resolve city and airport context from local cache:
 
 ```bash
@@ -65,10 +102,41 @@ flights --json airports explain IST SAW SVO DME VKO
 Build a multi-segment plan without API calls:
 
 ```bash
-flights --json route plan SVX LON \
+flights --json route plan SVX MUC \
+  --depart-date 2026-08-12 \
+  --profile business
+```
+
+By default, `--routing-strategy auto` uses `ru-priority` unless `--hub` is
+passed. This models the manual Russia-origin workflow:
+
+1. Check exact-airport direct controls: `origin→destination` and, for round
+   trips, `destination→origin`. For SVX direct controls, the live command first
+   uses the official Koltsovo seasonal route index as a negative filter; if a
+   paired airport is absent there, the Kupibilet direct probe is skipped.
+2. Check `origin→IST` direct first, then `IST→destination`.
+3. If `origin→IST` has no viable direct offer, check `origin→SVO→IST` with
+   Aeroflot/SU and reuse `IST→destination`.
+4. Check `origin→DXB→destination` only when direct/SVO/IST priority routes do
+   not produce a usable assembled pair; do not expand DXB through Moscow.
+
+Preferred carriers for this strategy are `U6`, `SU`, and `TK`; SVO fallback
+legs are constrained to `SU`.
+
+For Asia/China/Oceania destinations, `ru-priority` switches to a geo-aware
+profile: SVO is checked as an independent hub before IST and DXB. Beijing city
+code `BJS` expands to `PEK` and `PKX`; Paris `PAR` expands to `CDG` and `ORY`.
+
+Use `--routing-strategy hub-list` for the broader built-in hub list:
+`IST, DXB, DOH, AUH, BEG, TAS, GYD, PEK, PVG, CAN, ADD, CAI, MCT, SHJ`.
+Passing `--hub` repeatedly also switches `auto` into hub-list routing with the
+specified hubs.
+
+```bash
+flights --json route plan SVX LHR \
   --depart-date 2026-07-19 \
-  --return-date 2026-07-23 \
-  --hub IST --hub SAW --hub AYT
+  --routing-strategy hub-list \
+  --profile business
 ```
 
 Validate an assembled itinerary:
@@ -103,9 +171,16 @@ flights --json route assemble --profile safe \
   --input ist-svx.parsed.json
 ```
 
-`route assemble` also reports `rejected_pairs` for skipped combinations such as
-IST/SAW airport changes, negative time order, or too-short self-transfers. Use
-`--include-rejected-pairs N` to control how many diagnostics are returned.
+`route assemble` also reports `rejected_pairs` for skipped airport combinations
+such as IST/SAW airport changes. Same-airport timing problems, including
+negative time order or too-short self-transfers, remain assembled candidates and
+are marked `ok=false` by the ranker. Use `--include-rejected-pairs N` to control
+how many diagnostics are returned. `--max-candidates` caps ranked output after
+scoring; `--candidate-pool-limit` controls the raw pool scored before that cap.
+Use `--include-ranked-candidates N` when you need full itinerary bodies for the
+top ranked results. Direct segment results (`direct_outbound`, `direct_return`)
+can be combined with hub-assembled journeys, so a round trip may be `SVX→IST→MUC`
+outbound and `MUC→SVX` direct on return.
 
 Run live Kupibilet direct-only segment searches through hubs, then assemble the
 same normalized candidates in one command:
@@ -116,15 +191,29 @@ flights --json route kb-assemble SVX CDG \
   --return-date 2026-08-19 \
   --hub AYT --hub IST \
   --segment-limit 30 \
-  --include-candidates 10
+  --include-ranked-candidates 10
 ```
 
 `route kb-assemble` is intentionally live: it calls Kupibilet `frontend_search`
-for `origin→hub`, `hub→destination`, `destination→hub`, and `hub→origin` direct
-segments, including default second-leg day offsets (`outbound: 0,1`; `return:
-0,1,2`) so overnight hub departures are not missed. It still returns advisory
+for direct controls plus `origin→hub`, `hub→destination`, `destination→hub`, and
+`hub→origin` direct segments, including default second-leg day offsets
+(`outbound: 0,1`; `return: 0,1,2`) so overnight hub departures are not missed.
+Repeated Kupibilet segment probes are stored in a short-lived live cache
+(`--live-cache-ttl-seconds`, default 6 hours; `--no-live-cache` to bypass). It
+also keeps a separate official SVX direct-route index cache
+(`--direct-route-index-ttl-seconds`, default 7 days;
+`--no-direct-route-intel` to bypass). This index is only a negative filter:
+routes absent from the official seasonal schedule are skipped, routes present
+there still go through live date-specific search. It still returns advisory
 aggregator data; final fare, seat availability, baggage, and protected-ticketing
-status must be rechecked on the booking screen.
+status must be rechecked on the booking screen. Its JSON includes
+`live_search.hub_viability`, which shows which hubs have offers for every
+required leg and which hubs are incomplete, and
+`live_search.direct_route_intelligence`, which reports whether the official
+route index was used.
+
+For one-off Kupibilet probes, `kb-search` uses the same cache controls:
+`--cache-ttl-seconds` and `--no-cache`.
 
 Select carriers explicitly while ranking or assembling:
 
@@ -152,10 +241,24 @@ Build a sanitized Travelpayouts request, still without network:
 flights --json request search SVX IST --depart-date 2026-07-19 --dry-run
 ```
 
-Read-only live API call, only when explicitly requested:
+Read-only cached GraphQL fetch, only when explicitly requested:
 
 ```bash
-flights --json request search SVX IST --depart-date 2026-07-19 --live
+flights --json request search SVX IST --depart-date 2026-07-19 --fetch
+```
+
+Probe cached REST Data API prices:
+
+```bash
+flights --json request prices-for-dates SVX IST \
+  --departure-at 2026-07-19 \
+  --direct \
+  --fetch
+
+flights --json request grouped-prices SVX IST \
+  --departure-at 2026-07 \
+  --group-by departure_at \
+  --fetch
 ```
 
 Workflow metrics:
@@ -163,17 +266,28 @@ Workflow metrics:
 ```bash
 flights --json metrics workflow SVX LON \
   --depart-date 2026-07-19 \
-  --return-date 2026-07-23 \
-  --hub IST --hub SAW --hub AYT
+  --return-date 2026-07-23
 ```
 
 ## What It Automates
 
 - Expands multi-airport cities such as LON into LHR/LGW/STN/LTN.
+- Expands Beijing `BJS` into PEK/PKX and Paris `PAR` into CDG/ORY to avoid
+  broad city-code searches that are too noisy or incomplete.
+- Downloads no-token static Travelpayouts catalog files with manifest metadata
+  (`downloaded_at`, `url`, `count`, `sha256`, `schema_version`).
+- Uses `ru-priority` routing by default for Russia-origin searches and keeps the
+  broader built-in hub list available through `--routing-strategy hub-list`.
+- Caches repeated Kupibilet live segment probes for a short TTL, including empty
+  direct-control results.
+- Uses the official SVX seasonal schedule as a cached negative filter before
+  wasting live direct-control probes on routes such as SVX→MUC when no direct
+  route exists.
 - Keeps IST and SAW separate and flags airport changes.
 - Keeps SVO, DME, and VKO separate for Moscow routing.
-- Prepares segment-by-segment Travelpayouts requests instead of using broad
+- Prepares segment-by-segment Travelpayouts cached GraphQL requests instead of using broad
   city codes that often return empty cache data.
+- Builds cached REST Data API probes for `prices_for_dates` and `grouped_prices`.
 - Parses Travelpayouts `prices_one_way` / `prices_round_trip` responses into
   normalized segment offers, preserving provider `transfers` metadata such as
   `duration_seconds`, `night_transfer`, and `visa_required`.
@@ -181,7 +295,7 @@ flights --json metrics workflow SVX LON \
 - Can run Kupibilet direct-only segment searches through hubs and assemble those
   live normalized offers via `route kb-assemble`.
 - Scores connection risk, internal transfer metadata, and airport changes, then
-  ranks candidates by profile.
+  ranks candidates by profile after scoring a raw candidate pool.
 - Supports explicit carrier selection and carrier preferences for ranked
   candidates.
 - Computes deterministic workflow metrics so the manual work can be compared
@@ -258,10 +372,11 @@ Assembly pairs:
 - return: `destination_to_hub` + `hub_to_origin`
 
 Pairs only assemble when the first offer arrival airport equals the second offer
-departure airport. Skipped pairs are returned as `rejected_pairs` with
-`reason`, `airport_pair_status`, `arrival_airport`, `departure_airport`,
-`actual_min`, `required_min`, `risk`, and source offer summaries. The ranker
-then scores connection time, provider transfer metadata, and profile risk.
+departure airport. Skipped airport-mismatch and cross-airport pairs are returned
+as `rejected_pairs` with `reason`, `airport_pair_status`, `arrival_airport`,
+`departure_airport`, `actual_min`, `required_min`, `risk`, and source offer
+summaries. Same-airport timing violations are assembled and then scored by the
+ranker as invalid candidates.
 
 For `prices_round_trip`, `results parse --direction outbound` selects the first
 trip segment and `--direction return` selects the second trip segment. If the
@@ -271,6 +386,10 @@ inventing candidates.
 ## Non-goals
 
 - No booking or purchase.
-- No hidden writes.
+- No hidden writes outside the static catalog cache. Catalog-dependent commands
+  can automatically update `~/.hermes/plugins/travelpayouts-flights/cache`.
 - No Docker Hermes access.
-- No live Travelpayouts API call unless `request search --live` is passed; `route kb-assemble` is a separate explicitly live Kupibilet command.
+- No Travelpayouts cached price/Data API network fetch unless `--fetch` is
+  passed on a `request` command. Static catalog refresh is separate and
+  requires no token.
+- `kb-search`, `u6-prices`, and `route kb-assemble` are explicit live provider commands.

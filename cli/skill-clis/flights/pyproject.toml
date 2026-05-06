@@ -9,4 +9,3 @@ flights = "flights_cli.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["flights_cli*"]
-exclude = ["aeroflot_research*"]
