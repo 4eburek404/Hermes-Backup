@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import contextlib
 import gzip
 import io
@@ -37,6 +38,80 @@ class FlightsCliOfflineTests(unittest.TestCase):
     def test_pyproject_version_matches_runtime_version(self) -> None:
         data = tomllib.loads((PROJECT / "pyproject.toml").read_text())
         self.assertEqual(data["project"]["version"], __version__)
+        self.assertIn("aeroflot_research*", data["tool"]["setuptools"]["packages"]["find"]["exclude"])
+
+    def test_research_artifacts_are_not_kept_in_runtime_tree(self) -> None:
+        self.assertFalse((PROJECT / "aeroflot_research").exists())
+
+    def test_module_dependency_boundaries(self) -> None:
+        root = PROJECT / "flights_cli"
+        modules = {".".join(path.relative_to(PROJECT).with_suffix("").parts): path for path in root.rglob("*.py")}
+        edges: dict[str, set[str]] = {module: set() for module in modules}
+
+        def resolve_target(target: str) -> str | None:
+            parts = target.split(".")
+            for end in range(len(parts), 0, -1):
+                candidate = ".".join(parts[:end])
+                if candidate in modules:
+                    return candidate
+            return None
+
+        for module, path in modules.items():
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                target_name = None
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    if node.level:
+                        base = module.split(".")[:-node.level]
+                        target_name = ".".join(base + [node.module])
+                    else:
+                        target_name = node.module
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        target = resolve_target(alias.name)
+                        if target and target != module:
+                            edges[module].add(target)
+                    continue
+
+                if target_name and target_name.startswith("flights_cli"):
+                    target = resolve_target(target_name)
+                    if target and target != module:
+                        edges[module].add(target)
+
+        visiting: list[str] = []
+        visited: set[str] = set()
+        cycles: list[list[str]] = []
+
+        def visit(module: str) -> None:
+            visited.add(module)
+            visiting.append(module)
+            for target in edges[module]:
+                if target not in visited:
+                    visit(target)
+                elif target in visiting:
+                    cycles.append(visiting[visiting.index(target):] + [target])
+            visiting.pop()
+
+        for module in modules:
+            if module not in visited:
+                visit(module)
+
+        forbidden_provider_edges = [
+            (source, target)
+            for source, targets in edges.items()
+            for target in targets
+            if source.startswith("flights_cli.providers.") and target.startswith(("flights_cli.cli", "flights_cli.commands."))
+        ]
+        forbidden_output_edges = [
+            (source, target)
+            for source, targets in edges.items()
+            for target in targets
+            if source == "flights_cli.output" and target.startswith(("flights_cli.providers.", "flights_cli.orchestrators.", "flights_cli.commands."))
+        ]
+
+        self.assertEqual(cycles, [])
+        self.assertEqual(forbidden_provider_edges, [])
+        self.assertEqual(forbidden_output_edges, [])
 
     def test_connection_rule_rejects_ist_saw_short_transfer(self) -> None:
         rule = connection_rule("IST", "SAW", "separate", 180, 300, actual_minutes=55)
@@ -209,6 +284,37 @@ class FlightsCliOfflineTests(unittest.TestCase):
         self.assertEqual([offer["flight_numbers"][0] for offer in result["offers"]], ["SU1419", "SU6208"])
         self.assertEqual(result["offers"][0]["price"], 10844)
         self.assertEqual(result["offers"][1]["flights"][0]["operating_carrier"], "FV")
+
+    def test_parse_kupibilet_ignores_bad_duration_values(self) -> None:
+        raw = {
+            "variants": [
+                {"id": "bad-duration", "price": {"amount": "10844", "currency": "RUB"}, "segments": [{"flights": ["f1"]}]},
+            ],
+            "flights": {
+                "f1": {
+                    "marketing_carrier": "SU",
+                    "operating_carrier": "SU",
+                    "transport_number": "1419",
+                    "departure": "SVX",
+                    "departure_datetime": "2026-07-19T00:40:00+05:00",
+                    "arrival": "SVO",
+                    "arrival_datetime": "2026-07-19T01:10:00+03:00",
+                    "duration": "not-a-number",
+                    "transport_kind": "airplane",
+                },
+            },
+        }
+
+        result = parse_kupibilet_frontend_search(
+            raw,
+            origin="SVX",
+            destination="MOW",
+            depart_date="2026-07-19",
+            currency="RUB",
+        )
+
+        self.assertEqual(result["offer_count"], 1)
+        self.assertIsNone(result["offers"][0]["duration"])
 
     def test_kb_search_parser_exposes_live_kupibilet_command(self) -> None:
         args = build_parser().parse_args(
@@ -783,10 +889,76 @@ class FlightsCliOfflineTests(unittest.TestCase):
         assembled = self._assemble({"segment_results": segment_results})
         self.assertEqual(assembled["data"]["assembly"]["candidate_count"], 0)
         self.assertEqual(assembled["data"]["assembly"]["rejected_pair_count"], 1)
+        self.assertGreaterEqual(assembled["data"]["rejected_pairs"][0]["actual_min"], assembled["data"]["rejected_pairs"][0]["required_min"])
         self.assertEqual(assembled["data"]["rejected_pairs"][0]["reason"], "ground_transfer_required")
         self.assertEqual(assembled["data"]["rejected_pairs"][0]["airport_pair_status"], "ground_transfer_required")
         self.assertEqual(assembled["data"]["rejected_pairs"][0]["airport_group"], "Istanbul")
         self.assertTrue(assembled["data"]["rejected_pairs"][0]["same_multi_airport_system"])
+
+    def test_route_assemble_keeps_too_short_same_airport_pair_as_invalid_candidate(self) -> None:
+        segment_results = [
+            {
+                "direction": "outbound",
+                "leg": "origin_to_hub",
+                "query": {"origin": "SVX", "destination": "IST", "date": "2026-07-19", "currency": "RUB"},
+                "offers": [
+                    {
+                        "id": "svx-ist",
+                        "origin": "SVX",
+                        "destination": "IST",
+                        "departure_airport": "SVX",
+                        "arrival_airport": "IST",
+                        "departure_at": "2026-07-19T10:00:00",
+                        "arrival_at": "2026-07-19T12:00:00",
+                        "price": 10000,
+                        "currency": "RUB",
+                        "segments": [
+                            {
+                                "origin": "SVX",
+                                "destination": "IST",
+                                "departure_at": "2026-07-19T10:00:00",
+                                "arrival_at": "2026-07-19T12:00:00",
+                                "carrier": "SU",
+                            }
+                        ],
+                    }
+                ],
+            },
+            {
+                "direction": "outbound",
+                "leg": "hub_to_destination",
+                "query": {"origin": "IST", "destination": "LHR", "date": "2026-07-19", "currency": "RUB"},
+                "offers": [
+                    {
+                        "id": "ist-lhr",
+                        "origin": "IST",
+                        "destination": "LHR",
+                        "departure_airport": "IST",
+                        "arrival_airport": "LHR",
+                        "departure_at": "2026-07-19T12:30:00",
+                        "arrival_at": "2026-07-19T14:30:00",
+                        "price": 12000,
+                        "currency": "RUB",
+                        "segments": [
+                            {
+                                "origin": "IST",
+                                "destination": "LHR",
+                                "departure_at": "2026-07-19T12:30:00",
+                                "arrival_at": "2026-07-19T14:30:00",
+                                "carrier": "TK",
+                            }
+                        ],
+                    }
+                ],
+            },
+        ]
+
+        assembled = self._assemble({"segment_results": segment_results})
+
+        self.assertEqual(assembled["data"]["assembly"]["candidate_count"], 1)
+        self.assertEqual(assembled["data"]["assembly"]["rejected_pair_count"], 0)
+        self.assertFalse(assembled["data"]["ranked"][0]["ok"])
+        self.assertEqual(assembled["data"]["ranked"][0]["connections"][0]["status"], "too_short")
 
     def test_load_env_file_reads_hermes_dotenv_without_overriding(self) -> None:
         old_token = os.environ.pop("TRAVELPAYOUTS_TOKEN", None)
@@ -828,6 +1000,21 @@ class FlightsCliOfflineTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["command"], "doctor")
         self.assertIn("cache_counts", payload["data"])
+        self.assertEqual(payload["data"]["safety"]["travelpayouts_live_requires"], "request search --live")
+        self.assertEqual(payload["data"]["safety"]["live_provider_commands"], ["kb-search", "u6-prices", "route kb-assemble"])
+        self.assertNotIn("live_calls_require_flag", payload["data"]["safety"])
+
+        human_proc = subprocess.run(
+            [sys.executable, "-m", "flights_cli", "doctor"],
+            cwd=PROJECT,
+            env={"PYTHONPATH": str(PROJECT)},
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        self.assertIn("Travelpayouts live: request search --live", human_proc.stdout)
+        self.assertIn("provider live commands: kb-search, u6-prices, route kb-assemble", human_proc.stdout)
 
     def test_json_route_plan_envelope_and_repeatable_hubs(self) -> None:
         proc = subprocess.run(
@@ -891,6 +1078,27 @@ class FlightsCliOfflineTests(unittest.TestCase):
         self.assertEqual(result["results"][0]["price"], 15000)
         self.assertEqual(result["results"][-1]["price"], 34000)
         self.assertIn("cross_check_commands", result)
+
+    def test_parse_u6_calendar_skips_malformed_entries(self) -> None:
+        raw = {
+            "dates": [
+                None,
+                {"date": "2026-07-01", "price": None},
+                {"date": "2026-07-02", "price": {"code": "RUB", "price": "12000"}},
+                {"date": "2026-07-03", "price": {"code": "RUB", "price": "not-a-price"}},
+                {"date": "2026-07-04", "price": {"code": 5, "price": 13000}},
+            ],
+            "finalDate": "2026-09-30",
+        }
+
+        result = parse_u6_calendar(raw, "SVX", "IST", sort_by="date")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["total_dates"], 5)
+        self.assertEqual(result["priced_dates"], 2)
+        self.assertEqual(result["unpriced_dates"], 3)
+        self.assertEqual([entry["price"] for entry in result["results"]], [12000, 13000])
+        self.assertEqual(result["results"][1]["currency"], "RUB")
 
     def test_parse_u6_calendar_selected_date_filter(self) -> None:
         raw = {

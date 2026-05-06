@@ -96,6 +96,22 @@ def normalize_kupibilet_flight(raw: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def kupibilet_total_duration(raw_flights: list[dict[str, Any]]) -> int | None:
+    total = 0
+    seen = False
+    for flight in raw_flights:
+        raw_duration = flight.get("duration")
+        if raw_duration is None:
+            continue
+        try:
+            duration = int(float(raw_duration))
+        except (TypeError, ValueError):
+            continue
+        total += max(0, duration)
+        seen = True
+    return total if seen else None
+
+
 def kupibilet_offer_key(flights: list[dict[str, Any]]) -> tuple[str, ...]:
     return tuple(
         f"{flight.get('flight_number')}:{flight.get('departure_at')}:{flight.get('arrival_at')}"
@@ -160,7 +176,7 @@ def parse_kupibilet_frontend_search(
             "price": amount,
             "currency": kupibilet_variant_currency(variant, currency),
             "number_of_changes": max(0, len(normalized_flights) - 1),
-            "duration": sum(int(flight.get("duration") or 0) for flight in raw_flights) or None,
+            "duration": kupibilet_total_duration(raw_flights),
             "departure_at": normalized_flights[0]["departure_at"],
             "arrival_at": normalized_flights[-1]["arrival_at"],
             "origin": normalized_flights[0]["origin"],

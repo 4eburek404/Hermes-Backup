@@ -89,7 +89,8 @@ def render_human(command: str, data: Any) -> str:
                 f"plugin: {'ok' if data['hermes_plugin_exists'] else 'missing'} {data['hermes_plugin_path']}",
                 f"cache: cities={counts['cities']} airports={counts['airports']} airlines={counts['airlines']} planes={counts['planes']}",
                 f"token: {'present' if token['available'] else 'missing'}",
-                "live API: disabled unless --live",
+                f"Travelpayouts live: {data['safety']['travelpayouts_live_requires']}",
+                f"provider live commands: {', '.join(data['safety']['live_provider_commands'])}",
             ]
         )
     if command == "cities search":

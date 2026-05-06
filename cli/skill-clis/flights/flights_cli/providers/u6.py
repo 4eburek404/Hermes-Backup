@@ -3,12 +3,13 @@ from __future__ import annotations
 import argparse
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime
 from typing import Any
 
 from ..config import U6_CALENDAR_HEADERS, U6_CALENDAR_URL
-from ..domain.normalize import normalize_iata, parse_iso_date
+from ..domain.normalize import normalize_iata, parse_iso_date, price_value
 from ..errors import CliError
 
 def run_u6_prices(args: argparse.Namespace) -> dict[str, Any]:
@@ -38,7 +39,7 @@ def run_u6_prices(args: argparse.Namespace) -> dict[str, Any]:
         ("updated", "true"),
         ("_", str(int(datetime.now().timestamp() * 1000))),
     ]
-    url = U6_CALENDAR_URL + "?" + "&".join(f"{k}={v}" for k, v in url_parts)
+    url = U6_CALENDAR_URL + "?" + urllib.parse.urlencode(url_parts)
 
     request = urllib.request.Request(url, headers=U6_CALENDAR_HEADERS)
     try:
@@ -85,7 +86,9 @@ def parse_u6_calendar(
     empty_reason = None
     if not raw_data:
         empty_reason = "empty_body"
-    elif isinstance(raw_data, dict) and not raw_data.get("dates"):
+    elif not isinstance(raw_data, dict):
+        empty_reason = "bad_body"
+    elif not isinstance(raw_data.get("dates"), list) or not raw_data.get("dates"):
         empty_reason = "no_dates_key"
 
     if empty_reason:
@@ -112,14 +115,21 @@ def parse_u6_calendar(
 
     priced: list[dict[str, Any]] = []
     for entry in dates:
-        d = entry.get("date", "")
+        if not isinstance(entry, dict):
+            continue
+        d = str(entry.get("date") or "")
         p = entry.get("price")
-        if p and p.get("price") is not None:
-            priced.append({
-                "date": d,
-                "price": p["price"],
-                "currency": p.get("code", "RUB"),
-            })
+        if not d or not isinstance(p, dict):
+            continue
+        amount = price_value({"price": p.get("price")})
+        if amount is None:
+            continue
+        currency = p.get("code") if isinstance(p.get("code"), str) else "RUB"
+        priced.append({
+            "date": d,
+            "price": amount,
+            "currency": currency,
+        })
 
     if selected_date:
         priced = [item for item in priced if item["date"] == selected_date]

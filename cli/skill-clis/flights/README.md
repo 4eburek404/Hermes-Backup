@@ -4,8 +4,10 @@ Offline-first flight routing helper for Hermes/Travelpayouts workflows.
 
 The CLI reads local Hermes Travelpayouts cache files, prepares segment-level
 search plans, validates airport compatibility, and builds sanitized
-Travelpayouts requests. It does not book, buy, or write to Hermes. Live API
-calls are disabled unless `--live` is passed explicitly.
+Travelpayouts requests. It does not book, buy, or write to Hermes.
+Travelpayouts live calls require `request search --live`; provider-specific
+commands such as `kb-search`, `u6-prices`, and `route kb-assemble` are live by
+command name.
 
 ## Install
 
@@ -103,9 +105,11 @@ flights --json route assemble --profile safe \
   --input ist-svx.parsed.json
 ```
 
-`route assemble` also reports `rejected_pairs` for skipped combinations such as
-IST/SAW airport changes, negative time order, or too-short self-transfers. Use
-`--include-rejected-pairs N` to control how many diagnostics are returned.
+`route assemble` also reports `rejected_pairs` for skipped airport combinations
+such as IST/SAW airport changes. Same-airport timing problems, including
+negative time order or too-short self-transfers, remain assembled candidates and
+are marked `ok=false` by the ranker. Use `--include-rejected-pairs N` to control
+how many diagnostics are returned.
 
 Run live Kupibilet direct-only segment searches through hubs, then assemble the
 same normalized candidates in one command:
@@ -258,10 +262,11 @@ Assembly pairs:
 - return: `destination_to_hub` + `hub_to_origin`
 
 Pairs only assemble when the first offer arrival airport equals the second offer
-departure airport. Skipped pairs are returned as `rejected_pairs` with
-`reason`, `airport_pair_status`, `arrival_airport`, `departure_airport`,
-`actual_min`, `required_min`, `risk`, and source offer summaries. The ranker
-then scores connection time, provider transfer metadata, and profile risk.
+departure airport. Skipped airport-mismatch and cross-airport pairs are returned
+as `rejected_pairs` with `reason`, `airport_pair_status`, `arrival_airport`,
+`departure_airport`, `actual_min`, `required_min`, `risk`, and source offer
+summaries. Same-airport timing violations are assembled and then scored by the
+ranker as invalid candidates.
 
 For `prices_round_trip`, `results parse --direction outbound` selects the first
 trip segment and `--direction return` selects the second trip segment. If the
@@ -273,4 +278,5 @@ inventing candidates.
 - No booking or purchase.
 - No hidden writes.
 - No Docker Hermes access.
-- No live Travelpayouts API call unless `request search --live` is passed; `route kb-assemble` is a separate explicitly live Kupibilet command.
+- No live Travelpayouts API call unless `request search --live` is passed.
+- `kb-search`, `u6-prices`, and `route kb-assemble` are explicit live provider commands.

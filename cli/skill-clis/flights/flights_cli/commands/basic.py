@@ -33,7 +33,8 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         "safety": {
             "booking_or_purchase": False,
             "docker_touched": False,
-            "live_calls_require_flag": "--live",
+            "travelpayouts_live_requires": "request search --live",
+            "live_provider_commands": ["kb-search", "u6-prices", "route kb-assemble"],
         },
         "risk_profiles": {
             name: {
