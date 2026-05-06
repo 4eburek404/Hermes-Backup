@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 
 from flights_cli.cli import build_parser, normalize_global_json
+from flights_cli.config import DEFAULT_ROUTE_HUBS
 from flights_cli.env import load_env_file
 
 from helpers import PROJECT, TEST_ENV
@@ -84,6 +85,8 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(payload["data"]["safety"]["travelpayouts_cached_fetch_requires"], "request ... --fetch")
         self.assertEqual(payload["data"]["safety"]["live_provider_commands"], ["kb-search", "u6-prices", "route kb-assemble"])
         self.assertNotIn("live_calls_require_flag", payload["data"]["safety"])
+        self.assertEqual([item["code"] for item in payload["data"]["default_route_hubs"]], list(DEFAULT_ROUTE_HUBS))
+        self.assertNotIn("routes", payload["data"]["cache_counts"])
 
         human_proc = subprocess.run(
             [sys.executable, "-m", "flights_cli", "doctor"],
@@ -96,6 +99,15 @@ class CliContractTests(unittest.TestCase):
         )
         self.assertIn("Travelpayouts cached fetch: request ... --fetch", human_proc.stdout)
         self.assertIn("provider live commands: kb-search, u6-prices, route kb-assemble", human_proc.stdout)
+        self.assertIn("default hubs: IST, DXB, DOH", human_proc.stdout)
+
+    def test_auto_hubs_flag_is_removed(self) -> None:
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as ctx:
+            build_parser().parse_args(["route", "plan", "SVX", "LON", "--depart-date", "2026-07-20", "--auto-hubs"])
+
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertIn("unrecognized arguments: --auto-hubs", stderr.getvalue())
 
     def test_json_route_plan_envelope_and_repeatable_hubs(self) -> None:
         proc = subprocess.run(

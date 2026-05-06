@@ -5,10 +5,10 @@ import sys
 from typing import Any
 
 from .. import __version__
-from ..config import PLUGIN_PATH, RISK_PROFILES
+from ..config import DEFAULT_ROUTE_HUB_NOTES, DEFAULT_ROUTE_HUBS, PLUGIN_PATH, RISK_PROFILES
 from ..domain.airports import explain_airport
 from ..env import auth_presence
-from ..providers.static_catalog import catalog_staleness, download_static_catalog, parse_ttl_seconds
+from ..providers.static_catalog import active_catalog_manifest, catalog_staleness, download_static_catalog, parse_ttl_seconds
 from ..store import Store, city_to_output
 
 def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
@@ -23,7 +23,6 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         "airlines_ru.json",
         "alliances.json",
         "planes.json",
-        "routes.json",
         "catalog_manifest.json",
     ]:
         path = store.cache_dir / name
@@ -48,6 +47,10 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
             "applies_to": ["cities search", "airports explain", "route plan", "route kb-assemble", "metrics workflow"],
         },
         "catalog_staleness": catalog_staleness(store.cache_dir, max_age_seconds=max_age_seconds),
+        "default_route_hubs": [
+            {"code": hub, "note": DEFAULT_ROUTE_HUB_NOTES.get(hub)}
+            for hub in DEFAULT_ROUTE_HUBS
+        ],
         "auth": {
             "travelpayouts_token": auth_presence("TRAVELPAYOUTS_TOKEN"),
             "travelpayouts_marker": auth_presence("TRAVELPAYOUTS_MARKER"),
@@ -92,9 +95,10 @@ def command_catalog_update(args: argparse.Namespace, store: Store) -> dict[str, 
 
 def command_catalog_manifest(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     max_age_seconds = parse_ttl_seconds(args.catalog_max_age)
+    manifest = active_catalog_manifest(store.load_manifest())
     return {
         "cache_dir": str(store.cache_dir),
-        "manifest": store.load_manifest(),
+        "manifest": manifest,
         "cache_counts": store.cache_counts(),
         "catalog_staleness": catalog_staleness(store.cache_dir, max_age_seconds=max_age_seconds),
     }

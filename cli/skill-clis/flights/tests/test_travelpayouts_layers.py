@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import json
 import subprocess
 import sys
@@ -9,14 +8,13 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flights_cli.orchestrators.route_plan import build_route_plan
+from flights_cli.errors import CliError
 from flights_cli.providers.static_catalog import (
     STATIC_CATALOG_BY_NAME,
     catalog_staleness,
     download_static_catalog,
     refresh_static_catalog_if_needed,
 )
-from flights_cli.store import Store
 
 from helpers import PROJECT, TEST_ENV
 
@@ -27,14 +25,7 @@ class TravelpayoutsLayerTests(unittest.TestCase):
             cache_dir = Path(tmp_dir)
             payloads = {
                 STATIC_CATALOG_BY_NAME["countries"].url: [{"code": "AE", "name": "United Arab Emirates"}],
-                STATIC_CATALOG_BY_NAME["routes"].url: [
-                    {
-                        "airline_iata": "TK",
-                        "departure_airport_iata": "SVX",
-                        "arrival_airport_iata": "IST",
-                        "transfers": 0,
-                    }
-                ],
+                STATIC_CATALOG_BY_NAME["planes"].url: [{"code": "320", "name": "Airbus A320"}],
             }
 
             def fake_fetch(url: str, timeout: int) -> bytes:
@@ -43,33 +34,28 @@ class TravelpayoutsLayerTests(unittest.TestCase):
 
             result = download_static_catalog(
                 cache_dir,
-                names=["countries", "routes"],
+                names=["countries", "planes"],
                 fetch_url=fake_fetch,
                 now=datetime(2026, 5, 6, tzinfo=timezone.utc),
             )
 
             self.assertFalse(result["dry_run"])
             self.assertTrue((cache_dir / "countries.json").exists())
-            self.assertTrue((cache_dir / "routes.json").exists())
+            self.assertTrue((cache_dir / "planes.json").exists())
+            self.assertFalse((cache_dir / "routes.json").exists())
             self.assertFalse((cache_dir / "countries_en.json").exists())
             manifest = json.loads((cache_dir / "catalog_manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["entries"]["countries"]["filename"], "countries.json")
             self.assertNotIn("aliases", manifest["entries"]["countries"])
-            self.assertEqual(manifest["entries"]["routes"]["count"], 1)
+            self.assertEqual(manifest["entries"]["planes"]["count"], 1)
+            self.assertNotIn("routes", manifest["entries"])
 
     def test_static_catalog_auto_refresh_updates_missing_or_stale_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             cache_dir = Path(tmp_dir)
             payloads = {
                 STATIC_CATALOG_BY_NAME["countries"].url: [{"code": "AE", "name": "United Arab Emirates"}],
-                STATIC_CATALOG_BY_NAME["routes"].url: [
-                    {
-                        "airline_iata": "TK",
-                        "departure_airport_iata": "SVX",
-                        "arrival_airport_iata": "IST",
-                        "transfers": 0,
-                    }
-                ],
+                STATIC_CATALOG_BY_NAME["planes"].url: [{"code": "320", "name": "Airbus A320"}],
             }
 
             def fake_fetch(url: str, timeout: int) -> bytes:
@@ -78,7 +64,7 @@ class TravelpayoutsLayerTests(unittest.TestCase):
 
             first = refresh_static_catalog_if_needed(
                 cache_dir,
-                names=["countries", "routes"],
+                names=["countries", "planes"],
                 fetch_url=fake_fetch,
                 now=datetime(2026, 5, 6, tzinfo=timezone.utc),
             )
@@ -88,7 +74,7 @@ class TravelpayoutsLayerTests(unittest.TestCase):
 
             fresh = refresh_static_catalog_if_needed(
                 cache_dir,
-                names=["countries", "routes"],
+                names=["countries", "planes"],
                 fetch_url=fake_fetch,
                 now=datetime(2026, 5, 7, tzinfo=timezone.utc),
             )
@@ -97,114 +83,32 @@ class TravelpayoutsLayerTests(unittest.TestCase):
 
             stale = catalog_staleness(
                 cache_dir,
-                names=["countries", "routes"],
+                names=["countries", "planes"],
                 max_age_seconds=24 * 60 * 60,
                 now=datetime(2026, 5, 8, 1, tzinfo=timezone.utc),
             )
             self.assertEqual(stale["stale_count"], 2)
             self.assertIn("expired", stale["stale"][0]["reasons"])
 
-    def test_route_plan_auto_hubs_uses_routes_json_topology_prior(self) -> None:
+    def test_routes_catalog_item_is_removed(self) -> None:
+        self.assertNotIn("routes", STATIC_CATALOG_BY_NAME)
         with tempfile.TemporaryDirectory() as tmp_dir:
             cache_dir = Path(tmp_dir)
-            (cache_dir / "airports_en.json").write_text(
+            (cache_dir / "catalog_manifest.json").write_text(
                 json.dumps(
-                    [
-                        {
-                            "code": "SVX",
-                            "city_code": "SVX",
-                            "country_code": "RU",
-                            "iata_type": "airport",
-                            "flightable": True,
-                            "coordinates": {"lat": 56.7431, "lon": 60.8027},
-                        },
-                        {
-                            "code": "IST",
-                            "city_code": "IST",
-                            "country_code": "TR",
-                            "iata_type": "airport",
-                            "flightable": True,
-                            "coordinates": {"lat": 41.2753, "lon": 28.7519},
-                        },
-                        {
-                            "code": "LHR",
-                            "city_code": "LON",
-                            "country_code": "GB",
-                            "iata_type": "airport",
-                            "flightable": True,
-                            "coordinates": {"lat": 51.47, "lon": -0.4543},
-                        },
-                    ]
+                    {
+                        "entries": {
+                            "countries": {"filename": "countries.json"},
+                            "routes": {"filename": "routes.json"},
+                        }
+                    }
                 ),
                 encoding="utf-8",
             )
-            (cache_dir / "airlines_en.json").write_text(
-                json.dumps(
-                    [
-                        {"code": "TK", "name": "Turkish Airlines", "is_lowcost": False},
-                        {"code": "BA", "name": "British Airways", "is_lowcost": False},
-                    ]
-                ),
-                encoding="utf-8",
-            )
-            (cache_dir / "alliances.json").write_text(
-                json.dumps([{"name": "Star Alliance", "airlines": ["TK"]}]),
-                encoding="utf-8",
-            )
-            (cache_dir / "routes.json").write_text(
-                json.dumps(
-                    [
-                        {
-                            "airline_iata": "TK",
-                            "departure_airport_iata": "SVX",
-                            "arrival_airport_iata": "IST",
-                            "codeshare": False,
-                            "transfers": 0,
-                        },
-                        {
-                            "airline_iata": "TK",
-                            "departure_airport_iata": "IST",
-                            "arrival_airport_iata": "LHR",
-                            "codeshare": False,
-                            "transfers": 0,
-                        },
-                        {
-                            "airline_iata": "BA",
-                            "departure_airport_iata": "SVX",
-                            "arrival_airport_iata": "LHR",
-                            "codeshare": False,
-                            "transfers": 0,
-                        },
-                    ]
-                ),
-                encoding="utf-8",
-            )
-
-            args = argparse.Namespace(
-                origin="SVX",
-                destination="LHR",
-                depart_date="2026-07-19",
-                return_date=None,
-                hub=None,
-                origin_airport=None,
-                destination_airport=None,
-                currency="RUB",
-                direct_only=False,
-                ticketing="separate",
-                profile="business",
-                min_same_airport_min=120,
-                min_cross_airport_min=300,
-                max_airports_per_city=6,
-                auto_hubs=True,
-                max_auto_hubs=5,
-            )
-            result = build_route_plan(args, Store(cache_dir))
-
-            self.assertEqual(result["hub_source"], "routes_json")
-            self.assertEqual(result["hubs"], ["IST"])
-            self.assertEqual(result["route_graph"]["direct"][0]["origin"], "SVX")
-            self.assertEqual(result["route_graph"]["one_stop_hubs"][0]["hub"], "IST")
-            self.assertIn("shared alliance evidence", " ".join(result["route_graph"]["one_stop_hubs"][0]["reasons"]))
+            dry_run = download_static_catalog(cache_dir, dry_run=True)
+            self.assertNotIn("routes", dry_run["manifest"]["entries"])
+            with self.assertRaises(CliError):
+                download_static_catalog(cache_dir, names=["routes"])
 
     def test_cached_rest_prices_probe_is_fetch_not_live(self) -> None:
         proc = subprocess.run(

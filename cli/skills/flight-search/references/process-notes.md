@@ -9,8 +9,8 @@ Request: `SVX-LHR` on `2026-07-19`, return `LHR-SVX` on `2026-07-24`. The user t
 Observed flow:
 
 1. `doctor` showed an empty static catalog cache and no Travelpayouts token.
-2. `route plan --auto-hubs` refreshed the no-token catalog and produced graph hubs from `routes.json`.
-3. The graph suggested many hubs, but several were not live-viable for the dates.
+2. `route plan` refreshed the no-token catalog and used a broad pre-strategy hub list.
+3. Several broad-list hubs were not live-viable for the dates.
 4. A broad Kupibilet live assembly with `IST,SAW,AYT,GYD,DXB,DOH` ran 42 segment searches.
 5. Segment matrix showed:
    - `IST` and `DXB` had enough matching legs to build full options.
@@ -32,7 +32,6 @@ Best business-safe result found:
 
 - Segment searches are sequential and slow on broad hub sets.
 - No short-lived cache for repeated Kupibilet segment probes; narrowing reruns re-fetch the same segments.
-- Static `routes.json` can suggest historical or currently impractical hubs.
 - Without `TRAVELPAYOUTS_TOKEN`, cached REST/GraphQL probes are unavailable, so pruning relies on live provider calls.
 - A pre-ranking candidate cap can hide valid options behind cheap rejected combinations.
 - `ranked` IDs and included raw candidate bodies can diverge if the contract does not include full top-ranked candidates.
@@ -41,7 +40,8 @@ Best business-safe result found:
 
 High priority:
 
-- Keep `route kb-assemble --auto-hubs` explicit and treat it as historical `routes.json` prior, never as a current schedule source.
+- Use default `ru-priority` first for Russia-origin routes: IST direct, SVO/SU fallback only if IST direct is empty, then DXB direct only if IST has no usable assembled pair.
+- Use the broad built-in hub list only through `--routing-strategy hub-list`, then narrow live searches with explicit `--hub` values after reading viability.
 - Use `live_search.hub_viability` to report offer counts for every required leg before trusting assembly.
 - Rank/filter valid pairs before applying `--max-candidates`; maintain a separate raw `--candidate-pool-limit`.
 - Use `--include-ranked-candidates N` so full details for the top ranked candidates are always included.
@@ -58,6 +58,5 @@ Medium priority:
 Known traps:
 
 - Do not call Travelpayouts cached APIs "live"; only Kupibilet live aggregate should be called live.
-- Do not trust `routes.json` as a schedule source.
 - Do not report candidates with `ok=false` as recommendations.
 - Do not assume the cheapest provider result is business-viable.

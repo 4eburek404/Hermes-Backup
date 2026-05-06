@@ -23,7 +23,7 @@ from .commands.providers import (
     command_u6_prices,
 )
 from .commands.route import command_route_assemble, command_route_kb_assemble, command_route_plan, command_route_rank, command_route_validate
-from .config import DEFAULT_CURRENCY, DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR, RISK_PROFILES
+from .config import DEFAULT_CURRENCY, DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR, DEFAULT_ROUTING_STRATEGY, RISK_PROFILES
 from .env import load_env_file
 from .errors import CliError
 from .output import emit_json, error_envelope, output_envelope, render_human
@@ -39,7 +39,13 @@ def add_common_route_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("destination", help="Destination city/airport, e.g. LON or London")
     parser.add_argument("--depart-date", required=True, help="Departure date YYYY-MM-DD")
     parser.add_argument("--return-date", help="Return date YYYY-MM-DD")
-    parser.add_argument("--hub", action="append", help="Hub airport. Repeatable. Required unless --auto-hubs is used.")
+    parser.add_argument("--hub", action="append", help="Hub airport. Repeatable. In auto strategy, passing --hub uses hub-list routing.")
+    parser.add_argument(
+        "--routing-strategy",
+        choices=["auto", "hub-list", "ru-priority"],
+        default=DEFAULT_ROUTING_STRATEGY,
+        help="Routing strategy. auto uses ru-priority unless --hub is passed; hub-list uses explicit/default hubs.",
+    )
     parser.add_argument("--origin-airport", action="append", help="Force origin airport. Repeatable.")
     parser.add_argument("--destination-airport", action="append", help="Force destination airport. Repeatable.")
     parser.add_argument("--currency", default=DEFAULT_CURRENCY, help="Currency. Default RUB.")
@@ -48,8 +54,6 @@ def add_common_route_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--min-same-airport-min", type=int, default=120)
     parser.add_argument("--min-cross-airport-min", type=int, default=300)
     parser.add_argument("--max-airports-per-city", type=int, default=6)
-    parser.add_argument("--auto-hubs", action="store_true", help="Derive one-stop hubs from local routes.json as a historical topology prior.")
-    parser.add_argument("--max-auto-hubs", type=int, default=10, help="Maximum routes.json prior hubs to include when --auto-hubs is used.")
 
 
 def add_carrier_selection_flags(parser: argparse.ArgumentParser) -> None:
@@ -212,7 +216,7 @@ def build_parser() -> argparse.ArgumentParser:
     route_kb_assemble.add_argument("--include-ranked-candidates", type=int, default=5, help="Include full candidate bodies for first N ranked candidates.")
     route_kb_assemble.add_argument("--include-rejected-pairs", type=int, default=20)
     route_kb_assemble.add_argument("--include-segment-results", type=int, default=0, help="Include first N normalized segment-result blocks in JSON output.")
-    route_kb_assemble.add_argument("--max-segment-searches", type=int, default=80, help="Safety cap for live segment requests.")
+    route_kb_assemble.add_argument("--max-segment-searches", type=int, default=300, help="Safety cap for live segment requests.")
     route_kb_assemble.add_argument("--fail-fast", action="store_true", help="Abort on the first live segment-search error instead of keeping partial results.")
     add_carrier_selection_flags(route_kb_assemble)
     route_kb_assemble.set_defaults(func=command_route_kb_assemble, command_name="route kb-assemble", requires_catalog=True)

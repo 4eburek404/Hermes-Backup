@@ -89,7 +89,6 @@ airlines_en.json
 airlines_ru.json
 alliances.json
 planes.json
-routes.json
 catalog_manifest.json
 ```
 
@@ -103,20 +102,32 @@ flights --json airports explain IST SAW SVO DME VKO
 Build a multi-segment plan without API calls:
 
 ```bash
-flights --json route plan SVX LON \
-  --depart-date 2026-07-19 \
-  --return-date 2026-07-23 \
-  --hub IST --hub SAW --hub AYT
+flights --json route plan SVX MUC \
+  --depart-date 2026-08-12 \
+  --profile business
 ```
 
-Use local `routes.json` only as a historical topology prior to derive one-stop
-hubs. The CLI no longer uses silent default hubs; pass `--hub` explicitly or
-opt into `--auto-hubs`.
+By default, `--routing-strategy auto` uses `ru-priority` unless `--hub` is
+passed. This models the manual Russia-origin workflow:
+
+1. Check `origin→IST` direct first, then `IST→destination`.
+2. If `origin→IST` has no viable direct offer, check `origin→SVO→IST` with
+   Aeroflot/SU and reuse `IST→destination`.
+3. Check `origin→DXB→destination` only when the IST path does not produce a
+   usable assembled pair; do not expand DXB through Moscow.
+
+Preferred carriers for this strategy are `U6`, `SU`, and `TK`; SVO fallback
+legs are constrained to `SU`.
+
+Use `--routing-strategy hub-list` for the broader built-in hub list:
+`IST, DXB, DOH, AUH, BEG, TAS, GYD, PEK, PVG, CAN, ADD, CAI, MCT, SHJ`.
+Passing `--hub` repeatedly also switches `auto` into hub-list routing with the
+specified hubs.
 
 ```bash
 flights --json route plan SVX LHR \
   --depart-date 2026-07-19 \
-  --auto-hubs \
+  --routing-strategy hub-list \
   --profile business
 ```
 
@@ -233,8 +244,7 @@ Workflow metrics:
 ```bash
 flights --json metrics workflow SVX LON \
   --depart-date 2026-07-19 \
-  --return-date 2026-07-23 \
-  --hub IST --hub SAW --hub AYT
+  --return-date 2026-07-23
 ```
 
 ## What It Automates
@@ -242,7 +252,8 @@ flights --json metrics workflow SVX LON \
 - Expands multi-airport cities such as LON into LHR/LGW/STN/LTN.
 - Downloads no-token static Travelpayouts catalog files with manifest metadata
   (`downloaded_at`, `url`, `count`, `sha256`, `schema_version`).
-- Uses `routes.json` locally for direct route evidence and one-stop hub discovery.
+- Uses `ru-priority` routing by default for Russia-origin searches and keeps the
+  broader built-in hub list available through `--routing-strategy hub-list`.
 - Keeps IST and SAW separate and flags airport changes.
 - Keeps SVO, DME, and VKO separate for Moscow routing.
 - Prepares segment-by-segment Travelpayouts cached GraphQL requests instead of using broad

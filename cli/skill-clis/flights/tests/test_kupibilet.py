@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import gzip
 import unittest
+from unittest.mock import patch
 
 from flights_cli.cli import build_parser
-from flights_cli.errors import CliError
-from flights_cli.orchestrators.kb_assemble import build_kupibilet_route_segment_plan
+from flights_cli.config import DEFAULT_ROUTE_HUBS
+from flights_cli.orchestrators.kb_assemble import (
+    build_kupibilet_route_segment_plan,
+    run_kupibilet_route_assembly,
+    synthesize_priority_fallback_results,
+)
 from flights_cli.providers.kupibilet import (
     build_kupibilet_payload,
     decode_http_body,
@@ -193,7 +198,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(plan["second_leg_day_offsets"], {"outbound": [0, 1], "return": [0, 1, 2]})
         self.assertEqual(plan["metrics"]["segment_search_count"], 14)
 
-    def test_route_kb_assemble_requires_explicit_or_auto_hubs(self) -> None:
+    def test_route_kb_assemble_uses_ru_priority_strategy_when_none_are_passed(self) -> None:
         args = build_parser().parse_args(
             [
                 "route",
@@ -207,8 +212,184 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             ]
         )
 
-        with self.assertRaises(CliError):
-            build_kupibilet_route_segment_plan(args, Store())
+        plan = build_kupibilet_route_segment_plan(args, Store())
+
+        self.assertEqual(plan["routing_strategy"], "ru-priority")
+        self.assertEqual(plan["hubs"], ["IST", "DXB"])
+        self.assertEqual(plan["hub_source"], "strategy")
+        self.assertEqual(plan["metrics"]["segment_search_count"], 22)
+
+    def test_route_kb_assemble_hub_list_strategy_uses_default_hubs(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "route",
+                "kb-assemble",
+                "SVX",
+                "CDG",
+                "--depart-date",
+                "2026-08-15",
+                "--return-date",
+                "2026-08-19",
+                "--routing-strategy",
+                "hub-list",
+            ]
+        )
+
+        plan = build_kupibilet_route_segment_plan(args, Store())
+
+        self.assertEqual(plan["hubs"], list(DEFAULT_ROUTE_HUBS))
+        self.assertEqual(plan["hub_source"], "default")
+        self.assertEqual(plan["metrics"]["segment_search_count"], 98)
+
+    def test_ru_priority_synthesizes_svo_fallback_when_ist_direct_is_empty(self) -> None:
+        plan = {
+            "routing_strategy": "ru-priority",
+            "origin_airports": ["SVX"],
+            "dates": {"depart": "2026-08-12", "return": None},
+            "currency": "RUB",
+        }
+        segment_results = [
+            {
+                "direction": "outbound",
+                "leg": "origin_to_gateway",
+                "query": {"origin": "SVX", "destination": "SVO", "date": "2026-08-12"},
+                "offers": [
+                    {
+                        "id": "svx-svo",
+                        "origin": "SVX",
+                        "destination": "SVO",
+                        "departure_airport": "SVX",
+                        "arrival_airport": "SVO",
+                        "departure_at": "2026-08-12T06:00:00+05:00",
+                        "arrival_at": "2026-08-12T06:40:00+03:00",
+                        "price": 10000,
+                        "currency": "RUB",
+                        "segments": [
+                            {
+                                "origin": "SVX",
+                                "destination": "SVO",
+                                "departure_at": "2026-08-12T06:00:00+05:00",
+                                "arrival_at": "2026-08-12T06:40:00+03:00",
+                                "carrier": "SU",
+                            }
+                        ],
+                    }
+                ],
+            },
+            {
+                "direction": "outbound",
+                "leg": "gateway_to_hub",
+                "query": {"origin": "SVO", "destination": "IST", "date": "2026-08-12"},
+                "offers": [
+                    {
+                        "id": "svo-ist",
+                        "origin": "SVO",
+                        "destination": "IST",
+                        "departure_airport": "SVO",
+                        "arrival_airport": "IST",
+                        "departure_at": "2026-08-12T09:30:00+03:00",
+                        "arrival_at": "2026-08-12T13:30:00+03:00",
+                        "price": 20000,
+                        "currency": "RUB",
+                        "segments": [
+                            {
+                                "origin": "SVO",
+                                "destination": "IST",
+                                "departure_at": "2026-08-12T09:30:00+03:00",
+                                "arrival_at": "2026-08-12T13:30:00+03:00",
+                                "carrier": "SU",
+                            }
+                        ],
+                    }
+                ],
+            },
+        ]
+
+        synthetic_results, synthetic_searches = synthesize_priority_fallback_results(plan, segment_results)
+
+        self.assertEqual(len(synthetic_results), 1)
+        self.assertEqual(synthetic_results[0]["leg"], "origin_to_hub")
+        self.assertEqual(synthetic_results[0]["query"]["origin"], "SVX")
+        self.assertEqual(synthetic_results[0]["query"]["destination"], "IST")
+        self.assertEqual(synthetic_results[0]["offers"][0]["price"], 30000)
+        self.assertEqual([segment["origin"] for segment in synthetic_results[0]["offers"][0]["segments"]], ["SVX", "SVO"])
+        self.assertEqual(synthetic_searches[0]["status"], "synthetic")
+
+    def test_ru_priority_skips_dxb_when_ist_pair_is_usable(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "route",
+                "kb-assemble",
+                "SVX",
+                "MUC",
+                "--depart-date",
+                "2026-08-12",
+                "--include-segment-results",
+                "10",
+            ]
+        )
+        calls: list[tuple[str, str]] = []
+
+        def kb_result(origin: str, destination: str, depart_date: object, dep: str | None = None, arr: str | None = None) -> dict:
+            depart = depart_date.isoformat() if hasattr(depart_date, "isoformat") else str(depart_date)
+            offers = []
+            if dep and arr:
+                offers.append(
+                    {
+                        "id": f"{origin}-{destination}-{depart}",
+                        "price": 10000,
+                        "currency": "RUB",
+                        "number_of_changes": 0,
+                        "duration": 180,
+                        "flights": [
+                            {
+                                "flight_number": f"TK{len(calls) + 100}",
+                                "marketing_carrier": "TK",
+                                "operating_carrier": "TK",
+                                "origin": origin,
+                                "destination": destination,
+                                "departure_at": dep,
+                                "arrival_at": arr,
+                                "aircraft": "320",
+                            }
+                        ],
+                    }
+                )
+            return {
+                "origin": origin,
+                "destination": destination,
+                "depart_date": depart,
+                "currency": "RUB",
+                "source": "test",
+                "source_url": "test",
+                "raw_variant_count": len(offers),
+                "unique_flight_count": len(offers),
+                "http_status": 200,
+                "offers": offers,
+            }
+
+        def fake_fetch(origin: str, destination: str, depart_date: object, **_: object) -> dict:
+            calls.append((origin, destination))
+            depart = depart_date.isoformat() if hasattr(depart_date, "isoformat") else str(depart_date)
+            if (origin, destination) == ("SVX", "IST"):
+                return kb_result(origin, destination, depart_date, f"{depart}T06:00:00+05:00", f"{depart}T09:00:00+03:00")
+            if (origin, destination) == ("IST", "MUC"):
+                return kb_result(origin, destination, depart_date, f"{depart}T14:00:00+03:00", f"{depart}T16:00:00+02:00")
+            return kb_result(origin, destination, depart_date)
+
+        with patch("flights_cli.orchestrators.kb_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
+            result = run_kupibilet_route_assembly(args, Store())
+
+        self.assertNotIn(("SVX", "DXB"), calls)
+        self.assertNotIn(("DXB", "MUC"), calls)
+        self.assertGreater(result["assembly"]["candidate_count"], 0)
+        skipped_dxb = [
+            search
+            for search in result["live_search"]["segment_searches"]
+            if search.get("reason") == "priority_ist_route_viable"
+        ]
+        self.assertGreaterEqual(len(skipped_dxb), 2)
+        self.assertTrue(all(search["route_family"] == "dxb_direct" for search in skipped_dxb))
 
     def test_kupibilet_direct_segments_feed_route_assemble(self) -> None:
         def kb_result(origin: str, destination: str, depart_date: str, price: int, flight_number: str, dep: str, arr: str) -> dict:

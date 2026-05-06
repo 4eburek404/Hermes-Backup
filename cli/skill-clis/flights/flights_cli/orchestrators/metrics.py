@@ -12,6 +12,7 @@ def run_metrics_workflow(args: argparse.Namespace, store: Store) -> dict[str, An
         depart_date=args.depart_date,
         return_date=args.return_date,
         hub=args.hub,
+        routing_strategy=getattr(args, "routing_strategy", None),
         origin_airport=args.origin_airport,
         destination_airport=args.destination_airport,
         currency=args.currency,

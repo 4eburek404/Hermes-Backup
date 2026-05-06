@@ -37,11 +37,29 @@ Prefer `python3 -m flights_cli` from that directory so the checked-out code is u
 python3 -m flights_cli --json route plan ORIGIN DEST \
   --depart-date YYYY-MM-DD \
   --return-date YYYY-MM-DD \
-  --auto-hubs \
   --profile business
 ```
 
-Treat `routes.json` hubs as historical topology hints, not current schedules. Do not assume a graph hub is live until provider probes confirm segment offers.
+When no `--hub` is supplied, `--routing-strategy auto` uses `ru-priority`:
+
+1. Check `origin→IST` direct first, then `IST→destination`.
+2. If `origin→IST` has no viable direct offer, check `origin→SVO→IST` with Aeroflot/SU and reuse `IST→destination`.
+3. Check `origin→DXB→destination` only when the IST path does not produce a usable assembled pair. Do not expand DXB through Moscow.
+
+Carrier priority is `U6`, `SU`, `TK`; SVO fallback legs are constrained to `SU`.
+
+Use `--routing-strategy hub-list` or pass explicit `--hub` values only when you intentionally need a broader hub matrix.
+
+Built-in hubs:
+
+- `IST`: broadest option from Russia.
+- `DXB`: main competitor, especially for Asia, Africa, and Australia.
+- `DOH`: strong long-haul hub via Qatar.
+- `AUH`: useful backup for DXB and DOH.
+- `BEG`: Europe plus some North America, but not worldwide.
+- `TAS`, `GYD`: regional and partial long-haul routes.
+- `PEK`, `PVG`, `CAN`: use when the destination geography is Asia, China, or Oceania.
+- `ADD`, `CAI`, `MCT`, `SHJ`: niche hubs for Africa, Middle East, India, and price.
 
 4. Use cached Travelpayouts only when credentials exist.
 
@@ -57,14 +75,13 @@ Call these cached probes, not live search.
 
 5. Probe live segments with Kupibilet.
 
-Use explicit hubs for `route kb-assemble`, or opt into `--auto-hubs` knowing it is only a historical topology prior. There are no silent default hubs.
+For live `route kb-assemble`, the default `ru-priority` strategy runs direct-only probes, skips the SVO fallback when direct IST offers exist, synthesizes `origin→IST` from `origin→SVO + SVO→IST` when direct IST is empty, and skips DXB when IST already has a non-error assembled pair. Start `hub-list` only when you intentionally want a broad matrix.
 
 ```bash
 python3 -m flights_cli --json route kb-assemble ORIGIN DEST \
   --depart-date YYYY-MM-DD \
   --return-date YYYY-MM-DD \
   --profile business \
-  --hub IST --hub DXB \
   --segment-limit 30 \
   --candidate-pool-limit 5000 \
   --max-candidates 50 \

@@ -38,7 +38,6 @@ class Store:
         self._airlines: list[dict[str, Any]] | None = None
         self._alliances: list[dict[str, Any]] | None = None
         self._planes: list[dict[str, Any]] | None = None
-        self._routes: list[dict[str, Any]] | None = None
         self._city_by_code: dict[str, dict[str, Any]] | None = None
         self._airport_by_code: dict[str, dict[str, Any]] | None = None
         self._airline_by_code: dict[str, dict[str, Any]] | None = None
@@ -102,12 +101,6 @@ class Store:
         if self._planes is None:
             self._planes = self.load_json("planes.json")
         return self._planes
-
-    @property
-    def routes(self) -> list[dict[str, Any]]:
-        if self._routes is None:
-            self._routes = self.load_json("routes.json")
-        return self._routes
 
     @property
     def city_by_code(self) -> dict[str, dict[str, Any]]:
@@ -174,7 +167,6 @@ class Store:
             "airlines": len(self.airlines),
             "alliances": len(self.alliances),
             "planes": len(self.planes),
-            "routes": len(self.routes),
         }
 
     def city_name(self, code: str) -> str | None:
@@ -262,7 +254,17 @@ class Store:
         if IATA_RE.match(code):
             airport = self.airport_by_code.get(code)
             city = self.city_by_code.get(code)
-            if airport and (prefer_airport or not city):
+            if code in SPECIAL_CITY_AIRPORTS and city:
+                airports = SPECIAL_CITY_AIRPORTS[code]
+                return Location(
+                    input=raw,
+                    code=code,
+                    kind="city",
+                    name=str(city.get("name") or code),
+                    country_code=str(city.get("country_code") or "") or None,
+                    airports=airports,
+                )
+            if airport:
                 return Location(
                     input=raw,
                     code=code,
@@ -273,8 +275,6 @@ class Store:
                 )
             if city:
                 airports = [a["code"] for a in self.flightable_airports_for_city(code)]
-                if code in SPECIAL_CITY_AIRPORTS:
-                    airports = SPECIAL_CITY_AIRPORTS[code]
                 return Location(
                     input=raw,
                     code=code,

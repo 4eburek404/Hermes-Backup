@@ -73,12 +73,6 @@ STATIC_CATALOG_SPECS: tuple[StaticCatalogSpec, ...] = (
         filename="planes.json",
         stale_note="Travelpayouts marks planes.json as not updated; use it only as metadata.",
     ),
-    StaticCatalogSpec(
-        name="routes",
-        url="https://api.travelpayouts.com/data/routes.json",
-        filename="routes.json",
-        stale_note="Travelpayouts marks routes.json as not updated; use it as historical topology prior only.",
-    ),
 )
 
 STATIC_CATALOG_BY_NAME = {spec.name: spec for spec in STATIC_CATALOG_SPECS}
@@ -173,6 +167,20 @@ def read_catalog_manifest(cache_dir: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def active_catalog_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
+    entries = manifest.get("entries") if isinstance(manifest.get("entries"), dict) else None
+    if entries is None:
+        return manifest
+    return {
+        **manifest,
+        "entries": {
+            name: entry
+            for name, entry in entries.items()
+            if name in STATIC_CATALOG_BY_NAME
+        },
+    }
 
 
 def parse_downloaded_at(value: Any) -> datetime | None:
@@ -273,12 +281,16 @@ def download_static_catalog(
             "cache_dir": str(cache_dir),
             "planned": planned,
             "updated": [],
-            "manifest": read_catalog_manifest(cache_dir),
+            "manifest": active_catalog_manifest(read_catalog_manifest(cache_dir)),
         }
 
     existing_manifest = read_catalog_manifest(cache_dir)
     existing_entries = existing_manifest.get("entries") if isinstance(existing_manifest.get("entries"), dict) else {}
-    entries = dict(existing_entries or {})
+    entries = {
+        name: entry
+        for name, entry in dict(existing_entries or {}).items()
+        if name in STATIC_CATALOG_BY_NAME
+    }
     updated: list[dict[str, Any]] = []
 
     for spec in specs:

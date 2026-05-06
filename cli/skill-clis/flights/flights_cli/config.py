@@ -44,6 +44,52 @@ DEFAULT_KB_ROUTE_OUTBOUND_SECOND_LEG_DAY_OFFSETS = [0, 1]
 
 DEFAULT_KB_ROUTE_RETURN_SECOND_LEG_DAY_OFFSETS = [0, 1, 2]
 
+DEFAULT_ROUTE_HUBS = (
+    "IST",
+    "DXB",
+    "DOH",
+    "AUH",
+    "BEG",
+    "TAS",
+    "GYD",
+    "PEK",
+    "PVG",
+    "CAN",
+    "ADD",
+    "CAI",
+    "MCT",
+    "SHJ",
+)
+
+DEFAULT_ROUTING_STRATEGY = "auto"
+
+ROUTING_STRATEGIES = {"auto", "hub-list", "ru-priority"}
+
+PRIORITY_ROUTE_CARRIERS = ("U6", "SU", "TK")
+
+PRIORITY_PRIMARY_HUB = "IST"
+
+PRIORITY_MOSCOW_GATEWAY = "SVO"
+
+PRIORITY_SECONDARY_HUB = "DXB"
+
+DEFAULT_ROUTE_HUB_NOTES = {
+    "IST": "Broadest Russia-origin hub.",
+    "DXB": "Main competitor for Asia, Africa, and Australia routings.",
+    "DOH": "Strong long-haul hub via Qatar.",
+    "AUH": "Useful backup for DXB and DOH.",
+    "BEG": "Europe and some North America coverage, but not global.",
+    "TAS": "Regional hub with partial long-haul coverage.",
+    "GYD": "Regional hub with partial long-haul coverage.",
+    "PEK": "Asia, China, and Oceania-oriented fallback.",
+    "PVG": "Asia, China, and Oceania-oriented fallback.",
+    "CAN": "Asia, China, and Oceania-oriented fallback.",
+    "ADD": "Niche Africa, Middle East, India, and price hub.",
+    "CAI": "Niche Africa, Middle East, India, and price hub.",
+    "MCT": "Niche Africa, Middle East, India, and price hub.",
+    "SHJ": "Niche Africa, Middle East, India, and price hub.",
+}
+
 IATA_RE = re.compile(r"^[A-Z]{3}$")
 
 CARRIER_RE = re.compile(r"^[A-Z0-9]{2,3}$")

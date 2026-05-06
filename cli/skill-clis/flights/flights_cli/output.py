@@ -91,9 +91,10 @@ def render_human(command: str, data: Any) -> str:
                 f"plugin: {'ok' if data['hermes_plugin_exists'] else 'missing'} {data['hermes_plugin_path']}",
                 (
                     f"cache: countries={counts['countries']} cities={counts['cities']} airports={counts['airports']} "
-                    f"airlines={counts['airlines']} alliances={counts['alliances']} planes={counts['planes']} routes={counts['routes']}"
+                    f"airlines={counts['airlines']} alliances={counts['alliances']} planes={counts['planes']}"
                 ),
                 f"catalog refresh: {policy['mode']} max_age={policy['max_age']} stale={staleness['stale_count']}/{staleness['checked_count']}",
+                f"default hubs: {', '.join(item['code'] for item in data.get('default_route_hubs', []))}",
                 f"token: {'present' if token['available'] else 'missing'}",
                 f"Travelpayouts cached fetch: {data['safety']['travelpayouts_cached_fetch_requires']}",
                 f"provider live commands: {', '.join(data['safety']['live_provider_commands'])}",
@@ -141,6 +142,7 @@ def render_human(command: str, data: Any) -> str:
         metrics = data["metrics"]
         lines = [
             f"route: {','.join(data['origin_airports'])} -> {','.join(data['destination_airports'])}",
+            f"strategy: {data.get('routing_strategy', 'hub-list')}",
             f"hubs: {', '.join(data['hubs'])} ({data.get('hub_source', 'manual')})",
             f"segment requests: {metrics['segment_request_count']}",
             "first commands:",
@@ -148,11 +150,6 @@ def render_human(command: str, data: Any) -> str:
         refresh = data.get("catalog_auto_refresh")
         if refresh:
             lines.insert(2, f"catalog refresh: {'updated' if refresh.get('refreshed') else refresh.get('reason')}")
-        route_graph = data.get("route_graph") or {}
-        if route_graph:
-            lines.append(
-                f"route graph: direct={len(route_graph.get('direct') or [])} one_stop_hubs={len(route_graph.get('one_stop_hubs') or [])}"
-            )
         for segment in data["segments"][:8]:
             lines.append(f"  {segment['command']}")
         if len(data["segments"]) > 8:
@@ -200,6 +197,7 @@ def render_human(command: str, data: Any) -> str:
         metrics = plan.get("metrics", {})
         lines = [
             f"Kupibilet direct-segment assembly: {plan.get('origin')} → {plan.get('destination')}",
+            f"strategy: {plan.get('routing_strategy', 'hub-list')}",
             f"hubs: {', '.join(plan.get('hubs') or [])}",
             f"segment searches: {len(live.get('segment_searches') or [])}/{metrics.get('segment_search_count', 0)} failures={live.get('failure_count', 0)}",
             f"assembled candidates: {assembly['candidate_count']} from outbound_pairs={assembly['outbound_pair_count']} return_pairs={assembly['return_pair_count']}",
