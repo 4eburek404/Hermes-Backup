@@ -420,7 +420,7 @@ Use this when the user asks to back up Hermes Agent settings, memory, skills, pl
 
 Workflow:
 
-1. Treat `~/.hermes/hermes-agent/` as upstream source code and exclude it from personal overlay backup unless the user explicitly asks to back up local source patches.
+1. Treat `~/.hermes/hermes-agent/` as upstream source code and do not vendor the full repo into a personal backup. If Konstantin asks for “CLI backup” or source patches, capture reproducible state instead: git remote/branch/HEAD manifest, tracked `git diff --binary --full-index`, and safe untracked source/test files. Also include local skill-related CLIs from `/home/konstantin/code/clis` as safe source snapshots when they are part of the requested scope.
 2. Inventory `~/.hermes` without printing secret values. Classify paths as: plaintext include, redacted transform, encrypted-only, optional encrypted archive, or exclude.
 3. For plaintext backup, prefer durable overlay state: `SOUL.md`, `memories/USER.md`, `memories/MEMORY.md`, `skills/`, `plugins/`, `cron/jobs.json`, local docs/plans, and redacted config/env inventories.
 4. For holographic/local SQLite memory, create a consistent SQLite snapshot with backup API or `sqlite3 .backup`; do not copy live `*-wal`/`*-shm` files. Verify the copied DB with `PRAGMA integrity_check`.

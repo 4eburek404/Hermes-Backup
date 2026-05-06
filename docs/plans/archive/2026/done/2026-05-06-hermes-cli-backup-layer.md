@@ -20,14 +20,14 @@ Safety constraints:
 - Do not add Git LFS unless GitHub hard limits force it.
 
 ## Steps
-- [ ] Inventory active Hermes CLI executable/source path, version, branch, HEAD, remote, dirty status, tracked diff, and untracked files without printing secret values.
-- [ ] Inventory `/home/konstantin/code/clis` and classify safe source files versus caches/build artifacts.
-- [ ] Update `scripts/collect-hermes-backup.py` to create `cli/hermes-agent/` manifest, tracked patch, untracked safe files, and `cli/skill-clis/` source snapshots.
-- [ ] Update `.gitignore`, README/restore docs, and `scripts/verify-hermes-backup.py` so CLI backup is required and scanned.
-- [ ] Run collector and verifier; verify DB integrity, age test-decrypt, secret scan, GitHub hard file limit, and git status.
-- [ ] Commit and push to branch `backup/bootstrap-2026-05-06`.
-- [ ] Update durable docs/skill/fact hook if the new CLI backup scope should persist beyond this plan.
-- [ ] Mark plan done and archive under `archive/2026/done/`.
+- [x] Inventory active Hermes CLI executable/source path, version, branch, HEAD, remote, dirty status, tracked diff, and untracked files without printing secret values.
+- [x] Inventory `/home/konstantin/code/clis` and classify safe source files versus caches/build artifacts.
+- [x] Update `scripts/collect-hermes-backup.py` to create `cli/hermes-agent/` manifest, tracked patch, untracked safe files, and `cli/skill-clis/` source snapshots.
+- [x] Update `.gitignore`, README/restore docs, and `scripts/verify-hermes-backup.py` so CLI backup is required and scanned.
+- [x] Run collector and verifier; verify DB integrity, age test-decrypt, secret scan, GitHub hard file limit, and git status.
+- [x] Commit and push to branch `backup/bootstrap-2026-05-06`.
+- [x] Update durable docs/skill/fact hook if the new CLI backup scope should persist beyond this plan.
+- [x] Mark plan done and archive under `archive/2026/done/`.
 
 ## Verification
 - `python3 -m py_compile scripts/collect-hermes-backup.py scripts/verify-hermes-backup.py` passes.
@@ -47,7 +47,9 @@ Safety constraints:
 - Untracked files in Hermes Agent source may be backup files/noise; include only source/test/docs-like files that pass secret scan.
 
 ## Status
-Current status: in_progress
+Current status: done
 
 ## Notes
 - 2026-05-06: Created after Konstantin explicitly requested CLI backup layer.
+
+- 2026-05-06: CLI backup layer implemented and pushed in commit `f8b770a3cb44fd6fbe6b827baa641664a28fc077`; verifier passed with `plaintext_secret_findings: 0`, `forbidden_plaintext_paths: 0`, and no files over GitHub hard limit.

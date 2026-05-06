@@ -9,7 +9,10 @@ Use this reference when asked to back up Hermes Agent settings, memory, skills, 
 - Target backup repo: `https://github.com/4eburek404/Hermes`, private.
 - Local backup clone: `/home/konstantin/code/Hermes`.
 - Backup branch: `backup/bootstrap-2026-05-06`.
-- Commit: `9a212c4f2ffa152e82ddb101574c676fe64fd2dd` (`backup: bootstrap hermes personal overlay`).
+- Bootstrap commit: `9a212c4f2ffa152e82ddb101574c676fe64fd2dd` (`backup: bootstrap hermes personal overlay`).
+- CLI backup layer commit: `f8b770a3cb44fd6fbe6b827baa641664a28fc077` (`backup: add cli source layer`).
+- Latest verified branch head after archiving the CLI backup plan: `f67a043b3112c3aebd64bedd7e7ace182499ac7f` (`docs: archive cli backup plan`).
+- Daily backup cron job created 2026-05-06: job id `0849e94b782d`, name `Hermes personal backup — every 24h`, schedule `every 1440m`, delivery `origin`, workdir `/home/konstantin/code/Hermes`, enabled toolsets `terminal` only. Its prompt runs collect → verify → commit → push and fails safe if the backup repo is dirty or local/remote diverged. It must not run `hermes update`, pull the upstream Hermes Agent checkout, restart gateway, edit config/cron, or print raw secrets.
 - GitHub default branch became `backup/bootstrap-2026-05-06` after the bootstrap push.
 - `age` was initially missing and was installed from Ubuntu apt package `1.1.1-1ubuntu0.24.04.3`.
 - `git-lfs` was missing and not used.
@@ -105,17 +108,21 @@ scripts/verify-hermes-backup.py
 - collect plaintext overlay into the backup repo;
 - create redacted config/env/auth inventories;
 - create consistent SQLite snapshots;
+- collect the CLI layer: Hermes Agent manifest + tracked patch + safe untracked source files, plus `/home/konstantin/code/clis` safe source snapshots;
 - sanitize plaintext copies for high-risk token-shaped literals before commit;
-- create encrypted `age` artifacts and manifests.
+- create encrypted `age` artifacts and manifests;
+- split encrypted state/session archives into ~45 MiB parts to stay below GitHub's recommended 50 MiB warning threshold.
 
 `verify-hermes-backup.py` responsibilities:
 
 - validate manifests/checksums;
+- require the CLI backup layer files (`cli/README.md`, `cli/hermes-agent/manifest.json`, `cli/skill-clis/manifest.json`);
 - test-decrypt/list encrypted artifacts with `age`;
 - run SQLite `PRAGMA integrity_check` on copied DBs;
 - scan for raw denied filenames;
 - scan plaintext for high-risk secret/token patterns;
-- check GitHub hard file limit.
+- scan CLI/plaintext backup for forbidden runtime/cache paths and suffixes;
+- check GitHub hard file limit; report CLI backup status summary.
 
 ## Plan file lifecycle
 
@@ -129,6 +136,46 @@ After successful push and verification it was updated to `Current status: done` 
 
 ```text
 /home/konstantin/docs/plans/archive/2026/done/2026-05-06-hermes-personal-backup.md
+```
+
+## CLI backup layer expansion verification
+
+Konstantin later explicitly expanded scope to include CLI/source state. The completed/pushed CLI layer is:
+
+```text
+cli/README.md
+cli/hermes-agent/manifest.json
+cli/hermes-agent/tracked-changes.patch
+cli/hermes-agent/untracked-safe/
+cli/skill-clis/manifest.json
+cli/skill-clis/sources/
+```
+
+Verified contents/status from final run:
+
+- Hermes Agent source backup mode: manifest + patch + safe untracked files, not a full vendored upstream checkout.
+- Hermes Agent executable: `/home/konstantin/.local/bin/hermes`.
+- Hermes Agent source checkout: `/home/konstantin/.hermes/hermes-agent`.
+- Hermes Agent branch: `fix/stale-sessiondb-cleanup`.
+- Hermes Agent HEAD short in verifier: `8cce85b8191c`.
+- Dirty status count in verifier/manifest: `9`.
+- Local skill CLIs included from `/home/konstantin/code/clis`: `article`, `flights`, `hh-ru`, `knowledge`.
+- Latest final verifier output after CLI layer:
+  - `ok: true`.
+  - `memory_store_integrity: ok`.
+  - `state_db_integrity: ok`.
+  - `secret_artifact_count: 1`.
+  - `state_artifact_count: 4`.
+  - `secret_archive_members: 23`.
+  - `state_archive_members: 638`.
+  - `plaintext_secret_findings: 0`.
+  - `forbidden_plaintext_paths: 0`.
+  - `files_over_github_limit: 0`.
+
+CLI backup plan lifecycle:
+
+```text
+/home/konstantin/docs/plans/archive/2026/done/2026-05-06-hermes-cli-backup-layer.md
 ```
 
 ## Verification result from bootstrap
@@ -161,3 +208,4 @@ Non-blocking GitHub warnings:
 - Secret scanners can flag token-shaped examples inside skill/docs files. Do not weaken the scanner; sanitize the plaintext backup copy (replace high-risk token-shaped literals) and rerun verification.
 - `age` SSH-recipient encryption works well for non-interactive backup, but restore depends on preserving the matching private SSH key locally. Do not print or commit the private key.
 - Do not run `hermes update`, `git pull` in the upstream Hermes Agent repo, `/restart`, or cron/config mutations as part of backup unless the user explicitly expands scope.
+- Non-backup `scripts/__pycache__/` can be generated by `py_compile` inside the backup repo itself. The verifier should ignore repo-root `scripts/__pycache__` while still failing on forbidden cache/runtime paths inside actual backup content.
