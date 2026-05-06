@@ -77,7 +77,7 @@ STATIC_CATALOG_SPECS: tuple[StaticCatalogSpec, ...] = (
         name="routes",
         url="https://api.travelpayouts.com/data/routes.json",
         filename="routes.json",
-        stale_note="Travelpayouts marks routes.json as not updated; use it as broad topology prior only.",
+        stale_note="Travelpayouts marks routes.json as not updated; use it as historical topology prior only.",
     ),
 )
 

@@ -109,7 +109,9 @@ flights --json route plan SVX LON \
   --hub IST --hub SAW --hub AYT
 ```
 
-Use local `routes.json` as a broad topology prior to derive one-stop hubs:
+Use local `routes.json` only as a historical topology prior to derive one-stop
+hubs. The CLI no longer uses silent default hubs; pass `--hub` explicitly or
+opt into `--auto-hubs`.
 
 ```bash
 flights --json route plan SVX LHR \
@@ -154,7 +156,10 @@ flights --json route assemble --profile safe \
 such as IST/SAW airport changes. Same-airport timing problems, including
 negative time order or too-short self-transfers, remain assembled candidates and
 are marked `ok=false` by the ranker. Use `--include-rejected-pairs N` to control
-how many diagnostics are returned.
+how many diagnostics are returned. `--max-candidates` caps ranked output after
+scoring; `--candidate-pool-limit` controls the raw pool scored before that cap.
+Use `--include-ranked-candidates N` when you need full itinerary bodies for the
+top ranked results.
 
 Run live Kupibilet direct-only segment searches through hubs, then assemble the
 same normalized candidates in one command:
@@ -165,7 +170,7 @@ flights --json route kb-assemble SVX CDG \
   --return-date 2026-08-19 \
   --hub AYT --hub IST \
   --segment-limit 30 \
-  --include-candidates 10
+  --include-ranked-candidates 10
 ```
 
 `route kb-assemble` is intentionally live: it calls Kupibilet `frontend_search`
@@ -173,7 +178,9 @@ for `origin→hub`, `hub→destination`, `destination→hub`, and `hub→origin`
 segments, including default second-leg day offsets (`outbound: 0,1`; `return:
 0,1,2`) so overnight hub departures are not missed. It still returns advisory
 aggregator data; final fare, seat availability, baggage, and protected-ticketing
-status must be rechecked on the booking screen.
+status must be rechecked on the booking screen. Its JSON includes
+`live_search.hub_viability`, which shows which hubs have offers for every
+required leg and which hubs are incomplete.
 
 Select carriers explicitly while ranking or assembling:
 
@@ -248,7 +255,7 @@ flights --json metrics workflow SVX LON \
 - Can run Kupibilet direct-only segment searches through hubs and assemble those
   live normalized offers via `route kb-assemble`.
 - Scores connection risk, internal transfer metadata, and airport changes, then
-  ranks candidates by profile.
+  ranks candidates by profile after scoring a raw candidate pool.
 - Supports explicit carrier selection and carrier preferences for ranked
   candidates.
 - Computes deterministic workflow metrics so the manual work can be compared

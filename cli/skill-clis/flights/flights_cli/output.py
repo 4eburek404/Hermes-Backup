@@ -205,8 +205,15 @@ def render_human(command: str, data: Any) -> str:
             f"assembled candidates: {assembly['candidate_count']} from outbound_pairs={assembly['outbound_pair_count']} return_pairs={assembly['return_pair_count']}",
             f"rejected pairs: {assembly.get('rejected_pair_count', 0)}",
             f"note: {live.get('note', '')}",
-            "",
         ]
+        viability = live.get("hub_viability") or []
+        if viability:
+            viable_hubs = [item["hub"] for item in viability if item.get("viable")]
+            missing = [f"{item['hub']} missing={','.join(item.get('missing_legs') or [])}" for item in viability if not item.get("viable")]
+            lines.append(f"viable hubs: {', '.join(viable_hubs) if viable_hubs else 'none'}")
+            if missing:
+                lines.append(f"incomplete hubs: {'; '.join(missing[:6])}")
+        lines.append("")
         if not data.get("ranked"):
             lines.append("(no assembled candidates)")
         for item in data.get("ranked", [])[:10]:

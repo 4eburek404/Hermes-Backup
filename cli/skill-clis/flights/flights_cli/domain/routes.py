@@ -281,7 +281,7 @@ def find_route_graph_candidates(
     return {
         "available": True,
         "source": "routes.json",
-        "source_note": "routes.json is a broad topology prior, not a current schedule source.",
+        "source_note": "routes.json is a historical topology prior, not a current schedule source.",
         "direct": sorted(direct, key=lambda item: (item["origin"], item["destination"])),
         "one_stop_hubs": hubs,
     }

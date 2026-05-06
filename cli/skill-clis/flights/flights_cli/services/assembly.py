@@ -138,6 +138,54 @@ def pair_offers(first: dict[str, Any], second: dict[str, Any], direction: str) -
     }
 
 
+def pair_connection_quality(
+    first: dict[str, Any],
+    second: dict[str, Any],
+    *,
+    ticketing: str,
+    min_same_airport: int,
+    min_cross_airport: int,
+    profile: str,
+) -> dict[str, Any]:
+    first_arrival = str(first.get("arrival_airport") or first.get("destination") or "").upper()
+    second_departure = str(second.get("departure_airport") or second.get("origin") or "").upper()
+    actual = minutes_between(str(first.get("arrival_at") or ""), str(second.get("departure_at") or ""))
+    rule = connection_rule(first_arrival, second_departure, ticketing, min_same_airport, min_cross_airport, actual)
+    first_segments = [seg for seg in (first.get("segments") or []) if isinstance(seg, dict)]
+    second_segments = [seg for seg in (second.get("segments") or []) if isinstance(seg, dict)]
+    prev_segment = first_segments[-1] if first_segments else {
+        "origin": first.get("origin"),
+        "destination": first_arrival,
+        "arrival_at": first.get("arrival_at"),
+    }
+    next_segment = second_segments[0] if second_segments else {
+        "origin": second_departure,
+        "destination": second.get("destination"),
+        "departure_at": second.get("departure_at"),
+    }
+    risk = connection_risk_points(rule, prev_segment, next_segment, profile)
+    return {
+        "status": rule["status"],
+        "severity": rule["severity"],
+        "actual_min": actual,
+        "required_min": rule["required_min"],
+        "risk": risk,
+    }
+
+
+def pair_sort_key(pair: dict[str, Any]) -> tuple[int, int, int, int]:
+    quality = pair.get("connection_quality") or {}
+    risk = quality.get("risk") or {}
+    price = pair["price"] if pair.get("price") is not None else 10**12
+    elapsed = elapsed_minutes(pair["segments"]) or 10**9
+    return (
+        1 if int(risk.get("score") or 0) >= 100 else 0,
+        int(risk.get("score") or 0),
+        price,
+        elapsed,
+    )
+
+
 def assemble_direction(
     segment_results: list[dict[str, Any]],
     first_leg: str,
@@ -164,6 +212,14 @@ def assemble_direction(
                         continue
                     pair = pair_offers(first_offer, second_offer, direction)
                     if pair is not None:
+                        pair["connection_quality"] = pair_connection_quality(
+                            first_offer,
+                            second_offer,
+                            ticketing=ticketing,
+                            min_same_airport=min_same_airport,
+                            min_cross_airport=min_cross_airport,
+                            profile=profile,
+                        )
                         pairs.append(pair)
                     else:
                         rejection = rejected_pair(
@@ -177,7 +233,7 @@ def assemble_direction(
                         )
                         if rejection is not None:
                             rejected.append(rejection)
-    pairs.sort(key=lambda pair: (pair["price"] if pair["price"] is not None else 10**12, elapsed_minutes(pair["segments"]) or 10**9))
+    pairs.sort(key=pair_sort_key)
     severity_order = {"error": 0, "warn": 1, "ok": 2}
     rejected.sort(
         key=lambda item: (
@@ -212,6 +268,16 @@ def candidate_from_pairs(outbound: dict[str, Any] | None, inbound: dict[str, Any
     }
 
 
+def ranked_candidate_details(ranked_items: list[dict[str, Any]], candidates: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    by_id = {str(candidate.get("id")): candidate for candidate in candidates}
+    details = []
+    for item in ranked_items[: max(0, limit)]:
+        candidate = by_id.get(str(item.get("id")))
+        if candidate is not None:
+            details.append({"rank": item.get("rank"), "ranked": item, "candidate": candidate})
+    return details
+
+
 def empty_assembled_result(args: argparse.Namespace) -> dict[str, Any]:
     policy = carrier_policy_from_args(args)
     return {
@@ -228,10 +294,15 @@ def empty_assembled_result(args: argparse.Namespace) -> dict[str, Any]:
             "rejected_pair_count": 0,
             "rejected_pair_sample_count": 0,
             "candidate_count": 0,
+            "ranked_total_count": 0,
+            "ranked_output_count": 0,
+            "candidate_pool_limit": args.candidate_pool_limit,
+            "candidate_pool_truncated": False,
             "limit_per_pair": args.limit_per_pair,
             "max_candidates": args.max_candidates,
         },
         "candidates": [],
+        "ranked_candidates": [],
         "rejected_pairs": [],
     }
 
@@ -265,23 +336,29 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
     rejected_pairs = outbound_rejected + return_rejected
 
     candidates: list[dict[str, Any]] = []
+    candidate_pool_limit = max(max(1, int(args.max_candidates)), int(getattr(args, "candidate_pool_limit", 5000)))
+    candidate_pool_truncated = False
     if outbound_pairs and return_pairs:
         for outbound in outbound_pairs:
             for inbound in return_pairs:
                 candidates.append(candidate_from_pairs(outbound, inbound, len(candidates) + 1))
-                if len(candidates) >= args.max_candidates:
+                if len(candidates) >= candidate_pool_limit:
+                    candidate_pool_truncated = True
                     break
-            if len(candidates) >= args.max_candidates:
+            if candidate_pool_truncated:
                 break
     else:
         for outbound in outbound_pairs:
             candidates.append(candidate_from_pairs(outbound, None, len(candidates) + 1))
-            if len(candidates) >= args.max_candidates:
+            if len(candidates) >= candidate_pool_limit:
+                candidate_pool_truncated = True
                 break
-        for inbound in return_pairs:
-            candidates.append(candidate_from_pairs(None, inbound, len(candidates) + 1))
-            if len(candidates) >= args.max_candidates:
-                break
+        if not candidate_pool_truncated:
+            for inbound in return_pairs:
+                candidates.append(candidate_from_pairs(None, inbound, len(candidates) + 1))
+                if len(candidates) >= candidate_pool_limit:
+                    candidate_pool_truncated = True
+                    break
 
     rank_args = argparse.Namespace(
         profile=args.profile,
@@ -304,6 +381,11 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
         "carrier_policy": {**carrier_policy_output(policy), "filtered_count": 0, "filtered": []},
         "ranked": [],
     }
+    ranked_total_count = len(ranked["ranked"])
+    max_ranked = max(0, int(args.max_candidates))
+    ranked["ranked"] = ranked["ranked"][:max_ranked]
+    ranked["count"] = len(ranked["ranked"])
+    ranked["ranked_total_count"] = ranked_total_count
     ranked["assembly"] = {
         "segment_result_count": len(segment_results),
         "outbound_pair_count": len(outbound_pairs),
@@ -311,9 +393,18 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
         "rejected_pair_count": len(rejected_pairs),
         "rejected_pair_sample_count": min(len(rejected_pairs), args.include_rejected_pairs),
         "candidate_count": len(candidates),
+        "ranked_total_count": ranked_total_count,
+        "ranked_output_count": len(ranked["ranked"]),
+        "candidate_pool_limit": candidate_pool_limit,
+        "candidate_pool_truncated": candidate_pool_truncated,
         "limit_per_pair": args.limit_per_pair,
         "max_candidates": args.max_candidates,
     }
     ranked["candidates"] = candidates[: args.include_candidates]
+    ranked["ranked_candidates"] = ranked_candidate_details(
+        ranked["ranked"],
+        candidates,
+        int(getattr(args, "include_ranked_candidates", 5)),
+    )
     ranked["rejected_pairs"] = rejected_pairs[: args.include_rejected_pairs]
     return ranked

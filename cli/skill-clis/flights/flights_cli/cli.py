@@ -39,7 +39,7 @@ def add_common_route_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("destination", help="Destination city/airport, e.g. LON or London")
     parser.add_argument("--depart-date", required=True, help="Departure date YYYY-MM-DD")
     parser.add_argument("--return-date", help="Return date YYYY-MM-DD")
-    parser.add_argument("--hub", action="append", help="Hub airport. Repeatable. Default: IST, SAW, AYT")
+    parser.add_argument("--hub", action="append", help="Hub airport. Repeatable. Required unless --auto-hubs is used.")
     parser.add_argument("--origin-airport", action="append", help="Force origin airport. Repeatable.")
     parser.add_argument("--destination-airport", action="append", help="Force destination airport. Repeatable.")
     parser.add_argument("--currency", default=DEFAULT_CURRENCY, help="Currency. Default RUB.")
@@ -48,8 +48,8 @@ def add_common_route_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--min-same-airport-min", type=int, default=120)
     parser.add_argument("--min-cross-airport-min", type=int, default=300)
     parser.add_argument("--max-airports-per-city", type=int, default=6)
-    parser.add_argument("--auto-hubs", action="store_true", help="Derive one-stop hubs from local routes.json instead of only using default/manual hubs.")
-    parser.add_argument("--max-auto-hubs", type=int, default=10, help="Maximum routes.json hubs to include when --auto-hubs is used.")
+    parser.add_argument("--auto-hubs", action="store_true", help="Derive one-stop hubs from local routes.json as a historical topology prior.")
+    parser.add_argument("--max-auto-hubs", type=int, default=10, help="Maximum routes.json prior hubs to include when --auto-hubs is used.")
 
 
 def add_carrier_selection_flags(parser: argparse.ArgumentParser) -> None:
@@ -176,9 +176,11 @@ def build_parser() -> argparse.ArgumentParser:
             "connection safety, airport/carrier preference) are not truncated before ranking."
         ),
     )
-    route_assemble.add_argument("--max-candidates", type=int, default=50)
+    route_assemble.add_argument("--candidate-pool-limit", type=int, default=5000, help="Maximum raw assembled candidates to score before ranked output is capped.")
+    route_assemble.add_argument("--max-candidates", type=int, default=50, help="Maximum ranked candidates to output after scoring.")
     route_assemble.add_argument("--max-reasons", type=int, default=5)
     route_assemble.add_argument("--include-candidates", type=int, default=5, help="Include first N raw assembled candidates in JSON output.")
+    route_assemble.add_argument("--include-ranked-candidates", type=int, default=5, help="Include full candidate bodies for first N ranked candidates.")
     route_assemble.add_argument("--include-rejected-pairs", type=int, default=20, help="Include first N rejected/airport-mismatch pairs.")
     add_carrier_selection_flags(route_assemble)
     route_assemble.set_defaults(func=command_route_assemble, command_name="route assemble")
@@ -203,9 +205,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Day offset(s) for hub→origin searches after return date. Repeatable. Default: 0, 1, and 2.",
     )
     route_kb_assemble.add_argument("--limit-per-pair", type=int, default=DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR)
-    route_kb_assemble.add_argument("--max-candidates", type=int, default=50)
+    route_kb_assemble.add_argument("--candidate-pool-limit", type=int, default=5000, help="Maximum raw assembled candidates to score before ranked output is capped.")
+    route_kb_assemble.add_argument("--max-candidates", type=int, default=50, help="Maximum ranked candidates to output after scoring.")
     route_kb_assemble.add_argument("--max-reasons", type=int, default=5)
     route_kb_assemble.add_argument("--include-candidates", type=int, default=5)
+    route_kb_assemble.add_argument("--include-ranked-candidates", type=int, default=5, help="Include full candidate bodies for first N ranked candidates.")
     route_kb_assemble.add_argument("--include-rejected-pairs", type=int, default=20)
     route_kb_assemble.add_argument("--include-segment-results", type=int, default=0, help="Include first N normalized segment-result blocks in JSON output.")
     route_kb_assemble.add_argument("--max-segment-searches", type=int, default=80, help="Safety cap for live segment requests.")

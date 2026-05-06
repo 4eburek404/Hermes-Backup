@@ -4,6 +4,7 @@ import argparse
 import unittest
 
 from flights_cli.domain.carriers import carrier_from_flight_number
+from flights_cli.errors import CliError
 from flights_cli.orchestrators.route_plan import build_route_plan
 from flights_cli.services.validation import connection_rule, validate_itinerary
 from flights_cli.store import Store
@@ -64,6 +65,28 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(result["metrics"]["segment_request_count"], 30)
         self.assertEqual(result["itinerary_families"][0]["outbound_airport_compatibility"][0]["required_min"], 120)
         self.assertIn("LON often returns empty in Travelpayouts; use specific London airports.", result["warnings"])
+
+    def test_route_plan_requires_explicit_or_auto_hubs(self) -> None:
+        args = argparse.Namespace(
+            origin="SVX",
+            destination="LON",
+            depart_date="2026-07-19",
+            return_date="2026-07-23",
+            hub=None,
+            origin_airport=None,
+            destination_airport=None,
+            currency="RUB",
+            direct_only=False,
+            ticketing="separate",
+            min_same_airport_min=120,
+            min_cross_airport_min=300,
+            max_airports_per_city=6,
+            auto_hubs=False,
+            max_auto_hubs=10,
+        )
+
+        with self.assertRaises(CliError):
+            build_route_plan(args, Store())
 
     def test_carrier_from_flight_number_handles_alphanumeric_iata_codes(self) -> None:
         self.assertEqual(carrier_from_flight_number("5N294"), "5N")
@@ -328,6 +351,78 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
                 == ["U6773", "TK1985"]
                 for candidate in assembled["data"]["candidates"]
             )
+        )
+
+    def test_route_assemble_caps_after_ranking_and_includes_ranked_details(self) -> None:
+        def offer(
+            offer_id: str,
+            origin: str,
+            destination: str,
+            departure_at: str,
+            arrival_at: str,
+            price: int,
+            flight_number: str,
+        ) -> dict:
+            return {
+                "id": offer_id,
+                "origin": origin,
+                "destination": destination,
+                "departure_airport": origin,
+                "arrival_airport": destination,
+                "departure_at": departure_at,
+                "arrival_at": arrival_at,
+                "price": price,
+                "currency": "RUB",
+                "segments": [
+                    {
+                        "origin": origin,
+                        "destination": destination,
+                        "departure_at": departure_at,
+                        "arrival_at": arrival_at,
+                        "flight_number": flight_number,
+                        "carrier": flight_number[:2],
+                    }
+                ],
+            }
+
+        segment_results = [
+            {
+                "direction": "outbound",
+                "leg": "origin_to_hub",
+                "query": {"origin": "SVX", "destination": "IST", "date": "2026-07-19", "currency": "RUB"},
+                "offers": [
+                    offer("cheap_first", "SVX", "IST", "2026-07-19T10:30:00+05:00", "2026-07-19T13:55:00+03:00", 100, "SU630"),
+                    offer("valid_first", "SVX", "IST", "2026-07-19T06:00:00+05:00", "2026-07-19T07:00:00+03:00", 1000, "U6773"),
+                ],
+            },
+            {
+                "direction": "outbound",
+                "leg": "hub_to_destination",
+                "query": {"origin": "IST", "destination": "LHR", "date": "2026-07-19", "currency": "RUB"},
+                "offers": [
+                    offer("invalid_second", "IST", "LHR", "2026-07-19T08:00:00+03:00", "2026-07-19T10:00:00+01:00", 100, "TK1979"),
+                    offer("valid_second", "IST", "LHR", "2026-07-19T16:30:00+03:00", "2026-07-19T18:30:00+01:00", 1000, "TK1987"),
+                ],
+            },
+        ]
+
+        assembled = self._assemble(
+            {"segment_results": segment_results},
+            "--max-candidates",
+            "1",
+            "--include-candidates",
+            "0",
+            "--include-ranked-candidates",
+            "1",
+        )
+        self.assertEqual(assembled["data"]["count"], 1)
+        self.assertEqual(assembled["data"]["assembly"]["candidate_count"], 4)
+        self.assertGreater(assembled["data"]["assembly"]["ranked_total_count"], 1)
+        self.assertTrue(assembled["data"]["ranked"][0]["ok"])
+        ranked_candidate = assembled["data"]["ranked_candidates"][0]["candidate"]
+        self.assertNotIn(
+            "TK1979",
+            [segment["flight_number"] for journey in ranked_candidate["journeys"] for segment in journey["segments"]],
         )
 
     def test_results_parse_preserves_transfer_metadata_for_risk(self) -> None:

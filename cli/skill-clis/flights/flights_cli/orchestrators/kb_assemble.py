@@ -4,9 +4,10 @@ import argparse
 from datetime import timedelta
 from typing import Any
 
-from ..config import DEFAULT_HUBS, DEFAULT_KB_ROUTE_OUTBOUND_SECOND_LEG_DAY_OFFSETS, DEFAULT_KB_ROUTE_RETURN_SECOND_LEG_DAY_OFFSETS, SUPPORTED_CURRENCIES
+from ..config import DEFAULT_KB_ROUTE_OUTBOUND_SECOND_LEG_DAY_OFFSETS, DEFAULT_KB_ROUTE_RETURN_SECOND_LEG_DAY_OFFSETS, SUPPORTED_CURRENCIES
 from ..domain.airports import explicit_or_resolved_airports
 from ..domain.normalize import normalize_carrier_code, normalize_iata, normalize_profile, parse_iso_date
+from ..domain.routes import find_route_graph_candidates
 from ..errors import CliError
 from ..providers.kupibilet import fetch_kupibilet_search, kupibilet_result_to_segment_result, kupibilet_segment_search_summary
 from ..services.assembly import assemble_segment_results, empty_assembled_result
@@ -27,6 +28,57 @@ def normalize_day_offsets(values: list[int] | None, default: list[int], field: s
     return offsets
 
 
+def hub_viability_summary(plan: dict[str, Any], searches: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_hub: dict[str, dict[str, Any]] = {
+        hub: {
+            "hub": hub,
+            "viable": False,
+            "total_offer_count": 0,
+            "legs": {
+                "origin_to_hub": {"offer_count": 0, "search_count": 0, "dates": []},
+                "hub_to_destination": {"offer_count": 0, "search_count": 0, "dates": []},
+                "destination_to_hub": {"offer_count": 0, "search_count": 0, "dates": []},
+                "hub_to_origin": {"offer_count": 0, "search_count": 0, "dates": []},
+            },
+            "missing_legs": [],
+        }
+        for hub in plan["hubs"]
+    }
+    for search in searches:
+        leg = search.get("leg")
+        if leg == "origin_to_hub":
+            hub = search.get("destination")
+        elif leg == "hub_to_destination":
+            hub = search.get("origin")
+        elif leg == "destination_to_hub":
+            hub = search.get("destination")
+        elif leg == "hub_to_origin":
+            hub = search.get("origin")
+        else:
+            continue
+        if hub not in by_hub or leg not in by_hub[hub]["legs"]:
+            continue
+        leg_summary = by_hub[hub]["legs"][leg]
+        leg_summary["search_count"] += 1
+        leg_summary["offer_count"] += int(search.get("offer_count") or 0)
+        date = search.get("date")
+        if date and date not in leg_summary["dates"]:
+            leg_summary["dates"].append(date)
+        by_hub[hub]["total_offer_count"] += int(search.get("offer_count") or 0)
+
+    required_legs = ["origin_to_hub", "hub_to_destination"]
+    if plan["dates"].get("return"):
+        required_legs += ["destination_to_hub", "hub_to_origin"]
+    for item in by_hub.values():
+        item["missing_legs"] = [
+            leg
+            for leg in required_legs
+            if int(item["legs"][leg]["offer_count"]) <= 0
+        ]
+        item["viable"] = not item["missing_legs"]
+    return sorted(by_hub.values(), key=lambda item: (not item["viable"], -int(item["total_offer_count"]), item["hub"]))
+
+
 def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     depart = parse_iso_date(args.depart_date, "depart-date")
     ret = parse_iso_date(args.return_date, "return-date") if args.return_date else None
@@ -43,7 +95,26 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
     destination_airports = explicit_or_resolved_airports(
         store, destination, args.destination_airport, role="destination", max_airports=args.max_airports_per_city
     )
-    hubs = [normalize_iata(hub, "hub") for hub in (args.hub or DEFAULT_HUBS)]
+    route_graph = None
+    hub_source = "manual"
+    if getattr(args, "auto_hubs", False):
+        route_graph = find_route_graph_candidates(
+            store,
+            origin_airports,
+            destination_airports,
+            profile=profile,
+            max_hubs=max(1, int(getattr(args, "max_auto_hubs", 10))),
+        )
+        graph_hubs = [candidate["hub"] for candidate in route_graph.get("one_stop_hubs", [])]
+        manual_hubs = [normalize_iata(hub, "hub") for hub in (args.hub or [])]
+        hubs = list(dict.fromkeys(graph_hubs + manual_hubs))
+        hub_source = "routes_json"
+        if manual_hubs:
+            hub_source = "routes_json+manual"
+    else:
+        hubs = [normalize_iata(hub, "hub") for hub in (args.hub or [])]
+    if not hubs:
+        raise CliError("route hubs are required; pass --hub repeatedly or use --auto-hubs explicitly", error_type="validation_error")
     outbound_second_offsets = normalize_day_offsets(
         getattr(args, "outbound_second_leg_day_offset", None),
         DEFAULT_KB_ROUTE_OUTBOUND_SECOND_LEG_DAY_OFFSETS,
@@ -100,6 +171,8 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
     ]
     if any(hub in {"IST", "SAW"} for hub in hubs) and not {"IST", "SAW"}.issubset(set(hubs)):
         warnings.append("For Istanbul, include both --hub IST and --hub SAW when comparing airport systems.")
+    if route_graph:
+        warnings.append("routes.json is a historical topology prior, not a current schedule source; live segment probes decide viability.")
 
     return {
         "origin": origin.code,
@@ -107,6 +180,8 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
         "origin_airports": origin_airports,
         "destination_airports": destination_airports,
         "hubs": hubs,
+        "hub_source": hub_source,
+        "route_graph": route_graph,
         "dates": {"depart": depart.isoformat(), "return": ret.isoformat() if ret else None},
         "currency": currency,
         "profile": profile,
@@ -165,6 +240,7 @@ def run_kupibilet_route_assembly(args: argparse.Namespace, store: Store) -> dict
         "note": "Live aggregate source; recheck price/seat availability and whether segments can be ticketed together before purchase.",
         "plan": {key: value for key, value in plan.items() if key != "segments"},
         "segment_searches": searches,
+        "hub_viability": hub_viability_summary(plan, searches),
         "failure_count": len(failures),
         "failures": failures,
         "included_segment_result_count": min(len(segment_results), args.include_segment_results),

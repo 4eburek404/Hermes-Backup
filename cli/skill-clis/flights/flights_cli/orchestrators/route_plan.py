@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from typing import Any
 
-from ..config import CACHE_NOTE, DEFAULT_HUBS, RISK_PROFILES, SINGLE_AIRPORT_NOTES, SUPPORTED_CURRENCIES
+from ..config import CACHE_NOTE, RISK_PROFILES, SINGLE_AIRPORT_NOTES, SUPPORTED_CURRENCIES
 from ..domain.airports import airport_pair_risk, explicit_or_resolved_airports, explain_airport
 from ..domain.normalize import normalize_iata, normalize_profile, parse_iso_date
 from ..domain.routes import find_route_graph_candidates
@@ -30,7 +30,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         store, destination, args.destination_airport, role="destination", max_airports=args.max_airports_per_city
     )
     route_graph = None
-    hub_source = "manual" if args.hub else "default"
+    hub_source = "manual"
     if getattr(args, "auto_hubs", False):
         route_graph = find_route_graph_candidates(
             store,
@@ -45,12 +45,11 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         hub_source = "routes_json"
         if manual_hubs:
             hub_source = "routes_json+manual"
-        if not hubs:
-            hubs = DEFAULT_HUBS
-            hub_source = "default_fallback"
-            route_graph["fallback_hubs"] = DEFAULT_HUBS
     else:
-        hubs = [normalize_iata(hub, "hub") for hub in (args.hub or DEFAULT_HUBS)]
+        hubs = [normalize_iata(hub, "hub") for hub in (args.hub or [])]
+
+    if not hubs:
+        raise CliError("route hubs are required; pass --hub repeatedly or use --auto-hubs explicitly", error_type="validation_error")
 
     warnings: list[str] = [CACHE_NOTE]
     if destination.code == "LON":
@@ -62,9 +61,9 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     if "AYT" in hubs:
         warnings.append(SINGLE_AIRPORT_NOTES["AYT"])
     if route_graph:
-        warnings.append("routes.json is a broad topology prior, not a current schedule source.")
+        warnings.append("routes.json is a historical topology prior, not a current schedule source.")
         if route_graph.get("available") is False:
-            warnings.append("routes.json is missing from cache; using fallback hubs.")
+            warnings.append("routes.json is missing from cache; no automatic hubs were derived.")
 
     segments: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str, str]] = set()

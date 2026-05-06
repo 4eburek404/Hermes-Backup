@@ -4,6 +4,7 @@ import gzip
 import unittest
 
 from flights_cli.cli import build_parser
+from flights_cli.errors import CliError
 from flights_cli.orchestrators.kb_assemble import build_kupibilet_route_segment_plan
 from flights_cli.providers.kupibilet import (
     build_kupibilet_payload,
@@ -191,6 +192,23 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(plan["hubs"], ["IST", "AYT"])
         self.assertEqual(plan["second_leg_day_offsets"], {"outbound": [0, 1], "return": [0, 1, 2]})
         self.assertEqual(plan["metrics"]["segment_search_count"], 14)
+
+    def test_route_kb_assemble_requires_explicit_or_auto_hubs(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "route",
+                "kb-assemble",
+                "SVX",
+                "CDG",
+                "--depart-date",
+                "2026-08-15",
+                "--return-date",
+                "2026-08-19",
+            ]
+        )
+
+        with self.assertRaises(CliError):
+            build_kupibilet_route_segment_plan(args, Store())
 
     def test_kupibilet_direct_segments_feed_route_assemble(self) -> None:
         def kb_result(origin: str, destination: str, depart_date: str, price: int, flight_number: str, dep: str, arr: str) -> dict:
