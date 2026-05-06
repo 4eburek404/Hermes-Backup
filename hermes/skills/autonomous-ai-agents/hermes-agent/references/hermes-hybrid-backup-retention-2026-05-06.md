@@ -79,11 +79,18 @@ After script implementation, audit the embedded cron prompt. Updating scripts al
 The cron prompt should run:
 
 ```bash
-python3 scripts/collect-hermes-backup.py --encrypted-mode auto
+python3 scripts/collect-hermes-backup.py --encrypted-mode auto --max-encrypted-age-days 8 --retention latest
 python3 scripts/verify-hermes-backup.py --max-encrypted-age-days 8 --require-single-active-generation
 ```
 
 Preserve unrelated cron fields: schedule, delivery, workdir, enabled toolsets, and model/provider pin unless the change explicitly targets them.
+
+Smoke-test details from rollout:
+
+- Implementation branch `backup/hybrid-retention-2026-05-06` merged to `main` as `41ccd9b7fd25b89d679e3adf29178e65476595da`.
+- Cron smoke runs succeeded and pushed snapshot commits; final closeout commit on `origin/main` was `27d8115391607bd4ac56162050aa701e7aeece88`.
+- First smoke output was operationally `ok` but used a pipe table and accidentally appended `[SILENT]` after a normal report. Patch cron prompts for Telegram delivery to require bullet/key-value lines, no markdown tables, and no `[SILENT]` unless the whole response is exactly silent.
+- Final strict verifier summary: `single_active_generation: true`, `plaintext_secret_findings: 0`, `files_over_github_limit: 0`, `state_db_integrity: ok`, `memory_store_integrity: ok`, latest encrypted timestamp `20260506-151544`.
 
 ## Pitfalls
 

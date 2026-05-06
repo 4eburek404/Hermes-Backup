@@ -1,8 +1,8 @@
 {
   "kind": "hermes-agent-cli-source-state",
-  "created_at_utc": "2026-05-06T16:12:30.239915+00:00",
+  "created_at_utc": "2026-05-06T22:01:17.498065+00:00",
   "executable": "/home/konstantin/.local/bin/hermes",
-  "version_output": "Hermes Agent v0.11.0 (2026.4.23)\nProject: /home/konstantin/.hermes/hermes-agent\nPython: 3.11.15\nOpenAI SDK: 2.32.0\nUpdate available: 772 commits behind — run 'hermes update'",
+  "version_output": "Hermes Agent v0.11.0 (2026.4.23)\nProject: /home/konstantin/.hermes/hermes-agent\nPython: 3.11.15\nOpenAI SDK: 2.32.0\nUpdate available: 808 commits behind — run 'hermes update'",
   "source_path": "/home/konstantin/.hermes/hermes-agent",
   "source_exists": true,
   "git_remote": "https://github.com/NousResearch/hermes-agent.git",
