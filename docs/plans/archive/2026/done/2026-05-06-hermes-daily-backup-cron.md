@@ -51,8 +51,10 @@ Current status: done
 ## Notes
 - Host timezone at plan creation: `2026-05-06 15:26:13 CEST +0200`.
 - No existing backup cron was present in the initial cron list.
-- Created cron job `0849e94b782d`: name `Hermes personal backup — every 24h`, schedule `every 1440m`, delivery `origin`, workdir `/home/konstantin/code/Hermes`, enabled toolsets `terminal`.
+- Created cron job `0849e94b782d`: name `Hermes personal backup — every 24h`, schedule `every 1440m`, delivery `origin`, workdir `/home/konstantin/code/Hermes`, enabled toolsets `terminal`, model pin `ollama-local` / `glm-5.1:cloud`.
 - Next run reported by scheduler: `2026-05-07T15:28:35.129322+02:00`.
 
 - Immediate backup after cron creation passed verifier: `ok: true`, `memory_store_integrity: ok`, `state_db_integrity: ok`, `plaintext_secret_findings: 0`, `forbidden_plaintext_paths: 0`, `files_over_github_limit: 0`.
 - Immediate backup commit pushed: `dfc67eec33e23402a239e54f7128d637c82b18c1` (`backup: daily hermes snapshot 2026-05-06T13:36Z`).
+
+- Cron model/provider pinned after creation: `ollama-local` / `glm-5.1:cloud`, matching existing successful Hermes cron jobs and keeping the backup job independent of chat-model drift.

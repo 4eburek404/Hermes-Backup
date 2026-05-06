@@ -12,7 +12,7 @@ Use this reference when asked to back up Hermes Agent settings, memory, skills, 
 - Bootstrap commit: `9a212c4f2ffa152e82ddb101574c676fe64fd2dd` (`backup: bootstrap hermes personal overlay`).
 - CLI backup layer commit: `f8b770a3cb44fd6fbe6b827baa641664a28fc077` (`backup: add cli source layer`).
 - Latest verified branch head after archiving the CLI backup plan: `f67a043b3112c3aebd64bedd7e7ace182499ac7f` (`docs: archive cli backup plan`).
-- Daily backup cron job created 2026-05-06: job id `0849e94b782d`, name `Hermes personal backup — every 24h`, schedule `every 1440m`, delivery `origin`, workdir `/home/konstantin/code/Hermes`, enabled toolsets `terminal` only. Its prompt runs collect → verify → commit → push and fails safe if the backup repo is dirty or local/remote diverged. It must not run `hermes update`, pull the upstream Hermes Agent checkout, restart gateway, edit config/cron, or print raw secrets.
+- Daily backup cron job created 2026-05-06: job id `0849e94b782d`, name `Hermes personal backup — every 24h`, schedule `every 1440m`, delivery `origin`, workdir `/home/konstantin/code/Hermes`, enabled toolsets `terminal` only, model pin `ollama-local` / `glm-5.1:cloud`. Its prompt runs collect → verify → commit → push and fails safe if the backup repo is dirty or local/remote diverged. It must not run `hermes update`, pull the upstream Hermes Agent checkout, restart gateway, edit config/cron, or print raw secrets.
 - GitHub default branch became `backup/bootstrap-2026-05-06` after the bootstrap push.
 - `age` was initially missing and was installed from Ubuntu apt package `1.1.1-1ubuntu0.24.04.3`.
 - `git-lfs` was missing and not used.
