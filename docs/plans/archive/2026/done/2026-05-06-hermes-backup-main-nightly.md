@@ -19,13 +19,13 @@ Rename the personal Hermes backup repository branch from `backup/bootstrap-2026-
 - Do not change unrelated cron jobs.
 
 ## Steps
-- [ ] Verify backup repo is clean and remote/default state is known.
-- [ ] Rename local backup branch to `main`, push `main`, set GitHub default branch to `main`, and remove the old remote branch if safe.
-- [ ] Update backup cron job `0849e94b782d`: schedule to nightly host cron `0 0 * * *`, prompt branch guard to `main`, and name to nightly wording.
-- [ ] Update durable reference/fact metadata so future agents know branch/schedule changed.
-- [ ] Run collector + verifier on `main`, commit/push updated backup snapshot.
-- [ ] Verify GitHub default branch/head, cron metadata/next_run_at, and clean git status.
-- [ ] Mark this plan done and archive it.
+- [x] Verify backup repo is clean and remote/default state is known.
+- [x] Rename local backup branch to `main`, push `main`, set GitHub default branch to `main`, and remove the old remote branch if safe.
+- [x] Update backup cron job `0849e94b782d`: schedule to nightly host cron `0 0 * * *`, prompt branch guard to `main`, and name to nightly wording.
+- [x] Update durable reference/fact metadata so future agents know branch/schedule changed.
+- [x] Run collector + verifier on `main`, commit/push updated backup snapshot.
+- [x] Verify GitHub default branch/head, cron metadata/next_run_at, and clean git status.
+- [x] Mark this plan done and archive it.
 
 ## Verification
 - `git branch --show-current` in `/home/konstantin/code/Hermes` returns `main`.
@@ -43,7 +43,9 @@ Rename the personal Hermes backup repository branch from `backup/bootstrap-2026-
 - Backup collector may regenerate encrypted artifacts; verifier must pass before push.
 
 ## Status
-Current status: in_progress
+Current status: done
 
 ## Notes
 - 2026-05-06: Plan created before mutating GitHub branch and live cron metadata.
+
+- 2026-05-06: Branch renamed to `main`; GitHub default branch set to `main`; old remote branch `backup/bootstrap-2026-05-06` deleted. Cron job `0849e94b782d` renamed to `Hermes personal backup — nightly`, schedule changed to `0 0 * * *` host time = `03:00` Asia/Yekaterinburg. Collector/verifier passed and pushed snapshot commit `658d5317e45c247c1c78911071e0b83f9833f76a` on `main`.
