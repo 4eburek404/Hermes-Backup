@@ -9,10 +9,18 @@ from collections import defaultdict
 from datetime import date
 from typing import Any
 
-from ..config import CARRIER_RE, DEFAULT_CURRENCY, KUPIBILET_FRONTEND_SEARCH_URL, KUPIBILET_HEADERS, SUPPORTED_CURRENCIES
+from ..config import (
+    CARRIER_RE,
+    DEFAULT_CURRENCY,
+    DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
+    KUPIBILET_FRONTEND_SEARCH_URL,
+    KUPIBILET_HEADERS,
+    SUPPORTED_CURRENCIES,
+)
 from ..domain.carriers import carrier_from_flight_number
 from ..domain.normalize import normalize_carrier_code, normalize_iata, parse_iso_date, price_value
 from ..errors import CliError
+from .live_cache import live_cache_key, read_live_cache, write_live_cache
 
 def build_kupibilet_payload(origin: str, destination: str, depart_date: str, currency: str) -> dict[str, Any]:
     return {
@@ -386,7 +394,52 @@ def kupibilet_segment_search_summary(spec: dict[str, Any], result: dict[str, Any
         "unique_flight_count": result.get("unique_flight_count"),
         "offer_count": len(segment_result.get("offers") or []),
         "skipped": result.get("skipped", {}),
+        "cache": result.get("cache", {"hit": False}),
     }
+
+
+def cached_kupibilet_search(
+    origin: str,
+    destination: str,
+    depart_date: date,
+    *,
+    currency: str,
+    only_carriers: list[str],
+    direct_only: bool,
+    limit: int,
+    timeout: int,
+    cache_ttl_seconds: int = DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
+    use_cache: bool = True,
+    fetcher: Any = fetch_kupibilet_search,
+) -> dict[str, Any]:
+    params = {
+        "origin": origin,
+        "destination": destination,
+        "depart_date": depart_date.isoformat(),
+        "currency": currency,
+        "only_carriers": sorted(only_carriers),
+        "direct_only": bool(direct_only),
+        "limit": int(limit),
+    }
+    key = live_cache_key("kupibilet_frontend_search", params)
+    if use_cache:
+        cached = read_live_cache(key, ttl_seconds=int(cache_ttl_seconds))
+        if cached is not None:
+            return cached
+    result = fetcher(
+        origin,
+        destination,
+        depart_date,
+        currency=currency,
+        only_carriers=only_carriers,
+        direct_only=direct_only,
+        limit=limit,
+        timeout=timeout,
+    )
+    if use_cache and int(cache_ttl_seconds) > 0:
+        return write_live_cache(key, result)
+    result["cache"] = {"hit": False, "key": key, "disabled": True}
+    return result
 
 
 def run_kb_search(args: argparse.Namespace) -> dict[str, Any]:
@@ -398,7 +451,7 @@ def run_kb_search(args: argparse.Namespace) -> dict[str, Any]:
     if currency not in SUPPORTED_CURRENCIES:
         raise CliError(f"currency must be one of {', '.join(sorted(SUPPORTED_CURRENCIES))}", error_type="validation_error")
     only_carriers = [normalize_carrier_code(code, "only-carrier") for code in (args.only_carrier or [])]
-    return fetch_kupibilet_search(
+    return cached_kupibilet_search(
         origin,
         destination,
         depart,
@@ -407,4 +460,6 @@ def run_kb_search(args: argparse.Namespace) -> dict[str, Any]:
         direct_only=args.direct_only,
         limit=args.limit,
         timeout=args.timeout,
+        cache_ttl_seconds=int(getattr(args, "cache_ttl_seconds", DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS)),
+        use_cache=not bool(getattr(args, "no_cache", False)),
     )

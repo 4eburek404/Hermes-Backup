@@ -42,11 +42,16 @@ python3 -m flights_cli --json route plan ORIGIN DEST \
 
 When no `--hub` is supplied, `--routing-strategy auto` uses `ru-priority`:
 
-1. Check `origin→IST` direct first, then `IST→destination`.
-2. If `origin→IST` has no viable direct offer, check `origin→SVO→IST` with Aeroflot/SU and reuse `IST→destination`.
-3. Check `origin→DXB→destination` only when the IST path does not produce a usable assembled pair. Do not expand DXB through Moscow.
+1. Check exact-airport direct controls: `origin→destination`, and `destination→origin` for round trips. In live `route kb-assemble`, use the official Koltsovo seasonal route index as a cached negative filter for any direct control that includes SVX. Do not add a static "known no direct" skip table.
+2. Check `origin→IST` direct first, then `IST→destination`.
+3. If `origin→IST` has no viable direct offer, check `origin→SVO→IST` with Aeroflot/SU and reuse `IST→destination`.
+4. Check `origin→DXB→destination` only when direct/SVO/IST priority routes do not produce a usable assembled pair. Do not expand DXB through Moscow.
 
 Carrier priority is `U6`, `SU`, `TK`; SVO fallback legs are constrained to `SU`.
+
+For Asia, China, and Oceania destinations, `ru-priority` becomes geo-aware:
+check SVO as an independent hub before IST/DXB. Beijing `BJS` expands to
+`PEK`/`PKX`; Paris `PAR` expands to `CDG`/`ORY`.
 
 Use `--routing-strategy hub-list` or pass explicit `--hub` values only when you intentionally need a broader hub matrix.
 
@@ -75,7 +80,7 @@ Call these cached probes, not live search.
 
 5. Probe live segments with Kupibilet.
 
-For live `route kb-assemble`, the default `ru-priority` strategy runs direct-only probes, skips the SVO fallback when direct IST offers exist, synthesizes `origin→IST` from `origin→SVO + SVO→IST` when direct IST is empty, and skips DXB when IST already has a non-error assembled pair. Start `hub-list` only when you intentionally want a broad matrix.
+For live `route kb-assemble`, the default `ru-priority` strategy runs exact direct controls plus direct-only hub probes, skips the SVO fallback when direct IST offers exist, synthesizes `origin→IST` from `origin→SVO + SVO→IST` when direct IST is empty, and skips DXB when direct/SVO/IST already has a non-error assembled journey. Start `hub-list` only when you intentionally want a broad matrix.
 
 ```bash
 python3 -m flights_cli --json route kb-assemble ORIGIN DEST \
@@ -89,6 +94,8 @@ python3 -m flights_cli --json route kb-assemble ORIGIN DEST \
   --include-ranked-candidates 10 \
   --include-segment-results 0
 ```
+
+Kupibilet segment probes use a short-lived cache by default (`--live-cache-ttl-seconds`, 6 hours). `route kb-assemble` also uses a separate official SVX direct-route index cache (`--direct-route-index-ttl-seconds`, 7 days) to skip absent exact direct controls such as SVX→MUC before calling Kupibilet. Use `--no-direct-route-intel` only when the user wants to ignore the official schedule index. `kb-search` has matching live-result `--cache-ttl-seconds` and `--no-cache` controls.
 
 Start broad only to learn the segment matrix. Then read `live_search.hub_viability`, narrow to hubs that have offers for all needed legs, and rerun with a sufficient candidate pool.
 
@@ -106,8 +113,10 @@ This shows provider-assembled one-way options, often with low-cost carriers, lon
 ## Analysis Rules
 
 - Read `live_search.hub_viability` and `live_search.segment_searches` before trusting candidates. A hub is viable only if all required legs have nonzero offers for the chosen dates and offsets.
+- Read `live_search.direct_route_intelligence` when direct controls were skipped. A `direct_route_schedule_negative` skip means the exact SVX airport pair was absent from the official seasonal route index; hub routing still ran.
 - If all ranked candidates are rejected, inspect `assembly.candidate_pool_truncated`, hub viability, and pair rejections. Rerun with narrower hubs or a higher `--candidate-pool-limit`.
 - Use `ranked_candidates` for exact top-ranked flight details. `candidates` is only a raw candidate sample.
+- `route assemble` can mix direct and hub journeys. It may return a hub outbound with a direct return, or the reverse.
 - Filter to `ok=true` before reporting recommendations. Summarize rejected options only as warnings or "do not take" notes.
 - For business travel, prefer same-airport hubs, 2-6 hour connections, fewer carriers, and no airport changes. Penalize long overnight waits even when the price is lower.
 - Always distinguish source type: static catalog, Travelpayouts cached Data API, Travelpayouts GraphQL cached API, or Kupibilet live aggregate.

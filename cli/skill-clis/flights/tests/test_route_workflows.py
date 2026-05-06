@@ -89,10 +89,11 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(result["routing_strategy"], "ru-priority")
         self.assertEqual(result["hubs"], ["IST", "DXB"])
         self.assertEqual(result["hub_source"], "strategy")
-        self.assertEqual(result["metrics"]["segment_request_count"], 6)
+        self.assertEqual(result["metrics"]["segment_request_count"], 7)
         self.assertEqual(
             [(segment["origin"], segment["destination"], segment["leg"]) for segment in result["segments"]],
             [
+                ("SVX", "MUC", "direct_outbound"),
                 ("SVX", "IST", "origin_to_hub"),
                 ("SVX", "SVO", "origin_to_gateway"),
                 ("SVO", "IST", "gateway_to_hub"),
@@ -102,9 +103,44 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
             ],
         )
         self.assertTrue(all("--direct-only" in segment["command"] for segment in result["segments"]))
-        self.assertEqual(result["route_families"][1]["required_carriers"], ["SU"])
+        self.assertEqual(result["route_families"][2]["required_carriers"], ["SU"])
         self.assertIn("SVO", result["metrics"]["unique_airports_considered"])
         self.assertNotIn("route_graph", result)
+
+    def test_route_plan_uses_asia_profile_for_beijing(self) -> None:
+        args = argparse.Namespace(
+            origin="SVX",
+            destination="BJS",
+            depart_date="2026-09-15",
+            return_date="2026-09-20",
+            hub=None,
+            routing_strategy="auto",
+            origin_airport=None,
+            destination_airport=None,
+            currency="RUB",
+            direct_only=False,
+            ticketing="separate",
+            min_same_airport_min=120,
+            min_cross_airport_min=300,
+            max_airports_per_city=6,
+        )
+
+        result = build_route_plan(args, Store())
+
+        self.assertEqual(result["routing_profile"], "asia-oceania")
+        self.assertEqual(result["destination_airports"], ["PEK", "PKX"])
+        self.assertEqual(result["hubs"], ["SVO", "IST", "DXB"])
+        self.assertEqual(result["metrics"]["segment_request_count"], 26)
+        self.assertIn("svo_asia", {family["id"] for family in result["route_families"]})
+        segments = {
+            (segment["direction"], segment["origin"], segment["destination"], segment["leg"], segment.get("route_family"))
+            for segment in result["segments"]
+        }
+        self.assertIn(("outbound", "SVX", "PEK", "direct_outbound", "direct_control"), segments)
+        self.assertIn(("outbound", "SVX", "SVO", "origin_to_hub", "svo_asia"), segments)
+        self.assertIn(("outbound", "SVO", "PEK", "hub_to_destination", "svo_asia"), segments)
+        self.assertIn(("return", "PEK", "SVX", "direct_return", "direct_control"), segments)
+        self.assertIn(("return", "SVO", "SVX", "hub_to_origin", "svo_asia"), segments)
 
     def test_route_plan_hub_list_strategy_uses_default_hubs(self) -> None:
         args = argparse.Namespace(
@@ -320,6 +356,88 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(assembled["data"]["assembly"]["candidate_count"], 1)
         self.assertEqual(assembled["data"]["ranked"][0]["price"], 35803)
         self.assertEqual(assembled["data"]["ranked"][0]["risk"]["grade"], "excellent")
+
+    def test_route_assemble_combines_hub_outbound_with_direct_return_and_dedupes(self) -> None:
+        def offer(
+            offer_id: str,
+            origin: str,
+            destination: str,
+            departure_at: str,
+            arrival_at: str,
+            price: int,
+            flight_number: str,
+        ) -> dict:
+            return {
+                "id": offer_id,
+                "origin": origin,
+                "destination": destination,
+                "departure_airport": origin,
+                "arrival_airport": destination,
+                "departure_at": departure_at,
+                "arrival_at": arrival_at,
+                "price": price,
+                "currency": "RUB",
+                "segments": [
+                    {
+                        "origin": origin,
+                        "destination": destination,
+                        "departure_at": departure_at,
+                        "arrival_at": arrival_at,
+                        "flight_number": flight_number,
+                        "carrier": flight_number[:2],
+                    }
+                ],
+            }
+
+        direct_return = offer(
+            "muc-svx",
+            "MUC",
+            "SVX",
+            "2026-08-19T14:00:00+02:00",
+            "2026-08-19T22:30:00+05:00",
+            20000,
+            "U61234",
+        )
+        segment_results = [
+            {
+                "direction": "outbound",
+                "leg": "origin_to_hub",
+                "query": {"origin": "SVX", "destination": "IST", "date": "2026-08-12", "currency": "RUB"},
+                "offers": [
+                    offer("svx-ist", "SVX", "IST", "2026-08-12T06:00:00+05:00", "2026-08-12T09:00:00+03:00", 10000, "SU630")
+                ],
+            },
+            {
+                "direction": "outbound",
+                "leg": "hub_to_destination",
+                "query": {"origin": "IST", "destination": "MUC", "date": "2026-08-12", "currency": "RUB"},
+                "offers": [
+                    offer("ist-muc", "IST", "MUC", "2026-08-12T14:00:00+03:00", "2026-08-12T16:00:00+02:00", 12000, "TK1635")
+                ],
+            },
+            {
+                "direction": "return",
+                "leg": "direct_return",
+                "query": {"origin": "MUC", "destination": "SVX", "date": "2026-08-19", "currency": "RUB"},
+                "offers": [direct_return],
+            },
+            {
+                "direction": "return",
+                "leg": "direct_return",
+                "query": {"origin": "MUC", "destination": "SVX", "date": "2026-08-19", "currency": "RUB"},
+                "offers": [dict(direct_return)],
+            },
+        ]
+
+        assembled = self._assemble({"segment_results": segment_results}, "--include-ranked-candidates", "1")
+
+        self.assertEqual(assembled["data"]["assembly"]["outbound_pair_count"], 1)
+        self.assertEqual(assembled["data"]["assembly"]["return_direct_count"], 2)
+        self.assertEqual(assembled["data"]["assembly"]["raw_candidate_count"], 2)
+        self.assertEqual(assembled["data"]["assembly"]["candidate_duplicate_count"], 1)
+        self.assertEqual(assembled["data"]["assembly"]["candidate_count"], 1)
+        journeys = assembled["data"]["ranked_candidates"][0]["candidate"]["journeys"]
+        self.assertEqual([len(journey["segments"]) for journey in journeys], [2, 1])
 
     def test_route_assemble_default_depth_preserves_frontier_relevant_option(self) -> None:
         """Single-axis sorted segment lists must not hide the 6th-by-price frontier option."""

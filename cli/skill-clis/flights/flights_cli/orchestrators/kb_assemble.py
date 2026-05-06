@@ -5,8 +5,13 @@ from datetime import timedelta
 from typing import Any
 
 from ..config import (
+    ASIA_DESTINATION_CODES,
+    ASIA_OCEANIA_COUNTRIES,
+    DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS,
     DEFAULT_KB_ROUTE_OUTBOUND_SECOND_LEG_DAY_OFFSETS,
     DEFAULT_KB_ROUTE_RETURN_SECOND_LEG_DAY_OFFSETS,
+    DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
+    PRIORITY_ASIA_HUB,
     PRIORITY_MOSCOW_GATEWAY,
     PRIORITY_PRIMARY_HUB,
     PRIORITY_ROUTE_CARRIERS,
@@ -17,8 +22,9 @@ from ..domain.airports import explicit_or_resolved_airports
 from ..domain.hubs import resolve_route_hubs, resolve_routing_strategy
 from ..domain.normalize import currency_value, normalize_carrier_code, normalize_profile, parse_iso_date, price_value
 from ..errors import CliError
-from ..providers.kupibilet import fetch_kupibilet_search, kupibilet_result_to_segment_result, kupibilet_segment_search_summary
-from ..services.assembly import assemble_direction, assemble_segment_results, empty_assembled_result
+from ..providers.kupibilet import cached_kupibilet_search, fetch_kupibilet_search, kupibilet_result_to_segment_result, kupibilet_segment_search_summary
+from ..providers.route_intel import load_or_refresh_svx_route_index, svx_direct_route_index_summary
+from ..services.assembly import assemble_direction, assemble_segment_results, direct_journeys, empty_assembled_result
 from ..store import Store
 
 def normalize_day_offsets(values: list[int] | None, default: list[int], field: str) -> list[int]:
@@ -34,6 +40,50 @@ def normalize_day_offsets(values: list[int] | None, default: list[int], field: s
         if offset not in offsets:
             offsets.append(offset)
     return offsets
+
+
+def geo_routing_profile(destination: Any, destination_airports: list[str]) -> str:
+    codes = {str(destination.code or "").upper(), *(code.upper() for code in destination_airports)}
+    country = str(destination.country_code or "").upper()
+    if country in ASIA_OCEANIA_COUNTRIES or codes & ASIA_DESTINATION_CODES:
+        return "asia-oceania"
+    return "default"
+
+
+def plan_has_svx_direct_control(plan: dict[str, Any]) -> bool:
+    for spec in plan.get("segments") or []:
+        if not isinstance(spec, dict) or spec.get("leg") not in {"direct_outbound", "direct_return"}:
+            continue
+        if str(spec.get("origin") or "").upper() == "SVX" or str(spec.get("destination") or "").upper() == "SVX":
+            return True
+    return False
+
+
+def direct_route_intel_context(args: argparse.Namespace, store: Store, plan: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    if bool(getattr(args, "no_direct_route_intel", False)):
+        return None, {"enabled": False, "available": False, "reason": "disabled_by_flag"}
+    ttl_seconds = int(getattr(args, "direct_route_index_ttl_seconds", DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS))
+    if ttl_seconds <= 0:
+        return None, {"enabled": False, "available": False, "reason": "disabled_by_ttl"}
+    if not plan_has_svx_direct_control(plan):
+        return None, {"enabled": False, "available": False, "reason": "no_supported_svx_direct_control"}
+    try:
+        known_airports = set(store.airport_by_code)
+        index, cache = load_or_refresh_svx_route_index(
+            ttl_seconds=ttl_seconds,
+            timeout=int(getattr(args, "timeout", 20)),
+            known_airports=known_airports or None,
+            cache_dir=store.cache_dir / "route_intel",
+        )
+    except CliError as exc:
+        return None, {
+            "enabled": True,
+            "available": False,
+            "reason": "route_index_unavailable",
+            "error": {"type": exc.error_type, "message": exc.message},
+            "fallback": "direct-control live searches were kept because the official route index was unavailable.",
+        }
+    return index, svx_direct_route_index_summary(index, cache)
 
 
 def hub_viability_summary(plan: dict[str, Any], searches: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -280,8 +330,11 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
     except ValueError as exc:
         raise CliError(str(exc), error_type="validation_error") from exc
     hubs, hub_source = resolve_route_hubs(args.hub)
+    routing_profile = geo_routing_profile(destination, destination_airports)
     if routing_strategy == "ru-priority":
         hubs = [PRIORITY_PRIMARY_HUB, PRIORITY_SECONDARY_HUB]
+        if routing_profile == "asia-oceania":
+            hubs = [PRIORITY_ASIA_HUB, PRIORITY_PRIMARY_HUB, PRIORITY_SECONDARY_HUB]
         hub_source = "strategy"
     outbound_second_offsets = normalize_day_offsets(
         getattr(args, "outbound_second_leg_day_offset", None),
@@ -319,15 +372,33 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
     if routing_strategy == "ru-priority":
         route_families = [
             {
+                "id": "direct_control",
+                "priority": 0,
+                "condition": "check direct exact-airport legs when live assembly runs; cache empty results",
+                "preferred_carriers": list(PRIORITY_ROUTE_CARRIERS),
+            },
+        ]
+        if routing_profile == "asia-oceania":
+            route_families.append(
+                {
+                    "id": "svo_asia",
+                    "priority": 1,
+                    "hub": PRIORITY_ASIA_HUB,
+                    "condition": "Asia/Oceania destination: check SVO as an independent hub, not only as an IST fallback",
+                    "preferred_carriers": list(PRIORITY_ROUTE_CARRIERS),
+                }
+            )
+        route_families += [
+            {
                 "id": "ist_direct",
-                "priority": 1,
+                "priority": 2 if routing_profile == "asia-oceania" else 1,
                 "hub": PRIORITY_PRIMARY_HUB,
                 "condition": "check first; use origin->IST direct when available",
                 "preferred_carriers": list(PRIORITY_ROUTE_CARRIERS),
             },
             {
                 "id": "ist_svo_su_fallback",
-                "priority": 2,
+                "priority": 3 if routing_profile == "asia-oceania" else 2,
                 "hub": PRIORITY_PRIMARY_HUB,
                 "via": [PRIORITY_MOSCOW_GATEWAY],
                 "condition": "run only when origin->IST direct has no viable direct offers",
@@ -336,12 +407,50 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
             },
             {
                 "id": "dxb_direct",
-                "priority": 3,
+                "priority": 4 if routing_profile == "asia-oceania" else 3,
                 "hub": PRIORITY_SECONDARY_HUB,
-                "condition": "check only if IST does not produce a usable assembled pair; do not expand origin->DXB through Moscow",
+                "condition": "check only if direct/SVO/IST priority routes do not produce a usable assembled pair; do not expand origin->DXB through Moscow",
                 "preferred_carriers": list(PRIORITY_ROUTE_CARRIERS),
             },
         ]
+        for origin_code in origin_airports:
+            for dest_code in destination_airports:
+                add_segment(
+                    "outbound",
+                    "direct_outbound",
+                    depart,
+                    origin_code,
+                    dest_code,
+                    route_family="direct_control",
+                    priority=0,
+                    preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                )
+        if routing_profile == "asia-oceania":
+            for origin_code in origin_airports:
+                add_segment(
+                    "outbound",
+                    "origin_to_hub",
+                    depart,
+                    origin_code,
+                    PRIORITY_ASIA_HUB,
+                    route_family="svo_asia",
+                    priority=1,
+                    only_carriers=["SU"],
+                    preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                )
+            for offset in outbound_second_offsets:
+                leg_date = depart + timedelta(days=offset)
+                for dest_code in destination_airports:
+                    add_segment(
+                        "outbound",
+                        "hub_to_destination",
+                        leg_date,
+                        PRIORITY_ASIA_HUB,
+                        dest_code,
+                        route_family="svo_asia",
+                        priority=1,
+                        preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                    )
         for origin_code in origin_airports:
             add_segment(
                 "outbound",
@@ -350,7 +459,7 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                 origin_code,
                 PRIORITY_PRIMARY_HUB,
                 route_family="ist_direct",
-                priority=1,
+                priority=2 if routing_profile == "asia-oceania" else 1,
                 preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
             )
             if origin_code != PRIORITY_MOSCOW_GATEWAY:
@@ -367,7 +476,7 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                     origin_code,
                     PRIORITY_MOSCOW_GATEWAY,
                     route_family="ist_svo_su_fallback",
-                    priority=2,
+                    priority=3 if routing_profile == "asia-oceania" else 2,
                     only_carriers=["SU"],
                     skip_if_offer_exists=direct_key,
                 )
@@ -378,7 +487,7 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                     PRIORITY_MOSCOW_GATEWAY,
                     PRIORITY_PRIMARY_HUB,
                     route_family="ist_svo_su_fallback",
-                    priority=2,
+                    priority=3 if routing_profile == "asia-oceania" else 2,
                     only_carriers=["SU"],
                     skip_if_offer_exists=direct_key,
                 )
@@ -392,7 +501,7 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                     PRIORITY_PRIMARY_HUB,
                     dest_code,
                     route_family="ist_shared_destination",
-                    priority=1,
+                    priority=2 if routing_profile == "asia-oceania" else 1,
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                 )
         for origin_code in origin_airports:
@@ -403,9 +512,9 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                 origin_code,
                 PRIORITY_SECONDARY_HUB,
                 route_family="dxb_direct",
-                priority=3,
+                priority=4 if routing_profile == "asia-oceania" else 3,
                 preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
-                skip_if_priority_ist_viable="outbound",
+                skip_if_priority_route_viable="outbound",
             )
         for offset in outbound_second_offsets:
             leg_date = depart + timedelta(days=offset)
@@ -417,9 +526,9 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                     PRIORITY_SECONDARY_HUB,
                     dest_code,
                     route_family="dxb_direct",
-                    priority=3,
+                    priority=4 if routing_profile == "asia-oceania" else 3,
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
-                    skip_if_priority_ist_viable="outbound",
+                    skip_if_priority_route_viable="outbound",
                 )
     else:
         for origin_code in origin_airports:
@@ -434,6 +543,44 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
     if ret:
         if routing_strategy == "ru-priority":
             for dest_code in destination_airports:
+                for origin_code in origin_airports:
+                    add_segment(
+                        "return",
+                        "direct_return",
+                        ret,
+                        dest_code,
+                        origin_code,
+                        route_family="direct_control",
+                        priority=0,
+                        preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                    )
+            if routing_profile == "asia-oceania":
+                for dest_code in destination_airports:
+                    add_segment(
+                        "return",
+                        "destination_to_hub",
+                        ret,
+                        dest_code,
+                        PRIORITY_ASIA_HUB,
+                        route_family="svo_asia",
+                        priority=1,
+                        preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                    )
+                for offset in return_second_offsets:
+                    leg_date = ret + timedelta(days=offset)
+                    for origin_code in origin_airports:
+                        add_segment(
+                            "return",
+                            "hub_to_origin",
+                            leg_date,
+                            PRIORITY_ASIA_HUB,
+                            origin_code,
+                            route_family="svo_asia",
+                            priority=1,
+                            only_carriers=["SU"],
+                            preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                        )
+            for dest_code in destination_airports:
                 add_segment(
                     "return",
                     "destination_to_hub",
@@ -441,7 +588,7 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                     dest_code,
                     PRIORITY_PRIMARY_HUB,
                     route_family="ist_direct",
-                    priority=1,
+                    priority=2 if routing_profile == "asia-oceania" else 1,
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                 )
             for offset in return_second_offsets:
@@ -454,7 +601,7 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                         PRIORITY_PRIMARY_HUB,
                         origin_code,
                         route_family="ist_direct",
-                        priority=1,
+                        priority=2 if routing_profile == "asia-oceania" else 1,
                         preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                     )
                     if origin_code != PRIORITY_MOSCOW_GATEWAY:
@@ -471,7 +618,7 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                             PRIORITY_PRIMARY_HUB,
                             PRIORITY_MOSCOW_GATEWAY,
                             route_family="ist_svo_su_fallback",
-                            priority=2,
+                            priority=3 if routing_profile == "asia-oceania" else 2,
                             only_carriers=["SU"],
                             skip_if_offer_exists=direct_key,
                         )
@@ -482,7 +629,7 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                             PRIORITY_MOSCOW_GATEWAY,
                             origin_code,
                             route_family="ist_svo_su_fallback",
-                            priority=2,
+                            priority=3 if routing_profile == "asia-oceania" else 2,
                             only_carriers=["SU"],
                             skip_if_offer_exists=direct_key,
                         )
@@ -494,9 +641,9 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                     dest_code,
                     PRIORITY_SECONDARY_HUB,
                     route_family="dxb_direct",
-                    priority=3,
+                    priority=4 if routing_profile == "asia-oceania" else 3,
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
-                    skip_if_priority_ist_viable="return",
+                    skip_if_priority_route_viable="return",
                 )
             for offset in return_second_offsets:
                 leg_date = ret + timedelta(days=offset)
@@ -508,9 +655,9 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                         PRIORITY_SECONDARY_HUB,
                         origin_code,
                         route_family="dxb_direct",
-                        priority=3,
+                        priority=4 if routing_profile == "asia-oceania" else 3,
                         preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
-                        skip_if_priority_ist_viable="return",
+                        skip_if_priority_route_viable="return",
                     )
         else:
             for dest_code in destination_airports:
@@ -527,7 +674,10 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
         "Assembled candidates are usually separate-ticket/self-transfer unless the booking site later confirms protected through-ticketing.",
     ]
     if routing_strategy == "ru-priority":
-        warnings.append("Using ru-priority routing: IST direct first, SVO/SU fallback only if IST direct is empty, DXB only if IST has no usable assembled pair.")
+        if routing_profile == "asia-oceania":
+            warnings.append("Using geo-aware ru-priority routing: direct control, SVO as an independent Asia/Oceania hub, IST fallback, DXB only if priority routes are not usable.")
+        else:
+            warnings.append("Using ru-priority routing: direct control, IST direct first, SVO/SU fallback only if IST direct is empty, DXB only if priority routes are not usable.")
     elif hub_source == "default":
         warnings.append("Using built-in hub list; pass --hub repeatedly to narrow live segment searches.")
     if hub_source == "manual" and any(hub in {"IST", "SAW"} for hub in hubs) and not {"IST", "SAW"}.issubset(set(hubs)):
@@ -541,6 +691,7 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
         "hubs": hubs,
         "hub_source": hub_source,
         "routing_strategy": routing_strategy,
+        "routing_profile": routing_profile,
         "route_families": route_families,
         "dates": {"depart": depart.isoformat(), "return": ret.isoformat() if ret else None},
         "currency": currency,
@@ -573,7 +724,10 @@ def run_kupibilet_route_assembly(args: argparse.Namespace, store: Store) -> dict
     failures: list[dict[str, Any]] = []
     offer_counts: dict[tuple[str, str, str, str], int] = {}
     synthetic_fallback_done: set[str] = set()
-    priority_ist_viability: dict[str, bool] = {}
+    priority_route_viability: dict[str, bool] = {}
+    cache_ttl_seconds = int(getattr(args, "live_cache_ttl_seconds", DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS))
+    use_live_cache = not bool(getattr(args, "no_live_cache", False))
+    direct_route_index, direct_route_intel = direct_route_intel_context(args, store, plan)
 
     def search_key(spec: dict[str, Any]) -> tuple[str, str, str, str]:
         return (
@@ -584,23 +738,25 @@ def run_kupibilet_route_assembly(args: argparse.Namespace, store: Store) -> dict
         )
 
     def skipped_by_condition(spec: dict[str, Any]) -> dict[str, Any] | None:
+        direct_skip = skipped_by_direct_route_intel(spec)
+        if direct_skip is not None:
+            return direct_skip
         condition = spec.get("skip_if_offer_exists")
         if not isinstance(condition, dict):
-            priority_direction = spec.get("skip_if_priority_ist_viable")
+            priority_direction = spec.get("skip_if_priority_route_viable")
             if not priority_direction:
                 return None
             direction = str(priority_direction)
-            if not priority_ist_route_viable(direction):
+            if not priority_route_viable(direction):
                 return None
             return {
                 **spec,
                 "status": "skipped",
-                "reason": "priority_ist_route_viable",
+                "reason": "priority_route_viable",
                 "offer_count": 0,
                 "skipped_because": {
                     "direction": direction,
-                    "hub": PRIORITY_PRIMARY_HUB,
-                    "note": "DXB skipped because IST already produced a non-error assembled pair.",
+                    "note": "DXB skipped because direct/SVO/IST priority routing already produced a non-error journey.",
                 },
             }
         key = (
@@ -625,6 +781,36 @@ def run_kupibilet_route_assembly(args: argparse.Namespace, store: Store) -> dict
             },
         }
 
+    def skipped_by_direct_route_intel(spec: dict[str, Any]) -> dict[str, Any] | None:
+        if direct_route_index is None or spec.get("leg") not in {"direct_outbound", "direct_return"}:
+            return None
+        routes = direct_route_index.get("routes") if isinstance(direct_route_index.get("routes"), dict) else {}
+        origin = str(spec.get("origin") or "").upper()
+        destination = str(spec.get("destination") or "").upper()
+        if origin == "SVX":
+            route_set = {str(code).upper() for code in (routes.get("outbound") or [])}
+            checked_airport = destination
+        elif destination == "SVX":
+            route_set = {str(code).upper() for code in (routes.get("return") or [])}
+            checked_airport = origin
+        else:
+            return None
+        if checked_airport in route_set:
+            return None
+        return {
+            **spec,
+            "status": "skipped",
+            "reason": "direct_route_schedule_negative",
+            "offer_count": 0,
+            "skipped_because": {
+                "checked_airport": checked_airport,
+                "airport": "SVX",
+                "source": direct_route_index.get("source"),
+                "fetched_at": direct_route_index.get("fetched_at"),
+                "note": "Official SVX seasonal schedule has no direct route for this exact airport pair; hub routing is still checked.",
+            },
+        }
+
     def ensure_priority_fallback_synthesized(direction: str | None = None) -> None:
         directions = {"outbound", "return"} if direction is None else {direction}
         pending = directions - synthetic_fallback_done
@@ -643,20 +829,26 @@ def run_kupibilet_route_assembly(args: argparse.Namespace, store: Store) -> dict
             )
             offer_counts[key] = offer_counts.get(key, 0) + int(search.get("offer_count") or 0)
 
-    def priority_ist_route_viable(direction: str) -> bool:
+    def priority_route_viable(direction: str) -> bool:
         if plan.get("routing_strategy") != "ru-priority":
             return False
-        if direction in priority_ist_viability:
-            return priority_ist_viability[direction]
+        if direction in priority_route_viability:
+            return priority_route_viability[direction]
         ensure_priority_fallback_synthesized(direction)
         if direction == "outbound":
             first_leg = "origin_to_hub"
             second_leg = "hub_to_destination"
+            direct_leg = "direct_outbound"
         elif direction == "return":
             first_leg = "destination_to_hub"
             second_leg = "hub_to_origin"
+            direct_leg = "direct_return"
         else:
             return False
+        direct = direct_journeys(segment_results, direct_leg, direction, args.limit_per_pair)
+        if direct:
+            priority_route_viability[direction] = True
+            return True
         pairs, _ = assemble_direction(
             segment_results,
             first_leg,
@@ -673,14 +865,14 @@ def run_kupibilet_route_assembly(args: argparse.Namespace, store: Store) -> dict
             offers = [offer for offer in (pair.get("offers") or []) if isinstance(offer, dict)]
             if len(offers) < 2:
                 continue
-            if str(offers[0].get("arrival_airport") or offers[0].get("destination") or "").upper() != PRIORITY_PRIMARY_HUB:
-                continue
-            if str(offers[1].get("departure_airport") or offers[1].get("origin") or "").upper() != PRIORITY_PRIMARY_HUB:
+            hub = str(offers[0].get("arrival_airport") or offers[0].get("destination") or "").upper()
+            next_origin = str(offers[1].get("departure_airport") or offers[1].get("origin") or "").upper()
+            if hub != next_origin or hub == PRIORITY_SECONDARY_HUB:
                 continue
             if (pair.get("connection_quality") or {}).get("severity") != "error":
                 viable = True
                 break
-        priority_ist_viability[direction] = viable
+        priority_route_viability[direction] = viable
         return viable
 
     for spec in plan["segments"]:
@@ -693,7 +885,7 @@ def run_kupibilet_route_assembly(args: argparse.Namespace, store: Store) -> dict
             for code in (spec.get("only_carriers") or only_carriers)
         ]
         try:
-            result = fetch_kupibilet_search(
+            result = cached_kupibilet_search(
                 spec["origin"],
                 spec["destination"],
                 parse_iso_date(spec["date"], "segment-date"),
@@ -702,6 +894,9 @@ def run_kupibilet_route_assembly(args: argparse.Namespace, store: Store) -> dict
                 direct_only=True,
                 limit=args.segment_limit,
                 timeout=args.timeout,
+                cache_ttl_seconds=cache_ttl_seconds,
+                use_cache=use_live_cache,
+                fetcher=fetch_kupibilet_search,
             )
         except CliError as exc:
             failure = {**spec, "status": "error", "error": {"type": exc.error_type, "message": exc.message}}
@@ -724,6 +919,7 @@ def run_kupibilet_route_assembly(args: argparse.Namespace, store: Store) -> dict
         "plan": {key: value for key, value in plan.items() if key != "segments"},
         "segment_searches": searches,
         "hub_viability": hub_viability_summary(plan, searches),
+        "direct_route_intelligence": direct_route_intel,
         "failure_count": len(failures),
         "failures": failures,
         "included_segment_result_count": min(len(segment_results), args.include_segment_results),

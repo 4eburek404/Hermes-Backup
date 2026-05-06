@@ -110,14 +110,22 @@ flights --json route plan SVX MUC \
 By default, `--routing-strategy auto` uses `ru-priority` unless `--hub` is
 passed. This models the manual Russia-origin workflow:
 
-1. Check `origin→IST` direct first, then `IST→destination`.
-2. If `origin→IST` has no viable direct offer, check `origin→SVO→IST` with
+1. Check exact-airport direct controls: `origin→destination` and, for round
+   trips, `destination→origin`. For SVX direct controls, the live command first
+   uses the official Koltsovo seasonal route index as a negative filter; if a
+   paired airport is absent there, the Kupibilet direct probe is skipped.
+2. Check `origin→IST` direct first, then `IST→destination`.
+3. If `origin→IST` has no viable direct offer, check `origin→SVO→IST` with
    Aeroflot/SU and reuse `IST→destination`.
-3. Check `origin→DXB→destination` only when the IST path does not produce a
-   usable assembled pair; do not expand DXB through Moscow.
+4. Check `origin→DXB→destination` only when direct/SVO/IST priority routes do
+   not produce a usable assembled pair; do not expand DXB through Moscow.
 
 Preferred carriers for this strategy are `U6`, `SU`, and `TK`; SVO fallback
 legs are constrained to `SU`.
+
+For Asia/China/Oceania destinations, `ru-priority` switches to a geo-aware
+profile: SVO is checked as an independent hub before IST and DXB. Beijing city
+code `BJS` expands to `PEK` and `PKX`; Paris `PAR` expands to `CDG` and `ORY`.
 
 Use `--routing-strategy hub-list` for the broader built-in hub list:
 `IST, DXB, DOH, AUH, BEG, TAS, GYD, PEK, PVG, CAN, ADD, CAI, MCT, SHJ`.
@@ -170,7 +178,9 @@ are marked `ok=false` by the ranker. Use `--include-rejected-pairs N` to control
 how many diagnostics are returned. `--max-candidates` caps ranked output after
 scoring; `--candidate-pool-limit` controls the raw pool scored before that cap.
 Use `--include-ranked-candidates N` when you need full itinerary bodies for the
-top ranked results.
+top ranked results. Direct segment results (`direct_outbound`, `direct_return`)
+can be combined with hub-assembled journeys, so a round trip may be `SVX→IST→MUC`
+outbound and `MUC→SVX` direct on return.
 
 Run live Kupibilet direct-only segment searches through hubs, then assemble the
 same normalized candidates in one command:
@@ -185,13 +195,25 @@ flights --json route kb-assemble SVX CDG \
 ```
 
 `route kb-assemble` is intentionally live: it calls Kupibilet `frontend_search`
-for `origin→hub`, `hub→destination`, `destination→hub`, and `hub→origin` direct
-segments, including default second-leg day offsets (`outbound: 0,1`; `return:
-0,1,2`) so overnight hub departures are not missed. It still returns advisory
+for direct controls plus `origin→hub`, `hub→destination`, `destination→hub`, and
+`hub→origin` direct segments, including default second-leg day offsets
+(`outbound: 0,1`; `return: 0,1,2`) so overnight hub departures are not missed.
+Repeated Kupibilet segment probes are stored in a short-lived live cache
+(`--live-cache-ttl-seconds`, default 6 hours; `--no-live-cache` to bypass). It
+also keeps a separate official SVX direct-route index cache
+(`--direct-route-index-ttl-seconds`, default 7 days;
+`--no-direct-route-intel` to bypass). This index is only a negative filter:
+routes absent from the official seasonal schedule are skipped, routes present
+there still go through live date-specific search. It still returns advisory
 aggregator data; final fare, seat availability, baggage, and protected-ticketing
 status must be rechecked on the booking screen. Its JSON includes
 `live_search.hub_viability`, which shows which hubs have offers for every
-required leg and which hubs are incomplete.
+required leg and which hubs are incomplete, and
+`live_search.direct_route_intelligence`, which reports whether the official
+route index was used.
+
+For one-off Kupibilet probes, `kb-search` uses the same cache controls:
+`--cache-ttl-seconds` and `--no-cache`.
 
 Select carriers explicitly while ranking or assembling:
 
@@ -250,10 +272,17 @@ flights --json metrics workflow SVX LON \
 ## What It Automates
 
 - Expands multi-airport cities such as LON into LHR/LGW/STN/LTN.
+- Expands Beijing `BJS` into PEK/PKX and Paris `PAR` into CDG/ORY to avoid
+  broad city-code searches that are too noisy or incomplete.
 - Downloads no-token static Travelpayouts catalog files with manifest metadata
   (`downloaded_at`, `url`, `count`, `sha256`, `schema_version`).
 - Uses `ru-priority` routing by default for Russia-origin searches and keeps the
   broader built-in hub list available through `--routing-strategy hub-list`.
+- Caches repeated Kupibilet live segment probes for a short TTL, including empty
+  direct-control results.
+- Uses the official SVX seasonal schedule as a cached negative filter before
+  wasting live direct-control probes on routes such as SVX→MUC when no direct
+  route exists.
 - Keeps IST and SAW separate and flags airport changes.
 - Keeps SVO, DME, and VKO separate for Moscow routing.
 - Prepares segment-by-segment Travelpayouts cached GraphQL requests instead of using broad

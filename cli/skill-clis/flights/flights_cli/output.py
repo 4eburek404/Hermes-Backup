@@ -211,6 +211,15 @@ def render_human(command: str, data: Any) -> str:
             lines.append(f"viable hubs: {', '.join(viable_hubs) if viable_hubs else 'none'}")
             if missing:
                 lines.append(f"incomplete hubs: {'; '.join(missing[:6])}")
+        direct_intel = live.get("direct_route_intelligence") or {}
+        if direct_intel.get("enabled"):
+            if direct_intel.get("available"):
+                cache = direct_intel.get("cache") or {}
+                lines.append(
+                    f"direct route index: available cache={'hit' if cache.get('hit') else 'refreshed'}"
+                )
+            else:
+                lines.append(f"direct route index: unavailable ({direct_intel.get('reason')})")
         lines.append("")
         if not data.get("ranked"):
             lines.append("(no assembled candidates)")

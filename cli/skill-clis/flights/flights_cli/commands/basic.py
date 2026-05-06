@@ -8,6 +8,7 @@ from .. import __version__
 from ..config import DEFAULT_ROUTE_HUB_NOTES, DEFAULT_ROUTE_HUBS, PLUGIN_PATH, RISK_PROFILES
 from ..domain.airports import explain_airport
 from ..env import auth_presence
+from ..providers.route_intel import svx_route_index_path
 from ..providers.static_catalog import active_catalog_manifest, catalog_staleness, download_static_catalog, parse_ttl_seconds
 from ..store import Store, city_to_output
 
@@ -27,6 +28,7 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     ]:
         path = store.cache_dir / name
         cache_files[name] = {"exists": path.exists(), "path": str(path)}
+    route_index_path = svx_route_index_path(store.cache_dir / "route_intel")
     max_age_seconds = parse_ttl_seconds(args.catalog_max_age)
     return {
         "version": __version__,
@@ -38,6 +40,12 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         "cache_dir": str(store.cache_dir),
         "cache_dir_exists": store.cache_dir.exists(),
         "cache_files": cache_files,
+        "route_intel_cache": {
+            "svx_official_route_index": {
+                "exists": route_index_path.exists(),
+                "path": str(route_index_path),
+            }
+        },
         "cache_counts": store.cache_counts(),
         "catalog_auto_refresh_policy": {
             "mode": args.catalog_refresh,

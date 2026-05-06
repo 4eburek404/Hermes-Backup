@@ -19,6 +19,10 @@ PLUGIN_PATH = Path.home() / ".hermes" / "plugins" / "travelpayouts-flights"
 
 CACHE_DIR = PLUGIN_PATH / "cache"
 
+LIVE_SEARCH_CACHE_DIR = CACHE_DIR / "live_search"
+
+ROUTE_INTEL_CACHE_DIR = CACHE_DIR / "route_intel"
+
 HERMES_ENV_PATH = Path.home() / ".hermes" / ".env"
 
 GRAPHQL_URL = "https://api.travelpayouts.com/graphql/v1/query"
@@ -43,6 +47,14 @@ DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR = 10
 DEFAULT_KB_ROUTE_OUTBOUND_SECOND_LEG_DAY_OFFSETS = [0, 1]
 
 DEFAULT_KB_ROUTE_RETURN_SECOND_LEG_DAY_OFFSETS = [0, 1, 2]
+
+DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS = 6 * 60 * 60
+
+DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS = 7 * 24 * 60 * 60
+
+SVX_OFFICIAL_SCHEDULE_URL = "https://ar-svx.ru/schedule/"
+
+SVX_OFFICIAL_ARRIVAL_SCHEDULE_URL = "https://ar-svx.ru/schedule/?type=arr"
 
 DEFAULT_ROUTE_HUBS = (
     "IST",
@@ -72,6 +84,63 @@ PRIORITY_PRIMARY_HUB = "IST"
 PRIORITY_MOSCOW_GATEWAY = "SVO"
 
 PRIORITY_SECONDARY_HUB = "DXB"
+
+PRIORITY_ASIA_HUB = "SVO"
+
+ASIA_OCEANIA_COUNTRIES = {
+    "AM",
+    "AZ",
+    "BH",
+    "CN",
+    "HK",
+    "ID",
+    "IN",
+    "JP",
+    "KG",
+    "KH",
+    "KR",
+    "KZ",
+    "MO",
+    "MY",
+    "PH",
+    "SG",
+    "TH",
+    "TJ",
+    "TM",
+    "TW",
+    "UZ",
+    "VN",
+    "AU",
+    "NZ",
+}
+
+ASIA_DESTINATION_CODES = {
+    "BJS",
+    "PEK",
+    "PKX",
+    "PVG",
+    "SHA",
+    "CAN",
+    "HKG",
+    "MFM",
+    "TYO",
+    "NRT",
+    "HND",
+    "SEL",
+    "ICN",
+    "PUS",
+    "BKK",
+    "HKT",
+    "SGN",
+    "HAN",
+    "SIN",
+    "KUL",
+    "DPS",
+    "MNL",
+    "SYD",
+    "MEL",
+    "AKL",
+}
 
 DEFAULT_ROUTE_HUB_NOTES = {
     "IST": "Broadest Russia-origin hub.",
@@ -231,6 +300,8 @@ SPECIAL_CITY_AIRPORTS = {
     "LON": ["LHR", "LGW", "STN", "LTN"],
     "MOW": ["SVO", "DME", "VKO"],
     "IST": ["IST", "SAW"],
+    "PAR": ["CDG", "ORY"],
+    "BJS": ["PEK", "PKX"],
 }
 
 AIRPORT_TO_GROUP: dict[str, str] = {}

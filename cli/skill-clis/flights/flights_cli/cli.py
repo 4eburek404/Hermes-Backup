@@ -23,7 +23,14 @@ from .commands.providers import (
     command_u6_prices,
 )
 from .commands.route import command_route_assemble, command_route_kb_assemble, command_route_plan, command_route_rank, command_route_validate
-from .config import DEFAULT_CURRENCY, DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR, DEFAULT_ROUTING_STRATEGY, RISK_PROFILES
+from .config import (
+    DEFAULT_CURRENCY,
+    DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS,
+    DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
+    DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR,
+    DEFAULT_ROUTING_STRATEGY,
+    RISK_PROFILES,
+)
 from .env import load_env_file
 from .errors import CliError
 from .output import emit_json, error_envelope, output_envelope, render_human
@@ -137,6 +144,8 @@ def build_parser() -> argparse.ArgumentParser:
     kb_search.add_argument("--direct-only", action="store_true", help="Only direct one-leg offers.")
     kb_search.add_argument("--limit", type=int, default=20, help="Maximum normalized offers to show.")
     kb_search.add_argument("--timeout", type=int, default=60, help="HTTP timeout seconds.")
+    kb_search.add_argument("--cache-ttl-seconds", type=int, default=DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, help="Short-lived live-search cache TTL seconds. Use 0 to disable.")
+    kb_search.add_argument("--no-cache", action="store_true", help="Bypass live-search cache.")
     kb_search.set_defaults(func=command_kb_search, command_name="kb-search")
 
     route = sub.add_parser("route", help="Route planning and validation commands.")
@@ -218,6 +227,10 @@ def build_parser() -> argparse.ArgumentParser:
     route_kb_assemble.add_argument("--include-segment-results", type=int, default=0, help="Include first N normalized segment-result blocks in JSON output.")
     route_kb_assemble.add_argument("--max-segment-searches", type=int, default=300, help="Safety cap for live segment requests.")
     route_kb_assemble.add_argument("--fail-fast", action="store_true", help="Abort on the first live segment-search error instead of keeping partial results.")
+    route_kb_assemble.add_argument("--live-cache-ttl-seconds", type=int, default=DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, help="Short-lived Kupibilet segment cache TTL seconds. Use 0 to disable.")
+    route_kb_assemble.add_argument("--no-live-cache", action="store_true", help="Bypass Kupibilet segment cache.")
+    route_kb_assemble.add_argument("--direct-route-index-ttl-seconds", type=int, default=DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS, help="Official SVX seasonal direct-route index TTL seconds. Use 0 to disable route-intel fetching.")
+    route_kb_assemble.add_argument("--no-direct-route-intel", action="store_true", help="Do not skip direct-control probes using the official SVX route index.")
     add_carrier_selection_flags(route_kb_assemble)
     route_kb_assemble.set_defaults(func=command_route_kb_assemble, command_name="route kb-assemble", requires_catalog=True)
 
@@ -228,7 +241,7 @@ def build_parser() -> argparse.ArgumentParser:
     results_parse.add_argument("--direction", choices=["outbound", "return"], default="outbound")
     results_parse.add_argument(
         "--leg",
-        choices=["origin_to_hub", "hub_to_destination", "destination_to_hub", "hub_to_origin", "segment"],
+        choices=["direct_outbound", "direct_return", "origin_to_hub", "hub_to_destination", "destination_to_hub", "hub_to_origin", "segment"],
         default="segment",
     )
     results_parse.add_argument("--origin", help="Query origin IATA override.")

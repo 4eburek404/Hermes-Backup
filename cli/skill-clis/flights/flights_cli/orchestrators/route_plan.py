@@ -4,7 +4,10 @@ import argparse
 from typing import Any
 
 from ..config import (
+    ASIA_DESTINATION_CODES,
+    ASIA_OCEANIA_COUNTRIES,
     CACHE_NOTE,
+    PRIORITY_ASIA_HUB,
     PRIORITY_MOSCOW_GATEWAY,
     PRIORITY_PRIMARY_HUB,
     PRIORITY_ROUTE_CARRIERS,
@@ -20,6 +23,14 @@ from ..errors import CliError
 from ..providers.travelpayouts import aviasales_url, build_request_payload, compact_request_payload, segment_request_command
 from ..services.validation import connection_rule
 from ..store import Store
+
+
+def geo_routing_profile(destination: Any, destination_airports: list[str]) -> str:
+    codes = {str(destination.code or "").upper(), *(code.upper() for code in destination_airports)}
+    country = str(destination.country_code or "").upper()
+    if country in ASIA_OCEANIA_COUNTRIES or codes & ASIA_DESTINATION_CODES:
+        return "asia-oceania"
+    return "default"
 
 def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     depart = parse_iso_date(args.depart_date, "depart-date")
@@ -43,13 +54,19 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     except ValueError as exc:
         raise CliError(str(exc), error_type="validation_error") from exc
     hubs, hub_source = resolve_route_hubs(args.hub)
+    routing_profile = geo_routing_profile(destination, destination_airports)
     if routing_strategy == "ru-priority":
         hubs = [PRIORITY_PRIMARY_HUB, PRIORITY_SECONDARY_HUB]
+        if routing_profile == "asia-oceania":
+            hubs = [PRIORITY_ASIA_HUB, PRIORITY_PRIMARY_HUB, PRIORITY_SECONDARY_HUB]
         hub_source = "strategy"
 
     warnings: list[str] = [CACHE_NOTE]
     if routing_strategy == "ru-priority":
-        warnings.append("Using ru-priority routing: IST direct first, SVO/SU fallback only if IST direct is empty, DXB only if IST has no usable assembled pair.")
+        if routing_profile == "asia-oceania":
+            warnings.append("Using geo-aware ru-priority routing: direct control, SVO as an independent Asia/Oceania hub, IST fallback, DXB only if priority routes are not usable.")
+        else:
+            warnings.append("Using ru-priority routing: direct control, IST direct first, SVO/SU fallback only if IST direct is empty, DXB only if priority routes are not usable.")
     elif hub_source == "default":
         warnings.append("Using built-in hub list; pass --hub repeatedly to narrow the plan.")
     if destination.code == "LON":
@@ -107,15 +124,33 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     if routing_strategy == "ru-priority":
         route_families = [
             {
+                "id": "direct_control",
+                "priority": 0,
+                "condition": "check direct exact-airport legs when live assembly runs; cache empty results",
+                "preferred_carriers": list(PRIORITY_ROUTE_CARRIERS),
+            },
+        ]
+        if routing_profile == "asia-oceania":
+            route_families.append(
+                {
+                    "id": "svo_asia",
+                    "priority": 1,
+                    "hub": PRIORITY_ASIA_HUB,
+                    "condition": "Asia/Oceania destination: check SVO as an independent hub, not only as an IST fallback",
+                    "preferred_carriers": list(PRIORITY_ROUTE_CARRIERS),
+                }
+            )
+        route_families += [
+            {
                 "id": "ist_direct",
-                "priority": 1,
+                "priority": 2 if routing_profile == "asia-oceania" else 1,
                 "hub": PRIORITY_PRIMARY_HUB,
                 "condition": "check first; use origin->IST direct when available",
                 "preferred_carriers": list(PRIORITY_ROUTE_CARRIERS),
             },
             {
                 "id": "ist_svo_su_fallback",
-                "priority": 2,
+                "priority": 3 if routing_profile == "asia-oceania" else 2,
                 "hub": PRIORITY_PRIMARY_HUB,
                 "via": [PRIORITY_MOSCOW_GATEWAY],
                 "condition": "use only when origin->IST direct has no viable direct offers",
@@ -124,12 +159,54 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
             },
             {
                 "id": "dxb_direct",
-                "priority": 3,
+                "priority": 4 if routing_profile == "asia-oceania" else 3,
                 "hub": PRIORITY_SECONDARY_HUB,
-                "condition": "check only if IST does not produce a usable assembled pair; do not expand origin->DXB through Moscow",
+                "condition": "check only if direct/SVO/IST priority routes do not produce a usable assembled pair; do not expand origin->DXB through Moscow",
                 "preferred_carriers": list(PRIORITY_ROUTE_CARRIERS),
             },
         ]
+        for origin_code in origin_airports:
+            for dest_code in destination_airports:
+                add_segment(
+                    "outbound",
+                    "direct_outbound",
+                    depart,
+                    origin_code,
+                    dest_code,
+                    direct_only=True,
+                    route_family="direct_control",
+                    priority=0,
+                    condition="direct exact-airport control",
+                    preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                )
+        if routing_profile == "asia-oceania":
+            for origin_code in origin_airports:
+                add_segment(
+                    "outbound",
+                    "origin_to_hub",
+                    depart,
+                    origin_code,
+                    PRIORITY_ASIA_HUB,
+                    direct_only=True,
+                    route_family="svo_asia",
+                    priority=1,
+                    condition="primary Asia/Oceania hub",
+                    only_carriers=["SU"],
+                    preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                )
+            for dest_code in destination_airports:
+                add_segment(
+                    "outbound",
+                    "hub_to_destination",
+                    depart,
+                    PRIORITY_ASIA_HUB,
+                    dest_code,
+                    direct_only=True,
+                    route_family="svo_asia",
+                    priority=1,
+                    condition="primary Asia/Oceania hub",
+                    preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                )
         for origin_code in origin_airports:
             add_segment(
                 "outbound",
@@ -139,7 +216,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                 PRIORITY_PRIMARY_HUB,
                 direct_only=True,
                 route_family="ist_direct",
-                priority=1,
+                priority=2 if routing_profile == "asia-oceania" else 1,
                 condition="primary direct probe",
                 preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
             )
@@ -152,7 +229,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                     PRIORITY_MOSCOW_GATEWAY,
                     direct_only=True,
                     route_family="ist_svo_su_fallback",
-                    priority=2,
+                    priority=3 if routing_profile == "asia-oceania" else 2,
                     condition="run only if origin->IST direct is empty",
                     only_carriers=["SU"],
                 )
@@ -164,7 +241,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                 PRIORITY_PRIMARY_HUB,
                 direct_only=True,
                 route_family="ist_svo_su_fallback",
-                priority=2,
+                priority=3 if routing_profile == "asia-oceania" else 2,
                 condition="pairs with origin->SVO fallback",
                 only_carriers=["SU"],
             )
@@ -177,7 +254,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                 dest_code,
                 direct_only=True,
                 route_family="ist_shared_destination",
-                priority=1,
+                priority=2 if routing_profile == "asia-oceania" else 1,
                 condition="needed for both IST direct and SVO fallback families",
                 preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
             )
@@ -190,8 +267,8 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                 PRIORITY_SECONDARY_HUB,
                 direct_only=True,
                 route_family="dxb_direct",
-                priority=3,
-                condition="secondary direct-only fallback, only if IST assembled pair is not usable; no Moscow expansion",
+                priority=4 if routing_profile == "asia-oceania" else 3,
+                condition="secondary direct-only fallback, only if priority routes are not usable; no Moscow expansion",
                 preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
             )
         for dest_code in destination_airports:
@@ -203,8 +280,8 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                 dest_code,
                 direct_only=True,
                 route_family="dxb_direct",
-                priority=3,
-                condition="secondary direct-only fallback, only if IST assembled pair is not usable",
+                priority=4 if routing_profile == "asia-oceania" else 3,
+                condition="secondary direct-only fallback, only if priority routes are not usable",
                 preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
             )
     else:
@@ -218,6 +295,48 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     if ret:
         if routing_strategy == "ru-priority":
             for dest_code in destination_airports:
+                for origin_code in origin_airports:
+                    add_segment(
+                        "return",
+                        "direct_return",
+                        ret,
+                        dest_code,
+                        origin_code,
+                        direct_only=True,
+                        route_family="direct_control",
+                        priority=0,
+                        condition="direct exact-airport return control",
+                        preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                    )
+            if routing_profile == "asia-oceania":
+                for dest_code in destination_airports:
+                    add_segment(
+                        "return",
+                        "destination_to_hub",
+                        ret,
+                        dest_code,
+                        PRIORITY_ASIA_HUB,
+                        direct_only=True,
+                        route_family="svo_asia",
+                        priority=1,
+                        condition="primary Asia/Oceania return hub",
+                        preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                    )
+                for origin_code in origin_airports:
+                    add_segment(
+                        "return",
+                        "hub_to_origin",
+                        ret,
+                        PRIORITY_ASIA_HUB,
+                        origin_code,
+                        direct_only=True,
+                        route_family="svo_asia",
+                        priority=1,
+                        condition="primary Asia/Oceania return hub",
+                        only_carriers=["SU"],
+                        preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                    )
+            for dest_code in destination_airports:
                 add_segment(
                     "return",
                     "destination_to_hub",
@@ -226,7 +345,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                     PRIORITY_PRIMARY_HUB,
                     direct_only=True,
                     route_family="ist_direct",
-                    priority=1,
+                    priority=2 if routing_profile == "asia-oceania" else 1,
                     condition="primary direct return probe",
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                 )
@@ -239,7 +358,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                     origin_code,
                     direct_only=True,
                     route_family="ist_direct",
-                    priority=1,
+                    priority=2 if routing_profile == "asia-oceania" else 1,
                     condition="use IST->origin direct when available",
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                 )
@@ -251,7 +370,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                     PRIORITY_MOSCOW_GATEWAY,
                     direct_only=True,
                     route_family="ist_svo_su_fallback",
-                    priority=2,
+                    priority=3 if routing_profile == "asia-oceania" else 2,
                     condition="run only if IST->origin direct is empty",
                     only_carriers=["SU"],
                 )
@@ -264,7 +383,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                         origin_code,
                         direct_only=True,
                         route_family="ist_svo_su_fallback",
-                        priority=2,
+                        priority=3 if routing_profile == "asia-oceania" else 2,
                         condition="pairs with IST->SVO return fallback",
                         only_carriers=["SU"],
                     )
@@ -277,8 +396,8 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                     PRIORITY_SECONDARY_HUB,
                     direct_only=True,
                     route_family="dxb_direct",
-                    priority=3,
-                    condition="secondary direct-only return fallback, only if IST assembled pair is not usable",
+                    priority=4 if routing_profile == "asia-oceania" else 3,
+                    condition="secondary direct-only return fallback, only if priority routes are not usable",
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                 )
             for origin_code in origin_airports:
@@ -290,8 +409,8 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                     origin_code,
                     direct_only=True,
                     route_family="dxb_direct",
-                    priority=3,
-                    condition="secondary direct-only return fallback, only if IST assembled pair is not usable; no Moscow expansion",
+                    priority=4 if routing_profile == "asia-oceania" else 3,
+                    condition="secondary direct-only return fallback, only if priority routes are not usable; no Moscow expansion",
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                 )
         else:
@@ -351,6 +470,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         "hubs": hubs,
         "hub_source": hub_source,
         "routing_strategy": routing_strategy,
+        "routing_profile": routing_profile,
         "route_families": route_families,
         "dates": {"departure": depart.isoformat(), "return": ret.isoformat() if ret else None},
         "ticketing": args.ticketing,

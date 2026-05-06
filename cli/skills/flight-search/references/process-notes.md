@@ -36,18 +36,19 @@ Best business-safe result found:
 - A pre-ranking candidate cap can hide valid options behind cheap rejected combinations.
 - `ranked` IDs and included raw candidate bodies can diverge if the contract does not include full top-ranked candidates.
 
-## CLI Improvement Ideas
+## Implemented CLI Improvements
 
-High priority:
+- Default `ru-priority` is used first for Russia-origin routes: direct controls, IST direct, SVO/SU fallback only if IST direct is empty, then DXB direct only if direct/SVO/IST has no usable assembled pair.
+- Exact direct controls run before hub assembly. There is no static "known no direct" table. For any direct control that includes SVX, the official Koltsovo seasonal route index is used as a cached negative filter; if the paired airport is absent there, the live direct probe is skipped and recorded as `direct_route_schedule_negative`.
+- For Asia, China, and Oceania destinations, check SVO as an independent hub before IST/DXB. Beijing should resolve to PEK/PKX, not miscellaneous city airports.
+- The broad built-in hub list is available through `--routing-strategy hub-list`; live searches should then be narrowed with explicit `--hub` values after reading viability.
+- `live_search.hub_viability` reports offer counts for every required leg before trusting assembly.
+- Ranking happens after a separate raw `--candidate-pool-limit`; `--max-candidates` caps ranked output.
+- `--include-ranked-candidates N` includes full details for top ranked candidates.
+- Kupibilet segment responses use a short-lived cache keyed by provider, route, date, direct-only, currency, carrier filters, and limit.
+- Assemble mixed journeys: direct outbound with hub return, or hub outbound with direct return. Do not require both directions to use the same family.
 
-- Use default `ru-priority` first for Russia-origin routes: IST direct, SVO/SU fallback only if IST direct is empty, then DXB direct only if IST has no usable assembled pair.
-- Use the broad built-in hub list only through `--routing-strategy hub-list`, then narrow live searches with explicit `--hub` values after reading viability.
-- Use `live_search.hub_viability` to report offer counts for every required leg before trusting assembly.
-- Rank/filter valid pairs before applying `--max-candidates`; maintain a separate raw `--candidate-pool-limit`.
-- Use `--include-ranked-candidates N` so full details for the top ranked candidates are always included.
-- Add a short-lived segment response cache keyed by provider, route, date, direct-only, currency, carrier filters, and limit.
-
-Medium priority:
+## Remaining Ideas
 
 - Add profile-aware hub pruning: business profile should prefer same-airport hubs, fewer carriers, and reasonable layovers.
 - Use REST `prices_for_dates direct=true` as a cheap cached leg probe when `TRAVELPAYOUTS_TOKEN` exists.
@@ -60,3 +61,4 @@ Known traps:
 - Do not call Travelpayouts cached APIs "live"; only Kupibilet live aggregate should be called live.
 - Do not report candidates with `ok=false` as recommendations.
 - Do not assume the cheapest provider result is business-viable.
+- Do not search DXB after a direct/SVO/IST priority route already produced a usable assembled journey; DXB is slower and usually needs longer buffers.
