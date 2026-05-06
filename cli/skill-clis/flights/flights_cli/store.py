@@ -32,12 +32,17 @@ class Location:
 class Store:
     def __init__(self, cache_dir: Path = CACHE_DIR):
         self.cache_dir = cache_dir
+        self._countries: list[dict[str, Any]] | None = None
         self._cities: list[dict[str, Any]] | None = None
         self._airports: list[dict[str, Any]] | None = None
         self._airlines: list[dict[str, Any]] | None = None
+        self._alliances: list[dict[str, Any]] | None = None
         self._planes: list[dict[str, Any]] | None = None
+        self._routes: list[dict[str, Any]] | None = None
         self._city_by_code: dict[str, dict[str, Any]] | None = None
         self._airport_by_code: dict[str, dict[str, Any]] | None = None
+        self._airline_by_code: dict[str, dict[str, Any]] | None = None
+        self._alliances_by_airline: dict[str, list[str]] | None = None
         self._airports_by_city: dict[str, list[dict[str, Any]]] | None = None
 
     def load_json(self, filename: str) -> list[dict[str, Any]]:
@@ -52,6 +57,22 @@ class Store:
             return []
         return [item for item in data if isinstance(item, dict)]
 
+    def load_manifest(self, filename: str = "catalog_manifest.json") -> dict[str, Any]:
+        path = self.cache_dir / filename
+        if not path.exists():
+            return {}
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    @property
+    def countries(self) -> list[dict[str, Any]]:
+        if self._countries is None:
+            self._countries = self.load_json("countries.json")
+        return self._countries
+
     @property
     def cities(self) -> list[dict[str, Any]]:
         if self._cities is None:
@@ -61,20 +82,32 @@ class Store:
     @property
     def airports(self) -> list[dict[str, Any]]:
         if self._airports is None:
-            self._airports = self.load_json("airports.json")
+            self._airports = self.load_json("airports_en.json")
         return self._airports
 
     @property
     def airlines(self) -> list[dict[str, Any]]:
         if self._airlines is None:
-            self._airlines = self.load_json("airlines.json")
+            self._airlines = self.load_json("airlines_en.json")
         return self._airlines
+
+    @property
+    def alliances(self) -> list[dict[str, Any]]:
+        if self._alliances is None:
+            self._alliances = self.load_json("alliances.json")
+        return self._alliances
 
     @property
     def planes(self) -> list[dict[str, Any]]:
         if self._planes is None:
             self._planes = self.load_json("planes.json")
         return self._planes
+
+    @property
+    def routes(self) -> list[dict[str, Any]]:
+        if self._routes is None:
+            self._routes = self.load_json("routes.json")
+        return self._routes
 
     @property
     def city_by_code(self) -> dict[str, dict[str, Any]]:
@@ -97,6 +130,32 @@ class Store:
         return self._airport_by_code
 
     @property
+    def airline_by_code(self) -> dict[str, dict[str, Any]]:
+        if self._airline_by_code is None:
+            self._airline_by_code = {
+                str(airline.get("code", "")).upper(): airline
+                for airline in self.airlines
+                if airline.get("code")
+            }
+        return self._airline_by_code
+
+    @property
+    def alliances_by_airline(self) -> dict[str, list[str]]:
+        if self._alliances_by_airline is None:
+            grouped: dict[str, list[str]] = defaultdict(list)
+            for alliance in self.alliances:
+                name = str(alliance.get("name") or "").strip()
+                airlines = alliance.get("airlines")
+                if not name or not isinstance(airlines, list):
+                    continue
+                for airline in airlines:
+                    code = str(airline or "").upper()
+                    if code:
+                        grouped[code].append(name)
+            self._alliances_by_airline = {code: sorted(names) for code, names in grouped.items()}
+        return self._alliances_by_airline
+
+    @property
     def airports_by_city(self) -> dict[str, list[dict[str, Any]]]:
         if self._airports_by_city is None:
             grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -109,10 +168,13 @@ class Store:
 
     def cache_counts(self) -> dict[str, int]:
         return {
+            "countries": len(self.countries),
             "cities": len(self.cities),
             "airports": len(self.airports),
             "airlines": len(self.airlines),
+            "alliances": len(self.alliances),
             "planes": len(self.planes),
+            "routes": len(self.routes),
         }
 
     def city_name(self, code: str) -> str | None:

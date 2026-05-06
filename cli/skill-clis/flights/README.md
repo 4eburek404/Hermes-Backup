@@ -5,7 +5,7 @@ Offline-first flight routing helper for Hermes/Travelpayouts workflows.
 The CLI reads local Hermes Travelpayouts cache files, prepares segment-level
 search plans, validates airport compatibility, and builds sanitized
 Travelpayouts requests. It does not book, buy, or write to Hermes.
-Travelpayouts live calls require `request search --live`; provider-specific
+Travelpayouts cached API fetches require `request search --fetch`; provider-specific
 commands such as `kb-search`, `u6-prices`, and `route kb-assemble` are live by
 command name.
 
@@ -57,6 +57,42 @@ Runtime check:
 flights --json doctor
 ```
 
+Static catalog refresh is automatic. Commands that depend on the local
+catalog (`cities search`, `airports explain`, `route plan`, `route
+kb-assemble`, and `metrics workflow`) refresh missing or stale static files
+before running. The default TTL is 7 days.
+
+Useful controls:
+
+```bash
+flights --catalog-refresh always --json route plan SVX LHR --depart-date 2026-07-19
+flights --catalog-refresh never --json route plan SVX LHR --depart-date 2026-07-19
+flights --catalog-max-age 12h --json cities search London
+```
+
+Manual no-token Travelpayouts static catalog commands are still available:
+
+```bash
+flights --json catalog update
+flights --json catalog manifest
+```
+
+The static updater writes only canonical files:
+
+```text
+countries.json
+cities_en.json
+cities_ru.json
+airports_en.json
+airports_ru.json
+airlines_en.json
+airlines_ru.json
+alliances.json
+planes.json
+routes.json
+catalog_manifest.json
+```
+
 Resolve city and airport context from local cache:
 
 ```bash
@@ -71,6 +107,15 @@ flights --json route plan SVX LON \
   --depart-date 2026-07-19 \
   --return-date 2026-07-23 \
   --hub IST --hub SAW --hub AYT
+```
+
+Use local `routes.json` as a broad topology prior to derive one-stop hubs:
+
+```bash
+flights --json route plan SVX LHR \
+  --depart-date 2026-07-19 \
+  --auto-hubs \
+  --profile business
 ```
 
 Validate an assembled itinerary:
@@ -156,10 +201,24 @@ Build a sanitized Travelpayouts request, still without network:
 flights --json request search SVX IST --depart-date 2026-07-19 --dry-run
 ```
 
-Read-only live API call, only when explicitly requested:
+Read-only cached GraphQL fetch, only when explicitly requested:
 
 ```bash
-flights --json request search SVX IST --depart-date 2026-07-19 --live
+flights --json request search SVX IST --depart-date 2026-07-19 --fetch
+```
+
+Probe cached REST Data API prices:
+
+```bash
+flights --json request prices-for-dates SVX IST \
+  --departure-at 2026-07-19 \
+  --direct \
+  --fetch
+
+flights --json request grouped-prices SVX IST \
+  --departure-at 2026-07 \
+  --group-by departure_at \
+  --fetch
 ```
 
 Workflow metrics:
@@ -174,10 +233,14 @@ flights --json metrics workflow SVX LON \
 ## What It Automates
 
 - Expands multi-airport cities such as LON into LHR/LGW/STN/LTN.
+- Downloads no-token static Travelpayouts catalog files with manifest metadata
+  (`downloaded_at`, `url`, `count`, `sha256`, `schema_version`).
+- Uses `routes.json` locally for direct route evidence and one-stop hub discovery.
 - Keeps IST and SAW separate and flags airport changes.
 - Keeps SVO, DME, and VKO separate for Moscow routing.
-- Prepares segment-by-segment Travelpayouts requests instead of using broad
+- Prepares segment-by-segment Travelpayouts cached GraphQL requests instead of using broad
   city codes that often return empty cache data.
+- Builds cached REST Data API probes for `prices_for_dates` and `grouped_prices`.
 - Parses Travelpayouts `prices_one_way` / `prices_round_trip` responses into
   normalized segment offers, preserving provider `transfers` metadata such as
   `duration_seconds`, `night_transfer`, and `visa_required`.
@@ -276,7 +339,10 @@ inventing candidates.
 ## Non-goals
 
 - No booking or purchase.
-- No hidden writes.
+- No hidden writes outside the static catalog cache. Catalog-dependent commands
+  can automatically update `~/.hermes/plugins/travelpayouts-flights/cache`.
 - No Docker Hermes access.
-- No live Travelpayouts API call unless `request search --live` is passed.
+- No Travelpayouts cached price/Data API network fetch unless `--fetch` is
+  passed on a `request` command. Static catalog refresh is separate and
+  requires no token.
 - `kb-search`, `u6-prices`, and `route kb-assemble` are explicit live provider commands.

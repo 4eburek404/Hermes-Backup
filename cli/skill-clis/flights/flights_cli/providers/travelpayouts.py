@@ -101,9 +101,9 @@ def unwrap_travelpayouts_payload(payload: dict[str, Any]) -> tuple[dict[str, Any
         request = data.get("request")
         if isinstance(request, dict) and isinstance(request.get("variables"), dict):
             variables = dict(request["variables"])
-        live = data.get("live")
-        if isinstance(live, dict) and isinstance(live.get("data"), dict):
-            current = live["data"]
+        fetched = data.get("fetched")
+        if isinstance(fetched, dict) and isinstance(fetched.get("data"), dict):
+            current = fetched["data"]
         elif isinstance(data.get("response"), dict):
             current = data["response"]
         else:
@@ -289,18 +289,18 @@ def run_request_search(args: argparse.Namespace) -> dict[str, Any]:
 
     payload = build_request_payload(origin, destination, depart, ret, currency, args.direct_only)
     result = {
-        "dry_run": not args.live,
+        "dry_run": not args.fetch,
         "advisory_only": True,
         "cache_note": CACHE_NOTE,
         "request": payload,
         "manual_link": aviasales_url(origin, destination, depart, ret),
     }
-    if not args.live:
+    if not args.fetch:
         return result
 
     token = os.getenv("TRAVELPAYOUTS_TOKEN")
     if not token:
-        raise CliError("TRAVELPAYOUTS_TOKEN is required for --live", error_type="missing_credentials")
+        raise CliError("TRAVELPAYOUTS_TOKEN is required for --fetch", error_type="missing_credentials")
     body = json.dumps(payload["body"]).encode("utf-8")
     request = urllib.request.Request(
         GRAPHQL_URL,
@@ -316,7 +316,7 @@ def run_request_search(args: argparse.Namespace) -> dict[str, Any]:
     try:
         with urllib.request.urlopen(request, timeout=args.timeout) as response:
             raw = response.read()
-            live_data = json.loads(raw.decode("utf-8"))
+            fetched_data = json.loads(raw.decode("utf-8"))
             status = response.status
     except urllib.error.HTTPError as exc:
         body_text = exc.read().decode("utf-8", errors="replace")[:1000]
@@ -324,8 +324,8 @@ def run_request_search(args: argparse.Namespace) -> dict[str, Any]:
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         raise CliError(f"Travelpayouts request failed: {type(exc).__name__}", error_type="upstream_error") from exc
 
-    result["live"] = {
+    result["fetched"] = {
         "status": status,
-        "data": live_data,
+        "data": fetched_data,
     }
     return result

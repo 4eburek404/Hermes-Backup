@@ -2,17 +2,36 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from . import __version__
-from .commands.basic import command_airports_explain, command_cities_search, command_doctor
+from .commands.basic import (
+    command_airports_explain,
+    command_catalog_manifest,
+    command_catalog_update,
+    command_cities_search,
+    command_doctor,
+)
 from .commands.metrics import command_metrics_workflow
-from .commands.providers import command_kb_search, command_request_search, command_results_parse, command_u6_prices
+from .commands.providers import (
+    command_kb_search,
+    command_request_grouped_prices,
+    command_request_prices_for_dates,
+    command_request_search,
+    command_results_parse,
+    command_u6_prices,
+)
 from .commands.route import command_route_assemble, command_route_kb_assemble, command_route_plan, command_route_rank, command_route_validate
 from .config import DEFAULT_CURRENCY, DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR, RISK_PROFILES
 from .env import load_env_file
 from .errors import CliError
 from .output import emit_json, error_envelope, output_envelope, render_human
+from .providers.static_catalog import (
+    DEFAULT_AUTO_REFRESH_MAX_AGE_SECONDS,
+    parse_ttl_seconds,
+    refresh_static_catalog_if_needed,
+)
 from .store import Store
 
 def add_common_route_flags(parser: argparse.ArgumentParser) -> None:
@@ -29,6 +48,8 @@ def add_common_route_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--min-same-airport-min", type=int, default=120)
     parser.add_argument("--min-cross-airport-min", type=int, default=300)
     parser.add_argument("--max-airports-per-city", type=int, default=6)
+    parser.add_argument("--auto-hubs", action="store_true", help="Derive one-stop hubs from local routes.json instead of only using default/manual hubs.")
+    parser.add_argument("--max-auto-hubs", type=int, default=10, help="Maximum routes.json hubs to include when --auto-hubs is used.")
 
 
 def add_carrier_selection_flags(parser: argparse.ArgumentParser) -> None:
@@ -45,24 +66,51 @@ def build_parser() -> argparse.ArgumentParser:
         description="Offline-first flight routing helper for Hermes/Travelpayouts workflows.",
     )
     parser.add_argument("--json", action="store_true", help="Emit stable JSON envelope.")
+    parser.add_argument(
+        "--catalog-refresh",
+        choices=["auto", "always", "never"],
+        default=os.getenv("FLIGHTS_CATALOG_REFRESH", "auto"),
+        help="Static catalog refresh policy for catalog-dependent commands. Default: auto.",
+    )
+    parser.add_argument(
+        "--catalog-max-age",
+        default=os.getenv("FLIGHTS_CATALOG_MAX_AGE", "7d"),
+        help="Refresh static catalog when older than this TTL, e.g. 12h, 7d, 2w. Default: 7d.",
+    )
+    parser.add_argument(
+        "--catalog-refresh-timeout",
+        type=int,
+        default=int(os.getenv("FLIGHTS_CATALOG_REFRESH_TIMEOUT", "30")),
+        help="HTTP timeout seconds per static catalog file during auto-refresh.",
+    )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     doctor = sub.add_parser("doctor", help="Check local caches, plugin path, and auth presence.")
     doctor.set_defaults(func=command_doctor, command_name="doctor")
 
+    catalog = sub.add_parser("catalog", help="Travelpayouts static catalog commands.")
+    catalog_sub = catalog.add_subparsers(dest="catalog_command", required=True)
+    catalog_update = catalog_sub.add_parser("update", help="Download no-token Travelpayouts static catalog JSON files.")
+    catalog_update.add_argument("--only", action="append", help="Catalog item name. Repeatable; defaults to all static files.")
+    catalog_update.add_argument("--timeout", type=int, default=30, help="HTTP timeout seconds per static file.")
+    catalog_update.add_argument("--dry-run", action="store_true", help="Show files that would be downloaded without writing cache.")
+    catalog_update.set_defaults(func=command_catalog_update, command_name="catalog update")
+    catalog_manifest = catalog_sub.add_parser("manifest", help="Show the local static catalog manifest.")
+    catalog_manifest.set_defaults(func=command_catalog_manifest, command_name="catalog manifest")
+
     cities = sub.add_parser("cities", help="City lookup commands.")
     cities_sub = cities.add_subparsers(dest="cities_command", required=True)
     cities_search = cities_sub.add_parser("search", help="Search city name or IATA code in local cache.")
     cities_search.add_argument("query")
     cities_search.add_argument("--limit", type=int, default=5)
-    cities_search.set_defaults(func=command_cities_search, command_name="cities search")
+    cities_search.set_defaults(func=command_cities_search, command_name="cities search", requires_catalog=True)
 
     airports = sub.add_parser("airports", help="Airport rule lookup commands.")
     airports_sub = airports.add_subparsers(dest="airports_command", required=True)
     airports_explain = airports_sub.add_parser("explain", help="Explain airport and multi-airport risk rules.")
     airports_explain.add_argument("code", nargs="+")
-    airports_explain.set_defaults(func=command_airports_explain, command_name="airports explain")
+    airports_explain.set_defaults(func=command_airports_explain, command_name="airports explain", requires_catalog=True)
 
     u6_prices = sub.add_parser("u6-prices", help="Ural Airlines (U6) price calendar — daily min fares, price discovery, no auth required.")
     u6_prices.add_argument("origin", help="Origin IATA code (e.g. SVX).")
@@ -92,7 +140,7 @@ def build_parser() -> argparse.ArgumentParser:
     route_plan = route_sub.add_parser("plan", help="Build segment query plan through hubs without API calls.")
     add_common_route_flags(route_plan)
     route_plan.add_argument("--direct-only", action="store_true")
-    route_plan.set_defaults(func=command_route_plan, command_name="route plan")
+    route_plan.set_defaults(func=command_route_plan, command_name="route plan", requires_catalog=True)
 
     route_validate = route_sub.add_parser("validate", help="Validate airport compatibility and connection windows from JSON.")
     route_validate.add_argument("--input", default="-", help="Input JSON file, or - for stdin.")
@@ -163,11 +211,11 @@ def build_parser() -> argparse.ArgumentParser:
     route_kb_assemble.add_argument("--max-segment-searches", type=int, default=80, help="Safety cap for live segment requests.")
     route_kb_assemble.add_argument("--fail-fast", action="store_true", help="Abort on the first live segment-search error instead of keeping partial results.")
     add_carrier_selection_flags(route_kb_assemble)
-    route_kb_assemble.set_defaults(func=command_route_kb_assemble, command_name="route kb-assemble")
+    route_kb_assemble.set_defaults(func=command_route_kb_assemble, command_name="route kb-assemble", requires_catalog=True)
 
     results = sub.add_parser("results", help="Parse provider results into normalized segment offers.")
     results_sub = results.add_subparsers(dest="results_command", required=True)
-    results_parse = results_sub.add_parser("parse", help="Parse Travelpayouts GraphQL response or request-search live envelope.")
+    results_parse = results_sub.add_parser("parse", help="Parse Travelpayouts GraphQL response or request-search cached fetch envelope.")
     results_parse.add_argument("--input", default="-", help="Raw response JSON or flights request-search envelope.")
     results_parse.add_argument("--direction", choices=["outbound", "return"], default="outbound")
     results_parse.add_argument(
@@ -192,15 +240,49 @@ def build_parser() -> argparse.ArgumentParser:
     request_search.add_argument("--currency", default=DEFAULT_CURRENCY)
     request_search.add_argument("--direct-only", action="store_true")
     request_search.add_argument("--dry-run", action="store_true", help="Default behavior; included for explicitness.")
-    request_search.add_argument("--live", action="store_true", help="Actually call Travelpayouts API using TRAVELPAYOUTS_TOKEN.")
+    request_search.add_argument("--fetch", action="store_true", help="Fetch Travelpayouts cached Data API using TRAVELPAYOUTS_TOKEN.")
     request_search.add_argument("--timeout", type=int, default=20)
     request_search.set_defaults(func=command_request_search, command_name="request search")
+
+    request_prices = request_sub.add_parser("prices-for-dates", help="Build or run a Travelpayouts REST v3 prices_for_dates cached-price probe.")
+    request_prices.add_argument("origin")
+    request_prices.add_argument("destination")
+    request_prices.add_argument("--departure-at", required=True, help="Departure date or month: YYYY-MM or YYYY-MM-DD.")
+    request_prices.add_argument("--return-at", help="Return date or month: YYYY-MM or YYYY-MM-DD.")
+    request_prices.add_argument("--one-way", action="store_true", help="Force one-way search; default when --return-at is omitted.")
+    request_prices.add_argument("--direct", action="store_true", help="Only direct cached prices.")
+    request_prices.add_argument("--market", default="ru")
+    request_prices.add_argument("--currency", default=DEFAULT_CURRENCY)
+    request_prices.add_argument("--limit", type=int, default=30)
+    request_prices.add_argument("--page", type=int, default=1)
+    request_prices.add_argument("--sorting", choices=["price", "route"], default="price")
+    request_prices.add_argument("--unique", action="store_true")
+    request_prices.add_argument("--dry-run", action="store_true", help="Default behavior; included for explicitness.")
+    request_prices.add_argument("--fetch", action="store_true", help="Fetch Travelpayouts cached Data API using TRAVELPAYOUTS_TOKEN.")
+    request_prices.add_argument("--timeout", type=int, default=20)
+    request_prices.set_defaults(func=command_request_prices_for_dates, command_name="request prices-for-dates")
+
+    request_grouped = request_sub.add_parser("grouped-prices", help="Build or run a Travelpayouts REST v3 grouped_prices cached calendar probe.")
+    request_grouped.add_argument("origin")
+    request_grouped.add_argument("destination")
+    request_grouped.add_argument("--departure-at", required=True, help="Departure date or month: YYYY-MM or YYYY-MM-DD.")
+    request_grouped.add_argument("--return-at", help="Return date or month: YYYY-MM or YYYY-MM-DD.")
+    request_grouped.add_argument("--group-by", choices=["departure_at", "month"], default="departure_at")
+    request_grouped.add_argument("--direct", action="store_true", help="Only direct cached prices.")
+    request_grouped.add_argument("--market", default="ru")
+    request_grouped.add_argument("--currency", default=DEFAULT_CURRENCY)
+    request_grouped.add_argument("--min-trip-duration", type=int)
+    request_grouped.add_argument("--max-trip-duration", type=int)
+    request_grouped.add_argument("--dry-run", action="store_true", help="Default behavior; included for explicitness.")
+    request_grouped.add_argument("--fetch", action="store_true", help="Fetch Travelpayouts cached Data API using TRAVELPAYOUTS_TOKEN.")
+    request_grouped.add_argument("--timeout", type=int, default=20)
+    request_grouped.set_defaults(func=command_request_grouped_prices, command_name="request grouped-prices")
 
     metrics = sub.add_parser("metrics", help="Workflow metrics commands.")
     metrics_sub = metrics.add_subparsers(dest="metrics_command", required=True)
     metrics_workflow = metrics_sub.add_parser("workflow", help="Compare manual planning operations with CLI planning.")
     add_common_route_flags(metrics_workflow)
-    metrics_workflow.set_defaults(func=command_metrics_workflow, command_name="metrics workflow")
+    metrics_workflow.set_defaults(func=command_metrics_workflow, command_name="metrics workflow", requires_catalog=True)
 
     return parser
 
@@ -211,6 +293,22 @@ def normalize_global_json(argv: list[str]) -> list[str]:
     return [argv[0], "--json"] + [item for item in argv[1:] if item != "--json"]
 
 
+def auto_refresh_catalog(args: argparse.Namespace, store: Store) -> dict | None:
+    if not getattr(args, "requires_catalog", False):
+        return None
+    if args.catalog_refresh not in {"auto", "always", "never"}:
+        raise CliError("catalog refresh policy must be one of auto, always, never", error_type="validation_error")
+    if args.catalog_refresh == "never":
+        return {"enabled": False, "reason": "disabled"}
+    max_age = 0 if args.catalog_refresh == "always" else parse_ttl_seconds(args.catalog_max_age)
+    return refresh_static_catalog_if_needed(
+        store.cache_dir,
+        max_age_seconds=max_age if args.catalog_refresh != "always" else DEFAULT_AUTO_REFRESH_MAX_AGE_SECONDS,
+        timeout=args.catalog_refresh_timeout,
+        force=args.catalog_refresh == "always",
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     load_env_file()
     argv = normalize_global_json(list(sys.argv if argv is None else argv))
@@ -218,7 +316,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv[1:])
     store = Store()
     try:
+        catalog_auto_refresh = auto_refresh_catalog(args, store)
         data = args.func(args, store)
+        if catalog_auto_refresh is not None and isinstance(data, dict):
+            data["catalog_auto_refresh"] = catalog_auto_refresh
     except CliError as exc:
         if args.json:
             print(json.dumps(error_envelope(exc), ensure_ascii=False, indent=2, sort_keys=True), file=sys.stderr)

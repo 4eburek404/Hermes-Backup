@@ -13,7 +13,7 @@ from pathlib import Path
 from flights_cli.cli import build_parser, normalize_global_json
 from flights_cli.env import load_env_file
 
-from helpers import PROJECT
+from helpers import PROJECT, TEST_ENV
 
 
 class CliContractTests(unittest.TestCase):
@@ -71,7 +71,7 @@ class CliContractTests(unittest.TestCase):
         proc = subprocess.run(
             [sys.executable, "-m", "flights_cli", "--json", "doctor"],
             cwd=PROJECT,
-            env={"PYTHONPATH": str(PROJECT)},
+            env=TEST_ENV,
             check=True,
             text=True,
             stdout=subprocess.PIPE,
@@ -81,20 +81,20 @@ class CliContractTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["command"], "doctor")
         self.assertIn("cache_counts", payload["data"])
-        self.assertEqual(payload["data"]["safety"]["travelpayouts_live_requires"], "request search --live")
+        self.assertEqual(payload["data"]["safety"]["travelpayouts_cached_fetch_requires"], "request search --fetch")
         self.assertEqual(payload["data"]["safety"]["live_provider_commands"], ["kb-search", "u6-prices", "route kb-assemble"])
         self.assertNotIn("live_calls_require_flag", payload["data"]["safety"])
 
         human_proc = subprocess.run(
             [sys.executable, "-m", "flights_cli", "doctor"],
             cwd=PROJECT,
-            env={"PYTHONPATH": str(PROJECT)},
+            env=TEST_ENV,
             check=True,
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        self.assertIn("Travelpayouts live: request search --live", human_proc.stdout)
+        self.assertIn("Travelpayouts cached fetch: request search --fetch", human_proc.stdout)
         self.assertIn("provider live commands: kb-search, u6-prices, route kb-assemble", human_proc.stdout)
 
     def test_json_route_plan_envelope_and_repeatable_hubs(self) -> None:
@@ -116,7 +116,7 @@ class CliContractTests(unittest.TestCase):
                 "DXB",
             ],
             cwd=PROJECT,
-            env={"PYTHONPATH": str(PROJECT)},
+            env=TEST_ENV,
             check=True,
             text=True,
             stdout=subprocess.PIPE,

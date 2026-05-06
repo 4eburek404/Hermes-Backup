@@ -6,6 +6,7 @@ from typing import Any
 from ..config import CACHE_NOTE, DEFAULT_HUBS, RISK_PROFILES, SINGLE_AIRPORT_NOTES, SUPPORTED_CURRENCIES
 from ..domain.airports import airport_pair_risk, explicit_or_resolved_airports, explain_airport
 from ..domain.normalize import normalize_iata, normalize_profile, parse_iso_date
+from ..domain.routes import find_route_graph_candidates
 from ..errors import CliError
 from ..providers.travelpayouts import aviasales_url, build_request_payload, compact_request_payload, segment_request_command
 from ..services.validation import connection_rule
@@ -28,7 +29,28 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     destination_airports = explicit_or_resolved_airports(
         store, destination, args.destination_airport, role="destination", max_airports=args.max_airports_per_city
     )
-    hubs = [normalize_iata(hub, "hub") for hub in (args.hub or DEFAULT_HUBS)]
+    route_graph = None
+    hub_source = "manual" if args.hub else "default"
+    if getattr(args, "auto_hubs", False):
+        route_graph = find_route_graph_candidates(
+            store,
+            origin_airports,
+            destination_airports,
+            profile=profile,
+            max_hubs=max(1, int(getattr(args, "max_auto_hubs", 10))),
+        )
+        graph_hubs = [candidate["hub"] for candidate in route_graph.get("one_stop_hubs", [])]
+        manual_hubs = [normalize_iata(hub, "hub") for hub in (args.hub or [])]
+        hubs = list(dict.fromkeys(graph_hubs + manual_hubs))
+        hub_source = "routes_json"
+        if manual_hubs:
+            hub_source = "routes_json+manual"
+        if not hubs:
+            hubs = DEFAULT_HUBS
+            hub_source = "default_fallback"
+            route_graph["fallback_hubs"] = DEFAULT_HUBS
+    else:
+        hubs = [normalize_iata(hub, "hub") for hub in (args.hub or DEFAULT_HUBS)]
 
     warnings: list[str] = [CACHE_NOTE]
     if destination.code == "LON":
@@ -39,6 +61,10 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         warnings.append("For Istanbul, query both IST and SAW when comparing hub options.")
     if "AYT" in hubs:
         warnings.append(SINGLE_AIRPORT_NOTES["AYT"])
+    if route_graph:
+        warnings.append("routes.json is a broad topology prior, not a current schedule source.")
+        if route_graph.get("available") is False:
+            warnings.append("routes.json is missing from cache; using fallback hubs.")
 
     segments: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str, str]] = set()
@@ -133,6 +159,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         "origin_airports": origin_airports,
         "destination_airports": destination_airports,
         "hubs": hubs,
+        "hub_source": hub_source,
         "dates": {"departure": depart.isoformat(), "return": ret.isoformat() if ret else None},
         "ticketing": args.ticketing,
         "profile": {
@@ -142,6 +169,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         },
         "segments": segments,
         "itinerary_families": itinerary_families,
+        "route_graph": route_graph,
         "manual_links": {"aviasales": direct_links},
         "warnings": warnings,
         "metrics": {
@@ -151,7 +179,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
             "unique_airports_considered": sorted(set(origin_airports + destination_airports + hubs)),
             "profile_rank_order": RISK_PROFILES[profile]["rank_order"],
             "notes": [
-                "Metrics are deterministic planning operations, not live API latency.",
+                "Metrics are deterministic planning operations, not network fetch latency.",
                 "The CLI does not call Travelpayouts during route plan.",
             ],
         },

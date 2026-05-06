@@ -83,18 +83,49 @@ def render_human(command: str, data: Any) -> str:
     if command == "doctor":
         counts = data["cache_counts"]
         token = data["auth"]["travelpayouts_token"]
+        policy = data["catalog_auto_refresh_policy"]
+        staleness = data["catalog_staleness"]
         return "\n".join(
             [
                 f"flights {data['version']}",
                 f"plugin: {'ok' if data['hermes_plugin_exists'] else 'missing'} {data['hermes_plugin_path']}",
-                f"cache: cities={counts['cities']} airports={counts['airports']} airlines={counts['airlines']} planes={counts['planes']}",
+                (
+                    f"cache: countries={counts['countries']} cities={counts['cities']} airports={counts['airports']} "
+                    f"airlines={counts['airlines']} alliances={counts['alliances']} planes={counts['planes']} routes={counts['routes']}"
+                ),
+                f"catalog refresh: {policy['mode']} max_age={policy['max_age']} stale={staleness['stale_count']}/{staleness['checked_count']}",
                 f"token: {'present' if token['available'] else 'missing'}",
-                f"Travelpayouts live: {data['safety']['travelpayouts_live_requires']}",
+                f"Travelpayouts cached fetch: {data['safety']['travelpayouts_cached_fetch_requires']}",
                 f"provider live commands: {', '.join(data['safety']['live_provider_commands'])}",
             ]
         )
+    if command == "catalog update":
+        if data.get("dry_run"):
+            lines = [f"catalog dry-run: {len(data.get('planned') or [])} files", f"cache: {data['cache_dir']}"]
+            for item in data.get("planned") or []:
+                lines.append(f"  {item['name']}: {item['filename']}")
+            return "\n".join(lines)
+        lines = [f"catalog updated: {data.get('updated_count', 0)} files", f"cache: {data['cache_dir']}"]
+        for item in data.get("updated") or []:
+            lines.append(f"  {item['name']}: count={item['count']} sha256={str(item['sha256'])[:12]}")
+        return "\n".join(lines)
+    if command == "catalog manifest":
+        entries = (data.get("manifest") or {}).get("entries") or {}
+        staleness = data.get("catalog_staleness") or {}
+        lines = [
+            f"catalog manifest: {len(entries)} entries",
+            f"cache: {data['cache_dir']}",
+            f"stale: {staleness.get('stale_count', 0)}/{staleness.get('checked_count', 0)}",
+        ]
+        for name in sorted(entries):
+            entry = entries[name]
+            lines.append(f"  {name}: count={entry.get('count')} downloaded_at={entry.get('downloaded_at')}")
+        return "\n".join(lines)
     if command == "cities search":
         lines = [f"cities for {data['query']!r}: {len(data['cities'])}"]
+        refresh = data.get("catalog_auto_refresh")
+        if refresh:
+            lines.append(f"catalog refresh: {'updated' if refresh.get('refreshed') else refresh.get('reason')}")
         for city in data["cities"]:
             airports = ",".join(city.get("airports") or [])
             lines.append(f"{city['code']}\t{city.get('name') or ''}\t{city.get('country_code') or ''}\t{airports}")
@@ -110,10 +141,18 @@ def render_human(command: str, data: Any) -> str:
         metrics = data["metrics"]
         lines = [
             f"route: {','.join(data['origin_airports'])} -> {','.join(data['destination_airports'])}",
-            f"hubs: {', '.join(data['hubs'])}",
+            f"hubs: {', '.join(data['hubs'])} ({data.get('hub_source', 'manual')})",
             f"segment requests: {metrics['segment_request_count']}",
             "first commands:",
         ]
+        refresh = data.get("catalog_auto_refresh")
+        if refresh:
+            lines.insert(2, f"catalog refresh: {'updated' if refresh.get('refreshed') else refresh.get('reason')}")
+        route_graph = data.get("route_graph") or {}
+        if route_graph:
+            lines.append(
+                f"route graph: direct={len(route_graph.get('direct') or [])} one_stop_hubs={len(route_graph.get('one_stop_hubs') or [])}"
+            )
         for segment in data["segments"][:8]:
             lines.append(f"  {segment['command']}")
         if len(data["segments"]) > 8:
@@ -193,6 +232,27 @@ def render_human(command: str, data: Any) -> str:
             f"dry_run: {data['dry_run']}",
             f"manual link: {data['manual_link']}",
         ]
+        return "\n".join(lines)
+    if command in {"request prices-for-dates", "request grouped-prices"}:
+        req = data["request"]
+        lines = [
+            f"{req['method']} {req['endpoint']}",
+            f"params: {json.dumps(req['params'], ensure_ascii=False, sort_keys=True)}",
+            f"dry_run: {data['dry_run']}",
+            f"token: {req['auth']['token']}",
+        ]
+        fetched = data.get("fetched")
+        if fetched:
+            label = "tickets" if command == "request prices-for-dates" else "groups"
+            lines.append(f"fetch: status={fetched.get('status')} raw_count={fetched.get('raw_count')}")
+            for item in fetched.get(label, [])[:8]:
+                if command == "request prices-for-dates":
+                    lines.append(
+                        f"  {item.get('origin_airport') or item.get('origin')}->{item.get('destination_airport') or item.get('destination')} "
+                        f"{item.get('departure_at') or ''} price={item.get('price')}"
+                    )
+                else:
+                    lines.append(f"  {json.dumps(item, ensure_ascii=False, sort_keys=True)}")
         return "\n".join(lines)
     if command == "metrics workflow":
         metrics = data["metrics"]

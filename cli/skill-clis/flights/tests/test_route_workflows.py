@@ -459,7 +459,7 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
                         "currency": "RUB",
                     }
                 },
-                "live": {"data": payload},
+                "fetched": {"data": payload},
             },
         }
         inferred = self._parse_raw(envelope, "hub_to_origin", None, None, direction="return", date="2026-07-23")

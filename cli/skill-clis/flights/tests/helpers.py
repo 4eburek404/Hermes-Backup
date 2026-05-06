@@ -7,6 +7,7 @@ from pathlib import Path
 
 
 PROJECT = Path(__file__).resolve().parents[1]
+TEST_ENV = {"PYTHONPATH": str(PROJECT), "FLIGHTS_CATALOG_REFRESH": "never"}
 
 
 class CliSubprocessMixin:
@@ -26,7 +27,7 @@ class CliSubprocessMixin:
                 *extra_args,
             ],
             cwd=PROJECT,
-            env={"PYTHONPATH": str(PROJECT)},
+            env=TEST_ENV,
             input=json.dumps(payload),
             check=True,
             text=True,
@@ -70,7 +71,7 @@ class CliSubprocessMixin:
         proc = subprocess.run(
             cmd,
             cwd=PROJECT,
-            env={"PYTHONPATH": str(PROJECT)},
+            env=TEST_ENV,
             input=json.dumps(payload),
             check=True,
             text=True,
@@ -95,7 +96,7 @@ class CliSubprocessMixin:
                 *extra_args,
             ],
             cwd=PROJECT,
-            env={"PYTHONPATH": str(PROJECT)},
+            env=TEST_ENV,
             input=json.dumps(payload),
             check=True,
             text=True,
