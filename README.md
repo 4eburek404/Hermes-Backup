@@ -23,6 +23,25 @@ Raw secrets, OAuth tokens, service account files, raw `state.db`, and raw sessio
 
 Encryption uses `age` to the SSH public key recorded in the artifact manifests. Restore requires the matching SSH private key.
 
+## Hybrid retention policy
+
+This repo uses a hybrid policy rather than creating a new encrypted archive on every nightly run:
+
+- **Every nightly run:** refresh plaintext/redacted overlay files so Git can show normal diffs for docs, skills, plugins, cron metadata, redacted inventories, memory snapshot, and CLI manifests/patches.
+- **Weekly / due runs:** refresh encrypted `state.db`, sessions, and secrets bundles.
+- **Secrets on-change:** refresh encrypted bundles earlier when safe credential/source metadata changes. Raw secret values and plaintext secret hashes are never committed.
+- **HEAD retention:** keep exactly one active encrypted generation in the current tree. Older encrypted blobs may still exist in Git history; reclaiming historical Git storage would require a separate explicit LFS/history-rewrite/external-backup plan.
+
+Manual commands:
+
+```bash
+python3 scripts/collect-hermes-backup.py --encrypted-mode auto --max-encrypted-age-days 8 --retention latest
+python3 scripts/collect-hermes-backup.py --encrypted-mode always --max-encrypted-age-days 8 --retention latest
+python3 scripts/verify-hermes-backup.py --max-encrypted-age-days 8 --require-single-active-generation
+```
+
+`--encrypted-mode auto` is the normal cron path. `always` is for forced encrypted refresh / restore drills. `never` reuses existing encrypted artifacts only when they are fresh and secret metadata is unchanged; otherwise it fails safe.
+
 ## What is intentionally excluded
 
 - Upstream Hermes Agent source checkout as a full vendored repo. Only manifest + patch + safe untracked source files are stored under `cli/hermes-agent/`.
@@ -34,7 +53,7 @@ Encryption uses `age` to the SSH public key recorded in the artifact manifests. 
 Run:
 
 ```bash
-python3 scripts/verify-hermes-backup.py
+python3 scripts/verify-hermes-backup.py --max-encrypted-age-days 8 --require-single-active-generation
 ```
 
-The verifier checks manifest presence, GitHub file-size limits, SQLite integrity for the plaintext memory snapshot, and scans plaintext files for high-risk secret patterns without printing secret values.
+The verifier checks manifest presence, encrypted freshness, single active encrypted generation in HEAD, GitHub file-size limits, SQLite integrity for plaintext and encrypted DB snapshots, `age` decrypt/listing, CLI layer presence, and scans plaintext files for high-risk secret patterns without printing secret values.

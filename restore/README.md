@@ -35,6 +35,8 @@ Do not restore `.git`, virtualenvs, pycache, build outputs, or caches from this 
 
 ## Decrypt encrypted artifacts
 
+The current tree should contain one active encrypted generation per directory. Use the latest `manifest-*.json` files to identify exact artifact names; do not restore old generated files left only in Git history unless you intentionally check out an older commit.
+
 For a single archive:
 
 ```bash
@@ -58,6 +60,12 @@ tar --zstd -xvf - -C /safe/restore/dir
 Do not extract directly over a live `~/.hermes` until DB integrity and file modes are checked.
 
 ## Sensitive file modes
+
+Before trusting a restore, run the strict verifier in the checked-out backup repo:
+
+```bash
+python3 scripts/verify-hermes-backup.py --max-encrypted-age-days 8 --require-single-active-generation
+```
 
 After restoring secrets, enforce restrictive permissions:
 

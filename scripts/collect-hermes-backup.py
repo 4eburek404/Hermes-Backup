@@ -9,6 +9,7 @@ Safety properties:
 """
 from __future__ import annotations
 
+import argparse
 import datetime as dt
 import fnmatch
 import hashlib
@@ -22,7 +23,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 
 HOME = Path.home()
 HERMES = HOME / ".hermes"
@@ -35,7 +36,12 @@ RECIPIENT_FILE = HOME / ".ssh" / "server_monitor_iOS_app_ed25519.pub"
 IDENTITY_FILE = HOME / ".ssh" / "server_monitor_iOS_app_ed25519"
 SPLIT_BYTES = 45 * 1024 * 1024
 NOW = dt.datetime.now(dt.timezone.utc)
+LOCAL_NOW = NOW.astimezone()
 TS = os.environ.get("HERMES_BACKUP_TS") or NOW.strftime("%Y%m%d-%H%M%S")
+DEFAULT_MAX_ENCRYPTED_AGE_DAYS = 8
+DEFAULT_WEEKLY_ENCRYPTED_DOW = 6  # Python weekday(): Monday=0, Sunday=6.
+ENCRYPTED_RETENTION = "latest"
+SECRET_CHANGE_DETECT_EXCLUDE_SOURCES = {str(HERMES / "channel_directory.json")}
 
 SECRET_KEY_RE = (
     "token", "secret", "password", "passwd", "pwd", "api_key", "apikey", "key", "credential",
@@ -300,12 +306,93 @@ def entry_meta(path: Path) -> dict[str, object]:
     return meta
 
 
-def copy_to_stage(src: Path, stage_root: Path, manifest_entries: list[dict[str, object]], *, dest_rel: str | None = None) -> None:
+def safe_secret_entry_meta(path: Path) -> dict[str, object]:
+    """Metadata used for secret-change detection without reading or hashing values.
+
+    File contents are never inspected here. For credential directories, include a bounded
+    child inventory of relative paths, file modes, sizes, and mtimes so changes inside a
+    directory do not wait until the weekly refresh.
+    """
+    meta = entry_meta(path)
+    if not path.is_dir():
+        return meta
+
+    children: list[dict[str, object]] = []
+    for dp, dns, fns in os.walk(path):
+        dns[:] = [d for d in dns if d not in COPY_EXCLUDE_DIRS and not any(fnmatch.fnmatch(d, pat) for pat in COPY_EXCLUDE_PATTERNS)]
+        for fn in sorted(fns):
+            fp = Path(dp) / fn
+            if fp.suffix.lower() in COPY_EXCLUDE_SUFFIXES:
+                continue
+            try:
+                st = fp.stat()
+            except OSError:
+                continue
+            children.append({
+                "relative_path": str(fp.relative_to(path)),
+                "type": "dir" if fp.is_dir() else "file",
+                "mode": oct(stat.S_IMODE(st.st_mode)),
+                "mtime_utc": dt.datetime.fromtimestamp(st.st_mtime, dt.timezone.utc).isoformat(),
+                "size_bytes": st.st_size if fp.is_file() else None,
+            })
+    children.sort(key=lambda item: str(item.get("relative_path", "")))
+    meta["child_inventory"] = children[:1000]
+    meta["child_inventory_truncated"] = len(children) > 1000
+    meta["child_inventory_count"] = len(children)
+    return meta
+
+
+def secret_source_paths() -> list[Path]:
+    paths = [
+        HERMES / ".env",
+        HERMES / "auth.json",
+        HERMES / "credentials",
+        HERMES / "gmail_app_password",
+        HERMES / "config.yaml",
+        HERMES / "channel_directory.json",
+        HERMES / "pairing",
+        HOME / ".codex" / "auth.json",
+        HOME / ".codex" / "config.toml",
+        HOME / ".config" / "himalaya" / "config.toml",
+    ]
+    paths.extend(sorted(HERMES.glob(".env.bak.*")))
+    paths.extend(sorted(HERMES.glob("config.yaml.bak*")))
+    return paths
+
+
+def current_secret_source_entries() -> list[dict[str, object]]:
+    return [safe_secret_entry_meta(src) for src in secret_source_paths() if src.exists()]
+
+
+def normalize_source_entries(entries: list[dict[str, object]] | None) -> list[dict[str, object]]:
+    return sorted(entries or [], key=lambda item: str(item.get("source", "")))
+
+
+def change_detection_source_entries(entries: list[dict[str, object]] | None) -> list[dict[str, object]]:
+    """Filter high-churn non-credential private metadata out of on-change detection.
+
+    These sources still stay inside the encrypted weekly bundle; they just do not force
+    fresh `age` ciphertext on ordinary daily/chat activity.
+    """
+    return normalize_source_entries([
+        entry for entry in (entries or [])
+        if str(entry.get("source")) not in SECRET_CHANGE_DETECT_EXCLUDE_SOURCES
+    ])
+
+
+def copy_to_stage(
+    src: Path,
+    stage_root: Path,
+    manifest_entries: list[dict[str, object]],
+    *,
+    dest_rel: str | None = None,
+    meta_fn: Callable[[Path], dict[str, object]] = entry_meta,
+) -> None:
     if not src.exists():
         return
     rel = Path(dest_rel) if dest_rel else Path(relhome(src))
     dst = stage_root / rel
-    manifest_entries.append(entry_meta(src))
+    manifest_entries.append(meta_fn(src))
     if src.is_dir():
         copy_tree(src, dst)
     elif src.is_file():
@@ -547,21 +634,8 @@ def collect_encrypted(summary: dict[str, object]) -> None:
         secrets_stage = tmp / "secrets"
         secrets_stage.mkdir()
         secret_sources: list[dict[str, object]] = []
-        for src in [
-            HERMES / ".env",
-            HERMES / "auth.json",
-            HERMES / "credentials",
-            HERMES / "gmail_app_password",
-            HERMES / "config.yaml",
-            HERMES / "channel_directory.json",
-            HERMES / "pairing",
-            HOME / ".codex" / "auth.json",
-            HOME / ".codex" / "config.toml",
-            HOME / ".config" / "himalaya" / "config.toml",
-        ]:
-            copy_to_stage(src, secrets_stage, secret_sources)
-        for src in sorted(HERMES.glob(".env.bak.*")) + sorted(HERMES.glob("config.yaml.bak*")):
-            copy_to_stage(src, secrets_stage, secret_sources)
+        for src in secret_source_paths():
+            copy_to_stage(src, secrets_stage, secret_sources, meta_fn=safe_secret_entry_meta)
         (secrets_stage / "MANIFEST.json").write_text(
             json.dumps({"kind": "secrets", "created_at_utc": NOW.isoformat(), "sources": secret_sources}, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
@@ -599,6 +673,223 @@ def collect_encrypted(summary: dict[str, object]) -> None:
         summary["state_artifacts"] = [str(p.relative_to(REPO)) for p in state_artifacts]
 
 
+def latest_manifest_path(directory: Path) -> Path:
+    manifests = sorted(directory.glob("manifest-*.json"))
+    if not manifests:
+        raise RuntimeError(f"No encrypted manifest found in {directory.relative_to(REPO)}")
+    return manifests[-1]
+
+
+def load_manifest(path: Path) -> dict[str, object]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def artifact_paths_from_manifest(manifest: dict[str, object]) -> list[Path]:
+    paths = [REPO / str(item["path"]) for item in manifest.get("artifacts", [])]
+    if not paths:
+        raise RuntimeError(f"No artifacts recorded in encrypted manifest {manifest.get('kind')}")
+    return paths
+
+
+def assert_manifest_artifacts_exist(manifest: dict[str, object]) -> list[Path]:
+    paths = artifact_paths_from_manifest(manifest)
+    missing = [str(p.relative_to(REPO)) for p in paths if not p.exists()]
+    if missing:
+        raise RuntimeError(f"Encrypted manifest references missing artifacts: {missing}")
+    return paths
+
+
+def parse_manifest_time(manifest: dict[str, object]) -> dt.datetime:
+    raw = manifest.get("created_at_utc")
+    if isinstance(raw, str):
+        parsed = dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=dt.timezone.utc)
+        return parsed.astimezone(dt.timezone.utc)
+    ts = manifest.get("timestamp")
+    if isinstance(ts, str):
+        return dt.datetime.strptime(ts, "%Y%m%d-%H%M%S").replace(tzinfo=dt.timezone.utc)
+    raise RuntimeError(f"Encrypted manifest has no parseable timestamp: {manifest.get('kind')}")
+
+
+def manifest_age_days(manifest: dict[str, object]) -> float:
+    return max(0.0, (NOW - parse_manifest_time(manifest)).total_seconds() / 86400)
+
+
+def load_latest_encrypted_manifests() -> tuple[Path, dict[str, object], Path, dict[str, object]]:
+    secret_path = latest_manifest_path(REPO / "secrets-encrypted")
+    state_path = latest_manifest_path(REPO / "session-history-encrypted")
+    secret_manifest = load_manifest(secret_path)
+    state_manifest = load_manifest(state_path)
+    assert_manifest_artifacts_exist(secret_manifest)
+    assert_manifest_artifacts_exist(state_manifest)
+    return secret_path, secret_manifest, state_path, state_manifest
+
+
+def generated_encrypted_files(directory: Path, artifact_prefix: str) -> list[Path]:
+    files: list[Path] = []
+    for pattern in ("manifest-*.json", f"{artifact_prefix}-*.tar.zst.age*"):
+        files.extend(p for p in directory.glob(pattern) if p.is_file())
+    return sorted(set(files))
+
+
+def apply_latest_retention(secret_manifest_path: Path, secret_manifest: dict[str, object], state_manifest_path: Path, state_manifest: dict[str, object]) -> list[str]:
+    keep = {secret_manifest_path.resolve(), state_manifest_path.resolve()}
+    keep.update(p.resolve() for p in artifact_paths_from_manifest(secret_manifest))
+    keep.update(p.resolve() for p in artifact_paths_from_manifest(state_manifest))
+
+    removed: list[str] = []
+    for directory, prefix in (
+        (REPO / "secrets-encrypted", "hermes-secrets"),
+        (REPO / "session-history-encrypted", "hermes-state-and-sessions"),
+    ):
+        for path in generated_encrypted_files(directory, prefix):
+            if path.resolve() in keep:
+                continue
+            removed.append(str(path.relative_to(REPO)))
+            path.unlink()
+    return removed
+
+
+def populate_encrypted_summary(
+    summary: dict[str, object],
+    secret_manifest_path: Path,
+    secret_manifest: dict[str, object],
+    state_manifest_path: Path,
+    state_manifest: dict[str, object],
+    *,
+    refreshed: bool,
+    policy: dict[str, object],
+) -> None:
+    secret_paths = artifact_paths_from_manifest(secret_manifest)
+    state_paths = artifact_paths_from_manifest(state_manifest)
+    summary["secret_artifacts"] = [str(p.relative_to(REPO)) for p in secret_paths]
+    summary["state_artifacts"] = [str(p.relative_to(REPO)) for p in state_paths]
+    summary["secret_manifest"] = str(secret_manifest_path.relative_to(REPO))
+    summary["state_manifest"] = str(state_manifest_path.relative_to(REPO))
+    summary["latest_secret_timestamp"] = secret_manifest.get("timestamp")
+    summary["latest_state_timestamp"] = state_manifest.get("timestamp")
+    summary["encrypted_refreshed"] = refreshed
+    summary["encrypted_policy"] = policy
+
+
+def decide_encrypted_refresh(args: argparse.Namespace) -> tuple[bool, str, dict[str, object]]:
+    policy: dict[str, object] = {
+        "mode": args.encrypted_mode,
+        "weekly_encrypted_dow": args.weekly_encrypted_dow,
+        "local_weekday": LOCAL_NOW.weekday(),
+        "local_time": LOCAL_NOW.isoformat(),
+        "max_encrypted_age_days": args.max_encrypted_age_days,
+        "retention": args.retention,
+    }
+
+    try:
+        _secret_path, secret_manifest, _state_path, state_manifest = load_latest_encrypted_manifests()
+        secret_age = manifest_age_days(secret_manifest)
+        state_age = manifest_age_days(state_manifest)
+        policy.update({
+            "latest_secret_timestamp": secret_manifest.get("timestamp"),
+            "latest_state_timestamp": state_manifest.get("timestamp"),
+            "secret_age_days": round(secret_age, 4),
+            "state_age_days": round(state_age, 4),
+        })
+    except Exception as exc:
+        policy["existing_encrypted_ok"] = False
+        policy["existing_encrypted_error"] = f"{type(exc).__name__}: {exc}"
+        if args.encrypted_mode == "never":
+            raise RuntimeError(f"--encrypted-mode never cannot run without valid existing encrypted artifacts: {exc}") from exc
+        return True, "missing_or_invalid_existing_encrypted", policy
+
+    policy["existing_encrypted_ok"] = True
+    stale = secret_age > args.max_encrypted_age_days or state_age > args.max_encrypted_age_days
+    policy["encrypted_stale"] = stale
+
+    current_secret_entries = change_detection_source_entries(current_secret_source_entries())
+    latest_secret_entries = change_detection_source_entries(secret_manifest.get("source_entries") if isinstance(secret_manifest.get("source_entries"), list) else [])
+    secret_metadata_changed = current_secret_entries != latest_secret_entries
+    policy["secret_metadata_changed"] = secret_metadata_changed
+    policy["secret_source_count"] = len(current_secret_entries)
+    policy["secret_change_detection_excluded_sources"] = sorted(SECRET_CHANGE_DETECT_EXCLUDE_SOURCES)
+
+    if args.encrypted_mode == "always":
+        return True, "forced_always", policy
+    if stale:
+        if args.encrypted_mode == "never":
+            raise RuntimeError("--encrypted-mode never refused: existing encrypted artifacts are stale")
+        return True, "stale_existing_encrypted", policy
+    if secret_metadata_changed:
+        if args.encrypted_mode == "never":
+            raise RuntimeError("--encrypted-mode never refused: secret source metadata changed")
+        return True, "secret_metadata_changed", policy
+    if args.encrypted_mode == "never":
+        return False, "forced_never_reuse", policy
+    if LOCAL_NOW.weekday() == args.weekly_encrypted_dow:
+        return True, "weekly_due", policy
+    return False, "fresh_reuse", policy
+
+
+def apply_encrypted_policy(summary: dict[str, object], args: argparse.Namespace) -> None:
+    should_refresh, reason, policy = decide_encrypted_refresh(args)
+    policy["refresh_reason"] = reason
+
+    if should_refresh:
+        collect_encrypted(summary)
+        secret_path, secret_manifest, state_path, state_manifest = load_latest_encrypted_manifests()
+        refreshed = True
+    else:
+        secret_path, secret_manifest, state_path, state_manifest = load_latest_encrypted_manifests()
+        refreshed = False
+
+    removed: list[str] = []
+    if args.retention == "latest":
+        removed = apply_latest_retention(secret_path, secret_manifest, state_path, state_manifest)
+        # Re-assert after cleanup to catch stale manifest references immediately.
+        assert_manifest_artifacts_exist(secret_manifest)
+        assert_manifest_artifacts_exist(state_manifest)
+    policy["retention_removed_count"] = len(removed)
+    policy["retention_removed"] = removed
+    populate_encrypted_summary(
+        summary,
+        secret_path,
+        secret_manifest,
+        state_path,
+        state_manifest,
+        refreshed=refreshed,
+        policy=policy,
+    )
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Collect Konstantin's Hermes overlay backup safely.")
+    parser.add_argument(
+        "--encrypted-mode",
+        choices=["auto", "always", "never"],
+        default="auto",
+        help="auto refreshes weekly/on-change/stale/missing encrypted artifacts; always forces refresh; never reuses existing fresh artifacts or fails safe.",
+    )
+    parser.add_argument(
+        "--weekly-encrypted-dow",
+        type=int,
+        default=DEFAULT_WEEKLY_ENCRYPTED_DOW,
+        choices=range(7),
+        metavar="0-6",
+        help="Local weekday for scheduled encrypted refresh, Python convention Monday=0 ... Sunday=6. Default: Sunday.",
+    )
+    parser.add_argument(
+        "--max-encrypted-age-days",
+        type=float,
+        default=DEFAULT_MAX_ENCRYPTED_AGE_DAYS,
+        help="Fail or refresh when latest encrypted artifacts are older than this many days.",
+    )
+    parser.add_argument(
+        "--retention",
+        choices=["latest", "keep"],
+        default=ENCRYPTED_RETENTION,
+        help="Retention for generated encrypted artifacts in HEAD. Default latest keeps only the latest active generation.",
+    )
+    return parser.parse_args(argv)
+
+
 def write_manifest(summary: dict[str, object]) -> None:
     manifest = {
         "created_at_utc": NOW.isoformat(),
@@ -622,6 +913,10 @@ def write_manifest(summary: dict[str, object]) -> None:
         f"- Holographic memory snapshot: `{summary.get('memory_store_snapshot')}`\n",
         f"- CLI backup: `{summary.get('cli_backup')}`\n\n",
         "## Encrypted artifacts\n\n",
+        f"- Policy: `{summary.get('encrypted_policy')}`\n",
+        f"- Refreshed this run: `{summary.get('encrypted_refreshed')}`\n",
+        f"- Secrets manifest: `{summary.get('secret_manifest')}`\n",
+        f"- State/sessions manifest: `{summary.get('state_manifest')}`\n\n",
     ]
     for key in ("secret_artifacts", "state_artifacts"):
         md.append(f"### {key}\n")
@@ -632,13 +927,14 @@ def write_manifest(summary: dict[str, object]) -> None:
     (REPO / "MANIFEST.md").write_text("".join(md), encoding="utf-8")
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
     if not HERMES.exists():
         raise RuntimeError(f"Hermes home not found: {HERMES}")
     summary: dict[str, object] = {}
     collect_plaintext(summary)
     summary["plaintext_files_sanitized"] = sanitize_plaintext_tree()
-    collect_encrypted(summary)
+    apply_encrypted_policy(summary, args)
     write_manifest(summary)
     print(json.dumps({"ok": True, "timestamp": TS, **summary}, ensure_ascii=False))
     return 0
