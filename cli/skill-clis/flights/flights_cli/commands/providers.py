@@ -1,0 +1,29 @@
+from __future__ import annotations
+
+import argparse
+
+from ..io import read_json_file
+from ..providers.kupibilet import run_kb_search
+from ..providers.travelpayouts import parse_travelpayouts_results, run_request_search
+from ..providers.u6 import run_u6_prices
+from ..store import Store
+
+
+def command_request_search(args: argparse.Namespace, store: Store) -> dict:
+    del store
+    return run_request_search(args)
+
+
+def command_kb_search(args: argparse.Namespace, store: Store) -> dict:
+    del store
+    return run_kb_search(args)
+
+
+def command_u6_prices(args: argparse.Namespace, store: Store) -> dict:
+    del store
+    return run_u6_prices(args)
+
+
+def command_results_parse(args: argparse.Namespace, store: Store) -> dict:
+    del store
+    return parse_travelpayouts_results(args, read_json_file(args.input))

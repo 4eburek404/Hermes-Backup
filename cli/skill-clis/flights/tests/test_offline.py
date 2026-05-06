@@ -14,22 +14,20 @@ import unittest
 from pathlib import Path
 
 from flights_cli import __version__
-from flights_cli.__main__ import (
-    Store,
+from flights_cli.cli import build_parser, normalize_global_json
+from flights_cli.domain.carriers import carrier_from_flight_number
+from flights_cli.env import load_env_file
+from flights_cli.orchestrators.kb_assemble import build_kupibilet_route_segment_plan
+from flights_cli.orchestrators.route_plan import build_route_plan
+from flights_cli.providers.kupibilet import (
     build_kupibilet_payload,
-    build_parser,
-    build_route_plan,
-    build_kupibilet_route_segment_plan,
-    carrier_from_flight_number,
-    connection_rule,
     decode_http_body,
-    load_env_file,
-    normalize_global_json,
-    parse_kupibilet_frontend_search,
     kupibilet_result_to_segment_result,
-    parse_u6_calendar,
-    validate_itinerary,
+    parse_kupibilet_frontend_search,
 )
+from flights_cli.providers.u6 import parse_u6_calendar
+from flights_cli.services.validation import connection_rule, validate_itinerary
+from flights_cli.store import Store
 
 
 PROJECT = Path(__file__).resolve().parents[1]
