@@ -196,7 +196,7 @@
       "schedule_display": "0 0 * * *",
       "repeat": {
         "times": null,
-        "completed": 1
+        "completed": 2
       },
       "enabled": true,
       "state": "scheduled",
@@ -204,7 +204,7 @@
       "paused_reason": null,
       "created_at": "2026-05-06T15:28:35.129170+02:00",
       "next_run_at": "2026-05-07T00:00:00+02:00",
-      "last_run_at": "2026-05-06T18:05:12.368656+02:00",
+      "last_run_at": "2026-05-06T18:09:43.796785+02:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -221,5 +221,5 @@
       "workdir": "/home/konstantin/code/Hermes"
     }
   ],
-  "updated_at": "2026-05-06T18:07:12.375324+02:00"
+  "updated_at": "2026-05-06T18:09:43.797323+02:00"
 }

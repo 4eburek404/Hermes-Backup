@@ -149,28 +149,28 @@ Recommended first implementation policy:
 - [x] Confirm `git status` contains only intended script/docs/backup snapshot changes.
 
 ### Phase 5 — merge/deploy backup policy
-- [ ] Merge implementation branch to `main` only after strict verifier passes.
-- [ ] Commit with a clear message, e.g. `backup: add hybrid encrypted retention policy`.
-- [ ] Push `main` to GitHub.
-- [ ] Verify remote `origin/main` matches local HEAD.
+- [x] Merge implementation branch to `main` only after strict verifier passes.
+- [x] Commit with a clear message, e.g. `backup: add hybrid encrypted retention policy`.
+- [x] Push `main` to GitHub.
+- [x] Verify remote `origin/main` matches local HEAD.
 
 ### Phase 6 — cron update and smoke test
-- [ ] Update cron job `0849e94b782d` prompt to run the new hybrid collector command and strict verifier flags.
-- [ ] Preserve unrelated cron fields:
+- [x] Update cron job `0849e94b782d` prompt to run the new hybrid collector command and strict verifier flags.
+- [x] Preserve unrelated cron fields:
   - schedule `0 0 * * *`;
   - delivery `origin`;
   - workdir `/home/konstantin/code/Hermes`;
   - enabled toolsets `['terminal']`;
   - model/provider pin unless the task explicitly changes it.
-- [ ] Trigger a manual cron run or run the same command path from the backup repo.
-- [ ] Poll cron status/output if using `cronjob(action="run")` because cron execution is asynchronous.
-- [ ] Verify `last_status: ok`, `last_delivery_error: null`, strict verifier output, and clean git status after the run.
+- [x] Trigger a manual cron run or run the same command path from the backup repo.
+- [x] Poll cron status/output if using `cronjob(action="run")` because cron execution is asynchronous.
+- [x] Verify `last_status: ok`, `last_delivery_error: null`, strict verifier output, and clean git status after the run.
 
 ### Phase 7 — closeout and durable knowledge
-- [ ] Update this plan's checkboxes and Notes with verified commit IDs, cron metadata, and strict verifier output summary.
-- [ ] Promote durable current-state facts to `fact_store` and, if needed, `/home/konstantin/docs/infrastructure.md` or `/home/konstantin/docs/runbooks.md`.
-- [ ] If the skill was patched or should be patched, verify the skill content after patching.
-- [ ] Mark this plan `Current status: done` and archive it under `archive/2026/done/` only after implementation + verification are complete.
+- [x] Update this plan's checkboxes and Notes with verified commit IDs, cron metadata, and strict verifier output summary.
+- [x] Promote durable current-state facts to `fact_store` and, if needed, `/home/konstantin/docs/infrastructure.md` or `/home/konstantin/docs/runbooks.md`.
+- [x] If the skill was patched or should be patched, verify the skill content after patching.
+- [x] Mark this plan `Current status: done` and archive it under `archive/2026/done/` only after implementation + verification are complete.
 
 ## Verification
 Implementation is complete only when all of the following are true:
@@ -198,8 +198,12 @@ Implementation is complete only when all of the following are true:
 - Force-pushing or history rewriting to reclaim old encrypted blobs is dangerous and must not be automated in this plan.
 
 ## Status
-Current status: in_progress
+Current status: done
 
 ## Notes
-- 2026-05-06: Plan created after verifying plan governance, backup repo state, current collector/verifier behavior, cron metadata summary, and current encrypted artifact inventory. No collector/verifier/cron implementation changes have been made yet under this plan.
+- 2026-05-06: Plan created after verifying plan governance, backup repo state, current collector/verifier behavior, cron metadata summary, and current encrypted artifact inventory. No collector/verifier/cron implementation changes had been made yet under this plan.
 - 2026-05-06: Implementation approved by user (`Go`). Preflight passed on `main` at `c259445859f46bac804d72ae9addb503711d32e5`; created branch `backup/hybrid-retention-2026-05-06`. Current HEAD inventory before cleanup: two encrypted generations in each encrypted directory (`20260506-133627`, `20260506-140011`), no raw secret values inspected or printed.
+- 2026-05-06: Implementation merged and pushed to `main`: `41ccd9b7fd25b89d679e3adf29178e65476595da` (`backup: implement hybrid encrypted retention`). Strict verifier passed on `main`; `origin/main` matched local HEAD.
+- 2026-05-06: Existing cron job `0849e94b782d` updated in place, preserving schedule `0 0 * * *`, delivery `origin`, workdir `/home/konstantin/code/Hermes`, enabled toolsets `['terminal']`, and model/provider pin `ollama-local` / `glm-5.1:cloud`. Prompt now runs collector `--encrypted-mode auto --max-encrypted-age-days 8 --retention latest` and strict verifier `--max-encrypted-age-days 8 --require-single-active-generation`.
+- 2026-05-06: Cron smoke test passed. First smoke run produced commit `7f79ee9eefea66ab2ff54f6f0bab61a50b3d2c72`; prompt then hardened to avoid Telegram pipe tables and accidental `[SILENT]` suffix. Second smoke run passed with `last_status: ok`, `last_delivery_error: null`, and pushed commit `6818449832b3ebcac3608716e3142b652d329eff`; `origin/main` matched local HEAD and repo was clean.
+- 2026-05-06: Final strict verifier summary: `ok: true`, `single_active_generation: true`, `latest_secret_timestamp: 20260506-151544`, `latest_state_timestamp: 20260506-151544`, `plaintext_secret_findings: 0`, `forbidden_plaintext_paths: 0`, `files_over_github_limit: 0`, `state_db_integrity: ok`, `memory_store_integrity: ok`.
