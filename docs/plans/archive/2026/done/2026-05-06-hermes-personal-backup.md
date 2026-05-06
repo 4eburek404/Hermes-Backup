@@ -173,28 +173,28 @@ Required method:
 - [x] Load relevant Hermes/GitHub/plan skills and read `/home/konstantin/docs/plans/README.md`.
 - [x] Inspect current Hermes overlay inventory without printing secret values.
 - [x] Verify target GitHub repo visibility and local clone absence.
-- [ ] Create local clone at `/home/konstantin/code/Hermes` from `https://github.com/4eburek404/Hermes`.
-- [ ] Create feature branch before changing repo contents, e.g. `backup/bootstrap-2026-05-06`.
-- [ ] Add deny-by-default `.gitignore` for raw secrets, raw sessions, logs, caches, DB sidecars, locks, pids, binaries, and raw `.env`/auth/credential paths, while allowing `*.tar.zst.age` encrypted artifacts under approved directories.
-- [ ] Add `README.md`, `MANIFEST.md`, `restore/README.md`, `secrets-encrypted/README.md`, and `session-history-encrypted/README.md` explaining scope and restore order.
-- [ ] Write `scripts/collect-hermes-backup.py` to copy/transform the selected files into the repo layout.
-- [ ] Implement redaction transforms:
-  - [ ] `config.yaml` -> `config.yaml.redacted` with secret-like values replaced.
-  - [ ] `.env` -> `env.keys` with names only.
-  - [ ] `auth.json` -> provider/key-name inventory only if useful, no token values.
-  - [ ] external config redaction for Himalaya/Codex.
-- [ ] Implement SQLite snapshot for holographic memory using SQLite backup API or `sqlite3 .backup`.
-- [ ] Use/verify `age` SSH-recipient encryption without exposing private keys in chat/tool output.
-- [ ] Build required encrypted secret bundle under `secrets-encrypted/` from raw credential sources.
-- [ ] Build required encrypted state/session bundle under `session-history-encrypted/` from a consistent `state.db` snapshot plus `sessions/`.
-- [ ] Test-decrypt encrypted bundles into a temporary directory and verify expected file names without printing secret values or transcript contents.
-- [ ] Run the collector once and inspect `git status --short`.
-- [ ] Run a secret-risk scan on the generated repo contents before commit.
-- [ ] Verify copied DB with `PRAGMA integrity_check`.
-- [ ] Verify no plaintext or encrypted artifact exceeds GitHub regular file limit; if an encrypted archive is near or above 100 MB, split it or install/configure Git LFS before pushing.
-- [ ] Commit backup bootstrap on the feature branch.
-- [ ] Push branch to `origin`.
-- [ ] After review, either merge to main or keep backup branch as the active backup branch, per user decision.
+- [x] Create local clone at `/home/konstantin/code/Hermes` from `https://github.com/4eburek404/Hermes`.
+- [x] Create feature branch before changing repo contents, e.g. `backup/bootstrap-2026-05-06`.
+- [x] Add deny-by-default `.gitignore` for raw secrets, raw sessions, logs, caches, DB sidecars, locks, pids, binaries, and raw `.env`/auth/credential paths, while allowing `*.tar.zst.age` encrypted artifacts under approved directories.
+- [x] Add `README.md`, `MANIFEST.md`, `restore/README.md`, `secrets-encrypted/README.md`, and `session-history-encrypted/README.md` explaining scope and restore order.
+- [x] Write `scripts/collect-hermes-backup.py` to copy/transform the selected files into the repo layout.
+- [x] Implement redaction transforms:
+  - [x] `config.yaml` -> `config.yaml.redacted` with secret-like values replaced.
+  - [x] `.env` -> `env.keys` with names only.
+  - [x] `auth.json` -> provider/key-name inventory only if useful, no token values.
+  - [x] external config redaction for Himalaya/Codex.
+- [x] Implement SQLite snapshot for holographic memory using SQLite backup API or `sqlite3 .backup`.
+- [x] Use/verify `age` SSH-recipient encryption without exposing private keys in chat/tool output.
+- [x] Build required encrypted secret bundle under `secrets-encrypted/` from raw credential sources.
+- [x] Build required encrypted state/session bundle under `session-history-encrypted/` from a consistent `state.db` snapshot plus `sessions/`.
+- [x] Test-decrypt encrypted bundles into a temporary directory and verify expected file names without printing secret values or transcript contents.
+- [x] Run the collector once and inspect `git status --short`.
+- [x] Run a secret-risk scan on the generated repo contents before commit.
+- [x] Verify copied DB with `PRAGMA integrity_check`.
+- [x] Verify no plaintext or encrypted artifact exceeds GitHub regular file limit; large state/session archive was split below 100 MiB before pushing.
+- [x] Commit backup bootstrap on the feature branch.
+- [x] Push branch to `origin`.
+- [x] GitHub set `backup/bootstrap-2026-05-06` as the default branch because the repository was empty; keep this branch as the active backup branch for now.
 - [ ] Optional later: add scheduled backup job after first manual backup is proven safe.
 
 ## Verification
@@ -237,14 +237,16 @@ Backup implementation is complete only when all are true:
 
 ## Decisions required before encrypted/full backup
 - Encryption mode chosen during execution: `age` SSH-recipient encryption to `/home/konstantin/.ssh/server_monitor_iOS_app_ed25519.pub`.
-- If encrypted state/session archive is over GitHub's regular file limit: split archive, install/configure Git LFS, or store the large encrypted artifact outside git and commit only manifest/checksum?
-- Include Telegram channel/pairing files plaintext, redacted, or encrypted? Current default: encrypted.
-- After first manual backup: schedule automatic backup cron or keep manual-only?
+- Large encrypted state/session archive decision: split into `<100 MiB` `*.partNNN` files; Git LFS not installed/configured.
+- Telegram channel/pairing files decision: included encrypted, not plaintext.
+- Automatic backup cron: not created in this task; manual backup is proven first.
 
 ## Status
-Current status: in_progress
+Current status: done
 
 ## Notes
 - 2026-05-06: Inventory completed. Plan intentionally stops before cloning/pushing because user requested file selection and written plan first.
 - 2026-05-06: Target repo is private, but raw secrets remain encrypted-only/excluded by default.
 - 2026-05-06: Scope updated after user decision: secrets, `state.db`, and sessions are included in backup as required encrypted artifacts, not plaintext.
+
+- 2026-05-06: Backup executed and pushed. Commit `9a212c4f2ffa152e82ddb101574c676fe64fd2dd` on branch `backup/bootstrap-2026-05-06`; GitHub default branch now points to this branch. Verification passed: secret scan 0, memory/state SQLite integrity ok, encrypted bundles test-decrypt ok, no file >=100 MiB.
