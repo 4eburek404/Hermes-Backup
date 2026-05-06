@@ -1,0 +1,276 @@
+# flights CLI
+
+Offline-first flight routing helper for Hermes/Travelpayouts workflows.
+
+The CLI reads local Hermes Travelpayouts cache files, prepares segment-level
+search plans, validates airport compatibility, and builds sanitized
+Travelpayouts requests. It does not book, buy, or write to Hermes. Live API
+calls are disabled unless `--live` is passed explicitly.
+
+## Install
+
+```bash
+make install-local
+command -v flights
+flights --help
+flights --json doctor
+```
+
+This project uses only the Python standard library.
+
+## JSON Policy
+
+With `--json`, stdout is always an envelope:
+
+```json
+{
+  "ok": true,
+  "command": "route plan",
+  "data": {}
+}
+```
+
+Errors are emitted to stderr:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "type": "validation_error",
+    "message": "..."
+  }
+}
+```
+
+Tokens are never printed. `doctor` reports only whether
+`TRAVELPAYOUTS_TOKEN` and `TRAVELPAYOUTS_MARKER` are present. The CLI reads
+process environment first and then auto-loads Travelpayouts keys from
+`~/.hermes/.env` without overriding existing environment variables.
+
+## Commands
+
+Runtime check:
+
+```bash
+flights --json doctor
+```
+
+Resolve city and airport context from local cache:
+
+```bash
+flights --json cities search London --limit 5
+flights --json airports explain IST SAW SVO DME VKO
+```
+
+Build a multi-segment plan without API calls:
+
+```bash
+flights --json route plan SVX LON \
+  --depart-date 2026-07-19 \
+  --return-date 2026-07-23 \
+  --hub IST --hub SAW --hub AYT
+```
+
+Validate an assembled itinerary:
+
+```bash
+flights --json route validate --profile safe --input itinerary.json
+```
+
+Rank multiple itinerary candidates:
+
+```bash
+flights --json route rank --profile safe --input candidates.json
+flights --json route rank --profile cheap --input candidates.json
+```
+
+Parse Travelpayouts results into segment offers:
+
+```bash
+flights --json results parse --input svx-ist.raw.json \
+  --direction outbound \
+  --leg origin_to_hub \
+  --origin SVX --destination IST --date 2026-07-19 --currency RUB
+```
+
+Assemble parsed segment offers into ranked itinerary candidates:
+
+```bash
+flights --json route assemble --profile safe \
+  --input svx-ist.parsed.json \
+  --input ist-lhr.parsed.json \
+  --input lhr-ist.parsed.json \
+  --input ist-svx.parsed.json
+```
+
+`route assemble` also reports `rejected_pairs` for skipped combinations such as
+IST/SAW airport changes, negative time order, or too-short self-transfers. Use
+`--include-rejected-pairs N` to control how many diagnostics are returned.
+
+Run live Kupibilet direct-only segment searches through hubs, then assemble the
+same normalized candidates in one command:
+
+```bash
+flights --json route kb-assemble SVX CDG \
+  --depart-date 2026-08-15 \
+  --return-date 2026-08-19 \
+  --hub AYT --hub IST \
+  --segment-limit 30 \
+  --include-candidates 10
+```
+
+`route kb-assemble` is intentionally live: it calls Kupibilet `frontend_search`
+for `origin→hub`, `hub→destination`, `destination→hub`, and `hub→origin` direct
+segments, including default second-leg day offsets (`outbound: 0,1`; `return:
+0,1,2`) so overnight hub departures are not missed. It still returns advisory
+aggregator data; final fare, seat availability, baggage, and protected-ticketing
+status must be rechecked on the booking screen.
+
+Select carriers explicitly while ranking or assembling:
+
+```bash
+flights --json route assemble --profile safe \
+  --input svx-ist.parsed.json \
+  --input ist-lhr.parsed.json \
+  --only-carrier SU --only-carrier TK
+
+flights --json route rank --profile balanced --input candidates.json \
+  --prefer-carrier TK --avoid-carrier DP
+```
+
+Carrier selection flags:
+
+- `--only-carrier CODE`: hard filter; every segment must use one of the selected carriers.
+- `--exclude-carrier CODE`: hard filter; remove candidates using that carrier.
+- `--prefer-carrier CODE`: soft preference; demote candidates that do not use a selected carrier.
+- `--avoid-carrier CODE`: soft preference; penalize candidates using that carrier.
+- `--include-filtered N`: include carrier-filtered diagnostics in JSON.
+
+Build a sanitized Travelpayouts request, still without network:
+
+```bash
+flights --json request search SVX IST --depart-date 2026-07-19 --dry-run
+```
+
+Read-only live API call, only when explicitly requested:
+
+```bash
+flights --json request search SVX IST --depart-date 2026-07-19 --live
+```
+
+Workflow metrics:
+
+```bash
+flights --json metrics workflow SVX LON \
+  --depart-date 2026-07-19 \
+  --return-date 2026-07-23 \
+  --hub IST --hub SAW --hub AYT
+```
+
+## What It Automates
+
+- Expands multi-airport cities such as LON into LHR/LGW/STN/LTN.
+- Keeps IST and SAW separate and flags airport changes.
+- Keeps SVO, DME, and VKO separate for Moscow routing.
+- Prepares segment-by-segment Travelpayouts requests instead of using broad
+  city codes that often return empty cache data.
+- Parses Travelpayouts `prices_one_way` / `prices_round_trip` responses into
+  normalized segment offers, preserving provider `transfers` metadata such as
+  `duration_seconds`, `night_transfer`, and `visa_required`.
+- Assembles compatible segment offers into outbound/return journeys.
+- Can run Kupibilet direct-only segment searches through hubs and assemble those
+  live normalized offers via `route kb-assemble`.
+- Scores connection risk, internal transfer metadata, and airport changes, then
+  ranks candidates by profile.
+- Supports explicit carrier selection and carrier preferences for ranked
+  candidates.
+- Computes deterministic workflow metrics so the manual work can be compared
+  with the CLI-assisted path.
+
+## Risk Profiles
+
+Profiles change ranking, not the underlying safety checks.
+
+| Profile | Rank order | Use when |
+|---|---|---|
+| `safe` | reject → risk → elapsed → price | best connection quality matters most |
+| `balanced` | reject → risk → price → elapsed | default tradeoff |
+| `cheap` | reject → price → risk → elapsed | price matters, but unsafe transfers still sink |
+| `business` | reject → risk → elapsed → price | predictable same-airport travel matters |
+
+Risk grades:
+
+- `excellent`: 0-20
+- `good`: 21-40
+- `risky`: 41-70
+- `reject`: 71-100
+
+`route validate` accepts one itinerary:
+
+```json
+{
+  "price": 92817,
+  "segments": [
+    {
+      "origin": "SVX",
+      "destination": "IST",
+      "departure_at": "2026-07-19T10:30:00",
+      "arrival_at": "2026-07-19T13:55:00",
+      "carrier": "SU"
+    },
+    {
+      "origin": "IST",
+      "destination": "LHR",
+      "departure_at": "2026-07-19T20:25:00",
+      "arrival_at": "2026-07-19T22:25:00",
+      "carrier": "TK"
+    }
+  ]
+}
+```
+
+`route rank` accepts either a JSON list or an object with `itineraries` or
+`candidates`. Each candidate may include `id`, `price`, `currency`, `ticketing`,
+and `segments`.
+
+Both `route rank` and `route assemble` return `carrier_policy`. Hard carrier
+filters remove candidates from `ranked` and report examples under
+`carrier_policy.filtered`; soft preferences add carrier risk components and
+adjust `rank_key`.
+
+`route assemble` accepts parsed result JSON from `results parse`. Each parsed
+result has:
+
+```json
+{
+  "segment_result": {
+    "direction": "outbound",
+    "leg": "origin_to_hub",
+    "query": {"origin": "SVX", "destination": "IST", "date": "2026-07-19"},
+    "offers": []
+  }
+}
+```
+
+Assembly pairs:
+
+- outbound: `origin_to_hub` + `hub_to_destination`
+- return: `destination_to_hub` + `hub_to_origin`
+
+Pairs only assemble when the first offer arrival airport equals the second offer
+departure airport. Skipped pairs are returned as `rejected_pairs` with
+`reason`, `airport_pair_status`, `arrival_airport`, `departure_airport`,
+`actual_min`, `required_min`, `risk`, and source offer summaries. The ranker
+then scores connection time, provider transfer metadata, and profile risk.
+
+For `prices_round_trip`, `results parse --direction outbound` selects the first
+trip segment and `--direction return` selects the second trip segment. If the
+provider returns no round-trip items, the parser returns zero offers without
+inventing candidates.
+
+## Non-goals
+
+- No booking or purchase.
+- No hidden writes.
+- No Docker Hermes access.
+- No live Travelpayouts API call unless `request search --live` is passed; `route kb-assemble` is a separate explicitly live Kupibilet command.

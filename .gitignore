@@ -55,5 +55,21 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 
-# Upstream source checkout must not be vendored here
-hermes-agent/
+# Upstream source checkout must not be vendored at repo root.
+# The reproducible CLI layer under cli/hermes-agent/ stores manifest+patch only.
+/hermes-agent/
+
+# CLI backup noise
+cli/**/.git/
+cli/**/__pycache__/
+cli/**/.pytest_cache/
+cli/**/.mypy_cache/
+cli/**/.ruff_cache/
+cli/**/.venv/
+cli/**/venv/
+cli/**/node_modules/
+cli/**/dist/
+cli/**/build/
+cli/**/*.egg-info/
+cli/**/*.pyc
+cli/**/*.pyo

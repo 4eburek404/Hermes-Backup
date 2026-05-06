@@ -29,7 +29,9 @@ STRICT_SECRET_PATTERNS = {
 }
 
 SKIP_SCAN_DIRS = {".git", "secrets-encrypted", "session-history-encrypted"}
-BINARY_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".mp3", ".ogg", ".mp4", ".sqlite", ".db"}
+BINARY_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".mp3", ".ogg", ".mp4", ".sqlite", ".db", ".pyc", ".pyo"}
+FORBIDDEN_PATH_PARTS = {".git", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".venv", "venv", "node_modules", "dist", "build"}
+FORBIDDEN_FILENAMES = {".env", "auth.json", "gmail_app_password", "state.db"}
 
 
 def run(cmd: list[str], *, input_bytes: bytes | None = None) -> subprocess.CompletedProcess:
@@ -69,6 +71,52 @@ def secret_scan() -> list[dict[str, object]]:
             if regex.search(data):
                 findings.append({"path": str(p.relative_to(REPO)), "rule": rule})
     return findings
+
+
+def raw_forbidden_scan() -> list[str]:
+    findings: list[str] = []
+    for p in REPO.rglob("*"):
+        if not p.exists():
+            continue
+        rel = p.relative_to(REPO)
+        rel_parts = rel.parts
+        if rel_parts and rel_parts[0] in {".git", "secrets-encrypted", "session-history-encrypted"}:
+            continue
+        # Ignore untracked files that gitignore already excludes (for example py_compile-created __pycache__).
+        ignored = subprocess.run(["git", "check-ignore", "-q", str(rel)], cwd=REPO, check=False).returncode == 0
+        tracked = subprocess.run(["git", "ls-files", "--error-unmatch", str(rel)], cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False).returncode == 0
+        if ignored and not tracked:
+            continue
+        if p.is_dir() and (p.name in FORBIDDEN_PATH_PARTS or p.name.endswith(".egg-info")):
+            findings.append(str(rel))
+        if p.is_file() and p.name in FORBIDDEN_FILENAMES:
+            findings.append(str(rel))
+        if p.is_file() and p.suffix.lower() in {".pem", ".key", ".p12", ".pfx"}:
+            findings.append(str(rel))
+    return findings
+
+
+def verify_cli_backup() -> dict[str, object]:
+    agent_manifest_path = REPO / "cli" / "hermes-agent" / "manifest.json"
+    skill_clis_manifest_path = REPO / "cli" / "skill-clis" / "manifest.json"
+    if not agent_manifest_path.exists():
+        raise RuntimeError("Missing CLI backup manifest: cli/hermes-agent/manifest.json")
+    if not skill_clis_manifest_path.exists():
+        raise RuntimeError("Missing skill CLIs manifest: cli/skill-clis/manifest.json")
+
+    agent = json.loads(agent_manifest_path.read_text(encoding="utf-8"))
+    skill_clis = json.loads(skill_clis_manifest_path.read_text(encoding="utf-8"))
+    if agent.get("tracked_diff_files") and not (REPO / "cli" / "hermes-agent" / "tracked-changes.patch").exists():
+        raise RuntimeError("Hermes Agent tracked changes exist but tracked-changes.patch is missing")
+    entries = [entry.get("name") for entry in skill_clis.get("entries", [])]
+    for expected in ["article", "flights", "hh-ru", "knowledge"]:
+        if expected not in entries:
+            raise RuntimeError(f"Skill CLI snapshot missing expected directory: {expected}")
+    return {
+        "hermes_agent_status_count": agent.get("status_count"),
+        "hermes_agent_head_short": agent.get("git_head_short"),
+        "skill_clis_entries": entries,
+    }
 
 
 def check_sqlite(path: Path) -> str:
@@ -159,6 +207,9 @@ def main() -> int:
         REPO / "hermes" / "config.yaml.redacted",
         REPO / "hermes" / "env.keys",
         REPO / "hermes" / "holographic-memory" / "memory_store.sqlite",
+        REPO / "cli" / "README.md",
+        REPO / "cli" / "hermes-agent" / "manifest.json",
+        REPO / "cli" / "skill-clis" / "manifest.json",
     ]
     missing = [str(p.relative_to(REPO)) for p in required if not p.exists()]
     if missing:
@@ -200,6 +251,12 @@ def main() -> int:
     if findings:
         raise RuntimeError(f"Plaintext high-risk secret scan findings (values not printed): {findings}")
 
+    forbidden = raw_forbidden_scan()
+    if forbidden:
+        raise RuntimeError(f"Forbidden raw/cache paths present in plaintext repo: {forbidden[:50]}")
+
+    cli = verify_cli_backup()
+
     print(json.dumps({
         "ok": True,
         "memory_store_integrity": mem_integrity,
@@ -209,7 +266,9 @@ def main() -> int:
         "secret_archive_members": len(secret_names),
         "state_archive_members": len(state_names),
         "plaintext_secret_findings": 0,
+        "forbidden_plaintext_paths": 0,
         "files_over_github_limit": 0,
+        "cli_backup": cli,
     }, ensure_ascii=False))
     return 0
 

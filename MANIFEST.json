@@ -1,16 +1,32 @@
 {
-  "created_at_utc": "2026-05-06T12:30:53.558593+00:00",
-  "timestamp": "20260506-123053",
+  "created_at_utc": "2026-05-06T13:13:47.232721+00:00",
+  "timestamp": "20260506-131347",
   "source_home": "/home/konstantin",
   "hermes_home": "/home/konstantin/.hermes",
-  "excluded_upstream_repo": "/home/konstantin/.hermes/hermes-agent",
+  "upstream_source_checkout": "/home/konstantin/.hermes/hermes-agent",
+  "upstream_source_backup_mode": "manifest+patch, not full vendored repo",
+  "skill_clis_source": "/home/konstantin/code/clis",
   "memory_store_snapshot": "hermes/holographic-memory/memory_store.sqlite",
+  "cli_backup": {
+    "hermes_agent_manifest": "cli/hermes-agent/manifest.json",
+    "hermes_agent_patch": "cli/hermes-agent/tracked-changes.patch",
+    "hermes_agent_untracked_copied": 2,
+    "skill_clis": "cli/skill-clis",
+    "skill_clis_entries": [
+      "article",
+      "flights",
+      "hh-ru",
+      "knowledge"
+    ]
+  },
   "plaintext_files_sanitized": 1,
   "secret_artifacts": [
-    "secrets-encrypted/hermes-secrets-20260506-123053.tar.zst.age"
+    "secrets-encrypted/hermes-secrets-20260506-131347.tar.zst.age"
   ],
   "state_artifacts": [
-    "session-history-encrypted/hermes-state-and-sessions-20260506-123053.tar.zst.age.part000",
-    "session-history-encrypted/hermes-state-and-sessions-20260506-123053.tar.zst.age.part001"
+    "session-history-encrypted/hermes-state-and-sessions-20260506-131347.tar.zst.age.part000",
+    "session-history-encrypted/hermes-state-and-sessions-20260506-131347.tar.zst.age.part001",
+    "session-history-encrypted/hermes-state-and-sessions-20260506-131347.tar.zst.age.part002",
+    "session-history-encrypted/hermes-state-and-sessions-20260506-131347.tar.zst.age.part003"
   ]
 }

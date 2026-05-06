@@ -10,6 +10,9 @@ This private repository stores Konstantin's personal Hermes overlay on top of th
 - Cron job definitions (`cron/jobs.json`) without cron output/locks.
 - Redacted configuration inventories.
 - Consistent SQLite snapshot of holographic memory: `hermes/holographic-memory/memory_store.sqlite`.
+- CLI backup layer:
+  - `cli/hermes-agent/` — active Hermes CLI/source manifest, tracked patch, and safe untracked source files; not a full upstream repo vendor.
+  - `cli/skill-clis/` — source snapshots from `/home/konstantin/code/clis` for local skill-related CLIs, excluding caches/build artifacts.
 
 ## What is backed up encrypted only
 
@@ -22,7 +25,7 @@ Encryption uses `age` to the SSH public key recorded in the artifact manifests. 
 
 ## What is intentionally excluded
 
-- Upstream Hermes Agent source checkout: `/home/konstantin/.hermes/hermes-agent`.
+- Upstream Hermes Agent source checkout as a full vendored repo. Only manifest + patch + safe untracked source files are stored under `cli/hermes-agent/`.
 - Logs, caches, media caches, screenshots/videos, locks, pids, live SQLite WAL/SHM sidecars.
 - Raw credentials and raw runtime DB/session files in plaintext.
 

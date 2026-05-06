@@ -1,0 +1,12 @@
+[project]
+name = "flights-cli"
+version = "0.8.0"
+description = "Offline-first flight routing helper for Hermes/Travelpayouts workflows"
+requires-python = ">=3.10"
+
+[project.scripts]
+flights = "flights_cli.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["flights_cli*"]
+exclude = ["aeroflot_research*"]

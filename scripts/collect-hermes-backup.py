@@ -27,10 +27,13 @@ from typing import Iterable
 HOME = Path.home()
 HERMES = HOME / ".hermes"
 DOCS = HOME / "docs"
+CODE = HOME / "code"
+HERMES_AGENT = HERMES / "hermes-agent"
+SKILL_CLIS = CODE / "clis"
 REPO = Path(__file__).resolve().parents[1]
 RECIPIENT_FILE = HOME / ".ssh" / "server_monitor_iOS_app_ed25519.pub"
 IDENTITY_FILE = HOME / ".ssh" / "server_monitor_iOS_app_ed25519"
-SPLIT_BYTES = 95 * 1024 * 1024
+SPLIT_BYTES = 45 * 1024 * 1024
 NOW = dt.datetime.now(dt.timezone.utc)
 TS = os.environ.get("HERMES_BACKUP_TS") or NOW.strftime("%Y%m%d-%H%M%S")
 
@@ -41,7 +44,10 @@ SECRET_KEY_RE = (
 
 COPY_EXCLUDE_DIRS = {
     ".git", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", "node_modules",
+    ".venv", "venv", "dist", "build", ".tox", ".nox", ".cache",
 }
+COPY_EXCLUDE_PATTERNS = {"*.egg-info"}
+COPY_EXCLUDE_SUFFIXES = {".pyc", ".pyo", ".log", ".tmp", ".swp"}
 
 STRICT_SECRET_TEXT_PATTERNS = [
     re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{20,}\b"),
@@ -107,7 +113,10 @@ def copy_file(src: Path, dst: Path) -> None:
 def ignore_names(_dir: str, names: list[str]) -> set[str]:
     ignored: set[str] = set()
     for name in names:
-        if name in COPY_EXCLUDE_DIRS:
+        if name in COPY_EXCLUDE_DIRS or any(fnmatch.fnmatch(name, pat) for pat in COPY_EXCLUDE_PATTERNS):
+            ignored.add(name)
+            continue
+        if Path(name).suffix.lower() in COPY_EXCLUDE_SUFFIXES:
             ignored.add(name)
     return ignored
 
@@ -349,6 +358,145 @@ def artifact_manifest(kind: str, sources: list[dict[str, object]], artifact_path
     }
 
 
+def git_text(repo: Path, args: list[str]) -> str | None:
+    if not (repo / ".git").exists():
+        return None
+    result = subprocess.run(["git", *args], cwd=repo, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    if result.returncode != 0:
+        return None
+    return result.stdout.decode("utf-8", "replace").rstrip("\n")
+
+
+def command_text(args: list[str]) -> str | None:
+    result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    if result.returncode != 0:
+        return None
+    return result.stdout.decode("utf-8", "replace").rstrip("\n")
+
+
+def safe_untracked_file(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    if any(part in COPY_EXCLUDE_DIRS or any(fnmatch.fnmatch(part, pat) for pat in COPY_EXCLUDE_PATTERNS) for part in path.parts):
+        return False
+    name = path.name.lower()
+    if name in {".env", "auth.json", "credentials.json", "gmail_app_password"}:
+        return False
+    if any(marker in name for marker in ("secret", "token", "password", "passwd", "private_key")):
+        return False
+    if path.suffix.lower() in COPY_EXCLUDE_SUFFIXES | {".db", ".sqlite", ".sqlite3", ".pem", ".key", ".p12", ".pfx"}:
+        return False
+    try:
+        return path.stat().st_size < 10 * 1024 * 1024
+    except OSError:
+        return False
+
+
+def tree_summary(root: Path) -> list[dict[str, object]]:
+    entries: list[dict[str, object]] = []
+    if not root.exists() or not root.is_dir():
+        return entries
+    for child in sorted(p for p in root.iterdir() if not p.name.startswith(".")):
+        if child.name in COPY_EXCLUDE_DIRS or any(fnmatch.fnmatch(child.name, pat) for pat in COPY_EXCLUDE_PATTERNS):
+            continue
+        if child.is_dir():
+            count = 0
+            total = 0
+            for dp, dns, fns in os.walk(child):
+                dns[:] = [d for d in dns if d not in COPY_EXCLUDE_DIRS and not any(fnmatch.fnmatch(d, pat) for pat in COPY_EXCLUDE_PATTERNS)]
+                for fn in fns:
+                    fp = Path(dp) / fn
+                    if fp.suffix.lower() in COPY_EXCLUDE_SUFFIXES:
+                        continue
+                    try:
+                        total += fp.stat().st_size
+                        count += 1
+                    except OSError:
+                        pass
+            entries.append({"name": child.name, "type": "dir", "file_count": count, "size_bytes": total})
+        elif child.is_file() and child.suffix.lower() not in COPY_EXCLUDE_SUFFIXES:
+            entries.append({"name": child.name, "type": "file", "file_count": 1, "size_bytes": child.stat().st_size})
+    return entries
+
+
+def collect_cli_backup(summary: dict[str, object]) -> None:
+    """Collect reproducible CLI state without vendoring upstream git/venv/cache."""
+    cli_root = REPO / "cli"
+    reset_dir(cli_root)
+
+    agent_dir = cli_root / "hermes-agent"
+    agent_dir.mkdir(parents=True, exist_ok=True)
+    status_lines = (git_text(HERMES_AGENT, ["status", "--short"]) or "").splitlines()
+    tracked_diff_files = (git_text(HERMES_AGENT, ["diff", "--name-only"]) or "").splitlines()
+    untracked_files = (git_text(HERMES_AGENT, ["ls-files", "--others", "--exclude-standard"]) or "").splitlines()
+
+    manifest = {
+        "kind": "hermes-agent-cli-source-state",
+        "created_at_utc": NOW.isoformat(),
+        "executable": shutil.which("hermes"),
+        "version_output": command_text(["hermes", "--version"]) if shutil.which("hermes") else None,
+        "source_path": str(HERMES_AGENT),
+        "source_exists": HERMES_AGENT.exists(),
+        "git_remote": git_text(HERMES_AGENT, ["remote", "get-url", "origin"]),
+        "git_branch": git_text(HERMES_AGENT, ["branch", "--show-current"]),
+        "git_head": git_text(HERMES_AGENT, ["rev-parse", "HEAD"]),
+        "git_head_short": git_text(HERMES_AGENT, ["rev-parse", "--short=12", "HEAD"]),
+        "status_count": len(status_lines),
+        "status": status_lines,
+        "tracked_diff_files": tracked_diff_files,
+        "untracked_files": untracked_files,
+        "backup_mode": "manifest + tracked git patch + safe untracked source files; full upstream repo, .git, venv, caches excluded",
+    }
+    (agent_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    if tracked_diff_files:
+        diff = git_text(HERMES_AGENT, ["diff", "--binary", "--full-index"])
+        if diff:
+            (agent_dir / "tracked-changes.patch").write_text(diff + "\n", encoding="utf-8")
+
+    copied_untracked: list[str] = []
+    untracked_root = agent_dir / "untracked"
+    for rel in untracked_files:
+        src = HERMES_AGENT / rel
+        if safe_untracked_file(src):
+            copy_file(src, untracked_root / rel)
+            copied_untracked.append(rel)
+    (agent_dir / "untracked-manifest.json").write_text(
+        json.dumps({"copied": copied_untracked, "skipped_count": len(untracked_files) - len(copied_untracked)}, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    skill_clis_dst = cli_root / "skill-clis"
+    copy_tree(SKILL_CLIS, skill_clis_dst)
+    skill_clis_manifest = {
+        "kind": "skill-related-local-clis",
+        "created_at_utc": NOW.isoformat(),
+        "source_path": str(SKILL_CLIS),
+        "source_exists": SKILL_CLIS.exists(),
+        "entries": tree_summary(SKILL_CLIS),
+        "excluded": sorted(COPY_EXCLUDE_DIRS | COPY_EXCLUDE_PATTERNS | COPY_EXCLUDE_SUFFIXES),
+    }
+    (skill_clis_dst / "manifest.json").write_text(json.dumps(skill_clis_manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    (cli_root / "README.md").write_text(
+        "# CLI backup layer\n\n"
+        "This directory stores reproducible CLI/source state needed beyond the Hermes overlay.\n\n"
+        "## `hermes-agent/`\n\n"
+        "The upstream Hermes Agent checkout is **not** vendored wholesale. Restore by installing/cloning upstream, checking out the recorded commit, then applying `tracked-changes.patch` and copying safe files from `untracked/` if still needed.\n\n"
+        "## `skill-clis/`\n\n"
+        "Source snapshots from `/home/konstantin/code/clis` used by local skills. Generated caches, `.git`, virtualenvs, build outputs, and pycache files are excluded.\n",
+        encoding="utf-8",
+    )
+
+    summary["cli_backup"] = {
+        "hermes_agent_manifest": "cli/hermes-agent/manifest.json",
+        "hermes_agent_patch": "cli/hermes-agent/tracked-changes.patch" if tracked_diff_files else None,
+        "hermes_agent_untracked_copied": len(copied_untracked),
+        "skill_clis": "cli/skill-clis",
+        "skill_clis_entries": [entry["name"] for entry in skill_clis_manifest["entries"]],
+    }
+
+
 def collect_plaintext(summary: dict[str, object]) -> None:
     reset_dir(REPO / "docs")
     copy_tree(DOCS, REPO / "docs")
@@ -375,6 +523,8 @@ def collect_plaintext(summary: dict[str, object]) -> None:
     mem_dst = REPO / "hermes" / "holographic-memory" / "memory_store.sqlite"
     copied = sqlite_backup(HERMES / "memory_store.db", mem_dst)
     summary["memory_store_snapshot"] = str(mem_dst.relative_to(REPO)) if copied else None
+
+    collect_cli_backup(summary)
 
 
 def collect_encrypted(summary: dict[str, object]) -> None:
@@ -455,7 +605,9 @@ def write_manifest(summary: dict[str, object]) -> None:
         "timestamp": TS,
         "source_home": str(HOME),
         "hermes_home": str(HERMES),
-        "excluded_upstream_repo": str(HERMES / "hermes-agent"),
+        "upstream_source_checkout": str(HERMES_AGENT),
+        "upstream_source_backup_mode": "manifest+patch, not full vendored repo",
+        "skill_clis_source": str(SKILL_CLIS),
         **summary,
     }
     (REPO / "MANIFEST.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -463,9 +615,12 @@ def write_manifest(summary: dict[str, object]) -> None:
         "# Backup manifest\n\n",
         f"Created UTC: `{NOW.isoformat()}`\n\n",
         f"Hermes home: `{HERMES}`\n\n",
-        f"Upstream source excluded: `{HERMES / 'hermes-agent'}`\n\n",
+        f"Hermes Agent source checkout: `{HERMES_AGENT}`\n\n",
+        "Upstream source backup mode: `manifest + patch`, not full vendored repo.\n\n",
+        f"Skill CLIs source: `{SKILL_CLIS}`\n\n",
         "## Plaintext snapshot\n\n",
-        f"- Holographic memory snapshot: `{summary.get('memory_store_snapshot')}`\n\n",
+        f"- Holographic memory snapshot: `{summary.get('memory_store_snapshot')}`\n",
+        f"- CLI backup: `{summary.get('cli_backup')}`\n\n",
         "## Encrypted artifacts\n\n",
     ]
     for key in ("secret_artifacts", "state_artifacts"):
