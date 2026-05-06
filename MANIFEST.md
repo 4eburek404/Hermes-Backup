@@ -1,6 +1,6 @@
 # Backup manifest
 
-Created UTC: `2026-05-06T16:01:22.885710+00:00`
+Created UTC: `2026-05-06T16:08:11.419589+00:00`
 
 Hermes home: `/home/konstantin/.hermes`
 
@@ -17,7 +17,7 @@ Skill CLIs source: `/home/konstantin/code/clis`
 
 ## Encrypted artifacts
 
-- Policy: `{'mode': 'auto', 'weekly_encrypted_dow': 6, 'local_weekday': 2, 'local_time': '2026-05-06T18:01:22.885710+02:00', 'max_encrypted_age_days': 8.0, 'retention': 'latest', 'latest_secret_timestamp': '20260506-151544', 'latest_state_timestamp': '20260506-151544', 'secret_age_days': 0.0317, 'state_age_days': 0.0317, 'existing_encrypted_ok': True, 'encrypted_stale': False, 'secret_metadata_changed': False, 'secret_source_count': 12, 'secret_change_detection_excluded_sources': ['/home/konstantin/.hermes/channel_directory.json'], 'refresh_reason': 'fresh_reuse', 'retention_removed_count': 0, 'retention_removed': []}`
+- Policy: `{'mode': 'auto', 'weekly_encrypted_dow': 6, 'local_weekday': 2, 'local_time': '2026-05-06T18:08:11.419589+02:00', 'max_encrypted_age_days': 8.0, 'retention': 'latest', 'latest_secret_timestamp': '20260506-151544', 'latest_state_timestamp': '20260506-151544', 'secret_age_days': 0.0364, 'state_age_days': 0.0364, 'existing_encrypted_ok': True, 'encrypted_stale': False, 'secret_metadata_changed': False, 'secret_source_count': 12, 'secret_change_detection_excluded_sources': ['/home/konstantin/.hermes/channel_directory.json'], 'refresh_reason': 'fresh_reuse', 'retention_removed_count': 0, 'retention_removed': []}`
 - Refreshed this run: `False`
 - Secrets manifest: `secrets-encrypted/manifest-20260506-151544.json`
 - State/sessions manifest: `session-history-encrypted/manifest-20260506-151544.json`
