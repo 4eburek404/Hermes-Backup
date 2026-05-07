@@ -35,13 +35,16 @@ Hermes Agent (~/.hermes/hermes-agent)
 
 ## Providers and models
 
-### Ollama / custom endpoint
+### Ollama / custom endpoints
 
-- Models shown in Hermes `/model` are configured under `providers.ollama-local.models` in `~/.hermes/config.yaml`.
-- Cron model pinning uses provider `custom` plus the raw Ollama model name.
+- `ollama-local`: OpenAI-compatible path, `http://127.0.0.1:11434/v1`, Hermes `chat_completions`. This remains the default/local compatibility provider and must not be silently repointed to native `/api/chat`.
+- `ollama-native`: native Ollama path, `http://127.0.0.1:11434`, Hermes `api_mode: ollama_native_chat`, default model `glm-5.1:cloud`. Core provider support landed in Hermes Agent branch `fix/ollama-native-chat-provider`, commits `764731bad` and `f76e76b5d`.
+- Models shown in Hermes `/model` for the compatibility path are configured under `providers.ollama-local.models` in `~/.hermes/config.yaml`; native model tags are configured under `providers.ollama-native.models`.
+- Cron/model pinning should specify the intended provider path explicitly. Use `ollama-local` for `/v1` compatibility semantics; use `ollama-native` only when the caller expects native `/api/chat` fields (`format`, `think`, `options.num_predict`, `message.content`).
 - **Verify exact tags before adding.** Example: `gemma4:cloud` invalid; correct = `gemma4:31b-cloud`.
 
-Configured models: `glm-5.1:cloud`, `deepseek-v4-flash:cloud`, `deepseek-v4-pro:cloud`, `kimi-k2.6:cloud`, `gpt-oss:120b-cloud`, `gpt-oss:20b-cloud`, `gemma4:31b-cloud`.
+Compatibility configured models: `glm-5.1:cloud`, `deepseek-v4-flash:cloud`, `deepseek-v4-pro:cloud`, `kimi-k2.6:cloud`, `gpt-oss:120b-cloud`, `gpt-oss:20b-cloud`, `gemma4:31b-cloud`.
+Native provider has a larger verified cloud-tag list in `providers.ollama-native.models`; do not guess tags from model family names.
 
 ### OpenAI Codex provider
 

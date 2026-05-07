@@ -16,7 +16,7 @@ from pathlib import Path
 
 HOME = Path.home()
 REPO = Path(__file__).resolve().parents[1]
-IDENTITY_FILE = HOME / ".ssh" / "server_monitor_iOS_app_ed25519"
+DEFAULT_IDENTITY_FILE = HOME / ".ssh" / "server_monitor_iOS_app_ed25519"
 GITHUB_LIMIT = 100 * 1024 * 1024
 NOW = dt.datetime.now(dt.timezone.utc)
 DEFAULT_MAX_ENCRYPTED_AGE_DAYS = 8
@@ -224,12 +224,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Fail if generated encrypted files outside the latest manifest references remain in HEAD.",
     )
+    parser.add_argument(
+        "--identity-file",
+        default=str(DEFAULT_IDENTITY_FILE),
+        help="age/SSH identity file used to test-decrypt encrypted artifacts.",
+    )
     return parser.parse_args(argv)
 
 
-def decrypt_tar_list(paths: list[Path]) -> list[str]:
+def decrypt_tar_list(paths: list[Path], identity_file: Path) -> list[str]:
     cat = subprocess.Popen(["cat", *map(str, paths)], stdout=subprocess.PIPE)
-    age = subprocess.Popen(["age", "-d", "-i", str(IDENTITY_FILE)], stdin=cat.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    age = subprocess.Popen(["age", "-d", "-i", str(identity_file)], stdin=cat.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     assert cat.stdout is not None
     cat.stdout.close()
     tar = subprocess.Popen(["tar", "--zstd", "-tf", "-"], stdin=age.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -246,9 +251,9 @@ def decrypt_tar_list(paths: list[Path]) -> list[str]:
     return [line.strip() for line in out.decode("utf-8", "replace").splitlines() if line.strip()]
 
 
-def extract_member(paths: list[Path], member: str, out_path: Path) -> None:
+def extract_member(paths: list[Path], member: str, out_path: Path, identity_file: Path) -> None:
     cat = subprocess.Popen(["cat", *map(str, paths)], stdout=subprocess.PIPE)
-    age = subprocess.Popen(["age", "-d", "-i", str(IDENTITY_FILE)], stdin=cat.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    age = subprocess.Popen(["age", "-d", "-i", str(identity_file)], stdin=cat.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     assert cat.stdout is not None
     cat.stdout.close()
     with out_path.open("wb") as f:
@@ -271,6 +276,9 @@ def norm_names(names: list[str]) -> set[str]:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    identity_file = Path(args.identity_file).expanduser()
+    if not identity_file.exists():
+        raise RuntimeError(f"Missing age identity file: {identity_file}")
     required = [
         REPO / "README.md",
         REPO / "MANIFEST.json",
@@ -310,12 +318,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.require_single_active_generation and not single_active["ok"]:
         raise RuntimeError(f"More than one active encrypted generation in HEAD: {single_active['extra_generated_files'][:50]}")
 
-    secret_names = norm_names(decrypt_tar_list(secret_paths))
+    secret_names = norm_names(decrypt_tar_list(secret_paths, identity_file))
     for expected in [".hermes/.env", ".hermes/auth.json", ".hermes/config.yaml"]:
         if expected not in secret_names:
             raise RuntimeError(f"Encrypted secrets archive missing expected path: {expected}")
 
-    state_names = norm_names(decrypt_tar_list(state_paths))
+    state_names = norm_names(decrypt_tar_list(state_paths, identity_file))
     if ".hermes/state.db.sqlite" not in state_names:
         raise RuntimeError("Encrypted state archive missing .hermes/state.db.sqlite")
     if not any(name.startswith(".hermes/sessions/") for name in state_names):
@@ -323,7 +331,7 @@ def main(argv: list[str] | None = None) -> int:
 
     with tempfile.TemporaryDirectory(prefix="hermes-backup-verify-") as td:
         tmp_db = Path(td) / "state.db.sqlite"
-        extract_member(state_paths, "./.hermes/state.db.sqlite", tmp_db)
+        extract_member(state_paths, "./.hermes/state.db.sqlite", tmp_db, identity_file)
         state_integrity = check_sqlite(tmp_db)
         if state_integrity != "ok":
             raise RuntimeError(f"state.db snapshot integrity failed: {state_integrity}")

@@ -1,6 +1,6 @@
 # Backup manifest
 
-Created UTC: `2026-05-06T22:01:17.498065+00:00`
+Created UTC: `2026-05-07T13:35:39.383536+00:00`
 
 Hermes home: `/home/konstantin/.hermes`
 
@@ -17,18 +17,19 @@ Skill CLIs source: `/home/konstantin/code/clis`
 
 ## Encrypted artifacts
 
-- Policy: `{'mode': 'auto', 'weekly_encrypted_dow': 6, 'local_weekday': 3, 'local_time': '2026-05-07T00:01:17.498065+02:00', 'max_encrypted_age_days': 8.0, 'retention': 'latest', 'latest_secret_timestamp': '20260506-151544', 'latest_state_timestamp': '20260506-151544', 'secret_age_days': 0.2816, 'state_age_days': 0.2816, 'existing_encrypted_ok': True, 'encrypted_stale': False, 'secret_metadata_changed': False, 'secret_source_count': 12, 'secret_change_detection_excluded_sources': ['/home/konstantin/.hermes/channel_directory.json'], 'refresh_reason': 'fresh_reuse', 'retention_removed_count': 0, 'retention_removed': []}`
-- Refreshed this run: `False`
-- Secrets manifest: `secrets-encrypted/manifest-20260506-151544.json`
-- State/sessions manifest: `session-history-encrypted/manifest-20260506-151544.json`
+- Policy: `{'mode': 'always', 'weekly_encrypted_dow': 6, 'local_weekday': 3, 'local_time': '2026-05-07T15:35:39.383536+02:00', 'max_encrypted_age_days': 8.0, 'retention': 'latest', 'latest_secret_timestamp': '20260506-151544', 'latest_state_timestamp': '20260506-151544', 'secret_age_days': 0.9305, 'state_age_days': 0.9305, 'existing_encrypted_ok': True, 'encrypted_stale': False, 'secret_metadata_changed': True, 'secret_source_count': 13, 'secret_change_detection_excluded_sources': ['/home/konstantin/.hermes/channel_directory.json'], 'refresh_reason': 'forced_always', 'retention_removed_count': 7, 'retention_removed': ['secrets-encrypted/hermes-secrets-20260506-151544.tar.zst.age', 'secrets-encrypted/manifest-20260506-151544.json', 'session-history-encrypted/hermes-state-and-sessions-20260506-151544.tar.zst.age.part000', 'session-history-encrypted/hermes-state-and-sessions-20260506-151544.tar.zst.age.part001', 'session-history-encrypted/hermes-state-and-sessions-20260506-151544.tar.zst.age.part002', 'session-history-encrypted/hermes-state-and-sessions-20260506-151544.tar.zst.age.part003', 'session-history-encrypted/manifest-20260506-151544.json']}`
+- Refreshed this run: `True`
+- Secrets manifest: `secrets-encrypted/manifest-20260507-133539.json`
+- State/sessions manifest: `session-history-encrypted/manifest-20260507-133539.json`
 
 ### secret_artifacts
-- `secrets-encrypted/hermes-secrets-20260506-151544.tar.zst.age`
+- `secrets-encrypted/hermes-secrets-20260507-133539.tar.zst.age`
 
 ### state_artifacts
-- `session-history-encrypted/hermes-state-and-sessions-20260506-151544.tar.zst.age.part000`
-- `session-history-encrypted/hermes-state-and-sessions-20260506-151544.tar.zst.age.part001`
-- `session-history-encrypted/hermes-state-and-sessions-20260506-151544.tar.zst.age.part002`
-- `session-history-encrypted/hermes-state-and-sessions-20260506-151544.tar.zst.age.part003`
+- `session-history-encrypted/hermes-state-and-sessions-20260507-133539.tar.zst.age.part000`
+- `session-history-encrypted/hermes-state-and-sessions-20260507-133539.tar.zst.age.part001`
+- `session-history-encrypted/hermes-state-and-sessions-20260507-133539.tar.zst.age.part002`
+- `session-history-encrypted/hermes-state-and-sessions-20260507-133539.tar.zst.age.part003`
+- `session-history-encrypted/hermes-state-and-sessions-20260507-133539.tar.zst.age.part004`
 
 Raw secret values and transcript contents are intentionally absent from this manifest.

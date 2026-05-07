@@ -21,7 +21,7 @@ Raw secrets, OAuth tokens, service account files, raw `state.db`, and raw sessio
 - `secrets-encrypted/`
 - `session-history-encrypted/`
 
-Encryption uses `age` to the SSH public key recorded in the artifact manifests. Restore requires the matching SSH private key.
+Encryption uses `age` to all SSH public keys listed in `backup/age-recipients.txt`, currently including the VPS-local verifier key and Konstantin's MacBook key. Restore requires any one matching SSH private key; do not copy the MacBook private key to the VPS.
 
 ## Hybrid retention policy
 
@@ -38,6 +38,7 @@ Manual commands:
 python3 scripts/collect-hermes-backup.py --encrypted-mode auto --max-encrypted-age-days 8 --retention latest
 python3 scripts/collect-hermes-backup.py --encrypted-mode always --max-encrypted-age-days 8 --retention latest
 python3 scripts/verify-hermes-backup.py --max-encrypted-age-days 8 --require-single-active-generation
+python3 scripts/verify-hermes-backup.py --identity-file ~/.ssh/id_ed25519 --max-encrypted-age-days 8 --require-single-active-generation
 ```
 
 `--encrypted-mode auto` is the normal cron path. `always` is for forced encrypted refresh / restore drills. `never` reuses existing encrypted artifacts only when they are fresh and secret metadata is unchanged; otherwise it fails safe.
@@ -56,4 +57,4 @@ Run:
 python3 scripts/verify-hermes-backup.py --max-encrypted-age-days 8 --require-single-active-generation
 ```
 
-The verifier checks manifest presence, encrypted freshness, single active encrypted generation in HEAD, GitHub file-size limits, SQLite integrity for plaintext and encrypted DB snapshots, `age` decrypt/listing, CLI layer presence, and scans plaintext files for high-risk secret patterns without printing secret values.
+The verifier checks manifest presence, encrypted freshness, single active encrypted generation in HEAD, GitHub file-size limits, SQLite integrity for plaintext and encrypted DB snapshots, `age` decrypt/listing with the selected identity file, CLI layer presence, and scans plaintext files for high-risk secret patterns without printing secret values.

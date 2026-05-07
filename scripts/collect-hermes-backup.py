@@ -32,8 +32,8 @@ CODE = HOME / "code"
 HERMES_AGENT = HERMES / "hermes-agent"
 SKILL_CLIS = CODE / "clis"
 REPO = Path(__file__).resolve().parents[1]
-RECIPIENT_FILE = HOME / ".ssh" / "server_monitor_iOS_app_ed25519.pub"
-IDENTITY_FILE = HOME / ".ssh" / "server_monitor_iOS_app_ed25519"
+DEFAULT_RECIPIENTS_FILE = REPO / "backup" / "age-recipients.txt"
+DEFAULT_IDENTITY_FILE = HOME / ".ssh" / "server_monitor_iOS_app_ed25519"
 SPLIT_BYTES = 45 * 1024 * 1024
 NOW = dt.datetime.now(dt.timezone.utc)
 LOCAL_NOW = NOW.astimezone()
@@ -399,13 +399,38 @@ def copy_to_stage(
         copy_file(src, dst)
 
 
-def make_archive(stage_root: Path, out_file: Path) -> None:
+def load_age_recipients(recipients_file: Path) -> list[str]:
+    if not recipients_file.exists():
+        raise RuntimeError(f"Missing age recipients file: {recipients_file}")
+    recipients: list[str] = []
+    for raw in recipients_file.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        recipients.append(line)
+    if not recipients:
+        raise RuntimeError(f"Age recipients file is empty: {recipients_file}")
+    return recipients
+
+
+def recipient_metadata(recipients: list[str]) -> list[dict[str, object]]:
+    entries: list[dict[str, object]] = []
+    for recipient in recipients:
+        parts = recipient.split(maxsplit=2)
+        entries.append({
+            "type": parts[0] if parts else None,
+            "comment": parts[2] if len(parts) > 2 else None,
+        })
+    return entries
+
+
+def make_archive(stage_root: Path, out_file: Path, recipients_file: Path) -> None:
     ensure_parent(out_file)
     if out_file.exists():
         out_file.unlink()
     # Archive contents of stage root, not the temp parent. Deterministic metadata is not required for disaster backup.
     cmd = 'set -euo pipefail; tar -C "$1" -cf - . | zstd -10 -T0 -q | age -R "$2" -o "$3"'
-    run(["bash", "-c", cmd, "bash", str(stage_root), str(RECIPIENT_FILE), str(out_file)], capture=True)
+    run(["bash", "-c", cmd, "bash", str(stage_root), str(recipients_file), str(out_file)], capture=True)
 
 
 def split_if_needed(path: Path) -> list[Path]:
@@ -419,16 +444,25 @@ def split_if_needed(path: Path) -> list[Path]:
     return sorted(path.parent.glob(path.name + ".part*"))
 
 
-def artifact_manifest(kind: str, sources: list[dict[str, object]], artifact_paths: list[Path], archive_basename: str) -> dict[str, object]:
+def artifact_manifest(
+    kind: str,
+    sources: list[dict[str, object]],
+    artifact_paths: list[Path],
+    archive_basename: str,
+    recipients_file: Path,
+    identity_file_for_test_decrypt: Path,
+    recipients: list[str],
+) -> dict[str, object]:
     return {
         "kind": kind,
         "created_at_utc": NOW.isoformat(),
         "timestamp": TS,
         "encryption": {
             "tool": "age",
-            "recipient_file": str(RECIPIENT_FILE),
-            "recipient_public_key_type": RECIPIENT_FILE.read_text(encoding="utf-8", errors="replace").split()[0] if RECIPIENT_FILE.exists() else None,
-            "identity_file_for_test_decrypt": str(IDENTITY_FILE),
+            "recipients_file": str(recipients_file),
+            "recipient_count": len(recipients),
+            "recipients": recipient_metadata(recipients),
+            "identity_file_for_test_decrypt": str(identity_file_for_test_decrypt),
         },
         "archive_basename": archive_basename,
         "source_entries": sources,
@@ -614,18 +648,21 @@ def collect_plaintext(summary: dict[str, object]) -> None:
     collect_cli_backup(summary)
 
 
-def collect_encrypted(summary: dict[str, object]) -> None:
+def collect_encrypted(summary: dict[str, object], args: argparse.Namespace) -> None:
     for cmd in ["tar", "zstd", "age", "split"]:
         ensure_command(cmd)
-    if not RECIPIENT_FILE.exists():
-        raise RuntimeError(f"Missing age recipient public key: {RECIPIENT_FILE}")
-    if not IDENTITY_FILE.exists():
-        raise RuntimeError(f"Missing age identity private key for test-decrypt: {IDENTITY_FILE}")
+    recipients_file = Path(args.recipients_file).expanduser()
+    if not recipients_file.is_absolute():
+        recipients_file = (REPO / recipients_file).resolve()
+    identity_file = Path(args.identity_file_for_test_decrypt).expanduser()
+    recipients = load_age_recipients(recipients_file)
+    if not identity_file.exists():
+        raise RuntimeError(f"Missing age identity private key for test-decrypt: {identity_file}")
 
     (REPO / "secrets-encrypted").mkdir(exist_ok=True)
     (REPO / "session-history-encrypted").mkdir(exist_ok=True)
     (REPO / "restore").mkdir(exist_ok=True)
-    copy_file(RECIPIENT_FILE, REPO / "restore" / "age-recipient.pub")
+    copy_file(recipients_file, REPO / "restore" / "age-recipients.txt")
 
     with tempfile.TemporaryDirectory(prefix="hermes-backup-stage-") as td:
         tmp = Path(td)
@@ -642,9 +679,9 @@ def collect_encrypted(summary: dict[str, object]) -> None:
         )
         secret_base = f"hermes-secrets-{TS}.tar.zst.age"
         secret_out = REPO / "secrets-encrypted" / secret_base
-        make_archive(secrets_stage, secret_out)
+        make_archive(secrets_stage, secret_out, recipients_file)
         secret_artifacts = split_if_needed(secret_out)
-        secret_manifest = artifact_manifest("secrets", secret_sources, secret_artifacts, secret_base)
+        secret_manifest = artifact_manifest("secrets", secret_sources, secret_artifacts, secret_base, recipients_file, identity_file, recipients)
         (REPO / "secrets-encrypted" / f"manifest-{TS}.json").write_text(json.dumps(secret_manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         summary["secret_artifacts"] = [str(p.relative_to(REPO)) for p in secret_artifacts]
 
@@ -666,9 +703,9 @@ def collect_encrypted(summary: dict[str, object]) -> None:
         )
         state_base = f"hermes-state-and-sessions-{TS}.tar.zst.age"
         state_out = REPO / "session-history-encrypted" / state_base
-        make_archive(state_stage, state_out)
+        make_archive(state_stage, state_out, recipients_file)
         state_artifacts = split_if_needed(state_out)
-        state_manifest = artifact_manifest("state-and-sessions", state_sources, state_artifacts, state_base)
+        state_manifest = artifact_manifest("state-and-sessions", state_sources, state_artifacts, state_base, recipients_file, identity_file, recipients)
         (REPO / "session-history-encrypted" / f"manifest-{TS}.json").write_text(json.dumps(state_manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         summary["state_artifacts"] = [str(p.relative_to(REPO)) for p in state_artifacts]
 
@@ -833,7 +870,7 @@ def apply_encrypted_policy(summary: dict[str, object], args: argparse.Namespace)
     policy["refresh_reason"] = reason
 
     if should_refresh:
-        collect_encrypted(summary)
+        collect_encrypted(summary, args)
         secret_path, secret_manifest, state_path, state_manifest = load_latest_encrypted_manifests()
         refreshed = True
     else:
@@ -886,6 +923,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         choices=["latest", "keep"],
         default=ENCRYPTED_RETENTION,
         help="Retention for generated encrypted artifacts in HEAD. Default latest keeps only the latest active generation.",
+    )
+    parser.add_argument(
+        "--recipients-file",
+        default=str(DEFAULT_RECIPIENTS_FILE),
+        help="age recipients file used for encrypted artifacts. Relative paths resolve from the backup repo root.",
+    )
+    parser.add_argument(
+        "--identity-file-for-test-decrypt",
+        default=str(DEFAULT_IDENTITY_FILE),
+        help="Local age/SSH identity expected to decrypt the archive during verifier runs on this machine.",
     )
     return parser.parse_args(argv)
 

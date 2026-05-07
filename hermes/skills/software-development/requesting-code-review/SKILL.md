@@ -241,11 +241,19 @@ After the fix agent completes, re-run Steps 1-6 (full verification cycle).
 
 ## Step 8 — Commit
 
-If verification passed:
+If verification passed, stage only the intended scope. In a dirty working tree with unrelated changes, **never use `git add -A`**; it can capture other agents' work, local backups, generated files, or unrelated user changes.
+
+Preferred pattern for scoped work:
 
 ```bash
-git add -A && git commit -m "[verified] <description>"
+git status --short --branch --untracked-files=all
+git add <exact changed file 1> <exact changed file 2> <exact test file>
+git diff --cached --stat
+git diff --cached
+git commit -m "[verified] <description>"
 ```
+
+Only use `git add -A` when `git status` proves the working tree contains no unrelated dirty files and the task scope truly includes every change.
 
 The `[verified]` prefix indicates an independent reviewer approved this change.
 

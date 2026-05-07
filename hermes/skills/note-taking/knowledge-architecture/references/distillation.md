@@ -68,7 +68,7 @@ Orchestrator / cron entrypoint (gpt-5.5)
 | GLM 5.1 | `glm-5.1:cloud` | `glm` | 3000 | `json_object` ✅, wraps ` ```json ` | Fast (8-10s), Russian-native |
 | Gemma 4 31B | `gemma4:31b-cloud` | `gemma` | 3000 | `json_object` ✅, wraps ` ```json ` | Cross-validation voice (5-10s) |
 
-`deepseek-v4-pro:cloud` is excluded from the production worker pool. Cron-shaped repro on 2026-05-01 returned incomplete/non-parseable JSON after spending the completion budget on hidden reasoning; do not add it back without a fresh task-specific benchmark and explicit user decision.
+`deepseek-v4-pro:cloud` is excluded from the production worker pool pending an explicit user decision, but do **not** frame this as “DeepSeek is bad.” The 2026-05-07 benchmarks showed configuration-specific failure modes and the fix: legacy `/v1/chat/completions` spent budget on hidden reasoning; native `/api/chat` + `format:"json"` + `think:false` removed hidden reasoning; the old verbose worker prompt still truncated visible JSON; a tuned output contract (`max 10 candidates`, concise claim/reason) made DeepSeek pass repeated production-shaped JSON benchmarks even at `num_predict=3000`. Do not add it back to `WORKER_MODELS` without a fresh multi-run task-specific benchmark under the intended config and user approval. The worker script has a manual/native branch for this model (`/api/chat`, `format:"json"`, `think:false`, `options.num_predict`) so benchmarks can test DeepSeek without rerouting GLM/Gemma or changing the production pool. See `references/deepseek-native-distillation-benchmark-2026-05-07.md`.
 
 **Curator (tier 0/2):** `gpt-5.5` via OpenAI Codex. Fallback: `gpt-oss:120b-cloud` (report explicitly).
 
@@ -80,7 +80,7 @@ Orchestrator / cron entrypoint (gpt-5.5)
 1. **System prompt in ENGLISH** — `glm-5.1:cloud` returns empty content with `json_object` mode + Russian system prompt (verified bug).
 2. **Mandatory: `json_object` + explicit enum values** in system prompt. Do NOT use `json_schema` strict mode — broken for ALL Ollama Cloud models. See `references/json-schema-benchmark.md`.
 3. **3-level fallback parser:** direct JSON parse → strip `\`\`\`json...\`\`\`` fences → find first `{...}` block.
-4. **Thinking models:** reasoning tokens may appear as `message.reasoning_content` or `message.reasoning` and count toward `max_tokens`; this is why DeepSeek V4 Pro is excluded from production distillation workers.
+4. **Thinking models:** reasoning tokens may appear as `message.reasoning_content` or `message.reasoning` and count toward `max_tokens`. For DeepSeek V4 Pro, do not blame the model when the worker fails; first check endpoint, thinking control, output cap, and token budget. Manual DeepSeek benchmarks should use the worker's native Ollama branch (`/api/chat`, `format:"json"`, `think:false`) plus a concise output contract (`max 10 candidates`, short claim/reason). Native `think:false` removes the hidden-reasoning failure mode; the concise output cap prevents visible JSON truncation. Always check `done_reason`, parse success, valid candidate count, and repeated-run stability.
 5. **Timeout per worker:** 200s. Skip failed workers, continue with results that returned.
 6. **kimi-k2.6 is NOT viable** as a worker: 3.5–7K reasoning tokens, output truncation, unreliable JSON.
 
@@ -145,6 +145,7 @@ Before editing:
 Prefer targeted patches. Good: add one row, replace an outdated fact, add one pitfall. Bad: daily "Today" sections, full session summaries, overlapping preference bullets.
 
 ### 7. Post-write verification
+8. Report verification level precisely: implemented-only, static/unit/mocked, live smoke, or production-shaped benchmark. Do not say a model/provider was “checked” in production if only unit/mocked or tiny live smoke verification was run. For the detailed reporting pattern, see `references/verification-claims-2026-05-07.md`.
 
 After any edit:
 1. Re-read the changed section
@@ -191,11 +192,11 @@ Setup/maintenance and model-benchmark procedures live in `/home/konstantin/docs/
 9. Russian system prompt + `glm-5.1:cloud` + `json_object` → empty content (verified bug). Use English system prompt, Russian data fields.
 10. **NEVER use `ollama run` / `ollama pull` for cloud models (`:cloud` suffix).** This fills the filesystem and can crash Hermes (ENOSPC). Cloud models use HTTP API only.
 11. `json_schema` strict mode is broken for Ollama Cloud — use `json_object` + explicit enum values. See `references/json-schema-benchmark.md`.
-12. Thinking models (deepseek-v4-pro) → reasoning tokens count toward max_tokens. Set 3000+.
+12. Thinking models (deepseek-v4-pro) → reasoning tokens can consume `/v1` `max_tokens`; native `/api/chat` with `format:"json"` + `think:false` avoids hidden reasoning. If native JSON still fails, tune the output contract before judging the model: cap candidates (`max 10`), shorten claim/reason, then test `num_predict` budgets. Keep DeepSeek out of production `WORKER_MODELS` until repeated task-shaped benchmarks pass under the intended config and the user explicitly approves.
 13. Markdown codeblock wrapping is cosmetic. Same 2-line fallback parser handles both.
 14. kimi-k2.6 is not viable as a distillation worker.
 15. Credential paths in docs → even paths are leaked metadata. Store only "(see config)".
 16. Updating this skill does NOT update the scheduled cron job prompt. Audit and patch both.
 17. Scope vs permission confusion → never equate an API/OAuth scope with the account's real permissions.
 18. "Not tested" is not "not enabled".
-19. Current verified tool/API/config results override stale session summaries.
+20. Verification wording pitfall: “implemented”, “unit/mocked verified”, “live smoke verified”, and “production-shaped benchmark passed” are different claims. If only a tiny payload was run, say live smoke; do not imply the model is production-ready or comparable to the cron workload.

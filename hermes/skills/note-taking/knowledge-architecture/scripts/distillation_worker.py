@@ -22,7 +22,17 @@ import aiohttp
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
-OLLAMA_BASE_URL = "http://127.0.0.1:11434/v1/chat/completions"
+OLLAMA_OPENAI_CHAT_URL = "http://127.0.0.1:11434/v1/chat/completions"
+OLLAMA_NATIVE_CHAT_URL = "http://127.0.0.1:11434/api/chat"
+
+# Backward-compatible name used by existing worker code/tests.
+OLLAMA_BASE_URL = OLLAMA_OPENAI_CHAT_URL
+
+# Native Ollama is used only where it is task-proven useful.  DeepSeek V4 Pro is
+# a thinking model; the OpenAI-compatible Ollama endpoint can spend completion
+# budget on hidden reasoning before visible JSON.  Native /api/chat lets this
+# worker request JSON mode explicitly and disable thinking for extraction.
+NATIVE_OLLAMA_JSON_MODELS = {"deepseek-v4-pro:cloud"}
 
 WORKER_MODELS = {
     "glm-5.1:cloud": {
@@ -170,25 +180,62 @@ def validate_candidates(data: dict) -> list[dict]:
 
 # ── Worker Call ────────────────────────────────────────────────────────────────
 
-async def call_worker(session: aiohttp.ClientSession, model: str, config: dict, snippets: str) -> dict:
-    """Call a single worker model and return parsed candidates."""
-    body = {
+def uses_native_ollama_json(model: str) -> bool:
+    """Return True when this worker should use Ollama's native /api/chat JSON path."""
+    return model in NATIVE_OLLAMA_JSON_MODELS
+
+
+def build_worker_request(model: str, config: dict, snippets: str) -> tuple[str, dict]:
+    """Build the endpoint URL and request body for a worker model."""
+    messages = [
+        {"role": "system", "content": WORKER_SYSTEM_PROMPT},
+        {"role": "user", "content": f"Session snippets:\n{snippets}"},
+    ]
+
+    if uses_native_ollama_json(model):
+        return OLLAMA_NATIVE_CHAT_URL, {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            "format": "json",
+            "think": False,
+            "options": {
+                "num_predict": config["max_tokens"],
+                "temperature": 0.1,
+            },
+        }
+
+    return OLLAMA_BASE_URL, {
         "model": model,
-        "messages": [
-            {"role": "system", "content": WORKER_SYSTEM_PROMPT},
-            {"role": "user", "content": f"Session snippets:\n{snippets}"},
-        ],
+        "messages": messages,
         "max_tokens": config["max_tokens"],
         "temperature": 0.1,
         "response_format": RESPONSE_FORMAT,
     }
-    
+
+
+def extract_worker_content(model: str, data: dict) -> tuple[str, int | str]:
+    """Extract visible JSON content and token count from endpoint-specific responses."""
+    if uses_native_ollama_json(model):
+        content = data.get("message", {}).get("content", "")
+        completion_tokens = data.get("eval_count", "?")
+        return content, completion_tokens
+
+    content = data["choices"][0]["message"].get("content", "")
+    completion_tokens = data.get("usage", {}).get("completion_tokens", "?")
+    return content, completion_tokens
+
+
+async def call_worker(session: aiohttp.ClientSession, model: str, config: dict, snippets: str) -> dict:
+    """Call a single worker model and return parsed candidates."""
+    url, body = build_worker_request(model, config, snippets)
+
     label = config["label"]
     start = time.monotonic()
     
     try:
         async with session.post(
-            OLLAMA_BASE_URL,
+            url,
             json=body,
             timeout=aiohttp.ClientTimeout(total=config["timeout"]),
         ) as resp:
@@ -207,8 +254,7 @@ async def call_worker(session: aiohttp.ClientSession, model: str, config: dict, 
                 }
             
             data = await resp.json()
-            content = data["choices"][0]["message"].get("content", "")
-            completion_tokens = data.get("usage", {}).get("completion_tokens", "?")
+            content, completion_tokens = extract_worker_content(model, data)
             
             parsed = parse_json_response(content)
             candidates = validate_candidates(parsed) if parsed else []

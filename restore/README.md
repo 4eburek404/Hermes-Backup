@@ -6,7 +6,7 @@
 - `zstd`
 - `tar`
 - `sqlite3`
-- Matching SSH private key for the public recipient recorded in the encrypted artifact manifests.
+- Matching SSH private key for one of the public recipients recorded in `backup/age-recipients.txt` and the encrypted artifact manifests.
 
 ## Plaintext overlay restore order
 
@@ -65,6 +65,12 @@ Before trusting a restore, run the strict verifier in the checked-out backup rep
 
 ```bash
 python3 scripts/verify-hermes-backup.py --max-encrypted-age-days 8 --require-single-active-generation
+```
+
+On a MacBook/off-server restore test, pass the MacBook identity explicitly:
+
+```bash
+python3 scripts/verify-hermes-backup.py --identity-file ~/.ssh/id_ed25519 --max-encrypted-age-days 8 --require-single-active-generation
 ```
 
 After restoring secrets, enforce restrictive permissions:
