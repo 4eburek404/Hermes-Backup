@@ -11,7 +11,7 @@ Create a Hermes cron job that runs Konstantin's personal Hermes backup once ever
 - Existing backup scripts:
   - `scripts/collect-hermes-backup.py`
   - `scripts/verify-hermes-backup.py`
-- Scope already includes overlay docs/memory/skills/plugins/cron, encrypted secrets/state/sessions, Hermes CLI manifest/patch, and `/home/konstantin/code/clis` skill CLI snapshots.
+- Scope already includes overlay docs/memory/skills/plugins/cron, encrypted secrets/state/sessions, Hermes CLI manifest/patch, and `[legacy CLI path removed; current source is the development repo skills tree]` skill CLI snapshots.
 
 ## Non-goals
 - Do not update Hermes Agent.

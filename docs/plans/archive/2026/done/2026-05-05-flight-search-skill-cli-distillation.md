@@ -8,7 +8,7 @@ The search initially over-relied on aggregate one-stop/city-pair results. Konsta
 
 - `/home/konstantin/flight_search_artifacts/svx_cdg_2026-08-15_2026-08-19_separate_segments_kupibilet.json`
 - `/home/konstantin/.hermes/skills/productivity/flight-search-routing/SKILL.md`
-- `/home/konstantin/code/clis/flights/`
+- `[legacy CLI path removed; current source is the development repo skills tree]/flights/`
 
 ## Non-goals
 - Do not buy tickets or claim final availability beyond cached/live search outputs.
@@ -45,7 +45,7 @@ Current status: done
 - 2026-05-05: Updated `flight-search-routing` to v2.2.0 with an explicit Russia↔Europe direct-segment assembly gate, `route kb-assemble` CLI quick-reference, pitfall, verification checklist item, and SVX↔CDG regression pointer.
 - 2026-05-05: Updated `references/cli-reference.md` and `references/svx-cdg-live-aggregate-pattern-2026-05-05.md`; session-specific flight details stayed in the reference/artifact, not in the skill core.
 - 2026-05-05: CLI gap confirmed: local `flights` had `kb-search` and `route assemble`, but no single command for live Kupibilet direct-only hub segment search plus assembly. Added `flights route kb-assemble`, bumped CLI to 0.8.0, and documented it in CLI README.
-- 2026-05-05: CLI files changed: `/home/konstantin/code/clis/flights/flights_cli/__main__.py`, `flights_cli/__init__.py`, `tests/test_offline.py`, `README.md`, `pyproject.toml`. No git repo was present in `/home/konstantin/code/clis/flights` or checked parents, so changes were tracked manually here.
+- 2026-05-05: CLI files changed: `[legacy CLI path removed; current source is the development repo skills tree]/flights/flights_cli/__main__.py`, `flights_cli/__init__.py`, `tests/test_offline.py`, `README.md`, `pyproject.toml`. No git repo was present in `[legacy CLI path removed; current source is the development repo skills tree]/flights` or checked parents, so changes were tracked manually here.
 - 2026-05-05: Verification passed: `python3 -m py_compile flights_cli/__main__.py tests/test_offline.py`; `python3 -m pytest -q` -> 32 passed, 4 subtests passed; `flights --version` and `python3 -m flights_cli --version` -> 0.8.0; `flights route kb-assemble --help` exposed the new command.
-- 2026-05-05: Generated CLI `__pycache__` was removed after validation; final pyc count under `/home/konstantin/code/clis/flights` was 0.
+- 2026-05-05: Generated CLI `__pycache__` was removed after validation; final pyc count under `[legacy CLI path removed; current source is the development repo skills tree]/flights` was 0.
 - 2026-05-05: Secret scan over 9 changed markdown/code/plan files reported 0 hits; `flight-search-routing/SKILL.md` frontmatter validation passed. Regression artifact for new CLI gate: `/home/konstantin/flight_search_artifacts/svx_cdg_2026-08-15_2026-08-19_kb_assemble_cli_ayt.json` (`ok: true`, command `route kb-assemble`, 50 ranked candidates). Durable fact stored in fact_store as fact_id 134.

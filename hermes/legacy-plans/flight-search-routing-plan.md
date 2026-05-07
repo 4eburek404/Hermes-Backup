@@ -8,8 +8,8 @@ Checked on 2026-05-04:
 
 - Skill path: `/home/konstantin/.hermes/skills/productivity/flight-search-routing/SKILL.md`, version `2.0.0`.
 - CLI entrypoint: `/home/konstantin/.local/bin/flights`.
-- CLI source path: `/home/konstantin/code/clis/flights/`.
-- CLI project version: `0.7.0` in `/home/konstantin/code/clis/flights/pyproject.toml`.
+- CLI source path: `[legacy CLI path removed; current source is the development repo skills tree]/flights/`.
+- CLI project version: `0.7.0` in `[legacy CLI path removed; current source is the development repo skills tree]/flights/pyproject.toml`.
 - `route plan` is offline/dry planning; it does not call Travelpayouts.
 - JSON mode is a global CLI flag: `flights --json route plan ...`, not `flights route plan ... --json`.
 - `origin` and `destination` are positional args, not `--origin` / `--destination` flags.
@@ -86,7 +86,7 @@ These require a separate decision/spec before implementation:
 Before reporting done:
 
 - [x] Re-read modified `SKILL.md` and the new/modified references.
-- [x] Run `python -m pytest -q /home/konstantin/code/clis/flights/tests` from `/home/konstantin/code/clis/flights`.
+- [x] Run `python -m pytest -q [legacy CLI path removed; current source is the development repo skills tree]/flights/tests` from `[legacy CLI path removed; current source is the development repo skills tree]/flights`.
 - [x] Run at least one smoke command:
   ```bash
   /home/konstantin/.local/bin/flights --json route plan SVX LON --depart-date 2026-07-20 --hub IST --hub DXB
@@ -100,7 +100,7 @@ Before reporting done:
 - **Wrong command schema:** `route plan` is not a pricing command; do not add `total_price_*` to its schema.
 - **Scope creep:** batch mode and cache refresh are product features, not documentation sync.
 - **Version confusion:** skill version `2.0.0` and CLI version `0.7.0` are different artifacts.
-- **Repository assumption:** `/home/konstantin/code/clis/flights/` may not itself be a git repo; verify before any branch/tag/release claims.
+- **Repository assumption:** `[legacy CLI path removed; current source is the development repo skills tree]/flights/` may not itself be a git repo; verify before any branch/tag/release claims.
 
 ## Status
 Current status: done

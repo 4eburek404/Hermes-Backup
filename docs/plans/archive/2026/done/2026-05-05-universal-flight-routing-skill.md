@@ -9,7 +9,7 @@ Konstantin corrected the previous update: it was too attached to the SVX→Londo
 Relevant durable surfaces:
 - `~/.hermes/skills/productivity/flight-search-routing/SKILL.md`
 - `~/.hermes/skills/productivity/flight-search-routing/references/*.md`
-- `/home/konstantin/code/clis/flights/` CLI docs/help/tests if current wording is too case-specific
+- `[legacy CLI path removed; current source is the development repo skills tree]/flights/` CLI docs/help/tests if current wording is too case-specific
 - holographic `fact_store` if the stored preference is too narrow
 
 ## Non-goals
@@ -30,7 +30,7 @@ Relevant durable surfaces:
 - `skill_view(flight-search-routing)` shows version `2.0.3` with universal multi-objective/frontier protocol in the core skill.
 - London-specific example is in `references/business-trip-london-airport-ranking.md` and explicitly labeled as a route-specific application/regression example.
 - `flights route assemble --help` says `--limit-per-pair 10` is for complex routes/frontier-relevant options, not only London/business.
-- `python -m pytest -q` in `/home/konstantin/code/clis/flights`: `30 passed, 4 subtests passed in 1.98s`.
+- `python -m pytest -q` in `[legacy CLI path removed; current source is the development repo skills tree]/flights`: `30 passed, 4 subtests passed in 1.98s`.
 - `flights --version`: `flights 0.7.2`.
 
 ## Risks / pitfalls

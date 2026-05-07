@@ -1,8 +1,0 @@
-{
-  "last_report_path": "/home/konstantin/.hermes/logs/curator/20260507-044118",
-  "last_run_at": "2026-05-07T04:41:18.139190+00:00",
-  "last_run_duration_seconds": 290.253492,
-  "last_run_summary": "auto: no changes; llm: ## Consolidation Summary\n\n### Cluster Processed\n\n**Web Content Acquisition** (`curl-md` + `web-article-reader` + `news-search`)\n- All three share the domain of \"fetch/extract web content into agent-consumable form\"\n- They cross-reference ea…",
-  "paused": false,
-  "run_count": 2
-}

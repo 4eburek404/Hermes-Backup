@@ -97,4 +97,4 @@ Current status: done
 
 Этот список относится к локальным runtime skills в `~/.hermes/skills`. Docker Hermes skills сюда не включались.
 
-Closed 2026-05-03: кандидаты высокого/среднего приоритета реализованы как локальные CLI в `/home/konstantin/code/clis/`: `article`, `flights`, `hh-ru`, `knowledge`. `flights` version drift исправлен до 0.7.0; `hh-ru` response header redaction усилен для cookie-like headers. Durable current facts перенесены в fact_store.
+Closed 2026-05-03: кандидаты высокого/среднего приоритета реализованы как локальные CLI в `[legacy CLI path removed; current source is the development repo skills tree]/`: `article`, `flights`, `hh-ru`, `knowledge`. `flights` version drift исправлен до 0.7.0; `hh-ru` response header redaction усилен для cookie-like headers. Durable current facts перенесены в fact_store.

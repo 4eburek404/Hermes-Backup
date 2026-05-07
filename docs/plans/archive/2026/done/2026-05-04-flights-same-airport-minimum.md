@@ -5,10 +5,10 @@ Change the default same-airport self-transfer/layover minimum in the local `flig
 
 ## Context
 - User request: "default same airport сделайте 120 min".
-- Relevant CLI source: `/home/konstantin/code/clis/flights/flights_cli/__main__.py`.
-- Relevant tests: `/home/konstantin/code/clis/flights/tests/test_offline.py`.
+- Relevant CLI source: `[legacy CLI path removed; current source is the development repo skills tree]/flights/flights_cli/__main__.py`.
+- Relevant tests: `[legacy CLI path removed; current source is the development repo skills tree]/flights/tests/test_offline.py`.
 - Relevant skill docs: `/home/konstantin/.hermes/skills/productivity/flight-search-routing/SKILL.md` and `references/layover_rules.md`.
-- `/home/konstantin/code/clis/flights` is not a git repository; do not make branch/commit/release claims.
+- `[legacy CLI path removed; current source is the development repo skills tree]/flights` is not a git repository; do not make branch/commit/release claims.
 
 ## Non-goals
 - Do not change cross-airport default (`300 min`).
@@ -38,4 +38,4 @@ Change the default same-airport self-transfer/layover minimum in the local `flig
 Current status: done
 
 ## Notes
-Completed 2026-05-04. Changed all CLI `--min-same-airport-min` route-command defaults to 120 while keeping cross-airport at 300. Added regression coverage for route command defaults and smoke-verified `route plan` JSON. Updated `flight-search-routing` skill docs and `references/layover_rules.md`. No branch/commit/release claims because `/home/konstantin/code/clis/flights` is not a git repository.
+Completed 2026-05-04. Changed all CLI `--min-same-airport-min` route-command defaults to 120 while keeping cross-airport at 300. Added regression coverage for route command defaults and smoke-verified `route plan` JSON. Updated `flight-search-routing` skill docs and `references/layover_rules.md`. No branch/commit/release claims because `[legacy CLI path removed; current source is the development repo skills tree]/flights` is not a git repository.

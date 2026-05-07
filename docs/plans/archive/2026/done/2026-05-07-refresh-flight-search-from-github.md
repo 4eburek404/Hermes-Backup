@@ -6,7 +6,7 @@ Update Konstantin's local Hermes flight-search skill and companion `flights` CLI
 ## Context
 - User requested from Telegram on 2026-05-07 after switching model to OpenAI Codex gpt-5.5.
 - Host time checked: `2026-05-07 13:35:51 CEST +0200`.
-- Current installed CLI before refresh: `/home/konstantin/.local/bin/flights`, `flights 0.8.0`, editable package `flights-cli 0.8.0` from `/home/konstantin/code/clis/flights`.
+- Current installed CLI before refresh: `/home/konstantin/.local/bin/flights`, `flights 0.8.0`, editable package `flights-cli 0.8.0` from `[legacy CLI path removed; current source is the development repo skills tree]/flights`.
 - Current installed skill before refresh: `/home/konstantin/.hermes/skills/productivity/flight-search`.
 - Previous completed syncs on 2026-05-07 used upstream commits `3504460e76c164ee8ea85e6a325a5a7862b9a0a3` and later `9551041ed4fde3833a130a21134aeebdd4c9f25d`; this run resolved the current upstream commit again.
 
@@ -22,7 +22,7 @@ Update Konstantin's local Hermes flight-search skill and companion `flights` CLI
 - [x] Resolve exact upstream `main` commit for `4eburek404/Hermes`: `cb2e1cedd4efdcf13538cc9364a649e2a59eb091`.
 - [x] Sparse-clone only the relevant source trees into `/tmp/hermes-4eburek404-cli-iPzKX1` and identify source layout: `cli/skills/flight-search` is now a symlink to `hermes/skills/productivity/flight-search`.
 - [x] Sync `hermes/skills/productivity/flight-search/` into `/home/konstantin/.hermes/skills/productivity/flight-search/` with exact parity.
-- [x] Sync `cli/skill-clis/flights/` controlled source directories into `/home/konstantin/code/clis/flights/` with exact parity for `flights_cli/`, `tests/`, `docs/`, `Makefile`, `README.md`, and `pyproject.toml`.
+- [x] Sync `skills/<category>/<skill>/cli/flights/` controlled source directories into `[legacy CLI path removed; current source is the development repo skills tree]/flights/` with exact parity for `flights_cli/`, `tests/`, `docs/`, `Makefile`, `README.md`, and `pyproject.toml`.
 - [x] Reinstall editable package metadata and refresh `/home/konstantin/.local/bin/flights` shim.
 - [x] Verify source parity, skill inventory/no duplicates, CLI version/module path/package metadata, `doctor`, route-plan smoke command, help flags, and tests.
 - [x] Update compact durable fact_store records for the new commit/current workflow.
@@ -48,13 +48,13 @@ Update Konstantin's local Hermes flight-search skill and companion `flights` CLI
   - `flights --version` → `flights 0.8.0`.
   - Python package metadata: `flights-cli 0.8.0`.
   - Python module version: `0.8.0`.
-  - Python module path: `/home/konstantin/code/clis/flights/flights_cli/__init__.py`.
+  - Python module path: `[legacy CLI path removed; current source is the development repo skills tree]/flights/flights_cli/__init__.py`.
   - `flights --json doctor`: `ok=True`, command `doctor`, version `0.8.0`, Travelpayouts token available, catalog `stale_count=0`.
   - `flights --catalog-refresh never --json route plan SVX LHR --depart-date 2026-07-19 --profile business`: `ok=True`, command `route plan`, strategy `ru-priority`, `segments=7`.
   - `flights route --help` contains `live-assemble` and `kb-assemble`.
   - `flights route live-assemble --help` contains `--agent-brief` and `--aggregate-control-carrier`.
 - Tests:
-  - `python3 -m pytest -q /home/konstantin/code/clis/flights/tests` → `84 passed, 9 subtests passed in 7.83s`.
+  - `python3 -m pytest -q [legacy CLI path removed; current source is the development repo skills tree]/flights/tests` → `84 passed, 9 subtests passed in 7.83s`.
 - Cleanup:
   - Temporary sparse checkout `/tmp/hermes-4eburek404-cli-iPzKX1` removed and verified absent.
 
