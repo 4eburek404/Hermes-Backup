@@ -52,7 +52,7 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
             "max_age": args.catalog_max_age,
             "max_age_seconds": max_age_seconds,
             "timeout": args.catalog_refresh_timeout,
-            "applies_to": ["cities search", "airports explain", "route plan", "route kb-assemble", "metrics workflow"],
+            "applies_to": ["cities search", "airports explain", "route plan", "route kb-assemble", "route live-assemble", "metrics workflow"],
         },
         "catalog_staleness": catalog_staleness(store.cache_dir, max_age_seconds=max_age_seconds),
         "default_route_hubs": [
@@ -67,7 +67,7 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
             "booking_or_purchase": False,
             "docker_touched": False,
             "travelpayouts_cached_fetch_requires": "request ... --fetch",
-            "live_provider_commands": ["kb-search", "u6-prices", "route kb-assemble"],
+            "live_provider_commands": ["kb-search", "fli-search", "fli-dates", "u6-prices", "route kb-assemble", "route live-assemble"],
         },
         "risk_profiles": {
             name: {

@@ -21,6 +21,45 @@ def emit_json(data: Any) -> None:
 
 
 def render_human(command: str, data: Any) -> str:
+    if command == "fli-search":
+        lines = [
+            f"FLI MCP live search: {data['origin']} → {data['destination']}",
+            f"Date: {data['depart_date']}",
+            f"Results: {data['offer_count']} unique offers from {data['raw_count']} raw results",
+            f"Source: {data['source']}",
+            f"Note: {data.get('note', '')}",
+            "",
+        ]
+        if not data.get("offers"):
+            lines.append("(no matching offers found)")
+        for i, offer in enumerate(data.get("offers", []), 1):
+            price = offer.get("price")
+            price_text = f"{price:,.0f} {offer.get('currency', data.get('currency', ''))}" if price is not None else "price n/a"
+            changes = "direct" if offer.get("number_of_changes") == 0 else f"{offer.get('number_of_changes')} stop(s)"
+            lines.append(f"  {i}. {price_text}  {changes}  {offer.get('duration') or '?'}min")
+            leg_bits = []
+            for flight in offer.get("flights", []):
+                dep = str(flight.get("departure_at") or "")
+                arr = str(flight.get("arrival_at") or "")
+                leg_bits.append(
+                    f"{flight.get('flight_number')} {flight.get('origin')}{dep[11:16]}→{flight.get('destination')}{arr[11:16]}"
+                )
+            if leg_bits:
+                lines.append("     " + " | ".join(leg_bits))
+        return "\n".join(lines)
+    if command == "fli-dates":
+        lines = [
+            f"FLI MCP date search: {data['origin']} → {data['destination']}",
+            f"Range: {data.get('from_date')} — {data.get('to_date')}",
+            f"Results: {len(data.get('dates') or [])}/{data.get('count', 0)}",
+            f"Source: {data['source']}",
+            "",
+        ]
+        for item in data.get("dates", []):
+            lines.append(f"{item.get('date')}  {item.get('price')} {item.get('currency') or ''}")
+        if not data.get("dates"):
+            lines.append("(no priced dates found)")
+        return "\n".join(lines)
     if command == "kb-search":
         lines = [
             f"Kupibilet live search: {data['origin']} → {data['destination']}",
@@ -190,14 +229,16 @@ def render_human(command: str, data: Any) -> str:
                 f"{item['rank']}. {item['id']} risk={item['risk']['score']}:{item['risk']['grade']} price={item['price']} elapsed={item['elapsed_min']}"
             )
         return "\n".join(lines)
-    if command == "route kb-assemble":
+    if command in {"route kb-assemble", "route live-assemble"}:
         assembly = data["assembly"]
         live = data.get("live_search", {})
         plan = live.get("plan", {})
         metrics = plan.get("metrics", {})
+        label = "Kupibilet direct-segment assembly" if command == "route kb-assemble" else "Provider-policy live assembly"
         lines = [
-            f"Kupibilet direct-segment assembly: {plan.get('origin')} → {plan.get('destination')}",
+            f"{label}: {plan.get('origin')} → {plan.get('destination')}",
             f"strategy: {plan.get('routing_strategy', 'hub-list')}",
+            f"provider policy: {live.get('provider_policy', 'kupibilet')}",
             f"hubs: {', '.join(plan.get('hubs') or [])}",
             f"segment searches: {len(live.get('segment_searches') or [])}/{metrics.get('segment_search_count', 0)} failures={live.get('failure_count', 0)}",
             f"assembled candidates: {assembly['candidate_count']} from outbound_pairs={assembly['outbound_pair_count']} return_pairs={assembly['return_pair_count']}",

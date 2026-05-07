@@ -1,13 +1,13 @@
 ---
 name: flight-search
-description: Use when Codex needs to find, plan, compare, or diagnose flight options with the Hermes flights CLI, Aviasales/Travelpayouts cached data, or Kupibilet live aggregate search. Triggers include user requests for airfare, tickets, routes, hub planning, "boevoi" live flight search, SVX/LHR-style IATA searches, date-window flight probes, or improvements to the flight-search workflow.
+description: Use when Codex needs to find, plan, compare, or diagnose flight options with the Hermes flights CLI, Aviasales/Travelpayouts cached data, Kupibilet live aggregate search, or self-hosted FLI MCP. Triggers include user requests for airfare, tickets, routes, hub planning, "boevoi" live flight search, SVX/LHR-style IATA searches, date-window flight probes, or improvements to the flight-search workflow.
 ---
 
 # Flight Search
 
 ## Overview
 
-Use the companion CLI in `cli/skill-clis/flights` to plan offline first, then probe cached or live providers explicitly. Treat the result as advisory until the booking screen confirms price, availability, baggage, and ticket protection.
+Use the companion CLI in `cli/skill-clis/flights` to plan offline first, then probe cached or live providers explicitly. Treat the result as advisory until the booking screen confirms price, availability, baggage, and ticket protection. FLI MCP is self-hosted on the VPS and reached through `FLIGHTS_FLI_MCP_URL`; it is not an official Google Flights public API.
 
 ## Locate the CLI
 
@@ -110,6 +110,48 @@ python3 -m flights_cli --json kb-search ORIGIN DEST \
 
 This shows provider-assembled one-way options, often with low-cost carriers, long waits, airport changes, or multiple transfers. Do not mix these into a business-safe self-transfer result without validating every connection.
 
+7. Use FLI MCP for global/non-Russia segments.
+
+FLI MCP should run as a Docker sidecar on the VPS. Set the endpoint explicitly
+when the agent environment does not already provide it:
+
+```bash
+export FLIGHTS_FLI_MCP_URL=http://127.0.0.1:8000/mcp
+```
+
+For one-off non-Russian segment checks:
+
+```bash
+python3 -m flights_cli --json fli-search IST LHR \
+  --depart-date YYYY-MM-DD \
+  --direct-only \
+  --limit 20
+```
+
+For flexible dates:
+
+```bash
+python3 -m flights_cli --json fli-dates IST LHR \
+  --from-date YYYY-MM-DD \
+  --to-date YYYY-MM-DD \
+  --direct-only \
+  --sort-by-price
+```
+
+For mixed Russia/global routing, prefer provider-policy assembly:
+
+```bash
+python3 -m flights_cli --json route live-assemble ORIGIN DEST \
+  --depart-date YYYY-MM-DD \
+  --return-date YYYY-MM-DD \
+  --profile business \
+  --include-ranked-candidates 10
+```
+
+Default `--provider-policy auto` uses Kupibilet for any Russia-touching segment
+and FLI MCP for non-Russia segments. Use `route kb-assemble` when you explicitly
+want Kupibilet-only behavior.
+
 ## Analysis Rules
 
 - Read `live_search.hub_viability` and `live_search.segment_searches` before trusting candidates. A hub is viable only if all required legs have nonzero offers for the chosen dates and offsets.
@@ -119,7 +161,7 @@ This shows provider-assembled one-way options, often with low-cost carriers, lon
 - `route assemble` can mix direct and hub journeys. It may return a hub outbound with a direct return, or the reverse.
 - Filter to `ok=true` before reporting recommendations. Summarize rejected options only as warnings or "do not take" notes.
 - For business travel, prefer same-airport hubs, 2-6 hour connections, fewer carriers, and no airport changes. Penalize long overnight waits even when the price is lower.
-- Always distinguish source type: static catalog, Travelpayouts cached Data API, Travelpayouts GraphQL cached API, or Kupibilet live aggregate.
+- Always distinguish source type: static catalog, Travelpayouts cached Data API, Travelpayouts GraphQL cached API, Kupibilet live aggregate, or self-hosted FLI MCP.
 
 ## Report Shape
 
