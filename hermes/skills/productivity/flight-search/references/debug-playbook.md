@@ -13,13 +13,14 @@ Debug if:
 
 ## Safe Debug Commands
 
-Rerun without `--agent-brief` when you need deeper JSON. The current CLI has no `--agent-mode` flag — do not use it.
+Rerun without `--agent-brief` when you need deeper JSON:
 
 ```bash
 python3 -m flights_cli --json route live-assemble ORIGIN DEST \
   --depart-date YYYY-MM-DD \
   --return-date YYYY-MM-DD \
-  --profile business
+  --profile business \
+  --agent-mode
 ```
 
 Use targeted includes only when needed:
