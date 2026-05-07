@@ -1,0 +1,4 @@
+interface:
+  display_name: "Flight Search"
+  short_description: "Plan flights with the Hermes CLI compact report."
+  default_prompt: "Use $flight-search to run the Hermes flights CLI, read the compact report, and summarize the safest verified choices with source boundaries."

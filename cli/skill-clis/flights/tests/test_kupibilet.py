@@ -518,6 +518,89 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(len(skipped), 1)
         self.assertEqual(skipped[0]["destination"], "MUC")
 
+    def test_agent_mode_runs_carrier_aggregate_control_and_reports_through_fare_check(self) -> None:
+        from flights_cli.cli import apply_agent_mode_defaults
+
+        args = build_parser().parse_args(
+            [
+                "route",
+                "kb-assemble",
+                "SVX",
+                "DEL",
+                "--depart-date",
+                "2026-06-01",
+                "--agent-mode",
+                "--aggregate-control-carrier",
+                "SU",
+                "--no-live-cache",
+                "--no-direct-route-intel",
+            ]
+        )
+        apply_agent_mode_defaults(args)
+        calls: list[tuple[str, str, bool, tuple[str, ...]]] = []
+
+        def fake_fetch(origin: str, destination: str, depart_date: object, *, direct_only: bool, only_carriers: list[str], **_: object) -> dict:
+            calls.append((origin, destination, bool(direct_only), tuple(only_carriers)))
+            depart = depart_date.isoformat() if hasattr(depart_date, "isoformat") else str(depart_date)
+            offers = []
+            if origin == "SVX" and destination == "DEL" and not direct_only and only_carriers == ["SU"]:
+                offers.append(
+                    {
+                        "id": "su-through-control",
+                        "price": 42000,
+                        "currency": "RUB",
+                        "number_of_changes": 1,
+                        "duration": 520,
+                        "flight_numbers": ["SU1419", "SU232"],
+                        "flights": [
+                            {
+                                "flight_number": "SU1419",
+                                "marketing_carrier": "SU",
+                                "operating_carrier": "SU",
+                                "origin": "SVX",
+                                "destination": "SVO",
+                                "departure_at": "2026-06-01T06:00:00+05:00",
+                                "arrival_at": "2026-06-01T06:40:00+03:00",
+                            },
+                            {
+                                "flight_number": "SU232",
+                                "marketing_carrier": "SU",
+                                "operating_carrier": "SU",
+                                "origin": "SVO",
+                                "destination": "DEL",
+                                "departure_at": "2026-06-01T10:30:00+03:00",
+                                "arrival_at": "2026-06-01T18:50:00+05:30",
+                            },
+                        ],
+                    }
+                )
+            return {
+                "origin": origin,
+                "destination": destination,
+                "depart_date": depart,
+                "currency": "RUB",
+                "source": "test",
+                "source_url": "test",
+                "raw_variant_count": len(offers),
+                "unique_flight_count": len(offers),
+                "http_status": 200,
+                "offers": offers,
+            }
+
+        with patch("flights_cli.orchestrators.kb_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
+            result = run_kupibilet_route_assembly(args, Store())
+
+        self.assertIn(("SVX", "DEL", False, ("SU",)), calls)
+        carrier_controls = [
+            control
+            for control in result["live_search"]["aggregate_controls"]
+            if control.get("filters", {}).get("only_carriers") == ["SU"]
+        ]
+        self.assertEqual(carrier_controls[0]["top_offers"][0]["flight_numbers"], ["SU1419", "SU232"])
+        report = result["agent_report"]
+        self.assertEqual(report["through_fare_checks"][0]["carrier"], "SU")
+        self.assertIn("Through-fare check required", " ".join(report["answer_lines"]))
+
     def test_direct_route_intel_skips_absent_direct_control_to_svx(self) -> None:
         args = build_parser().parse_args(
             [

@@ -104,7 +104,3 @@ class CliSubprocessMixin:
             stderr=subprocess.PIPE,
         )
         return json.loads(proc.stdout)
-
-
-if __name__ == "__main__":
-    unittest.main()

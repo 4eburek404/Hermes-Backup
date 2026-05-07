@@ -5,6 +5,7 @@ from typing import Any
 
 from ..config import RISK_PROFILES
 from ..domain.airports import airport_group
+from ..domain.carriers import segment_carriers
 from ..domain.normalize import currency_value, price_value
 from ..domain.time import elapsed_minutes, minutes_between
 from ..errors import CliError
@@ -348,6 +349,105 @@ def ranked_candidate_details(ranked_items: list[dict[str, Any]], candidates: lis
     return details
 
 
+def candidate_segments(candidate: dict[str, Any]) -> list[dict[str, Any]]:
+    segments = []
+    for journey in candidate.get("journeys") or []:
+        if not isinstance(journey, dict):
+            continue
+        for segment in journey.get("segments") or []:
+            if isinstance(segment, dict):
+                segments.append(segment)
+    return segments
+
+
+def has_connection_airport(candidate: dict[str, Any], airport: str) -> bool:
+    target = airport.upper()
+    for journey in candidate.get("journeys") or []:
+        if not isinstance(journey, dict):
+            continue
+        segments = [segment for segment in (journey.get("segments") or []) if isinstance(segment, dict)]
+        for prev, nxt in zip(segments, segments[1:]):
+            if str(prev.get("destination") or "").upper() == target and str(nxt.get("origin") or "").upper() == target:
+                return True
+    return False
+
+
+def every_segment_matches_carrier(candidate: dict[str, Any], carrier: str) -> bool:
+    target = carrier.upper()
+    segments = candidate_segments(candidate)
+    return bool(segments) and all(target in segment_carriers(segment) for segment in segments)
+
+
+def common_segment_carriers(candidate: dict[str, Any]) -> set[str]:
+    segments = candidate_segments(candidate)
+    if not segments:
+        return set()
+    carrier_sets = [segment_carriers(segment) for segment in segments]
+    if not carrier_sets or any(not carriers for carriers in carrier_sets):
+        return set()
+    common = set(carrier_sets[0])
+    for carriers in carrier_sets[1:]:
+        common &= carriers
+    return common
+
+
+def frontier_representative_details(
+    ranked_items: list[dict[str, Any]],
+    candidates: list[dict[str, Any]],
+    limit: int = 8,
+) -> list[dict[str, Any]]:
+    by_id = {str(candidate.get("id")): candidate for candidate in candidates}
+    selected: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    rules = [
+        (
+            "all_su_svo",
+            "Best acceptable all-SU itinerary through SVO. Surface it even when elapsed time or price ranks it below mixed-carrier options.",
+            lambda candidate, item: every_segment_matches_carrier(candidate, "SU") and has_connection_airport(candidate, "SVO"),
+        ),
+        (
+            "svo_hub",
+            "Best acceptable SVO-hub itinerary. Asia routing must not hide Moscow controls behind IST/DXB ranking.",
+            lambda candidate, item: has_connection_airport(candidate, "SVO"),
+        ),
+        (
+            "all_su",
+            "Best acceptable all-SU itinerary. Same-carrier controls can require airline/GDS through-fare verification.",
+            lambda candidate, item: every_segment_matches_carrier(candidate, "SU"),
+        ),
+        (
+            "single_carrier",
+            "Best acceptable same-carrier multi-leg itinerary. Verify whether it can be sold as a protected single PNR.",
+            lambda candidate, item: len(candidate_segments(candidate)) > 1 and bool(common_segment_carriers(candidate)),
+        ),
+    ]
+
+    for category, reason, predicate in rules:
+        for item in ranked_items:
+            if item.get("ok") is not True:
+                continue
+            candidate_id = str(item.get("id"))
+            if candidate_id in seen_ids:
+                continue
+            candidate = by_id.get(candidate_id)
+            if candidate is None or not predicate(candidate, item):
+                continue
+            selected.append(
+                {
+                    "category": category,
+                    "reason": reason,
+                    "rank": item.get("rank"),
+                    "ranked": item,
+                    "candidate": candidate,
+                }
+            )
+            seen_ids.add(candidate_id)
+            break
+        if len(selected) >= limit:
+            break
+    return selected
+
+
 def recommendation_item(item: dict[str, Any] | None) -> dict[str, Any] | None:
     if item is None:
         return None
@@ -404,6 +504,7 @@ def empty_assembled_result(args: argparse.Namespace) -> dict[str, Any]:
         },
         "candidates": [],
         "ranked_candidates": [],
+        "frontier_candidates": [],
         "recommendations": {"best_ranked": None, "cheapest_acceptable": None, "fastest_acceptable": None},
         "rejected_pairs": [],
     }
@@ -490,6 +591,8 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
         "ranked": [],
     }
     ranked_total_count = len(ranked["ranked"])
+    full_ranked_items = list(ranked["ranked"])
+    ranked["frontier_candidates"] = frontier_representative_details(full_ranked_items, candidates)
     max_ranked = max(0, int(args.max_candidates))
     ranked["ranked"] = ranked["ranked"][:max_ranked]
     ranked["count"] = len(ranked["ranked"])

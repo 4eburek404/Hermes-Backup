@@ -197,6 +197,27 @@ flights --json route kb-assemble SVX CDG \
   --include-ranked-candidates 10
 ```
 
+For lite agents, use the compact preset:
+
+```bash
+flights --json route live-assemble SVX DEL \
+  --depart-date 2026-06-01 \
+  --profile business \
+  --agent-brief \
+  --aggregate-control-carrier SU
+```
+
+`--agent-brief` emits only `data.agent_report`: answer lines, recommended
+options, priority representatives such as all-SU/SVO controls even when they
+rank lower, through-fare checks, source boundaries, and minimal diagnostics.
+Use `--agent-mode` instead when you need the compact report plus full debug JSON.
+The report is fail-fast validated against the packaged `agent_report.v1` JSON
+Schema contract before it is emitted.
+Carrier controls such as
+`--aggregate-control-carrier SU` are for through-fare blind spots: a same-carrier
+multi-leg aggregate offer can indicate an airline/GDS single-PNR fare that
+direct-segment assembly cannot price.
+
 `route kb-assemble` is intentionally live: it calls Kupibilet `frontend_search`
 for direct controls plus `origin→hub`, `hub→destination`, `destination→hub`, and
 `hub→origin` direct segments, including default second-leg day offsets
@@ -344,6 +365,9 @@ flights --json metrics workflow SVX LON \
   live normalized offers via `route kb-assemble`.
 - Can run provider-policy live assembly via `route live-assemble`: Kupibilet for
   Russia-touching segments and FLI MCP for global non-Russia segments.
+- Can emit `agent_report` for lite agents, including answer lines, top option
+  segments, priority options, hub viability, aggregate controls, through-fare
+  checks, and source boundaries.
 - Scores connection risk, internal transfer metadata, and airport changes, then
   ranks candidates by profile after scoring a raw candidate pool.
 - Supports explicit carrier selection and carrier preferences for ranked

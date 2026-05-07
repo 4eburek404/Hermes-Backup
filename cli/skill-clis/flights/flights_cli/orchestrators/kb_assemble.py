@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import Any
 
 from ..config import (
@@ -19,12 +19,14 @@ from ..config import (
     SUPPORTED_CURRENCIES,
 )
 from ..domain.airports import explicit_or_resolved_airports
+from ..domain.carriers import carrier_from_flight_number
 from ..domain.hubs import resolve_route_hubs, resolve_routing_strategy
 from ..domain.normalize import currency_value, normalize_carrier_code, normalize_profile, parse_iso_date, price_value
 from ..errors import CliError
 from ..providers.fli_mcp import cached_fli_mcp_search, fli_result_to_segment_result, fli_segment_search_summary, providers_for_segment
 from ..providers.kupibilet import cached_kupibilet_search, fetch_kupibilet_search, kupibilet_result_to_segment_result, kupibilet_segment_search_summary
 from ..providers.route_intel import load_or_refresh_svx_route_index, svx_direct_route_index_summary
+from ..services.agent_report import attach_agent_report
 from ..services.assembly import assemble_direction, assemble_segment_results, direct_journeys, empty_assembled_result
 from ..store import Store
 
@@ -136,6 +138,139 @@ def hub_viability_summary(plan: dict[str, Any], searches: list[dict[str, Any]]) 
         ]
         item["viable"] = not item["missing_legs"]
     return sorted(by_hub.values(), key=lambda item: (not item["viable"], -int(item["total_offer_count"]), item["hub"]))
+
+
+def aggregate_offer_summary(offer: dict[str, Any]) -> dict[str, Any]:
+    flights = [flight for flight in (offer.get("flights") or []) if isinstance(flight, dict)]
+    carriers: set[str] = set()
+    segments = []
+    for flight in flights:
+        flight_number = str(flight.get("flight_number") or "")
+        marketing = str(flight.get("marketing_carrier") or "").upper()
+        operating = str(flight.get("operating_carrier") or "").upper()
+        carrier = operating or marketing or carrier_from_flight_number(flight_number)
+        if carrier:
+            carriers.add(carrier)
+        segments.append(
+            {
+                "flight_number": flight_number or None,
+                "carrier": carrier or None,
+                "marketing_carrier": marketing or None,
+                "operating_carrier": operating or None,
+                "origin": flight.get("origin"),
+                "destination": flight.get("destination"),
+                "departure_at": flight.get("departure_at"),
+                "arrival_at": flight.get("arrival_at"),
+            }
+        )
+    return {
+        "id": offer.get("id"),
+        "price": offer.get("price"),
+        "currency": offer.get("currency"),
+        "change_count": offer.get("number_of_changes"),
+        "duration_min": offer.get("duration"),
+        "flight_numbers": offer.get("flight_numbers") or [segment.get("flight_number") for segment in segments if segment.get("flight_number")],
+        "carriers": sorted(carriers),
+        "segments": segments,
+        "ticketing_note": "Provider-assembled route offer; verify single-PNR/protection, baggage, and final fare on the booking screen.",
+    }
+
+
+def aggregate_control_summary(
+    *,
+    direction: str,
+    origin: str,
+    destination: str,
+    depart_date: str,
+    carriers: list[str],
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    offers = [offer for offer in (result.get("offers") or []) if isinstance(offer, dict)]
+    return {
+        "direction": direction,
+        "origin": origin,
+        "destination": destination,
+        "date": depart_date,
+        "status": "ok",
+        "provider": "kupibilet",
+        "source": result.get("source"),
+        "filters": {"direct_only": False, "only_carriers": carriers},
+        "offer_count": len(offers),
+        "raw_variant_count": result.get("raw_variant_count"),
+        "unique_flight_count": result.get("unique_flight_count"),
+        "cache": result.get("cache", {"hit": False}),
+        "top_offers": [aggregate_offer_summary(offer) for offer in offers],
+    }
+
+
+def run_aggregate_controls(args: argparse.Namespace, plan: dict[str, Any]) -> list[dict[str, Any]]:
+    limit = max(0, int(getattr(args, "aggregate_control_limit", 0) or 0))
+    if limit <= 0:
+        return []
+
+    carrier_sets: list[list[str]] = []
+    base_carriers = [normalize_carrier_code(code, "only-carrier") for code in (getattr(args, "only_carrier", None) or [])]
+    if base_carriers:
+        carrier_sets.append(base_carriers)
+    else:
+        carrier_sets.append([])
+    for code in getattr(args, "aggregate_control_carrier", None) or []:
+        carriers = [normalize_carrier_code(code, "aggregate-control-carrier")]
+        if carriers not in carrier_sets:
+            carrier_sets.append(carriers)
+
+    queries = [
+        ("outbound", str(plan["origin"]).upper(), str(plan["destination"]).upper(), str(plan["dates"]["depart"])),
+    ]
+    if plan["dates"].get("return"):
+        queries.append(("return", str(plan["destination"]).upper(), str(plan["origin"]).upper(), str(plan["dates"]["return"])))
+
+    controls: list[dict[str, Any]] = []
+    cache_ttl_seconds = int(getattr(args, "live_cache_ttl_seconds", DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS))
+    use_live_cache = not bool(getattr(args, "no_live_cache", False))
+    for direction, origin, destination, date_text in queries:
+        depart_date = parse_iso_date(date_text, "aggregate-control-date")
+        for carriers in carrier_sets:
+            try:
+                result = cached_kupibilet_search(
+                    origin,
+                    destination,
+                    depart_date,
+                    currency=str(plan["currency"]).upper(),
+                    only_carriers=carriers,
+                    direct_only=False,
+                    limit=limit,
+                    timeout=int(getattr(args, "timeout", 60)),
+                    cache_ttl_seconds=cache_ttl_seconds,
+                    use_cache=use_live_cache,
+                    fetcher=fetch_kupibilet_search,
+                )
+            except CliError as exc:
+                controls.append(
+                    {
+                        "direction": direction,
+                        "origin": origin,
+                        "destination": destination,
+                        "date": date_text,
+                        "status": "error",
+                        "provider": "kupibilet",
+                        "filters": {"direct_only": False, "only_carriers": carriers},
+                        "offer_count": 0,
+                        "error": {"type": exc.error_type, "message": exc.message},
+                    }
+                )
+                continue
+            controls.append(
+                aggregate_control_summary(
+                    direction=direction,
+                    origin=origin,
+                    destination=destination,
+                    depart_date=date_text,
+                    carriers=carriers,
+                    result=result,
+                )
+            )
+    return controls
 
 
 def segment_result_matches(result: dict[str, Any], direction: str, leg: str, origin: str, destination: str) -> bool:
@@ -951,10 +1086,11 @@ def run_kupibilet_route_assembly(args: argparse.Namespace, store: Store) -> dict
         "plan": {key: value for key, value in plan.items() if key != "segments"},
         "segment_searches": searches,
         "hub_viability": hub_viability_summary(plan, searches),
+        "aggregate_controls": run_aggregate_controls(args, plan),
         "direct_route_intelligence": direct_route_intel,
         "failure_count": len(failures),
         "failures": failures,
         "included_segment_result_count": min(len(segment_results), args.include_segment_results),
     }
     assembled["segment_results"] = segment_results[: args.include_segment_results]
-    return assembled
+    return attach_agent_report(assembled, args)

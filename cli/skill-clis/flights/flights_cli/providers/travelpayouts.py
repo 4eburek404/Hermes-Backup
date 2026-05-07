@@ -11,7 +11,7 @@ from typing import Any
 from .. import __version__
 from ..config import CACHE_NOTE, GRAPHQL_ONE_WAY_QUERY, GRAPHQL_ROUND_TRIP_QUERY, GRAPHQL_URL, SUPPORTED_CURRENCIES
 from ..domain.carriers import carrier_from_leg
-from ..domain.normalize import normalize_iata, normalize_transfer, normalize_transfers, parse_iso_date, price_value
+from ..domain.normalize import normalize_iata, normalize_transfers, parse_iso_date, price_value
 from ..errors import CliError
 
 def aviasales_url(origin: str, destination: str, depart: date, ret: date | None = None) -> str:

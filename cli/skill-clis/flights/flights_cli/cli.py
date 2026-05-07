@@ -74,6 +74,24 @@ def add_carrier_selection_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--include-filtered", type=int, default=20, help="Include first N carrier-filtered candidates in JSON output.")
 
 
+def add_agent_output_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--agent-mode",
+        action="store_true",
+        help="Lite-agent preset: compact output, top-ranked candidate details, and an agent_report block.",
+    )
+    parser.add_argument(
+        "--agent-report",
+        action="store_true",
+        help="Include a compact agent_report block without changing other output limits.",
+    )
+    parser.add_argument(
+        "--agent-brief",
+        action="store_true",
+        help="Emit only the compact agent_report in JSON output. Implies --agent-mode defaults.",
+    )
+
+
 def add_fli_mcp_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--mcp-url", default=os.getenv("FLIGHTS_FLI_MCP_URL", FLI_MCP_DEFAULT_URL), help="FLI MCP HTTP URL. Default from FLIGHTS_FLI_MCP_URL or localhost.")
     parser.add_argument("--timeout", type=int, default=60, help="HTTP timeout seconds for FLI MCP calls.")
@@ -102,12 +120,24 @@ def add_live_assembly_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--include-ranked-candidates", type=int, default=5, help="Include full candidate bodies for first N ranked candidates.")
     parser.add_argument("--include-rejected-pairs", type=int, default=20)
     parser.add_argument("--include-segment-results", type=int, default=0, help="Include first N normalized segment-result blocks in JSON output.")
+    parser.add_argument(
+        "--aggregate-control-limit",
+        type=int,
+        default=0,
+        help="Run non-direct Kupibilet full-route aggregate controls and keep N top offers per control. 0 disables; --agent-mode sets 5.",
+    )
+    parser.add_argument(
+        "--aggregate-control-carrier",
+        action="append",
+        help="Also run a full-route aggregate control where every leg matches this carrier, e.g. SU for Aeroflot. Repeatable.",
+    )
     parser.add_argument("--max-segment-searches", type=int, default=300, help="Safety cap for live segment requests.")
     parser.add_argument("--fail-fast", action="store_true", help="Abort on the first live segment-search error instead of keeping partial results.")
     parser.add_argument("--live-cache-ttl-seconds", type=int, default=DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, help="Short-lived live-search cache TTL seconds. Use 0 to disable.")
     parser.add_argument("--no-live-cache", action="store_true", help="Bypass live-search cache.")
     parser.add_argument("--direct-route-index-ttl-seconds", type=int, default=DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS, help="Official SVX seasonal direct-route index TTL seconds. Use 0 to disable route-intel fetching.")
     parser.add_argument("--no-direct-route-intel", action="store_true", help="Do not skip direct-control probes using the official SVX route index.")
+    add_agent_output_flags(parser)
     add_carrier_selection_flags(parser)
 
 
@@ -269,6 +299,7 @@ def build_parser() -> argparse.ArgumentParser:
     route_assemble.add_argument("--include-candidates", type=int, default=5, help="Include first N raw assembled candidates in JSON output.")
     route_assemble.add_argument("--include-ranked-candidates", type=int, default=5, help="Include full candidate bodies for first N ranked candidates.")
     route_assemble.add_argument("--include-rejected-pairs", type=int, default=20, help="Include first N rejected/airport-mismatch pairs.")
+    add_agent_output_flags(route_assemble)
     add_carrier_selection_flags(route_assemble)
     route_assemble.set_defaults(func=command_route_assemble, command_name="route assemble")
 
@@ -392,17 +423,47 @@ def auto_refresh_catalog(args: argparse.Namespace, store: Store) -> dict | None:
     )
 
 
+def apply_agent_mode_defaults(args: argparse.Namespace) -> None:
+    if bool(getattr(args, "agent_brief", False)):
+        args.agent_mode = True
+    if not bool(getattr(args, "agent_mode", False)):
+        return
+    args.agent_report = True
+    if hasattr(args, "include_candidates"):
+        args.include_candidates = 0
+    if hasattr(args, "include_ranked_candidates"):
+        args.include_ranked_candidates = max(5, int(args.include_ranked_candidates))
+    if hasattr(args, "include_rejected_pairs"):
+        args.include_rejected_pairs = min(5, int(args.include_rejected_pairs))
+    if hasattr(args, "include_segment_results"):
+        args.include_segment_results = 0
+    if hasattr(args, "max_candidates"):
+        args.max_candidates = min(10, int(args.max_candidates))
+    if hasattr(args, "aggregate_control_limit") and int(args.aggregate_control_limit) <= 0:
+        args.aggregate_control_limit = 5
+
+
+def apply_agent_brief_output(args: argparse.Namespace, data: object) -> object:
+    if not bool(getattr(args, "agent_brief", False)):
+        return data
+    if isinstance(data, dict) and isinstance(data.get("agent_report"), dict):
+        return {"agent_report": data["agent_report"]}
+    return data
+
+
 def main(argv: list[str] | None = None) -> int:
     load_env_file()
     argv = normalize_global_json(list(sys.argv if argv is None else argv))
     parser = build_parser()
     args = parser.parse_args(argv[1:])
+    apply_agent_mode_defaults(args)
     store = Store()
     try:
         catalog_auto_refresh = auto_refresh_catalog(args, store)
         data = args.func(args, store)
         if catalog_auto_refresh is not None and isinstance(data, dict):
             data["catalog_auto_refresh"] = catalog_auto_refresh
+        data = apply_agent_brief_output(args, data)
     except CliError as exc:
         if args.json:
             print(json.dumps(error_envelope(exc), ensure_ascii=False, indent=2, sort_keys=True), file=sys.stderr)

@@ -246,7 +246,7 @@ class Store:
                 break
         return results
 
-    def resolve_location(self, value: str, *, prefer_airport: bool = False) -> Location:
+    def resolve_location(self, value: str) -> Location:
         raw = value.strip()
         if not raw:
             raise CliError("location is required", error_type="validation_error")

@@ -20,7 +20,35 @@ def emit_json(data: Any) -> None:
     print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
 
 
+def render_agent_report_human(report: dict[str, Any]) -> str:
+    lines = ["agent report:"]
+    for line in report.get("answer_lines") or []:
+        lines.append(f"  {line}")
+    route = report.get("route") or {}
+    status = report.get("status") or {}
+    lines.extend(
+        [
+            "",
+            f"route: {route.get('origin')} -> {route.get('destination')} dates={route.get('dates')}",
+            f"ranked: {status.get('ranked_output_count')} output / {status.get('ranked_total_count')} total; candidates={status.get('candidate_count')}",
+        ]
+    )
+    controls = report.get("aggregate_controls") or []
+    if controls:
+        lines.append("aggregate controls:")
+        for control in controls[:6]:
+            filters = control.get("filters") or {}
+            carriers = ",".join(filters.get("only_carriers") or []) or "any"
+            lines.append(
+                f"  {control.get('direction')} {control.get('origin')}->{control.get('destination')} "
+                f"carrier={carriers} status={control.get('status')} offers={control.get('offer_count')}"
+            )
+    return "\n".join(lines)
+
+
 def render_human(command: str, data: Any) -> str:
+    if isinstance(data, dict) and isinstance(data.get("agent_report"), dict):
+        return render_agent_report_human(data["agent_report"])
     if command == "fli-search":
         lines = [
             f"FLI MCP live search: {data['origin']} → {data['destination']}",
