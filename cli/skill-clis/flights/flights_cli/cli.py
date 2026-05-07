@@ -203,7 +203,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_fli_mcp_flags(fli_search)
     fli_search.add_argument("--cache-ttl-seconds", type=int, default=DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, help="Short-lived live-search cache TTL seconds. Use 0 to disable.")
     fli_search.add_argument("--no-cache", action="store_true", help="Bypass live-search cache.")
-    fli_search.set_defaults(func=command_fli_search, command_name="fli-search")
+    fli_search.set_defaults(func=command_fli_search, command_name="fli-search", requires_catalog=True)
 
     fli_dates = sub.add_parser("fli-dates", help="FLI MCP flexible date search through a self-hosted MCP HTTP server.")
     fli_dates.add_argument("origin", help="Origin airport IATA code (e.g. IST).")

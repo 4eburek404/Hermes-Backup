@@ -10,8 +10,30 @@ from flights_cli.providers.fli_mcp import (
     fli_result_to_segment_result,
     parse_fli_flight_search,
     providers_for_segment,
+    resolve_fli_airport,
 )
 from flights_cli.store import Store
+
+
+def store_with_airports(test_case: unittest.TestCase) -> Store:
+    tmp_dir = tempfile.TemporaryDirectory()
+    test_case.addCleanup(tmp_dir.cleanup)
+    cache = Path(tmp_dir.name)
+    (cache / "airports_en.json").write_text(
+        """
+        [
+          {"code": "IST", "country_code": "TR", "flightable": true, "name": "Istanbul New Airport", "name_translations": {"en": "Istanbul New Airport"}},
+          {"code": "ISL", "country_code": "TR", "flightable": false, "name": "Istanbul Ataturk Airport", "name_translations": {"en": "Istanbul Ataturk Airport"}},
+          {"code": "SAW", "country_code": "TR", "flightable": true, "name": "Sabiha Gokcen International Airport", "name_translations": {"en": "Sabiha Gokcen International Airport"}},
+          {"code": "CDG", "country_code": "FR", "flightable": true, "name": "Charles de Gaulle Airport", "name_translations": {"en": "Charles de Gaulle Airport"}},
+          {"code": "LHR", "country_code": "GB", "flightable": true, "name": "London Heathrow Airport", "name_translations": {"en": "London Heathrow Airport"}},
+          {"code": "DXB", "country_code": "AE", "flightable": true, "name": "Dubai Airport", "name_translations": {"en": "Dubai Airport"}},
+          {"code": "AMS", "country_code": "NL", "flightable": true, "name": "Amsterdam Airport Schiphol", "name_translations": {"en": "Amsterdam Airport Schiphol"}}
+        ]
+        """,
+        encoding="utf-8",
+    )
+    return Store(cache)
 
 
 class FliMcpTests(unittest.TestCase):
@@ -83,6 +105,7 @@ class FliMcpTests(unittest.TestCase):
             depart_date="2026-08-15",
             currency="RUB",
             mcp_url="http://127.0.0.1:8000/mcp",
+            store=store_with_airports(self),
         )
         segment = fli_result_to_segment_result(result, direction="outbound", leg="hub_to_destination")
 
@@ -92,6 +115,62 @@ class FliMcpTests(unittest.TestCase):
         self.assertEqual(segment["source_key"], "fli_mcp_search_flights")
         self.assertEqual(segment["offers"][0]["source"], "FLI MCP search_flights")
         self.assertEqual(segment["offers"][0]["segments"][0]["carrier"], "TK")
+
+    def test_resolve_fli_airport_maps_observed_airport_names(self) -> None:
+        store = store_with_airports(self)
+
+        cases = {
+            "Istanbul Airport": "IST",
+            "Charles de Gaulle International Airport": "CDG",
+            "London Heathrow Airport": "LHR",
+            "Dubai International Airport": "DXB",
+            "Amsterdam Airport Schiphol": "AMS",
+        }
+
+        for name, code in cases.items():
+            with self.subTest(name=name):
+                self.assertEqual(resolve_fli_airport(name, store=store, field="airport"), code)
+
+    def test_parse_fli_flight_search_maps_real_fli_airport_names(self) -> None:
+        raw = {
+            "success": True,
+            "count": 1,
+            "trip_type": "ONE_WAY",
+            "flights": [
+                {
+                    "price": 11124,
+                    "currency": "RUB",
+                    "legs": [
+                        {
+                            "departure_airport": "Istanbul Airport",
+                            "arrival_airport": "Charles de Gaulle International Airport",
+                            "departure_time": "2026-07-19T10:10:00",
+                            "arrival_time": "2026-07-19T12:50:00",
+                            "duration": 220,
+                            "airline": "Turkish Airlines",
+                            "airline_code": "TK",
+                            "flight_number": "1823",
+                        }
+                    ],
+                }
+            ],
+        }
+
+        result = parse_fli_flight_search(
+            raw,
+            origin="IST",
+            destination="CDG",
+            depart_date="2026-07-19",
+            currency="RUB",
+            mcp_url="http://127.0.0.1:8000/mcp",
+            store=store_with_airports(self),
+        )
+
+        offer = result["offers"][0]
+        self.assertEqual(offer["origin"], "IST")
+        self.assertEqual(offer["destination"], "CDG")
+        self.assertEqual(offer["flights"][0]["origin"], "IST")
+        self.assertEqual(offer["flights"][0]["destination"], "CDG")
 
     def test_decode_mcp_event_stream_extracts_jsonrpc_result(self) -> None:
         payload = b'event: message\ndata: {"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"success":true,"flights":[]}}}\n\n'
