@@ -40,6 +40,10 @@ def command_route_kb_assemble(args: argparse.Namespace, store: Store) -> dict[st
     return run_kupibilet_route_assembly(args, store)
 
 
+def command_route_live_assemble(args: argparse.Namespace, store: Store) -> dict[str, Any]:
+    return run_kupibilet_route_assembly(args, store)
+
+
 def command_route_assemble(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     del store
     segment_results: list[dict[str, Any]] = []

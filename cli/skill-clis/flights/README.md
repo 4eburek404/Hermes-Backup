@@ -6,8 +6,9 @@ The CLI reads local Hermes Travelpayouts cache files, prepares segment-level
 search plans, validates airport compatibility, and builds sanitized
 Travelpayouts requests. It does not book, buy, or write to Hermes.
 Travelpayouts cached API fetches require explicit `request ... --fetch`
-commands; provider-specific commands such as `kb-search`, `u6-prices`, and
-`route kb-assemble` are live by command name.
+commands; provider-specific commands such as `kb-search`, `fli-search`,
+`fli-dates`, `u6-prices`, `route kb-assemble`, and `route live-assemble` are
+live by command name.
 
 ## Install
 
@@ -18,7 +19,9 @@ flights --help
 flights --json doctor
 ```
 
-This project uses only the Python standard library.
+This project uses only the Python standard library. FLI/Google Flights access
+is intentionally isolated behind a self-hosted FLI MCP HTTP sidecar rather than
+imported as a Python dependency.
 
 ## JSON Policy
 
@@ -215,6 +218,51 @@ route index was used.
 For one-off Kupibilet probes, `kb-search` uses the same cache controls:
 `--cache-ttl-seconds` and `--no-cache`.
 
+Run a one-off FLI MCP search through a self-hosted MCP server:
+
+```bash
+export FLIGHTS_FLI_MCP_URL=http://127.0.0.1:8000/mcp
+
+flights --json fli-search IST LHR \
+  --depart-date 2026-08-15 \
+  --direct-only \
+  --only-carrier TK
+
+flights --json fli-dates IST LHR \
+  --from-date 2026-08-01 \
+  --to-date 2026-08-31 \
+  --direct-only \
+  --sort-by-price
+```
+
+FLI MCP is a self-hosted wrapper around the `flights` PyPI package's MCP
+server, not an official Google Flights public API. Run it near the agent, for
+example as a Docker sidecar on the VPS:
+
+```bash
+pipx install "flights[mcp]"
+FLI_MCP_DEFAULT_CURRENCY=RUB fli-mcp-http
+```
+
+The default HTTP endpoint is `http://127.0.0.1:8000/mcp`; override it with
+`FLIGHTS_FLI_MCP_URL` or `--mcp-url`.
+
+Use provider-policy assembly when a route mixes Russia-touching and global
+segments:
+
+```bash
+flights --json route live-assemble SVX LHR \
+  --depart-date 2026-08-15 \
+  --return-date 2026-08-20 \
+  --profile business \
+  --include-ranked-candidates 10
+```
+
+`route live-assemble --provider-policy auto` uses Kupibilet for any segment
+where either endpoint is in Russia, and FLI MCP for non-Russia segments such as
+`IST→LHR`. `--provider-policy kupibilet`, `fli`, or `both` are available for
+diagnostics. The old `route kb-assemble` remains Kupibilet-only.
+
 Select carriers explicitly while ranking or assembling:
 
 ```bash
@@ -294,6 +342,8 @@ flights --json metrics workflow SVX LON \
 - Assembles compatible segment offers into outbound/return journeys.
 - Can run Kupibilet direct-only segment searches through hubs and assemble those
   live normalized offers via `route kb-assemble`.
+- Can run provider-policy live assembly via `route live-assemble`: Kupibilet for
+  Russia-touching segments and FLI MCP for global non-Russia segments.
 - Scores connection risk, internal transfer metadata, and airport changes, then
   ranks candidates by profile after scoring a raw candidate pool.
 - Supports explicit carrier selection and carrier preferences for ranked
@@ -388,8 +438,10 @@ inventing candidates.
 - No booking or purchase.
 - No hidden writes outside the static catalog cache. Catalog-dependent commands
   can automatically update `~/.hermes/plugins/travelpayouts-flights/cache`.
-- No Docker Hermes access.
+- No Docker Hermes access from the CLI itself. FLI MCP may run as a separate
+  self-hosted Docker sidecar and is addressed through `FLIGHTS_FLI_MCP_URL`.
 - No Travelpayouts cached price/Data API network fetch unless `--fetch` is
   passed on a `request` command. Static catalog refresh is separate and
   requires no token.
-- `kb-search`, `u6-prices`, and `route kb-assemble` are explicit live provider commands.
+- `kb-search`, `fli-search`, `fli-dates`, `u6-prices`, `route kb-assemble`, and
+  `route live-assemble` are explicit live provider commands.

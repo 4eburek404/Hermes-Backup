@@ -22,6 +22,7 @@ from ..domain.airports import explicit_or_resolved_airports
 from ..domain.hubs import resolve_route_hubs, resolve_routing_strategy
 from ..domain.normalize import currency_value, normalize_carrier_code, normalize_profile, parse_iso_date, price_value
 from ..errors import CliError
+from ..providers.fli_mcp import cached_fli_mcp_search, fli_result_to_segment_result, fli_segment_search_summary, providers_for_segment
 from ..providers.kupibilet import cached_kupibilet_search, fetch_kupibilet_search, kupibilet_result_to_segment_result, kupibilet_segment_search_summary
 from ..providers.route_intel import load_or_refresh_svx_route_index, svx_direct_route_index_summary
 from ..services.assembly import assemble_direction, assemble_segment_results, direct_journeys, empty_assembled_result
@@ -727,6 +728,7 @@ def run_kupibilet_route_assembly(args: argparse.Namespace, store: Store) -> dict
     priority_route_viability: dict[str, bool] = {}
     cache_ttl_seconds = int(getattr(args, "live_cache_ttl_seconds", DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS))
     use_live_cache = not bool(getattr(args, "no_live_cache", False))
+    provider_policy = str(getattr(args, "provider_policy", "kupibilet") or "kupibilet")
     direct_route_index, direct_route_intel = direct_route_intel_context(args, store, plan)
 
     def search_key(spec: dict[str, Any]) -> tuple[str, str, str, str]:
@@ -884,38 +886,67 @@ def run_kupibilet_route_assembly(args: argparse.Namespace, store: Store) -> dict
             normalize_carrier_code(code, "only-carrier")
             for code in (spec.get("only_carriers") or only_carriers)
         ]
-        try:
-            result = cached_kupibilet_search(
-                spec["origin"],
-                spec["destination"],
-                parse_iso_date(spec["date"], "segment-date"),
-                currency=plan["currency"],
-                only_carriers=spec_only_carriers,
-                direct_only=True,
-                limit=args.segment_limit,
-                timeout=args.timeout,
-                cache_ttl_seconds=cache_ttl_seconds,
-                use_cache=use_live_cache,
-                fetcher=fetch_kupibilet_search,
-            )
-        except CliError as exc:
-            failure = {**spec, "status": "error", "error": {"type": exc.error_type, "message": exc.message}}
-            failures.append(failure)
-            searches.append(failure)
-            if args.fail_fast:
-                raise
-            continue
-        segment_result = kupibilet_result_to_segment_result(result, direction=spec["direction"], leg=spec["leg"])
-        searches.append(kupibilet_segment_search_summary(spec, result, segment_result))
-        offer_counts[search_key(spec)] = offer_counts.get(search_key(spec), 0) + len(segment_result.get("offers") or [])
-        if segment_result["offers"]:
-            segment_results.append(segment_result)
+        selected_providers = providers_for_segment(spec, store, provider_policy)
+        for provider in selected_providers:
+            try:
+                segment_date = parse_iso_date(spec["date"], "segment-date")
+                if provider == "kupibilet":
+                    result = cached_kupibilet_search(
+                        spec["origin"],
+                        spec["destination"],
+                        segment_date,
+                        currency=plan["currency"],
+                        only_carriers=spec_only_carriers,
+                        direct_only=True,
+                        limit=args.segment_limit,
+                        timeout=args.timeout,
+                        cache_ttl_seconds=cache_ttl_seconds,
+                        use_cache=use_live_cache,
+                        fetcher=fetch_kupibilet_search,
+                    )
+                    segment_result = kupibilet_result_to_segment_result(result, direction=spec["direction"], leg=spec["leg"])
+                    summary = {**kupibilet_segment_search_summary(spec, result, segment_result), "provider": "kupibilet"}
+                elif provider == "fli":
+                    result = cached_fli_mcp_search(
+                        spec["origin"],
+                        spec["destination"],
+                        segment_date,
+                        currency=plan["currency"],
+                        only_carriers=spec_only_carriers,
+                        direct_only=True,
+                        limit=args.segment_limit,
+                        timeout=args.timeout,
+                        mcp_url=getattr(args, "fli_mcp_url", None),
+                        cache_ttl_seconds=cache_ttl_seconds,
+                        use_cache=use_live_cache,
+                    )
+                    segment_result = fli_result_to_segment_result(result, direction=spec["direction"], leg=spec["leg"])
+                    summary = fli_segment_search_summary(spec, result, segment_result)
+                else:
+                    raise CliError(f"unsupported provider {provider!r}", error_type="validation_error")
+            except CliError as exc:
+                failure = {**spec, "provider": provider, "status": "error", "error": {"type": exc.error_type, "message": exc.message}}
+                failures.append(failure)
+                searches.append(failure)
+                if args.fail_fast:
+                    raise
+                continue
+            searches.append(summary)
+            offer_counts[search_key(spec)] = offer_counts.get(search_key(spec), 0) + len(segment_result.get("offers") or [])
+            if segment_result["offers"]:
+                segment_results.append(segment_result)
 
     ensure_priority_fallback_synthesized()
     assembled = assemble_segment_results(segment_results, args) if segment_results else empty_assembled_result(args)
+    source_label = "Kupibilet frontend_search direct-only segment assembly"
+    note = "Live aggregate source; recheck price/seat availability and whether segments can be ticketed together before purchase."
+    if provider_policy != "kupibilet":
+        source_label = "Provider-policy live segment assembly"
+        note = "Kupibilet is used for Russia-touching segments; FLI MCP is used for non-Russia segments under auto policy. Recheck price/seat availability before purchase."
     assembled["live_search"] = {
-        "source": "Kupibilet frontend_search direct-only segment assembly",
-        "note": "Live aggregate source; recheck price/seat availability and whether segments can be ticketed together before purchase.",
+        "source": source_label,
+        "provider_policy": provider_policy,
+        "note": note,
         "plan": {key: value for key, value in plan.items() if key != "segments"},
         "segment_searches": searches,
         "hub_viability": hub_viability_summary(plan, searches),

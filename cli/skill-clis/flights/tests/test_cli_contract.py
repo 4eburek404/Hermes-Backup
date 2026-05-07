@@ -83,7 +83,7 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(payload["command"], "doctor")
         self.assertIn("cache_counts", payload["data"])
         self.assertEqual(payload["data"]["safety"]["travelpayouts_cached_fetch_requires"], "request ... --fetch")
-        self.assertEqual(payload["data"]["safety"]["live_provider_commands"], ["kb-search", "u6-prices", "route kb-assemble"])
+        self.assertEqual(payload["data"]["safety"]["live_provider_commands"], ["kb-search", "fli-search", "fli-dates", "u6-prices", "route kb-assemble", "route live-assemble"])
         self.assertNotIn("live_calls_require_flag", payload["data"]["safety"])
         self.assertEqual([item["code"] for item in payload["data"]["default_route_hubs"]], list(DEFAULT_ROUTE_HUBS))
         self.assertNotIn("routes", payload["data"]["cache_counts"])
@@ -98,7 +98,7 @@ class CliContractTests(unittest.TestCase):
             stderr=subprocess.PIPE,
         )
         self.assertIn("Travelpayouts cached fetch: request ... --fetch", human_proc.stdout)
-        self.assertIn("provider live commands: kb-search, u6-prices, route kb-assemble", human_proc.stdout)
+        self.assertIn("provider live commands: kb-search, fli-search, fli-dates, u6-prices, route kb-assemble, route live-assemble", human_proc.stdout)
         self.assertIn("default hubs: IST, DXB, DOH", human_proc.stdout)
 
     def test_auto_hubs_flag_is_removed(self) -> None:
