@@ -1,0 +1,26 @@
+[accounts.gmail]
+email = "ks.orlov@gmail.com"
+display-name = "Konstantin Orlov"
+default = true
+
+backend.type = "imap"
+backend.host = "imap.gmail.com"
+backend.port = 993
+backend.encryption.type = "tls"
+backend.login = "ks.orlov@gmail.com"
+backend.auth.type =[REDACTED]
+backend.auth.cmd =[REDACTED]
+
+message.send.backend.type = "smtp"
+message.send.backend.host = "smtp.gmail.com"
+message.send.backend.port = 587
+message.send.backend.encryption.type = "start-tls"
+message.send.backend.login = "ks.orlov@gmail.com"
+message.send.backend.auth.type =[REDACTED]
+message.send.backend.auth.cmd =[REDACTED]
+
+[accounts.gmail.folder.alias]
+inbox = "INBOX"
+sent = "[Gmail]/Sent Mail"
+drafts = "[Gmail]/Drafts"
+trash = "[Gmail]/Корзина"
