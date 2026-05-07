@@ -11,6 +11,7 @@
     "source_boundaries",
     "hub_viability",
     "segment_searches",
+    "provider_failures",
     "recommended_options",
     "priority_options",
     "aggregate_controls",
@@ -46,6 +47,12 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/segment_search"
+      }
+    },
+    "provider_failures": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/provider_failure"
       }
     },
     "recommended_options": {
@@ -285,6 +292,55 @@
         },
         "offer_count": {
           "$ref": "#/$defs/nullable_integer"
+        }
+      }
+    },
+    "provider_failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "direction",
+        "leg",
+        "origin",
+        "destination",
+        "date",
+        "provider",
+        "error"
+      ],
+      "properties": {
+        "direction": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "leg": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "origin": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "destination": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "date": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "provider": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "message"
+          ],
+          "properties": {
+            "type": {
+              "$ref": "#/$defs/nullable_string"
+            },
+            "message": {
+              "$ref": "#/$defs/nullable_string"
+            }
+          }
         }
       }
     },

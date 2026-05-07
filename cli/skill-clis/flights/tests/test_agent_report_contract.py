@@ -12,6 +12,7 @@ from jsonschema import Draft202012Validator
 
 from flights_cli.cli import main
 from flights_cli.errors import CliError
+from flights_cli.services.agent_report import build_agent_report
 from flights_cli.services.agent_report_contract import (
     AGENT_REPORT_SCHEMA_PACKAGE,
     AGENT_REPORT_SCHEMA_RESOURCE,
@@ -28,6 +29,7 @@ EXPECTED_TOP_LEVEL_REQUIRED = [
     "source_boundaries",
     "hub_viability",
     "segment_searches",
+    "provider_failures",
     "recommended_options",
     "priority_options",
     "aggregate_controls",
@@ -94,6 +96,7 @@ def valid_report() -> dict:
         ],
         "hub_viability": [],
         "segment_searches": [],
+        "provider_failures": [],
         "recommended_options": [valid_option()],
         "priority_options": [],
         "aggregate_controls": [],
@@ -226,6 +229,56 @@ class AgentReportContractTests(unittest.TestCase):
 
         self.assertEqual(ctx.exception.error_type, "contract_error")
         self.assertTrue(any("through-fare verification" in error["message"] for error in ctx.exception.details["errors"]))
+
+    def test_provider_failures_must_surface_in_answer_lines(self) -> None:
+        report = valid_report()
+        report["provider_failures"] = [
+            {
+                "direction": "outbound",
+                "leg": "hub_to_destination",
+                "origin": "IST",
+                "destination": "FRA",
+                "date": "2026-08-14",
+                "provider": "fli",
+                "error": {"type": "upstream_error", "message": "FLI MCP request failed: connection refused"},
+            }
+        ]
+        report["answer_lines"] = ["Best CLI-ranked option: 10 000 RUB."]
+
+        with self.assertRaises(CliError) as ctx:
+            validate_agent_report(report)
+
+        self.assertEqual(ctx.exception.error_type, "contract_error")
+        self.assertTrue(any("provider failures" in error["message"] for error in ctx.exception.details["errors"]))
+
+    def test_build_agent_report_surfaces_fli_failures(self) -> None:
+        report = build_agent_report(
+            {
+                "live_search": {
+                    "failures": [
+                        {
+                            "direction": "outbound",
+                            "leg": "hub_to_destination",
+                            "origin": "IST",
+                            "destination": "FRA",
+                            "date": "2026-08-14",
+                            "provider": "fli",
+                            "error": {
+                                "type": "upstream_error",
+                                "message": "FLI MCP request failed: URLError: <urlopen error [Errno 61] Connection refused>",
+                            },
+                        }
+                    ]
+                },
+                "ranked_candidates": [],
+                "ranked": [],
+                "assembly": {},
+            }
+        )
+
+        validate_agent_report(report)
+        self.assertEqual(report["provider_failures"][0]["provider"], "fli")
+        self.assertIn("Provider failure: FLI failed", " ".join(report["answer_lines"]))
 
     def test_json_cli_envelope_reports_contract_failure(self) -> None:
         payload = {

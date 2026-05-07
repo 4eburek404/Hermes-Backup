@@ -79,6 +79,15 @@ def semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
                 }
             )
 
+    if report.get("provider_failures") and "provider failure" not in answer_text and "failed" not in answer_text:
+        errors.append(
+            {
+                "path": "$.answer_lines",
+                "message": "answer_lines must surface provider failures",
+                "validator": "semantic",
+            }
+        )
+
     return errors
 
 

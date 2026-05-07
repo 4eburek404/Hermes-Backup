@@ -248,6 +248,30 @@ def rejected_pair_warnings(data: dict[str, Any], limit: int = 5) -> list[dict[st
     return warnings
 
 
+def provider_failure_summary(failure: dict[str, Any]) -> dict[str, Any]:
+    error = failure.get("error") if isinstance(failure.get("error"), dict) else {}
+    return {
+        "direction": failure.get("direction"),
+        "leg": failure.get("leg"),
+        "origin": failure.get("origin"),
+        "destination": failure.get("destination"),
+        "date": failure.get("date"),
+        "provider": failure.get("provider"),
+        "error": {
+            "type": error.get("type"),
+            "message": error.get("message"),
+        },
+    }
+
+
+def provider_failures(live: dict[str, Any], limit: int = 10) -> list[dict[str, Any]]:
+    return [
+        provider_failure_summary(item)
+        for item in (live.get("failures") or [])[: max(0, limit)]
+        if isinstance(item, dict)
+    ]
+
+
 def build_answer_lines(report: dict[str, Any]) -> list[str]:
     lines: list[str] = []
     options = report.get("recommended_options") or []
@@ -274,6 +298,18 @@ def build_answer_lines(report: dict[str, Any]) -> list[str]:
             f"{price_label(offer.get('price'), offer.get('currency'))} "
             f"{control.get('origin')}->{control.get('destination')} "
             f"{' + '.join(offer.get('flight_numbers') or []) or 'route offer'}."
+        )
+
+    failures = report.get("provider_failures") or []
+    if failures:
+        first = failures[0]
+        error = first.get("error") or {}
+        provider = str(first.get("provider") or "provider").upper()
+        route = f"{first.get('origin')}->{first.get('destination')}"
+        lines.append(
+            f"Provider failure: {provider} failed on {len(failures)} segment search(es); "
+            f"first {route} {first.get('date')}: {error.get('message') or 'unknown error'}. "
+            "Do not treat this as no-flight evidence or silently replace it with another provider."
         )
 
     priority_options = report.get("priority_options") or []
@@ -329,6 +365,7 @@ def build_agent_report(data: dict[str, Any]) -> dict[str, Any]:
             "Segment assembly prices direct one-way legs and does not construct GDS, airline through-fares, or guaranteed single-PNR fares.",
             "Kupibilet aggregate controls can reveal provider-assembled route offers, but ticket protection, baggage, fare rules, and final price still require booking-screen verification.",
             "Travelpayouts/Aviasales cached absence is not negative evidence.",
+            "Provider failures such as unavailable FLI MCP are source availability failures, not route absence evidence.",
         ],
         "hub_viability": [
             {
@@ -355,6 +392,7 @@ def build_agent_report(data: dict[str, Any]) -> dict[str, Any]:
             for item in (live.get("segment_searches") or [])[:20]
             if isinstance(item, dict)
         ],
+        "provider_failures": provider_failures(live),
         "recommended_options": options,
         "priority_options": priority_options,
         "aggregate_controls": aggregate_controls,
