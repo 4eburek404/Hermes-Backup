@@ -100,27 +100,26 @@ def raw_forbidden_scan() -> list[str]:
     return findings
 
 
-def verify_cli_backup() -> dict[str, object]:
-    agent_manifest_path = REPO / "cli" / "hermes-agent" / "manifest.json"
-    skill_clis_manifest_path = REPO / "cli" / "skill-clis" / "manifest.json"
-    if not agent_manifest_path.exists():
-        raise RuntimeError("Missing CLI backup manifest: cli/hermes-agent/manifest.json")
-    if not skill_clis_manifest_path.exists():
-        raise RuntimeError("Missing skill CLIs manifest: cli/skill-clis/manifest.json")
+def verify_development_ref() -> dict[str, object]:
+    manifest_path = REPO / "development" / "hermes-agent.json"
+    if not manifest_path.exists():
+        raise RuntimeError("Missing development ref manifest: development/hermes-agent.json")
 
-    agent = json.loads(agent_manifest_path.read_text(encoding="utf-8"))
-    skill_clis = json.loads(skill_clis_manifest_path.read_text(encoding="utf-8"))
-    if agent.get("tracked_diff_files") and not (REPO / "cli" / "hermes-agent" / "tracked-changes.patch").exists():
-        raise RuntimeError("Hermes Agent tracked changes exist but tracked-changes.patch is missing")
-    entries = [entry.get("name") for entry in skill_clis.get("entries", [])]
-    for expected in ["article", "flights", "hh-ru", "knowledge"]:
-        if expected not in entries:
-            raise RuntimeError(f"Skill CLI snapshot missing expected directory: {expected}")
-    return {
-        "hermes_agent_status_count": agent.get("status_count"),
-        "hermes_agent_head_short": agent.get("git_head_short"),
-        "skill_clis_entries": entries,
-    }
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    required = {"repo_url", "branch", "head", "head_short", "upstream_url"}
+    missing = sorted(required - set(data.keys()))
+    if missing:
+        raise RuntimeError(f"Development ref manifest missing fields: {missing}")
+    extra = sorted(set(data.keys()) - required)
+    if extra:
+        raise RuntimeError(f"Development ref manifest has non-ref fields: {extra}")
+    if data.get("branch") != "cleanup/skills-cli-runtime-source":
+        raise RuntimeError(f"Unexpected development branch: {data.get('branch')}")
+    if not str(data.get("head") or ""):
+        raise RuntimeError("Development ref manifest has empty head")
+    if (REPO / "cli").exists():
+        raise RuntimeError("Legacy CLI source backup directory still exists: cli/")
+    return data
 
 
 def check_sqlite(path: Path) -> str:
@@ -289,9 +288,7 @@ def main(argv: list[str] | None = None) -> int:
         REPO / "hermes" / "config.yaml.redacted",
         REPO / "hermes" / "env.keys",
         REPO / "hermes" / "holographic-memory" / "memory_store.sqlite",
-        REPO / "cli" / "README.md",
-        REPO / "cli" / "hermes-agent" / "manifest.json",
-        REPO / "cli" / "skill-clis" / "manifest.json",
+        REPO / "development" / "hermes-agent.json",
     ]
     missing = [str(p.relative_to(REPO)) for p in required if not p.exists()]
     if missing:
@@ -344,7 +341,7 @@ def main(argv: list[str] | None = None) -> int:
     if forbidden:
         raise RuntimeError(f"Forbidden raw/cache paths present in plaintext repo: {forbidden[:50]}")
 
-    cli = verify_cli_backup()
+    development_ref = verify_development_ref()
     top_manifest = json.loads((REPO / "MANIFEST.json").read_text(encoding="utf-8"))
 
     print(json.dumps({
@@ -366,7 +363,7 @@ def main(argv: list[str] | None = None) -> int:
         "plaintext_secret_findings": 0,
         "forbidden_plaintext_paths": 0,
         "files_over_github_limit": 0,
-        "cli_backup": cli,
+        "development_ref": development_ref,
     }, ensure_ascii=False))
     return 0
 

@@ -5,7 +5,7 @@
 
 ## Context
 - Created: 2026-05-03.
-- Project path: `/home/konstantin/code/clis/flights`.
+- Project path: `[legacy CLI path removed; current source is the development repo skills tree]/flights`.
 - `flights u6-prices` использует public `mobile_calendar` endpoint без auth.
 - Текущий endpoint даёт daily min prices примерно на 3 месяца от `--from-date`.
 - Endpoint не даёт номера рейсов, времена вылета/прилёта или availability.

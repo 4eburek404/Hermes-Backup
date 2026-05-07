@@ -9,9 +9,9 @@
 - GitHub `main` resolved in this run to commit `cb2e1cedd4efdcf13538cc9364a649e2a59eb091`.
 - Runtime paths verified:
   - skill: `/home/konstantin/.hermes/skills/productivity/flight-search`
-  - CLI source: `/home/konstantin/code/clis/flights`
+  - CLI source: `[legacy CLI path removed; current source is the development repo skills tree]/flights`
   - executable shim: `/home/konstantin/.local/bin/flights`
-  - Python module path after install: `/home/konstantin/code/clis/flights/flights_cli/__init__.py`
+  - Python module path after install: `[legacy CLI path removed; current source is the development repo skills tree]/flights/flights_cli/__init__.py`
 
 ## Non-goals
 - Do not edit `SOUL.md`, `USER.md`, or `MEMORY.md`.
@@ -39,12 +39,12 @@
   - `git ls-remote https://github.com/4eburek404/Hermes.git refs/heads/main` returned `cb2e1cedd4efdcf13538cc9364a649e2a59eb091`.
   - Sparse checkout `git rev-parse HEAD` matched the same commit.
 - Runtime before fix:
-  - `flights_cli.__file__` initially pointed to `/tmp/hermes-4eburek404-cli/cli/skill-clis/flights/flights_cli/__init__.py`, proving runtime was bound to a temp checkout.
+  - `flights_cli.__file__` initially pointed to `/tmp/hermes-4eburek404-cli/skills/<category>/<skill>/cli/flights/flights_cli/__init__.py`, proving runtime was bound to a temp checkout.
 - Runtime after reinstall:
   - `command -v flights` → `/home/konstantin/.local/bin/flights`.
   - `flights --version` → `flights 0.8.0`.
   - package metadata → `flights-cli 0.8.0`.
-  - module path → `/home/konstantin/code/clis/flights/flights_cli/__init__.py`.
+  - module path → `[legacy CLI path removed; current source is the development repo skills tree]/flights/flights_cli/__init__.py`.
   - `flights --json doctor` → `ok=True`, `version=0.8.0`, cache dir exists, catalog `stale_count=0`.
 - Skill:
   - `skill_view('flight-search')` loaded `/home/konstantin/.hermes/skills/productivity/flight-search/SKILL.md`.

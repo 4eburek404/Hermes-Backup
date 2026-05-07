@@ -16,13 +16,13 @@ Update the local `flights` CLI and `flight-search` skill from GitHub repository 
 ## Installed state
 - Skill: `/home/konstantin/.hermes/skills/productivity/flight-search`
 - Legacy duplicate removed: `flight-search-routing`
-- CLI source: `/home/konstantin/code/clis/flights`
+- CLI source: `[legacy CLI path removed; current source is the development repo skills tree]/flights`
 - Executable shim: `/home/konstantin/.local/bin/flights`
 - Runtime command: `/home/konstantin/.local/bin/flights`
 - CLI version: `flights 0.8.0`
 - Python package metadata: `flights-cli 0.8.0`
 - Python module version: `0.8.0`
-- Python module path: `/home/konstantin/code/clis/flights/flights_cli/__init__.py`
+- Python module path: `[legacy CLI path removed; current source is the development repo skills tree]/flights/flights_cli/__init__.py`
 
 ## Verification
 ### GitHub source
@@ -48,7 +48,7 @@ Update the local `flights` CLI and `flight-search` skill from GitHub repository 
 - `flights --catalog-refresh never --json route plan SVX LHR --depart-date 2026-07-19 --profile business`: `ok=True`, command `route plan`
 
 ### Test suite
-- Command: `python3 -m pytest -q /home/konstantin/code/clis/flights/tests`
+- Command: `python3 -m pytest -q [legacy CLI path removed; current source is the development repo skills tree]/flights/tests`
 - Result: `66 passed, 9 subtests passed in 4.59s`
 
 ## Durable memory/facts

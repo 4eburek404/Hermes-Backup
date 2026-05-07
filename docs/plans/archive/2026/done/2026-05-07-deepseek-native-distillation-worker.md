@@ -28,7 +28,7 @@ Implement Step 1: add a worker-level native Ollama `/api/chat` branch for `deeps
 ## Verification
 - RED observed: `python3 -m unittest tests.test_distillation_worker_native.DistillationWorkerNativeOllamaTests.test_deepseek_v4_pro_uses_native_ollama_json_without_thinking -v` failed before implementation with `status: error` instead of `ok`.
 - Targeted tests passed: `python3 -m unittest tests.test_distillation_worker_native -v` — 2 tests OK.
-- Existing knowledge CLI offline tests passed: `python3 cli/skill-clis/knowledge/tests/test_offline.py -v` — 5 tests OK.
+- Existing knowledge CLI offline tests passed: `python3 skills/<category>/<skill>/cli/knowledge/tests/test_offline.py -v` — 5 tests OK.
 - Syntax checks passed: `python3 -m py_compile` for repo and installed `distillation_worker.py`.
 - Installed skill copy verified equal to repo copy for `scripts/distillation_worker.py` and `references/distillation.md`.
 - Tiny live smoke via installed worker: native DeepSeek request shape used `/api/chat`, `format:"json"`, `think:false`, `stream:false`, `num_predict:512`; `deepseek_in_worker_models=False`; response `status: ok`, `valid_candidates: 1`.

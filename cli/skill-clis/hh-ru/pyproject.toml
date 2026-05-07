@@ -1,9 +1,0 @@
-[project]
-name = "hh-ru-cli"
-version = "0.1.0"
-description = "Composable CLI for the hh.ru public API"
-requires-python = ">=3.10"
-
-[project.scripts]
-hh-ru = "hh_ru_cli.__main__:entrypoint"
-

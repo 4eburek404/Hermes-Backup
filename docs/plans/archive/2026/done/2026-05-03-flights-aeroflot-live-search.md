@@ -4,7 +4,7 @@
 Add a truly live Aeroflot/Kupibilet-backed search path to `flights` so SVX → MOW on 2026-07-19 returns the full set of SU options instead of the Travelpayouts cached false-negative/partial result.
 
 ## Context
-- Project path: `/home/konstantin/code/clis/flights`.
+- Project path: `[legacy CLI path removed; current source is the development repo skills tree]/flights`.
 - Original execution note: implement directly with strict TDD; subagents are optional because the change is small and localized.
 - Source design: add separate `kb-search` command using Kupibilet `frontend_search`, because earlier investigation found live-style results including the expected 11 SU options.
 - Normalize offers into stable JSON and human output; support carrier and direct-only filters.
@@ -18,8 +18,8 @@ Add a truly live Aeroflot/Kupibilet-backed search path to `flights` so SVX → M
 - Do not remove `su-flights` in this plan; that is tracked separately.
 
 ## Steps
-- [x] Add offline tests for Kupibilet payload and parsing in `/home/konstantin/code/clis/flights/tests/test_offline.py`.
-- [x] Implement `build_kupibilet_payload` and `parse_kupibilet_frontend_search` in `/home/konstantin/code/clis/flights/flights_cli/__main__.py`.
+- [x] Add offline tests for Kupibilet payload and parsing in `[legacy CLI path removed; current source is the development repo skills tree]/flights/tests/test_offline.py`.
+- [x] Implement `build_kupibilet_payload` and `parse_kupibilet_frontend_search` in `[legacy CLI path removed; current source is the development repo skills tree]/flights/flights_cli/__main__.py`.
 - [x] Add CLI command `kb-search` with `origin`, `destination`, `--depart-date`, `--currency`, `--only-carrier`, `--direct-only`, `--timeout`, and `--limit`.
 - [x] Add human renderer and JSON envelope support for `kb-search`.
 - [x] Run offline unit tests and syntax checks.
@@ -27,7 +27,7 @@ Add a truly live Aeroflot/Kupibilet-backed search path to `flights` so SVX → M
 - [x] Update `flight-search-routing` skill/runbook references so future Aeroflot live searches use `kb-search` with explicit live-source caveat.
 
 ## Verification
-- [x] `PYTHONPATH=/home/konstantin/code/clis/flights python3 -m unittest discover -s tests -v` passes.
+- [x] `PYTHONPATH=[legacy CLI path removed; current source is the development repo skills tree]/flights python3 -m unittest discover -s tests -v` passes.
 - [x] `python3 -m py_compile flights_cli/__main__.py tests/test_offline.py` passes from the flights CLI project.
 - [x] `flights --json kb-search SVX MOW --depart-date 2026-07-19 --only-carrier SU --direct-only --limit 20` returns a valid JSON envelope.
 - [x] Live result has `offer_count` equal to the observed live expectation for the route/date or records a dated source-side deviation.
@@ -47,7 +47,7 @@ Current status: done
 ## Notes
 2026-05-05: active-plan audit — verified complete and archived.
 Evidence:
-- Offline tests: `PYTHONPATH=/home/konstantin/code/clis/flights python3 -m unittest discover -s tests -v` → 30 tests passed.
+- Offline tests: `PYTHONPATH=[legacy CLI path removed; current source is the development repo skills tree]/flights python3 -m unittest discover -s tests -v` → 30 tests passed.
 - Syntax: `python3 -m py_compile flights_cli/__main__.py tests/test_offline.py` → passed.
 - Live JSON: `flights --json kb-search SVX MOW --depart-date 2026-07-19 --only-carrier SU --direct-only --limit 20 --timeout 90` → `ok=true`, `http_status=200`, `offer_count=11`, `unique_flight_count=11`.
 - Human output lists 11 direct SU-marketed options for SVX→MOW on 2026-07-19 and labels source as Kupibilet live aggregate with recheck caveat.

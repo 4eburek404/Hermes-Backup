@@ -1,25 +1,11 @@
 {
-  "created_at_utc": "2026-05-07T13:55:59.719166+00:00",
-  "timestamp": "20260507-135559",
+  "created_at_utc": "2026-05-07T14:58:27.969399+00:00",
+  "timestamp": "20260507-145827",
   "source_home": "/home/konstantin",
   "hermes_home": "/home/konstantin/.hermes",
-  "upstream_source_checkout": "/home/konstantin/.hermes/hermes-agent",
-  "upstream_source_backup_mode": "manifest+patch, not full vendored repo",
-  "skill_clis_source": "/home/konstantin/.hermes/hermes-agent/local/skill-clis",
   "memory_store_snapshot": "hermes/holographic-memory/memory_store.sqlite",
-  "cli_backup": {
-    "hermes_agent_manifest": "cli/hermes-agent/manifest.json",
-    "hermes_agent_patch": null,
-    "hermes_agent_untracked_copied": 0,
-    "skill_clis": "cli/skill-clis",
-    "skill_clis_entries": [
-      "article",
-      "flights",
-      "hh-ru",
-      "knowledge"
-    ]
-  },
-  "plaintext_files_sanitized": 1,
+  "development_ref": "development/hermes-agent.json",
+  "plaintext_files_sanitized": 17,
   "secret_artifacts": [
     "secrets-encrypted/hermes-secrets-20260507-133539.tar.zst.age"
   ],
@@ -39,13 +25,13 @@
     "mode": "never",
     "weekly_encrypted_dow": 6,
     "local_weekday": 3,
-    "local_time": "2026-05-07T15:55:59.719166+02:00",
+    "local_time": "2026-05-07T16:58:27.969399+02:00",
     "max_encrypted_age_days": 8.0,
     "retention": "latest",
     "latest_secret_timestamp": "20260507-133539",
     "latest_state_timestamp": "20260507-133539",
-    "secret_age_days": 0.0141,
-    "state_age_days": 0.0141,
+    "secret_age_days": 0.0575,
+    "state_age_days": 0.0575,
     "existing_encrypted_ok": true,
     "encrypted_stale": false,
     "secret_metadata_changed": false,

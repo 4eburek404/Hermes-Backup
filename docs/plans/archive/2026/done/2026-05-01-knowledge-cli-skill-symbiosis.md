@@ -1,7 +1,7 @@
 # Plan: knowledge CLI + companion skill symbiosis
 
 ## Goal
-Улучшить связку `/home/konstantin/code/clis/knowledge` и companion skill `/home/konstantin/.codex/skills/knowledge-cli/SKILL.md`, чтобы skill не просто перечислял команды, а задавал decision protocol, а CLI умел машинно проверять/показывать этот контракт.
+Улучшить связку `[legacy CLI path removed; current source is the development repo skills tree]/knowledge` и companion skill `/home/konstantin/.codex/skills/knowledge-cli/SKILL.md`, чтобы skill не просто перечислял команды, а задавал decision protocol, а CLI умел машинно проверять/показывать этот контракт.
 
 ## Context
 CLI уже установлен как `knowledge` и работает read-only. Companion skill есть в Codex skill store. Сейчас симбиоз слабый: skill ссылается на CLI, но CLI не знает о companion contract, не умеет проверять presence/drift companion skill и не даёт агенту self-describing подсказку.
@@ -20,7 +20,7 @@ CLI уже установлен как `knowledge` и работает read-only
 - [x] Запустить tests и smoke checks.
 
 ## Verification
-- `make test` в `/home/konstantin/code/clis/knowledge` проходит.
+- `make test` в `[legacy CLI path removed; current source is the development repo skills tree]/knowledge` проходит.
 - `knowledge --json skill companion` возвращает ok и данные о companion skill.
 - `knowledge skill companion --format md` даёт компактный протокол для агента.
 - Companion skill упоминает новую команду и остаётся валидным SKILL.md.

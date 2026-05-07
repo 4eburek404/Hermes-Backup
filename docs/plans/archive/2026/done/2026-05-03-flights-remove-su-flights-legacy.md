@@ -4,7 +4,7 @@
 Remove the legacy Travelpayouts `flights su-flights` command so Aeroflot searches have one clear live workflow: `flights kb-search ... --only-carrier SU`.
 
 ## Context
-- Project path: `/home/konstantin/code/clis/flights`.
+- Project path: `[legacy CLI path removed; current source is the development repo skills tree]/flights`.
 - Original execution note: execute directly with strict TDD; this local project is documented as not being a git repository, so branch/commit steps are not available there.
 - Architecture: delete the public parser entry, command handler, and human renderer for `su-flights`.
 - Keep generic Travelpayouts request tooling (`flights request search`) intact because other workflows still use it.
@@ -19,14 +19,14 @@ Remove the legacy Travelpayouts `flights su-flights` command so Aeroflot searche
 ## Steps
 - [x] Add regression test `test_su_flights_legacy_command_is_removed` using `build_parser().parse_args([...])` inside `assertRaises(SystemExit)`.
 - [x] Run the targeted test and confirm RED while `su-flights` still parses.
-- [x] Remove `command_su_flights` from `/home/konstantin/code/clis/flights/flights_cli/__main__.py`.
+- [x] Remove `command_su_flights` from `[legacy CLI path removed; current source is the development repo skills tree]/flights/flights_cli/__main__.py`.
 - [x] Remove the `render_human` branch for `command == "su-flights"`.
 - [x] Remove the `sub.add_parser("su-flights", ...)` block.
 - [x] Update `flight-search-routing` skill and linked references so they document only the live `kb-search` Aeroflot workflow.
 - [x] Run the full offline test suite and CLI smoke checks.
 
 ## Verification
-- [x] `PYTHONPATH=/home/konstantin/code/clis/flights python3 -m unittest discover -s tests -v` passes.
+- [x] `PYTHONPATH=[legacy CLI path removed; current source is the development repo skills tree]/flights python3 -m unittest discover -s tests -v` passes.
 - [x] `python3 -m py_compile flights_cli/__main__.py tests/test_offline.py` passes from the flights CLI project.
 - [x] `flights --help` lists `kb-search` and does not list `su-flights`.
 - [x] `flights kb-search --help` works.
