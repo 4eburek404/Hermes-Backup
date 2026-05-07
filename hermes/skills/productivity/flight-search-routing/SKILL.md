@@ -7,7 +7,7 @@ license: MIT
 metadata:
   hermes:
     tags: [Flights, Travel, Aviasales, Travelpayouts]
-    prerequisites: [flights CLI, fli CLI, travelpayouts_flight_search tool]
+    prerequisites: [flights CLI, self-hosted FLI MCP, travelpayouts_flight_search tool]
 ---
 
 # Flight Search with Multi-Segment Routing
@@ -35,7 +35,7 @@ That file is a **skill reference JSON Schema contract** for agent behavior. It i
 ## Dispatcher Protocol
 
 1. **Load the contract.** For non-trivial searches, read `references/business-flight-routing.schema.json` before ranking or recommending. Use it as the generic policy source for `preferred_airports`, `airport_compatibility`, `source_policy`, `ranking_policy`, `answer_contract`, and validation gates.
-2. **Use live-first evidence.** Prefer `flights` CLI/live aggregate, airline calendars, `fli` for suitable non-Russian segments, browser/source pages, and saved artifacts. Demote Travelpayouts/Aviasales-style cached APIs to the **last sanity/price-link layer**; never use cached absence/`0 results` as negative evidence that a route, direct flight, or round-trip does not exist.
+2. **Use live-first evidence.** Prefer `flights` CLI/live aggregate, airline calendars, self-hosted FLI MCP for suitable non-Russian segments, browser/source pages, and saved artifacts. Demote Travelpayouts/Aviasales-style cached APIs to the **last sanity/price-link layer**; never use cached absence/`0 results` as negative evidence that a route, direct flight, or round-trip does not exist.
 3. **Preserve artifacts.** For multi-step/high-stakes recommendations, save or identify reproducible artifacts under a deterministic folder such as `~/flight_search_artifacts/<route>_<dates>_<source>/` and mention source type in the final answer.
 4. **Validate airports before price.** Compare actual segment airports, not only city labels. Reject or explicitly demote incompatible airport changes unless the user accepted the transfer and the risk is named.
 5. **Assemble enough depth.** Do not let a price-sorted source truncate away the safest, fastest, preferred-airport, carrier-relevant, or schedule-best option. Keep frontier representatives when they materially change the decision.
@@ -84,7 +84,27 @@ Load linked topical references only when the request needs them:
 - `references/aeroflot-live-kupibilet-frontend-search.md`;
 - flights CLI refactor/cache-contract review notes when auditing or troubleshooting `route plan`, `route kb-assemble`, catalog refresh, or offline-first test failures (`references/flights-cli-refactor-cache-contract-2026-05-06.md`).]
 
-For exact CLI syntax, call `flights <cmd> --help` or `fli --help`; do not copy stale help text into this skill.
+For exact CLI syntax, call `flights <cmd> --help`; do not copy stale help text into this skill.
+
+## FLI MCP Boundary
+
+FLI is used through the Hermes `flights` CLI MCP adapter, not by calling a
+hosted Google service. The expected deployment is a self-hosted Docker sidecar
+on the VPS where the agent runs:
+
+```bash
+FLIGHTS_FLI_MCP_URL=http://127.0.0.1:8000/mcp
+```
+
+Use `flights --json fli-search ORIGIN DEST --depart-date YYYY-MM-DD` for direct
+FLI MCP segment checks, `flights --json fli-dates ...` for flexible dates, and
+`flights --json route live-assemble ...` for provider-policy assembly.
+
+Default `route live-assemble --provider-policy auto` uses Kupibilet for
+Russia-touching segments and FLI MCP for non-Russia segments. Do not use FLI MCP
+as negative evidence for Russia-origin availability; prefer Kupibilet/U6/
+Aeroflot-compatible sources for Russia-touching legs. FLI MCP is still Google
+Flights-derived advisory data and requires final booking-screen verification.
 
 ## Minimal Verifier Gate
 
