@@ -17,6 +17,40 @@ providers:
       gemma4:31b-cloud: {}
     request_timeout_seconds: 300
     stale_timeout_seconds: 900
+  ollama-native:
+    name: ollama-native
+    base_url: http://127.0.0.1:11434
+    api_mode: ollama_native_chat
+    model: glm-5.1:cloud
+    models:
+      deepseek-v4-flash:cloud: {}
+      deepseek-v4-pro:cloud: {}
+      deepseek-v3.1:671b-cloud: {}
+      glm-5.1:cloud: {}
+      glm-5:cloud: {}
+      glm-4.7:cloud: {}
+      glm-4.6:cloud: {}
+      kimi-k2.6:cloud: {}
+      kimi-k2.5:cloud: {}
+      kimi-k2:1t-cloud: {}
+      nemotron-3-super:cloud: {}
+      qwen3-coder-next:cloud: {}
+      qwen3-coder:480b-cloud: {}
+      qwen3.5:cloud: {}
+      qwen3.5:397b-cloud: {}
+      qwen3-vl:235b-cloud: {}
+      minimax-m2.5:cloud: {}
+      minimax-m2.1:cloud: {}
+      minimax-m2:cloud: {}
+      gpt-oss:120b-cloud: {}
+      gpt-oss:20b-cloud: {}
+      gemma4:31b-cloud: {}
+      devstral-small-2:24b-cloud: {}
+      ministral-3:14b-cloud: {}
+      ministral-3:8b-cloud: {}
+      ministral-3:3b-cloud: {}
+    request_timeout_seconds: 300
+    stale_timeout_seconds: 900
   openai-codex:
     models:
       gpt-5.5:
@@ -427,4 +461,5 @@ plugins:
     auto_extract: false
   enabled:
   - travelpayouts-flights
+  - flight-skill-guard
   disabled: []

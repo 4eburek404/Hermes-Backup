@@ -145,6 +145,7 @@ When evaluating DeepSeek V4 Pro for structured output:
 5. Benchmark on production-shaped payloads before changing cron worker pools. Tiny prompt success only proves endpoint availability and basic JSON ability.
 6. Prefer native Ollama `/api/chat` with `format:"json"` + `think:false` as a candidate path for extraction tasks, but validate on the full worker payload.
 7. For deep analysis, long reasoning can be desirable; judge by coverage, accuracy, and usefulness, not by latency alone.
+8. If the follow-up question is architectural (“why not make Ollama native?”), use `references/ollama-native-provider-split-2026-05-07.md`: add a separate native `ollama-native` / `ollama_native_chat` path rather than silently repointing existing `/v1` `ollama-local` semantics.
 
 ## Reporting rule
 

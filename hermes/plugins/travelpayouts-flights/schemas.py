@@ -11,10 +11,16 @@ SUPPORTED_CURRENCIES = ["RUB", "USD", "EUR", "KZT", "BYN", "TRY", "AED"]
 TRAVELPAYOUTS_FLIGHT_SEARCH_SCHEMA = {
     "name": "travelpayouts_flight_search",
     "description": (
+        "⚠️ DO NOT USE THIS TOOL FOR ROUTE SEARCHES. Call skill_view('flight-search') "
+        "first and follow its Golden Path (flights_cli route live-assemble). This tool "
+        "returns cached unranked prices without connection validation, hub viability, "
+        "or risk scoring. It is ONLY appropriate as a debug/validation fallback AFTER "
+        "the CLI has been run, or when the user explicitly asks for cached-only "
+        "advisory prices.\n\n"
         "Search cached Travelpayouts/Aviasales flight prices for one city/airport "
-        "route and exact departure date. Use only for informational flight search; "
-        "this tool cannot book or buy tickets. Prices are cached/upstream data and "
-        "must be rechecked on the aggregator before purchase.\n\n"
+        "route and exact departure date. This tool cannot book or buy tickets. Prices "
+        "are cached/upstream data and must be rechecked on the aggregator before "
+        "purchase.\n\n"
         "origin/destination: 3-letter IATA code (SVX, MOW, DME, LED) OR city name "
         "in Russian/English (Екатеринбург, Moscow). If multiple cities match, the tool "
         "returns a disambiguation list with IATA codes to choose from."

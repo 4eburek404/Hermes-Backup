@@ -159,12 +159,13 @@ Target: `memory.provider: holographic`, `plugins.hermes-memory-store.auto_extrac
 
 ## Structured JSON from Ollama Cloud models
 
-1. No `json_schema` strict mode — not enforced by remote proxy.
-2. Use `response_format: {"type":"json_object"}` + explicit enum values in system prompt.
-3. Parse defensively: JSON parse → strip ```json fences → extract first `{...}`.
-4. `glm-5.1:cloud`: system prompt in English; Russian system prompt + `json_object` produced empty content. Russian claim/reason fields OK.
-5. Reasoning models (`deepseek-v4-pro`): reasoning tokens count toward limit and may be returned as `message.reasoning`, not `reasoning_content`. Cron-shaped distillation repro on 2026-05-01: `deepseek-v4-pro:cloud` exited in ~93–113s but spent the 3000-token budget on reasoning and produced only 127 chars of incomplete JSON. Treat non-parseable JSON as `parse_error`, not `ok/0 candidates`; do not use DeepSeek in the production distillation worker pool without a fresh benchmark.
-6. `kimi-k2.6`: not recommended — excessive reasoning tokens on trivial prompts, unreliable/truncated JSON.
+1. Endpoint matters. `ollama-local` uses OpenAI-compatible `/v1/chat/completions`; `ollama-native` uses native `/api/chat` with Hermes `api_mode: ollama_native_chat`.
+2. Compatibility path: no `json_schema` strict mode — not enforced by remote proxy. Use `response_format: {"type":"json_object"}` + explicit enum values in system prompt.
+3. Native path: use top-level `format:"json"`, `think:false` for reasoning models when hidden reasoning is not wanted, `options.num_predict` for visible output budget, and `stream:false` for non-stream JSON responses. Parse content from native `message.content`; usage is Ollama prompt/eval counts, not OpenAI `usage`.
+4. Parse defensively: JSON parse → strip ```json fences → extract first `{...}`.
+5. `glm-5.1:cloud`: system prompt in English; Russian system prompt + compatibility `json_object` produced empty content. Russian claim/reason fields OK.
+6. Reasoning models (`deepseek-v4-pro`): reasoning tokens count toward limit and may be returned as `message.reasoning`, not `reasoning_content`. Cron-shaped distillation repro on 2026-05-01: `deepseek-v4-pro:cloud` through compatibility `/v1` exited in ~93–113s but spent the 3000-token budget on reasoning and produced only 127 chars of incomplete JSON. Native `/api/chat` with `think:false` removes that hidden-reasoning budget issue, but production use still needs the compact output contract and fresh task-shaped benchmark.
+7. `kimi-k2.6`: not recommended — excessive reasoning tokens on trivial prompts, unreliable/truncated JSON.
 
 ## Holographic memory hygiene
 

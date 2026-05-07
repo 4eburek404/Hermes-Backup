@@ -67,7 +67,7 @@ When the user asks to audit local CLIs or the skill↔CLI layer, use `references
 ### Safety
 
 1. **Audit before mutation.** Always gather metrics, read current state, and classify before editing.
-2. **Separate verified facts from hypotheses.** A tool check is verified. A semantic cluster is an expert hypothesis until reviewed.
+2. **Separate verified facts from hypotheses.** A tool check is verified. A mocked/unit check verifies implementation shape only; a live smoke verifies endpoint behavior only; production readiness requires production-shaped benchmark evidence.
 3. **Never save secrets.** No OAuth tokens, API keys, passwords, cookies, private keys, full auth JSON, or tokenized webhook URLs. Credential **file paths** are also sensitive metadata — store only section references like "(see config)", not actual paths.
 4. **Respect mode boundaries.** Read-only/dry-run mode forbids all edits. If the user says "do not edit files", that includes docs, plans, skills, config, memory, and cron.
 5. **Conservative edits.** Prefer update/replace/skip over add. Prefer targeted patches over whole-file rewrites. Never delete because something wasn't mentioned today.
@@ -115,6 +115,8 @@ Turn recent Hermes conversations into compact, curated, file-backed knowledge. F
 - Two-tier ensemble: 2 Ollama Cloud workers (glm-5.1 and gemma4:31b) extract candidates; gpt-5.5 curator makes final decisions. DeepSeek V4 Pro is excluded from the production pool unless re-benchmarked and explicitly approved.
 - Use `json_object` mode + explicit enums in prompts (NOT `json_schema` — broken for cloud models). See `references/json-schema-benchmark.md`.
 - Worker script: `scripts/distillation_worker.py`.
+- Verification wording for worker/model changes: distinguish implemented, unit/mocked, live smoke, and production-shaped benchmark. See `references/verification-claims-2026-05-07.md`.
+- DeepSeek native Ollama benchmark lesson: do not blame the model when settings fail. Native `/api/chat` + `think:false` fixes hidden reasoning; a concise output contract (`max 10 candidates`, short claim/reason) fixed visible JSON truncation and passed repeated production-shaped runs even at `num_predict=3000`. See `references/deepseek-native-distillation-benchmark-2026-05-07.md`.
 - NEVER use `ollama run` / `ollama pull` for cloud models (`:cloud` suffix) — causes ENOSPC crash.
 - Memory architecture: see `references/memory-refactoring-2026-05.md` for the 2026-05 refactoring session details, final MEMORY/USER/SOUL composition, and lessons on over-protection anti-patterns.
 - SOUL as behavioral constitution: see `references/soul-behavioral-constitution.md` before auditing/restoring/editing `~/.hermes/SOUL.md`; it captures the 2026-05 restoration, required invariants, and prompt-snapshot activation boundary.
