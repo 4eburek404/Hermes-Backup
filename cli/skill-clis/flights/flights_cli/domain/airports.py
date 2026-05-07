@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..config import AIRPORT_TO_GROUP, MULTI_AIRPORT_GROUPS, SINGLE_AIRPORT_NOTES, SPECIAL_CITY_AIRPORTS
 from ..domain.normalize import normalize_iata
 from ..errors import CliError
+
+if TYPE_CHECKING:
+    from ..store import Location, Store
 
 def airport_group(code: str) -> dict[str, Any] | None:
     group_key = AIRPORT_TO_GROUP.get(code.upper())

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import json
+import subprocess
+import sys
 import unittest
 
 from flights_cli.config import DEFAULT_ROUTE_HUBS
@@ -9,7 +12,7 @@ from flights_cli.orchestrators.route_plan import build_route_plan
 from flights_cli.services.validation import connection_rule, validate_itinerary
 from flights_cli.store import Store
 
-from helpers import CliSubprocessMixin
+from helpers import CliSubprocessMixin, PROJECT, TEST_ENV
 
 
 class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
@@ -356,6 +359,231 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(assembled["data"]["assembly"]["candidate_count"], 1)
         self.assertEqual(assembled["data"]["ranked"][0]["price"], 35803)
         self.assertEqual(assembled["data"]["ranked"][0]["risk"]["grade"], "excellent")
+
+    def test_route_assemble_agent_mode_adds_compact_report_with_segments(self) -> None:
+        def offer(
+            offer_id: str,
+            origin: str,
+            destination: str,
+            departure_at: str,
+            arrival_at: str,
+            price: int,
+            flight_number: str,
+        ) -> dict:
+            return {
+                "id": offer_id,
+                "origin": origin,
+                "destination": destination,
+                "departure_airport": origin,
+                "arrival_airport": destination,
+                "departure_at": departure_at,
+                "arrival_at": arrival_at,
+                "price": price,
+                "currency": "RUB",
+                "segments": [
+                    {
+                        "origin": origin,
+                        "destination": destination,
+                        "departure_at": departure_at,
+                        "arrival_at": arrival_at,
+                        "flight_number": flight_number,
+                        "carrier": flight_number[:2],
+                    }
+                ],
+            }
+
+        segment_results = [
+            {
+                "direction": "outbound",
+                "leg": "origin_to_hub",
+                "query": {"origin": "SVX", "destination": "IST", "date": "2026-07-19", "currency": "RUB"},
+                "offers": [
+                    offer("svx-ist", "SVX", "IST", "2026-07-19T10:30:00+05:00", "2026-07-19T13:55:00+03:00", 24000, "SU630")
+                ],
+            },
+            {
+                "direction": "outbound",
+                "leg": "hub_to_destination",
+                "query": {"origin": "IST", "destination": "DEL", "date": "2026-07-19", "currency": "RUB"},
+                "offers": [
+                    offer("ist-del", "IST", "DEL", "2026-07-19T20:00:00+03:00", "2026-07-20T04:30:00+05:30", 30000, "TK716")
+                ],
+            },
+        ]
+
+        assembled = self._assemble({"segment_results": segment_results}, "--agent-mode")
+        report = assembled["data"]["agent_report"]
+
+        self.assertEqual(assembled["data"]["candidates"], [])
+        self.assertEqual(report["schema_version"], "agent_report.v1")
+        self.assertEqual(report["recommended_options"][0]["segments"][0]["flight_number"], "SU630")
+        self.assertIn("Best CLI-ranked option", report["answer_lines"][0])
+        self.assertIn("does not construct GDS", report["source_boundaries"][0])
+
+    def test_agent_report_surfaces_hidden_all_su_svo_priority_option(self) -> None:
+        def offer(
+            offer_id: str,
+            origin: str,
+            destination: str,
+            departure_at: str,
+            arrival_at: str,
+            price: int,
+            flight_number: str,
+            carrier: str,
+        ) -> dict:
+            return {
+                "id": offer_id,
+                "origin": origin,
+                "destination": destination,
+                "departure_airport": origin,
+                "arrival_airport": destination,
+                "departure_at": departure_at,
+                "arrival_at": arrival_at,
+                "price": price,
+                "currency": "RUB",
+                "segments": [
+                    {
+                        "origin": origin,
+                        "destination": destination,
+                        "departure_at": departure_at,
+                        "arrival_at": arrival_at,
+                        "flight_number": flight_number,
+                        "carrier": carrier,
+                    }
+                ],
+            }
+
+        segment_results = [
+            {
+                "direction": "outbound",
+                "leg": "origin_to_hub",
+                "query": {"origin": "SVX", "destination": "IST", "date": "2026-06-14", "currency": "RUB"},
+                "offers": [
+                    offer("svx-ist", "SVX", "IST", "2026-06-14T07:00:00+05:00", "2026-06-14T09:00:00+03:00", 14000, "SU630", "SU"),
+                    offer("svx-svo", "SVX", "SVO", "2026-06-14T16:30:00+05:00", "2026-06-14T17:15:00+03:00", 19662, "SU1403", "SU"),
+                ],
+            },
+            {
+                "direction": "outbound",
+                "leg": "hub_to_destination",
+                "query": {"origin": "SVO", "destination": "DEL", "date": "2026-06-14", "currency": "RUB"},
+                "offers": [
+                    offer("ist-del", "IST", "DEL", "2026-06-14T13:00:00+03:00", "2026-06-14T20:30:00+05:30", 22000, "6E18", "6E"),
+                    offer("svo-del", "SVO", "DEL", "2026-06-14T21:20:00+03:00", "2026-06-15T06:00:00+05:30", 24660, "SU232", "SU"),
+                ],
+            },
+        ]
+
+        assembled = self._assemble(
+            {"segment_results": segment_results},
+            "--agent-mode",
+            "--max-candidates",
+            "1",
+            "--include-ranked-candidates",
+            "1",
+        )
+        report = assembled["data"]["agent_report"]
+
+        self.assertEqual(len(assembled["data"]["ranked"]), 1)
+        self.assertEqual(assembled["data"]["ranked"][0]["id"], "assembled-1:SVX-DEL")
+        self.assertEqual(report["priority_options"][0]["category"], "all_su_svo")
+        self.assertGreater(report["priority_options"][0]["rank"], 1)
+        self.assertEqual(
+            [segment["flight_number"] for segment in report["priority_options"][0]["segments"]],
+            ["SU1403", "SU232"],
+        )
+        self.assertEqual(report["through_fare_checks"][0]["carrier"], "SU")
+        self.assertIn("Priority control", " ".join(report["answer_lines"]))
+
+    def test_agent_brief_json_returns_only_report(self) -> None:
+        payload = {
+            "segment_results": [
+                {
+                    "direction": "outbound",
+                    "leg": "origin_to_hub",
+                    "query": {"origin": "SVX", "destination": "IST", "date": "2026-07-19", "currency": "RUB"},
+                    "offers": [
+                        {
+                            "id": "svx-ist",
+                            "origin": "SVX",
+                            "destination": "IST",
+                            "departure_airport": "SVX",
+                            "arrival_airport": "IST",
+                            "departure_at": "2026-07-19T10:30:00+05:00",
+                            "arrival_at": "2026-07-19T13:55:00+03:00",
+                            "price": 24000,
+                            "currency": "RUB",
+                            "segments": [
+                                {
+                                    "origin": "SVX",
+                                    "destination": "IST",
+                                    "departure_at": "2026-07-19T10:30:00+05:00",
+                                    "arrival_at": "2026-07-19T13:55:00+03:00",
+                                    "flight_number": "SU630",
+                                    "carrier": "SU",
+                                }
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "direction": "outbound",
+                    "leg": "hub_to_destination",
+                    "query": {"origin": "IST", "destination": "DEL", "date": "2026-07-19", "currency": "RUB"},
+                    "offers": [
+                        {
+                            "id": "ist-del",
+                            "origin": "IST",
+                            "destination": "DEL",
+                            "departure_airport": "IST",
+                            "arrival_airport": "DEL",
+                            "departure_at": "2026-07-19T20:00:00+03:00",
+                            "arrival_at": "2026-07-20T04:30:00+05:30",
+                            "price": 30000,
+                            "currency": "RUB",
+                            "segments": [
+                                {
+                                    "origin": "IST",
+                                    "destination": "DEL",
+                                    "departure_at": "2026-07-19T20:00:00+03:00",
+                                    "arrival_at": "2026-07-20T04:30:00+05:30",
+                                    "flight_number": "TK716",
+                                    "carrier": "TK",
+                                }
+                            ],
+                        }
+                    ],
+                },
+            ]
+        }
+
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "flights_cli",
+                "--json",
+                "route",
+                "assemble",
+                "--profile",
+                "safe",
+                "--agent-brief",
+                "--input",
+                "-",
+            ],
+            cwd=PROJECT,
+            env=TEST_ENV,
+            input=json.dumps(payload),
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        result = json.loads(proc.stdout)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(set(result["data"]), {"agent_report"})
+        self.assertIn("answer_lines", result["data"]["agent_report"])
 
     def test_route_assemble_combines_hub_outbound_with_direct_return_and_dedupes(self) -> None:
         def offer(

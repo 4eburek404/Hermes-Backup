@@ -8,6 +8,7 @@ from ..errors import CliError
 from ..io import read_input_text, read_json_file
 from ..orchestrators.kb_assemble import run_kupibilet_route_assembly
 from ..orchestrators.route_plan import build_route_plan
+from ..services.agent_report import attach_agent_report
 from ..services.assembly import assemble_segment_results, collect_segment_results
 from ..services.ranking import extract_candidate_list, rank_candidate_list
 from ..services.validation import validate_itinerary
@@ -49,4 +50,4 @@ def command_route_assemble(args: argparse.Namespace, store: Store) -> dict[str, 
     segment_results: list[dict[str, Any]] = []
     for path in (args.input or ["-"]):
         segment_results.extend(collect_segment_results(read_json_file(path)))
-    return assemble_segment_results(segment_results, args)
+    return attach_agent_report(assemble_segment_results(segment_results, args), args)

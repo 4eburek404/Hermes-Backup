@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from flights_cli.cli import build_parser, normalize_global_json
+from flights_cli.cli import apply_agent_brief_output, apply_agent_mode_defaults, build_parser, normalize_global_json
 from flights_cli.config import DEFAULT_ROUTE_HUBS
 from flights_cli.env import load_env_file
 
@@ -108,6 +108,40 @@ class CliContractTests(unittest.TestCase):
 
         self.assertEqual(ctx.exception.code, 2)
         self.assertIn("unrecognized arguments: --auto-hubs", stderr.getvalue())
+
+    def test_agent_mode_sets_compact_live_assembly_defaults(self) -> None:
+        args = build_parser().parse_args(
+            ["route", "kb-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--agent-mode"]
+        )
+
+        apply_agent_mode_defaults(args)
+
+        self.assertTrue(args.agent_report)
+        self.assertEqual(args.include_candidates, 0)
+        self.assertEqual(args.include_ranked_candidates, 5)
+        self.assertEqual(args.include_rejected_pairs, 5)
+        self.assertEqual(args.include_segment_results, 0)
+        self.assertEqual(args.max_candidates, 10)
+        self.assertEqual(args.aggregate_control_limit, 5)
+
+    def test_agent_brief_implies_agent_mode_and_trims_json_payload(self) -> None:
+        args = build_parser().parse_args(
+            ["route", "kb-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--agent-brief"]
+        )
+
+        apply_agent_mode_defaults(args)
+        trimmed = apply_agent_brief_output(
+            args,
+            {
+                "agent_report": {"answer_lines": ["ok"]},
+                "ranked": [{"id": "noisy"}],
+                "candidates": [{"id": "raw"}],
+            },
+        )
+
+        self.assertTrue(args.agent_mode)
+        self.assertTrue(args.agent_report)
+        self.assertEqual(trimmed, {"agent_report": {"answer_lines": ["ok"]}})
 
     def test_json_route_plan_envelope_and_repeatable_hubs(self) -> None:
         proc = subprocess.run(
