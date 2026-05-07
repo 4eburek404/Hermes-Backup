@@ -1,0 +1,695 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:hermes:flights-cli:agent-report:v1",
+  "title": "Hermes Flights CLI Agent Report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "route",
+    "status",
+    "source_boundaries",
+    "hub_viability",
+    "segment_searches",
+    "provider_failures",
+    "recommended_options",
+    "priority_options",
+    "aggregate_controls",
+    "through_fare_checks",
+    "rejected_pair_warnings",
+    "answer_lines"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "agent_report.v1"
+    },
+    "route": {
+      "$ref": "#/$defs/route"
+    },
+    "status": {
+      "$ref": "#/$defs/status"
+    },
+    "source_boundaries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "hub_viability": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/hub_viability"
+      }
+    },
+    "segment_searches": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/segment_search"
+      }
+    },
+    "provider_failures": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/provider_failure"
+      }
+    },
+    "recommended_options": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/option"
+      }
+    },
+    "priority_options": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/option"
+      }
+    },
+    "aggregate_controls": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/aggregate_control"
+      }
+    },
+    "through_fare_checks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/through_fare_check"
+      }
+    },
+    "rejected_pair_warnings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/rejected_pair_warning"
+      }
+    },
+    "answer_lines": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "$defs": {
+    "nullable_string": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "nullable_number": {
+      "type": [
+        "number",
+        "string",
+        "null"
+      ]
+    },
+    "nullable_integer": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "string_list": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reason_list": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "additionalProperties": true
+          }
+        ]
+      }
+    },
+    "price": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "amount",
+        "currency"
+      ],
+      "properties": {
+        "amount": {
+          "$ref": "#/$defs/nullable_number"
+        },
+        "currency": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      }
+    },
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "destination",
+        "origin_airports",
+        "destination_airports",
+        "dates",
+        "profile",
+        "routing_strategy",
+        "provider_policy"
+      ],
+      "properties": {
+        "origin": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "destination": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "origin_airports": {
+          "$ref": "#/$defs/string_list"
+        },
+        "destination_airports": {
+          "$ref": "#/$defs/string_list"
+        },
+        "dates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/nullable_string"
+          }
+        },
+        "profile": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "routing_strategy": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "provider_policy": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ranked_output_count",
+        "ranked_total_count",
+        "candidate_count",
+        "candidate_pool_truncated",
+        "failure_count"
+      ],
+      "properties": {
+        "ranked_output_count": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "ranked_total_count": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "candidate_count": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "candidate_pool_truncated": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "failure_count": {
+          "$ref": "#/$defs/nullable_integer"
+        }
+      }
+    },
+    "hub_viability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hub",
+        "viable",
+        "total_offer_count",
+        "missing_legs"
+      ],
+      "properties": {
+        "hub": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "viable": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "total_offer_count": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "missing_legs": {
+          "$ref": "#/$defs/string_list"
+        }
+      }
+    },
+    "segment_search": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "direction",
+        "leg",
+        "origin",
+        "destination",
+        "date",
+        "provider",
+        "status",
+        "reason",
+        "offer_count"
+      ],
+      "properties": {
+        "direction": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "leg": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "origin": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "destination": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "date": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "provider": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "status": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "reason": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "offer_count": {
+          "$ref": "#/$defs/nullable_integer"
+        }
+      }
+    },
+    "provider_failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "direction",
+        "leg",
+        "origin",
+        "destination",
+        "date",
+        "provider",
+        "error"
+      ],
+      "properties": {
+        "direction": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "leg": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "origin": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "destination": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "date": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "provider": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "message"
+          ],
+          "properties": {
+            "type": {
+              "$ref": "#/$defs/nullable_string"
+            },
+            "message": {
+              "$ref": "#/$defs/nullable_string"
+            }
+          }
+        }
+      }
+    },
+    "option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rank",
+        "id",
+        "category",
+        "reason",
+        "ok",
+        "price",
+        "price_text",
+        "elapsed_min",
+        "elapsed",
+        "carriers",
+        "risk",
+        "validation_summary",
+        "connections",
+        "segments",
+        "ticketing_note"
+      ],
+      "properties": {
+        "rank": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "id": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "category": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "reason": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "ok": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "price": {
+          "$ref": "#/$defs/price"
+        },
+        "price_text": {
+          "type": "string"
+        },
+        "elapsed_min": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "elapsed": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "carriers": {
+          "$ref": "#/$defs/string_list"
+        },
+        "risk": {
+          "$ref": "#/$defs/risk"
+        },
+        "validation_summary": {},
+        "connections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/connection"
+          }
+        },
+        "segments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/segment"
+          }
+        },
+        "ticketing_note": {
+          "type": "string"
+        }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "score",
+        "grade",
+        "reject",
+        "top_reasons"
+      ],
+      "properties": {
+        "score": {
+          "$ref": "#/$defs/nullable_number"
+        },
+        "grade": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "reject": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "top_reasons": {
+          "$ref": "#/$defs/reason_list"
+        }
+      }
+    },
+    "connection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "direction",
+        "arrival_airport",
+        "departure_airport",
+        "status",
+        "severity",
+        "actual_min",
+        "actual",
+        "required_min",
+        "required",
+        "risk"
+      ],
+      "properties": {
+        "direction": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "arrival_airport": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "departure_airport": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "status": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "severity": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "actual_min": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "actual": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "required_min": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "required": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "risk": {
+          "$ref": "#/$defs/connection_risk"
+        }
+      }
+    },
+    "connection_risk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "score",
+        "grade",
+        "reasons"
+      ],
+      "properties": {
+        "score": {
+          "$ref": "#/$defs/nullable_number"
+        },
+        "grade": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "reasons": {
+          "$ref": "#/$defs/reason_list"
+        }
+      }
+    },
+    "segment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "direction",
+        "flight_number",
+        "carrier",
+        "marketing_carrier",
+        "operating_carrier",
+        "origin",
+        "destination",
+        "departure_at",
+        "arrival_at"
+      ],
+      "properties": {
+        "direction": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "flight_number": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "carrier": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "marketing_carrier": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "operating_carrier": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "origin": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "destination": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "departure_at": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "arrival_at": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      }
+    },
+    "aggregate_control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "direction",
+        "origin",
+        "destination",
+        "date",
+        "status",
+        "provider",
+        "filters",
+        "offer_count",
+        "raw_variant_count",
+        "top_offers",
+        "error"
+      ],
+      "properties": {
+        "direction": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "origin": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "destination": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "date": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "status": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "provider": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "filters": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "offer_count": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "raw_variant_count": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "top_offers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "error": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      }
+    },
+    "through_fare_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "direction",
+        "route",
+        "date",
+        "carrier",
+        "reason",
+        "verify_with"
+      ],
+      "properties": {
+        "direction": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "route": {
+          "type": "string"
+        },
+        "date": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "carrier": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "verify_with": {
+          "$ref": "#/$defs/string_list"
+        }
+      }
+    },
+    "rejected_pair_warning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "direction",
+        "reason",
+        "airport_pair_status",
+        "arrival_airport",
+        "departure_airport",
+        "actual_min",
+        "required_min",
+        "price",
+        "notes"
+      ],
+      "properties": {
+        "direction": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "reason": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "airport_pair_status": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "arrival_airport": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "departure_airport": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "actual_min": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "required_min": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "price": {
+          "$ref": "#/$defs/price"
+        },
+        "notes": {
+          "$ref": "#/$defs/string_list"
+        }
+      }
+    }
+  }
+}

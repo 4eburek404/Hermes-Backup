@@ -1,0 +1,4 @@
+# Hermes backup encryption recipients.
+# Keep private keys off the VPS except for the VPS-local verifier identity.
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHy9KSERPgHn1iBqBCXAuouLNhvPdxBTl5BtUpxJoR/7 server_monitor_iOS_app@vps-175557
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFEIc+Vi2DCbp1oaWDW7KjdGcgh54Ifa3TG+gczDauTs home@Konstantins-MacBook-Air.local

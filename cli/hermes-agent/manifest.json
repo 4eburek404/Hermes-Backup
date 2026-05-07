@@ -1,0 +1,17 @@
+{
+  "kind": "hermes-agent-cli-source-state",
+  "created_at_utc": "2026-05-07T13:41:42.109708+00:00",
+  "executable": null,
+  "version_output": null,
+  "source_path": "/home/konstantin/.hermes/hermes-agent",
+  "source_exists": true,
+  "git_remote": "https://github.com/4eburek404/Hermes-fork-development.git",
+  "git_branch": "fix/ollama-native-chat-provider",
+  "git_head": "2b723489c210334dbde0b4d47f132e090d8fb8ea",
+  "git_head_short": "2b723489c210",
+  "status_count": 0,
+  "status": [],
+  "tracked_diff_files": [],
+  "untracked_files": [],
+  "backup_mode": "manifest + tracked git patch + safe untracked source files; full upstream repo, .git, venv, caches excluded"
+}

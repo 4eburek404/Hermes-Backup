@@ -1,0 +1,17 @@
+[project]
+name = "flights-cli"
+version = "0.8.0"
+description = "Offline-first flight routing helper for Hermes/Travelpayouts workflows"
+requires-python = ">=3.10"
+dependencies = [
+  "jsonschema>=4.22,<5",
+]
+
+[project.scripts]
+flights = "flights_cli.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["flights_cli*"]
+
+[tool.setuptools.package-data]
+"flights_cli.contracts" = ["*.schema.json"]

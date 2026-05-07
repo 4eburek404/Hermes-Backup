@@ -1,0 +1,8 @@
+name: flight-skill-guard
+version: 0.1.0
+description: "Guards flight-search workflow: blocks direct travelpayouts_flight_search calls until skill_view('flight-search') is loaded first. Enforces the Golden Path (flights_cli route live-assemble)."
+author: Konstantin Orlov / Hermes Agent
+kind: standalone
+hooks:
+  - pre_tool_call
+  - post_tool_call

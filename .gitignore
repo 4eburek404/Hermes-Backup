@@ -1,0 +1,75 @@
+# Hermes personal overlay backup repo
+# Default rule: do not commit raw runtime state, credentials, logs, caches, or DB sidecars.
+
+# Raw secrets / credentials
+.env
+.env.*
+auth.json
+credentials/
+gmail_app_password
+*.token
+*.secret
+*.secrets
+*.password
+*private*key*
+*.pem
+*.key
+*.p12
+*.pfx
+*.kdbx
+
+# Raw Hermes state / sessions must be encrypted artifacts only
+state.db
+state.db-*
+state.db.*
+sessions/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*-wal
+*-shm
+
+# Allow approved SQLite snapshots and encrypted archives
+!hermes/holographic-memory/memory_store.sqlite
+!secrets-encrypted/*.tar.zst.age
+!session-history-encrypted/*.tar.zst.age
+!session-history-encrypted/*.tar.zst.age.part*
+!secrets-encrypted/*.tar.zst.age.part*
+
+# Runtime noise
+logs/
+cache/
+audio_cache/
+image_cache/
+screenshots/
+videos/
+*.log
+*.lock
+*.pid
+*.sock
+*.tmp
+*.swp
+.DS_Store
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+
+# Upstream source checkout must not be vendored at repo root.
+# The reproducible CLI layer under cli/hermes-agent/ stores manifest+patch only.
+/hermes-agent/
+
+# CLI backup noise
+cli/**/.git/
+cli/**/__pycache__/
+cli/**/.pytest_cache/
+cli/**/.mypy_cache/
+cli/**/.ruff_cache/
+cli/**/.venv/
+cli/**/venv/
+cli/**/node_modules/
+cli/**/dist/
+cli/**/build/
+cli/**/*.egg-info/
+cli/**/*.pyc
+cli/**/*.pyo
