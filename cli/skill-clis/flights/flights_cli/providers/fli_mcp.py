@@ -235,12 +235,15 @@ def airport_name_index(cache_dir: str) -> dict[tuple[str, ...], str]:
     return exact
 
 
-def resolve_fli_airport(value: Any, *, store: Store, field: str) -> str:
+def resolve_fli_airport(value: Any, *, store: Store, field: str, preferred_code: str | None = None) -> str:
     text = str(value or "").strip()
     if not text:
         raise CliError(f"FLI {field} is empty", error_type="upstream_error")
     code_like = fli_airport_code_token(value)
     airport_by_code = store.airport_by_code
+    preferred = str(preferred_code or "").strip().upper()
+    if preferred not in airport_by_code:
+        preferred = ""
     if code_like and code_like in airport_by_code:
         return code_like
 
@@ -255,6 +258,8 @@ def resolve_fli_airport(value: Any, *, store: Store, field: str) -> str:
         if key and (set(key) <= set(candidate_key) or set(candidate_key) <= set(key))
     ]
     unique_matches = sorted(set(matches))
+    if preferred and preferred in unique_matches:
+        return preferred
     if len(unique_matches) == 1:
         return unique_matches[0]
     if unique_matches:
