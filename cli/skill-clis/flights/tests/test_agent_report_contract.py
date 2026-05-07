@@ -130,6 +130,39 @@ class AgentReportContractTests(unittest.TestCase):
     def test_valid_synthetic_agent_report_passes(self) -> None:
         validate_agent_report(valid_report())
 
+    def test_structured_risk_reasons_are_allowed(self) -> None:
+        report = valid_report()
+        report["recommended_options"][0]["risk"]["top_reasons"] = [
+            {"scope": "carrier", "code": "preferred_carrier_match", "points": 0, "message": "Uses preferred carrier."}
+        ]
+        report["recommended_options"][0]["connections"] = [
+            {
+                "direction": "outbound",
+                "arrival_airport": "IST",
+                "departure_airport": "IST",
+                "status": "ok",
+                "severity": "ok",
+                "actual_min": 240,
+                "actual": "4h",
+                "required_min": 120,
+                "required": "2h",
+                "risk": {
+                    "score": 3,
+                    "grade": "good",
+                    "reasons": [
+                        {
+                            "scope": "connection",
+                            "code": "long_layover",
+                            "points": 3,
+                            "message": "Connection is longer than the profile's ideal range.",
+                        }
+                    ],
+                },
+            }
+        ]
+
+        validate_agent_report(report)
+
     def test_missing_required_top_level_field_fails(self) -> None:
         report = valid_report()
         del report["source_boundaries"]

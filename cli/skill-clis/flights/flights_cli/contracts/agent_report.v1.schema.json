@@ -113,6 +113,20 @@
         "type": "string"
       }
     },
+    "reason_list": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "additionalProperties": true
+          }
+        ]
+      }
+    },
     "price": {
       "type": "object",
       "additionalProperties": false,
@@ -372,7 +386,7 @@
           ]
         },
         "top_reasons": {
-          "$ref": "#/$defs/string_list"
+          "$ref": "#/$defs/reason_list"
         }
       }
     },
@@ -440,7 +454,7 @@
           "$ref": "#/$defs/nullable_string"
         },
         "reasons": {
-          "$ref": "#/$defs/string_list"
+          "$ref": "#/$defs/reason_list"
         }
       }
     },
