@@ -919,6 +919,7 @@ def run_kupibilet_route_assembly(args: argparse.Namespace, store: Store) -> dict
                         mcp_url=getattr(args, "fli_mcp_url", None),
                         cache_ttl_seconds=cache_ttl_seconds,
                         use_cache=use_live_cache,
+                        store=store,
                     )
                     segment_result = fli_result_to_segment_result(result, direction=spec["direction"], leg=spec["leg"])
                     summary = fli_segment_search_summary(spec, result, segment_result)

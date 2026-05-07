@@ -7,6 +7,8 @@ import re
 import urllib.error
 import urllib.request
 from datetime import date
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 from .. import __version__
@@ -18,6 +20,7 @@ from ..store import Store
 from .live_cache import live_cache_key, read_live_cache, write_live_cache
 
 MCP_PROTOCOL_VERSION = "2025-03-26"
+FLI_NORMALIZER_VERSION = "airport-name-v2"
 
 
 def default_fli_mcp_url() -> str:
@@ -189,6 +192,79 @@ def enum_code(value: Any, *, size: int | None = None) -> str:
     return text
 
 
+def airport_name_key(value: Any) -> tuple[str, ...]:
+    text = str(value or "").casefold()
+    words = re.findall(r"[a-z0-9]+", text)
+    noise = {"airport", "international", "intl"}
+    return tuple(word for word in words if word not in noise)
+
+
+def fli_airport_code_token(value: Any) -> str | None:
+    if isinstance(value, dict):
+        for key in ("code", "value"):
+            token = fli_airport_code_token(value.get(key))
+            if token:
+                return token
+        return fli_airport_code_token(value.get("name"))
+    text = str(value or "").strip().upper()
+    if "." in text:
+        text = text.rsplit(".", 1)[-1].strip()
+    text = text.replace("_", "").replace(" ", "")
+    return text if re.fullmatch(r"[A-Z0-9]{3}", text) else None
+
+
+@lru_cache(maxsize=8)
+def airport_name_index(cache_dir: str) -> dict[tuple[str, ...], str]:
+    store = Store(Path(cache_dir))
+    candidates: dict[tuple[str, ...], set[str]] = {}
+    for airport in store.airports:
+        if airport.get("flightable") is False:
+            continue
+        code = str(airport.get("code") or "").upper()
+        if not code:
+            continue
+        names = [airport.get("name")]
+        translations = airport.get("name_translations")
+        if isinstance(translations, dict):
+            names.extend(translations.values())
+        for name in names:
+            key = airport_name_key(name)
+            if key:
+                candidates.setdefault(key, set()).add(code)
+    exact = {key: next(iter(codes)) for key, codes in candidates.items() if len(codes) == 1}
+    return exact
+
+
+def resolve_fli_airport(value: Any, *, store: Store, field: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        raise CliError(f"FLI {field} is empty", error_type="upstream_error")
+    code_like = fli_airport_code_token(value)
+    airport_by_code = store.airport_by_code
+    if code_like and code_like in airport_by_code:
+        return code_like
+
+    key = airport_name_key(text)
+    exact = airport_name_index(str(store.cache_dir))
+    if key in exact:
+        return exact[key]
+
+    matches = [
+        code
+        for candidate_key, code in exact.items()
+        if key and (set(key) <= set(candidate_key) or set(candidate_key) <= set(key))
+    ]
+    unique_matches = sorted(set(matches))
+    if len(unique_matches) == 1:
+        return unique_matches[0]
+    if unique_matches:
+        raise CliError(
+            f"FLI {field} airport name {text!r} is ambiguous: {', '.join(unique_matches)}",
+            error_type="upstream_error",
+        )
+    raise CliError(f"FLI {field} airport name {text!r} was not found in the airport catalog", error_type="upstream_error")
+
+
 def parse_duration_minutes(value: Any) -> int | None:
     if value is None:
         return None
@@ -210,11 +286,9 @@ def parse_duration_minutes(value: Any) -> int | None:
     return hours * 60 + minutes if hours or minutes else None
 
 
-def normalize_fli_leg(leg: dict[str, Any]) -> dict[str, Any] | None:
-    origin = enum_code(leg.get("departure_airport"), size=3)
-    destination = enum_code(leg.get("arrival_airport"), size=3)
-    if not origin or not destination:
-        return None
+def normalize_fli_leg(leg: dict[str, Any], *, store: Store) -> dict[str, Any] | None:
+    origin = resolve_fli_airport(leg.get("departure_airport"), store=store, field="departure_airport")
+    destination = resolve_fli_airport(leg.get("arrival_airport"), store=store, field="arrival_airport")
     airline_code = enum_code(leg.get("airline_code") or leg.get("airline"), size=2)
     flight_number = str(leg.get("flight_number") or "").strip().replace(" ", "")
     if airline_code and flight_number and not flight_number.upper().startswith(airline_code):
@@ -249,6 +323,7 @@ def parse_fli_flight_search(
     limit: int = 20,
     mcp_url: str | None = None,
     filters: dict[str, Any] | None = None,
+    store: Store | None = None,
 ) -> dict[str, Any]:
     if raw.get("success") is False:
         raise CliError(f"FLI MCP search failed: {raw.get('error') or 'unknown error'}", error_type="upstream_error")
@@ -257,6 +332,7 @@ def parse_fli_flight_search(
         raise CliError("FLI MCP response does not contain a flights list", error_type="upstream_error")
     deduped: dict[tuple[str, ...], dict[str, Any]] = {}
     skipped: dict[str, int] = {}
+    airport_store = store or Store()
     for index, flight in enumerate(raw_flights):
         if not isinstance(flight, dict):
             skipped["bad_flight"] = skipped.get("bad_flight", 0) + 1
@@ -268,12 +344,18 @@ def parse_fli_flight_search(
         normalized_flights = []
         for leg in legs:
             if isinstance(leg, dict):
-                normalized = normalize_fli_leg(leg)
+                normalized = normalize_fli_leg(leg, store=airport_store)
                 if normalized is not None:
                     normalized_flights.append(normalized)
         if not normalized_flights:
             skipped["bad_legs"] = skipped.get("bad_legs", 0) + 1
             continue
+        if normalized_flights[0]["origin"] != origin or normalized_flights[-1]["destination"] != destination:
+            raise CliError(
+                "FLI normalized route does not match query: "
+                f"{normalized_flights[0]['origin']}-{normalized_flights[-1]['destination']} returned for {origin}-{destination}",
+                error_type="upstream_error",
+            )
         key = fli_offer_key(normalized_flights)
         amount = price_value({"price": flight.get("price")})
         offer = {
@@ -337,6 +419,7 @@ def fetch_fli_mcp_search(
     max_stops: str = "ANY",
     sort_by: str = "CHEAPEST",
     passengers: int = 1,
+    store: Store | None = None,
 ) -> dict[str, Any]:
     effective_max_stops = "NON_STOP" if direct_only else max_stops
     airlines = sorted({normalize_carrier_code(code, "only-carrier") for code in (only_carriers or [])})
@@ -368,6 +451,7 @@ def fetch_fli_mcp_search(
             "sort_by": sort_by,
             "passengers": passengers,
         },
+        store=store,
     )
 
 
@@ -389,6 +473,7 @@ def cached_fli_mcp_search(
     cache_ttl_seconds: int = DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
     use_cache: bool = True,
     fetcher: Any = fetch_fli_mcp_search,
+    store: Store | None = None,
 ) -> dict[str, Any]:
     url = normalize_mcp_url(mcp_url)
     params = {
@@ -404,6 +489,7 @@ def cached_fli_mcp_search(
         "max_stops": max_stops,
         "sort_by": sort_by,
         "passengers": int(passengers),
+        "normalizer": FLI_NORMALIZER_VERSION,
     }
     key = live_cache_key("fli_mcp_search_flights", params)
     if use_cache:
@@ -424,6 +510,7 @@ def cached_fli_mcp_search(
         max_stops=max_stops,
         sort_by=sort_by,
         passengers=passengers,
+        store=store,
     )
     if use_cache and int(cache_ttl_seconds) > 0:
         return write_live_cache(key, result)
@@ -573,7 +660,7 @@ def providers_for_segment(spec: dict[str, Any], store: Store, policy: str) -> li
     return ["fli"]
 
 
-def run_fli_search(args: argparse.Namespace) -> dict[str, Any]:
+def run_fli_search(args: argparse.Namespace, store: Store | None = None) -> dict[str, Any]:
     origin = normalize_iata(args.origin, "origin")
     destination = normalize_iata(args.destination, "destination")
     depart = parse_iso_date(args.depart_date, "depart-date")
@@ -597,6 +684,7 @@ def run_fli_search(args: argparse.Namespace) -> dict[str, Any]:
         passengers=args.passengers,
         cache_ttl_seconds=args.cache_ttl_seconds,
         use_cache=not args.no_cache,
+        store=store,
     )
 
 

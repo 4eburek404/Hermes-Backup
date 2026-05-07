@@ -32,8 +32,7 @@ def command_kb_search(args: argparse.Namespace, store: Store) -> dict:
 
 
 def command_fli_search(args: argparse.Namespace, store: Store) -> dict:
-    del store
-    return run_fli_search(args)
+    return run_fli_search(args, store)
 
 
 def command_fli_dates(args: argparse.Namespace, store: Store) -> dict:
