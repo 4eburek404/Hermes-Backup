@@ -38,6 +38,7 @@ Omit `--return-date` for one-way. Use `--profile cheap` only when the user expli
    - `recommended_options`
    - `priority_options`
    - `through_fare_checks`
+   - `provider_failures`
    - `source_boundaries`
    - `hub_viability`
    - `rejected_pair_warnings`
@@ -46,6 +47,7 @@ Omit `--return-date` for one-way. Use `--profile cheap` only when the user expli
    - Lead with the best viable option.
    - Show mandatory controls when present, especially all-SU/SVO, same-carrier, direct/nonstop, cheapest acceptable, or fastest acceptable.
    - Explain why a control is lower-ranked if it is not the main recommendation.
+   - If `provider_failures` is non-empty, state the failed provider and do not replace it silently.
    - State source boundaries and purchase-screen verification.
 
 ## Do Not

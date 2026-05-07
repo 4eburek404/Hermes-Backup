@@ -8,8 +8,9 @@ Use this reference when `data.agent_report` is unclear. The report is the normal
 2. `recommended_options` — best ranked viable options with segments, price, elapsed time, risk, and connections.
 3. `priority_options` — mandatory controls that must be shown or considered even if they rank lower.
 4. `through_fare_checks` — airline/GDS/single-PNR verification required before treating a route as a through fare.
-5. `source_boundaries` — caveats about provider type and what the source cannot prove.
-6. `hub_viability` and `rejected_pair_warnings` — use only to explain missing or demoted options.
+5. `provider_failures` — failed provider calls that must be named, especially FLI MCP outages.
+6. `source_boundaries` — caveats about provider type and what the source cannot prove.
+7. `hub_viability` and `rejected_pair_warnings` — use only to explain missing or demoted options.
 
 ## Recommended Options
 
@@ -47,14 +48,21 @@ When present, state that segment assembly cannot price or prove airline/GDS thro
 
 Do not present a segment-sum price as the final through-fare price.
 
+## Provider Failures
+
+If present, say which provider failed and on which leg. Do not silently replace
+failed FLI/MCP evidence with Kupibilet aggregate results. A provider failure is
+source unavailability, not proof that no flight or route exists.
+
 ## Answer Shape
 
 Use this order:
 
 1. Best recommendation.
 2. Mandatory controls and trade-offs.
-3. Rejected/demoted warnings only if useful.
-4. Verification caveats before purchase.
+3. Provider failures, if any.
+4. Rejected/demoted warnings only if useful.
+5. Verification caveats before purchase.
 
 ## Demotion Language
 
