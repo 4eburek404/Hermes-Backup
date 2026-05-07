@@ -1,11 +1,11 @@
 {
-  "created_at_utc": "2026-05-07T14:58:27.969399+00:00",
-  "timestamp": "20260507-145827",
+  "created_at_utc": "2026-05-07T15:00:40.806862+00:00",
+  "timestamp": "20260507-150040",
   "source_home": "/home/konstantin",
   "hermes_home": "/home/konstantin/.hermes",
   "memory_store_snapshot": "hermes/holographic-memory/memory_store.sqlite",
   "development_ref": "development/hermes-agent.json",
-  "plaintext_files_sanitized": 17,
+  "plaintext_files_sanitized": 16,
   "secret_artifacts": [
     "secrets-encrypted/hermes-secrets-20260507-133539.tar.zst.age"
   ],
@@ -22,16 +22,16 @@
   "latest_state_timestamp": "20260507-133539",
   "encrypted_refreshed": false,
   "encrypted_policy": {
-    "mode": "never",
+    "mode": "auto",
     "weekly_encrypted_dow": 6,
     "local_weekday": 3,
-    "local_time": "2026-05-07T16:58:27.969399+02:00",
+    "local_time": "2026-05-07T17:00:40.806862+02:00",
     "max_encrypted_age_days": 8.0,
     "retention": "latest",
     "latest_secret_timestamp": "20260507-133539",
     "latest_state_timestamp": "20260507-133539",
-    "secret_age_days": 0.0575,
-    "state_age_days": 0.0575,
+    "secret_age_days": 0.059,
+    "state_age_days": 0.059,
     "existing_encrypted_ok": true,
     "encrypted_stale": false,
     "secret_metadata_changed": false,
@@ -39,7 +39,7 @@
     "secret_change_detection_excluded_sources": [
       "/home/konstantin/.hermes/channel_directory.json"
     ],
-    "refresh_reason": "forced_never_reuse",
+    "refresh_reason": "fresh_reuse",
     "retention_removed_count": 0,
     "retention_removed": []
   }
