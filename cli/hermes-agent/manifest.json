@@ -1,38 +1,17 @@
 {
   "kind": "hermes-agent-cli-source-state",
-  "created_at_utc": "2026-05-07T13:35:39.383536+00:00",
+  "created_at_utc": "2026-05-07T13:39:37.946085+00:00",
   "executable": null,
   "version_output": null,
   "source_path": "/home/konstantin/.hermes/hermes-agent",
   "source_exists": true,
-  "git_remote": "https://github.com/NousResearch/hermes-agent.git",
+  "git_remote": "https://github.com/4eburek404/Hermes-fork-development.git",
   "git_branch": "fix/ollama-native-chat-provider",
-  "git_head": "f76e76b5dce1a9e87c1be355d37fd568dac4b295",
-  "git_head_short": "f76e76b5dce1",
-  "status_count": 9,
-  "status": [
-    " D plugins/memory/hindsight/README.md",
-    " D plugins/memory/hindsight/plugin.yaml",
-    " M plugins/memory/holographic/retrieval.py",
-    " M plugins/memory/holographic/store.py",
-    " M tools/approval.py",
-    " M tools/file_tools.py",
-    " M tools/memory_tool.py",
-    "?? hermes_state.py.bak.20260427202556",
-    "?? tests/tools/test_protected_context_file_guard.py"
-  ],
-  "tracked_diff_files": [
-    "plugins/memory/hindsight/README.md",
-    "plugins/memory/hindsight/plugin.yaml",
-    "plugins/memory/holographic/retrieval.py",
-    "plugins/memory/holographic/store.py",
-    "tools/approval.py",
-    "tools/file_tools.py",
-    "tools/memory_tool.py"
-  ],
-  "untracked_files": [
-    "hermes_state.py.bak.20260427202556",
-    "tests/tools/test_protected_context_file_guard.py"
-  ],
+  "git_head": "2b723489c210334dbde0b4d47f132e090d8fb8ea",
+  "git_head_short": "2b723489c210",
+  "status_count": 0,
+  "status": [],
+  "tracked_diff_files": [],
+  "untracked_files": [],
   "backup_mode": "manifest + tracked git patch + safe untracked source files; full upstream repo, .git, venv, caches excluded"
 }
