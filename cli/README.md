@@ -8,4 +8,4 @@ The upstream Hermes Agent checkout is **not** vendored wholesale. Restore by ins
 
 ## `skill-clis/`
 
-Source snapshots from `/home/konstantin/code/clis` used by local skills. Generated caches, `.git`, virtualenvs, build outputs, and pycache files are excluded.
+Source snapshots from `/home/konstantin/.hermes/hermes-agent/local/skill-clis` used by local skills. `/home/konstantin/code/clis` is kept as a compatibility symlink. Generated caches, `.git`, virtualenvs, build outputs, and pycache files are excluded.

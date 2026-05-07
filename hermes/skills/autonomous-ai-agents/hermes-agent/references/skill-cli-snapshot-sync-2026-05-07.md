@@ -56,7 +56,7 @@ cli/
    - Do not rely only on filename globbing for duplicate checks; scan `~/.hermes/skills/**/SKILL.md` frontmatter and descriptions, assert exactly one current skill name, and assert the legacy name is absent. Then check `skills_list(category='<category>')` and a negative `skill_view('<old-skill>')`.
 9. Use `skill_view('<skill-name>')` and `skills_list(category='<category>')` to verify the skill library sees the new skill. If the current session started before the skill existed, explain that a fresh session/reset is needed for it to appear in the prompt's always-on available-skill list.
 10. Record only compact durable facts in `fact_store` if paths/versions are likely to matter later; update stale facts instead of adding duplicates.
-11. Clean up temporary sparse checkouts after parity/tests pass. Verify the temp path is actually removed before documenting it as removed; do not patch a plan/report saying cleanup succeeded in parallel with the cleanup command.
+11. Clean up temporary sparse checkouts after parity/tests pass. Before deletion, make sure no tool/process cwd is inside that checkout (use `cd /` or run cleanup with an explicit safe workdir); deleting the current cwd can make later terminal/file tools fail with `getcwd: No such file or directory`. Verify the temp path is actually removed before documenting it as removed; do not patch a plan/report saying cleanup succeeded in parallel with the cleanup command.
 
 ## Pitfalls
 

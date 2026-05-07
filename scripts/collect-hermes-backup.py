@@ -30,7 +30,7 @@ HERMES = HOME / ".hermes"
 DOCS = HOME / "docs"
 CODE = HOME / "code"
 HERMES_AGENT = HERMES / "hermes-agent"
-SKILL_CLIS = CODE / "clis"
+SKILL_CLIS = HERMES_AGENT / "local" / "skill-clis"
 REPO = Path(__file__).resolve().parents[1]
 DEFAULT_RECIPIENTS_FILE = REPO / "backup" / "age-recipients.txt"
 DEFAULT_IDENTITY_FILE = HOME / ".ssh" / "server_monitor_iOS_app_ed25519"
@@ -605,7 +605,7 @@ def collect_cli_backup(summary: dict[str, object]) -> None:
         "## `hermes-agent/`\n\n"
         "The upstream Hermes Agent checkout is **not** vendored wholesale. Restore by installing/cloning upstream, checking out the recorded commit, then applying `tracked-changes.patch` and copying safe files from `untracked/` if still needed.\n\n"
         "## `skill-clis/`\n\n"
-        "Source snapshots from `/home/konstantin/code/clis` used by local skills. Generated caches, `.git`, virtualenvs, build outputs, and pycache files are excluded.\n",
+        "Source snapshots from `/home/konstantin/.hermes/hermes-agent/local/skill-clis` used by local skills. `/home/konstantin/code/clis` is kept as a compatibility symlink. Generated caches, `.git`, virtualenvs, build outputs, and pycache files are excluded.\n",
         encoding="utf-8",
     )
 

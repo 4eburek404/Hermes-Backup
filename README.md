@@ -12,7 +12,7 @@ This private repository stores Konstantin's personal Hermes overlay on top of th
 - Consistent SQLite snapshot of holographic memory: `hermes/holographic-memory/memory_store.sqlite`.
 - CLI backup layer:
   - `cli/hermes-agent/` — active Hermes CLI/source manifest, tracked patch, and safe untracked source files; not a full upstream repo vendor.
-  - `cli/skill-clis/` — source snapshots from `/home/konstantin/code/clis` for local skill-related CLIs, excluding caches/build artifacts.
+  - `cli/skill-clis/` — source snapshots from `/home/konstantin/.hermes/hermes-agent/local/skill-clis` for local skill-related CLIs, excluding caches/build artifacts. `/home/konstantin/code/clis` is a compatibility symlink to that location.
 
 ## What is backed up encrypted only
 
