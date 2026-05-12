@@ -1,0 +1,1102 @@
+{
+  "command": "route live-assemble",
+  "data": {
+    "assembly": {
+      "candidate_count": 2,
+      "candidate_duplicate_count": 0,
+      "candidate_pool_limit": 5000,
+      "candidate_pool_truncated": false,
+      "limit_per_pair": 10,
+      "max_candidates": 50,
+      "outbound_direct_count": 2,
+      "outbound_pair_count": 0,
+      "ranked_output_count": 2,
+      "ranked_total_count": 2,
+      "raw_candidate_count": 2,
+      "rejected_pair_count": 0,
+      "rejected_pair_sample_count": 0,
+      "return_direct_count": 0,
+      "return_pair_count": 0,
+      "segment_result_count": 2
+    },
+    "candidates": [
+      {
+        "currency": "RUB",
+        "id": "assembled-1:SVX-IST",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "segments": [
+              {
+                "aircraft_code": "319",
+                "arrival_at": "2026-06-15T10:50:00+03:00",
+                "carrier": "U6",
+                "departure_at": "2026-06-15T07:20:00+05:00",
+                "destination": "IST",
+                "flight_number": "U6773",
+                "marketing_carrier": "U6",
+                "operating_carrier": "U6",
+                "origin": "SVX"
+              }
+            ]
+          }
+        ],
+        "price": 23404,
+        "source_offers": [
+          {
+            "arrival_airport": "IST",
+            "arrival_at": "2026-06-15T10:50:00+03:00",
+            "currency": "RUB",
+            "departure_airport": "SVX",
+            "departure_at": "2026-06-15T07:20:00+05:00",
+            "destination": "IST",
+            "id": "kb:outbound:direct_outbound:SVX-IST:2026-06-15:ce5891341ce04559a002cd7ef6d2d33b557",
+            "leg": "direct_outbound",
+            "origin": "SVX",
+            "price": 23404
+          }
+        ]
+      },
+      {
+        "currency": "RUB",
+        "id": "assembled-2:SVX-IST",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "segments": [
+              {
+                "aircraft_code": "32A",
+                "arrival_at": "2026-06-15T11:45:00+03:00",
+                "carrier": "SU",
+                "departure_at": "2026-06-15T08:20:00+05:00",
+                "destination": "IST",
+                "flight_number": "SU630",
+                "marketing_carrier": "SU",
+                "operating_carrier": "SU",
+                "origin": "SVX"
+              }
+            ]
+          }
+        ],
+        "price": 25883,
+        "source_offers": [
+          {
+            "arrival_airport": "IST",
+            "arrival_at": "2026-06-15T11:45:00+03:00",
+            "currency": "RUB",
+            "departure_airport": "SVX",
+            "departure_at": "2026-06-15T08:20:00+05:00",
+            "destination": "IST",
+            "id": "kb:outbound:direct_outbound:SVX-IST:2026-06-15:ce5891341ce04559a002cd7ef6d2d33b18",
+            "leg": "direct_outbound",
+            "origin": "SVX",
+            "price": 25883
+          }
+        ]
+      }
+    ],
+    "carrier_policy": {
+      "avoid": [],
+      "exclude": [],
+      "filtered": [],
+      "filtered_count": 0,
+      "only": [],
+      "prefer": [
+        "SU",
+        "TK",
+        "U6"
+      ]
+    },
+    "catalog_auto_refresh": {
+      "checked": {
+        "checked_at": "2026-05-08T17:27:54+00:00",
+        "checked_count": 9,
+        "fresh": [
+          "countries",
+          "cities_en",
+          "cities_ru",
+          "airports_en",
+          "airports_ru",
+          "airlines_en",
+          "airlines_ru",
+          "alliances",
+          "planes"
+        ],
+        "max_age_seconds": 604800,
+        "stale": [],
+        "stale_count": 0
+      },
+      "enabled": true,
+      "reason": "fresh",
+      "refreshed": false,
+      "update": null
+    },
+    "count": 2,
+    "frontier_candidates": [
+      {
+        "candidate": {
+          "currency": "RUB",
+          "id": "assembled-2:SVX-IST",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "segments": [
+                {
+                  "aircraft_code": "32A",
+                  "arrival_at": "2026-06-15T11:45:00+03:00",
+                  "carrier": "SU",
+                  "departure_at": "2026-06-15T08:20:00+05:00",
+                  "destination": "IST",
+                  "flight_number": "SU630",
+                  "marketing_carrier": "SU",
+                  "operating_carrier": "SU",
+                  "origin": "SVX"
+                }
+              ]
+            }
+          ],
+          "price": 25883,
+          "source_offers": [
+            {
+              "arrival_airport": "IST",
+              "arrival_at": "2026-06-15T11:45:00+03:00",
+              "currency": "RUB",
+              "departure_airport": "SVX",
+              "departure_at": "2026-06-15T08:20:00+05:00",
+              "destination": "IST",
+              "id": "kb:outbound:direct_outbound:SVX-IST:2026-06-15:ce5891341ce04559a002cd7ef6d2d33b18",
+              "leg": "direct_outbound",
+              "origin": "SVX",
+              "price": 25883
+            }
+          ]
+        },
+        "category": "all_su",
+        "rank": 1,
+        "ranked": {
+          "carriers": [
+            "SU"
+          ],
+          "connections": [],
+          "currency": "RUB",
+          "elapsed_min": 325,
+          "id": "assembled-2:SVX-IST",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "index": 0,
+              "segment_indexes": [
+                0
+              ]
+            }
+          ],
+          "ok": true,
+          "price": 25883,
+          "rank": 1,
+          "risk": {
+            "grade": "excellent",
+            "profile": "business",
+            "rank_key": [
+              0,
+              0,
+              325,
+              25883
+            ],
+            "reject": false,
+            "score": 0,
+            "top_reasons": [
+              {
+                "code": "preferred_carrier_match",
+                "message": "Uses preferred carrier(s): SU.",
+                "points": 0,
+                "scope": "carrier"
+              }
+            ]
+          },
+          "validation_summary": {
+            "connection_count": 0,
+            "segment_count": 1,
+            "violation_count": 0
+          }
+        },
+        "reason": "Best acceptable all-SU itinerary. Same-carrier controls can require airline/GDS through-fare verification."
+      }
+    ],
+    "live_search": {
+      "aggregate_controls": [],
+      "direct_route_intelligence": {
+        "airport": "SVX",
+        "available": true,
+        "cache": {
+          "age_seconds": 147253,
+          "hit": true,
+          "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/route_intel/svx_official_route_index.json",
+          "ttl_seconds": 604800
+        },
+        "enabled": true,
+        "fetched_at": "2026-05-07T00:33:40+00:00",
+        "negative_filter": "Only exact SVX direct-control probes are skipped when the airport is absent from the official seasonal schedule.",
+        "route_count": {
+          "outbound": 84,
+          "return": 85
+        },
+        "source": "Koltsovo official seasonal schedule",
+        "source_urls": {
+          "outbound": "https://ar-svx.ru/schedule/",
+          "return": "https://ar-svx.ru/schedule/?type=arr"
+        }
+      },
+      "failure_count": 0,
+      "failures": [],
+      "hub_viability": [
+        {
+          "hub": "IST",
+          "legs": {
+            "destination_to_hub": {
+              "dates": [],
+              "offer_count": 0,
+              "search_count": 0
+            },
+            "hub_to_destination": {
+              "dates": [
+                "2026-06-15",
+                "2026-06-16"
+              ],
+              "offer_count": 0,
+              "search_count": 2
+            },
+            "hub_to_origin": {
+              "dates": [],
+              "offer_count": 0,
+              "search_count": 0
+            },
+            "origin_to_hub": {
+              "dates": [
+                "2026-06-15"
+              ],
+              "offer_count": 2,
+              "search_count": 1
+            }
+          },
+          "missing_legs": [
+            "hub_to_destination"
+          ],
+          "total_offer_count": 2,
+          "viable": false
+        },
+        {
+          "hub": "DXB",
+          "legs": {
+            "destination_to_hub": {
+              "dates": [],
+              "offer_count": 0,
+              "search_count": 0
+            },
+            "hub_to_destination": {
+              "dates": [
+                "2026-06-15",
+                "2026-06-16"
+              ],
+              "offer_count": 0,
+              "search_count": 4
+            },
+            "hub_to_origin": {
+              "dates": [],
+              "offer_count": 0,
+              "search_count": 0
+            },
+            "origin_to_hub": {
+              "dates": [
+                "2026-06-15"
+              ],
+              "offer_count": 0,
+              "search_count": 1
+            }
+          },
+          "missing_legs": [
+            "origin_to_hub",
+            "hub_to_destination"
+          ],
+          "total_offer_count": 0,
+          "viable": false
+        }
+      ],
+      "included_segment_result_count": 0,
+      "note": "Kupibilet is used for Russia-touching segments; FLI MCP is used for non-Russia segments under auto policy. Recheck price/seat availability before purchase.",
+      "plan": {
+        "currency": "RUB",
+        "dates": {
+          "depart": "2026-06-15",
+          "return": null
+        },
+        "destination": "IST",
+        "destination_airports": [
+          "IST",
+          "SAW"
+        ],
+        "hub_source": "strategy",
+        "hubs": [
+          "IST",
+          "DXB"
+        ],
+        "metrics": {
+          "segment_search_count": 12
+        },
+        "origin": "SVX",
+        "origin_airports": [
+          "SVX"
+        ],
+        "profile": "business",
+        "route_families": [
+          {
+            "condition": "check direct exact-airport legs when live assembly runs; cache empty results",
+            "id": "direct_control",
+            "preferred_carriers": [
+              "U6",
+              "SU",
+              "TK"
+            ],
+            "priority": 0
+          },
+          {
+            "condition": "check first; use origin->IST direct when available",
+            "hub": "IST",
+            "id": "ist_direct",
+            "preferred_carriers": [
+              "U6",
+              "SU",
+              "TK"
+            ],
+            "priority": 1
+          },
+          {
+            "condition": "run only when origin->IST direct has no viable direct offers",
+            "hub": "IST",
+            "id": "ist_svo_su_fallback",
+            "preferred_carriers": [
+              "U6",
+              "SU",
+              "TK"
+            ],
+            "priority": 2,
+            "required_carriers": [
+              "SU"
+            ],
+            "via": [
+              "SVO"
+            ]
+          },
+          {
+            "condition": "check only if direct/SVO/IST priority routes do not produce a usable assembled pair; do not expand origin->DXB through Moscow",
+            "hub": "DXB",
+            "id": "dxb_direct",
+            "preferred_carriers": [
+              "U6",
+              "SU",
+              "TK"
+            ],
+            "priority": 3
+          }
+        ],
+        "routing_profile": "default",
+        "routing_strategy": "ru-priority",
+        "second_leg_day_offsets": {
+          "outbound": [
+            0,
+            1
+          ],
+          "return": []
+        },
+        "ticketing": "separate",
+        "warnings": [
+          "Kupibilet live segment assembly uses direct-only one-way searches; availability and price still require final booking-screen recheck.",
+          "Assembled candidates are usually separate-ticket/self-transfer unless the booking site later confirms protected through-ticketing.",
+          "Using ru-priority routing: direct control, IST direct first, SVO/SU fallback only if IST direct is empty, DXB only if priority routes are not usable."
+        ]
+      },
+      "provider_policy": "auto",
+      "segment_searches": [
+        {
+          "cache": {
+            "age_seconds": 2368,
+            "hit": true,
+            "key": "a132cb554ef45f914f66c35d3993e5486c1363c50095128a6ddf747d46e7fb49",
+            "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/live_search/a132cb554ef45f914f66c35d3993e5486c1363c50095128a6ddf747d46e7fb49.json",
+            "ttl_seconds": 21600
+          },
+          "date": "2026-06-15",
+          "destination": "IST",
+          "direction": "outbound",
+          "http_status": 200,
+          "leg": "direct_outbound",
+          "offer_count": 2,
+          "origin": "SVX",
+          "preferred_carriers": [
+            "U6",
+            "SU",
+            "TK"
+          ],
+          "priority": 0,
+          "provider": "kupibilet",
+          "raw_variant_count": 607,
+          "route_family": "direct_control",
+          "skipped": {
+            "not_direct": 603
+          },
+          "status": "ok",
+          "unique_flight_count": 2
+        },
+        {
+          "date": "2026-06-15",
+          "destination": "SAW",
+          "direction": "outbound",
+          "leg": "direct_outbound",
+          "offer_count": 0,
+          "origin": "SVX",
+          "preferred_carriers": [
+            "U6",
+            "SU",
+            "TK"
+          ],
+          "priority": 0,
+          "reason": "direct_route_schedule_negative",
+          "route_family": "direct_control",
+          "skipped_because": {
+            "airport": "SVX",
+            "checked_airport": "SAW",
+            "fetched_at": "2026-05-07T00:33:40+00:00",
+            "note": "Official SVX seasonal schedule has no direct route for this exact airport pair; hub routing is still checked.",
+            "source": "Koltsovo official seasonal schedule"
+          },
+          "status": "skipped"
+        },
+        {
+          "cache": {
+            "age_seconds": 2368,
+            "hit": true,
+            "key": "a132cb554ef45f914f66c35d3993e5486c1363c50095128a6ddf747d46e7fb49",
+            "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/live_search/a132cb554ef45f914f66c35d3993e5486c1363c50095128a6ddf747d46e7fb49.json",
+            "ttl_seconds": 21600
+          },
+          "date": "2026-06-15",
+          "destination": "IST",
+          "direction": "outbound",
+          "http_status": 200,
+          "leg": "origin_to_hub",
+          "offer_count": 2,
+          "origin": "SVX",
+          "preferred_carriers": [
+            "U6",
+            "SU",
+            "TK"
+          ],
+          "priority": 1,
+          "provider": "kupibilet",
+          "raw_variant_count": 607,
+          "route_family": "ist_direct",
+          "skipped": {
+            "not_direct": 603
+          },
+          "status": "ok",
+          "unique_flight_count": 2
+        },
+        {
+          "date": "2026-06-15",
+          "destination": "SVO",
+          "direction": "outbound",
+          "leg": "origin_to_gateway",
+          "offer_count": 0,
+          "only_carriers": [
+            "SU"
+          ],
+          "origin": "SVX",
+          "priority": 2,
+          "reason": "direct_probe_has_offers",
+          "route_family": "ist_svo_su_fallback",
+          "skip_if_offer_exists": {
+            "destination": "IST",
+            "direction": "outbound",
+            "leg": "origin_to_hub",
+            "origin": "SVX"
+          },
+          "skipped_because": {
+            "destination": "IST",
+            "direction": "outbound",
+            "leg": "origin_to_hub",
+            "offer_count": 2,
+            "origin": "SVX"
+          },
+          "status": "skipped"
+        },
+        {
+          "date": "2026-06-15",
+          "destination": "IST",
+          "direction": "outbound",
+          "leg": "gateway_to_hub",
+          "offer_count": 0,
+          "only_carriers": [
+            "SU"
+          ],
+          "origin": "SVO",
+          "priority": 2,
+          "reason": "direct_probe_has_offers",
+          "route_family": "ist_svo_su_fallback",
+          "skip_if_offer_exists": {
+            "destination": "IST",
+            "direction": "outbound",
+            "leg": "origin_to_hub",
+            "origin": "SVX"
+          },
+          "skipped_because": {
+            "destination": "IST",
+            "direction": "outbound",
+            "leg": "origin_to_hub",
+            "offer_count": 2,
+            "origin": "SVX"
+          },
+          "status": "skipped"
+        },
+        {
+          "cache": {
+            "age_seconds": 2368,
+            "hit": true,
+            "key": "f36c4f61b6aa7f7457024b33b3d201fa90f12ed0b79195abba683292d5cde3cb",
+            "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/live_search/f36c4f61b6aa7f7457024b33b3d201fa90f12ed0b79195abba683292d5cde3cb.json",
+            "ttl_seconds": 21600
+          },
+          "date": "2026-06-15",
+          "destination": "SAW",
+          "direction": "outbound",
+          "leg": "hub_to_destination",
+          "offer_count": 0,
+          "origin": "IST",
+          "preferred_carriers": [
+            "U6",
+            "SU",
+            "TK"
+          ],
+          "priority": 1,
+          "provider": "fli",
+          "raw_count": 0,
+          "route_family": "ist_shared_destination",
+          "skipped": {},
+          "status": "ok",
+          "unique_flight_count": 0
+        },
+        {
+          "cache": {
+            "age_seconds": 2368,
+            "hit": true,
+            "key": "9d8e06124b05d9e9610cd4e052b3f2028ff30153652bd9df588eff07e0edc16a",
+            "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/live_search/9d8e06124b05d9e9610cd4e052b3f2028ff30153652bd9df588eff07e0edc16a.json",
+            "ttl_seconds": 21600
+          },
+          "date": "2026-06-16",
+          "destination": "SAW",
+          "direction": "outbound",
+          "leg": "hub_to_destination",
+          "offer_count": 0,
+          "origin": "IST",
+          "preferred_carriers": [
+            "U6",
+            "SU",
+            "TK"
+          ],
+          "priority": 1,
+          "provider": "fli",
+          "raw_count": 0,
+          "route_family": "ist_shared_destination",
+          "skipped": {},
+          "status": "ok",
+          "unique_flight_count": 0
+        },
+        {
+          "date": "2026-06-15",
+          "destination": "DXB",
+          "direction": "outbound",
+          "leg": "origin_to_hub",
+          "offer_count": 0,
+          "origin": "SVX",
+          "preferred_carriers": [
+            "U6",
+            "SU",
+            "TK"
+          ],
+          "priority": 3,
+          "reason": "priority_route_viable",
+          "route_family": "dxb_direct",
+          "skip_if_priority_route_viable": "outbound",
+          "skipped_because": {
+            "direction": "outbound",
+            "note": "DXB skipped because direct/SVO/IST priority routing already produced a non-error journey."
+          },
+          "status": "skipped"
+        },
+        {
+          "date": "2026-06-15",
+          "destination": "IST",
+          "direction": "outbound",
+          "leg": "hub_to_destination",
+          "offer_count": 0,
+          "origin": "DXB",
+          "preferred_carriers": [
+            "U6",
+            "SU",
+            "TK"
+          ],
+          "priority": 3,
+          "reason": "priority_route_viable",
+          "route_family": "dxb_direct",
+          "skip_if_priority_route_viable": "outbound",
+          "skipped_because": {
+            "direction": "outbound",
+            "note": "DXB skipped because direct/SVO/IST priority routing already produced a non-error journey."
+          },
+          "status": "skipped"
+        },
+        {
+          "date": "2026-06-15",
+          "destination": "SAW",
+          "direction": "outbound",
+          "leg": "hub_to_destination",
+          "offer_count": 0,
+          "origin": "DXB",
+          "preferred_carriers": [
+            "U6",
+            "SU",
+            "TK"
+          ],
+          "priority": 3,
+          "reason": "priority_route_viable",
+          "route_family": "dxb_direct",
+          "skip_if_priority_route_viable": "outbound",
+          "skipped_because": {
+            "direction": "outbound",
+            "note": "DXB skipped because direct/SVO/IST priority routing already produced a non-error journey."
+          },
+          "status": "skipped"
+        },
+        {
+          "date": "2026-06-16",
+          "destination": "IST",
+          "direction": "outbound",
+          "leg": "hub_to_destination",
+          "offer_count": 0,
+          "origin": "DXB",
+          "preferred_carriers": [
+            "U6",
+            "SU",
+            "TK"
+          ],
+          "priority": 3,
+          "reason": "priority_route_viable",
+          "route_family": "dxb_direct",
+          "skip_if_priority_route_viable": "outbound",
+          "skipped_because": {
+            "direction": "outbound",
+            "note": "DXB skipped because direct/SVO/IST priority routing already produced a non-error journey."
+          },
+          "status": "skipped"
+        },
+        {
+          "date": "2026-06-16",
+          "destination": "SAW",
+          "direction": "outbound",
+          "leg": "hub_to_destination",
+          "offer_count": 0,
+          "origin": "DXB",
+          "preferred_carriers": [
+            "U6",
+            "SU",
+            "TK"
+          ],
+          "priority": 3,
+          "reason": "priority_route_viable",
+          "route_family": "dxb_direct",
+          "skip_if_priority_route_viable": "outbound",
+          "skipped_because": {
+            "direction": "outbound",
+            "note": "DXB skipped because direct/SVO/IST priority routing already produced a non-error journey."
+          },
+          "status": "skipped"
+        }
+      ],
+      "source": "Provider-policy live segment assembly"
+    },
+    "profile": "business",
+    "profile_description": "Same-airport, predictable, shorter elapsed time; penalizes budget airports/carriers.",
+    "rank_order": [
+      "reject",
+      "risk",
+      "elapsed",
+      "price"
+    ],
+    "ranked": [
+      {
+        "carriers": [
+          "SU"
+        ],
+        "connections": [],
+        "currency": "RUB",
+        "elapsed_min": 325,
+        "id": "assembled-2:SVX-IST",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 25883,
+        "rank": 1,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            0,
+            325,
+            25883
+          ],
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 0,
+          "segment_count": 1,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "U6"
+        ],
+        "connections": [],
+        "currency": "RUB",
+        "elapsed_min": 330,
+        "id": "assembled-1:SVX-IST",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 23404,
+        "rank": 2,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            0,
+            330,
+            23404
+          ],
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 0,
+          "segment_count": 1,
+          "violation_count": 0
+        }
+      }
+    ],
+    "ranked_candidates": [
+      {
+        "candidate": {
+          "currency": "RUB",
+          "id": "assembled-2:SVX-IST",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "segments": [
+                {
+                  "aircraft_code": "32A",
+                  "arrival_at": "2026-06-15T11:45:00+03:00",
+                  "carrier": "SU",
+                  "departure_at": "2026-06-15T08:20:00+05:00",
+                  "destination": "IST",
+                  "flight_number": "SU630",
+                  "marketing_carrier": "SU",
+                  "operating_carrier": "SU",
+                  "origin": "SVX"
+                }
+              ]
+            }
+          ],
+          "price": 25883,
+          "source_offers": [
+            {
+              "arrival_airport": "IST",
+              "arrival_at": "2026-06-15T11:45:00+03:00",
+              "currency": "RUB",
+              "departure_airport": "SVX",
+              "departure_at": "2026-06-15T08:20:00+05:00",
+              "destination": "IST",
+              "id": "kb:outbound:direct_outbound:SVX-IST:2026-06-15:ce5891341ce04559a002cd7ef6d2d33b18",
+              "leg": "direct_outbound",
+              "origin": "SVX",
+              "price": 25883
+            }
+          ]
+        },
+        "rank": 1,
+        "ranked": {
+          "carriers": [
+            "SU"
+          ],
+          "connections": [],
+          "currency": "RUB",
+          "elapsed_min": 325,
+          "id": "assembled-2:SVX-IST",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "index": 0,
+              "segment_indexes": [
+                0
+              ]
+            }
+          ],
+          "ok": true,
+          "price": 25883,
+          "rank": 1,
+          "risk": {
+            "grade": "excellent",
+            "profile": "business",
+            "rank_key": [
+              0,
+              0,
+              325,
+              25883
+            ],
+            "reject": false,
+            "score": 0,
+            "top_reasons": [
+              {
+                "code": "preferred_carrier_match",
+                "message": "Uses preferred carrier(s): SU.",
+                "points": 0,
+                "scope": "carrier"
+              }
+            ]
+          },
+          "validation_summary": {
+            "connection_count": 0,
+            "segment_count": 1,
+            "violation_count": 0
+          }
+        }
+      },
+      {
+        "candidate": {
+          "currency": "RUB",
+          "id": "assembled-1:SVX-IST",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "segments": [
+                {
+                  "aircraft_code": "319",
+                  "arrival_at": "2026-06-15T10:50:00+03:00",
+                  "carrier": "U6",
+                  "departure_at": "2026-06-15T07:20:00+05:00",
+                  "destination": "IST",
+                  "flight_number": "U6773",
+                  "marketing_carrier": "U6",
+                  "operating_carrier": "U6",
+                  "origin": "SVX"
+                }
+              ]
+            }
+          ],
+          "price": 23404,
+          "source_offers": [
+            {
+              "arrival_airport": "IST",
+              "arrival_at": "2026-06-15T10:50:00+03:00",
+              "currency": "RUB",
+              "departure_airport": "SVX",
+              "departure_at": "2026-06-15T07:20:00+05:00",
+              "destination": "IST",
+              "id": "kb:outbound:direct_outbound:SVX-IST:2026-06-15:ce5891341ce04559a002cd7ef6d2d33b557",
+              "leg": "direct_outbound",
+              "origin": "SVX",
+              "price": 23404
+            }
+          ]
+        },
+        "rank": 2,
+        "ranked": {
+          "carriers": [
+            "U6"
+          ],
+          "connections": [],
+          "currency": "RUB",
+          "elapsed_min": 330,
+          "id": "assembled-1:SVX-IST",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "index": 0,
+              "segment_indexes": [
+                0
+              ]
+            }
+          ],
+          "ok": true,
+          "price": 23404,
+          "rank": 2,
+          "risk": {
+            "grade": "excellent",
+            "profile": "business",
+            "rank_key": [
+              0,
+              0,
+              330,
+              23404
+            ],
+            "reject": false,
+            "score": 0,
+            "top_reasons": [
+              {
+                "code": "preferred_carrier_match",
+                "message": "Uses preferred carrier(s): U6.",
+                "points": 0,
+                "scope": "carrier"
+              }
+            ]
+          },
+          "validation_summary": {
+            "connection_count": 0,
+            "segment_count": 1,
+            "violation_count": 0
+          }
+        }
+      }
+    ],
+    "ranked_total_count": 2,
+    "recommendations": {
+      "best_ranked": {
+        "carriers": [
+          "SU"
+        ],
+        "currency": "RUB",
+        "elapsed_min": 325,
+        "id": "assembled-2:SVX-IST",
+        "ok": true,
+        "price": 25883,
+        "rank": 1,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            0,
+            325,
+            25883
+          ],
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        }
+      },
+      "cheapest_acceptable": {
+        "carriers": [
+          "U6"
+        ],
+        "currency": "RUB",
+        "elapsed_min": 330,
+        "id": "assembled-1:SVX-IST",
+        "ok": true,
+        "price": 23404,
+        "rank": 2,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            0,
+            330,
+            23404
+          ],
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        }
+      },
+      "fastest_acceptable": {
+        "carriers": [
+          "SU"
+        ],
+        "currency": "RUB",
+        "elapsed_min": 325,
+        "id": "assembled-2:SVX-IST",
+        "ok": true,
+        "price": 25883,
+        "rank": 1,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            0,
+            325,
+            25883
+          ],
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        }
+      }
+    },
+    "rejected_pairs": [],
+    "segment_results": []
+  },
+  "ok": true
+}

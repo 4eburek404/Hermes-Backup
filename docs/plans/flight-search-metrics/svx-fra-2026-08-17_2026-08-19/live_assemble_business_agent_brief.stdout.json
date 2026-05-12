@@ -1,0 +1,2076 @@
+{
+  "command": "route live-assemble",
+  "data": {
+    "agent_report": {
+      "aggregate_controls": [
+        {
+          "cache_status": "live",
+          "date": "2026-08-17",
+          "destination": "FRA",
+          "direction": "outbound",
+          "error": null,
+          "filters": {
+            "direct_only": false,
+            "only_carriers": []
+          },
+          "offer_count": 5,
+          "origin": "SVX",
+          "provider": "kupibilet",
+          "raw_variant_count": 404,
+          "status": "ok",
+          "top_offers": [
+            {
+              "carriers": [
+                "3F",
+                "A3"
+              ],
+              "change_count": 2,
+              "connection_count": 2,
+              "currency": "RUB",
+              "duration_min": 580,
+              "flight_numbers": [
+                "3F478",
+                "A3899",
+                "A3830"
+              ],
+              "id": "c543cf44d446458594bcb4468d0bf02b337",
+              "price": 35516,
+              "reportable_by_stop_policy": true,
+              "segments": [
+                {
+                  "arrival_at": "2026-08-18T02:00:00+04:00",
+                  "carrier": "3F",
+                  "departure_at": "2026-08-17T23:20:00+05:00",
+                  "destination": "EVN",
+                  "flight_number": "3F478",
+                  "marketing_carrier": "3F",
+                  "operating_carrier": "3F",
+                  "origin": "SVX"
+                },
+                {
+                  "arrival_at": "2026-08-18T06:20:00+03:00",
+                  "carrier": "A3",
+                  "departure_at": "2026-08-18T04:25:00+04:00",
+                  "destination": "ATH",
+                  "flight_number": "A3899",
+                  "marketing_carrier": "A3",
+                  "operating_carrier": "A3",
+                  "origin": "EVN"
+                },
+                {
+                  "arrival_at": "2026-08-18T10:15:00+02:00",
+                  "carrier": "A3",
+                  "departure_at": "2026-08-18T08:10:00+03:00",
+                  "destination": "FRA",
+                  "flight_number": "A3830",
+                  "marketing_carrier": "A3",
+                  "operating_carrier": "A3",
+                  "origin": "ATH"
+                }
+              ],
+              "stop_tier": "T2_TWO_STOP",
+              "ticketing_note": "Provider-assembled route offer; verify single-PNR/protection, baggage, and final fare on the booking screen."
+            },
+            {
+              "carriers": [
+                "3F",
+                "A3"
+              ],
+              "change_count": 2,
+              "connection_count": 2,
+              "currency": "RUB",
+              "duration_min": 580,
+              "flight_numbers": [
+                "3F478",
+                "A3899",
+                "A3832"
+              ],
+              "id": "c543cf44d446458594bcb4468d0bf02b112",
+              "price": 35516,
+              "reportable_by_stop_policy": true,
+              "segments": [
+                {
+                  "arrival_at": "2026-08-18T02:00:00+04:00",
+                  "carrier": "3F",
+                  "departure_at": "2026-08-17T23:20:00+05:00",
+                  "destination": "EVN",
+                  "flight_number": "3F478",
+                  "marketing_carrier": "3F",
+                  "operating_carrier": "3F",
+                  "origin": "SVX"
+                },
+                {
+                  "arrival_at": "2026-08-18T06:20:00+03:00",
+                  "carrier": "A3",
+                  "departure_at": "2026-08-18T04:25:00+04:00",
+                  "destination": "ATH",
+                  "flight_number": "A3899",
+                  "marketing_carrier": "A3",
+                  "operating_carrier": "A3",
+                  "origin": "EVN"
+                },
+                {
+                  "arrival_at": "2026-08-18T18:00:00+02:00",
+                  "carrier": "A3",
+                  "departure_at": "2026-08-18T15:55:00+03:00",
+                  "destination": "FRA",
+                  "flight_number": "A3832",
+                  "marketing_carrier": "A3",
+                  "operating_carrier": "A3",
+                  "origin": "ATH"
+                }
+              ],
+              "stop_tier": "T2_TWO_STOP",
+              "ticketing_note": "Provider-assembled route offer; verify single-PNR/protection, baggage, and final fare on the booking screen."
+            },
+            {
+              "carriers": [
+                "3F",
+                "A3"
+              ],
+              "change_count": 2,
+              "connection_count": 2,
+              "currency": "RUB",
+              "duration_min": 580,
+              "flight_numbers": [
+                "3F478",
+                "A3899",
+                "A3830"
+              ],
+              "id": "c543cf44d446458594bcb4468d0bf02b9",
+              "price": 35596,
+              "reportable_by_stop_policy": true,
+              "segments": [
+                {
+                  "arrival_at": "2026-08-18T02:00:00+04:00",
+                  "carrier": "3F",
+                  "departure_at": "2026-08-17T23:20:00+05:00",
+                  "destination": "EVN",
+                  "flight_number": "3F478",
+                  "marketing_carrier": "3F",
+                  "operating_carrier": "3F",
+                  "origin": "SVX"
+                },
+                {
+                  "arrival_at": "2026-08-19T06:20:00+03:00",
+                  "carrier": "A3",
+                  "departure_at": "2026-08-19T04:25:00+04:00",
+                  "destination": "ATH",
+                  "flight_number": "A3899",
+                  "marketing_carrier": "A3",
+                  "operating_carrier": "A3",
+                  "origin": "EVN"
+                },
+                {
+                  "arrival_at": "2026-08-19T10:15:00+02:00",
+                  "carrier": "A3",
+                  "departure_at": "2026-08-19T08:10:00+03:00",
+                  "destination": "FRA",
+                  "flight_number": "A3830",
+                  "marketing_carrier": "A3",
+                  "operating_carrier": "A3",
+                  "origin": "ATH"
+                }
+              ],
+              "stop_tier": "T2_TWO_STOP",
+              "ticketing_note": "Provider-assembled route offer; verify single-PNR/protection, baggage, and final fare on the booking screen."
+            }
+          ]
+        },
+        {
+          "cache_status": "live",
+          "date": "2026-08-19",
+          "destination": "SVX",
+          "direction": "return",
+          "error": null,
+          "filters": {
+            "direct_only": false,
+            "only_carriers": []
+          },
+          "offer_count": 5,
+          "origin": "FRA",
+          "provider": "kupibilet",
+          "raw_variant_count": 430,
+          "status": "ok",
+          "top_offers": [
+            {
+              "carriers": [
+                "VF",
+                "WZ"
+              ],
+              "change_count": 2,
+              "connection_count": 2,
+              "currency": "RUB",
+              "duration_min": 540,
+              "flight_numbers": [
+                "VF34",
+                "WZ1366",
+                "WZ1034"
+              ],
+              "id": "b7ef6ec953194046832b4a52ca06ede071",
+              "price": 31720,
+              "reportable_by_stop_policy": true,
+              "segments": [
+                {
+                  "arrival_at": "2026-08-19T17:40:00+03:00",
+                  "carrier": "VF",
+                  "departure_at": "2026-08-19T13:35:00+02:00",
+                  "destination": "SAW",
+                  "flight_number": "VF34",
+                  "marketing_carrier": "VF",
+                  "operating_carrier": "VF",
+                  "origin": "FRA"
+                },
+                {
+                  "arrival_at": "2026-08-20T03:25:00+04:00",
+                  "carrier": "WZ",
+                  "departure_at": "2026-08-19T22:10:00+03:00",
+                  "destination": "KUF",
+                  "flight_number": "WZ1366",
+                  "marketing_carrier": "WZ",
+                  "operating_carrier": "WZ",
+                  "origin": "IST"
+                },
+                {
+                  "arrival_at": "2026-08-20T11:05:00+05:00",
+                  "carrier": "WZ",
+                  "departure_at": "2026-08-20T08:25:00+04:00",
+                  "destination": "SVX",
+                  "flight_number": "WZ1034",
+                  "marketing_carrier": "WZ",
+                  "operating_carrier": "WZ",
+                  "origin": "KUF"
+                }
+              ],
+              "stop_tier": "T2_TWO_STOP",
+              "ticketing_note": "Provider-assembled route offer; verify single-PNR/protection, baggage, and final fare on the booking screen."
+            },
+            {
+              "carriers": [
+                "PC",
+                "WZ"
+              ],
+              "change_count": 2,
+              "connection_count": 2,
+              "currency": "RUB",
+              "duration_min": 540,
+              "flight_numbers": [
+                "PC994",
+                "WZ1366",
+                "WZ1034"
+              ],
+              "id": "b7ef6ec953194046832b4a52ca06ede082",
+              "price": 32919,
+              "reportable_by_stop_policy": true,
+              "segments": [
+                {
+                  "arrival_at": "2026-08-19T18:50:00+03:00",
+                  "carrier": "PC",
+                  "departure_at": "2026-08-19T14:45:00+02:00",
+                  "destination": "SAW",
+                  "flight_number": "PC994",
+                  "marketing_carrier": "PC",
+                  "operating_carrier": "PC",
+                  "origin": "FRA"
+                },
+                {
+                  "arrival_at": "2026-08-20T03:25:00+04:00",
+                  "carrier": "WZ",
+                  "departure_at": "2026-08-19T22:10:00+03:00",
+                  "destination": "KUF",
+                  "flight_number": "WZ1366",
+                  "marketing_carrier": "WZ",
+                  "operating_carrier": "WZ",
+                  "origin": "IST"
+                },
+                {
+                  "arrival_at": "2026-08-20T11:05:00+05:00",
+                  "carrier": "WZ",
+                  "departure_at": "2026-08-20T08:25:00+04:00",
+                  "destination": "SVX",
+                  "flight_number": "WZ1034",
+                  "marketing_carrier": "WZ",
+                  "operating_carrier": "WZ",
+                  "origin": "KUF"
+                }
+              ],
+              "stop_tier": "T2_TWO_STOP",
+              "ticketing_note": "Provider-assembled route offer; verify single-PNR/protection, baggage, and final fare on the booking screen."
+            },
+            {
+              "carriers": [
+                "J2",
+                "VF"
+              ],
+              "change_count": 2,
+              "connection_count": 2,
+              "currency": "RUB",
+              "duration_min": 530,
+              "flight_numbers": [
+                "VF36",
+                "J276",
+                "J2645"
+              ],
+              "id": "b7ef6ec953194046832b4a52ca06ede0278",
+              "price": 33441,
+              "reportable_by_stop_policy": true,
+              "segments": [
+                {
+                  "arrival_at": "2026-08-19T22:00:00+03:00",
+                  "carrier": "VF",
+                  "departure_at": "2026-08-19T17:55:00+02:00",
+                  "destination": "SAW",
+                  "flight_number": "VF36",
+                  "marketing_carrier": "VF",
+                  "operating_carrier": "VF",
+                  "origin": "FRA"
+                },
+                {
+                  "arrival_at": "2026-08-20T17:20:00+04:00",
+                  "carrier": "J2",
+                  "departure_at": "2026-08-20T13:30:00+03:00",
+                  "destination": "GYD",
+                  "flight_number": "J276",
+                  "marketing_carrier": "J2",
+                  "operating_carrier": "J2",
+                  "origin": "IST"
+                },
+                {
+                  "arrival_at": "2026-08-21T00:20:00+05:00",
+                  "carrier": "J2",
+                  "departure_at": "2026-08-20T20:25:00+04:00",
+                  "destination": "SVX",
+                  "flight_number": "J2645",
+                  "marketing_carrier": "J2",
+                  "operating_carrier": "J2",
+                  "origin": "GYD"
+                }
+              ],
+              "stop_tier": "T2_TWO_STOP",
+              "ticketing_note": "Provider-assembled route offer; verify single-PNR/protection, baggage, and final fare on the booking screen."
+            }
+          ]
+        }
+      ],
+      "answer_lines": [
+        "Best CLI-ranked option: 85 022 RUB risk=excellent/0 elapsed=43h50.",
+        "Do not treat cached or segment-search absence as proof that a through fare, direct flight, or protected ticket does not exist.",
+        "Priority control: provider_aggregate_candidate rank=None 35 516 RUB elapsed=9h40.",
+        "Moscow gateway control: rank=1 85 022 RUB elapsed=43h50; compare against direct/best, do not hide solely because another option ranks higher.",
+        "Provider aggregate candidate: ticketing_protection=unknown; verify single-PNR/protection, baggage, fare rules, and final fare on the booking screen.",
+        "Coverage diagnostics: mode=targeted; searched=2, skipped=9, failed=0, not_executed=8; negative evidence is bounded live controls only.",
+        "Coverage is incomplete: planned controls without terminal live evidence are not_executed, not no-flight evidence.",
+        "Segments: SU6208 SVX 05:10->SVO 05:45 | SU2136 SVO 08:45->IST 14:15 | TK1587 IST 07:55->FRA 10:05 | TK1588 FRA 11:30->IST 15:40 | U6774 IST 19:45->SVX 02:25",
+        "Connection trade-off: long wait 17h40 at IST; overnight wait 17h40 at IST; visible trade-off, not automatic demotion.",
+        "Cheapest acceptable: rank=724 80 939 RUB risk=excellent/0 elapsed=96h10; show as trade-off, not hidden by compact output.",
+        "Fastest acceptable: rank=1033 93 292 RUB risk=excellent/3 elapsed=42h30; show as trade-off, not hidden by compact output.",
+        "Aggregate control found: 35 516 RUB SVX->FRA 3F478 + A3899 + A3830."
+      ],
+      "coverage_diagnostics": {
+        "completeness": {
+          "all_planned_controls_have_terminal_state": true,
+          "planned_count": 10,
+          "terminal_count": 10
+        },
+        "coverage_mode": "targeted",
+        "coverage_warnings": [
+          "segment_absence_is_not_route_absence",
+          "provider_empty_is_not_carrier_absence",
+          "cache_absence_is_not_negative_evidence"
+        ],
+        "deduped_controls": [],
+        "failed_controls": [],
+        "limits": {
+          "cache_phase": "out_of_scope",
+          "coverage_control_limit": 12,
+          "live_fanout": "bounded_by_max_segment_searches",
+          "max_segment_searches": 300,
+          "requested_controls": []
+        },
+        "negative_evidence_type": "bounded_live_controls_only",
+        "not_executed_controls": [
+          {
+            "date": "2026-08-17",
+            "destination": "FRA",
+            "direction": "outbound",
+            "execution_state": "not_executed",
+            "negative_evidence": "provider_empty_only_not_route_absence",
+            "origin": "SVX",
+            "probe_id": "probe-001",
+            "reason": "not_reached_by_current_live_execution",
+            "status": "not_executed",
+            "type": "exact_airport_direct"
+          },
+          {
+            "date": "2026-08-19",
+            "destination": "SVX",
+            "direction": "return",
+            "execution_state": "not_executed",
+            "negative_evidence": "provider_empty_only_not_route_absence",
+            "origin": "FRA",
+            "probe_id": "probe-002",
+            "reason": "not_reached_by_current_live_execution",
+            "status": "not_executed",
+            "type": "exact_airport_direct"
+          },
+          {
+            "carrier": "U6",
+            "date": "2026-08-17",
+            "destination": "FRA",
+            "direction": "outbound",
+            "execution_state": "not_executed",
+            "negative_evidence": "carrier_probe_empty_only_not_carrier_absence",
+            "origin": "SVX",
+            "probe_id": "probe-004",
+            "reason": "not_reached_by_current_live_execution",
+            "status": "not_executed",
+            "type": "carrier_aggregate"
+          },
+          {
+            "carrier": "SU",
+            "date": "2026-08-17",
+            "destination": "FRA",
+            "direction": "outbound",
+            "execution_state": "not_executed",
+            "negative_evidence": "carrier_probe_empty_only_not_carrier_absence",
+            "origin": "SVX",
+            "probe_id": "probe-005",
+            "reason": "not_reached_by_current_live_execution",
+            "status": "not_executed",
+            "type": "carrier_aggregate"
+          },
+          {
+            "carrier": "TK",
+            "date": "2026-08-17",
+            "destination": "FRA",
+            "direction": "outbound",
+            "execution_state": "not_executed",
+            "negative_evidence": "carrier_probe_empty_only_not_carrier_absence",
+            "origin": "SVX",
+            "probe_id": "probe-006",
+            "reason": "not_reached_by_current_live_execution",
+            "status": "not_executed",
+            "type": "carrier_aggregate"
+          },
+          {
+            "carrier": "U6",
+            "date": "2026-08-19",
+            "destination": "SVX",
+            "direction": "return",
+            "execution_state": "not_executed",
+            "negative_evidence": "carrier_probe_empty_only_not_carrier_absence",
+            "origin": "FRA",
+            "probe_id": "probe-008",
+            "reason": "not_reached_by_current_live_execution",
+            "status": "not_executed",
+            "type": "carrier_aggregate"
+          },
+          {
+            "carrier": "SU",
+            "date": "2026-08-19",
+            "destination": "SVX",
+            "direction": "return",
+            "execution_state": "not_executed",
+            "negative_evidence": "carrier_probe_empty_only_not_carrier_absence",
+            "origin": "FRA",
+            "probe_id": "probe-009",
+            "reason": "not_reached_by_current_live_execution",
+            "status": "not_executed",
+            "type": "carrier_aggregate"
+          },
+          {
+            "carrier": "TK",
+            "date": "2026-08-19",
+            "destination": "SVX",
+            "direction": "return",
+            "execution_state": "not_executed",
+            "negative_evidence": "carrier_probe_empty_only_not_carrier_absence",
+            "origin": "FRA",
+            "probe_id": "probe-010",
+            "reason": "not_reached_by_current_live_execution",
+            "status": "not_executed",
+            "type": "carrier_aggregate"
+          }
+        ],
+        "planned_controls": [
+          {
+            "date": "2026-08-17",
+            "destination": "FRA",
+            "direction": "outbound",
+            "execution_state": "planned",
+            "negative_evidence": "provider_empty_only_not_route_absence",
+            "origin": "SVX",
+            "probe_id": "probe-001",
+            "type": "exact_airport_direct"
+          }
+        ],
+        "searched_controls": [
+          {
+            "cache_status": "live",
+            "date": "2026-08-17",
+            "destination": "FRA",
+            "direction": "outbound",
+            "execution_state": "searched",
+            "negative_evidence": "aggregate_empty_only_not_route_absence",
+            "offer_count": 5,
+            "origin": "SVX",
+            "probe_id": "probe-003",
+            "provider": "kupibilet",
+            "status": "ok",
+            "type": "full_route_aggregate"
+          },
+          {
+            "cache_status": "live",
+            "date": "2026-08-19",
+            "destination": "SVX",
+            "direction": "return",
+            "execution_state": "searched",
+            "negative_evidence": "aggregate_empty_only_not_route_absence",
+            "offer_count": 5,
+            "origin": "FRA",
+            "probe_id": "probe-007",
+            "provider": "kupibilet",
+            "status": "ok",
+            "type": "full_route_aggregate"
+          }
+        ],
+        "skipped_controls": [
+          {
+            "date": "2026-08-17",
+            "destination": "FRA",
+            "direction": "outbound",
+            "execution_state": "skipped",
+            "leg": "direct_outbound",
+            "origin": "SVX",
+            "reason": "direct_route_schedule_negative",
+            "status": "skipped",
+            "type": "route_segment"
+          },
+          {
+            "date": "2026-08-17",
+            "destination": "DXB",
+            "direction": "outbound",
+            "execution_state": "skipped",
+            "leg": "origin_to_hub",
+            "origin": "SVX",
+            "reason": "priority_route_viable",
+            "status": "skipped",
+            "type": "route_segment"
+          },
+          {
+            "date": "2026-08-17",
+            "destination": "FRA",
+            "direction": "outbound",
+            "execution_state": "skipped",
+            "leg": "hub_to_destination",
+            "origin": "DXB",
+            "reason": "priority_route_viable",
+            "status": "skipped",
+            "type": "route_segment"
+          },
+          {
+            "date": "2026-08-18",
+            "destination": "FRA",
+            "direction": "outbound",
+            "execution_state": "skipped",
+            "leg": "hub_to_destination",
+            "origin": "DXB",
+            "reason": "priority_route_viable",
+            "status": "skipped",
+            "type": "route_segment"
+          },
+          {
+            "date": "2026-08-19",
+            "destination": "SVX",
+            "direction": "return",
+            "execution_state": "skipped",
+            "leg": "direct_return",
+            "origin": "FRA",
+            "reason": "direct_route_schedule_negative",
+            "status": "skipped",
+            "type": "route_segment"
+          },
+          {
+            "date": "2026-08-19",
+            "destination": "DXB",
+            "direction": "return",
+            "execution_state": "skipped",
+            "leg": "destination_to_hub",
+            "origin": "FRA",
+            "reason": "priority_route_viable",
+            "status": "skipped",
+            "type": "route_segment"
+          },
+          {
+            "date": "2026-08-19",
+            "destination": "SVX",
+            "direction": "return",
+            "execution_state": "skipped",
+            "leg": "hub_to_origin",
+            "origin": "DXB",
+            "reason": "priority_route_viable",
+            "status": "skipped",
+            "type": "route_segment"
+          },
+          {
+            "date": "2026-08-20",
+            "destination": "SVX",
+            "direction": "return",
+            "execution_state": "skipped",
+            "leg": "hub_to_origin",
+            "origin": "DXB",
+            "reason": "priority_route_viable",
+            "status": "skipped",
+            "type": "route_segment"
+          },
+          {
+            "date": "2026-08-21",
+            "destination": "SVX",
+            "direction": "return",
+            "execution_state": "skipped",
+            "leg": "hub_to_origin",
+            "origin": "DXB",
+            "reason": "priority_route_viable",
+            "status": "skipped",
+            "type": "route_segment"
+          }
+        ]
+      },
+      "hub_viability": [
+        {
+          "hub": "IST",
+          "missing_legs": [],
+          "total_offer_count": 686,
+          "viable": true
+        },
+        {
+          "hub": "DXB",
+          "missing_legs": [
+            "origin_to_hub",
+            "hub_to_destination",
+            "destination_to_hub",
+            "hub_to_origin"
+          ],
+          "total_offer_count": 0,
+          "viable": false
+        }
+      ],
+      "omitted_counts": {
+        "answer_lines": 1,
+        "coverage_controls": 9,
+        "option_segments": 40
+      },
+      "priority_options": [
+        {
+          "carriers": [
+            "FV",
+            "SU",
+            "TK",
+            "U6"
+          ],
+          "category": "moscow_gateway_control",
+          "connections": [
+            {
+              "actual": "3h",
+              "actual_min": 180,
+              "arrival_airport": "SVO",
+              "departure_airport": "SVO",
+              "direction": "outbound",
+              "required": "2h",
+              "required_min": 120,
+              "risk": {
+                "grade": "excellent",
+                "reasons": [],
+                "score": 0
+              },
+              "severity": "ok",
+              "status": "compatible",
+              "tradeoffs": []
+            },
+            {
+              "actual": "17h40",
+              "actual_min": 1060,
+              "arrival_airport": "IST",
+              "departure_airport": "IST",
+              "direction": "outbound",
+              "required": "2h",
+              "required_min": 120,
+              "risk": {
+                "grade": "excellent",
+                "reasons": [],
+                "score": 0
+              },
+              "severity": "ok",
+              "status": "compatible",
+              "tradeoffs": [
+                {
+                  "actual_min": 1060,
+                  "arrival_airport": "IST",
+                  "code": "long_wait",
+                  "departure_airport": "IST",
+                  "message": "Long wait of 17h40; show as a trade-off, not an automatic risk penalty."
+                },
+                {
+                  "actual_min": 1060,
+                  "arrival_airport": "IST",
+                  "code": "overnight_wait",
+                  "departure_airport": "IST",
+                  "message": "Overnight wait; show explicitly and compare alternatives, but do not demote solely for overnight timing."
+                }
+              ]
+            },
+            {
+              "actual": "4h05",
+              "actual_min": 245,
+              "arrival_airport": "IST",
+              "departure_airport": "IST",
+              "direction": "return",
+              "required": "2h",
+              "required_min": 120,
+              "risk": {
+                "grade": "excellent",
+                "reasons": [],
+                "score": 0
+              },
+              "severity": "ok",
+              "status": "compatible",
+              "tradeoffs": []
+            }
+          ],
+          "detail_status": "summary_only",
+          "elapsed": "43h50",
+          "elapsed_min": 2630,
+          "id": "assembled-2421:SVX-SVX",
+          "max_connections_per_journey": 2,
+          "ok": true,
+          "price": {
+            "amount": 85022,
+            "currency": "RUB"
+          },
+          "price_text": "85 022 RUB",
+          "rank": 1,
+          "reason": "Best acceptable itinerary through SVO/Moscow. Surface it as a control even when a direct or another-hub option ranks higher.",
+          "risk": {
+            "grade": "excellent",
+            "reject": false,
+            "score": 0,
+            "top_reasons": [
+              {
+                "code": "preferred_carrier_match",
+                "message": "Uses preferred carrier(s): SU, TK, U6.",
+                "points": 0,
+                "scope": "carrier"
+              }
+            ]
+          },
+          "segments": [],
+          "stop_tier": "T2_TWO_STOP",
+          "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage.",
+          "validation_summary": {
+            "connection_count": 3,
+            "connection_counts_by_journey": [
+              2,
+              1
+            ],
+            "max_connections_per_journey": 2,
+            "segment_count": 5,
+            "stop_tier": "T2_TWO_STOP",
+            "three_plus_connection_journey_count": 0,
+            "violation_count": 0
+          }
+        },
+        {
+          "carriers": [
+            "3F",
+            "A3"
+          ],
+          "category": "provider_aggregate_candidate",
+          "connections": [],
+          "detail_status": "summary_only",
+          "elapsed": "9h40",
+          "elapsed_min": 580,
+          "id": "provider-aggregate:outbound:c543cf44d446458594bcb4468d0bf02b337",
+          "max_connections_per_journey": 2,
+          "ok": true,
+          "price": {
+            "amount": 35516,
+            "currency": "RUB"
+          },
+          "price_text": "35 516 RUB",
+          "rank": null,
+          "reason": "Provider returned a whole-route aggregate offer; treat as a candidate for purchase-screen verification, not as proof of protected through-ticketing.",
+          "risk": {
+            "grade": null,
+            "reject": null,
+            "score": null,
+            "top_reasons": [
+              {
+                "code": "provider_aggregate_candidate",
+                "message": "Ticketing protection is unknown until verified on the booking screen."
+              }
+            ]
+          },
+          "segments": [],
+          "stop_tier": "T2_TWO_STOP",
+          "ticketing_note": "Provider aggregate candidate; ticketing_protection=unknown. Provider-assembled route offer; verify single-PNR/protection, baggage, and final fare on the booking screen. Verify single-PNR/protection, baggage, fare rules, and final fare on the booking screen.",
+          "validation_summary": {
+            "candidate_type": "provider_aggregate",
+            "connection_counts_by_journey": [
+              2
+            ],
+            "filters": {
+              "direct_only": false,
+              "only_carriers": []
+            },
+            "max_connections_per_journey": 2,
+            "provider": "kupibilet",
+            "stop_tier": "T2_TWO_STOP",
+            "three_plus_connection_journey_count": 0
+          }
+        },
+        {
+          "carriers": [
+            "3F",
+            "A3"
+          ],
+          "category": "provider_aggregate_candidate",
+          "connections": [],
+          "detail_status": "summary_only",
+          "elapsed": "9h40",
+          "elapsed_min": 580,
+          "id": "provider-aggregate:outbound:c543cf44d446458594bcb4468d0bf02b112",
+          "max_connections_per_journey": 2,
+          "ok": true,
+          "price": {
+            "amount": 35516,
+            "currency": "RUB"
+          },
+          "price_text": "35 516 RUB",
+          "rank": null,
+          "reason": "Provider returned a whole-route aggregate offer; treat as a candidate for purchase-screen verification, not as proof of protected through-ticketing.",
+          "risk": {
+            "grade": null,
+            "reject": null,
+            "score": null,
+            "top_reasons": [
+              {
+                "code": "provider_aggregate_candidate",
+                "message": "Ticketing protection is unknown until verified on the booking screen."
+              }
+            ]
+          },
+          "segments": [],
+          "stop_tier": "T2_TWO_STOP",
+          "ticketing_note": "Provider aggregate candidate; ticketing_protection=unknown. Provider-assembled route offer; verify single-PNR/protection, baggage, and final fare on the booking screen. Verify single-PNR/protection, baggage, fare rules, and final fare on the booking screen.",
+          "validation_summary": {
+            "candidate_type": "provider_aggregate",
+            "connection_counts_by_journey": [
+              2
+            ],
+            "filters": {
+              "direct_only": false,
+              "only_carriers": []
+            },
+            "max_connections_per_journey": 2,
+            "provider": "kupibilet",
+            "stop_tier": "T2_TWO_STOP",
+            "three_plus_connection_journey_count": 0
+          }
+        },
+        {
+          "carriers": [
+            "3F",
+            "A3"
+          ],
+          "category": "provider_aggregate_candidate",
+          "connections": [],
+          "detail_status": "summary_only",
+          "elapsed": "9h40",
+          "elapsed_min": 580,
+          "id": "provider-aggregate:outbound:c543cf44d446458594bcb4468d0bf02b9",
+          "max_connections_per_journey": 2,
+          "ok": true,
+          "price": {
+            "amount": 35596,
+            "currency": "RUB"
+          },
+          "price_text": "35 596 RUB",
+          "rank": null,
+          "reason": "Provider returned a whole-route aggregate offer; treat as a candidate for purchase-screen verification, not as proof of protected through-ticketing.",
+          "risk": {
+            "grade": null,
+            "reject": null,
+            "score": null,
+            "top_reasons": [
+              {
+                "code": "provider_aggregate_candidate",
+                "message": "Ticketing protection is unknown until verified on the booking screen."
+              }
+            ]
+          },
+          "segments": [],
+          "stop_tier": "T2_TWO_STOP",
+          "ticketing_note": "Provider aggregate candidate; ticketing_protection=unknown. Provider-assembled route offer; verify single-PNR/protection, baggage, and final fare on the booking screen. Verify single-PNR/protection, baggage, fare rules, and final fare on the booking screen.",
+          "validation_summary": {
+            "candidate_type": "provider_aggregate",
+            "connection_counts_by_journey": [
+              2
+            ],
+            "filters": {
+              "direct_only": false,
+              "only_carriers": []
+            },
+            "max_connections_per_journey": 2,
+            "provider": "kupibilet",
+            "stop_tier": "T2_TWO_STOP",
+            "three_plus_connection_journey_count": 0
+          }
+        },
+        {
+          "carriers": [
+            "VF",
+            "WZ"
+          ],
+          "category": "provider_aggregate_candidate",
+          "connections": [],
+          "detail_status": "summary_only",
+          "elapsed": "9h",
+          "elapsed_min": 540,
+          "id": "provider-aggregate:return:b7ef6ec953194046832b4a52ca06ede071",
+          "max_connections_per_journey": 2,
+          "ok": true,
+          "price": {
+            "amount": 31720,
+            "currency": "RUB"
+          },
+          "price_text": "31 720 RUB",
+          "rank": null,
+          "reason": "Provider returned a whole-route aggregate offer; treat as a candidate for purchase-screen verification, not as proof of protected through-ticketing.",
+          "risk": {
+            "grade": null,
+            "reject": null,
+            "score": null,
+            "top_reasons": [
+              {
+                "code": "provider_aggregate_candidate",
+                "message": "Ticketing protection is unknown until verified on the booking screen."
+              }
+            ]
+          },
+          "segments": [],
+          "stop_tier": "T2_TWO_STOP",
+          "ticketing_note": "Provider aggregate candidate; ticketing_protection=unknown. Provider-assembled route offer; verify single-PNR/protection, baggage, and final fare on the booking screen. Verify single-PNR/protection, baggage, fare rules, and final fare on the booking screen.",
+          "validation_summary": {
+            "candidate_type": "provider_aggregate",
+            "connection_counts_by_journey": [
+              2
+            ],
+            "filters": {
+              "direct_only": false,
+              "only_carriers": []
+            },
+            "max_connections_per_journey": 2,
+            "provider": "kupibilet",
+            "stop_tier": "T2_TWO_STOP",
+            "three_plus_connection_journey_count": 0
+          }
+        },
+        {
+          "carriers": [
+            "PC",
+            "WZ"
+          ],
+          "category": "provider_aggregate_candidate",
+          "connections": [],
+          "detail_status": "summary_only",
+          "elapsed": "9h",
+          "elapsed_min": 540,
+          "id": "provider-aggregate:return:b7ef6ec953194046832b4a52ca06ede082",
+          "max_connections_per_journey": 2,
+          "ok": true,
+          "price": {
+            "amount": 32919,
+            "currency": "RUB"
+          },
+          "price_text": "32 919 RUB",
+          "rank": null,
+          "reason": "Provider returned a whole-route aggregate offer; treat as a candidate for purchase-screen verification, not as proof of protected through-ticketing.",
+          "risk": {
+            "grade": null,
+            "reject": null,
+            "score": null,
+            "top_reasons": [
+              {
+                "code": "provider_aggregate_candidate",
+                "message": "Ticketing protection is unknown until verified on the booking screen."
+              }
+            ]
+          },
+          "segments": [],
+          "stop_tier": "T2_TWO_STOP",
+          "ticketing_note": "Provider aggregate candidate; ticketing_protection=unknown. Provider-assembled route offer; verify single-PNR/protection, baggage, and final fare on the booking screen. Verify single-PNR/protection, baggage, fare rules, and final fare on the booking screen.",
+          "validation_summary": {
+            "candidate_type": "provider_aggregate",
+            "connection_counts_by_journey": [
+              2
+            ],
+            "filters": {
+              "direct_only": false,
+              "only_carriers": []
+            },
+            "max_connections_per_journey": 2,
+            "provider": "kupibilet",
+            "stop_tier": "T2_TWO_STOP",
+            "three_plus_connection_journey_count": 0
+          }
+        }
+      ],
+      "provider_failures": [],
+      "recommended_options": [
+        {
+          "carriers": [
+            "FV",
+            "SU",
+            "TK",
+            "U6"
+          ],
+          "category": "best_ranked",
+          "connections": [
+            {
+              "actual": "3h",
+              "actual_min": 180,
+              "arrival_airport": "SVO",
+              "departure_airport": "SVO",
+              "direction": "outbound",
+              "required": "2h",
+              "required_min": 120,
+              "risk": {
+                "grade": "excellent",
+                "reasons": [],
+                "score": 0
+              },
+              "severity": "ok",
+              "status": "compatible",
+              "tradeoffs": []
+            },
+            {
+              "actual": "17h40",
+              "actual_min": 1060,
+              "arrival_airport": "IST",
+              "departure_airport": "IST",
+              "direction": "outbound",
+              "required": "2h",
+              "required_min": 120,
+              "risk": {
+                "grade": "excellent",
+                "reasons": [],
+                "score": 0
+              },
+              "severity": "ok",
+              "status": "compatible",
+              "tradeoffs": [
+                {
+                  "actual_min": 1060,
+                  "arrival_airport": "IST",
+                  "code": "long_wait",
+                  "departure_airport": "IST",
+                  "message": "Long wait of 17h40; show as a trade-off, not an automatic risk penalty."
+                },
+                {
+                  "actual_min": 1060,
+                  "arrival_airport": "IST",
+                  "code": "overnight_wait",
+                  "departure_airport": "IST",
+                  "message": "Overnight wait; show explicitly and compare alternatives, but do not demote solely for overnight timing."
+                }
+              ]
+            },
+            {
+              "actual": "4h05",
+              "actual_min": 245,
+              "arrival_airport": "IST",
+              "departure_airport": "IST",
+              "direction": "return",
+              "required": "2h",
+              "required_min": 120,
+              "risk": {
+                "grade": "excellent",
+                "reasons": [],
+                "score": 0
+              },
+              "severity": "ok",
+              "status": "compatible",
+              "tradeoffs": []
+            }
+          ],
+          "detail_status": "full",
+          "elapsed": "43h50",
+          "elapsed_min": 2630,
+          "id": "assembled-2421:SVX-SVX",
+          "max_connections_per_journey": 2,
+          "ok": true,
+          "price": {
+            "amount": 85022,
+            "currency": "RUB"
+          },
+          "price_text": "85 022 RUB",
+          "rank": 1,
+          "reason": "Best CLI-ranked recommendation detail retained even when compact output limits are low.",
+          "risk": {
+            "grade": "excellent",
+            "reject": false,
+            "score": 0,
+            "top_reasons": [
+              {
+                "code": "preferred_carrier_match",
+                "message": "Uses preferred carrier(s): SU, TK, U6.",
+                "points": 0,
+                "scope": "carrier"
+              }
+            ]
+          },
+          "segments": [
+            {
+              "arrival_at": "2026-08-17T05:45:00+03:00",
+              "carrier": "FV",
+              "departure_at": "2026-08-17T05:10:00+05:00",
+              "destination": "SVO",
+              "direction": "outbound",
+              "flight_number": "SU6208",
+              "marketing_carrier": "SU",
+              "operating_carrier": "FV",
+              "origin": "SVX"
+            },
+            {
+              "arrival_at": "2026-08-17T14:15:00+03:00",
+              "carrier": "SU",
+              "departure_at": "2026-08-17T08:45:00+03:00",
+              "destination": "IST",
+              "direction": "outbound",
+              "flight_number": "SU2136",
+              "marketing_carrier": "SU",
+              "operating_carrier": "SU",
+              "origin": "SVO"
+            },
+            {
+              "arrival_at": "2026-08-18T10:05:00",
+              "carrier": "TK",
+              "departure_at": "2026-08-18T07:55:00",
+              "destination": "FRA",
+              "direction": "outbound",
+              "flight_number": "TK1587",
+              "marketing_carrier": "TK",
+              "operating_carrier": "TK",
+              "origin": "IST"
+            },
+            {
+              "arrival_at": "2026-08-19T15:40:00",
+              "carrier": "TK",
+              "departure_at": "2026-08-19T11:30:00",
+              "destination": "IST",
+              "direction": "return",
+              "flight_number": "TK1588",
+              "marketing_carrier": "TK",
+              "operating_carrier": "TK",
+              "origin": "FRA"
+            },
+            {
+              "arrival_at": "2026-08-20T02:25:00+05:00",
+              "carrier": "U6",
+              "departure_at": "2026-08-19T19:45:00+03:00",
+              "destination": "SVX",
+              "direction": "return",
+              "flight_number": "U6774",
+              "marketing_carrier": "U6",
+              "operating_carrier": "U6",
+              "origin": "IST"
+            }
+          ],
+          "stop_tier": "T2_TWO_STOP",
+          "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage.",
+          "validation_summary": {
+            "connection_count": 3,
+            "connection_counts_by_journey": [
+              2,
+              1
+            ],
+            "max_connections_per_journey": 2,
+            "segment_count": 5,
+            "stop_tier": "T2_TWO_STOP",
+            "three_plus_connection_journey_count": 0,
+            "violation_count": 0
+          }
+        },
+        {
+          "carriers": [
+            "LH",
+            "SU",
+            "TK"
+          ],
+          "category": "cheapest_acceptable",
+          "connections": [
+            {
+              "actual": "7h35",
+              "actual_min": 455,
+              "arrival_airport": "SVO",
+              "departure_airport": "SVO",
+              "direction": "outbound",
+              "required": "2h",
+              "required_min": 120,
+              "risk": {
+                "grade": "excellent",
+                "reasons": [],
+                "score": 0
+              },
+              "severity": "ok",
+              "status": "compatible",
+              "tradeoffs": [
+                {
+                  "actual_min": 455,
+                  "arrival_airport": "SVO",
+                  "code": "overnight_wait",
+                  "departure_airport": "SVO",
+                  "message": "Overnight wait; show explicitly and compare alternatives, but do not demote solely for overnight timing."
+                }
+              ]
+            },
+            {
+              "actual": "27h35",
+              "actual_min": 1655,
+              "arrival_airport": "IST",
+              "departure_airport": "IST",
+              "direction": "outbound",
+              "required": "2h",
+              "required_min": 120,
+              "risk": {
+                "grade": "excellent",
+                "reasons": [],
+                "score": 0
+              },
+              "severity": "ok",
+              "status": "compatible",
+              "tradeoffs": [
+                {
+                  "actual_min": 1655,
+                  "arrival_airport": "IST",
+                  "code": "long_wait",
+                  "departure_airport": "IST",
+                  "message": "Long wait of 27h35; show as a trade-off, not an automatic risk penalty."
+                },
+                {
+                  "actual_min": 1655,
+                  "arrival_airport": "IST",
+                  "code": "overnight_wait",
+                  "departure_airport": "IST",
+                  "message": "Overnight wait; show explicitly and compare alternatives, but do not demote solely for overnight timing."
+                }
+              ]
+            },
+            {
+              "actual": "41h40",
+              "actual_min": 2500,
+              "arrival_airport": "IST",
+              "departure_airport": "IST",
+              "direction": "return",
+              "required": "2h",
+              "required_min": 120,
+              "risk": {
+                "grade": "excellent",
+                "reasons": [],
+                "score": 0
+              },
+              "severity": "ok",
+              "status": "compatible",
+              "tradeoffs": [
+                {
+                  "actual_min": 2500,
+                  "arrival_airport": "IST",
+                  "code": "long_wait",
+                  "departure_airport": "IST",
+                  "message": "Long wait of 41h40; show as a trade-off, not an automatic risk penalty."
+                },
+                {
+                  "actual_min": 2500,
+                  "arrival_airport": "IST",
+                  "code": "overnight_wait",
+                  "departure_airport": "IST",
+                  "message": "Overnight wait; show explicitly and compare alternatives, but do not demote solely for overnight timing."
+                }
+              ]
+            }
+          ],
+          "detail_status": "summary_only",
+          "elapsed": "96h10",
+          "elapsed_min": 5770,
+          "id": "assembled-1:SVX-SVX",
+          "max_connections_per_journey": 2,
+          "ok": true,
+          "price": {
+            "amount": 80939,
+            "currency": "RUB"
+          },
+          "price_text": "80 939 RUB",
+          "rank": 724,
+          "reason": "Cheapest acceptable recommendation detail retained for price trade-off explanation.",
+          "risk": {
+            "grade": "excellent",
+            "reject": false,
+            "score": 0,
+            "top_reasons": [
+              {
+                "code": "preferred_carrier_match",
+                "message": "Uses preferred carrier(s): SU, TK.",
+                "points": 0,
+                "scope": "carrier"
+              }
+            ]
+          },
+          "segments": [],
+          "stop_tier": "T2_TWO_STOP",
+          "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage.",
+          "validation_summary": {
+            "connection_count": 3,
+            "connection_counts_by_journey": [
+              2,
+              1
+            ],
+            "max_connections_per_journey": 2,
+            "segment_count": 5,
+            "stop_tier": "T2_TWO_STOP",
+            "three_plus_connection_journey_count": 0,
+            "violation_count": 0
+          }
+        },
+        {
+          "carriers": [
+            "FV",
+            "LH",
+            "SU",
+            "TK",
+            "U6"
+          ],
+          "category": "fastest_acceptable",
+          "connections": [
+            {
+              "actual": "3h",
+              "actual_min": 180,
+              "arrival_airport": "SVO",
+              "departure_airport": "SVO",
+              "direction": "outbound",
+              "required": "2h",
+              "required_min": 120,
+              "risk": {
+                "grade": "excellent",
+                "reasons": [],
+                "score": 0
+              },
+              "severity": "ok",
+              "status": "compatible",
+              "tradeoffs": []
+            },
+            {
+              "actual": "17h40",
+              "actual_min": 1060,
+              "arrival_airport": "IST",
+              "departure_airport": "IST",
+              "direction": "outbound",
+              "required": "2h",
+              "required_min": 120,
+              "risk": {
+                "grade": "excellent",
+                "reasons": [],
+                "score": 0
+              },
+              "severity": "ok",
+              "status": "compatible",
+              "tradeoffs": [
+                {
+                  "actual_min": 1060,
+                  "arrival_airport": "IST",
+                  "code": "long_wait",
+                  "departure_airport": "IST",
+                  "message": "Long wait of 17h40; show as a trade-off, not an automatic risk penalty."
+                },
+                {
+                  "actual_min": 1060,
+                  "arrival_airport": "IST",
+                  "code": "overnight_wait",
+                  "departure_airport": "IST",
+                  "message": "Overnight wait; show explicitly and compare alternatives, but do not demote solely for overnight timing."
+                }
+              ]
+            },
+            {
+              "actual": "2h50",
+              "actual_min": 170,
+              "arrival_airport": "IST",
+              "departure_airport": "IST",
+              "direction": "return",
+              "required": "2h",
+              "required_min": 120,
+              "risk": {
+                "grade": "excellent",
+                "reasons": [
+                  {
+                    "code": "below_ideal_buffer",
+                    "message": "Connection is valid but below ideal buffer.",
+                    "points": 3
+                  }
+                ],
+                "score": 3
+              },
+              "severity": "ok",
+              "status": "compatible",
+              "tradeoffs": []
+            }
+          ],
+          "detail_status": "summary_only",
+          "elapsed": "42h30",
+          "elapsed_min": 2550,
+          "id": "assembled-2440:SVX-SVX",
+          "max_connections_per_journey": 2,
+          "ok": true,
+          "price": {
+            "amount": 93292,
+            "currency": "RUB"
+          },
+          "price_text": "93 292 RUB",
+          "rank": 1033,
+          "reason": "Fastest acceptable recommendation detail retained for time trade-off explanation.",
+          "risk": {
+            "grade": "excellent",
+            "reject": false,
+            "score": 3,
+            "top_reasons": [
+              {
+                "between_segments": [
+                  3,
+                  4
+                ],
+                "code": "below_ideal_buffer",
+                "message": "Connection is valid but below ideal buffer.",
+                "points": 3,
+                "scope": "connection"
+              },
+              {
+                "code": "preferred_carrier_match",
+                "message": "Uses preferred carrier(s): SU, TK, U6.",
+                "points": 0,
+                "scope": "carrier"
+              }
+            ]
+          },
+          "segments": [],
+          "stop_tier": "T2_TWO_STOP",
+          "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage.",
+          "validation_summary": {
+            "connection_count": 3,
+            "connection_counts_by_journey": [
+              2,
+              1
+            ],
+            "max_connections_per_journey": 2,
+            "segment_count": 5,
+            "stop_tier": "T2_TWO_STOP",
+            "three_plus_connection_journey_count": 0,
+            "violation_count": 0
+          }
+        },
+        {
+          "carriers": [
+            "FV",
+            "SU",
+            "TK",
+            "U6"
+          ],
+          "category": null,
+          "connections": [
+            {
+              "actual": "10h55",
+              "actual_min": 655,
+              "arrival_airport": "SVO",
+              "departure_airport": "SVO",
+              "direction": "outbound",
+              "required": "2h",
+              "required_min": 120,
+              "risk": {
+                "grade": "excellent",
+                "reasons": [],
+                "score": 0
+              },
+              "severity": "ok",
+              "status": "compatible",
+              "tradeoffs": [
+                {
+                  "actual_min": 655,
+                  "arrival_airport": "SVO",
+                  "code": "long_wait",
+                  "departure_airport": "SVO",
+                  "message": "Long wait of 10h55; show as a trade-off, not an automatic risk penalty."
+                },
+                {
+                  "actual_min": 655,
+                  "arrival_airport": "SVO",
+                  "code": "overnight_wait",
+                  "departure_airport": "SVO",
+                  "message": "Overnight wait; show explicitly and compare alternatives, but do not demote solely for overnight timing."
+                }
+              ]
+            },
+            {
+              "actual": "9h45",
+              "actual_min": 585,
+              "arrival_airport": "IST",
+              "departure_airport": "IST",
+              "direction": "outbound",
+              "required": "2h",
+              "required_min": 120,
+              "risk": {
+                "grade": "excellent",
+                "reasons": [],
+                "score": 0
+              },
+              "severity": "ok",
+              "status": "compatible",
+              "tradeoffs": [
+                {
+                  "actual_min": 585,
+                  "arrival_airport": "IST",
+                  "code": "long_wait",
+                  "departure_airport": "IST",
+                  "message": "Long wait of 9h45; show as a trade-off, not an automatic risk penalty."
+                },
+                {
+                  "actual_min": 585,
+                  "arrival_airport": "IST",
+                  "code": "overnight_wait",
+                  "departure_airport": "IST",
+                  "message": "Overnight wait; show explicitly and compare alternatives, but do not demote solely for overnight timing."
+                }
+              ]
+            },
+            {
+              "actual": "4h05",
+              "actual_min": 245,
+              "arrival_airport": "IST",
+              "departure_airport": "IST",
+              "direction": "return",
+              "required": "2h",
+              "required_min": 120,
+              "risk": {
+                "grade": "excellent",
+                "reasons": [],
+                "score": 0
+              },
+              "severity": "ok",
+              "status": "compatible",
+              "tradeoffs": []
+            }
+          ],
+          "detail_status": "summary_only",
+          "elapsed": "43h50",
+          "elapsed_min": 2630,
+          "id": "assembled-2526:SVX-SVX",
+          "max_connections_per_journey": 2,
+          "ok": true,
+          "price": {
+            "amount": 85022,
+            "currency": "RUB"
+          },
+          "price_text": "85 022 RUB",
+          "rank": 2,
+          "reason": null,
+          "risk": {
+            "grade": "excellent",
+            "reject": false,
+            "score": 0,
+            "top_reasons": [
+              {
+                "code": "preferred_carrier_match",
+                "message": "Uses preferred carrier(s): SU, TK, U6.",
+                "points": 0,
+                "scope": "carrier"
+              }
+            ]
+          },
+          "segments": [],
+          "stop_tier": "T2_TWO_STOP",
+          "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage.",
+          "validation_summary": {
+            "connection_count": 3,
+            "connection_counts_by_journey": [
+              2,
+              1
+            ],
+            "max_connections_per_journey": 2,
+            "segment_count": 5,
+            "stop_tier": "T2_TWO_STOP",
+            "three_plus_connection_journey_count": 0,
+            "violation_count": 0
+          }
+        },
+        {
+          "carriers": [
+            "FV",
+            "SU",
+            "TK",
+            "U6"
+          ],
+          "category": null,
+          "connections": [
+            {
+              "actual": "15h30",
+              "actual_min": 930,
+              "arrival_airport": "SVO",
+              "departure_airport": "SVO",
+              "direction": "outbound",
+              "required": "2h",
+              "required_min": 120,
+              "risk": {
+                "grade": "excellent",
+                "reasons": [],
+                "score": 0
+              },
+              "severity": "ok",
+              "status": "compatible",
+              "tradeoffs": [
+                {
+                  "actual_min": 930,
+                  "arrival_airport": "SVO",
+                  "code": "long_wait",
+                  "departure_airport": "SVO",
+                  "message": "Long wait of 15h30; show as a trade-off, not an automatic risk penalty."
+                },
+                {
+                  "actual_min": 930,
+                  "arrival_airport": "SVO",
+                  "code": "overnight_wait",
+                  "departure_airport": "SVO",
+                  "message": "Overnight wait; show explicitly and compare alternatives, but do not demote solely for overnight timing."
+                }
+              ]
+            },
+            {
+              "actual": "5h25",
+              "actual_min": 325,
+              "arrival_airport": "IST",
+              "departure_airport": "IST",
+              "direction": "outbound",
+              "required": "2h",
+              "required_min": 120,
+              "risk": {
+                "grade": "excellent",
+                "reasons": [],
+                "score": 0
+              },
+              "severity": "ok",
+              "status": "compatible",
+              "tradeoffs": []
+            },
+            {
+              "actual": "4h05",
+              "actual_min": 245,
+              "arrival_airport": "IST",
+              "departure_airport": "IST",
+              "direction": "return",
+              "required": "2h",
+              "required_min": 120,
+              "risk": {
+                "grade": "excellent",
+                "reasons": [],
+                "score": 0
+              },
+              "severity": "ok",
+              "status": "compatible",
+              "tradeoffs": []
+            }
+          ],
+          "detail_status": "summary_only",
+          "elapsed": "43h50",
+          "elapsed_min": 2630,
+          "id": "assembled-2631:SVX-SVX",
+          "max_connections_per_journey": 2,
+          "ok": true,
+          "price": {
+            "amount": 85022,
+            "currency": "RUB"
+          },
+          "price_text": "85 022 RUB",
+          "rank": 3,
+          "reason": null,
+          "risk": {
+            "grade": "excellent",
+            "reject": false,
+            "score": 0,
+            "top_reasons": [
+              {
+                "code": "preferred_carrier_match",
+                "message": "Uses preferred carrier(s): SU, TK, U6.",
+                "points": 0,
+                "scope": "carrier"
+              }
+            ]
+          },
+          "segments": [],
+          "stop_tier": "T2_TWO_STOP",
+          "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage.",
+          "validation_summary": {
+            "connection_count": 3,
+            "connection_counts_by_journey": [
+              2,
+              1
+            ],
+            "max_connections_per_journey": 2,
+            "segment_count": 5,
+            "stop_tier": "T2_TWO_STOP",
+            "three_plus_connection_journey_count": 0,
+            "violation_count": 0
+          }
+        }
+      ],
+      "rejected_pair_warnings": [],
+      "route": {
+        "dates": {
+          "depart": "2026-08-17",
+          "return": "2026-08-19"
+        },
+        "destination": "FRA",
+        "destination_airports": [
+          "FRA"
+        ],
+        "origin": "SVX",
+        "origin_airports": [
+          "SVX"
+        ],
+        "profile": "business",
+        "provider_policy": "auto",
+        "routing_strategy": "ru-priority"
+      },
+      "schema_version": "agent_report.v1",
+      "segment_searches": [
+        {
+          "cache_status": null,
+          "date": "2026-08-17",
+          "destination": "FRA",
+          "direction": "outbound",
+          "leg": "direct_outbound",
+          "offer_count": 0,
+          "origin": "SVX",
+          "original_probe_id": null,
+          "probe_id": null,
+          "provider": null,
+          "reason": "direct_route_schedule_negative",
+          "status": "skipped"
+        },
+        {
+          "cache_status": "cache_hit",
+          "date": "2026-08-17",
+          "destination": "IST",
+          "direction": "outbound",
+          "leg": "origin_to_hub",
+          "offer_count": 2,
+          "origin": "SVX",
+          "original_probe_id": null,
+          "probe_id": "segment-probe-001",
+          "provider": "kupibilet",
+          "reason": null,
+          "status": "ok"
+        },
+        {
+          "cache_status": "cache_hit",
+          "date": "2026-08-17",
+          "destination": "SVO",
+          "direction": "outbound",
+          "leg": "origin_to_gateway",
+          "offer_count": 10,
+          "origin": "SVX",
+          "original_probe_id": null,
+          "probe_id": "segment-probe-002",
+          "provider": "kupibilet",
+          "reason": null,
+          "status": "ok"
+        },
+        {
+          "cache_status": "cache_hit",
+          "date": "2026-08-17",
+          "destination": "IST",
+          "direction": "outbound",
+          "leg": "gateway_to_hub",
+          "offer_count": 7,
+          "origin": "SVO",
+          "original_probe_id": null,
+          "probe_id": "segment-probe-003",
+          "provider": "kupibilet",
+          "reason": null,
+          "status": "ok"
+        },
+        {
+          "cache_status": "live",
+          "date": "2026-08-17",
+          "destination": "FRA",
+          "direction": "outbound",
+          "leg": "hub_to_destination",
+          "offer_count": 7,
+          "origin": "IST",
+          "original_probe_id": null,
+          "probe_id": "segment-probe-004",
+          "provider": "fli",
+          "reason": null,
+          "status": "ok"
+        },
+        {
+          "cache_status": "live",
+          "date": "2026-08-18",
+          "destination": "FRA",
+          "direction": "outbound",
+          "leg": "hub_to_destination",
+          "offer_count": 7,
+          "origin": "IST",
+          "original_probe_id": null,
+          "probe_id": "segment-probe-005",
+          "provider": "fli",
+          "reason": null,
+          "status": "ok"
+        },
+        {
+          "cache_status": null,
+          "date": "2026-08-17",
+          "destination": "IST",
+          "direction": "outbound",
+          "leg": "origin_to_hub",
+          "offer_count": 70,
+          "origin": "SVX",
+          "original_probe_id": null,
+          "probe_id": null,
+          "provider": null,
+          "reason": null,
+          "status": "synthetic"
+        },
+        {
+          "cache_status": null,
+          "date": "2026-08-17",
+          "destination": "DXB",
+          "direction": "outbound",
+          "leg": "origin_to_hub",
+          "offer_count": 0,
+          "origin": "SVX",
+          "original_probe_id": null,
+          "probe_id": null,
+          "provider": null,
+          "reason": "priority_route_viable",
+          "status": "skipped"
+        },
+        {
+          "cache_status": null,
+          "date": "2026-08-17",
+          "destination": "FRA",
+          "direction": "outbound",
+          "leg": "hub_to_destination",
+          "offer_count": 0,
+          "origin": "DXB",
+          "original_probe_id": null,
+          "probe_id": null,
+          "provider": null,
+          "reason": "priority_route_viable",
+          "status": "skipped"
+        },
+        {
+          "cache_status": null,
+          "date": "2026-08-18",
+          "destination": "FRA",
+          "direction": "outbound",
+          "leg": "hub_to_destination",
+          "offer_count": 0,
+          "origin": "DXB",
+          "original_probe_id": null,
+          "probe_id": null,
+          "provider": null,
+          "reason": "priority_route_viable",
+          "status": "skipped"
+        },
+        {
+          "cache_status": null,
+          "date": "2026-08-19",
+          "destination": "SVX",
+          "direction": "return",
+          "leg": "direct_return",
+          "offer_count": 0,
+          "origin": "FRA",
+          "original_probe_id": null,
+          "probe_id": null,
+          "provider": null,
+          "reason": "direct_route_schedule_negative",
+          "status": "skipped"
+        },
+        {
+          "cache_status": "live",
+          "date": "2026-08-19",
+          "destination": "IST",
+          "direction": "return",
+          "leg": "destination_to_hub",
+          "offer_count": 7,
+          "origin": "FRA",
+          "original_probe_id": null,
+          "probe_id": "segment-probe-006",
+          "provider": "fli",
+          "reason": null,
+          "status": "ok"
+        },
+        {
+          "cache_status": "cache_hit",
+          "date": "2026-08-19",
+          "destination": "SVX",
+          "direction": "return",
+          "leg": "hub_to_origin",
+          "offer_count": 2,
+          "origin": "IST",
+          "original_probe_id": null,
+          "probe_id": "segment-probe-007",
+          "provider": "kupibilet",
+          "reason": null,
+          "status": "ok"
+        },
+        {
+          "cache_status": "live",
+          "date": "2026-08-19",
+          "destination": "SVO",
+          "direction": "return",
+          "leg": "hub_to_gateway",
+          "offer_count": 7,
+          "origin": "IST",
+          "original_probe_id": null,
+          "probe_id": "segment-probe-008",
+          "provider": "kupibilet",
+          "reason": null,
+          "status": "ok"
+        },
+        {
+          "cache_status": "live",
+          "date": "2026-08-19",
+          "destination": "SVX",
+          "direction": "return",
+          "leg": "gateway_to_origin",
+          "offer_count": 8,
+          "origin": "SVO",
+          "original_probe_id": null,
+          "probe_id": "segment-probe-009",
+          "provider": "kupibilet",
+          "reason": null,
+          "status": "ok"
+        },
+        {
+          "cache_status": "cache_hit",
+          "date": "2026-08-20",
+          "destination": "SVX",
+          "direction": "return",
+          "leg": "hub_to_origin",
+          "offer_count": 1,
+          "origin": "IST",
+          "original_probe_id": null,
+          "probe_id": "segment-probe-010",
+          "provider": "kupibilet",
+          "reason": null,
+          "status": "ok"
+        },
+        {
+          "cache_status": "live",
+          "date": "2026-08-20",
+          "destination": "SVO",
+          "direction": "return",
+          "leg": "hub_to_gateway",
+          "offer_count": 7,
+          "origin": "IST",
+          "original_probe_id": null,
+          "probe_id": "segment-probe-011",
+          "provider": "kupibilet",
+          "reason": null,
+          "status": "ok"
+        },
+        {
+          "cache_status": "live",
+          "date": "2026-08-20",
+          "destination": "SVX",
+          "direction": "return",
+          "leg": "gateway_to_origin",
+          "offer_count": 10,
+          "origin": "SVO",
+          "original_probe_id": null,
+          "probe_id": "segment-probe-012",
+          "provider": "kupibilet",
+          "reason": null,
+          "status": "ok"
+        },
+        {
+          "cache_status": "cache_hit",
+          "date": "2026-08-21",
+          "destination": "SVX",
+          "direction": "return",
+          "leg": "hub_to_origin",
+          "offer_count": 2,
+          "origin": "IST",
+          "original_probe_id": null,
+          "probe_id": "segment-probe-013",
+          "provider": "kupibilet",
+          "reason": null,
+          "status": "ok"
+        },
+        {
+          "cache_status": "cache_hit",
+          "date": "2026-08-21",
+          "destination": "SVO",
+          "direction": "return",
+          "leg": "hub_to_gateway",
+          "offer_count": 7,
+          "origin": "IST",
+          "original_probe_id": null,
+          "probe_id": "segment-probe-014",
+          "provider": "kupibilet",
+          "reason": null,
+          "status": "ok"
+        }
+      ],
+      "source_boundaries": [
+        "Segment assembly prices direct one-way legs and does not construct GDS, airline through-fares, or guaranteed single-PNR fares.",
+        "Kupibilet aggregate controls can reveal provider-assembled route offers, but ticket protection, baggage, fare rules, and final price still require booking-screen verification.",
+        "Travelpayouts/Aviasales cached absence is not negative evidence.",
+        "Provider failures such as unavailable FLI MCP are source availability failures, not route absence evidence."
+      ],
+      "status": {
+        "candidate_count": 5000,
+        "candidate_pool_truncated": true,
+        "failure_count": 0,
+        "ranked_output_count": 10,
+        "ranked_total_count": 5000
+      },
+      "stop_policy": {
+        "fallback_max_connections": 2,
+        "hard_max_connections": 2,
+        "name": "business_default",
+        "preferred_max_connections": 1,
+        "three_plus_reportable": false,
+        "two_stop_allowed_only_if_no_preferred": true
+      },
+      "stop_policy_diagnostics": {
+        "allowed_max_connections": 2,
+        "eligible_fallback_count": 5000,
+        "eligible_preferred_count": 0,
+        "fallback_max_connections": 2,
+        "garbage_options_hidden_from_answer": false,
+        "hard_max_connections": 2,
+        "policy": "business_default",
+        "preferred_candidate_count": 0,
+        "preferred_max_connections": 1,
+        "stop_policy_filtered_count": 0,
+        "suppressed_three_plus_count": 0,
+        "suppressed_two_stop_because_preferred_exists": 0,
+        "three_plus_suppressed_count": 0,
+        "two_stop_candidate_count": 5000,
+        "two_stop_suppressed_because_preferred_exists": 0,
+        "used_fallback_two_stop": true,
+        "used_two_stop_fallback": true
+      },
+      "through_fare_checks": []
+    }
+  },
+  "ok": true
+}

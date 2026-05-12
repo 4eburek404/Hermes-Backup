@@ -39,6 +39,17 @@ def validation_error_detail(error: ValidationError) -> dict[str, Any]:
     }
 
 
+def _option_stop_connections(option: Any) -> int | None:
+    connections = option.get("max_connections_per_journey") if isinstance(option, dict) else None
+    if isinstance(connections, int):
+        return connections
+    return None
+
+
+def _is_stop_tier(option: Any, tier: str) -> bool:
+    return isinstance(option, dict) and option.get("stop_tier") == tier
+
+
 def semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
     errors: list[dict[str, Any]] = []
     answer_text = "\n".join(str(line).lower() for line in report.get("answer_lines") or [])
@@ -84,6 +95,46 @@ def semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
             {
                 "path": "$.answer_lines",
                 "message": "answer_lines must surface provider failures",
+                "validator": "semantic",
+            }
+        )
+
+    options = list(report.get("recommended_options") or []) + list(report.get("priority_options") or [])
+    preferred_tiers = {"t0_direct", "t1_one_stop"}
+    has_preferred = any(
+        str(option.get("stop_tier") or "").lower() in preferred_tiers
+        or (_option_stop_connections(option) is not None and _option_stop_connections(option) <= 1)
+        for option in options
+        if isinstance(option, dict)
+    )
+    has_three_plus = any(
+        _is_stop_tier(option, "T3_THREE_PLUS")
+        or (_option_stop_connections(option) is not None and _option_stop_connections(option) >= 3)
+        for option in options
+        if isinstance(option, dict)
+    )
+    if has_three_plus:
+        errors.append(
+            {
+                "path": "$.recommended_options, $.priority_options",
+                "message": "agent_report options must not include 3+ connection itineraries in normal mode",
+                "validator": "semantic",
+            }
+        )
+
+    has_two_stop = any(
+        _is_stop_tier(option, "T2_TWO_STOP")
+        or (_option_stop_connections(option) is not None and _option_stop_connections(option) == 2)
+        for option in options
+        if isinstance(option, dict)
+    )
+    diagnostics = report.get("stop_policy_diagnostics") if isinstance(report.get("stop_policy_diagnostics"), dict) else {}
+    used_fallback = bool(diagnostics.get("used_fallback_two_stop") or diagnostics.get("used_two_stop_fallback"))
+    if has_preferred and has_two_stop and not used_fallback:
+        errors.append(
+            {
+                "path": "$.recommended_options, $.priority_options",
+                "message": "two-stop options should not be reported when preferred-tier candidates are present",
                 "validator": "semantic",
             }
         )

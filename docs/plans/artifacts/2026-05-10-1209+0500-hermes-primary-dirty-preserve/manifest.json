@@ -1,0 +1,39 @@
+{
+  "purpose": "Preserve primary Hermes dirty skill/docs changes before update/restart",
+  "repo": "/home/konstantin/.hermes/hermes-agent",
+  "artifact_dir": "/home/konstantin/docs/plans/artifacts/2026-05-10-1209+0500-hermes-primary-dirty-preserve",
+  "tracked_patch": "tracked-dirty.patch",
+  "untracked_patch": "untracked-create.patch",
+  "status": "status.txt",
+  "file_copies_root": "files/",
+  "files": [
+    {
+      "path": "skills/autonomous-ai-agents/hermes-agent/SKILL.md",
+      "exists": true,
+      "size": 31302,
+      "sha256": "4fad585f98b1b268bf717a2817b6ff37ec0630ba67f81982d6bd13459c9c259b",
+      "tracked": true
+    },
+    {
+      "path": "skills/github/github-pr-workflow/SKILL.md",
+      "exists": true,
+      "size": 17016,
+      "sha256": "3cdfa8f0c22dc84731f91076993214162b8349ad1e164c6642dd662854c0fa3e",
+      "tracked": true
+    },
+    {
+      "path": "skills/productivity/flight-search/references/cli-maintenance.md",
+      "exists": true,
+      "size": 5167,
+      "sha256": "45ee6664f07f75e77d375aeedea520eb5b9b5d446bdcbf10b823af938839716c",
+      "tracked": true
+    },
+    {
+      "path": "skills/autonomous-ai-agents/hermes-agent/references/fork-release-sync-conflicts.md",
+      "exists": true,
+      "size": 10051,
+      "sha256": "5f67f22dd017b210dc1ef80f4dc723b05aa6b94229b176c39eb22fa947a11a40",
+      "tracked": false
+    }
+  ]
+}

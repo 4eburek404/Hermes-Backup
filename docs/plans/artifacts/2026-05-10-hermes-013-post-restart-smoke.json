@@ -1,0 +1,106 @@
+{
+  "started_at": "2026-05-10T12:51:13+05:00",
+  "repo": "/home/konstantin/.hermes/hermes-agent",
+  "delay_seconds": 35,
+  "old_pid": 2099010,
+  "pre_active": {
+    "cmd": [
+      "systemctl",
+      "--user",
+      "is-active",
+      "hermes-gateway.service"
+    ],
+    "returncode": 0,
+    "stdout": "active",
+    "stderr": ""
+  },
+  "pre_version": {
+    "cmd": [
+      "/home/konstantin/.local/bin/hermes",
+      "--version"
+    ],
+    "returncode": 0,
+    "stdout": "Hermes Agent v0.13.0 (2026.5.7)\nProject: /home/konstantin/.hermes/hermes-agent\nPython: 3.11.15\nOpenAI SDK: 2.32.0\nUp to date",
+    "stderr": ""
+  },
+  "restart_started_at": "2026-05-10T12:51:49+05:00",
+  "restart": {
+    "cmd": [
+      "systemctl",
+      "--user",
+      "restart",
+      "hermes-gateway.service"
+    ],
+    "returncode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "wait_samples_tail": [
+    {
+      "t": "2026-05-10T12:51:52+05:00",
+      "active": "active",
+      "pid": null
+    },
+    {
+      "t": "2026-05-10T12:51:55+05:00",
+      "active": "active",
+      "pid": null
+    },
+    {
+      "t": "2026-05-10T12:51:57+05:00",
+      "active": "active",
+      "pid": 2117860
+    }
+  ],
+  "new_pid": 2117860,
+  "active_after_restart": true,
+  "post_active": {
+    "cmd": [
+      "systemctl",
+      "--user",
+      "is-active",
+      "hermes-gateway.service"
+    ],
+    "returncode": 0,
+    "stdout": "active",
+    "stderr": ""
+  },
+  "post_version": {
+    "cmd": [
+      "/home/konstantin/.local/bin/hermes",
+      "--version"
+    ],
+    "returncode": 0,
+    "stdout": "Hermes Agent v0.13.0 (2026.5.7)\nProject: /home/konstantin/.hermes/hermes-agent\nPython: 3.11.15\nOpenAI SDK: 2.32.0\nUp to date",
+    "stderr": ""
+  },
+  "git_head": {
+    "cmd": [
+      "git",
+      "rev-parse",
+      "--short=12",
+      "HEAD"
+    ],
+    "returncode": 0,
+    "stdout": "e0d5636c93d3",
+    "stderr": ""
+  },
+  "origin_main": {
+    "cmd": [
+      "git",
+      "rev-parse",
+      "--short=12",
+      "origin/main"
+    ],
+    "returncode": 0,
+    "stdout": "e0d5636c93d3",
+    "stderr": ""
+  },
+  "finished_at": "2026-05-10T12:51:58+05:00",
+  "ok": true,
+  "telegram": {
+    "sent": true,
+    "status": 200,
+    "body_prefix": "{\"ok\":true,\"result\":{\"message_id\":6408,\"from\":{\"id\":8226847124,\"is_bot\":true,\"first_name\":\"Hermes\",\"username\":\"Turbo_ai_agent_on_my_vps_bot\"},\"chat\":{\"id\":254089514,\"first_name\":\"Konstantin\",\"last_nam"
+  }
+}

@@ -92,6 +92,32 @@ def add_agent_output_flags(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def add_stop_policy_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--stop-policy",
+        default="business-default",
+        choices=["business-default", "strict-direct-one-stop", "allow-two-stop-fallback", "debug-all"],
+        help="Stop policy preset. Defaults to business-default.",
+    )
+    parser.add_argument(
+        "--max-connections",
+        type=int,
+        default=None,
+        help="Preferred maximum number of connections (0 for nonstop only, 1 by default).",
+    )
+    parser.add_argument(
+        "--fallback-max-connections",
+        type=int,
+        default=None,
+        help="Fallback maximum connections when preferred tier has no viable candidates.",
+    )
+    parser.add_argument(
+        "--include-stop-policy-diagnostics",
+        action="store_true",
+        help="Include stop-policy diagnostics in ranked output.",
+    )
+
+
 def add_fli_mcp_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--mcp-url", default=os.getenv("FLIGHTS_FLI_MCP_URL", FLI_MCP_DEFAULT_URL), help="FLI MCP HTTP URL. Default from FLIGHTS_FLI_MCP_URL or localhost.")
     parser.add_argument("--timeout", type=int, default=60, help="HTTP timeout seconds for FLI MCP calls.")
@@ -139,6 +165,7 @@ def add_live_assembly_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--no-direct-route-intel", action="store_true", help="Do not skip direct-control probes using the official SVX route index.")
     add_agent_output_flags(parser)
     add_carrier_selection_flags(parser)
+    add_stop_policy_flags(parser)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -274,6 +301,7 @@ def build_parser() -> argparse.ArgumentParser:
     route_rank.add_argument("--min-same-airport-min", type=int, default=120)
     route_rank.add_argument("--min-cross-airport-min", type=int, default=300)
     route_rank.add_argument("--max-reasons", type=int, default=5)
+    add_stop_policy_flags(route_rank)
     add_carrier_selection_flags(route_rank)
     route_rank.set_defaults(func=command_route_rank, command_name="route rank")
 
@@ -301,6 +329,7 @@ def build_parser() -> argparse.ArgumentParser:
     route_assemble.add_argument("--include-rejected-pairs", type=int, default=20, help="Include first N rejected/airport-mismatch pairs.")
     add_agent_output_flags(route_assemble)
     add_carrier_selection_flags(route_assemble)
+    add_stop_policy_flags(route_assemble)
     route_assemble.set_defaults(func=command_route_assemble, command_name="route assemble")
 
     route_kb_assemble = route_sub.add_parser(

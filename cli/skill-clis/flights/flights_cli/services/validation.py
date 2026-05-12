@@ -7,6 +7,7 @@ from ..config import LEISURE_HUBS, LOW_COST_CARRIERS, RISK_PROFILES
 from ..domain.airports import airport_group
 from ..domain.carriers import segment_carriers
 from ..domain.normalize import clamp_score, is_reject_score, normalize_iata, normalize_profile, normalize_transfer, normalize_transfers, price_value, risk_grade
+from ..domain.stop_metrics import candidate_stop_metrics
 from ..domain.time import is_night_time, minutes_between, validation_elapsed_minutes
 from ..errors import CliError
 
@@ -323,6 +324,7 @@ def validate_itinerary(data: dict[str, Any], args: argparse.Namespace) -> dict[s
             if rule["severity"] == "error":
                 violations.append(rule)
 
+    summary = candidate_stop_metrics({"journeys": journeys})
     result = {
         "ok": not violations,
         "ticketing": ticketing,
@@ -335,6 +337,12 @@ def validate_itinerary(data: dict[str, Any], args: argparse.Namespace) -> dict[s
             "segment_count": len(normalized_segments),
             "connection_count": len(connections),
             "violation_count": len(violations),
+            **{
+                "connection_counts_by_journey": summary["connection_counts_by_journey"],
+                "max_connections_per_journey": summary["max_connections_per_journey"],
+                "stop_tier": summary["stop_tier"],
+                "three_plus_connection_journey_count": summary["three_plus_connection_journey_count"],
+            }
         },
     }
     result["risk"] = score_itinerary(result, data, profile)

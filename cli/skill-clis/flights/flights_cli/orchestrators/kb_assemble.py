@@ -20,6 +20,9 @@ from ..config import (
 )
 from ..domain.airports import explicit_or_resolved_airports
 from ..domain.carriers import carrier_from_flight_number
+from ..domain.stop_metrics import stop_tier
+from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY
+from ..domain.stop_policy import StopPolicy
 from ..domain.hubs import resolve_route_hubs, resolve_routing_strategy
 from ..domain.normalize import currency_value, normalize_carrier_code, normalize_profile, parse_iso_date, price_value
 from ..errors import CliError
@@ -28,6 +31,7 @@ from ..providers.kupibilet import cached_kupibilet_search, fetch_kupibilet_searc
 from ..providers.route_intel import load_or_refresh_svx_route_index, svx_direct_route_index_summary
 from ..services.agent_report import attach_agent_report
 from ..services.assembly import assemble_direction, assemble_segment_results, direct_journeys, empty_assembled_result
+from ..services.stop_policy import stop_policy_from_args, stop_policy_summary
 from ..store import Store
 
 def normalize_day_offsets(values: list[int] | None, default: list[int], field: str) -> list[int]:
@@ -142,6 +146,7 @@ def hub_viability_summary(plan: dict[str, Any], searches: list[dict[str, Any]]) 
 
 def aggregate_offer_summary(offer: dict[str, Any]) -> dict[str, Any]:
     flights = [flight for flight in (offer.get("flights") or []) if isinstance(flight, dict)]
+    change_count = int(offer.get("number_of_changes") or 0)
     carriers: set[str] = set()
     segments = []
     for flight in flights:
@@ -167,7 +172,8 @@ def aggregate_offer_summary(offer: dict[str, Any]) -> dict[str, Any]:
         "id": offer.get("id"),
         "price": offer.get("price"),
         "currency": offer.get("currency"),
-        "change_count": offer.get("number_of_changes"),
+        "change_count": change_count,
+        "stop_tier": stop_tier(change_count),
         "duration_min": offer.get("duration"),
         "flight_numbers": offer.get("flight_numbers") or [segment.get("flight_number") for segment in segments if segment.get("flight_number")],
         "carriers": sorted(carriers),
@@ -186,6 +192,12 @@ def aggregate_control_summary(
     result: dict[str, Any],
 ) -> dict[str, Any]:
     offers = [offer for offer in (result.get("offers") or []) if isinstance(offer, dict)]
+    has_stopped = [offer for offer in offers if offer.get("change_count") is not None and int(offer.get("change_count")) >= 0]
+    if has_stopped:
+        best_connection_count = min(int(offer.get("change_count") or 0) for offer in has_stopped)
+    else:
+        best_connection_count = None
+
     return {
         "direction": direction,
         "origin": origin,
@@ -199,7 +211,91 @@ def aggregate_control_summary(
         "raw_variant_count": result.get("raw_variant_count"),
         "unique_flight_count": result.get("unique_flight_count"),
         "cache": result.get("cache", {"hit": False}),
+        "best_connection_count": best_connection_count,
         "top_offers": [aggregate_offer_summary(offer) for offer in offers],
+    }
+
+
+def _aggregate_stop_policy_summary(offers: list[dict[str, Any]], stop_policy: StopPolicy) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    summary = {
+        "preferred_candidate_count": 0,
+        "two_stop_candidate_count": 0,
+        "used_fallback_two_stop": False,
+        "three_plus_suppressed_count": 0,
+        "two_stop_suppressed_because_preferred_exists": 0,
+        "suppressed_by_policy_count": 0,
+    }
+
+    has_preferred_candidate = False
+    for offer in offers:
+        change_count = int(offer.get("change_count") or 0)
+        if change_count <= stop_policy.preferred_max_connections:
+            summary["preferred_candidate_count"] += 1
+            has_preferred_candidate = True
+        if stop_policy.preferred_max_connections < change_count <= stop_policy.fallback_max_connections:
+            summary["two_stop_candidate_count"] += 1
+
+    allowed_max = stop_policy.preferred_max_connections
+    if not has_preferred_candidate and stop_policy.allow_two_stop_fallback:
+        allowed_max = stop_policy.fallback_max_connections
+
+    filtered: list[dict[str, Any]] = []
+    for offer in offers:
+        change_count = int(offer.get("change_count") or 0)
+        if change_count > stop_policy.hard_max_connections:
+            summary["three_plus_suppressed_count"] += 1
+            summary["suppressed_by_policy_count"] += 1
+            continue
+        if change_count > allowed_max:
+            summary["suppressed_by_policy_count"] += 1
+            if (
+                change_count == 2
+                and stop_policy.preferred_max_connections < change_count
+                and has_preferred_candidate
+            ):
+                summary["two_stop_suppressed_because_preferred_exists"] += 1
+            continue
+        filtered.append(offer)
+
+    summary["used_fallback_two_stop"] = bool(
+        not has_preferred_candidate and stop_policy.allow_two_stop_fallback and summary["two_stop_candidate_count"] > 0
+    )
+    summary["hard_max_connections"] = stop_policy.hard_max_connections
+    return filtered, summary
+
+
+def _sum_aggregate_control_stop_metrics(controls: list[dict[str, Any]]) -> dict[str, int]:
+    return {
+        "preferred_candidate_count": sum(
+            int((control.get("stop_policy_diagnostics") or {}).get("preferred_candidate_count", 0))
+            for control in controls
+            if isinstance(control.get("stop_policy_diagnostics"), dict)
+        ),
+        "two_stop_candidate_count": sum(
+            int((control.get("stop_policy_diagnostics") or {}).get("two_stop_candidate_count", 0))
+            for control in controls
+            if isinstance(control.get("stop_policy_diagnostics"), dict)
+        ),
+        "used_fallback_two_stop": any(
+            bool((control.get("stop_policy_diagnostics") or {}).get("used_fallback_two_stop", False))
+            for control in controls
+            if isinstance(control.get("stop_policy_diagnostics"), dict)
+        ),
+        "three_plus_suppressed_count": sum(
+            int((control.get("stop_policy_diagnostics") or {}).get("three_plus_suppressed_count", 0))
+            for control in controls
+            if isinstance(control.get("stop_policy_diagnostics"), dict)
+        ),
+        "two_stop_suppressed_because_preferred_exists": sum(
+            int((control.get("stop_policy_diagnostics") or {}).get("two_stop_suppressed_because_preferred_exists", 0))
+            for control in controls
+            if isinstance(control.get("stop_policy_diagnostics"), dict)
+        ),
+        "suppressed_by_policy_count": sum(
+            int((control.get("stop_policy_diagnostics") or {}).get("suppressed_by_policy_count", 0))
+            for control in controls
+            if isinstance(control.get("stop_policy_diagnostics"), dict)
+        ),
     }
 
 
@@ -270,6 +366,33 @@ def run_aggregate_controls(args: argparse.Namespace, plan: dict[str, Any]) -> li
                     result=result,
                 )
             )
+    stop_policy = stop_policy_from_args(args)
+    aggregate_stop_policy_summary = {
+        "preferred_candidate_count": 0,
+        "two_stop_candidate_count": 0,
+        "used_fallback_two_stop": False,
+        "three_plus_suppressed_count": 0,
+        "two_stop_suppressed_because_preferred_exists": 0,
+        "suppressed_by_policy_count": 0,
+    }
+
+    for control in controls:
+        offers = [offer for offer in (control.get("top_offers") or []) if isinstance(offer, dict)]
+        filtered_offers, control_summary = _aggregate_stop_policy_summary(offers, stop_policy)
+        control["top_offers"] = filtered_offers
+        control["stop_policy_diagnostics"] = control_summary
+        for key in aggregate_stop_policy_summary:
+            if key == "used_fallback_two_stop":
+                aggregate_stop_policy_summary[key] = bool(
+                    bool(aggregate_stop_policy_summary[key]) or bool(control_summary.get(key))
+                )
+            else:
+                aggregate_stop_policy_summary[key] += int(control_summary.get(key, 0))
+
+    if aggregate_stop_policy_summary:
+        aggregate_stop_policy_summary["garbage_options_hidden_from_answer"] = bool(not stop_policy.suppress_three_plus)
+        aggregate_stop_policy_summary["stop_policy"] = stop_policy_summary(stop_policy, aggregate_stop_policy_summary)
+        aggregate_stop_policy_summary["applied"] = True
     return controls
 
 
@@ -1012,6 +1135,10 @@ def run_kupibilet_route_assembly(args: argparse.Namespace, store: Store) -> dict
         priority_route_viability[direction] = viable
         return viable
 
+    aggregate_controls = run_aggregate_controls(args, plan)
+    aggregate_stop_policy_diagnostics = _sum_aggregate_control_stop_metrics(aggregate_controls)
+    aggregate_stop_policy = stop_policy_from_args(args)
+
     for spec in plan["segments"]:
         skipped = skipped_by_condition(spec)
         if skipped is not None:
@@ -1086,11 +1213,29 @@ def run_kupibilet_route_assembly(args: argparse.Namespace, store: Store) -> dict
         "plan": {key: value for key, value in plan.items() if key != "segments"},
         "segment_searches": searches,
         "hub_viability": hub_viability_summary(plan, searches),
-        "aggregate_controls": run_aggregate_controls(args, plan),
+        "aggregate_controls": aggregate_controls,
+        "aggregate_controls_stop_policy_diagnostics": aggregate_stop_policy_diagnostics,
         "direct_route_intelligence": direct_route_intel,
         "failure_count": len(failures),
         "failures": failures,
         "included_segment_result_count": min(len(segment_results), args.include_segment_results),
     }
+    if isinstance(assembled.get("stop_policy_diagnostics"), dict):
+        for key, value in aggregate_stop_policy_diagnostics.items():
+            if key not in assembled["stop_policy_diagnostics"]:
+                continue
+            if isinstance(assembled["stop_policy_diagnostics"].get(key), bool):
+                assembled["stop_policy_diagnostics"][key] = bool(
+                    assembled["stop_policy_diagnostics"][key] or bool(value)
+                )
+            else:
+                assembled["stop_policy_diagnostics"][key] += int(value)
+    else:
+        assembled["stop_policy_diagnostics"] = {
+            **aggregate_stop_policy_diagnostics,
+            "garbage_options_hidden_from_answer": bool(not aggregate_stop_policy.get("suppress_three_plus")),
+            **stop_policy_summary(aggregate_stop_policy, aggregate_stop_policy_diagnostics),
+        }
+
     assembled["segment_results"] = segment_results[: args.include_segment_results]
     return attach_agent_report(assembled, args)

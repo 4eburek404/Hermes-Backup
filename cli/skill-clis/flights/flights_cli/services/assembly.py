@@ -11,6 +11,7 @@ from ..domain.time import elapsed_minutes, minutes_between
 from ..errors import CliError
 from ..services.ranking import carrier_policy_from_args, carrier_policy_output, rank_candidate_list
 from ..services.validation import connection_risk_points, connection_rule
+from ..services.stop_policy import stop_policy_from_args, stop_policy_summary
 
 def collect_segment_results(payload: Any) -> list[dict[str, Any]]:
     if isinstance(payload, list):
@@ -477,10 +478,22 @@ def recommendation_summary(ranked_items: list[dict[str, Any]]) -> dict[str, Any]
 
 def empty_assembled_result(args: argparse.Namespace) -> dict[str, Any]:
     policy = carrier_policy_from_args(args)
+    stop_policy = stop_policy_from_args(args)
+
     return {
         "profile": args.profile,
         "profile_description": RISK_PROFILES[args.profile]["description"],
         "rank_order": RISK_PROFILES[args.profile]["rank_order"],
+        "stop_policy": stop_policy_summary(stop_policy),
+        "stop_policy_diagnostics": {
+            "preferred_candidate_count": 0,
+            "two_stop_candidate_count": 0,
+            "used_fallback_two_stop": False,
+            "three_plus_suppressed_count": 0,
+            "two_stop_suppressed_because_preferred_exists": 0,
+            "suppressed_by_policy_count": 0,
+            "garbage_options_hidden_from_answer": True,
+        },
         "count": 0,
         "carrier_policy": {**carrier_policy_output(policy), "filtered_count": 0, "filtered": []},
         "ranked": [],
@@ -575,6 +588,10 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
         min_same_airport_min=args.min_same_airport_min,
         min_cross_airport_min=args.min_cross_airport_min,
         max_reasons=args.max_reasons,
+        stop_policy=getattr(args, "stop_policy", "business-default"),
+        max_connections=getattr(args, "max_connections", None),
+        fallback_max_connections=getattr(args, "fallback_max_connections", None),
+        include_stop_policy_diagnostics=getattr(args, "include_stop_policy_diagnostics", False),
         only_carrier=getattr(args, "only_carrier", None),
         exclude_carrier=getattr(args, "exclude_carrier", None),
         prefer_carrier=getattr(args, "prefer_carrier", None),
@@ -586,6 +603,16 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
         "profile": args.profile,
         "profile_description": RISK_PROFILES[args.profile]["description"],
         "rank_order": RISK_PROFILES[args.profile]["rank_order"],
+        "stop_policy": stop_policy_summary(stop_policy_from_args(args)),
+        "stop_policy_diagnostics": {
+            "preferred_candidate_count": 0,
+            "two_stop_candidate_count": 0,
+            "used_fallback_two_stop": False,
+            "three_plus_suppressed_count": 0,
+            "two_stop_suppressed_because_preferred_exists": 0,
+            "suppressed_by_policy_count": 0,
+            "garbage_options_hidden_from_answer": True,
+        },
         "count": 0,
         "carrier_policy": {**carrier_policy_output(policy), "filtered_count": 0, "filtered": []},
         "ranked": [],

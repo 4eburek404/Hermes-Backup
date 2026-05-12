@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY, stop_policy_to_dict
 from .agent_report_contract import validate_agent_report
 
 
@@ -80,6 +81,7 @@ def candidate_options_from_details(details: list[Any], limit: int = 5) -> list[d
             continue
         ranked = detail.get("ranked") if isinstance(detail.get("ranked"), dict) else {}
         candidate = detail.get("candidate") if isinstance(detail.get("candidate"), dict) else {}
+        validation_summary = ranked.get("validation_summary") or {}
         segments = []
         for journey in candidate.get("journeys") or []:
             if not isinstance(journey, dict):
@@ -108,6 +110,8 @@ def candidate_options_from_details(details: list[Any], limit: int = 5) -> list[d
                     "top_reasons": risk.get("top_reasons") or [],
                 },
                 "validation_summary": ranked.get("validation_summary"),
+                "stop_tier": validation_summary.get("stop_tier"),
+                "max_connections_per_journey": validation_summary.get("max_connections_per_journey"),
                 "connections": [connection_summary(item) for item in ranked.get("connections") or [] if isinstance(item, dict)],
                 "segments": segments,
                 "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage.",
@@ -272,8 +276,98 @@ def provider_failures(live: dict[str, Any], limit: int = 10) -> list[dict[str, A
     ]
 
 
+def _coerce_int(value: Any, fallback: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _coerce_bool(value: Any, fallback: bool = False) -> bool:
+    if value is None:
+        return fallback
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() in {"1", "true", "yes", "y", "on"}
+    return bool(value)
+
+
+def _coalesce_stop_policy(data: dict[str, Any]) -> dict[str, Any]:
+    raw = data.get("stop_policy")
+    base = stop_policy_to_dict(BUSINESS_DEFAULT_STOP_POLICY)
+    if not isinstance(raw, dict):
+        return dict(base)
+
+    return {
+        "name": str(raw.get("name") or base["name"]),
+        "preferred_max_connections": max(0, _coerce_int(raw.get("preferred_max_connections"), base["preferred_max_connections"])),
+        "fallback_max_connections": max(0, _coerce_int(raw.get("fallback_max_connections"), base["fallback_max_connections"])),
+        "hard_max_connections": max(0, _coerce_int(raw.get("hard_max_connections"), base["hard_max_connections"])),
+        "allow_two_stop_fallback": _coerce_bool(raw.get("allow_two_stop_fallback"), base["allow_two_stop_fallback"]),
+        "suppress_three_plus": _coerce_bool(raw.get("suppress_three_plus"), base["suppress_three_plus"]),
+    }
+
+
+def _coalesce_stop_policy_diagnostics(data: dict[str, Any]) -> dict[str, Any]:
+    diagnostics = data.get("stop_policy_diagnostics")
+    if isinstance(diagnostics, dict):
+        raw = diagnostics
+    else:
+        raw = {}
+    live = data.get("live_search") if isinstance(data.get("live_search"), dict) else {}
+    if not isinstance(diagnostics, dict):
+        controls = live.get("aggregate_controls_stop_policy_diagnostics")
+        if isinstance(controls, dict):
+            raw = controls
+    return {
+        "preferred_candidate_count": _coerce_int(raw.get("preferred_candidate_count")),
+        "two_stop_candidate_count": _coerce_int(raw.get("two_stop_candidate_count")),
+        "used_fallback_two_stop": _coerce_bool(raw.get("used_fallback_two_stop"), False),
+        "used_two_stop_fallback": _coerce_bool(raw.get("used_two_stop_fallback", raw.get("used_fallback_two_stop")), False),
+        "three_plus_suppressed_count": _coerce_int(raw.get("three_plus_suppressed_count")),
+        "two_stop_suppressed_because_preferred_exists": _coerce_int(raw.get("two_stop_suppressed_because_preferred_exists")),
+        "suppressed_by_policy_count": _coerce_int(raw.get("suppressed_by_policy_count")),
+        "garbage_options_hidden_from_answer": _coerce_bool(raw.get("garbage_options_hidden_from_answer"), True),
+        "applied": _coerce_bool(raw.get("applied"), False),
+    }
+
+
+def _build_stop_policy_answer_lines(
+    stop_policy: dict[str, Any],
+    stop_policy_diagnostics: dict[str, Any],
+) -> list[str]:
+    lines: list[str] = []
+    preferred = _coerce_int(stop_policy_diagnostics.get("preferred_candidate_count"))
+    two_stop = _coerce_int(stop_policy_diagnostics.get("two_stop_candidate_count"))
+    three_plus = _coerce_int(stop_policy_diagnostics.get("three_plus_suppressed_count"))
+    two_stop_suppressed = _coerce_int(stop_policy_diagnostics.get("two_stop_suppressed_because_preferred_exists"))
+    used_fallback = _coerce_bool(
+        stop_policy_diagnostics.get("used_fallback_two_stop", stop_policy_diagnostics.get("used_two_stop_fallback")),
+        False,
+    )
+
+    if _coerce_bool(stop_policy.get("suppress_three_plus", True), True) and three_plus > 0:
+        lines.append(
+            f"{three_plus} candidates were excluded by stop policy: 3+ connections."
+        )
+
+    if _coerce_bool(stop_policy.get("allow_two_stop_fallback", True), True):
+        if used_fallback:
+            lines.append(
+                "Fallback to two-stop options is enabled because no direct or one-stop candidates passed policy checks."
+            )
+        elif preferred > 0 and two_stop > 0:
+            lines.append("Варианты с 2 пересадками не вывожу, потому что есть приемлемые варианты с 1 пересадкой.")
+        elif two_stop_suppressed > 0:
+            lines.append("Двухпересадочные варианты скрыты, пока есть варианты с 0 или 1 пересадкой.")
+    return lines
+
+
 def build_answer_lines(report: dict[str, Any]) -> list[str]:
     lines: list[str] = []
+    stop_policy = _coalesce_stop_policy(report)
+    stop_policy_diagnostics = _coalesce_stop_policy_diagnostics(report)
     options = report.get("recommended_options") or []
     if options:
         best = options[0]
@@ -328,6 +422,7 @@ def build_answer_lines(report: dict[str, Any]) -> list[str]:
             f"Through-fare check required: verify {first.get('carrier')} {first.get('route')} on airline/GDS before pricing it as separate legs."
         )
 
+    lines.extend(_build_stop_policy_answer_lines(stop_policy, stop_policy_diagnostics))
     lines.append("Do not treat cached or segment-search absence as proof that a through fare, direct flight, or protected ticket does not exist.")
     return lines
 
@@ -342,8 +437,12 @@ def build_agent_report(data: dict[str, Any]) -> dict[str, Any]:
     fallback_segments = options[0].get("segments") if options else []
     fallback_origin = fallback_segments[0].get("origin") if fallback_segments else None
     fallback_destination = fallback_segments[-1].get("destination") if fallback_segments else None
+    stop_policy = _coalesce_stop_policy(data)
+    stop_policy_diagnostics = _coalesce_stop_policy_diagnostics(data)
     report = {
         "schema_version": "agent_report.v1",
+        "stop_policy": stop_policy,
+        "stop_policy_diagnostics": stop_policy_diagnostics,
         "route": {
             "origin": plan.get("origin") or fallback_origin,
             "destination": plan.get("destination") or fallback_destination,

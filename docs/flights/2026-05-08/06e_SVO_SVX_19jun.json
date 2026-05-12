@@ -1,0 +1,4079 @@
+{
+  "command": "route live-assemble",
+  "data": {
+    "assembly": {
+      "candidate_count": 34,
+      "candidate_duplicate_count": 0,
+      "candidate_pool_limit": 5000,
+      "candidate_pool_truncated": false,
+      "limit_per_pair": 10,
+      "max_candidates": 50,
+      "outbound_direct_count": 10,
+      "outbound_pair_count": 24,
+      "ranked_output_count": 34,
+      "ranked_total_count": 34,
+      "raw_candidate_count": 34,
+      "rejected_pair_count": 0,
+      "rejected_pair_sample_count": 0,
+      "return_direct_count": 0,
+      "return_pair_count": 0,
+      "segment_result_count": 4
+    },
+    "candidates": [
+      {
+        "currency": "RUB",
+        "id": "assembled-1:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "segments": [
+              {
+                "aircraft_code": "73H",
+                "arrival_at": "2026-06-19T04:45:00+05:00",
+                "carrier": "DP",
+                "departure_at": "2026-06-19T00:20:00+03:00",
+                "destination": "SVX",
+                "flight_number": "DP6541",
+                "marketing_carrier": "DP",
+                "operating_carrier": "DP",
+                "origin": "SVO"
+              }
+            ]
+          }
+        ],
+        "price": 6950,
+        "source_offers": [
+          {
+            "arrival_airport": "SVX",
+            "arrival_at": "2026-06-19T04:45:00+05:00",
+            "currency": "RUB",
+            "departure_airport": "SVO",
+            "departure_at": "2026-06-19T00:20:00+03:00",
+            "destination": "SVX",
+            "id": "kb:outbound:direct_outbound:SVO-SVX:2026-06-19:cd38461979ab4f13b04c2a314b1983a475",
+            "leg": "direct_outbound",
+            "origin": "SVO",
+            "price": 6950
+          }
+        ]
+      },
+      {
+        "currency": "RUB",
+        "id": "assembled-2:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "segments": [
+              {
+                "aircraft_code": "73H",
+                "arrival_at": "2026-06-20T04:00:00+05:00",
+                "carrier": "DP",
+                "departure_at": "2026-06-19T23:35:00+03:00",
+                "destination": "SVX",
+                "flight_number": "DP6543",
+                "marketing_carrier": "DP",
+                "operating_carrier": "DP",
+                "origin": "SVO"
+              }
+            ]
+          }
+        ],
+        "price": 8230,
+        "source_offers": [
+          {
+            "arrival_airport": "SVX",
+            "arrival_at": "2026-06-20T04:00:00+05:00",
+            "currency": "RUB",
+            "departure_airport": "SVO",
+            "departure_at": "2026-06-19T23:35:00+03:00",
+            "destination": "SVX",
+            "id": "kb:outbound:direct_outbound:SVO-SVX:2026-06-19:cd38461979ab4f13b04c2a314b1983a4343",
+            "leg": "direct_outbound",
+            "origin": "SVO",
+            "price": 8230
+          }
+        ]
+      },
+      {
+        "currency": "RUB",
+        "id": "assembled-3:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "segments": [
+              {
+                "aircraft_code": "73H",
+                "arrival_at": "2026-06-19T06:40:00+05:00",
+                "carrier": "SU",
+                "departure_at": "2026-06-19T02:20:00+03:00",
+                "destination": "SVX",
+                "flight_number": "SU1466",
+                "marketing_carrier": "SU",
+                "operating_carrier": "SU",
+                "origin": "SVO"
+              }
+            ]
+          }
+        ],
+        "price": 9271,
+        "source_offers": [
+          {
+            "arrival_airport": "SVX",
+            "arrival_at": "2026-06-19T06:40:00+05:00",
+            "currency": "RUB",
+            "departure_airport": "SVO",
+            "departure_at": "2026-06-19T02:20:00+03:00",
+            "destination": "SVX",
+            "id": "kb:outbound:direct_outbound:SVO-SVX:2026-06-19:cd38461979ab4f13b04c2a314b1983a473",
+            "leg": "direct_outbound",
+            "origin": "SVO",
+            "price": 9271
+          }
+        ]
+      },
+      {
+        "currency": "RUB",
+        "id": "assembled-4:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "segments": [
+              {
+                "aircraft_code": "32B",
+                "arrival_at": "2026-06-19T13:55:00+05:00",
+                "carrier": "SU",
+                "departure_at": "2026-06-19T09:30:00+03:00",
+                "destination": "SVX",
+                "flight_number": "SU1416",
+                "marketing_carrier": "SU",
+                "operating_carrier": "SU",
+                "origin": "SVO"
+              }
+            ]
+          }
+        ],
+        "price": 12571,
+        "source_offers": [
+          {
+            "arrival_airport": "SVX",
+            "arrival_at": "2026-06-19T13:55:00+05:00",
+            "currency": "RUB",
+            "departure_airport": "SVO",
+            "departure_at": "2026-06-19T09:30:00+03:00",
+            "destination": "SVX",
+            "id": "kb:outbound:direct_outbound:SVO-SVX:2026-06-19:cd38461979ab4f13b04c2a314b1983a413",
+            "leg": "direct_outbound",
+            "origin": "SVO",
+            "price": 12571
+          }
+        ]
+      },
+      {
+        "currency": "RUB",
+        "id": "assembled-5:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "segments": [
+              {
+                "aircraft_code": "320",
+                "arrival_at": "2026-06-19T12:10:00+05:00",
+                "carrier": "SU",
+                "departure_at": "2026-06-19T07:35:00+03:00",
+                "destination": "SVX",
+                "flight_number": "SU1400",
+                "marketing_carrier": "SU",
+                "operating_carrier": "SU",
+                "origin": "SVO"
+              }
+            ]
+          }
+        ],
+        "price": 12571,
+        "source_offers": [
+          {
+            "arrival_airport": "SVX",
+            "arrival_at": "2026-06-19T12:10:00+05:00",
+            "currency": "RUB",
+            "departure_airport": "SVO",
+            "departure_at": "2026-06-19T07:35:00+03:00",
+            "destination": "SVX",
+            "id": "kb:outbound:direct_outbound:SVO-SVX:2026-06-19:cd38461979ab4f13b04c2a314b1983a414",
+            "leg": "direct_outbound",
+            "origin": "SVO",
+            "price": 12571
+          }
+        ]
+      }
+    ],
+    "carrier_policy": {
+      "avoid": [],
+      "exclude": [],
+      "filtered": [],
+      "filtered_count": 0,
+      "only": [],
+      "prefer": [
+        "SU",
+        "TK",
+        "U6"
+      ]
+    },
+    "catalog_auto_refresh": {
+      "checked": {
+        "checked_at": "2026-05-08T17:28:47+00:00",
+        "checked_count": 9,
+        "fresh": [
+          "countries",
+          "cities_en",
+          "cities_ru",
+          "airports_en",
+          "airports_ru",
+          "airlines_en",
+          "airlines_ru",
+          "alliances",
+          "planes"
+        ],
+        "max_age_seconds": 604800,
+        "stale": [],
+        "stale_count": 0
+      },
+      "enabled": true,
+      "reason": "fresh",
+      "refreshed": false,
+      "update": null
+    },
+    "count": 34,
+    "frontier_candidates": [
+      {
+        "candidate": {
+          "currency": "RUB",
+          "id": "assembled-3:SVO-SVX",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "segments": [
+                {
+                  "aircraft_code": "73H",
+                  "arrival_at": "2026-06-19T06:40:00+05:00",
+                  "carrier": "SU",
+                  "departure_at": "2026-06-19T02:20:00+03:00",
+                  "destination": "SVX",
+                  "flight_number": "SU1466",
+                  "marketing_carrier": "SU",
+                  "operating_carrier": "SU",
+                  "origin": "SVO"
+                }
+              ]
+            }
+          ],
+          "price": 9271,
+          "source_offers": [
+            {
+              "arrival_airport": "SVX",
+              "arrival_at": "2026-06-19T06:40:00+05:00",
+              "currency": "RUB",
+              "departure_airport": "SVO",
+              "departure_at": "2026-06-19T02:20:00+03:00",
+              "destination": "SVX",
+              "id": "kb:outbound:direct_outbound:SVO-SVX:2026-06-19:cd38461979ab4f13b04c2a314b1983a473",
+              "leg": "direct_outbound",
+              "origin": "SVO",
+              "price": 9271
+            }
+          ]
+        },
+        "category": "all_su",
+        "rank": 1,
+        "ranked": {
+          "carriers": [
+            "SU"
+          ],
+          "connections": [],
+          "currency": "RUB",
+          "elapsed_min": 140,
+          "id": "assembled-3:SVO-SVX",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "index": 0,
+              "segment_indexes": [
+                0
+              ]
+            }
+          ],
+          "ok": true,
+          "price": 9271,
+          "rank": 1,
+          "risk": {
+            "grade": "excellent",
+            "profile": "business",
+            "rank_key": [
+              0,
+              0,
+              140,
+              9271
+            ],
+            "reject": false,
+            "score": 0,
+            "top_reasons": [
+              {
+                "code": "preferred_carrier_match",
+                "message": "Uses preferred carrier(s): SU.",
+                "points": 0,
+                "scope": "carrier"
+              }
+            ]
+          },
+          "validation_summary": {
+            "connection_count": 0,
+            "segment_count": 1,
+            "violation_count": 0
+          }
+        },
+        "reason": "Best acceptable all-SU itinerary. Same-carrier controls can require airline/GDS through-fare verification."
+      },
+      {
+        "candidate": {
+          "currency": "RUB",
+          "id": "assembled-13:SVO-SVX",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "segments": [
+                {
+                  "aircraft_code": "32B",
+                  "arrival_at": "2026-06-19T06:00:00+03:00",
+                  "carrier": "SU",
+                  "departure_at": "2026-06-19T01:00:00+03:00",
+                  "destination": "IST",
+                  "flight_number": "SU2170",
+                  "marketing_carrier": "SU",
+                  "operating_carrier": "SU",
+                  "origin": "SVO"
+                },
+                {
+                  "aircraft_code": "32A",
+                  "arrival_at": "2026-06-19T19:55:00+05:00",
+                  "carrier": "SU",
+                  "departure_at": "2026-06-19T12:50:00+03:00",
+                  "destination": "SVX",
+                  "flight_number": "SU631",
+                  "marketing_carrier": "SU",
+                  "operating_carrier": "SU",
+                  "origin": "IST"
+                }
+              ]
+            }
+          ],
+          "price": 39933,
+          "source_offers": [
+            {
+              "arrival_airport": "IST",
+              "arrival_at": "2026-06-19T06:00:00+03:00",
+              "currency": "RUB",
+              "departure_airport": "SVO",
+              "departure_at": "2026-06-19T01:00:00+03:00",
+              "destination": "IST",
+              "id": "kb:outbound:origin_to_hub:SVO-IST:2026-06-19:4feae91eee1d43c0a07d5cff6948b13d383",
+              "leg": "origin_to_hub",
+              "origin": "SVO",
+              "price": 20792
+            },
+            {
+              "arrival_airport": "SVX",
+              "arrival_at": "2026-06-19T19:55:00+05:00",
+              "currency": "RUB",
+              "departure_airport": "IST",
+              "departure_at": "2026-06-19T12:50:00+03:00",
+              "destination": "SVX",
+              "id": "kb:outbound:hub_to_destination:IST-SVX:2026-06-19:f25d20800da446fa8d582dbeafea34e0171",
+              "leg": "hub_to_destination",
+              "origin": "IST",
+              "price": 19141
+            }
+          ]
+        },
+        "category": "single_carrier",
+        "rank": 11,
+        "ranked": {
+          "carriers": [
+            "SU"
+          ],
+          "connections": [
+            {
+              "actual_min": 410,
+              "arrival_airport": "IST",
+              "between_segments": [
+                0,
+                1
+              ],
+              "departure_airport": "IST",
+              "journey_direction": "outbound",
+              "journey_index": 0,
+              "notes": [],
+              "required_min": 120,
+              "risk": {
+                "grade": "excellent",
+                "reasons": [
+                  {
+                    "code": "long_layover",
+                    "message": "Connection is longer than the profile's ideal range.",
+                    "points": 2
+                  }
+                ],
+                "score": 2
+              },
+              "same_airport": true,
+              "same_multi_airport_system": true,
+              "severity": "ok",
+              "status": "compatible",
+              "ticketing": "separate"
+            }
+          ],
+          "currency": "RUB",
+          "elapsed_min": 1015,
+          "id": "assembled-13:SVO-SVX",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "index": 0,
+              "segment_indexes": [
+                0,
+                1
+              ]
+            }
+          ],
+          "ok": true,
+          "price": 39933,
+          "rank": 11,
+          "risk": {
+            "grade": "excellent",
+            "profile": "business",
+            "rank_key": [
+              0,
+              2,
+              1015,
+              39933
+            ],
+            "reject": false,
+            "score": 2,
+            "top_reasons": [
+              {
+                "between_segments": [
+                  0,
+                  1
+                ],
+                "code": "long_layover",
+                "message": "Connection is longer than the profile's ideal range.",
+                "points": 2,
+                "scope": "connection"
+              },
+              {
+                "code": "preferred_carrier_match",
+                "message": "Uses preferred carrier(s): SU.",
+                "points": 0,
+                "scope": "carrier"
+              }
+            ]
+          },
+          "validation_summary": {
+            "connection_count": 1,
+            "segment_count": 2,
+            "violation_count": 0
+          }
+        },
+        "reason": "Best acceptable same-carrier multi-leg itinerary. Verify whether it can be sold as a protected single PNR."
+      }
+    ],
+    "live_search": {
+      "aggregate_controls": [],
+      "direct_route_intelligence": {
+        "airport": "SVX",
+        "available": true,
+        "cache": {
+          "age_seconds": 147306,
+          "hit": true,
+          "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/route_intel/svx_official_route_index.json",
+          "ttl_seconds": 604800
+        },
+        "enabled": true,
+        "fetched_at": "2026-05-07T00:33:40+00:00",
+        "negative_filter": "Only exact SVX direct-control probes are skipped when the airport is absent from the official seasonal schedule.",
+        "route_count": {
+          "outbound": 84,
+          "return": 85
+        },
+        "source": "Koltsovo official seasonal schedule",
+        "source_urls": {
+          "outbound": "https://ar-svx.ru/schedule/",
+          "return": "https://ar-svx.ru/schedule/?type=arr"
+        }
+      },
+      "failure_count": 0,
+      "failures": [],
+      "hub_viability": [
+        {
+          "hub": "IST",
+          "legs": {
+            "destination_to_hub": {
+              "dates": [],
+              "offer_count": 0,
+              "search_count": 0
+            },
+            "hub_to_destination": {
+              "dates": [
+                "2026-06-19",
+                "2026-06-20"
+              ],
+              "offer_count": 3,
+              "search_count": 2
+            },
+            "hub_to_origin": {
+              "dates": [],
+              "offer_count": 0,
+              "search_count": 0
+            },
+            "origin_to_hub": {
+              "dates": [
+                "2026-06-19"
+              ],
+              "offer_count": 8,
+              "search_count": 1
+            }
+          },
+          "missing_legs": [],
+          "total_offer_count": 11,
+          "viable": true
+        },
+        {
+          "hub": "DXB",
+          "legs": {
+            "destination_to_hub": {
+              "dates": [],
+              "offer_count": 0,
+              "search_count": 0
+            },
+            "hub_to_destination": {
+              "dates": [
+                "2026-06-19",
+                "2026-06-20"
+              ],
+              "offer_count": 0,
+              "search_count": 2
+            },
+            "hub_to_origin": {
+              "dates": [],
+              "offer_count": 0,
+              "search_count": 0
+            },
+            "origin_to_hub": {
+              "dates": [
+                "2026-06-19"
+              ],
+              "offer_count": 0,
+              "search_count": 1
+            }
+          },
+          "missing_legs": [
+            "origin_to_hub",
+            "hub_to_destination"
+          ],
+          "total_offer_count": 0,
+          "viable": false
+        }
+      ],
+      "included_segment_result_count": 0,
+      "note": "Kupibilet is used for Russia-touching segments; FLI MCP is used for non-Russia segments under auto policy. Recheck price/seat availability before purchase.",
+      "plan": {
+        "currency": "RUB",
+        "dates": {
+          "depart": "2026-06-19",
+          "return": null
+        },
+        "destination": "SVX",
+        "destination_airports": [
+          "SVX"
+        ],
+        "hub_source": "strategy",
+        "hubs": [
+          "IST",
+          "DXB"
+        ],
+        "metrics": {
+          "segment_search_count": 7
+        },
+        "origin": "SVO",
+        "origin_airports": [
+          "SVO"
+        ],
+        "profile": "business",
+        "route_families": [
+          {
+            "condition": "check direct exact-airport legs when live assembly runs; cache empty results",
+            "id": "direct_control",
+            "preferred_carriers": [
+              "U6",
+              "SU",
+              "TK"
+            ],
+            "priority": 0
+          },
+          {
+            "condition": "check first; use origin->IST direct when available",
+            "hub": "IST",
+            "id": "ist_direct",
+            "preferred_carriers": [
+              "U6",
+              "SU",
+              "TK"
+            ],
+            "priority": 1
+          },
+          {
+            "condition": "run only when origin->IST direct has no viable direct offers",
+            "hub": "IST",
+            "id": "ist_svo_su_fallback",
+            "preferred_carriers": [
+              "U6",
+              "SU",
+              "TK"
+            ],
+            "priority": 2,
+            "required_carriers": [
+              "SU"
+            ],
+            "via": [
+              "SVO"
+            ]
+          },
+          {
+            "condition": "check only if direct/SVO/IST priority routes do not produce a usable assembled pair; do not expand origin->DXB through Moscow",
+            "hub": "DXB",
+            "id": "dxb_direct",
+            "preferred_carriers": [
+              "U6",
+              "SU",
+              "TK"
+            ],
+            "priority": 3
+          }
+        ],
+        "routing_profile": "default",
+        "routing_strategy": "ru-priority",
+        "second_leg_day_offsets": {
+          "outbound": [
+            0,
+            1
+          ],
+          "return": []
+        },
+        "ticketing": "separate",
+        "warnings": [
+          "Kupibilet live segment assembly uses direct-only one-way searches; availability and price still require final booking-screen recheck.",
+          "Assembled candidates are usually separate-ticket/self-transfer unless the booking site later confirms protected through-ticketing.",
+          "Using ru-priority routing: direct control, IST direct first, SVO/SU fallback only if IST direct is empty, DXB only if priority routes are not usable."
+        ]
+      },
+      "provider_policy": "auto",
+      "segment_searches": [
+        {
+          "cache": {
+            "age_seconds": 1061,
+            "hit": true,
+            "key": "a0c511d3890e36f862cea790c672a061e0559132088231f47acd3b5d4a49b0de",
+            "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/live_search/a0c511d3890e36f862cea790c672a061e0559132088231f47acd3b5d4a49b0de.json",
+            "ttl_seconds": 21600
+          },
+          "date": "2026-06-19",
+          "destination": "SVX",
+          "direction": "outbound",
+          "http_status": 200,
+          "leg": "direct_outbound",
+          "offer_count": 12,
+          "origin": "SVO",
+          "preferred_carriers": [
+            "U6",
+            "SU",
+            "TK"
+          ],
+          "priority": 0,
+          "provider": "kupibilet",
+          "raw_variant_count": 529,
+          "route_family": "direct_control",
+          "skipped": {
+            "non_airplane": 6,
+            "not_direct": 499
+          },
+          "status": "ok",
+          "unique_flight_count": 12
+        },
+        {
+          "cache": {
+            "age_seconds": 1060,
+            "hit": true,
+            "key": "149dbda110fea827a32a002d1522910d7f2357a0d74d03865956fada72e0c406",
+            "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/live_search/149dbda110fea827a32a002d1522910d7f2357a0d74d03865956fada72e0c406.json",
+            "ttl_seconds": 21600
+          },
+          "date": "2026-06-19",
+          "destination": "IST",
+          "direction": "outbound",
+          "http_status": 200,
+          "leg": "origin_to_hub",
+          "offer_count": 8,
+          "origin": "SVO",
+          "preferred_carriers": [
+            "U6",
+            "SU",
+            "TK"
+          ],
+          "priority": 1,
+          "provider": "kupibilet",
+          "raw_variant_count": 580,
+          "route_family": "ist_direct",
+          "skipped": {
+            "not_direct": 564
+          },
+          "status": "ok",
+          "unique_flight_count": 8
+        },
+        {
+          "cache": {
+            "age_seconds": 2407,
+            "hit": true,
+            "key": "fa93622d276d04bb88b357d25155c51955d0152bd9c12ecc48a3bebc4f652015",
+            "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/live_search/fa93622d276d04bb88b357d25155c51955d0152bd9c12ecc48a3bebc4f652015.json",
+            "ttl_seconds": 21600
+          },
+          "date": "2026-06-19",
+          "destination": "SVX",
+          "direction": "outbound",
+          "http_status": 200,
+          "leg": "hub_to_destination",
+          "offer_count": 2,
+          "origin": "IST",
+          "preferred_carriers": [
+            "U6",
+            "SU",
+            "TK"
+          ],
+          "priority": 1,
+          "provider": "kupibilet",
+          "raw_variant_count": 592,
+          "route_family": "ist_shared_destination",
+          "skipped": {
+            "not_direct": 588
+          },
+          "status": "ok",
+          "unique_flight_count": 2
+        },
+        {
+          "cache": {
+            "age_seconds": 1058,
+            "hit": true,
+            "key": "2bcf1153bbf38778dca264a8caa6c259eb82f8be57fbd82c53f42e801e854183",
+            "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/live_search/2bcf1153bbf38778dca264a8caa6c259eb82f8be57fbd82c53f42e801e854183.json",
+            "ttl_seconds": 21600
+          },
+          "date": "2026-06-20",
+          "destination": "SVX",
+          "direction": "outbound",
+          "http_status": 200,
+          "leg": "hub_to_destination",
+          "offer_count": 1,
+          "origin": "IST",
+          "preferred_carriers": [
+            "U6",
+            "SU",
+            "TK"
+          ],
+          "priority": 1,
+          "provider": "kupibilet",
+          "raw_variant_count": 587,
+          "route_family": "ist_shared_destination",
+          "skipped": {
+            "non_airplane": 1,
+            "not_direct": 584
+          },
+          "status": "ok",
+          "unique_flight_count": 1
+        },
+        {
+          "date": "2026-06-19",
+          "destination": "DXB",
+          "direction": "outbound",
+          "leg": "origin_to_hub",
+          "offer_count": 0,
+          "origin": "SVO",
+          "preferred_carriers": [
+            "U6",
+            "SU",
+            "TK"
+          ],
+          "priority": 3,
+          "reason": "priority_route_viable",
+          "route_family": "dxb_direct",
+          "skip_if_priority_route_viable": "outbound",
+          "skipped_because": {
+            "direction": "outbound",
+            "note": "DXB skipped because direct/SVO/IST priority routing already produced a non-error journey."
+          },
+          "status": "skipped"
+        },
+        {
+          "date": "2026-06-19",
+          "destination": "SVX",
+          "direction": "outbound",
+          "leg": "hub_to_destination",
+          "offer_count": 0,
+          "origin": "DXB",
+          "preferred_carriers": [
+            "U6",
+            "SU",
+            "TK"
+          ],
+          "priority": 3,
+          "reason": "priority_route_viable",
+          "route_family": "dxb_direct",
+          "skip_if_priority_route_viable": "outbound",
+          "skipped_because": {
+            "direction": "outbound",
+            "note": "DXB skipped because direct/SVO/IST priority routing already produced a non-error journey."
+          },
+          "status": "skipped"
+        },
+        {
+          "date": "2026-06-20",
+          "destination": "SVX",
+          "direction": "outbound",
+          "leg": "hub_to_destination",
+          "offer_count": 0,
+          "origin": "DXB",
+          "preferred_carriers": [
+            "U6",
+            "SU",
+            "TK"
+          ],
+          "priority": 3,
+          "reason": "priority_route_viable",
+          "route_family": "dxb_direct",
+          "skip_if_priority_route_viable": "outbound",
+          "skipped_because": {
+            "direction": "outbound",
+            "note": "DXB skipped because direct/SVO/IST priority routing already produced a non-error journey."
+          },
+          "status": "skipped"
+        }
+      ],
+      "source": "Provider-policy live segment assembly"
+    },
+    "profile": "business",
+    "profile_description": "Same-airport, predictable, shorter elapsed time; penalizes budget airports/carriers.",
+    "rank_order": [
+      "reject",
+      "risk",
+      "elapsed",
+      "price"
+    ],
+    "ranked": [
+      {
+        "carriers": [
+          "SU"
+        ],
+        "connections": [],
+        "currency": "RUB",
+        "elapsed_min": 140,
+        "id": "assembled-3:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 9271,
+        "rank": 1,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            0,
+            140,
+            9271
+          ],
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 0,
+          "segment_count": 1,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "SU"
+        ],
+        "connections": [],
+        "currency": "RUB",
+        "elapsed_min": 140,
+        "id": "assembled-6:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 14461,
+        "rank": 2,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            0,
+            140,
+            14461
+          ],
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 0,
+          "segment_count": 1,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "SU"
+        ],
+        "connections": [],
+        "currency": "RUB",
+        "elapsed_min": 145,
+        "id": "assembled-4:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 12571,
+        "rank": 3,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            0,
+            145,
+            12571
+          ],
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 0,
+          "segment_count": 1,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "SU"
+        ],
+        "connections": [],
+        "currency": "RUB",
+        "elapsed_min": 145,
+        "id": "assembled-7:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 14461,
+        "rank": 4,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            0,
+            145,
+            14461
+          ],
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 0,
+          "segment_count": 1,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "SU"
+        ],
+        "connections": [],
+        "currency": "RUB",
+        "elapsed_min": 145,
+        "id": "assembled-8:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 14461,
+        "rank": 5,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            0,
+            145,
+            14461
+          ],
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 0,
+          "segment_count": 1,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "SU"
+        ],
+        "connections": [],
+        "currency": "RUB",
+        "elapsed_min": 150,
+        "id": "assembled-9:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 14461,
+        "rank": 6,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            0,
+            150,
+            14461
+          ],
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 0,
+          "segment_count": 1,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "FV",
+          "SU"
+        ],
+        "connections": [],
+        "currency": "RUB",
+        "elapsed_min": 150,
+        "id": "assembled-10:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 14461,
+        "rank": 7,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            0,
+            150,
+            14461
+          ],
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 0,
+          "segment_count": 1,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "SU"
+        ],
+        "connections": [],
+        "currency": "RUB",
+        "elapsed_min": 155,
+        "id": "assembled-5:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 12571,
+        "rank": 8,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            0,
+            155,
+            12571
+          ],
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 0,
+          "segment_count": 1,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "SU",
+          "U6"
+        ],
+        "connections": [
+          {
+            "actual_min": 230,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [],
+            "required_min": 120,
+            "risk": {
+              "grade": "excellent",
+              "reasons": [],
+              "score": 0
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "ok",
+            "status": "compatible",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 835,
+        "id": "assembled-12:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 48445,
+        "rank": 9,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            0,
+            835,
+            48445
+          ],
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU, U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "SU",
+          "U6"
+        ],
+        "connections": [
+          {
+            "actual_min": 330,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [],
+            "required_min": 120,
+            "risk": {
+              "grade": "excellent",
+              "reasons": [],
+              "score": 0
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "ok",
+            "status": "compatible",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 955,
+        "id": "assembled-11:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 40547,
+        "rank": 10,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            0,
+            955,
+            40547
+          ],
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU, U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "SU"
+        ],
+        "connections": [
+          {
+            "actual_min": 410,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [],
+            "required_min": 120,
+            "risk": {
+              "grade": "excellent",
+              "reasons": [
+                {
+                  "code": "long_layover",
+                  "message": "Connection is longer than the profile's ideal range.",
+                  "points": 2
+                }
+              ],
+              "score": 2
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "ok",
+            "status": "compatible",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 1015,
+        "id": "assembled-13:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 39933,
+        "rank": 11,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            2,
+            1015,
+            39933
+          ],
+          "reject": false,
+          "score": 2,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "long_layover",
+              "message": "Connection is longer than the profile's ideal range.",
+              "points": 2,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "SU",
+          "U6"
+        ],
+        "connections": [
+          {
+            "actual_min": 445,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [],
+            "required_min": 120,
+            "risk": {
+              "grade": "excellent",
+              "reasons": [
+                {
+                  "code": "long_layover",
+                  "message": "Connection is longer than the profile's ideal range.",
+                  "points": 3
+                }
+              ],
+              "score": 3
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "ok",
+            "status": "compatible",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 1040,
+        "id": "assembled-14:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 40547,
+        "rank": 12,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            3,
+            1040,
+            40547
+          ],
+          "reject": false,
+          "score": 3,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "long_layover",
+              "message": "Connection is longer than the profile's ideal range.",
+              "points": 3,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU, U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "DP"
+        ],
+        "connections": [],
+        "currency": "RUB",
+        "elapsed_min": 145,
+        "id": "assembled-1:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 6950,
+        "rank": 13,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            14,
+            145,
+            6950
+          ],
+          "reject": false,
+          "score": 14,
+          "top_reasons": [
+            {
+              "code": "missing_preferred_carrier",
+              "message": "Does not use preferred carrier(s): SU, TK, U6.",
+              "points": 14,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 0,
+          "segment_count": 1,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "DP"
+        ],
+        "connections": [],
+        "currency": "RUB",
+        "elapsed_min": 145,
+        "id": "assembled-2:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 8230,
+        "rank": 14,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            14,
+            145,
+            8230
+          ],
+          "reject": false,
+          "score": 14,
+          "top_reasons": [
+            {
+              "code": "missing_preferred_carrier",
+              "message": "Does not use preferred carrier(s): SU, TK, U6.",
+              "points": 14,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 0,
+          "segment_count": 1,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "SU",
+          "U6"
+        ],
+        "connections": [
+          {
+            "actual_min": 825,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [],
+            "required_min": 120,
+            "risk": {
+              "grade": "excellent",
+              "reasons": [
+                {
+                  "code": "long_layover",
+                  "message": "Connection is longer than the profile's ideal range.",
+                  "points": 18
+                }
+              ],
+              "score": 18
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "ok",
+            "status": "compatible",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 1420,
+        "id": "assembled-15:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 40547,
+        "rank": 15,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            18,
+            1420,
+            40547
+          ],
+          "reject": false,
+          "score": 18,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "long_layover",
+              "message": "Connection is longer than the profile's ideal range.",
+              "points": 18,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU, U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "SU",
+          "U6"
+        ],
+        "connections": [
+          {
+            "actual_min": 1295,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [],
+            "required_min": 120,
+            "risk": {
+              "grade": "excellent",
+              "reasons": [
+                {
+                  "code": "long_layover",
+                  "message": "Connection is longer than the profile's ideal range.",
+                  "points": 18
+                }
+              ],
+              "score": 18
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "ok",
+            "status": "compatible",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 1905,
+        "id": "assembled-17:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 52840,
+        "rank": 16,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            18,
+            1905,
+            52840
+          ],
+          "reject": false,
+          "score": 18,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "long_layover",
+              "message": "Connection is longer than the profile's ideal range.",
+              "points": 18,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU, U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "SU",
+          "U6"
+        ],
+        "connections": [
+          {
+            "actual_min": 1670,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [],
+            "required_min": 120,
+            "risk": {
+              "grade": "excellent",
+              "reasons": [
+                {
+                  "code": "long_layover",
+                  "message": "Connection is longer than the profile's ideal range.",
+                  "points": 18
+                }
+              ],
+              "score": 18
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "ok",
+            "status": "compatible",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 2260,
+        "id": "assembled-21:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 63962,
+        "rank": 17,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            18,
+            2260,
+            63962
+          ],
+          "reject": false,
+          "score": 18,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "long_layover",
+              "message": "Connection is longer than the profile's ideal range.",
+              "points": 18,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU, U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "SU",
+          "U6"
+        ],
+        "connections": [
+          {
+            "actual_min": 1770,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [],
+            "required_min": 120,
+            "risk": {
+              "grade": "excellent",
+              "reasons": [
+                {
+                  "code": "long_layover",
+                  "message": "Connection is longer than the profile's ideal range.",
+                  "points": 18
+                }
+              ],
+              "score": 18
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "ok",
+            "status": "compatible",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 2380,
+        "id": "assembled-18:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 56064,
+        "rank": 18,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            18,
+            2380,
+            56064
+          ],
+          "reject": false,
+          "score": 18,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "long_layover",
+              "message": "Connection is longer than the profile's ideal range.",
+              "points": 18,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU, U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "SU",
+          "U6"
+        ],
+        "connections": [
+          {
+            "actual_min": 1885,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [],
+            "required_min": 120,
+            "risk": {
+              "grade": "excellent",
+              "reasons": [
+                {
+                  "code": "long_layover",
+                  "message": "Connection is longer than the profile's ideal range.",
+                  "points": 18
+                }
+              ],
+              "score": 18
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "ok",
+            "status": "compatible",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 2465,
+        "id": "assembled-19:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 56064,
+        "rank": 19,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            18,
+            2465,
+            56064
+          ],
+          "reject": false,
+          "score": 18,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "long_layover",
+              "message": "Connection is longer than the profile's ideal range.",
+              "points": 18,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU, U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "SU",
+          "U6"
+        ],
+        "connections": [
+          {
+            "actual_min": 2265,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [],
+            "required_min": 120,
+            "risk": {
+              "grade": "excellent",
+              "reasons": [
+                {
+                  "code": "long_layover",
+                  "message": "Connection is longer than the profile's ideal range.",
+                  "points": 18
+                }
+              ],
+              "score": 18
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "ok",
+            "status": "compatible",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 2845,
+        "id": "assembled-20:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 56064,
+        "rank": 20,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            18,
+            2845,
+            56064
+          ],
+          "reject": false,
+          "score": 18,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "long_layover",
+              "message": "Connection is longer than the profile's ideal range.",
+              "points": 18,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU, U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "2S",
+          "U6"
+        ],
+        "connections": [
+          {
+            "actual_min": 1495,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [],
+            "required_min": 120,
+            "risk": {
+              "grade": "excellent",
+              "reasons": [
+                {
+                  "code": "long_layover",
+                  "message": "Connection is longer than the profile's ideal range.",
+                  "points": 18
+                }
+              ],
+              "score": 18
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "ok",
+            "status": "compatible",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 2000,
+        "id": "assembled-16:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 51537,
+        "rank": 21,
+        "risk": {
+          "grade": "good",
+          "profile": "business",
+          "rank_key": [
+            0,
+            27,
+            2000,
+            51537
+          ],
+          "reject": false,
+          "score": 27,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "long_layover",
+              "message": "Connection is longer than the profile's ideal range.",
+              "points": 18,
+              "scope": "connection"
+            },
+            {
+              "code": "lowcost_carrier",
+              "message": "Low-cost/leisure carrier signal: 2S.",
+              "points": 9,
+              "scope": "segment",
+              "segment": 0
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "SU",
+          "U6"
+        ],
+        "connections": [
+          {
+            "actual_min": 910,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [],
+            "required_min": 120,
+            "risk": {
+              "grade": "good",
+              "reasons": [
+                {
+                  "code": "long_layover",
+                  "message": "Connection is longer than the profile's ideal range.",
+                  "points": 18
+                },
+                {
+                  "code": "night_connection",
+                  "message": "Connection touches late-night or early-morning hours.",
+                  "points": 14
+                }
+              ],
+              "score": 32
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "ok",
+            "status": "compatible",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 1500,
+        "id": "assembled-22:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 56064,
+        "rank": 22,
+        "risk": {
+          "grade": "good",
+          "profile": "business",
+          "rank_key": [
+            0,
+            32,
+            1500,
+            56064
+          ],
+          "reject": false,
+          "score": 32,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "long_layover",
+              "message": "Connection is longer than the profile's ideal range.",
+              "points": 18,
+              "scope": "connection"
+            },
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "night_connection",
+              "message": "Connection touches late-night or early-morning hours.",
+              "points": 14,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU, U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "SU",
+          "U6"
+        ],
+        "connections": [
+          {
+            "actual_min": 1035,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [],
+            "required_min": 120,
+            "risk": {
+              "grade": "good",
+              "reasons": [
+                {
+                  "code": "long_layover",
+                  "message": "Connection is longer than the profile's ideal range.",
+                  "points": 18
+                },
+                {
+                  "code": "night_connection",
+                  "message": "Connection touches late-night or early-morning hours.",
+                  "points": 14
+                }
+              ],
+              "score": 32
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "ok",
+            "status": "compatible",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 1630,
+        "id": "assembled-23:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": true,
+        "price": 59816,
+        "rank": 23,
+        "risk": {
+          "grade": "good",
+          "profile": "business",
+          "rank_key": [
+            0,
+            32,
+            1630,
+            59816
+          ],
+          "reject": false,
+          "score": 32,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "long_layover",
+              "message": "Connection is longer than the profile's ideal range.",
+              "points": 18,
+              "scope": "connection"
+            },
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "night_connection",
+              "message": "Connection touches late-night or early-morning hours.",
+              "points": 14,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU, U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 0
+        }
+      },
+      {
+        "carriers": [
+          "SU"
+        ],
+        "connections": [
+          {
+            "actual_min": 30,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [
+              "Connection is 30 min, below required 120 min."
+            ],
+            "required_min": 120,
+            "risk": {
+              "grade": "reject",
+              "reasons": [
+                {
+                  "code": "too_short_connection",
+                  "message": "Connection is 30 min, below required 120 min.",
+                  "points": 94
+                }
+              ],
+              "score": 94
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "error",
+            "status": "too_short",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 635,
+        "id": "assembled-25:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": false,
+        "price": 39933,
+        "rank": 24,
+        "risk": {
+          "grade": "reject",
+          "profile": "business",
+          "rank_key": [
+            1,
+            94,
+            635,
+            39933
+          ],
+          "reject": true,
+          "score": 94,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "too_short_connection",
+              "message": "Connection is 30 min, below required 120 min.",
+              "points": 94,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 1
+        }
+      },
+      {
+        "carriers": [
+          "SU"
+        ],
+        "connections": [
+          {
+            "actual_min": -945,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [
+              "Next departure is before previous arrival."
+            ],
+            "required_min": 120,
+            "risk": {
+              "grade": "reject",
+              "reasons": [
+                {
+                  "code": "invalid_time_order",
+                  "message": "Next departure is before previous arrival.",
+                  "points": 100
+                },
+                {
+                  "code": "night_connection",
+                  "message": "Connection touches late-night or early-morning hours.",
+                  "points": 14
+                }
+              ],
+              "score": 100
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "error",
+            "status": "invalid_time_order",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": -330,
+        "id": "assembled-29:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": false,
+        "price": 39933,
+        "rank": 25,
+        "risk": {
+          "grade": "reject",
+          "profile": "business",
+          "rank_key": [
+            1,
+            100,
+            -330,
+            39933
+          ],
+          "reject": true,
+          "score": 100,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "invalid_time_order",
+              "message": "Next departure is before previous arrival.",
+              "points": 100,
+              "scope": "connection"
+            },
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "night_connection",
+              "message": "Connection touches late-night or early-morning hours.",
+              "points": 14,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 1
+        }
+      },
+      {
+        "carriers": [
+          "SU"
+        ],
+        "connections": [
+          {
+            "actual_min": -820,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [
+              "Next departure is before previous arrival."
+            ],
+            "required_min": 120,
+            "risk": {
+              "grade": "reject",
+              "reasons": [
+                {
+                  "code": "invalid_time_order",
+                  "message": "Next departure is before previous arrival.",
+                  "points": 100
+                },
+                {
+                  "code": "night_connection",
+                  "message": "Connection touches late-night or early-morning hours.",
+                  "points": 14
+                }
+              ],
+              "score": 100
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "error",
+            "status": "invalid_time_order",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": -200,
+        "id": "assembled-32:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": false,
+        "price": 43685,
+        "rank": 26,
+        "risk": {
+          "grade": "reject",
+          "profile": "business",
+          "rank_key": [
+            1,
+            100,
+            -200,
+            43685
+          ],
+          "reject": true,
+          "score": 100,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "invalid_time_order",
+              "message": "Next departure is before previous arrival.",
+              "points": 100,
+              "scope": "connection"
+            },
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "night_connection",
+              "message": "Connection touches late-night or early-morning hours.",
+              "points": 14,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 1
+        }
+      },
+      {
+        "carriers": [
+          "SU"
+        ],
+        "connections": [
+          {
+            "actual_min": -560,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [
+              "Next departure is before previous arrival."
+            ],
+            "required_min": 120,
+            "risk": {
+              "grade": "reject",
+              "reasons": [
+                {
+                  "code": "invalid_time_order",
+                  "message": "Next departure is before previous arrival.",
+                  "points": 100
+                }
+              ],
+              "score": 100
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "error",
+            "status": "invalid_time_order",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 75,
+        "id": "assembled-27:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": false,
+        "price": 36709,
+        "rank": 27,
+        "risk": {
+          "grade": "reject",
+          "profile": "business",
+          "rank_key": [
+            1,
+            100,
+            75,
+            36709
+          ],
+          "reject": true,
+          "score": 100,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "invalid_time_order",
+              "message": "Next departure is before previous arrival.",
+              "points": 100,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 1
+        }
+      },
+      {
+        "carriers": [
+          "SU",
+          "U6"
+        ],
+        "connections": [
+          {
+            "actual_min": -530,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [
+              "Next departure is before previous arrival."
+            ],
+            "required_min": 120,
+            "risk": {
+              "grade": "reject",
+              "reasons": [
+                {
+                  "code": "invalid_time_order",
+                  "message": "Next departure is before previous arrival.",
+                  "points": 100
+                },
+                {
+                  "code": "night_connection",
+                  "message": "Connection touches late-night or early-morning hours.",
+                  "points": 14
+                }
+              ],
+              "score": 100
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "error",
+            "status": "invalid_time_order",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 75,
+        "id": "assembled-31:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": false,
+        "price": 40547,
+        "rank": 28,
+        "risk": {
+          "grade": "reject",
+          "profile": "business",
+          "rank_key": [
+            1,
+            100,
+            75,
+            40547
+          ],
+          "reject": true,
+          "score": 100,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "invalid_time_order",
+              "message": "Next departure is before previous arrival.",
+              "points": 100,
+              "scope": "connection"
+            },
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "night_connection",
+              "message": "Connection touches late-night or early-morning hours.",
+              "points": 14,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU, U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 1
+        }
+      },
+      {
+        "carriers": [
+          "2S",
+          "SU"
+        ],
+        "connections": [
+          {
+            "actual_min": -360,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [
+              "Next departure is before previous arrival."
+            ],
+            "required_min": 120,
+            "risk": {
+              "grade": "reject",
+              "reasons": [
+                {
+                  "code": "invalid_time_order",
+                  "message": "Next departure is before previous arrival.",
+                  "points": 100
+                }
+              ],
+              "score": 100
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "error",
+            "status": "invalid_time_order",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 170,
+        "id": "assembled-26:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": false,
+        "price": 35406,
+        "rank": 29,
+        "risk": {
+          "grade": "reject",
+          "profile": "business",
+          "rank_key": [
+            1,
+            100,
+            170,
+            35406
+          ],
+          "reject": true,
+          "score": 100,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "invalid_time_order",
+              "message": "Next departure is before previous arrival.",
+              "points": 100,
+              "scope": "connection"
+            },
+            {
+              "code": "lowcost_carrier",
+              "message": "Low-cost/leisure carrier signal: 2S.",
+              "points": 9,
+              "scope": "segment",
+              "segment": 0
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 1
+        }
+      },
+      {
+        "carriers": [
+          "SU",
+          "U6"
+        ],
+        "connections": [
+          {
+            "actual_min": -405,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [
+              "Next departure is before previous arrival."
+            ],
+            "required_min": 120,
+            "risk": {
+              "grade": "reject",
+              "reasons": [
+                {
+                  "code": "invalid_time_order",
+                  "message": "Next departure is before previous arrival.",
+                  "points": 100
+                },
+                {
+                  "code": "night_connection",
+                  "message": "Connection touches late-night or early-morning hours.",
+                  "points": 14
+                }
+              ],
+              "score": 100
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "error",
+            "status": "invalid_time_order",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 205,
+        "id": "assembled-33:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": false,
+        "price": 44299,
+        "rank": 30,
+        "risk": {
+          "grade": "reject",
+          "profile": "business",
+          "rank_key": [
+            1,
+            100,
+            205,
+            44299
+          ],
+          "reject": true,
+          "score": 100,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "invalid_time_order",
+              "message": "Next departure is before previous arrival.",
+              "points": 100,
+              "scope": "connection"
+            },
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "night_connection",
+              "message": "Connection touches late-night or early-morning hours.",
+              "points": 14,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU, U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 1
+        }
+      },
+      {
+        "carriers": [
+          "SU"
+        ],
+        "connections": [
+          {
+            "actual_min": -185,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [
+              "Next departure is before previous arrival."
+            ],
+            "required_min": 120,
+            "risk": {
+              "grade": "reject",
+              "reasons": [
+                {
+                  "code": "invalid_time_order",
+                  "message": "Next departure is before previous arrival.",
+                  "points": 100
+                }
+              ],
+              "score": 100
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "error",
+            "status": "invalid_time_order",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 430,
+        "id": "assembled-34:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": false,
+        "price": 47831,
+        "rank": 31,
+        "risk": {
+          "grade": "reject",
+          "profile": "business",
+          "rank_key": [
+            1,
+            100,
+            430,
+            47831
+          ],
+          "reject": true,
+          "score": 100,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "invalid_time_order",
+              "message": "Next departure is before previous arrival.",
+              "points": 100,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 1
+        }
+      },
+      {
+        "carriers": [
+          "SU",
+          "U6"
+        ],
+        "connections": [
+          {
+            "actual_min": -145,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [
+              "Next departure is before previous arrival."
+            ],
+            "required_min": 120,
+            "risk": {
+              "grade": "reject",
+              "reasons": [
+                {
+                  "code": "invalid_time_order",
+                  "message": "Next departure is before previous arrival.",
+                  "points": 100
+                }
+              ],
+              "score": 100
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "error",
+            "status": "invalid_time_order",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 480,
+        "id": "assembled-28:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": false,
+        "price": 37323,
+        "rank": 32,
+        "risk": {
+          "grade": "reject",
+          "profile": "business",
+          "rank_key": [
+            1,
+            100,
+            480,
+            37323
+          ],
+          "reject": true,
+          "score": 100,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "invalid_time_order",
+              "message": "Next departure is before previous arrival.",
+              "points": 100,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU, U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 1
+        }
+      },
+      {
+        "carriers": [
+          "SU"
+        ],
+        "connections": [
+          {
+            "actual_min": -85,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [
+              "Next departure is before previous arrival."
+            ],
+            "required_min": 120,
+            "risk": {
+              "grade": "reject",
+              "reasons": [
+                {
+                  "code": "invalid_time_order",
+                  "message": "Next departure is before previous arrival.",
+                  "points": 100
+                }
+              ],
+              "score": 100
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "error",
+            "status": "invalid_time_order",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 550,
+        "id": "assembled-30:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": false,
+        "price": 39933,
+        "rank": 33,
+        "risk": {
+          "grade": "reject",
+          "profile": "business",
+          "rank_key": [
+            1,
+            100,
+            550,
+            39933
+          ],
+          "reject": true,
+          "score": 100,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "invalid_time_order",
+              "message": "Next departure is before previous arrival.",
+              "points": 100,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 1
+        }
+      },
+      {
+        "carriers": [
+          "2S",
+          "U6"
+        ],
+        "connections": [
+          {
+            "actual_min": 55,
+            "arrival_airport": "IST",
+            "between_segments": [
+              0,
+              1
+            ],
+            "departure_airport": "IST",
+            "journey_direction": "outbound",
+            "journey_index": 0,
+            "notes": [
+              "Connection is 55 min, below required 120 min."
+            ],
+            "required_min": 120,
+            "risk": {
+              "grade": "reject",
+              "reasons": [
+                {
+                  "code": "too_short_connection",
+                  "message": "Connection is 55 min, below required 120 min.",
+                  "points": 92
+                }
+              ],
+              "score": 92
+            },
+            "same_airport": true,
+            "same_multi_airport_system": true,
+            "severity": "error",
+            "status": "too_short",
+            "ticketing": "separate"
+          }
+        ],
+        "currency": "RUB",
+        "elapsed_min": 575,
+        "id": "assembled-24:SVO-SVX",
+        "journeys": [
+          {
+            "direction": "outbound",
+            "index": 0,
+            "segment_indexes": [
+              0,
+              1
+            ]
+          }
+        ],
+        "ok": false,
+        "price": 36020,
+        "rank": 34,
+        "risk": {
+          "grade": "reject",
+          "profile": "business",
+          "rank_key": [
+            1,
+            100,
+            575,
+            36020
+          ],
+          "reject": true,
+          "score": 100,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "too_short_connection",
+              "message": "Connection is 55 min, below required 120 min.",
+              "points": 92,
+              "scope": "connection"
+            },
+            {
+              "code": "lowcost_carrier",
+              "message": "Low-cost/leisure carrier signal: 2S.",
+              "points": 9,
+              "scope": "segment",
+              "segment": 0
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "validation_summary": {
+          "connection_count": 1,
+          "segment_count": 2,
+          "violation_count": 1
+        }
+      }
+    ],
+    "ranked_candidates": [
+      {
+        "candidate": {
+          "currency": "RUB",
+          "id": "assembled-3:SVO-SVX",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "segments": [
+                {
+                  "aircraft_code": "73H",
+                  "arrival_at": "2026-06-19T06:40:00+05:00",
+                  "carrier": "SU",
+                  "departure_at": "2026-06-19T02:20:00+03:00",
+                  "destination": "SVX",
+                  "flight_number": "SU1466",
+                  "marketing_carrier": "SU",
+                  "operating_carrier": "SU",
+                  "origin": "SVO"
+                }
+              ]
+            }
+          ],
+          "price": 9271,
+          "source_offers": [
+            {
+              "arrival_airport": "SVX",
+              "arrival_at": "2026-06-19T06:40:00+05:00",
+              "currency": "RUB",
+              "departure_airport": "SVO",
+              "departure_at": "2026-06-19T02:20:00+03:00",
+              "destination": "SVX",
+              "id": "kb:outbound:direct_outbound:SVO-SVX:2026-06-19:cd38461979ab4f13b04c2a314b1983a473",
+              "leg": "direct_outbound",
+              "origin": "SVO",
+              "price": 9271
+            }
+          ]
+        },
+        "rank": 1,
+        "ranked": {
+          "carriers": [
+            "SU"
+          ],
+          "connections": [],
+          "currency": "RUB",
+          "elapsed_min": 140,
+          "id": "assembled-3:SVO-SVX",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "index": 0,
+              "segment_indexes": [
+                0
+              ]
+            }
+          ],
+          "ok": true,
+          "price": 9271,
+          "rank": 1,
+          "risk": {
+            "grade": "excellent",
+            "profile": "business",
+            "rank_key": [
+              0,
+              0,
+              140,
+              9271
+            ],
+            "reject": false,
+            "score": 0,
+            "top_reasons": [
+              {
+                "code": "preferred_carrier_match",
+                "message": "Uses preferred carrier(s): SU.",
+                "points": 0,
+                "scope": "carrier"
+              }
+            ]
+          },
+          "validation_summary": {
+            "connection_count": 0,
+            "segment_count": 1,
+            "violation_count": 0
+          }
+        }
+      },
+      {
+        "candidate": {
+          "currency": "RUB",
+          "id": "assembled-6:SVO-SVX",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "segments": [
+                {
+                  "aircraft_code": "32A",
+                  "arrival_at": "2026-06-19T16:20:00+05:00",
+                  "carrier": "SU",
+                  "departure_at": "2026-06-19T12:00:00+03:00",
+                  "destination": "SVX",
+                  "flight_number": "SU1412",
+                  "marketing_carrier": "SU",
+                  "operating_carrier": "SU",
+                  "origin": "SVO"
+                }
+              ]
+            }
+          ],
+          "price": 14461,
+          "source_offers": [
+            {
+              "arrival_airport": "SVX",
+              "arrival_at": "2026-06-19T16:20:00+05:00",
+              "currency": "RUB",
+              "departure_airport": "SVO",
+              "departure_at": "2026-06-19T12:00:00+03:00",
+              "destination": "SVX",
+              "id": "kb:outbound:direct_outbound:SVO-SVX:2026-06-19:cd38461979ab4f13b04c2a314b1983a418",
+              "leg": "direct_outbound",
+              "origin": "SVO",
+              "price": 14461
+            }
+          ]
+        },
+        "rank": 2,
+        "ranked": {
+          "carriers": [
+            "SU"
+          ],
+          "connections": [],
+          "currency": "RUB",
+          "elapsed_min": 140,
+          "id": "assembled-6:SVO-SVX",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "index": 0,
+              "segment_indexes": [
+                0
+              ]
+            }
+          ],
+          "ok": true,
+          "price": 14461,
+          "rank": 2,
+          "risk": {
+            "grade": "excellent",
+            "profile": "business",
+            "rank_key": [
+              0,
+              0,
+              140,
+              14461
+            ],
+            "reject": false,
+            "score": 0,
+            "top_reasons": [
+              {
+                "code": "preferred_carrier_match",
+                "message": "Uses preferred carrier(s): SU.",
+                "points": 0,
+                "scope": "carrier"
+              }
+            ]
+          },
+          "validation_summary": {
+            "connection_count": 0,
+            "segment_count": 1,
+            "violation_count": 0
+          }
+        }
+      },
+      {
+        "candidate": {
+          "currency": "RUB",
+          "id": "assembled-4:SVO-SVX",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "segments": [
+                {
+                  "aircraft_code": "32B",
+                  "arrival_at": "2026-06-19T13:55:00+05:00",
+                  "carrier": "SU",
+                  "departure_at": "2026-06-19T09:30:00+03:00",
+                  "destination": "SVX",
+                  "flight_number": "SU1416",
+                  "marketing_carrier": "SU",
+                  "operating_carrier": "SU",
+                  "origin": "SVO"
+                }
+              ]
+            }
+          ],
+          "price": 12571,
+          "source_offers": [
+            {
+              "arrival_airport": "SVX",
+              "arrival_at": "2026-06-19T13:55:00+05:00",
+              "currency": "RUB",
+              "departure_airport": "SVO",
+              "departure_at": "2026-06-19T09:30:00+03:00",
+              "destination": "SVX",
+              "id": "kb:outbound:direct_outbound:SVO-SVX:2026-06-19:cd38461979ab4f13b04c2a314b1983a413",
+              "leg": "direct_outbound",
+              "origin": "SVO",
+              "price": 12571
+            }
+          ]
+        },
+        "rank": 3,
+        "ranked": {
+          "carriers": [
+            "SU"
+          ],
+          "connections": [],
+          "currency": "RUB",
+          "elapsed_min": 145,
+          "id": "assembled-4:SVO-SVX",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "index": 0,
+              "segment_indexes": [
+                0
+              ]
+            }
+          ],
+          "ok": true,
+          "price": 12571,
+          "rank": 3,
+          "risk": {
+            "grade": "excellent",
+            "profile": "business",
+            "rank_key": [
+              0,
+              0,
+              145,
+              12571
+            ],
+            "reject": false,
+            "score": 0,
+            "top_reasons": [
+              {
+                "code": "preferred_carrier_match",
+                "message": "Uses preferred carrier(s): SU.",
+                "points": 0,
+                "scope": "carrier"
+              }
+            ]
+          },
+          "validation_summary": {
+            "connection_count": 0,
+            "segment_count": 1,
+            "violation_count": 0
+          }
+        }
+      },
+      {
+        "candidate": {
+          "currency": "RUB",
+          "id": "assembled-7:SVO-SVX",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "segments": [
+                {
+                  "aircraft_code": "73H",
+                  "arrival_at": "2026-06-19T15:30:00+05:00",
+                  "carrier": "SU",
+                  "departure_at": "2026-06-19T11:05:00+03:00",
+                  "destination": "SVX",
+                  "flight_number": "SU1402",
+                  "marketing_carrier": "SU",
+                  "operating_carrier": "SU",
+                  "origin": "SVO"
+                }
+              ]
+            }
+          ],
+          "price": 14461,
+          "source_offers": [
+            {
+              "arrival_airport": "SVX",
+              "arrival_at": "2026-06-19T15:30:00+05:00",
+              "currency": "RUB",
+              "departure_airport": "SVO",
+              "departure_at": "2026-06-19T11:05:00+03:00",
+              "destination": "SVX",
+              "id": "kb:outbound:direct_outbound:SVO-SVX:2026-06-19:cd38461979ab4f13b04c2a314b1983a4453",
+              "leg": "direct_outbound",
+              "origin": "SVO",
+              "price": 14461
+            }
+          ]
+        },
+        "rank": 4,
+        "ranked": {
+          "carriers": [
+            "SU"
+          ],
+          "connections": [],
+          "currency": "RUB",
+          "elapsed_min": 145,
+          "id": "assembled-7:SVO-SVX",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "index": 0,
+              "segment_indexes": [
+                0
+              ]
+            }
+          ],
+          "ok": true,
+          "price": 14461,
+          "rank": 4,
+          "risk": {
+            "grade": "excellent",
+            "profile": "business",
+            "rank_key": [
+              0,
+              0,
+              145,
+              14461
+            ],
+            "reject": false,
+            "score": 0,
+            "top_reasons": [
+              {
+                "code": "preferred_carrier_match",
+                "message": "Uses preferred carrier(s): SU.",
+                "points": 0,
+                "scope": "carrier"
+              }
+            ]
+          },
+          "validation_summary": {
+            "connection_count": 0,
+            "segment_count": 1,
+            "violation_count": 0
+          }
+        }
+      },
+      {
+        "candidate": {
+          "currency": "RUB",
+          "id": "assembled-8:SVO-SVX",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "segments": [
+                {
+                  "aircraft_code": "73H",
+                  "arrival_at": "2026-06-19T19:50:00+05:00",
+                  "carrier": "SU",
+                  "departure_at": "2026-06-19T15:25:00+03:00",
+                  "destination": "SVX",
+                  "flight_number": "SU1404",
+                  "marketing_carrier": "SU",
+                  "operating_carrier": "SU",
+                  "origin": "SVO"
+                }
+              ]
+            }
+          ],
+          "price": 14461,
+          "source_offers": [
+            {
+              "arrival_airport": "SVX",
+              "arrival_at": "2026-06-19T19:50:00+05:00",
+              "currency": "RUB",
+              "departure_airport": "SVO",
+              "departure_at": "2026-06-19T15:25:00+03:00",
+              "destination": "SVX",
+              "id": "kb:outbound:direct_outbound:SVO-SVX:2026-06-19:cd38461979ab4f13b04c2a314b1983a446",
+              "leg": "direct_outbound",
+              "origin": "SVO",
+              "price": 14461
+            }
+          ]
+        },
+        "rank": 5,
+        "ranked": {
+          "carriers": [
+            "SU"
+          ],
+          "connections": [],
+          "currency": "RUB",
+          "elapsed_min": 145,
+          "id": "assembled-8:SVO-SVX",
+          "journeys": [
+            {
+              "direction": "outbound",
+              "index": 0,
+              "segment_indexes": [
+                0
+              ]
+            }
+          ],
+          "ok": true,
+          "price": 14461,
+          "rank": 5,
+          "risk": {
+            "grade": "excellent",
+            "profile": "business",
+            "rank_key": [
+              0,
+              0,
+              145,
+              14461
+            ],
+            "reject": false,
+            "score": 0,
+            "top_reasons": [
+              {
+                "code": "preferred_carrier_match",
+                "message": "Uses preferred carrier(s): SU.",
+                "points": 0,
+                "scope": "carrier"
+              }
+            ]
+          },
+          "validation_summary": {
+            "connection_count": 0,
+            "segment_count": 1,
+            "violation_count": 0
+          }
+        }
+      }
+    ],
+    "ranked_total_count": 34,
+    "recommendations": {
+      "best_ranked": {
+        "carriers": [
+          "SU"
+        ],
+        "currency": "RUB",
+        "elapsed_min": 140,
+        "id": "assembled-3:SVO-SVX",
+        "ok": true,
+        "price": 9271,
+        "rank": 1,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            0,
+            140,
+            9271
+          ],
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        }
+      },
+      "cheapest_acceptable": {
+        "carriers": [
+          "DP"
+        ],
+        "currency": "RUB",
+        "elapsed_min": 145,
+        "id": "assembled-1:SVO-SVX",
+        "ok": true,
+        "price": 6950,
+        "rank": 13,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            14,
+            145,
+            6950
+          ],
+          "reject": false,
+          "score": 14,
+          "top_reasons": [
+            {
+              "code": "missing_preferred_carrier",
+              "message": "Does not use preferred carrier(s): SU, TK, U6.",
+              "points": 14,
+              "scope": "carrier"
+            }
+          ]
+        }
+      },
+      "fastest_acceptable": {
+        "carriers": [
+          "SU"
+        ],
+        "currency": "RUB",
+        "elapsed_min": 140,
+        "id": "assembled-3:SVO-SVX",
+        "ok": true,
+        "price": 9271,
+        "rank": 1,
+        "risk": {
+          "grade": "excellent",
+          "profile": "business",
+          "rank_key": [
+            0,
+            0,
+            140,
+            9271
+          ],
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        }
+      }
+    },
+    "rejected_pairs": [],
+    "segment_results": []
+  },
+  "ok": true
+}

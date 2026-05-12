@@ -1,0 +1,257 @@
+{
+  "command": "doctor",
+  "data": {
+    "auth": {
+      "travelpayouts_marker": {
+        "available": true,
+        "source": "env"
+      },
+      "travelpayouts_token": {
+        "available": true,
+        "source": "env"
+      }
+    },
+    "cache_counts": {
+      "airlines": 1156,
+      "airports": 10354,
+      "alliances": 6,
+      "cities": 9641,
+      "countries": 253,
+      "planes": 310
+    },
+    "cache_dir": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache",
+    "cache_dir_exists": true,
+    "cache_files": {
+      "airlines_en.json": {
+        "exists": true,
+        "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/airlines_en.json"
+      },
+      "airlines_ru.json": {
+        "exists": true,
+        "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/airlines_ru.json"
+      },
+      "airports_en.json": {
+        "exists": true,
+        "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/airports_en.json"
+      },
+      "airports_ru.json": {
+        "exists": true,
+        "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/airports_ru.json"
+      },
+      "alliances.json": {
+        "exists": true,
+        "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/alliances.json"
+      },
+      "catalog_manifest.json": {
+        "exists": true,
+        "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/catalog_manifest.json"
+      },
+      "cities_en.json": {
+        "exists": true,
+        "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/cities_en.json"
+      },
+      "cities_ru.json": {
+        "exists": true,
+        "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/cities_ru.json"
+      },
+      "countries.json": {
+        "exists": true,
+        "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/countries.json"
+      },
+      "planes.json": {
+        "exists": true,
+        "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/planes.json"
+      }
+    },
+    "cached_fetch_default": false,
+    "catalog_auto_refresh_policy": {
+      "applies_to": [
+        "cities search",
+        "airports explain",
+        "route plan",
+        "route kb-assemble",
+        "route live-assemble",
+        "metrics workflow"
+      ],
+      "max_age": "7d",
+      "max_age_seconds": 604800,
+      "mode": "auto",
+      "timeout": 30
+    },
+    "catalog_staleness": {
+      "checked_at": "2026-05-09T19:01:23+00:00",
+      "checked_count": 9,
+      "fresh": [
+        "countries",
+        "cities_en",
+        "cities_ru",
+        "airports_en",
+        "airports_ru",
+        "airlines_en",
+        "airlines_ru",
+        "alliances",
+        "planes"
+      ],
+      "max_age_seconds": 604800,
+      "stale": [],
+      "stale_count": 0
+    },
+    "default_route_hubs": [
+      {
+        "code": "IST",
+        "note": "Broadest Russia-origin hub."
+      },
+      {
+        "code": "DXB",
+        "note": "Main competitor for Asia, Africa, and Australia routings."
+      },
+      {
+        "code": "DOH",
+        "note": "Strong long-haul hub via Qatar."
+      },
+      {
+        "code": "AUH",
+        "note": "Useful backup for DXB and DOH."
+      },
+      {
+        "code": "BEG",
+        "note": "Europe and some North America coverage, but not global."
+      },
+      {
+        "code": "TAS",
+        "note": "Regional hub with partial long-haul coverage."
+      },
+      {
+        "code": "GYD",
+        "note": "Regional hub with partial long-haul coverage."
+      },
+      {
+        "code": "PEK",
+        "note": "Asia, China, and Oceania-oriented fallback."
+      },
+      {
+        "code": "PVG",
+        "note": "Asia, China, and Oceania-oriented fallback."
+      },
+      {
+        "code": "CAN",
+        "note": "Asia, China, and Oceania-oriented fallback."
+      },
+      {
+        "code": "ADD",
+        "note": "Niche Africa, Middle East, India, and price hub."
+      },
+      {
+        "code": "CAI",
+        "note": "Niche Africa, Middle East, India, and price hub."
+      },
+      {
+        "code": "MCT",
+        "note": "Niche Africa, Middle East, India, and price hub."
+      }
+    ],
+    "hermes_plugin_exists": true,
+    "hermes_plugin_path": "/home/konstantin/.hermes/plugins/travelpayouts-flights",
+    "offline_first": true,
+    "python": "/home/konstantin/.hermes/hermes-agent/venv/bin/python3",
+    "risk_profiles": {
+      "balanced": {
+        "description": "Risk first, then price and total elapsed time.",
+        "ideal_same_max": 420,
+        "ideal_same_min": 180,
+        "rank_order": [
+          "reject",
+          "risk",
+          "price",
+          "elapsed"
+        ]
+      },
+      "business": {
+        "description": "Same-airport, predictable, shorter elapsed time; penalizes budget airports/carriers.",
+        "ideal_same_max": 360,
+        "ideal_same_min": 180,
+        "rank_order": [
+          "reject",
+          "risk",
+          "elapsed",
+          "price"
+        ]
+      },
+      "cheap": {
+        "description": "Lowest price first among non-rejected itineraries; still demotes unsafe transfers.",
+        "ideal_same_max": 540,
+        "ideal_same_min": 150,
+        "rank_order": [
+          "reject",
+          "price",
+          "risk",
+          "elapsed"
+        ]
+      },
+      "safe": {
+        "description": "Best connection quality first; price is secondary.",
+        "ideal_same_max": 480,
+        "ideal_same_min": 210,
+        "rank_order": [
+          "reject",
+          "risk",
+          "elapsed",
+          "price"
+        ]
+      }
+    },
+    "route_intel_cache": {
+      "svx_official_route_index": {
+        "exists": true,
+        "path": "/home/konstantin/.hermes/plugins/travelpayouts-flights/cache/route_intel/svx_official_route_index.json"
+      }
+    },
+    "runtime_evidence_policy": {
+      "failure_classification": {
+        "classes": [
+          "rate_limited",
+          "timeout",
+          "provider_unavailable",
+          "blocked_response",
+          "parse_error",
+          "upstream_error"
+        ],
+        "preserves_original_error_type": true
+      },
+      "live_cache": {
+        "default_ttl_seconds": 21600,
+        "status_values": [
+          "live",
+          "cache_hit",
+          "stale_cache_used",
+          "disabled",
+          "unknown"
+        ]
+      },
+      "live_network_checks_in_doctor": false,
+      "request_deduplication": {
+        "network_calls_for_duplicates": false,
+        "scope": "in_process_identical_segment_probes"
+      },
+      "retry_policy": {
+        "active_retry": false,
+        "retry_after_is_classified_only": true
+      }
+    },
+    "safety": {
+      "booking_or_purchase": false,
+      "docker_touched": false,
+      "live_provider_commands": [
+        "kb-search",
+        "fli-search",
+        "fli-dates",
+        "u6-prices",
+        "route kb-assemble",
+        "route live-assemble"
+      ],
+      "travelpayouts_cached_fetch_requires": "request ... --fetch"
+    },
+    "version": "0.8.0"
+  },
+  "ok": true
+}

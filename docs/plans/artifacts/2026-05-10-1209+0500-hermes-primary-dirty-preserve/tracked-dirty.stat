@@ -1,0 +1,4 @@
+ skills/autonomous-ai-agents/hermes-agent/SKILL.md              |  1 +
+ skills/github/github-pr-workflow/SKILL.md                      |  2 +-
+ .../productivity/flight-search/references/cli-maintenance.md   | 10 ++++++++++
+ 3 files changed, 12 insertions(+), 1 deletion(-)

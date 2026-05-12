@@ -1,0 +1,827 @@
+diff --git a/hermes_cli/codex_models.py b/hermes_cli/codex_models.py
+index e39b2c5943b7db6f38cd1d0ad1a24b616e6be9b1..4b15074c547bc660efa7c228fbbf2780bba75498 100644
+--- a/hermes_cli/codex_models.py
++++ b/hermes_cli/codex_models.py
+@@ -13,12 +13,15 @@ logger = logging.getLogger(__name__)
+ 
+ DEFAULT_CODEX_MODELS: List[str] = [
+     "gpt-5.5",
+-    "gpt-5.4-mini",
+     "gpt-5.4",
++    "gpt-5.4-mini",
+     "gpt-5.3-codex",
++    "gpt-5.2",
+     "gpt-5.2-codex",
+     "gpt-5.1-codex-max",
+     "gpt-5.1-codex-mini",
++    "gpt-5-codex",
++    "codex-auto-review",
+ ]
+ 
+ _FORWARD_COMPAT_TEMPLATE_MODELS: List[tuple[str, tuple[str, ...]]] = [
+@@ -155,11 +158,18 @@ def get_codex_model_ids(access_token: Optional[str] = None) -> List[str]:
+     codex_home = Path(codex_home_str).expanduser()
+     ordered: List[str] = []
+ 
+-    # Try live API if we have a token
++    # Try live API if we have a token. The Codex API may omit hidden aliases
++    # or compatibility slugs that are still valid/manual-selectable, so treat
++    # live discovery as the priority-ordered prefix and keep curated defaults
++    # as an additive safety net.
+     if access_token:
+         api_models = _fetch_models_from_api(access_token)
+         if api_models:
+-            return _add_forward_compat_models(api_models)
++            merged: List[str] = []
++            for model_id in [*api_models, *DEFAULT_CODEX_MODELS]:
++                if model_id not in merged:
++                    merged.append(model_id)
++            return _add_forward_compat_models(merged)
+ 
+     # Fall back to local sources
+     default_model = _read_default_model(codex_home)
+diff --git a/hermes_cli/gateway.py b/hermes_cli/gateway.py
+index 5f95d0c204dd4f7e5ab28f04f500d65bb23aa13b..9d3ac70fdf3ca77439892e348fc2081ec3648cb0 100644
+--- a/hermes_cli/gateway.py
++++ b/hermes_cli/gateway.py
+@@ -539,6 +539,44 @@ def _read_systemd_unit_properties(
+     return parsed
+ 
+ 
++def _systemd_timespec_to_seconds(raw: str) -> float:
++    """Parse a systemd timespec value into seconds."""
++    text = (raw or "").strip().lower()
++    if not text or text == "infinity":
++        return 0.0
++
++    total = 0.0
++    matched = False
++    for part in text.split():
++        for suffix, multiplier in (
++            ("ms", 0.001),
++            ("us", 0.000001),
++            ("sec", 1.0),
++            ("s", 1.0),
++            ("min", 60.0),
++            ("h", 3600.0),
++            ("d", 86400.0),
++        ):
++            if part.endswith(suffix):
++                try:
++                    value = float(part[: -len(suffix)])
++                except ValueError:
++                    break
++                total += value * multiplier
++                matched = True
++                break
++    return total if matched else 0.0
++
++
++def _systemd_restart_wait_timeout(system: bool = False) -> float:
++    """Return a practical timeout while waiting for a systemd service restart."""
++    props = _read_systemd_unit_properties(system=system, properties=("RestartUSec",))
++    restart_wait_sec = _systemd_timespec_to_seconds(props.get("RestartUSec", ""))
++    # Keep the classic 60-second floor, then add a short grace period on top
++    # of RestartSec so callers tolerate the restart cooldown + tiny startup jitter.
++    return max(60.0, restart_wait_sec + 10.0)
++
++
+ def _systemd_main_pid_from_props(props: dict[str, str]) -> int | None:
+     try:
+         pid = int(props.get("MainPID", "0") or "0")
+@@ -697,9 +735,11 @@ def _recover_pending_systemd_restart(system: bool = False, previous_pid: int | N
+ 
+     if active_state == "activating" and sub_state == "auto-restart":
+         print("⏳ Service restart already pending — waiting for systemd relaunch...")
++        timeout = _systemd_restart_wait_timeout(system=system)
+         return _wait_for_systemd_service_restart(
+             system=system,
+             previous_pid=previous_pid,
++            timeout=timeout,
+         )
+ 
+     if active_state == "failed" and (
+@@ -721,9 +761,11 @@ def _recover_pending_systemd_restart(system: bool = False, previous_pid: int | N
+             check=False,
+             timeout=90,
+         )
++        timeout = _systemd_restart_wait_timeout(system=system)
+         return _wait_for_systemd_service_restart(
+             system=system,
+             previous_pid=previous_pid,
++            timeout=timeout,
+         )
+ 
+     return False
+@@ -2270,6 +2312,7 @@ def systemd_restart(system: bool = False):
+         scope_label = _service_scope_label(system).capitalize()
+         svc = get_service_name()
+         drain_timeout = _get_restart_drain_timeout()
++        wait_timeout = _systemd_restart_wait_timeout(system=system)
+ 
+         print(f"⏳ {scope_label} service restarting gracefully (PID {pid})...")
+         if _graceful_restart_via_sigusr1(pid, drain_timeout + 5):
+@@ -2289,7 +2332,11 @@ def systemd_restart(system: bool = False):
+                 check=False,
+                 timeout=90,
+             )
+-            if _wait_for_systemd_service_restart(system=system, previous_pid=pid):
++            if _wait_for_systemd_service_restart(
++                system=system,
++                previous_pid=pid,
++                timeout=wait_timeout,
++            ):
+                 return
+             if _systemd_service_is_start_limited(system=system):
+                 return
+@@ -2307,11 +2354,17 @@ def systemd_restart(system: bool = False):
+         try:
+             _run_systemctl(["restart", svc], system=system, check=True, timeout=90)
+         except subprocess.CalledProcessError as exc:
+-            if _systemd_error_indicates_start_limit(exc) or _systemd_service_is_start_limited(system=system):
++            if _systemd_error_indicates_start_limit(exc) or _systemd_service_is_start_limited(
++                system=system
++            ):
+                 _print_systemd_start_limit_wait(system=system)
+                 return
+             raise
+-        _wait_for_systemd_service_restart(system=system, previous_pid=pid)
++        _wait_for_systemd_service_restart(
++            system=system,
++            previous_pid=pid,
++            timeout=wait_timeout,
++        )
+         return
+ 
+     if _recover_pending_systemd_restart(system=system, previous_pid=pid):
+@@ -2330,7 +2383,12 @@ def systemd_restart(system: bool = False):
+             _print_systemd_start_limit_wait(system=system)
+             return
+         raise
+-    _wait_for_systemd_service_restart(system=system, previous_pid=pid)
++    wait_timeout = _systemd_restart_wait_timeout(system=system)
++    _wait_for_systemd_service_restart(
++        system=system,
++        previous_pid=pid,
++        timeout=wait_timeout,
++    )
+ 
+ 
+ 
+diff --git a/hermes_cli/model_switch.py b/hermes_cli/model_switch.py
+index dcdd81df4a796d51bd3f1741cb660a285612a33a..f5576b325e43c02cfee29f602de92fcc814a203f 100644
+--- a/hermes_cli/model_switch.py
++++ b/hermes_cli/model_switch.py
+@@ -1085,6 +1085,38 @@ def list_authenticated_providers(
+     results: List[dict] = []
+     seen_slugs: set = set()  # lowercase-normalized to catch case variants (#9545)
+     seen_mdev_ids: set = set()  # prevent duplicate entries for aliases (e.g. kimi-coding + kimi-coding-cn)
++
++    def _configured_model_ids(provider_slug: str) -> list[str]:
++        """Return model IDs explicitly declared for a provider in config.yaml."""
++        if not user_providers or not isinstance(user_providers, dict):
++            return []
++        cfg = user_providers.get(provider_slug)
++        if not isinstance(cfg, dict):
++            return []
++        models: list[str] = []
++        for key in ("default_model", "model"):
++            value = cfg.get(key)
++            if isinstance(value, str) and value.strip() and value.strip() not in models:
++                models.append(value.strip())
++        cfg_models = cfg.get("models", [])
++        if isinstance(cfg_models, dict):
++            iterable = cfg_models.keys()
++        elif isinstance(cfg_models, list):
++            iterable = cfg_models
++        else:
++            iterable = []
++        for value in iterable:
++            if isinstance(value, str) and value.strip() and value.strip() not in models:
++                models.append(value.strip())
++        return models
++
++    def _merge_configured_models(provider_slug: str, model_ids: list[str]) -> list[str]:
++        """Prefer explicit config.yaml model order, then append curated/live IDs."""
++        merged: list[str] = []
++        for model_id in [*_configured_model_ids(provider_slug), *(model_ids or [])]:
++            if isinstance(model_id, str) and model_id.strip() and model_id.strip() not in merged:
++                merged.append(model_id.strip())
++        return merged
+     # Effective base URLs of every built-in row we emit (normalized lower+rstrip).
+     # Section 4 uses this to hide ``custom_providers`` entries that point at the
+     # same endpoint as a built-in (e.g. a user-defined "my-dashscope" on
+@@ -1168,6 +1200,20 @@ def list_authenticated_providers(
+     if "ollama-cloud" not in curated:
+         from hermes_cli.models import fetch_ollama_cloud_models
+         curated["ollama-cloud"] = fetch_ollama_cloud_models()
++    
++    try:
++        curated["openai-codex"] = provider_model_ids("openai-codex")
++    except Exception:
++        if "openai-codex" not in curated:
++            curated["openai-codex"] = []
++
++    # User config can extend/override model lists for built-in providers. Keep
++    # those explicit config IDs even when an earlier built-in/overlay row would
++    # otherwise shadow the providers:<slug> section (the Dashboard picker used
++    # to show only the static 7 Codex defaults despite 10 IDs in config.yaml).
++    for _slug in list(curated.keys()):
++        curated[_slug] = _merge_configured_models(_slug, curated.get(_slug, []))
++
+     # LM Studio has no static catalog — probe its native /api/v1/models
+     # endpoint live so the picker reflects whatever the user has loaded.
+     # Base URL precedence: LM_BASE_URL env var > active config's base_url
+diff --git a/hermes_cli/web_server.py b/hermes_cli/web_server.py
+index 46786455ceab3844d00d9fc7f255647e796563ff..4306d3a20c1c8b606d72e2a01ce0dfafef89c4c1 100644
+--- a/hermes_cli/web_server.py
++++ b/hermes_cli/web_server.py
+@@ -94,6 +94,9 @@ app.add_middleware(
+     allow_headers=["*"],
+ )
+ 
++from starlette.middleware.gzip import GZipMiddleware
++app.add_middleware(GZipMiddleware, minimum_size=500)
++
+ # ---------------------------------------------------------------------------
+ # Endpoints that do NOT require the session token.  Everything else under
+ # /api/ is gated by the auth middleware below.  Keep this list minimal —
+diff --git a/skills/autonomous-ai-agents/hermes-agent/SKILL.md b/skills/autonomous-ai-agents/hermes-agent/SKILL.md
+index c5ab9199bc7c6944c517eb243a1477df1e61bac4..1fdc63359950f0ea5f10be6babb2b2807a617bd7 100644
+--- a/skills/autonomous-ai-agents/hermes-agent/SKILL.md
++++ b/skills/autonomous-ai-agents/hermes-agent/SKILL.md
+@@ -208,6 +208,31 @@ hermes auth remove P INDEX  Remove by provider + index
+ hermes auth reset PROVIDER  Clear exhaustion status
+ ```
+ 
++### Dashboard
++
++```
++hermes dashboard [--port PORT] [--host HOST] [--no-open] [--insecure] [--tui] [--stop] [--status]
++```
++
++Browser-based management UI (FastAPI + Vite/React SPA). Requires `pip install hermes-agent[web]` (FastAPI, Uvicorn).
++
++- **Default:** `http://127.0.0.1:9119`
++- **`--insecure`**: bind to `0.0.0.0` — **DANGEROUS**: exposes API keys on the network. Only use behind a reverse proxy or VPN.
++- **GZip patch** (source-level): dashboard serves ~1.2MB JS uncompressed. Adding `GZipMiddleware` to `web_server.py` cuts transfer ~3.4×. See `references/dashboard-gzip-and-provider-cleanup.md` for the patch and verification steps.
++- **`--tui`**: expose an in-browser Chat tab (embedded `hermes --tui` via PTY/WebSocket). Also set via `HERMES_DASHBOARD_TUI=1`.
++- **`--stop`**: kill all running dashboard processes and exit.
++- **`--status`**: list running dashboard processes and exit.
++- **Performance pitfall:** if the SPA feels slow over Tailscale, check static asset compression. Case note: `references/dashboard-provider-cleanup-ollama-cloud-2026-05-10.md` covers GZip verification and the bundle-size symptom.
++- **OpenAI Codex model picker pitfall:** if Dashboard shows fewer Codex models than `config.yaml`, first check `/api/model/options`; the fix pattern is curated defaults + live discovery merge, `provider_model_ids("openai-codex")`, config-model merge, and dashboard restart. Case note: `references/dashboard-openai-codex-model-picker-2026-05-10.md`.
++
++Auth: session token generated on start, embedded in SPA HTML. Public API paths (no auth): `/api/status`, `/api/config/defaults`, `/api/config/schema`, `/api/model/info`, `/api/dashboard/themes`, `/api/dashboard/plugins`.
++
++Sections: **Config** (edit config.yaml + .env via web), **Sessions** (browse/search/delete), **Analytics** (tokens, cost, cache hit%, per-model breakdown for 7/30/90 days), **Skills & Toolsets** (toggle on/off), **Model Info** (context length, provider), **Gateway** (restart, platform status), **Chat** (if `--tui`).
++
++7 built-in themes: default (Hermes Teal), default-large, midnight, ember, mono, cyberpunk, rosé. Configurable via `config.yaml` `dashboard.theme`.
++
++Remote access: use `ssh -L 9119:127.0.0.1:9119 user@host` or Tailscale. Do NOT use `--insecure` on public networks.
++
+ ### Other
+ 
+ ```
+@@ -394,6 +419,14 @@ Full config reference: https://hermes-agent.nousresearch.com/docs/user-guide/con
+ 
+ Full provider docs: https://hermes-agent.nousresearch.com/docs/integrations/providers
+ 
++### Dashboard Compression
++
++The dashboard ships without gzip/brotli compression. On first load, the SPA transfers ~1.2 MB uncompressed. Adding `GZipMiddleware` cuts this to ~350 KB. See `references/dashboard-web-api.md` → "Response Compression" for the one-line patch and restart instructions. **Caution:** reapply after `hermes update`.
++
++### Vision Fallback (OCR)
++
++When the active model doesn't support `vision_analyze` or image input, fall back to `pytesseract` for text extraction. See `references/vision-ocr-fallback.md` for setup and technique.
++
+ ### Toolsets
+ 
+ Enable/disable via `hermes tools` (interactive) or `hermes tools enable/disable NAME`.
+@@ -443,12 +476,18 @@ Common "why is Hermes doing X to my output / tool calls / commands?" toggles —
+ 
+ ### Secret redaction in tool output
+ 
++### Secret redaction in tool output
++
+ Secret redaction is **off by default** — tool output (terminal stdout, `read_file`, web content, subagent summaries, etc.) passes through unmodified. If the user wants Hermes to auto-mask strings that look like API keys, tokens, and secrets before they enter the conversation context and logs:
+ 
+ ```bash
+ hermes config set security.redact_secrets true       # enable globally
+ ```
+ 
++#### Privacy: Dashboard Access
++- **Never post raw dashboard session tokens** in the chat. The user prefers to access the dashboard directly (e.g., via `/sessions`) once authenticated.
++- If the token is needed for a new login, provide the link as a clickable markdown button/URL but avoid flooding the chat with raw strings.
++
+ **Restart required.** `security.redact_secrets` is snapshotted at import time — toggling it mid-session (e.g. via `export HERMES_REDACT_SECRETS=true` from a tool call) will NOT take effect for the running process. Tell the user to run `hermes config set security.redact_secrets true` in a terminal, then start a new session. This is deliberate — it prevents an LLM from flipping the toggle on itself mid-task.
+ 
+ Disable again with:
+@@ -456,6 +495,26 @@ Disable again with:
+ hermes config set security.redact_secrets false
+ ```
+ 
++### PROHIBITION: Secret Deletion
++
++**DO NOT delete, comment out, or remove secrets or tokens** from `.env`, `auth.json`, or config files as a way to "clean up" the UI or remove providers. This is strictly forbidden. If a provider should be hidden from the dashboard or `/model` picker:
++1. Use non-secret configuration (e.g., `disabled_providers` if supported).
++2. Patch the code logic (e.g., `model_switch.py`) to filter the provider.
++3. NEVER touch the actual credential value.
++
++### Privacy: Dashboard Access
++
++Do **not** send raw dashboard session tokens or URLs containing tokens (`?token=...`) in the chat once the user is authenticated. The user prefers to access the dashboard directly (e.g., `/sessions`, `/config`) and finds tokens in chat to be cluttered and a potential privacy leak.
++
++### Dashboard Performance (GZip)
++
++For a faster dashboard (especially over Tailscale), enable GZip compression in `hermes_cli/web_server.py`:
++```python
++from starlette.middleware.gzip import GZipMiddleware
++app.add_middleware(GZipMiddleware, minimum_size=500)
++```
++This can reduce JS bundle size from ~1.2MB to ~350KB. Refer to `references/dashboard-gzip-and-provider-cleanup.md` for implementation details.
++
+ ### PII redaction in gateway messages
+ 
+ Separate from secret redaction. When enabled, the gateway hashes user IDs and strips phone numbers from the session context before it reaches the model:
+@@ -484,10 +543,14 @@ Per-invocation bypass without changing config:
+ 
+ Note: YOLO / `approvals.mode: off` does NOT turn off secret redaction. They are independent.
+ 
+-### Shell hooks allowlist
++- **Shell hooks allowlist**
+ 
+ Some shell-hook integrations require explicit allowlisting before they fire. Managed via `~/.hermes/shell-hooks-allowlist.json` — prompted interactively the first time a hook wants to run.
+ 
++### Secret-handling guardrail for provider cleanup
++
++Never delete, remove, or comment out secrets/tokens in `.env`, `auth.json`, credential pools, or provider config as a way to hide/disable a Dashboard provider unless Konstantin explicitly approves that secret mutation. Secrets are not provider toggles. Use or implement non-secret hide/disable config/code instead. Case note: `references/dashboard-provider-cleanup-ollama-cloud-2026-05-10.md`.
++
+ ### Disabling the web/browser/image-gen tools
+ 
+ To keep the model away from network or media tools entirely, open `hermes tools` and toggle per-platform. Takes effect on next session (`/reset`). See the Tools & Skills section above.
+@@ -744,13 +807,80 @@ Common gateway problems:
+ - **Slack bot only works in DMs**: Must subscribe to `message.channels` event. Without it, the bot ignores public channels.
+ - **Windows HTTP 400 "No models provided"**: Config file encoding issue (BOM). Ensure `config.yaml` is saved as UTF-8 without BOM.
+ 
++### Holographic `fact_store` says `NoneType` or `file is not a database`
++If `memory.provider: holographic` is active and `fact_store` returns errors like:
++- `'NoneType' object has no attribute 'search'`
++- `'NoneType' object has no attribute 'list_facts'`
++
++check logs for the upstream initializer error first:
++```bash
++hermes memory status
++rg "Memory provider 'holographic' initialize failed|file is not a database" ~/.hermes/logs/agent.log ~/.hermes/logs/errors.log
++sqlite3 ~/.hermes/memory_store.db 'PRAGMA integrity_check;'
++```
++
++Likely cause: `~/.hermes/memory_store.db` is not a valid SQLite DB, so `HolographicMemoryProvider.initialize()` fails and leaves `_store`/`_retriever` unset. Current runtime may still expose the tool schema, so the visible symptom becomes a misleading `NoneType` tool error.
++
++Safe recovery pattern: preserve the corrupt DB before any reset (`cp -a ~/.hermes/memory_store.db ~/.hermes/memory_store.db.corrupt.$(date +%Y%m%d%H%M%S)`), then restore a known-good backup/snapshot if available; only move the corrupt DB aside to create a fresh empty store after backup options are exhausted. Do not delete the corrupt DB until recovery options are exhausted.
++
++See `references/holographic-memory-sqlite-recovery.md` for the full recovery cookbook: local backup paths, SQLite integrity checks, safe restore preserving WAL/SHM, fresh-process provider verification, and the `/reset`/gateway-restart boundary when the current Telegram runtime already initialized with `_store=None`.
++
+ ### Auxiliary models not working
+-If `auxiliary` tasks (vision, compression, session_search) fail silently, the `auto` provider can't find a backend. Either set `OPENROUTER_API_KEY` or `GOOGLE_API_KEY`, or explicitly configure each auxiliary task's provider:
++If `auxiliary` tasks (vision, compression, session_search) fail silently, the `auto` provider can't find a backend. Either set the relevant provider credential outside chat, or explicitly configure each auxiliary task's provider:
+ ```bash
+ hermes config set auxiliary.vision.provider <your_provider>
+ hermes config set auxiliary.vision.model <model_name>
+ ```
+ 
++### Auxiliary title generation warning after a response
++If the user sees `⚠ Auxiliary title generation failed: Connection error.` after the bot replies, diagnose it as a background title-generation failure before touching config. The warning is emitted by `AIAgent._emit_auxiliary_failure()` after `agent/title_generator.py` calls `call_llm(task="title_generation")`; gateway/CLI wire this callback after the main response. For `auxiliary.title_generation.provider: auto`, logs can show a live runtime provider/model different from static `config.yaml` (for example `openai-codex` / `gpt-5.5` at `https://chatgpt.com/backend-api/codex/`). Use a read-only code/log/config audit, no real LLM calls, sanitize credentials in reports, and only then recommend either provider reachability/OAuth checks or a dedicated `auxiliary.title_generation` provider. See `references/auxiliary-title-generation-warning-audit.md` for the command recipe and report shape.
++
++### Hermes Dashboard
++
++`hermes dashboard` launches a FastAPI + Vite/React web UI for managing config, sessions, skills, and analytics.
++
++**Startup:**
++```bash
++hermes dashboard                       # http://127.0.0.1:9119
++hermes dashboard --port 8080           # custom port
++hermes dashboard --host 0.0.0.0 --insecure --no-open  # network-wide (exposes API keys!)
++```
++
++- Requires `pip install hermes-agent[web]` (FastAPI + Uvicorn). Pre-built frontend ships in `hermes_cli/web_dist/`.
++- Default binds `127.0.0.1:9119`. Refuses non-localhost without `--insecure` because the dashboard exposes API keys/config without robust auth.
++- Auth: session token generated at startup, embedded in HTML. `/api/` routes (except public subset: `/api/status`, `/api/config/defaults`, `/api/config/schema`, `/api/model/info`, `/api/dashboard/themes`, `/api/dashboard/plugins`) require the token cookie.
++
++**Remote access (phone / other devices):**
++
++1. **SSH tunnel (recommended):** `ssh -L 9119:127.0.0.1:9119 user@VPS-IP` → `http://localhost:9119`
++2. **Tailscale direct:** `hermes dashboard --host 0.0.0.0 --insecure --no-open` + `sudo ufw allow in on tailscale0 to any port 9119 proto tcp` → `http://<tailscale-IP>:9119`
++
++**Pitfall:** UFW default policy is DROP. Even with `--host 0.0.0.0`, the port must be opened explicitly. For Tailscale-only access use `on tailscale0` in the ufw rule to avoid exposing the dashboard to the public internet.
++
++**Pitfall:** The `--insecure` flag is required for non-localhost binding. Without it Hermes refuses to start: *"Refusing to bind to <IP> — the dashboard exposes API keys and config without robust authentication."*
++
++**Pitfall:** Dashboard SPA ships a ~1.2 MB JS bundle and ~95 KB CSS without compression. On slower connections (Tailscale relay, mobile) this makes the dashboard feel sluggish on first load. Add `GZipMiddleware` to `hermes_cli/web_server.py` after the CORS middleware block to compress responses ≥500 bytes:
++
++```python
++from starlette.middleware.gzip import GZipMiddleware
++app.add_middleware(GZipMiddleware, minimum_size=500)
++```
++
++This reduces the JS bundle from ~1.2 MB to ~350 KB (×3.4) and CSS from ~95 KB to ~15 KB (×6.2). Requires dashboard process restart. This patch will need reapplying after `hermes update`.
++
++**Key API endpoints** (session cookie required except public ones listed above):
++- `GET /api/status` — version, gateway state, platforms, active sessions
++- `GET /api/sessions?limit=N&offset=N` — session list with metadata
++- `GET /api/sessions/search?q=...` — text search
++- `GET /api/config` — current config (sanitized); `POST /api/config` — update
++- `GET /api/config/defaults` — defaults; `GET /api/config/schema` — UI schema
++- `GET /api/model/info` — model, provider, context length, capabilities
++- `POST /api/model/set` — assign provider/model to a slot
++- `GET /api/dashboard/themes` — available UI themes (default, midnight, ember, mono, cyberpunk, rosé, default-large); set via `dashboard.theme` in config.yaml
++- `GET /api/dashboard/plugins` — installed plugins
++- `POST /api/gateway/restart` — restart gateway
++- `POST /api/hermes/update` — trigger hermes update
++
+ ---
+ 
+ ## Where to Find Things
+@@ -879,8 +1009,33 @@ Types: `fix:`, `feat:`, `refactor:`, `docs:`, `chore:`
+ 
+ - **Never break prompt caching** — don't change context, tools, or system prompt mid-conversation
+ - **Message role alternation** — never two assistant or two user messages in a row
++- **Secret Protection Guardrail:** Never delete, remove, or comment out secrets/tokens in `.env` or `config.yaml` to hide or disable features. Use explicit `disabled_providers` or code-level filters instead. See [Secret Safety Guardrails](references/secret-safety-guardrails.md).
++- **Input-context diagnostics:** when measuring prompt bloat, keep the workflow read-only and offline. Use [references/context-data-sources.md](references/context-data-sources.md) for source ordering and optional artifacts, [references/context-input-overhead-baseline.md](references/context-input-overhead-baseline.md) for overhead buckets and diagnostic pitfalls, [references/context-provider-audit-2026-05-10.md](references/context-provider-audit-2026-05-10.md) for the storage-vs-provider field audit, [references/context-assembly-pipeline-audit-2026-05-10.md](references/context-assembly-pipeline-audit-2026-05-10.md) for the vertical code-to-payload mapping audit, [references/prompt-diagnostic-field-mapping.md](references/prompt-diagnostic-field-mapping.md) for sizing invariants, and [references/context-optimization-planning-workflow.md](references/context-optimization-planning-workflow.md) when the deliverable is a planning-only optimization plan based on baseline/audit reports.
++- **Toolset inclusion audit:** when tracing why a specific tool appears in session schemas (e.g., `cronjob` at 1,652 tokens/session, 100% of sessions), use [references/toolset-audit-workflow.md](references/toolset-audit-workflow.md) for the systematic trace from `tools/*.py` → `_HERMES_CORE_TOOLS` → platform toolset → `_get_platform_tools` → `get_tool_definitions`. Covers `rg` search patterns, analyzer quantification, candidate exclusion approaches, and verification checklist.
++- **Tool-Output Compaction Integration:** When implementing, extending, or validating `compact_tool_output_with_artifact()` runtime integration (R1→R4 stages):
++  - The config dataclass is `ToolOutputCompactionConfig` in `tools/budget_config.py`, parsed from `tool_output_compaction` section in config.yaml. `enabled` defaults to `False` — zero runtime impact when disabled.
++  - Insertion points are before `maybe_persist_tool_result()` at both runtime paths. Do not trust stale line numbers from docs; verify in the current checkout with `rg "_maybe_compact_tool_output|maybe_persist_tool_result" run_agent.py` before reporting exact locations. Variable names differ between paths (`name`/`tc.id`/`args` vs `function_name`/`tool_call.id`/`function_args`).
++  - Never insert after `maybe_persist_tool_result()` — sensitive output would already be in the message. Never use ContextCompressor as the integration point.
++  - Gate method `should_compact(tool_name, platform)` checks three conditions: enabled, platform allowlist, output-kind allowlist. R3/R4 runtime support is terminal-only even if config classification knows about file/search kinds; do not expand runtime compaction to `file_read`, search, or web unless explicitly tasked.
++  - R4 validation-only work should prefer documentation over new tests when `tests/test_tool_output_compaction_runtime.py` already covers disabled no-op, enabled terminal clean artifact+summary, enabled terminal blocked suppression, non-terminal unchanged, exception fallback, and insertion-before-persist. For new untracked validation docs, run `git add -N <doc>` before `git diff --stat`/`--name-only` so safety checks include the file without staging it.
++  - See [references/tool-output-compaction-runtime-integration.md](references/tool-output-compaction-runtime-integration.md) for complete architecture, R2 config schema, R3 helper integration pattern, R7B snapshot roundtrip, R7C provider-bound validation, R7D-1 ChatCompletions payload boundary (fully offline-callable: `convert_messages()` and `build_kwargs()` are pure functions), runtime test matrix, exception fallback, and rollback procedure.
++- **Context Overhead Analysis:** When modifying `scripts/analyze_context_overhead.py`:
++  - Remember this is a read-only diagnostic tool - never modify runtime Hermes, config, prompt builders, transports, context compressors, or toolsets
++  - The goal is to accurately estimate what providers actually receive after ChatCompletionsTransport filtering
++  - Standard chat-completions path filtering removes: `codex_reasoning_items`, `codex_message_items`, `call_id`, `response_item_id`, and other internal/debug-only fields
++  - In your estimates:
++    * Include: `role`, `content`, `tool_calls` (if provider-bound), `reasoning_details` (if present)
++    * Exclude: `codex_reasoning_items`, `codex_message_items`, internal transcript-only fields, storage/debug-only fields
++    * Mark as uncertain: tool message content/output (since exact post-compression state requires request-assembly level)
++  - Update JSON reports to include: `standard_chat_completions`, `included_fields`, `excluded_fields`, `uncertain_fields`, and detailed token breakdowns
++  - Update markdown reports with sections: Estimated provider input, Standard chat-completions filtering, Excluded storage-only fields, Uncertain fields
++  - Ensure tests pass and add regression tests for the specific filtering behavior
++  - Update `docs/context-baseline.md` to note that provider input now imitates standard chat-completions transport filtering
++  - Note that exact tool output sizes after pruning require request-assembly/request-dump level analysis
++- Budget/persistence config lives in `tools/budget_config.py`: `BudgetConfig` (tool result size thresholds) and `ToolOutputCompactionConfig` (compaction feature flag). Parse via `from_mapping(cfg_section_dict)`. New config sections follow the same pattern: add to `DEFAULT_CONFIG` in `hermes_cli/config.py`, add dataclass + `from_mapping()` + `_as_bool`/`_positive_int` helpers in `budget_config.py`, parse in `AIAgent.__init__()`, store on `self` behind a try/except with fallback to defaults. Tests in `tests/test_<section_name>.py`.
+ - Use `get_hermes_home()` from `hermes_constants` for all paths (profile-safe)
+ - Config values go in `config.yaml`, secrets go in `.env`
+ - New tools need a `check_fn` so they only appear when requirements are met
+ - For Konstantin's VPS/source setup, read `references/source-runtime-file-management.md` before changing Hermes files, skills, skill-owned CLIs, backup layout, reporting reproducibility/dirty state, or inventorying local/custom skills. Use `scripts/inventory-custom-skills.py` for custom-skill vs upstream-distribution comparisons.
+ - When syncing/updating Konstantin's forked/source-installed Hermes checkout to an upstream release tag, read `references/fork-release-sync-conflicts.md`: protect dirty primary state, merge in an isolated worktree, compare git conflict stages `:1/:2/:3`, preserve source/runtime skill-directory invariants, stage only resolved files/tests, use scoped conflict-marker/whitespace checks, and verify before any active checkout update or gateway restart.
++
+diff --git a/skills/github/github-pr-workflow/SKILL.md b/skills/github/github-pr-workflow/SKILL.md
+index bf0cfff094f25827cb8b687cdf0e8045f45f7ef0..8c3759d3c0c111559d8eed712c71aa93f1e30850 100644
+--- a/skills/github/github-pr-workflow/SKILL.md
++++ b/skills/github/github-pr-workflow/SKILL.md
+@@ -453,6 +453,7 @@ git push -u origin HEAD
+ - `references/check-attribution-author-map.md` — fixing `check-attribution` / `AUTHOR_MAP` CI failures with a scoped `scripts/release.py` commit.
+ - `references/conflict-resolution-dirty-worktree.md` — resolving PR conflicts without staging unrelated dirty files.
+ - `references/ci-troubleshooting.md` — common CI failure signatures and diagnosis paths.
++- `references/dirty-worktree-checkpoint-commit.md` — safe checkpoint-commit workflow for dirty trees with backup artifacts, scoped allowlists, and deleted-file stop conditions.
+ 
+ ## Useful PR Commands Reference
+ 
+diff --git a/skills/note-taking/knowledge-architecture/SKILL.md b/skills/note-taking/knowledge-architecture/SKILL.md
+index c16fb32d42aaf96fafa97e488f96903d25ac4c95..adcfec42e5d8f8748c96de0b5afa11936e7f5314 100644
+--- a/skills/note-taking/knowledge-architecture/SKILL.md
++++ b/skills/note-taking/knowledge-architecture/SKILL.md
+@@ -73,6 +73,8 @@ Load the specific reference before acting in that sub-domain:
+ - `references/soul-behavioral-constitution.md` — auditing/restoring/editing `~/.hermes/SOUL.md` and prompt-snapshot activation boundary.
+ - `references/json-schema-benchmark.md` — Ollama Cloud JSON compliance benchmark: `json_schema` vs `json_object` vs plain text, model-by-model results.
+ - `references/multi-instance-infrastructure.md` — volatile Hermes instance/source/runtime inventory. Re-verify paths/processes before making current-state claims.
++- `references/context-optimization-program.md` — structure and lifecycle of the context-input-overhead optimization program in `context-input-baseline`; navigation aid for continuing this work.
++- `references/sqlite-fact-store-recovery.md` — emergency recovery for corrupted holographic memory SQLite: header repair, B-tree extraction via ID-by-ID export, shell vs Python trade-offs, and prevention.
+ 
+ ## `knowledge` CLI Contract
+ 
+@@ -130,8 +132,10 @@ Rules:
+ 9. Reporting all-repo dirty-tree failures as new regressions. Separate intended files from unrelated baseline changes.
+ 10. Letting tests create `__pycache__`/`.pyc` blockers under skills. Use `PYTHONDONTWRITEBYTECODE=1` and clean generated artifacts before final audit.
+ 11. Hitting tool-call/context limits mid-verification and then phrasing the work as complete. If gates were not run, report `not done`, name the missing gates, and preserve a resume point rather than archiving/closing the plan.
+-12. Using `ollama run` or `ollama pull` for cloud models with `:cloud` suffix. Use HTTP API; the CLI path can trigger ENOSPC.
+-13. Treating volatile multi-instance inventory as durable current truth. Re-check paths/processes before saying an instance is active.
++13. Using `ollama run` or `ollama pull` for cloud models with `:cloud` suffix. Use HTTP API; the CLI path can trigger ENOSPC.
++14. Treating volatile multi-instance inventory as durable current truth. Re-check paths/processes before saying an instance is active.
++15. Assuming a cron job is actively running because it was configured. Jobs can be silently disabled (`enabled: false`) after gateway restarts, config changes, or manual intervention. Always run `cronjob action=list` and check `enabled` + `last_status` before diagnosing "backup not working."
++16. Using `ollama-local` provider for cron jobs that hit Ollama Cloud models. This provider proxies through local Ollama to the cloud API and can exhaust rate limits (HTTP 429). Use `ollama-cloud` provider directly for scheduled cloud-model jobs.
+ 
+ ## Verification Checklist
+ 
+diff --git a/skills/software-development/skill-audit-and-improvement/SKILL.md b/skills/software-development/skill-audit-and-improvement/SKILL.md
+index 8c0e58303e30c241eb17cad7d3a6f9207839b81a..8c5ceae50364e321459d0f4e5daef760fc3c63f3 100644
+--- a/skills/software-development/skill-audit-and-improvement/SKILL.md
++++ b/skills/software-development/skill-audit-and-improvement/SKILL.md
+@@ -378,6 +378,7 @@ Use the template at `templates/audit-report.md`. Keep Telegram summaries compact
+ ## References
+ 
+ - `references/audit-protocol-contract.md` — stable audit protocol contract, session lessons (provenance, dirty worktree, audit script hardening, master plan synthesis, systemd skill improvement case study), and design rationale.
++- `references/session-snapshot-analyzer-lessons.md` — compact lessons for read-only session snapshot analyzers: provenance checks, scope discipline, section-marker parsing, and report shape.
+ 
+ ## Common Pitfalls
+ 
+@@ -402,6 +403,7 @@ Use the template at `templates/audit-report.md`. Keep Telegram summaries compact
+ 19. **Assuming two-level skill paths in `--changed`.** Deleted `SKILL.md` files must map to `deleted_path.parent`, including nested layouts such as `skills/mlops/training/<skill>/SKILL.md`.
+ 20. **Treating pre-CI local readiness as CI work.** Keep local gates, fixtures, schema, resolver, `--changed`, and baseline compare separate from GitHub Actions/CODEOWNERS/branch protection unless explicitly requested.
+ 21. **Fixing one structural warning can reveal the next one.** `MISSING_SECTION` findings are emitted per required heading; after adding `## Overview`, re-run the audit before declaring the section work done, because the next missing required heading (for example `## When to Use`) may become the remaining actionable warning. When proposing structural fixes, check the full required-section set (`Overview`, `When to Use`, `Common Pitfalls`, `Verification Checklist`) and present the complete minimal patch set instead of only the first visible warning.
++22. **Doing a post-failure audit without a read-only snapshot.** For rollback/continue decisions, capture `pwd`, `git status --short --branch --untracked-files=all`, `git diff --stat`, `git diff --name-only`, and a targeted file-existence scan before drawing conclusions. Treat missing `request_dump_*` artifacts as normal, and do not confuse repo-local `.git/logs` or other paths with the user's real `~/.hermes` runtime files.
+ 
+ ## Verification Checklist
+ 
+diff --git a/skills/software-development/systematic-debugging/SKILL.md b/skills/software-development/systematic-debugging/SKILL.md
+index 3c37c169b117a53c65c8fadc8d5f40bb4d10ee51..19c3fb7efcbf7dc4871ba9bf51e4fc28fb2889fa 100644
+--- a/skills/software-development/systematic-debugging/SKILL.md
++++ b/skills/software-development/systematic-debugging/SKILL.md
+@@ -140,6 +140,34 @@ search_files("function_name(", path="src/", file_glob="*.py")
+ search_files("variable_name\\s*=", path="src/", file_glob="*.py")
+ ```
+ 
++### 6. pytest autouse Fixture Mutation (Hermes-specific)
++
++**WHEN a test passes in manual Python but fails under pytest:**
++
++The Hermes `conftest.py` has two `autouse` fixtures that reset state between tests:
++- `_reset_module_state` — clears tool registries, approval state, ContextVars, env vars, module-level dicts
++- `_hermetic_environment` — deletes credential/behavioral env vars, redirects `HERMES_HOME`
++
++These can mutate module-level singletons (frozensets, class attributes, global lookup tables) that your test's code depends on, even when you create fresh instances with `object.__new__()`, because the method under test reads from shared module state.
++
++**Diagnostic:** Add `print()` inside the test to dump suspect values (e.g., `cfg.rollout_platforms`, `os.environ.get('KEY')`) and compare with manual Python. If values differ, check `conftest.py::_reset_module_state` for the mutating fixture.
++
++**Common victims:** `_TERMINAL_OUTPUT_TOOLS`, `HERMES_SESSION_SOURCE` env var, `ToolOutputCompactionConfig` field defaults read from module state, any `getattr(self, ...)` that falls back to module-level lookup.
++
++### Git safety: deleted tracked files
++
++When `git ls-files --deleted` shows tracked files, **stop and restore before proceeding**. This
++happens when files are accidentally removed from the working tree (e.g., by a prior operation
++that didn't complete cleanly). Restoring is a single command:
++
++```bash
++git checkout HEAD -- <file>
++git ls-files --deleted  # verify empty
++```
++
++Do NOT proceed with commits, diffs, or assertions while deleted files exist — the guard check
++`test -z "$(git ls-files --deleted)"` will fail and halt the workflow.
++
+ ### Phase 1 Completion Checklist
+ 
+ - [ ] Error messages fully read and understood
+@@ -223,6 +251,25 @@ search_files("similar_pattern", path="src/", file_glob="*.py")
+ 
+ **Fix the root cause, not the symptom:**
+ 
++### 0. Report what changed and what did not
++
++Before closing a debugging task, produce a grounded summary with:
++- exact changed files
++- exact verification commands and results
++- test coverage achieved
++- untouched / out-of-scope components
++- whether rollback is needed or the work can continue
++
++If the task was read-only investigation with no code change, say that explicitly; do not imply a fix.
++
++**Read-only audit pitfall:** if the user asked for inspection only, re-check live state first (`pwd`, `git status --short --branch --untracked-files=all`, `git diff --stat`, `git diff --name-only`) before trusting any earlier transcript summary. If live status conflicts with prior context, report the live state and call out the discrepancy.
++
++For a reusable checklist, see `references/post-debug-report.md`.
++For read-only analyzer/report validation patterns, see `references/read-only-report-validation.md`.
++For analyzer-specific fixture/baseline validation steps and JSON keys to inspect, see `references/analyzer-report-validation.md`.
++For context-overhead baseline recovery when tests shrink or go stale, see `references/context-overhead-baseline-recovery.md`.
++For standard chat-completions provider filtering and uncertainty handling, see `references/standard-chat-completions-provider-filtering.md`.
++
+ ### 1. Create Failing Test Case
+ 
+ - Simplest possible reproduction
+diff --git a/skills/software-development/test-driven-development/SKILL.md b/skills/software-development/test-driven-development/SKILL.md
+index 5cc6c32393055a5e2f3ef374515ae222138a238d..6638bd9e0f8e6114e98bb5a470854b2743310471 100644
+--- a/skills/software-development/test-driven-development/SKILL.md
++++ b/skills/software-development/test-driven-development/SKILL.md
+@@ -109,6 +109,8 @@ Confirm:
+ 
+ **Test errors?** Fix the error, re-run until it fails correctly.
+ 
++**Edge case from real sessions:** if `pytest` reports `no tests ran`, exit code 5, or zero collected tests, treat that as a repo-state problem first. Verify the test file still exists in the working tree and is not deleted/tracked-out before changing the test logic. A missing test file is not a failing assertion.
++
+ ### GREEN — Minimal Code
+ 
+ Write the simplest code to pass the test. Nothing more.
+diff --git a/tests/hermes_cli/test_codex_models.py b/tests/hermes_cli/test_codex_models.py
+index 949d1c8e2395abad10082402f622215e6fe85c9c..c9b40538ef5343068e3c857eef50459770c71206 100644
+--- a/tests/hermes_cli/test_codex_models.py
++++ b/tests/hermes_cli/test_codex_models.py
+@@ -54,6 +54,25 @@ def test_get_codex_model_ids_falls_back_to_curated_defaults(tmp_path, monkeypatc
+ 
+     assert models[: len(DEFAULT_CODEX_MODELS)] == DEFAULT_CODEX_MODELS
+     assert "gpt-5.4" in models
++    assert "codex-auto-review" in models
++    assert "gpt-5.3-codex-spark" not in models
++
++
++def test_get_codex_model_ids_merges_live_api_with_curated_aliases(monkeypatch):
++    """Live Codex discovery can omit hidden aliases and older compatibility
++    slugs. Keep the curated list as an additive safety net instead of
++    replacing it wholesale with the API payload."""
++    monkeypatch.setattr(
++        "hermes_cli.codex_models._fetch_models_from_api",
++        lambda access_token: ["gpt-5.5", "gpt-5.4", "gpt-5.2"],
++    )
++
++    models = get_codex_model_ids(access_token="codex-access-token")
++
++    assert models[:3] == ["gpt-5.5", "gpt-5.4", "gpt-5.2"]
++    assert "gpt-5.2-codex" in models
++    assert "gpt-5-codex" in models
++    assert "codex-auto-review" in models
+     assert "gpt-5.3-codex-spark" not in models
+ 
+ 
+@@ -65,7 +84,10 @@ def test_get_codex_model_ids_adds_forward_compat_models_from_templates(monkeypat
+ 
+     models = get_codex_model_ids(access_token="codex-access-token")
+ 
+-    assert models == ["gpt-5.2-codex", "gpt-5.4-mini", "gpt-5.4", "gpt-5.3-codex"]
++    assert models[0] == "gpt-5.2-codex"
++    assert "gpt-5.4-mini" in models
++    assert "gpt-5.4" in models
++    assert "gpt-5.3-codex" in models
+ 
+ 
+ def test_model_command_uses_runtime_access_token_for_codex_list(monkeypatch):
+diff --git a/tests/hermes_cli/test_gateway_service.py b/tests/hermes_cli/test_gateway_service.py
+index 15968f798edf9548749eec8645e6bb8ef83ba4db..2481b6835bdf9698d11f5ec9aff2df8239bb270c 100644
+--- a/tests/hermes_cli/test_gateway_service.py
++++ b/tests/hermes_cli/test_gateway_service.py
+@@ -96,7 +96,9 @@ class TestSystemdServiceRefresh:
+         monkeypatch.setattr(
+             gateway_cli,
+             "_wait_for_systemd_service_restart",
+-            lambda system=False, previous_pid=None: calls.append(("wait", system, previous_pid)) or True,
++            lambda system=False, previous_pid=None, timeout=60.0: (
++                calls.append(("wait", system, previous_pid, timeout)) or True
++            ),
+         )
+ 
+         def fake_run(cmd, check=True, **kwargs):
+@@ -108,13 +110,28 @@ class TestSystemdServiceRefresh:
+         gateway_cli.systemd_restart()
+ 
+         assert unit_path.read_text(encoding="utf-8") == "new unit\n"
+-        assert calls[:5] == [
+-            ["systemctl", "--user", "daemon-reload"],
+-            ["systemctl", "--user", "show", gateway_cli.get_service_name(), "--no-pager", "--property", "ActiveState,SubState,Result,ExecMainStatus,MainPID"],
+-            ["systemctl", "--user", "reset-failed", gateway_cli.get_service_name()],
+-            ["systemctl", "--user", "restart", gateway_cli.get_service_name()],
+-            ("wait", False, None),
++        assert calls[0] == ["systemctl", "--user", "daemon-reload"]
++        assert calls[1] == [
++            "systemctl",
++            "--user",
++            "show",
++            gateway_cli.get_service_name(),
++            "--no-pager",
++            "--property",
++            "ActiveState,SubState,Result,ExecMainStatus,MainPID",
++        ]
++        assert calls[2] == ["systemctl", "--user", "reset-failed", gateway_cli.get_service_name()]
++        assert calls[3] == ["systemctl", "--user", "restart", gateway_cli.get_service_name()]
++        assert calls[4] == [
++            "systemctl",
++            "--user",
++            "show",
++            gateway_cli.get_service_name(),
++            "--no-pager",
++            "--property",
++            "RestartUSec",
+         ]
++        assert calls[5] == ("wait", False, None, 60.0)
+ 
+     def test_systemd_stop_marks_running_gateway_as_planned_stop(self, monkeypatch):
+         calls = []
+@@ -641,6 +658,9 @@ class TestGatewaySystemServiceRouting:
+         # A plain start does not break systemd's auto-restart timer once the
+         # old gateway has exited with the planned restart code.
+         def fake_subprocess_run(cmd, **kwargs):
++            if "show" in cmd:
++                calls.append(("show", cmd))
++                return SimpleNamespace(stdout="", returncode=0)
+             if "reset-failed" in cmd:
+                 calls.append(("reset-failed", cmd))
+                 return SimpleNamespace(stdout="", returncode=0)
+@@ -653,7 +673,9 @@ class TestGatewaySystemServiceRouting:
+         monkeypatch.setattr(
+             gateway_cli,
+             "_wait_for_systemd_service_restart",
+-            lambda system=False, previous_pid=None: calls.append(("wait", system, previous_pid)) or True,
++            lambda system=False, previous_pid=None, timeout=60.0: (
++                calls.append(("wait", system, previous_pid, timeout)) or True
++            ),
+         )
+ 
+         gateway_cli.systemd_restart()
+@@ -661,7 +683,9 @@ class TestGatewaySystemServiceRouting:
+         assert ("graceful", 654, 17.0) in calls
+         assert any(call[0] == "reset-failed" for call in calls)
+         assert any(call[0] == "restart" for call in calls)
+-        assert ("wait", False, 654) in calls
++        wait_calls = [call for call in calls if call[0] == "wait"]
++        assert wait_calls
++        assert wait_calls[0][1:] == (False, 654, 60.0)
+         out = capsys.readouterr().out.lower()
+         assert "restarting gracefully" in out
+ 
+@@ -676,7 +700,7 @@ class TestGatewaySystemServiceRouting:
+         monkeypatch.setattr(
+             gateway_cli,
+             "_read_systemd_unit_properties",
+-            lambda system=False: {
++            lambda system=False, properties=("ActiveState", "SubState", "Result", "ExecMainStatus", "MainPID"): {
+                 "ActiveState": "active",
+                 "SubState": "running",
+                 "Result": "success",
+@@ -693,13 +717,17 @@ class TestGatewaySystemServiceRouting:
+         monkeypatch.setattr(
+             gateway_cli,
+             "_wait_for_systemd_service_restart",
+-            lambda system=False, previous_pid=None: calls.append(("wait", system, previous_pid)) or True,
++            lambda system=False, previous_pid=None, timeout=60.0: (
++                calls.append(("wait", system, previous_pid, timeout)) or True
++            ),
+         )
+ 
+         gateway_cli.systemd_restart()
+ 
+         assert ("graceful", 777, 15.0) in calls
+-        assert ("wait", False, 777) in calls
++        wait_calls = [call for call in calls if call[0] == "wait"]
++        assert wait_calls
++        assert wait_calls[0][1:] == (False, 777, 60.0)
+         assert "restarting gracefully (pid 777)" in capsys.readouterr().out.lower()
+ 
+     def test_wait_for_systemd_restart_waits_for_runtime_running(self, monkeypatch, capsys):
+@@ -821,7 +849,10 @@ class TestGatewaySystemServiceRouting:
+         monkeypatch.setattr(gateway_cli, "systemd_unit_is_current", lambda system=False: True)
+         monkeypatch.setattr(gateway_cli, "_runtime_health_lines", lambda: ["⚠ Last shutdown reason: Gateway restart requested"])
+         monkeypatch.setattr(gateway_cli, "get_systemd_linger_status", lambda: (True, ""))
+-        monkeypatch.setattr(gateway_cli, "_read_systemd_unit_properties", lambda system=False: {
++        monkeypatch.setattr(
++            gateway_cli,
++            "_read_systemd_unit_properties",
++            lambda system=False, properties=("ActiveState", "SubState", "Result", "ExecMainStatus", "MainPID"): {
+             "ActiveState": "failed",
+             "SubState": "failed",
+             "Result": "exit-code",
+diff --git a/tests/hermes_cli/test_model_switch_custom_providers.py b/tests/hermes_cli/test_model_switch_custom_providers.py
+index 84734e622d5f44ceaf577b8d16fdfeac40d524ef..8a3a856251e6f95a3fd35bb0e2e4ce78678bef87 100644
+--- a/tests/hermes_cli/test_model_switch_custom_providers.py
++++ b/tests/hermes_cli/test_model_switch_custom_providers.py
+@@ -45,6 +45,37 @@ def test_list_authenticated_providers_includes_custom_providers(monkeypatch):
+     )
+ 
+ 
++def test_list_authenticated_providers_merges_config_models_for_builtin_provider(monkeypatch):
++    """A built-in provider row should honor additional models declared in
++    config.yaml ``providers.<slug>.models`` instead of shadowing the config row
++    with the static curated catalog."""
++    monkeypatch.setattr("agent.models_dev.fetch_models_dev", lambda: {})
++    monkeypatch.setattr(
++        "hermes_cli.auth._load_auth_store",
++        lambda: {"providers": {"openai-codex": {}}},
++    )
++
++    providers = list_authenticated_providers(
++        current_provider="ollama-cloud",
++        user_providers={
++            "openai-codex": {
++                "models": {
++                    "gpt-5.5": {},
++                    "codex-auto-review": {},
++                    "gpt-5-codex": {},
++                }
++            }
++        },
++        custom_providers=[],
++        max_models=50,
++    )
++
++    codex = next(p for p in providers if p["slug"] == "openai-codex")
++    assert codex["models"][:3] == ["gpt-5.5", "codex-auto-review", "gpt-5-codex"]
++    assert "gpt-5.3-codex" in codex["models"]  # static curated entries are preserved
++    assert codex["total_models"] == len(codex["models"])
++
++
+ def test_resolve_provider_full_finds_named_custom_provider():
+     """Explicit /model --provider should resolve saved custom_providers entries."""
+     resolved = resolve_provider_full(
+diff --git a/tinker-atropos b/tinker-atropos
+deleted file mode 160000
+index 65f084ee8054a5d02aeac76e24ed60388511c82b..0000000000000000000000000000000000000000
+--- a/tinker-atropos
++++ /dev/null
+@@ -1 +0,0 @@
+-Subproject commit 65f084ee8054a5d02aeac76e24ed60388511c82b

@@ -30,6 +30,8 @@ EXPECTED_TOP_LEVEL_REQUIRED = [
     "hub_viability",
     "segment_searches",
     "provider_failures",
+    "stop_policy",
+    "stop_policy_diagnostics",
     "recommended_options",
     "priority_options",
     "aggregate_controls",
@@ -53,6 +55,8 @@ def valid_option() -> dict:
         "carriers": ["SU"],
         "risk": {"score": 1, "grade": "good", "reject": False, "top_reasons": []},
         "validation_summary": {"ok": True},
+        "stop_tier": "T0_DIRECT",
+        "max_connections_per_journey": 0,
         "connections": [],
         "segments": [
             {
@@ -83,6 +87,24 @@ def valid_report() -> dict:
             "profile": "business",
             "routing_strategy": "ru-priority",
             "provider_policy": "kupibilet",
+        },
+        "stop_policy": {
+            "name": "business_default",
+            "preferred_max_connections": 1,
+            "fallback_max_connections": 2,
+            "hard_max_connections": 2,
+            "allow_two_stop_fallback": True,
+            "suppress_three_plus": True,
+        },
+        "stop_policy_diagnostics": {
+            "preferred_candidate_count": 1,
+            "two_stop_candidate_count": 0,
+            "used_fallback_two_stop": False,
+            "used_two_stop_fallback": False,
+            "three_plus_suppressed_count": 0,
+            "two_stop_suppressed_because_preferred_exists": 0,
+            "suppressed_by_policy_count": 0,
+            "garbage_options_hidden_from_answer": True,
         },
         "status": {
             "ranked_output_count": 1,
@@ -127,8 +149,8 @@ class AgentReportContractTests(unittest.TestCase):
         parsed = json.loads(text)
 
         self.assertEqual(parsed["$id"], "urn:hermes:flights-cli:agent-report:v1")
-        self.assertLessEqual(len(text.splitlines()), 700)
-        self.assertLessEqual(len(text.encode("utf-8")), 16000)
+        self.assertLessEqual(len(text.splitlines()), 900)
+        self.assertLessEqual(len(text.encode("utf-8")), 21000)
 
     def test_valid_synthetic_agent_report_passes(self) -> None:
         validate_agent_report(valid_report())
@@ -165,6 +187,45 @@ class AgentReportContractTests(unittest.TestCase):
         ]
 
         validate_agent_report(report)
+
+    def test_report_rejects_three_plus_stop_tier(self) -> None:
+        report = valid_report()
+        report["recommended_options"][0]["stop_tier"] = "T3_THREE_PLUS"
+
+        with self.assertRaises(CliError) as ctx:
+            validate_agent_report(report)
+
+        self.assertEqual(ctx.exception.error_type, "contract_error")
+        self.assertTrue(
+            any(
+                "3+ connection" in error.get("message", "")
+                for error in ctx.exception.details["errors"]
+            )
+        )
+
+    def test_report_rejects_two_stop_when_preferred_still_present(self) -> None:
+        report = valid_report()
+        preferred = valid_option()
+        preferred["id"] = "one-stop"
+        preferred["stop_tier"] = "T1_ONE_STOP"
+        preferred["max_connections_per_journey"] = 1
+        two_stop = valid_option()
+        two_stop["id"] = "two-stop"
+        two_stop["stop_tier"] = "T2_TWO_STOP"
+        two_stop["max_connections_per_journey"] = 2
+        report["recommended_options"] = [preferred, two_stop]
+        report["stop_policy_diagnostics"]["used_fallback_two_stop"] = False
+
+        with self.assertRaises(CliError) as ctx:
+            validate_agent_report(report)
+
+        self.assertEqual(ctx.exception.error_type, "contract_error")
+        self.assertTrue(
+            any(
+                "two-stop options" in error.get("message", "")
+                for error in ctx.exception.details["errors"]
+            )
+        )
 
     def test_missing_required_top_level_field_fails(self) -> None:
         report = valid_report()

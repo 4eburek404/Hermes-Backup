@@ -1,0 +1,11 @@
+{
+  "url": "https://api.github.com/search/commits?q=repo%3ANousResearch%2Fhermes-agent+max_concurrent_children&sort=committer-date&order=desc&per_page=30",
+  "status": 200,
+  "headers": {
+    "X-RateLimit-Limit": "10",
+    "X-RateLimit-Remaining": "5",
+    "X-RateLimit-Used": "5",
+    "X-RateLimit-Resource": "search",
+    "X-RateLimit-Reset": "1778185921"
+  }
+}

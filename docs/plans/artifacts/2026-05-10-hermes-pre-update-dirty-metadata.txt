@@ -1,0 +1,11 @@
+server_time=2026-05-10T07:34:32+02:00
+user_tz_time=2026-05-10T10:34:32+05:00
+repo=/home/konstantin/.hermes/hermes-agent
+branch=main
+HEAD=2cdb54d2236b5e018aded9bde95613ed530d1b87
+origin_main=2cdb54d2236b5e018aded9bde95613ed530d1b87
+upstream_main=3800972dd05eabed8d75bfc4c0f5d532d85dafe2
+v2026_5_7=e19fc91cb82cb4e0dc74f6d63a89d9b6c2135241
+dirty_files:
+M	skills/github/github-pr-workflow/SKILL.md
+M	skills/productivity/flight-search/references/cli-maintenance.md

@@ -1,0 +1,1001 @@
+diff --git a/skills/autonomous-ai-agents/hermes-agent/references/fork-release-sync-conflicts.md b/skills/autonomous-ai-agents/hermes-agent/references/fork-release-sync-conflicts.md
+index ddb3e679e..62d394e6c 100644
+--- a/skills/autonomous-ai-agents/hermes-agent/references/fork-release-sync-conflicts.md
++++ b/skills/autonomous-ai-agents/hermes-agent/references/fork-release-sync-conflicts.md
+@@ -241,4 +241,40 @@ Verification recipe:
+ 
+ Pitfall: after removing a temporary worktree, do not leave subsequent tool calls with `workdir` inside the deleted directory. Run follow-up file/patch/terminal operations from a stable directory such as `/home/konstantin` or the primary repo. A deleted tool cwd can cause unrelated `FileNotFoundError` failures when patching docs or reading artifacts.
+ 
++## Separate primary commit gate for pre-update source notes
++
++If the user asks for a separate commit of dirty primary skill/docs changes before the release sync is applied, keep that commit narrowly scoped and independent from the isolated release-merge branch.
++
++Recommended sequence:
++
++```bash
++cd ~/.hermes/hermes-agent
++git status --short --branch --untracked-files=all
++git diff --check -- <tracked-intended-paths>
++PYTHONDONTWRITEBYTECODE=1 python3 scripts/audit_changed_skills.py --json > /tmp/hermes-primary-dirty-skill-audit-before-commit.json
++```
++
++If the changed-skill audit flags generated `__pycache__` or other ignored runtime artifacts under a skill-owned helper directory, remove only those generated cache directories and rerun with `PYTHONDONTWRITEBYTECODE=1`; do not stage or commit them.
++
++Stage exactly the intended source paths, then verify cached shape before committing:
++
++```bash
++git add -- <intended-path-1> <intended-path-2> ...
++git diff --cached --name-status
++git diff --cached --check
++git commit -m "docs: preserve pre-update Hermes skill notes" \
++  -m "Record fork release-sync conflict workflow and related skill maintenance notes before Hermes update preparation."
++git status --short --branch --untracked-files=all
++git log -1 --oneline --name-status
++```
++
++Do not push the primary commit unless the user explicitly approves push. After the commit, update the active update plan with:
++
++- commit short/full SHA and subject;
++- the exact committed paths;
++- audit/check results;
++- preservation artifact path and restore-check result, if one exists;
++- statement that no `push`, `hermes update`, gateway restart, reset, or stash-pop was performed;
++- a next-safe-gate note that the isolated release worktree may still be based on the old primary HEAD and must be reconciled with the new primary commit before active update/restart.
++
+ Only after the sync branch is verified should it be committed/pushed and considered for active checkout update + gateway restart.
+diff --git a/skills/devops/systemd-web-service-deployment/SKILL.md b/skills/devops/systemd-web-service-deployment/SKILL.md
+index ca38c199d..09d5ce507 100644
+--- a/skills/devops/systemd-web-service-deployment/SKILL.md
++++ b/skills/devops/systemd-web-service-deployment/SKILL.md
+@@ -229,7 +229,6 @@ Reference: `references/vps-provider-incident-recovery-2026-05-03.md`.
+ 
+ - `references/deployment-command-cookbook.md` — executable snippets and CLI examples for preflight, backup, env/drop-ins, deploy, restart, verify, Funnel, rollback, and Docker diagnosis.
+ - `references/cli-security-review-2026-05-07.md` — session-specific security review notes for read-only deployment auditor CLIs: Basic Auth redirects, redaction scope, URL-scheme limits, and tests.
+-- `references/server-monitor-auth-funnel-2026-04-30.md` — example restoring app-level auth behind Tailscale Funnel for a Flask/Gunicorn dashboard.
+-- `references/server-monitor-holographic-metrics-2026-04-30.md` — example deploy of slow-refresh aggregate dashboard metrics from local SQLite memory DB.
++- `references/server-monitor-deployment-case-study.md` — consolidated deployment session case study: auth/Funnel setup, holographic metrics, Docker bind-mount diagnosis, VPS incident recovery.
+ - `references/docker-bind-mount-permissions-after-reboot.md` — Docker bind-mount ownership reset after host reboot: diagnosis, fix, prevention.
+ - `references/vps-provider-incident-recovery-2026-05-03.md` — incident report: VPS provider hack, ungraceful reboot, crash-loop fix, backup cleanup.
+diff --git a/skills/devops/systemd-web-service-deployment/references/server-monitor-auth-funnel-2026-04-30.md b/skills/devops/systemd-web-service-deployment/references/server-monitor-auth-funnel-2026-04-30.md
+deleted file mode 100644
+index 9916439b3..000000000
+--- a/skills/devops/systemd-web-service-deployment/references/server-monitor-auth-funnel-2026-04-30.md
++++ /dev/null
+@@ -1,169 +0,0 @@
+-# Server Monitor auth + Tailscale Funnel deployment (2026-04-30)
+-
+-Session-specific reference for the class-level `systemd-web-service-deployment` skill.
+-
+-## Context
+-
+-Konstantin's `server_monitor_iOS_app` dashboard had been simplified to Tailscale-only access. The user reported Tailscale login was unstable and asked to remove the Tailscale-login dependency, restore authorization from history, create a branch first, commit/push, and deploy.
+-
+-Repository:
+-
+-```text
+-/home/konstantin/github_repo/server_monitor_iOS_app
+-```
+-
+-Production app path:
+-
+-```text
+-/home/konstantin/dashboard
+-```
+-
+-Service:
+-
+-```text
+-server-monitor.service
+-```
+-
+-Public URL:
+-
+-```text
+-https://175557-1.tail52935a.ts.net/dashboard
+-```
+-
+-## Important discoveries
+-
+-- The current execution host was already production (`hostname=175557.ip-ptr.tech`), even though older docs mentioned an `ssh vps` alias.
+-- `~/.ssh/config` did not contain the `vps` alias; direct SSH to `89.23.103.246:2222` failed with public-key auth from the current environment.
+-- `systemctl cat server-monitor.service` showed a local Gunicorn service:
+-  ```text
+-  WorkingDirectory=/home/konstantin/dashboard
+-  ExecStart=/home/konstantin/dashboard/.venv/bin/gunicorn --bind 127.0.0.1:8080 --workers 1 --threads 16 --timeout 0 server_monitor:app
+-  ```
+-- Tailscale status initially showed `tailnet only`; enabling app auth alone would not satisfy “open without Tailscale login”. The fix required Tailscale Funnel.
+-
+-## Git/history workflow
+-
+-Branch was created before investigation:
+-
+-```bash
+-git checkout -b feat/auth-without-tailscale-login
+-```
+-
+-Prior auth implementation was found in the parent of commit `74f0281`, the commit that removed app auth in favor of Tailscale-only access.
+-
+-The final pushed branch was:
+-
+-```text
+-feat/auth-without-tailscale-login
+-```
+-
+-Final head after deployment docs:
+-
+-```text
+-018146e
+-```
+-
+-## Runtime auth deployment pattern
+-
+-Created an env file on the production host:
+-
+-```text
+-/home/konstantin/dashboard/server-monitor.env
+-```
+-
+-Connected it via systemd drop-in:
+-
+-```text
+-/etc/systemd/system/server-monitor.service.d/auth.conf
+-```
+-
+-The env file contains keys like this; secret values are intentionally redacted:
+-
+-```text
+-SERVER_MONITOR_REQUIRE_AUTH=true
+-SERVER_MONITOR_USERNAME=<non-secret username>
+-SERVER_MONITOR_PASSWORD=[REDACTED]
+-SERVER_MONITOR_SESSION_SECRET=[REDACTED]
+-SERVER_MONITOR_COOKIE_SECURE=auto
+-```
+-
+-Secret values were not printed or written to repository docs, chat, commits, or skill references.
+-
+-## Deployment commands shape
+-
+-Backed up current production files under:
+-
+-```text
+-/home/konstantin/dashboard/backups/20260430150929
+-```
+-
+-Deployed only intended files with `install -m 0644`, then:
+-
+-```bash
+-sudo systemctl daemon-reload
+-cd /home/konstantin/dashboard
+-python3 -m venv .venv
+-.venv/bin/python -m pip install -r requirements.txt
+-.venv/bin/python -m py_compile server_monitor.py scripts/validate_live_transport.py
+-sudo systemctl restart server-monitor.service
+-systemctl is-active server-monitor.service
+-```
+-
+-## Funnel step
+-
+-Initial status:
+-
+-```text
+-https://175557-1.tail52935a.ts.net (tailnet only)
+-|-- / proxy http://127.0.0.1:8080
+-```
+-
+-Enabling Funnel needed sudo:
+-
+-```bash
+-sudo tailscale funnel --bg --yes 8080
+-```
+-
+-Expected status after:
+-
+-```text
+-# Funnel on:
+-#     - https://175557-1.tail52935a.ts.net
+-
+-https://175557-1.tail52935a.ts.net (Funnel on)
+-|-- / proxy http://127.0.0.1:8080
+-```
+-
+-## Validation matrix that passed
+-
+-Local/public HTTP checks:
+-
+-```text
+-service=active
+-local_dashboard_noauth=401
+-local_api_noauth=401
+-local_login=200
+-local_api_auth=200
+-public_dashboard_noauth=401
+-public_api_auth=200
+-browser_dashboard_follow_login=200
+-login_marker_follow=yes
+-auth_dashboard=200
+-```
+-
+-Live transport validation had to be updated to send Basic Auth headers from `SERVER_MONITOR_USERNAME` and `SERVER_MONITOR_PASSWORD`. After that it passed locally and through the public URL:
+-
+-```text
+-snapshot_sample_id=...
+-collector_state=live
+-live_first=snapshot:...
+-resume_event=sample|heartbeat:...
+-reset_event=reset:...
+-```
+-
+-## Lessons
+-
+-- If the user says “without Tailscale login,” check `tailscale funnel status`, not only app auth. Tailscale Serve is still tailnet-gated.
+-- A failing documented SSH alias is not necessarily a blocker; the agent may already be running on the target host.
+-- When auth is restored, update both the app and validation scripts; otherwise deployment verification may fail even when the app works.
+-- Systemd drop-ins are a clean way to reintroduce runtime env without editing the main unit or committing secrets.
+diff --git a/skills/devops/systemd-web-service-deployment/references/server-monitor-holographic-metrics-2026-04-30.md b/skills/devops/systemd-web-service-deployment/references/server-monitor-holographic-metrics-2026-04-30.md
+deleted file mode 100644
+index 84d775245..000000000
+--- a/skills/devops/systemd-web-service-deployment/references/server-monitor-holographic-metrics-2026-04-30.md
++++ /dev/null
+@@ -1,55 +0,0 @@
+-# Server Monitor Holographic Metrics Deployment — 2026-04-30
+-
+-Session-specific deployment example for Konstantin's `server_monitor_iOS_app` dashboard.
+-
+-## Context
+-
+-- Repository: `/home/konstantin/github_repo/server_monitor_iOS_app`
+-- Production path: `/home/konstantin/dashboard`
+-- Service: `server-monitor.service`
+-- Public endpoint: `https://175557-1.tail52935a.ts.net/dashboard`
+-- Source metrics DB: `/home/konstantin/.hermes/memory_store.db`
+-- Holographic metrics are aggregate-only; do not expose fact `content`.
+-- Cache default: `SERVER_MONITOR_HOLOGRAPHIC_REFRESH_SECONDS=21600` seconds, minimum 300 seconds.
+-
+-## Deployment pattern used
+-
+-1. Create a timestamped backup under production:
+-   - `/home/konstantin/dashboard/backups/20260430155003`
+-2. Copy only intended artifacts from repo to production:
+-   - `vps_dashboard/server_monitor.py` -> `server_monitor.py`
+-   - `vps_dashboard/static/server_monitor.js` -> `static/server_monitor.js`
+-   - `vps_dashboard/static/server_monitor.css` -> `static/server_monitor.css`
+-   - `vps_dashboard/templates/server_monitor.html` -> `templates/server_monitor.html`
+-   - `scripts/validate_live_transport.py` -> `scripts/validate_live_transport.py`
+-   - `requirements.txt` -> `requirements.txt`
+-3. Run production syntax checks before/around restart:
+-   - Python compile for server and live validation script.
+-   - JS syntax had already been checked in repo.
+-4. Restart:
+-   - `sudo systemctl restart server-monitor.service`
+-5. Verify `systemctl is-active server-monitor.service` and recent journal lines.
+-
+-## Verification matrix used
+-
+-Use credentials from `/home/konstantin/dashboard/server-monitor.env` without printing values.
+-
+-- Unauthenticated local `/api/stats` -> `401`
+-- Unauthenticated public `/api/stats` -> `401`
+-- Browser dashboard follow -> `200` with login marker
+-- Authenticated public `/api/stats` -> `200`
+-- Authenticated public `/dashboard` -> `200`
+-- Rendered dashboard HTML contains `holographic-growth`
+-- API payload:
+-  - `holographic.available == true`
+-  - `holographic.total_facts == 44` at deploy time
+-  - `holographic.cache.ttl_seconds == 21600`
+-  - no fact `content` exposed
+-- Live/WebSocket validation still passed:
+-  - snapshot event ok
+-  - resume sample ok
+-  - reset event ok
+-
+-## Lesson
+-
+-If the user asks “как я проверю?” or expects a dashboard feature to be checkable, commit/push alone is insufficient. Deploy to the live systemd service, validate the public URL, and report the exact URL plus checks performed.
+\ No newline at end of file
+diff --git a/skills/note-taking/knowledge-architecture/SKILL.md b/skills/note-taking/knowledge-architecture/SKILL.md
+index 8b35b9e3c..c16fb32d4 100644
+--- a/skills/note-taking/knowledge-architecture/SKILL.md
++++ b/skills/note-taking/knowledge-architecture/SKILL.md
+@@ -64,15 +64,14 @@ Load the specific reference before acting in that sub-domain:
+ - `references/knowledge-cli-maintenance.md` — modifying the CLI/companion skill, regression cases, verification recipe, generated-artifact cleanup, and P3 `memory policy audit` preservation notes.
+ - `references/knowledge-cli-p2-readonly-audits-2026-05-08.md` — completed P2 pattern for adding deterministic read-only CLI audits (`paths audit`, `skill audit`, `distill worker-check`) and report rollups without turning the CLI into an editor or approval source.
+ - `references/knowledge-skill-refactor-audit-2026-05-08.md` — audit evidence, P0/P1/P2 roadmap, and prose-to-CLI transfer candidates for this skill.
+-- `references/distillation.md` — daily/manual session distillation, worker/curator flow, model constraints, output quality gates.
++- `references/distillation.md` — daily/manual session distillation, worker/curator flow, model constraints, output quality gates, verification levels, and JSON schema compliance on Ollama Cloud.
+ - `references/docs-review.md` — read-only docs audit, pruning, wrong-layer findings, stale-current claims, secret-risk classes.
+-- `references/memory-hygiene.md` — holographic memory metrics, duplicate/stale fact review, merge/update/remove workflow.
++- `references/memory-hygiene.md` — holographic memory metrics, duplicate/stale fact review, merge/update/remove workflow, tagging conventions, fact↔reality verification.
+ - `references/memory-refactoring-2026-05.md` — final MEMORY/USER/SOUL composition and over-protection lessons from the 2026-05 refactor.
+ - `references/plan-governance.md` plus `/home/konstantin/docs/plans/README.md` — plan lifecycle, statuses, archive rules, and control-surface policy.
+ - `references/local-cli-audit.md` — auditing skill-owned local CLIs, installed wrappers, packaging drift, and redaction boundaries.
+ - `references/soul-behavioral-constitution.md` — auditing/restoring/editing `~/.hermes/SOUL.md` and prompt-snapshot activation boundary.
+-- `references/verification-claims-2026-05-07.md` — wording for implemented vs mocked/unit vs live smoke vs production-shaped benchmark claims.
+-- `references/json-schema-benchmark.md` and `references/deepseek-native-distillation-benchmark-2026-05-07.md` — model/output-format benchmark lessons.
++- `references/json-schema-benchmark.md` — Ollama Cloud JSON compliance benchmark: `json_schema` vs `json_object` vs plain text, model-by-model results.
+ - `references/multi-instance-infrastructure.md` — volatile Hermes instance/source/runtime inventory. Re-verify paths/processes before making current-state claims.
+ 
+ ## `knowledge` CLI Contract
+diff --git a/skills/note-taking/knowledge-architecture/references/deepseek-native-distillation-benchmark-2026-05-07.md b/skills/note-taking/knowledge-architecture/references/deepseek-native-distillation-benchmark-2026-05-07.md
+deleted file mode 100644
+index 5a75dd0cc..000000000
+--- a/skills/note-taking/knowledge-architecture/references/deepseek-native-distillation-benchmark-2026-05-07.md
++++ /dev/null
+@@ -1,147 +0,0 @@
+-# DeepSeek V4 Pro native Ollama distillation benchmark — 2026-05-07
+-
+-## Why this exists
+-
+-The user corrected the framing repeatedly: do **not** treat `deepseek-v4-pro:cloud` as “bad” when a worker benchmark fails. Attribute failures to the exact endpoint, prompt, budget, and output contract. In this session the failure was configuration-shaped, not a model-quality verdict.
+-
+-## Benchmark class
+-
+-Daily knowledge-distillation worker JSON extraction:
+-
+-- payload: production-shaped session packet, 10,151 chars
+-- schema: `{candidates:[{claim,evidence_type,durability,destination,action,reason}]}`
+-- validation: installed `knowledge-architecture/scripts/distillation_worker.py` parser and enum validator
+-- timeout: 200s
+-- no production pool changes during benchmark
+-
+-## Untuned results
+-
+-### Legacy OpenAI-compatible `/v1/chat/completions`
+-
+-Settings:
+-
+-```text
+-model: deepseek-v4-pro:cloud
+-endpoint: /v1/chat/completions
+-response_format: {type: json_object}
+-max_tokens: 3000
+-```
+-
+-Observed:
+-
+-```text
+-elapsed: 72.1s
+-completion_tokens: 3000
+-content_length: 0
+-message.reasoning length: 14257
+-finish_reason: length
+-json_parse_success: false
+-valid_candidates: 0
+-```
+-
+-Cause: hidden reasoning consumed the completion budget before visible JSON. This is endpoint/settings-specific.
+-
+-### Native `/api/chat`, old verbose worker prompt
+-
+-Settings:
+-
+-```text
+-endpoint: /api/chat
+-format: json
+-think: false
+-num_predict: 3000
+-```
+-
+-Observed twice:
+-
+-```text
+-elapsed: 56.4s / 66.4s
+-eval_count: 3000
+-thinking fields: none
+-content_length: ~10.6k
+-done_reason: length
+-json_parse_success: false
+-valid_candidates: 0
+-```
+-
+-Cause: hidden reasoning was fixed, but the model produced too much visible JSON and got truncated mid-string. This is output-contract/budget-specific.
+-
+-Diagnostic with `num_predict=6000` and old verbose prompt succeeded once:
+-
+-```text
+-elapsed: 77.3s
+-done_reason: stop
+-eval_count: 2776
+-json_parse_success: true
+-valid_candidates: 20
+-```
+-
+-## Tuned prompt contract
+-
+-The key fix was not only a larger budget; it was constraining output shape:
+-
+-```text
+-- Return STRICT JSON only.
+-- Return at most 10 candidates total.
+-- Prioritize the 8-10 most durable, high-signal claims.
+-- Keep each claim concise, ideally under 220 Russian characters.
+-- Keep each reason concise, ideally under 140 Russian characters.
+-- Merge duplicate facts; no raw logs, secrets, credential paths, or temporary task progress.
+-```
+-
+-Native settings:
+-
+-```text
+-endpoint: /api/chat
+-format: json
+-think: false
+-temperature: 0.1
+-```
+-
+-## Tuned multi-run result
+-
+-Five serial DeepSeek runs with tuned prompt and `num_predict=6000`:
+-
+-```text
+-HTTP ok: 5/5
+-JSON parse success: 5/5
+-valid candidates: 5/5
+-parse_success_rate: 1.0
+-valid_success_rate: 1.0
+-elapsed: 18.4–21.8s, mean 20.5s
+-valid_candidates: 9–10, mean 9.8
+-eval_count: 1077–1313
+-content_length: 3862–4657
+-finish_reason: stop
+-thinking/reasoning fields: none
+-invalid_candidates: 0
+-```
+-
+-Budget matrix with tuned prompt:
+-
+-```text
+-num_predict=2000: 3/3 parse ok, 9–10 valid candidates, eval_count 1211–1377
+-num_predict=3000: 3/3 parse ok, 10 valid candidates each, eval_count 1263–1284
+-num_predict=6000: 3/3 parse ok, 10 valid candidates each, eval_count 1270–1359
+-```
+-
+-Conclusion: with the tuned prompt, `num_predict=3000` is sufficient on this payload; `6000` is only a safety margin.
+-
+-## Baseline context with same tuned prompt
+-
+-On the same payload and tuned prompt:
+-
+-```text
+-glm-5.1:cloud /v1 max_tokens=3000: parse ok, 10 valid, elapsed 14.9s, reasoning length 3167
+-gemma4:31b-cloud /v1 max_tokens=3000: parse ok, 10 valid, elapsed 21.2s, no reasoning field
+-```
+-
+-The tuned prompt improved GLM too; previous GLM failure on the stress payload was also prompt/budget-shaped.
+-
+-## Operational lesson
+-
+-Do not say “DeepSeek failed” without naming settings. Correct phrasing:
+-
+-> The old DeepSeek distillation settings were unsuitable: `/v1` exposed a hidden-reasoning budget trap, and native `/api/chat` with the old verbose prompt could truncate visible JSON. With native `/api/chat`, `think:false`, `format:"json"`, and a capped concise output contract, DeepSeek V4 Pro produced stable valid worker JSON on the production-shaped payload.
+-
+-Before adding DeepSeek to production `WORKER_MODELS`, run a fresh benchmark under the exact intended worker config and get explicit user approval. A benchmark passing is evidence for settings, not a blanket model ranking.
+diff --git a/skills/note-taking/knowledge-architecture/references/distillation.md b/skills/note-taking/knowledge-architecture/references/distillation.md
+index 763c1be4e..61e81431b 100644
+--- a/skills/note-taking/knowledge-architecture/references/distillation.md
++++ b/skills/note-taking/knowledge-architecture/references/distillation.md
+@@ -68,7 +68,7 @@ Orchestrator / cron entrypoint (gpt-5.5)
+ | GLM 5.1 | `glm-5.1:cloud` | `glm` | 3000 | `json_object` ✅, wraps ` ```json ` | Fast (8-10s), Russian-native |
+ | Gemma 4 31B | `gemma4:31b-cloud` | `gemma` | 3000 | `json_object` ✅, wraps ` ```json ` | Cross-validation voice (5-10s) |
+ 
+-`deepseek-v4-pro:cloud` is excluded from the production worker pool pending an explicit user decision, but do **not** frame this as “DeepSeek is bad.” The 2026-05-07 benchmarks showed configuration-specific failure modes and the fix: legacy `/v1/chat/completions` spent budget on hidden reasoning; native `/api/chat` + `format:"json"` + `think:false` removed hidden reasoning; the old verbose worker prompt still truncated visible JSON; a tuned output contract (`max 10 candidates`, concise claim/reason) made DeepSeek pass repeated production-shaped JSON benchmarks even at `num_predict=3000`. Do not add it back to `WORKER_MODELS` without a fresh multi-run task-specific benchmark under the intended config and user approval. The worker script has a manual/native branch for this model (`/api/chat`, `format:"json"`, `think:false`, `options.num_predict`) so benchmarks can test DeepSeek without rerouting GLM/Gemma or changing the production pool. See `references/deepseek-native-distillation-benchmark-2026-05-07.md`.
++`deepseek-v4-pro:cloud` is excluded from the production worker pool pending an explicit user decision, but do **not** frame this as “DeepSeek is bad.” The 2026-05-07 benchmarks showed configuration-specific failure modes and the fix: legacy `/v1/chat/completions` spent budget on hidden reasoning; native `/api/chat` + `format:"json"` + `think:false` removed hidden reasoning; the old verbose worker prompt still truncated visible JSON; a tuned output contract (`max 10 candidates`, concise claim/reason) made DeepSeek pass repeated production-shaped JSON benchmarks even at `num_predict=3000`. Do not add it back to `WORKER_MODELS` without a fresh multi-run task-specific benchmark under the intended config and user approval. The worker script has a manual/native branch for this model (`/api/chat`, `format:"json"`, `think:false`, `options.num_predict`) so benchmarks can test DeepSeek without rerouting GLM/Gemma or changing the production pool. Archived benchmark details: the DeepSeek V4 Pro native Ollama distillation benchmark showed configuration-specific failure modes (not a model-quality verdict). With native `/api/chat`, `format:"json"`, `think:false`, and a concise output contract (`max 10 candidates`), DeepSeek passed repeated production-shaped JSON benchmarks.
+ 
+ **Curator (tier 0/2):** `gpt-5.5` via OpenAI Codex. Fallback: `gpt-oss:120b-cloud` (report explicitly).
+ 
+@@ -145,7 +145,7 @@ Before editing:
+ Prefer targeted patches. Good: add one row, replace an outdated fact, add one pitfall. Bad: daily "Today" sections, full session summaries, overlapping preference bullets.
+ 
+ ### 7. Post-write verification
+-8. Report verification level precisely: implemented-only, static/unit/mocked, live smoke, or production-shaped benchmark. Do not say a model/provider was “checked” in production if only unit/mocked or tiny live smoke verification was run. For the detailed reporting pattern, see `references/verification-claims-2026-05-07.md`.
++7. Report verification level precisely: implemented-only, static/unit/mocked, live smoke, or production-shaped benchmark. Do not say a model/provider was "checked" in production if only unit/mocked or tiny live smoke verification was run. For the reporting pattern, see the Verification Level section below.
+ 
+ After any edit:
+ 1. Re-read the changed section
+@@ -198,5 +198,31 @@ Setup/maintenance and model-benchmark procedures live in `/home/konstantin/docs/
+ 15. Credential paths in docs → even paths are leaked metadata. Store only "(see config)".
+ 16. Updating this skill does NOT update the scheduled cron job prompt. Audit and patch both.
+ 17. Scope vs permission confusion → never equate an API/OAuth scope with the account's real permissions.
+-18. "Not tested" is not "not enabled".
+-20. Verification wording pitfall: “implemented”, “unit/mocked verified”, “live smoke verified”, and “production-shaped benchmark passed” are different claims. If only a tiny payload was run, say live smoke; do not imply the model is production-ready or comparable to the cron workload.
+\ No newline at end of file
++| "Not tested" is not "not enabled". |
++| Verification wording pitfall: "implemented", "unit/mocked verified", "live smoke verified", and "production-shaped benchmark passed" are different claims. If only a tiny payload was run, say live smoke; do not imply the model is production-ready or comparable to the cron workload. |
++
++## Verification Levels
++
++For model/provider/worker changes, do not collapse different verification levels into a single word like "checked" or "verified". Report the highest verification level actually performed and explicitly name what was not tested.
++
++1. **Implemented only** — Code patched. No tests or runtime invocation yet.
++2. **Static/unit verified** — Syntax/import/unit tests pass. Request mapping and parsing may be tested with mocks. Proves implementation shape, not live provider behavior.
++3. **Live smoke verified** — Real provider/endpoint called with a small controlled payload. Confirms endpoint, request fields, response shape, and basic parseability. Does not prove production reliability or quality.
++4. **Production-shaped benchmark verified** — Realistic payload size, timeout, token budget, prompt/contract, and comparison set. Metrics include parse success, candidate quality, latency, truncation/empty content, timeout behavior, and relevant token/thinking counters. This is the threshold for reintroducing a model into a production worker pool.
++
++**Reporting template:**
++
++```text
++Done and verified at level: <unit/mocked | live smoke | production-shaped benchmark>.
++Verified: <specific evidence, including endpoint/request shape, timeout, token budget, done/finish reason, parse success, valid candidates, and comparison set when relevant>.
++Not verified: <specific remaining gaps>.
++Production impact: <changed/not changed>.
++```
++
++If the model remains excluded from production, say that directly even if smoke tests passed.
++
++## JSON Schema Compliance on Ollama Cloud
++
++`json_schema` strict mode is **broken for ALL Ollama Cloud models**. It does not enforce schema constraints because remote models do not apply grammar-based constrained decoding. Every tested model (`:cloud` suffix) ignored enum constraints under `json_schema`, outputting float confidence values and custom category labels.
++
++**Working approach:** Use `json_object` + explicit enum values in the system prompt. This achieves ~100% compliance across all cloud models. Compliance comes entirely from prompt engineering, not from any API parameter.
+\ No newline at end of file
+diff --git a/skills/note-taking/knowledge-architecture/references/memory-hygiene-audit-2026-05-07.md b/skills/note-taking/knowledge-architecture/references/memory-hygiene-audit-2026-05-07.md
+deleted file mode 100644
+index b2a286a69..000000000
+--- a/skills/note-taking/knowledge-architecture/references/memory-hygiene-audit-2026-05-07.md
++++ /dev/null
+@@ -1,62 +0,0 @@
+-# Memory Hygiene Audit — 2026-05-07
+-
+-Full audit of `fact_store` (87→76 facts). First production run of the holographic-memory-hygiene workflow.
+-
+-## Findings that changed the skill
+-
+-### F1. `contradict` is blind to fact↔reality
+-- `contradict` returned 0 contradictions across 87 facts
+-- Fact 163 claimed "MEMORY pointer: flight-search" in MEMORY.md — no such pointer existed
+-- No other fact contradicted it; the mismatch was between fact and live file state
+-- **Result:** Added "Fact↔Reality Verification Pass" section to memory-hygiene.md
+-
+-### F2. `retrieval_count` dead metric
+-- All 87 facts had `retrieval_count = 0`
+-- Cannot distinguish active from dormant facts via retrieval
+-- **Result:** Documented reliance on `helpful_count`, `trust_score`, timestamps instead; retrieval count already listed as pitfall
+-
+-### F3. Gray zone: iterative drafts vs separate facts
+-- Flight-search guardrail facts 160/161/162/163 were iterative refinements, not exact copies
+-- Each slightly different wording; canonical choice was manual
+-- DeepSeek cluster (31/34/155/156/159) carries different aspects per fact — not true duplicates
+-- **Result:** Added pitfall #8 to memory-hygiene.md
+-
+-### F4. Volatile state as durable fact
+-- Fact 82: cron job snapshot on specific date — stale within a week
+-- Fact 81: skill version v1.1.1 — stale as soon as skill updated
+-- Both had zero contradictions because no other fact claimed the opposite
+-- **Result:** Added `tags="volatile"` convention; added pitfall #9
+-
+-### F5. Trust ≠ canonical
+-- Within duplicate groups, highest trust sometimes belonged to the worst-worded variant
+-- Trust measures retrieval usefulness, not accuracy or authority
+-- **Result:** Added `tags="canonical"` convention; added pitfall #10
+-
+-### F6. `.archive/` = skills category, not literal archive
+-- Stale cron ID `62e7a25f4e15` in `~/.hermes/skills/.archive/daily-knowledge-distillation/SKILL.md`
+-- Active skill was patched; archive copy was not
+-- User corrected: `.archive/` is a category inside skill structure, not a dead-letter archive
+-- 7 dead duplicate skills removed (356K freed)
+-- **Result:** Added pitfall #11 to both SKILL.md and memory-hygiene.md
+-
+-### F7. Process doesn't scale past ~100 facts manually
+-- 87 facts required full manual review, grouping, and 11 decisions
+-- No built-in dedup/merge flow; only `search` + judgment
+-- **Result:** Added pitfall #12; documented prep-script approach for larger stores
+-
+-## Actions taken
+-
+-| Action | Fact IDs | Reason |
+-|--------|----------|--------|
+-| Update canonical | 44, 161 | Merged best wording from duplicate groups |
+-| Update stale | 152 | Backup cron job exists but `enabled=false`; fact now accurate |
+-| Update preference | 107 | Canonical line-by-line review guardrail |
+-| Remove duplicate | 105, 128, 148, 149, 157, 158, 160, 162, 163 | Weaker versions of canonical facts |
+-| Remove stale | 81, 82 | Volatile runtime snapshots with no durable value |
+-
+-## Verification
+-
+-- DB integrity: OK (facts=76, FTS=76, entity coverage=100%)
+-- All 11 removed IDs confirmed absent
+-- No misleading phrases in active facts
+-- Trust avg 0.598, median 0.55, helpful total 202
+diff --git a/skills/note-taking/knowledge-architecture/references/verification-claims-2026-05-07.md b/skills/note-taking/knowledge-architecture/references/verification-claims-2026-05-07.md
+deleted file mode 100644
+index d6e1c4df0..000000000
+--- a/skills/note-taking/knowledge-architecture/references/verification-claims-2026-05-07.md
++++ /dev/null
+@@ -1,54 +0,0 @@
+-# Verification Claims — Distinguish implementation, smoke, and production-shaped benchmark
+-
+-Session lesson from 2026-05-07 DeepSeek/native Ollama distillation work.
+-
+-## Trigger
+-
+-User challenged the report: “так ты проверил его или просто сделал?” after the assistant said the Step 1 worker change was verified.
+-
+-## Durable lesson
+-
+-For model/provider/worker changes, do not collapse different verification levels into a single word like “checked” or “verified”. Report the highest verification level actually performed and explicitly name what was not tested.
+-
+-## Verification levels
+-
+-1. **Implemented only**
+-   - Code patched.
+-   - No tests or runtime invocation yet.
+-
+-2. **Static/unit verified**
+-   - Syntax/import/unit tests pass.
+-   - Request mapping and parsing may be tested with mocks.
+-   - This proves implementation shape, not live provider behavior.
+-
+-3. **Live smoke verified**
+-   - Real provider/endpoint called with a small controlled payload.
+-   - Confirms endpoint, request fields, response shape, and basic parseability.
+-   - Does not prove production reliability or quality.
+-
+-4. **Production-shaped benchmark verified**
+-   - Realistic payload size, timeout, token budget, prompt/contract, and comparison set.
+-   - Metrics include parse success, candidate quality, latency, truncation/empty content, timeout behavior, and relevant token/thinking counters.
+-   - This is the threshold for reintroducing a model into a production worker pool.
+-
+-## DeepSeek/native Ollama example
+-
+-For `deepseek-v4-pro:cloud` in `distillation_worker.py`:
+-
+-- Unit/mocked verification confirms it routes to `/api/chat` with `format:"json"`, `think:false`, `stream:false`, `options.num_predict`, and parses `message.content`.
+-- Live smoke with a tiny payload can confirm native Ollama returns valid worker JSON.
+-- It still must not be reported as production-ready until it passes a cron-shaped 8k–12k snippet benchmark with the same timeout/token budget and is compared against current production workers.
+-- A 2026-05-07 production-shaped benchmark showed the important nuance: native `/api/chat` + `think:false` removed hidden reasoning; with the old verbose worker prompt DeepSeek truncated visible JSON at `num_predict=3000`, but a tuned output contract (`max 10 candidates`, concise claim/reason) passed repeated production-shaped runs even at `num_predict=3000`. Verification must therefore report endpoint, thinking control, prompt/output cap, budget, `done_reason`, parse success, and valid candidate count — and must attribute failures to settings unless evidence proves a model capability issue.
+-
+-## Reporting template
+-
+-Use this wording pattern:
+-
+-```text
+-Done and verified at level: <unit/mocked | live smoke | production-shaped benchmark>.
+-Verified: <specific evidence, including endpoint/request shape, timeout, token budget, done/finish reason, parse success, valid candidates, and comparison set when relevant>.
+-Not verified: <specific remaining gaps>.
+-Production impact: <changed/not changed>.
+-```
+-
+-If the model remains excluded from production, say that directly even if smoke tests passed.
+\ No newline at end of file
+diff --git a/skills/software-development/skill-audit-and-improvement/SKILL.md b/skills/software-development/skill-audit-and-improvement/SKILL.md
+index cbbc029f9..8c0e58303 100644
+--- a/skills/software-development/skill-audit-and-improvement/SKILL.md
++++ b/skills/software-development/skill-audit-and-improvement/SKILL.md
+@@ -377,11 +377,7 @@ Use the template at `templates/audit-report.md`. Keep Telegram summaries compact
+ 
+ ## References
+ 
+-- `references/case-study-2026-05-07-systemd-skill-improvement.md` captures the lessons that motivated this skill: provenance checks, owning-skill CLI placement, read-only CLI defaults, secret/stale-path scanning, independent review catching redirect risk, and the need to commit/push skill-source changes.
+-- `references/audit-protocol-contract.md` captures the stable audit protocol contract: do not spread JSON/CLI contracts across every skill; keep the shared machine contract in `audit_skill.py`, schemas, CI/baseline gates, and this skill's references.
+-- `references/master-plan-synthesis-2026-05-08.md` captures the reusable pattern for reconciling multiple audit-skill plans into one saved master plan with live-state evidence, phase-by-phase profit, verification, and plan-governance checks.
+-- `references/local-audit-gate-hardening-2026-05-08.md` captures local pre-CI hardening lessons for `audit_skill.py`: deterministic/read-only scope, post-patch verification, multi-token parser-error redaction, nested deleted `SKILL.md` mapping, and the focused verification bundle.
+-- `references/dirty-worktree-plan-provenance-2026-05-08.md` captures the workflow for explaining a dirty worktree after a scoped commit by mapping dirty paths to active plans, recent commits, and changed-skill audit findings without staging unrelated work.
++- `references/audit-protocol-contract.md` — stable audit protocol contract, session lessons (provenance, dirty worktree, audit script hardening, master plan synthesis, systemd skill improvement case study), and design rationale.
+ 
+ ## Common Pitfalls
+ 
+diff --git a/skills/software-development/skill-audit-and-improvement/references/audit-protocol-contract.md b/skills/software-development/skill-audit-and-improvement/references/audit-protocol-contract.md
+index 92d0a822f..f2804fbdf 100644
+--- a/skills/software-development/skill-audit-and-improvement/references/audit-protocol-contract.md
++++ b/skills/software-development/skill-audit-and-improvement/references/audit-protocol-contract.md
+@@ -64,6 +64,39 @@ schema → audit_skill.py → baseline/no-regression compare → CI required che
+ 
+ The goal is that degradation becomes hard because the repository rejects bad changes, not because an agent remembers a preference.
+ 
++## Session Lessons (consolidated from 2026-05-07 and 2026-05-08 audit sessions)
++
++### Provenance Before Editing
++
++Branch, HEAD, status, and target diffs must be checked before modifying skill files. This prevents stale assumptions about runtime paths, old CLI layouts, and dirty development state. Always verify live repo state — do not rely on memory of what files look like.
++
++### Dirty Worktree Provenance
++
++After a verified scoped commit, remaining dirty files are not automatically failed cleanup or safe to commit. Classify each dirty path as:
++1. committed-work leftovers that should be finished or separately committed;
++2. active-plan work that should stay dirty or move to its own branch;
++3. completed-but-unarchived plan notes;
++4. unrelated or pre-existing changes that must not be staged.
++
++Run `audit_skill.py --changed --json` before recommending commit; do not print secret-like values from findings.
++
++### Audit Script Hardening Lessons
++
++- `audit_skill.py` must remain read-only: no `git add/commit/checkout/reset`, no destructive shell commands, no permission-changing commands, no mutation of audited skills.
++- Reject report outputs inside the repo (`OUTPUT_INSIDE_REPO`).
++- Avoid repo-local caches/artifacts during tests (`PYTHONDONTWRITEBYTECODE=1`, `pytest -p no:cacheprovider`).
++- Redact entire rest-of-line after sensitive keys, not just the first token. Also redact generic `Bearer ...` segments even when the YAML key is not in the sensitive-key allowlist.
++- For deleted nested `SKILL.md` files, derive the affected skill dir from `path.parent`, not from fixed-depth assumptions.
++
++### Master Plan Synthesis Pattern
++
++When a skill-audit task has multiple overlapping plans:
++1. Treat existing plans as inputs, not automatically current truth. Reconcile into one master execution map.
++2. Preserve companion plans unless the user explicitly approves lifecycle changes.
++3. For each phase, include practical profit/benefit, not only tasks.
++4. Save durable multi-step synthesized plans under `/home/konstantin/docs/plans/` with machine-readable status.
++5. Verify after saving: file exists, `Current status: ...` is present, code fences balanced, no secret-like values, `knowledge --json plans audit` can detect the plan.
++
+ ## Protected Context Pitfall
+ 
+ Before trying to store this kind of rule in `USER.md`, `MEMORY.md`, or `SOUL.md`, show the proposed diff and analyze whether the rule belongs there. If the write is rejected or would exceed capacity, report that no protected context file changed and route the rule to the correct canonical layer instead.
+diff --git a/skills/software-development/skill-audit-and-improvement/references/case-study-2026-05-07-systemd-skill-improvement.md b/skills/software-development/skill-audit-and-improvement/references/case-study-2026-05-07-systemd-skill-improvement.md
+deleted file mode 100644
+index ba8bdd25b..000000000
+--- a/skills/software-development/skill-audit-and-improvement/references/case-study-2026-05-07-systemd-skill-improvement.md
++++ /dev/null
+@@ -1,91 +0,0 @@
+-# Case Study: 2026-05-07 Systemd Skill Improvement
+-
+-This reference records the reusable lessons behind the `skill-audit-and-improvement` workflow. It is not a full session log; it is a compact pattern library for future skill audits.
+-
+-## What happened
+-
+-A session consolidated and improved multiple Hermes skills and source/runtime conventions. The most substantial change was upgrading `systemd-web-service-deployment` from a runbook-only skill into a runbook plus read-only owning CLI.
+-
+-The final branch was `skills-improvements`; the relevant commit was `f5fbba25086771fb14435e1e2409c4335c1fb8c3`.
+-
+-## What worked
+-
+-1. **Provenance before editing**
+-   - Branch, HEAD, status, and target diffs were checked before modifying skill files.
+-   - This prevented stale assumptions about `/home/konstantin/code/clis`, `local/skill-clis`, and runtime `~/.hermes/skills`.
+-
+-2. **Owning-skill CLI placement**
+-   - The CLI was placed under the skill that owns it:
+-     `skills/devops/systemd-web-service-deployment/cli/`.
+-   - This matched the new source model and avoided resurrecting stale shared CLI directories.
+-
+-3. **Read-only default**
+-   - The CLI became an auditor/verifier, not a deployer.
+-   - It did not restart services, reload systemd, enable Tailscale Funnel, chown files, deploy artifacts, or write production files.
+-
+-4. **Structured JSON output**
+-   - Commands returned top-level `ok`, `command`, `data`, and `issues` fields.
+-   - This made future agent reasoning deterministic.
+-
+-5. **Independent review**
+-   - A fresh reviewer found a Basic Auth redirect risk that self-review missed.
+-   - Fix: do not follow redirects when an Authorization header is present.
+-
+-6. **Security and stale-path scans**
+-   - Secret scans forced redaction of examples.
+-   - Stale-path scans prevented old CLI/source layout from creeping back in.
+-
+-7. **Commit/push discipline**
+-   - Dirty source changes became reproducible only after commit and push.
+-   - Backup intentionally stores repo refs, not dirty development files.
+-
+-## What should be repeated
+-
+-For future skill audits:
+-
+-```bash
+-cd /home/konstantin/.hermes/hermes-agent
+-git status --short --branch --untracked-files=all
+-git diff -- skills/<category>/<skill>/
+-python3 skills/software-development/skill-audit-and-improvement/scripts/audit_skill.py --skill <skill-name> --json
+-```
+-
+-For new or changed Python scripts/CLIs, use an AST syntax check that does not create repo-local bytecode:
+-
+-```bash
+-python3 - <<'PY'
+-from pathlib import Path
+-import ast
+-path = Path('<script.py>')
+-ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
+-print('syntax_ok')
+-PY
+-```
+-
+-For owning CLIs with tests:
+-
+-```bash
+-cd skills/<category>/<skill>/cli
+-python3 -m unittest discover -s tests -v
+-python3 -m <module> --json doctor
+-```
+-
+-## Failure modes to guard against
+-
+-- Treating a runtime directory as source.
+-- Leaving important skill edits dirty and then reporting them as backed up.
+-- Creating a one-off skill instead of patching a class-level workflow.
+-- Embedding real secrets or credential-shaped values in examples.
+-- Adding a CLI that mutates production state by default.
+-- Skipping a fresh independent review for security-sensitive code.
+-- Ignoring prompt-cache/fresh-session boundaries after adding new skills.
+-
+-## Audit conclusion pattern
+-
+-A complete skill-audit report should answer:
+-
+-- What was changed?
+-- Why was this the correct layer: skill body, reference, template, script, CLI, memory, docs, or fact store?
+-- What evidence proves it works?
+-- What remains unrelated or baseline?
+-- How can it be rolled back?
+diff --git a/skills/software-development/skill-audit-and-improvement/references/dirty-worktree-plan-provenance-2026-05-08.md b/skills/software-development/skill-audit-and-improvement/references/dirty-worktree-plan-provenance-2026-05-08.md
+deleted file mode 100644
+index 233f9afaf..000000000
+--- a/skills/software-development/skill-audit-and-improvement/references/dirty-worktree-plan-provenance-2026-05-08.md
++++ /dev/null
+@@ -1,31 +0,0 @@
+-# Dirty Worktree Plan Provenance Case — 2026-05-08
+-
+-## Context
+-
+-After a scoped skill change was committed and pushed, the repository remained dirty. The user asked whether the dirty state came from unfinished plans.
+-
+-## Reusable lesson
+-
+-A dirty worktree after a verified scoped commit is not automatically failed cleanup, and not automatically safe to commit. Treat it as a provenance problem:
+-
+-1. Verify branch, HEAD, remote, and exact dirty paths from live Git state.
+-2. Confirm the just-committed scope by checking the committed paths and staged paths, not memory.
+-3. Map each dirty path to active plans, recent commits, and changed-skill audit results.
+-4. Classify paths as:
+-   - committed-work leftovers that should be finished or separately committed;
+-   - active-plan work that should stay dirty or move to its own branch;
+-   - completed-but-unarchived plan notes;
+-   - unrelated or pre-existing changes that must not be staged.
+-5. Run metadata-only changed-skill audit before recommending commit; do not print secret-like values from examples or findings.
+-6. Report whether the dirty state is caused by the just-finished task, by older/in-progress plans, or by unrelated work.
+-
+-## Observed pattern
+-
+-In this case, the finished knowledge CLI P3 commit was scoped and pushed. Remaining dirty paths belonged to several separate skill/documentation workstreams: Ollama routing notes, skill-audit/workflow hardening, and native MCP/Context7 documentation. Some changed files triggered `secret_like_value` audit blockers due placeholder examples, so a broad commit would have been unsafe.
+-
+-## Safe response pattern
+-
+-- State the verified commit/remote status first.
+-- Say “not from the just-finished scoped commit” only after checking paths.
+-- Use “partly from unfinished/unclosed plans” when dirty files map to active or not-yet-archived plans.
+-- Recommend split cleanup: separate commits by workstream, fix audit blockers first, and leave unrelated dirty files untouched.
+diff --git a/skills/software-development/skill-audit-and-improvement/references/local-audit-gate-hardening-2026-05-08.md b/skills/software-development/skill-audit-and-improvement/references/local-audit-gate-hardening-2026-05-08.md
+deleted file mode 100644
+index 896e5ade4..000000000
+--- a/skills/software-development/skill-audit-and-improvement/references/local-audit-gate-hardening-2026-05-08.md
++++ /dev/null
+@@ -1,69 +0,0 @@
+-# Local audit gate hardening case — 2026-05-08
+-
+-Reusable lessons from hardening `scripts/audit_skill.py` into a deterministic local quality gate before CI.
+-
+-## Scope boundary
+-
+-- Keep CI, CODEOWNERS, branch protection, and deploy enforcement separate from local pre-CI readiness unless the user explicitly asks for them.
+-- Local readiness means: clean scope, focused tests/fixtures, stable JSON schema, resolver/exit codes, deterministic rule engine, `--changed`, and baseline/no-regression compare.
+-- Do not claim ready after a final patch unless the post-patch verification bundle has run.
+-
+-## Deterministic/read-only contract
+-
+-`audit_skill.py` should remain read-only:
+-
+-- no `git add`, `git commit`, `git checkout`, `git reset`;
+-- no destructive shell commands;
+-- no permission-changing commands;
+-- no mutation of audited skills;
+-- reject report outputs inside the repo (`OUTPUT_INSIDE_REPO`);
+-- avoid repo-local caches/artifacts during tests (`PYTHONDONTWRITEBYTECODE=1`, pytest `-p no:cacheprovider`).
+-
+-## Redaction pitfall: parser errors can leak multi-token values
+-
+-YAML/frontmatter parser errors may echo the offending line. Redacting only the first non-space token after a sensitive key is insufficient. A malformed line such as a sensitive-key assignment followed by a multi-token value can leak the remaining tokens through the parse error.
+-
+-Rule:
+-
+-- redact the entire rest of line/segment after sensitive assignment keys (`authorization`, `token`, `api_key`, `secret`, `password`, etc.);
+-- add a second pass for bearer-style values that redacts the full same-line `Bearer ...` segment, not just the first token;
+-- do not limit bearer redaction to recognized sensitive keys: malformed YAML can echo `Bearer ...` under generic keys such as `auth_header`, so regression tests must cover both sensitive-key and generic-key cases;
+-- run redaction on every report surface: finding message, evidence, line excerpt, check output, CLI error payload, and parser exception text;
+-- add regression tests using synthetic placeholder values only and assert the raw placeholders do not appear anywhere in JSON stdout or `--output` report files.
+-
+-## `--changed` pitfall: deleted nested `SKILL.md`
+-
+-Deleted files no longer exist, so resolver logic cannot rely only on filesystem ascent. For a deleted path ending in `SKILL.md`, the affected skill directory is the deleted path's parent, even when nested deeper than two levels, e.g.:
+-
+-```text
+-skills/mlops/training/nested-skill/SKILL.md
+-```
+-
+-Rule:
+-
+-- if a changed/deleted path basename is `SKILL.md`, derive affected skill dir from `path.parent` first;
+-- avoid category-depth assumptions such as `skills/<category>/<skill>/SKILL.md`;
+-- include `exists: false` and `change_kind: deleted` in evidence;
+-- regression-test nested deleted `SKILL.md`, not only shallow deleted skills.
+-
+-## Verification bundle after audit script changes
+-
+-Run after every change to `scripts/audit_skill.py`, its schema, or validator:
+-
+-```bash
+-cd /home/konstantin/.hermes/hermes-agent
+-PYTHONDONTWRITEBYTECODE=1 HERMES_TEST_WORKERS=1 scripts/run_tests.sh tests/skills/test_audit_skill.py -q -p no:cacheprovider
+-git diff --check -- skills/software-development/skill-audit-and-improvement tests/skills/test_audit_skill.py tests/fixtures/skills
+-```
+-
+-Also verify:
+-
+-- AST parse for `audit_skill.py` and `validate_audit_report.py`;
+-- schema JSON parse;
+-- self-audit report validates;
+-- `--changed` report validates;
+-- resolver errors return exit 2 for invalid repo, missing skill, traversal, and output-inside-repo;
+-- targeted redaction smokes prove both sensitive-key and generic-key multi-token `Bearer ...` parser-error values are absent from JSON stdout and `--output` report files;
+-- no repo `__pycache__`, `*.pyc`, or `.pytest_cache` remains;
+-- independent blocker-only review passes;
+-- if plans were updated, validate plan fences/status/secrets and run `knowledge --json plans audit` so the docs control surface reflects the implementation state.
+diff --git a/skills/software-development/skill-audit-and-improvement/references/master-plan-synthesis-2026-05-08.md b/skills/software-development/skill-audit-and-improvement/references/master-plan-synthesis-2026-05-08.md
+deleted file mode 100644
+index 7a83e1510..000000000
+--- a/skills/software-development/skill-audit-and-improvement/references/master-plan-synthesis-2026-05-08.md
++++ /dev/null
+@@ -1,67 +0,0 @@
+-# Master Plan Synthesis Pattern — 2026-05-08
+-
+-Use this reference when a skill-audit task has multiple overlapping plans and the user asks to decompose, analyze, synthesize, or justify the path to maturity.
+-
+-## Trigger
+-
+-The session produced a synthesized master plan for maturing `skill-audit-and-improvement` from a structural checker into an enforced quality gate. The user asked for deep decomposition, then explicitly asked to save the plan and list the profit for each point.
+-
+-## Reusable pattern
+-
+-1. Load `skill-audit-and-improvement`, `writing-plans`, `hermes-agent-skill-authoring`, and `knowledge-architecture`/plan governance when the work touches Hermes skills and durable plans.
+-2. Re-check live state before synthesizing: branch, HEAD, dirty status, target skill files, current CLI flags, current audit output, generated artifacts, and plan statuses.
+-3. Treat existing plans as inputs, not as automatically current truth. Reconcile them into one master execution map when they overlap.
+-4. Preserve companion plans unless the user explicitly approves lifecycle changes such as `superseded` or archive moves.
+-5. For each phase, include the practical profit/benefit, not only tasks. Konstantin uses this to judge sequencing, trade-offs, and why a gate is worth implementing.
+-6. Save durable multi-step synthesized plans under `/home/konstantin/docs/plans/` with machine-readable status.
+-7. Verify after saving: file exists, `Current status: ...` is present, code fences are balanced, no secret-like values are present, and `knowledge --json plans audit` can detect the plan.
+-
+-## Useful commands
+-
+-```bash
+-cd /home/konstantin/.hermes/hermes-agent
+-git branch --show-current
+-git rev-parse --short=12 HEAD
+-git status --short --branch --untracked-files=all
+-python3 skills/software-development/skill-audit-and-improvement/scripts/audit_skill.py --repo /home/konstantin/.hermes/hermes-agent --skill skill-audit-and-improvement --json
+-python3 skills/software-development/skill-audit-and-improvement/scripts/audit_skill.py --repo /home/konstantin/.hermes/hermes-agent --changed --json
+-```
+-
+-For plan governance validation, direct subprocess parsing of `knowledge --json plans audit` can be more reliable than wrapper output if the wrapper renders control characters into an invalid JSON string:
+-
+-```python
+-import json, subprocess
+-p = subprocess.run(['knowledge', '--json', 'plans', 'audit'], capture_output=True, text=True, timeout=120)
+-data = json.loads(p.stdout)
+-```
+-
+-## Master-plan shape that worked
+-
+-- Goal: what maturity means in operational terms.
+-- Context: live branch/HEAD/status, current tool flags, missing capabilities, related plans.
+-- Architecture decision: e.g. `schema → audit_skill.py → baseline/no-regression compare → CI required check → branch protection → blocker-only review`.
+-- Non-goals: especially no mutation, no secrets, no generated artifacts, and no premature SARIF/CLI/per-skill JSON.
+-- Phases:
+-  1. stabilize dirty/generated state;
+-  2. add tests and negative fixtures;
+-  3. define stable JSON contract;
+-  4. harden resolver and exit codes;
+-  5. implement deterministic rule engine;
+-  6. improve `--changed` as the practical gate mode;
+-  7. add baseline/no-regression;
+-  8. enforce with CI;
+-  9. protect with CODEOWNERS/branch protection;
+-  10. update the skill as procedural source of truth;
+-  11. defer SARIF/CLI/policy-as-code until the core contract is stable.
+-- Profit section under each phase.
+-- Verification and Definition of Done.
+-- Risks/pitfalls.
+-- `## Status` with `Current status: planned|in_progress|blocked`.
+-
+-## Pitfalls captured
+-
+-- Do not collapse multiple existing plans silently; name the companion plans and say whether they remain active.
+-- Do not claim plan state from memory; verify live repo and plan inventory first.
+-- Do not omit the benefit rationale when the user asks for decomposition/synthesis; phases without profit are harder to prioritize.
+-- Do not archive/supersede companion plans unless explicitly asked.
+-- Do not use raw `grep`-style secret scans that may print secret values into the transcript.

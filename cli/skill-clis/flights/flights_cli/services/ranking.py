@@ -5,9 +5,18 @@ from typing import Any
 
 from ..config import RISK_PROFILES
 from ..domain.carriers import itinerary_carriers, segment_carriers
-from ..domain.normalize import clamp_score, currency_value, is_reject_score, normalize_carrier_codes, normalize_profile, risk_grade
+from ..domain.normalize import (
+    clamp_score,
+    currency_value,
+    is_reject_score,
+    normalize_carrier_codes,
+    normalize_profile,
+    price_value,
+    risk_grade,
+)
 from ..services.validation import rank_key, validate_itinerary
 from ..errors import CliError
+from .stop_policy import apply_stop_policy_frontier, stop_policy_from_args, stop_policy_summary
 
 def extract_candidate_list(data: Any) -> list[dict[str, Any]]:
     if isinstance(data, list):
@@ -146,7 +155,10 @@ def rank_candidate_list(candidates: list[dict[str, Any]], args: argparse.Namespa
     policy = carrier_policy_from_args(args)
     ranked: list[dict[str, Any]] = []
     filtered: list[dict[str, Any]] = []
+    stop_policy = stop_policy_from_args(args)
     include_filtered = max(0, int(getattr(args, "include_filtered", 20)))
+    stop_policy_diagnostics_requested = bool(getattr(args, "include_stop_policy_diagnostics", False))
+    validated_items: list[dict[str, Any]] = []
     for index, candidate in enumerate(candidates):
         candidate_args = argparse.Namespace(
             ticketing=str(candidate.get("ticketing") or args.ticketing),
@@ -155,8 +167,29 @@ def rank_candidate_list(candidates: list[dict[str, Any]], args: argparse.Namespa
             profile=profile,
         )
         validation = validate_itinerary(candidate, candidate_args)
-        carrier_filter = carrier_filter_result(validation["segments"], policy)
         candidate_id = candidate.get("id") or candidate.get("name") or f"candidate-{index + 1}"
+        validated_items.append(
+            {
+                "id": candidate_id,
+                "ok": validation["ok"],
+                "price": price_value(candidate),
+                "journeys": validation.get("journeys"),
+                "validation": validation,
+                "validation_summary": validation["summary"],
+                "connections": validation["connections"],
+                "segments": validation["segments"],
+                "source_candidate": candidate,
+                "index": index,
+            }
+        )
+
+    validated_items, stop_diagnostics = apply_stop_policy_frontier(validated_items, stop_policy)
+    for item in validated_items:
+        validation = item["validation"]
+        segments = validation["segments"]
+        raw_candidate = item.get("source_candidate")
+        carrier_filter = carrier_filter_result(segments, policy)
+        candidate_id = item["id"]
         if not carrier_filter["ok"]:
             if len(filtered) < include_filtered:
                 filtered.append(
@@ -170,13 +203,13 @@ def rank_candidate_list(candidates: list[dict[str, Any]], args: argparse.Namespa
                     }
                 )
             continue
-        risk = apply_carrier_preferences(validation["risk"], validation["segments"], policy)
+        risk = apply_carrier_preferences(validation["risk"], segments, policy)
         ranked.append(
             {
                 "id": candidate_id,
                 "ok": validation["ok"],
-                "price": risk["price"],
-                "currency": currency_value(candidate),
+                "price": item["price"],
+                "currency": currency_value(raw_candidate),
                 "elapsed_min": risk["elapsed_min"],
                 "carriers": carrier_filter["carriers"],
                 "journeys": validation.get("journeys"),
@@ -197,10 +230,16 @@ def rank_candidate_list(candidates: list[dict[str, Any]], args: argparse.Namespa
     for position, item in enumerate(ranked, 1):
         item["rank"] = position
 
+    stop_policy_summary_payload = stop_policy_summary(stop_policy, stop_diagnostics if stop_policy_diagnostics_requested else None)
+    if not stop_policy_diagnostics_requested:
+        stop_diagnostics["garbage_options_hidden_from_answer"] = bool(not stop_policy.suppress_three_plus)
+
     return {
         "profile": profile,
         "profile_description": RISK_PROFILES[profile]["description"],
         "rank_order": RISK_PROFILES[profile]["rank_order"],
+        "stop_policy": stop_policy_summary_payload,
+        "stop_policy_diagnostics": stop_diagnostics,
         "count": len(ranked),
         "carrier_policy": {
             **carrier_policy_output(policy),

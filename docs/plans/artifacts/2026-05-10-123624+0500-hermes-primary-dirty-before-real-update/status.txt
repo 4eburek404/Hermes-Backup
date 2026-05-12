@@ -1,0 +1,21 @@
+repo=/home/konstantin/.hermes/hermes-agent
+timestamp=2026-05-10T12:36:24+05:00
+branch=main
+head=01c21ebfc762c6e1271100f0b642a69c30d428b6
+## main...origin/main [ahead 1]
+ M skills/autonomous-ai-agents/hermes-agent/references/fork-release-sync-conflicts.md
+ M skills/devops/systemd-web-service-deployment/SKILL.md
+ D skills/devops/systemd-web-service-deployment/references/server-monitor-auth-funnel-2026-04-30.md
+ D skills/devops/systemd-web-service-deployment/references/server-monitor-holographic-metrics-2026-04-30.md
+ M skills/note-taking/knowledge-architecture/SKILL.md
+ D skills/note-taking/knowledge-architecture/references/deepseek-native-distillation-benchmark-2026-05-07.md
+ M skills/note-taking/knowledge-architecture/references/distillation.md
+ D skills/note-taking/knowledge-architecture/references/memory-hygiene-audit-2026-05-07.md
+ D skills/note-taking/knowledge-architecture/references/verification-claims-2026-05-07.md
+ M skills/software-development/skill-audit-and-improvement/SKILL.md
+ M skills/software-development/skill-audit-and-improvement/references/audit-protocol-contract.md
+ D skills/software-development/skill-audit-and-improvement/references/case-study-2026-05-07-systemd-skill-improvement.md
+ D skills/software-development/skill-audit-and-improvement/references/dirty-worktree-plan-provenance-2026-05-08.md
+ D skills/software-development/skill-audit-and-improvement/references/local-audit-gate-hardening-2026-05-08.md
+ D skills/software-development/skill-audit-and-improvement/references/master-plan-synthesis-2026-05-08.md
+?? skills/devops/systemd-web-service-deployment/references/server-monitor-deployment-case-study.md

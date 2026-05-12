@@ -1,0 +1,1525 @@
+{
+  "created_at_utc": "2026-05-09T19:03:06.115790+00:00",
+  "purpose": "diagnose SVX-FRA 2026-08-17 / 2026-08-19 search timing and algorithm inconsistencies",
+  "commands": [
+    {
+      "name": "live_assemble_business_debug_nocache",
+      "start_utc": "2026-05-09T19:03:06.115803+00:00",
+      "elapsed_seconds": 15.729,
+      "returncode": 0,
+      "stdout_path": "/home/konstantin/docs/plans/flight-search-metrics/svx-fra-2026-08-17_2026-08-19/live_assemble_business_debug_nocache.stdout.json",
+      "stderr_path": "/home/konstantin/docs/plans/flight-search-metrics/svx-fra-2026-08-17_2026-08-19/live_assemble_business_debug_nocache.stderr.txt",
+      "stdout_bytes": 2143136,
+      "stderr_bytes": 0,
+      "argv": [
+        "python3",
+        "-m",
+        "flights_cli",
+        "--json",
+        "route",
+        "live-assemble",
+        "SVX",
+        "FRA",
+        "--depart-date",
+        "2026-08-17",
+        "--return-date",
+        "2026-08-19",
+        "--profile",
+        "business",
+        "--agent-report",
+        "--include-stop-policy-diagnostics",
+        "--include-segment-results",
+        "200",
+        "--include-ranked-candidates",
+        "10",
+        "--aggregate-control-limit",
+        "10",
+        "--no-live-cache"
+      ],
+      "json_ok": true,
+      "data_keys": [
+        "agent_report",
+        "assembly",
+        "candidates",
+        "carrier_policy",
+        "catalog_auto_refresh",
+        "count",
+        "frontier_candidates",
+        "live_search",
+        "profile",
+        "profile_description",
+        "rank_order",
+        "ranked",
+        "ranked_candidates",
+        "ranked_total_count",
+        "recommendations",
+        "rejected_pairs",
+        "segment_results",
+        "stop_policy",
+        "stop_policy_diagnostics"
+      ],
+      "live_extract": {
+        "agent_answer_lines": [
+          "Best CLI-ranked option: 85 022 RUB risk=excellent/0 elapsed=43h50.",
+          "Do not treat cached or segment-search absence as proof that a through fare, direct flight, or protected ticket does not exist.",
+          "Priority control: provider_aggregate_candidate rank=None 35 516 RUB elapsed=9h40.",
+          "Moscow gateway control: rank=1 85 022 RUB elapsed=43h50; compare against direct/best, do not hide solely because another option ranks higher.",
+          "Provider aggregate candidate: ticketing_protection=unknown; verify single-PNR/protection, baggage, fare rules, and final fare on the booking screen.",
+          "Coverage diagnostics: mode=targeted; searched=2, skipped=9, failed=0, not_executed=8; negative evidence is bounded live controls only.",
+          "Coverage is incomplete: planned controls without terminal live evidence are not_executed, not no-flight evidence.",
+          "Segments: SU6208 SVX 05:10->SVO 05:45 | SU2136 SVO 08:45->IST 14:15 | TK1587 IST 07:55->FRA 10:05 | TK1588 FRA 11:30->IST 15:40 | U6774 IST 19:45->SVX 02:25",
+          "Connection trade-off: long wait 17h40 at IST; overnight wait 17h40 at IST; visible trade-off, not automatic demotion.",
+          "Cheapest acceptable: rank=724 80 939 RUB risk=excellent/0 elapsed=96h10; show as trade-off, not hidden by compact output.",
+          "Fastest acceptable: rank=1033 93 292 RUB risk=excellent/3 elapsed=42h30; show as trade-off, not hidden by compact output.",
+          "Aggregate control found: 35 516 RUB SVX->FRA 3F478 + A3899 + A3830."
+        ],
+        "recommended_options_count": 5,
+        "priority_options_count": 6,
+        "provider_failures": [],
+        "source_boundaries": [
+          "Segment assembly prices direct one-way legs and does not construct GDS, airline through-fares, or guaranteed single-PNR fares.",
+          "Kupibilet aggregate controls can reveal provider-assembled route offers, but ticket protection, baggage, fare rules, and final price still require booking-screen verification.",
+          "Travelpayouts/Aviasales cached absence is not negative evidence.",
+          "Provider failures such as unavailable FLI MCP are source availability failures, not route absence evidence."
+        ],
+        "hub_viability": [
+          {
+            "hub": "IST",
+            "missing_legs": [],
+            "total_offer_count": 686,
+            "viable": true
+          },
+          {
+            "hub": "DXB",
+            "missing_legs": [
+              "origin_to_hub",
+              "hub_to_destination",
+              "destination_to_hub",
+              "hub_to_origin"
+            ],
+            "total_offer_count": 0,
+            "viable": false
+          }
+        ],
+        "coverage_diagnostics": {
+          "completeness": {
+            "all_planned_controls_have_terminal_state": true,
+            "planned_count": 10,
+            "terminal_count": 10
+          },
+          "coverage_mode": "targeted",
+          "coverage_warnings": [
+            "segment_absence_is_not_route_absence",
+            "provider_empty_is_not_carrier_absence",
+            "cache_absence_is_not_negative_evidence"
+          ],
+          "deduped_controls": [],
+          "failed_controls": [],
+          "limits": {
+            "cache_phase": "out_of_scope",
+            "coverage_control_limit": 12,
+            "live_fanout": "bounded_by_max_segment_searches",
+            "max_segment_searches": 300,
+            "requested_controls": []
+          },
+          "negative_evidence_type": "bounded_live_controls_only",
+          "not_executed_controls": [
+            {
+              "date": "2026-08-17",
+              "destination": "FRA",
+              "direction": "outbound",
+              "execution_state": "not_executed",
+              "negative_evidence": "provider_empty_only_not_route_absence",
+              "origin": "SVX",
+              "probe_id": "probe-001",
+              "reason": "not_reached_by_current_live_execution",
+              "status": "not_executed",
+              "type": "exact_airport_direct"
+            },
+            {
+              "date": "2026-08-19",
+              "destination": "SVX",
+              "direction": "return",
+              "execution_state": "not_executed",
+              "negative_evidence": "provider_empty_only_not_route_absence",
+              "origin": "FRA",
+              "probe_id": "probe-002",
+              "reason": "not_reached_by_current_live_execution",
+              "status": "not_executed",
+              "type": "exact_airport_direct"
+            },
+            {
+              "carrier": "U6",
+              "date": "2026-08-17",
+              "destination": "FRA",
+              "direction": "outbound",
+              "execution_state": "not_executed",
+              "negative_evidence": "carrier_probe_empty_only_not_carrier_absence",
+              "origin": "SVX",
+              "probe_id": "probe-004",
+              "reason": "not_reached_by_current_live_execution",
+              "status": "not_executed",
+              "type": "carrier_aggregate"
+            },
+            {
+              "carrier": "SU",
+              "date": "2026-08-17",
+              "destination": "FRA",
+              "direction": "outbound",
+              "execution_state": "not_executed",
+              "negative_evidence": "carrier_probe_empty_only_not_carrier_absence",
+              "origin": "SVX",
+              "probe_id": "probe-005",
+              "reason": "not_reached_by_current_live_execution",
+              "status": "not_executed",
+              "type": "carrier_aggregate"
+            },
+            {
+              "carrier": "TK",
+              "date": "2026-08-17",
+              "destination": "FRA",
+              "direction": "outbound",
+              "execution_state": "not_executed",
+              "negative_evidence": "carrier_probe_empty_only_not_carrier_absence",
+              "origin": "SVX",
+              "probe_id": "probe-006",
+              "reason": "not_reached_by_current_live_execution",
+              "status": "not_executed",
+              "type": "carrier_aggregate"
+            },
+            {
+              "carrier": "U6",
+              "date": "2026-08-19",
+              "destination": "SVX",
+              "direction": "return",
+              "execution_state": "not_executed",
+              "negative_evidence": "carrier_probe_empty_only_not_carrier_absence",
+              "origin": "FRA",
+              "probe_id": "probe-008",
+              "reason": "not_reached_by_current_live_execution",
+              "status": "not_executed",
+              "type": "carrier_aggregate"
+            },
+            {
+              "carrier": "SU",
+              "date": "2026-08-19",
+              "destination": "SVX",
+              "direction": "return",
+              "execution_state": "not_executed",
+              "negative_evidence": "carrier_probe_empty_only_not_carrier_absence",
+              "origin": "FRA",
+              "probe_id": "probe-009",
+              "reason": "not_reached_by_current_live_execution",
+              "status": "not_executed",
+              "type": "carrier_aggregate"
+            },
+            {
+              "carrier": "TK",
+              "date": "2026-08-19",
+              "destination": "SVX",
+              "direction": "return",
+              "execution_state": "not_executed",
+              "negative_evidence": "carrier_probe_empty_only_not_carrier_absence",
+              "origin": "FRA",
+              "probe_id": "probe-010",
+              "reason": "not_reached_by_current_live_execution",
+              "status": "not_executed",
+              "type": "carrier_aggregate"
+            }
+          ],
+          "planned_controls": [
+            {
+              "date": "2026-08-17",
+              "destination": "FRA",
+              "direction": "outbound",
+              "execution_state": "planned",
+              "negative_evidence": "provider_empty_only_not_route_absence",
+              "origin": "SVX",
+              "probe_id": "probe-001",
+              "type": "exact_airport_direct"
+            }
+          ],
+          "searched_controls": [
+            {
+              "cache_status": "disabled",
+              "date": "2026-08-17",
+              "destination": "FRA",
+              "direction": "outbound",
+              "execution_state": "searched",
+              "negative_evidence": "aggregate_empty_only_not_route_absence",
+              "offer_count": 10,
+              "origin": "SVX",
+              "probe_id": "probe-003",
+              "provider": "kupibilet",
+              "status": "ok",
+              "type": "full_route_aggregate"
+            },
+            {
+              "cache_status": "disabled",
+              "date": "2026-08-19",
+              "destination": "SVX",
+              "direction": "return",
+              "execution_state": "searched",
+              "negative_evidence": "aggregate_empty_only_not_route_absence",
+              "offer_count": 10,
+              "origin": "FRA",
+              "probe_id": "probe-007",
+              "provider": "kupibilet",
+              "status": "ok",
+              "type": "full_route_aggregate"
+            }
+          ],
+          "skipped_controls": [
+            {
+              "date": "2026-08-17",
+              "destination": "FRA",
+              "direction": "outbound",
+              "execution_state": "skipped",
+              "leg": "direct_outbound",
+              "origin": "SVX",
+              "reason": "direct_route_schedule_negative",
+              "status": "skipped",
+              "type": "route_segment"
+            },
+            {
+              "date": "2026-08-17",
+              "destination": "DXB",
+              "direction": "outbound",
+              "execution_state": "skipped",
+              "leg": "origin_to_hub",
+              "origin": "SVX",
+              "reason": "priority_route_viable",
+              "status": "skipped",
+              "type": "route_segment"
+            },
+            {
+              "date": "2026-08-17",
+              "destination": "FRA",
+              "direction": "outbound",
+              "execution_state": "skipped",
+              "leg": "hub_to_destination",
+              "origin": "DXB",
+              "reason": "priority_route_viable",
+              "status": "skipped",
+              "type": "route_segment"
+            },
+            {
+              "date": "2026-08-18",
+              "destination": "FRA",
+              "direction": "outbound",
+              "execution_state": "skipped",
+              "leg": "hub_to_destination",
+              "origin": "DXB",
+              "reason": "priority_route_viable",
+              "status": "skipped",
+              "type": "route_segment"
+            },
+            {
+              "date": "2026-08-19",
+              "destination": "SVX",
+              "direction": "return",
+              "execution_state": "skipped",
+              "leg": "direct_return",
+              "origin": "FRA",
+              "reason": "direct_route_schedule_negative",
+              "status": "skipped",
+              "type": "route_segment"
+            },
+            {
+              "date": "2026-08-19",
+              "destination": "DXB",
+              "direction": "return",
+              "execution_state": "skipped",
+              "leg": "destination_to_hub",
+              "origin": "FRA",
+              "reason": "priority_route_viable",
+              "status": "skipped",
+              "type": "route_segment"
+            },
+            {
+              "date": "2026-08-19",
+              "destination": "SVX",
+              "direction": "return",
+              "execution_state": "skipped",
+              "leg": "hub_to_origin",
+              "origin": "DXB",
+              "reason": "priority_route_viable",
+              "status": "skipped",
+              "type": "route_segment"
+            },
+            {
+              "date": "2026-08-20",
+              "destination": "SVX",
+              "direction": "return",
+              "execution_state": "skipped",
+              "leg": "hub_to_origin",
+              "origin": "DXB",
+              "reason": "priority_route_viable",
+              "status": "skipped",
+              "type": "route_segment"
+            },
+            {
+              "date": "2026-08-21",
+              "destination": "SVX",
+              "direction": "return",
+              "execution_state": "skipped",
+              "leg": "hub_to_origin",
+              "origin": "DXB",
+              "reason": "priority_route_viable",
+              "status": "skipped",
+              "type": "route_segment"
+            }
+          ]
+        },
+        "stop_policy_diagnostics": {
+          "allowed_max_connections": 2,
+          "eligible_fallback_count": 5000,
+          "eligible_preferred_count": 0,
+          "fallback_max_connections": 2,
+          "garbage_options_hidden_from_answer": false,
+          "hard_max_connections": 2,
+          "policy": "business_default",
+          "preferred_candidate_count": 0,
+          "preferred_max_connections": 1,
+          "stop_policy_filtered_count": 0,
+          "suppressed_three_plus_count": 0,
+          "suppressed_two_stop_because_preferred_exists": 0,
+          "three_plus_suppressed_count": 0,
+          "two_stop_candidate_count": 5000,
+          "two_stop_suppressed_because_preferred_exists": 0,
+          "used_fallback_two_stop": true,
+          "used_two_stop_fallback": true
+        },
+        "segment_results_count": 17,
+        "ranked_candidates_count_in_output": 12,
+        "top_ranked_candidates": [
+          {
+            "_truncated_json": "{\"candidate\": {\"currency\": \"RUB\", \"id\": \"assembled-2421:SVX-SVX\", \"journeys\": [{\"direction\": \"outbound\", \"segments\": [{\"aircraft_code\": \"SU9\", \"arrival_at\": \"2026-08-17T05:45:00+03:00\", \"carrier\": \"FV\", \"departure_at\": \"2026-08-17T05:10:00+05:00\", \"destination\": \"SVO\", \"flight_number\": \"SU6208\", \"marketing_carrier\": \"SU\", \"operating_carrier\": \"FV\", \"origin\": \"SVX\"}, {\"aircraft_code\": \"321\", \"arrival_at\": \"2026-08-17T14:15:00+03:00\", \"carrier\": \"SU\", \"departure_at\": \"2026-08-17T08:45:00+03:00\", \"destination\": \"IST\", \"flight_number\": \"SU2136\", \"marketing_carrier\": \"SU\", \"operating_carrier\": \"SU\", \"origin\": \"SVO\"}, {\"aircraft_code\": null, \"arrival_at\": \"2026-08-18T10:05:00\", \"carrier\": \"TK\", \"departure_at\": \"2026-08-18T07:55:00\", \"destination\": \"FRA\", \"flight_number\": \"TK1587\", \"marketing_carrier\": \"TK\", \"operating_carrier\": \"TK\", \"origin\": \"IST\"}]}, {\"direction\": \"return\", \"segments\": [{\"aircraft_code\": null, \"arrival_at\": \"2026-08-19T15:40:00\", \"carrier\": \"TK\", \"departure_at\": \"2026-08-19T11:30:00\", \"destination\": \"IST\", \"flight_number\": \"TK1588\", \"marketing_carrier\": \"TK\", \"operating_carrier\": \"TK\", \"origin\": \"FRA\"}, {\"aircraft_code\": \"320\", \"arrival_at\": \"2026-08-20T02:25:00+05:00\", \"carrier\": \"U6\", \"departure_at\": \"2026-08-19T19:45:00+03:00\", \"destination\": \"SVX\", \"flight_number\": \"U6774\", \"marketing_carrier\": \"U6\", \"operating_carrier\": \"U6\", \"origin\": \"IST\"}]}], \"price\": 850…",
+            "_original_json_chars": 5172
+          },
+          {
+            "_truncated_json": "{\"candidate\": {\"currency\": \"RUB\", \"id\": \"assembled-1:SVX-SVX\", \"journeys\": [{\"direction\": \"outbound\", \"segments\": [{\"aircraft_code\": \"32N\", \"arrival_at\": \"2026-08-17T01:10:00+03:00\", \"carrier\": \"SU\", \"departure_at\": \"2026-08-17T00:40:00+05:00\", \"destination\": \"SVO\", \"flight_number\": \"SU1419\", \"marketing_carrier\": \"SU\", \"operating_carrier\": \"SU\", \"origin\": \"SVX\"}, {\"aircraft_code\": \"321\", \"arrival_at\": \"2026-08-17T14:15:00+03:00\", \"carrier\": \"SU\", \"departure_at\": \"2026-08-17T08:45:00+03:00\", \"destination\": \"IST\", \"flight_number\": \"SU2136\", \"marketing_carrier\": \"SU\", \"operating_carrier\": \"SU\", \"origin\": \"SVO\"}, {\"aircraft_code\": null, \"arrival_at\": \"2026-08-18T20:00:00\", \"carrier\": \"LH\", \"departure_at\": \"2026-08-18T17:50:00\", \"destination\": \"FRA\", \"flight_number\": \"LH1301\", \"marketing_carrier\": \"LH\", \"operating_carrier\": \"LH\", \"origin\": \"IST\"}]}, {\"direction\": \"return\", \"segments\": [{\"aircraft_code\": null, \"arrival_at\": \"2026-08-19T19:10:00\", \"carrier\": \"TK\", \"departure_at\": \"2026-08-19T15:05:00\", \"destination\": \"IST\", \"flight_number\": \"TK1592\", \"marketing_carrier\": \"TK\", \"operating_carrier\": \"TK\", \"origin\": \"FRA\"}, {\"aircraft_code\": \"32A\", \"arrival_at\": \"2026-08-21T19:55:00+05:00\", \"carrier\": \"SU\", \"departure_at\": \"2026-08-21T12:50:00+03:00\", \"destination\": \"SVX\", \"flight_number\": \"SU631\", \"marketing_carrier\": \"SU\", \"operating_carrier\": \"SU\", \"origin\": \"IST\"}]}], \"price\": 80939,…",
+            "_original_json_chars": 5784
+          },
+          {
+            "_truncated_json": "{\"candidate\": {\"currency\": \"RUB\", \"id\": \"assembled-2440:SVX-SVX\", \"journeys\": [{\"direction\": \"outbound\", \"segments\": [{\"aircraft_code\": \"SU9\", \"arrival_at\": \"2026-08-17T05:45:00+03:00\", \"carrier\": \"FV\", \"departure_at\": \"2026-08-17T05:10:00+05:00\", \"destination\": \"SVO\", \"flight_number\": \"SU6208\", \"marketing_carrier\": \"SU\", \"operating_carrier\": \"FV\", \"origin\": \"SVX\"}, {\"aircraft_code\": \"321\", \"arrival_at\": \"2026-08-17T14:15:00+03:00\", \"carrier\": \"SU\", \"departure_at\": \"2026-08-17T08:45:00+03:00\", \"destination\": \"IST\", \"flight_number\": \"SU2136\", \"marketing_carrier\": \"SU\", \"operating_carrier\": \"SU\", \"origin\": \"SVO\"}, {\"aircraft_code\": null, \"arrival_at\": \"2026-08-18T10:05:00\", \"carrier\": \"TK\", \"departure_at\": \"2026-08-18T07:55:00\", \"destination\": \"FRA\", \"flight_number\": \"TK1587\", \"marketing_carrier\": \"TK\", \"operating_carrier\": \"TK\", \"origin\": \"IST\"}]}, {\"direction\": \"return\", \"segments\": [{\"aircraft_code\": null, \"arrival_at\": \"2026-08-19T16:55:00\", \"carrier\": \"LH\", \"departure_at\": \"2026-08-19T12:50:00\", \"destination\": \"IST\", \"flight_number\": \"LH1300\", \"marketing_carrier\": \"LH\", \"operating_carrier\": \"LH\", \"origin\": \"FRA\"}, {\"aircraft_code\": \"320\", \"arrival_at\": \"2026-08-20T02:25:00+05:00\", \"carrier\": \"U6\", \"departure_at\": \"2026-08-19T19:45:00+03:00\", \"destination\": \"SVX\", \"flight_number\": \"U6774\", \"marketing_carrier\": \"U6\", \"operating_carrier\": \"U6\", \"origin\": \"IST\"}]}], \"price\": 932…",
+            "_original_json_chars": 5440
+          },
+          {
+            "_truncated_json": "{\"candidate\": {\"currency\": \"RUB\", \"id\": \"assembled-2526:SVX-SVX\", \"journeys\": [{\"direction\": \"outbound\", \"segments\": [{\"aircraft_code\": \"SU9\", \"arrival_at\": \"2026-08-17T05:45:00+03:00\", \"carrier\": \"FV\", \"departure_at\": \"2026-08-17T05:10:00+05:00\", \"destination\": \"SVO\", \"flight_number\": \"SU6208\", \"marketing_carrier\": \"SU\", \"operating_carrier\": \"FV\", \"origin\": \"SVX\"}, {\"aircraft_code\": \"321\", \"arrival_at\": \"2026-08-17T22:10:00+03:00\", \"carrier\": \"SU\", \"departure_at\": \"2026-08-17T16:40:00+03:00\", \"destination\": \"IST\", \"flight_number\": \"SU2134\", \"marketing_carrier\": \"SU\", \"operating_carrier\": \"SU\", \"origin\": \"SVO\"}, {\"aircraft_code\": null, \"arrival_at\": \"2026-08-18T10:05:00\", \"carrier\": \"TK\", \"departure_at\": \"2026-08-18T07:55:00\", \"destination\": \"FRA\", \"flight_number\": \"TK1587\", \"marketing_carrier\": \"TK\", \"operating_carrier\": \"TK\", \"origin\": \"IST\"}]}, {\"direction\": \"return\", \"segments\": [{\"aircraft_code\": null, \"arrival_at\": \"2026-08-19T15:40:00\", \"carrier\": \"TK\", \"departure_at\": \"2026-08-19T11:30:00\", \"destination\": \"IST\", \"flight_number\": \"TK1588\", \"marketing_carrier\": \"TK\", \"operating_carrier\": \"TK\", \"origin\": \"FRA\"}, {\"aircraft_code\": \"320\", \"arrival_at\": \"2026-08-20T02:25:00+05:00\", \"carrier\": \"U6\", \"departure_at\": \"2026-08-19T19:45:00+03:00\", \"destination\": \"SVX\", \"flight_number\": \"U6774\", \"marketing_carrier\": \"U6\", \"operating_carrier\": \"U6\", \"origin\": \"IST\"}]}], \"price\": 850…",
+            "_original_json_chars": 5440
+          },
+          {
+            "_truncated_json": "{\"candidate\": {\"currency\": \"RUB\", \"id\": \"assembled-2631:SVX-SVX\", \"journeys\": [{\"direction\": \"outbound\", \"segments\": [{\"aircraft_code\": \"SU9\", \"arrival_at\": \"2026-08-17T05:45:00+03:00\", \"carrier\": \"FV\", \"departure_at\": \"2026-08-17T05:10:00+05:00\", \"destination\": \"SVO\", \"flight_number\": \"SU6208\", \"marketing_carrier\": \"SU\", \"operating_carrier\": \"FV\", \"origin\": \"SVX\"}, {\"aircraft_code\": \"73H\", \"arrival_at\": \"2026-08-18T02:30:00+03:00\", \"carrier\": \"SU\", \"departure_at\": \"2026-08-17T21:15:00+03:00\", \"destination\": \"IST\", \"flight_number\": \"SU2132\", \"marketing_carrier\": \"SU\", \"operating_carrier\": \"SU\", \"origin\": \"SVO\"}, {\"aircraft_code\": null, \"arrival_at\": \"2026-08-18T10:05:00\", \"carrier\": \"TK\", \"departure_at\": \"2026-08-18T07:55:00\", \"destination\": \"FRA\", \"flight_number\": \"TK1587\", \"marketing_carrier\": \"TK\", \"operating_carrier\": \"TK\", \"origin\": \"IST\"}]}, {\"direction\": \"return\", \"segments\": [{\"aircraft_code\": null, \"arrival_at\": \"2026-08-19T15:40:00\", \"carrier\": \"TK\", \"departure_at\": \"2026-08-19T11:30:00\", \"destination\": \"IST\", \"flight_number\": \"TK1588\", \"marketing_carrier\": \"TK\", \"operating_carrier\": \"TK\", \"origin\": \"FRA\"}, {\"aircraft_code\": \"320\", \"arrival_at\": \"2026-08-20T02:25:00+05:00\", \"carrier\": \"U6\", \"departure_at\": \"2026-08-19T19:45:00+03:00\", \"destination\": \"SVX\", \"flight_number\": \"U6774\", \"marketing_carrier\": \"U6\", \"operating_carrier\": \"U6\", \"origin\": \"IST\"}]}], \"price\": 850…",
+            "_original_json_chars": 5042
+          }
+        ],
+        "segment_results_summary": [
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {}
+        ]
+      }
+    },
+    {
+      "name": "kb_search_outbound_aggregate_nocache",
+      "start_utc": "2026-05-09T19:03:21.861044+00:00",
+      "elapsed_seconds": 1.293,
+      "returncode": 0,
+      "stdout_path": "/home/konstantin/docs/plans/flight-search-metrics/svx-fra-2026-08-17_2026-08-19/kb_search_outbound_aggregate_nocache.stdout.json",
+      "stderr_path": "/home/konstantin/docs/plans/flight-search-metrics/svx-fra-2026-08-17_2026-08-19/kb_search_outbound_aggregate_nocache.stderr.txt",
+      "stdout_bytes": 21681,
+      "stderr_bytes": 0,
+      "argv": [
+        "python3",
+        "-m",
+        "flights_cli",
+        "--json",
+        "kb-search",
+        "SVX",
+        "FRA",
+        "--depart-date",
+        "2026-08-17",
+        "--limit",
+        "10",
+        "--no-cache"
+      ],
+      "json_ok": true,
+      "data_keys": [
+        "cache",
+        "currency",
+        "depart_date",
+        "destination",
+        "filters",
+        "http_status",
+        "note",
+        "offer_count",
+        "offers",
+        "origin",
+        "raw_variant_count",
+        "request",
+        "skipped",
+        "source",
+        "source_url",
+        "unique_flight_count"
+      ],
+      "kb_extract": {
+        "offers_found_by_parser": 10,
+        "top_offers": [
+          {
+            "price": 35516,
+            "currency": "RUB",
+            "duration": 580,
+            "segments_count": 3,
+            "segments": [
+              {
+                "origin": "SVX",
+                "destination": "EVN",
+                "departure_at": "2026-08-17T23:20:00+05:00",
+                "arrival_at": "2026-08-18T02:00:00+04:00",
+                "flight_number": "3F478",
+                "marketing_carrier": "3F",
+                "operating_carrier": "3F",
+                "duration": 220
+              },
+              {
+                "origin": "EVN",
+                "destination": "ATH",
+                "departure_at": "2026-08-18T04:25:00+04:00",
+                "arrival_at": "2026-08-18T06:20:00+03:00",
+                "flight_number": "A3899",
+                "marketing_carrier": "A3",
+                "operating_carrier": "A3",
+                "duration": 175
+              },
+              {
+                "origin": "ATH",
+                "destination": "FRA",
+                "departure_at": "2026-08-18T08:10:00+03:00",
+                "arrival_at": "2026-08-18T10:15:00+02:00",
+                "flight_number": "A3830",
+                "marketing_carrier": "A3",
+                "operating_carrier": "A3",
+                "duration": 185
+              }
+            ]
+          },
+          {
+            "price": 35516,
+            "currency": "RUB",
+            "duration": 580,
+            "segments_count": 3,
+            "segments": [
+              {
+                "origin": "SVX",
+                "destination": "EVN",
+                "departure_at": "2026-08-17T23:20:00+05:00",
+                "arrival_at": "2026-08-18T02:00:00+04:00",
+                "flight_number": "3F478",
+                "marketing_carrier": "3F",
+                "operating_carrier": "3F",
+                "duration": 220
+              },
+              {
+                "origin": "EVN",
+                "destination": "ATH",
+                "departure_at": "2026-08-18T04:25:00+04:00",
+                "arrival_at": "2026-08-18T06:20:00+03:00",
+                "flight_number": "A3899",
+                "marketing_carrier": "A3",
+                "operating_carrier": "A3",
+                "duration": 175
+              },
+              {
+                "origin": "ATH",
+                "destination": "FRA",
+                "departure_at": "2026-08-18T15:55:00+03:00",
+                "arrival_at": "2026-08-18T18:00:00+02:00",
+                "flight_number": "A3832",
+                "marketing_carrier": "A3",
+                "operating_carrier": "A3",
+                "duration": 185
+              }
+            ]
+          },
+          {
+            "price": 35596,
+            "currency": "RUB",
+            "duration": 580,
+            "segments_count": 3,
+            "segments": [
+              {
+                "origin": "SVX",
+                "destination": "EVN",
+                "departure_at": "2026-08-17T23:20:00+05:00",
+                "arrival_at": "2026-08-18T02:00:00+04:00",
+                "flight_number": "3F478",
+                "marketing_carrier": "3F",
+                "operating_carrier": "3F",
+                "duration": 220
+              },
+              {
+                "origin": "EVN",
+                "destination": "ATH",
+                "departure_at": "2026-08-19T04:25:00+04:00",
+                "arrival_at": "2026-08-19T06:20:00+03:00",
+                "flight_number": "A3899",
+                "marketing_carrier": "A3",
+                "operating_carrier": "A3",
+                "duration": 175
+              },
+              {
+                "origin": "ATH",
+                "destination": "FRA",
+                "departure_at": "2026-08-19T08:10:00+03:00",
+                "arrival_at": "2026-08-19T10:15:00+02:00",
+                "flight_number": "A3830",
+                "marketing_carrier": "A3",
+                "operating_carrier": "A3",
+                "duration": 185
+              }
+            ]
+          },
+          {
+            "price": 39528,
+            "currency": "RUB",
+            "duration": 565,
+            "segments_count": 3,
+            "segments": [
+              {
+                "origin": "SVX",
+                "destination": "EVN",
+                "departure_at": "2026-08-17T23:20:00+05:00",
+                "arrival_at": "2026-08-18T02:00:00+04:00",
+                "flight_number": "3F478",
+                "marketing_carrier": "3F",
+                "operating_carrier": "3F",
+                "duration": 220
+              },
+              {
+                "origin": "EVN",
+                "destination": "SAW",
+                "departure_at": "2026-08-18T06:00:00+04:00",
+                "arrival_at": "2026-08-18T07:30:00+03:00",
+                "flight_number": "PC551",
+                "marketing_carrier": "PC",
+                "operating_carrier": "PC",
+                "duration": 150
+              },
+              {
+                "origin": "SAW",
+                "destination": "FRA",
+                "departure_at": "2026-08-18T14:15:00+03:00",
+                "arrival_at": "2026-08-18T16:30:00+02:00",
+                "flight_number": "PC995",
+                "marketing_carrier": "PC",
+                "operating_carrier": "PC",
+                "duration": 195
+              }
+            ]
+          },
+          {
+            "price": 39671,
+            "currency": "RUB",
+            "duration": 575,
+            "segments_count": 3,
+            "segments": [
+              {
+                "origin": "SVX",
+                "destination": "EVN",
+                "departure_at": "2026-08-17T16:00:00+05:00",
+                "arrival_at": "2026-08-17T18:35:00+04:00",
+                "flight_number": "U62949",
+                "marketing_carrier": "U6",
+                "operating_carrier": "U6",
+                "duration": 215
+              },
+              {
+                "origin": "EVN",
+                "destination": "ATH",
+                "departure_at": "2026-08-18T04:25:00+04:00",
+                "arrival_at": "2026-08-18T06:20:00+03:00",
+                "flight_number": "A3899",
+                "marketing_carrier": "A3",
+                "operating_carrier": "A3",
+                "duration": 175
+              },
+              {
+                "origin": "ATH",
+                "destination": "FRA",
+                "departure_at": "2026-08-18T08:10:00+03:00",
+                "arrival_at": "2026-08-18T10:15:00+02:00",
+                "flight_number": "A3830",
+                "marketing_carrier": "A3",
+                "operating_carrier": "A3",
+                "duration": 185
+              }
+            ]
+          },
+          {
+            "price": 39671,
+            "currency": "RUB",
+            "duration": 575,
+            "segments_count": 3,
+            "segments": [
+              {
+                "origin": "SVX",
+                "destination": "EVN",
+                "departure_at": "2026-08-17T16:00:00+05:00",
+                "arrival_at": "2026-08-17T18:35:00+04:00",
+                "flight_number": "U62949",
+                "marketing_carrier": "U6",
+                "operating_carrier": "U6",
+                "duration": 215
+              },
+              {
+                "origin": "EVN",
+                "destination": "ATH",
+                "departure_at": "2026-08-18T04:25:00+04:00",
+                "arrival_at": "2026-08-18T06:20:00+03:00",
+                "flight_number": "A3899",
+                "marketing_carrier": "A3",
+                "operating_carrier": "A3",
+                "duration": 175
+              },
+              {
+                "origin": "ATH",
+                "destination": "FRA",
+                "departure_at": "2026-08-18T15:55:00+03:00",
+                "arrival_at": "2026-08-18T18:00:00+02:00",
+                "flight_number": "A3832",
+                "marketing_carrier": "A3",
+                "operating_carrier": "A3",
+                "duration": 185
+              }
+            ]
+          },
+          {
+            "price": 40987,
+            "currency": "RUB",
+            "duration": 565,
+            "segments_count": 3,
+            "segments": [
+              {
+                "origin": "SVX",
+                "destination": "EVN",
+                "departure_at": "2026-08-17T23:20:00+05:00",
+                "arrival_at": "2026-08-18T02:00:00+04:00",
+                "flight_number": "3F478",
+                "marketing_carrier": "3F",
+                "operating_carrier": "3F",
+                "duration": 220
+              },
+              {
+                "origin": "EVN",
+                "destination": "SAW",
+                "departure_at": "2026-08-18T06:00:00+04:00",
+                "arrival_at": "2026-08-18T07:30:00+03:00",
+                "flight_number": "PC551",
+                "marketing_carrier": "PC",
+                "operating_carrier": "PC",
+                "duration": 150
+              },
+              {
+                "origin": "SAW",
+                "destination": "FRA",
+                "departure_at": "2026-08-18T11:25:00+03:00",
+                "arrival_at": "2026-08-18T13:40:00+02:00",
+                "flight_number": "PC993",
+                "marketing_carrier": "PC",
+                "operating_carrier": "PC",
+                "duration": 195
+              }
+            ]
+          },
+          {
+            "price": 41018,
+            "currency": "RUB",
+            "duration": 610,
+            "segments_count": 4,
+            "segments": [
+              {
+                "origin": "SVX",
+                "destination": "EVN",
+                "departure_at": "2026-08-17T23:20:00+05:00",
+                "arrival_at": "2026-08-18T02:00:00+04:00",
+                "flight_number": "3F478",
+                "marketing_carrier": "3F",
+                "operating_carrier": "3F",
+                "duration": 220
+              },
+              {
+                "origin": "EVN",
+                "destination": "RMO",
+                "departure_at": "2026-08-18T06:10:00+04:00",
+                "arrival_at": "2026-08-18T07:50:00+03:00",
+                "flight_number": "3F533",
+                "marketing_carrier": "3F",
+                "operating_carrier": "3F",
+                "duration": 160
+              },
+              {
+                "origin": "RMO",
+                "destination": "WAW",
+                "departure_at": "2026-08-18T14:35:00+03:00",
+                "arrival_at": "2026-08-18T15:25:00+02:00",
+                "flight_number": "LO514",
+                "marketing_carrier": "LO",
+                "operating_carrier": "LO",
+                "duration": 110
+              },
+              {
+                "origin": "WAW",
+                "destination": "FRA",
+                "departure_at": "2026-08-18T17:00:00+02:00",
+                "arrival_at": "2026-08-18T19:00:00+02:00",
+                "flight_number": "LO379",
+                "marketing_carrier": "LO",
+                "operating_carrier": "LO",
+                "duration": 120
+              }
+            ]
+          },
+          {
+            "price": 41460,
+            "currency": "RUB",
+            "duration": 545,
+            "segments_count": 3,
+            "segments": [
+              {
+                "origin": "SVX",
+                "destination": "EVN",
+                "departure_at": "2026-08-17T23:20:00+05:00",
+                "arrival_at": "2026-08-18T02:00:00+04:00",
+                "flight_number": "3F478",
+                "marketing_carrier": "3F",
+                "operating_carrier": "3F",
+                "duration": 220
+              },
+              {
+                "origin": "EVN",
+                "destination": "RMO",
+                "departure_at": "2026-08-18T06:10:00+04:00",
+                "arrival_at": "2026-08-18T07:50:00+03:00",
+                "flight_number": "3F533",
+                "marketing_carrier": "3F",
+                "operating_carrier": "3F",
+                "duration": 160
+              },
+              {
+                "origin": "RMO",
+                "destination": "HHN",
+                "departure_at": "2026-08-19T05:45:00+03:00",
+                "arrival_at": "2026-08-19T07:30:00+02:00",
+                "flight_number": "5F5637",
+                "marketing_carrier": "5F",
+                "operating_carrier": "5F",
+                "duration": 165
+              }
+            ]
+          },
+          {
+            "price": 42002,
+            "currency": "RUB",
+            "duration": 535,
+            "segments_count": 3,
+            "segments": [
+              {
+                "origin": "SVX",
+                "destination": "TBS",
+                "departure_at": "2026-08-17T14:35:00+05:00",
+                "arrival_at": "2026-08-17T17:05:00+04:00",
+                "flight_number": "WZ1403",
+                "marketing_carrier": "WZ",
+                "operating_carrier": "WZ",
+                "duration": 210
+              },
+              {
+                "origin": "TBS",
+                "destination": "BEG",
+                "departure_at": "2026-08-18T03:35:00+04:00",
+                "arrival_at": "2026-08-18T04:55:00+02:00",
+                "flight_number": "JU891",
+                "marketing_carrier": "JU",
+                "operating_carrier": "JU",
+                "duration": 200
+              },
+              {
+                "origin": "BEG",
+                "destination": "FRA",
+                "departure_at": "2026-08-18T06:55:00+02:00",
+                "arrival_at": "2026-08-18T09:00:00+02:00",
+                "flight_number": "JU350",
+                "marketing_carrier": "JU",
+                "operating_carrier": "JU",
+                "duration": 125
+              }
+            ]
+          }
+        ],
+        "raw_data_compact": {
+          "_truncated_json": "{\"cache\": {\"disabled\": true, \"hit\": false, \"key\": \"d3559adab5ce9867c8a21a032b70ab058403152c4688908096204df6227277c6\"}, \"currency\": \"RUB\", \"depart_date\": \"2026-08-17\", \"destination\": \"FRA\", \"filters\": {\"dedupe\": \"flight_numbers+times\", \"direct_only\": false, \"only_carriers\": []}, \"http_status\": 200, \"note\": \"Live aggregate source, not official aeroflot.ru; recheck final fare and seat availability before ticketing.\", \"offer_count\": 10, \"offers\": [{\"arrival_at\": \"2026-08-18T10:15:00+02:00\", \"currency\": \"RUB\", \"departure_at\": \"2026-08-17T23:20:00+05:00\", \"destination\": \"FRA\", \"duration\": 580, \"flight_numbers\": [\"3F478\", \"A3899\", \"A3830\"], \"flights\": [{\"aircraft\": \"320\", \"arrival_at\": \"2026-08-18T02:00:00+04:00\", \"departure_at\": \"2026-08-17T23:20:00+05:00\", \"destination\": \"EVN\", \"duration\": 220, \"flight_number\": \"3F478\", \"is_charter\": false, \"marketing_carrier\": \"3F\", \"operating_carrier\": \"3F\", \"origin\": \"SVX\", \"transport_kind\": \"airplane\"}, {\"aircraft\": \"32Q\", \"arrival_at\": \"2026-08-18T06:20:00+03:00\", \"departure_at\": \"2026-08-18T04:25:00+04:00\", \"destination\": \"ATH\", \"duration\": 175, \"flight_number\": \"A3899\", \"is_charter\": false, \"marketing_carrier\": \"A3\", \"operating_carrier\": \"A3\", \"origin\": \"EVN\", \"transport_kind\": \"airplane\"}, {\"aircraft\": \"32Q\", \"arrival_at\": \"2026-08-18T10:15:00+02:00\", \"departure_at\": \"2026-08-18T08:10:00+03:00\", \"destination\": \"FRA\", \"duration\": 185, \"flight_number\": \"A3830\", \"is_charter\": false, \"marketing_carrier\": \"A3\", \"operating_carrier\": \"A3\", \"origin\": \"ATH\", \"transport_kind\": \"airplane\"}], \"id\": \"3a4e55210a684157bbb7956845675366358\", \"marketing_carriers\": [\"3F\", \"A3\"], \"number_of_changes\": 2, \"operating_carriers\": [\"3F\", \"A3\"], \"origin\": \"SVX\", \"price\": 35516}, {\"arrival_at\": \"2026-08-18T18:00:00+02:00\", \"currency\": \"RUB\", \"departure_at\": \"20…",
+          "_original_json_chars": 14182
+        }
+      }
+    },
+    {
+      "name": "kb_search_return_aggregate_nocache",
+      "start_utc": "2026-05-09T19:03:23.155503+00:00",
+      "elapsed_seconds": 1.402,
+      "returncode": 0,
+      "stdout_path": "/home/konstantin/docs/plans/flight-search-metrics/svx-fra-2026-08-17_2026-08-19/kb_search_return_aggregate_nocache.stdout.json",
+      "stderr_path": "/home/konstantin/docs/plans/flight-search-metrics/svx-fra-2026-08-17_2026-08-19/kb_search_return_aggregate_nocache.stderr.txt",
+      "stdout_bytes": 21197,
+      "stderr_bytes": 0,
+      "argv": [
+        "python3",
+        "-m",
+        "flights_cli",
+        "--json",
+        "kb-search",
+        "FRA",
+        "SVX",
+        "--depart-date",
+        "2026-08-19",
+        "--limit",
+        "10",
+        "--no-cache"
+      ],
+      "json_ok": true,
+      "data_keys": [
+        "cache",
+        "currency",
+        "depart_date",
+        "destination",
+        "filters",
+        "http_status",
+        "note",
+        "offer_count",
+        "offers",
+        "origin",
+        "raw_variant_count",
+        "request",
+        "skipped",
+        "source",
+        "source_url",
+        "unique_flight_count"
+      ],
+      "kb_extract": {
+        "offers_found_by_parser": 10,
+        "top_offers": [
+          {
+            "price": 31720,
+            "currency": "RUB",
+            "duration": 540,
+            "segments_count": 3,
+            "segments": [
+              {
+                "origin": "FRA",
+                "destination": "SAW",
+                "departure_at": "2026-08-19T13:35:00+02:00",
+                "arrival_at": "2026-08-19T17:40:00+03:00",
+                "flight_number": "VF34",
+                "marketing_carrier": "VF",
+                "operating_carrier": "VF",
+                "duration": 185
+              },
+              {
+                "origin": "IST",
+                "destination": "KUF",
+                "departure_at": "2026-08-19T22:10:00+03:00",
+                "arrival_at": "2026-08-20T03:25:00+04:00",
+                "flight_number": "WZ1366",
+                "marketing_carrier": "WZ",
+                "operating_carrier": "WZ",
+                "duration": 255
+              },
+              {
+                "origin": "KUF",
+                "destination": "SVX",
+                "departure_at": "2026-08-20T08:25:00+04:00",
+                "arrival_at": "2026-08-20T11:05:00+05:00",
+                "flight_number": "WZ1034",
+                "marketing_carrier": "WZ",
+                "operating_carrier": "WZ",
+                "duration": 100
+              }
+            ]
+          },
+          {
+            "price": 32919,
+            "currency": "RUB",
+            "duration": 540,
+            "segments_count": 3,
+            "segments": [
+              {
+                "origin": "FRA",
+                "destination": "SAW",
+                "departure_at": "2026-08-19T14:45:00+02:00",
+                "arrival_at": "2026-08-19T18:50:00+03:00",
+                "flight_number": "PC994",
+                "marketing_carrier": "PC",
+                "operating_carrier": "PC",
+                "duration": 185
+              },
+              {
+                "origin": "IST",
+                "destination": "KUF",
+                "departure_at": "2026-08-19T22:10:00+03:00",
+                "arrival_at": "2026-08-20T03:25:00+04:00",
+                "flight_number": "WZ1366",
+                "marketing_carrier": "WZ",
+                "operating_carrier": "WZ",
+                "duration": 255
+              },
+              {
+                "origin": "KUF",
+                "destination": "SVX",
+                "departure_at": "2026-08-20T08:25:00+04:00",
+                "arrival_at": "2026-08-20T11:05:00+05:00",
+                "flight_number": "WZ1034",
+                "marketing_carrier": "WZ",
+                "operating_carrier": "WZ",
+                "duration": 100
+              }
+            ]
+          },
+          {
+            "price": 33441,
+            "currency": "RUB",
+            "duration": 530,
+            "segments_count": 3,
+            "segments": [
+              {
+                "origin": "FRA",
+                "destination": "SAW",
+                "departure_at": "2026-08-19T17:55:00+02:00",
+                "arrival_at": "2026-08-19T22:00:00+03:00",
+                "flight_number": "VF36",
+                "marketing_carrier": "VF",
+                "operating_carrier": "VF",
+                "duration": 185
+              },
+              {
+                "origin": "IST",
+                "destination": "GYD",
+                "departure_at": "2026-08-20T13:30:00+03:00",
+                "arrival_at": "2026-08-20T17:20:00+04:00",
+                "flight_number": "J276",
+                "marketing_carrier": "J2",
+                "operating_carrier": "J2",
+                "duration": 170
+              },
+              {
+                "origin": "GYD",
+                "destination": "SVX",
+                "departure_at": "2026-08-20T20:25:00+04:00",
+                "arrival_at": "2026-08-21T00:20:00+05:00",
+                "flight_number": "J2645",
+                "marketing_carrier": "J2",
+                "operating_carrier": "J2",
+                "duration": 175
+              }
+            ]
+          },
+          {
+            "price": 33454,
+            "currency": "RUB",
+            "duration": 555,
+            "segments_count": 3,
+            "segments": [
+              {
+                "origin": "FRA",
+                "destination": "SAW",
+                "departure_at": "2026-08-19T17:55:00+02:00",
+                "arrival_at": "2026-08-19T22:00:00+03:00",
+                "flight_number": "VF36",
+                "marketing_carrier": "VF",
+                "operating_carrier": "VF",
+                "duration": 185
+              },
+              {
+                "origin": "SAW",
+                "destination": "AYT",
+                "departure_at": "2026-08-20T05:15:00+03:00",
+                "arrival_at": "2026-08-20T06:40:00+03:00",
+                "flight_number": "VF3030",
+                "marketing_carrier": "VF",
+                "operating_carrier": "VF",
+                "duration": 85
+              },
+              {
+                "origin": "AYT",
+                "destination": "SVX",
+                "departure_at": "2026-08-20T10:05:00+03:00",
+                "arrival_at": "2026-08-20T16:50:00+05:00",
+                "flight_number": "DP956",
+                "marketing_carrier": "DP",
+                "operating_carrier": "DP",
+                "duration": 285
+              }
+            ]
+          },
+          {
+            "price": 33454,
+            "currency": "RUB",
+            "duration": 555,
+            "segments_count": 3,
+            "segments": [
+              {
+                "origin": "FRA",
+                "destination": "SAW",
+                "departure_at": "2026-08-19T17:55:00+02:00",
+                "arrival_at": "2026-08-19T22:00:00+03:00",
+                "flight_number": "VF36",
+                "marketing_carrier": "VF",
+                "operating_carrier": "VF",
+                "duration": 185
+              },
+              {
+                "origin": "SAW",
+                "destination": "AYT",
+                "departure_at": "2026-08-20T01:45:00+03:00",
+                "arrival_at": "2026-08-20T03:10:00+03:00",
+                "flight_number": "VF3048",
+                "marketing_carrier": "VF",
+                "operating_carrier": "VF",
+                "duration": 85
+              },
+              {
+                "origin": "AYT",
+                "destination": "SVX",
+                "departure_at": "2026-08-20T10:05:00+03:00",
+                "arrival_at": "2026-08-20T16:50:00+05:00",
+                "flight_number": "DP956",
+                "marketing_carrier": "DP",
+                "operating_carrier": "DP",
+                "duration": 285
+              }
+            ]
+          },
+          {
+            "price": 34706,
+            "currency": "RUB",
+            "duration": 540,
+            "segments_count": 3,
+            "segments": [
+              {
+                "origin": "FRA",
+                "destination": "SAW",
+                "departure_at": "2026-08-19T17:55:00+02:00",
+                "arrival_at": "2026-08-19T22:00:00+03:00",
+                "flight_number": "VF36",
+                "marketing_carrier": "VF",
+                "operating_carrier": "VF",
+                "duration": 185
+              },
+              {
+                "origin": "SAW",
+                "destination": "AYT",
+                "departure_at": "2026-08-20T01:45:00+03:00",
+                "arrival_at": "2026-08-20T03:10:00+03:00",
+                "flight_number": "VF3048",
+                "marketing_carrier": "VF",
+                "operating_carrier": "VF",
+                "duration": 85
+              },
+              {
+                "origin": "AYT",
+                "destination": "SVX",
+                "departure_at": "2026-08-20T20:55:00+03:00",
+                "arrival_at": "2026-08-21T03:25:00+05:00",
+                "flight_number": "2S225",
+                "marketing_carrier": "2S",
+                "operating_carrier": "2S",
+                "duration": 270
+              }
+            ]
+          },
+          {
+            "price": 34706,
+            "currency": "RUB",
+            "duration": 540,
+            "segments_count": 3,
+            "segments": [
+              {
+                "origin": "FRA",
+                "destination": "SAW",
+                "departure_at": "2026-08-19T17:55:00+02:00",
+                "arrival_at": "2026-08-19T22:00:00+03:00",
+                "flight_number": "VF36",
+                "marketing_carrier": "VF",
+                "operating_carrier": "VF",
+                "duration": 185
+              },
+              {
+                "origin": "SAW",
+                "destination": "AYT",
+                "departure_at": "2026-08-20T01:45:00+03:00",
+                "arrival_at": "2026-08-20T03:10:00+03:00",
+                "flight_number": "VF3048",
+                "marketing_carrier": "VF",
+                "operating_carrier": "VF",
+                "duration": 85
+              },
+              {
+                "origin": "AYT",
+                "destination": "SVX",
+                "departure_at": "2026-08-20T08:25:00+03:00",
+                "arrival_at": "2026-08-20T14:55:00+05:00",
+                "flight_number": "2S323",
+                "marketing_carrier": "2S",
+                "operating_carrier": "2S",
+                "duration": 270
+              }
+            ]
+          },
+          {
+            "price": 34933,
+            "currency": "RUB",
+            "duration": 555,
+            "segments_count": 3,
+            "segments": [
+              {
+                "origin": "FRA",
+                "destination": "SAW",
+                "departure_at": "2026-08-19T13:35:00+02:00",
+                "arrival_at": "2026-08-19T17:40:00+03:00",
+                "flight_number": "VF34",
+                "marketing_carrier": "VF",
+                "operating_carrier": "VF",
+                "duration": 185
+              },
+              {
+                "origin": "SAW",
+                "destination": "AYT",
+                "departure_at": "2026-08-20T05:15:00+03:00",
+                "arrival_at": "2026-08-20T06:40:00+03:00",
+                "flight_number": "VF3030",
+                "marketing_carrier": "VF",
+                "operating_carrier": "VF",
+                "duration": 85
+              },
+              {
+                "origin": "AYT",
+                "destination": "SVX",
+                "departure_at": "2026-08-20T10:05:00+03:00",
+                "arrival_at": "2026-08-20T16:50:00+05:00",
+                "flight_number": "DP956",
+                "marketing_carrier": "DP",
+                "operating_carrier": "DP",
+                "duration": 285
+              }
+            ]
+          },
+          {
+            "price": 34933,
+            "currency": "RUB",
+            "duration": 555,
+            "segments_count": 3,
+            "segments": [
+              {
+                "origin": "FRA",
+                "destination": "SAW",
+                "departure_at": "2026-08-19T13:35:00+02:00",
+                "arrival_at": "2026-08-19T17:40:00+03:00",
+                "flight_number": "VF34",
+                "marketing_carrier": "VF",
+                "operating_carrier": "VF",
+                "duration": 185
+              },
+              {
+                "origin": "SAW",
+                "destination": "AYT",
+                "departure_at": "2026-08-19T18:50:00+03:00",
+                "arrival_at": "2026-08-19T20:15:00+03:00",
+                "flight_number": "VF3042",
+                "marketing_carrier": "VF",
+                "operating_carrier": "VF",
+                "duration": 85
+              },
+              {
+                "origin": "AYT",
+                "destination": "SVX",
+                "departure_at": "2026-08-20T10:05:00+03:00",
+                "arrival_at": "2026-08-20T16:50:00+05:00",
+                "flight_number": "DP956",
+                "marketing_carrier": "DP",
+                "operating_carrier": "DP",
+                "duration": 285
+              }
+            ]
+          },
+          {
+            "price": 34933,
+            "currency": "RUB",
+            "duration": 555,
+            "segments_count": 3,
+            "segments": [
+              {
+                "origin": "FRA",
+                "destination": "SAW",
+                "departure_at": "2026-08-19T13:35:00+02:00",
+                "arrival_at": "2026-08-19T17:40:00+03:00",
+                "flight_number": "VF34",
+                "marketing_carrier": "VF",
+                "operating_carrier": "VF",
+                "duration": 185
+              },
+              {
+                "origin": "SAW",
+                "destination": "AYT",
+                "departure_at": "2026-08-19T21:30:00+03:00",
+                "arrival_at": "2026-08-19T22:55:00+03:00",
+                "flight_number": "VF3044",
+                "marketing_carrier": "VF",
+                "operating_carrier": "VF",
+                "duration": 85
+              },
+              {
+                "origin": "AYT",
+                "destination": "SVX",
+                "departure_at": "2026-08-20T10:05:00+03:00",
+                "arrival_at": "2026-08-20T16:50:00+05:00",
+                "flight_number": "DP956",
+                "marketing_carrier": "DP",
+                "operating_carrier": "DP",
+                "duration": 285
+              }
+            ]
+          }
+        ],
+        "raw_data_compact": {
+          "_truncated_json": "{\"cache\": {\"disabled\": true, \"hit\": false, \"key\": \"d9d395583437f7dbeeeb2a8c28b6f4e2c72661b4e0cf3159f0a4035ac2b3a045\"}, \"currency\": \"RUB\", \"depart_date\": \"2026-08-19\", \"destination\": \"SVX\", \"filters\": {\"dedupe\": \"flight_numbers+times\", \"direct_only\": false, \"only_carriers\": []}, \"http_status\": 200, \"note\": \"Live aggregate source, not official aeroflot.ru; recheck final fare and seat availability before ticketing.\", \"offer_count\": 10, \"offers\": [{\"arrival_at\": \"2026-08-20T11:05:00+05:00\", \"currency\": \"RUB\", \"departure_at\": \"2026-08-19T13:35:00+02:00\", \"destination\": \"SVX\", \"duration\": 540, \"flight_numbers\": [\"VF34\", \"WZ1366\", \"WZ1034\"], \"flights\": [{\"aircraft\": \"32N\", \"arrival_at\": \"2026-08-19T17:40:00+03:00\", \"departure_at\": \"2026-08-19T13:35:00+02:00\", \"destination\": \"SAW\", \"duration\": 185, \"flight_number\": \"VF34\", \"is_charter\": false, \"marketing_carrier\": \"VF\", \"operating_carrier\": \"VF\", \"origin\": \"FRA\", \"transport_kind\": \"airplane\"}, {\"aircraft\": \"SU9\", \"arrival_at\": \"2026-08-20T03:25:00+04:00\", \"departure_at\": \"2026-08-19T22:10:00+03:00\", \"destination\": \"KUF\", \"duration\": 255, \"flight_number\": \"WZ1366\", \"is_charter\": false, \"marketing_carrier\": \"WZ\", \"operating_carrier\": \"WZ\", \"origin\": \"IST\", \"transport_kind\": \"airplane\"}, {\"aircraft\": \"SU9\", \"arrival_at\": \"2026-08-20T11:05:00+05:00\", \"departure_at\": \"2026-08-20T08:25:00+04:00\", \"destination\": \"SVX\", \"duration\": 100, \"flight_number\": \"WZ1034\", \"is_charter\": false, \"marketing_carrier\": \"WZ\", \"operating_carrier\": \"WZ\", \"origin\": \"KUF\", \"transport_kind\": \"airplane\"}], \"id\": \"feaf40b8006b4e2c8a15d439326d8446211\", \"marketing_carriers\": [\"VF\", \"WZ\"], \"number_of_changes\": 2, \"operating_carriers\": [\"VF\", \"WZ\"], \"origin\": \"FRA\", \"price\": 31720}, {\"arrival_at\": \"2026-08-20T11:05:00+05:00\", \"currency\": \"RUB\", \"departure_at\": \"…",
+          "_original_json_chars": 13862
+        }
+      }
+    },
+    {
+      "name": "kb_search_outbound_direct_nocache",
+      "start_utc": "2026-05-09T19:03:24.558735+00:00",
+      "elapsed_seconds": 1.274,
+      "returncode": 0,
+      "stdout_path": "/home/konstantin/docs/plans/flight-search-metrics/svx-fra-2026-08-17_2026-08-19/kb_search_outbound_direct_nocache.stdout.json",
+      "stderr_path": "/home/konstantin/docs/plans/flight-search-metrics/svx-fra-2026-08-17_2026-08-19/kb_search_outbound_direct_nocache.stderr.txt",
+      "stdout_bytes": 1626,
+      "stderr_bytes": 0,
+      "argv": [
+        "python3",
+        "-m",
+        "flights_cli",
+        "--json",
+        "kb-search",
+        "SVX",
+        "FRA",
+        "--depart-date",
+        "2026-08-17",
+        "--limit",
+        "10",
+        "--direct-only",
+        "--no-cache"
+      ],
+      "json_ok": true,
+      "data_keys": [
+        "cache",
+        "currency",
+        "depart_date",
+        "destination",
+        "filters",
+        "http_status",
+        "note",
+        "offer_count",
+        "offers",
+        "origin",
+        "raw_variant_count",
+        "request",
+        "skipped",
+        "source",
+        "source_url",
+        "unique_flight_count"
+      ],
+      "kb_extract": {
+        "offers_found_by_parser": 0,
+        "top_offers": [],
+        "raw_data_compact": {
+          "cache": {
+            "disabled": true,
+            "hit": false,
+            "key": "cc9afecb26fd3dfb56fca1acde7a95ad7cb773e66d1b7fab9ab0300922f3b876"
+          },
+          "currency": "RUB",
+          "depart_date": "2026-08-17",
+          "destination": "FRA",
+          "filters": {
+            "dedupe": "flight_numbers+times",
+            "direct_only": true,
+            "only_carriers": []
+          },
+          "http_status": 200,
+          "note": "Live aggregate source, not official aeroflot.ru; recheck final fare and seat availability before ticketing.",
+          "offer_count": 0,
+          "offers": [],
+          "origin": "SVX",
+          "raw_variant_count": 402,
+          "request": {
+            "body": {
+              "agent": "kupibilet",
+              "cabin": "economy",
+              "client_platform": "web",
+              "currency": "RUB",
+              "filters": {},
+              "lang": "ru",
+              "short_response": false,
+              "sort_by": "price",
+              "travelers": {
+                "adult": 1,
+                "child": 0,
+                "infant": 0
+              },
+              "trips": [
+                {
+                  "arrival": "FRA",
+                  "date": "2026-08-17",
+                  "departure": "SVX"
+                }
+              ]
+            },
+            "endpoint": "https://api-rs-lb.kupibilet.ru/frontend_search",
+            "headers": {
+              "Content-Type": "application/json",
+              "Origin": "https://www.kupibilet.ru",
+              "Referer": "https://www.kupibilet.ru/"
+            },
+            "method": "POST"
+          },
+          "skipped": {
+            "not_direct": 402
+          },
+          "source": "Kupibilet frontend_search (live aggregate)",
+          "source_url": "https://api-rs-lb.kupibilet.ru/frontend_search",
+          "unique_flight_count": 0
+        }
+      }
+    },
+    {
+      "name": "kb_search_return_direct_nocache",
+      "start_utc": "2026-05-09T19:03:25.833052+00:00",
+      "elapsed_seconds": 1.436,
+      "returncode": 0,
+      "stdout_path": "/home/konstantin/docs/plans/flight-search-metrics/svx-fra-2026-08-17_2026-08-19/kb_search_return_direct_nocache.stdout.json",
+      "stderr_path": "/home/konstantin/docs/plans/flight-search-metrics/svx-fra-2026-08-17_2026-08-19/kb_search_return_direct_nocache.stderr.txt",
+      "stdout_bytes": 1626,
+      "stderr_bytes": 0,
+      "argv": [
+        "python3",
+        "-m",
+        "flights_cli",
+        "--json",
+        "kb-search",
+        "FRA",
+        "SVX",
+        "--depart-date",
+        "2026-08-19",
+        "--limit",
+        "10",
+        "--direct-only",
+        "--no-cache"
+      ],
+      "json_ok": true,
+      "data_keys": [
+        "cache",
+        "currency",
+        "depart_date",
+        "destination",
+        "filters",
+        "http_status",
+        "note",
+        "offer_count",
+        "offers",
+        "origin",
+        "raw_variant_count",
+        "request",
+        "skipped",
+        "source",
+        "source_url",
+        "unique_flight_count"
+      ],
+      "kb_extract": {
+        "offers_found_by_parser": 0,
+        "top_offers": [],
+        "raw_data_compact": {
+          "cache": {
+            "disabled": true,
+            "hit": false,
+            "key": "5a2eee8b635410adc2181467b5fecd4d6d692762c6433e55da2e4b2ed43e47a6"
+          },
+          "currency": "RUB",
+          "depart_date": "2026-08-19",
+          "destination": "SVX",
+          "filters": {
+            "dedupe": "flight_numbers+times",
+            "direct_only": true,
+            "only_carriers": []
+          },
+          "http_status": 200,
+          "note": "Live aggregate source, not official aeroflot.ru; recheck final fare and seat availability before ticketing.",
+          "offer_count": 0,
+          "offers": [],
+          "origin": "FRA",
+          "raw_variant_count": 426,
+          "request": {
+            "body": {
+              "agent": "kupibilet",
+              "cabin": "economy",
+              "client_platform": "web",
+              "currency": "RUB",
+              "filters": {},
+              "lang": "ru",
+              "short_response": false,
+              "sort_by": "price",
+              "travelers": {
+                "adult": 1,
+                "child": 0,
+                "infant": 0
+              },
+              "trips": [
+                {
+                  "arrival": "SVX",
+                  "date": "2026-08-19",
+                  "departure": "FRA"
+                }
+              ]
+            },
+            "endpoint": "https://api-rs-lb.kupibilet.ru/frontend_search",
+            "headers": {
+              "Content-Type": "application/json",
+              "Origin": "https://www.kupibilet.ru",
+              "Referer": "https://www.kupibilet.ru/"
+            },
+            "method": "POST"
+          },
+          "skipped": {
+            "not_direct": 426
+          },
+          "source": "Kupibilet frontend_search (live aggregate)",
+          "source_url": "https://api-rs-lb.kupibilet.ru/frontend_search",
+          "unique_flight_count": 0
+        }
+      }
+    }
+  ]
+}

@@ -30,7 +30,7 @@ HERMES = HOME / ".hermes"
 DOCS = HOME / "docs"
 CODE = HOME / "code"
 HERMES_AGENT = HERMES / "hermes-agent"
-SKILL_CLIS = CODE / "clis"
+SKILL_CLIS = CODE / "clis" if (CODE / "clis").exists() else next((d for d in CODE.iterdir() if d.name.startswith("clis") and d.is_dir()), CODE / "clis")
 REPO = Path(__file__).resolve().parents[1]
 DEFAULT_RECIPIENTS_FILE = REPO / "backup" / "age-recipients.txt"
 DEFAULT_IDENTITY_FILE = HOME / ".ssh" / "server_monitor_iOS_app_ed25519"
@@ -589,6 +589,8 @@ def collect_cli_backup(summary: dict[str, object]) -> None:
 
     skill_clis_dst = cli_root / "skill-clis"
     copy_tree(SKILL_CLIS, skill_clis_dst)
+    if SKILL_CLIS.exists():
+        skill_clis_dst.mkdir(parents=True, exist_ok=True)
     skill_clis_manifest = {
         "kind": "skill-related-local-clis",
         "created_at_utc": NOW.isoformat(),

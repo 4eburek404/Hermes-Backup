@@ -1,0 +1,758 @@
+{
+  "name": "live_assemble_business_agent_brief_pool20000",
+  "start_utc": "2026-05-09T19:07:50.356268+00:00",
+  "elapsed_seconds": 5.748,
+  "returncode": 0,
+  "stdout_path": "/home/konstantin/docs/plans/flight-search-metrics/svx-fra-2026-08-17_2026-08-19/live_assemble_business_agent_brief_pool20000.stdout.json",
+  "stderr_path": "/home/konstantin/docs/plans/flight-search-metrics/svx-fra-2026-08-17_2026-08-19/live_assemble_business_agent_brief_pool20000.stderr.txt",
+  "stdout_bytes": 46235,
+  "stderr_bytes": 0,
+  "argv": [
+    "python3",
+    "-m",
+    "flights_cli",
+    "--json",
+    "route",
+    "live-assemble",
+    "SVX",
+    "FRA",
+    "--depart-date",
+    "2026-08-17",
+    "--return-date",
+    "2026-08-19",
+    "--profile",
+    "business",
+    "--agent-brief",
+    "--candidate-pool-limit",
+    "20000",
+    "--max-candidates",
+    "50",
+    "--include-stop-policy-diagnostics"
+  ],
+  "json_ok": true,
+  "answer_lines": [
+    "Best CLI-ranked option: 93 751 RUB risk=excellent/0 elapsed=23h40.",
+    "Segments: U6773 SVX 07:20->IST 10:50 | LH1299 IST 13:55->FRA 16:05 | TK1588 FRA 11:30->IST 15:40 | U6774 IST 19:45->SVX 02:25",
+    "Cheapest acceptable: rank=394 87 211 RUB risk=excellent/0 elapsed=88h30; show as trade-off, not hidden by compact output.",
+    "Fastest acceptable: rank=550 100 505 RUB risk=excellent/8 elapsed=21h20; show as trade-off, not hidden by compact output.",
+    "Coverage diagnostics: mode=targeted; searched=2, skipped=9, failed=0, not_executed=8; negative evidence is bounded live controls only.",
+    "Coverage is incomplete: planned controls without terminal live evidence are not_executed, not no-flight evidence.",
+    "Stop policy: reported max connections per journey=1; two_stop_fallback_used=False; three_plus_suppressed=0.",
+    "Two-stop candidates are hidden because direct/one-stop options exist.",
+    "Do not treat cached or segment-search absence as proof that a through fare, direct flight, or protected ticket does not exist."
+  ],
+  "recommended_options": [
+    {
+      "carriers": [
+        "LH",
+        "TK",
+        "U6"
+      ],
+      "category": "best_ranked",
+      "connections": [
+        {
+          "actual": "3h05",
+          "actual_min": 185,
+          "arrival_airport": "IST",
+          "departure_airport": "IST",
+          "direction": "outbound",
+          "required": "2h",
+          "required_min": 120,
+          "risk": {
+            "grade": "excellent",
+            "reasons": [],
+            "score": 0
+          },
+          "severity": "ok",
+          "status": "compatible",
+          "tradeoffs": []
+        },
+        {
+          "actual": "4h05",
+          "actual_min": 245,
+          "arrival_airport": "IST",
+          "departure_airport": "IST",
+          "direction": "return",
+          "required": "2h",
+          "required_min": 120,
+          "risk": {
+            "grade": "excellent",
+            "reasons": [],
+            "score": 0
+          },
+          "severity": "ok",
+          "status": "compatible",
+          "tradeoffs": []
+        }
+      ],
+      "detail_status": "full",
+      "elapsed": "23h40",
+      "elapsed_min": 1420,
+      "id": "assembled-9876:SVX-SVX",
+      "max_connections_per_journey": 1,
+      "ok": true,
+      "price": {
+        "amount": 93751,
+        "currency": "RUB"
+      },
+      "price_text": "93 751 RUB",
+      "rank": 1,
+      "reason": "Best CLI-ranked recommendation detail retained even when compact output limits are low.",
+      "risk": {
+        "grade": "excellent",
+        "reject": false,
+        "score": 0,
+        "top_reasons": [
+          {
+            "code": "preferred_carrier_match",
+            "message": "Uses preferred carrier(s): TK, U6.",
+            "points": 0,
+            "scope": "carrier"
+          }
+        ]
+      },
+      "segments": [
+        {
+          "arrival_at": "2026-08-17T10:50:00+03:00",
+          "carrier": "U6",
+          "departure_at": "2026-08-17T07:20:00+05:00",
+          "destination": "IST",
+          "direction": "outbound",
+          "flight_number": "U6773",
+          "marketing_carrier": "U6",
+          "operating_carrier": "U6",
+          "origin": "SVX"
+        },
+        {
+          "arrival_at": "2026-08-17T16:05:00",
+          "carrier": "LH",
+          "departure_at": "2026-08-17T13:55:00",
+          "destination": "FRA",
+          "direction": "outbound",
+          "flight_number": "LH1299",
+          "marketing_carrier": "LH",
+          "operating_carrier": "LH",
+          "origin": "IST"
+        },
+        {
+          "arrival_at": "2026-08-19T15:40:00",
+          "carrier": "TK",
+          "departure_at": "2026-08-19T11:30:00",
+          "destination": "IST",
+          "direction": "return",
+          "flight_number": "TK1588",
+          "marketing_carrier": "TK",
+          "operating_carrier": "TK",
+          "origin": "FRA"
+        },
+        {
+          "arrival_at": "2026-08-20T02:25:00+05:00",
+          "carrier": "U6",
+          "departure_at": "2026-08-19T19:45:00+03:00",
+          "destination": "SVX",
+          "direction": "return",
+          "flight_number": "U6774",
+          "marketing_carrier": "U6",
+          "operating_carrier": "U6",
+          "origin": "IST"
+        }
+      ],
+      "stop_tier": "T1_ONE_STOP",
+      "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage.",
+      "validation_summary": {
+        "connection_count": 2,
+        "connection_counts_by_journey": [
+          1,
+          1
+        ],
+        "max_connections_per_journey": 1,
+        "segment_count": 4,
+        "stop_tier": "T1_ONE_STOP",
+        "three_plus_connection_journey_count": 0,
+        "violation_count": 0
+      }
+    },
+    {
+      "carriers": [
+        "LH",
+        "SU",
+        "TK"
+      ],
+      "category": "cheapest_acceptable",
+      "connections": [
+        {
+          "actual": "30h05",
+          "actual_min": 1805,
+          "arrival_airport": "IST",
+          "departure_airport": "IST",
+          "direction": "outbound",
+          "required": "2h",
+          "required_min": 120,
+          "risk": {
+            "grade": "excellent",
+            "reasons": [],
+            "score": 0
+          },
+          "severity": "ok",
+          "status": "compatible",
+          "tradeoffs": [
+            {
+              "actual_min": 1805,
+              "arrival_airport": "IST",
+              "code": "long_wait",
+              "departure_airport": "IST",
+              "message": "Long wait of 30h05; show as a trade-off, not an automatic risk penalty."
+            },
+            {
+              "actual_min": 1805,
+              "arrival_airport": "IST",
+              "code": "overnight_wait",
+              "departure_airport": "IST",
+              "message": "Overnight wait; show explicitly and compare alternatives, but do not demote solely for overnight timing."
+            }
+          ]
+        },
+        {
+          "actual": "41h40",
+          "actual_min": 2500,
+          "arrival_airport": "IST",
+          "departure_airport": "IST",
+          "direction": "return",
+          "required": "2h",
+          "required_min": 120,
+          "risk": {
+            "grade": "excellent",
+            "reasons": [],
+            "score": 0
+          },
+          "severity": "ok",
+          "status": "compatible",
+          "tradeoffs": [
+            {
+              "actual_min": 2500,
+              "arrival_airport": "IST",
+              "code": "long_wait",
+              "departure_airport": "IST",
+              "message": "Long wait of 41h40; show as a trade-off, not an automatic risk penalty."
+            },
+            {
+              "actual_min": 2500,
+              "arrival_airport": "IST",
+              "code": "overnight_wait",
+              "departure_airport": "IST",
+              "message": "Overnight wait; show explicitly and compare alternatives, but do not demote solely for overnight timing."
+            }
+          ]
+        }
+      ],
+      "detail_status": "full",
+      "elapsed": "88h30",
+      "elapsed_min": 5310,
+      "id": "assembled-7666:SVX-SVX",
+      "max_connections_per_journey": 1,
+      "ok": true,
+      "price": {
+        "amount": 87211,
+        "currency": "RUB"
+      },
+      "price_text": "87 211 RUB",
+      "rank": 394,
+      "reason": "Cheapest acceptable recommendation detail retained for price trade-off explanation.",
+      "risk": {
+        "grade": "excellent",
+        "reject": false,
+        "score": 0,
+        "top_reasons": [
+          {
+            "code": "preferred_carrier_match",
+            "message": "Uses preferred carrier(s): SU, TK.",
+            "points": 0,
+            "scope": "carrier"
+          }
+        ]
+      },
+      "segments": [
+        {
+          "arrival_at": "2026-08-17T11:45:00+03:00",
+          "carrier": "SU",
+          "departure_at": "2026-08-17T08:20:00+05:00",
+          "destination": "IST",
+          "direction": "outbound",
+          "flight_number": "SU630",
+          "marketing_carrier": "SU",
+          "operating_carrier": "SU",
+          "origin": "SVX"
+        },
+        {
+          "arrival_at": "2026-08-18T20:00:00",
+          "carrier": "LH",
+          "departure_at": "2026-08-18T17:50:00",
+          "destination": "FRA",
+          "direction": "outbound",
+          "flight_number": "LH1301",
+          "marketing_carrier": "LH",
+          "operating_carrier": "LH",
+          "origin": "IST"
+        },
+        {
+          "arrival_at": "2026-08-19T19:10:00",
+          "carrier": "TK",
+          "departure_at": "2026-08-19T15:05:00",
+          "destination": "IST",
+          "direction": "return",
+          "flight_number": "TK1592",
+          "marketing_carrier": "TK",
+          "operating_carrier": "TK",
+          "origin": "FRA"
+        },
+        {
+          "arrival_at": "2026-08-21T19:55:00+05:00",
+          "carrier": "SU",
+          "departure_at": "2026-08-21T12:50:00+03:00",
+          "destination": "SVX",
+          "direction": "return",
+          "flight_number": "SU631",
+          "marketing_carrier": "SU",
+          "operating_carrier": "SU",
+          "origin": "IST"
+        }
+      ],
+      "stop_tier": "T1_ONE_STOP",
+      "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage.",
+      "validation_summary": {
+        "connection_count": 2,
+        "connection_counts_by_journey": [
+          1,
+          1
+        ],
+        "max_connections_per_journey": 1,
+        "segment_count": 4,
+        "stop_tier": "T1_ONE_STOP",
+        "three_plus_connection_journey_count": 0,
+        "violation_count": 0
+      }
+    },
+    {
+      "carriers": [
+        "LH",
+        "SU",
+        "U6"
+      ],
+      "category": "fastest_acceptable",
+      "connections": [
+        {
+          "actual": "2h10",
+          "actual_min": 130,
+          "arrival_airport": "IST",
+          "departure_airport": "IST",
+          "direction": "outbound",
+          "required": "2h",
+          "required_min": 120,
+          "risk": {
+            "grade": "excellent",
+            "reasons": [
+              {
+                "code": "below_ideal_buffer",
+                "message": "Connection is valid but below ideal buffer.",
+                "points": 5
+              }
+            ],
+            "score": 5
+          },
+          "severity": "ok",
+          "status": "compatible",
+          "tradeoffs": []
+        },
+        {
+          "actual": "2h50",
+          "actual_min": 170,
+          "arrival_airport": "IST",
+          "departure_airport": "IST",
+          "direction": "return",
+          "required": "2h",
+          "required_min": 120,
+          "risk": {
+            "grade": "excellent",
+            "reasons": [
+              {
+                "code": "below_ideal_buffer",
+                "message": "Connection is valid but below ideal buffer.",
+                "points": 3
+              }
+            ],
+            "score": 3
+          },
+          "severity": "ok",
+          "status": "compatible",
+          "tradeoffs": []
+        }
+      ],
+      "detail_status": "full",
+      "elapsed": "21h20",
+      "elapsed_min": 1280,
+      "id": "assembled-10840:SVX-SVX",
+      "max_connections_per_journey": 1,
+      "ok": true,
+      "price": {
+        "amount": 100505,
+        "currency": "RUB"
+      },
+      "price_text": "100 505 RUB",
+      "rank": 550,
+      "reason": "Fastest acceptable recommendation detail retained for time trade-off explanation.",
+      "risk": {
+        "grade": "excellent",
+        "reject": false,
+        "score": 8,
+        "top_reasons": [
+          {
+            "between_segments": [
+              0,
+              1
+            ],
+            "code": "below_ideal_buffer",
+            "message": "Connection is valid but below ideal buffer.",
+            "points": 5,
+            "scope": "connection"
+          },
+          {
+            "between_segments": [
+              2,
+              3
+            ],
+            "code": "below_ideal_buffer",
+            "message": "Connection is valid but below ideal buffer.",
+            "points": 3,
+            "scope": "connection"
+          },
+          {
+            "code": "preferred_carrier_match",
+            "message": "Uses preferred carrier(s): SU, U6.",
+            "points": 0,
+            "scope": "carrier"
+          }
+        ]
+      },
+      "segments": [
+        {
+          "arrival_at": "2026-08-17T11:45:00+03:00",
+          "carrier": "SU",
+          "departure_at": "2026-08-17T08:20:00+05:00",
+          "destination": "IST",
+          "direction": "outbound",
+          "flight_number": "SU630",
+          "marketing_carrier": "SU",
+          "operating_carrier": "SU",
+          "origin": "SVX"
+        },
+        {
+          "arrival_at": "2026-08-17T16:05:00",
+          "carrier": "LH",
+          "departure_at": "2026-08-17T13:55:00",
+          "destination": "FRA",
+          "direction": "outbound",
+          "flight_number": "LH1299",
+          "marketing_carrier": "LH",
+          "operating_carrier": "LH",
+          "origin": "IST"
+        },
+        {
+          "arrival_at": "2026-08-19T16:55:00",
+          "carrier": "LH",
+          "departure_at": "2026-08-19T12:50:00",
+          "destination": "IST",
+          "direction": "return",
+          "flight_number": "LH1300",
+          "marketing_carrier": "LH",
+          "operating_carrier": "LH",
+          "origin": "FRA"
+        },
+        {
+          "arrival_at": "2026-08-20T02:25:00+05:00",
+          "carrier": "U6",
+          "departure_at": "2026-08-19T19:45:00+03:00",
+          "destination": "SVX",
+          "direction": "return",
+          "flight_number": "U6774",
+          "marketing_carrier": "U6",
+          "operating_carrier": "U6",
+          "origin": "IST"
+        }
+      ],
+      "stop_tier": "T1_ONE_STOP",
+      "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage.",
+      "validation_summary": {
+        "connection_count": 2,
+        "connection_counts_by_journey": [
+          1,
+          1
+        ],
+        "max_connections_per_journey": 1,
+        "segment_count": 4,
+        "stop_tier": "T1_ONE_STOP",
+        "three_plus_connection_journey_count": 0,
+        "violation_count": 0
+      }
+    },
+    {
+      "carriers": [
+        "SU",
+        "TK",
+        "U6"
+      ],
+      "category": null,
+      "connections": [
+        {
+          "actual": "3h45",
+          "actual_min": 225,
+          "arrival_airport": "IST",
+          "departure_airport": "IST",
+          "direction": "outbound",
+          "required": "2h",
+          "required_min": 120,
+          "risk": {
+            "grade": "excellent",
+            "reasons": [],
+            "score": 0
+          },
+          "severity": "ok",
+          "status": "compatible",
+          "tradeoffs": []
+        },
+        {
+          "actual": "4h05",
+          "actual_min": 245,
+          "arrival_airport": "IST",
+          "departure_airport": "IST",
+          "direction": "return",
+          "required": "2h",
+          "required_min": 120,
+          "risk": {
+            "grade": "excellent",
+            "reasons": [],
+            "score": 0
+          },
+          "severity": "ok",
+          "status": "compatible",
+          "tradeoffs": []
+        }
+      ],
+      "detail_status": "full",
+      "elapsed": "24h10",
+      "elapsed_min": 1450,
+      "id": "assembled-8721:SVX-SVX",
+      "max_connections_per_journey": 1,
+      "ok": true,
+      "price": {
+        "amount": 91917,
+        "currency": "RUB"
+      },
+      "price_text": "91 917 RUB",
+      "rank": 2,
+      "reason": null,
+      "risk": {
+        "grade": "excellent",
+        "reject": false,
+        "score": 0,
+        "top_reasons": [
+          {
+            "code": "preferred_carrier_match",
+            "message": "Uses preferred carrier(s): SU, TK, U6.",
+            "points": 0,
+            "scope": "carrier"
+          }
+        ]
+      },
+      "segments": [
+        {
+          "arrival_at": "2026-08-17T11:45:00+03:00",
+          "carrier": "SU",
+          "departure_at": "2026-08-17T08:20:00+05:00",
+          "destination": "IST",
+          "direction": "outbound",
+          "flight_number": "SU630",
+          "marketing_carrier": "SU",
+          "operating_carrier": "SU",
+          "origin": "SVX"
+        },
+        {
+          "arrival_at": "2026-08-17T17:35:00",
+          "carrier": "TK",
+          "departure_at": "2026-08-17T15:30:00",
+          "destination": "FRA",
+          "direction": "outbound",
+          "flight_number": "TK1593",
+          "marketing_carrier": "TK",
+          "operating_carrier": "TK",
+          "origin": "IST"
+        },
+        {
+          "arrival_at": "2026-08-19T15:40:00",
+          "carrier": "TK",
+          "departure_at": "2026-08-19T11:30:00",
+          "destination": "IST",
+          "direction": "return",
+          "flight_number": "TK1588",
+          "marketing_carrier": "TK",
+          "operating_carrier": "TK",
+          "origin": "FRA"
+        },
+        {
+          "arrival_at": "2026-08-20T02:25:00+05:00",
+          "carrier": "U6",
+          "departure_at": "2026-08-19T19:45:00+03:00",
+          "destination": "SVX",
+          "direction": "return",
+          "flight_number": "U6774",
+          "marketing_carrier": "U6",
+          "operating_carrier": "U6",
+          "origin": "IST"
+        }
+      ],
+      "stop_tier": "T1_ONE_STOP",
+      "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage.",
+      "validation_summary": {
+        "connection_count": 2,
+        "connection_counts_by_journey": [
+          1,
+          1
+        ],
+        "max_connections_per_journey": 1,
+        "segment_count": 4,
+        "stop_tier": "T1_ONE_STOP",
+        "three_plus_connection_journey_count": 0,
+        "violation_count": 0
+      }
+    },
+    {
+      "carriers": [
+        "TK",
+        "U6"
+      ],
+      "category": null,
+      "connections": [
+        {
+          "actual": "4h40",
+          "actual_min": 280,
+          "arrival_airport": "IST",
+          "departure_airport": "IST",
+          "direction": "outbound",
+          "required": "2h",
+          "required_min": 120,
+          "risk": {
+            "grade": "excellent",
+            "reasons": [],
+            "score": 0
+          },
+          "severity": "ok",
+          "status": "compatible",
+          "tradeoffs": []
+        },
+        {
+          "actual": "4h05",
+          "actual_min": 245,
+          "arrival_airport": "IST",
+          "departure_airport": "IST",
+          "direction": "return",
+          "required": "2h",
+          "required_min": 120,
+          "risk": {
+            "grade": "excellent",
+            "reasons": [],
+            "score": 0
+          },
+          "severity": "ok",
+          "status": "compatible",
+          "tradeoffs": []
+        }
+      ],
+      "detail_status": "full",
+      "elapsed": "25h10",
+      "elapsed_min": 1510,
+      "id": "assembled-9456:SVX-SVX",
+      "max_connections_per_journey": 1,
+      "ok": true,
+      "price": {
+        "amount": 93433,
+        "currency": "RUB"
+      },
+      "price_text": "93 433 RUB",
+      "rank": 3,
+      "reason": null,
+      "risk": {
+        "grade": "excellent",
+        "reject": false,
+        "score": 0,
+        "top_reasons": [
+          {
+            "code": "preferred_carrier_match",
+            "message": "Uses preferred carrier(s): TK, U6.",
+            "points": 0,
+            "scope": "carrier"
+          }
+        ]
+      },
+      "segments": [
+        {
+          "arrival_at": "2026-08-17T10:50:00+03:00",
+          "carrier": "U6",
+          "departure_at": "2026-08-17T07:20:00+05:00",
+          "destination": "IST",
+          "direction": "outbound",
+          "flight_number": "U6773",
+          "marketing_carrier": "U6",
+          "operating_carrier": "U6",
+          "origin": "SVX"
+        },
+        {
+          "arrival_at": "2026-08-17T17:35:00",
+          "carrier": "TK",
+          "departure_at": "2026-08-17T15:30:00",
+          "destination": "FRA",
+          "direction": "outbound",
+          "flight_number": "TK1593",
+          "marketing_carrier": "TK",
+          "operating_carrier": "TK",
+          "origin": "IST"
+        },
+        {
+          "arrival_at": "2026-08-19T15:40:00",
+          "carrier": "TK",
+          "departure_at": "2026-08-19T11:30:00",
+          "destination": "IST",
+          "direction": "return",
+          "flight_number": "TK1588",
+          "marketing_carrier": "TK",
+          "operating_carrier": "TK",
+          "origin": "FRA"
+        },
+        {
+          "arrival_at": "2026-08-20T02:25:00+05:00",
+          "carrier": "U6",
+          "departure_at": "2026-08-19T19:45:00+03:00",
+          "destination": "SVX",
+          "direction": "return",
+          "flight_number": "U6774",
+          "marketing_carrier": "U6",
+          "operating_carrier": "U6",
+          "origin": "IST"
+        }
+      ],
+      "stop_tier": "T1_ONE_STOP",
+      "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage.",
+      "validation_summary": {
+        "connection_count": 2,
+        "connection_counts_by_journey": [
+          1,
+          1
+        ],
+        "max_connections_per_journey": 1,
+        "segment_count": 4,
+        "stop_tier": "T1_ONE_STOP",
+        "three_plus_connection_journey_count": 0,
+        "violation_count": 0
+      }
+    }
+  ],
+  "priority_options": []
+}

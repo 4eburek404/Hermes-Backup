@@ -1,0 +1,1417 @@
+{
+  "created_at_utc": "2026-05-09T19:09:28.046531+00:00",
+  "request": {
+    "origin": "SVX",
+    "destination": "FRA",
+    "depart_date": "2026-08-17",
+    "return_date": "2026-08-19",
+    "profile": "business",
+    "source": "user request 17.08 svx fra; 19.08 fra svx"
+  },
+  "command_metrics": [
+    {
+      "name": "doctor",
+      "elapsed_seconds": 0.369,
+      "returncode": 0,
+      "stdout_bytes": 7105,
+      "json_ok": true
+    },
+    {
+      "name": "live_assemble_business_agent_brief",
+      "elapsed_seconds": 11.89,
+      "returncode": 0,
+      "stdout_bytes": 71812,
+      "json_ok": true
+    },
+    {
+      "name": "live_assemble_business_debug_nocache",
+      "elapsed_seconds": 15.729,
+      "returncode": 0,
+      "stdout_bytes": 2143136,
+      "json_ok": true
+    },
+    {
+      "name": "kb_search_outbound_aggregate_nocache",
+      "elapsed_seconds": 1.293,
+      "returncode": 0,
+      "stdout_bytes": 21681,
+      "json_ok": true
+    },
+    {
+      "name": "kb_search_return_aggregate_nocache",
+      "elapsed_seconds": 1.402,
+      "returncode": 0,
+      "stdout_bytes": 21197,
+      "json_ok": true
+    },
+    {
+      "name": "kb_search_outbound_direct_nocache",
+      "elapsed_seconds": 1.274,
+      "returncode": 0,
+      "stdout_bytes": 1626,
+      "json_ok": true
+    },
+    {
+      "name": "kb_search_return_direct_nocache",
+      "elapsed_seconds": 1.436,
+      "returncode": 0,
+      "stdout_bytes": 1626,
+      "json_ok": true
+    },
+    {
+      "name": "live_assemble_business_agent_brief_pool20000",
+      "elapsed_seconds": 5.748,
+      "returncode": 0,
+      "stdout_bytes": 46235,
+      "json_ok": true
+    }
+  ],
+  "default_pool_result": {
+    "candidate_pool_limit": 5000,
+    "candidate_pool_truncated": true,
+    "candidate_count": 5000,
+    "ranked_total_count": 5000,
+    "outbound_pair_count": 168,
+    "return_pair_count": 105,
+    "agent_brief_top": {
+      "rank": 1,
+      "price_text": "85 022 RUB",
+      "elapsed": "43h50",
+      "risk": {
+        "grade": "excellent",
+        "reject": false,
+        "score": 0,
+        "top_reasons": [
+          {
+            "code": "preferred_carrier_match",
+            "message": "Uses preferred carrier(s): SU, TK, U6.",
+            "points": 0,
+            "scope": "carrier"
+          }
+        ]
+      },
+      "segments": [
+        "SU6208 SVX 2026-08-17T05:10:00+05:00 → SVO 2026-08-17T05:45:00+03:00 (SU)",
+        "SU2136 SVO 2026-08-17T08:45:00+03:00 → IST 2026-08-17T14:15:00+03:00 (SU)",
+        "TK1587 IST 2026-08-18T07:55:00 → FRA 2026-08-18T10:05:00 (TK)",
+        "TK1588 FRA 2026-08-19T11:30:00 → IST 2026-08-19T15:40:00 (TK)",
+        "U6774 IST 2026-08-19T19:45:00+03:00 → SVX 2026-08-20T02:25:00+05:00 (U6)"
+      ],
+      "connections": [
+        {
+          "direction": "outbound",
+          "actual": "3h",
+          "risk": {
+            "grade": "excellent",
+            "reasons": [],
+            "score": 0
+          },
+          "tradeoffs": []
+        },
+        {
+          "direction": "outbound",
+          "actual": "17h40",
+          "risk": {
+            "grade": "excellent",
+            "reasons": [],
+            "score": 0
+          },
+          "tradeoffs": [
+            {
+              "actual_min": 1060,
+              "arrival_airport": "IST",
+              "code": "long_wait",
+              "departure_airport": "IST",
+              "message": "Long wait of 17h40; show as a trade-off, not an automatic risk penalty."
+            },
+            {
+              "actual_min": 1060,
+              "arrival_airport": "IST",
+              "code": "overnight_wait",
+              "departure_airport": "IST",
+              "message": "Overnight wait; show explicitly and compare alternatives, but do not demote solely for overnight timing."
+            }
+          ]
+        },
+        {
+          "direction": "return",
+          "actual": "4h05",
+          "risk": {
+            "grade": "excellent",
+            "reasons": [],
+            "score": 0
+          },
+          "tradeoffs": []
+        }
+      ],
+      "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage."
+    }
+  },
+  "expanded_pool_result": {
+    "candidate_pool_limit": 20000,
+    "elapsed_seconds": 5.748,
+    "answer_lines": [
+      "Best CLI-ranked option: 93 751 RUB risk=excellent/0 elapsed=23h40.",
+      "Segments: U6773 SVX 07:20->IST 10:50 | LH1299 IST 13:55->FRA 16:05 | TK1588 FRA 11:30->IST 15:40 | U6774 IST 19:45->SVX 02:25",
+      "Cheapest acceptable: rank=394 87 211 RUB risk=excellent/0 elapsed=88h30; show as trade-off, not hidden by compact output.",
+      "Fastest acceptable: rank=550 100 505 RUB risk=excellent/8 elapsed=21h20; show as trade-off, not hidden by compact output.",
+      "Coverage diagnostics: mode=targeted; searched=2, skipped=9, failed=0, not_executed=8; negative evidence is bounded live controls only.",
+      "Coverage is incomplete: planned controls without terminal live evidence are not_executed, not no-flight evidence.",
+      "Stop policy: reported max connections per journey=1; two_stop_fallback_used=False; three_plus_suppressed=0.",
+      "Two-stop candidates are hidden because direct/one-stop options exist.",
+      "Do not treat cached or segment-search absence as proof that a through fare, direct flight, or protected ticket does not exist."
+    ],
+    "recommended": [
+      {
+        "rank": 1,
+        "price_text": "93 751 RUB",
+        "elapsed": "23h40",
+        "risk": {
+          "grade": "excellent",
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): TK, U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "segments": [
+          "U6773 SVX 2026-08-17T07:20:00+05:00 → IST 2026-08-17T10:50:00+03:00 (U6)",
+          "LH1299 IST 2026-08-17T13:55:00 → FRA 2026-08-17T16:05:00 (LH)",
+          "TK1588 FRA 2026-08-19T11:30:00 → IST 2026-08-19T15:40:00 (TK)",
+          "U6774 IST 2026-08-19T19:45:00+03:00 → SVX 2026-08-20T02:25:00+05:00 (U6)"
+        ],
+        "connections": [
+          {
+            "direction": "outbound",
+            "actual": "3h05",
+            "risk": {
+              "grade": "excellent",
+              "reasons": [],
+              "score": 0
+            },
+            "tradeoffs": []
+          },
+          {
+            "direction": "return",
+            "actual": "4h05",
+            "risk": {
+              "grade": "excellent",
+              "reasons": [],
+              "score": 0
+            },
+            "tradeoffs": []
+          }
+        ],
+        "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage."
+      },
+      {
+        "rank": 394,
+        "price_text": "87 211 RUB",
+        "elapsed": "88h30",
+        "risk": {
+          "grade": "excellent",
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU, TK.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "segments": [
+          "SU630 SVX 2026-08-17T08:20:00+05:00 → IST 2026-08-17T11:45:00+03:00 (SU)",
+          "LH1301 IST 2026-08-18T17:50:00 → FRA 2026-08-18T20:00:00 (LH)",
+          "TK1592 FRA 2026-08-19T15:05:00 → IST 2026-08-19T19:10:00 (TK)",
+          "SU631 IST 2026-08-21T12:50:00+03:00 → SVX 2026-08-21T19:55:00+05:00 (SU)"
+        ],
+        "connections": [
+          {
+            "direction": "outbound",
+            "actual": "30h05",
+            "risk": {
+              "grade": "excellent",
+              "reasons": [],
+              "score": 0
+            },
+            "tradeoffs": [
+              {
+                "actual_min": 1805,
+                "arrival_airport": "IST",
+                "code": "long_wait",
+                "departure_airport": "IST",
+                "message": "Long wait of 30h05; show as a trade-off, not an automatic risk penalty."
+              },
+              {
+                "actual_min": 1805,
+                "arrival_airport": "IST",
+                "code": "overnight_wait",
+                "departure_airport": "IST",
+                "message": "Overnight wait; show explicitly and compare alternatives, but do not demote solely for overnight timing."
+              }
+            ]
+          },
+          {
+            "direction": "return",
+            "actual": "41h40",
+            "risk": {
+              "grade": "excellent",
+              "reasons": [],
+              "score": 0
+            },
+            "tradeoffs": [
+              {
+                "actual_min": 2500,
+                "arrival_airport": "IST",
+                "code": "long_wait",
+                "departure_airport": "IST",
+                "message": "Long wait of 41h40; show as a trade-off, not an automatic risk penalty."
+              },
+              {
+                "actual_min": 2500,
+                "arrival_airport": "IST",
+                "code": "overnight_wait",
+                "departure_airport": "IST",
+                "message": "Overnight wait; show explicitly and compare alternatives, but do not demote solely for overnight timing."
+              }
+            ]
+          }
+        ],
+        "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage."
+      },
+      {
+        "rank": 550,
+        "price_text": "100 505 RUB",
+        "elapsed": "21h20",
+        "risk": {
+          "grade": "excellent",
+          "reject": false,
+          "score": 8,
+          "top_reasons": [
+            {
+              "between_segments": [
+                0,
+                1
+              ],
+              "code": "below_ideal_buffer",
+              "message": "Connection is valid but below ideal buffer.",
+              "points": 5,
+              "scope": "connection"
+            },
+            {
+              "between_segments": [
+                2,
+                3
+              ],
+              "code": "below_ideal_buffer",
+              "message": "Connection is valid but below ideal buffer.",
+              "points": 3,
+              "scope": "connection"
+            },
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU, U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "segments": [
+          "SU630 SVX 2026-08-17T08:20:00+05:00 → IST 2026-08-17T11:45:00+03:00 (SU)",
+          "LH1299 IST 2026-08-17T13:55:00 → FRA 2026-08-17T16:05:00 (LH)",
+          "LH1300 FRA 2026-08-19T12:50:00 → IST 2026-08-19T16:55:00 (LH)",
+          "U6774 IST 2026-08-19T19:45:00+03:00 → SVX 2026-08-20T02:25:00+05:00 (U6)"
+        ],
+        "connections": [
+          {
+            "direction": "outbound",
+            "actual": "2h10",
+            "risk": {
+              "grade": "excellent",
+              "reasons": [
+                {
+                  "code": "below_ideal_buffer",
+                  "message": "Connection is valid but below ideal buffer.",
+                  "points": 5
+                }
+              ],
+              "score": 5
+            },
+            "tradeoffs": []
+          },
+          {
+            "direction": "return",
+            "actual": "2h50",
+            "risk": {
+              "grade": "excellent",
+              "reasons": [
+                {
+                  "code": "below_ideal_buffer",
+                  "message": "Connection is valid but below ideal buffer.",
+                  "points": 3
+                }
+              ],
+              "score": 3
+            },
+            "tradeoffs": []
+          }
+        ],
+        "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage."
+      },
+      {
+        "rank": 2,
+        "price_text": "91 917 RUB",
+        "elapsed": "24h10",
+        "risk": {
+          "grade": "excellent",
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): SU, TK, U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "segments": [
+          "SU630 SVX 2026-08-17T08:20:00+05:00 → IST 2026-08-17T11:45:00+03:00 (SU)",
+          "TK1593 IST 2026-08-17T15:30:00 → FRA 2026-08-17T17:35:00 (TK)",
+          "TK1588 FRA 2026-08-19T11:30:00 → IST 2026-08-19T15:40:00 (TK)",
+          "U6774 IST 2026-08-19T19:45:00+03:00 → SVX 2026-08-20T02:25:00+05:00 (U6)"
+        ],
+        "connections": [
+          {
+            "direction": "outbound",
+            "actual": "3h45",
+            "risk": {
+              "grade": "excellent",
+              "reasons": [],
+              "score": 0
+            },
+            "tradeoffs": []
+          },
+          {
+            "direction": "return",
+            "actual": "4h05",
+            "risk": {
+              "grade": "excellent",
+              "reasons": [],
+              "score": 0
+            },
+            "tradeoffs": []
+          }
+        ],
+        "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage."
+      },
+      {
+        "rank": 3,
+        "price_text": "93 433 RUB",
+        "elapsed": "25h10",
+        "risk": {
+          "grade": "excellent",
+          "reject": false,
+          "score": 0,
+          "top_reasons": [
+            {
+              "code": "preferred_carrier_match",
+              "message": "Uses preferred carrier(s): TK, U6.",
+              "points": 0,
+              "scope": "carrier"
+            }
+          ]
+        },
+        "segments": [
+          "U6773 SVX 2026-08-17T07:20:00+05:00 → IST 2026-08-17T10:50:00+03:00 (U6)",
+          "TK1593 IST 2026-08-17T15:30:00 → FRA 2026-08-17T17:35:00 (TK)",
+          "TK1588 FRA 2026-08-19T11:30:00 → IST 2026-08-19T15:40:00 (TK)",
+          "U6774 IST 2026-08-19T19:45:00+03:00 → SVX 2026-08-20T02:25:00+05:00 (U6)"
+        ],
+        "connections": [
+          {
+            "direction": "outbound",
+            "actual": "4h40",
+            "risk": {
+              "grade": "excellent",
+              "reasons": [],
+              "score": 0
+            },
+            "tradeoffs": []
+          },
+          {
+            "direction": "return",
+            "actual": "4h05",
+            "risk": {
+              "grade": "excellent",
+              "reasons": [],
+              "score": 0
+            },
+            "tradeoffs": []
+          }
+        ],
+        "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage."
+      }
+    ]
+  },
+  "pair_order_diagnostics": {
+    "outbound_pairs": 168,
+    "return_pairs": 105,
+    "direct_svx_ist_fra_outbound_pair_indexes": [
+      74,
+      75,
+      76,
+      77,
+      78,
+      79,
+      80,
+      81,
+      82,
+      83,
+      84,
+      85,
+      86,
+      87,
+      91,
+      92,
+      93,
+      94,
+      95,
+      102,
+      103,
+      104,
+      111,
+      158,
+      159,
+      166,
+      167,
+      168
+    ],
+    "direct_fra_ist_svx_return_pair_indexes": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      36
+    ],
+    "default_pool_can_include_only_first_outbound_pairs_approx": 47,
+    "full_candidate_count_if_not_truncated": 17640,
+    "deduped_full_candidate_count": 17640,
+    "full_pool_top10": [
+      {
+        "rank": 1,
+        "id": "assembled-9876:SVX-SVX",
+        "price": 93751,
+        "currency": "RUB",
+        "elapsed_min": 1420,
+        "elapsed": "23h40",
+        "risk": {
+          "profile": "business",
+          "score": 0,
+          "grade": "excellent",
+          "reject": false,
+          "rank_key": [
+            0,
+            0,
+            1420,
+            93751
+          ],
+          "top_reasons": []
+        },
+        "journeys": [
+          {
+            "direction": "outbound",
+            "elapsed_min": 525,
+            "elapsed": "8h45",
+            "segments": [
+              "U6773 SVX 2026-08-17T07:20:00+05:00 → IST 2026-08-17T10:50:00+03:00 (U6)",
+              "LH1299 IST 2026-08-17T13:55:00 → FRA 2026-08-17T16:05:00 (LH)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 185,
+                "wait": "3h05"
+              }
+            ]
+          },
+          {
+            "direction": "return",
+            "elapsed_min": 895,
+            "elapsed": "14h55",
+            "segments": [
+              "TK1588 FRA 2026-08-19T11:30:00 → IST 2026-08-19T15:40:00 (TK)",
+              "U6774 IST 2026-08-19T19:45:00+03:00 → SVX 2026-08-20T02:25:00+05:00 (U6)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 245,
+                "wait": "4h05"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "rank": 2,
+        "id": "assembled-8721:SVX-SVX",
+        "price": 91917,
+        "currency": "RUB",
+        "elapsed_min": 1450,
+        "elapsed": "24h10",
+        "risk": {
+          "profile": "business",
+          "score": 0,
+          "grade": "excellent",
+          "reject": false,
+          "rank_key": [
+            0,
+            0,
+            1450,
+            91917
+          ],
+          "top_reasons": []
+        },
+        "journeys": [
+          {
+            "direction": "outbound",
+            "elapsed_min": 555,
+            "elapsed": "9h15",
+            "segments": [
+              "SU630 SVX 2026-08-17T08:20:00+05:00 → IST 2026-08-17T11:45:00+03:00 (SU)",
+              "TK1593 IST 2026-08-17T15:30:00 → FRA 2026-08-17T17:35:00 (TK)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 225,
+                "wait": "3h45"
+              }
+            ]
+          },
+          {
+            "direction": "return",
+            "elapsed_min": 895,
+            "elapsed": "14h55",
+            "segments": [
+              "TK1588 FRA 2026-08-19T11:30:00 → IST 2026-08-19T15:40:00 (TK)",
+              "U6774 IST 2026-08-19T19:45:00+03:00 → SVX 2026-08-20T02:25:00+05:00 (U6)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 245,
+                "wait": "4h05"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "rank": 3,
+        "id": "assembled-9456:SVX-SVX",
+        "price": 93433,
+        "currency": "RUB",
+        "elapsed_min": 1510,
+        "elapsed": "25h10",
+        "risk": {
+          "profile": "business",
+          "score": 0,
+          "grade": "excellent",
+          "reject": false,
+          "rank_key": [
+            0,
+            0,
+            1510,
+            93433
+          ],
+          "top_reasons": []
+        },
+        "journeys": [
+          {
+            "direction": "outbound",
+            "elapsed_min": 615,
+            "elapsed": "10h15",
+            "segments": [
+              "U6773 SVX 2026-08-17T07:20:00+05:00 → IST 2026-08-17T10:50:00+03:00 (U6)",
+              "TK1593 IST 2026-08-17T15:30:00 → FRA 2026-08-17T17:35:00 (TK)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 280,
+                "wait": "4h40"
+              }
+            ]
+          },
+          {
+            "direction": "return",
+            "elapsed_min": 895,
+            "elapsed": "14h55",
+            "segments": [
+              "TK1588 FRA 2026-08-19T11:30:00 → IST 2026-08-19T15:40:00 (TK)",
+              "U6774 IST 2026-08-19T19:45:00+03:00 → SVX 2026-08-20T02:25:00+05:00 (U6)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 245,
+                "wait": "4h05"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "rank": 4,
+        "id": "assembled-9891:SVX-SVX",
+        "price": 102021,
+        "currency": "RUB",
+        "elapsed_min": 1575,
+        "elapsed": "26h15",
+        "risk": {
+          "profile": "business",
+          "score": 0,
+          "grade": "excellent",
+          "reject": false,
+          "rank_key": [
+            0,
+            0,
+            1575,
+            102021
+          ],
+          "top_reasons": []
+        },
+        "journeys": [
+          {
+            "direction": "outbound",
+            "elapsed_min": 525,
+            "elapsed": "8h45",
+            "segments": [
+              "U6773 SVX 2026-08-17T07:20:00+05:00 → IST 2026-08-17T10:50:00+03:00 (U6)",
+              "LH1299 IST 2026-08-17T13:55:00 → FRA 2026-08-17T16:05:00 (LH)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 185,
+                "wait": "3h05"
+              }
+            ]
+          },
+          {
+            "direction": "return",
+            "elapsed_min": 1050,
+            "elapsed": "17h30",
+            "segments": [
+              "LH1298 FRA 2026-08-19T08:55:00 → IST 2026-08-19T13:00:00 (LH)",
+              "U6774 IST 2026-08-19T19:45:00+03:00 → SVX 2026-08-20T02:25:00+05:00 (U6)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 405,
+                "wait": "6h45"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "rank": 5,
+        "id": "assembled-8826:SVX-SVX",
+        "price": 92101,
+        "currency": "RUB",
+        "elapsed_min": 1600,
+        "elapsed": "26h40",
+        "risk": {
+          "profile": "business",
+          "score": 0,
+          "grade": "excellent",
+          "reject": false,
+          "rank_key": [
+            0,
+            0,
+            1600,
+            92101
+          ],
+          "top_reasons": []
+        },
+        "journeys": [
+          {
+            "direction": "outbound",
+            "elapsed_min": 705,
+            "elapsed": "11h45",
+            "segments": [
+              "SU630 SVX 2026-08-17T08:20:00+05:00 → IST 2026-08-17T11:45:00+03:00 (SU)",
+              "LH1301 IST 2026-08-17T17:55:00 → FRA 2026-08-17T20:05:00 (LH)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 370,
+                "wait": "6h10"
+              }
+            ]
+          },
+          {
+            "direction": "return",
+            "elapsed_min": 895,
+            "elapsed": "14h55",
+            "segments": [
+              "TK1588 FRA 2026-08-19T11:30:00 → IST 2026-08-19T15:40:00 (TK)",
+              "U6774 IST 2026-08-19T19:45:00+03:00 → SVX 2026-08-20T02:25:00+05:00 (U6)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 245,
+                "wait": "4h05"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "rank": 6,
+        "id": "assembled-8736:SVX-SVX",
+        "price": 100187,
+        "currency": "RUB",
+        "elapsed_min": 1605,
+        "elapsed": "26h45",
+        "risk": {
+          "profile": "business",
+          "score": 0,
+          "grade": "excellent",
+          "reject": false,
+          "rank_key": [
+            0,
+            0,
+            1605,
+            100187
+          ],
+          "top_reasons": []
+        },
+        "journeys": [
+          {
+            "direction": "outbound",
+            "elapsed_min": 555,
+            "elapsed": "9h15",
+            "segments": [
+              "SU630 SVX 2026-08-17T08:20:00+05:00 → IST 2026-08-17T11:45:00+03:00 (SU)",
+              "TK1593 IST 2026-08-17T15:30:00 → FRA 2026-08-17T17:35:00 (TK)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 225,
+                "wait": "3h45"
+              }
+            ]
+          },
+          {
+            "direction": "return",
+            "elapsed_min": 1050,
+            "elapsed": "17h30",
+            "segments": [
+              "LH1298 FRA 2026-08-19T08:55:00 → IST 2026-08-19T13:00:00 (LH)",
+              "U6774 IST 2026-08-19T19:45:00+03:00 → SVX 2026-08-20T02:25:00+05:00 (U6)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 405,
+                "wait": "6h45"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "rank": 7,
+        "id": "assembled-9561:SVX-SVX",
+        "price": 93617,
+        "currency": "RUB",
+        "elapsed_min": 1660,
+        "elapsed": "27h40",
+        "risk": {
+          "profile": "business",
+          "score": 0,
+          "grade": "excellent",
+          "reject": false,
+          "rank_key": [
+            0,
+            0,
+            1660,
+            93617
+          ],
+          "top_reasons": []
+        },
+        "journeys": [
+          {
+            "direction": "outbound",
+            "elapsed_min": 765,
+            "elapsed": "12h45",
+            "segments": [
+              "U6773 SVX 2026-08-17T07:20:00+05:00 → IST 2026-08-17T10:50:00+03:00 (U6)",
+              "LH1301 IST 2026-08-17T17:55:00 → FRA 2026-08-17T20:05:00 (LH)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 425,
+                "wait": "7h05"
+              }
+            ]
+          },
+          {
+            "direction": "return",
+            "elapsed_min": 895,
+            "elapsed": "14h55",
+            "segments": [
+              "TK1588 FRA 2026-08-19T11:30:00 → IST 2026-08-19T15:40:00 (TK)",
+              "U6774 IST 2026-08-19T19:45:00+03:00 → SVX 2026-08-20T02:25:00+05:00 (U6)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 245,
+                "wait": "4h05"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "rank": 8,
+        "id": "assembled-9471:SVX-SVX",
+        "price": 101703,
+        "currency": "RUB",
+        "elapsed_min": 1665,
+        "elapsed": "27h45",
+        "risk": {
+          "profile": "business",
+          "score": 0,
+          "grade": "excellent",
+          "reject": false,
+          "rank_key": [
+            0,
+            0,
+            1665,
+            101703
+          ],
+          "top_reasons": []
+        },
+        "journeys": [
+          {
+            "direction": "outbound",
+            "elapsed_min": 615,
+            "elapsed": "10h15",
+            "segments": [
+              "U6773 SVX 2026-08-17T07:20:00+05:00 → IST 2026-08-17T10:50:00+03:00 (U6)",
+              "TK1593 IST 2026-08-17T15:30:00 → FRA 2026-08-17T17:35:00 (TK)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 280,
+                "wait": "4h40"
+              }
+            ]
+          },
+          {
+            "direction": "return",
+            "elapsed_min": 1050,
+            "elapsed": "17h30",
+            "segments": [
+              "LH1298 FRA 2026-08-19T08:55:00 → IST 2026-08-19T13:00:00 (LH)",
+              "U6774 IST 2026-08-19T19:45:00+03:00 → SVX 2026-08-20T02:25:00+05:00 (U6)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 405,
+                "wait": "6h45"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "rank": 9,
+        "id": "assembled-9036:SVX-SVX",
+        "price": 92213,
+        "currency": "RUB",
+        "elapsed_min": 1670,
+        "elapsed": "27h50",
+        "risk": {
+          "profile": "business",
+          "score": 0,
+          "grade": "excellent",
+          "reject": false,
+          "rank_key": [
+            0,
+            0,
+            1670,
+            92213
+          ],
+          "top_reasons": []
+        },
+        "journeys": [
+          {
+            "direction": "outbound",
+            "elapsed_min": 775,
+            "elapsed": "12h55",
+            "segments": [
+              "SU630 SVX 2026-08-17T08:20:00+05:00 → IST 2026-08-17T11:45:00+03:00 (SU)",
+              "TK1597 IST 2026-08-17T19:00:00 → FRA 2026-08-17T21:15:00 (TK)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 435,
+                "wait": "7h15"
+              }
+            ]
+          },
+          {
+            "direction": "return",
+            "elapsed_min": 895,
+            "elapsed": "14h55",
+            "segments": [
+              "TK1588 FRA 2026-08-19T11:30:00 → IST 2026-08-19T15:40:00 (TK)",
+              "U6774 IST 2026-08-19T19:45:00+03:00 → SVX 2026-08-20T02:25:00+05:00 (U6)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 245,
+                "wait": "4h05"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "rank": 10,
+        "id": "assembled-9881:SVX-SVX",
+        "price": 94013,
+        "currency": "RUB",
+        "elapsed_min": 1700,
+        "elapsed": "28h20",
+        "risk": {
+          "profile": "business",
+          "score": 0,
+          "grade": "excellent",
+          "reject": false,
+          "rank_key": [
+            0,
+            0,
+            1700,
+            94013
+          ],
+          "top_reasons": []
+        },
+        "journeys": [
+          {
+            "direction": "outbound",
+            "elapsed_min": 525,
+            "elapsed": "8h45",
+            "segments": [
+              "U6773 SVX 2026-08-17T07:20:00+05:00 → IST 2026-08-17T10:50:00+03:00 (U6)",
+              "LH1299 IST 2026-08-17T13:55:00 → FRA 2026-08-17T16:05:00 (LH)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 185,
+                "wait": "3h05"
+              }
+            ]
+          },
+          {
+            "direction": "return",
+            "elapsed_min": 1175,
+            "elapsed": "19h35",
+            "segments": [
+              "TK1598 FRA 2026-08-19T06:50:00 → IST 2026-08-19T11:00:00 (TK)",
+              "U6774 IST 2026-08-19T19:45:00+03:00 → SVX 2026-08-20T02:25:00+05:00 (U6)"
+            ],
+            "connections": [
+              {
+                "at": "IST",
+                "to_departure_airport": "IST",
+                "wait_min": 525,
+                "wait": "8h45"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "aggregate_controls": {
+    "outbound_top": {
+      "price": 35516,
+      "currency": "RUB",
+      "reported_duration_min": 580,
+      "flights": [
+        "3F478",
+        "A3899",
+        "A3830"
+      ],
+      "first_departure": "2026-08-17T23:20:00+05:00",
+      "final_arrival": "2026-08-18T10:15:00+02:00",
+      "segments": [
+        "3F478 SVX 2026-08-17T23:20:00+05:00 → EVN 2026-08-18T02:00:00+04:00 (3F)",
+        "A3899 EVN 2026-08-18T04:25:00+04:00 → ATH 2026-08-18T06:20:00+03:00 (A3)",
+        "A3830 ATH 2026-08-18T08:10:00+03:00 → FRA 2026-08-18T10:15:00+02:00 (A3)"
+      ]
+    },
+    "return_top": {
+      "price": 31720,
+      "currency": "RUB",
+      "reported_duration_min": 540,
+      "flights": [
+        "VF34",
+        "WZ1366",
+        "WZ1034"
+      ],
+      "first_departure": "2026-08-19T13:35:00+02:00",
+      "final_arrival": "2026-08-20T11:05:00+05:00",
+      "segments": [
+        "VF34 FRA 2026-08-19T13:35:00+02:00 → SAW 2026-08-19T17:40:00+03:00 (VF)",
+        "WZ1366 IST 2026-08-19T22:10:00+03:00 → KUF 2026-08-20T03:25:00+04:00 (WZ)",
+        "WZ1034 KUF 2026-08-20T08:25:00+04:00 → SVX 2026-08-20T11:05:00+05:00 (WZ)"
+      ]
+    }
+  },
+  "coverage": {
+    "completeness": {
+      "all_planned_controls_have_terminal_state": true,
+      "planned_count": 10,
+      "terminal_count": 10
+    },
+    "coverage_mode": "targeted",
+    "coverage_warnings": [
+      "segment_absence_is_not_route_absence",
+      "provider_empty_is_not_carrier_absence",
+      "cache_absence_is_not_negative_evidence"
+    ],
+    "deduped_controls": [],
+    "failed_controls": [],
+    "limits": {
+      "cache_phase": "out_of_scope",
+      "coverage_control_limit": 12,
+      "live_fanout": "bounded_by_max_segment_searches",
+      "max_segment_searches": 300,
+      "requested_controls": []
+    },
+    "negative_evidence_type": "bounded_live_controls_only",
+    "not_executed_controls": [
+      {
+        "date": "2026-08-17",
+        "destination": "FRA",
+        "direction": "outbound",
+        "execution_state": "not_executed",
+        "negative_evidence": "provider_empty_only_not_route_absence",
+        "origin": "SVX",
+        "probe_id": "probe-001",
+        "reason": "not_reached_by_current_live_execution",
+        "status": "not_executed",
+        "type": "exact_airport_direct"
+      },
+      {
+        "date": "2026-08-19",
+        "destination": "SVX",
+        "direction": "return",
+        "execution_state": "not_executed",
+        "negative_evidence": "provider_empty_only_not_route_absence",
+        "origin": "FRA",
+        "probe_id": "probe-002",
+        "reason": "not_reached_by_current_live_execution",
+        "status": "not_executed",
+        "type": "exact_airport_direct"
+      },
+      {
+        "carrier": "U6",
+        "date": "2026-08-17",
+        "destination": "FRA",
+        "direction": "outbound",
+        "execution_state": "not_executed",
+        "negative_evidence": "carrier_probe_empty_only_not_carrier_absence",
+        "origin": "SVX",
+        "probe_id": "probe-004",
+        "reason": "not_reached_by_current_live_execution",
+        "status": "not_executed",
+        "type": "carrier_aggregate"
+      },
+      {
+        "carrier": "SU",
+        "date": "2026-08-17",
+        "destination": "FRA",
+        "direction": "outbound",
+        "execution_state": "not_executed",
+        "negative_evidence": "carrier_probe_empty_only_not_carrier_absence",
+        "origin": "SVX",
+        "probe_id": "probe-005",
+        "reason": "not_reached_by_current_live_execution",
+        "status": "not_executed",
+        "type": "carrier_aggregate"
+      },
+      {
+        "carrier": "TK",
+        "date": "2026-08-17",
+        "destination": "FRA",
+        "direction": "outbound",
+        "execution_state": "not_executed",
+        "negative_evidence": "carrier_probe_empty_only_not_carrier_absence",
+        "origin": "SVX",
+        "probe_id": "probe-006",
+        "reason": "not_reached_by_current_live_execution",
+        "status": "not_executed",
+        "type": "carrier_aggregate"
+      },
+      {
+        "carrier": "U6",
+        "date": "2026-08-19",
+        "destination": "SVX",
+        "direction": "return",
+        "execution_state": "not_executed",
+        "negative_evidence": "carrier_probe_empty_only_not_carrier_absence",
+        "origin": "FRA",
+        "probe_id": "probe-008",
+        "reason": "not_reached_by_current_live_execution",
+        "status": "not_executed",
+        "type": "carrier_aggregate"
+      },
+      {
+        "carrier": "SU",
+        "date": "2026-08-19",
+        "destination": "SVX",
+        "direction": "return",
+        "execution_state": "not_executed",
+        "negative_evidence": "carrier_probe_empty_only_not_carrier_absence",
+        "origin": "FRA",
+        "probe_id": "probe-009",
+        "reason": "not_reached_by_current_live_execution",
+        "status": "not_executed",
+        "type": "carrier_aggregate"
+      },
+      {
+        "carrier": "TK",
+        "date": "2026-08-19",
+        "destination": "SVX",
+        "direction": "return",
+        "execution_state": "not_executed",
+        "negative_evidence": "carrier_probe_empty_only_not_carrier_absence",
+        "origin": "FRA",
+        "probe_id": "probe-010",
+        "reason": "not_reached_by_current_live_execution",
+        "status": "not_executed",
+        "type": "carrier_aggregate"
+      }
+    ],
+    "planned_controls": [
+      {
+        "date": "2026-08-17",
+        "destination": "FRA",
+        "direction": "outbound",
+        "execution_state": "planned",
+        "negative_evidence": "provider_empty_only_not_route_absence",
+        "origin": "SVX",
+        "probe_id": "probe-001",
+        "type": "exact_airport_direct"
+      }
+    ],
+    "searched_controls": [
+      {
+        "cache_status": "disabled",
+        "date": "2026-08-17",
+        "destination": "FRA",
+        "direction": "outbound",
+        "execution_state": "searched",
+        "negative_evidence": "aggregate_empty_only_not_route_absence",
+        "offer_count": 10,
+        "origin": "SVX",
+        "probe_id": "probe-003",
+        "provider": "kupibilet",
+        "status": "ok",
+        "type": "full_route_aggregate"
+      },
+      {
+        "cache_status": "disabled",
+        "date": "2026-08-19",
+        "destination": "SVX",
+        "direction": "return",
+        "execution_state": "searched",
+        "negative_evidence": "aggregate_empty_only_not_route_absence",
+        "offer_count": 10,
+        "origin": "FRA",
+        "probe_id": "probe-007",
+        "provider": "kupibilet",
+        "status": "ok",
+        "type": "full_route_aggregate"
+      }
+    ],
+    "skipped_controls": [
+      {
+        "date": "2026-08-17",
+        "destination": "FRA",
+        "direction": "outbound",
+        "execution_state": "skipped",
+        "leg": "direct_outbound",
+        "origin": "SVX",
+        "reason": "direct_route_schedule_negative",
+        "status": "skipped",
+        "type": "route_segment"
+      },
+      {
+        "date": "2026-08-17",
+        "destination": "DXB",
+        "direction": "outbound",
+        "execution_state": "skipped",
+        "leg": "origin_to_hub",
+        "origin": "SVX",
+        "reason": "priority_route_viable",
+        "status": "skipped",
+        "type": "route_segment"
+      },
+      {
+        "date": "2026-08-17",
+        "destination": "FRA",
+        "direction": "outbound",
+        "execution_state": "skipped",
+        "leg": "hub_to_destination",
+        "origin": "DXB",
+        "reason": "priority_route_viable",
+        "status": "skipped",
+        "type": "route_segment"
+      },
+      {
+        "date": "2026-08-18",
+        "destination": "FRA",
+        "direction": "outbound",
+        "execution_state": "skipped",
+        "leg": "hub_to_destination",
+        "origin": "DXB",
+        "reason": "priority_route_viable",
+        "status": "skipped",
+        "type": "route_segment"
+      },
+      {
+        "date": "2026-08-19",
+        "destination": "SVX",
+        "direction": "return",
+        "execution_state": "skipped",
+        "leg": "direct_return",
+        "origin": "FRA",
+        "reason": "direct_route_schedule_negative",
+        "status": "skipped",
+        "type": "route_segment"
+      },
+      {
+        "date": "2026-08-19",
+        "destination": "DXB",
+        "direction": "return",
+        "execution_state": "skipped",
+        "leg": "destination_to_hub",
+        "origin": "FRA",
+        "reason": "priority_route_viable",
+        "status": "skipped",
+        "type": "route_segment"
+      },
+      {
+        "date": "2026-08-19",
+        "destination": "SVX",
+        "direction": "return",
+        "execution_state": "skipped",
+        "leg": "hub_to_origin",
+        "origin": "DXB",
+        "reason": "priority_route_viable",
+        "status": "skipped",
+        "type": "route_segment"
+      },
+      {
+        "date": "2026-08-20",
+        "destination": "SVX",
+        "direction": "return",
+        "execution_state": "skipped",
+        "leg": "hub_to_origin",
+        "origin": "DXB",
+        "reason": "priority_route_viable",
+        "status": "skipped",
+        "type": "route_segment"
+      },
+      {
+        "date": "2026-08-21",
+        "destination": "SVX",
+        "direction": "return",
+        "execution_state": "skipped",
+        "leg": "hub_to_origin",
+        "origin": "DXB",
+        "reason": "priority_route_viable",
+        "status": "skipped",
+        "type": "route_segment"
+      }
+    ]
+  },
+  "source_boundaries": [
+    "Segment assembly prices direct one-way legs and does not construct GDS, airline through-fares, or guaranteed single-PNR fares.",
+    "Kupibilet aggregate controls can reveal provider-assembled route offers, but ticket protection, baggage, fare rules, and final price still require booking-screen verification.",
+    "Travelpayouts/Aviasales cached absence is not negative evidence.",
+    "Provider failures such as unavailable FLI MCP are source availability failures, not route absence evidence."
+  ]
+}

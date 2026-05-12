@@ -1,0 +1,114 @@
+[
+  {
+    "code": " M",
+    "path": "skills/autonomous-ai-agents/hermes-agent/references/fork-release-sync-conflicts.md",
+    "exists": true,
+    "size": 14404,
+    "sha256": "32eef5fdcc540ad72657c48c629fcbc0b366fbc98e48fc1cad9224b7d00d980d"
+  },
+  {
+    "code": " M",
+    "path": "skills/devops/systemd-web-service-deployment/SKILL.md",
+    "exists": true,
+    "size": 12184,
+    "sha256": "7c5ba9989f14f47c63ff1a66f4e86a677d4b5d31ea4a57d2c6bb23d2b5e3f3c4"
+  },
+  {
+    "code": " D",
+    "path": "skills/devops/systemd-web-service-deployment/references/server-monitor-auth-funnel-2026-04-30.md",
+    "exists": false,
+    "head_size": 4524,
+    "head_sha256": "527a740960a2d7c04d7bbd168440e85596c342c5916f25d75056424636886130"
+  },
+  {
+    "code": " D",
+    "path": "skills/devops/systemd-web-service-deployment/references/server-monitor-holographic-metrics-2026-04-30.md",
+    "exists": false,
+    "head_size": 2500,
+    "head_sha256": "2ee75f6f6ebe4b2d72c0c9ba099a351285271385f8a77a479060ed903191b0c2"
+  },
+  {
+    "code": " M",
+    "path": "skills/note-taking/knowledge-architecture/SKILL.md",
+    "exists": true,
+    "size": 12177,
+    "sha256": "0c7413745e0615a072beb3c54ee3fd121a247545dacf202d1a08a732da26974e"
+  },
+  {
+    "code": " D",
+    "path": "skills/note-taking/knowledge-architecture/references/deepseek-native-distillation-benchmark-2026-05-07.md",
+    "exists": false,
+    "head_size": 4379,
+    "head_sha256": "28759efc8ed804f24df8af7aa871fa84c6e1e153b85bac9b1b9c8101949f6b96"
+  },
+  {
+    "code": " M",
+    "path": "skills/note-taking/knowledge-architecture/references/distillation.md",
+    "exists": true,
+    "size": 14583,
+    "sha256": "5780b623bf994f4e5bb35c6fa452bbd7762d921cb73329ca279b3283be95c557"
+  },
+  {
+    "code": " D",
+    "path": "skills/note-taking/knowledge-architecture/references/memory-hygiene-audit-2026-05-07.md",
+    "exists": false,
+    "head_size": 3135,
+    "head_sha256": "77c201c3121afef7034768cbae8f14d96fca503635772ee5b18071b005cbe3a7"
+  },
+  {
+    "code": " D",
+    "path": "skills/note-taking/knowledge-architecture/references/verification-claims-2026-05-07.md",
+    "exists": false,
+    "head_size": 3143,
+    "head_sha256": "09a2095ae15dbe0aa656c0b229e56c5b353b8dc8dfc9efcc35a2ab7afbbeca35"
+  },
+  {
+    "code": " M",
+    "path": "skills/software-development/skill-audit-and-improvement/SKILL.md",
+    "exists": true,
+    "size": 21926,
+    "sha256": "77bb64323b00a45a88711573f750954eb6d9fa17c4207291ddf52c9f42febada"
+  },
+  {
+    "code": " M",
+    "path": "skills/software-development/skill-audit-and-improvement/references/audit-protocol-contract.md",
+    "exists": true,
+    "size": 5025,
+    "sha256": "b0a636cbc975155663d84e1588bb339d35dff7ab4cc0a4826907885dedeaea4d"
+  },
+  {
+    "code": " D",
+    "path": "skills/software-development/skill-audit-and-improvement/references/case-study-2026-05-07-systemd-skill-improvement.md",
+    "exists": false,
+    "head_size": 3548,
+    "head_sha256": "42e10ca50a3a5cc6062c65eb98c57d2589c6eb4a4e84eac6bf4966ca27024b08"
+  },
+  {
+    "code": " D",
+    "path": "skills/software-development/skill-audit-and-improvement/references/dirty-worktree-plan-provenance-2026-05-08.md",
+    "exists": false,
+    "head_size": 1984,
+    "head_sha256": "37d905faaca7111463591aac58e1f532a2f3d1a6fd60756fd8b31eaa99b54583"
+  },
+  {
+    "code": " D",
+    "path": "skills/software-development/skill-audit-and-improvement/references/local-audit-gate-hardening-2026-05-08.md",
+    "exists": false,
+    "head_size": 3965,
+    "head_sha256": "843b10eadb8ad00a65c0add9eb96393cb14d1e332c0a33bfb40ab87cb2c621d7"
+  },
+  {
+    "code": " D",
+    "path": "skills/software-development/skill-audit-and-improvement/references/master-plan-synthesis-2026-05-08.md",
+    "exists": false,
+    "head_size": 4075,
+    "head_sha256": "271678e625e2a45432578b08b5dc0162b299d7e9ae69aa33e0599ca914d3fd93"
+  },
+  {
+    "code": "??",
+    "path": "skills/devops/systemd-web-service-deployment/references/server-monitor-deployment-case-study.md",
+    "exists": true,
+    "size": 4409,
+    "sha256": "c89df6bd8e68b971d183caacb5dc81981e6c3ef51468f834e490599e97ca5bbf"
+  }
+]

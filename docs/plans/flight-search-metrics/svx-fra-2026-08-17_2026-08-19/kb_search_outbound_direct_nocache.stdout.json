@@ -1,0 +1,62 @@
+{
+  "command": "kb-search",
+  "data": {
+    "cache": {
+      "disabled": true,
+      "hit": false,
+      "key": "cc9afecb26fd3dfb56fca1acde7a95ad7cb773e66d1b7fab9ab0300922f3b876"
+    },
+    "currency": "RUB",
+    "depart_date": "2026-08-17",
+    "destination": "FRA",
+    "filters": {
+      "dedupe": "flight_numbers+times",
+      "direct_only": true,
+      "only_carriers": []
+    },
+    "http_status": 200,
+    "note": "Live aggregate source, not official aeroflot.ru; recheck final fare and seat availability before ticketing.",
+    "offer_count": 0,
+    "offers": [],
+    "origin": "SVX",
+    "raw_variant_count": 402,
+    "request": {
+      "body": {
+        "agent": "kupibilet",
+        "cabin": "economy",
+        "client_platform": "web",
+        "currency": "RUB",
+        "filters": {},
+        "lang": "ru",
+        "short_response": false,
+        "sort_by": "price",
+        "travelers": {
+          "adult": 1,
+          "child": 0,
+          "infant": 0
+        },
+        "trips": [
+          {
+            "arrival": "FRA",
+            "date": "2026-08-17",
+            "departure": "SVX"
+          }
+        ]
+      },
+      "endpoint": "https://api-rs-lb.kupibilet.ru/frontend_search",
+      "headers": {
+        "Content-Type": "application/json",
+        "Origin": "https://www.kupibilet.ru",
+        "Referer": "https://www.kupibilet.ru/"
+      },
+      "method": "POST"
+    },
+    "skipped": {
+      "not_direct": 402
+    },
+    "source": "Kupibilet frontend_search (live aggregate)",
+    "source_url": "https://api-rs-lb.kupibilet.ru/frontend_search",
+    "unique_flight_count": 0
+  },
+  "ok": true
+}

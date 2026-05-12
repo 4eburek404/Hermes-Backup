@@ -291,9 +291,25 @@ def parse_duration_minutes(value: Any) -> int | None:
     return hours * 60 + minutes if hours or minutes else None
 
 
-def normalize_fli_leg(leg: dict[str, Any], *, store: Store) -> dict[str, Any] | None:
-    origin = resolve_fli_airport(leg.get("departure_airport"), store=store, field="departure_airport")
-    destination = resolve_fli_airport(leg.get("arrival_airport"), store=store, field="arrival_airport")
+def normalize_fli_leg(
+    leg: dict[str, Any],
+    *,
+    store: Store,
+    expected_origin: str | None = None,
+    expected_destination: str | None = None,
+) -> dict[str, Any] | None:
+    origin = resolve_fli_airport(
+        leg.get("departure_airport"),
+        store=store,
+        field="departure_airport",
+        preferred_code=expected_origin,
+    )
+    destination = resolve_fli_airport(
+        leg.get("arrival_airport"),
+        store=store,
+        field="arrival_airport",
+        preferred_code=expected_destination,
+    )
     airline_code = enum_code(leg.get("airline_code") or leg.get("airline"), size=2)
     flight_number = str(leg.get("flight_number") or "").strip().replace(" ", "")
     if airline_code and flight_number and not flight_number.upper().startswith(airline_code):
@@ -347,9 +363,14 @@ def parse_fli_flight_search(
             skipped["no_legs"] = skipped.get("no_legs", 0) + 1
             continue
         normalized_flights = []
-        for leg in legs:
+        for leg_index, leg in enumerate(legs):
             if isinstance(leg, dict):
-                normalized = normalize_fli_leg(leg, store=airport_store)
+                normalized = normalize_fli_leg(
+                    leg,
+                    store=airport_store,
+                    expected_origin=origin if leg_index == 0 else None,
+                    expected_destination=destination if leg_index == len(legs) - 1 else None,
+                )
                 if normalized is not None:
                     normalized_flights.append(normalized)
         if not normalized_flights:

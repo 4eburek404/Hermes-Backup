@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from flights_cli.cli import build_parser
+from flights_cli.errors import CliError
 from flights_cli.providers.fli_mcp import (
     decode_mcp_response,
     fli_result_to_segment_result,
@@ -28,7 +29,9 @@ def store_with_airports(test_case: unittest.TestCase) -> Store:
           {"code": "CDG", "country_code": "FR", "flightable": true, "name": "Charles de Gaulle Airport", "name_translations": {"en": "Charles de Gaulle Airport"}},
           {"code": "LHR", "country_code": "GB", "flightable": true, "name": "London Heathrow Airport", "name_translations": {"en": "London Heathrow Airport"}},
           {"code": "DXB", "country_code": "AE", "flightable": true, "name": "Dubai Airport", "name_translations": {"en": "Dubai Airport"}},
-          {"code": "AMS", "country_code": "NL", "flightable": true, "name": "Amsterdam Airport Schiphol", "name_translations": {"en": "Amsterdam Airport Schiphol"}}
+          {"code": "AMS", "country_code": "NL", "flightable": true, "name": "Amsterdam Airport Schiphol", "name_translations": {"en": "Amsterdam Airport Schiphol"}},
+          {"code": "BCN", "city_code": "BCN", "country_code": "ES", "flightable": true, "name": "Barcelona-El Prat Airport", "name_translations": {"en": "Barcelona-El Prat Airport"}},
+          {"code": "XJB", "city_code": "BCN", "country_code": "ES", "flightable": true, "name": "Barcelona Bus Station", "name_translations": {"en": "Barcelona Bus Station"}}
         ]
         """,
         encoding="utf-8",
@@ -130,6 +133,63 @@ class FliMcpTests(unittest.TestCase):
         for name, code in cases.items():
             with self.subTest(name=name):
                 self.assertEqual(resolve_fli_airport(name, store=store, field="airport"), code)
+
+    def test_resolve_fli_airport_prefers_query_code_for_ambiguous_fli_name(self) -> None:
+        store = store_with_airports(self)
+
+        with self.assertRaises(CliError):
+            resolve_fli_airport("Barcelona International Airport", store=store, field="arrival_airport")
+
+        self.assertEqual(
+            resolve_fli_airport(
+                "Barcelona International Airport",
+                store=store,
+                field="arrival_airport",
+                preferred_code="BCN",
+            ),
+            "BCN",
+        )
+
+    def test_parse_fli_flight_search_uses_query_destination_for_ambiguous_final_airport(self) -> None:
+        raw = {
+            "success": True,
+            "count": 1,
+            "trip_type": "ONE_WAY",
+            "flights": [
+                {
+                    "price": 21691,
+                    "currency": "RUB",
+                    "legs": [
+                        {
+                            "departure_airport": "Istanbul Airport",
+                            "arrival_airport": "Barcelona International Airport",
+                            "departure_time": "2026-08-16T18:10:00",
+                            "arrival_time": "2026-08-16T21:00:00",
+                            "duration": 230,
+                            "airline": "Vueling",
+                            "airline_code": "VY",
+                            "flight_number": "3071",
+                        }
+                    ],
+                }
+            ],
+        }
+
+        result = parse_fli_flight_search(
+            raw,
+            origin="IST",
+            destination="BCN",
+            depart_date="2026-08-16",
+            currency="RUB",
+            mcp_url="http://127.0.0.1:8000/mcp",
+            store=store_with_airports(self),
+        )
+
+        offer = result["offers"][0]
+        self.assertEqual(offer["origin"], "IST")
+        self.assertEqual(offer["destination"], "BCN")
+        self.assertEqual(offer["flights"][0]["origin"], "IST")
+        self.assertEqual(offer["flights"][0]["destination"], "BCN")
 
     def test_parse_fli_flight_search_maps_real_fli_airport_names(self) -> None:
         raw = {

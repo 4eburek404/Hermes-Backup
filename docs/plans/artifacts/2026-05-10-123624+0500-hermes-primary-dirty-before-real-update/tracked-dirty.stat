@@ -1,0 +1,16 @@
+ .../references/fork-release-sync-conflicts.md      |  36 +++++
+ .../devops/systemd-web-service-deployment/SKILL.md |   3 +-
+ .../server-monitor-auth-funnel-2026-04-30.md       | 169 ---------------------
+ ...erver-monitor-holographic-metrics-2026-04-30.md |  55 -------
+ skills/note-taking/knowledge-architecture/SKILL.md |   7 +-
+ ...eek-native-distillation-benchmark-2026-05-07.md | 147 ------------------
+ .../references/distillation.md                     |  34 ++++-
+ .../references/memory-hygiene-audit-2026-05-07.md  |  62 --------
+ .../references/verification-claims-2026-05-07.md   |  54 -------
+ .../skill-audit-and-improvement/SKILL.md           |   6 +-
+ .../references/audit-protocol-contract.md          |  33 ++++
+ ...e-study-2026-05-07-systemd-skill-improvement.md |  91 -----------
+ .../dirty-worktree-plan-provenance-2026-05-08.md   |  31 ----
+ .../local-audit-gate-hardening-2026-05-08.md       |  69 ---------
+ .../references/master-plan-synthesis-2026-05-08.md |  67 --------
+ 15 files changed, 104 insertions(+), 760 deletions(-)

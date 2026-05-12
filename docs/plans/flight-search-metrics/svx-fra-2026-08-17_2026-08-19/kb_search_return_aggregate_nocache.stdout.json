@@ -1,0 +1,711 @@
+{
+  "command": "kb-search",
+  "data": {
+    "cache": {
+      "disabled": true,
+      "hit": false,
+      "key": "d9d395583437f7dbeeeb2a8c28b6f4e2c72661b4e0cf3159f0a4035ac2b3a045"
+    },
+    "currency": "RUB",
+    "depart_date": "2026-08-19",
+    "destination": "SVX",
+    "filters": {
+      "dedupe": "flight_numbers+times",
+      "direct_only": false,
+      "only_carriers": []
+    },
+    "http_status": 200,
+    "note": "Live aggregate source, not official aeroflot.ru; recheck final fare and seat availability before ticketing.",
+    "offer_count": 10,
+    "offers": [
+      {
+        "arrival_at": "2026-08-20T11:05:00+05:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-19T13:35:00+02:00",
+        "destination": "SVX",
+        "duration": 540,
+        "flight_numbers": [
+          "VF34",
+          "WZ1366",
+          "WZ1034"
+        ],
+        "flights": [
+          {
+            "aircraft": "32N",
+            "arrival_at": "2026-08-19T17:40:00+03:00",
+            "departure_at": "2026-08-19T13:35:00+02:00",
+            "destination": "SAW",
+            "duration": 185,
+            "flight_number": "VF34",
+            "is_charter": false,
+            "marketing_carrier": "VF",
+            "operating_carrier": "VF",
+            "origin": "FRA",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "SU9",
+            "arrival_at": "2026-08-20T03:25:00+04:00",
+            "departure_at": "2026-08-19T22:10:00+03:00",
+            "destination": "KUF",
+            "duration": 255,
+            "flight_number": "WZ1366",
+            "is_charter": false,
+            "marketing_carrier": "WZ",
+            "operating_carrier": "WZ",
+            "origin": "IST",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "SU9",
+            "arrival_at": "2026-08-20T11:05:00+05:00",
+            "departure_at": "2026-08-20T08:25:00+04:00",
+            "destination": "SVX",
+            "duration": 100,
+            "flight_number": "WZ1034",
+            "is_charter": false,
+            "marketing_carrier": "WZ",
+            "operating_carrier": "WZ",
+            "origin": "KUF",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "feaf40b8006b4e2c8a15d439326d8446211",
+        "marketing_carriers": [
+          "VF",
+          "WZ"
+        ],
+        "number_of_changes": 2,
+        "operating_carriers": [
+          "VF",
+          "WZ"
+        ],
+        "origin": "FRA",
+        "price": 31720
+      },
+      {
+        "arrival_at": "2026-08-20T11:05:00+05:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-19T14:45:00+02:00",
+        "destination": "SVX",
+        "duration": 540,
+        "flight_numbers": [
+          "PC994",
+          "WZ1366",
+          "WZ1034"
+        ],
+        "flights": [
+          {
+            "aircraft": "321",
+            "arrival_at": "2026-08-19T18:50:00+03:00",
+            "departure_at": "2026-08-19T14:45:00+02:00",
+            "destination": "SAW",
+            "duration": 185,
+            "flight_number": "PC994",
+            "is_charter": false,
+            "marketing_carrier": "PC",
+            "operating_carrier": "PC",
+            "origin": "FRA",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "SU9",
+            "arrival_at": "2026-08-20T03:25:00+04:00",
+            "departure_at": "2026-08-19T22:10:00+03:00",
+            "destination": "KUF",
+            "duration": 255,
+            "flight_number": "WZ1366",
+            "is_charter": false,
+            "marketing_carrier": "WZ",
+            "operating_carrier": "WZ",
+            "origin": "IST",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "SU9",
+            "arrival_at": "2026-08-20T11:05:00+05:00",
+            "departure_at": "2026-08-20T08:25:00+04:00",
+            "destination": "SVX",
+            "duration": 100,
+            "flight_number": "WZ1034",
+            "is_charter": false,
+            "marketing_carrier": "WZ",
+            "operating_carrier": "WZ",
+            "origin": "KUF",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "feaf40b8006b4e2c8a15d439326d844628",
+        "marketing_carriers": [
+          "PC",
+          "WZ"
+        ],
+        "number_of_changes": 2,
+        "operating_carriers": [
+          "PC",
+          "WZ"
+        ],
+        "origin": "FRA",
+        "price": 32919
+      },
+      {
+        "arrival_at": "2026-08-21T00:20:00+05:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-19T17:55:00+02:00",
+        "destination": "SVX",
+        "duration": 530,
+        "flight_numbers": [
+          "VF36",
+          "J276",
+          "J2645"
+        ],
+        "flights": [
+          {
+            "aircraft": "73H",
+            "arrival_at": "2026-08-19T22:00:00+03:00",
+            "departure_at": "2026-08-19T17:55:00+02:00",
+            "destination": "SAW",
+            "duration": 185,
+            "flight_number": "VF36",
+            "is_charter": false,
+            "marketing_carrier": "VF",
+            "operating_carrier": "VF",
+            "origin": "FRA",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "320",
+            "arrival_at": "2026-08-20T17:20:00+04:00",
+            "departure_at": "2026-08-20T13:30:00+03:00",
+            "destination": "GYD",
+            "duration": 170,
+            "flight_number": "J276",
+            "is_charter": false,
+            "marketing_carrier": "J2",
+            "operating_carrier": "J2",
+            "origin": "IST",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "320",
+            "arrival_at": "2026-08-21T00:20:00+05:00",
+            "departure_at": "2026-08-20T20:25:00+04:00",
+            "destination": "SVX",
+            "duration": 175,
+            "flight_number": "J2645",
+            "is_charter": false,
+            "marketing_carrier": "J2",
+            "operating_carrier": "J2",
+            "origin": "GYD",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "feaf40b8006b4e2c8a15d439326d8446335",
+        "marketing_carriers": [
+          "J2",
+          "VF"
+        ],
+        "number_of_changes": 2,
+        "operating_carriers": [
+          "J2",
+          "VF"
+        ],
+        "origin": "FRA",
+        "price": 33441
+      },
+      {
+        "arrival_at": "2026-08-20T16:50:00+05:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-19T17:55:00+02:00",
+        "destination": "SVX",
+        "duration": 555,
+        "flight_numbers": [
+          "VF36",
+          "VF3030",
+          "DP956"
+        ],
+        "flights": [
+          {
+            "aircraft": "73H",
+            "arrival_at": "2026-08-19T22:00:00+03:00",
+            "departure_at": "2026-08-19T17:55:00+02:00",
+            "destination": "SAW",
+            "duration": 185,
+            "flight_number": "VF36",
+            "is_charter": false,
+            "marketing_carrier": "VF",
+            "operating_carrier": "VF",
+            "origin": "FRA",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "73H",
+            "arrival_at": "2026-08-20T06:40:00+03:00",
+            "departure_at": "2026-08-20T05:15:00+03:00",
+            "destination": "AYT",
+            "duration": 85,
+            "flight_number": "VF3030",
+            "is_charter": false,
+            "marketing_carrier": "VF",
+            "operating_carrier": "VF",
+            "origin": "SAW",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "73H",
+            "arrival_at": "2026-08-20T16:50:00+05:00",
+            "departure_at": "2026-08-20T10:05:00+03:00",
+            "destination": "SVX",
+            "duration": 285,
+            "flight_number": "DP956",
+            "is_charter": false,
+            "marketing_carrier": "DP",
+            "operating_carrier": "DP",
+            "origin": "AYT",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "feaf40b8006b4e2c8a15d439326d844679",
+        "marketing_carriers": [
+          "DP",
+          "VF"
+        ],
+        "number_of_changes": 2,
+        "operating_carriers": [
+          "DP",
+          "VF"
+        ],
+        "origin": "FRA",
+        "price": 33454
+      },
+      {
+        "arrival_at": "2026-08-20T16:50:00+05:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-19T17:55:00+02:00",
+        "destination": "SVX",
+        "duration": 555,
+        "flight_numbers": [
+          "VF36",
+          "VF3048",
+          "DP956"
+        ],
+        "flights": [
+          {
+            "aircraft": "73H",
+            "arrival_at": "2026-08-19T22:00:00+03:00",
+            "departure_at": "2026-08-19T17:55:00+02:00",
+            "destination": "SAW",
+            "duration": 185,
+            "flight_number": "VF36",
+            "is_charter": false,
+            "marketing_carrier": "VF",
+            "operating_carrier": "VF",
+            "origin": "FRA",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "73H",
+            "arrival_at": "2026-08-20T03:10:00+03:00",
+            "departure_at": "2026-08-20T01:45:00+03:00",
+            "destination": "AYT",
+            "duration": 85,
+            "flight_number": "VF3048",
+            "is_charter": false,
+            "marketing_carrier": "VF",
+            "operating_carrier": "VF",
+            "origin": "SAW",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "73H",
+            "arrival_at": "2026-08-20T16:50:00+05:00",
+            "departure_at": "2026-08-20T10:05:00+03:00",
+            "destination": "SVX",
+            "duration": 285,
+            "flight_number": "DP956",
+            "is_charter": false,
+            "marketing_carrier": "DP",
+            "operating_carrier": "DP",
+            "origin": "AYT",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "feaf40b8006b4e2c8a15d439326d8446160",
+        "marketing_carriers": [
+          "DP",
+          "VF"
+        ],
+        "number_of_changes": 2,
+        "operating_carriers": [
+          "DP",
+          "VF"
+        ],
+        "origin": "FRA",
+        "price": 33454
+      },
+      {
+        "arrival_at": "2026-08-21T03:25:00+05:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-19T17:55:00+02:00",
+        "destination": "SVX",
+        "duration": 540,
+        "flight_numbers": [
+          "VF36",
+          "VF3048",
+          "2S225"
+        ],
+        "flights": [
+          {
+            "aircraft": "73H",
+            "arrival_at": "2026-08-19T22:00:00+03:00",
+            "departure_at": "2026-08-19T17:55:00+02:00",
+            "destination": "SAW",
+            "duration": 185,
+            "flight_number": "VF36",
+            "is_charter": false,
+            "marketing_carrier": "VF",
+            "operating_carrier": "VF",
+            "origin": "FRA",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "73H",
+            "arrival_at": "2026-08-20T03:10:00+03:00",
+            "departure_at": "2026-08-20T01:45:00+03:00",
+            "destination": "AYT",
+            "duration": 85,
+            "flight_number": "VF3048",
+            "is_charter": false,
+            "marketing_carrier": "VF",
+            "operating_carrier": "VF",
+            "origin": "SAW",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "77W",
+            "arrival_at": "2026-08-21T03:25:00+05:00",
+            "departure_at": "2026-08-20T20:55:00+03:00",
+            "destination": "SVX",
+            "duration": 270,
+            "flight_number": "2S225",
+            "is_charter": false,
+            "marketing_carrier": "2S",
+            "operating_carrier": "2S",
+            "origin": "AYT",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "feaf40b8006b4e2c8a15d439326d8446261",
+        "marketing_carriers": [
+          "2S",
+          "VF"
+        ],
+        "number_of_changes": 2,
+        "operating_carriers": [
+          "2S",
+          "VF"
+        ],
+        "origin": "FRA",
+        "price": 34706
+      },
+      {
+        "arrival_at": "2026-08-20T14:55:00+05:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-19T17:55:00+02:00",
+        "destination": "SVX",
+        "duration": 540,
+        "flight_numbers": [
+          "VF36",
+          "VF3048",
+          "2S323"
+        ],
+        "flights": [
+          {
+            "aircraft": "73H",
+            "arrival_at": "2026-08-19T22:00:00+03:00",
+            "departure_at": "2026-08-19T17:55:00+02:00",
+            "destination": "SAW",
+            "duration": 185,
+            "flight_number": "VF36",
+            "is_charter": false,
+            "marketing_carrier": "VF",
+            "operating_carrier": "VF",
+            "origin": "FRA",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "73H",
+            "arrival_at": "2026-08-20T03:10:00+03:00",
+            "departure_at": "2026-08-20T01:45:00+03:00",
+            "destination": "AYT",
+            "duration": 85,
+            "flight_number": "VF3048",
+            "is_charter": false,
+            "marketing_carrier": "VF",
+            "operating_carrier": "VF",
+            "origin": "SAW",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "77W",
+            "arrival_at": "2026-08-20T14:55:00+05:00",
+            "departure_at": "2026-08-20T08:25:00+03:00",
+            "destination": "SVX",
+            "duration": 270,
+            "flight_number": "2S323",
+            "is_charter": false,
+            "marketing_carrier": "2S",
+            "operating_carrier": "2S",
+            "origin": "AYT",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "feaf40b8006b4e2c8a15d439326d8446265",
+        "marketing_carriers": [
+          "2S",
+          "VF"
+        ],
+        "number_of_changes": 2,
+        "operating_carriers": [
+          "2S",
+          "VF"
+        ],
+        "origin": "FRA",
+        "price": 34706
+      },
+      {
+        "arrival_at": "2026-08-20T16:50:00+05:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-19T13:35:00+02:00",
+        "destination": "SVX",
+        "duration": 555,
+        "flight_numbers": [
+          "VF34",
+          "VF3030",
+          "DP956"
+        ],
+        "flights": [
+          {
+            "aircraft": "32N",
+            "arrival_at": "2026-08-19T17:40:00+03:00",
+            "departure_at": "2026-08-19T13:35:00+02:00",
+            "destination": "SAW",
+            "duration": 185,
+            "flight_number": "VF34",
+            "is_charter": false,
+            "marketing_carrier": "VF",
+            "operating_carrier": "VF",
+            "origin": "FRA",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "73H",
+            "arrival_at": "2026-08-20T06:40:00+03:00",
+            "departure_at": "2026-08-20T05:15:00+03:00",
+            "destination": "AYT",
+            "duration": 85,
+            "flight_number": "VF3030",
+            "is_charter": false,
+            "marketing_carrier": "VF",
+            "operating_carrier": "VF",
+            "origin": "SAW",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "73H",
+            "arrival_at": "2026-08-20T16:50:00+05:00",
+            "departure_at": "2026-08-20T10:05:00+03:00",
+            "destination": "SVX",
+            "duration": 285,
+            "flight_number": "DP956",
+            "is_charter": false,
+            "marketing_carrier": "DP",
+            "operating_carrier": "DP",
+            "origin": "AYT",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "feaf40b8006b4e2c8a15d439326d844677",
+        "marketing_carriers": [
+          "DP",
+          "VF"
+        ],
+        "number_of_changes": 2,
+        "operating_carriers": [
+          "DP",
+          "VF"
+        ],
+        "origin": "FRA",
+        "price": 34933
+      },
+      {
+        "arrival_at": "2026-08-20T16:50:00+05:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-19T13:35:00+02:00",
+        "destination": "SVX",
+        "duration": 555,
+        "flight_numbers": [
+          "VF34",
+          "VF3042",
+          "DP956"
+        ],
+        "flights": [
+          {
+            "aircraft": "32N",
+            "arrival_at": "2026-08-19T17:40:00+03:00",
+            "departure_at": "2026-08-19T13:35:00+02:00",
+            "destination": "SAW",
+            "duration": 185,
+            "flight_number": "VF34",
+            "is_charter": false,
+            "marketing_carrier": "VF",
+            "operating_carrier": "VF",
+            "origin": "FRA",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "73H",
+            "arrival_at": "2026-08-19T20:15:00+03:00",
+            "departure_at": "2026-08-19T18:50:00+03:00",
+            "destination": "AYT",
+            "duration": 85,
+            "flight_number": "VF3042",
+            "is_charter": false,
+            "marketing_carrier": "VF",
+            "operating_carrier": "VF",
+            "origin": "SAW",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "73H",
+            "arrival_at": "2026-08-20T16:50:00+05:00",
+            "departure_at": "2026-08-20T10:05:00+03:00",
+            "destination": "SVX",
+            "duration": 285,
+            "flight_number": "DP956",
+            "is_charter": false,
+            "marketing_carrier": "DP",
+            "operating_carrier": "DP",
+            "origin": "AYT",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "feaf40b8006b4e2c8a15d439326d8446324",
+        "marketing_carriers": [
+          "DP",
+          "VF"
+        ],
+        "number_of_changes": 2,
+        "operating_carriers": [
+          "DP",
+          "VF"
+        ],
+        "origin": "FRA",
+        "price": 34933
+      },
+      {
+        "arrival_at": "2026-08-20T16:50:00+05:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-19T13:35:00+02:00",
+        "destination": "SVX",
+        "duration": 555,
+        "flight_numbers": [
+          "VF34",
+          "VF3044",
+          "DP956"
+        ],
+        "flights": [
+          {
+            "aircraft": "32N",
+            "arrival_at": "2026-08-19T17:40:00+03:00",
+            "departure_at": "2026-08-19T13:35:00+02:00",
+            "destination": "SAW",
+            "duration": 185,
+            "flight_number": "VF34",
+            "is_charter": false,
+            "marketing_carrier": "VF",
+            "operating_carrier": "VF",
+            "origin": "FRA",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "73H",
+            "arrival_at": "2026-08-19T22:55:00+03:00",
+            "departure_at": "2026-08-19T21:30:00+03:00",
+            "destination": "AYT",
+            "duration": 85,
+            "flight_number": "VF3044",
+            "is_charter": false,
+            "marketing_carrier": "VF",
+            "operating_carrier": "VF",
+            "origin": "SAW",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "73H",
+            "arrival_at": "2026-08-20T16:50:00+05:00",
+            "departure_at": "2026-08-20T10:05:00+03:00",
+            "destination": "SVX",
+            "duration": 285,
+            "flight_number": "DP956",
+            "is_charter": false,
+            "marketing_carrier": "DP",
+            "operating_carrier": "DP",
+            "origin": "AYT",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "feaf40b8006b4e2c8a15d439326d8446382",
+        "marketing_carriers": [
+          "DP",
+          "VF"
+        ],
+        "number_of_changes": 2,
+        "operating_carriers": [
+          "DP",
+          "VF"
+        ],
+        "origin": "FRA",
+        "price": 34933
+      }
+    ],
+    "origin": "FRA",
+    "raw_variant_count": 426,
+    "request": {
+      "body": {
+        "agent": "kupibilet",
+        "cabin": "economy",
+        "client_platform": "web",
+        "currency": "RUB",
+        "filters": {},
+        "lang": "ru",
+        "short_response": false,
+        "sort_by": "price",
+        "travelers": {
+          "adult": 1,
+          "child": 0,
+          "infant": 0
+        },
+        "trips": [
+          {
+            "arrival": "SVX",
+            "date": "2026-08-19",
+            "departure": "FRA"
+          }
+        ]
+      },
+      "endpoint": "https://api-rs-lb.kupibilet.ru/frontend_search",
+      "headers": {
+        "Content-Type": "application/json",
+        "Origin": "https://www.kupibilet.ru",
+        "Referer": "https://www.kupibilet.ru/"
+      },
+      "method": "POST"
+    },
+    "skipped": {},
+    "source": "Kupibilet frontend_search (live aggregate)",
+    "source_url": "https://api-rs-lb.kupibilet.ru/frontend_search",
+    "unique_flight_count": 216
+  },
+  "ok": true
+}

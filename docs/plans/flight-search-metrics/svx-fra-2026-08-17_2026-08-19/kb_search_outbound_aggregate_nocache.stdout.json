@@ -1,0 +1,725 @@
+{
+  "command": "kb-search",
+  "data": {
+    "cache": {
+      "disabled": true,
+      "hit": false,
+      "key": "d3559adab5ce9867c8a21a032b70ab058403152c4688908096204df6227277c6"
+    },
+    "currency": "RUB",
+    "depart_date": "2026-08-17",
+    "destination": "FRA",
+    "filters": {
+      "dedupe": "flight_numbers+times",
+      "direct_only": false,
+      "only_carriers": []
+    },
+    "http_status": 200,
+    "note": "Live aggregate source, not official aeroflot.ru; recheck final fare and seat availability before ticketing.",
+    "offer_count": 10,
+    "offers": [
+      {
+        "arrival_at": "2026-08-18T10:15:00+02:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-17T23:20:00+05:00",
+        "destination": "FRA",
+        "duration": 580,
+        "flight_numbers": [
+          "3F478",
+          "A3899",
+          "A3830"
+        ],
+        "flights": [
+          {
+            "aircraft": "320",
+            "arrival_at": "2026-08-18T02:00:00+04:00",
+            "departure_at": "2026-08-17T23:20:00+05:00",
+            "destination": "EVN",
+            "duration": 220,
+            "flight_number": "3F478",
+            "is_charter": false,
+            "marketing_carrier": "3F",
+            "operating_carrier": "3F",
+            "origin": "SVX",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "32Q",
+            "arrival_at": "2026-08-18T06:20:00+03:00",
+            "departure_at": "2026-08-18T04:25:00+04:00",
+            "destination": "ATH",
+            "duration": 175,
+            "flight_number": "A3899",
+            "is_charter": false,
+            "marketing_carrier": "A3",
+            "operating_carrier": "A3",
+            "origin": "EVN",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "32Q",
+            "arrival_at": "2026-08-18T10:15:00+02:00",
+            "departure_at": "2026-08-18T08:10:00+03:00",
+            "destination": "FRA",
+            "duration": 185,
+            "flight_number": "A3830",
+            "is_charter": false,
+            "marketing_carrier": "A3",
+            "operating_carrier": "A3",
+            "origin": "ATH",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "3a4e55210a684157bbb7956845675366358",
+        "marketing_carriers": [
+          "3F",
+          "A3"
+        ],
+        "number_of_changes": 2,
+        "operating_carriers": [
+          "3F",
+          "A3"
+        ],
+        "origin": "SVX",
+        "price": 35516
+      },
+      {
+        "arrival_at": "2026-08-18T18:00:00+02:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-17T23:20:00+05:00",
+        "destination": "FRA",
+        "duration": 580,
+        "flight_numbers": [
+          "3F478",
+          "A3899",
+          "A3832"
+        ],
+        "flights": [
+          {
+            "aircraft": "320",
+            "arrival_at": "2026-08-18T02:00:00+04:00",
+            "departure_at": "2026-08-17T23:20:00+05:00",
+            "destination": "EVN",
+            "duration": 220,
+            "flight_number": "3F478",
+            "is_charter": false,
+            "marketing_carrier": "3F",
+            "operating_carrier": "3F",
+            "origin": "SVX",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "32Q",
+            "arrival_at": "2026-08-18T06:20:00+03:00",
+            "departure_at": "2026-08-18T04:25:00+04:00",
+            "destination": "ATH",
+            "duration": 175,
+            "flight_number": "A3899",
+            "is_charter": false,
+            "marketing_carrier": "A3",
+            "operating_carrier": "A3",
+            "origin": "EVN",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "32Q",
+            "arrival_at": "2026-08-18T18:00:00+02:00",
+            "departure_at": "2026-08-18T15:55:00+03:00",
+            "destination": "FRA",
+            "duration": 185,
+            "flight_number": "A3832",
+            "is_charter": false,
+            "marketing_carrier": "A3",
+            "operating_carrier": "A3",
+            "origin": "ATH",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "3a4e55210a684157bbb7956845675366360",
+        "marketing_carriers": [
+          "3F",
+          "A3"
+        ],
+        "number_of_changes": 2,
+        "operating_carriers": [
+          "3F",
+          "A3"
+        ],
+        "origin": "SVX",
+        "price": 35516
+      },
+      {
+        "arrival_at": "2026-08-19T10:15:00+02:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-17T23:20:00+05:00",
+        "destination": "FRA",
+        "duration": 580,
+        "flight_numbers": [
+          "3F478",
+          "A3899",
+          "A3830"
+        ],
+        "flights": [
+          {
+            "aircraft": "320",
+            "arrival_at": "2026-08-18T02:00:00+04:00",
+            "departure_at": "2026-08-17T23:20:00+05:00",
+            "destination": "EVN",
+            "duration": 220,
+            "flight_number": "3F478",
+            "is_charter": false,
+            "marketing_carrier": "3F",
+            "operating_carrier": "3F",
+            "origin": "SVX",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "32Q",
+            "arrival_at": "2026-08-19T06:20:00+03:00",
+            "departure_at": "2026-08-19T04:25:00+04:00",
+            "destination": "ATH",
+            "duration": 175,
+            "flight_number": "A3899",
+            "is_charter": false,
+            "marketing_carrier": "A3",
+            "operating_carrier": "A3",
+            "origin": "EVN",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "32Q",
+            "arrival_at": "2026-08-19T10:15:00+02:00",
+            "departure_at": "2026-08-19T08:10:00+03:00",
+            "destination": "FRA",
+            "duration": 185,
+            "flight_number": "A3830",
+            "is_charter": false,
+            "marketing_carrier": "A3",
+            "operating_carrier": "A3",
+            "origin": "ATH",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "3a4e55210a684157bbb795684567536698",
+        "marketing_carriers": [
+          "3F",
+          "A3"
+        ],
+        "number_of_changes": 2,
+        "operating_carriers": [
+          "3F",
+          "A3"
+        ],
+        "origin": "SVX",
+        "price": 35596
+      },
+      {
+        "arrival_at": "2026-08-18T16:30:00+02:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-17T23:20:00+05:00",
+        "destination": "FRA",
+        "duration": 565,
+        "flight_numbers": [
+          "3F478",
+          "PC551",
+          "PC995"
+        ],
+        "flights": [
+          {
+            "aircraft": "320",
+            "arrival_at": "2026-08-18T02:00:00+04:00",
+            "departure_at": "2026-08-17T23:20:00+05:00",
+            "destination": "EVN",
+            "duration": 220,
+            "flight_number": "3F478",
+            "is_charter": false,
+            "marketing_carrier": "3F",
+            "operating_carrier": "3F",
+            "origin": "SVX",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "321",
+            "arrival_at": "2026-08-18T07:30:00+03:00",
+            "departure_at": "2026-08-18T06:00:00+04:00",
+            "destination": "SAW",
+            "duration": 150,
+            "flight_number": "PC551",
+            "is_charter": false,
+            "marketing_carrier": "PC",
+            "operating_carrier": "PC",
+            "origin": "EVN",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "321",
+            "arrival_at": "2026-08-18T16:30:00+02:00",
+            "departure_at": "2026-08-18T14:15:00+03:00",
+            "destination": "FRA",
+            "duration": 195,
+            "flight_number": "PC995",
+            "is_charter": false,
+            "marketing_carrier": "PC",
+            "operating_carrier": "PC",
+            "origin": "SAW",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "3a4e55210a684157bbb7956845675366126",
+        "marketing_carriers": [
+          "3F",
+          "PC"
+        ],
+        "number_of_changes": 2,
+        "operating_carriers": [
+          "3F",
+          "PC"
+        ],
+        "origin": "SVX",
+        "price": 39528
+      },
+      {
+        "arrival_at": "2026-08-18T10:15:00+02:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-17T16:00:00+05:00",
+        "destination": "FRA",
+        "duration": 575,
+        "flight_numbers": [
+          "U62949",
+          "A3899",
+          "A3830"
+        ],
+        "flights": [
+          {
+            "aircraft": "320",
+            "arrival_at": "2026-08-17T18:35:00+04:00",
+            "departure_at": "2026-08-17T16:00:00+05:00",
+            "destination": "EVN",
+            "duration": 215,
+            "flight_number": "U62949",
+            "is_charter": false,
+            "marketing_carrier": "U6",
+            "operating_carrier": "U6",
+            "origin": "SVX",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "32Q",
+            "arrival_at": "2026-08-18T06:20:00+03:00",
+            "departure_at": "2026-08-18T04:25:00+04:00",
+            "destination": "ATH",
+            "duration": 175,
+            "flight_number": "A3899",
+            "is_charter": false,
+            "marketing_carrier": "A3",
+            "operating_carrier": "A3",
+            "origin": "EVN",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "32Q",
+            "arrival_at": "2026-08-18T10:15:00+02:00",
+            "departure_at": "2026-08-18T08:10:00+03:00",
+            "destination": "FRA",
+            "duration": 185,
+            "flight_number": "A3830",
+            "is_charter": false,
+            "marketing_carrier": "A3",
+            "operating_carrier": "A3",
+            "origin": "ATH",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "3a4e55210a684157bbb7956845675366179",
+        "marketing_carriers": [
+          "A3",
+          "U6"
+        ],
+        "number_of_changes": 2,
+        "operating_carriers": [
+          "A3",
+          "U6"
+        ],
+        "origin": "SVX",
+        "price": 39671
+      },
+      {
+        "arrival_at": "2026-08-18T18:00:00+02:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-17T16:00:00+05:00",
+        "destination": "FRA",
+        "duration": 575,
+        "flight_numbers": [
+          "U62949",
+          "A3899",
+          "A3832"
+        ],
+        "flights": [
+          {
+            "aircraft": "320",
+            "arrival_at": "2026-08-17T18:35:00+04:00",
+            "departure_at": "2026-08-17T16:00:00+05:00",
+            "destination": "EVN",
+            "duration": 215,
+            "flight_number": "U62949",
+            "is_charter": false,
+            "marketing_carrier": "U6",
+            "operating_carrier": "U6",
+            "origin": "SVX",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "32Q",
+            "arrival_at": "2026-08-18T06:20:00+03:00",
+            "departure_at": "2026-08-18T04:25:00+04:00",
+            "destination": "ATH",
+            "duration": 175,
+            "flight_number": "A3899",
+            "is_charter": false,
+            "marketing_carrier": "A3",
+            "operating_carrier": "A3",
+            "origin": "EVN",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "32Q",
+            "arrival_at": "2026-08-18T18:00:00+02:00",
+            "departure_at": "2026-08-18T15:55:00+03:00",
+            "destination": "FRA",
+            "duration": 185,
+            "flight_number": "A3832",
+            "is_charter": false,
+            "marketing_carrier": "A3",
+            "operating_carrier": "A3",
+            "origin": "ATH",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "3a4e55210a684157bbb7956845675366348",
+        "marketing_carriers": [
+          "A3",
+          "U6"
+        ],
+        "number_of_changes": 2,
+        "operating_carriers": [
+          "A3",
+          "U6"
+        ],
+        "origin": "SVX",
+        "price": 39671
+      },
+      {
+        "arrival_at": "2026-08-18T13:40:00+02:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-17T23:20:00+05:00",
+        "destination": "FRA",
+        "duration": 565,
+        "flight_numbers": [
+          "3F478",
+          "PC551",
+          "PC993"
+        ],
+        "flights": [
+          {
+            "aircraft": "320",
+            "arrival_at": "2026-08-18T02:00:00+04:00",
+            "departure_at": "2026-08-17T23:20:00+05:00",
+            "destination": "EVN",
+            "duration": 220,
+            "flight_number": "3F478",
+            "is_charter": false,
+            "marketing_carrier": "3F",
+            "operating_carrier": "3F",
+            "origin": "SVX",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "321",
+            "arrival_at": "2026-08-18T07:30:00+03:00",
+            "departure_at": "2026-08-18T06:00:00+04:00",
+            "destination": "SAW",
+            "duration": 150,
+            "flight_number": "PC551",
+            "is_charter": false,
+            "marketing_carrier": "PC",
+            "operating_carrier": "PC",
+            "origin": "EVN",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "321",
+            "arrival_at": "2026-08-18T13:40:00+02:00",
+            "departure_at": "2026-08-18T11:25:00+03:00",
+            "destination": "FRA",
+            "duration": 195,
+            "flight_number": "PC993",
+            "is_charter": false,
+            "marketing_carrier": "PC",
+            "operating_carrier": "PC",
+            "origin": "SAW",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "3a4e55210a684157bbb7956845675366354",
+        "marketing_carriers": [
+          "3F",
+          "PC"
+        ],
+        "number_of_changes": 2,
+        "operating_carriers": [
+          "3F",
+          "PC"
+        ],
+        "origin": "SVX",
+        "price": 40987
+      },
+      {
+        "arrival_at": "2026-08-18T19:00:00+02:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-17T23:20:00+05:00",
+        "destination": "FRA",
+        "duration": 610,
+        "flight_numbers": [
+          "3F478",
+          "3F533",
+          "LO514",
+          "LO379"
+        ],
+        "flights": [
+          {
+            "aircraft": "320",
+            "arrival_at": "2026-08-18T02:00:00+04:00",
+            "departure_at": "2026-08-17T23:20:00+05:00",
+            "destination": "EVN",
+            "duration": 220,
+            "flight_number": "3F478",
+            "is_charter": false,
+            "marketing_carrier": "3F",
+            "operating_carrier": "3F",
+            "origin": "SVX",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "320",
+            "arrival_at": "2026-08-18T07:50:00+03:00",
+            "departure_at": "2026-08-18T06:10:00+04:00",
+            "destination": "RMO",
+            "duration": 160,
+            "flight_number": "3F533",
+            "is_charter": false,
+            "marketing_carrier": "3F",
+            "operating_carrier": "3F",
+            "origin": "EVN",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "73H",
+            "arrival_at": "2026-08-18T15:25:00+02:00",
+            "departure_at": "2026-08-18T14:35:00+03:00",
+            "destination": "WAW",
+            "duration": 110,
+            "flight_number": "LO514",
+            "is_charter": false,
+            "marketing_carrier": "LO",
+            "operating_carrier": "LO",
+            "origin": "RMO",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "7M8",
+            "arrival_at": "2026-08-18T19:00:00+02:00",
+            "departure_at": "2026-08-18T17:00:00+02:00",
+            "destination": "FRA",
+            "duration": 120,
+            "flight_number": "LO379",
+            "is_charter": false,
+            "marketing_carrier": "LO",
+            "operating_carrier": "LO",
+            "origin": "WAW",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "3a4e55210a684157bbb7956845675366212",
+        "marketing_carriers": [
+          "3F",
+          "LO"
+        ],
+        "number_of_changes": 3,
+        "operating_carriers": [
+          "3F",
+          "LO"
+        ],
+        "origin": "SVX",
+        "price": 41018
+      },
+      {
+        "arrival_at": "2026-08-19T07:30:00+02:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-17T23:20:00+05:00",
+        "destination": "HHN",
+        "duration": 545,
+        "flight_numbers": [
+          "3F478",
+          "3F533",
+          "5F5637"
+        ],
+        "flights": [
+          {
+            "aircraft": "320",
+            "arrival_at": "2026-08-18T02:00:00+04:00",
+            "departure_at": "2026-08-17T23:20:00+05:00",
+            "destination": "EVN",
+            "duration": 220,
+            "flight_number": "3F478",
+            "is_charter": false,
+            "marketing_carrier": "3F",
+            "operating_carrier": "3F",
+            "origin": "SVX",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "320",
+            "arrival_at": "2026-08-18T07:50:00+03:00",
+            "departure_at": "2026-08-18T06:10:00+04:00",
+            "destination": "RMO",
+            "duration": 160,
+            "flight_number": "3F533",
+            "is_charter": false,
+            "marketing_carrier": "3F",
+            "operating_carrier": "3F",
+            "origin": "EVN",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "320",
+            "arrival_at": "2026-08-19T07:30:00+02:00",
+            "departure_at": "2026-08-19T05:45:00+03:00",
+            "destination": "HHN",
+            "duration": 165,
+            "flight_number": "5F5637",
+            "is_charter": false,
+            "marketing_carrier": "5F",
+            "operating_carrier": "5F",
+            "origin": "RMO",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "3a4e55210a684157bbb7956845675366151",
+        "marketing_carriers": [
+          "3F",
+          "5F"
+        ],
+        "number_of_changes": 2,
+        "operating_carriers": [
+          "3F",
+          "5F"
+        ],
+        "origin": "SVX",
+        "price": 41460
+      },
+      {
+        "arrival_at": "2026-08-18T09:00:00+02:00",
+        "currency": "RUB",
+        "departure_at": "2026-08-17T14:35:00+05:00",
+        "destination": "FRA",
+        "duration": 535,
+        "flight_numbers": [
+          "WZ1403",
+          "JU891",
+          "JU350"
+        ],
+        "flights": [
+          {
+            "aircraft": "SU9",
+            "arrival_at": "2026-08-17T17:05:00+04:00",
+            "departure_at": "2026-08-17T14:35:00+05:00",
+            "destination": "TBS",
+            "duration": 210,
+            "flight_number": "WZ1403",
+            "is_charter": false,
+            "marketing_carrier": "WZ",
+            "operating_carrier": "WZ",
+            "origin": "SVX",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "319",
+            "arrival_at": "2026-08-18T04:55:00+02:00",
+            "departure_at": "2026-08-18T03:35:00+04:00",
+            "destination": "BEG",
+            "duration": 200,
+            "flight_number": "JU891",
+            "is_charter": false,
+            "marketing_carrier": "JU",
+            "operating_carrier": "JU",
+            "origin": "TBS",
+            "transport_kind": "airplane"
+          },
+          {
+            "aircraft": "E95",
+            "arrival_at": "2026-08-18T09:00:00+02:00",
+            "departure_at": "2026-08-18T06:55:00+02:00",
+            "destination": "FRA",
+            "duration": 125,
+            "flight_number": "JU350",
+            "is_charter": false,
+            "marketing_carrier": "JU",
+            "operating_carrier": "JU",
+            "origin": "BEG",
+            "transport_kind": "airplane"
+          }
+        ],
+        "id": "3a4e55210a684157bbb7956845675366328",
+        "marketing_carriers": [
+          "JU",
+          "WZ"
+        ],
+        "number_of_changes": 2,
+        "operating_carriers": [
+          "JU",
+          "WZ"
+        ],
+        "origin": "SVX",
+        "price": 42002
+      }
+    ],
+    "origin": "SVX",
+    "raw_variant_count": 402,
+    "request": {
+      "body": {
+        "agent": "kupibilet",
+        "cabin": "economy",
+        "client_platform": "web",
+        "currency": "RUB",
+        "filters": {},
+        "lang": "ru",
+        "short_response": false,
+        "sort_by": "price",
+        "travelers": {
+          "adult": 1,
+          "child": 0,
+          "infant": 0
+        },
+        "trips": [
+          {
+            "arrival": "FRA",
+            "date": "2026-08-17",
+            "departure": "SVX"
+          }
+        ]
+      },
+      "endpoint": "https://api-rs-lb.kupibilet.ru/frontend_search",
+      "headers": {
+        "Content-Type": "application/json",
+        "Origin": "https://www.kupibilet.ru",
+        "Referer": "https://www.kupibilet.ru/"
+      },
+      "method": "POST"
+    },
+    "skipped": {},
+    "source": "Kupibilet frontend_search (live aggregate)",
+    "source_url": "https://api-rs-lb.kupibilet.ru/frontend_search",
+    "unique_flight_count": 205
+  },
+  "ok": true
+}

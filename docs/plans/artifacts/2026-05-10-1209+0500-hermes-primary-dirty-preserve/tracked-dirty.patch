@@ -1,0 +1,43 @@
+diff --git a/skills/autonomous-ai-agents/hermes-agent/SKILL.md b/skills/autonomous-ai-agents/hermes-agent/SKILL.md
+index 6f5e5fcf4..bb423262c 100644
+--- a/skills/autonomous-ai-agents/hermes-agent/SKILL.md
++++ b/skills/autonomous-ai-agents/hermes-agent/SKILL.md
+@@ -759,3 +759,4 @@ Types: `fix:`, `feat:`, `refactor:`, `docs:`, `chore:`
+ - Config values go in `config.yaml`, secrets go in `.env`
+ - New tools need a `check_fn` so they only appear when requirements are met
+ - For Konstantin's VPS/source setup, read `references/source-runtime-file-management.md` before changing Hermes files, skills, skill-owned CLIs, backup layout, reporting reproducibility/dirty state, or inventorying local/custom skills. Use `scripts/inventory-custom-skills.py` for custom-skill vs upstream-distribution comparisons.
++- When syncing/updating Konstantin's forked/source-installed Hermes checkout to an upstream release tag, read `references/fork-release-sync-conflicts.md`: protect dirty primary state, merge in an isolated worktree, compare git conflict stages `:1/:2/:3`, preserve source/runtime skill-directory invariants, stage only resolved files/tests, use scoped conflict-marker/whitespace checks, and verify before any active checkout update or gateway restart.
+diff --git a/skills/github/github-pr-workflow/SKILL.md b/skills/github/github-pr-workflow/SKILL.md
+index 4679c0c63..bf0cfff09 100644
+--- a/skills/github/github-pr-workflow/SKILL.md
++++ b/skills/github/github-pr-workflow/SKILL.md
+@@ -428,7 +428,7 @@ git push -u origin HEAD
+ 
+ ## Common Pitfalls
+ 
+-1. **Bare `gh repo view` in a fork checkout.** It may resolve upstream instead of the push remote. Derive `OWNER_REPO` from `git remote get-url origin` and pass `--repo` explicitly.
++1. **Bare `gh` PR commands in a fork checkout.** `gh` may resolve upstream instead of the push remote. Derive `OWNER_REPO` from `git remote get-url origin` and pass `--repo` explicitly to every `gh` PR command. Omitting `--repo` (or `--head OWNER:BRANCH`) in a fork produces a misleading GraphQL error like `"No commits between main and <branch>", "Head sha can't be blank", "Head ref must be a branch"` — which looks like an empty branch but is actually a targeting failure. Always include `--repo OWNER/REPO` and `--head OWNER:BRANCH` in fork PRs.
+ 2. **Opening a duplicate PR.** Check `gh pr list --repo "$OWNER_REPO" --head "$BRANCH" --state open` before `gh pr create`.
+ 3. **Using broad add-all commands in dirty worktrees.** Stage only intended paths and report unrelated dirty files separately.
+ 4. **Reporting push success without SHA verification.** Compare `git rev-parse HEAD` with `git ls-remote origin refs/heads/$BRANCH`.
+diff --git a/skills/productivity/flight-search/references/cli-maintenance.md b/skills/productivity/flight-search/references/cli-maintenance.md
+index 6ff76c09a..d14740d4b 100644
+--- a/skills/productivity/flight-search/references/cli-maintenance.md
++++ b/skills/productivity/flight-search/references/cli-maintenance.md
+@@ -37,6 +37,16 @@ Use this when modifying or auditing the flight-search CLI, `agent_report` contra
+ - Use the shared stop-policy decision helper for assembly, ranking defense, provider aggregate projection, and report diagnostics. Do not reimplement reportability as a local `connections <= 2` check.
+ - `agent_report.v1` projects declared generation state. Do not infer fallback mode from compact projected options alone.
+ 
++## Version Bump Checklist
++
++When bumping the flight-search skill or CLI version, update **all three** locations together:
++
++1. `SKILL.md` frontmatter — `version: X.Y.Z`
++2. `cli/flights_cli/__init__.py` — `__version__` and `__skill_version__`
++3. `cli/pyproject.toml` — `version = "X.Y.Z"` under `[project]`
++
++Missing any one of these causes drift between `doctor` output, CLI `--version`, and skill metadata.
++
+ ## Verification Baseline
+ 
+ Run the narrowest relevant tests first, then broaden:

@@ -12,6 +12,8 @@
     "hub_viability",
     "segment_searches",
     "provider_failures",
+    "stop_policy",
+    "stop_policy_diagnostics",
     "recommended_options",
     "priority_options",
     "aggregate_controls",
@@ -54,6 +56,12 @@
       "items": {
         "$ref": "#/$defs/provider_failure"
       }
+    },
+    "stop_policy": {
+      "$ref": "#/$defs/stop_policy"
+    },
+    "stop_policy_diagnostics": {
+      "$ref": "#/$defs/stop_policy_diagnostics"
     },
     "recommended_options": {
       "type": "array",
@@ -132,6 +140,120 @@
             "additionalProperties": true
           }
         ]
+      }
+    },
+    "stop_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "preferred_max_connections",
+        "fallback_max_connections",
+        "hard_max_connections",
+        "allow_two_stop_fallback",
+        "suppress_three_plus"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "preferred_max_connections": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "fallback_max_connections": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "hard_max_connections": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "allow_two_stop_fallback": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "suppress_three_plus": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "applied": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "suppressed_three_plus": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "suppressed_by_policy": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "preferred_candidate_count": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "two_stop_candidate_count": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "two_stop_suppressed": {
+          "$ref": "#/$defs/nullable_integer"
+        }
+      }
+    },
+    "stop_policy_diagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preferred_candidate_count",
+        "two_stop_candidate_count",
+        "used_fallback_two_stop",
+        "used_two_stop_fallback",
+        "three_plus_suppressed_count",
+        "two_stop_suppressed_because_preferred_exists",
+        "suppressed_by_policy_count",
+        "garbage_options_hidden_from_answer"
+      ],
+      "properties": {
+        "preferred_candidate_count": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "two_stop_candidate_count": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "used_fallback_two_stop": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "used_two_stop_fallback": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "three_plus_suppressed_count": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "two_stop_suppressed_because_preferred_exists": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "suppressed_by_policy_count": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "garbage_options_hidden_from_answer": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "applied": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
       }
     },
     "price": {
@@ -360,6 +482,8 @@
         "carriers",
         "risk",
         "validation_summary",
+        "stop_tier",
+        "max_connections_per_journey",
         "connections",
         "segments",
         "ticketing_note"
@@ -402,6 +526,22 @@
           "$ref": "#/$defs/risk"
         },
         "validation_summary": {},
+        "stop_tier": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "T0_DIRECT",
+            "T1_ONE_STOP",
+            "T2_TWO_STOP",
+            "T3_THREE_PLUS",
+            null
+          ]
+        },
+        "max_connections_per_journey": {
+          "$ref": "#/$defs/nullable_integer"
+        },
         "connections": {
           "type": "array",
           "items": {
