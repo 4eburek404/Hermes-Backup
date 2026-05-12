@@ -1,0 +1,1 @@
+query: subagent orchestrator contract structured output verifier artifacts agent delegation

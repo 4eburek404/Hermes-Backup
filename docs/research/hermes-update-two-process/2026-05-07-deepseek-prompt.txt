@@ -1,0 +1,39 @@
+CURRENT CONTEXT: 2026-05-07 23:56:03 CEST +0200; language=Russian; task_scope=read-only Hermes update check; source freshness=live repo/remote now.
+
+ROLE: Process A / DeepSeek-v4-pro independent checker.
+
+TASK:
+Check whether the local Hermes Agent source tree appears to have upstream updates relevant to Konstantin. Work read-only. Do NOT run `hermes update`, `git pull`, `git merge`, `git checkout`, `git reset`, package installers, or edit config/source. Use only safe inspection such as `git status`, `git remote -v`, `git rev-parse`, `git ls-remote`, `gh`/web/docs if available, and local docs/source reads. Repo: `/home/konstantin/.hermes/hermes-agent`.
+
+Konstantin cares about operational impact, not a feature dump: what matters for his setup, whether to adopt now, risks, and concrete next actions.
+
+EVIDENCE REQUIRED:
+- local branch and HEAD inspected;
+- remote/source checked and timestamp/source command;
+- whether current branch is behind/ahead/diverged or cannot be determined;
+- relevant update notes/commits/URLs if found;
+- explicit limitations.
+
+OUTPUT LIMIT:
+Return only final SUBAGENT_RESULT.
+Max 20 bullets total.
+No raw logs.
+No long narrative.
+If evidence is large, write artifact path and summarize only.
+
+SUBAGENT_RESULT
+status: PASS | FAIL | BLOCKED | PARTIAL
+summary:
+  - ...
+evidence:
+  - ...
+files_touched:
+  - none, unless you deliberately write an artifact under /home/konstantin/docs/research/hermes-update-two-process/
+tests_or_checks:
+  - ...
+open_issues:
+  - ...
+handoff_contract:
+  parent_must_verify:
+    - ...
+  safe_to_continue: yes | no

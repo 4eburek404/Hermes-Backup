@@ -1,0 +1,11 @@
+{
+  "url": "https://api.github.com/search/commits?q=repo%3ANousResearch%2Fhermes-agent+delegate_task&sort=committer-date&order=desc&per_page=30",
+  "status": 200,
+  "headers": {
+    "X-RateLimit-Limit": "10",
+    "X-RateLimit-Remaining": "8",
+    "X-RateLimit-Used": "2",
+    "X-RateLimit-Resource": "search",
+    "X-RateLimit-Reset": "1778185921"
+  }
+}

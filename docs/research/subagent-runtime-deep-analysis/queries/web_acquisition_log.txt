@@ -1,0 +1,4 @@
+# Web/GitHub acquisition log
+started 2026-05-07 22:30:51 CEST +0200
+md path: /home/konstantin/.local/bin/md
+article path: /home/konstantin/.local/bin/article

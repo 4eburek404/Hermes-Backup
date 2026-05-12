@@ -1,0 +1,5608 @@
+[
+  {
+    "hash": "fb1ce793e6ad4751c4fa5b53bab217bc04a9d28b",
+    "date": "2026-05-07",
+    "author": "Teknium",
+    "subject": "feat(security): enable secret redaction by default (#17691, #20785) (#21193)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "af9336d575ef680b49cf56f9ef6031968e6f5ce1",
+    "date": "2026-05-07",
+    "author": "Teknium",
+    "subject": "feat(gateway): generic plugin hooks for env enablement + cron delivery",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "90186c04fb56aeacb6e205a2d6580e47292cf1d5",
+    "date": "2026-05-07",
+    "author": "4eburek404",
+    "subject": "dev: make repo skills the runtime source",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "80717a157f9cc7d747b0a3229346ec4f26d0c393",
+    "date": "2026-05-07",
+    "author": "Teknium",
+    "subject": "fix(discord): route DM role-auth opt-in through config.yaml (not env var)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "69d025e4a744c8e5968e9aab0c1a8679299840a5",
+    "date": "2026-05-07",
+    "author": "Teknium",
+    "subject": "feat(gateway): add allowed_{chats,channels,rooms} whitelist to Telegram, Mattermost, Matrix, DingTalk",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "51f9953e69d303c3d278e41295b1a5c786bf8d87",
+    "date": "2026-05-07",
+    "author": "Teknium",
+    "subject": "feat(profiles): --no-skills flag for empty profile creation (#20986)",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "40b51c93a2d9bce63d656ccb3751e624711e6e3c",
+    "date": "2026-05-07",
+    "author": "stephen0110",
+    "subject": "fix(kanban): heartbeat tool extends claim TTL, not just last_heartbeat_at",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "cd2cbc73b7c56f0c19f41a6bb21808239078653c",
+    "date": "2026-05-06",
+    "author": "kshitij",
+    "subject": "refactor(web): per-capability backend selection for search/extract split",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "ad7aad251c60cfe36bb2247603a34a958b9cdbc4",
+    "date": "2026-05-06",
+    "author": "Teknium",
+    "subject": "feat(skills/linear): add Documents support + Python helper script (#20752)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "a0fedfbb1b7eab8db6c8aaa187f8c35cbf12f3e2",
+    "date": "2026-05-06",
+    "author": "Teknium",
+    "subject": "feat(checkpoints): v2 single-store rewrite with real pruning + disk guardrails (#20709)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "8308611b673412f0bafeb0c8b34c27241fb084bf",
+    "date": "2026-05-06",
+    "author": "teknium1",
+    "subject": "feat(profiles): --no-skills flag for empty profile creation",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "81d4316b4a6f99049b92ba0c10303c48687df745",
+    "date": "2026-05-06",
+    "author": "Brooklyn Nicholson",
+    "subject": "Merge origin/main into bb/gui — resolve server + docs navbar conflicts",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "5c906d70266c1bbce88fd227ea98a3f7646551fe",
+    "date": "2026-05-06",
+    "author": "kshitij",
+    "subject": "feat(web): add SearXNG as a native search-only backend",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "49c3c2e0d37c96dc593a807a5e81fdf4f0aa3d85",
+    "date": "2026-05-06",
+    "author": "Teknium",
+    "subject": "docs(kanban): fix worker skill setup instructions too (#20960)",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "45cbf93899a9f9f1e96c8b85d9192b452e6459d4",
+    "date": "2026-05-06",
+    "author": "Gille",
+    "subject": "docs(kanban): fix orchestrator skill setup instructions (#20958)",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "411cfa26e31daf198355f5007229483fc92a6eb6",
+    "date": "2026-05-06",
+    "author": "mwnickerson",
+    "subject": "fix: auto-block repeated kanban retries",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "33bf5f6292f49f109f11fb9c035afae6dcd356e3",
+    "date": "2026-05-06",
+    "author": "Teknium",
+    "subject": "fix(auth): fall back to global-root auth.json for providers missing in profile",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "de9238d37e778da3654595a49cc7ae5b8a10fa60",
+    "date": "2026-05-05",
+    "author": "Teknium",
+    "subject": "feat(kanban): hallucination gate + recovery UX for worker-created-card claims (#20232)",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "dda389452343ed7b4f8f1535ed119a2b3847f606",
+    "date": "2026-05-05",
+    "author": "Brooklyn Nicholson",
+    "subject": "Merge branch 'main' of github.com:NousResearch/hermes-agent into bb/gui",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "c4b287ba539de06f79b867319568a4aa8c02a5ac",
+    "date": "2026-05-05",
+    "author": "Oleksii Lisikh",
+    "subject": "feat(i18n): add Ukrainian locale",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "bf4e502147df8db6ad612b579409e8de72ac5167",
+    "date": "2026-05-05",
+    "author": "kshitijk4poor",
+    "subject": "refactor(web): per-capability backend selection for search/extract split",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "b7bd177105986a0af5ec13c427e0e3837f8d05c8",
+    "date": "2026-05-05",
+    "author": "Teknium",
+    "subject": "docs(AGENTS.md): add curator/cron/delegation/toolsets, fix plugin tree (#20226)",
+    "paths": [],
+    "sources": [
+      "S:child_timeout_seconds",
+      "S:delegate_task",
+      "S:max_concurrent_children",
+      "S:max_spawn_depth",
+      "S:subagent_auto_approve",
+      "grep:delegate_task",
+      "grep:delegation",
+      "grep:orchestrator"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "abce1a5d087e7cf6655aaf71e32647f01f9d8753",
+    "date": "2026-05-05",
+    "author": "kshitijk4poor",
+    "subject": "feat: provider modules — ProviderProfile ABC, 33 providers, fetch_models, transport single-path",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "7de3c86c5a793485d7b686ac80448336ae996689",
+    "date": "2026-05-05",
+    "author": "Teknium",
+    "subject": "feat(i18n): add display.language for static message translation (zh/ja/de/es) (#20231)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "76074d9ee6e4d0d2688ae154acda15dbf0a3e287",
+    "date": "2026-05-05",
+    "author": "helix4u",
+    "subject": "fix(cli): recover classic CLI output after resize",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "6ebc3014795f0b0e271533c0b9f64b76cc1e1910",
+    "date": "2026-05-05",
+    "author": "kshitijk4poor",
+    "subject": "fix(terminal): recover from deleted cwd instead of crashing all sessions",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "6d302b340e99e85e417f1bcc7d7aa498066ab2b4",
+    "date": "2026-05-05",
+    "author": "LeonSGP43",
+    "subject": "fix(kanban): accept created_cards linked as child of completing task",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "401aadb5b8926c1ce9cdc9a57b5700dacd835732",
+    "date": "2026-05-05",
+    "author": "emozilla",
+    "subject": "docs(security): rewrite policy around OS-level isolation as the boundary",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "39f451f5ada6546a12fefd97397faca189d0169c",
+    "date": "2026-05-05",
+    "author": "etherman-os",
+    "subject": "fix: add Turkish locale references in config, tests, and docs",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "20a4f79ed11da67318756d7a98141c0ebf56183f",
+    "date": "2026-05-05",
+    "author": "kshitijk4poor",
+    "subject": "feat: provider modules — ProviderProfile ABC, 33 providers, fetch_models, transport single-path",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "0dc677f0718b54ec3669206b6741ce97269e061b",
+    "date": "2026-05-05",
+    "author": "Teknium",
+    "subject": "docs(skill/hermes-agent): sync slash commands + add durable-systems section",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "S:max_concurrent_children",
+      "S:max_spawn_depth",
+      "grep:delegation"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "ff3d2773e2a3aab49f282b9b075b2e0d07b18560",
+    "date": "2026-05-04",
+    "author": "Teknium",
+    "subject": "feat(kanban): auto-subscribe gateway chat on tool-driven kanban_create (#19718)",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "e795b7e3ab1df4dd1998f1eb4f77732396b4a69a",
+    "date": "2026-05-04",
+    "author": "luyao618",
+    "subject": "fix(delegate): expand composite toolsets before intersection in delegate_task",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task",
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "d3b22b76d8b63f81c4f70a1d1aae748b883484ab",
+    "date": "2026-05-04",
+    "author": "Teknium",
+    "subject": "fix(kanban): enforce worker task-ownership on destructive tool calls (#19713)",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat",
+      "grep:orchestrator"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "ca8f2c7907e4642f200995e2ded4e1190e21a0b2",
+    "date": "2026-05-04",
+    "author": "Brooklyn Nicholson",
+    "subject": "Merge branch 'main' of github.com:NousResearch/hermes-agent into bb/gui",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "b2b479b40ece1d0eec8eaf20382bed15d9c25a6d",
+    "date": "2026-05-04",
+    "author": "Teknium",
+    "subject": "docs(kanban): backfill multi-board refs in reference docs (#19704)",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "a1bed18194ff1ee8de1bf3e81007ddba06b61042",
+    "date": "2026-05-04",
+    "author": "Teknium",
+    "subject": "docs: clarify that the Docker terminal backend is a single persistent container (#20003)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task",
+      "grep:subagent"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "a11aed1accc735ae0d7af80d626b33870d4b696c",
+    "date": "2026-05-04",
+    "author": "Siddharth Balyan",
+    "subject": "fix(cli): local backend CLI always uses launch directory, stops .env sync of TERMINAL_CWD (#19334)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "9eaddfafa30018b1d4eb3e5e72bbe2d242f8e50e",
+    "date": "2026-05-04",
+    "author": "Siddharth Balyan",
+    "subject": "fix(cli): CLI/TUI on local backend always uses launch directory, ignores terminal.cwd (#19242)",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "986ec04048b31759de6bda86ab3360e57606f8ed",
+    "date": "2026-05-04",
+    "author": "Teknium",
+    "subject": "docs: document /kanban slash command (#19584)",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat",
+      "grep:orchestrator"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "8163d371922768c32f43eb6036d7d36e56775605",
+    "date": "2026-05-04",
+    "author": "Siddharth Balyan",
+    "subject": "fix(skill): reference built-in video_analyze/vision_analyze tools in kanban-video-orchestrator (#19562)",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "3fb35520c6f50626050f3cce16199984f1623004",
+    "date": "2026-05-04",
+    "author": "Teknium",
+    "subject": "revert: auto-subscribe gateway chat on tool-driven kanban_create (#19718) (#19721)",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "395dbcc873c85b8873f4e36ff91b87c739bed242",
+    "date": "2026-05-04",
+    "author": "kshitijk4poor",
+    "subject": "feat(browser): add Lightpanda engine support with automatic Chrome fallback",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "1c7c7c3c5f483cccd8b671410297cd33f1120a87",
+    "date": "2026-05-04",
+    "author": "Teknium",
+    "subject": "feat(kanban-dashboard): per-platform home-channel notification toggles (#19864)",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "1bd5ac7f2f839cd047366749ebbbf901220c7afe",
+    "date": "2026-05-04",
+    "author": "Teknium",
+    "subject": "fix(self-improvement-loop): bump background-review budget to 16 and suppress status leaks (#19710)",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "12307a66e0b0e8ee652ffcf96ac180870f3d3de3",
+    "date": "2026-05-04",
+    "author": "Brooklyn Nicholson",
+    "subject": "Merge branch 'main' of github.com:NousResearch/hermes-agent into bb/gui",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "f41ebf7785729277e71cec755a936f371e749931",
+    "date": "2026-05-03",
+    "author": "Simantak Dabhade",
+    "subject": "feat(tools): add TinyFish cloud browser provider",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "9faaa292b460ad8d8f46e79f907b972edeca9e50",
+    "date": "2026-05-03",
+    "author": "nftpoetrist",
+    "subject": "fix(delegate): inherit parent fallback_chain in _build_child_agent",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:subagent",
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "9ca5ea137524e6d33d037b695d33467c1c012f65",
+    "date": "2026-05-03",
+    "author": "Brooklyn Nicholson",
+    "subject": "Merge branch 'main' of github.com:NousResearch/hermes-agent into bb/gui",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "739b30bc021fc2d8202b4fea8aed91c389f7fc33",
+    "date": "2026-05-03",
+    "author": "kshitijk4poor",
+    "subject": "fix: follow-up fixes for TinyFish browser provider salvage",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "69692039e916aa152989e7732d4268b4c6641e20",
+    "date": "2026-05-03",
+    "author": "liuhao1024",
+    "subject": "fix(delegate): correct ACP docs — Claude Code CLI has no --acp flag",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "511add724987eeb03c10a69ae17d0b0e93765d1f",
+    "date": "2026-05-03",
+    "author": "SHL0MS",
+    "subject": "feat(skill): add video-orchestrator optional creative skill",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "457c7b76cd69089142f7ee02bf26ed5fef9d8741",
+    "date": "2026-05-03",
+    "author": "kshitij",
+    "subject": "feat(openrouter): add response caching support (#19132)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "0dd8e3f8d876ce3d8d0c2e507b11be65eda180c1",
+    "date": "2026-05-03",
+    "author": "SHL0MS",
+    "subject": "rename: video-orchestrator → kanban-video-orchestrator",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "e444d8f29cead99781cbd4306160b81887b3f4e5",
+    "date": "2026-05-02",
+    "author": "Teknium",
+    "subject": "fix(gateway): config.yaml wins over .env for agent/display/timezone settings (#18764)",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "deb59eab727c757d7ea9a239616582b25b531525",
+    "date": "2026-05-02",
+    "author": "pdonizete",
+    "subject": "fix: allow kanban tools for orchestrator profiles with kanban toolset",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "db884f464683fca16b5e953df102f5cf6097ba4c",
+    "date": "2026-05-02",
+    "author": "Brooklyn Nicholson",
+    "subject": "chore: uptick",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "72c8037a24b58b7b1a38a99903cc0bf8a3d7595c",
+    "date": "2026-05-02",
+    "author": "Henkey",
+    "subject": "fix(acp): polish common tool rendering",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "5d3be898a8671eb9fb99cf18f43165502f54e7f4",
+    "date": "2026-05-02",
+    "author": "Siddharth Balyan",
+    "subject": "docs(tts): mention xAI custom voice support (#18776)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "2791ba8ad53ff0be37358bf234544106ea5c0439",
+    "date": "2026-05-02",
+    "author": "Henkey",
+    "subject": "fix(acp): polish common tool rendering",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ],
+    "stat": []
+  },
+  {
+    "hash": "1dce90893016a822480599d02505664c294f255c",
+    "date": "2026-05-02",
+    "author": "Teknium",
+    "subject": "fix(gateway): shutdown + restart hygiene (drain timeout, false-fatal, success log) (#18761)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "grep:max_iterations",
+      "path"
+    ]
+  },
+  {
+    "hash": "10297fa23c982a563844a1014f16bec77e1b6598",
+    "date": "2026-05-02",
+    "author": "Teknium",
+    "subject": "fix(discord): `/reload-skills` now refreshes the `/skill` autocomplete live (#18754)",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ]
+  },
+  {
+    "hash": "d5d7b5c6dc727628b3123eb44b711554eeb55098",
+    "date": "2026-05-01",
+    "author": "Brooklyn Nicholson",
+    "subject": "feat: lots of speech stuff",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "9f3d393a4d03473a84801c512000d3c03f05bf19",
+    "date": "2026-05-01",
+    "author": "Brooklyn Nicholson",
+    "subject": "feat(desktop): polish chat voice and loading states",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "S:child_timeout_seconds",
+      "S:max_concurrent_children",
+      "path"
+    ]
+  },
+  {
+    "hash": "7b61f86529cfa414e192bac4dbee9ff7a5adb411",
+    "date": "2026-05-01",
+    "author": "Brooklyn Nicholson",
+    "subject": "feat(desktop): add structured desktop chat app",
+    "paths": [],
+    "sources": [
+      "S:child_timeout_seconds",
+      "S:max_concurrent_children"
+    ]
+  },
+  {
+    "hash": "77c0bc6b13c8c3f849111c41f2e9233a13b3dcb2",
+    "date": "2026-05-01",
+    "author": "Teknium",
+    "subject": "fix(curator): defer first run and add --dry-run preview (#18373) (#18389)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "4a3eac5fe140daa844aa964a729981617ac2e35a",
+    "date": "2026-05-01",
+    "author": "Teknium",
+    "subject": "feat: add /recap slash command — summarize recent session activity",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "fc78e708ed0c684c20987b23657208c76d45fc5a",
+    "date": "2026-04-30",
+    "author": "Teknium",
+    "subject": "fix(update): don't crash hermes update if skill config scan fails (#18257)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "e8e5985ce6ad35c5a418feb4e2237024997e29b6",
+    "date": "2026-04-30",
+    "author": "Teknium",
+    "subject": "fix(curator): seed defaults on update, create logs/curator dir, defer fire import (#17927)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "c868425467502f4ffa9757e731477cf91262fa3f",
+    "date": "2026-04-30",
+    "author": "Teknium",
+    "subject": "feat(kanban): durable multi-profile collaboration board (#17805)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "grep:heartbeat",
+      "grep:orchestrator",
+      "path"
+    ]
+  },
+  {
+    "hash": "b50bc13ef99ddd7535c011d6e473bc8579a20f3a",
+    "date": "2026-04-30",
+    "author": "Teknium",
+    "subject": "fix(config): preserve YAML lists in hermes config set (#17876)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "8d302e37a8966a20c472c6ef202524685b864021",
+    "date": "2026-04-30",
+    "author": "Teknium",
+    "subject": "feat(tts): add Piper as a native local TTS provider (closes #8508) (#17885)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "7c6c5619a7b85ef7ed873632e25a4a4745563866",
+    "date": "2026-04-30",
+    "author": "Teknium",
+    "subject": "docs(sidebar): collapse exploding skills tree to a single Skills node (#18259)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:orchestrator"
+    ]
+  },
+  {
+    "hash": "73bf3ab1b22314ed9dfecbb59242c03742fe72af",
+    "date": "2026-04-30",
+    "author": "Teknium",
+    "subject": "chore: release v0.12.0 (2026.4.30) (#18057)",
+    "paths": [],
+    "sources": [
+      "S:child_timeout_seconds"
+    ]
+  },
+  {
+    "hash": "52be0f23367ae1f051ac0154b9564e0fcb7cc9a5",
+    "date": "2026-04-30",
+    "author": "crypto-vincent",
+    "subject": "merge",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "4caad285a602b75c1da1c7d553864278d7aa723d",
+    "date": "2026-04-30",
+    "author": "Teknium",
+    "subject": "feat(gateway): auto-delete slash-command system notices after TTL (#18266)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "265bd59c1d9f8dea658f243b257d4fae3685af53",
+    "date": "2026-04-30",
+    "author": "Teknium",
+    "subject": "feat: /goal — persistent cross-turn goals (Ralph loop) (#18262)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "2470434d60991a46e0fd4733e4a69722acb97ebe",
+    "date": "2026-04-30",
+    "author": "Jacob Lizarraga",
+    "subject": "fix(telegram): probe polling liveness after reconnect to detect wedged Updater",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat"
+    ]
+  },
+  {
+    "hash": "0da968e521f3870cabfba3c2d9fceb1aec9b1e69",
+    "date": "2026-04-30",
+    "author": "Teknium",
+    "subject": "fix(curator): unify under auxiliary.curator (hermes model, dashboard) (#17868)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "e3624e00db6ddee7b1bf4009fc19453b5317f2f2",
+    "date": "2026-04-29",
+    "author": "jatin godnani",
+    "subject": "fix: enforce strictly subtractive toolset filtration",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "aea72c09362b51baf70088208de81e91ab53ea48",
+    "date": "2026-04-29",
+    "author": "Teknium",
+    "subject": "skills: adapt spike/sketch + 2 references from gsd-build/get-shit-done (MIT) (#17421)",
+    "paths": [
+      "skills/software-development/subagent-driven-development/SKILL.md"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "9ae1fa9e39057517ef4cb70511e3e294f39e1a2f",
+    "date": "2026-04-29",
+    "author": "johnncenae",
+    "subject": "fix(delegate): honor runtime default model during provider resolution",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "88e07c42b44c6dcf62a56fbc891bd22ee3fab253",
+    "date": "2026-04-29",
+    "author": "JackJin",
+    "subject": "fix(cli): prevent .env sanitizer from splitting GLM_API_KEY by LM_API_KEY suffix",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "810d98e892d551659d5b68adddda38902c0fc40e",
+    "date": "2026-04-29",
+    "author": "Magaav",
+    "subject": "feat(api_server): expose run status for external UIs (#17085)",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ]
+  },
+  {
+    "hash": "7966560fb50fbd433ba981657d5bcbe5d1fce24b",
+    "date": "2026-04-29",
+    "author": "Shannon Sands",
+    "subject": "feat(skills): /reload-skills slash command + skills_reload agent tool",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "71c8ca17dc890a3e04006146110eb1f595100f74",
+    "date": "2026-04-29",
+    "author": "Teknium",
+    "subject": "chore(salvage): strip duplicated/merge-corrupted blocks from PR #17664",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "6366fb9c8be49780a20e1f7751b09c0662d87969",
+    "date": "2026-04-29",
+    "author": "teknium1",
+    "subject": "Port from cline/cline#10343: periodic gateway memory logging",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "62a5d7207d15a0372ae980ccbdb5477314a12558",
+    "date": "2026-04-29",
+    "author": "Teknium",
+    "subject": "feat(plugins): bundle hermes-achievements + scan full session history (#17754)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "5a1d4f68045bb46eb3fad28b001519e36c397444",
+    "date": "2026-04-29",
+    "author": "Scott Trinh",
+    "subject": "feat: add Vercel Sandbox backend",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "58a6171bfb0ba2ca10b1b08854511736cd77a623",
+    "date": "2026-04-29",
+    "author": "Ben Barclay",
+    "subject": "Merge pull request #17305 from NousResearch/feat/docker-run-as-host-user",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "5531c0df8217c8865b523d85448f3fda1d7478bf",
+    "date": "2026-04-29",
+    "author": "Ben",
+    "subject": "feat(docker): run container as host user to avoid root-owned bind mounts",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "4d7fc0f37cedeecb02a8bda05d2b6eb6987b7bbc",
+    "date": "2026-04-29",
+    "author": "Teknium",
+    "subject": "feat(gateway,cli): confirm /reload-mcp to warn about prompt cache invalidation",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "289cc476315bc1876229825b7cebb6ec5a8b1d87",
+    "date": "2026-04-29",
+    "author": "Teknium",
+    "subject": "docs: resync reference, user-guide, developer-guide, and messaging pages against code (#17738)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "22ff6ca32b60d345e2fd3cef210288aab4cc45ad",
+    "date": "2026-04-29",
+    "author": "Teknium",
+    "subject": "docs: two-week gap sweep — platforms, CLI, config, TUI, hooks, providers (#17727)",
+    "paths": [
+      "website/docs/user-guide/features/delegation.md"
+    ],
+    "sources": [
+      "S:child_timeout_seconds",
+      "S:delegate_task",
+      "S:subagent-timeout",
+      "path"
+    ]
+  },
+  {
+    "hash": "13c238327eebfff862d9ed60593751e419989785",
+    "date": "2026-04-29",
+    "author": "kshitijk4poor",
+    "subject": "fix: address self-review findings for Vercel Sandbox salvage",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "0dd373ec43976f0b6fff2108120b8d31cbf9774f",
+    "date": "2026-04-29",
+    "author": "Rob Moen",
+    "subject": "fix(context): honor model.context_length for Ollama num_ctx and all display paths",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "fa9383d27ba4357d75eb21f603220f8fa9b58106",
+    "date": "2026-04-28",
+    "author": "teknium1",
+    "subject": "feat(curator): umbrella-first prompt, inherit parent config, unbounded iterations",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "e123f4ecf0773a256b217262244c9042de8aefc4",
+    "date": "2026-04-28",
+    "author": "Teknium",
+    "subject": "feat(gateway): opt-in runtime-metadata footer on final replies (#17026)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "df51ad797332a547aa9589ee3cb11353f204f8db",
+    "date": "2026-04-28",
+    "author": "Teknium",
+    "subject": "perf(config): mtime-cache load_config() and read_raw_config() (#17041)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "dd789a4fdfca73665b60f32b35f50ef9a217b7ed",
+    "date": "2026-04-28",
+    "author": "Teknium",
+    "subject": "fix(mcp): move discovery out of model_tools import side effect (#16856) (#16899)",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat"
+    ]
+  },
+  {
+    "hash": "d8c2c77be6f44baf675c5ecd2533c81482348a1e",
+    "date": "2026-04-28",
+    "author": "kshitijk4poor",
+    "subject": "feat(plugins): add optional-plugins/ discovery + langfuse_tracing as first official optional plugin",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "cd7150a195f328c38050b4a0de5ed6491d7792ed",
+    "date": "2026-04-28",
+    "author": "Teknium",
+    "subject": "perf(approval): precompile DANGEROUS_PATTERNS and HARDLINE_PATTERNS (#17206)",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat"
+    ]
+  },
+  {
+    "hash": "bd10acd747c12e2a793d2743e04462bf82d481b5",
+    "date": "2026-04-28",
+    "author": "Teknium",
+    "subject": "fix(providers): honor key_env/api_key_env on Azure Anthropic + accept alias in normalizer (#16935)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "b61d9b297a2538ad7821e9e5fac7bbbc3b5aa103",
+    "date": "2026-04-28",
+    "author": "Teknium",
+    "subject": "refactor: consolidate symlink-safe atomic replace into shared helper",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "a8f9c56cb430ceed64ae93cabebba03d893632f1",
+    "date": "2026-04-28",
+    "author": "Surat Srichan",
+    "subject": "fix(config): accept fallback_model list (chain) in validator + save",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "8c892c1453aa2955f196835be44eb1560c15fee1",
+    "date": "2026-04-28",
+    "author": "Teknium",
+    "subject": "refactor(redact): canonical mask_secret helper; fix status.py DIM drift (#17207)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "87d3fa6f1c73ccb60b91e9e2c405d5212244bce9",
+    "date": "2026-04-28",
+    "author": "brooklyn!",
+    "subject": "feat(tui): opt-in auto-resume of the most recent session (#17130)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "grep:sub-agent",
+      "path"
+    ]
+  },
+  {
+    "hash": "84d1673e2fa829755fcffa0b09c6cb323c11a2f7",
+    "date": "2026-04-28",
+    "author": "kshitijk4poor",
+    "subject": "feat: provider modules — ProviderProfile ABC, 30 providers, fetch_models, transport single-path",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "832ecde4b08430fa81e7a82bf07cbb0aa77e175a",
+    "date": "2026-04-28",
+    "author": "teknium1",
+    "subject": "feat(kanban): structured tool surface for worker + orchestrator agents",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat",
+      "grep:orchestrator"
+    ]
+  },
+  {
+    "hash": "7d81d763667b6733e06658ff9d7e522167f76a74",
+    "date": "2026-04-28",
+    "author": "brooklyn!",
+    "subject": "feat(tui): pluggable busy-indicator styles (#13610) (#17150)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "7444e49d4e5888d5d89f1ef01761fec838d10419",
+    "date": "2026-04-28",
+    "author": "teknium1",
+    "subject": "fix(gateway): use transcript timestamp for auto-continue freshness",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "72dea9f4f7f01a1045ac917adf1facd62f113160",
+    "date": "2026-04-28",
+    "author": "Teknium",
+    "subject": "feat(gateway): make hygiene hard message limit configurable (#17000)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "6b6fc28e85636bc4d12b07fe589a4bd544142a3a",
+    "date": "2026-04-28",
+    "author": "ygd58",
+    "subject": "fix(delegate): clear acp_command when override_provider is set",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:#16816",
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "69b8fa65d4af58ed8fe1811ca6b8d895852ec606",
+    "date": "2026-04-28",
+    "author": "Teknium",
+    "subject": "docs(delegate_task): clarify that it is synchronous and not durable (#17022)",
+    "paths": [
+      "tools/delegate_tool.py",
+      "website/docs/guides/delegation-patterns.md",
+      "website/docs/user-guide/features/delegation.md"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task",
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "60e75674e7f19c0a50cd3edfb256fc72c8ac1072",
+    "date": "2026-04-28",
+    "author": "teknium1",
+    "subject": "feat(kanban): dispatcher runs in the gateway by default; retire standalone daemon",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "6085d7a93e24004bdd0e14fa1591914b4059b57a",
+    "date": "2026-04-28",
+    "author": "Teknium",
+    "subject": "chore: remove unused imports and dead locals (ruff F401, F841) (#17010)",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "5ed1eb0d0fe0e21579623ba68afa2e53a6b611c8",
+    "date": "2026-04-28",
+    "author": "Teknium",
+    "subject": "docs(config): surface telegram.reactions in DEFAULT_CONFIG (#17028)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "5d2f9b5d7d6f013f431df8c8f8c09dbcacf91120",
+    "date": "2026-04-28",
+    "author": "kshitijk4poor",
+    "subject": "fix: follow-up for salvaged PR #17061",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "4e6f51167dd12d2812bfccbf6226618dacfff3fd",
+    "date": "2026-04-28",
+    "author": "novax635",
+    "subject": "fix(cli): fall back on invalid HERMES_MAX_ITERATIONS",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "42cc905c1369164c53f7cc7525242f549dc25e32",
+    "date": "2026-04-28",
+    "author": "kshitijk4poor",
+    "subject": "feat(plugins): add bundled observability/langfuse plugin",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "3ab97a32d16611dab295f6a6583398bb6615ce4e",
+    "date": "2026-04-28",
+    "author": "vominh1919",
+    "subject": "fix: preserve symlinks during atomic file writes (#16743)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "2d137074a3231c4d749cb87692b5ad60f6d6457c",
+    "date": "2026-04-28",
+    "author": "Teknium",
+    "subject": "refactor(config): add cfg_get() helper; migrate 20 nested-get call sites (#17304)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "1d5e25f35367af7ff15856bca232ba44bd0bc84f",
+    "date": "2026-04-28",
+    "author": "ztexydt-cqh",
+    "subject": "fix(gateway): persist /sethome home channel to .env across all platforms",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "1970bcf5a5ac289a1e7325f832f129fc0adf64de",
+    "date": "2026-04-28",
+    "author": "teknium1",
+    "subject": "feat(kanban): system-prompt guidance block + reshape skills to reference-only",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:heartbeat",
+      "grep:orchestrator"
+    ]
+  },
+  {
+    "hash": "15ef11a8b86d073266e99ef2d9393d8fb0dab976",
+    "date": "2026-04-28",
+    "author": "brooklyn!",
+    "subject": "fix(tui): make /browser connect actually take effect on the live agent (#17120)",
+    "paths": [],
+    "sources": [
+      "grep:sub-agent"
+    ]
+  },
+  {
+    "hash": "0169c518207ac7ab10d5545ad684984a9ce7f113",
+    "date": "2026-04-28",
+    "author": "vominh1919",
+    "subject": "fix(config): add request_timeout_seconds and stale_timeout_seconds to provider _KNOWN_KEYS",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "ec671c41546eaf63630a441f67e264acc6ff77c6",
+    "date": "2026-04-27",
+    "author": "Teknium",
+    "subject": "feat(image-input): native multimodal routing based on model vision capability (#16506)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "ea3c5a14c3914026d782c11cec0fdd87b2e5a24f",
+    "date": "2026-04-27",
+    "author": "Teknium",
+    "subject": "feat(update): make pre-update backup opt-in (off by default) (#16566)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "dad42014aeb11bf7e655868f00d1c295875dddc1",
+    "date": "2026-04-27",
+    "author": "Teknium",
+    "subject": "Port from Kilo-Org/kilocode#9448: roll up subagent costs into parent session total",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task",
+      "grep:orchestrator",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "da7d09c3b64fe1f782a41b8dc3c4c9235be7c483",
+    "date": "2026-04-27",
+    "author": "Teknium",
+    "subject": "feat(kanban): max-runtime timeouts, worker heartbeats, assignees picker, event vocab cleanup",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat"
+    ]
+  },
+  {
+    "hash": "d7528d43ace151ee0e945ef8c21c070ee4e9b1b1",
+    "date": "2026-04-27",
+    "author": "Teknium",
+    "subject": "fix(web): scope dashboard config Reset button to the current tab (#16813)",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task",
+      "grep:orchestrator",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "d17eff29d5fe6a09e0a0cef49df999d4a70eb073",
+    "date": "2026-04-27",
+    "author": "ideathinklab01-source",
+    "subject": "fix(delegate): guard _load_config() against delegation: null in config.yaml",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegation",
+      "grep:max_concurrent_children",
+      "path"
+    ]
+  },
+  {
+    "hash": "b46b0c98885c78c171d8bd52aee5dd28e082acec",
+    "date": "2026-04-27",
+    "author": "briandevans",
+    "subject": "fix(backup): floor pre-update backup_keep to 1 so the new backup survives",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "8ed599dc0546aeedaa0c54d1b4a3077d2d88e161",
+    "date": "2026-04-27",
+    "author": "Teknium",
+    "subject": "feat(update): auto-backup HERMES_HOME before hermes update (#16539)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "83080772f28793ac388d9218c394019ff8554ad0",
+    "date": "2026-04-27",
+    "author": "0668001438",
+    "subject": "fix(delegation): honor provider override for subagents",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "8081425a1c095d01db858ea1a574d17c93703f48",
+    "date": "2026-04-27",
+    "author": "Teknium",
+    "subject": "feat(security): make secret redaction off by default (#16794)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "645a2f482de6cefcf8694a5f2f896889804d3096",
+    "date": "2026-04-27",
+    "author": "Harry Riddle",
+    "subject": "fix(cli): fix shortcut config conflict in hermes_cli",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "58b89965c8c4489db817be737eb4e458df0a8e06",
+    "date": "2026-04-27",
+    "author": "Mind-Dragon",
+    "subject": "fix(agent): add tool-call loop guardrails",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "56724147ef2ce7df13d6b6a98bbd3fe0eb9ad211",
+    "date": "2026-04-27",
+    "author": "kshitijk4poor",
+    "subject": "fix(providers/gmi): post-salvage review fixes",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "123f8d0fedc435c0f93f89f6986daa4407640cae",
+    "date": "2026-04-27",
+    "author": "Teknium",
+    "subject": "feat(kanban): battle-test suite + 2 real bugs it found",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat"
+    ]
+  },
+  {
+    "hash": "0704589ceb1365c1b7aefff382923ed28380714e",
+    "date": "2026-04-27",
+    "author": "Mind-Dragon",
+    "subject": "fix(agent): make tool loop guardrails warning-first",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "0146cb2bd267cb88f590aeb9492a6ba5b29211ed",
+    "date": "2026-04-27",
+    "author": "Teknium",
+    "subject": "feat(kanban): runs as first-class (v1); structured handoffs; forward-compat for v2 workflows",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat",
+      "grep:orchestrator"
+    ]
+  },
+  {
+    "hash": "008860a23f0fe6cffb0c7ae169f347588017469c",
+    "date": "2026-04-27",
+    "author": "Teknium",
+    "subject": "fix(approval): close remaining prompt_toolkit deadlock vectors (#15216)",
+    "paths": [],
+    "sources": [
+      "grep:delegate_task",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "e3921e7ca4a6a98c00841eb72d9bcc9b9ac99185",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "docs(skills): compress 74 built-in skill descriptions to <=60 chars",
+    "paths": [
+      "skills/software-development/subagent-driven-development/SKILL.md"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "e1c5e741ada31d973c438ed71754f9cd496f1273",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "feat(kanban): durable multi-profile collaboration board (#16081)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task",
+      "grep:orchestrator",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "bc79e227e6eff5ea4f47ad6c731d675e6f3b1d21",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "feat(curator): background skill maintenance (issue #7816)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "grep:orchestrator",
+      "path"
+    ]
+  },
+  {
+    "hash": "af8d43dbbb7b9ccf302580e6819696f0daf34abf",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "feat(kanban): core hardening — daemon, circuit breaker, crash detect, logs, notify, bulk, stats",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "a12f7aa8bb1397cbf275aa1be9eb12e62451454e",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "fix(curator): default cycle is every 7 days, not 24 hours",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "9dd59cb6375ff26f8ceeb2dee491a0e139240b6d",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "feat(curator): background skill maintenance (issue #7816)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "grep:orchestrator",
+      "path"
+    ]
+  },
+  {
+    "hash": "9be83728a67c794daa20c553919f4869675a2edc",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "docs(docker-backend): clarify container is shared across sessions, not per-session (#16158)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "8ad29a938ad06c31c9de05e825670d3ab7fa91dc",
+    "date": "2026-04-26",
+    "author": "luyao618",
+    "subject": "fix(agent): restrict background review agent to memory and skills toolsets",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task"
+    ]
+  },
+  {
+    "hash": "855366909f659e7f11635dc5bfbd279a1d4ef83e",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "feat(models): remote model catalog manifest for OpenRouter + Nous Portal (#16033)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "83c1c201f61c607259f5a5f7af32ddbc9c1cc2cc",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "feat(onboarding): contextual first-touch hints for /busy and /verbose (#16046)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "635253b9185f1d65dae7df17421daf0dfbc0f576",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "feat(busy): add 'steer' as a third display.busy_input_mode option (#16279)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "5b2c59559a00dff919701be4211db8d288deb20a",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "feat(terminal): collapse subagent task_ids to shared container (#16177)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "55e9329ee6f6066bc6a89349d43379c46921cc58",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "feat(config): register bundled-skill API keys in OPTIONAL_ENV_VARS",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "517f30b0435c7f30d3204941888c83766033cd72",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "improve(agent): guidance for plain-text URLs, subagent language/verification, hermes-config routing (#16325)",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "478444c262b9a9600e2ba1a063ecf1852d7481f4",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "feat(checkpoints): auto-prune orphan and stale shadow repos at startup (#16303)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "42c076d349e7a737355b37035ca415a79c719c4b",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "feat(browser): auto-spawn local Chromium for LAN/localhost URLs in cloud mode (#16136)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "15937a6b4654a331ce5fd5b1052baad82f9319fd",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "feat(kanban): durable multi-profile collaboration board (#16081)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task",
+      "grep:orchestrator",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "13ca9ee665bb3dda2b728d7082d8e68d5ab51b1d",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "Merge remote-tracking branch 'origin/main' into hermes/curator-infra",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "0e9416036aa4fe3a600a48aefe4212fa77191190",
+    "date": "2026-04-26",
+    "author": "阿泥豆",
+    "subject": "test: add unit tests for heartbeat stale threshold increase",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat"
+    ]
+  },
+  {
+    "hash": "0cc63043e085dc6c12bc80007b6e6e3fafb7b3cf",
+    "date": "2026-04-26",
+    "author": "阿泥豆",
+    "subject": "fix(delegation): increase heartbeat stale thresholds",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:child_timeout",
+      "grep:delegation",
+      "grep:heartbeat",
+      "path"
+    ]
+  },
+  {
+    "hash": "0be51452fad89fbb116c8083a5ce020f73229a22",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "fix(curator): default cycle is every 7 days, not 24 hours",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "0824ba6a9db8c5e92d4fe2e7ee5bc086844b336e",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "fix(/branch): redirect session_log_file and expose branch sessions in list (#14854) (#16150)",
+    "paths": [],
+    "sources": [
+      "grep:sub-agent",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "06f81752ed40d5f0e780bee01fbba8947ce5007a",
+    "date": "2026-04-26",
+    "author": "Teknium",
+    "subject": "Revert \"feat(kanban): durable multi-profile collaboration board (#16081)\" (#16098)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "ea01bdcebe1fd2e297923626de74dbe529c47bf4",
+    "date": "2026-04-25",
+    "author": "Teknium",
+    "subject": "refactor(memory): remove flush_memories entirely (#15696)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "de24315978cc69fd0932e141bedef6b8f28e4b88",
+    "date": "2026-04-25",
+    "author": "briandevans",
+    "subject": "fix(gateway): preserve inactivity clock on interrupt-recursive cached-agent turns (#15654)",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat"
+    ]
+  },
+  {
+    "hash": "93a2d6b307674fc9975538cd7a2f903068211c95",
+    "date": "2026-04-25",
+    "author": "chen1749144759",
+    "subject": "fix: add DeepSeek reasoning_content echo for tool-call messages",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "70c43d5da1016c9127f3b4b2a3f7f638d28856ab",
+    "date": "2026-04-25",
+    "author": "Brooklyn Nicholson",
+    "subject": "feat(tui): showroom MVP with picker, speeds, sample workflows",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "6b4ccb9b148573f0c9a675b9ed24528824b0d87f",
+    "date": "2026-04-25",
+    "author": "briandevans",
+    "subject": "fix(session-search): report source from resolved parent, not FTS5 child session (#15909)",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "214ca943ac743f09f8a7300c426b6106aeedcdad",
+    "date": "2026-04-25",
+    "author": "Rugved Somwanshi",
+    "subject": "feat(agent): add lmstudio integration",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "125de02056eab84362fc91f57bd7041a19860b22",
+    "date": "2026-04-25",
+    "author": "Teknium",
+    "subject": "fix(context): honor custom_providers context_length on /model switch + bump probe tier to 256K (#15844)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "0b5fd40a01f6d48549a2d9130e0cb1443be1900c",
+    "date": "2026-04-25",
+    "author": "briandevans",
+    "subject": "fix(delegate): correct _spawn_child → _build_child_agent in comments",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "fcc05284fc7f8d46c143b3e940ade505f782eb6e",
+    "date": "2026-04-24",
+    "author": "Teknium",
+    "subject": "fix(delegate): tool-activity-aware heartbeat stale detection (#13041) (#15183)",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:child_timeout_seconds",
+      "grep:child_timeout",
+      "grep:heartbeat",
+      "path"
+    ]
+  },
+  {
+    "hash": "f5e2a77a80c8fdfdee5c61764d666e111612c999",
+    "date": "2026-04-24",
+    "author": "Brooklyn Nicholson",
+    "subject": "fix(tui): chevrons re-toggle even when section default is expanded",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "83bbe9b458cc19dc7d12c5dbf4e8e68ff37659b2",
+    "date": "2026-04-24",
+    "author": "Emilien Domenge",
+    "subject": "fix(delegation): pass target_model to resolve_runtime_provider in _resolve_delegation_credentials",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "81987f0350b68ab5cf8a1c6d1129a523fe32dcf4",
+    "date": "2026-04-24",
+    "author": "alt-glitch",
+    "subject": "feat(discord): split discord_server into discord + discord_admin tools",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "78481ac1246573e00e1b2a51c59853ba8a24f530",
+    "date": "2026-04-24",
+    "author": "Brooklyn Nicholson",
+    "subject": "feat(tui): per-section visibility for the details accordion",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "7634c1386fb3cf4f941bc7703340739212065ccf",
+    "date": "2026-04-24",
+    "author": "Teknium",
+    "subject": "feat(delegate): diagnostic dump when a subagent times out with 0 API calls (#15105)",
+    "paths": [
+      "tests/tools/test_delegate_subagent_timeout_diagnostic.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "S:subagent-timeout",
+      "grep:#14726",
+      "grep:delegate_task",
+      "grep:max_iterations",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "67bfd4b8283c2f5f7e9fbfe7681459f39990c5ee",
+    "date": "2026-04-24",
+    "author": "Brooklyn Nicholson",
+    "subject": "feat(tui): stream thinking + tools expanded by default",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "57a2b97ae863662ad98e47d17e97c26973b53da6",
+    "date": "2026-04-24",
+    "author": "alt-glitch",
+    "subject": "feat(discord): split discord_server into discord + discord_admin tools",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "4bbf08a818a4f52d63a752fdda25f263fb1aa343",
+    "date": "2026-04-24",
+    "author": "alt-glitch",
+    "subject": "feat(discord): split discord_server into discord + discord_admin tools",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "4093ee9c62571d79c834a3bd72a8a32d8221a65b",
+    "date": "2026-04-24",
+    "author": "Teknium",
+    "subject": "fix(codex): detect leaked tool-call text in assistant content (#15347)",
+    "paths": [],
+    "sources": [
+      "grep:delegate_task"
+    ]
+  },
+  {
+    "hash": "1eab5960f0842c587a05d18fc75f7c8a717540f9",
+    "date": "2026-04-24",
+    "author": "Adam Rummer",
+    "subject": "feat(matrix): add dm_auto_thread config for DM auto-threading",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "0a59994030681cfd3fb53662d1482d41dd45153d",
+    "date": "2026-04-24",
+    "author": "Teknium",
+    "subject": "fix(cli-config): keep delegation overrides commented in example",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "023b1bff11c2a01a435f1956a0e2ac1773a065f3",
+    "date": "2026-04-24",
+    "author": "Teknium",
+    "subject": "fix(delegate): resolve subagent approval prompts without deadlocking parent TUI (#15491)",
+    "paths": [
+      "hermes_cli/config.py",
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "S:subagent_auto_approve",
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "f2b1b3f1a3ff28ebc39b46cdc02e5febe872281b",
+    "date": "2026-04-23",
+    "author": "Teknium",
+    "subject": "feat(config): make tool output truncation limits configurable",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "ce089169d578b96c82641f17186ba63c288b22d8",
+    "date": "2026-04-23",
+    "author": "Teknium",
+    "subject": "feat(skills-guard): gate agent-created scanner on config.skills.guard_agent_created (default off)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "bf196a3fc0fd1f79353369e8732051db275c6276",
+    "date": "2026-04-23",
+    "author": "Teknium",
+    "subject": "chore: release v0.11.0 (2026.4.23) (#14791)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "S:max_spawn_depth",
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "a1e667b9f2a458b9795aec7daca31ddc89c5f327",
+    "date": "2026-04-23",
+    "author": "alt-glitch",
+    "subject": "fix(restructure): fix test regressions from import rewrite",
+    "paths": [
+      "tests/tools/test_delegate.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "983bbe2d40f7b23b263c35d98e7454fcdd474cf1",
+    "date": "2026-04-23",
+    "author": "Teknium",
+    "subject": "feat(skills): add design-md skill for Google's DESIGN.md spec (#14876)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "97b9b3d6a6848579c5c93cd4b5d8d26f6dde34b8",
+    "date": "2026-04-23",
+    "author": "Teknium",
+    "subject": "fix(gateway): drain-aware hermes update + faster still-working pings (#14736)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "82a0ed1afb3fb3840a0bdca94a22fa8b005ac49a",
+    "date": "2026-04-23",
+    "author": "kshitij",
+    "subject": "feat: add Xiaomi MiMo v2.5-pro and v2.5 model support (#14635)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "65ca3ba93b3fa7fd2b15af5b62d54020061f3672",
+    "date": "2026-04-23",
+    "author": "alt-glitch",
+    "subject": "refactor(restructure): git mv all source files into hermes_agent/ package",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "64e61656862b24776d5d7f5b87699097a16b9ec3",
+    "date": "2026-04-23",
+    "author": "Teknium",
+    "subject": "fix(delegate): remove model-facing max_iterations override; config is authoritative (#14732)",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task",
+      "grep:delegation",
+      "grep:max_iterations",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "5a26938aa502ae172a6e6d90ab60ac3fe89c1ad3",
+    "date": "2026-04-23",
+    "author": "Teknium",
+    "subject": "fix(terminal): auto-source ~/.profile and ~/.bash_profile so n/nvm PATH survives (#14534)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "5a1c5994125eef8135965756d551ddaa5c7ee1a0",
+    "date": "2026-04-23",
+    "author": "Teknium",
+    "subject": "feat(browser): CDP supervisor — dialog detection + response + cross-origin iframe eval (#14540)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "50d97edbe15e3a4fd72ddbe00a3afb85e9bbafc9",
+    "date": "2026-04-23",
+    "author": "Teknium",
+    "subject": "feat(delegation): bump default child_timeout_seconds to 600s (#14809)",
+    "paths": [
+      "hermes_cli/config.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:child_timeout_seconds",
+      "grep:child_timeout",
+      "grep:delegation",
+      "path"
+    ]
+  },
+  {
+    "hash": "4b16341975a1217588054f567d0f76dc5a3cc481",
+    "date": "2026-04-23",
+    "author": "alt-glitch",
+    "subject": "refactor(restructure): rewrite all imports for hermes_agent package",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tests/tools/test_delegate_toolset_scope.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "415043315f2a7e66f2cc5f3f03f043237019b445",
+    "date": "2026-04-23",
+    "author": "alt-glitch",
+    "subject": "refactor: remove config TypedDicts and fix ImportError propagation in clipboard",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "165b2e481afa1cd7385c5c9f9ebf33eb4a524131",
+    "date": "2026-04-23",
+    "author": "Teknium",
+    "subject": "feat(agent): make API retry count configurable via agent.api_max_retries (#14730)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "0f6eabb89073e3215daffb0bc1c4d95401be7b3b",
+    "date": "2026-04-23",
+    "author": "Teknium",
+    "subject": "docs(website): dedicated page per bundled + optional skill (#14929)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "0ed37c0ca4bfde29e9aa09ba97ac8a2c8af93888",
+    "date": "2026-04-23",
+    "author": "MorAlekss",
+    "subject": "docs(delegate): document max_concurrent_children and max_spawn_depth + cost warning",
+    "paths": [
+      "tools/delegate_tool.py",
+      "website/docs/guides/delegation-patterns.md"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "S:max_concurrent_children",
+      "S:max_spawn_depth",
+      "grep:max_concurrent_children",
+      "grep:max_spawn_depth",
+      "path"
+    ]
+  },
+  {
+    "hash": "dee51c1607640e7a9496fbfd4985b5807b10b77f",
+    "date": "2026-04-22",
+    "author": "Brooklyn Nicholson",
+    "subject": "fix(tui): address Copilot review on #14045",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:max_concurrent_children",
+      "grep:max_concurrent_children",
+      "grep:orchestrator",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "dd8ab40556cc25e7e70e730ff3eaca803cc93550",
+    "date": "2026-04-22",
+    "author": "Kongxi",
+    "subject": "fix(delegation): add hard timeout and stale detection for subagent execution (#13770)",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:DEFAULT_CHILD_TIMEOUT",
+      "S:FuturesTimeoutError",
+      "S:child_timeout_seconds",
+      "grep:child_timeout",
+      "grep:delegation",
+      "grep:heartbeat",
+      "grep:max_iterations",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "bc5da42b2c31136c55c55f9ef84bd156d8c90da2",
+    "date": "2026-04-22",
+    "author": "brooklyn!",
+    "subject": "Merge pull request #14045 from NousResearch/bb/subagent-observability",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "847ffca7158e8663c0d88e855895fdd0a47ffae9",
+    "date": "2026-04-22",
+    "author": "alt-glitch",
+    "subject": "Merge remote-tracking branch 'origin/main' into sid/types-and-lints",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "7eae504d158b5cdbc519684d6c5ce64f1fbdb079",
+    "date": "2026-04-22",
+    "author": "Brooklyn Nicholson",
+    "subject": "fix(tui): address Copilot round-2 on #14045",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "7d8b2eee638f28fd9a9819b894f5036932167831",
+    "date": "2026-04-22",
+    "author": "Teknium",
+    "subject": "fix(delegate): default inherit_mcp_toolsets=true, drop version bump",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegation",
+      "path"
+    ]
+  },
+  {
+    "hash": "7785654ad5cc3d9e2fec3cdf2ccb0fe88c4280a9",
+    "date": "2026-04-22",
+    "author": "Brooklyn Nicholson",
+    "subject": "feat(tui): subagent spawn observability overlay",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "S:max_concurrent_children",
+      "S:max_spawn_depth",
+      "grep:delegate_task",
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "5b0741e986c9f28d3cb9c16d0c6953fcf1857e87",
+    "date": "2026-04-22",
+    "author": "Brooklyn Nicholson",
+    "subject": "refactor(tui): consolidate agents overlay — share duration/root helpers via lib",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "3e96c87f371efbc053665abf546a6093cc636f24",
+    "date": "2026-04-22",
+    "author": "helix4u",
+    "subject": "fix(delegate): make MCP toolset inheritance configurable",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "path"
+    ]
+  },
+  {
+    "hash": "fb6d37495b701aa2c8bf1ecf57d15e1f7e80082b",
+    "date": "2026-04-21",
+    "author": "alt-glitch",
+    "subject": "fix: resolve `not-subscriptable` ty diagnostics across codebase",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "f49afd3122eaa689b9366035a54d5e77d1dc941b",
+    "date": "2026-04-21",
+    "author": "emozilla",
+    "subject": "feat(web): add /api/pty WebSocket bridge to embed TUI in dashboard",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "bf73ced4f524028572859d90bc05e2bf40ad0717",
+    "date": "2026-04-21",
+    "author": "Teknium",
+    "subject": "docs: document delegation width + depth knobs (#13745)",
+    "paths": [
+      "website/docs/user-guide/features/delegation.md"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "S:max_concurrent_children",
+      "S:max_spawn_depth",
+      "grep:delegation",
+      "grep:max_concurrent_children",
+      "grep:max_spawn_depth",
+      "grep:orchestrator",
+      "path"
+    ]
+  },
+  {
+    "hash": "b11e53e34f3fa168a2179846c416f0b9929e7728",
+    "date": "2026-04-21",
+    "author": "alt-glitch",
+    "subject": "fix: resolve `not-subscriptable` ty diagnostics across codebase",
+    "paths": [
+      "hermes_cli/config.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "9c9d9b7ddf703f2d8174aeab58d653ac25506af8",
+    "date": "2026-04-21",
+    "author": "Teknium",
+    "subject": "feat(delegate): cross-agent file state coordination for concurrent subagents (#13718)",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "527ca7d238d955c43aab59fd411a5123d69842e8",
+    "date": "2026-04-21",
+    "author": "alt-glitch",
+    "subject": "fix(types): batch P1 ty hotfixes + run_agent.py annotation pass",
+    "paths": [
+      "hermes_cli/config.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "4a95029e6caf9b11643489143504eec395e93b65",
+    "date": "2026-04-21",
+    "author": "alt-glitch",
+    "subject": "fix: resolve all `invalid-return-type` ty diagnostics across codebase",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "48ecb98f8a7521fc07b6204f3148fe149f2cca6d",
+    "date": "2026-04-21",
+    "author": "pefontana",
+    "subject": "feat(delegate): orchestrator role and configurable spawn depth (default flat)",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py",
+      "website/docs/guides/delegation-patterns.md",
+      "website/docs/user-guide/features/delegation.md"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "S:max_concurrent_children",
+      "S:max_spawn_depth",
+      "grep:delegate_task",
+      "grep:delegation",
+      "grep:max_concurrent_children",
+      "grep:max_spawn_depth",
+      "grep:orchestrator",
+      "path"
+    ]
+  },
+  {
+    "hash": "3e1a3372ab40dbda0e4fee24d9c3882ecdb49031",
+    "date": "2026-04-21",
+    "author": "Teknium",
+    "subject": "docs(delegate): clarify that the parent agent, not the user, populates goal/context (#13698)",
+    "paths": [
+      "website/docs/guides/delegation-patterns.md",
+      "website/docs/user-guide/features/delegation.md"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task",
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "15ac253b117ac9300ae7c73365dc86318b5828d2",
+    "date": "2026-04-21",
+    "author": "alt-glitch",
+    "subject": "fix(types): batch P1 ty hotfixes + run_agent.py annotation pass",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "0dfb7b8a0dcbb309015e15efcb090acc76e17573",
+    "date": "2026-04-21",
+    "author": "Brooklyn Nicholson",
+    "subject": "fix(tui): /resume picker shows telegram/discord/etc sessions",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "eba7c869bb713f5e40ae5f3ad5e314fcbef3ace3",
+    "date": "2026-04-20",
+    "author": "Teknium",
+    "subject": "fix(steer): drain /steer between individual tool calls, not at batch end (#12959)",
+    "paths": [],
+    "sources": [
+      "grep:delegate_task"
+    ]
+  },
+  {
+    "hash": "dbb7e00e7eb51bc614f6cd1bb6b53716af9072b5",
+    "date": "2026-04-20",
+    "author": "Teknium",
+    "subject": "fix: sweep remaining provider-URL substring checks across codebase",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "cecf84daf75ab5a3841204e0a96b54a4a696d0b1",
+    "date": "2026-04-20",
+    "author": "Teknium",
+    "subject": "fix: extend hostname-match provider detection across remaining call sites",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "9cf7c28ba73d2d51c0d7a5d007ed7a07e9cf5c4f",
+    "date": "2026-04-20",
+    "author": "Ari Lotter",
+    "subject": "feat(irc): add interactive setup",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "868bc1c2425edca1615c9edd78daf86a46c8bb11",
+    "date": "2026-04-20",
+    "author": "Ari Lotter",
+    "subject": "feat(irc): add interactive setup",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "82cce3d26ca15cef812c7ab5275200022e19e682",
+    "date": "2026-04-20",
+    "author": "li0near",
+    "subject": "fix: add base_url_env_var to Anthropic ProviderConfig",
+    "paths": [],
+    "sources": [
+      "grep:delegation",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "735996d2adc289f635cee76dd3dcb0b3abe4657c",
+    "date": "2026-04-20",
+    "author": "Junass1",
+    "subject": "fix(tools/delegate): propagate resolved ACP runtime settings to child agents",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "path"
+    ]
+  },
+  {
+    "hash": "3988c3c245f3b4dc6e9ba2e6b613847f11b7217f",
+    "date": "2026-04-20",
+    "author": "Peter Fontana",
+    "subject": "feat: shell hooks — wire shell scripts as Hermes hook callbacks",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "22efc81cd7f660bb3192ccb91aef91dfb22ca38d",
+    "date": "2026-04-20",
+    "author": "Teknium",
+    "subject": "fix(sessions): surface compression tips in session lists and resume lookups (#12960)",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "7626f3702e3d39ed8c588f40dd46aa6aaa017326",
+    "date": "2026-04-19",
+    "author": "WildCat Eng Manager",
+    "subject": "feat: read prompt caching cache_ttl from config",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "a2c9f5d0a79d7d7fb4ff7bffc44cc9dd1c8f2259",
+    "date": "2026-04-18",
+    "author": "Teknium",
+    "subject": "docs(execute_code): document project/strict execution modes (#12073)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "54e0eb24c0c9700fd0139242aab740c51711bacb",
+    "date": "2026-04-18",
+    "author": "Teknium",
+    "subject": "docs: correctness audit — fix wrong values, add missing coverage (#11972)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "46d680125e3d29af439491ed9a0b03b8e4559653",
+    "date": "2026-04-18",
+    "author": "王强",
+    "subject": "fix(kimi-coding): set anthropic_messages api_mode for /coding endpoint",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "285bb2b9150b93445e5eded9bc897a4001b66e55",
+    "date": "2026-04-18",
+    "author": "Teknium",
+    "subject": "feat(execute_code): add project/strict execution modes, default to project (#11971)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task"
+    ]
+  },
+  {
+    "hash": "c53fcb01731587480a08b7e3ca28e04a0652f223",
+    "date": "2026-04-17",
+    "author": "Isaac Huang",
+    "subject": "feat(providers): add GMI Cloud as a first-class API-key provider (#11955)",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "8d7b7feb0d432f3429702922e9a996a4c9e530b3",
+    "date": "2026-04-17",
+    "author": "Teknium",
+    "subject": "fix(gateway): bound _agent_cache with LRU cap + idle TTL eviction (#11565)",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "598cba62adb3b722d0bb49512efcead336148b98",
+    "date": "2026-04-17",
+    "author": "Teknium",
+    "subject": "test: update stale tests to match current code (#11963)",
+    "paths": [
+      "tests/tools/test_delegate.py"
+    ],
+    "sources": [
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "47a0dd10248ac5f04e769972e2a7f30558ac6e4c",
+    "date": "2026-04-17",
+    "author": "kagura-agent",
+    "subject": "fix(dingtalk): fire-and-forget message processing & session_webhook fallback",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat"
+    ]
+  },
+  {
+    "hash": "20f2258f3481e708fc954034ee36e2c72bce1782",
+    "date": "2026-04-17",
+    "author": "Teknium",
+    "subject": "fix(interrupt): propagate to concurrent-tool workers + opt-in debug trace (#11907)",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat"
+    ]
+  },
+  {
+    "hash": "f81dba0da27c952eb3a306d6c0ed96258a6cb112",
+    "date": "2026-04-16",
+    "author": "Brooklyn Nicholson",
+    "subject": "Merge branch 'main' of github.com:NousResearch/hermes-agent into feat/ink-refactor",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "e66b3733512b692f4c024296d3e3017739a661ae",
+    "date": "2026-04-16",
+    "author": "Teknium",
+    "subject": "fix: word-wrap spinner, interruptable agent join, and delegate_task interrupt (#10940)",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "b6e4e40df4e5ab219ef20d9c070eb59760410150",
+    "date": "2026-04-16",
+    "author": "r266-tech",
+    "subject": "docs(guide): add Dispatch tools from slash commands section",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "aedc767c664027b4ef17d1a5d0841fe585630ba0",
+    "date": "2026-04-16",
+    "author": "Brooklyn Nicholson",
+    "subject": "feat(tui): put the kawaii face+verb ticker in the status bar, not the thinking panel",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat"
+    ]
+  },
+  {
+    "hash": "9c71f3a6ea789aa0211b61a6c35b35a7a1066258",
+    "date": "2026-04-16",
+    "author": "Brooklyn Nicholson",
+    "subject": "Merge branch 'main' of github.com:NousResearch/hermes-agent into feat/ink-refactor",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "7b05ccddc79654dbe7126a38ecf8994c317c3a6d",
+    "date": "2026-04-16",
+    "author": "JiaDe-Wu",
+    "subject": "docs(bedrock): fix IAM permissions, add quickstart entry, add fallback provider, fix deployment section",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "68ecdb6e26a3f95aea6924f4d0d20763f41e3807",
+    "date": "2026-04-16",
+    "author": "Brooklyn Nicholson",
+    "subject": "refactor(tui): store-driven turn state + slash registry + module split",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "45fc0bd83af2cf8ac624f72f8ddf167c63b94a63",
+    "date": "2026-04-16",
+    "author": "Teknium",
+    "subject": "fix: UnboundLocalError on 'entry' in parallel subagent polling loop (#11050)",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "387aa9afc9cd4a65fb0cdb05fecdbae2200b6e59",
+    "date": "2026-04-16",
+    "author": "Teknium",
+    "subject": "fix(approval): heartbeat activity during gateway approval wait (#11245)",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat"
+    ]
+  },
+  {
+    "hash": "cb7b740e32885db5ec471e8ea0966ade106bfc22",
+    "date": "2026-04-15",
+    "author": "Brooklyn Nicholson",
+    "subject": "feat: add subagent details",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "baaf49e9fd2cc8236ddcb9de06e412be3a815512",
+    "date": "2026-04-15",
+    "author": "pefontana",
+    "subject": "docs(delegate): remove default_toolsets from example config and docs",
+    "paths": [
+      "website/docs/user-guide/features/delegation.md"
+    ],
+    "sources": [
+      "grep:delegation",
+      "path"
+    ]
+  },
+  {
+    "hash": "a418ddbd8b9e7d3d158ac2dcb7ca281d1c9f602f",
+    "date": "2026-04-15",
+    "author": "Teknium",
+    "subject": "fix: add activity heartbeats to prevent false gateway inactivity timeouts (#10501)",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat"
+    ]
+  },
+  {
+    "hash": "8a5e9b214b719b2278c7af0c6261a72f68db54af",
+    "date": "2026-04-15",
+    "author": "Teknium",
+    "subject": "feat: automatic Telegram bot creation via Managed Bots (Bot API 9.6)",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ]
+  },
+  {
+    "hash": "80548f9a4fd1f33edd67c9ae415176a6b3666afc",
+    "date": "2026-04-15",
+    "author": "Mason James",
+    "subject": "fix(mcp): report configured timeout in MCP call errors",
+    "paths": [],
+    "sources": [
+      "grep:timeout diagnostic"
+    ]
+  },
+  {
+    "hash": "7c3c7e50c5a76a18bc52a0c51af5b674fbfacd7c",
+    "date": "2026-04-15",
+    "author": "pefontana",
+    "subject": "test(delegate): make default_toolsets regression test robust to user config",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "631e8793f4bfff80ce9ed45dfac1bd5870c92559",
+    "date": "2026-04-15",
+    "author": "pefontana",
+    "subject": "refactor(delegate): drop dead default_toolsets from CLI default config",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "51d5c7648852cdc2674d3b00b43ee0300cca62c3",
+    "date": "2026-04-15",
+    "author": "Austin Pickett",
+    "subject": "feat: add vercel deployment, remove old landing page (#10686)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "4b4b4d47bcbf30a7ca62ab31aa1802a603773a8a",
+    "date": "2026-04-15",
+    "author": "Brooklyn Nicholson",
+    "subject": "feat: just more cleaning",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "path"
+    ]
+  },
+  {
+    "hash": "4683b97d92a40ad8d46181ebf28775325c5043c0",
+    "date": "2026-04-15",
+    "author": "Austin Pickett",
+    "subject": "Revert \"feat: add vercel deployment, remove old landing page (#10686)\"",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "407d27bd82ba6d27541d34a0f7b684d3f07f164b",
+    "date": "2026-04-15",
+    "author": "i3eg1nner",
+    "subject": "feat: add SECURITY.md",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "36b54afbc4dfc4609943744cdcea25a012006dda",
+    "date": "2026-04-15",
+    "author": "Teknium",
+    "subject": "feat(plugins): add dispatch_tool() to PluginContext (#10763)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task",
+      "grep:delegation",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "139b9ae1e3e093400439ee0dd2c220510ebb7991",
+    "date": "2026-04-15",
+    "author": "Austin Pickett",
+    "subject": "feat: add vercel deployment, remove old landing page",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "9855190f23a2354b1c796b83bd58582946485c7d",
+    "date": "2026-04-14",
+    "author": "kshitijk4poor",
+    "subject": "feat(compressor): smart collapse, dedup, anti-thrashing, template upgrade, hardening",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "2558d28a9bd90b95019a7c289db89bd0dd9f2d8e",
+    "date": "2026-04-14",
+    "author": "Teknium",
+    "subject": "fix: resolve CI test failures — add missing functions, fix stale tests (#9483)",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "ba50fa30352cbd74dbb6c13263c94e1a6bb4511c",
+    "date": "2026-04-13",
+    "author": "Teknium",
+    "subject": "docs: fix 30+ inaccuracies across documentation (#9023)",
+    "paths": [
+      "website/docs/guides/delegation-patterns.md"
+    ],
+    "sources": [
+      "S:max_concurrent_children",
+      "grep:delegation",
+      "path"
+    ]
+  },
+  {
+    "hash": "934318ba3a4a2ac3e883edaf53886eb3fd61f96b",
+    "date": "2026-04-13",
+    "author": "Teknium",
+    "subject": "fix: budget-exhausted conversations now get a summary instead of empty response",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "8e0ae66520256e341d4d6f63307e3472d5e8eda1",
+    "date": "2026-04-13",
+    "author": "Haoqing Wang",
+    "subject": "fix(skills): correct TTS/STT providers, add missing platforms/commands in hermes-agent skill",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "5f4561b652917623333bbbba7368edb850d7404a",
+    "date": "2026-04-13",
+    "author": "Morgane Moss",
+    "subject": "feat: deep-research skill",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "3a7653dd1f0c7499646d3867822f6a588e49b68c",
+    "date": "2026-04-13",
+    "author": "TechPrototyper",
+    "subject": "feat: Add Azure Foundry provider with OpenAI/Anthropic API mode selection",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "1af2e18d408a9dcc2c61d6fc1eef5c6667f8e254",
+    "date": "2026-04-13",
+    "author": "Teknium",
+    "subject": "chore: release v0.9.0 (v2026.4.13) (#9182)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "0dd26c9495e312a5f64b58d6d41d92e93610a22d",
+    "date": "2026-04-13",
+    "author": "Teknium",
+    "subject": "fix(tests): fix 78 CI test failures and remove dead test (#9036)",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "fdf55e0fe9cce9067c59ec1c3b2309475b1f21c2",
+    "date": "2026-04-12",
+    "author": "Teknium",
+    "subject": "feat(cli): show random tip on new session start (#8225)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "c52f6348b6c850dd18a6cf4fa5823bc1fac7f980",
+    "date": "2026-04-12",
+    "author": "Teknium",
+    "subject": "fix: list all available toolsets in delegate_task schema description (#8231)",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "path"
+    ]
+  },
+  {
+    "hash": "5d0947434864811d46af0cce09cdf5e842f51e5d",
+    "date": "2026-04-12",
+    "author": "TaroballzChen",
+    "subject": "fix(tools): enforce ACP transport overrides in delegate_task child agents",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "path"
+    ]
+  },
+  {
+    "hash": "316247267422301ff54c2ec33d0fb8de01e26018",
+    "date": "2026-04-12",
+    "author": "Teknium",
+    "subject": "feat(tips): add 69 deeper hidden-gem tips (279 total) (#8237)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegation",
+      "grep:heartbeat"
+    ]
+  },
+  {
+    "hash": "f5dc884f07984736504f066c1f2db32d55bbc8cc",
+    "date": "2026-04-11",
+    "author": "Teknium",
+    "subject": "feat: pluggable platform adapter registry + IRC reference implementation",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "ce6fb1c2b55f7809a5186d196bb3aebeca29f5c3",
+    "date": "2026-04-11",
+    "author": "Teknium",
+    "subject": "fix: prevent agent from stopping mid-task — compression floor, budget overhaul, activity tracking",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "c8aff74632a37d32e673e923d1f8513d802c5185",
+    "date": "2026-04-11",
+    "author": "Teknium",
+    "subject": "fix: prevent agent from stopping mid-task — compression floor, budget overhaul, activity tracking",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "8f144fe36b2ab4ea353d9ce2d1b69552f2726312",
+    "date": "2026-04-11",
+    "author": "Teknium",
+    "subject": "feat: pluggable platform adapter registry + IRC reference implementation",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "e8d7dc016c45d58ef5325bce8d478a55aa45eaaa",
+    "date": "2026-04-10",
+    "author": "pefontana",
+    "subject": "feat(agent): add AIAgent.close() for subprocess cleanup",
+    "paths": [],
+    "sources": [
+      "grep:delegation",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "cd3ef685c4f472d3c43cd27db11aba1189a2e897",
+    "date": "2026-04-10",
+    "author": "Cash Williams",
+    "subject": "feat(slack): add allowed_channels whitelist config",
+    "paths": [
+      "hermes_cli/config.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "c121a3cfdb54b501279dc8298d9e27fc60ba925f",
+    "date": "2026-04-10",
+    "author": "Teknium",
+    "subject": "fix: propagate child activity to parent during delegate_task",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task",
+      "grep:heartbeat",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "a8c17b383d8c58b45c39202df341e38557f3205c",
+    "date": "2026-04-10",
+    "author": "pefontana",
+    "subject": "feat(agent): add AIAgent.close() for subprocess cleanup",
+    "paths": [],
+    "sources": [
+      "grep:delegation",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "a093eb47f75dd26ad0f771a378ff978714d3d988",
+    "date": "2026-04-10",
+    "author": "Teknium",
+    "subject": "fix: propagate child activity to parent during delegate_task (#7295)",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task",
+      "grep:heartbeat",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "97bd0dd21dcb46e9d99ed12d490c7b4e73d81f35",
+    "date": "2026-04-10",
+    "author": "pefontana",
+    "subject": "test: add zombie process cleanup tests",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "8414f418565ccd5f5ebdfdf53924d802b03da8c2",
+    "date": "2026-04-10",
+    "author": "pefontana",
+    "subject": "test: add zombie process cleanup tests",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "7f04364d24b5b2635954187256d4c0c42d8d978c",
+    "date": "2026-04-10",
+    "author": "pefontana",
+    "subject": "fix(delegate): close child agent after delegation completes",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegation",
+      "path"
+    ]
+  },
+  {
+    "hash": "7ccdb7436451dfb913391e3b0ae1b112418c9a61",
+    "date": "2026-04-10",
+    "author": "angelos",
+    "subject": "fix(delegate): make max_concurrent_children configurable + error on excess",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "S:max_concurrent_children",
+      "grep:delegate_task",
+      "grep:delegation",
+      "grep:max_concurrent_children",
+      "path"
+    ]
+  },
+  {
+    "hash": "6c115440fde09215745f60b3f9729f044c7d4a5d",
+    "date": "2026-04-10",
+    "author": "Tranquil-Flow",
+    "subject": "fix(delegate): sync self.base_url with client_kwargs after credential resolution",
+    "paths": [],
+    "sources": [
+      "grep:delegation",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "672cc80915ce6621e978e0b47c8a752ef62370f5",
+    "date": "2026-04-10",
+    "author": "pefontana",
+    "subject": "fix(delegate): close child agent after delegation completes",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegation",
+      "path"
+    ]
+  },
+  {
+    "hash": "5b42aecfa765754cd41a710289d8417fb3f0ddc5",
+    "date": "2026-04-10",
+    "author": "pefontana",
+    "subject": "feat(agent): add AIAgent.close() for subprocess cleanup",
+    "paths": [],
+    "sources": [
+      "grep:delegation",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "5b1c5040260b798bc68d1a98fcab11fdeaf641b2",
+    "date": "2026-04-10",
+    "author": "pefontana",
+    "subject": "test: add zombie process cleanup tests",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "363d5d57bee773e47ac4eb0c4899c15decd2eb5d",
+    "date": "2026-04-10",
+    "author": "Teknium",
+    "subject": "test: update schema assertion after maxItems removal",
+    "paths": [
+      "tests/tools/test_delegate.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "1c6e7bf560099f06a0959889ac4127bad72e4fc8",
+    "date": "2026-04-10",
+    "author": "pefontana",
+    "subject": "fix(delegate): close child agent after delegation completes",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegation",
+      "path"
+    ]
+  },
+  {
+    "hash": "c75fa88d6010538306c91961ad672d85d39cfeec",
+    "date": "2026-04-09",
+    "author": "Teknium",
+    "subject": "fix: add turn-exit diagnostic logging to agent loop",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "9e2f0be093a75fdc7ee6d47ac558e0c3e40d0723",
+    "date": "2026-04-09",
+    "author": "hermes-agent-dhabibi",
+    "subject": "feat(delegation): add configurable reasoning_effort for subagents",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "718e8ad6fa6f4c344b04d56263b196d07b77ea0a",
+    "date": "2026-04-09",
+    "author": "hermes-agent-dhabibi",
+    "subject": "feat(delegation): add configurable reasoning_effort for subagents",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "268ee6bdce013c74c9a8dfbb13fd850423189322",
+    "date": "2026-04-09",
+    "author": "Teknium",
+    "subject": "fix: add turn-exit diagnostic logging to agent loop (#6549)",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "8b79acb8de64009da7f4f6d16d674b8873d80700",
+    "date": "2026-04-08",
+    "author": "say8hi",
+    "subject": "feat(cron): expose enabled_toolsets in cronjob tool and create_job()",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "c58e16757ad05e6b75289b34745608e26d61a9f7",
+    "date": "2026-04-07",
+    "author": "Teknium",
+    "subject": "docs: fix 40+ discrepancies between documentation and codebase (#5818)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task"
+    ]
+  },
+  {
+    "hash": "afe6c63c525dec0c58448c71ea05eaf0eafadf6e",
+    "date": "2026-04-07",
+    "author": "Teknium",
+    "subject": "docs: comprehensive docs audit — cover 13 features from last week's PRs (#5815)",
+    "paths": [
+      "website/docs/user-guide/features/delegation.md"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "678a87c47753a98ab2320def830c7ae24cda4c0e",
+    "date": "2026-04-07",
+    "author": "Teknium",
+    "subject": "refactor: add tool_error/tool_result helpers + read_raw_config, migrate 129 callsites",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "f2c11ff30cd5601a4017cae64cbbeac0a481f5c9",
+    "date": "2026-04-06",
+    "author": "Mateus Scheuer Macedo",
+    "subject": "fix(delegate): share credential pools with subagents + per-task leasing",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "c706568993ab51d18a15acc5cb2dc8ec2b54abfc",
+    "date": "2026-04-06",
+    "author": "Mateus Scheuer Macedo",
+    "subject": "fix(delegate): pass workspace path hints to child agents",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "aff68db9ebdebe33893de1cd9f4804a9924ac90c",
+    "date": "2026-04-06",
+    "author": "Teknium",
+    "subject": "docs: add 3 new guides — cron automation, skills, delegation",
+    "paths": [
+      "website/docs/guides/delegation-patterns.md"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegation",
+      "path"
+    ]
+  },
+  {
+    "hash": "ad567c9a8fca3a6a4d65f0a036e1803efe0d1c84",
+    "date": "2026-04-06",
+    "author": "BongSuCHOI",
+    "subject": "fix: subagent toolset inheritance when parent enabled_toolsets is None",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "a65ee52c0f3bbfec23b917bff5b733139ed00c5a",
+    "date": "2026-04-06",
+    "author": "Teknium",
+    "subject": "fix: replace stale 'hermes login' refs with 'hermes auth' + fix credential removal re-seeding",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "972482e28e36d81ed84026538c9a882d5fc218c5",
+    "date": "2026-04-06",
+    "author": "Teknium",
+    "subject": "docs: guides section overhaul — fix existing + add 3 new tutorials (#5735)",
+    "paths": [
+      "website/docs/guides/delegation-patterns.md"
+    ],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegation",
+      "path"
+    ]
+  },
+  {
+    "hash": "95a044a2e08d604f5613185381655808f1d27524",
+    "date": "2026-04-06",
+    "author": "SHL0MS",
+    "subject": "feat(research-paper-writing): fill coverage gaps and integrate patterns from AI-Scientist, GPT-Researcher",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "8cf013ecd9c00c0113171ceb2dedb0aeec9010d3",
+    "date": "2026-04-06",
+    "author": "Teknium",
+    "subject": "fix: replace stale 'hermes login' refs with 'hermes auth' + fix credential removal re-seeding (#5670)",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "fec58ad99e1ad1cdae3f3c8a3f65bb26a16041c9",
+    "date": "2026-04-05",
+    "author": "Teknium",
+    "subject": "fix(gateway): replace wall-clock agent timeout with inactivity-based timeout (#5389)",
+    "paths": [],
+    "sources": [
+      "grep:delegation",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "fcdd5447e2eef1004488731c3c195cbb93fdd004",
+    "date": "2026-04-05",
+    "author": "Git-on-my-level",
+    "subject": "fix: keep ACP stdout protocol-clean",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "f5953ea3cc83e183a38f413b60814baeb8bb3059",
+    "date": "2026-04-05",
+    "author": "Teknium",
+    "subject": "docs: comprehensive documentation audit — fix stale info, expand thin pages, add depth",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "e8053e8b937ac594eca73e229773bc0e18a8eb45",
+    "date": "2026-04-05",
+    "author": "analista",
+    "subject": "fix(gateway): surface unknown /commands instead of leaking them to the LLM",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task"
+    ]
+  },
+  {
+    "hash": "e167ad8f6195b8a7364489c68b9e1a2009c85e50",
+    "date": "2026-04-05",
+    "author": "Mibayy",
+    "subject": "feat(delegate): add acp_command/acp_args override to delegate_task",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "path"
+    ]
+  },
+  {
+    "hash": "dd599b2bb0671d51ce9984a636b1990c3bf04388",
+    "date": "2026-04-05",
+    "author": "analista",
+    "subject": "fix(gateway): resolve Telegram's underscored /commands to skill/plugin keys",
+    "paths": [],
+    "sources": [
+      "grep:delegate_task",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "d6ef7fdf9229cd42a2586307840b6cd9ccf2bdad",
+    "date": "2026-04-05",
+    "author": "Teknium",
+    "subject": "fix(cron): replace wall-clock timeout with inactivity-based timeout (#5440)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "cc2b56b26a9f61c451c022b865f2a87d18c505ec",
+    "date": "2026-04-05",
+    "author": "Mibayy",
+    "subject": "feat(api): structured run events via /v1/runs SSE endpoint",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "4d0b2f2cf98f8c7011149fea51db23d1b7aafe18",
+    "date": "2026-04-05",
+    "author": "analista",
+    "subject": "fix(gateway): surface unknown /commands instead of leaking them to the LLM",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task"
+    ]
+  },
+  {
+    "hash": "4a75aec4335f40c8e3051f6490063b6951482164",
+    "date": "2026-04-05",
+    "author": "analista",
+    "subject": "fix(gateway): resolve Telegram's underscored /commands to skill/plugin keys",
+    "paths": [],
+    "sources": [
+      "grep:delegate_task",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "43d468cea89e5694619d180d649ea1d67b20b447",
+    "date": "2026-04-05",
+    "author": "Teknium",
+    "subject": "docs: comprehensive documentation audit — fix stale info, expand thin pages, add depth (#5393)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "2563493466004435ddb931e9dbf42706bb2e5552",
+    "date": "2026-04-05",
+    "author": "Teknium",
+    "subject": "fix: improve timeout debug logging and user-facing diagnostics (#5370)",
+    "paths": [],
+    "sources": [
+      "grep:timeout diagnostic"
+    ]
+  },
+  {
+    "hash": "234c01f69057f1ca4a221320873b1ff180b88689",
+    "date": "2026-04-05",
+    "author": "Lume",
+    "subject": "refactor: use _should_sanitize_tool_calls in _handle_max_iterations()",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "232d028e79ef4f1a805d372e8c5dbf1dd851f8ab",
+    "date": "2026-04-05",
+    "author": "Teknium",
+    "subject": "fix: improve timeout debug logging and user-facing diagnostics",
+    "paths": [],
+    "sources": [
+      "grep:timeout diagnostic"
+    ]
+  },
+  {
+    "hash": "ff544526cd37e19e1512752fdc660eacb8a454d2",
+    "date": "2026-04-04",
+    "author": "Teknium",
+    "subject": "docs(skill): comprehensive claude-code skill rewrite v2.0 (#5155)",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "f0b325b9f91d7bab0f912308d5a8c3301b288503",
+    "date": "2026-04-04",
+    "author": "donrhmexe",
+    "subject": "fix: link subagent sessions to parent and hide from session list",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "7409715947a76ecba6edf3b0ea3cde4512d80892",
+    "date": "2026-04-04",
+    "author": "donrhmexe",
+    "subject": "fix: link subagent sessions to parent and hide from session list",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "e492420df4570bd620f43b74129a25223c1d120f",
+    "date": "2026-04-03",
+    "author": "Teknium",
+    "subject": "fix: route memory provider tools in sequential execution path (#4803)",
+    "paths": [],
+    "sources": [
+      "grep:delegate_task"
+    ]
+  },
+  {
+    "hash": "af0697ae0c00588ae8992f45402f40ffd74aa5f9",
+    "date": "2026-04-03",
+    "author": "Stefan Vandermeulen",
+    "subject": "fix: sync OAuth tokens between credential pool and credentials file",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat"
+    ]
+  },
+  {
+    "hash": "a70ee1b898fb66fbe75757ba28d8070b28c65f8a",
+    "date": "2026-04-03",
+    "author": "Stefan Vandermeulen",
+    "subject": "fix: sync OAuth tokens between credential pool and credentials file",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat"
+    ]
+  },
+  {
+    "hash": "a09fa690f066d12a392674fbd626f64effc32c8e",
+    "date": "2026-04-03",
+    "author": "Dusk1e",
+    "subject": "fix: resolve critical stability issues in core, web, and browser tools",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "9f0ee9245e5cac063e548c9856c064c48d478646",
+    "date": "2026-04-03",
+    "author": "Teknium",
+    "subject": "docs: add community FAQ entries — multi-model workflows, WhatsApp binding, verbose control, skills config, thread sessions, migration, install troubleshooting",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "94d993e83fa073ee1ee9ceb0672d6a77cd099480",
+    "date": "2026-04-03",
+    "author": "Teknium",
+    "subject": "fix: route memory provider tools in sequential execution path",
+    "paths": [],
+    "sources": [
+      "grep:delegate_task"
+    ]
+  },
+  {
+    "hash": "93334b2b92a23549cfb155c1ac0d2e71da1968c9",
+    "date": "2026-04-03",
+    "author": "Teknium",
+    "subject": "docs: add community FAQ entries — multi-model workflows, WhatsApp binding, verbose control, skills config, thread sessions, migration, install troubleshooting (#4797)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "52ddd6bc640a17c35850e9ebb77efadf587882a0",
+    "date": "2026-04-03",
+    "author": "Teknium",
+    "subject": "refactor(skills): consolidate code verification skills into one (#4854)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "bbba9ed4f20a9df605ab5c9e6fa63cb8004c1129",
+    "date": "2026-04-02",
+    "author": "Brooklyn Nicholson",
+    "subject": "feat: split apart main.tsx",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "b86647c295b696195feb894a2e410a0ccf582fd7",
+    "date": "2026-04-02",
+    "author": "SHL0MS",
+    "subject": "Replace ml-paper-writing with research-paper-writing: full research pipeline skill",
+    "paths": [],
+    "sources": [
+      "S:delegate_task",
+      "grep:delegate_task"
+    ]
+  },
+  {
+    "hash": "a76eb5ca205195f70e09c3b7647a8deb4211bec2",
+    "date": "2026-04-02",
+    "author": "Teknium",
+    "subject": "fix(memory): address review feedback — P0 lifecycle, ABC contract, honcho CLI restore",
+    "paths": [],
+    "sources": [
+      "grep:delegation",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "924bc67eee35cc2fbb24d7cbc5649c820beb4406",
+    "date": "2026-04-02",
+    "author": "Teknium",
+    "subject": "feat(memory): pluggable memory provider interface with profile isolation, review fixes, and honcho CLI restoration (#4623)",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "624ad582a51f8540f2452b2d65fa1ded5422087e",
+    "date": "2026-04-02",
+    "author": "Teknium",
+    "subject": "fix: make gateway approval block agent thread like CLI does (#4557)",
+    "paths": [],
+    "sources": [
+      "grep:delegate_task",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "4b2b478d3f2b64f812d998c5f844db8a4fcfc98b",
+    "date": "2026-04-02",
+    "author": "Teknium",
+    "subject": "fix: make gateway approval block agent thread like CLI does",
+    "paths": [],
+    "sources": [
+      "grep:delegate_task",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "2ea5345a7b8a2cd1f47e784e9e977094cb2b8579",
+    "date": "2026-04-02",
+    "author": "Brooklyn Nicholson",
+    "subject": "feat: new tui based on ink",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "005e0ec4f81563a9b7f94cbb4c77f190caf3de55",
+    "date": "2026-04-02",
+    "author": "Teknium",
+    "subject": "fix(memory): wire on_delegation, skip_memory for cron/flush, fix ByteRover return type",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "b118f607b2a0be299c4d45d62bc87764ccfb3d6f",
+    "date": "2026-03-31",
+    "author": "Teknium",
+    "subject": "feat(skills): unify hermes-agent and hermes-agent-setup into single skill (#4332)",
+    "paths": [],
+    "sources": [
+      "S:delegate_task"
+    ]
+  },
+  {
+    "hash": "8d59881a6246207baf0c5625c5a216b95b7994a5",
+    "date": "2026-03-31",
+    "author": "Teknium",
+    "subject": "feat(auth): same-provider credential pools with rotation, custom endpoint support, and interactive CLI (#2647)",
+    "paths": [
+      "tests/tools/test_delegate.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "7f670a06cff300ab0cec44c2dade9fe29fcd7a49",
+    "date": "2026-03-31",
+    "author": "Teknium",
+    "subject": "feat: add --max-turns CLI flag to hermes chat",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "478067989f8fab6e1e88fad6de8241c7a4d0d9b7",
+    "date": "2026-03-31",
+    "author": "Teknium",
+    "subject": "feat: add --max-turns CLI flag to hermes chat",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "b60a43dd7e753993e11e6b1faac949fe20ac4e16",
+    "date": "2026-03-30",
+    "author": "kshitijk4poor",
+    "subject": "feat(auth): add same-provider credential pools and rotation UX",
+    "paths": [
+      "tests/tools/test_delegate.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "e4d575e563f83a89fa2ccf3ae911871381d0d82d",
+    "date": "2026-03-29",
+    "author": "Teknium",
+    "subject": "fix: report subagent status as completed when summary exists (#3829)",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:max_iterations",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "1452c8194143ae4fd086d454ff38ac506fb37cec",
+    "date": "2026-03-29",
+    "author": "Teknium",
+    "subject": "feat(memory): add pluggable memory provider interface",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ]
+  },
+  {
+    "hash": "33c89e52ec3790394928d6be5dc869302028de63",
+    "date": "2026-03-28",
+    "author": "Teknium",
+    "subject": "fix(whatsapp): add **kwargs to media sending methods to accept metadata (#3571)",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ]
+  },
+  {
+    "hash": "e5d14445efd59ce15f4daf81b4165f5ad6fadef0",
+    "date": "2026-03-26",
+    "author": "Teknium",
+    "subject": "fix(security): restrict subagent toolsets to parent's enabled set (#3269)",
+    "paths": [
+      "tests/tools/test_delegate_toolset_scope.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "db241ae6cef5923ed93cf9568c15e9ac6ce14927",
+    "date": "2026-03-26",
+    "author": "Teknium",
+    "subject": "feat(sessions): add --source flag for third-party session isolation (#3255)",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ]
+  },
+  {
+    "hash": "c511e087e0481c72a849d2e745a247ab516ef3e7",
+    "date": "2026-03-26",
+    "author": "Teknium",
+    "subject": "fix(agent): always prefer streaming for API calls to prevent hung subagents (#3120)",
+    "paths": [],
+    "sources": [
+      "grep:delegate_task",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "fd292e676b4741e7afa85ceb132a8b639c3d7fcb",
+    "date": "2026-03-25",
+    "author": "Teknium",
+    "subject": "fix: skip KawaiiSpinner when TUI handles tool progress (#2973)",
+    "paths": [],
+    "sources": [
+      "grep:delegate_task",
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "e102222828fdafbcc3b3ca42f8f5c66ffa76341e",
+    "date": "2026-03-25",
+    "author": "Teknium",
+    "subject": "fix: skip KawaiiSpinner when TUI handles tool progress",
+    "paths": [],
+    "sources": [
+      "grep:delegate_task"
+    ]
+  },
+  {
+    "hash": "8bb1d15da4c0a70c40179dffd375983a88ea857e",
+    "date": "2026-03-25",
+    "author": "Teknium",
+    "subject": "chore: remove ~100 unused imports across 55 files (#3016)",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "68ab37e891d3dc89fb4410a01876833af66f448a",
+    "date": "2026-03-25",
+    "author": "Teknium",
+    "subject": "fix(delegate): give subagents independent iteration budgets (#3004)",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegation",
+      "grep:max_iterations",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "4b45f65858321483567b978fe57a4734d580e6b6",
+    "date": "2026-03-25",
+    "author": "Teknium",
+    "subject": "fix: update api_key in _try_activate_fallback for subagent auth (#3103)",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "ee3f3e756ddeeef5f2f8011367e84f02b1db5a08",
+    "date": "2026-03-24",
+    "author": "Teknium",
+    "subject": "docs: fix stale and incorrect documentation across 18 files",
+    "paths": [
+      "website/docs/user-guide/features/delegation.md"
+    ],
+    "sources": [
+      "grep:delegation",
+      "grep:max_iterations",
+      "path"
+    ]
+  },
+  {
+    "hash": "e93b539a8f658f2dbc9b16e219ab09a418e1866e",
+    "date": "2026-03-22",
+    "author": "Teknium",
+    "subject": "feat(session_search): add recent sessions mode when query is omitted",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "e6a708aa04805a118acc7b260dc042f9a416755a",
+    "date": "2026-03-22",
+    "author": "Bartok Moltbot",
+    "subject": "fix(io): catch ValueError in _SafeWriter for closed file handles (#2428)",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "466720c2f3977c119e1cd227d1f1fcc096d8d970",
+    "date": "2026-03-22",
+    "author": "Teknium",
+    "subject": "feat(session_search): add recent sessions mode when query is omitted",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "d2305cee2131199174e69a2b0f5ac492758ebf0f",
+    "date": "2026-03-20",
+    "author": "Test",
+    "subject": "Merge remote-tracking branch 'origin/main' into hermes/hermes-7ea545bf",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "ab6abc2c13e5dcccc84e7ee55e7307cec85c5328",
+    "date": "2026-03-20",
+    "author": "emozilla",
+    "subject": "fix: use per-thread persistent event loops in worker threads",
+    "paths": [],
+    "sources": [
+      "grep:delegate_task",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "55ce601502b52c407d00d95ac889cca9dfc41ce7",
+    "date": "2026-03-20",
+    "author": "Test",
+    "subject": "fix: 6 bugs in model metadata, reasoning detection, and delegate tool",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "1870069f80fe4eae1adebd954bfea9850e4053c9",
+    "date": "2026-03-20",
+    "author": "Test",
+    "subject": "fix(session_search): exclude current session lineage",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "ae8059ca24c8bf2968c8914285b0318896fb1d2b",
+    "date": "2026-03-19",
+    "author": "Test",
+    "subject": "fix(delegate): move _saved_tool_names assignment to correct scope",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "816d1344ee17f05f12c99b58bd30fa079a3baafd",
+    "date": "2026-03-19",
+    "author": "ygd58",
+    "subject": "fix(delegate): save parent tool names before child construction mutates global",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "e8286cc859d1e9fe55b33a848ed2b31854a49caf",
+    "date": "2026-03-18",
+    "author": "Test",
+    "subject": "docs: fix documentation inconsistencies across reference and user guides",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "e7844e9c8dfa5c335a3189c4263921712575deb3",
+    "date": "2026-03-18",
+    "author": "Test",
+    "subject": "Merge origin/main, resolve conflicts (self._base_url_lower)",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "e648863d5203df59ac4e351163ed34df7c498d6b",
+    "date": "2026-03-18",
+    "author": "Teknium",
+    "subject": "docs: fix documentation inconsistencies across reference and user guides",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "ba7248c6696b77adc92993b26ae50d474b385d0c",
+    "date": "2026-03-18",
+    "author": "Bartok9",
+    "subject": "fix(delegate): move _saved_tool_names save/restore to _run_single_child scope",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "path"
+    ]
+  },
+  {
+    "hash": "f781de0e88227346a5be7cf13d4f5c97a7d8c1bb",
+    "date": "2026-03-17",
+    "author": "teknium1",
+    "subject": "fix: preserve parent agent's tool list after subagent delegation",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "e2e53d497fc0f39c54673b2c63da058caa154083",
+    "date": "2026-03-17",
+    "author": "Teknium",
+    "subject": "fix: recognize Claude Code OAuth credentials in startup gate (#1455)",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "d9d937b7f7f429bd466cbb18f6a92766fbcb8324",
+    "date": "2026-03-17",
+    "author": "Teknium",
+    "subject": "fix: detect Claude Code version dynamically for OAuth user-agent",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "d4810d8c4b391586074650d5b2ecdda222c5455c",
+    "date": "2026-03-17",
+    "author": "Angello Picasso",
+    "subject": "feat(gateway): inject reply-to message context for out-of-session replies (#1594)",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "b5cf0f0aefc75f4f1883f2e77abf134bd1a9a811",
+    "date": "2026-03-17",
+    "author": "Teknium",
+    "subject": "fix: preserve parent agent's tool list after subagent delegation (#1778)",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "9ece1ce2de7c7696991700cfee5a0e4180637708",
+    "date": "2026-03-17",
+    "author": "Teknium",
+    "subject": "feat(gateway): inject reply-to message context for out-of-session replies (#1594)",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "8cd4a9668618e6631820a2f5ad1212d588b9b834",
+    "date": "2026-03-17",
+    "author": "teknium1",
+    "subject": "fix(browser): race condition in session creation can orphan cloud sessions",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "85993fbb5a77d577f027bccecf84054906238aee",
+    "date": "2026-03-17",
+    "author": "Teknium",
+    "subject": "feat: pre-call sanitization and post-call tool guardrails (#1732)",
+    "paths": [],
+    "sources": [
+      "grep:delegate_task",
+      "grep:max_concurrent_children"
+    ]
+  },
+  {
+    "hash": "6c6d12033feadf636414751df463a90423991e26",
+    "date": "2026-03-17",
+    "author": "Teknium",
+    "subject": "fix: email send_typing metadata + ☤ Hermes staff symbol (#1431, #1420)",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "342a0ad372c6b76015e52542b08dcaf8ce7860c2",
+    "date": "2026-03-17",
+    "author": "Teknium",
+    "subject": "fix(whatsapp): support LID format in self-chat mode (#1556)",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "1d5a39e00228b20ec505260f2420e28ebe1c47e2",
+    "date": "2026-03-17",
+    "author": "Teknium",
+    "subject": "fix: thread safety for concurrent subagent delegation (#1672)",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "0c392e7a8743f8c29d5c7a2332e9a67e457a1364",
+    "date": "2026-03-17",
+    "author": "max",
+    "subject": "feat: integrate GitHub Copilot providers across Hermes",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "03ef8590a6c9ef16972c18e06c2eaef357f4ab34",
+    "date": "2026-03-17",
+    "author": "teknium1",
+    "subject": "feat: pre-call sanitization and post-call tool guardrails",
+    "paths": [],
+    "sources": [
+      "grep:delegate_task",
+      "grep:max_concurrent_children"
+    ]
+  },
+  {
+    "hash": "885c5dc5e623dbe0aa4fb3eea3fd8926aad542be",
+    "date": "2026-03-16",
+    "author": "teknium1",
+    "subject": "feat: context window usage warnings at 80% and 95%",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "6794e79bb497f71f174974c0afa2a6d8265a6b77",
+    "date": "2026-03-16",
+    "author": "Teknium",
+    "subject": "feat: add /bg as alias for /background slash command (#1590)",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "5e5c92663dbf8c02e24797106d3a39ea46e1cab6",
+    "date": "2026-03-16",
+    "author": "Teknium",
+    "subject": "fix: hermes update causes dual gateways on macOS (launchd) (#1567)",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "57be18c0268941a51c9ad08681ddfdbace228869",
+    "date": "2026-03-16",
+    "author": "Teknium",
+    "subject": "feat: smart approvals + /stop command (inspired by OpenAI Codex)",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "210d5ade1e6351650218357a1d1cfa3fb5d58f20",
+    "date": "2026-03-15",
+    "author": "teknium1",
+    "subject": "feat(tools): centralize tool emoji metadata in registry + skin integration",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "cb7690b2b508211dcdc33c55f221b9e8707685ad",
+    "date": "2026-03-14",
+    "author": "Teknium",
+    "subject": "Merge pull request #1375 from NousResearch/hermes/hermes-dd253d81",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "b3f5c6525abc863821de134104d235202582e23e",
+    "date": "2026-03-14",
+    "author": "teknium1",
+    "subject": "feat: add direct endpoint overrides for auxiliary and delegation",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py",
+      "website/docs/user-guide/features/delegation.md"
+    ],
+    "sources": [
+      "grep:delegation",
+      "path"
+    ]
+  },
+  {
+    "hash": "9f6bccd76a0a64d9251620e5c713e34f9df4649f",
+    "date": "2026-03-14",
+    "author": "teknium1",
+    "subject": "feat: add direct endpoint overrides for auxiliary and delegation",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py",
+      "website/docs/user-guide/features/delegation.md"
+    ],
+    "sources": [
+      "grep:delegation",
+      "path"
+    ]
+  },
+  {
+    "hash": "b74facd119493a2b77cb169065c6bfa40baea937",
+    "date": "2026-03-13",
+    "author": "Teknium",
+    "subject": "fix: handle YAML null values in session reset policy + configurable API timeout (#1194)",
+    "paths": [],
+    "sources": [
+      "grep:delegate_task",
+      "grep:max_iterations",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "79975692a5af8bc26f45bbb4afbd6e292bce2249",
+    "date": "2026-03-13",
+    "author": "omerkaz",
+    "subject": "feat(delegate): add observability metadata to subagent results",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "grep:max_iterations",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "163fa4a9d1ea2d3601efc9fc004ee04425d1732f",
+    "date": "2026-03-13",
+    "author": "teknium1",
+    "subject": "refactor(cli): implement approval locking mechanism to serialize concurrent requests",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "07927f6bf22faaeec42e9215e82914fbf1cddf4f",
+    "date": "2026-03-13",
+    "author": "Teknium",
+    "subject": "feat(stt): add free local whisper transcription via faster-whisper (#1185)",
+    "paths": [],
+    "sources": [
+      "grep:delegate_task",
+      "grep:max_iterations",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "02a819b16e95f09cbd8200e22c60ffc083e217aa",
+    "date": "2026-03-13",
+    "author": "Teknium",
+    "subject": "feat(delegate): add observability metadata to subagent results (#1175)",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "grep:max_iterations",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "fefc709b2c4d6ae9b41e9455d8c69da0ab3dd1a5",
+    "date": "2026-03-12",
+    "author": "Erosika",
+    "subject": "merge: resolve conflict with main in subagent interrupt test",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "f896bb5d8c186ebbf88d06de88c7b99d4143a295",
+    "date": "2026-03-12",
+    "author": "Erosika",
+    "subject": "fix(test): patch correct method in subagent interrupt test",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "e004c094ea51431379b83f172d028b133c0d1caf",
+    "date": "2026-03-12",
+    "author": "Teknium",
+    "subject": "fix: use session_key instead of chat_id for adapter interrupt lookups",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "895fe5a5d3454d8ffcdd39d236056b6bb56d353f",
+    "date": "2026-03-12",
+    "author": "Dave Tist",
+    "subject": "Fix browser cleanup consistency and screenshot recovery",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "4a8cd6f856b54c9f3d7d2addc61cef9aa76ec6ce",
+    "date": "2026-03-12",
+    "author": "Teknium",
+    "subject": "fix: stop rejecting unlisted models, accept with warning instead",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "400b8d92b7dc026f2b9d19056fbb8dd52b3bc805",
+    "date": "2026-03-12",
+    "author": "teknium1",
+    "subject": "fix: strip call_id/response_item_id from tool_calls for Mistral compatibility",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "b1590020784dafa572e2df1e369b54b23e89de81",
+    "date": "2026-03-11",
+    "author": "teknium1",
+    "subject": "feat: multi-agent architecture — named agents with routing, tool policies, and isolated workspaces",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "S:max_spawn_depth",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "9423fda5cb573ef6b1a7876fc01157433eb7d785",
+    "date": "2026-03-11",
+    "author": "teknium1",
+    "subject": "feat: configurable subagent provider:model with full credential resolution",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "9283877204b08d25e39a24bccdcf8f8f93fc92f6",
+    "date": "2026-03-11",
+    "author": "Ömer Kaz",
+    "subject": "fix(cron): pass session_db to AIAgent so cron messages are persisted",
+    "paths": [],
+    "sources": [
+      "grep:delegate_task",
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "4422637e7a3b0731cb161edc2459119918da84c3",
+    "date": "2026-03-11",
+    "author": "stablegenius49",
+    "subject": "fix: resolve named custom delegation providers",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "375ce8a881c717878293990a6d0b43e5c83a9a9f",
+    "date": "2026-03-11",
+    "author": "sheeki003",
+    "subject": "feat(security): add tirith pre-exec command scanning",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ]
+  },
+  {
+    "hash": "3441911db09b54832913108e671766dac95eb8fc",
+    "date": "2026-03-11",
+    "author": "teknium1",
+    "subject": "fix(acp): add hermes-acp toolset with curated coding-focused tools",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "8318a519e6dcd8408a7b99a77ef0b67d6fb0cada",
+    "date": "2026-03-10",
+    "author": "teknium1",
+    "subject": "fix: pass enabled_tools through handle_function_call to avoid global race",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "771969f7479cd70379c6f11821da133b14d114b8",
+    "date": "2026-03-10",
+    "author": "teknium1",
+    "subject": "fix: wire up enabled_tools in agent loop + simplify sandbox tool selection",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "6bd1726422ca7aa5b8cec14c491ee833ca32c0c1",
+    "date": "2026-03-10",
+    "author": "Bartok Moltbot",
+    "subject": "feat(subagent): add configurable subagent model via config.yaml",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "23270d41b947acec24bc7a022e7c004dc2a7f23c",
+    "date": "2026-03-10",
+    "author": "teknium1",
+    "subject": "feat: add --quiet/-Q flag for programmatic single-query mode",
+    "paths": [],
+    "sources": [
+      "grep:orchestrator"
+    ]
+  },
+  {
+    "hash": "1115e35aae4786c7fe76322c682907ebbd96f514",
+    "date": "2026-03-10",
+    "author": "teknium1",
+    "subject": "test: add tests for subagent model config override",
+    "paths": [
+      "tests/tools/test_delegate.py"
+    ],
+    "sources": [
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "0fdeffe6c442636ab1f53f4ae197992687f063f7",
+    "date": "2026-03-10",
+    "author": "teknium1",
+    "subject": "fix: replace silent exception swallowing with debug logging across tools",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "f4d7e6a29e046d9eec15cd5067ee3a34cfc13cee",
+    "date": "2026-03-09",
+    "author": "Brooklyn Nicholson",
+    "subject": "feat: devex help, add Makefile, ruff, pre-commit, and modernize CI",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "ee4008431ab08d97ad599775cd27137f61b27a1a",
+    "date": "2026-03-09",
+    "author": "teknium1",
+    "subject": "fix: stop terminal border flashing with steady cursor and TUI spinner widget",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "21ff0d39ad0081f9ca5e1f440993be0390d279cd",
+    "date": "2026-03-09",
+    "author": "teknium1",
+    "subject": "feat: iteration budget pressure via tool result injection",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "0ceb93e1077392fcac16bd0452d25b8bc200bd6b",
+    "date": "2026-03-09",
+    "author": "teknium1",
+    "subject": "feat: iteration budget pressure via tool result injection",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "e6c829384e3bc06a2a9e9cababf2e74283548123",
+    "date": "2026-03-08",
+    "author": "teknium1",
+    "subject": "fix: setup wizard shows 60 as default max iterations, should be 90",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "c3dec1dcdae569f5a97149798db38a1d7beb216f",
+    "date": "2026-03-08",
+    "author": "Dev User",
+    "subject": "fix(file_tools): pass docker_volumes to sandbox container config",
+    "paths": [],
+    "sources": [
+      "grep:heartbeat"
+    ]
+  },
+  {
+    "hash": "20c6573e0aa46eff767c2b688ea71b38474f54f3",
+    "date": "2026-03-08",
+    "author": "teknium1",
+    "subject": "docs: comprehensive AGENTS.md audit and corrections",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "fb0f579b165da4ad43f2407ef2c87fd85fdae67b",
+    "date": "2026-03-07",
+    "author": "teknium1",
+    "subject": "refactor: remove model parameter from delegate_task function",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "e64d646bad67c2218723971e408d57321aff89d9",
+    "date": "2026-03-07",
+    "author": "teknium1",
+    "subject": "Critical: fix bug in new subagent tool call budget to not be session-level but tool call loop level",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "8c0f8baf326c6c2921e53078ac86df987873e463",
+    "date": "2026-03-07",
+    "author": "teknium1",
+    "subject": "feat(delegate_tool): add additional parameters for child agent configuration",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "451a007fb11b22e6336edb9ac40dc5f414b2a765",
+    "date": "2026-03-07",
+    "author": "0xbyt4",
+    "subject": "fix(tests): isolate max_turns tests from CI env and update default to 90",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "24f6a193e7273a985ad8d0f161a0e9dfe5f45067",
+    "date": "2026-03-07",
+    "author": "teknium1",
+    "subject": "fix: remove stale 'model' assertion from delegate_task schema test",
+    "paths": [
+      "tests/tools/test_delegate.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "path"
+    ]
+  },
+  {
+    "hash": "23e84de8308dfc9c93979155cfe2d47fd1a8887e",
+    "date": "2026-03-07",
+    "author": "teknium1",
+    "subject": "refactor: remove model parameter from AIAgent initialization",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "0a8239671816258c772510b96fd99c47d7c7e5b7",
+    "date": "2026-03-07",
+    "author": "teknium1",
+    "subject": "feat: shared iteration budget across parent + subagents",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:max_iterations",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "f75b1d21b4c8cacc2b9b9fb87227ff315365cd90",
+    "date": "2026-03-06",
+    "author": "teknium1",
+    "subject": "fix: execute_code and delegate_task now respect disabled toolsets",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "3e93db16bd198553d3d9f58198df65186a787228",
+    "date": "2026-03-06",
+    "author": "teknium1",
+    "subject": "Merge PR #436: fix: use _max_tokens_param in max-iterations retry path",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "e25ad79d5d854815681040f7686576e6555a2fd8",
+    "date": "2026-03-05",
+    "author": "Farukest",
+    "subject": "fix: use _max_tokens_param in max-iterations retry path",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "d578d06f59f2d8a9d07fa8bc3cb14e36b30ec1ef",
+    "date": "2026-03-05",
+    "author": "teknium1",
+    "subject": "docs: comprehensive accuracy audit fixes (35+ corrections)",
+    "paths": [
+      "website/docs/user-guide/features/delegation.md"
+    ],
+    "sources": [
+      "grep:delegation",
+      "path"
+    ]
+  },
+  {
+    "hash": "d50e9bcef74a451d01bff3e6a874ee21459aa630",
+    "date": "2026-03-05",
+    "author": "teknium1",
+    "subject": "docs: add 11 new pages + expand 4 existing pages (26 → 37 total)",
+    "paths": [
+      "website/docs/user-guide/features/delegation.md"
+    ],
+    "sources": [
+      "grep:delegation",
+      "path"
+    ]
+  },
+  {
+    "hash": "ada3713e777cc67974e22d55899aaa96bf8e0623",
+    "date": "2026-03-05",
+    "author": "teknium1",
+    "subject": "feat: add documentation website (Docusaurus)",
+    "paths": [
+      "website/docs/user-guide/features/delegation.md"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "83f99d8203b131cf3f6b90c24503f51c3b26d3c0",
+    "date": "2026-03-05",
+    "author": "teknium1",
+    "subject": "Merge PR #438: fix: add missing empty-content guard after think-block stripping in retry path",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "19016497ef81027072cb1b12877f1b64c58e3f1f",
+    "date": "2026-03-05",
+    "author": "teknium1",
+    "subject": "docs: fix all remaining minor accuracy issues",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "70a0a5ff4a20bcf1cf5f94f3d13629c09ae2b517",
+    "date": "2026-03-04",
+    "author": "teknium1",
+    "subject": "fix: exclude current session from session_search results",
+    "paths": [],
+    "sources": [
+      "grep:delegation"
+    ]
+  },
+  {
+    "hash": "41adca4e772ca232ce3b3a38045329be47765f05",
+    "date": "2026-03-04",
+    "author": "teknium1",
+    "subject": "fix: strip internal fields from API messages in _handle_max_iterations",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "de0af4df66166390ba9e5c50d723cfc39cbe5d18",
+    "date": "2026-03-03",
+    "author": "teknium1",
+    "subject": "refactor: enhance software-development skills with Hermes integration",
+    "paths": [
+      "skills/software-development/subagent-driven-development/SKILL.md"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "path"
+    ]
+  },
+  {
+    "hash": "4f5ffb89095962632da2861e05c87f150d323b39",
+    "date": "2026-03-03",
+    "author": "teknium1",
+    "subject": "fix: NoneType not iterable error when summarizing at max iterations",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "0e1723ef74b40fe1fdb27af2e735e647832ed085",
+    "date": "2026-03-03",
+    "author": "teknium1",
+    "subject": "Merge PR #137: feat: Add Superpowers software development skills",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "6bf3aad62ec69eae77a945bfbac0d71a03ba76f9",
+    "date": "2026-03-02",
+    "author": "teknium1",
+    "subject": "fix(delegate_tool): update max_iterations in documentation and example config to reflect default value of 50",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "3c13feed4c39ad6f577af50b10c0201a603084c7",
+    "date": "2026-03-02",
+    "author": "teknium1",
+    "subject": "feat: show detailed tool call args in gateway based on config",
+    "paths": [],
+    "sources": [
+      "grep:delegate_task"
+    ]
+  },
+  {
+    "hash": "1ad930cbd06197de93afdf5456138020787148b7",
+    "date": "2026-03-02",
+    "author": "teknium1",
+    "subject": "fix(delegate_tool): increase DEFAULT_MAX_ITERATIONS from 25 to 50 to enhance processing capabilities",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:max_iterations",
+      "path"
+    ]
+  },
+  {
+    "hash": "14396e3fe777d0fdb4ce96c1268da5ed3b6bbccf",
+    "date": "2026-03-02",
+    "author": "teknium1",
+    "subject": "fix(delegate_tool): update max_iterations default from 25 to 50 for improved task handling",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:max_iterations",
+      "path"
+    ]
+  },
+  {
+    "hash": "dd69f16c3e06a069d52a4ee8d44963ea2dcd8dbd",
+    "date": "2026-03-01",
+    "author": "lila",
+    "subject": "feat(gateway): expose subagent tool calls and thinking to user (fixes #169) (#186)",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "5a79e423fe01443cce44faa50e12396a908af0c5",
+    "date": "2026-02-28",
+    "author": "Teknium",
+    "subject": "Merge branch 'main' into codex/align-codex-provider-conventions-mainrepo",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "41d8a802268d7caf2e6a9bdc3e22df7274964f7c",
+    "date": "2026-02-28",
+    "author": "teknium1",
+    "subject": "fix(display): fix subagent progress tree-view visual nits",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "2595d81733ebdb6f62278af49936c23aa3927238",
+    "date": "2026-02-27",
+    "author": "kaos35",
+    "subject": "feat: Add Superpowers software development skills",
+    "paths": [
+      "skills/software-development/subagent-driven-development/SKILL.md"
+    ],
+    "sources": [
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "1d7ce5e063ff2138f6d3650a5e07fc1301fae312",
+    "date": "2026-02-27",
+    "author": "teknium1",
+    "subject": "feat: integrate honcho-ai package and enhance tool progress callback in delegate_tool",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "8fc28c34ce961334ed750705d903c0cb4016d2f7",
+    "date": "2026-02-26",
+    "author": "0xbyt4",
+    "subject": "test: reorganize test structure and add missing unit tests",
+    "paths": [
+      "tests/tools/test_delegate.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "32070e6bc032df28676cfe3af12d61b75126732c",
+    "date": "2026-02-26",
+    "author": "George Pickett",
+    "subject": "Merge remote-tracking branch 'origin/main' into codex/align-codex-provider-conventions-mainrepo",
+    "paths": [
+      "tests/tools/test_delegate.py",
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "2c28d9f5604e989f99661de2e06633a922862f16",
+    "date": "2026-02-26",
+    "author": "0xbyt4",
+    "subject": "fix(cli): respect explicit --max-turns value even when it equals default",
+    "paths": [],
+    "sources": [
+      "grep:max_iterations"
+    ]
+  },
+  {
+    "hash": "8463b7ea59a6188713804f1c45c1cb79e267541d",
+    "date": "2026-02-25",
+    "author": "Teknium",
+    "subject": "Merge pull request #46 from rsavitt/fix/docker-backend-macos",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "609b19b63086102bbf66deaf9d5fee05c8c8499e",
+    "date": "2026-02-25",
+    "author": "George Pickett",
+    "subject": "Add OpenAI Codex provider runtime and responses integration (without .agent/PLANS.md)",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "0310170869aa2581e03123da686fe83aafa91d12",
+    "date": "2026-02-25",
+    "author": "Raeli Savitt",
+    "subject": "Fix subagent auth: propagate parent API key to child agents",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "grep:subagent",
+      "path"
+    ]
+  },
+  {
+    "hash": "fd76ff60acb481393fdb84c38007c827ce850f41",
+    "date": "2026-02-24",
+    "author": "teknium1",
+    "subject": "fix: improve stdout/stderr handling in delegate_task function",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "grep:delegation",
+      "path"
+    ]
+  },
+  {
+    "hash": "b6247b71b5a786de194b88dafc142d975b95f5ff",
+    "date": "2026-02-21",
+    "author": "teknium1",
+    "subject": "refactor: update tool descriptions for clarity and conciseness",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "7283b9f6cf0c023e5231c3d5d8635e7454e84bb3",
+    "date": "2026-02-21",
+    "author": "teknium1",
+    "subject": "feat: extend browser session management with improved thread safety and timeout configuration",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "08ff1c1aa8a426d7bbcb1640d9919f802d1fc0f3",
+    "date": "2026-02-21",
+    "author": "teknium1",
+    "subject": "More major refactor/tech debt removal!",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "path"
+    ]
+  },
+  {
+    "hash": "ba07d9d5e3a185c3d18dd4052d1ec77fedb60d11",
+    "date": "2026-02-20",
+    "author": "teknium1",
+    "subject": "feat: enhance task delegation with spinner updates and progress display",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "grep:delegation",
+      "path"
+    ]
+  },
+  {
+    "hash": "b9f3518b33aab5fc6920d74ff1ad401c0ff44c20",
+    "date": "2026-02-20",
+    "author": "teknium1",
+    "subject": "refactor: streamline TODO.md for clarity and focus",
+    "paths": [],
+    "sources": [
+      "grep:subagent"
+    ]
+  },
+  {
+    "hash": "90e5211128765ae9d3eab9291bd7404f9ceb482c",
+    "date": "2026-02-20",
+    "author": "teknium1",
+    "subject": "feat: implement subagent delegation for task management",
+    "paths": [
+      "tools/delegate_tool.py"
+    ],
+    "sources": [
+      "grep:delegate_task",
+      "grep:delegation",
+      "grep:subagent",
+      "path"
+    ]
+  }
+]

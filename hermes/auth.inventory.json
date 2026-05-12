@@ -15,6 +15,7 @@
       ],
       "token_keys": [
         "access_token",
+        "account_id",
         "id_token",
         "refresh_token"
       ]
