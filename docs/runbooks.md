@@ -4,11 +4,15 @@
 
 ## Before changing Hermes setup
 
-1. Read relevant file: `infrastructure.md` (paths/providers/cron), `user-context.md` (preferences).
-2. Check current state: `hermes --version`, `hermes memory status`, `date '+%Z %z'`.
+1. Read relevant file: `infrastructure.md` (paths/providers/cron), `user-context.md` (preferences), **`hermes-runtime-management.md`** (runtime scheme, release-dir, compaction, rollback).
+2. Check current state: `hermes --version`, `hermes memory status`, `date '+%Z %z'`, `readlink -f ~/.hermes/hermes-agent` (active release).
 3. No secrets in output.
 4. Small reversible changes.
 5. Verify after change.
+
+**Runtime overview:** `hermes-runtime-management.md` — release-dir схема, перезапуск, обновление, откат, compaction, мониторинг.
+
+**Health check:** Skill `hermes-runtime-health-check` — read-only быстрая проверка 5 признаков + synthetic live test. Загружать перед/после изменений конфига, после рестарта gateway, при подозрениях на деградацию.
 
 ## Searcharvester-derived research/delegation guardrails
 

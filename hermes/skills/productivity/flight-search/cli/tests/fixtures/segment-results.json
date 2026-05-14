@@ -1,0 +1,58 @@
+{
+  "segment_results": [
+    {
+      "direction": "outbound",
+      "leg": "origin_to_hub",
+      "offers": [
+        {
+          "id": "svx-ist",
+          "origin": "SVX",
+          "destination": "IST",
+          "departure_airport": "SVX",
+          "arrival_airport": "IST",
+          "departure_at": "2026-07-19T10:30:00",
+          "arrival_at": "2026-07-19T13:55:00",
+          "price": 24766,
+          "currency": "RUB",
+          "segments": [
+            {
+              "origin": "SVX",
+              "destination": "IST",
+              "departure_at": "2026-07-19T10:30:00",
+              "arrival_at": "2026-07-19T13:55:00",
+              "carrier": "SU",
+              "flight_number": "SU630"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "direction": "outbound",
+      "leg": "hub_to_destination",
+      "offers": [
+        {
+          "id": "ist-lhr",
+          "origin": "IST",
+          "destination": "LHR",
+          "departure_airport": "IST",
+          "arrival_airport": "LHR",
+          "departure_at": "2026-07-19T20:25:00",
+          "arrival_at": "2026-07-19T22:25:00",
+          "price": 11037,
+          "currency": "RUB",
+          "segments": [
+            {
+              "origin": "IST",
+              "destination": "LHR",
+              "departure_at": "2026-07-19T20:25:00",
+              "arrival_at": "2026-07-19T22:25:00",
+              "carrier": "TK",
+              "flight_number": "TK1987"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+[project]
+name = "article-cli"
+version = "0.1.0"
+description = "Fetch and extract clean article text as Markdown, text, or JSON"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+article = "article_cli.__main__:main"

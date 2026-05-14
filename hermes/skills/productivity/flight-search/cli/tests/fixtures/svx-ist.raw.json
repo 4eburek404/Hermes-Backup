@@ -1,0 +1,31 @@
+{
+  "data": {
+    "prices_one_way": [
+      {
+        "departure_at": "2026-07-19T10:30:00",
+        "value": 24766,
+        "number_of_changes": 0,
+        "main_airline": "SU",
+        "duration": 205,
+        "segments": [
+          {
+            "departure_at": "2026-07-19T10:30:00",
+            "arrival_at": "2026-07-19T13:55:00",
+            "flight_legs": [
+              {
+                "origin": "SVX",
+                "destination": "IST",
+                "flight_number": "SU630",
+                "operating_carrier": "SU",
+                "aircraft_code": "738",
+                "departure_at": "2026-07-19T10:30:00",
+                "arrival_at": "2026-07-19T13:55:00"
+              }
+            ],
+            "transfers": []
+          }
+        ]
+      }
+    ]
+  }
+}

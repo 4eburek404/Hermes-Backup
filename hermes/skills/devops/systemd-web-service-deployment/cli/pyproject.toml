@@ -1,0 +1,12 @@
+[project]
+name = "systemd-web-service-cli"
+version = "0.1.0"
+description = "Read-only systemd web service deployment auditor for Hermes skills"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+systemd-web-service-cli = "systemd_web_service_cli.__main__:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

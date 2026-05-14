@@ -19,17 +19,17 @@
       "schedule_display": "0 3 * * *",
       "repeat": {
         "times": null,
-        "completed": 16
+        "completed": 18
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-04-27T20:33:21.950537+02:00",
-      "next_run_at": "2026-05-12T03:00:00+02:00",
-      "last_run_at": "2026-05-11T03:00:29.814971+02:00",
-      "last_status": "error",
-      "last_error": "RuntimeError: HTTP 429: The usage limit has been reached",
+      "next_run_at": "2026-05-14T03:00:00+02:00",
+      "last_run_at": "2026-05-13T03:01:40.314610+02:00",
+      "last_status": "ok",
+      "last_error": null,
       "last_delivery_error": null,
       "deliver": "origin",
       "origin": {
@@ -65,17 +65,17 @@
       "schedule_display": "0 3 * * *",
       "repeat": {
         "times": null,
-        "completed": 13
+        "completed": 15
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-04-28T14:54:14.216569+02:00",
-      "next_run_at": "2026-05-12T03:00:00+02:00",
-      "last_run_at": "2026-05-11T03:00:29.720790+02:00",
-      "last_status": "error",
-      "last_error": "RuntimeError: HTTP 429: The usage limit has been reached",
+      "next_run_at": "2026-05-14T03:00:00+02:00",
+      "last_run_at": "2026-05-13T03:01:48.845051+02:00",
+      "last_status": "ok",
+      "last_error": null,
       "last_delivery_error": null,
       "deliver": "origin",
       "origin": {
@@ -150,15 +150,15 @@
       "schedule_display": "0 2 * * *",
       "repeat": {
         "times": null,
-        "completed": 3
+        "completed": 5
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-05-06T15:28:35.129170+02:00",
-      "next_run_at": "2026-05-13T02:00:00+02:00",
-      "last_run_at": "2026-05-07T00:02:30.696240+02:00",
+      "next_run_at": "2026-05-15T02:00:00+02:00",
+      "last_run_at": "2026-05-13T02:03:41.801865+02:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -176,5 +176,5 @@
       "disabled_reason": "Replaced by systemd user timer hermes-backup.timer on 2026-05-07."
     }
   ],
-  "updated_at": "2026-05-12T02:00:31.146466+02:00"
+  "updated_at": "2026-05-14T02:00:20.655756+02:00"
 }
