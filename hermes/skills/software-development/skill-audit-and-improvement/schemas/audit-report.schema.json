@@ -163,7 +163,6 @@
           "category",
           "message",
           "location",
-          "evidence",
           "fingerprint"
         ],
         "properties": {
@@ -204,41 +203,763 @@
       }
     },
     "checks": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": [
-          "rule_id",
-          "status"
-        ],
-        "properties": {
-          "rule_id": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "rule_id",
+              "status"
+            ],
+            "properties": {
+              "rule_id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": true
           }
         },
-        "additionalProperties": true
-      }
+        {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "rule_id",
+                  "status"
+                ],
+                "properties": {
+                  "rule_id": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": true
+              }
+            },
+            "cli_contract": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "enum": [
+                    "pass",
+                    "skipped",
+                    "not_applicable",
+                    "warn"
+                  ]
+                },
+                "mode": {
+                  "enum": [
+                    "static",
+                    "advisory",
+                    "advisory_static"
+                  ]
+                },
+                "enforced": {
+                  "type": "boolean"
+                },
+                "execution_performed": {
+                  "type": "boolean"
+                },
+                "validation_performed": {
+                  "type": "boolean"
+                },
+                "skipped_executable_checks_reason": {
+                  "type": "string"
+                },
+                "inventory_status": {
+                  "enum": [
+                    "pass",
+                    "not_applicable",
+                    "warn"
+                  ]
+                },
+                "help_check": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "doctor_check": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "tests_check": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "executable_checks_summary": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "warning": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": true
+            },
+            "schema_contract": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "enum": [
+                    "pass",
+                    "skipped",
+                    "not_applicable",
+                    "warn"
+                  ]
+                },
+                "mode": {
+                  "enum": [
+                    "static",
+                    "advisory",
+                    "advisory_static"
+                  ]
+                },
+                "enforced": {
+                  "type": "boolean"
+                },
+                "execution_performed": {
+                  "type": "boolean"
+                },
+                "validation_performed": {
+                  "type": "boolean"
+                },
+                "skipped_executable_checks_reason": {
+                  "type": "string"
+                },
+                "inventory_status": {
+                  "enum": [
+                    "pass",
+                    "not_applicable",
+                    "warn"
+                  ]
+                },
+                "schema_output_mappings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "schema_path": {
+                        "type": "string"
+                      },
+                      "output_name": {
+                        "type": "string"
+                      },
+                      "command_hint": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "mapping_kind": {
+                        "enum": [
+                          "docs_explicit",
+                          "code_explicit",
+                          "tests_explicit",
+                          "report_contract",
+                          "naming_inference"
+                        ]
+                      },
+                      "confidence": {
+                        "enum": [
+                          "high",
+                          "medium",
+                          "low"
+                        ]
+                      },
+                      "scope": {
+                        "enum": [
+                          "cli_output",
+                          "report_contract",
+                          "final_answer_contract",
+                          "unknown"
+                        ]
+                      },
+                      "evidence": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "path": {
+                              "type": "string"
+                            },
+                            "line": {
+                              "type": [
+                                "integer",
+                                "null"
+                              ]
+                            },
+                            "snippet": {
+                              "type": "string",
+                              "maxLength": 200
+                            }
+                          },
+                          "additionalProperties": true
+                        }
+                      },
+                      "notes": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": true
+                  }
+                },
+                "schema_output_mappings_summary": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "high": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "medium": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "low": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "by_scope": {
+                      "type": "object",
+                      "properties": {
+                        "cli_output": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "report_contract": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "final_answer_contract": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "unknown": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "additionalProperties": true
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        }
+      ]
     },
     "evidence_manifest": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": [
-          "path",
-          "kind",
-          "exists"
+        "anyOf": [
+          {
+            "required": [
+              "path",
+              "kind",
+              "exists"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            }
+          },
+          {
+            "required": [
+              "id",
+              "kind",
+              "check",
+              "status",
+              "argv",
+              "cwd",
+              "execution_performed"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "const": "command"
+              },
+              "evidence_schema_version": {
+                "type": "string"
+              },
+              "command_id": {
+                "type": "string"
+              },
+              "argv_redacted": {
+                "type": "boolean"
+              },
+              "check": {
+                "enum": [
+                  "cli_help",
+                  "cli_doctor",
+                  "cli_tests"
+                ]
+              },
+              "status": {
+                "enum": [
+                  "pass",
+                  "fail",
+                  "skipped",
+                  "blocked",
+                  "timeout"
+                ]
+              },
+              "argv": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "cwd": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "duration_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "timeout_sec": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "stdout_sha256": {
+                "type": "string"
+              },
+              "stderr_sha256": {
+                "type": "string"
+              },
+              "stdout_preview": {
+                "type": "string"
+              },
+              "stderr_preview": {
+                "type": "string"
+              },
+              "stdout_preview_redacted": {
+                "type": "string"
+              },
+              "stderr_preview_redacted": {
+                "type": "string"
+              },
+              "output_redaction_applied": {
+                "type": "boolean"
+              },
+              "stdout_bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "stderr_bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "stdout_preview_bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "stderr_preview_bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "stdout_truncated": {
+                "type": "boolean"
+              },
+              "stderr_truncated": {
+                "type": "boolean"
+              },
+              "parsed_json": {
+                "type": "boolean"
+              },
+              "json_parse_error": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "env_policy": {
+                "type": "string"
+              },
+              "mutation_policy": {
+                "type": "string"
+              },
+              "network_policy": {
+                "type": "string"
+              },
+              "execution_performed": {
+                "type": "boolean"
+              },
+              "envelope_validation": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "json_root_type": {
+                "type": "string"
+              },
+              "json_top_level_keys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "json_fingerprint": {
+                "type": "string"
+              }
+            }
+          }
         ],
+        "additionalProperties": true
+      }
+    },
+    "cli": {
+      "type": "object",
+      "properties": {
+        "exists": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pyproject": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "entrypoints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "enum": [
+                  "project_script",
+                  "python_module",
+                  "python_file",
+                  "docs_mention",
+                  "unknown"
+                ]
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "module": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "path": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "confidence": {
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ]
+              },
+              "source": {
+                "enum": [
+                  "pyproject",
+                  "filesystem",
+                  "docs"
+                ]
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "python_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "test_dirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "contract_schemas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "scope": {
+                "enum": [
+                  "top_level",
+                  "cli_contract"
+                ]
+              },
+              "filename": {
+                "type": "string"
+              },
+              "version_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "dialect_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "has_schema_keyword": {
+                "type": "boolean"
+              },
+              "has_id_keyword": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "json_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "docs_mentions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "line": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "snippet": {
+                "type": "string"
+              },
+              "claim_type": {
+                "enum": [
+                  "json_flag",
+                  "doctor_command",
+                  "schema_reference",
+                  "json_envelope",
+                  "generic"
+                ]
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "json_output_claims": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "line": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "snippet": {
+                "type": "string"
+              },
+              "claim_type": {
+                "enum": [
+                  "json_flag",
+                  "doctor_command",
+                  "schema_reference",
+                  "json_envelope",
+                  "generic"
+                ]
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "mutating_command_candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "line": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "snippet": {
+                "type": "string"
+              },
+              "claim_type": {
+                "enum": [
+                  "json_flag",
+                  "doctor_command",
+                  "schema_reference",
+                  "json_envelope",
+                  "generic"
+                ]
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "wrapper_candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "line": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "snippet": {
+                "type": "string"
+              },
+              "claim_type": {
+                "enum": [
+                  "json_flag",
+                  "doctor_command",
+                  "schema_reference",
+                  "json_envelope",
+                  "generic"
+                ]
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "top_level_schemas": {
+      "type": "array",
+      "items": {
+        "type": "object",
         "properties": {
           "path": {
             "type": "string"
           },
-          "kind": {
+          "scope": {
+            "enum": [
+              "top_level",
+              "cli_contract"
+            ]
+          },
+          "filename": {
             "type": "string"
           },
-          "exists": {
+          "version_hint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dialect_hint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_schema_keyword": {
+            "type": "boolean"
+          },
+          "has_id_keyword": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "cli_contract_schemas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "top_level",
+              "cli_contract"
+            ]
+          },
+          "filename": {
+            "type": "string"
+          },
+          "version_hint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dialect_hint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_schema_keyword": {
+            "type": "boolean"
+          },
+          "has_id_keyword": {
             "type": "boolean"
           }
         },
