@@ -139,6 +139,23 @@ Schema audit is advisory in this phase. Missing, invalid, or unreferenced schema
 Schema details:
 - `<path>` — `scope=<cli_contract|top_level>; json_valid=<true|false>; dialect=<draft2020-12|draft2019-09|draft-07|unknown|null>; id=<present|missing>; type=<object|array|string|number|boolean|null|mixed|unknown>; additionalProperties=<closed|open|mixed|unspecified|unknown>; version=<v1|v2|null>; docs=<true|false>; tests=<true|false>`
 
+## Schema Output Mappings
+
+Schema output mappings are static advisory evidence. They identify likely relationships between schema files and structured outputs, but they do not validate CLI outputs against schemas and do not enforce contract compliance.
+
+- **Total mappings:** `<count>`
+- **Confidence counts:** `high=<count>; medium=<count>; low=<count>`
+- **Scope counts:** `cli_output=<count>; report_contract=<count>; final_answer_contract=<count>; unknown=<count>`
+
+Mappings:
+- `schema_path=<path>; output_name=<name>; command_hint=<command-or-null>; mapping_kind=<docs_explicit|code_explicit|tests_explicit|report_contract|naming_inference>; confidence=<high|medium|low>; scope=<cli_output|report_contract|final_answer_contract|unknown>; evidence=<paths/snippets>; notes=<notes-or-none>`
+
+Interpretation rules:
+- High confidence requires explicit docs, code, tests, or report-contract evidence.
+- Generic words such as JSON/schema/contract/report/output are not sufficient.
+- Mappings from ignored, vendor, or generated directories must not be used.
+- Absent mappings are not blocking in this phase.
+
 ## Verification
 
 Commands/read-back run:

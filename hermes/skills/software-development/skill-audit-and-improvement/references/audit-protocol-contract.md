@@ -128,6 +128,25 @@ JSON Schema is required or recommended only when there is a machine-readable con
 
 Missing schema in a required or recommended context is an advisory warning only (`SCHEMA_REQUIRED_BUT_MISSING_ADVISORY` or `SCHEMA_RECOMMENDED_BUT_MISSING_ADVISORY`) until a future enforcement phase. Per-skill output validation and enforcement are future steps.
 
+## Step 2D-A1b Schema Output Mapping Contract
+
+Step 2D-A1b adds `schema_output_mappings[]` as advisory, statically produced evidence for likely relationships between schema files and structured outputs. It does not validate command output against schemas, does not enforce contract compliance, and does not change `schema_contract.status` by itself when mappings are absent.
+
+Supported mapping kinds: `docs_explicit`, `code_explicit`, `tests_explicit`, `report_contract`, and `naming_inference`.
+
+Supported scopes: `cli_output`, `report_contract`, `final_answer_contract`, and `unknown`.
+
+Confidence semantics:
+
+- `high`: explicit evidence from docs, code, tests, or report-contract fields.
+- `medium`: strong structural match but less direct evidence.
+- `low`: naming-only inference.
+
+Known examples:
+
+- `flight-search` `agent_report.v1.schema.json` maps to `data.agent_report` via `docs_explicit` / `cli_output` / `--agent-brief`.
+- `flight-search` `flight_search_user_answer.v1.schema.json` maps to `final_answer_contract` via `code_explicit`.
+
 ## Golden Path Contract Policy
 
 Every skill that steers a fragile workflow must have a golden-path contract:
