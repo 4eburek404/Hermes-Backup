@@ -461,6 +461,7 @@ For deep audits, add behavior-delta fields from the template: behavior before/af
 - `references/schema-output-mapping-step2d-a0.md` — case note for static Step 2D schema-output mapping detection: high-confidence docs/tests/code/report-contract patterns, absent-schema handling, and no runtime output validation.
 - `references/schema-output-mapping-diagnostic-step2d-a1b2.md` — read-only diagnostic pattern for separating acceptance-summary extraction artifacts from report-shape regressions, and for catching schema-output false positives such as `agent_report.v1` being linked to a final-answer builder.
 - `references/schema-output-mapping-step2d-a1b-2f.md` — case note for the detector fix that requires exact schema identity for `code_explicit`, ranks docs CLI-output evidence above consumer-code candidates, and preserves user-answer final-answer mappings.
+- `references/narrow-self-audit-cleanup.md` — scoped cleanup pattern for existing self-audit findings without expanding into feature work.
 - `references/deep-skill-audit-method.md` — semantic skill-quality method: behavior delta, mistake prevention, cognitive task analysis, progressive disclosure, scenario replay, and feedback-loop closure.
 - `references/skill-quality-model-v2.md` — functional/operational/deep quality model, cognitive task analysis workflow, progressive disclosure rules, degree-of-freedom rule, gap analysis, scenario replay, and feedback-loop closure.
 - `references/deep-audit-scenarios.md` — compact scenario corpus for replaying recurring skill-audit failure modes.
