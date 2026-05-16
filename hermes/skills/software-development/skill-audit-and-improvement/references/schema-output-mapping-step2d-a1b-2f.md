@@ -86,6 +86,6 @@ PY
 Also check the target skill tree for generated artifacts:
 
 ```bash
-find /home/konstantin/.hermes/skills/software-development/skill-audit-and-improvement \
+find "<runtime_skill>" \\
   \( -type d -name __pycache__ -o -type f -name '*.pyc' \) -print
 ```
