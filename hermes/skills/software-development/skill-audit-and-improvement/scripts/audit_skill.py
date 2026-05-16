@@ -1005,10 +1005,10 @@ def schema_output_tokens(schema_path: str, filename: str) -> List[str]:
     return [token for token in tokens if token]
 
 
-def contains_exact_schema_token(text: str, token: str) -> bool:
-    if not token:
+def contains_exact_schema_token(text: str, schema_term: str) -> bool:
+    if not schema_term:
         return False
-    pattern = rf"(?<![A-Za-z0-9_-]){re.escape(token)}(?![A-Za-z0-9_-])"
+    pattern = rf"(?<![A-Za-z0-9_-]){re.escape(schema_term)}(?![A-Za-z0-9_-])"
     return re.search(pattern, text) is not None
 
 
