@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import ast
+import re
 import tomllib
 import unittest
 
-from flights_cli import __version__
+from flights_cli import __skill_version__, __version__
 
 from helpers import PROJECT
 
@@ -13,6 +14,56 @@ class ArchitectureTests(unittest.TestCase):
     def test_pyproject_version_matches_runtime_version(self) -> None:
         data = tomllib.loads((PROJECT / "pyproject.toml").read_text())
         self.assertEqual(data["project"]["version"], __version__)
+
+    def test_skill_version_matches_runtime_version(self) -> None:
+        skill = PROJECT.parent / "SKILL.md"
+        text = skill.read_text(encoding="utf-8")
+        match = re.search(r"^version: (.+)$", text, re.MULTILINE)
+        self.assertIsNotNone(match)
+        self.assertEqual(match.group(1), __skill_version__)
+
+    def test_skill_markdown_formatting_is_sane(self) -> None:
+        skill = PROJECT.parent / "SKILL.md"
+        text = skill.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith("---\n"))
+        self.assertIn("\n---\n", text[3:])
+        self.assertIn("\n# Flight Search\n", text)
+        self.assertGreater(text.count("\n"), 40)
+
+    def test_active_markdown_prompt_surface_is_clean(self) -> None:
+        forbidden = [
+            "Aviasales",
+            "aviasales",
+            "price-search",
+            "price search",
+            "cached price",
+            "cached price probes",
+            "request search",
+            "prices-for-dates",
+            "grouped-prices",
+            "results parse",
+            "aviasales.ru/search",
+            "legacy late sanity layer",
+            "manual Aviasales links",
+            "Travelpayouts cached price data",
+        ]
+        hits = []
+        for path in PROJECT.parent.rglob("*.md"):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            for line_number, line in enumerate(text.splitlines(), 1):
+                for token in forbidden:
+                    if token in line:
+                        hits.append((path.relative_to(PROJECT.parent), line_number, token, line.strip()))
+        self.assertEqual(hits, [])
+
+    def test_readme_keeps_supporting_file_distillation_policy(self) -> None:
+        readme = PROJECT / "README.md"
+        text = readme.read_text(encoding="utf-8")
+        self.assertIn(
+            "Do not delete supporting Markdown files merely because they contain obsolete provider names, dated route examples, or migration history.",
+            text,
+        )
+        self.assertIn("Move those distilled rules into the appropriate active document or test.", text)
 
     def test_module_dependency_boundaries(self) -> None:
         root = PROJECT / "flights_cli"
