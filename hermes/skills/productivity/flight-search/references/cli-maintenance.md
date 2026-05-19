@@ -1,70 +1,64 @@
 # CLI Maintenance Notes
 
-Use this when modifying or auditing the flight-search CLI, `agent_report` contract, provider layers, or coverage controls. It is not needed for ordinary flight answers.
+Keep CLI maintenance focused on current live provider assembly and the `agent_report` contract.
 
 ## Workflow
 
-- Work offline by default. Do not run live provider searches unless the user asks.
-- Add a focused failing test before behavior changes.
-- For date behavior, test both the parser layer and the subprocess CLI contract. Past `depart-date`/`return-date` values must fail before provider search with `validation_error`, and short `DD.MM` dates must normalize to the nearest future occurrence rather than a past year.
-- Preserve `--json --agent-brief` as JSON-only stdout. For JSON error cases, expect empty stdout and parse the error payload from stderr.
-- If `agent_report.v1` fields change, update schema, contract tests, docs, and `report-contract.md` together.
-- Keep compact schemas under existing line/byte gates; use deterministic compact formatting if pretty output breaks contract limits.
-- Run a real parser smoke command for new documented flags; tests that instantiate `argparse.Namespace` do not prove the CLI accepts the flag.
+- Work offline by default unless a task explicitly requires live provider access.
+- Add or update tests before behavior changes.
+- Keep `agent_report` schema, docs, fixtures, and tests coupled in the same change.
+- Keep search behavior limited to current live provider assembly.
+- Static catalogs are metadata only: city, airport, airline, and aircraft data. Flight options come from live provider assembly.
 
-## Security Rules
+## JSON stdout/stderr Rules
 
-- Travelpayouts Data API fetches must send credentials in the `X-Access-Token` header, not URL/query params.
-- Request metadata and human output may expose only auth status (`present`/`missing`) and transport (`header`), never credential values.
-- Reject credential-like query-param keys before network I/O and in dry-run request builders.
-- FLI MCP URL policy: allow `http` only for loopback hosts (`localhost`, `127.0.0.1`, `::1`); require `https` for remote hosts; reject unsupported schemes and any userinfo, including empty userinfo.
-- Test fixtures should avoid scanner-triggering literals. Prefer neutral placeholders such as `test-placeholder-001`.
-- Chat summaries of audits should include counts/classes/paths only; keep evidence and credential-like values redacted.
+- In `--json` mode, stdout must contain only the JSON envelope.
+- Diagnostics, warnings, and provider logs belong on stderr or inside structured JSON fields.
+- Do not print secrets, full credential paths, or unredacted provider URLs with sensitive query data.
+- If an error occurs, return the standard JSON error envelope with a concrete layer and actionable detail.
 
-## Coverage-Control Rules
+## Provider URL Safety for FLI MCP
 
-- Domestic-RU routing must be decided in one shared layer and propagated through `route plan`, `kb-assemble`, and `live-assemble`.
-- Route-family metadata and segment-spec identity belong in shared route-graph helpers. Do not duplicate `ru-priority`, `asia-oceania`, or `domestic-ru` family definitions across dry and live planners.
-- For domestic Russian round trips, assert the direct return segment `DEST -> ORIGIN` and absence of default international hubs such as `IST`, `DXB`, or `SHJ`.
-- Keep `route_graph`, `routing_strategy`, `coverage_controls`, and `airport_scope` consistent across public builders.
-- Moscow/SVO controls are first-class controls, not fallback-only behavior. Do not let new Moscow categories suppress existing `all_su_svo`, `all_su`, or `single_carrier` controls.
-- New live coverage probes need query-budget design: provider-aware cache keys, in-run de-duplication, bounded per-provider concurrency, rate-limit backoff, and live/cache/stale labels.
+- Treat FLI MCP as a sidecar selected by URL/config.
+- Validate URL shape before network use.
+- Do not log sensitive query parameters unnecessarily.
+- If the sidecar is unavailable, report degradation through provider failure fields rather than hiding the failure.
 
-## Assembly and Stop-Policy Rules
+## Schema, Docs, and Tests Coupling
 
-- Candidate generation is stop-policy-first. Generate direct/one-stop preferred candidates before fallback candidates; do not let T2/T3 routes consume `candidate_pool_limit` while preferred candidates still exist.
-- `candidate_pool_limit` is a safety/debug cap inside the active generation mode, not a quality workaround. Do not raise it to hide generation-order defects.
-- Use the shared stop-policy decision helper for assembly, ranking defense, provider aggregate projection, and report diagnostics. Do not reimplement reportability as a local `connections <= 2` check.
-- `agent_report.v1` projects declared generation state. Do not infer fallback mode from compact projected options alone.
+When changing `data.agent_report`:
+
+1. Update the schema contract.
+2. Update report-building code.
+3. Update docs that tell agents how to read the fields.
+4. Update fixtures and tests that assert the contract.
+5. Re-run the focused contract tests before any broader validation.
+
+Do not add answer-facing fields without documenting how the agent should use them.
 
 ## Version Bump Checklist
 
-When bumping the flight-search skill or CLI version, update **all three** locations together:
+When bumping the skill/CLI version, keep these aligned:
 
-1. `SKILL.md` frontmatter — `version: X.Y.Z`
-2. `cli/flights_cli/__init__.py` — `__version__` and `__skill_version__`
-3. `cli/pyproject.toml` — `version = "X.Y.Z"` under `[project]`
+- `hermes/skills/productivity/flight-search/SKILL.md` frontmatter.
+- `hermes/skills/productivity/flight-search/cli/pyproject.toml`.
+- `hermes/skills/productivity/flight-search/cli/flights_cli/__init__.py`.
+- Tests that assert the CLI version or doctor envelope.
 
-Missing any one of these causes drift between `doctor` output, CLI `--version`, and skill metadata.
+Do not change schema version constants unless the schema contract itself changes incompatibly.
 
-## Verification Baseline
+## Generated Artifact Cleanup
 
-Run the narrowest relevant tests first, then broaden:
+Before final reporting, check for generated files under the skill tree:
 
 ```bash
-cd ~/.hermes/hermes-agent/skills/productivity/flight-search/cli
-PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s tests -p 'test_agent_report_contract.py'
-PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s tests
-PYTHONDONTWRITEBYTECODE=1 python -m flights_cli --json doctor
-git diff --check -- skills/productivity/flight-search
+find hermes/skills/productivity/flight-search -type d -name __pycache__ -o -name '*.pyc'
 ```
 
-After test/smoke/install flows, remove generated `__pycache__`, `.pyc`, and `*.egg-info` artifacts before final audit. If an independent review adds new changes after a green run, rerun the affected gates before reporting done.
+Remove generated artifacts only when cleanup is in scope. Prefer `PYTHONDONTWRITEBYTECODE=1` for validation commands.
 
-## Useful Future CLI Commands
+## Source/Runtime Validation Pointer
 
-Consider these only when a real failure justifies them:
+Source edits happen under `/home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-search`. Runtime state under `/home/konstantin/.hermes/skills/productivity/flight-search` is a separate deployment/sync surface.
 
-- `flights providers doctor` or `flights doctor --strict` for provider readiness and degradation explanations.
-- `flights route validate-report --input result.json` for schema and semantic checks.
-- `flights docs sync-check` for drift between live `--help`, SKILL.md, README, dependency metadata, and provider requirements.
+Before claiming a source edit is ready, report branch, HEAD, dirty state, changed files, validation commands, and whether runtime sync was intentionally not performed.
