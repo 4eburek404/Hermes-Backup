@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermes-agent.local/schemas/cli-doctor-envelope.v1.schema.json",
+  "title": "Hermes Skill CLI Doctor Envelope v1",
+  "description": "Baseline advisory JSON envelope for skill-owned CLI doctor output. Step 2B validates this shape only; it is not a per-command schema and is not enforced as a blocking contract.",
+  "type": "object",
+  "required": [
+    "ok",
+    "command",
+    "data",
+    "issues"
+  ],
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "command": {
+      "type": "string"
+    },
+    "data": {
+      "type": [
+        "object",
+        "array",
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ],
+      "description": "Any JSON type is accepted in Step 2B; object is preferred for forward compatibility."
+    },
+    "issues": {
+      "type": "array",
+      "items": true
+    },
+    "error": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "tool": {
+      "type": [
+        "string",
+        "object"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

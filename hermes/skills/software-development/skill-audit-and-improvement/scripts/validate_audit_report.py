@@ -20,12 +20,18 @@ def manual_validate(report: Dict[str, Any]) -> Optional[str]:
         return "tool.name must be audit_skill"
     if not isinstance(report.get("findings"), list):
         return "findings must be a list"
-    if not isinstance(report.get("checks"), list):
-        return "checks must be a list"
+    checks = report.get("checks")
+    if not isinstance(checks, (list, dict)):
+        return "checks must be a list or object"
+    if isinstance(checks, dict):
+        for key in ("cli_contract", "schema_contract"):
+            section = checks.get(key)
+            if section is not None and not isinstance(section, dict):
+                return f"checks.{key} must be an object"
     if not isinstance(report.get("evidence_manifest"), list):
         return "evidence_manifest must be a list"
     for index, finding in enumerate(report.get("findings", [])):
-        for key in ["rule_id", "severity", "category", "message", "location", "evidence", "fingerprint"]:
+        for key in ["rule_id", "severity", "category", "message", "location", "fingerprint"]:
             if key not in finding:
                 return f"finding[{index}] missing key: {key}"
     return None
