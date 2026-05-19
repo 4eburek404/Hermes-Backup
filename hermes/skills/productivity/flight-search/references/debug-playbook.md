@@ -1,111 +1,82 @@
 # Debug Playbook
 
-Use this only when the compact `agent_report` is missing, contradictory, or insufficient.
+Use this playbook only to validate current live report behavior. Debugging should narrow uncertainty around the Golden Path, not replace it.
 
 ## When To Debug
 
-Debug if:
+Debug when the report is internally inconsistent, too sparse for the user's constraint, affected by provider failures, or surprising relative to geography, schedule logic, or airport continuity.
 
-- `recommended_options` is empty but viable routes are expected;
-- `priority_options` is missing for an explicitly requested carrier, hub, direct flight, or airport;
-- a cheaper/faster/control option is referenced without segment details;
-- sources conflict;
-- the user challenges a missed route;
-- you are changing CLI behavior or writing tests.
+Common triggers:
 
-## Runtime Provenance
+- recommended options conflict with `source_boundaries`;
+- `provider_failures` changes the evidence quality;
+- a city/airport mismatch is plausible;
+- a date may be outside provider horizon;
+- a risk profile may hide a physically possible option;
+- an overnight connection appears when the user prefers same-day travel.
 
-Before declaring a provider root cause or patching behavior, prove which runtime is active:
+## Provenance First
 
-```bash
-command -v flights || true
-python3 - <<'PY'
-import flights_cli, pathlib
-print(pathlib.Path(flights_cli.__file__).resolve())
-PY
-flights route live-assemble --help | sed -n '1,160p'
-```
+Before interpreting results, record:
 
-Use only flags shown by the live `--help`. `--agent-brief` is normal compact-report mode; treat undocumented flags such as `--agent-mode` as stale unless the installed CLI lists them.
+- repository path, branch, and HEAD if you are debugging source behavior;
+- CLI version and command line;
+- request normalization: dates, IATA/city, cabin, profile, passengers, and filters;
+- provider policy from the report;
+- whether the output came from `data.agent_report`.
 
-Temp editable checkouts under `/tmp` can shadow the permanent skill CLI. Do not generalize traces until executable path, imported module path, package metadata, and source checkout are known.
+Use `doctor` only for environment readiness and degradation clues.
 
-## Safe Debug Runs
+## Targeted Live Probes
 
-Rerun without `--agent-brief` when deeper JSON is needed:
+Start with the Golden Path report. If a specific uncertainty remains, run the narrowest live probe that answers it:
 
 ```bash
-flights --json route live-assemble ORIGIN DEST \
+python3 -m flights_cli --json route live-assemble ORIGIN DEST \
   --depart-date YYYY-MM-DD \
-  --return-date YYYY-MM-DD \
-  --profile business
+  --profile balanced \
+  --agent-brief
 ```
 
-Use targeted includes before raw dumps:
-
-```bash
---include-ranked-candidates 10
---include-rejected-pairs 10
---include-segment-results 5
-```
-
-Avoid `--include-candidates` unless diagnosing assembly internals; it can create multi-megabyte JSON.
-
-Use direct/carrier probes before concluding absence:
-
-```bash
-python3 -m flights_cli --json kb-search ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --only-carrier SU \
-  --limit 20
-
-python3 -m flights_cli --json fli-search IST LHR \
-  --depart-date YYYY-MM-DD \
-  --direct-only \
-  --limit 20
-```
+Use `kb-search` or `fli-search` only as targeted probes after the main report, for example to test one segment, carrier, date, or airport interpretation. Label probe results as narrower evidence than the assembled report.
 
 ## JSON Extraction
 
-Keep stdout JSON-clean. Piping CLI output with `2>&1` into a parser is fragile because warnings or provider notices can precede JSON.
+Read only the JSON payload for decisions. For command output that includes logs, extract the JSON envelope first and then inspect `data.agent_report`.
 
-Prefer:
+Decision fields:
 
-```bash
-python3 -m flights_cli --json route live-assemble ... 2>/dev/null
-```
+- `display`
+- `answer_lines`
+- `recommended_options`
+- `priority_options`
+- `through_fare_checks`
+- `provider_failures`
+- `source_boundaries`
 
-If mixed output is unavoidable, parse from the first JSON envelope marker:
-
-```python
-import json, sys
-raw = sys.stdin.read()
-idx = raw.find('{"command"')
-if idx == -1:
-    raise ValueError("No JSON found in output")
-data = json.loads(raw[idx:])
-```
-
-If this still fails, stop retrying the same pipe pattern. Capture the raw output, then read `data.agent_report` directly.
+If parsing fails, report the parse layer and rerun with JSON-clean stdout/stderr settings before making a travel claim.
 
 ## Internal Fields
 
-Use these only in debug:
+Use internal fields to diagnose, not to overrule the report:
 
-- `ranked` - ranked summaries.
-- `ranked_candidates` - full bodies for retained summaries.
-- `candidates` - raw candidate sample; do not recommend from it.
-- `assembly.candidate_generation_mode` and `assembly.fallback_used` - whether the pool was generated from preferred direct/one-stop journeys or fallback journeys.
-- `segment_results` - normalized provider leg results.
-- `live_search.segment_searches` - provider calls, skips, and offer counts.
-- `rejected_pairs` - airport mismatch or connection rejection diagnostics.
+- `segment_searches` for per-segment evidence and provider failures;
+- `coverage_diagnostics` for horizon/coverage splits;
+- `hub_viability` for connection feasibility;
+- `rejected_pair_warnings` for airport mismatch and connection filters;
+- `stop_policy` and diagnostics for constraint effects;
+- `omitted_counts` for truncation awareness.
 
-If preferred options are missing while segment evidence exists, inspect `assembly.preferred_*_journey_count`, `fallback_*_journey_count`, `candidate_pool_truncated`, and `stop_policy_diagnostics`. Do not compensate by increasing `candidate_pool_limit` in normal flow; fix the generation contract or reproduce with a focused synthetic case.
+## Common Diagnostic Splits
 
-FLI airport-name normalization uses the airport catalog, not naive first-three-letter codes. Generic provider names such as `Barcelona International Airport` can match multiple flightable codes; debug this as query-context disambiguation.
+### Horizon vs Coverage
 
-## Debug Outcomes
+If a date has no useful result, test whether the date is outside the searchable horizon before calling it a route gap. A nearby in-horizon control date can show whether the route shape is discoverable at all.
 
-When debug finds that the compact report clipped a decision-critical option, fix or file against the report contract. The durable rule is: compute recommendations/controls from the full ranked list, then retain full details for selected best/cheapest/fastest/direct/SU/Moscow-control options.
+### Overnight Avoidance
 
-Old route-specific notes and dated audit logs are regression history, not runtime skill context. Distill durable rules into the contract, boundaries, or maintenance reference; do not keep session artifacts in `references/`.
+If the recommended option has an overnight connection, test whether same-day options were filtered by connection windows, airport continuity, provider failures, or ranking limits. Do not assume the overnight is physically required unless targeted evidence supports it.
+
+### Ranking Profile Bias vs Physical Possibility
+
+A safe or balanced profile can demote short, cross-airport, late-night, or baggage-risk options. When the user asks whether something is possible, distinguish physical possibility from operational recommendation and explain which profile or field caused the ranking.
