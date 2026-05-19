@@ -1,439 +1,130 @@
 # flights CLI
 
-Provider-policy flight routing helper for Hermes live flight-search workflows.
-
-The CLI builds bounded route plans, runs live provider probes, validates airport
-compatibility, assembles/ranks candidates, and emits compact agent reports. It
-does not book, buy, or write to Hermes. The main live path is `route
-live-assemble`: Kupibilet handles Russia-touching legs and FLI MCP handles
-non-Russia/global legs when available. Travelpayouts is static catalog metadata
-only; retired price-search stubs fail closed and are not normal commands.
+Concise manual for the flight-search skill-owned CLI. The skill's Golden Path is `route live-assemble --agent-brief`; other commands support setup, metadata, or targeted diagnostics.
 
 ## Install
 
-```bash
-make install-local
-command -v flights
-flights --help
-flights --json doctor
-```
-
-This project uses only the Python standard library. FLI/Google Flights access
-is intentionally isolated behind a self-hosted FLI MCP HTTP sidecar rather than
-imported as a Python dependency.
-
-## JSON Policy
-
-With `--json`, stdout is always an envelope:
-
-```json
-{
-  "ok": true,
-  "command": "route plan",
-  "data": {},
-  "issues": []
-}
-```
-
-Errors are emitted to stderr:
-
-```json
-{
-  "ok": false,
-  "error": {
-    "type": "validation_error",
-    "message": "..."
-  }
-}
-```
-
-Secrets are never printed. `doctor` reports only whether legacy
-Travelpayouts environment variables are present; the normal search path does not
-need them. The CLI reads process environment first and then auto-loads keys from
-`~/.hermes/.env` without overriding existing environment variables.
-
-## Commands
-
-Runtime check:
+From the source checkout:
 
 ```bash
-flights --json doctor
+cd /home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-search/cli
+python3 -m pip install -e .
 ```
 
-Static catalog refresh is automatic. Commands that depend on the local
-catalog (`cities search`, `airports explain`, `route plan`, `route
-kb-assemble`, and `metrics workflow`) refresh missing or stale static files
-before running. The default TTL is 7 days.
-
-Useful controls:
+For one-off local runs without installation, execute from the same directory:
 
 ```bash
-flights --catalog-refresh always --json route plan SVX LHR --depart-date 2026-07-19
-flights --catalog-refresh never --json route plan SVX LHR --depart-date 2026-07-19
-flights --catalog-max-age 12h --json cities search London
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json doctor
 ```
 
-Manual no-token Travelpayouts static catalog commands are still available:
+## Dependencies
+
+Runtime dependency: `jsonschema>=4.22,<5` as declared in `pyproject.toml`. The package also uses Python standard-library modules and local CLI package modules.
+
+## JSON Envelope
+
+Use `--json` for agent work. Successful commands return a JSON envelope with command metadata and `data`. Errors return a JSON envelope with `ok: false` and structured error detail.
+
+Stdout must stay JSON-clean in `--json` mode. Human diagnostics and provider logs belong on stderr or structured fields.
+
+## Doctor
+
+Use doctor for environment readiness and degradation clues:
 
 ```bash
-flights --json catalog update
-flights --json catalog manifest
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json doctor
 ```
 
-The static updater writes only canonical files:
+Doctor output is not a flight answer. Treat `ok: false` as an environment/readiness signal and inspect the structured issues.
 
-```text
-countries.json
-cities_en.json
-cities_ru.json
-airports_en.json
-airports_ru.json
-airlines_en.json
-airlines_ru.json
-alliances.json
-planes.json
-catalog_manifest.json
-```
+## Static Catalog Metadata Commands
 
-Resolve city and airport context from local cache:
+Static catalogs are metadata only: city, airport, airline, and aircraft data. Flight options come from live provider assembly.
+
+Useful metadata commands:
 
 ```bash
-flights --json cities search London --limit 5
-flights --json airports explain IST SAW SVO DME VKO
+python3 -m flights_cli --json catalog manifest
+python3 -m flights_cli --json catalog update --dry-run
+python3 -m flights_cli --json cities search Yekaterinburg
+python3 -m flights_cli --json airports explain SVX MOW
 ```
 
-Build a multi-segment plan without API calls:
+Use these commands for normalization and airport/city boundaries, not for availability claims.
+
+## Golden Path: route live-assemble --agent-brief
+
+Primary agent command:
 
 ```bash
-flights --json route plan SVX MUC \
-  --depart-date 2026-08-12 \
-  --profile business
+python3 -m flights_cli --json route live-assemble ORIGIN DEST \
+  --depart-date YYYY-MM-DD \
+  --profile balanced \
+  --agent-brief
 ```
 
-By default, `--routing-strategy auto` uses `ru-priority` unless `--hub` is
-passed. This models the manual Russia-origin workflow:
+Read only `data.agent_report` for the user answer. Use:
 
-1. Check exact-airport direct controls: `origin→destination` and, for round
-   trips, `destination→origin`. For SVX direct controls, the live command first
-   uses the official Koltsovo seasonal route index as a negative filter; if a
-   paired airport is absent there, the Kupibilet direct probe is skipped.
-2. Check `origin→IST` direct first, then `IST→destination`.
-3. If `origin→IST` has no viable direct offer, check `origin→SVO→IST` with
-   Aeroflot/SU and reuse `IST→destination`.
-4. Check `origin→DXB→destination` only when direct/SVO/IST priority routes do
-   not produce a usable assembled pair; do not expand DXB through Moscow.
+- `display`
+- `answer_lines`
+- `recommended_options`
+- `priority_options`
+- `through_fare_checks`
+- `provider_failures`
+- `source_boundaries`
 
-Preferred carriers for this strategy are `U6`, `SU`, and `TK`; SVO fallback
-legs are constrained to `SU`.
+Common options:
 
-For Asia/China/Oceania destinations, `ru-priority` switches to a geo-aware
-profile: SVO is checked as an independent hub before IST and DXB. Beijing city
-code `BJS` expands to `PEK` and `PKX`; Paris `PAR` expands to `CDG` and `ORY`.
+- `--return-date YYYY-MM-DD`
+- `--profile safe|balanced|cheap`
+- `--cabin-class ECONOMY|PREMIUM_ECONOMY|BUSINESS|FIRST`
+- `--passengers N`
+- `--provider-policy auto|kupibilet|fli|both`
+- `--fli-mcp-url URL`
+- `--no-cache` for a fresh live probe when appropriate
 
-Use `--routing-strategy hub-list` for the broader built-in hub list:
-`IST, DXB, DOH, AUH, BEG, TAS, GYD, PEK, PVG, CAN, ADD, CAI, MCT, SHJ`.
-Passing `--hub` repeatedly also switches `auto` into hub-list routing with the
-specified hubs.
+## Targeted Debug Probes
+
+Use targeted probes only after the main assembled report leaves a specific uncertainty.
+
+Kupibilet segment probe:
 
 ```bash
-flights --json route plan SVX LHR \
-  --depart-date 2026-07-19 \
-  --routing-strategy hub-list \
-  --profile business
+python3 -m flights_cli --json kb-search ORIGIN DEST \
+  --depart-date YYYY-MM-DD \
+  --limit 20
 ```
 
-Validate an assembled itinerary:
+FLI MCP segment probe:
 
 ```bash
-flights --json route validate --profile safe --input itinerary.json
+python3 -m flights_cli --json fli-search ORIGIN DEST \
+  --depart-date YYYY-MM-DD \
+  --limit 20
 ```
 
-Rank multiple itinerary candidates:
+These probes are narrower evidence than the assembled report. Label the scope when using them in an answer.
+
+## Route Assemble and Rank
+
+The CLI still supports offline assembly/ranking for normalized segment-result JSON:
 
 ```bash
-flights --json route rank --profile safe --input candidates.json
-flights --json route rank --profile cheap --input candidates.json
+python3 -m flights_cli --json route assemble --profile balanced --input segment-results.json
+python3 -m flights_cli --json route rank --profile balanced --input candidates.json
 ```
 
-Prepare or collect normalized segment-result JSON from live search/assembly outputs before using standalone assembly.
+Use these for maintenance, fixtures, and controlled diagnostics. They are not the default answer path for live user requests.
 
-Assemble normalized segment offers into ranked itinerary candidates:
+## Provider Policy
 
-```bash
-flights --json route assemble --profile safe \
-  --input svx-ist.parsed.json \
-  --input ist-lhr.parsed.json \
-  --input lhr-ist.parsed.json \
-  --input ist-svx.parsed.json
-```
+`route live-assemble` chooses a live source mix through `--provider-policy`:
 
-`route assemble` also reports `rejected_pairs` for skipped airport combinations
-such as IST/SAW airport changes. Same-airport timing problems, including
-negative time order or too-short self-transfers, remain assembled candidates and
-are marked `ok=false` by the ranker. Use `--include-rejected-pairs N` to control
-how many diagnostics are returned. `--max-candidates` caps ranked output after
-scoring; `--candidate-pool-limit` controls the raw pool scored before that cap.
-Use `--include-ranked-candidates N` when you need full itinerary bodies for the
-top ranked results. Direct segment results (`direct_outbound`, `direct_return`)
-can be combined with hub-assembled journeys, so a round trip may be `SVX→IST→MUC`
-outbound and `MUC→SVX` direct on return.
+- `auto`: let the CLI choose the current source mix by segment.
+- `kupibilet`, `fli`, `both`: explicit diagnostic or comparison modes.
 
-Run live Kupibilet direct-only segment searches through hubs, then assemble the
-same normalized candidates in one command:
+When provider failures occur, read `provider_failures` and `source_boundaries` from `data.agent_report` before answering.
 
-```bash
-flights --json route kb-assemble SVX CDG \
-  --depart-date 2026-08-15 \
-  --return-date 2026-08-19 \
-  --hub AYT --hub IST \
-  --segment-limit 30 \
-  --include-ranked-candidates 10
-```
+## Price and Purchase Caveats
 
-For agents, use the compact preset:
-
-```bash
-flights --json route live-assemble SVX DEL \
-  --depart-date 2026-06-01 \
-  --profile business \
-  --agent-brief \
-  --aggregate-control-carrier SU
-```
-
-`--agent-brief` emits only `data.agent_report`: answer lines, recommended
-options, priority representatives such as all-SU/SVO controls even when they
-rank lower, through-fare checks, source boundaries, and minimal diagnostics.
-Use `--agent-mode` instead when you need the compact report plus full debug JSON.
-The report is fail-fast validated against the packaged `agent_report.v1` JSON
-Schema contract before it is emitted.
-Carrier controls such as
-`--aggregate-control-carrier SU` are for through-fare blind spots: a same-carrier
-multi-leg aggregate offer can indicate an airline/GDS single-PNR fare that
-direct-segment assembly cannot price.
-`--agent-brief` runs a small non-direct full-route aggregate control by default
-so provider-assembled one-PNR-like offers are visible when segment assembly only
-sees direct legs. It fetches enough cheap aggregate offers to survive
-stop-policy filtering, but the report still shows only the compact frontier.
-Passing `--aggregate-control-carrier` switches that compact control to the
-requested carrier, e.g. `SU`.
-
-`route kb-assemble` is intentionally live: it calls Kupibilet `frontend_search`
-for direct controls plus `origin→hub`, `hub→destination`, `destination→hub`, and
-`hub→origin` direct segments, including default second-leg day offsets
-(`outbound: 0,1`; `return: 0,1,2`) so overnight hub departures are not missed.
-Repeated Kupibilet segment probes are stored in a short-lived live cache
-(`--live-cache-ttl-seconds`, default 6 hours; `--no-live-cache` to bypass). It
-also keeps a separate official SVX direct-route index cache
-(`--direct-route-index-ttl-seconds`, default 7 days;
-`--no-direct-route-intel` to bypass). This index is only a negative filter:
-routes absent from the official seasonal schedule are skipped, routes present
-there still go through live date-specific search. It still returns advisory
-aggregator data; final fare, seat availability, baggage, and protected-ticketing
-status must be rechecked on the booking screen. Its JSON includes
-`live_search.hub_viability`, which shows which hubs have offers for every
-required leg and which hubs are incomplete, and
-`live_search.direct_route_intelligence`, which reports whether the official
-route index was used.
-
-For one-off Kupibilet probes, `kb-search` uses the same cache controls:
-`--cache-ttl-seconds` and `--no-cache`.
-
-Run a one-off FLI MCP search through a self-hosted MCP server:
-
-```bash
-export FLIGHTS_FLI_MCP_URL=http://127.0.0.1:8000/mcp
-
-flights --json fli-search IST LHR \
-  --depart-date 2026-08-15 \
-  --direct-only \
-  --only-carrier TK
-
-flights --json fli-dates IST LHR \
-  --from-date 2026-08-01 \
-  --to-date 2026-08-31 \
-  --direct-only \
-  --sort-by-price
-```
-
-FLI MCP is a self-hosted wrapper around the `flights` PyPI package's MCP
-server, not an official Google Flights public API. Run it near the agent, for
-example as a Docker sidecar on the VPS:
-
-```bash
-pipx install "flights[mcp]"
-FLI_MCP_DEFAULT_CURRENCY=RUB fli-mcp-http
-```
-
-The default HTTP endpoint is `http://127.0.0.1:8000/mcp`; override it with
-`FLIGHTS_FLI_MCP_URL` or `--mcp-url`.
-
-Use provider-policy assembly when a route mixes Russia-touching and global
-segments:
-
-```bash
-flights --json route live-assemble SVX LHR \
-  --depart-date 2026-08-15 \
-  --return-date 2026-08-20 \
-  --profile business \
-  --include-ranked-candidates 10
-```
-
-`route live-assemble --provider-policy auto` uses Kupibilet for any segment
-where either endpoint is in Russia, and FLI MCP for non-Russia segments such as
-`IST→LHR`. `--provider-policy kupibilet`, `fli`, or `both` are available for
-diagnostics. The old `route kb-assemble` remains Kupibilet-only.
-
-Select carriers explicitly while ranking or assembling:
-
-```bash
-flights --json route assemble --profile safe \
-  --input svx-ist.parsed.json \
-  --input ist-lhr.parsed.json \
-  --only-carrier SU --only-carrier TK
-
-flights --json route rank --profile balanced --input candidates.json \
-  --prefer-carrier TK --avoid-carrier DP
-```
-
-Carrier selection flags:
-
-- `--only-carrier CODE`: hard filter; every segment must use one of the selected carriers.
-- `--exclude-carrier CODE`: hard filter; remove candidates using that carrier.
-- `--prefer-carrier CODE`: soft preference; demote candidates that do not use a selected carrier.
-- `--avoid-carrier CODE`: soft preference; penalize candidates using that carrier.
-- `--include-filtered N`: include carrier-filtered diagnostics in JSON.
-
-Travelpayouts price-search APIs are retired from the normal CLI path. Use `route live-assemble`, `kb-search`, `fli-search`, or `fli-dates` for route/search work.
-
-Workflow metrics:
-
-```bash
-flights --json metrics workflow SVX LON \
-  --depart-date 2026-07-19 \
-  --return-date 2026-07-23
-```
-
-## What It Automates
-
-- Expands multi-airport cities such as LON into LHR/LGW/STN/LTN.
-- Expands Beijing `BJS` into PEK/PKX and Paris `PAR` into CDG/ORY to avoid
-  broad city-code searches that are too noisy or incomplete.
-- Downloads no-token static Travelpayouts catalog files with manifest metadata
-  (`downloaded_at`, `url`, `count`, `sha256`, `schema_version`).
-- Uses `ru-priority` routing by default for Russia-origin searches and keeps the
-  broader built-in hub list available through `--routing-strategy hub-list`.
-- Caches repeated Kupibilet live segment probes for a short TTL, including empty
-  direct-control results.
-- Uses the official SVX seasonal schedule as a cached negative filter before
-  wasting live direct-control probes on routes such as SVX→MUC when no direct
-  route exists.
-- Filters provider offers with 3+ stops or in-path airport changes before they
-  reach ranked/model-facing output.
-- Keeps IST and SAW separate in segment assembly diagnostics.
-- Keeps SVO, DME, and VKO separate for Moscow routing.
-- Keeps Travelpayouts limited to static reference catalogs; retired price-search
-  provider stubs fail closed and are not registered as normal commands.
-- Assembles compatible segment offers into outbound/return journeys.
-- Can run Kupibilet direct-only segment searches through hubs and assemble those
-  live normalized offers via `route kb-assemble`.
-- Can run provider-policy live assembly via `route live-assemble`: Kupibilet for
-  Russia-touching segments and FLI MCP for global non-Russia segments.
-- Can emit `agent_report` for lite agents, including answer lines, top option
-  segments, priority options, hub viability, aggregate controls, through-fare
-  checks, and source boundaries.
-- Scores connection risk and internal transfer metadata, then ranks candidates
-  by profile after scoring a raw candidate pool.
-- Supports explicit carrier selection and carrier preferences for ranked
-  candidates.
-- Computes deterministic workflow metrics so the manual work can be compared
-  with the CLI-assisted path.
-
-## Risk Profiles
-
-Profiles change ranking, not the underlying safety checks.
-
-| Profile | Rank order | Use when |
-|---|---|---|
-| `safe` | reject → risk → elapsed → price | best connection quality matters most |
-| `balanced` | reject → risk → price → elapsed | default tradeoff |
-| `cheap` | reject → price → risk → elapsed | price matters, but unsafe transfers still sink |
-| `business` | reject → risk → elapsed → price | predictable same-airport travel matters |
-
-Risk grades:
-
-- `excellent`: 0-20
-- `good`: 21-40
-- `risky`: 41-70
-- `reject`: 71-100
-
-`route validate` accepts one itinerary:
-
-```json
-{
-  "price": 92817,
-  "segments": [
-    {
-      "origin": "SVX",
-      "destination": "IST",
-      "departure_at": "2026-07-19T10:30:00",
-      "arrival_at": "2026-07-19T13:55:00",
-      "carrier": "SU"
-    },
-    {
-      "origin": "IST",
-      "destination": "LHR",
-      "departure_at": "2026-07-19T20:25:00",
-      "arrival_at": "2026-07-19T22:25:00",
-      "carrier": "TK"
-    }
-  ]
-}
-```
-
-`route rank` accepts either a JSON list or an object with `itineraries` or
-`candidates`. Each candidate may include `id`, `price`, `currency`, `ticketing`,
-and `segments`.
-
-Both `route rank` and `route assemble` return `carrier_policy`. Hard carrier
-filters remove candidates from `ranked` and report examples under
-`carrier_policy.filtered`; soft preferences add carrier risk components and
-adjust `rank_key`.
-
-`route assemble` accepts normalized segment-result JSON from live search or
-assembly outputs. Each segment result has:
-
-```json
-{
-  "segment_result": {
-    "direction": "outbound",
-    "leg": "origin_to_hub",
-    "query": {"origin": "SVX", "destination": "IST", "date": "2026-07-19"},
-    "offers": []
-  }
-}
-```
-
-Assembly pairs:
-
-- outbound: `origin_to_hub` + `hub_to_destination`
-- return: `destination_to_hub` + `hub_to_origin`
-
-Pairs only assemble when the first offer arrival airport equals the second offer
-departure airport. Skipped airport-mismatch and cross-airport pairs are returned
-as `rejected_pairs` with `reason`, `airport_pair_status`, `arrival_airport`,
-`departure_airport`, `actual_min`, `required_min`, `risk`, and source offer
-summaries. Same-airport timing violations are assembled and then scored by the
-ranker as invalid candidates.
-
-
-## Non-goals
-
-- No booking or purchase.
-- No hidden writes outside the static catalog cache. Catalog-dependent commands
-  can automatically update `~/.hermes/plugins/travelpayouts-flights/cache`.
-- No Docker Hermes access from the CLI itself. FLI MCP may run as a separate
-  self-hosted Docker sidecar and is addressed through `FLIGHTS_FLI_MCP_URL`.
-- No Travelpayouts price/Data API network fetch in the normal CLI path. Static
-  catalog refresh is separate and requires no token.
-- `kb-search`, `fli-search`, `fli-dates`, `route kb-assemble`, and
-  `route live-assemble` are explicit live provider commands.
+Fares and availability are advisory until checked on the purchase screen. Through-fare, single-PNR, baggage, refund, and disruption-protection claims require explicit proof from `through_fare_checks` or the booking flow.
