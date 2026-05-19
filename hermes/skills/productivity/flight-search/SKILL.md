@@ -103,7 +103,7 @@ The CLI returns JSON failures on `stderr` with empty `stdout`:
 {"ok": false, "error": {"message": "...", "type": "..."}}
 ```
 
-- `missing_credentials`: only retired fail-closed price-search stubs can require `TRAVELPAYOUTS_TOKEN`; live assembly and static catalogs do not.
+- `missing_credentials`: current live assembly and static catalogs do not require `TRAVELPAYOUTS_TOKEN`; any retired price-search stub must return `error_type="disabled"` before credential checks or network I/O.
 - `validation_error`: bad IATA code, date format, route, flag, or a past departure/return date.
 - `upstream_error`: provider HTTP failure, timeout, or unexpected response.
 - `error`: generic fallback; read the message.
