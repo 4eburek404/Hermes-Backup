@@ -4,7 +4,7 @@ Use this playbook only to validate current live report behavior. Debugging shoul
 
 ## When To Debug
 
-Debug when the report is internally inconsistent, too sparse for the user's constraint, affected by provider failures, or surprising relative to geography, schedule logic, or airport continuity.
+Debug when the report is internally inconsistent, too sparse for the user's constraint, affected by provider failures, or surprising relative to geography, schedule logic, route family, or airport continuity.
 
 Common triggers:
 
@@ -13,32 +13,80 @@ Common triggers:
 - a city/airport mismatch is plausible;
 - a date may be outside provider horizon;
 - a risk profile may hide a physically possible option;
-- an overnight connection appears when the user prefers same-day travel.
+- an overnight connection appears when the user prefers same-day travel;
+- `priority_options` is missing for an explicitly requested carrier, hub, direct flight, or airport;
+- a cheapest, fastest, direct, carrier, or Moscow-control option is referenced without segment details.
 
-## Provenance First
+## Runtime Provenance
 
-Before interpreting results, record:
+Before declaring a provider root cause or patching behavior, prove which runtime is active:
 
-- repository path, branch, and HEAD if you are debugging source behavior;
-- CLI version and command line;
-- request normalization: dates, IATA/city, cabin, profile, passengers, and filters;
-- provider policy from the report;
+```bash
+command -v flights || true
+python3 -m flights_cli --version
+python3 - <<'PY'
+import flights_cli, pathlib
+print(pathlib.Path(flights_cli.__file__).resolve())
+PY
+python3 -m flights_cli route live-assemble --help
+```
+
+Record:
+
+- repository path, branch, and HEAD when debugging source behavior;
+- executable path when available;
+- imported `flights_cli.__file__`;
+- CLI version;
+- live `--help`;
+- source/runtime parity when the runtime skill tree matters;
+- request normalization: dates, IATA/city, cabin, profile, passengers, filters, provider policy, and stop policy;
 - whether the output came from `data.agent_report`.
 
-Use `doctor` only for environment readiness and degradation clues.
+Use only flags shown by the live `--help`. Temp editable checkouts under `/tmp` can shadow the permanent skill CLI; do not generalize traces until executable path, imported module path, package metadata, and source checkout are known.
 
-## Targeted Live Probes
+Use `doctor` for environment readiness and degradation clues, not as flight evidence.
 
-Start with the Golden Path report. If a specific uncertainty remains, run the narrowest live probe that answers it:
+## Targeted Absence Probes
+
+Start with the Golden Path report. If a specific uncertainty remains, run the narrowest live probe that answers it.
+
+Main report:
 
 ```bash
 python3 -m flights_cli --json route live-assemble ORIGIN DEST \
   --depart-date YYYY-MM-DD \
-  --profile balanced \
+  --profile PROFILE \
   --agent-brief
 ```
 
-Use `kb-search` or `fli-search` only as targeted probes after the main report, for example to test one segment, carrier, date, or airport interpretation. Label probe results as narrower evidence than the assembled report.
+Direct and carrier controls:
+
+```bash
+python3 -m flights_cli --json kb-search ORIGIN DEST \
+  --depart-date YYYY-MM-DD \
+  --direct-only \
+  --limit 20
+
+python3 -m flights_cli --json kb-search ORIGIN DEST \
+  --depart-date YYYY-MM-DD \
+  --only-carrier CARRIER \
+  --limit 20
+
+python3 -m flights_cli --json fli-search ORIGIN DEST \
+  --depart-date YYYY-MM-DD \
+  --direct-only \
+  --limit 20
+```
+
+Use these probe shapes as applicable:
+
+- exact-airport direct-only;
+- city-code direct-only when the CLI/provider supports city scope and the user did not name one airport;
+- alternate airport when the city has multiple airports and the user allows city-wide search;
+- carrier-specific direct or aggregate control for carrier questions;
+- nearby in-horizon control date to split horizon uncertainty from coverage gap.
+
+Label probe results as narrower evidence than the assembled report. Do not use targeted probes to replace the report's final ranking unless the report is demonstrably missing a decision-critical control.
 
 ## JSON Extraction
 
@@ -46,13 +94,13 @@ Read only the JSON payload for decisions. For command output that includes logs,
 
 Decision fields:
 
-- `display`
-- `answer_lines`
-- `recommended_options`
-- `priority_options`
-- `through_fare_checks`
-- `provider_failures`
-- `source_boundaries`
+- `display`;
+- `answer_lines`;
+- `recommended_options`;
+- `priority_options`;
+- `through_fare_checks`;
+- `provider_failures`;
+- `source_boundaries`.
 
 If parsing fails, report the parse layer and rerun with JSON-clean stdout/stderr settings before making a travel claim.
 
@@ -61,11 +109,13 @@ If parsing fails, report the parse layer and rerun with JSON-clean stdout/stderr
 Use internal fields to diagnose, not to overrule the report:
 
 - `segment_searches` for per-segment evidence and provider failures;
-- `coverage_diagnostics` for horizon/coverage splits;
+- `coverage_diagnostics` for horizon/coverage/control completeness;
 - `hub_viability` for connection feasibility;
 - `rejected_pair_warnings` for airport mismatch and connection filters;
 - `stop_policy` and diagnostics for constraint effects;
 - `omitted_counts` for truncation awareness.
+
+If preferred options are missing while segment evidence exists, inspect generation diagnostics. Do not compensate by increasing `candidate_pool_limit` in normal flow; fix the generation contract or reproduce with a focused synthetic case.
 
 ## Common Diagnostic Splits
 
@@ -79,4 +129,10 @@ If the recommended option has an overnight connection, test whether same-day opt
 
 ### Ranking Profile Bias vs Physical Possibility
 
-A safe or balanced profile can demote short, cross-airport, late-night, or baggage-risk options. When the user asks whether something is possible, distinguish physical possibility from operational recommendation and explain which profile or field caused the ranking.
+A safe, business, or balanced profile can demote short, cross-airport, late-night, low-confidence, or baggage-risk options. When the user asks whether something is possible, distinguish physical possibility from operational recommendation and explain which profile or field caused the ranking.
+
+## Debug Outcome
+
+If the compact report clipped a decision-critical cheapest, fastest, direct, carrier, or Moscow option, fix or file against the report contract. The durable rule is: compute recommendations and controls from the full ranked list, then retain full details for selected best/cheapest/fastest/direct/carrier/Moscow-control options.
+
+Old route-specific notes and dated audit logs are regression history, not runtime skill context. Distill durable rules into the contract, boundaries, maintenance reference, README, or tests; do not keep session artifacts in active references.
