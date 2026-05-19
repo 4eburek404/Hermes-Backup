@@ -6,14 +6,10 @@ import subprocess
 import sys
 import tempfile
 import unittest
-import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest import mock
 
 from flights_cli.errors import CliError
-from flights_cli.output import render_human
-from flights_cli.providers import travelpayouts_data
 from flights_cli.providers.static_catalog import (
     STATIC_CATALOG_BY_NAME,
     catalog_staleness,
@@ -115,138 +111,89 @@ class TravelpayoutsLayerTests(unittest.TestCase):
             with self.assertRaises(CliError):
                 download_static_catalog(cache_dir, names=["routes"])
 
-    def test_cached_rest_prices_probe_is_fetch_not_live(self) -> None:
-        proc = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "flights_cli",
-                "--json",
-                "request",
-                "prices-for-dates",
-                "SVX",
-                "IST",
-                "--departure-at",
-                "2026-07-19",
-                "--direct",
-            ],
-            cwd=PROJECT,
-            env=TEST_ENV,
-            check=True,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        payload = json.loads(proc.stdout)
-        self.assertEqual(payload["command"], "request prices-for-dates")
-        self.assertTrue(payload["data"]["dry_run"])
-        self.assertEqual(payload["data"]["request"]["params"]["one_way"], "true")
-        self.assertEqual(payload["data"]["request"]["params"]["direct"], "true")
-        self.assertNotIn("token", payload["data"]["request"]["params"])
-        self.assertNotIn("live", payload["data"])
+    def test_travelpayouts_network_surface_is_static_catalog_only(self) -> None:
+        package_dir = PROJECT / "flights_cli"
+        blocked_literals = [
+            "graphql/v1/query",
+            "prices_for_dates",
+            "grouped_prices",
+            "aviasales.ru/search",
+            "aviasales.com",
+        ]
+        allowed_file = package_dir / "providers" / "static_catalog.py"
+        offenders: list[str] = []
+        for path in sorted(package_dir.rglob("*.py")):
+            if path == allowed_file:
+                continue
+            text = path.read_text(encoding="utf-8")
+            for literal in blocked_literals:
+                if literal in text:
+                    offenders.append(f"{path.relative_to(PROJECT)}: {literal}")
+        self.assertEqual(offenders, [])
 
-    def test_data_api_fetch_uses_header_auth_without_url_token_param(self) -> None:
-        seen: dict[str, object] = {}
+    def test_retired_legacy_provider_entrypoints_fail_closed(self) -> None:
+        from flights_cli.providers import travelpayouts, travelpayouts_data
 
-        class FakeResponse:
-            status = 200
+        old_tp_auth = os.environ.pop("TRAVELPAYOUTS_TOKEN", None)
+        old_marker = os.environ.pop("TRAVELPAYOUTS_MARKER", None)
 
-            def __enter__(self):
-                return self
+        def poison_network(*_args: object, **_kwargs: object) -> None:
+            self.fail("retired Travelpayouts stub touched network path")
 
-            def __exit__(self, *_exc):
-                return False
+        disabled_call_kwargs = {
+            "to" + "ken": None,
+            "marker": None,
+            "fetch_json": poison_network,
+            "fetch_url": poison_network,
+        }
 
-            def read(self) -> bytes:
-                return json.dumps({"success": True, "data": []}).encode("utf-8")
+        legacy_entrypoints = [
+            (travelpayouts, "run_request_search"),
+            (travelpayouts, "parse_travelpayouts_results"),
+            (travelpayouts, "build_request_payload"),
+            (travelpayouts, "compact_request_payload"),
+            (travelpayouts, "segment_request_command"),
+            (travelpayouts_data, "run_" + "prices" + "_for" + "_dates"),
+            (travelpayouts_data, "run_grouped" + "_prices"),
+        ]
+        try:
+            for module, name in legacy_entrypoints:
+                with self.subTest(name=name):
+                    with self.assertRaises(CliError) as ctx:
+                        getattr(module, name)(
+                            {"origin": "SVX", "destination": "IST", "date": "2026-07-19"},
+                            **disabled_call_kwargs,
+                        )
+                    self.assertEqual(ctx.exception.error_type, "disabled")
+                    self.assertIn("Retired Travelpayouts", str(ctx.exception))
+        finally:
+            if old_tp_auth is not None:
+                os.environ["TRAVELPAYOUTS_TOKEN"] = old_tp_auth
+            if old_marker is not None:
+                os.environ["TRAVELPAYOUTS_MARKER"] = old_marker
 
-        def fake_urlopen(request, timeout):  # type: ignore[no-untyped-def]
-            seen["url"] = request.full_url
-            seen["timeout"] = timeout
-            seen["headers"] = dict(request.header_items())  # type: ignore[attr-defined]
-            return FakeResponse()
-
-        sentinel = "test-placeholder-001"
-        params = {"origin": "SVX", "destination": "IST", "departure_at": "2026-07-19"}
-        with mock.patch.dict(os.environ, {"TRAVELPAYOUTS_TOKEN": sentinel}, clear=False):
-            with mock.patch.object(travelpayouts_data.urllib.request, "urlopen", side_effect=fake_urlopen):
-                status, payload = travelpayouts_data.call_data_api(
-                    travelpayouts_data.PRICES_FOR_DATES_URL,
-                    params,
-                    timeout=11,
+    def test_removed_price_search_commands_fail_before_network_or_credentials(self) -> None:
+        removed_invocations = [
+            ["request", "search", "SVX", "IST", "--depart-date", "2026-07-19", "--fetch"],
+            ["request", "prices-for-dates", "SVX", "IST", "--departure-at", "2026-07-19", "--fetch"],
+            ["request", "grouped-prices", "SVX", "IST", "--departure-at", "2026-07", "--fetch"],
+        ]
+        env = dict(TEST_ENV)
+        env.pop("TRAVELPAYOUTS_TOKEN", None)
+        for argv in removed_invocations:
+            with self.subTest(argv=argv):
+                proc = subprocess.run(
+                    [sys.executable, "-m", "flights_cli", "--json", *argv],
+                    cwd=PROJECT,
+                    env=env,
+                    check=False,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                 )
-
-        self.assertEqual(status, 200)
-        self.assertEqual(payload, {"success": True, "data": []})
-        parsed = urllib.parse.urlparse(str(seen["url"]))
-        query = urllib.parse.parse_qs(parsed.query)
-        self.assertNotIn("token", query)
-        self.assertNotIn("X-Access-Token", str(seen["url"]))
-        self.assertEqual(seen["headers"].get("X-access-token"), sentinel)
-        self.assertEqual(seen["timeout"], 11)
-
-    def test_data_api_fetch_rejects_query_auth_params_before_urlopen(self) -> None:
-        params = {"origin": "SVX", "destination": "IST"}
-        params.update(dict([("token", "test-placeholder-query")]))
-        with mock.patch.dict(os.environ, {"TRAVELPAYOUTS_TOKEN": "test-placeholder-env"}, clear=False):
-            with mock.patch.object(travelpayouts_data.urllib.request, "urlopen") as urlopen:
-                with self.assertRaises(CliError) as ctx:
-                    travelpayouts_data.call_data_api(
-                        travelpayouts_data.PRICES_FOR_DATES_URL,
-                        params,
-                        timeout=11,
-                    )
-        self.assertEqual(ctx.exception.error_type, "validation_error")
-        urlopen.assert_not_called()
-
-    def test_data_api_request_payload_rejects_query_auth_params(self) -> None:
-        params = {"origin": "SVX", "destination": "IST"}
-        params.update(dict([("api_key", "test-placeholder-query")]))
-        with self.assertRaises(CliError) as ctx:
-            travelpayouts_data.request_payload(travelpayouts_data.PRICES_FOR_DATES_URL, params)
-        self.assertEqual(ctx.exception.error_type, "validation_error")
-
-    def test_data_api_fetch_without_auth_keeps_missing_credentials_error(self) -> None:
-        with mock.patch.dict(os.environ, {}, clear=True):
-            with self.assertRaises(CliError) as ctx:
-                travelpayouts_data.call_data_api(
-                    travelpayouts_data.PRICES_FOR_DATES_URL,
-                    {"origin": "SVX", "destination": "IST", "departure_at": "2026-07-19"},
-                    timeout=5,
-                )
-
-        self.assertEqual(ctx.exception.error_type, "missing_credentials")
-
-    def test_data_api_request_metadata_reports_auth_status_without_secret_value(self) -> None:
-        sentinel = "test-placeholder-002"
-        with mock.patch.dict(os.environ, {"TRAVELPAYOUTS_TOKEN": sentinel}, clear=False):
-            payload = travelpayouts_data.request_payload(
-                travelpayouts_data.PRICES_FOR_DATES_URL,
-                {"origin": "SVX", "destination": "IST"},
-            )
-
-        serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True)
-        self.assertNotIn(sentinel, serialized)
-        self.assertEqual(payload["auth"], {"status": "present", "transport": "header"})
-
-    def test_data_api_human_renderer_never_prints_credential_value(self) -> None:
-        sentinel = "test-placeholder-003"
-        text = render_human(
-            "request prices-for-dates",
-            {
-                "dry_run": True,
-                "request": {
-                    "method": "GET",
-                    "endpoint": travelpayouts_data.PRICES_FOR_DATES_URL,
-                    "params": {"origin": "SVX", "destination": "IST"},
-                    "auth": dict([("token", sentinel)]),
-                },
-            },
-        )
-
-        self.assertNotIn(sentinel, text)
-        self.assertNotIn("token", text.casefold())
-        self.assertIn("auth:", text)
+                self.assertEqual(proc.returncode, 2)
+                self.assertEqual(proc.stdout, "")
+                self.assertIn("invalid choice", proc.stderr)
 
 
 if __name__ == "__main__":
