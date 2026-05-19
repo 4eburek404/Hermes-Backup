@@ -19,7 +19,6 @@ from ..domain.airports import airport_pair_risk, explicit_or_resolved_airports, 
 from ..domain.normalize import normalize_carrier_code, normalize_profile, parse_iso_date
 from ..errors import CliError
 from ..adapters.providers.registry import providers_for_segment
-from ..providers.travelpayouts import aviasales_url
 from ..services.validation import connection_rule
 from ..store import Store
 from .route_graph import (
@@ -461,7 +460,6 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         "segment_queries_to_prepare": len(segments),
         "airport_pair_risk_checks": len(segments),
         "route_family_compatibility_checks": len(hubs) * (2 if ret else 1),
-        "manual_direct_links": len(origin_airports) * len(destination_airports),
     }
     cli_ops = {
         "route_plan_commands": 1,
@@ -470,15 +468,6 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         "airport_rules_embedded": True,
     }
 
-    direct_links = [
-        {
-            "origin": origin_code,
-            "destination": dest_code,
-            "url": aviasales_url(origin_code, dest_code, depart, ret),
-        }
-        for origin_code in origin_airports
-        for dest_code in destination_airports
-    ]
     coverage_controls = coverage_controls_for_plan(
         coverage_mode=route_context.coverage_mode,
         origin_code=str(origin.code).upper(),
@@ -534,7 +523,6 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         },
         "segments": segments,
         "itinerary_families": itinerary_families,
-        "manual_links": {"aviasales": direct_links},
         "warnings": warnings,
         "metrics": {
             "without_cli": manual_ops,
@@ -548,7 +536,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
             "profile_rank_order": RISK_PROFILES[profile]["rank_order"],
             "notes": [
                 "Metrics are deterministic planning operations, not network fetch latency.",
-                "The CLI does not call Travelpayouts cached price APIs during route plan.",
+                "The CLI does not call retired Travelpayouts price APIs during route plan.",
             ],
         },
     }
