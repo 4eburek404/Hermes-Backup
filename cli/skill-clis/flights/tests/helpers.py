@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 PROJECT = Path(__file__).resolve().parents[1]
-TEST_ENV = {"PYTHONPATH": str(PROJECT), "FLIGHTS_CATALOG_REFRESH": "never"}
+TEST_ENV = {"PYTHONPATH": str(PROJECT), "FLIGHTS_CATALOG_REFRESH": "never", "PYTHONDONTWRITEBYTECODE": "1"}
 
 
 class CliSubprocessMixin:

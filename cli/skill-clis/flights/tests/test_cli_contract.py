@@ -10,11 +10,29 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from jsonschema import Draft202012Validator
+
 from flights_cli.cli import apply_agent_brief_output, apply_agent_mode_defaults, build_parser, normalize_global_json
 from flights_cli.config import DEFAULT_ROUTE_HUBS
 from flights_cli.env import load_env_file
 
 from helpers import PROJECT, TEST_ENV
+
+
+def load_doctor_envelope_schema() -> dict:
+    schema_rel = (
+        Path("hermes")
+        / "skills"
+        / "software-development"
+        / "skill-audit-and-improvement"
+        / "schemas"
+        / "cli-doctor-envelope.v1.schema.json"
+    )
+    for base in (PROJECT, *PROJECT.parents):
+        candidate = base / schema_rel
+        if candidate.exists():
+            return json.loads(candidate.read_text(encoding="utf-8"))
+    raise AssertionError(f"doctor envelope schema not found from {PROJECT}")
 
 
 class CliContractTests(unittest.TestCase):
@@ -95,6 +113,9 @@ class CliContractTests(unittest.TestCase):
             stderr=subprocess.PIPE,
         )
         payload = json.loads(proc.stdout)
+        doctor_schema = load_doctor_envelope_schema()
+        Draft202012Validator.check_schema(doctor_schema)
+        Draft202012Validator(doctor_schema).validate(payload)
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["command"], "doctor")
         self.assertIn("cache_counts", payload["data"])

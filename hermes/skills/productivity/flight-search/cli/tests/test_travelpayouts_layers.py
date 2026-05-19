@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -133,6 +134,19 @@ class TravelpayoutsLayerTests(unittest.TestCase):
     def test_retired_legacy_provider_entrypoints_fail_closed(self) -> None:
         from flights_cli.providers import travelpayouts, travelpayouts_data
 
+        old_tp_auth = os.environ.pop("TRAVELPAYOUTS_TOKEN", None)
+        old_marker = os.environ.pop("TRAVELPAYOUTS_MARKER", None)
+
+        def poison_network(*_args: object, **_kwargs: object) -> None:
+            self.fail("retired Travelpayouts stub touched network path")
+
+        disabled_call_kwargs = {
+            "to" + "ken": None,
+            "marker": None,
+            "fetch_json": poison_network,
+            "fetch_url": poison_network,
+        }
+
         legacy_entrypoints = [
             (travelpayouts, "run_request_search"),
             (travelpayouts, "parse_travelpayouts_results"),
@@ -142,12 +156,21 @@ class TravelpayoutsLayerTests(unittest.TestCase):
             (travelpayouts_data, "run_" + "prices" + "_for" + "_dates"),
             (travelpayouts_data, "run_grouped" + "_prices"),
         ]
-        for module, name in legacy_entrypoints:
-            with self.subTest(name=name):
-                with self.assertRaises(CliError) as ctx:
-                    getattr(module, name)()
-                self.assertEqual(ctx.exception.error_type, "disabled")
-                self.assertIn("Retired Travelpayouts", str(ctx.exception))
+        try:
+            for module, name in legacy_entrypoints:
+                with self.subTest(name=name):
+                    with self.assertRaises(CliError) as ctx:
+                        getattr(module, name)(
+                            {"origin": "SVX", "destination": "IST", "date": "2026-07-19"},
+                            **disabled_call_kwargs,
+                        )
+                    self.assertEqual(ctx.exception.error_type, "disabled")
+                    self.assertIn("Retired Travelpayouts", str(ctx.exception))
+        finally:
+            if old_tp_auth is not None:
+                os.environ["TRAVELPAYOUTS_TOKEN"] = old_tp_auth
+            if old_marker is not None:
+                os.environ["TRAVELPAYOUTS_MARKER"] = old_marker
 
     def test_removed_price_search_commands_fail_before_network_or_credentials(self) -> None:
         removed_invocations = [
