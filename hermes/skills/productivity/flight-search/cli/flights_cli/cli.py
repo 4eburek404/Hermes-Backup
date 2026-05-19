@@ -18,10 +18,6 @@ from .commands.providers import (
     command_fli_dates,
     command_fli_search,
     command_kb_search,
-    command_request_grouped_prices,
-    command_request_prices_for_dates,
-    command_request_search,
-    command_results_parse,
 )
 from .commands.route import command_route_assemble, command_route_kb_assemble, command_route_live_assemble, command_route_plan, command_route_rank, command_route_validate
 from .config import (
@@ -345,71 +341,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     route_live_assemble.add_argument("--fli-mcp-url", default=os.getenv("FLIGHTS_FLI_MCP_URL", FLI_MCP_DEFAULT_URL), help="FLI MCP HTTP URL for provider-policy fli/both/auto.")
     route_live_assemble.set_defaults(func=command_route_live_assemble, command_name="route live-assemble", requires_catalog=True)
-
-    results = sub.add_parser("results", help="Parse provider results into normalized segment offers.")
-    results_sub = results.add_subparsers(dest="results_command", required=True)
-    results_parse = results_sub.add_parser("parse", help="Parse a legacy Travelpayouts GraphQL response or request-search cached fetch envelope.")
-    results_parse.add_argument("--input", default="-", help="Raw response JSON or flights request-search envelope.")
-    results_parse.add_argument("--direction", choices=["outbound", "return"], default="outbound")
-    results_parse.add_argument(
-        "--leg",
-        choices=["direct_outbound", "direct_return", "origin_to_hub", "hub_to_destination", "destination_to_hub", "hub_to_origin", "segment"],
-        default="segment",
-    )
-    results_parse.add_argument("--origin", help="Query origin IATA override.")
-    results_parse.add_argument("--destination", help="Query destination IATA override.")
-    results_parse.add_argument("--date", help="Query date YYYY-MM-DD override.")
-    results_parse.add_argument("--currency", help="Currency override.")
-    results_parse.add_argument("--limit", type=int, default=20)
-    results_parse.set_defaults(func=command_results_parse, command_name="results parse")
-
-    request = sub.add_parser("request", help="Legacy Travelpayouts cached-price request builder/read-only debug escape hatch.")
-    request_sub = request.add_subparsers(dest="request_command", required=True)
-    request_search = request_sub.add_parser("search", help="Build or run one legacy Travelpayouts cached GraphQL probe.")
-    request_search.add_argument("origin")
-    request_search.add_argument("destination")
-    request_search.add_argument("--depart-date", required=True)
-    request_search.add_argument("--return-date")
-    request_search.add_argument("--currency", default=DEFAULT_CURRENCY)
-    request_search.add_argument("--direct-only", action="store_true")
-    request_search.add_argument("--dry-run", action="store_true", help="Default behavior; included for explicitness.")
-    request_search.add_argument("--fetch", action="store_true", help="Fetch Travelpayouts cached Data API using TRAVELPAYOUTS_TOKEN.")
-    request_search.add_argument("--timeout", type=int, default=20)
-    request_search.set_defaults(func=command_request_search, command_name="request search")
-
-    request_prices = request_sub.add_parser("prices-for-dates", help="Build or run a legacy Travelpayouts REST v3 prices_for_dates cached-price probe.")
-    request_prices.add_argument("origin")
-    request_prices.add_argument("destination")
-    request_prices.add_argument("--departure-at", required=True, help="Departure date or month: YYYY-MM or YYYY-MM-DD.")
-    request_prices.add_argument("--return-at", help="Return date or month: YYYY-MM or YYYY-MM-DD.")
-    request_prices.add_argument("--one-way", action="store_true", help="Force one-way search; default when --return-at is omitted.")
-    request_prices.add_argument("--direct", action="store_true", help="Only direct cached prices.")
-    request_prices.add_argument("--market", default="ru")
-    request_prices.add_argument("--currency", default=DEFAULT_CURRENCY)
-    request_prices.add_argument("--limit", type=int, default=30)
-    request_prices.add_argument("--page", type=int, default=1)
-    request_prices.add_argument("--sorting", choices=["price", "route"], default="price")
-    request_prices.add_argument("--unique", action="store_true")
-    request_prices.add_argument("--dry-run", action="store_true", help="Default behavior; included for explicitness.")
-    request_prices.add_argument("--fetch", action="store_true", help="Fetch Travelpayouts cached Data API using TRAVELPAYOUTS_TOKEN.")
-    request_prices.add_argument("--timeout", type=int, default=20)
-    request_prices.set_defaults(func=command_request_prices_for_dates, command_name="request prices-for-dates")
-
-    request_grouped = request_sub.add_parser("grouped-prices", help="Build or run a legacy Travelpayouts REST v3 grouped_prices cached calendar probe.")
-    request_grouped.add_argument("origin")
-    request_grouped.add_argument("destination")
-    request_grouped.add_argument("--departure-at", required=True, help="Departure date or month: YYYY-MM or YYYY-MM-DD.")
-    request_grouped.add_argument("--return-at", help="Return date or month: YYYY-MM or YYYY-MM-DD.")
-    request_grouped.add_argument("--group-by", choices=["departure_at", "month"], default="departure_at")
-    request_grouped.add_argument("--direct", action="store_true", help="Only direct cached prices.")
-    request_grouped.add_argument("--market", default="ru")
-    request_grouped.add_argument("--currency", default=DEFAULT_CURRENCY)
-    request_grouped.add_argument("--min-trip-duration", type=int)
-    request_grouped.add_argument("--max-trip-duration", type=int)
-    request_grouped.add_argument("--dry-run", action="store_true", help="Default behavior; included for explicitness.")
-    request_grouped.add_argument("--fetch", action="store_true", help="Fetch Travelpayouts cached Data API using TRAVELPAYOUTS_TOKEN.")
-    request_grouped.add_argument("--timeout", type=int, default=20)
-    request_grouped.set_defaults(func=command_request_grouped_prices, command_name="request grouped-prices")
 
     metrics = sub.add_parser("metrics", help="Workflow metrics commands.")
     metrics_sub = metrics.add_subparsers(dest="metrics_command", required=True)
