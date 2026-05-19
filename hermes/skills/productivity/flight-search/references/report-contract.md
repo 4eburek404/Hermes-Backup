@@ -67,3 +67,12 @@ Use this order:
 
 Never present summed separate-segment prices as confirmed airline/GDS through fares.
 Never present `candidate_pool_limit` changes as a normal answer-quality strategy; missing preferred options are a CLI generation bug, not a reason to ask the user for a larger pool.
+
+## Final Caveat Discipline
+
+- Caveats must be decision-useful.
+- Do not automatically print `source_boundaries`.
+- Use provider-boundary caveats only when they change the user's decision or explain degraded evidence.
+- For structural absence, say direct service is not available in normal booking channels, then move to connecting options.
+- For ordinary provider/horizon uncertainty, say what targeted probe would reduce uncertainty.
+- Do not answer with tool diagnosis when the user needs an itinerary recommendation.
