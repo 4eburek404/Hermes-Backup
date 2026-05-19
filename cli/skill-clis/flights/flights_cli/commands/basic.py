@@ -34,7 +34,6 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         "version": __version__,
         "python": sys.executable,
         "offline_first": True,
-        "cached_fetch_default": False,
         "hermes_plugin_path": str(PLUGIN_PATH),
         "hermes_plugin_exists": PLUGIN_PATH.exists(),
         "cache_dir": str(store.cache_dir),
@@ -66,7 +65,9 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         "safety": {
             "booking_or_purchase": False,
             "docker_touched": False,
-            "travelpayouts_cached_fetch_requires": "request ... --fetch",
+            "travelpayouts_usage": "static_catalog_only",
+            "travelpayouts_price_search_enabled": False,
+            "legacy_debug_commands": [],
             "live_provider_commands": ["kb-search", "fli-search", "fli-dates", "u6-prices", "route kb-assemble", "route live-assemble"],
         },
         "risk_profiles": {

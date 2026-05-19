@@ -104,7 +104,7 @@ def parse_u6_calendar(
             "stats": {"min": None, "max": None, "avg": None},
             "results": [],
             "cross_check_commands": [
-                f"flights request search {origin} {destination} --depart-date {selected_date or 'YYYY-MM-DD'}",
+                f"flights fli-search {origin} {destination} --depart-date {selected_date or 'YYYY-MM-DD'}",
                 f"flights kb-search {origin} {destination} --depart-date {selected_date or 'YYYY-MM-DD'} --only-carrier U6",
             ],
             "note": "U6 price calendar returned no data for this route. Cross-check with aggregators.",
@@ -163,7 +163,7 @@ def parse_u6_calendar(
         },
         "results": results,
         "cross_check_commands": [
-            f"flights request search {origin} {destination} --depart-date {selected_date or 'YYYY-MM-DD'}",
+            f"flights fli-search {origin} {destination} --depart-date {selected_date or 'YYYY-MM-DD'}",
             f"flights kb-search {origin} {destination} --depart-date {selected_date or 'YYYY-MM-DD'} --only-carrier U6",
         ],
         "note": "Minimum one-way fares from Ural Airlines (U6) official calendar. For flight details use aggregators.",

@@ -21,7 +21,6 @@ from ..domain.airports import airport_pair_risk, explicit_or_resolved_airports, 
 from ..domain.hubs import resolve_route_hubs, resolve_routing_strategy
 from ..domain.normalize import normalize_profile, parse_iso_date
 from ..errors import CliError
-from ..providers.travelpayouts import aviasales_url, build_request_payload, compact_request_payload, segment_request_command
 from ..services.validation import connection_rule
 from ..store import Store
 
@@ -32,6 +31,33 @@ def geo_routing_profile(destination: Any, destination_airports: list[str]) -> st
     if country in ASIA_OCEANIA_COUNTRIES or codes & ASIA_DESTINATION_CODES:
         return "asia-oceania"
     return "default"
+
+
+def segment_live_search_command(
+    origin: str,
+    destination: str,
+    dep_date: date,
+    *,
+    currency: str,
+    direct_only: bool,
+    only_carriers: list[str] | None = None,
+) -> str:
+    parts = [
+        "flights",
+        "--json",
+        "kb-search",
+        origin,
+        destination,
+        "--depart-date",
+        dep_date.isoformat(),
+        "--currency",
+        currency,
+    ]
+    if direct_only:
+        parts.append("--direct-only")
+    for carrier in only_carriers or []:
+        parts.extend(["--only-carrier", carrier])
+    return " ".join(parts)
 
 def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     depart = parse_iso_date(args.depart_date, "depart-date")
@@ -71,9 +97,9 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     elif hub_source == "default":
         warnings.append("Using built-in hub list; pass --hub repeatedly to narrow the plan.")
     if destination.code == "LON":
-        warnings.append("LON often returns empty in Travelpayouts; use specific London airports.")
+        warnings.append("LON is a broad city code; use specific London airports.")
     if origin.code == "LON":
-        warnings.append("LON often returns empty in Travelpayouts; use specific London airports.")
+        warnings.append("LON is a broad city code; use specific London airports.")
     if hub_source == "manual" and any(hub in {"IST", "SAW"} for hub in hubs) and not {"IST", "SAW"}.issubset(set(hubs)):
         warnings.append("For Istanbul, query both IST and SAW when comparing hub options.")
     if "AYT" in hubs:
@@ -99,6 +125,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
             return
         seen.add(key)
         request_direct_only = args.direct_only if direct_only is None else direct_only
+        only_carriers = extra.get("only_carriers") if isinstance(extra.get("only_carriers"), list) else None
         segments.append(
             {
                 "direction": direction,
@@ -107,15 +134,13 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                 "destination": dest_code,
                 "date": dep_date.isoformat(),
                 "airport_pair_risk": airport_pair_risk(origin_code, dest_code),
-                "request": compact_request_payload(
-                    build_request_payload(origin_code, dest_code, dep_date, None, currency, request_direct_only)
-                ),
-                "command": segment_request_command(
+                "command": segment_live_search_command(
                     origin_code,
                     dest_code,
                     dep_date,
                     currency=currency,
                     direct_only=request_direct_only,
+                    only_carriers=only_carriers,
                 ),
                 **extra,
             }
@@ -444,7 +469,6 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         "segment_queries_to_prepare": len(segments),
         "airport_pair_risk_checks": len(segments),
         "route_family_compatibility_checks": len(hubs) * (2 if ret else 1),
-        "manual_aviasales_links": len(origin_airports) * len(destination_airports),
     }
     cli_ops = {
         "route_plan_commands": 1,
@@ -453,15 +477,6 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         "airport_rules_embedded": True,
     }
 
-    direct_links = [
-        {
-            "origin": origin_code,
-            "destination": dest_code,
-            "url": aviasales_url(origin_code, dest_code, depart, ret),
-        }
-        for origin_code in origin_airports
-        for dest_code in destination_airports
-    ]
 
     return {
         "origin": origin.to_dict(),
@@ -482,7 +497,6 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         },
         "segments": segments,
         "itinerary_families": itinerary_families,
-        "manual_links": {"aviasales": direct_links},
         "warnings": warnings,
         "metrics": {
             "without_cli": manual_ops,

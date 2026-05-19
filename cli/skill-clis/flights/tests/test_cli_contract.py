@@ -10,11 +10,29 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from jsonschema import Draft202012Validator
+
 from flights_cli.cli import apply_agent_brief_output, apply_agent_mode_defaults, build_parser, normalize_global_json
 from flights_cli.config import DEFAULT_ROUTE_HUBS
 from flights_cli.env import load_env_file
 
 from helpers import PROJECT, TEST_ENV
+
+
+def load_doctor_envelope_schema() -> dict:
+    schema_rel = (
+        Path("hermes")
+        / "skills"
+        / "software-development"
+        / "skill-audit-and-improvement"
+        / "schemas"
+        / "cli-doctor-envelope.v1.schema.json"
+    )
+    for base in (PROJECT, *PROJECT.parents):
+        candidate = base / schema_rel
+        if candidate.exists():
+            return json.loads(candidate.read_text(encoding="utf-8"))
+    raise AssertionError(f"doctor envelope schema not found from {PROJECT}")
 
 
 class CliContractTests(unittest.TestCase):
@@ -41,6 +59,22 @@ class CliContractTests(unittest.TestCase):
 
         self.assertEqual(ctx.exception.code, 2)
         self.assertIn("invalid choice", stderr.getvalue())
+
+    def test_travelpayouts_price_search_commands_are_removed(self) -> None:
+        removed_commands = [
+            ["request", "search", "SVX", "IST", "--depart-date", "2026-07-19"],
+            ["request", "prices-for-dates", "SVX", "IST", "--departure-at", "2026-07-19"],
+            ["request", "grouped-prices", "SVX", "IST", "--departure-at", "2026-07"],
+            ["results", "parse", "--input", "tests/fixtures/svx-ist.raw.json"],
+        ]
+        parser = build_parser()
+        for argv in removed_commands:
+            with self.subTest(argv=argv):
+                stderr = io.StringIO()
+                with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as ctx:
+                    parser.parse_args(argv)
+                self.assertEqual(ctx.exception.code, 2)
+                self.assertIn("invalid choice", stderr.getvalue())
 
     def test_load_env_file_reads_hermes_dotenv_without_overriding(self) -> None:
         old_token = os.environ.pop("TRAVELPAYOUTS_TOKEN", None)
@@ -79,14 +113,22 @@ class CliContractTests(unittest.TestCase):
             stderr=subprocess.PIPE,
         )
         payload = json.loads(proc.stdout)
+        doctor_schema = load_doctor_envelope_schema()
+        Draft202012Validator.check_schema(doctor_schema)
+        Draft202012Validator(doctor_schema).validate(payload)
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["command"], "doctor")
         self.assertIn("cache_counts", payload["data"])
-        self.assertEqual(payload["data"]["safety"]["travelpayouts_cached_fetch_requires"], "request ... --fetch")
+        self.assertNotIn("cached_fetch_default", payload["data"])
+        self.assertEqual(payload["data"]["safety"]["travelpayouts_usage"], "static_catalog_only")
+        self.assertFalse(payload["data"]["safety"]["travelpayouts_price_search_enabled"])
+        self.assertNotIn("travelpayouts_cached_fetch_requires", payload["data"]["safety"])
         self.assertEqual(payload["data"]["safety"]["live_provider_commands"], ["kb-search", "fli-search", "fli-dates", "u6-prices", "route kb-assemble", "route live-assemble"])
+        self.assertEqual(payload["data"]["safety"].get("legacy_debug_commands"), [])
         self.assertNotIn("live_calls_require_flag", payload["data"]["safety"])
         self.assertEqual([item["code"] for item in payload["data"]["default_route_hubs"]], list(DEFAULT_ROUTE_HUBS))
         self.assertNotIn("routes", payload["data"]["cache_counts"])
+        self.assertEqual(payload["issues"], [])
 
         human_proc = subprocess.run(
             [sys.executable, "-m", "flights_cli", "doctor"],
@@ -97,7 +139,8 @@ class CliContractTests(unittest.TestCase):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        self.assertIn("Travelpayouts cached fetch: request ... --fetch", human_proc.stdout)
+        self.assertIn("Travelpayouts usage: static catalogs only", human_proc.stdout)
+        self.assertNotIn("cached fetch", human_proc.stdout)
         self.assertIn("provider live commands: kb-search, fli-search, fli-dates, u6-prices, route kb-assemble, route live-assemble", human_proc.stdout)
         self.assertIn("default hubs: IST, DXB, DOH", human_proc.stdout)
 
@@ -177,6 +220,10 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(data["metrics"]["segment_request_count"], 10)
         self.assertIn("warnings", data)
         self.assertNotIn("cache_age_minutes", data)
+        self.assertNotIn("manual_links", data)
+        self.assertNotIn("manual_aviasales_links", data["metrics"]["without_cli"])
+        self.assertTrue(all("request" not in segment for segment in data["segments"]))
+        self.assertTrue(all("request search" not in segment["command"] for segment in data["segments"]))
 
     def test_normalize_global_json_accepts_trailing_json(self) -> None:
         argv = ["flights", "route", "plan", "SVX", "LON", "--json"]

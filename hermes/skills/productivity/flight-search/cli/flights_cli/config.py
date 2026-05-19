@@ -14,8 +14,6 @@ ROUTE_INTEL_CACHE_DIR = CACHE_DIR / "route_intel"
 
 HERMES_ENV_PATH = Path.home() / ".hermes" / ".env"
 
-GRAPHQL_URL = "https://api.travelpayouts.com/graphql/v1/query"
-
 KUPIBILET_FRONTEND_SEARCH_URL = "https://api-rs-lb.kupibilet.ru/frontend_search"
 
 FLI_MCP_DEFAULT_URL = "http://127.0.0.1:8000/mcp"
@@ -160,113 +158,6 @@ IATA_RE = re.compile(r"^[A-Z]{3}$")
 CARRIER_RE = re.compile(r"^[A-Z0-9]{2,3}$")
 
 TRAVELPAYOUTS_ENV_KEYS = {"TRAVELPAYOUTS_TOKEN", "TRAVELPAYOUTS_MARKER"}
-
-GRAPHQL_ONE_WAY_QUERY = """
-query PricesOneWay(
-    $origin: String!,
-    $destination: String!,
-    $depart_dates: [Date!],
-    $direct: Boolean!,
-    $currency: String!
-) {
-    prices_one_way(
-        params: {
-            origin: $origin,
-            destination: $destination,
-            depart_dates: $depart_dates,
-            direct: $direct
-        },
-        paging: { limit: 30, offset: 0 },
-        sorting: VALUE_ASC,
-        grouping: NONE,
-        currency: $currency
-    ) {
-        departure_at
-        value
-        number_of_changes
-        main_airline
-        ticket_link
-        trip_duration
-        duration
-        segments {
-            departure_at
-            arrival_at
-            flight_legs {
-                origin
-                destination
-                flight_number
-                operating_carrier
-                aircraft_code
-                departure_at
-                arrival_at
-            }
-            transfers {
-                at
-                to
-                country_code
-                duration_seconds
-                night_transfer
-                visa_required
-            }
-        }
-    }
-}
-"""
-
-GRAPHQL_ROUND_TRIP_QUERY = """
-query PricesRoundTrip(
-    $origin: String!,
-    $destination: String!,
-    $depart_dates: [Date!],
-    $return_dates: [Date!]!,
-    $direct: Boolean!,
-    $currency: String!
-) {
-    prices_round_trip(
-        params: {
-            origin: $origin,
-            destination: $destination,
-            depart_dates: $depart_dates,
-            return_dates: $return_dates,
-            direct: $direct
-        },
-        paging: { limit: 30, offset: 0 },
-        sorting: VALUE_ASC,
-        grouping: NONE,
-        currency: $currency
-    ) {
-        departure_at
-        return_at
-        value
-        number_of_changes
-        main_airline
-        ticket_link
-        trip_duration
-        duration
-        segments {
-            departure_at
-            arrival_at
-            flight_legs {
-                origin
-                destination
-                flight_number
-                operating_carrier
-                aircraft_code
-                departure_at
-                arrival_at
-            }
-            transfers {
-                at
-                to
-                country_code
-                duration_seconds
-                night_transfer
-                visa_required
-            }
-        }
-    }
-}
-"""
 
 MULTI_AIRPORT_GROUPS: dict[str, dict[str, Any]] = {
     "istanbul": {

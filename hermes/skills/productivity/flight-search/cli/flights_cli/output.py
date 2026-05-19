@@ -6,7 +6,7 @@ from typing import Any
 from .errors import CliError
 
 def output_envelope(command: str, data: Any) -> dict[str, Any]:
-    return {"ok": True, "command": command, "data": data}
+    return {"ok": True, "command": command, "data": data, "issues": []}
 
 
 def error_envelope(exc: CliError) -> dict[str, Any]:
@@ -137,9 +137,8 @@ def render_human(command: str, data: Any) -> str:
                 f"catalog refresh: {policy['mode']} max_age={policy['max_age']} stale={staleness['stale_count']}/{staleness['checked_count']}",
                 f"default hubs: {', '.join(item['code'] for item in data.get('default_route_hubs', []))}",
                 f"Travelpayouts auth: {'present' if tp_auth['available'] else 'missing'}",
-                f"legacy Travelpayouts cached fetch: {data['safety']['travelpayouts_cached_fetch_requires']}",
+                "Travelpayouts usage: static catalogs only",
                 f"main live commands: {', '.join(data['safety']['live_provider_commands'])}",
-                f"legacy debug commands: {', '.join(data['safety']['legacy_debug_commands'])}",
             ]
         )
     if command == "catalog update":
@@ -271,52 +270,6 @@ def render_human(command: str, data: Any) -> str:
             lines.append(
                 f"{item['rank']}. {item['id']} risk={item['risk']['score']}:{item['risk']['grade']} price={item['price']} elapsed={item['elapsed_min']}"
             )
-        return "\n".join(lines)
-    if command == "results parse":
-        result = data["segment_result"]
-        query = result["query"]
-        return "\n".join(
-            [
-                f"{result['direction']} {result['leg']}: {query.get('origin')}->{query.get('destination')} {query.get('date')}",
-                f"offers: {len(result['offers'])}/{result['raw_count']} parse_errors={result['parse_errors']}",
-            ]
-        )
-    if command == "request search":
-        req = data["request"]
-        lines = [
-            f"{req['method']} {req['endpoint']}",
-            f"query: {req['query_name']}",
-            f"variables: {json.dumps(req['variables'], ensure_ascii=False, sort_keys=True)}",
-            f"dry_run: {data['dry_run']}",
-            f"manual link: {data['manual_link']}",
-        ]
-        return "\n".join(lines)
-    if command in {"request prices-for-dates", "request grouped-prices"}:
-        req = data["request"]
-        auth = req.get("auth") or {}
-        auth_status = str(auth.get("status") or "unknown")
-        auth_transport = auth.get("transport")
-        auth_line = f"auth: {auth_status}"
-        if auth_transport:
-            auth_line += f" via {auth_transport}"
-        lines = [
-            f"{req['method']} {req['endpoint']}",
-            f"params: {json.dumps(req['params'], ensure_ascii=False, sort_keys=True)}",
-            f"dry_run: {data['dry_run']}",
-            auth_line,
-        ]
-        fetched = data.get("fetched")
-        if fetched:
-            label = "tickets" if command == "request prices-for-dates" else "groups"
-            lines.append(f"fetch: status={fetched.get('status')} raw_count={fetched.get('raw_count')}")
-            for item in fetched.get(label, [])[:8]:
-                if command == "request prices-for-dates":
-                    lines.append(
-                        f"  {item.get('origin_airport') or item.get('origin')}->{item.get('destination_airport') or item.get('destination')} "
-                        f"{item.get('departure_at') or ''} price={item.get('price')}"
-                    )
-                else:
-                    lines.append(f"  {json.dumps(item, ensure_ascii=False, sort_keys=True)}")
         return "\n".join(lines)
     if command == "metrics workflow":
         metrics = data["metrics"]

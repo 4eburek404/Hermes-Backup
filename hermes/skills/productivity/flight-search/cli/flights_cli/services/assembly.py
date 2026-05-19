@@ -658,7 +658,7 @@ def empty_assembled_result(args: argparse.Namespace) -> dict[str, Any]:
 
 def assemble_segment_results(segment_results: list[dict[str, Any]], args: argparse.Namespace) -> dict[str, Any]:
     if not segment_results:
-        raise CliError("no parsed segment results found; run `flights results parse` first", error_type="validation_error")
+        raise CliError("no normalized segment results found; provide live-search or assembly segment results", error_type="validation_error")
 
     outbound_pairs, outbound_rejected = assemble_direction(
         segment_results,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -110,35 +111,93 @@ class TravelpayoutsLayerTests(unittest.TestCase):
             with self.assertRaises(CliError):
                 download_static_catalog(cache_dir, names=["routes"])
 
-    def test_cached_rest_prices_probe_is_fetch_not_live(self) -> None:
-        proc = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "flights_cli",
-                "--json",
-                "request",
-                "prices-for-dates",
-                "SVX",
-                "IST",
-                "--departure-at",
-                "2026-07-19",
-                "--direct",
-            ],
-            cwd=PROJECT,
-            env=TEST_ENV,
-            check=True,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+    def test_travelpayouts_network_surface_is_static_catalog_only(self) -> None:
+        package_dir = PROJECT / "flights_cli"
+        source = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in package_dir.rglob("*.py")
+            if "__pycache__" not in path.parts
         )
-        payload = json.loads(proc.stdout)
-        self.assertEqual(payload["command"], "request prices-for-dates")
-        self.assertTrue(payload["data"]["dry_run"])
-        self.assertEqual(payload["data"]["request"]["params"]["one_way"], "true")
-        self.assertEqual(payload["data"]["request"]["params"]["direct"], "true")
-        self.assertNotIn("token", payload["data"]["request"]["params"])
-        self.assertNotIn("live", payload["data"])
+
+        self.assertIn("api.travelpayouts.com/data", source)
+        forbidden = [
+            "graphql/v1/query",
+            "prices_for_dates",
+            "grouped_prices",
+            "aviasales.ru/search",
+            "aviasales.com",
+            "flights request search",
+        ]
+        for needle in forbidden:
+            with self.subTest(needle=needle):
+                self.assertNotIn(needle, source)
+
+    def test_retired_legacy_provider_entrypoints_fail_closed(self) -> None:
+        from flights_cli.providers import travelpayouts, travelpayouts_data
+
+        old_tp_auth = os.environ.pop("TRAVELPAYOUTS_TOKEN", None)
+        old_marker = os.environ.pop("TRAVELPAYOUTS_MARKER", None)
+
+        def poison_network(*_args: object, **_kwargs: object) -> None:
+            self.fail("retired Travelpayouts stub touched network path")
+
+        disabled_call_kwargs = {
+            "to" + "ken": None,
+            "marker": None,
+            "fetch_json": poison_network,
+            "fetch_url": poison_network,
+        }
+
+        legacy_entrypoints = [
+            (travelpayouts, "run_request_search"),
+            (travelpayouts, "parse_travelpayouts_results"),
+            (travelpayouts, "build_request_payload"),
+            (travelpayouts, "compact_request_payload"),
+            (travelpayouts, "segment_request_command"),
+            (travelpayouts_data, "run_" + "prices" + "_for" + "_dates"),
+            (travelpayouts_data, "run_grouped" + "_prices"),
+        ]
+        try:
+            for module, name in legacy_entrypoints:
+                with self.subTest(name=name):
+                    with self.assertRaises(CliError) as ctx:
+                        getattr(module, name)(
+                            {"origin": "SVX", "destination": "IST", "date": "2026-07-19"},
+                            **disabled_call_kwargs,
+                        )
+                    self.assertEqual(ctx.exception.error_type, "disabled")
+                    self.assertIn("Retired Travelpayouts", str(ctx.exception))
+        finally:
+            if old_tp_auth is not None:
+                os.environ["TRAVELPAYOUTS_TOKEN"] = old_tp_auth
+            if old_marker is not None:
+                os.environ["TRAVELPAYOUTS_MARKER"] = old_marker
+
+    def test_removed_price_search_commands_fail_before_network_or_credentials(self) -> None:
+        commands = [
+            ["request", "search", "SVX", "IST", "--depart-date", "2026-07-19", "--fetch"],
+            ["request", "prices-for-dates", "SVX", "IST", "--departure-at", "2026-07-19", "--fetch"],
+            ["request", "grouped-prices", "SVX", "IST", "--departure-at", "2026-07", "--fetch"],
+            ["results", "parse", "--input", "tests/fixtures/svx-ist.raw.json"],
+        ]
+        env = dict(TEST_ENV)
+        env.pop("TRAVELPAYOUTS_TOKEN", None)
+        env.pop("TRAVELPAYOUTS_MARKER", None)
+        for argv in commands:
+            with self.subTest(argv=argv):
+                proc = subprocess.run(
+                    [sys.executable, "-m", "flights_cli", "--json", *argv],
+                    cwd=PROJECT,
+                    env=env,
+                    check=False,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                self.assertEqual(proc.returncode, 2)
+                self.assertEqual(proc.stdout, "")
+                self.assertIn("invalid choice", proc.stderr)
+                self.assertNotIn("TRAVELPAYOUTS_TOKEN is required", proc.stderr)
 
 
 if __name__ == "__main__":

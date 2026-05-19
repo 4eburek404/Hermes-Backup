@@ -6,9 +6,8 @@ The CLI builds bounded route plans, runs live provider probes, validates airport
 compatibility, assembles/ranks candidates, and emits compact agent reports. It
 does not book, buy, or write to Hermes. The main live path is `route
 live-assemble`: Kupibilet handles Russia-touching legs and FLI MCP handles
-non-Russia/global legs when available. Travelpayouts is used for static catalog
-metadata; cached price API probes are legacy debug commands and require
-explicit `request ... --fetch`.
+non-Russia/global legs when available. Travelpayouts is static catalog metadata
+only; retired price-search stubs fail closed and are not normal commands.
 
 ## Install
 
@@ -31,7 +30,8 @@ With `--json`, stdout is always an envelope:
 {
   "ok": true,
   "command": "route plan",
-  "data": {}
+  "data": {},
+  "issues": []
 }
 ```
 
@@ -47,9 +47,9 @@ Errors are emitted to stderr:
 }
 ```
 
-Tokens are never printed. `doctor` reports only whether
-`TRAVELPAYOUTS_TOKEN` and `TRAVELPAYOUTS_MARKER` are present. The CLI reads
-process environment first and then auto-loads Travelpayouts keys from
+Secrets are never printed. `doctor` reports only whether legacy
+Travelpayouts environment variables are present; the normal search path does not
+need them. The CLI reads process environment first and then auto-loads keys from
 `~/.hermes/.env` without overriding existing environment variables.
 
 ## Commands
@@ -155,16 +155,9 @@ flights --json route rank --profile safe --input candidates.json
 flights --json route rank --profile cheap --input candidates.json
 ```
 
-Legacy parser for Travelpayouts cached results:
+Prepare or collect normalized segment-result JSON from live search/assembly outputs before using standalone assembly.
 
-```bash
-flights --json results parse --input svx-ist.raw.json \
-  --direction outbound \
-  --leg origin_to_hub \
-  --origin SVX --destination IST --date 2026-07-19 --currency RUB
-```
-
-Assemble parsed segment offers into ranked itinerary candidates:
+Assemble normalized segment offers into ranked itinerary candidates:
 
 ```bash
 flights --json route assemble --profile safe \
@@ -310,24 +303,7 @@ Carrier selection flags:
 - `--avoid-carrier CODE`: soft preference; penalize candidates using that carrier.
 - `--include-filtered N`: include carrier-filtered diagnostics in JSON.
 
-Legacy cached Travelpayouts debug probes:
-
-```bash
-flights --json request search SVX IST --depart-date 2026-07-19 --dry-run
-flights --json request search SVX IST --depart-date 2026-07-19 --fetch
-flights --json request prices-for-dates SVX IST \
-  --departure-at 2026-07-19 \
-  --direct \
-  --fetch
-
-flights --json request grouped-prices SVX IST \
-  --departure-at 2026-07 \
-  --group-by departure_at \
-  --fetch
-```
-
-These commands are not part of normal route assembly. Positive cached fares are
-only hints; empty cached responses are not negative evidence.
+Travelpayouts price-search APIs are retired from the normal CLI path. Use `route live-assemble`, `kb-search`, `fli-search`, or `fli-dates` for route/search work.
 
 Workflow metrics:
 
@@ -355,10 +331,8 @@ flights --json metrics workflow SVX LON \
   reach ranked/model-facing output.
 - Keeps IST and SAW separate in segment assembly diagnostics.
 - Keeps SVO, DME, and VKO separate for Moscow routing.
-- Keeps legacy Travelpayouts cached GraphQL/Data API probes behind explicit
-  `request ... --fetch` debug commands.
-- Parses legacy Travelpayouts `prices_one_way` / `prices_round_trip` responses
-  into normalized segment offers for offline debugging.
+- Keeps Travelpayouts limited to static reference catalogs; retired price-search
+  provider stubs fail closed and are not registered as normal commands.
 - Assembles compatible segment offers into outbound/return journeys.
 - Can run Kupibilet direct-only segment searches through hubs and assemble those
   live normalized offers via `route kb-assemble`.
@@ -425,8 +399,8 @@ filters remove candidates from `ranked` and report examples under
 `carrier_policy.filtered`; soft preferences add carrier risk components and
 adjust `rank_key`.
 
-`route assemble` accepts parsed result JSON from `results parse`. Each parsed
-result has:
+`route assemble` accepts normalized segment-result JSON from live search or
+assembly outputs. Each segment result has:
 
 ```json
 {
@@ -451,10 +425,6 @@ as `rejected_pairs` with `reason`, `airport_pair_status`, `arrival_airport`,
 summaries. Same-airport timing violations are assembled and then scored by the
 ranker as invalid candidates.
 
-For `prices_round_trip`, `results parse --direction outbound` selects the first
-trip segment and `--direction return` selects the second trip segment. If the
-provider returns no round-trip items, the parser returns zero offers without
-inventing candidates.
 
 ## Non-goals
 
@@ -463,8 +433,7 @@ inventing candidates.
   can automatically update `~/.hermes/plugins/travelpayouts-flights/cache`.
 - No Docker Hermes access from the CLI itself. FLI MCP may run as a separate
   self-hosted Docker sidecar and is addressed through `FLIGHTS_FLI_MCP_URL`.
-- No Travelpayouts cached price/Data API network fetch unless `--fetch` is
-  passed on a legacy `request` command. Static catalog refresh is separate and
-  requires no token.
+- No Travelpayouts price/Data API network fetch in the normal CLI path. Static
+  catalog refresh is separate and requires no token.
 - `kb-search`, `fli-search`, `fli-dates`, `route kb-assemble`, and
   `route live-assemble` are explicit live provider commands.

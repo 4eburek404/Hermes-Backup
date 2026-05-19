@@ -67,7 +67,7 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(result["destination_airports"], ["LHR", "LGW", "STN", "LTN"])
         self.assertEqual(result["metrics"]["segment_request_count"], 30)
         self.assertEqual(result["itinerary_families"][0]["outbound_airport_compatibility"][0]["required_min"], 120)
-        self.assertIn("LON often returns empty in Travelpayouts; use specific London airports.", result["warnings"])
+        self.assertIn("LON is a broad city code; use specific London airports.", result["warnings"])
 
     def test_route_plan_uses_ru_priority_strategy_when_no_hubs_are_passed(self) -> None:
         args = argparse.Namespace(

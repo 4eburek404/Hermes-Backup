@@ -16,7 +16,7 @@ The live search path uses:
 - FLI MCP for non-Russia/global legs when the sidecar is available.
 - Travelpayouts static catalog files only for city, airport, airline, and aircraft metadata.
 
-Travelpayouts cached price probes are legacy debug escape hatches, not normal evidence. Do not start a search with cached Travelpayouts APIs, and do not treat cached absence as route absence.
+Travelpayouts/Aviasales price-search surfaces are retired. Do not start a search with them, and do not treat their absence as route absence; static catalogs remain the only normal Travelpayouts layer.
 
 ## Golden Path
 
@@ -89,18 +89,11 @@ When verifying skill availability, always use the category-qualified path. When 
 - `--provider-policy auto` uses Kupibilet for Russia-touching segments and FLI MCP for non-Russia/global segments.
 - If FLI is down or `FLIGHTS_FLI_MCP_URL` is unset, read `provider_failures`; rerun with `--provider-policy kupibilet` only when skipping FLI is a better answer path.
 - If Kupibilet is down, report the outage and any partial FLI data. There is no equivalent guaranteed fallback for Russia-touching legs.
-- Static catalog refresh is separate from cached price probes and requires no Travelpayouts token.
+- Static catalog refresh is the only normal Travelpayouts surface and requires no Travelpayouts token.
 
-## Legacy Debug
+## Retired Price Search
 
-Use these only when the compact report is missing, contradictory, or explicitly being debugged:
-
-- `request search --fetch`
-- `request prices-for-dates --fetch`
-- `request grouped-prices --fetch`
-- `results parse`
-
-These commands query or parse cached Travelpayouts/Aviasales price data. Positive cached fares are hints. Empty cached responses are not negative evidence.
+Cached Travelpayouts/Aviasales price-search commands, parser bridges, manual price links, and wrapper examples must stay out of the normal workflow. If a transitional stub remains for compatibility, it must fail closed before credential checks or network I/O and must not be advertised as a search/debug path.
 
 ## Error Handling
 
@@ -110,7 +103,7 @@ The CLI returns JSON failures on `stderr` with empty `stdout`:
 {"ok": false, "error": {"message": "...", "type": "..."}}
 ```
 
-- `missing_credentials`: only legacy Travelpayouts cached fetch commands need `TRAVELPAYOUTS_TOKEN`.
+- `missing_credentials`: current live assembly and static catalogs do not require `TRAVELPAYOUTS_TOKEN`; any retired price-search stub must return `error_type="disabled"` before credential checks or network I/O.
 - `validation_error`: bad IATA code, date format, route, flag, or a past departure/return date.
 - `upstream_error`: provider HTTP failure, timeout, or unexpected response.
 - `error`: generic fallback; read the message.
@@ -119,7 +112,7 @@ When testing error cases, parse `stderr` rather than `stdout`, assert `error.typ
 
 ## Do Not
 
-- Do not call cached Travelpayouts/Aviasales helpers before the CLI live assembly.
+- Do not call retired Travelpayouts/Aviasales price-search helpers before or after CLI live assembly.
 - Do not treat cached `0 results`, provider empty responses, or round-trip emptiness as proof that a flight, direct route, carrier route, or through fare does not exist.
 - Do not inspect raw `candidates` or `segment_results` in the normal workflow.
 - Do not use `--include-candidates` unless debugging; it can create very large JSON.
@@ -130,7 +123,7 @@ When testing error cases, parse `stderr` rather than `stdout`, assert `error.typ
 
 ## Maintenance
 
-When changing the CLI or `agent_report` contract, read `references/cli-maintenance.md` first. Work offline by default, update schema/docs/tests together, keep stdout JSON-clean, and verify with focused tests, full suite, `doctor`, `git diff --check`, redacted changed-file scan, and pycache cleanup.
+When changing the CLI or `agent_report` contract, read `references/cli-maintenance.md` first. Work offline by default, update schema/docs/tests together, keep stdout JSON-clean, and verify with focused tests, full suite, `doctor`, hidden Travelpayouts/Aviasales surface scan, redacted changed-file scan, and pycache cleanup.
 
 When adding live probes, follow `references/source-boundaries.md`: keep fan-out bounded, use provider-aware cache keys, keep in-run request deduplication, and label live/cache/stale evidence.
 
