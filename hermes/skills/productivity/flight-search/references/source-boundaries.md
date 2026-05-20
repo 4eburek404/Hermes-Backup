@@ -46,19 +46,38 @@ For separate tickets, same-airport continuity is required by default. Cross-airp
 
 ## Connection Thresholds
 
-- Same airport, separate tickets: 90 min minimum acceptable.
-- Same airport, separate tickets: 120 min business/comfort preferred.
-- Same-airport 90-119 min: label tight.
-- Cross-airport or airport mismatch: 300 min default.
-- Protected ticket: 60 min can be acceptable only when protection is proven.
+Use exact Minimum Connection Time evidence before generic buffers when the connection is decision-critical. Practical lookup order:
 
-`long_wait` and `overnight_wait` are visibility labels, not automatic rejection reasons. Keep comfort trade-offs separate from real risk: too-short buffers, cross-airport transfers, visa/self-transfer exposure, missing times, low-cost/leisure carrier risk, and unprotected ticketing.
+1. airline/GDS/IATA MCT data when available;
+2. airport-specific public MCT references such as `https://minimumconnectiontime.com/airport/IATA`;
+3. the conservative generic thresholds below when exact data is unavailable or the source is uncertain.
+
+MCT is a technical/legal floor for a sellable connection and baggage transfer, not the recommended business buffer. A connection can be legal but still unattractive because of terminal size, passport/security, baggage, low-cost/remote gates, delays, or a seller-side virtual/self-transfer construction.
+
+Generic fallback thresholds:
+
+- Same airport, protected/single-ticket international connection: MCT or at least 60 min, whichever is higher; label 60-89 min as tight unless airport evidence supports it.
+- Same airport, separate/virtual/self-transfer without baggage: 120 min minimum acceptable.
+- Same airport, separate/virtual/self-transfer with checked baggage: 180 min minimum acceptable; prefer 3-5h for low-cost or high-friction airports.
+- Cross-airport or airport mismatch: 300 min default and label as ground-transfer risk.
+- Same-airport 90-119 min: label tight when ticketing/protection is not proven.
+- Ordinary overnight waits can be acceptable only if they support a deliberate airport-hotel pattern; label hotel/visa/landside-baggage implications.
+- Very long waits (about 18h+; e.g. 23h) are not quality or reliability options by themselves. Treat them as forced stopover/fallback choices unless the user explicitly wants a stopover or every shorter option has materially worse ticketing/safety risk.
+
+`long_wait` and `overnight_wait` are visibility labels, not automatic rejection reasons, but duration still changes recommendation class. Keep comfort trade-offs separate from real risk: too-short buffers, cross-airport transfers, visa/self-transfer exposure, missing times, low-cost/leisure carrier risk, and unprotected ticketing.
 
 ## Through-Fare and Purchase Verification
 
 A combined itinerary in the report does not automatically prove a single ticket or single PNR. Use `through_fare_checks` for the current evidence level.
 
-Before presenting a ticketing claim as firm, verify it on the purchase screen or state that the report only supports an advisory planning claim. Baggage, recheck, refund, and disruption protection depend on ticketing proof, not only segment timing.
+For ticketing/protection follow-ups, distinguish evidence tiers explicitly:
+
+- Segment-assembled route: summed separate legs by the CLI; assume separate/self-transfer unless purchase evidence says otherwise.
+- Provider aggregate variant: one live seller offer when the upstream returns one `variant`/offer id, one total price, and one outbound `segments[]` item containing multiple flight ids. Treat this as a combined seller offer / likely single checkout, not merely our manual segment sum.
+- Provider aggregate with `virtual_connection` / virtual-interline signal: treat as seller-side smart routing or self-connect risk until proven otherwise. Even same-carrier legs can be sold virtually by an OTA; do not infer airline responsibility from same carrier alone.
+- Airline/GDS through fare or single PNR: only proven by airline/GDS/seller booking screen, fare rules, ticketing details, or explicit upstream fields. Provider aggregate shape alone does not prove one PNR, baggage-through, reissue protection, or missed-connection responsibility.
+
+Before presenting a ticketing claim as firm, verify it on the purchase screen or state exactly which tier the report supports. Baggage, recheck, refund, and disruption protection depend on ticketing proof, not only segment timing.
 
 For same-carrier or requested-carrier routes, filter by marketing or operating carrier when the CLI supports it. A same-carrier route can be valid as a protected ticket, unavailable as a protected ticket, cheaper as separate segments, or more expensive as a through fare.
 
