@@ -131,8 +131,8 @@ class CliContractTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["command"], "doctor")
         self.assertEqual(payload["issues"], [])
-        self.assertEqual(payload["data"]["cli"], {"name": "flights-cli", "version": "0.10.1"})
-        self.assertEqual(payload["data"]["skill"], {"name": "flight-search", "version": "0.10.1"})
+        self.assertEqual(payload["data"]["cli"], {"name": "flights-cli", "version": "0.10.3"})
+        self.assertEqual(payload["data"]["skill"], {"name": "flight-search", "version": "0.10.3"})
         self.assertIn("cache_counts", payload["data"])
         self.assertNotIn("cached_fetch_default", payload["data"])
         self.assertEqual(payload["data"]["safety"]["travelpayouts_usage"], "static_catalog_only")
@@ -155,7 +155,7 @@ class CliContractTests(unittest.TestCase):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        self.assertIn("flights 0.10.1 (skill flight-search 0.10.1)", human_proc.stdout)
+        self.assertIn("flights 0.10.3 (skill flight-search 0.10.3)", human_proc.stdout)
         self.assertIn("Travelpayouts usage: static catalogs only", human_proc.stdout)
         self.assertNotIn("legacy Travelpayouts cached fetch", human_proc.stdout)
         self.assertIn("main live commands: kb-search, fli-search, fli-dates, route kb-assemble, route live-assemble", human_proc.stdout)
