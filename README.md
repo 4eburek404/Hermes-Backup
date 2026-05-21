@@ -12,7 +12,7 @@ This private repository stores Konstantin's personal Hermes overlay on top of th
 - Consistent SQLite snapshot of holographic memory: `hermes/holographic-memory/memory_store.sqlite`.
 - CLI backup layer:
   - `cli/hermes-agent/` — active Hermes CLI/source manifest, tracked patch, and safe untracked source files; not a full upstream repo vendor.
-  - `cli/skill-clis/` — source snapshots from `/home/konstantin/code/clis` for local skill-related CLIs, excluding caches/build artifacts.
+  - Legacy standalone skill CLI snapshots are intentionally excluded. Active skill-owned CLIs are backed up inside their owning skill directories under `hermes/skills/<category>/<skill>/cli/`.
 
 ## What is backed up encrypted only
 
@@ -57,4 +57,4 @@ Run:
 python3 scripts/verify-hermes-backup.py --max-encrypted-age-days 8 --require-single-active-generation
 ```
 
-The verifier checks manifest presence, encrypted freshness, single active encrypted generation in HEAD, GitHub file-size limits, SQLite integrity for plaintext and encrypted DB snapshots, `age` decrypt/listing with the selected identity file, CLI layer presence, and scans plaintext files for high-risk secret patterns without printing secret values.
+The verifier checks manifest presence, encrypted freshness, single active encrypted generation in HEAD, GitHub file-size limits, SQLite integrity for plaintext and encrypted DB snapshots, `age` decrypt/listing with the selected identity file, Hermes Agent CLI layer presence, legacy `cli/skill-clis` absence, and scans plaintext files for high-risk secret patterns without printing secret values.

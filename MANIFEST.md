@@ -8,12 +8,10 @@ Hermes Agent source checkout: `/home/konstantin/.hermes/hermes-agent`
 
 Upstream source backup mode: `manifest + patch`, not full vendored repo.
 
-Skill CLIs source: `/home/konstantin/code/clis.separate-repo-20260507-1349`
-
 ## Plaintext snapshot
 
 - Holographic memory snapshot: `hermes/holographic-memory/memory_store.sqlite`
-- CLI backup: `{'hermes_agent_manifest': 'cli/hermes-agent/manifest.json', 'hermes_agent_patch': None, 'hermes_agent_untracked_copied': 0, 'skill_clis': 'cli/skill-clis', 'skill_clis_entries': ['article', 'flights', 'hh-ru', 'knowledge']}`
+- CLI backup: `{'hermes_agent_manifest': 'cli/hermes-agent/manifest.json', 'hermes_agent_patch': None, 'hermes_agent_untracked_copied': 0}`
 
 ## Encrypted artifacts
 

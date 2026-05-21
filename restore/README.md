@@ -29,7 +29,7 @@ Hermes Agent CLI/source is restored as a reproducible source-state layer, not as
 2. Checkout the recorded `git_head`.
 3. Apply `cli/hermes-agent/tracked-changes.patch` if present.
 4. Copy files from `cli/hermes-agent/untracked/` only after reviewing whether they are still needed.
-5. Restore local skill CLIs from `cli/skill-clis/` to `/home/konstantin/code/clis/` if needed, then run each CLI's own tests/doctor commands.
+5. Restore active skill-owned CLIs, if needed, from their owning skill directories under `hermes/skills/<category>/<skill>/cli/`. Legacy standalone snapshots from `cli/skill-clis/` are no longer part of the backup.
 
 Do not restore `.git`, virtualenvs, pycache, build outputs, or caches from this backup; they are intentionally excluded.
 

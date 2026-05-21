@@ -28,9 +28,7 @@ from typing import Callable, Iterable
 HOME = Path.home()
 HERMES = HOME / ".hermes"
 DOCS = HOME / "docs"
-CODE = HOME / "code"
 HERMES_AGENT = HERMES / "hermes-agent"
-SKILL_CLIS = CODE / "clis" if (CODE / "clis").exists() else next((d for d in CODE.iterdir() if d.name.startswith("clis") and d.is_dir()), CODE / "clis")
 REPO = Path(__file__).resolve().parents[1]
 DEFAULT_RECIPIENTS_FILE = REPO / "backup" / "age-recipients.txt"
 DEFAULT_IDENTITY_FILE = HOME / ".ssh" / "server_monitor_iOS_app_ed25519"
@@ -513,33 +511,6 @@ def safe_untracked_file(path: Path) -> bool:
         return False
 
 
-def tree_summary(root: Path) -> list[dict[str, object]]:
-    entries: list[dict[str, object]] = []
-    if not root.exists() or not root.is_dir():
-        return entries
-    for child in sorted(p for p in root.iterdir() if not p.name.startswith(".")):
-        if child.name in COPY_EXCLUDE_DIRS or any(fnmatch.fnmatch(child.name, pat) for pat in COPY_EXCLUDE_PATTERNS):
-            continue
-        if child.is_dir():
-            count = 0
-            total = 0
-            for dp, dns, fns in os.walk(child):
-                dns[:] = [d for d in dns if d not in COPY_EXCLUDE_DIRS and not any(fnmatch.fnmatch(d, pat) for pat in COPY_EXCLUDE_PATTERNS)]
-                for fn in fns:
-                    fp = Path(dp) / fn
-                    if fp.suffix.lower() in COPY_EXCLUDE_SUFFIXES:
-                        continue
-                    try:
-                        total += fp.stat().st_size
-                        count += 1
-                    except OSError:
-                        pass
-            entries.append({"name": child.name, "type": "dir", "file_count": count, "size_bytes": total})
-        elif child.is_file() and child.suffix.lower() not in COPY_EXCLUDE_SUFFIXES:
-            entries.append({"name": child.name, "type": "file", "file_count": 1, "size_bytes": child.stat().st_size})
-    return entries
-
-
 def collect_cli_backup(summary: dict[str, object]) -> None:
     """Collect reproducible CLI state without vendoring upstream git/venv/cache."""
     cli_root = REPO / "cli"
@@ -587,27 +558,12 @@ def collect_cli_backup(summary: dict[str, object]) -> None:
         encoding="utf-8",
     )
 
-    skill_clis_dst = cli_root / "skill-clis"
-    copy_tree(SKILL_CLIS, skill_clis_dst)
-    if SKILL_CLIS.exists():
-        skill_clis_dst.mkdir(parents=True, exist_ok=True)
-    skill_clis_manifest = {
-        "kind": "skill-related-local-clis",
-        "created_at_utc": NOW.isoformat(),
-        "source_path": str(SKILL_CLIS),
-        "source_exists": SKILL_CLIS.exists(),
-        "entries": tree_summary(SKILL_CLIS),
-        "excluded": sorted(COPY_EXCLUDE_DIRS | COPY_EXCLUDE_PATTERNS | COPY_EXCLUDE_SUFFIXES),
-    }
-    (skill_clis_dst / "manifest.json").write_text(json.dumps(skill_clis_manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-
     (cli_root / "README.md").write_text(
         "# CLI backup layer\n\n"
-        "This directory stores reproducible CLI/source state needed beyond the Hermes overlay.\n\n"
+        "This directory stores reproducible Hermes CLI/source state needed beyond the plaintext overlay.\n\n"
         "## `hermes-agent/`\n\n"
         "The upstream Hermes Agent checkout is **not** vendored wholesale. Restore by installing/cloning upstream, checking out the recorded commit, then applying `tracked-changes.patch` and copying safe files from `untracked/` if still needed.\n\n"
-        "## `skill-clis/`\n\n"
-        "Source snapshots from `/home/konstantin/code/clis` used by local skills. Generated caches, `.git`, virtualenvs, build outputs, and pycache files are excluded.\n",
+        "Legacy standalone skill CLI snapshots are intentionally not collected. Active skill-owned CLIs live inside their owning skill directories under `hermes/skills/<category>/<skill>/cli/`.\n",
         encoding="utf-8",
     )
 
@@ -615,8 +571,6 @@ def collect_cli_backup(summary: dict[str, object]) -> None:
         "hermes_agent_manifest": "cli/hermes-agent/manifest.json",
         "hermes_agent_patch": "cli/hermes-agent/tracked-changes.patch" if tracked_diff_files else None,
         "hermes_agent_untracked_copied": len(copied_untracked),
-        "skill_clis": "cli/skill-clis",
-        "skill_clis_entries": [entry["name"] for entry in skill_clis_manifest["entries"]],
     }
 
 
@@ -947,7 +901,6 @@ def write_manifest(summary: dict[str, object]) -> None:
         "hermes_home": str(HERMES),
         "upstream_source_checkout": str(HERMES_AGENT),
         "upstream_source_backup_mode": "manifest+patch, not full vendored repo",
-        "skill_clis_source": str(SKILL_CLIS),
         **summary,
     }
     (REPO / "MANIFEST.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -957,7 +910,6 @@ def write_manifest(summary: dict[str, object]) -> None:
         f"Hermes home: `{HERMES}`\n\n",
         f"Hermes Agent source checkout: `{HERMES_AGENT}`\n\n",
         "Upstream source backup mode: `manifest + patch`, not full vendored repo.\n\n",
-        f"Skill CLIs source: `{SKILL_CLIS}`\n\n",
         "## Plaintext snapshot\n\n",
         f"- Holographic memory snapshot: `{summary.get('memory_store_snapshot')}`\n",
         f"- CLI backup: `{summary.get('cli_backup')}`\n\n",

@@ -102,24 +102,19 @@ def raw_forbidden_scan() -> list[str]:
 
 def verify_cli_backup() -> dict[str, object]:
     agent_manifest_path = REPO / "cli" / "hermes-agent" / "manifest.json"
-    skill_clis_manifest_path = REPO / "cli" / "skill-clis" / "manifest.json"
+    legacy_skill_clis_path = REPO / "cli" / "skill-clis"
     if not agent_manifest_path.exists():
         raise RuntimeError("Missing CLI backup manifest: cli/hermes-agent/manifest.json")
-    if not skill_clis_manifest_path.exists():
-        raise RuntimeError("Missing skill CLIs manifest: cli/skill-clis/manifest.json")
+    if legacy_skill_clis_path.exists():
+        raise RuntimeError("Legacy skill CLIs backup layer should be absent: cli/skill-clis")
 
     agent = json.loads(agent_manifest_path.read_text(encoding="utf-8"))
-    skill_clis = json.loads(skill_clis_manifest_path.read_text(encoding="utf-8"))
     if agent.get("tracked_diff_files") and not (REPO / "cli" / "hermes-agent" / "tracked-changes.patch").exists():
         raise RuntimeError("Hermes Agent tracked changes exist but tracked-changes.patch is missing")
-    entries = [entry.get("name") for entry in skill_clis.get("entries", [])]
-    for expected in ["article", "flights", "hh-ru", "knowledge"]:
-        if expected not in entries:
-            raise RuntimeError(f"Skill CLI snapshot missing expected directory: {expected}")
     return {
         "hermes_agent_status_count": agent.get("status_count"),
         "hermes_agent_head_short": agent.get("git_head_short"),
-        "skill_clis_entries": entries,
+        "legacy_skill_clis_present": False,
     }
 
 
@@ -291,7 +286,6 @@ def main(argv: list[str] | None = None) -> int:
         REPO / "hermes" / "holographic-memory" / "memory_store.sqlite",
         REPO / "cli" / "README.md",
         REPO / "cli" / "hermes-agent" / "manifest.json",
-        REPO / "cli" / "skill-clis" / "manifest.json",
     ]
     missing = [str(p.relative_to(REPO)) for p in required if not p.exists()]
     if missing:

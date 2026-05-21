@@ -5,19 +5,11 @@
   "hermes_home": "/home/konstantin/.hermes",
   "upstream_source_checkout": "/home/konstantin/.hermes/hermes-agent",
   "upstream_source_backup_mode": "manifest+patch, not full vendored repo",
-  "skill_clis_source": "/home/konstantin/code/clis.separate-repo-20260507-1349",
   "memory_store_snapshot": "hermes/holographic-memory/memory_store.sqlite",
   "cli_backup": {
     "hermes_agent_manifest": "cli/hermes-agent/manifest.json",
     "hermes_agent_patch": null,
-    "hermes_agent_untracked_copied": 0,
-    "skill_clis": "cli/skill-clis",
-    "skill_clis_entries": [
-      "article",
-      "flights",
-      "hh-ru",
-      "knowledge"
-    ]
+    "hermes_agent_untracked_copied": 0
   },
   "plaintext_files_sanitized": 1,
   "secret_artifacts": [
