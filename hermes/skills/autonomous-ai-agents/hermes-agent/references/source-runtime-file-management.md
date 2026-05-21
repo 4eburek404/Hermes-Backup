@@ -20,7 +20,10 @@ Hermes skills use **two directories** with distinct roles:
 - `~/.hermes/skills/` contains both synced bundled skills and user/hub-installed skills.
 - Skill-owned CLIs live under their owning skill: `skills/<category>/<skill>/cli/`.
 
-- Removed/obsolete locations that should not be recreated: `/home/konstantin/code/clis`, `~/.hermes/hermes-agent/local/skill-clis`, backup layers such as `cli/skill-clis`, `cli/hermes-agent`, `hermes/skills`.
+- Deprecated active-source locations that should not be recreated or used for new work: `/home/konstantin/code/clis`, `~/.hermes/hermes-agent/local/skill-clis`, and the legacy standalone backup overlay `cli/skill-clis`.
+  - If `cli/skill-clis` still exists inside `/home/konstantin/src/Hermes-Backup`, treat it as a historical/recovery snapshot created by an old `scripts/collect-hermes-backup.py`, not as the active runtime/source of truth; current backup scripts should not recreate it.
+  - `cli/hermes-agent` and `hermes/skills` inside `/home/konstantin/src/Hermes-Backup` are backup/reference surfaces, not active runtime edit targets. Do not classify them as the obsolete standalone skill-CLI layer.
+  - For active skill-owned CLIs, prefer the owning skill path: `~/.hermes/skills/<category>/<skill>/cli` at runtime and `/home/konstantin/src/Hermes-Backup/hermes/skills/<category>/<skill>/cli` in the current source/backup tree.
 - `skills.external_dirs` is ignored in this setup.
 
 ### Pitfall: release-dir broke sync (fixed May 2026)
@@ -28,6 +31,16 @@ Hermes skills use **two directories** with distinct roles:
 When Hermes switched to release-dir deployment (`~/.hermes/hermes-agent` → symlink to `~/.hermes/releases/hermes-agent-<hash>/`), `SKILLS_DIR` in `skills_sync.py` was set to `get_skills_dir()` which now pointed inside the release. Since `_get_bundled_dir()` also pointed to `<release>/skills/`, `sync_skills()` was a no-op (`bundled_dir.resolve() == SKILLS_DIR.resolve()`), and `~/.hermes/skills/` never received any bundled skills. The `.bundled_manifest` became orphaned (hashes for skills that were never copied).
 
 **Fix:** `SKILLS_DIR` in sync/tool modules → `get_skills_state_dir()` (`~/.hermes/skills`). Removed the no-op early-return. `get_all_skills_dirs()` returns `[state_dir, bundled_dir]`. All runtime skill discovery now reads from `~/.hermes/skills/`.
+
+## Protected runtime context files
+
+Do not infer protected-context write scope from filename search results. For `MEMORY.md`:
+
+- Live runtime target: `~/.hermes/memories/MEMORY.md`.
+- Active release dirs (`~/.hermes/releases/hermes-agent-<hash>/`) do not own runtime `MEMORY.md`; Hermes updates should not overwrite it.
+- `/home/konstantin/code/Hermes` is a backup/recovery clone for `Hermes-Backup` (`origin=https://github.com/4eburek404/Hermes-Backup.git`), not the active runtime/source target for protected memory writes.
+- If Konstantin says “runtime”, write only the verified runtime target and verify read-back `bytes`, `sha256`, and `exact_match`.
+- Update backup/recovery clones only after separate explicit approval and fresh git verification.
 
 ## File-change handling rule
 
@@ -76,6 +89,24 @@ python3 skills/autonomous-ai-agents/hermes-agent/scripts/inventory-custom-skills
 ```
 
 Pitfall: do not infer "custom" from absence in `~/.hermes/skills` before verifying sync has run; after a fresh release-dir install or update, `~/.hermes/skills/` may be empty until `sync_skills()` runs. Use the packaged helper for comparison against upstream.
+
+## Targeted runtime skill sync from source tree
+
+Use this when Konstantin explicitly asks to sync one skill from a verified source tree into the runtime skill tree. Do not use broad `hermes update` or `hermes skills update` for a single-skill runtime sync.
+
+Checklist:
+
+1. Verify source provenance first: `git fetch`, checkout the requested branch, `git pull --ff-only`, then capture `git status --short --branch --untracked-files=all`, `git rev-parse HEAD`, and `git log -1 --oneline`.
+2. If an expected commit/hash is provided, require exact HEAD match unless the user explicitly allows a newer HEAD and the requested PR/commit is verified as an ancestor with `git merge-base --is-ancestor` exit `0`.
+3. Verify the source skill before copying: version strings in SKILL.md/CLI metadata/tests, SKILL.md frontmatter/H1/newline sanity, and any prompt-surface forbidden-token scans the user provided.
+4. Snapshot only the target runtime skill directory to a timestamped `/tmp/...` backup; record file list and SHA256 before sync.
+5. Run `rsync -a --delete --dry-run --itemize-changes source/ runtime/` with trailing slashes. Validate itemized paths are relative and not absolute/`..`; if deletion appears, report exactly which runtime files would be deleted before executing.
+6. Execute only the narrow `rsync -a --delete source/ runtime/` for the named skill. Never mutate sibling skills or global manifests unless separately requested.
+7. Verify with `diff -ru source runtime` and stop/report if the diff artifact is non-empty.
+8. Repeat runtime version, formatting, old-version grep, and prompt-surface scans after sync. Run any requested skill-owned CLI doctor/tests from the source tree and store artifacts under the backup directory.
+9. Do not restart the Hermes gateway unless explicitly instructed. Report that restart/reload or a fresh session may be needed when a running process has cached skill definitions.
+
+Pitfall: if a long combined shell command times out before printing the backup path, do not rerun the same blocked command. First inspect for leftover processes and `/tmp` backup dirs, then resume in smaller verified steps with a fresh backup if none exists.
 
 ## Verification reminders
 
