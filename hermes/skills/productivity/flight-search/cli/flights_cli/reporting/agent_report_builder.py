@@ -62,6 +62,11 @@ def aggregate_has_preferred_offer(aggregate_controls: list[dict[str, Any]], stop
     )
 
 
+def plan_requests_round_trip(plan: dict[str, Any]) -> bool:
+    dates = plan.get("dates") if isinstance(plan.get("dates"), dict) else {}
+    return bool(dates.get("return") or dates.get("return_date"))
+
+
 def filter_aggregate_controls_for_stop_policy(
     aggregate_controls: list[dict[str, Any]],
     stop_policy: StopPolicy,
@@ -202,6 +207,7 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
         limit=5,
         stop_policy=stop_policy,
         preferred_available=has_preferred_option(options + priority_options),
+        requested_round_trip=plan_requests_round_trip(plan),
     )
     if aggregate_priority_options:
         priority_options.extend(aggregate_priority_options)

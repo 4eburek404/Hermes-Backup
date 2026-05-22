@@ -63,14 +63,16 @@ def build_answer_lines(report: dict[str, Any]) -> list[str]:
     if usable_controls:
         control = usable_controls[0]
         offer = (control.get("top_offers") or [{}])[0]
+        direction = str(control.get("direction") or "outbound")
+        direction_label = "return one-way" if direction == "return" else "outbound one-way"
         lines.append(
-            "Aggregate control found: "
+            f"Aggregate control found ({direction_label}): "
             f"{price_label(offer.get('price'), offer.get('currency'))} "
             f"{control.get('origin')}->{control.get('destination')} "
             f"{' + '.join(offer.get('flight_numbers') or []) or 'route offer'}."
         )
         lines.append(
-            "Provider aggregate candidate: ticketing_protection=unknown; verify single-PNR/protection, baggage, fare rules, and final fare on the booking screen."
+            "Provider aggregate candidate: ticketing_protection=unknown; not proof of single-PNR/protection, baggage-through, or final fare; verify on the booking screen."
         )
         mismatches = offer.get("airport_mismatches") or []
         if mismatches:
@@ -101,16 +103,31 @@ def build_answer_lines(report: dict[str, Any]) -> list[str]:
                 f"rank={moscow.get('rank')} {moscow.get('price_text')} "
                 f"elapsed={moscow.get('elapsed') or 'n/a'}; compare against direct/best, do not hide solely because another option ranks higher."
             )
+        pair = next((item for item in priority_options if item.get("journey_scope") == "two_one_way_pair"), None)
         priority = next(
-            (item for item in priority_options if item.get("category") != "moscow_gateway_control"),
+            (
+                item
+                for item in priority_options
+                if item.get("category") != "moscow_gateway_control" and item is not pair
+            ),
             None,
         )
         if priority:
-            lines.append(
-                "Priority control: "
-                f"{priority.get('category')} rank={priority.get('rank')} "
-                f"{priority.get('price_text')} elapsed={priority.get('elapsed') or 'n/a'}."
-            )
+            if priority.get("category") == "provider_aggregate_candidate" and priority.get("user_facing_label"):
+                lines.append(f"Priority control: {priority.get('user_facing_label')}")
+                if priority.get("disclaimer"):
+                    lines.append(f"Provider aggregate caveat: {priority.get('disclaimer')}")
+            else:
+                lines.append(
+                    "Priority control: "
+                    f"{priority.get('category')} rank={priority.get('rank')} "
+                    f"{priority.get('price_text')} elapsed={priority.get('elapsed') or 'n/a'}."
+                )
+        if pair:
+            pair_label = str(pair.get("user_facing_label") or "Two separate one-way aggregate offers are available.")
+            if pair_label.startswith("Two separate one-way offers"):
+                pair_label = pair_label.replace("Two separate one-way offers", "Two separate one-way aggregate offers", 1)
+            lines.append(f"Priority control: {pair_label} Not a proven single-PNR/protected round trip.")
 
     checks = report.get("through_fare_checks") or []
     if checks:
