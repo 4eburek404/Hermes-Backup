@@ -19,6 +19,8 @@ MONTH_CODES = [
     "DEC",
 ]
 
+SUMMARY_ONLY_DETAIL_FALLBACK = "Подробности рейсов не включены в краткий отчёт."
+
 
 def parse_iso(value: Any) -> datetime | None:
     if not isinstance(value, str) or not value:
@@ -63,7 +65,17 @@ def display_duration(minutes: Any) -> str:
     return f"{hours}:{mins:02d}"
 
 
+def integer_or_none(value: Any) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
+
+
 class PlaceLookup:
+
     def __init__(self, store: Any | None = None):
         self.store = store
         self.airports = self._load_by_code("airports_ru.json")
@@ -166,7 +178,62 @@ def render_group_lines(segments: list[dict[str, Any]], places: PlaceLookup) -> l
     return lines
 
 
+def summary_elapsed_text(option: dict[str, Any]) -> str:
+    for key in ("itinerary_elapsed_min", "elapsed_min"):
+        minutes = integer_or_none(option.get(key))
+        if minutes is not None:
+            return display_duration(minutes)
+    elapsed = str(option.get("elapsed") or "").strip()
+    if elapsed:
+        return elapsed
+    directional_parts: list[str] = []
+    for key, label in (("outbound_time", "туда"), ("return_time", "обратно")):
+        value = option.get(key)
+        if not isinstance(value, dict):
+            continue
+        minutes = integer_or_none(value.get("itinerary_elapsed_min"))
+        if minutes is None:
+            minutes = integer_or_none(value.get("flight_time_min"))
+        if minutes is not None:
+            directional_parts.append(f"{label} {display_duration(minutes)}")
+    return "; ".join(directional_parts) if directional_parts else "?:??"
+
+
+def summary_connection_count(option: dict[str, Any]) -> int | None:
+    for key in ("max_connections_per_journey", "connection_count"):
+        value = integer_or_none(option.get(key))
+        if value is not None:
+            return max(0, value)
+    connections = option.get("connections")
+    if isinstance(connections, list) and connections:
+        return len(connections)
+    return None
+
+
+def summary_only_option_display(option: dict[str, Any]) -> dict[str, Any]:
+    elapsed = summary_elapsed_text(option)
+    connection_count = summary_connection_count(option)
+    header_parts = [str(option.get("price_text") or "price n/a")]
+    if elapsed != "?:??":
+        header_parts.append(f"всего {elapsed}")
+    if connection_count is not None:
+        header_parts.append(f"пересадок {connection_count}")
+    header = " | ".join(header_parts)
+    lines = [SUMMARY_ONLY_DETAIL_FALLBACK]
+    return {
+        "id": option.get("id"),
+        "category": option.get("category"),
+        "price_text": str(option.get("price_text") or "price n/a"),
+        "total_elapsed": elapsed,
+        "connection_count": connection_count if connection_count is not None else 0,
+        "lines": lines,
+        "text": "\n".join([header] + lines),
+    }
+
+
 def option_display(option: dict[str, Any], places: PlaceLookup) -> dict[str, Any] | None:
+    if option.get("detail_status") == "summary_only":
+        return summary_only_option_display(option)
     segments = [segment for segment in option.get("segments") or [] if isinstance(segment, dict)]
     if not segments:
         return None
@@ -214,3 +281,31 @@ def build_flight_display(report: dict[str, Any], store: Any | None = None, *, li
         "text": "\n\n".join(item["text"] for item in candidates),
         "options": candidates,
     }
+
+
+def sanitize_summary_only_display(report: dict[str, Any]) -> None:
+    display = report.get("display")
+    if not isinstance(display, dict):
+        return
+    display_options = display.get("options")
+    if not isinstance(display_options, list):
+        return
+    summary_options = {
+        option.get("id"): option
+        for option in (report.get("recommended_options") or []) + (report.get("priority_options") or [])
+        if isinstance(option, dict) and option.get("detail_status") == "summary_only"
+    }
+    if not summary_options:
+        return
+    changed = False
+    sanitized_options: list[Any] = []
+    for display_option in display_options:
+        if isinstance(display_option, dict) and display_option.get("id") in summary_options:
+            sanitized_options.append(summary_only_option_display(summary_options[display_option.get("id")]))
+            changed = True
+        else:
+            sanitized_options.append(display_option)
+    if not changed:
+        return
+    display["options"] = sanitized_options
+    display["text"] = "\n\n".join(str(option.get("text") or "") for option in sanitized_options if isinstance(option, dict))

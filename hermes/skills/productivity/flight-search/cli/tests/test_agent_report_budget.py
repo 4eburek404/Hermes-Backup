@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import copy
 import json
 import unittest
 
+from flights_cli.reporting.flight_display import build_flight_display
 from flights_cli.reporting.report_budget import AgentReportBudget, apply_agent_report_budget, serialized_report_size
 from flights_cli.services.agent_report_contract import validate_agent_report
 from tests.test_agent_report_contract import valid_option, valid_report
@@ -36,6 +38,60 @@ def coverage_control(index: int, bucket: str) -> dict:
 
 
 class AgentReportBudgetTests(unittest.TestCase):
+    def test_budgeted_summary_only_options_keep_compact_display_without_stale_flight_lines(self) -> None:
+        report = valid_report()
+        full_option = copy.deepcopy(valid_option())
+        full_option["id"] = "option-full"
+        full_option["rank"] = 1
+        full_option["price_text"] = "10 000 RUB"
+        summary_option = copy.deepcopy(valid_option())
+        summary_option["id"] = "option-summary"
+        summary_option["rank"] = 2
+        summary_option["price_text"] = "12 000 RUB"
+        summary_option["elapsed_min"] = 540
+        summary_option["elapsed"] = "9h"
+        summary_option["max_connections_per_journey"] = 1
+        summary_option["segments"] = [
+            {
+                "direction": "outbound",
+                "flight_number": "U6123",
+                "carrier": "U6",
+                "origin": "SVX",
+                "destination": "IST",
+                "departure_at": "2026-06-01T10:00:00+05:00",
+                "arrival_at": "2026-06-01T13:00:00+03:00",
+            },
+            {
+                "direction": "outbound",
+                "flight_number": "TK1985",
+                "carrier": "TK",
+                "origin": "IST",
+                "destination": "LHR",
+                "departure_at": "2026-06-01T15:00:00+03:00",
+                "arrival_at": "2026-06-01T17:00:00+01:00",
+            },
+        ]
+        report["recommended_options"] = [full_option, summary_option]
+        report["display"] = build_flight_display(report)
+        self.assertIn("U6123", report["display"]["text"])
+        self.assertIn("пересадка IST", report["display"]["text"])
+
+        budgeted = apply_agent_report_budget(report, AgentReportBudget(max_bytes=1))
+
+        validate_agent_report(budgeted)
+        full_display = next(option for option in budgeted["display"]["options"] if option["id"] == "option-full")
+        summary_display = next(option for option in budgeted["display"]["options"] if option["id"] == "option-summary")
+        self.assertEqual(budgeted["recommended_options"][0]["detail_status"], "full")
+        self.assertEqual(budgeted["recommended_options"][1]["detail_status"], "summary_only")
+        self.assertEqual(budgeted["recommended_options"][1]["segments"], [])
+        self.assertIn("SU232", full_display["text"])
+        self.assertIn("Подробности рейсов не включены в краткий отчёт.", summary_display["text"])
+        self.assertNotIn("U6123", summary_display["text"])
+        self.assertNotIn("TK1985", summary_display["text"])
+        self.assertNotIn("пересадка", summary_display["text"].lower())
+        self.assertNotIn("SVX - IST", summary_display["text"])
+        self.assertNotIn("IST - LHR", summary_display["text"])
+
     def test_huge_report_is_bounded_and_records_omitted_counts(self) -> None:
         report = valid_report()
         report["recommended_options"] = []

@@ -193,6 +193,41 @@ class AgentReportContractTests(unittest.TestCase):
     def test_valid_synthetic_agent_report_passes(self) -> None:
         validate_agent_report(valid_report())
 
+    def test_summary_only_display_rejects_detailed_flight_lines(self) -> None:
+        report = valid_report()
+        summary_option = copy.deepcopy(valid_option())
+        summary_option["id"] = "option-summary"
+        summary_option["rank"] = 2
+        summary_option["detail_status"] = "summary_only"
+        summary_option["segments"] = []
+        report["recommended_options"].append(summary_option)
+        report["display"]["options"].append(
+            {
+                "id": "option-summary",
+                "category": None,
+                "price_text": "12 000 RUB",
+                "total_elapsed": "6:00",
+                "connection_count": 1,
+                "lines": [
+                    "SVX→IST U6 123 10:00–13:00",
+                    "пересадка IST 2:00",
+                    "IST→LHR TK1985 15:00–17:00",
+                ],
+                "text": "12 000 RUB | всего 6:00 | пересадок 1\nSVX→IST U6 123 10:00–13:00\nпересадка IST 2:00\nIST→LHR TK1985 15:00–17:00",
+            }
+        )
+        report["display"]["text"] = "\n\n".join(option["text"] for option in report["display"]["options"])
+
+        with self.assertRaises(CliError) as ctx:
+            validate_agent_report(report)
+
+        self.assertTrue(
+            any(
+                error["validator"] == "semantic" and "summary_only display must not include detailed flight lines" in error["message"]
+                for error in ctx.exception.details["errors"]
+            )
+        )
+
     def test_canonical_coverage_diagnostics_requires_terminal_fields(self) -> None:
         report = valid_report()
 
