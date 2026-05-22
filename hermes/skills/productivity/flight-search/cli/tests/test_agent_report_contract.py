@@ -511,7 +511,7 @@ class AgentReportContractTests(unittest.TestCase):
         self.assertEqual(ctx.exception.error_type, "contract_error")
         self.assertTrue(any(error["validator"] == "additionalProperties" for error in ctx.exception.details["errors"]))
 
-    def test_priority_options_must_surface_in_answer_lines(self) -> None:
+    def test_priority_options_do_not_require_answer_line_keywords(self) -> None:
         report = valid_report()
         priority = copy.deepcopy(valid_option())
         priority["category"] = "all_su_svo"
@@ -519,11 +519,7 @@ class AgentReportContractTests(unittest.TestCase):
         report["priority_options"] = [priority]
         report["answer_lines"] = ["Best CLI-ranked option: 10 000 RUB."]
 
-        with self.assertRaises(CliError) as ctx:
-            validate_agent_report(report)
-
-        self.assertEqual(ctx.exception.error_type, "contract_error")
-        self.assertTrue(any("priority/control" in error["message"] for error in ctx.exception.details["errors"]))
+        validate_agent_report(report)
 
     def test_through_fare_checks_must_surface_in_answer_lines(self) -> None:
         report = valid_report()
