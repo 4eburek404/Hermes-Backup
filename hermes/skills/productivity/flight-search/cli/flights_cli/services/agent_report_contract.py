@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from functools import lru_cache
 from importlib import resources
 from typing import Any
@@ -13,6 +14,10 @@ from ..errors import CliError
 AGENT_REPORT_SCHEMA_VERSION = "agent_report.v1"
 AGENT_REPORT_SCHEMA_RESOURCE = "agent_report.v1.schema.json"
 AGENT_REPORT_SCHEMA_PACKAGE = "flights_cli.contracts"
+DETAILED_FLIGHT_NUMBER_RE = re.compile(r"\b(?=[A-Z0-9]{2}\s?\d{2,4}\b)(?=[A-Z0-9]*[A-Z])[A-Z0-9]{2}\s?\d{2,4}\b", re.IGNORECASE)
+DISPLAY_DATE_RE = re.compile(r"\b\d{2}(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b", re.IGNORECASE)
+TIME_RANGE_RE = re.compile(r"\b\d{1,2}:\d{2}\s*[-–—→]\s*\d{1,2}:\d{2}\b")
+AIRPORT_TIME_ROUTE_RE = re.compile(r"\b[A-Z]{3}\s*(?:-|→|to)\s*[A-Z]{3}\b.*\b\d{1,2}:\d{2}\b")
 
 
 @lru_cache(maxsize=1)
@@ -37,6 +42,33 @@ def validation_error_detail(error: ValidationError) -> dict[str, Any]:
         "message": error.message,
         "validator": error.validator,
     }
+
+
+def display_lines(display_option: dict[str, Any]) -> list[str]:
+    lines: list[str] = []
+    raw_lines = display_option.get("lines")
+    if isinstance(raw_lines, list):
+        lines.extend(str(line) for line in raw_lines)
+    text = display_option.get("text")
+    if isinstance(text, str):
+        lines.extend(text.splitlines())
+    return lines
+
+
+def has_detailed_flight_display_line(line: str) -> bool:
+    stripped = line.strip()
+    lowered = stripped.lower()
+    if lowered.startswith("пересадка") or lowered.startswith("layover"):
+        return True
+    if DETAILED_FLIGHT_NUMBER_RE.search(stripped):
+        return True
+    if DISPLAY_DATE_RE.search(stripped) and TIME_RANGE_RE.search(stripped):
+        return True
+    if AIRPORT_TIME_ROUTE_RE.search(stripped):
+        return True
+    if "борт " in lowered and "в полете" in lowered:
+        return True
+    return False
 
 
 def semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
@@ -64,6 +96,25 @@ def semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
                 {
                     "path": "$.display.text",
                     "message": "display.text must render user-facing flight lines when recommended segments exist",
+                    "validator": "semantic",
+                }
+            )
+
+    summary_option_ids = {
+        option.get("id")
+        for collection_name in ("recommended_options", "priority_options")
+        for option in (report.get(collection_name) or [])
+        if isinstance(option, dict) and option.get("detail_status") == "summary_only"
+    }
+    display = report.get("display") if isinstance(report.get("display"), dict) else {}
+    for index, display_option in enumerate(display.get("options") or []):
+        if not isinstance(display_option, dict) or display_option.get("id") not in summary_option_ids:
+            continue
+        if any(has_detailed_flight_display_line(line) for line in display_lines(display_option)):
+            errors.append(
+                {
+                    "path": f"$.display.options[{index}]",
+                    "message": "summary_only display must not include detailed flight lines",
                     "validator": "semantic",
                 }
             )
