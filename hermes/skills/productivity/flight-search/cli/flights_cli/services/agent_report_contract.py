@@ -18,6 +18,19 @@ DETAILED_FLIGHT_NUMBER_RE = re.compile(r"\b(?=[A-Z0-9]{2}\s?\d{2,4}\b)(?=[A-Z0-9
 DISPLAY_DATE_RE = re.compile(r"\b\d{2}(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b", re.IGNORECASE)
 TIME_RANGE_RE = re.compile(r"\b\d{1,2}:\d{2}\s*[-–—→]\s*\d{1,2}:\d{2}\b")
 AIRPORT_TIME_ROUTE_RE = re.compile(r"\b[A-Z]{3}\s*(?:-|→|to)\s*[A-Z]{3}\b.*\b\d{1,2}:\d{2}\b")
+RU_PRIORITY_BRANCHES = {
+    "direct_destination_control": "direct_destination",
+    "ist_primary_hub_control": "ist_primary_hub",
+    "moscow_gateway_control": "moscow_gateway",
+    "moscow_via_ist_fallback_control": "moscow_via_ist_fallback",
+}
+RU_PRIORITY_DECISIONS = {
+    "direct_destination_viable",
+    "ist_primary_viable",
+    "moscow_gateway_viable",
+    "moscow_via_ist_fallback_viable",
+    "no_viable_ru_priority_control",
+}
 
 
 @lru_cache(maxsize=1)
@@ -71,6 +84,60 @@ def has_detailed_flight_display_line(line: str) -> bool:
     return False
 
 
+def ru_priority_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
+    controls = report.get("ru_priority_controls")
+    if controls is None:
+        return []
+    errors: list[dict[str, Any]] = []
+    if not isinstance(controls, dict):
+        return errors
+    decision = controls.get("decision")
+    if decision not in RU_PRIORITY_DECISIONS:
+        errors.append({"path": "$.ru_priority_controls.decision", "message": "ru_priority_controls.decision has invalid value", "validator": "semantic"})
+
+    priority_options = report.get("priority_options") if isinstance(report.get("priority_options"), list) else []
+    priority_by_id = {
+        str(option.get("id")): option
+        for option in priority_options
+        if isinstance(option, dict) and isinstance(option.get("id"), str) and str(option.get("id")).strip()
+    }
+    required_fields = ("checked", "viable", "visible", "priority_option_id", "evidence_option_ids")
+    for control_key, branch in RU_PRIORITY_BRANCHES.items():
+        branch_path = f"$.ru_priority_controls.{control_key}"
+        branch_control = controls.get(control_key)
+        if not isinstance(branch_control, dict):
+            errors.append({"path": branch_path, "message": f"{control_key} must be an object", "validator": "semantic"})
+            continue
+        for field in required_fields:
+            if field not in branch_control:
+                errors.append({"path": f"{branch_path}.{field}", "message": f"{control_key}.{field} is required", "validator": "semantic"})
+        if not isinstance(branch_control.get("evidence_option_ids"), list):
+            errors.append({"path": f"{branch_path}.evidence_option_ids", "message": f"{control_key}.evidence_option_ids must be a list", "validator": "semantic"})
+
+        visible = branch_control.get("visible") is True
+        viable = branch_control.get("viable") is True
+        if visible and not viable:
+            errors.append({"path": f"{branch_path}.visible", "message": f"{control_key} cannot be visible when viable is false", "validator": "semantic"})
+        if not visible:
+            continue
+
+        priority_option_id = branch_control.get("priority_option_id")
+        if not isinstance(priority_option_id, str) or not priority_option_id.strip():
+            errors.append({"path": f"{branch_path}.priority_option_id", "message": f"{control_key}.visible requires a non-empty priority_option_id", "validator": "semantic"})
+            continue
+        option = priority_by_id.get(priority_option_id)
+        if option is None:
+            errors.append({"path": f"{branch_path}.priority_option_id", "message": f"{control_key}.priority_option_id must reference priority_options", "validator": "semantic"})
+            continue
+        if option.get("control_family") != "ru_priority":
+            errors.append({"path": f"$.priority_options[{priority_option_id}].control_family", "message": "visible RU-priority option must have control_family=ru_priority", "validator": "semantic"})
+        if option.get("control_branch") != branch:
+            errors.append({"path": f"$.priority_options[{priority_option_id}].control_branch", "message": f"visible RU-priority option must have control_branch={branch}", "validator": "semantic"})
+        if option.get("visibility_role") != "priority_control":
+            errors.append({"path": f"$.priority_options[{priority_option_id}].visibility_role", "message": "visible RU-priority option must have visibility_role=priority_control", "validator": "semantic"})
+    return errors
+
+
 def semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
     errors: list[dict[str, Any]] = []
     answer_text = "\n".join(str(line).lower() for line in report.get("answer_lines") or [])
@@ -118,15 +185,6 @@ def semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
                     "validator": "semantic",
                 }
             )
-
-    if report.get("priority_options") and "priority" not in answer_text and "control" not in answer_text:
-        errors.append(
-            {
-                "path": "$.answer_lines",
-                "message": "answer_lines must surface priority/control options",
-                "validator": "semantic",
-            }
-        )
 
     if report.get("through_fare_checks"):
         has_through_fare_signal = "through-fare" in answer_text or "through fare" in answer_text
@@ -190,6 +248,7 @@ def semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
 
+    errors.extend(ru_priority_semantic_errors(report))
     return errors
 
 
