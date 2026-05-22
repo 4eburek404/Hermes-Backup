@@ -193,6 +193,121 @@ class AgentReportContractTests(unittest.TestCase):
     def test_valid_synthetic_agent_report_passes(self) -> None:
         validate_agent_report(valid_report())
 
+    def test_schema_accepts_ru_priority_controls_for_ru_touching_international_route(self) -> None:
+        report = valid_report()
+        report["route"]["destination"] = "LON"
+        report["route"]["destination_airports"] = ["LHR", "LGW", "STN", "LTN"]
+        report["route"]["routing_strategy"] = "ru-priority"
+        report["ru_priority_controls"] = {
+            "requested": True,
+            "checked": True,
+            "route_family": "ru_priority",
+            "scope": {
+                "origin": "SVX",
+                "destination": "LON",
+                "origin_airports": ["SVX"],
+                "destination_airports": ["LHR", "LGW", "STN", "LTN"],
+                "moscow_airports": ["SVO", "DME", "VKO"],
+                "primary_hub": "IST",
+            },
+            "direct_destination_control": {
+                "checked": True,
+                "viable": False,
+                "visible": False,
+                "priority_option_id": None,
+                "evidence_option_ids": [],
+            },
+            "ist_primary_hub_control": {
+                "checked": True,
+                "viable": False,
+                "visible": False,
+                "priority_option_id": None,
+                "evidence_option_ids": [],
+            },
+            "moscow_gateway_control": {
+                "checked": True,
+                "viable": False,
+                "visible": False,
+                "priority_option_id": None,
+                "evidence_option_ids": [],
+            },
+            "moscow_via_ist_fallback_control": {
+                "checked": True,
+                "viable": False,
+                "visible": False,
+                "priority_option_id": None,
+                "evidence_option_ids": [],
+            },
+            "decision": "no_viable_ru_priority_control",
+        }
+
+        validate_agent_report(report)
+
+    def test_ru_priority_visibility_is_structural_not_answer_line_text(self) -> None:
+        report = valid_report()
+        report["route"]["destination"] = "LON"
+        report["route"]["destination_airports"] = ["LHR", "LGW", "STN", "LTN"]
+        option = copy.deepcopy(valid_option())
+        option["id"] = "priority-ist-primary"
+        option["category"] = "ist_primary_hub_control"
+        option["control_family"] = "ru_priority"
+        option["control_branch"] = "ist_primary_hub"
+        option["visibility_role"] = "priority_control"
+        report["priority_options"] = [option]
+        report["ru_priority_controls"] = {
+            "requested": True,
+            "checked": True,
+            "route_family": "ru_priority",
+            "scope": {
+                "origin": "SVX",
+                "destination": "LON",
+                "origin_airports": ["SVX"],
+                "destination_airports": ["LHR", "LGW", "STN", "LTN"],
+                "moscow_airports": ["SVO", "DME", "VKO"],
+                "primary_hub": "IST",
+            },
+            "direct_destination_control": {
+                "checked": True,
+                "viable": False,
+                "visible": False,
+                "priority_option_id": None,
+                "evidence_option_ids": [],
+            },
+            "ist_primary_hub_control": {
+                "checked": True,
+                "viable": True,
+                "visible": True,
+                "priority_option_id": "priority-ist-primary",
+                "evidence_option_ids": ["priority-ist-primary"],
+            },
+            "moscow_gateway_control": {
+                "checked": True,
+                "viable": False,
+                "visible": False,
+                "priority_option_id": None,
+                "evidence_option_ids": [],
+            },
+            "moscow_via_ist_fallback_control": {
+                "checked": True,
+                "viable": False,
+                "visible": False,
+                "priority_option_id": None,
+                "evidence_option_ids": [],
+            },
+            "decision": "ist_primary_viable",
+        }
+        report["answer_lines"] = [
+            "Best CLI-ranked option: 10 000 RUB.",
+            "Ветка через IST проверена: найден годный вариант.",
+            "Do not treat cached or segment-search absence as proof that a through fare, direct flight, or protected ticket does not exist.",
+        ]
+        answer_text = "\n".join(report["answer_lines"])
+        self.assertNotIn("control", answer_text.lower())
+        self.assertNotIn("priority", answer_text.lower())
+        self.assertNotIn("Контроль", answer_text)
+
+        validate_agent_report(report)
+
     def test_summary_only_display_rejects_detailed_flight_lines(self) -> None:
         report = valid_report()
         summary_option = copy.deepcopy(valid_option())
