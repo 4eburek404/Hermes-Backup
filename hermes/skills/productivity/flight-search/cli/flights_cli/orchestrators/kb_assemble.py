@@ -9,6 +9,7 @@ from ..config import (
     DEFAULT_KB_ROUTE_OUTBOUND_SECOND_LEG_DAY_OFFSETS,
     DEFAULT_KB_ROUTE_RETURN_SECOND_LEG_DAY_OFFSETS,
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
+    KUPIBILET_CITY_CODE_FIRST_AIRPORTS,
     PRIORITY_ASIA_HUB,
     PRIORITY_MOSCOW_GATEWAY,
     PRIORITY_PRIMARY_HUB,
@@ -16,7 +17,7 @@ from ..config import (
     PRIORITY_SECONDARY_HUB,
     SUPPORTED_CURRENCIES,
 )
-from ..domain.airports import explicit_or_resolved_airports
+from ..domain.airports import airport_priority_metadata, explicit_or_resolved_airports
 from ..domain.normalize import normalize_carrier_code, normalize_profile, parse_iso_date
 from ..errors import CliError
 from ..execution.aggregate_control_runner import run_aggregate_controls
@@ -36,6 +37,62 @@ from .route_graph import (
     route_segment_key,
     route_segment_spec,
 )
+
+
+def provider_policy_allows_kupibilet(policy: str | None) -> bool:
+    normalized = str(policy or "kupibilet").strip().lower()
+    return normalized in {"auto", "both", "kupibilet"}
+
+
+def city_code_first_segment_options(
+    *,
+    city_code: str | None,
+    airports: list[str],
+    explicit: list[str] | None,
+    provider_policy: str | None,
+) -> list[tuple[str, dict[str, Any]]]:
+    normalized_city = str(city_code or "").upper()
+    if explicit or not provider_policy_allows_kupibilet(provider_policy):
+        return [(code, {}) for code in airports]
+    fallback_airports = [str(code).upper() for code in KUPIBILET_CITY_CODE_FIRST_AIRPORTS.get(normalized_city, [])]
+    if not fallback_airports:
+        return [(code, {}) for code in airports]
+
+    options: list[tuple[str, dict[str, Any]]] = [
+        (
+            normalized_city,
+            {
+                "provider_request_strategy": "city_code_first",
+                "provider_city_code": normalized_city,
+                "provider_city_code_fallback_airports": fallback_airports,
+            },
+        )
+    ]
+    for code in airports:
+        normalized_airport = str(code).upper()
+        options.append(
+            (
+                normalized_airport,
+                {
+                    "provider_request_strategy": "city_code_fallback",
+                    "provider_city_code": normalized_city,
+                    "fallback_for_city_code_request": True,
+                },
+            )
+        )
+    return options
+
+
+def segment_code_metadata(origin_code: str, dest_code: str) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    origin_priority = airport_priority_metadata(origin_code)
+    destination_priority = airport_priority_metadata(dest_code)
+    if origin_priority:
+        metadata["origin_airport_priority"] = origin_priority
+    if destination_priority:
+        metadata["destination_airport_priority"] = destination_priority
+    return metadata
+
 
 def normalize_day_offsets(values: list[int] | None, default: list[int], field: str) -> list[int]:
     raw_values = default if values is None else values
@@ -155,6 +212,19 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
     destination_airports = explicit_or_resolved_airports(
         store, destination, args.destination_airport, role="destination", max_airports=args.max_airports_per_city
     )
+    provider_policy = str(getattr(args, "provider_policy", "kupibilet") or "kupibilet")
+    origin_segment_options = city_code_first_segment_options(
+        city_code=origin.code,
+        airports=origin_airports,
+        explicit=args.origin_airport,
+        provider_policy=provider_policy,
+    )
+    destination_segment_options = city_code_first_segment_options(
+        city_code=destination.code,
+        airports=destination_airports,
+        explicit=args.destination_airport,
+        provider_policy=provider_policy,
+    )
     route_context = resolve_route_graph_context(args, store, origin, destination, origin_airports, destination_airports)
     routing_strategy = route_context.routing_strategy
     hubs = route_context.hubs
@@ -177,7 +247,7 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
     def add_segment(direction: str, leg: str, dep_date: date, origin_code: str, dest_code: str, **extra: Any) -> None:
         if origin_code == dest_code:
             return
-        spec = route_segment_spec(direction, leg, dep_date, origin_code, dest_code, **extra)
+        spec = route_segment_spec(direction, leg, dep_date, origin_code, dest_code, **segment_code_metadata(origin_code, dest_code), **extra)
         key = route_segment_key(spec, include_date=True)
         if key in seen:
             return
@@ -186,8 +256,8 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
 
     route_families = route_families_for_strategy(routing_strategy, routing_profile)
     if routing_strategy == "ru-priority":
-        for origin_code in origin_airports:
-            for dest_code in destination_airports:
+        for origin_code, origin_extra in origin_segment_options:
+            for dest_code, dest_extra in destination_segment_options:
                 add_segment(
                     "outbound",
                     "direct_outbound",
@@ -197,6 +267,7 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                     route_family="direct_control",
                     priority=0,
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                    **{**origin_extra, **dest_extra},
                 )
         if routing_profile == "asia-oceania":
             for origin_code in origin_airports:
@@ -296,8 +367,8 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                     skip_if_priority_route_viable="outbound",
                 )
     elif routing_strategy == "domestic-ru":
-        for origin_code in origin_airports:
-            for dest_code in destination_airports:
+        for origin_code, origin_extra in origin_segment_options:
+            for dest_code, dest_extra in destination_segment_options:
                 add_segment(
                     "outbound",
                     "direct_outbound",
@@ -306,6 +377,7 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                     dest_code,
                     route_family="domestic_ru",
                     priority=0,
+                    **{**origin_extra, **dest_extra},
                 )
         for origin_code in origin_airports:
             for hub in hubs:
@@ -327,8 +399,8 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
 
     if ret:
         if routing_strategy == "ru-priority":
-            for dest_code in destination_airports:
-                for origin_code in origin_airports:
+            for dest_code, dest_extra in destination_segment_options:
+                for origin_code, origin_extra in origin_segment_options:
                     add_segment(
                         "return",
                         "direct_return",
@@ -338,6 +410,7 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                         route_family="direct_control",
                         priority=0,
                         preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                        **{**dest_extra, **origin_extra},
                     )
             if routing_profile == "asia-oceania":
                 for dest_code in destination_airports:
@@ -437,8 +510,8 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                         skip_if_priority_route_viable="return",
                     )
         elif routing_strategy == "domestic-ru":
-            for dest_code in destination_airports:
-                for origin_code in origin_airports:
+            for dest_code, dest_extra in destination_segment_options:
+                for origin_code, origin_extra in origin_segment_options:
                     add_segment(
                         "return",
                         "direct_return",
@@ -447,6 +520,7 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                         origin_code,
                         route_family="domestic_ru",
                         priority=0,
+                        **{**dest_extra, **origin_extra},
                     )
             for dest_code in destination_airports:
                 for hub in hubs:

@@ -183,10 +183,26 @@ MULTI_AIRPORT_GROUPS: dict[str, dict[str, Any]] = {
     },
 }
 
-SPECIAL_CITY_AIRPORTS = {
-    "LON": ["LHR", "LGW", "STN", "LTN"],
+PREFERRED_AIRPORT_TIERS = {
+    "LON": [
+        {"tier": 1, "airports": ["LHR"], "role": "preferred"},
+        {"tier": 2, "airports": ["LGW"], "role": "fallback"},
+    ],
+}
+
+CITY_AIRPORTS_EXCLUDED_BY_DEFAULT = {
+    "LON": ["STN", "LTN"],
+    "IST": ["SAW"],
+}
+
+KUPIBILET_CITY_CODE_FIRST_AIRPORTS = {
     "MOW": ["SVO", "DME", "VKO"],
-    "IST": ["IST", "SAW"],
+}
+
+SPECIAL_CITY_AIRPORTS = {
+    "LON": ["LHR", "LGW"],
+    "MOW": ["SVO", "DME", "VKO"],
+    "IST": ["IST"],
     "PAR": ["CDG", "ORY"],
     "BJS": ["PEK", "PKX"],
 }

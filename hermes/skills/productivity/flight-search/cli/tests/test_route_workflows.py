@@ -46,7 +46,7 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(result["summary"]["violation_count"], 0)
         self.assertEqual(result["risk"]["grade"], "excellent")
 
-    def test_route_plan_svx_lon_expands_london_and_counts_segments(self) -> None:
+    def test_route_plan_svx_lon_uses_preferred_london_airports_and_counts_segments(self) -> None:
         args = argparse.Namespace(
             origin="SVX",
             destination="LON",
@@ -64,8 +64,10 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
         )
         result = build_route_plan(args, Store())
         self.assertEqual(result["origin_airports"], ["SVX"])
-        self.assertEqual(result["destination_airports"], ["LHR", "LGW", "STN", "LTN"])
-        self.assertEqual(result["metrics"]["segment_request_count"], 30)
+        self.assertEqual(result["destination_airports"], ["LHR", "LGW"])
+        self.assertEqual(result["airport_scope"]["destination"]["preferred_airport_tiers"][0]["airports"], ["LHR"])
+        self.assertEqual(result["airport_scope"]["destination"]["excluded_by_default"], ["STN", "LTN"])
+        self.assertEqual(result["metrics"]["segment_request_count"], 18)
         self.assertEqual(result["itinerary_families"][0]["outbound_airport_compatibility"][0]["required_min"], 120)
         self.assertIn("LON is broad and provider-dependent; use specific London airports for decision-grade checks.", result["warnings"])
 
@@ -168,7 +170,7 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
 
         self.assertEqual(result["hubs"], list(DEFAULT_ROUTE_HUBS))
         self.assertEqual(result["hub_source"], "default")
-        self.assertEqual(result["metrics"]["segment_request_count"], len(DEFAULT_ROUTE_HUBS) * 10)
+        self.assertEqual(result["metrics"]["segment_request_count"], len(DEFAULT_ROUTE_HUBS) * 6)
 
     def test_carrier_from_flight_number_handles_alphanumeric_iata_codes(self) -> None:
         self.assertEqual(carrier_from_flight_number("5N294"), "5N")

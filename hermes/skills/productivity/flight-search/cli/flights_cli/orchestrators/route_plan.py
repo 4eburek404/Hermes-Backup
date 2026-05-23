@@ -15,7 +15,7 @@ from ..config import (
     SINGLE_AIRPORT_NOTES,
     SUPPORTED_CURRENCIES,
 )
-from ..domain.airports import airport_pair_risk, explicit_or_resolved_airports, explain_airport
+from ..domain.airports import airport_pair_risk, airport_priority_metadata, explicit_or_resolved_airports, explain_airport
 from ..domain.normalize import normalize_carrier_code, normalize_profile, parse_iso_date
 from ..errors import CliError
 from ..adapters.providers.registry import providers_for_segment
@@ -29,6 +29,17 @@ from .route_graph import (
     route_segment_key,
     route_segment_spec,
 )
+
+
+def segment_code_metadata(origin_code: str, dest_code: str) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    origin_priority = airport_priority_metadata(origin_code)
+    destination_priority = airport_priority_metadata(dest_code)
+    if origin_priority:
+        metadata["origin_airport_priority"] = origin_priority
+    if destination_priority:
+        metadata["destination_airport_priority"] = destination_priority
+    return metadata
 
 
 def live_segment_command(spec: dict[str, Any], store: Store, currency: str, limit: int = 30) -> str:
@@ -130,7 +141,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     ) -> None:
         if origin_code == dest_code:
             return
-        spec = route_segment_spec(direction, leg, dep_date, origin_code, dest_code, **extra)
+        spec = route_segment_spec(direction, leg, dep_date, origin_code, dest_code, **segment_code_metadata(origin_code, dest_code), **extra)
         key = route_segment_key(spec, include_date=False)
         if key in seen:
             return

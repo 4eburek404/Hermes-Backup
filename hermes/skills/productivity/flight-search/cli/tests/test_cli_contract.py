@@ -261,8 +261,9 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(payload["command"], "route plan")
         data = payload["data"]
         self.assertEqual(data["hubs"], ["IST", "DXB"])
-        self.assertEqual(data["destination_airports"], ["LHR", "LGW", "STN", "LTN"])
-        self.assertEqual(data["metrics"]["segment_request_count"], 10)
+        self.assertEqual(data["destination_airports"], ["LHR", "LGW"])
+        self.assertEqual(data["airport_scope"]["destination"]["excluded_by_default"], ["STN", "LTN"])
+        self.assertEqual(data["metrics"]["segment_request_count"], 6)
         self.assertNotIn("manual_links", data)
         self.assertNotIn("manual_direct_links", data["metrics"].get("without_cli", {}))
         self.assertIn("warnings", data)
