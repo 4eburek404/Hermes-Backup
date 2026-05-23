@@ -170,6 +170,45 @@ def valid_report() -> dict:
     }
 
 
+def ru_priority_branch(
+    *,
+    execution_state: str = "not_generated",
+    viable: bool = False,
+    visible: bool = False,
+    priority_option_id: str | None = None,
+    evidence_option_ids: list[str] | None = None,
+) -> dict:
+    return {
+        "checked": True,
+        "execution_state": execution_state,
+        "viable": viable,
+        "visible": visible,
+        "priority_option_id": priority_option_id,
+        "evidence_option_ids": evidence_option_ids or [],
+    }
+
+
+def valid_ru_priority_controls() -> dict:
+    return {
+        "requested": True,
+        "checked": True,
+        "route_family": "ru_priority",
+        "scope": {
+            "origin": "SVX",
+            "destination": "LON",
+            "origin_airports": ["SVX"],
+            "destination_airports": ["LHR", "LGW", "STN", "LTN"],
+            "moscow_airports": ["SVO", "DME", "VKO"],
+            "primary_hub": "IST",
+        },
+        "direct_destination_control": ru_priority_branch(),
+        "ist_primary_hub_control": ru_priority_branch(),
+        "moscow_gateway_control": ru_priority_branch(),
+        "moscow_via_ist_fallback_control": ru_priority_branch(),
+        "decision": "no_viable_ru_priority_control",
+    }
+
+
 class AgentReportContractTests(unittest.TestCase):
     def test_schema_is_valid_and_stable(self) -> None:
         schema = load_agent_report_schema()
@@ -198,50 +237,53 @@ class AgentReportContractTests(unittest.TestCase):
         report["route"]["destination"] = "LON"
         report["route"]["destination_airports"] = ["LHR", "LGW", "STN", "LTN"]
         report["route"]["routing_strategy"] = "ru-priority"
-        report["ru_priority_controls"] = {
-            "requested": True,
-            "checked": True,
-            "route_family": "ru_priority",
-            "scope": {
-                "origin": "SVX",
-                "destination": "LON",
-                "origin_airports": ["SVX"],
-                "destination_airports": ["LHR", "LGW", "STN", "LTN"],
-                "moscow_airports": ["SVO", "DME", "VKO"],
-                "primary_hub": "IST",
-            },
-            "direct_destination_control": {
-                "checked": True,
-                "viable": False,
-                "visible": False,
-                "priority_option_id": None,
-                "evidence_option_ids": [],
-            },
-            "ist_primary_hub_control": {
-                "checked": True,
-                "viable": False,
-                "visible": False,
-                "priority_option_id": None,
-                "evidence_option_ids": [],
-            },
-            "moscow_gateway_control": {
-                "checked": True,
-                "viable": False,
-                "visible": False,
-                "priority_option_id": None,
-                "evidence_option_ids": [],
-            },
-            "moscow_via_ist_fallback_control": {
-                "checked": True,
-                "viable": False,
-                "visible": False,
-                "priority_option_id": None,
-                "evidence_option_ids": [],
-            },
-            "decision": "no_viable_ru_priority_control",
-        }
+        report["ru_priority_controls"] = valid_ru_priority_controls()
 
         validate_agent_report(report)
+
+    def test_ru_priority_branch_without_execution_state_fails_semantic_validation(self) -> None:
+        report = valid_report()
+        report["ru_priority_controls"] = valid_ru_priority_controls()
+        del report["ru_priority_controls"]["moscow_gateway_control"]["execution_state"]
+
+        with self.assertRaises(CliError) as ctx:
+            validate_agent_report(report)
+
+        self.assertTrue(
+            any(
+                error["validator"] == "semantic"
+                and error["path"] == "$.ru_priority_controls.moscow_gateway_control.execution_state"
+                and "execution_state" in error["message"]
+                for error in ctx.exception.details["errors"]
+            )
+        )
+
+    def test_ru_priority_visible_true_with_viable_false_fails_semantic_validation(self) -> None:
+        report = valid_report()
+        option = copy.deepcopy(valid_option())
+        option["id"] = "priority-direct"
+        option["control_family"] = "ru_priority"
+        option["control_branch"] = "direct_destination"
+        option["visibility_role"] = "priority_control"
+        report["priority_options"] = [option]
+        report["ru_priority_controls"] = valid_ru_priority_controls()
+        report["ru_priority_controls"]["direct_destination_control"] = ru_priority_branch(
+            execution_state="executed_no_viable_result",
+            viable=False,
+            visible=True,
+            priority_option_id="priority-direct",
+            evidence_option_ids=["priority-direct"],
+        )
+
+        with self.assertRaises(CliError) as ctx:
+            validate_agent_report(report)
+
+        self.assertTrue(
+            any(
+                error["validator"] == "semantic" and "cannot be visible when viable is false" in error["message"]
+                for error in ctx.exception.details["errors"]
+            )
+        )
 
     def test_ru_priority_visibility_is_structural_not_answer_line_text(self) -> None:
         report = valid_report()
@@ -254,48 +296,15 @@ class AgentReportContractTests(unittest.TestCase):
         option["control_branch"] = "ist_primary_hub"
         option["visibility_role"] = "priority_control"
         report["priority_options"] = [option]
-        report["ru_priority_controls"] = {
-            "requested": True,
-            "checked": True,
-            "route_family": "ru_priority",
-            "scope": {
-                "origin": "SVX",
-                "destination": "LON",
-                "origin_airports": ["SVX"],
-                "destination_airports": ["LHR", "LGW", "STN", "LTN"],
-                "moscow_airports": ["SVO", "DME", "VKO"],
-                "primary_hub": "IST",
-            },
-            "direct_destination_control": {
-                "checked": True,
-                "viable": False,
-                "visible": False,
-                "priority_option_id": None,
-                "evidence_option_ids": [],
-            },
-            "ist_primary_hub_control": {
-                "checked": True,
-                "viable": True,
-                "visible": True,
-                "priority_option_id": "priority-ist-primary",
-                "evidence_option_ids": ["priority-ist-primary"],
-            },
-            "moscow_gateway_control": {
-                "checked": True,
-                "viable": False,
-                "visible": False,
-                "priority_option_id": None,
-                "evidence_option_ids": [],
-            },
-            "moscow_via_ist_fallback_control": {
-                "checked": True,
-                "viable": False,
-                "visible": False,
-                "priority_option_id": None,
-                "evidence_option_ids": [],
-            },
-            "decision": "ist_primary_viable",
-        }
+        report["ru_priority_controls"] = valid_ru_priority_controls()
+        report["ru_priority_controls"]["ist_primary_hub_control"] = ru_priority_branch(
+            execution_state="executed",
+            viable=True,
+            visible=True,
+            priority_option_id="priority-ist-primary",
+            evidence_option_ids=["priority-ist-primary"],
+        )
+        report["ru_priority_controls"]["decision"] = "ist_primary_viable"
         report["answer_lines"] = [
             "Best CLI-ranked option: 10 000 RUB.",
             "Ветка через IST проверена: найден годный вариант.",

@@ -305,6 +305,167 @@ def option_matches_branch(
     return matches_moscow_via_ist_path(return_segments, destination_airports, hub_airports, moscow_airports, origin_airports)
 
 
+RU_PRIORITY_EXECUTION_STATES = {
+    "executed",
+    "executed_no_viable_result",
+    "not_generated",
+    "partial",
+    "assembled_evidence",
+    "skipped_better_options_available",
+}
+
+
+def search_value(item: dict[str, Any], key: str) -> str:
+    value = item.get(key)
+    if value is None and isinstance(item.get("query"), dict):
+        value = item["query"].get(key)
+    return str(value or "").strip().upper()
+
+
+def segment_search_offer_count(item: dict[str, Any]) -> int | None:
+    value = item.get("offer_count")
+    if value is None:
+        value = item.get("raw_count")
+    if value is not None:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+    offers = item.get("offers")
+    if isinstance(offers, list):
+        return len(offers)
+    return None
+
+
+def segment_search_is_executed(item: dict[str, Any]) -> bool:
+    status = str(item.get("status") or "").strip().lower()
+    if status in {"skipped", "not_executed", "planned", "pending"}:
+        return False
+    if status in {"error", "failed", "failure"}:
+        return False
+    return bool(status) or segment_search_offer_count(item) is not None or isinstance(item.get("offers"), list)
+
+
+def segment_search_matches_edge(
+    item: dict[str, Any],
+    direction: str,
+    origins: set[str],
+    destinations: set[str],
+) -> bool:
+    item_direction = str(item.get("direction") or "").strip().lower()
+    if item_direction and item_direction != direction:
+        return False
+    return search_value(item, "origin") in origins and search_value(item, "destination") in destinations
+
+
+def option_has_segment_edge(
+    option: dict[str, Any],
+    direction: str,
+    origins: set[str],
+    destinations: set[str],
+) -> bool:
+    return any(
+        segment_origin(segment) in origins and segment_destination(segment) in destinations
+        for segment in option_direction_segments(option, direction)
+    )
+
+
+def branch_required_edges(
+    branch: str,
+    *,
+    origin_airports: set[str],
+    destination_airports: set[str],
+    moscow_airports: set[str],
+    hub_airports: set[str],
+    include_return: bool,
+) -> list[tuple[str, set[str], set[str]]]:
+    if branch == "direct_destination":
+        outbound = [("outbound", origin_airports, destination_airports)]
+        inbound = [("return", destination_airports, origin_airports)]
+    elif branch == "ist_primary_hub":
+        outbound = [("outbound", origin_airports, hub_airports), ("outbound", hub_airports, destination_airports)]
+        inbound = [("return", destination_airports, hub_airports), ("return", hub_airports, origin_airports)]
+    elif branch == "moscow_gateway":
+        outbound = [("outbound", origin_airports, moscow_airports), ("outbound", moscow_airports, destination_airports)]
+        inbound = [("return", destination_airports, moscow_airports), ("return", moscow_airports, origin_airports)]
+    elif branch == "moscow_via_ist_fallback":
+        outbound = [
+            ("outbound", origin_airports, moscow_airports),
+            ("outbound", moscow_airports, hub_airports),
+            ("outbound", hub_airports, destination_airports),
+        ]
+        inbound = [
+            ("return", destination_airports, hub_airports),
+            ("return", hub_airports, moscow_airports),
+            ("return", moscow_airports, origin_airports),
+        ]
+    else:
+        return []
+    return outbound + (inbound if include_return else [])
+
+
+def branch_execution_state(
+    live: dict[str, Any],
+    source_options: list[dict[str, Any]],
+    branch: str,
+    selected_option: dict[str, Any] | None,
+    *,
+    origin_airports: set[str],
+    destination_airports: set[str],
+    moscow_airports: set[str],
+    hub_airports: set[str],
+    include_return: bool,
+) -> str:
+    edges = branch_required_edges(
+        branch,
+        origin_airports=origin_airports,
+        destination_airports=destination_airports,
+        moscow_airports=moscow_airports,
+        hub_airports=hub_airports,
+        include_return=include_return,
+    )
+    if not edges:
+        return "not_generated"
+    segment_searches = [item for item in live.get("segment_searches") or [] if isinstance(item, dict)]
+    executed_edges = [
+        any(segment_search_matches_edge(item, direction, origins, destinations) and segment_search_is_executed(item) for item in segment_searches)
+        for direction, origins, destinations in edges
+    ]
+    if selected_option is not None:
+        return "executed" if all(executed_edges) else "assembled_evidence"
+    if all(executed_edges):
+        return "executed_no_viable_result"
+
+    evidence_edges = [
+        executed
+        or any(segment_search_matches_edge(item, direction, origins, destinations) for item in segment_searches)
+        or any(option_has_segment_edge(option, direction, origins, destinations) for option in source_options)
+        for executed, (direction, origins, destinations) in zip(executed_edges, edges)
+    ]
+    if any(evidence_edges):
+        return "partial"
+    return "not_generated"
+
+
+def option_max_connections_per_journey(option: dict[str, Any]) -> int | None:
+    counts: list[int] = []
+    for direction in ("outbound", "return"):
+        segments = option_direction_segments(option, direction)
+        if segments:
+            counts.append(max(0, len(segments) - 1))
+    return max(counts) if counts else None
+
+
+def has_lower_stop_viable_option(source_options: list[dict[str, Any]], fallback_connections: int) -> bool:
+    for option in source_options:
+        if not isinstance(option, dict) or option.get("ok") is not True:
+            continue
+        connections = option_max_connections_per_journey(option)
+        if connections is not None and connections < fallback_connections:
+            return True
+    return False
+
+
 def ru_priority_source_options(
     data: dict[str, Any],
     recommended_options: list[dict[str, Any]],
@@ -353,6 +514,7 @@ def ru_priority_source_options(
 def branch_control_template() -> dict[str, Any]:
     return {
         "checked": True,
+        "execution_state": "not_generated",
         "viable": False,
         "visible": False,
         "priority_option_id": None,
@@ -408,6 +570,7 @@ def build_ru_priority_controls(
         "decision": "no_viable_ru_priority_control",
     }
     source_options = ru_priority_source_options(data, recommended_options, priority_options)
+    live = data.get("live_search") if isinstance(data.get("live_search"), dict) else {}
     branch_options: list[dict[str, Any]] = []
     branch_map = {
         "direct_destination_control": "direct_destination",
@@ -415,13 +578,19 @@ def build_ru_priority_controls(
         "moscow_gateway_control": "moscow_gateway",
         "moscow_via_ist_fallback_control": "moscow_via_ist_fallback",
     }
-    origin_set = set(origin_airports)
-    destination_set = set(destination_airports)
-    moscow_set = set(moscow_airports)
-    hub_set = set(hub_airports)
+    origin_set = set(origin_airports) | ({origin} if origin else set())
+    destination_set = set(destination_airports) | ({destination} if destination else set())
+    moscow_set = set(moscow_airports) | {"MOW"}
+    hub_set = set(hub_airports) | ({primary_hub} if primary_hub else set())
+    include_return = plan_requests_round_trip(plan)
+    fallback_skipped_by_lower_stop = has_lower_stop_viable_option(source_options, fallback_connections=2)
 
     for control_key, branch in branch_map.items():
-        if branch == "moscow_via_ist_fallback" and controls["moscow_gateway_control"]["viable"] is True:
+        if branch == "moscow_via_ist_fallback" and fallback_skipped_by_lower_stop:
+            controls[control_key] = {
+                **branch_control_template(),
+                "execution_state": "skipped_better_options_available",
+            }
             continue
         selected = next(
             (
@@ -438,7 +607,19 @@ def build_ru_priority_controls(
             ),
             None,
         )
+        execution_state = branch_execution_state(
+            live,
+            source_options,
+            branch,
+            selected,
+            origin_airports=origin_set,
+            destination_airports=destination_set,
+            moscow_airports=moscow_set,
+            hub_airports=hub_set,
+            include_return=include_return,
+        )
         if selected is None:
+            controls[control_key]["execution_state"] = execution_state
             continue
         control_option = ru_priority_control_option(selected, branch)
         branch_options.append(control_option)
@@ -448,6 +629,7 @@ def build_ru_priority_controls(
             evidence_option_ids.append(source_option_id)
         controls[control_key] = {
             "checked": True,
+            "execution_state": execution_state,
             "viable": True,
             "visible": True,
             "priority_option_id": control_option["id"],

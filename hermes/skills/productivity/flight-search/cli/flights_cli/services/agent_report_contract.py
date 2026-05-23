@@ -31,6 +31,14 @@ RU_PRIORITY_DECISIONS = {
     "moscow_via_ist_fallback_viable",
     "no_viable_ru_priority_control",
 }
+RU_PRIORITY_EXECUTION_STATES = {
+    "executed",
+    "executed_no_viable_result",
+    "not_generated",
+    "partial",
+    "assembled_evidence",
+    "skipped_better_options_available",
+}
 
 
 @lru_cache(maxsize=1)
@@ -101,7 +109,7 @@ def ru_priority_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
         for option in priority_options
         if isinstance(option, dict) and isinstance(option.get("id"), str) and str(option.get("id")).strip()
     }
-    required_fields = ("checked", "viable", "visible", "priority_option_id", "evidence_option_ids")
+    required_fields = ("checked", "execution_state", "viable", "visible", "priority_option_id", "evidence_option_ids")
     for control_key, branch in RU_PRIORITY_BRANCHES.items():
         branch_path = f"$.ru_priority_controls.{control_key}"
         branch_control = controls.get(control_key)
@@ -111,6 +119,9 @@ def ru_priority_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
         for field in required_fields:
             if field not in branch_control:
                 errors.append({"path": f"{branch_path}.{field}", "message": f"{control_key}.{field} is required", "validator": "semantic"})
+        execution_state = branch_control.get("execution_state")
+        if execution_state not in RU_PRIORITY_EXECUTION_STATES:
+            errors.append({"path": f"{branch_path}.execution_state", "message": f"{control_key}.execution_state has invalid value", "validator": "semantic"})
         if not isinstance(branch_control.get("evidence_option_ids"), list):
             errors.append({"path": f"{branch_path}.evidence_option_ids", "message": f"{control_key}.evidence_option_ids must be a list", "validator": "semantic"})
 
@@ -118,12 +129,12 @@ def ru_priority_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
         viable = branch_control.get("viable") is True
         if visible and not viable:
             errors.append({"path": f"{branch_path}.visible", "message": f"{control_key} cannot be visible when viable is false", "validator": "semantic"})
-        if not visible:
-            continue
-
         priority_option_id = branch_control.get("priority_option_id")
-        if not isinstance(priority_option_id, str) or not priority_option_id.strip():
+        priority_option_id_is_present = isinstance(priority_option_id, str) and bool(priority_option_id.strip())
+        if visible and not priority_option_id_is_present:
             errors.append({"path": f"{branch_path}.priority_option_id", "message": f"{control_key}.visible requires a non-empty priority_option_id", "validator": "semantic"})
+            continue
+        if not priority_option_id_is_present:
             continue
         option = priority_by_id.get(priority_option_id)
         if option is None:
