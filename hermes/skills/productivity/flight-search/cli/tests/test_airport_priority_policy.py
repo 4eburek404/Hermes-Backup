@@ -8,7 +8,7 @@ from unittest.mock import patch
 from flights_cli.adapters.providers.registry import providers_for_segment
 from flights_cli.domain.airports import explicit_or_resolved_airports
 from flights_cli.execution.probe_dispatcher import dispatch_segment_probe
-from flights_cli.orchestrators.kb_assemble import build_kupibilet_route_segment_plan
+from flights_cli.orchestrators.kb_assemble import build_kupibilet_route_segment_plan, run_kupibilet_route_assembly
 from flights_cli.store import Store
 
 
@@ -24,6 +24,10 @@ def live_args(**overrides: object) -> argparse.Namespace:
         "destination_airport": None,
         "currency": "RUB",
         "direct_only": False,
+        "only_carrier": [],
+        "exclude_carrier": [],
+        "prefer_carrier": [],
+        "avoid_carrier": [],
         "ticketing": "separate",
         "profile": "business",
         "min_same_airport_min": 120,
@@ -124,6 +128,21 @@ def kupibilet_result(query_origin: str, query_destination: str, actual_origin: s
     }
 
 
+def empty_kupibilet_result(query_origin: str, query_destination: str, depart_date: object) -> dict[str, object]:
+    depart = depart_date.isoformat() if hasattr(depart_date, "isoformat") else str(depart_date)
+    return {
+        "origin": query_origin,
+        "destination": query_destination,
+        "depart_date": depart,
+        "currency": "RUB",
+        "source": "Kupibilet frontend_search (live aggregate)",
+        "raw_variant_count": 0,
+        "unique_flight_count": 0,
+        "skipped": {},
+        "offers": [],
+    }
+
+
 class AirportPriorityPolicyTests(unittest.TestCase):
     def test_ist_code_resolves_to_exact_ist_only_and_fli_direct_candidates_do_not_include_saw(self) -> None:
         store = Store()
@@ -205,6 +224,63 @@ class AirportPriorityPolicyTests(unittest.TestCase):
         self.assertEqual(
             [segment["destination_airport_priority"]["tier"] for segment in outbound_direct if segment.get("provider_request_strategy") == "city_code_first"],
             [1, 2],
+        )
+
+    def test_kupibilet_mow_lhr_offer_skips_moscow_exact_fallbacks_and_lgw_provider_calls(self) -> None:
+        args = live_args(origin="MOW", destination="LON", provider_policy="kupibilet", include_segment_results=20)
+        calls: list[tuple[str, str]] = []
+
+        def fake_fetch(origin: str, destination: str, depart_date: object, **_: object) -> dict[str, object]:
+            calls.append((origin, destination))
+            if (origin, destination) == ("MOW", "LHR"):
+                return kupibilet_result("MOW", "LHR", "SVO", "LHR")
+            return empty_kupibilet_result(origin, destination, depart_date)
+
+        with patch("flights_cli.orchestrators.kb_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
+            result = run_kupibilet_route_assembly(args, Store())
+
+        self.assertIn(("MOW", "LHR"), calls)
+        self.assertNotIn(("MOW", "LGW"), calls)
+        self.assertFalse(
+            {
+                ("SVO", "LHR"),
+                ("DME", "LHR"),
+                ("VKO", "LHR"),
+                ("SVO", "LGW"),
+                ("DME", "LGW"),
+                ("VKO", "LGW"),
+            }
+            & set(calls)
+        )
+        skipped_direct = {
+            (str(search.get("origin")), str(search.get("destination"))): search.get("reason")
+            for search in result["live_search"]["segment_searches"]
+            if search.get("leg") == "direct_outbound" and search.get("status") == "skipped"
+        }
+        self.assertEqual(skipped_direct[("MOW", "LGW")], "preferred_airport_tier_has_offers")
+        self.assertEqual(skipped_direct[("SVO", "LHR")], "city_code_request_has_offers")
+        self.assertEqual(skipped_direct[("SVO", "LGW")], "preferred_airport_tier_has_offers")
+
+    def test_kupibilet_mow_lgw_fallback_waits_until_lhr_city_and_exact_attempts_are_empty(self) -> None:
+        args = live_args(origin="MOW", destination="LON", provider_policy="kupibilet", include_segment_results=20)
+        calls: list[tuple[str, str]] = []
+
+        def fake_fetch(origin: str, destination: str, depart_date: object, **_: object) -> dict[str, object]:
+            calls.append((origin, destination))
+            if (origin, destination) == ("MOW", "LGW"):
+                return kupibilet_result("MOW", "LGW", "SVO", "LGW")
+            return empty_kupibilet_result(origin, destination, depart_date)
+
+        with patch("flights_cli.orchestrators.kb_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
+            run_kupibilet_route_assembly(args, Store())
+
+        lhr_attempts = [("MOW", "LHR"), ("SVO", "LHR"), ("DME", "LHR"), ("VKO", "LHR")]
+        for pair in lhr_attempts:
+            self.assertIn(pair, calls)
+        self.assertIn(("MOW", "LGW"), calls)
+        self.assertGreater(
+            calls.index(("MOW", "LGW")),
+            max(calls.index(pair) for pair in lhr_attempts),
         )
 
     def test_kupibilet_city_code_post_validation_accepts_moscow_actual_airport(self) -> None:
