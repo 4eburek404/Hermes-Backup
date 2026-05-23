@@ -46,6 +46,13 @@ def segment_result(direction: str, leg: str, origin: str, destination: str, offe
     return {
         "direction": direction,
         "leg": leg,
+        "origin": origin,
+        "destination": destination,
+        "date": "2026-07-19",
+        "provider": "fixture",
+        "status": "ok",
+        "offer_count": len(offers),
+        "cache_status": "fixture",
         "query": {"origin": origin, "destination": destination, "date": "2026-07-19", "currency": "RUB"},
         "source_key": "fixture",
         "raw_count": len(offers),
@@ -107,7 +114,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                 "coverage_controls": [],
                 "coverage_limits": {},
             },
-            "segment_searches": [],
+            "segment_searches": segment_results,
             "hub_viability": [],
             "aggregate_controls": [],
             "failures": [],
@@ -234,11 +241,55 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
 
         controls = report["ru_priority_controls"]
         self.assertTrue(controls["moscow_gateway_control"]["checked"])
+        self.assertEqual(controls["moscow_gateway_control"]["execution_state"], "executed")
         self.assertTrue(controls["moscow_gateway_control"]["viable"])
         self.assertEqual(set(controls["scope"]["moscow_airports"]), set(MOW_AIRPORTS))
         option = self._control_option(report, "moscow_gateway")
         self.assertEqual([segment["origin"] for segment in option["segments"]], ["SVX", "SVO"])
         self.assertEqual([segment["destination"] for segment in option["segments"]], ["SVO", "LHR"])
+
+    def test_moscow_gateway_partial_prefix_evidence_is_not_fully_executed(self) -> None:
+        report = self._report(
+            [
+                segment_result(
+                    "outbound",
+                    "origin_to_hub",
+                    "SVX",
+                    "SVO",
+                    [
+                        offer(
+                            "svx-svo",
+                            12000,
+                            [segment("SVX", "SVO", "2026-07-19T06:00:00+05:00", "2026-07-19T06:40:00+03:00", "SU1401", "SU")],
+                        )
+                    ],
+                )
+            ],
+            destination_airports=LON_AIRPORTS,
+        )
+
+        control = report["ru_priority_controls"]["moscow_gateway_control"]
+        self.assertTrue(control["checked"])
+        self.assertEqual(control["execution_state"], "partial")
+        self.assertFalse(control["viable"])
+        self.assertFalse(control["visible"])
+        self.assertIsNone(control["priority_option_id"])
+
+    def test_moscow_gateway_executed_empty_searches_are_no_viable_result(self) -> None:
+        report = self._report(
+            [
+                segment_result("outbound", "origin_to_hub", "SVX", "SVO", []),
+                segment_result("outbound", "hub_to_destination", "SVO", "LHR", []),
+            ],
+            destination_airports=LON_AIRPORTS,
+        )
+
+        control = report["ru_priority_controls"]["moscow_gateway_control"]
+        self.assertTrue(control["checked"])
+        self.assertEqual(control["execution_state"], "executed_no_viable_result")
+        self.assertFalse(control["viable"])
+        self.assertFalse(control["visible"])
+        self.assertIsNone(control["priority_option_id"])
 
     def test_moscow_via_ist_fallback_is_used_only_when_mow_destination_is_unviable(self) -> None:
         report = self._report(
@@ -281,6 +332,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         self.assertTrue(controls["moscow_gateway_control"]["checked"])
         self.assertFalse(controls["moscow_gateway_control"]["viable"])
         self.assertTrue(controls["moscow_via_ist_fallback_control"]["checked"])
+        self.assertEqual(controls["moscow_via_ist_fallback_control"]["execution_state"], "assembled_evidence")
         self.assertTrue(controls["moscow_via_ist_fallback_control"]["viable"])
         option = self._control_option(report, "moscow_via_ist_fallback")
         self.assertEqual([segment["origin"] for segment in option["segments"]], ["SVX", "SVO", "IST"])
@@ -353,7 +405,70 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         self.assertTrue(controls["moscow_gateway_control"]["viable"])
         self.assertTrue(controls["moscow_gateway_control"]["visible"])
         self.assertFalse(controls["moscow_via_ist_fallback_control"]["viable"])
+        self.assertFalse(controls["moscow_via_ist_fallback_control"]["visible"])
+        self.assertEqual(
+            controls["moscow_via_ist_fallback_control"]["execution_state"],
+            "skipped_better_options_available",
+        )
+        self.assertIsNone(controls["moscow_via_ist_fallback_control"]["priority_option_id"])
         self._control_option(report, "moscow_gateway")
+        fallback_priority_options = [
+            item
+            for item in report["priority_options"]
+            if item.get("control_branch") == "moscow_via_ist_fallback" and item.get("visibility_role") == "priority_control"
+        ]
+        self.assertEqual(fallback_priority_options, [])
+
+    def test_moscow_via_ist_fallback_is_skipped_when_one_stop_ist_primary_exists(self) -> None:
+        report = self._report(
+            [
+                segment_result(
+                    "outbound",
+                    "origin_to_hub",
+                    "SVX",
+                    "IST",
+                    [
+                        offer(
+                            "svx-ist",
+                            25000,
+                            [segment("SVX", "IST", "2026-07-19T07:00:00+05:00", "2026-07-19T09:00:00+03:00", "U6301", "U6")],
+                        ),
+                        offer(
+                            "svx-svo-ist",
+                            26000,
+                            [
+                                segment("SVX", "SVO", "2026-07-19T06:00:00+05:00", "2026-07-19T06:40:00+03:00", "SU1401", "SU"),
+                                segment("SVO", "IST", "2026-07-19T10:30:00+03:00", "2026-07-19T14:35:00+03:00", "SU2136", "SU"),
+                            ],
+                        ),
+                    ],
+                ),
+                segment_result(
+                    "outbound",
+                    "hub_to_destination",
+                    "IST",
+                    "LHR",
+                    [
+                        offer(
+                            "ist-lhr",
+                            18000,
+                            [segment("IST", "LHR", "2026-07-19T20:00:00+03:00", "2026-07-19T22:00:00+01:00", "TK1987", "TK")],
+                        )
+                    ],
+                ),
+            ],
+            destination_airports=LON_AIRPORTS,
+        )
+
+        controls = report["ru_priority_controls"]
+        self.assertTrue(controls["ist_primary_hub_control"]["viable"])
+        fallback = controls["moscow_via_ist_fallback_control"]
+        self.assertTrue(fallback["checked"])
+        self.assertEqual(fallback["execution_state"], "skipped_better_options_available")
+        self.assertFalse(fallback["viable"])
+        self.assertFalse(fallback["visible"])
+        self.assertIsNone(fallback["priority_option_id"])
+        self.assertEqual(fallback["evidence_option_ids"], [])
         fallback_priority_options = [
             item
             for item in report["priority_options"]
