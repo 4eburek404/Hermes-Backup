@@ -229,8 +229,71 @@ def segment_destination(segment: dict[str, Any]) -> str:
     return str(segment.get("destination") or "").strip().upper()
 
 
-def matches_direct_path(segments: list[dict[str, Any]], origins: set[str], destinations: set[str]) -> bool:
-    return len(segments) == 1 and segment_origin(segments[0]) in origins and segment_destination(segments[0]) in destinations
+def segment_carrier(segment: dict[str, Any]) -> str:
+    return str(segment.get("carrier") or segment.get("operating_carrier") or segment.get("marketing_carrier") or "").strip().upper()
+
+
+def segment_path_signature(segments: list[dict[str, Any]]) -> tuple[tuple[str, str, str, str, str, str], ...]:
+    return tuple(
+        (
+            segment_origin(segment),
+            segment_destination(segment),
+            str(segment.get("departure_at") or ""),
+            str(segment.get("arrival_at") or ""),
+            str(segment.get("flight_number") or ""),
+            segment_carrier(segment),
+        )
+        for segment in segments
+        if isinstance(segment, dict)
+    )
+
+
+def direct_destination_leg(direction: str) -> str | None:
+    if direction == "outbound":
+        return "direct_outbound"
+    if direction == "return":
+        return "direct_return"
+    return None
+
+
+def segment_search_matches_direct_destination_branch(
+    item: dict[str, Any],
+    direction: str,
+    origins: set[str],
+    destinations: set[str],
+) -> bool:
+    expected_leg = direct_destination_leg(direction)
+    if expected_leg is None:
+        return False
+    if str(item.get("leg") or "").strip().lower() != expected_leg:
+        return False
+    return segment_search_matches_edge(item, direction, origins, destinations)
+
+
+def option_has_direct_destination_branch_evidence(
+    option: dict[str, Any],
+    live: dict[str, Any],
+    direction: str,
+    origins: set[str],
+    destinations: set[str],
+) -> bool:
+    option_signature = segment_path_signature(option_direction_segments(option, direction))
+    if not option_signature:
+        return False
+    for item in live.get("segment_searches") or []:
+        if not isinstance(item, dict):
+            continue
+        if not segment_search_matches_direct_destination_branch(item, direction, origins, destinations):
+            continue
+        if not segment_search_is_executed(item):
+            continue
+        for offer in item.get("offers") or []:
+            if not isinstance(offer, dict):
+                continue
+            offer_segments = [segment for segment in offer.get("segments") or [] if isinstance(segment, dict)]
+            if segment_path_signature(offer_segments) == option_signature:
+                return True
+    return False
 
 
 def matches_two_leg_path(segments: list[dict[str, Any]], origins: set[str], hubs: set[str], destinations: set[str]) -> bool:
@@ -270,6 +333,7 @@ def matches_moscow_via_ist_path(
 
 def option_matches_branch(
     option: dict[str, Any],
+    live: dict[str, Any],
     branch: str,
     *,
     origin_airports: set[str],
@@ -280,8 +344,17 @@ def option_matches_branch(
     outbound = option_direction_segments(option, "outbound")
     if not outbound:
         return False
+    direct_destination_source_outbound = option_has_direct_destination_branch_evidence(
+        option,
+        live,
+        "outbound",
+        origin_airports,
+        destination_airports,
+    )
     if branch == "direct_destination":
-        outbound_ok = matches_direct_path(outbound, origin_airports, destination_airports)
+        outbound_ok = direct_destination_source_outbound
+    elif direct_destination_source_outbound:
+        return False
     elif branch == "ist_primary_hub":
         outbound_ok = matches_two_leg_path(outbound, origin_airports, hub_airports, destination_airports)
     elif branch == "moscow_gateway":
@@ -296,8 +369,17 @@ def option_matches_branch(
     return_segments = option_direction_segments(option, "return")
     if not return_segments:
         return True
+    direct_destination_source_return = option_has_direct_destination_branch_evidence(
+        option,
+        live,
+        "return",
+        destination_airports,
+        origin_airports,
+    )
     if branch == "direct_destination":
-        return matches_direct_path(return_segments, destination_airports, origin_airports)
+        return direct_destination_source_return
+    if direct_destination_source_return:
+        return False
     if branch == "ist_primary_hub":
         return matches_two_leg_path(return_segments, destination_airports, hub_airports, origin_airports)
     if branch == "moscow_gateway":
@@ -356,6 +438,31 @@ def segment_search_matches_edge(
     if item_direction and item_direction != direction:
         return False
     return search_value(item, "origin") in origins and search_value(item, "destination") in destinations
+
+
+def segment_search_matches_required_edge(
+    item: dict[str, Any],
+    branch: str,
+    direction: str,
+    origins: set[str],
+    destinations: set[str],
+) -> bool:
+    if branch == "direct_destination":
+        return segment_search_matches_direct_destination_branch(item, direction, origins, destinations)
+    return segment_search_matches_edge(item, direction, origins, destinations)
+
+
+def option_has_required_edge_evidence(
+    option: dict[str, Any],
+    live: dict[str, Any],
+    branch: str,
+    direction: str,
+    origins: set[str],
+    destinations: set[str],
+) -> bool:
+    if branch == "direct_destination":
+        return option_has_direct_destination_branch_evidence(option, live, direction, origins, destinations)
+    return option_has_segment_edge(option, direction, origins, destinations)
 
 
 def option_has_segment_edge(
@@ -428,7 +535,11 @@ def branch_execution_state(
         return "not_generated"
     segment_searches = [item for item in live.get("segment_searches") or [] if isinstance(item, dict)]
     executed_edges = [
-        any(segment_search_matches_edge(item, direction, origins, destinations) and segment_search_is_executed(item) for item in segment_searches)
+        any(
+            segment_search_matches_required_edge(item, branch, direction, origins, destinations)
+            and segment_search_is_executed(item)
+            for item in segment_searches
+        )
         for direction, origins, destinations in edges
     ]
     if selected_option is not None:
@@ -438,8 +549,8 @@ def branch_execution_state(
 
     evidence_edges = [
         executed
-        or any(segment_search_matches_edge(item, direction, origins, destinations) for item in segment_searches)
-        or any(option_has_segment_edge(option, direction, origins, destinations) for option in source_options)
+        or any(segment_search_matches_required_edge(item, branch, direction, origins, destinations) for item in segment_searches)
+        or any(option_has_required_edge_evidence(option, live, branch, direction, origins, destinations) for option in source_options)
         for executed, (direction, origins, destinations) in zip(executed_edges, edges)
     ]
     if any(evidence_edges):
@@ -598,6 +709,7 @@ def build_ru_priority_controls(
                 for option in source_options
                 if option_matches_branch(
                     option,
+                    live,
                     branch,
                     origin_airports=origin_set,
                     destination_airports=destination_set,
