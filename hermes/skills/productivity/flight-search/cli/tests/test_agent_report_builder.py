@@ -163,6 +163,43 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         self.assertEqual([segment["origin"] for segment in option["segments"]], ["SVX"])
         self.assertEqual([segment["destination"] for segment in option["segments"]], ["LHR"])
 
+    def test_direct_destination_branch_accepts_connecting_itinerary_from_direct_search(self) -> None:
+        report = self._report(
+            [
+                segment_result(
+                    "outbound",
+                    "direct_outbound",
+                    "SVX",
+                    "LHR",
+                    [
+                        offer(
+                            "svx-lhr-via-ist-direct-search",
+                            36000,
+                            [
+                                segment("SVX", "IST", "2026-07-19T07:00:00+05:00", "2026-07-19T09:00:00+03:00", "U6301", "U6"),
+                                segment("IST", "LHR", "2026-07-19T14:00:00+03:00", "2026-07-19T16:00:00+01:00", "TK1985", "TK"),
+                            ],
+                        )
+                    ],
+                )
+            ],
+            destination_airports=LON_AIRPORTS,
+        )
+
+        controls = report["ru_priority_controls"]
+        control = controls["direct_destination_control"]
+        self.assertTrue(control["checked"])
+        self.assertEqual(control["execution_state"], "executed")
+        self.assertNotIn(control["execution_state"], {"partial", "not_generated"})
+        self.assertTrue(control["viable"])
+        self.assertTrue(control["visible"])
+        self.assertIsInstance(control["priority_option_id"], str)
+        self.assertFalse(controls["ist_primary_hub_control"]["viable"])
+        self.assertFalse(controls["moscow_gateway_control"]["viable"])
+        option = self._control_option(report, "direct_destination")
+        self.assertEqual([segment["origin"] for segment in option["segments"]], ["SVX", "IST"])
+        self.assertEqual([segment["destination"] for segment in option["segments"]], ["IST", "LHR"])
+
     def test_ist_primary_branch_is_viable_visible_and_not_moscow_gateway(self) -> None:
         report = self._report(
             [
@@ -203,6 +240,8 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         self.assertEqual(set(controls["scope"]["moscow_airports"]), set(MOW_AIRPORTS))
         self.assertTrue(controls["ist_primary_hub_control"]["checked"])
         self.assertTrue(controls["ist_primary_hub_control"]["viable"])
+        self.assertFalse(controls["direct_destination_control"]["viable"])
+        self.assertFalse(controls["direct_destination_control"]["visible"])
         self.assertFalse(controls["moscow_gateway_control"]["viable"])
         self._control_option(report, "ist_primary_hub")
 
