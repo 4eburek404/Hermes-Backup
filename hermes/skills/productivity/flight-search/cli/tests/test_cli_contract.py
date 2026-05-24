@@ -20,19 +20,30 @@ from helpers import PROJECT, TEST_ENV
 
 
 def load_doctor_envelope_schema() -> dict:
-    schema_rel = (
-        Path("hermes")
-        / "skills"
-        / "software-development"
+    schema_suffix = (
+        Path("software-development")
         / "skill-audit-and-improvement"
         / "schemas"
         / "cli-doctor-envelope.v1.schema.json"
     )
-    for base in (PROJECT, *PROJECT.parents):
-        candidate = base / schema_rel
-        if candidate.exists():
-            return json.loads(candidate.read_text(encoding="utf-8"))
-    raise AssertionError(f"doctor envelope schema not found from {PROJECT}")
+    skill_roots = (Path("hermes") / "skills", Path("skills"))
+    checked_candidates = []
+    checked_bases = []
+
+    for start in (PROJECT, Path.cwd().resolve()):
+        for base in (start, *start.parents):
+            if base not in checked_bases:
+                checked_bases.append(base)
+
+    for base in checked_bases:
+        for skill_root in skill_roots:
+            candidate = base / skill_root / schema_suffix
+            checked_candidates.append(candidate)
+            if candidate.exists():
+                return json.loads(candidate.read_text(encoding="utf-8"))
+
+    checked = "\n".join(f"  - {candidate}" for candidate in checked_candidates)
+    raise AssertionError(f"doctor envelope schema not found from {PROJECT}; checked:\n{checked}")
 
 
 class CliContractTests(unittest.TestCase):
