@@ -47,14 +47,41 @@ class ArchitectureTests(unittest.TestCase):
             "manual Aviasales links",
             "Travelpayouts cached price data",
         ]
+        allowed_negative_provider_policy = "Travelpayouts / Aviasales are not active provider paths for price search"
         hits = []
         for path in PROJECT.parent.rglob("*.md"):
             text = path.read_text(encoding="utf-8", errors="replace")
             for line_number, line in enumerate(text.splitlines(), 1):
                 for token in forbidden:
-                    if token in line:
+                    if token in line and allowed_negative_provider_policy not in line:
                         hits.append((path.relative_to(PROJECT.parent), line_number, token, line.strip()))
         self.assertEqual(hits, [])
+
+    def test_provider_aware_airport_priority_docs_capture_durable_rules(self) -> None:
+        reference = PROJECT.parent / "references" / "provider-aware-airport-priority.md"
+        self.assertTrue(reference.exists())
+        text = reference.read_text(encoding="utf-8")
+        for required in [
+            "Active provider paths are KupiBilet and FLI.",
+            "Travelpayouts / Aviasales are not active provider paths for price search.",
+            "IST means the exact airport code `IST`; do not add `SAW` unless the user explicitly requests `SAW`.",
+            "LHR first; `LGW` fallback only if `LHR` has no accepted/viable offers; `STN` and `LTN` excluded by default.",
+            "KupiBilet uses `MOW` city-code first.",
+            "Exact `SVO`/`DME`/`VKO` fallback is deferred and not executed in parallel when city-code results have accepted offers.",
+            "Actual airports must be post-validated against `SVO`/`DME`/`VKO` and displayed as actual airport codes, not only `MOW`.",
+            "FLI is exact-airport only and must not receive `LON` city-code queries by default.",
+            "`direct_destination_control` is a search branch, not a nonstop claim.",
+            "Semantic validation must use structured fields, not only `answer_lines`.",
+            "Source and runtime are separate sync surfaces.",
+        ]:
+            self.assertIn(required, text)
+
+        for doc in [
+            PROJECT.parent / "references" / "cli-maintenance.md",
+            PROJECT.parent / "references" / "report-contract.md",
+            PROJECT / "README.md",
+        ]:
+            self.assertIn("provider-aware-airport-priority.md", doc.read_text(encoding="utf-8"))
 
     def test_readme_keeps_supporting_file_distillation_policy(self) -> None:
         readme = PROJECT / "README.md"

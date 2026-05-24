@@ -1,6 +1,6 @@
 ---
 name: flight-search
-version: 0.10.3
+version: 0.10.8
 description: Use when Codex needs to find, compare, plan, or diagnose flight options with the Hermes flights CLI, including airfare checks, route assembly, hub planning, IATA/date-window searches, Kupibilet live aggregate search, FLI MCP checks, or improvements to the flight-search workflow.
 ---
 
@@ -89,7 +89,7 @@ Use `doctor` only when environment provenance looks suspect; it is not an answer
 ## Runtime Rules
 
 - Respect `source_boundaries` and `provider_failures` from `data.agent_report`, but do not automatically print them.
-- Current live provider policy chooses the source mix. Do not hardcode provider assumptions beyond what the report states.
+- Current live provider policy chooses the source mix. Do not hardcode provider assumptions beyond what the report states. Provider-aware airport priority rules live in `references/provider-aware-airport-priority.md`.
 - Through-fare, single-PNR, baggage-through, refund, and disruption-protection claims require proof from `through_fare_checks`, provider raw ticketing fields, or the purchase screen.
 - Treat raw `virtual_connection` / virtual-interline signals as a separate evidence class: useful discovery, but not airline-responsible through-ticket proof unless the seller/airline explicitly provides missed-connection protection.
 - Static catalogs normalize names, codes, geography, carrier/alliance labels, and aircraft labels. They do not prove schedules, fares, seat availability, direct service, or carrier service.
@@ -128,3 +128,4 @@ Use this when the user asks about this skill's version, whether a backup/source 
 - `references/source-boundaries.md` - source limits, absence taxonomy, airport boundaries, and proof boundaries.
 - `references/debug-playbook.md` - targeted diagnostics for current live report behavior.
 - `references/cli-maintenance.md` - maintenance invariants and validation checklist.
+- `references/provider-aware-airport-priority.md` - active provider scope, IST/LON/MOW airport priority, KupiBilet/FLI dispatch boundaries, RU-priority validation, and source/runtime sync notes.

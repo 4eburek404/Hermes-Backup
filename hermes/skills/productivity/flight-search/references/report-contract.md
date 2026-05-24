@@ -44,6 +44,10 @@ Explain lower ranking with concrete trade-offs: price, elapsed time, arrival tim
 
 Moscow/SVO is a first-class control for Russian-origin international routes, not a fallback. Show a viable via-SVO option even when a direct, IST/DXB, or other primary-hub option ranks better. The control must be a coherent same-airport route such as `origin -> SVO + SVO -> destination`; rejected `SVO vs IST` splices are invalid and should be explained as airport mismatches, not as viable itineraries.
 
+Provider-aware airport priority is part of the report contract; see `references/provider-aware-airport-priority.md`. In particular, city codes describe request scope, while normalized offers and user-facing display must expose actual airport codes. For Moscow city-code results, validate actual airports against `SVO`/`DME`/`VKO`; for London, treat `LHR` as the default business-priority airport and `LGW` as fallback. `IST` is not `SAW` unless the user explicitly requested `SAW`.
+
+`direct_destination_control` is a search branch, not a nonstop claim. RU-priority control visibility remains structural: validate linked `priority_options` fields (`control_family`, `control_branch`, `visibility_role`, and `priority_option_id`) instead of relying on `answer_lines` text.
+
 For domestic Russian routes, do not let the `business` profile bury objectively better direct flights. If both airports are in Russia and direct domestic offers exist, lead with the cheapest/fastest direct option even when preferred-carrier scoring ranks an IST/SVO hub route higher. State that the business profile ranked the hub route higher because of carrier weighting, but the direct domestic route is cheaper/faster.
 
 For SU-only or Aeroflot-only requests, use provider-assembled aggregate controls filtered by `SU` (`--aggregate-control-carrier SU`). Segment assembly can miss same-carrier through-PNR opportunities; aggregate controls may be the better evidence surface, but still require through-fare verification.
