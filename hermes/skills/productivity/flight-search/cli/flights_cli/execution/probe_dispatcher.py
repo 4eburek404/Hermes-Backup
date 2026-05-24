@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
 from ..adapters.providers.registry import providers_for_segment
+from ..config import KUPIBILET_CITY_CODE_FIRST_AIRPORTS
 from ..domain.normalize import normalize_carrier_code, parse_iso_date
 from ..errors import CliError
 from ..providers.fli_mcp import cached_fli_mcp_search, fli_result_to_segment_result, fli_segment_search_summary
@@ -30,6 +32,85 @@ def search_key(spec: dict[str, Any]) -> tuple[str, str, str, str]:
         str(spec.get("origin") or "").upper(),
         str(spec.get("destination") or "").upper(),
     )
+
+
+def _raw_offer_actual_airports(offer: dict[str, Any]) -> tuple[str, str]:
+    flights = offer.get("flights") if isinstance(offer.get("flights"), list) else []
+    if not flights:
+        origin = str(offer.get("origin") or offer.get("departure_airport") or "").upper()
+        destination = str(offer.get("destination") or offer.get("arrival_airport") or "").upper()
+        return origin, destination
+    first = flights[0] if isinstance(flights[0], dict) else {}
+    last = flights[-1] if isinstance(flights[-1], dict) else {}
+    origin = str(first.get("origin") or first.get("departure_airport") or "").upper()
+    destination = str(last.get("destination") or last.get("arrival_airport") or "").upper()
+    return origin, destination
+
+
+def _city_code_offer_rejection_reason(
+    *,
+    actual_origin: str,
+    actual_destination: str,
+    origin_scope: set[str],
+    destination_scope: set[str],
+) -> str | None:
+    if not actual_origin or not actual_destination:
+        return "missing_actual_airport_fields"
+    if origin_scope and actual_origin not in origin_scope:
+        return "origin_out_of_scope"
+    if destination_scope and actual_destination not in destination_scope:
+        return "destination_out_of_scope"
+    return None
+
+
+def validate_kupibilet_city_code_scope(spec: dict[str, Any], result: dict[str, Any], segment_result: dict[str, Any]) -> dict[str, Any] | None:
+    query_origin = str(spec.get("origin") or "").upper()
+    query_destination = str(spec.get("destination") or "").upper()
+    origin_scope = {str(code).upper() for code in KUPIBILET_CITY_CODE_FIRST_AIRPORTS.get(query_origin, [])}
+    destination_scope = {str(code).upper() for code in KUPIBILET_CITY_CODE_FIRST_AIRPORTS.get(query_destination, [])}
+    if not origin_scope and not destination_scope:
+        return None
+
+    rejected_reasons: Counter[str] = Counter()
+    raw_offers = [offer for offer in (result.get("offers") or []) if isinstance(offer, dict)]
+    for raw_offer in raw_offers:
+        actual_origin, actual_destination = _raw_offer_actual_airports(raw_offer)
+        reason = _city_code_offer_rejection_reason(
+            actual_origin=actual_origin,
+            actual_destination=actual_destination,
+            origin_scope=origin_scope,
+            destination_scope=destination_scope,
+        )
+        if reason:
+            rejected_reasons[reason] += 1
+
+    accepted_offers: list[dict[str, Any]] = []
+    for offer in segment_result.get("offers") or []:
+        if not isinstance(offer, dict):
+            continue
+        actual_origin = str(offer.get("departure_airport") or offer.get("origin") or "").upper()
+        actual_destination = str(offer.get("arrival_airport") or offer.get("destination") or "").upper()
+        reason = _city_code_offer_rejection_reason(
+            actual_origin=actual_origin,
+            actual_destination=actual_destination,
+            origin_scope=origin_scope,
+            destination_scope=destination_scope,
+        )
+        if reason:
+            continue
+        accepted_offers.append(offer)
+
+    segment_result["offers"] = accepted_offers
+    validation = {
+        "query_origin": query_origin,
+        "query_destination": query_destination,
+        "origin_scope_airports": sorted(origin_scope),
+        "destination_scope_airports": sorted(destination_scope),
+        "accepted_offer_count": len(accepted_offers),
+        "rejected_offer_count": sum(rejected_reasons.values()),
+        "rejected_reasons": dict(rejected_reasons),
+    }
+    return validation
 
 
 def dispatch_segment_probe(
@@ -98,7 +179,13 @@ def dispatch_segment_probe(
                     fetcher=kupibilet_fetcher,
                 )
                 segment_result = kupibilet_result_to_segment_result(result, direction=spec["direction"], leg=spec["leg"])
+                city_code_validation = validate_kupibilet_city_code_scope(spec, result, segment_result)
                 summary = {**kupibilet_segment_search_summary(spec, result, segment_result), "provider": "kupibilet"}
+                if city_code_validation is not None:
+                    summary["city_code_validation"] = city_code_validation
+                    if city_code_validation["rejected_offer_count"] and not city_code_validation["accepted_offer_count"]:
+                        summary["status"] = "invalid"
+                        summary["reason"] = "city_code_scope_validation_failed"
             elif provider == "fli":
                 result = cached_fli_mcp_search(
                     spec["origin"],

@@ -26,6 +26,17 @@ Keep CLI maintenance focused on current live provider assembly and the `agent_re
 - Do not log sensitive query parameters unnecessarily.
 - If the sidecar is unavailable, report degradation through provider failure fields rather than hiding the failure.
 
+## Provider-aware Airport Priority Rules
+
+The durable source contract lives in `references/provider-aware-airport-priority.md`. Keep implementation, tests, and docs aligned with these invariants:
+
+- Active provider paths are KupiBilet and FLI; static catalogs are metadata only.
+- `IST` is exact-airport `IST` by default; `SAW` requires an explicit user request.
+- London defaults to `LHR` first, with `LGW` deferred until `LHR` has no accepted/viable offers; `STN` and `LTN` are excluded by default.
+- KupiBilet handles Moscow as `MOW` city-code first; exact `SVO`/`DME`/`VKO` fallback is deferred and must not run in parallel when the city-code request has accepted offers.
+- FLI is exact-airport only and must not receive city-code `LON` by default.
+- City-code results must be post-validated against actual airport scope, and reports must display actual airport codes rather than only request city codes.
+
 ## Route-Family and Coverage-Control Rules
 
 - Route-family metadata and segment-spec identity belong in shared route-graph helpers, not duplicated in docs, dry planners, or live planners.
@@ -80,7 +91,7 @@ Generated artifacts must be intentionally cleaned or reported. Prefer `PYTHONDON
 
 ## Source, Runtime, and Mirror Validation
 
-Source edits happen under `/home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-search`. Runtime state under `/home/konstantin/.hermes/skills/productivity/flight-search` is a separate deployment/sync surface. The legacy distribution mirror `cli/skill-clis/flights` is retired and must not be recreated; active CLI validation belongs to the owning skill's `cli/` directory.
+Source edits happen under `/home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-search`. Runtime state under `/home/konstantin/.hermes/skills/productivity/flight-search` is a separate deployment/sync surface. The legacy distribution mirror `cli/skill-clis/flights` is retired and must not be recreated; active CLI validation belongs to the owning skill's `cli/` directory. Before source-to-runtime sync, back up runtime because it may contain local-only docs. After sync, verify source/runtime version markers and CLI `--version`; a gateway restart is normally unnecessary for the CLI shim, but use a new Hermes session/reset if skill text injection must refresh.
 
 When the user asks whether the flight-search skill or CLI “got backup”, verify both Git backup and runtime/source equality before answering:
 

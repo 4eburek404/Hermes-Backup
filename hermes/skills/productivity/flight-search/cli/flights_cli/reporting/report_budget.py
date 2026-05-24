@@ -5,6 +5,8 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from .flight_display import sanitize_summary_only_display
+
 
 @dataclass(frozen=True)
 class AgentReportBudget:
@@ -32,6 +34,7 @@ def apply_agent_report_budget(report: dict[str, Any], budget: AgentReportBudget 
     _trim_top_level_list(trimmed, "provider_failures", budget.max_provider_failures, omitted)
     _trim_answer_lines(trimmed, budget.max_answer_lines, omitted)
     _trim_coverage_controls(trimmed, budget.max_coverage_controls, omitted)
+    sanitize_summary_only_display(trimmed)
 
     if omitted:
         trimmed["omitted_counts"] = omitted
@@ -42,6 +45,7 @@ def apply_agent_report_budget(report: dict[str, Any], budget: AgentReportBudget 
             omitted = dict(trimmed.get("omitted_counts") or {})
             omitted["option_segments"] = omitted.get("option_segments", 0) + removed_segments
             trimmed["omitted_counts"] = omitted
+            sanitize_summary_only_display(trimmed)
 
     return trimmed
 
