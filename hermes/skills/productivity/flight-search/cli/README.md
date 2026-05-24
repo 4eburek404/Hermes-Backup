@@ -15,12 +15,15 @@ The CLI does not book, buy, or write to Hermes runtime state.
 
 ## Install
 
-From the source checkout:
+Normal one-off runs do not need installation. If you are explicitly setting up the runtime CLI entry point, install from the active runtime skill CLI and then check/report generated artifacts (`*.egg-info`, caches):
 
 ```bash
-cd /home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-search/cli
+HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+cd "$HERMES_HOME"/skills/productivity/flight-search/cli
 python3 -m pip install -e .
 ```
+
+For source-development checkouts, use the source root documented in `references/cli-maintenance.md`, then prove source/runtime provenance before claiming runtime behavior.
 
 For one-off local runs without installation, execute from the same directory:
 
