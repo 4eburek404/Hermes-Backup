@@ -125,6 +125,8 @@ Unsafe transfers can still be rejected under any profile.
 
 Read provider policy, provider failures, coverage diagnostics, and source boundaries from `data.agent_report` before answering. Do not hardcode source assumptions outside what the report states.
 
+Provider-aware airport priority is documented in `references/provider-aware-airport-priority.md`. Operational defaults: KupiBilet and FLI are the active live provider paths; `IST` stays exact `IST` unless `SAW` is explicit; London tries `LHR` before deferred `LGW` fallback and excludes `STN`/`LTN` by default; KupiBilet uses `MOW` city-code first with deferred exact `SVO`/`DME`/`VKO` fallback; FLI stays exact-airport only.
+
 ## Airport and Connection Risk
 
 City codes and airport codes are not interchangeable evidence. Keep these boundaries explicit:
@@ -133,6 +135,8 @@ City codes and airport codes are not interchangeable evidence. Keep these bounda
 - `SVO != DME != VKO`
 - `DXB != DWC != SHJ`
 - `LHR != LGW != STN != LTN`
+
+For city-code searches, display actual airport codes from normalized offers. A `MOW` request scope is not enough by itself: actual departure/arrival airports must validate against `SVO`/`DME`/`VKO` before an offer is accepted.
 
 Default connection thresholds:
 
