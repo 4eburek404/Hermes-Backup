@@ -68,8 +68,8 @@ When changing `data.agent_report`:
 
 Runtime-path pitfall: schema helpers and contract tests must support both layouts:
 
-- source layout: `hermes/skills/...`
-- runtime layout: `skills/...`
+- source checkout layout: a nested `hermes` directory followed by `/skills/...`;
+- runtime layout: `$HERMES_HOME/skills/...` (or `$HOME/.hermes` + `/skills/...`).
 
 Discover schema paths by walking upward from the project/test root and current working directory, and include checked candidates in assertion errors.
 
@@ -79,9 +79,9 @@ Do not add answer-facing fields without documenting how the agent should use the
 
 When bumping the skill/CLI version, keep these aligned:
 
-- `hermes/skills/productivity/flight-search/SKILL.md` frontmatter.
-- `hermes/skills/productivity/flight-search/cli/pyproject.toml`.
-- `hermes/skills/productivity/flight-search/cli/flights_cli/__init__.py`.
+- Source `SKILL.md` frontmatter in the flight-search skill root.
+- Source `cli/pyproject.toml`.
+- Source `cli/flights_cli/__init__.py`.
 - Tests that assert the CLI version, doctor envelope, or human doctor output.
 
 Do not change schema version constants unless the schema contract itself changes incompatibly.
@@ -91,14 +91,15 @@ Do not change schema version constants unless the schema contract itself changes
 Before final reporting, check for generated files under the skill tree:
 
 ```bash
-find hermes/skills/productivity/flight-search \( -name '__pycache__' -o -name '*.pyc' -o -name '.pytest_cache' -o -name '*.egg-info' \) -print
+SKILL_ROOT="$HOME/.hermes"/skills/productivity/flight-search
+find "$SKILL_ROOT" \( -name '__pycache__' -o -name '*.pyc' -o -name '.pytest_cache' -o -name '*.egg-info' \) -print
 ```
 
 Generated artifacts must be intentionally cleaned or reported. Prefer `PYTHONDONTWRITEBYTECODE=1` for validation commands.
 
 ## Source, Runtime, and Mirror Validation
 
-Source edits happen under `/home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-search`. Runtime state under `/home/konstantin/.hermes/skills/productivity/flight-search` is a separate deployment/sync surface. The legacy distribution mirror `cli/skill-clis/flights` must not be recreated; active CLI validation belongs to the owning skill's `cli/` directory.
+Current source edits happen under `/home/konstantin/src/Hermes-Backup/hermes` + `/skills/productivity/flight-search`. Runtime state lives under `$HERMES_HOME/skills/productivity/flight-search` (usually `$HOME/.hermes` + `/skills/productivity/flight-search`) and is a separate deployment/sync surface. The legacy distribution mirror `cli/skill-clis/flights` must not be recreated; active CLI validation belongs to the owning skill's `cli/` directory.
 
 Use this source-to-runtime gate after source docs or CLI changes and before touching runtime:
 
@@ -112,6 +113,20 @@ Use this source-to-runtime gate after source docs or CLI changes and before touc
 8. Do not restart the Hermes gateway unless explicitly authorized. Use a new Hermes session/reset only when cached skill text must refresh.
 
 Before claiming a source edit is ready, report branch, HEAD, dirty state, changed files, validation commands, generated-artifact status, whether the legacy mirror remains absent, and whether runtime sync was intentionally not performed. Do not describe a source edit as backed up until it is committed, pushed, and the remote branch SHA has been compared with the local HEAD.
+
+## Markdown Consolidation Gate
+
+When consolidating flight-search Markdown knowledge, keep the active surface small and canonical. Treat runtime-only notes, smoke transcripts, audits, handoffs, and implementation reports as distillation sources, not files to copy into source. Move only durable rules into the canonical docs and tests, then remove noncanonical runtime-only Markdown through the normal source-to-runtime sync.
+
+Use this checklist before final reporting:
+
+- Confirm the canonical Markdown set explicitly.
+- Confirm no new incident, runbook, audit, handoff, smoke, or implementation-report Markdown was added.
+- Link from `SKILL.md` only to canonical references.
+- Put provider/airport policy in `references/provider-aware-airport-priority.md`; cross-reference it instead of duplicating provider-specific rules across docs.
+- If tests enforce documentation invariants, update the guard when the durable rule changes rather than preserving stale historical exceptions.
+- When editing active `SKILL.md` or referenced Markdown, run the prompt-surface/architecture guard or an equivalent forbidden-token scan before final reporting; if a durable rule needs a retired concept, rewrite it as current behavior language instead of reintroducing retired provider terminology. In this skill, older non-live advisory-fare wording can be retired prompt-surface language; express the rule as static advisory fare evidence instead.
+- After runtime sync, verify noncanonical runtime-only Markdown files are gone and source/runtime Markdown parity holds.
 
 ## Supporting-File Distillation Policy
 

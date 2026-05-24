@@ -6,11 +6,27 @@ description: Use when Codex needs to find, compare, plan, or diagnose flight opt
 
 # Flight Search
 
-## Purpose
+## Overview
 
 Flight-search answers flight-search questions from one compact CLI report. The normal path is deliberately narrow: normalize the request, run `route live-assemble --agent-brief`, read `data.agent_report`, and answer with the best viable option plus decision-useful caveats.
 
 Static catalogs are metadata only: city, airport, country/region, airline, alliance, and aircraft data. Flight options come from live provider assembly.
+
+This skill also owns maintenance of its bundled CLI and report contracts. For user answers, run the runtime CLI in the Golden Path. For source or CLI maintenance, verify source/runtime provenance first and use `references/cli-maintenance.md`.
+
+## When to Use
+
+Use this skill when:
+
+- the user asks to find, compare, check, or explain flight options, direct service, route availability, hubs, airports, dates, cabins, baggage, carrier choice, or ticketing/protection risk;
+- the task needs IATA/city normalization, route assembly, KupiBilet/FLI live provider checks, or date-window/hub planning;
+- the user asks to diagnose, maintain, audit, or improve the flight-search CLI, `data.agent_report`, schemas, provider policy, or source/runtime sync.
+
+Do not use it for:
+
+- buying or booking tickets; final purchase, fare rules, baggage-through, refund, and disruption protection require purchase-screen or airline/GDS proof;
+- non-live advisory fare lookups when the user explicitly asks for static fare hints rather than route planning; label those as advisory data and do not treat them as validated itineraries;
+- general visa, hotel, ground-transfer, or destination research unless it directly affects a flight-search decision.
 
 ## Golden Path
 
@@ -26,15 +42,18 @@ Static catalogs are metadata only: city, airport, country/region, airline, allia
    - global non-RU;
    - structurally constrained market;
    - carrier-specific question.
-3. Run compact live assembly:
+3. Run compact live assembly from the runtime skill CLI:
 
 ```bash
-cd /home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-search/cli
+HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+cd "$HERMES_HOME"/skills/productivity/flight-search/cli
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json route live-assemble ORIGIN DEST \
   --depart-date YYYY-MM-DD \
   --profile PROFILE \
   --agent-brief
 ```
+
+If the runtime import/path fails or provenance looks suspect, use `references/debug-playbook.md` → `Runtime Provenance`; do not silently fall back to another checkout and report that as the user-facing result.
 
 4. Read only `data.agent_report`.
 5. Answer from:
@@ -91,12 +110,14 @@ Use `doctor` only when environment provenance looks suspect; it is not an answer
 - Respect `source_boundaries` and `provider_failures` from `data.agent_report`, but do not automatically print them.
 - Current live provider policy chooses the source mix. Do not hardcode provider assumptions beyond what the report states. Provider-aware airport priority rules live in `references/provider-aware-airport-priority.md`.
 - Through-fare, single-PNR, baggage-through, refund, and disruption-protection claims require proof from `through_fare_checks`, provider raw ticketing fields, or the purchase screen.
+- `--ticketing single` is not proof of a protected single PNR; it can change connection feasibility thresholds, but the final answer must still say protection/baggage-through/fare rules are unproven unless `through_fare_checks`, provider raw ticketing fields, or the booking screen prove them.
 - Treat raw `virtual_connection` / virtual-interline signals as a separate evidence class: useful discovery, but not airline-responsible through-ticket proof unless the seller/airline explicitly provides missed-connection protection.
 - Static catalogs normalize names, codes, geography, carrier/alliance labels, and aircraft labels. They do not prove schedules, fares, seat availability, direct service, or carrier service.
 
 ## Error Handling
 
 - If the CLI fails or JSON cannot be parsed, report the concrete failure layer and rerun only safe provenance commands.
+- If direct terminal capture of the CLI JSON fails to parse because of truncation/control characters, rerun the same provider-read-only search redirecting stdout to a `mktemp` file under `/tmp`, parse it with tolerant JSON loading (for example Python `json.loads(text, strict=False)`), read `data.agent_report`, and remove the temp file when no longer needed; do not inspect raw segment dumps unless escalating to debug.
 - If a provider fails, read `provider_failures` and explain degraded evidence only when it is decision-relevant.
 - If a route or date appears unavailable, classify the absence before answering.
 - If a requested constraint is not satisfied by the report, say which field proves that and what targeted live probe would reduce uncertainty.
@@ -106,7 +127,7 @@ Use `doctor` only when environment provenance looks suspect; it is not an answer
 
 Use this when the user asks about this skill's version, whether a backup/source copy matches runtime, or whether the bundled CLI footprint is justified.
 
-- Verify provenance before answering: compare the runtime skill root (`~/.hermes/skills/productivity/flight-search`) with the relevant source/backup root, including branch/status when the source is a git repo.
+- Verify provenance before answering: compare the runtime skill root (`$HERMES_HOME/skills/productivity/flight-search`, usually `$HOME/.hermes` + `/skills/productivity/flight-search`) with the relevant source/backup root, including branch/status when the source is a git repo.
 - Compare `SKILL.md` frontmatter version, SHA-256/bytes for changed files, file-set equality, and a concise diff/stat for differing files before saying versions or content match.
 - Keep detailed maintenance, source/runtime sync, generated-artifact, and schema-layout rules in `references/cli-maintenance.md`.
 
@@ -120,6 +141,27 @@ Use this when the user asks about this skill's version, whether a backup/source 
 - Do not add historical migration narratives to active Markdown.
 - Do not override the active provider and airport-priority policy documented in `references/provider-aware-airport-priority.md`.
 - Do not inspect raw candidates or segment dumps in the normal workflow.
+
+## Common Pitfalls
+
+1. **Using static advisory fare helpers as route search.** The normal answer path is `route live-assemble --agent-brief`; non-live fare helper output does not validate connections, ticketing risk, hub viability, or provider aggregate offers.
+2. **Treating metadata or doctor output as flight evidence.** Static catalogs and `doctor` prove environment/catalog facts only, not schedules, fares, seats, direct service, or availability.
+3. **Overclaiming ticketing protection.** `--ticketing single`, same-carrier legs, and provider aggregate offers do not prove airline-responsible single PNR, baggage-through, or missed-connection protection without purchase-screen, airline/GDS, fare-rule, or explicit upstream proof.
+4. **Silently widening airports.** Preserve named-airport constraints such as `IST`, `LHR`, `SVO`, `DME`, or `VKO`; city-code scope is not airport-continuity proof.
+5. **Surfacing invalid compact artifacts.** Cross-check `display.options` against `recommended_options` / `priority_options` and suppress options with `ok=false`, rejection risk, invalid time order, or negative connection time.
+6. **Falling back to an unproven checkout.** If runtime import/path is suspect, run the provenance checks in `references/debug-playbook.md`; do not mix source, runtime, and temporary checkouts in one answer without naming the evidence layer.
+7. **Printing tool diagnostics instead of travel advice.** Provider failures and source boundaries belong in the answer only when they change the decision or explain degraded evidence.
+
+## Verification Checklist
+
+- [ ] User constraints normalized: exact date, origin/destination scope, named airports, passengers, cabin, profile, carrier, stops, baggage, timing, and ticketing intent.
+- [ ] `route live-assemble --agent-brief` run from the runtime CLI, or runtime provenance failure reported before any fallback.
+- [ ] JSON parsed and answer based on `data.agent_report`, not raw segment dumps or static catalogs.
+- [ ] `recommended_options`, `priority_options`, `through_fare_checks`, `provider_failures`, and `source_boundaries` checked before final wording.
+- [ ] Direct, carrier-specific, exact-airport, or Moscow one-stop controls run or verified when the decision rules require them.
+- [ ] Ticketing/protection/baggage-through claims backed by proof or explicitly labeled as unproven.
+- [ ] Caveats are decision-useful and traveler-facing; generic provider disclaimers omitted when a stronger route-level conclusion exists.
+- [ ] For CLI/source maintenance: source/runtime paths, branch/HEAD/status, version markers, focused tests/doctor, generated artifacts, and parity/sync scope verified.
 
 ## References
 
