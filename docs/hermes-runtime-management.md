@@ -1,6 +1,6 @@
 # Hermes Runtime Management
 
-Дата: 2026-05-12. Статус: актуально.
+Дата: 2026-05-12. Статус: legacy/release-dir. На 2026-05-24 release-dir рассматривается как временная схема; целевая архитектура — supported pip venv. См. актуальный runbook: `docs/hermes-release-dir-to-pip-migration.md`.
 
 ## Общая схема
 
@@ -10,7 +10,7 @@ Hermes работает на **host runtime** через `systemd --user`, не 
 
 ```
 /home/konstantin/.hermes/hermes-agent          ← активный symlink
-  → /home/konstantin/.hermes/releases/hermes-agent-d1c549c4   ← текущий production release
+  → /home/konstantin/.hermes/releases/hermes-agent-d04c50f2f614   ← текущий production release на 2026-05-24
       ├── venv/
       ├── run_agent.py
       ├── hermes_cli/
@@ -27,14 +27,14 @@ systemd запускает:
 
 ## Текущий активный релиз
 
-- **Release:** `hermes-agent-d1c549c4`
-- **Путь:** `/home/konstantin/.hermes/releases/hermes-agent-d1c549c4`
+- **Release:** `hermes-agent-d04c50f2f614`
+- **Путь:** `/home/konstantin/.hermes/releases/hermes-agent-d04c50f2f614`
 - **Старый backup:** `/home/konstantin/.hermes/hermes-agent.pre_r12a_messagingfix_20260512051431`
 
 Проверить текущий runtime:
 ```bash
 readlink -f /home/konstantin/.hermes/hermes-agent
-# Ожидаемо: /home/konstantin/.hermes/releases/hermes-agent-d1c549c4
+# Ожидаемо: /home/konstantin/.hermes/releases/hermes-agent-d04c50f2f614
 ```
 
 Убедиться, что не Docker:
@@ -174,7 +174,7 @@ Compaction применяется **только** к `terminal` output чере
 ```bash
 readlink -f /home/konstantin/.hermes/hermes-agent
 ```
-Ожидаемо: `/home/konstantin/.hermes/releases/hermes-agent-d1c549c4`
+Ожидаемо: `/home/konstantin/.hermes/releases/hermes-agent-d04c50f2f614`
 
 **2. Проверить gateway**
 
