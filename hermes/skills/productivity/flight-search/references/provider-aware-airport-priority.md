@@ -1,11 +1,10 @@
 # Provider-aware Airport Priority
 
-Use this source reference when maintaining route planning, provider dispatch, or report semantics for multi-airport city codes. These are durable rules distilled from runtime implementation/audit notes; dated audit counts and temporary implementation context stay out of active prompt docs.
+Use this source reference when maintaining route planning, provider dispatch, or report semantics for multi-airport city codes. Keep dated notes and temporary implementation context out of active prompt docs.
 
 ## Active provider scope
 
-- Active provider paths are KupiBilet and FLI.
-- Travelpayouts / Aviasales are not active provider paths for price search.
+- The active provider set is closed to KupiBilet and FLI.
 - Static catalogs remain metadata only: they can normalize cities, airports, countries, airlines, alliances, and aircraft labels, but they do not prove live fares, availability, schedules, or direct service.
 
 ## Airport priority policy
@@ -28,6 +27,14 @@ Use this source reference when maintaining route planning, provider dispatch, or
 - For `IST→LON`, FLI candidates are `IST→LHR` first, then `IST→LGW` fallback.
 - Do not add `SAW`, `STN`, or `LTN` to default FLI probes.
 
+## Smoke invariants
+
+These invariants can be proved with mocked/offline execution unless the question is live availability:
+
+- successful `SVX→MOW` skips exact fallback calls to `SVX→SVO`, `SVX→DME`, and `SVX→VKO`;
+- successful `IST→LHR` skips fallback calls to `IST→LGW`;
+- `SAW`, `STN`, and `LTN` are absent from default generated plans and provider calls.
+
 ## RU-priority and report contract
 
 - `direct_destination_control` is a search branch, not a nonstop claim.
@@ -35,9 +42,6 @@ Use this source reference when maintaining route planning, provider dispatch, or
 - Semantic validation must use structured fields, not only `answer_lines`.
 - Display/report output must show actual airport codes from normalized offers; city codes are request scope, not a substitute for actual departure/arrival airports.
 
-## Source/runtime sync note
+## Maintenance cross-reference
 
-- Source and runtime are separate sync surfaces.
-- Before source-to-runtime sync, back up the runtime skill because runtime may contain local-only docs.
-- After sync, verify source/runtime version markers in `SKILL.md`, `cli/pyproject.toml`, `cli/flights_cli/__init__.py`, and the CLI `--version` output.
-- A gateway restart is normally not required for the CLI shim because a new invocation reads runtime files. Use a new Hermes session/reset only when skill text injection must refresh.
+Source/runtime sync and validation rules live in `references/cli-maintenance.md`; keep this file focused on provider and airport priority policy.
