@@ -88,6 +88,13 @@ Use these probe shapes as applicable:
 
 Label probe results as narrower evidence than the assembled report. Do not use targeted probes to replace the report's final ranking unless the report is demonstrably missing a decision-critical control.
 
+## Execution Semantics vs Live Availability
+
+- Mocked or offline runtime execution can prove dispatch, skip, fallback, post-validation, and report-projection semantics; it is not proof of live provider availability.
+- For fan-out or fallback bugs, inspect actual executed calls and skipped calls with reasons. Planned candidates alone do not prove the runtime executed or suppressed the right probes.
+- When the question is provider-call suppression, fallback order, airport post-validation, or compact report projection, prefer mocked/offline execution proof over broad live provider fan-out.
+- Use targeted live smoke only for provider capability, credential/config readiness, or current upstream availability. Keep live probes narrow and date-current.
+
 ## JSON Extraction
 
 Read only the JSON payload for decisions. For command output that includes logs, extract the JSON envelope first and then inspect `data.agent_report`.

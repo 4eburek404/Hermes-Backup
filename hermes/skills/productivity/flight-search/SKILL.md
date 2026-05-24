@@ -1,7 +1,7 @@
 ---
 name: flight-search
 version: 0.10.8
-description: Use when Codex needs to find, compare, plan, or diagnose flight options with the Hermes flights CLI, including airfare checks, route assembly, hub planning, IATA/date-window searches, Kupibilet live aggregate search, FLI MCP checks, or improvements to the flight-search workflow.
+description: Use when Codex needs to find, compare, plan, or diagnose flight options with the Hermes flights CLI, including airfare checks, route assembly, hub planning, IATA/date-window searches, KupiBilet live aggregate search, FLI MCP checks, or improvements to the flight-search workflow.
 ---
 
 # Flight Search
@@ -108,8 +108,7 @@ Use this when the user asks about this skill's version, whether a backup/source 
 
 - Verify provenance before answering: compare the runtime skill root (`~/.hermes/skills/productivity/flight-search`) with the relevant source/backup root, including branch/status when the source is a git repo.
 - Compare `SKILL.md` frontmatter version, SHA-256/bytes for changed files, file-set equality, and a concise diff/stat for differing files before saying versions or content match.
-- Treat the `cli/flights_cli/` directory as a skill-owned mini-package, not accidental baggage. When asked whether there are "too many files", classify by area, LOC/nonblank lines, tiny `__init__`/entrypoint files, meaningful modules, tests, contracts, and retired compatibility stubs before recommending pruning.
-- Do not delete or collapse retired provider stubs merely because runtime imports are sparse; first check tests and guardrail purpose. Stubs can intentionally fail closed to prevent old provider paths from being used.
+- Keep detailed maintenance, source/runtime sync, generated-artifact, and schema-layout rules in `references/cli-maintenance.md`.
 
 ## Do Not
 
@@ -119,7 +118,7 @@ Use this when the user asks about this skill's version, whether a backup/source 
 - Do not present summed separate-segment prices as confirmed airline/GDS through fares.
 - Do not hide `priority_options` just because they rank below the cheapest or fastest option.
 - Do not add historical migration narratives to active Markdown.
-- Do not use old or deprecated provider paths.
+- Do not override the active provider and airport-priority policy documented in `references/provider-aware-airport-priority.md`.
 - Do not inspect raw candidates or segment dumps in the normal workflow.
 
 ## References
@@ -128,4 +127,4 @@ Use this when the user asks about this skill's version, whether a backup/source 
 - `references/source-boundaries.md` - source limits, absence taxonomy, airport boundaries, and proof boundaries.
 - `references/debug-playbook.md` - targeted diagnostics for current live report behavior.
 - `references/cli-maintenance.md` - maintenance invariants and validation checklist.
-- `references/provider-aware-airport-priority.md` - active provider scope, IST/LON/MOW airport priority, KupiBilet/FLI dispatch boundaries, RU-priority validation, and source/runtime sync notes.
+- `references/provider-aware-airport-priority.md` - active provider scope, IST/LON/MOW airport priority, KupiBilet/FLI dispatch boundaries, RU-priority validation, and smoke invariants.

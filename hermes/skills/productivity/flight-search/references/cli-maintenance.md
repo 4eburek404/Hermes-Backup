@@ -66,6 +66,13 @@ When changing `data.agent_report`:
 4. Update fixtures and tests that assert the contract.
 5. Re-run the focused contract tests before any broader validation.
 
+Runtime-path pitfall: schema helpers and contract tests must support both layouts:
+
+- source layout: `hermes/skills/...`
+- runtime layout: `skills/...`
+
+Discover schema paths by walking upward from the project/test root and current working directory, and include checked candidates in assertion errors.
+
 Do not add answer-facing fields without documenting how the agent should use them. Do not change schema version constants unless the schema contract itself changes incompatibly.
 
 ## Version Bump Checklist
@@ -91,17 +98,20 @@ Generated artifacts must be intentionally cleaned or reported. Prefer `PYTHONDON
 
 ## Source, Runtime, and Mirror Validation
 
-Source edits happen under `/home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-search`. Runtime state under `/home/konstantin/.hermes/skills/productivity/flight-search` is a separate deployment/sync surface. The legacy distribution mirror `cli/skill-clis/flights` is retired and must not be recreated; active CLI validation belongs to the owning skill's `cli/` directory. Before source-to-runtime sync, back up runtime because it may contain local-only docs. After sync, verify source/runtime version markers and CLI `--version`; a gateway restart is normally unnecessary for the CLI shim, but use a new Hermes session/reset if skill text injection must refresh.
+Source edits happen under `/home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-search`. Runtime state under `/home/konstantin/.hermes/skills/productivity/flight-search` is a separate deployment/sync surface. The legacy distribution mirror `cli/skill-clis/flights` must not be recreated; active CLI validation belongs to the owning skill's `cli/` directory.
 
-When the user asks whether the flight-search skill or CLI “got backup”, verify both Git backup and runtime/source equality before answering:
+Use this source-to-runtime gate after source docs or CLI changes and before touching runtime:
 
-1. In `/home/konstantin/src/Hermes-Backup`, capture `git status --short --branch --untracked-files=all`, `git rev-parse HEAD`, `git log -1 --oneline --decorate`, `git remote -v`, and `git ls-remote origin refs/heads/main`. A clean local branch plus matching remote HEAD proves the committed backup is present; it does not prove ignored generated caches are clean.
-2. Compare the active runtime skill with the backed-up current source path using `diff -qr` with generated-artifact excludes (`__pycache__`, `*.pyc`, `.pytest_cache`, `*.egg-info`). Then verify `SKILL.md`, `cli/pyproject.toml`, and `cli/flights_cli/__init__.py` versions, bytes, and SHA-256 on both sides before saying they match.
-3. Validate the current CLI from both roots with `PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --version` and, when useful, `--json doctor`. Prefer direct version output over inferring from file text only.
-4. Verify that `/home/konstantin/src/Hermes-Backup/cli/skill-clis/flights` is absent. If it exists, report it as a stale legacy standalone mirror, not the active skill-owned CLI; current backup scripts should not recreate it. When changing backup logic, run the focused regression `python3 -m pytest -q tests/test_cli_backup_legacy_cleanup.py` plus `python3 scripts/verify-hermes-backup.py --max-encrypted-age-days 8 --require-single-active-generation` and check that the verifier reports `legacy_skill_clis_present: false`.
-5. Check generated artifacts separately with `find` or a small path walk. Ignored `.pytest_cache`/`__pycache__` under the backup/source tree are not pushed backup content; report them as cleanup-only unless the user asked to delete them.
+1. Verify post-merge source provenance on `main`: pull with `--ff-only`, capture branch/status/HEAD, and verify expected merge ancestry when specific commits are in scope. If source provenance or focused tests fail, stop before runtime mutation.
+2. Verify version markers in `SKILL.md`, `cli/pyproject.toml`, and `cli/flights_cli/__init__.py` before and after sync.
+3. Run focused source tests before sync. Include schema/contract tests when `agent_report` behavior changes, and provider/airport policy tests when dispatch rules change.
+4. Back up the runtime skill to a timestamped directory under `/home/konstantin/hermes_skill_backups/` before every sync.
+5. Sync with `rsync -a --delete` and generated-artifact excludes: `__pycache__/`, `pycache/`, `.pytest_cache/`, `*.pyc`, and `*.egg-info`.
+6. Validate source/runtime parity with `diff -qr` using the same generated-artifact excludes.
+7. Run runtime checks after sync: runtime `flights --version`, runtime `flights --json doctor`, and targeted offline tests from the runtime `cli/` directory.
+8. Do not restart the Hermes gateway unless explicitly authorized. Use a new Hermes session/reset only when cached skill text must refresh.
 
-Before claiming a source edit is ready, report branch, HEAD, dirty state, changed files, validation commands, generated-artifact status, whether the legacy mirror remains absent, and whether runtime sync was intentionally not performed. Do not describe a deletion or source edit as "backed up" until it is committed, pushed, and the remote branch SHA has been compared with the local HEAD; an uncommitted clean verification only proves local readiness.
+Before claiming a source edit is ready, report branch, HEAD, dirty state, changed files, validation commands, generated-artifact status, whether the legacy mirror remains absent, and whether runtime sync was intentionally not performed. Do not describe a source edit as backed up until it is committed, pushed, and the remote branch SHA has been compared with the local HEAD.
 
 ## Supporting-File Distillation Policy
 
