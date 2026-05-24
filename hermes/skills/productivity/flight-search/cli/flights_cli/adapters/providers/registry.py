@@ -49,12 +49,19 @@ PROVIDER_REGISTRY: dict[ProviderName, ProviderDescriptor] = {
 }
 
 
+def location_country_code(store: Store, code: str) -> str | None:
+    normalized = code.upper()
+    airport = store.airport_by_code.get(normalized)
+    if airport and airport.get("country_code"):
+        return str(airport.get("country_code") or "").upper()
+    city = store.city_by_code.get(normalized)
+    if city and city.get("country_code"):
+        return str(city.get("country_code") or "").upper()
+    return None
+
+
 def airport_country_code(store: Store, code: str) -> str | None:
-    airport = store.airport_by_code.get(code.upper())
-    if not airport:
-        return None
-    country = airport.get("country_code")
-    return str(country).upper() if country else None
+    return location_country_code(store, code)
 
 
 def is_ru_touching_segment(spec: dict[str, Any], store: Store) -> bool:

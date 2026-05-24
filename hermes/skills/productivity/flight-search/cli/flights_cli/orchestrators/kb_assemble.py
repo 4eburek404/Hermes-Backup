@@ -9,6 +9,7 @@ from ..config import (
     DEFAULT_KB_ROUTE_OUTBOUND_SECOND_LEG_DAY_OFFSETS,
     DEFAULT_KB_ROUTE_RETURN_SECOND_LEG_DAY_OFFSETS,
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
+    KUPIBILET_CITY_CODE_FIRST_AIRPORTS,
     PRIORITY_ASIA_HUB,
     PRIORITY_MOSCOW_GATEWAY,
     PRIORITY_PRIMARY_HUB,
@@ -16,7 +17,7 @@ from ..config import (
     PRIORITY_SECONDARY_HUB,
     SUPPORTED_CURRENCIES,
 )
-from ..domain.airports import explicit_or_resolved_airports
+from ..domain.airports import airport_priority_metadata, explicit_or_resolved_airports
 from ..domain.normalize import normalize_carrier_code, normalize_profile, parse_iso_date
 from ..errors import CliError
 from ..execution.aggregate_control_runner import run_aggregate_controls
@@ -36,6 +37,142 @@ from .route_graph import (
     route_segment_key,
     route_segment_spec,
 )
+
+
+def provider_policy_allows_kupibilet(policy: str | None) -> bool:
+    normalized = str(policy or "kupibilet").strip().lower()
+    return normalized in {"auto", "both", "kupibilet"}
+
+
+def city_code_first_segment_options(
+    *,
+    city_code: str | None,
+    airports: list[str],
+    explicit: list[str] | None,
+    provider_policy: str | None,
+) -> list[tuple[str, dict[str, Any]]]:
+    normalized_city = str(city_code or "").upper()
+    if explicit or not provider_policy_allows_kupibilet(provider_policy):
+        return [(code, {}) for code in airports]
+    fallback_airports = [str(code).upper() for code in KUPIBILET_CITY_CODE_FIRST_AIRPORTS.get(normalized_city, [])]
+    if not fallback_airports:
+        return [(code, {}) for code in airports]
+
+    options: list[tuple[str, dict[str, Any]]] = [
+        (
+            normalized_city,
+            {
+                "provider_request_strategy": "city_code_first",
+                "provider_city_code": normalized_city,
+                "provider_city_code_fallback_airports": fallback_airports,
+            },
+        )
+    ]
+    for code in airports:
+        normalized_airport = str(code).upper()
+        options.append(
+            (
+                normalized_airport,
+                {
+                    "provider_request_strategy": "city_code_fallback",
+                    "provider_city_code": normalized_city,
+                    "fallback_for_city_code_request": True,
+                },
+            )
+        )
+    return options
+
+
+def segment_code_metadata(origin_code: str, dest_code: str) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    origin_priority = airport_priority_metadata(origin_code)
+    destination_priority = airport_priority_metadata(dest_code)
+    if origin_priority:
+        metadata["origin_airport_priority"] = origin_priority
+    if destination_priority:
+        metadata["destination_airport_priority"] = destination_priority
+    return metadata
+
+
+def provider_city_code_side(spec: dict[str, Any], side: str) -> bool:
+    city_code = str(spec.get("provider_city_code") or "").upper()
+    if not city_code:
+        return False
+    code = str(spec.get(side) or "").upper()
+    fallback_airports = {str(item).upper() for item in KUPIBILET_CITY_CODE_FIRST_AIRPORTS.get(city_code, [])}
+    return code == city_code or code in fallback_airports
+
+
+def endpoint_group_code(spec: dict[str, Any], side: str) -> str:
+    if provider_city_code_side(spec, side):
+        return str(spec.get("provider_city_code") or "").upper()
+    return str(spec.get(side) or "").upper()
+
+
+def city_code_primary_keys_for_fallback(spec: dict[str, Any]) -> list[tuple[str, str, str, str]]:
+    if not spec.get("fallback_for_city_code_request"):
+        return []
+    city_code = str(spec.get("provider_city_code") or "").upper()
+    fallback_airports = {str(item).upper() for item in KUPIBILET_CITY_CODE_FIRST_AIRPORTS.get(city_code, [])}
+    if not city_code or not fallback_airports:
+        return []
+    direction = str(spec.get("direction") or "")
+    leg = str(spec.get("leg") or "")
+    origin = str(spec.get("origin") or "").upper()
+    destination = str(spec.get("destination") or "").upper()
+    keys: list[tuple[str, str, str, str]] = []
+    if origin in fallback_airports:
+        keys.append((direction, leg, city_code, destination))
+    if destination in fallback_airports:
+        keys.append((direction, leg, origin, city_code))
+    return keys
+
+
+def fallback_airport_priority_sides(spec: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    sides: list[tuple[str, dict[str, Any]]] = []
+    for side in ("origin", "destination"):
+        metadata = spec.get(f"{side}_airport_priority")
+        if not isinstance(metadata, dict):
+            continue
+        tier = int(metadata.get("tier") or 0)
+        role = str(metadata.get("role") or "").lower()
+        if tier > 1 or role == "fallback":
+            sides.append((side, metadata))
+    return sides
+
+
+def preferred_airport_keys_for_fallback(spec: dict[str, Any], plan: dict[str, Any]) -> list[tuple[str, str, str, str]]:
+    keys: list[tuple[str, str, str, str]] = []
+    for priority_side, fallback_metadata in fallback_airport_priority_sides(spec):
+        city_code = str(fallback_metadata.get("city_code") or "").upper()
+        fallback_tier = int(fallback_metadata.get("tier") or 0)
+        if not city_code or fallback_tier <= 1:
+            continue
+        other_side = "destination" if priority_side == "origin" else "origin"
+        other_group = endpoint_group_code(spec, other_side)
+        for candidate in plan.get("segments") or []:
+            if not isinstance(candidate, dict) or candidate is spec:
+                continue
+            if str(candidate.get("direction") or "") != str(spec.get("direction") or ""):
+                continue
+            if str(candidate.get("leg") or "") != str(spec.get("leg") or ""):
+                continue
+            if str(candidate.get("date") or "") != str(spec.get("date") or ""):
+                continue
+            if str(candidate.get("route_family") or "") != str(spec.get("route_family") or ""):
+                continue
+            candidate_metadata = candidate.get(f"{priority_side}_airport_priority")
+            if not isinstance(candidate_metadata, dict):
+                continue
+            if str(candidate_metadata.get("city_code") or "").upper() != city_code:
+                continue
+            if int(candidate_metadata.get("tier") or 0) >= fallback_tier:
+                continue
+            if endpoint_group_code(candidate, other_side) != other_group:
+                continue
+            keys.append(search_key(candidate))
+    return keys
+
 
 def normalize_day_offsets(values: list[int] | None, default: list[int], field: str) -> list[int]:
     raw_values = default if values is None else values
@@ -155,6 +292,19 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
     destination_airports = explicit_or_resolved_airports(
         store, destination, args.destination_airport, role="destination", max_airports=args.max_airports_per_city
     )
+    provider_policy = str(getattr(args, "provider_policy", "kupibilet") or "kupibilet")
+    origin_segment_options = city_code_first_segment_options(
+        city_code=origin.code,
+        airports=origin_airports,
+        explicit=args.origin_airport,
+        provider_policy=provider_policy,
+    )
+    destination_segment_options = city_code_first_segment_options(
+        city_code=destination.code,
+        airports=destination_airports,
+        explicit=args.destination_airport,
+        provider_policy=provider_policy,
+    )
     route_context = resolve_route_graph_context(args, store, origin, destination, origin_airports, destination_airports)
     routing_strategy = route_context.routing_strategy
     hubs = route_context.hubs
@@ -177,7 +327,7 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
     def add_segment(direction: str, leg: str, dep_date: date, origin_code: str, dest_code: str, **extra: Any) -> None:
         if origin_code == dest_code:
             return
-        spec = route_segment_spec(direction, leg, dep_date, origin_code, dest_code, **extra)
+        spec = route_segment_spec(direction, leg, dep_date, origin_code, dest_code, **segment_code_metadata(origin_code, dest_code), **extra)
         key = route_segment_key(spec, include_date=True)
         if key in seen:
             return
@@ -186,8 +336,8 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
 
     route_families = route_families_for_strategy(routing_strategy, routing_profile)
     if routing_strategy == "ru-priority":
-        for origin_code in origin_airports:
-            for dest_code in destination_airports:
+        for dest_code, dest_extra in destination_segment_options:
+            for origin_code, origin_extra in origin_segment_options:
                 add_segment(
                     "outbound",
                     "direct_outbound",
@@ -197,6 +347,7 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                     route_family="direct_control",
                     priority=0,
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                    **{**origin_extra, **dest_extra},
                 )
         if routing_profile == "asia-oceania":
             for origin_code in origin_airports:
@@ -296,8 +447,8 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                     skip_if_priority_route_viable="outbound",
                 )
     elif routing_strategy == "domestic-ru":
-        for origin_code in origin_airports:
-            for dest_code in destination_airports:
+        for dest_code, dest_extra in destination_segment_options:
+            for origin_code, origin_extra in origin_segment_options:
                 add_segment(
                     "outbound",
                     "direct_outbound",
@@ -306,6 +457,7 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                     dest_code,
                     route_family="domestic_ru",
                     priority=0,
+                    **{**origin_extra, **dest_extra},
                 )
         for origin_code in origin_airports:
             for hub in hubs:
@@ -327,8 +479,8 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
 
     if ret:
         if routing_strategy == "ru-priority":
-            for dest_code in destination_airports:
-                for origin_code in origin_airports:
+            for dest_code, dest_extra in destination_segment_options:
+                for origin_code, origin_extra in origin_segment_options:
                     add_segment(
                         "return",
                         "direct_return",
@@ -338,6 +490,7 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                         route_family="direct_control",
                         priority=0,
                         preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                        **{**dest_extra, **origin_extra},
                     )
             if routing_profile == "asia-oceania":
                 for dest_code in destination_airports:
@@ -437,8 +590,8 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                         skip_if_priority_route_viable="return",
                     )
         elif routing_strategy == "domestic-ru":
-            for dest_code in destination_airports:
-                for origin_code in origin_airports:
+            for dest_code, dest_extra in destination_segment_options:
+                for origin_code, origin_extra in origin_segment_options:
                     add_segment(
                         "return",
                         "direct_return",
@@ -447,6 +600,7 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                         origin_code,
                         route_family="domestic_ru",
                         priority=0,
+                        **{**dest_extra, **origin_extra},
                     )
             for dest_code in destination_airports:
                 for hub in hubs:
@@ -556,11 +710,63 @@ def run_kupibilet_route_assembly(args: argparse.Namespace, store: Store) -> dict
     direct_route_index, direct_route_intel = direct_route_intel_context(args, store, plan)
     request_deduper = RequestDeduper()
 
+    def skipped_by_offer_keys(
+        spec: dict[str, Any],
+        *,
+        keys: list[tuple[str, str, str, str]],
+        reason: str,
+        note: str,
+    ) -> dict[str, Any] | None:
+        matched = [
+            {
+                "direction": key[0],
+                "leg": key[1],
+                "origin": key[2],
+                "destination": key[3],
+                "offer_count": offer_counts[key],
+            }
+            for key in keys
+            if int(offer_counts.get(key, 0)) > 0
+        ]
+        if not matched:
+            return None
+        return {
+            **spec,
+            "status": "skipped",
+            "reason": reason,
+            "offer_count": 0,
+            "skipped_because": {
+                "matched_offer_counts": matched,
+                "note": note,
+            },
+        }
+
+    def skipped_by_preferred_airport_tier(spec: dict[str, Any]) -> dict[str, Any] | None:
+        return skipped_by_offer_keys(
+            spec,
+            keys=preferred_airport_keys_for_fallback(spec, plan),
+            reason="preferred_airport_tier_has_offers",
+            note="Fallback airport tier was deferred because a preferred airport tier already produced accepted offers.",
+        )
+
+    def skipped_by_city_code_primary(spec: dict[str, Any]) -> dict[str, Any] | None:
+        return skipped_by_offer_keys(
+            spec,
+            keys=city_code_primary_keys_for_fallback(spec),
+            reason="city_code_request_has_offers",
+            note="Exact airport fallback was deferred because the provider city-code request already produced accepted offers.",
+        )
 
     def skipped_by_condition(spec: dict[str, Any]) -> dict[str, Any] | None:
         direct_skip = skipped_by_direct_route_intel(spec)
         if direct_skip is not None:
             return direct_skip
+        preferred_skip = skipped_by_preferred_airport_tier(spec)
+        if preferred_skip is not None:
+            return preferred_skip
+        city_code_skip = skipped_by_city_code_primary(spec)
+        if city_code_skip is not None:
+            return city_code_skip
         condition = spec.get("skip_if_offer_exists")
         if not isinstance(condition, dict):
             priority_direction = spec.get("skip_if_priority_route_viable")

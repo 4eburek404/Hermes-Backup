@@ -170,6 +170,45 @@ def valid_report() -> dict:
     }
 
 
+def ru_priority_branch(
+    *,
+    execution_state: str = "not_generated",
+    viable: bool = False,
+    visible: bool = False,
+    priority_option_id: str | None = None,
+    evidence_option_ids: list[str] | None = None,
+) -> dict:
+    return {
+        "checked": True,
+        "execution_state": execution_state,
+        "viable": viable,
+        "visible": visible,
+        "priority_option_id": priority_option_id,
+        "evidence_option_ids": evidence_option_ids or [],
+    }
+
+
+def valid_ru_priority_controls() -> dict:
+    return {
+        "requested": True,
+        "checked": True,
+        "route_family": "ru_priority",
+        "scope": {
+            "origin": "SVX",
+            "destination": "LON",
+            "origin_airports": ["SVX"],
+            "destination_airports": ["LHR", "LGW", "STN", "LTN"],
+            "moscow_airports": ["SVO", "DME", "VKO"],
+            "primary_hub": "IST",
+        },
+        "direct_destination_control": ru_priority_branch(),
+        "ist_primary_hub_control": ru_priority_branch(),
+        "moscow_gateway_control": ru_priority_branch(),
+        "moscow_via_ist_fallback_control": ru_priority_branch(),
+        "decision": "no_viable_ru_priority_control",
+    }
+
+
 class AgentReportContractTests(unittest.TestCase):
     def test_schema_is_valid_and_stable(self) -> None:
         schema = load_agent_report_schema()
@@ -192,6 +231,126 @@ class AgentReportContractTests(unittest.TestCase):
 
     def test_valid_synthetic_agent_report_passes(self) -> None:
         validate_agent_report(valid_report())
+
+    def test_schema_accepts_ru_priority_controls_for_ru_touching_international_route(self) -> None:
+        report = valid_report()
+        report["route"]["destination"] = "LON"
+        report["route"]["destination_airports"] = ["LHR", "LGW", "STN", "LTN"]
+        report["route"]["routing_strategy"] = "ru-priority"
+        report["ru_priority_controls"] = valid_ru_priority_controls()
+
+        validate_agent_report(report)
+
+    def test_ru_priority_branch_without_execution_state_fails_semantic_validation(self) -> None:
+        report = valid_report()
+        report["ru_priority_controls"] = valid_ru_priority_controls()
+        del report["ru_priority_controls"]["moscow_gateway_control"]["execution_state"]
+
+        with self.assertRaises(CliError) as ctx:
+            validate_agent_report(report)
+
+        self.assertTrue(
+            any(
+                error["validator"] == "semantic"
+                and error["path"] == "$.ru_priority_controls.moscow_gateway_control.execution_state"
+                and "execution_state" in error["message"]
+                for error in ctx.exception.details["errors"]
+            )
+        )
+
+    def test_ru_priority_visible_true_with_viable_false_fails_semantic_validation(self) -> None:
+        report = valid_report()
+        option = copy.deepcopy(valid_option())
+        option["id"] = "priority-direct"
+        option["control_family"] = "ru_priority"
+        option["control_branch"] = "direct_destination"
+        option["visibility_role"] = "priority_control"
+        report["priority_options"] = [option]
+        report["ru_priority_controls"] = valid_ru_priority_controls()
+        report["ru_priority_controls"]["direct_destination_control"] = ru_priority_branch(
+            execution_state="executed_no_viable_result",
+            viable=False,
+            visible=True,
+            priority_option_id="priority-direct",
+            evidence_option_ids=["priority-direct"],
+        )
+
+        with self.assertRaises(CliError) as ctx:
+            validate_agent_report(report)
+
+        self.assertTrue(
+            any(
+                error["validator"] == "semantic" and "cannot be visible when viable is false" in error["message"]
+                for error in ctx.exception.details["errors"]
+            )
+        )
+
+    def test_ru_priority_visibility_is_structural_not_answer_line_text(self) -> None:
+        report = valid_report()
+        report["route"]["destination"] = "LON"
+        report["route"]["destination_airports"] = ["LHR", "LGW", "STN", "LTN"]
+        option = copy.deepcopy(valid_option())
+        option["id"] = "priority-ist-primary"
+        option["category"] = "ist_primary_hub_control"
+        option["control_family"] = "ru_priority"
+        option["control_branch"] = "ist_primary_hub"
+        option["visibility_role"] = "priority_control"
+        report["priority_options"] = [option]
+        report["ru_priority_controls"] = valid_ru_priority_controls()
+        report["ru_priority_controls"]["ist_primary_hub_control"] = ru_priority_branch(
+            execution_state="executed",
+            viable=True,
+            visible=True,
+            priority_option_id="priority-ist-primary",
+            evidence_option_ids=["priority-ist-primary"],
+        )
+        report["ru_priority_controls"]["decision"] = "ist_primary_viable"
+        report["answer_lines"] = [
+            "Best CLI-ranked option: 10 000 RUB.",
+            "Ветка через IST проверена: найден годный вариант.",
+            "Do not treat cached or segment-search absence as proof that a through fare, direct flight, or protected ticket does not exist.",
+        ]
+        answer_text = "\n".join(report["answer_lines"])
+        self.assertNotIn("control", answer_text.lower())
+        self.assertNotIn("priority", answer_text.lower())
+        self.assertNotIn("Контроль", answer_text)
+
+        validate_agent_report(report)
+
+    def test_summary_only_display_rejects_detailed_flight_lines(self) -> None:
+        report = valid_report()
+        summary_option = copy.deepcopy(valid_option())
+        summary_option["id"] = "option-summary"
+        summary_option["rank"] = 2
+        summary_option["detail_status"] = "summary_only"
+        summary_option["segments"] = []
+        report["recommended_options"].append(summary_option)
+        report["display"]["options"].append(
+            {
+                "id": "option-summary",
+                "category": None,
+                "price_text": "12 000 RUB",
+                "total_elapsed": "6:00",
+                "connection_count": 1,
+                "lines": [
+                    "SVX→IST U6 123 10:00–13:00",
+                    "пересадка IST 2:00",
+                    "IST→LHR TK1985 15:00–17:00",
+                ],
+                "text": "12 000 RUB | всего 6:00 | пересадок 1\nSVX→IST U6 123 10:00–13:00\nпересадка IST 2:00\nIST→LHR TK1985 15:00–17:00",
+            }
+        )
+        report["display"]["text"] = "\n\n".join(option["text"] for option in report["display"]["options"])
+
+        with self.assertRaises(CliError) as ctx:
+            validate_agent_report(report)
+
+        self.assertTrue(
+            any(
+                error["validator"] == "semantic" and "summary_only display must not include detailed flight lines" in error["message"]
+                for error in ctx.exception.details["errors"]
+            )
+        )
 
     def test_canonical_coverage_diagnostics_requires_terminal_fields(self) -> None:
         report = valid_report()
@@ -361,7 +520,7 @@ class AgentReportContractTests(unittest.TestCase):
         self.assertEqual(ctx.exception.error_type, "contract_error")
         self.assertTrue(any(error["validator"] == "additionalProperties" for error in ctx.exception.details["errors"]))
 
-    def test_priority_options_must_surface_in_answer_lines(self) -> None:
+    def test_priority_options_do_not_require_answer_line_keywords(self) -> None:
         report = valid_report()
         priority = copy.deepcopy(valid_option())
         priority["category"] = "all_su_svo"
@@ -369,11 +528,7 @@ class AgentReportContractTests(unittest.TestCase):
         report["priority_options"] = [priority]
         report["answer_lines"] = ["Best CLI-ranked option: 10 000 RUB."]
 
-        with self.assertRaises(CliError) as ctx:
-            validate_agent_report(report)
-
-        self.assertEqual(ctx.exception.error_type, "contract_error")
-        self.assertTrue(any("priority/control" in error["message"] for error in ctx.exception.details["errors"]))
+        validate_agent_report(report)
 
     def test_through_fare_checks_must_surface_in_answer_lines(self) -> None:
         report = valid_report()
