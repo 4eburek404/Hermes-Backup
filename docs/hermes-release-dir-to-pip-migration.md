@@ -47,11 +47,9 @@ Read-only inventory from 2026-05-24:
   - `/home/konstantin/.hermes/cron` exists, about `1.4M`
   - `/home/konstantin/.hermes/credentials` exists, about `8K`
   - `/home/konstantin/.hermes/tool-output-artifacts` exists, about `18M`
-- Hindsight:
-  - no `/home/konstantin/.hermes/hindsight`
-  - no `/home/konstantin/.hindsight`
-  - no `HINDSIGHT_*` keys found in `.env` or `config.yaml`
-  - active venv has no `hindsight`, `hindsight-embed`, or `hindsight-sdk` package installed
+- Scope guard:
+  - keep this runbook focused on the Hermes core install/update model, `HERMES_HOME` state, skills, present plugins, systemd gateway, and existing auth/pairing/session/memory state.
+  - retired legacy integrations absent from current Hermes state are out of scope for readiness checks and mandatory backup lists unless explicitly requested.
 - Skills:
   - current 0.13 runtime sees local skills and release-bundled skills
   - `/home/konstantin/.hermes/skills`: `101` `SKILL.md` files
@@ -150,7 +148,7 @@ Rationale:
 - Telegram gateway needs messaging dependencies such as `python-telegram-bot` and `aiohttp`.
 - MCP is enabled in config and should remain available.
 - Web/dashboard support is cheap to keep if used by gateway/status flows.
-- Hindsight-specific extras are not currently required because no Hindsight config/package is active.
+- Do not add extras for retired or absent legacy integrations unless current config/state proves they are active.
 
 ## What would be lost by removing release-dir
 
@@ -248,7 +246,7 @@ Keep the old release directory for rollback until the pip runtime has survived a
 
 ## State that must be backed up before migration
 
-Back up these paths before any cutover:
+Back up these paths before any cutover. Treat optional `HERMES_HOME` subtrees as existence-gated: include them when present in the current state, and do not invent backup paths for retired legacy integrations.
 
 - `/home/konstantin/.hermes/config.yaml`
 - `/home/konstantin/.hermes/.env`
@@ -267,11 +265,6 @@ Back up these paths before any cutover:
 - `/home/konstantin/.hermes/ops/`
 - `/home/konstantin/.config/systemd/user/hermes-gateway.service`
 - `/home/konstantin/.config/systemd/user/hermes-gateway.service.d/`
-
-Hindsight-related paths are currently absent, but include them in future backup commands if they exist:
-
-- `/home/konstantin/.hermes/hindsight/`
-- `/home/konstantin/.hindsight/`
 
 Also preserve current rollback artifact:
 
@@ -379,8 +372,6 @@ tar --ignore-failed-read -czf "$HERMES_BACKUP/hermes-critical-state.tar.gz" -C /
   .hermes/credentials \
   .hermes/tool-output-artifacts \
   .hermes/ops \
-  .hermes/hindsight \
-  .hindsight \
   .config/systemd/user/hermes-gateway.service \
   .config/systemd/user/hermes-gateway.service.d
 
