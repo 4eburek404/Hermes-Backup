@@ -88,7 +88,7 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
             "docker_touched": False,
             "travelpayouts_usage": "static_catalog_only",
             "travelpayouts_price_search_enabled": False,
-            "live_provider_commands": ["kb-search", "fli-search", "fli-dates", "route kb-assemble", "route live-assemble"],
+            "live_provider_commands": ["kb-search", "kb-roundtrip", "fli-search", "fli-dates", "route kb-assemble", "route live-assemble"],
             "legacy_debug_commands": [],
         },
         "risk_profiles": {

@@ -165,6 +165,13 @@ python3 -m flights_cli --json kb-search ORIGIN DEST \
   --depart-date YYYY-MM-DD \
   --only-carrier CODE \
   --limit 20
+
+python3 -m flights_cli --json kb-roundtrip ORIGIN DEST \
+  --depart-date YYYY-MM-DD \
+  --return-date YYYY-MM-DD \
+  --only-carrier CODE \
+  --direct-only \
+  --limit 20
 ```
 
 Sidecar segment probe:

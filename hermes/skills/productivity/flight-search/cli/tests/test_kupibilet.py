@@ -16,10 +16,12 @@ from flights_cli.orchestrators.kb_assemble import (
 )
 from flights_cli.providers.kupibilet import (
     build_kupibilet_payload,
+    build_kupibilet_roundtrip_payload,
     cached_kupibilet_search,
     decode_http_body,
     kupibilet_result_to_segment_result,
     parse_kupibilet_frontend_search,
+    parse_kupibilet_roundtrip_search,
 )
 from flights_cli.providers.live_cache import live_cache_key, read_live_cache, write_live_cache
 from flights_cli.store import Store
@@ -36,6 +38,129 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(payload["cabin"], "economy")
         self.assertEqual(payload["sort_by"], "price")
         self.assertFalse(payload["short_response"])
+
+    def test_kupibilet_roundtrip_payload_uses_two_trip_frontend_search_shape(self) -> None:
+        payload = build_kupibilet_roundtrip_payload("SVX", "BJS", "2026-08-01", "2026-08-08", "RUB")
+
+        self.assertEqual(
+            payload["trips"],
+            [
+                {"departure": "SVX", "arrival": "BJS", "date": "2026-08-01"},
+                {"departure": "BJS", "arrival": "SVX", "date": "2026-08-08"},
+            ],
+        )
+        self.assertEqual(payload["travelers"], {"adult": 1, "child": 0, "infant": 0})
+        self.assertEqual(payload["cabin"], "economy")
+        self.assertEqual(payload["sort_by"], "price")
+        self.assertFalse(payload["short_response"])
+
+    def test_parse_kupibilet_roundtrip_filters_and_keeps_baggage_variants(self) -> None:
+        raw = {
+            "variants": [
+                {
+                    "id": "u6-basic",
+                    "price": {"amount": "73835", "currency": "RUB"},
+                    "baggage": {"weight": 0, "count": 0},
+                    "hand_luggage": {"weight": 5, "count": 1},
+                    "seats_left": 4,
+                    "segments": [{"flights": ["out873"]}, {"flights": ["ret776"]}],
+                },
+                {
+                    "id": "u6-with-bag",
+                    "price": {"amount": "79753", "currency": "RUB"},
+                    "baggage": {"weight": 10, "count": 1},
+                    "hand_luggage": {"weight": 5, "count": 1},
+                    "segments": [{"flights": ["out873"]}, {"flights": ["ret776"]}],
+                },
+                {
+                    "id": "mixed-return",
+                    "price": {"amount": "65000", "currency": "RUB"},
+                    "segments": [{"flights": ["out873"]}, {"flights": ["ret-su"]}],
+                },
+                {
+                    "id": "u6-connection",
+                    "price": {"amount": "62000", "currency": "RUB"},
+                    "segments": [{"flights": ["out873", "out874"]}, {"flights": ["ret776"]}],
+                },
+            ],
+            "flights": {
+                "out873": {
+                    "marketing_carrier": "U6",
+                    "operating_carrier": "U6",
+                    "number": 873,
+                    "transport_number": "873",
+                    "departure": "SVX",
+                    "departure_datetime": "2026-08-01T15:55:00+05:00",
+                    "arrival": "PKX",
+                    "arrival_datetime": "2026-08-02T01:00:00+08:00",
+                    "equipment": "319",
+                    "duration": 365,
+                    "transport_kind": "airplane",
+                },
+                "out874": {
+                    "marketing_carrier": "U6",
+                    "operating_carrier": "U6",
+                    "transport_number": "874",
+                    "departure": "PKX",
+                    "departure_datetime": "2026-08-02T03:00:00+08:00",
+                    "arrival": "HGH",
+                    "arrival_datetime": "2026-08-02T05:00:00+08:00",
+                    "duration": 120,
+                    "transport_kind": "airplane",
+                },
+                "ret776": {
+                    "marketing_carrier": "U6",
+                    "operating_carrier": "U6",
+                    "number": 776,
+                    "transport_number": "776",
+                    "departure": "PKX",
+                    "departure_datetime": "2026-08-08T10:55:00+08:00",
+                    "arrival": "SVX",
+                    "arrival_datetime": "2026-08-08T14:30:00+05:00",
+                    "equipment": "319",
+                    "duration": 395,
+                    "transport_kind": "airplane",
+                },
+                "ret-su": {
+                    "marketing_carrier": "SU",
+                    "operating_carrier": "SU",
+                    "transport_number": "631",
+                    "departure": "PKX",
+                    "departure_datetime": "2026-08-08T10:55:00+08:00",
+                    "arrival": "SVX",
+                    "arrival_datetime": "2026-08-08T14:30:00+05:00",
+                    "duration": 395,
+                    "transport_kind": "airplane",
+                },
+            },
+        }
+
+        result = parse_kupibilet_roundtrip_search(
+            raw,
+            origin="SVX",
+            destination="BJS",
+            depart_date="2026-08-01",
+            return_date="2026-08-08",
+            currency="RUB",
+            only_carriers=["U6"],
+            direct_only=True,
+            limit=20,
+        )
+
+        self.assertEqual(result["raw_variant_count"], 4)
+        self.assertEqual(result["offer_count"], 2)
+        self.assertEqual([offer["id"] for offer in result["offers"]], ["u6-basic", "u6-with-bag"])
+        self.assertEqual(result["offers"][0]["price"], 73835)
+        self.assertEqual(result["offers"][0]["baggage"], {"weight": 0, "count": 0})
+        self.assertEqual(result["offers"][1]["baggage"], {"weight": 10, "count": 1})
+        self.assertEqual(result["offers"][0]["flight_numbers_by_journey"], [["U6873"], ["U6776"]])
+        self.assertEqual([journey["direction"] for journey in result["offers"][0]["journeys"]], ["outbound", "return"])
+        self.assertEqual(result["offers"][0]["journeys"][0]["origin"], "SVX")
+        self.assertEqual(result["offers"][0]["journeys"][0]["destination"], "PKX")
+        self.assertEqual(result["offers"][0]["journeys"][1]["origin"], "PKX")
+        self.assertEqual(result["offers"][0]["journeys"][1]["destination"], "SVX")
+        self.assertEqual(result["skipped"]["carrier"], 1)
+        self.assertEqual(result["skipped"]["not_direct"], 1)
 
     def test_decode_http_body_handles_gzip_for_kupibilet(self) -> None:
         raw = b'{"variants":[]}'
@@ -212,6 +337,31 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(args.limit, 20)
         self.assertEqual(args.cache_ttl_seconds, 21600)
         self.assertFalse(args.no_cache)
+
+    def test_kb_roundtrip_parser_exposes_kupibilet_two_trip_command(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "kb-roundtrip",
+                "SVX",
+                "BJS",
+                "--depart-date",
+                "2026-08-01",
+                "--return-date",
+                "2026-08-08",
+                "--only-carrier",
+                "U6",
+                "--direct-only",
+                "--limit",
+                "10",
+            ]
+        )
+
+        self.assertEqual(args.command_name, "kb-roundtrip")
+        self.assertEqual(args.only_carrier, ["U6"])
+        self.assertTrue(args.direct_only)
+        self.assertEqual(args.depart_date, "2026-08-01")
+        self.assertEqual(args.return_date, "2026-08-08")
+        self.assertEqual(args.limit, 10)
 
     def test_route_kb_assemble_parser_and_default_day_offsets(self) -> None:
         args = build_parser().parse_args(

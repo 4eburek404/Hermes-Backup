@@ -21,6 +21,10 @@ def emit_json(data: Any) -> None:
 
 
 def render_agent_report_human(report: dict[str, Any]) -> str:
+    human_answer = report.get("human_answer") if isinstance(report.get("human_answer"), dict) else {}
+    if human_answer.get("text"):
+        return str(human_answer["text"])
+
     lines = ["agent report:"]
     display = report.get("display") if isinstance(report.get("display"), dict) else {}
     if display.get("text"):
@@ -119,6 +123,43 @@ def render_human(command: str, data: Any) -> str:
                 )
             if leg_bits:
                 lines.append("     " + " | ".join(leg_bits))
+        return "\n".join(lines)
+    if command == "kb-roundtrip":
+        lines = [
+            f"Kupibilet live round-trip search: {data['origin']} ↔ {data['destination']}",
+            f"Dates: {data['depart_date']} → {data['return_date']}",
+            f"Results: {data['offer_count']} fare packages from {data['raw_variant_count']} raw variants",
+            f"Source: {data['source']}",
+            f"Note: {data.get('note', '')}",
+            "",
+        ]
+        if not data.get("offers"):
+            lines.append("(no matching round-trip offers found)")
+        for i, offer in enumerate(data.get("offers", []), 1):
+            price = offer.get("price")
+            price_text = f"{price:,.0f} {offer.get('currency', data.get('currency', ''))}" if price is not None else "price n/a"
+            changes = "direct/direct" if all((journey.get("number_of_changes") or 0) == 0 for journey in offer.get("journeys", [])) else f"{offer.get('number_of_changes')} total stop(s)"
+            baggage = offer.get("baggage") if isinstance(offer.get("baggage"), dict) else {}
+            baggage_bits = []
+            if baggage.get("count") is not None:
+                baggage_bits.append(f"{baggage.get('count')}pc")
+            if baggage.get("weight") is not None:
+                baggage_bits.append(f"{baggage.get('weight')}kg")
+            baggage_text = "bag " + "/".join(baggage_bits) if baggage_bits else "bag n/a"
+            lines.append(f"  {i}. {price_text}  {changes}  {baggage_text}")
+            for journey in offer.get("journeys", []):
+                leg_bits = []
+                for flight in journey.get("flights", []):
+                    operating = flight.get("operating_carrier")
+                    marketing = flight.get("marketing_carrier")
+                    op_note = f" op:{operating}" if operating and marketing and operating != marketing else ""
+                    dep = str(flight.get("departure_at") or "")
+                    arr = str(flight.get("arrival_at") or "")
+                    leg_bits.append(
+                        f"{flight.get('flight_number')} {flight.get('origin')}{dep[11:16]}→{flight.get('destination')}{arr[11:16]}{op_note}"
+                    )
+                if leg_bits:
+                    lines.append(f"     {journey.get('direction')}: " + " | ".join(leg_bits))
         return "\n".join(lines)
     if command == "doctor":
         counts = data["cache_counts"]

@@ -17,6 +17,7 @@ from .commands.metrics import command_metrics_workflow
 from .commands.providers import (
     command_fli_dates,
     command_fli_search,
+    command_kb_roundtrip,
     command_kb_search,
 )
 from .commands.route import command_route_assemble, command_route_kb_assemble, command_route_live_assemble, command_route_plan, command_route_rank, command_route_validate
@@ -231,6 +232,20 @@ def build_parser() -> argparse.ArgumentParser:
     kb_search.add_argument("--cache-ttl-seconds", type=int, default=DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, help="Short-lived live-search cache TTL seconds. Use 0 to disable.")
     kb_search.add_argument("--no-cache", action="store_true", help="Bypass live-search cache.")
     kb_search.set_defaults(func=command_kb_search, command_name="kb-search")
+
+    kb_roundtrip = sub.add_parser("kb-roundtrip", help="Kupibilet live round-trip aggregate search using a two-trip frontend_search request.")
+    kb_roundtrip.add_argument("origin", help="Origin IATA code (e.g. SVX).")
+    kb_roundtrip.add_argument("destination", help="Destination city/airport IATA code (e.g. BJS or PKX).")
+    kb_roundtrip.add_argument("--depart-date", required=True, help="Outbound date YYYY-MM-DD.")
+    kb_roundtrip.add_argument("--return-date", required=True, help="Return date YYYY-MM-DD.")
+    kb_roundtrip.add_argument("--currency", default=DEFAULT_CURRENCY, help="Currency code (default: RUB).")
+    kb_roundtrip.add_argument("--only-carrier", action="append", help="Require every outbound/return flight leg to match this marketing or operating carrier. Repeatable.")
+    kb_roundtrip.add_argument("--direct-only", action="store_true", help="Only direct one-leg outbound and direct one-leg return offers.")
+    kb_roundtrip.add_argument("--limit", type=int, default=20, help="Maximum normalized round-trip fare packages to show.")
+    kb_roundtrip.add_argument("--timeout", type=int, default=60, help="HTTP timeout seconds.")
+    kb_roundtrip.add_argument("--cache-ttl-seconds", type=int, default=DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, help="Short-lived live-search cache TTL seconds. Use 0 to disable.")
+    kb_roundtrip.add_argument("--no-cache", action="store_true", help="Bypass live-search cache.")
+    kb_roundtrip.set_defaults(func=command_kb_roundtrip, command_name="kb-roundtrip")
 
     fli_search = sub.add_parser("fli-search", help="FLI MCP live Google Flights search through a self-hosted MCP HTTP server.")
     fli_search.add_argument("origin", help="Origin airport IATA code (e.g. IST).")

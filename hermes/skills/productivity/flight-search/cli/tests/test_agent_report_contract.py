@@ -38,6 +38,7 @@ EXPECTED_TOP_LEVEL_REQUIRED = [
     "rejected_pair_warnings",
     "answer_lines",
     "display",
+    "human_answer",
 ]
 
 
@@ -167,6 +168,14 @@ def valid_report() -> dict:
                 }
             ],
         },
+        "human_answer": {
+            "format_version": "flight_human_answer.v1",
+            "text": "Нашёл варианты SVX→DEL.\n\n**Лучшая пара / рекомендация**\n- SU232 21:20–06:00 +1 | 01 июн | без пересадки | всего 5ч10 | 10 000 ₽\n\n**Проверить перед покупкой**\n- single PNR/багаж не доказаны — проверить на booking screen.",
+            "sections": [
+                {"title": "Лучшая пара / рекомендация", "lines": ["SU232 21:20–06:00 +1 | 01 июн | без пересадки | всего 5ч10 | 10 000 ₽"]},
+                {"title": "Проверить перед покупкой", "lines": ["single PNR/багаж не доказаны — проверить на booking screen."]},
+            ],
+        },
     }
 
 
@@ -227,7 +236,7 @@ class AgentReportContractTests(unittest.TestCase):
 
         self.assertEqual(parsed["$id"], "urn:hermes:flights-cli:agent-report:v1")
         self.assertLessEqual(len(text.splitlines()), 700)
-        self.assertLessEqual(len(text.encode("utf-8")), 16000)
+        self.assertLessEqual(len(text.encode("utf-8")), 17000)
 
     def test_valid_synthetic_agent_report_passes(self) -> None:
         validate_agent_report(valid_report())
