@@ -4,14 +4,15 @@ Use this when reading `data.agent_report` or deciding what to show the user. Raw
 
 ## Read Order
 
-1. `display` - deterministic user-facing flight lines. Use `display.text` verbatim for itinerary text.
-2. `answer_lines` - compact summary and critical warnings.
-3. `recommended_options` - viable ranked options with segment details.
-4. `priority_options` - controls that must stay visible even when lower-ranked.
-5. `through_fare_checks` - routes that need airline/GDS/single-PNR verification.
-6. `provider_failures` - unavailable provider evidence that must be named.
-7. `source_boundaries` - caveats about source type and proof limits.
-8. `hub_viability` / `rejected_pair_warnings` - explain missing or demoted routes only when useful.
+1. `human_answer.text` - deterministic provider-neutral traveler-facing answer. Use it as the default final Telegram answer when present.
+2. `recommended_options` - viable ranked options with segment details; cross-check decision-critical details before sending.
+3. `priority_options` - controls that must stay visible even when lower-ranked, especially carrier-specific and Moscow/SVO controls.
+4. `through_fare_checks` - routes that need airline/GDS/single-PNR verification.
+5. `provider_failures` - unavailable provider evidence; name only when it affects the decision or evidence quality.
+6. `source_boundaries` - caveats about source type and proof limits; print only decision-useful caveats.
+7. `display` - deterministic itinerary fragments. Use as source material, not as the final Telegram answer shape.
+8. `answer_lines` - internal compact summary and critical warnings; do not copy diagnostic/internal labels verbatim into the final user answer.
+9. `hub_viability` / `rejected_pair_warnings` - explain missing or demoted routes only when useful.
 
 ## Detail Completeness
 
@@ -60,14 +61,17 @@ For a carrier-specific existence question, answer the carrier-route question fir
 
 ## Answer Shape
 
-Use this order:
+For the final Telegram answer, prefer `human_answer.text` when present. It follows `SKILL.md` → `## User Answer Style` and is built from the report fields rather than copied from raw report/debug text.
 
-1. Best viable recommendation.
-2. `display.text` copied as-is for the itinerary. It already includes per-leg flight lines, layovers between legs, and total elapsed time including layovers.
-3. Mandatory controls and material trade-offs.
-4. Provider failures, if any.
-5. Rejected/demoted warnings only when they explain the decision.
-6. Purchase-screen verification caveats.
+Default order for round trips:
+
+1. **Лучшая пара / рекомендация** — outbound line, return line, total price, ticketing/protection caveat.
+2. **Альтернативы туда** — viable one-way outbound options, one compact line each.
+3. **Альтернативы обратно** — viable one-way return options, one compact line each.
+4. **Отсекаю / fallback** — only if useful: long waits, unprotected/self-transfer, multi-stop, or non-matching carriers.
+5. **Проверить перед покупкой** — single PNR/protection, baggage-through, fare rules, terminals if connection risk matters.
+
+Use `display.options[].lines`, `recommended_options`, and `priority_options` as evidence for those compact lines. Do not expose internal labels such as `rank`, `probe_id`, `coverage_diagnostics`, `provider_aggregate_candidate`, or `agent report:` in the final answer unless the user asks for diagnostics.
 
 Never present summed separate-segment prices as confirmed airline/GDS through fares.
 Never present `candidate_pool_limit` changes as a normal answer-quality strategy; missing preferred options are a CLI generation bug, not a reason to ask the user for a larger pool.

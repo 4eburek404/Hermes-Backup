@@ -31,6 +31,13 @@ PY
 python3 -m flights_cli route live-assemble --help
 ```
 
+If runtime import fails on a missing Python dependency, fix the active runtime environment before drawing any route/provider conclusion. Example for the observed contract validator dependency:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m pip install jsonschema
+```
+
+Then rerun `--version` and the exact `route live-assemble --help`/search command from the same working directory and interpreter.
 Record:
 
 - repository path, branch, and HEAD when debugging source behavior;
@@ -70,6 +77,13 @@ python3 -m flights_cli --json kb-search ORIGIN DEST \
 python3 -m flights_cli --json kb-search ORIGIN DEST \
   --depart-date YYYY-MM-DD \
   --only-carrier CARRIER \
+  --limit 20
+
+python3 -m flights_cli --json kb-roundtrip ORIGIN DEST \
+  --depart-date YYYY-MM-DD \
+  --return-date YYYY-MM-DD \
+  --only-carrier CARRIER \
+  --direct-only \
   --limit 20
 
 python3 -m flights_cli --json fli-search ORIGIN DEST \

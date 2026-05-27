@@ -101,6 +101,16 @@ Generated artifacts must be intentionally cleaned or reported. Prefer `PYTHONDON
 
 Current source edits happen under `/home/konstantin/src/Hermes-Backup/hermes` + `/skills/productivity/flight-search`. Runtime state lives under `$HERMES_HOME/skills/productivity/flight-search` (usually `$HOME/.hermes` + `/skills/productivity/flight-search`) and is a separate deployment/sync surface. The legacy distribution mirror `cli/skill-clis/flights` must not be recreated; active CLI validation belongs to the owning skill's `cli/` directory.
 
+When asked what version the installed skill is and for the current GitHub link, do not assume runtime, local source, active Hermes release, and GitHub are aligned. Check all relevant layers separately:
+
+- runtime skill: `$HERMES_HOME/skills/productivity/flight-search/SKILL.md` frontmatter version, bytes, and SHA-256;
+- runtime CLI markers: `cli/pyproject.toml`, `cli/flights_cli/__init__.py`, and `python3 -m flights_cli --version` from the runtime `cli/` directory;
+- active Hermes release: verify whether `~/.hermes/hermes-agent/skills/productivity/flight-search` exists; current release-dir builds may intentionally exclude this runtime/user skill;
+- local source checkout: `/home/konstantin/src/Hermes-Backup/hermes`, including branch, HEAD, dirty state, and ahead/behind status;
+- GitHub publication state: `git ls-remote` for `https://github.com/4eburek404/Hermes-Backup`, then fetch raw `hermes/skills/productivity/flight-search/SKILL.md` for candidate branches and report the highest/published version with its blob URL.
+
+If runtime is newer than GitHub, say so explicitly: the operationally loaded skill version is the runtime version, while the GitHub link may point to an older published version until source changes are committed and pushed. Do not call an older GitHub blob “current” without qualifying it as the current published GitHub version.
+
 Use this source-to-runtime gate after source docs or CLI changes and before touching runtime:
 
 1. Verify post-merge source provenance on `main`: pull with `--ff-only`, capture branch/status/HEAD, and verify expected merge ancestry when specific commits are in scope. If source provenance or focused tests fail, stop before runtime mutation.

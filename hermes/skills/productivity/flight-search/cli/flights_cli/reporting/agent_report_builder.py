@@ -8,6 +8,7 @@ from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY, StopPolicy, decid
 from .answer_line_renderer import build_answer_lines
 from .coverage_projector import build_coverage_diagnostics
 from .flight_display import build_flight_display
+from .human_answer_renderer import build_human_answer
 from .option_projector import candidate_options_from_details, priority_candidate_options, ranked_candidate_options
 from .provider_aggregate_projector import aggregate_control_summary, provider_aggregate_candidate_options
 from .report_budget import apply_agent_report_budget
@@ -823,4 +824,5 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
         report["ru_priority_controls"] = ru_priority_controls
     report["display"] = build_flight_display(report, store)
     report["answer_lines"] = build_answer_lines(report)
+    report["human_answer"] = build_human_answer(report)
     return apply_agent_report_budget(report)
