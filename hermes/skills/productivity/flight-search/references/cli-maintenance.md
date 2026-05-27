@@ -75,6 +75,18 @@ Discover schema paths by walking upward from the project/test root and current w
 
 Do not add answer-facing fields without documenting how the agent should use them. Do not change schema version constants unless the schema contract itself changes incompatibly.
 
+## Human Answer Renderer Maintenance
+
+Use this when improving final user-visible flight output. The provider-neutral seam is `data.agent_report` -> `human_answer` -> Telegram/Markdown answer; do not copy provider-specific plugin formatter wording one-to-one.
+
+- Implement final-output changes in `cli/flights_cli/reporting/human_answer_renderer.py`, not by making agents copy `display.text`, `answer_lines`, or debug labels.
+- Keep `human_answer` in `cli/flights_cli/contracts/agent_report.v1.schema.json` and `cli/tests/test_agent_report_contract.py` synchronized with renderer changes.
+- Preserve provider neutrality: renderer input is normalized report fields, not provider client objects, cache semantics, booking URLs, or provider caveat text.
+- Test for negative format guarantees: no `agent report:`, `Best CLI-ranked option`, `Coverage diagnostics`, `provider_aggregate_candidate`, `provider-aggregate:`, pipe tables, or raw `probe_id` in user-facing text.
+- For round trips, test the exact answer shape: recommendation pair first, then outbound alternatives, return alternatives, and decision-useful purchase checks; sections should be separated as readable Telegram blocks, not field-by-field dumps.
+- For connected itineraries, tests must assert per-segment flight times such as `SU1437 18:10–18:55 → SU1844 20:35–21:55`, reject collapsed whole-journey ranges such as `SU1437→SU1844 | 01 авг 18:10–21:55`, and cover overnight/multi-day layovers where a later segment date must be visible inline (`B2976 02 авг 09:50–11:15`).
+- After renderer changes run `PYTHONDONTWRITEBYTECODE=1 python3 -m pytest tests/test_human_answer_renderer.py tests/test_agent_report_contract.py tests/test_final_answer_contract.py tests/test_flight_display.py tests/test_provider_aggregate_candidates.py -q`, then the full `PYTHONDONTWRITEBYTECODE=1 python3 -m pytest tests -q` before reporting completion.
+
 ## Version Bump Checklist
 
 When bumping the skill/CLI version, keep these aligned:
