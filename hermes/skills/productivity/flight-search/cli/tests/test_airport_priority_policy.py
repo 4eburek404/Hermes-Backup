@@ -8,7 +8,7 @@ from unittest.mock import patch
 from flights_cli.adapters.providers.registry import providers_for_segment
 from flights_cli.domain.airports import explicit_or_resolved_airports
 from flights_cli.execution.probe_dispatcher import dispatch_segment_probe
-from flights_cli.orchestrators.kb_assemble import build_kupibilet_route_segment_plan, run_kupibilet_route_assembly
+from flights_cli.orchestrators.live_assemble import build_live_route_segment_plan, run_live_route_assembly
 from flights_cli.store import Store
 
 
@@ -152,7 +152,7 @@ class AirportPriorityPolicyTests(unittest.TestCase):
             ["IST"],
         )
 
-        plan = build_kupibilet_route_segment_plan(live_args(origin="IST", destination="LON"), store)
+        plan = build_live_route_segment_plan(live_args(origin="IST", destination="LON"), store)
         outbound_direct = direct_segments(plan)
 
         self.assertEqual(pairs(outbound_direct), [("IST", "LHR"), ("IST", "LGW")])
@@ -160,7 +160,7 @@ class AirportPriorityPolicyTests(unittest.TestCase):
         self.assertTrue(all(providers_for_segment(segment, store, "auto") == ["fli"] for segment in outbound_direct))
 
     def test_lon_default_policy_keeps_lhr_tier_before_lgw_and_excludes_stn_ltn(self) -> None:
-        plan = build_kupibilet_route_segment_plan(live_args(origin="IST", destination="LON"), Store())
+        plan = build_live_route_segment_plan(live_args(origin="IST", destination="LON"), Store())
 
         self.assertEqual(plan["destination_airports"], ["LHR", "LGW"])
         self.assertEqual(
@@ -176,7 +176,7 @@ class AirportPriorityPolicyTests(unittest.TestCase):
         self.assertEqual([segment["destination_airport_priority"]["tier"] for segment in outbound_direct], [1, 2])
 
     def test_ist_lon_round_trip_direct_candidates_are_lhr_lgw_then_lgw_lhr_to_ist_without_saw_or_stn_ltn(self) -> None:
-        plan = build_kupibilet_route_segment_plan(
+        plan = build_live_route_segment_plan(
             live_args(origin="IST", destination="LON", return_date="2026-08-19"),
             Store(),
         )
@@ -190,8 +190,8 @@ class AirportPriorityPolicyTests(unittest.TestCase):
         self.assertFalse({"SAW", "STN", "LTN"} & generated_airports)
 
     def test_kupibilet_mow_destination_and_origin_generate_city_code_first_with_exact_fallbacks(self) -> None:
-        svx_to_mow = build_kupibilet_route_segment_plan(live_args(origin="SVX", destination="MOW"), Store())
-        mow_to_svx = build_kupibilet_route_segment_plan(live_args(origin="MOW", destination="SVX"), Store())
+        svx_to_mow = build_live_route_segment_plan(live_args(origin="SVX", destination="MOW"), Store())
+        mow_to_svx = build_live_route_segment_plan(live_args(origin="MOW", destination="SVX"), Store())
 
         outbound_to_mow = direct_segments(svx_to_mow)
         outbound_from_mow = direct_segments(mow_to_svx)
@@ -212,7 +212,7 @@ class AirportPriorityPolicyTests(unittest.TestCase):
         self.assertTrue(all(segment.get("fallback_for_city_code_request") for segment in outbound_from_mow[1:4]))
 
     def test_kupibilet_mow_to_lon_uses_moscow_city_code_with_london_preference_without_broad_fanout(self) -> None:
-        plan = build_kupibilet_route_segment_plan(live_args(origin="MOW", destination="LON"), Store())
+        plan = build_live_route_segment_plan(live_args(origin="MOW", destination="LON"), Store())
         outbound_direct = direct_segments(plan)
         direct_pairs = pairs(outbound_direct)
 
@@ -236,8 +236,8 @@ class AirportPriorityPolicyTests(unittest.TestCase):
                 return kupibilet_result("MOW", "LHR", "SVO", "LHR")
             return empty_kupibilet_result(origin, destination, depart_date)
 
-        with patch("flights_cli.orchestrators.kb_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
-            result = run_kupibilet_route_assembly(args, Store())
+        with patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
+            result = run_live_route_assembly(args, Store())
 
         self.assertIn(("MOW", "LHR"), calls)
         self.assertNotIn(("MOW", "LGW"), calls)
@@ -271,8 +271,8 @@ class AirportPriorityPolicyTests(unittest.TestCase):
                 return kupibilet_result("MOW", "LGW", "SVO", "LGW")
             return empty_kupibilet_result(origin, destination, depart_date)
 
-        with patch("flights_cli.orchestrators.kb_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
-            run_kupibilet_route_assembly(args, Store())
+        with patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
+            run_live_route_assembly(args, Store())
 
         lhr_attempts = [("MOW", "LHR"), ("SVO", "LHR"), ("DME", "LHR"), ("VKO", "LHR")]
         for pair in lhr_attempts:
