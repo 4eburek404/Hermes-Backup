@@ -6,7 +6,7 @@ from typing import Any
 
 from ..errors import CliError
 from ..io import read_input_text, read_json_file
-from ..orchestrators.kb_assemble import run_kupibilet_route_assembly
+from ..orchestrators.live_assemble import run_live_route_assembly
 from ..orchestrators.route_plan import build_route_plan
 from ..services.agent_report import attach_agent_report
 from ..services.assembly import assemble_segment_results, collect_segment_results
@@ -38,11 +38,11 @@ def command_route_rank(args: argparse.Namespace, store: Store) -> dict[str, Any]
 
 
 def command_route_kb_assemble(args: argparse.Namespace, store: Store) -> dict[str, Any]:
-    return run_kupibilet_route_assembly(args, store)
+    return run_live_route_assembly(args, store)
 
 
 def command_route_live_assemble(args: argparse.Namespace, store: Store) -> dict[str, Any]:
-    return run_kupibilet_route_assembly(args, store)
+    return run_live_route_assembly(args, store)
 
 
 def command_route_assemble(args: argparse.Namespace, store: Store) -> dict[str, Any]:

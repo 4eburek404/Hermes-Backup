@@ -9,9 +9,9 @@ from unittest.mock import patch
 
 from flights_cli.cli import build_parser
 from flights_cli.config import DEFAULT_ROUTE_HUBS
-from flights_cli.orchestrators.kb_assemble import (
-    build_kupibilet_route_segment_plan,
-    run_kupibilet_route_assembly,
+from flights_cli.orchestrators.live_assemble import (
+    build_live_route_segment_plan,
+    run_live_route_assembly,
     synthesize_moscow_gateway_control_results,
 )
 from flights_cli.providers.kupibilet import (
@@ -335,7 +335,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(args.only_carrier, ["SU"])
         self.assertTrue(args.direct_only)
         self.assertEqual(args.limit, 20)
-        self.assertEqual(args.cache_ttl_seconds, 21600)
+        self.assertEqual(args.cache_ttl_seconds, 30 * 60)
         self.assertFalse(args.no_cache)
 
     def test_kb_roundtrip_parser_exposes_kupibilet_two_trip_command(self) -> None:
@@ -363,7 +363,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(args.return_date, "2026-08-08")
         self.assertEqual(args.limit, 10)
 
-    def test_route_kb_assemble_parser_and_default_day_offsets(self) -> None:
+    def test_route_kb_command_parser_and_default_day_offsets(self) -> None:
         args = build_parser().parse_args(
             [
                 "route",
@@ -384,16 +384,16 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(args.command_name, "route kb-assemble")
         self.assertEqual(args.segment_limit, 30)
         self.assertEqual(args.limit_per_pair, 10)
-        self.assertEqual(args.live_cache_ttl_seconds, 21600)
+        self.assertEqual(args.live_cache_ttl_seconds, 30 * 60)
         self.assertFalse(args.no_live_cache)
         self.assertEqual(args.direct_route_index_ttl_seconds, 604800)
         self.assertFalse(args.no_direct_route_intel)
-        plan = build_kupibilet_route_segment_plan(args, Store())
+        plan = build_live_route_segment_plan(args, Store())
         self.assertEqual(plan["hubs"], ["IST", "AYT"])
         self.assertEqual(plan["second_leg_day_offsets"], {"outbound": [0, 1], "return": [0, 1, 2]})
         self.assertEqual(plan["metrics"]["segment_search_count"], 14)
 
-    def test_route_kb_assemble_uses_ru_priority_strategy_when_none_are_passed(self) -> None:
+    def test_route_kb_command_uses_ru_priority_strategy_when_none_are_passed(self) -> None:
         args = build_parser().parse_args(
             [
                 "route",
@@ -407,14 +407,14 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             ]
         )
 
-        plan = build_kupibilet_route_segment_plan(args, Store())
+        plan = build_live_route_segment_plan(args, Store())
 
         self.assertEqual(plan["routing_strategy"], "ru-priority")
         self.assertEqual(plan["hubs"], ["IST", "DXB"])
         self.assertEqual(plan["hub_source"], "strategy")
         self.assertEqual(plan["metrics"]["segment_search_count"], 24)
 
-    def test_route_kb_assemble_uses_asia_profile_for_beijing(self) -> None:
+    def test_route_kb_command_uses_asia_profile_for_beijing(self) -> None:
         args = build_parser().parse_args(
             [
                 "route",
@@ -428,7 +428,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             ]
         )
 
-        plan = build_kupibilet_route_segment_plan(args, Store())
+        plan = build_live_route_segment_plan(args, Store())
 
         self.assertEqual(plan["routing_profile"], "asia-oceania")
         self.assertEqual(plan["destination_airports"], ["PEK", "PKX"])
@@ -443,7 +443,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertIn(("return", "PEK", "SVX", "2026-09-20", "direct_return", "direct_control"), segments)
         self.assertIn(("return", "SVO", "SVX", "2026-09-22", "hub_to_origin", "svo_asia"), segments)
 
-    def test_route_kb_assemble_hub_list_strategy_uses_default_hubs(self) -> None:
+    def test_route_kb_command_hub_list_strategy_uses_default_hubs(self) -> None:
         args = build_parser().parse_args(
             [
                 "route",
@@ -459,7 +459,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             ]
         )
 
-        plan = build_kupibilet_route_segment_plan(args, Store())
+        plan = build_live_route_segment_plan(args, Store())
 
         self.assertEqual(plan["hubs"], list(DEFAULT_ROUTE_HUBS))
         self.assertEqual(plan["hub_source"], "default")
@@ -653,8 +653,8 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
                 return kb_result(origin, destination, depart_date, f"{depart}T14:00:00+03:00", f"{depart}T16:00:00+02:00")
             return kb_result(origin, destination, depart_date)
 
-        with patch("flights_cli.orchestrators.kb_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
-            result = run_kupibilet_route_assembly(args, Store())
+        with patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
+            result = run_live_route_assembly(args, Store())
 
         self.assertNotIn(("SVX", "DXB"), calls)
         self.assertNotIn(("DXB", "MUC"), calls)
@@ -736,10 +736,10 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             return kb_result(origin, destination, depart_date)
 
         with (
-            patch("flights_cli.orchestrators.kb_assemble.load_or_refresh_svx_route_index", return_value=(route_index, {"hit": True, "ttl_seconds": 604800})),
-            patch("flights_cli.orchestrators.kb_assemble.fetch_kupibilet_search", side_effect=fake_fetch),
+            patch("flights_cli.orchestrators.live_assemble.load_or_refresh_svx_route_index", return_value=(route_index, {"hit": True, "ttl_seconds": 604800})),
+            patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch),
         ):
-            result = run_kupibilet_route_assembly(args, Store())
+            result = run_live_route_assembly(args, Store())
 
         self.assertNotIn(("SVX", "MUC"), calls)
         self.assertIn(("SVX", "IST"), calls)
@@ -821,8 +821,8 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
                 "offers": offers,
             }
 
-        with patch("flights_cli.orchestrators.kb_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
-            result = run_kupibilet_route_assembly(args, Store())
+        with patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
+            result = run_live_route_assembly(args, Store())
 
         self.assertIn(("SVX", "DEL", False, ("SU",)), calls)
         carrier_controls = [
@@ -873,10 +873,10 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             }
 
         with (
-            patch("flights_cli.orchestrators.kb_assemble.load_or_refresh_svx_route_index", return_value=(route_index, {"hit": True, "ttl_seconds": 604800})),
-            patch("flights_cli.orchestrators.kb_assemble.fetch_kupibilet_search", side_effect=fake_fetch),
+            patch("flights_cli.orchestrators.live_assemble.load_or_refresh_svx_route_index", return_value=(route_index, {"hit": True, "ttl_seconds": 604800})),
+            patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch),
         ):
-            result = run_kupibilet_route_assembly(args, Store())
+            result = run_live_route_assembly(args, Store())
 
         self.assertNotIn(("MUC", "SVX"), calls)
         skipped = [
@@ -925,10 +925,10 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             }
 
         with (
-            patch("flights_cli.orchestrators.kb_assemble.load_or_refresh_svx_route_index", return_value=(route_index, {"hit": True, "ttl_seconds": 604800})),
-            patch("flights_cli.orchestrators.kb_assemble.fetch_kupibilet_search", side_effect=fake_fetch),
+            patch("flights_cli.orchestrators.live_assemble.load_or_refresh_svx_route_index", return_value=(route_index, {"hit": True, "ttl_seconds": 604800})),
+            patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch),
         ):
-            result = run_kupibilet_route_assembly(args, Store())
+            result = run_live_route_assembly(args, Store())
 
         self.assertNotIn(("SVX", "PEK"), calls)
         self.assertIn(("SVX", "PKX"), calls)
