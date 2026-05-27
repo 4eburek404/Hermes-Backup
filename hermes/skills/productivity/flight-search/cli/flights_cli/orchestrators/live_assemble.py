@@ -276,7 +276,7 @@ def hub_viability_summary(plan: dict[str, Any], searches: list[dict[str, Any]]) 
     return sorted(by_hub.values(), key=lambda item: (not item["viable"], -int(item["total_offer_count"]), item["hub"]))
 
 
-def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
+def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     depart = parse_iso_date(args.depart_date, "depart-date")
     ret = parse_iso_date(args.return_date, "return-date") if args.return_date else None
     currency = args.currency.upper()
@@ -620,8 +620,13 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
                     for origin_code in origin_airports:
                         add_segment("return", "hub_to_origin", leg_date, hub, origin_code)
 
+    assembly_warning = (
+        "KupiBilet live segment assembly uses direct-only one-way searches; availability and price still require final booking-screen recheck."
+        if provider_policy.strip().lower() == "kupibilet"
+        else "Provider-policy live assembly uses provider-selected direct-only one-way searches; availability and price still require final booking-screen recheck."
+    )
     warnings = [
-        "Kupibilet live segment assembly uses direct-only one-way searches; availability and price still require final booking-screen recheck.",
+        assembly_warning,
         "Assembled candidates are usually separate-ticket/self-transfer unless the booking site later confirms protected through-ticketing.",
     ]
     if routing_strategy == "ru-priority":
@@ -686,8 +691,8 @@ def build_kupibilet_route_segment_plan(args: argparse.Namespace, store: Store) -
     }
 
 
-def run_kupibilet_route_assembly(args: argparse.Namespace, store: Store) -> dict[str, Any]:
-    plan = build_kupibilet_route_segment_plan(args, store)
+def run_live_route_assembly(args: argparse.Namespace, store: Store) -> dict[str, Any]:
+    plan = build_live_route_segment_plan(args, store)
     max_searches = max(1, int(args.max_segment_searches))
     if plan["metrics"]["segment_search_count"] > max_searches:
         raise CliError(

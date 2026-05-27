@@ -4,7 +4,7 @@ import argparse
 import unittest
 
 from flights_cli.cli import build_parser
-from flights_cli.orchestrators.kb_assemble import build_kupibilet_route_segment_plan
+from flights_cli.orchestrators.live_assemble import build_live_route_segment_plan
 from flights_cli.orchestrators.route_plan import build_route_plan
 from flights_cli.store import Store
 
@@ -135,7 +135,7 @@ class CoverageControlsTests(unittest.TestCase):
         self.assertEqual(result["coverage_limits"]["live_fanout"], "bounded_by_max_segment_searches")
 
     def test_live_plan_uses_same_route_graph_contract_as_route_plan(self) -> None:
-        result = build_kupibilet_route_segment_plan(live_args(destination="CDG", return_date="2026-08-19"), Store())
+        result = build_live_route_segment_plan(live_args(destination="CDG", return_date="2026-08-19"), Store())
 
         self.assertEqual(result["coverage_mode"], "targeted")
         self.assertIn("route_graph", result)
