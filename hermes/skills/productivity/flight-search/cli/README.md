@@ -87,12 +87,12 @@ Read only `data.agent_report` for the user answer. Use:
 - `provider_failures`
 - `source_boundaries`
 
+`route live-assemble` searches and compares route options for the default scope of one adult in economy. It does not buy or book tickets, and final fare, baggage-through, refund/change conditions, disruption protection, and single-PNR claims require purchase-screen, airline/GDS, seller, or explicit upstream proof.
+
 Common options:
 
 - `--return-date YYYY-MM-DD`
 - `--profile balanced|business|cheap|safe`
-- `--cabin-class ECONOMY|PREMIUM_ECONOMY|BUSINESS|FIRST`
-- `--passengers N`
 - `--provider-policy auto|kupibilet|fli|both`
 - `--stop-policy business-default|strict-direct-one-stop|allow-two-stop-fallback|debug-all`
 - `--aggregate-control-carrier CODE`

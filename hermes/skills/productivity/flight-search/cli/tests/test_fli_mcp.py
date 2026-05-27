@@ -59,7 +59,7 @@ class FliMcpTests(unittest.TestCase):
         self.assertEqual(args.mcp_url, "http://127.0.0.1:8000/mcp")
         self.assertTrue(args.direct_only)
         self.assertEqual(args.only_carrier, ["TK"])
-        self.assertEqual(args.cache_ttl_seconds, 21600)
+        self.assertEqual(args.cache_ttl_seconds, 30 * 60)
 
     def test_normalize_mcp_url_allows_loopback_http_and_remote_https(self) -> None:
         cases = {

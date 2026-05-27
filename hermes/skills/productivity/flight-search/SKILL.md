@@ -1,7 +1,12 @@
 ---
 name: flight-search
 version: 0.10.10
-description: Use when Codex needs to find, compare, plan, or diagnose flight options with the Hermes flights CLI, including airfare checks, route assembly, hub planning, IATA/date-window searches, KupiBilet live aggregate search, FLI MCP checks, or improvements to the flight-search workflow.
+description: Find and compare live flight route options with the bundled flights CLI. Assumes one adult in economy and does not book tickets.
+metadata:
+  hermes:
+    category: productivity
+    tags: [flights, travel, routing]
+    requires_toolsets: [terminal]
 ---
 
 # Flight Search
@@ -12,13 +17,29 @@ Flight-search answers flight-search questions from one compact CLI report. The n
 
 Static catalogs are metadata only: city, airport, country/region, airline, alliance, and aircraft data. Flight options come from live provider assembly.
 
-This skill also owns maintenance of its bundled CLI and report contracts. For user answers, run the runtime CLI in the Golden Path. For source or CLI maintenance, verify source/runtime provenance first and use `references/cli-maintenance.md`.
+## Scope Assumptions
+
+- This skill searches and compares route options for traveler/dispatcher decisions.
+- The default route-search scope is one adult in economy unless the task is explicitly about a targeted provider command that supports another scope.
+- It does not buy or book tickets, and it is not a universal passenger/cabin fare quote workflow.
+- Final fare, baggage-through, refund/change conditions, disruption protection, and single-PNR claims require purchase-screen, airline/GDS, seller, or explicit upstream proof.
+
+## Maintenance Mode Gate
+
+Default mode is traveler route search: run the Golden Path, answer from `data.agent_report`, and avoid source/runtime, `doctor`, and maintenance diagnostics unless a runtime failure blocks the search.
+
+Use maintenance mode only when the user explicitly asks to inspect, debug, audit, modify, synchronize, or validate the skill, bundled CLI, report contracts, schemas, tests, provider policy, source/runtime provenance, or generated artifacts.
+
+Maintenance/debug functionality stays in this same skill bundle through references:
+
+- `references/cli-maintenance.md` — source/runtime provenance, CLI/report contract/schema/test/provider-policy maintenance, and generated-artifact checks.
+- `references/debug-playbook.md` — runtime failure/debug procedures and narrow live/report diagnostics.
 
 ## When to Use
 
 Use this skill when:
 
-- the user asks to find, compare, check, or explain flight options, direct service, route availability, hubs, airports, dates, cabins, baggage, carrier choice, or ticketing/protection risk;
+- the user asks to find, compare, check, or explain flight options, direct service, route availability, hubs, airports, dates, baggage relevance, carrier choice, or ticketing/protection risk;
 - the task needs IATA/city normalization, route assembly, KupiBilet/FLI live provider checks, or date-window/hub planning;
 - the user asks to diagnose, maintain, audit, or improve the flight-search CLI, `data.agent_report`, schemas, provider policy, or source/runtime sync.
 
@@ -32,7 +53,7 @@ Do not use it for:
 
 1. Normalize the user request:
    - convert relative dates to exact `YYYY-MM-DD`;
-   - normalize IATA codes, city scope, exact airports, cabin, passengers, profile, carrier, direct-only, timing, baggage, and price constraints;
+   - normalize IATA codes, city scope, exact airports, profile, carrier, direct-only, timing, baggage relevance, price sensitivity, and ticketing intent;
    - preserve named-airport constraints instead of silently widening to a city code;
    - capture ticketing intent: single-ticket/airline-responsible connection, provider aggregate offer, virtual/self-transfer tolerance, baggage, and carrier quality;
    - if the user gives an arrival deadline but no outbound departure date (for example “прилёт не позже утра 15-го”), search the latest plausible departure date first and, if needed, the previous date; treat “утро” as an explicit assumption (default: before local noon) unless the user supplied a stricter time;
@@ -159,26 +180,6 @@ Use `doctor` only when environment provenance looks suspect; it is not an answer
 - If the compact report clips a decision-critical cheapest, fastest, direct, same-carrier, carrier-requested, avoid-Moscow/non-Moscow, or Moscow-control option, escalate to debug instead of inventing details.
 - For RU→China requests with a soft “avoid Moscow” constraint and an arrival deadline, see `references/china-avoid-moscow-arrival-deadline.md` for the targeted probe pattern: run the compact report for primary airports/dates, then narrow `kb-search` with a larger limit and post-filter for Moscow airports, arrival cutoff, and stop count.
 
-## Skill-Owned CLI Maintenance Checks
-
-Use this when the user asks about this skill's version, whether a backup/source copy matches runtime, or whether the bundled CLI footprint is justified.
-
-- Verify provenance before answering: compare the runtime skill root (`$HERMES_HOME/skills/productivity/flight-search`, usually `$HOME/.hermes` + `/skills/productivity/flight-search`) with the relevant source/backup root, including branch/status when the source is a git repo.
-- Compare `SKILL.md` frontmatter version, SHA-256/bytes for changed files, file-set equality, and a concise diff/stat for differing files before saying versions or content match.
-- Keep detailed maintenance, source/runtime sync, generated-artifact, and schema-layout rules in `references/cli-maintenance.md`.
-
-## Human Answer Renderer Maintenance
-
-Use this when improving final user-visible flight output. The provider-neutral seam is `data.agent_report` -> `human_answer` -> Telegram/Markdown answer; do not copy provider-specific plugin formatter wording one-to-one.
-
-- Implement final-output changes in `cli/flights_cli/reporting/human_answer_renderer.py`, not by making agents copy `display.text`, `answer_lines`, or debug labels.
-- Keep `human_answer` in `cli/flights_cli/contracts/agent_report.v1.schema.json` and `cli/tests/test_agent_report_contract.py` synchronized with renderer changes.
-- Preserve provider neutrality: renderer input is normalized report fields, not Travelpayouts/KupiBilet/FLI client objects, cache semantics, booking URLs, or provider caveat text.
-- Test for negative format guarantees: no `agent report:`, `Best CLI-ranked option`, `Coverage diagnostics`, `provider_aggregate_candidate`, `provider-aggregate:`, pipe tables, or raw `probe_id` in user-facing text.
-- For round trips, test the exact answer shape: recommendation pair first, then outbound alternatives, return alternatives, and decision-useful purchase checks; sections should be separated as readable Telegram blocks, not field-by-field dumps.
-- For connected itineraries, tests must assert per-segment flight times such as `SU1437 18:10–18:55 → SU1844 20:35–21:55`, reject collapsed whole-journey ranges such as `SU1437→SU1844 | 01 авг 18:10–21:55`, and cover overnight/multi-day layovers where a later segment date must be visible inline (`B2976 02 авг 09:50–11:15`).
-- After renderer changes run `PYTHONDONTWRITEBYTECODE=1 python3 -m pytest tests/test_human_answer_renderer.py tests/test_agent_report_contract.py tests/test_final_answer_contract.py tests/test_flight_display.py tests/test_provider_aggregate_candidates.py -q`, then the full `PYTHONDONTWRITEBYTECODE=1 python3 -m pytest tests -q` before reporting completion.
-
 ## Do Not
 
 - Do not answer from static catalogs as flight availability.
@@ -205,7 +206,7 @@ Use this when improving final user-visible flight output. The provider-neutral s
 
 ## Verification Checklist
 
-- [ ] User constraints normalized: exact date, origin/destination scope, named airports, passengers, cabin, profile, carrier, stops, baggage, timing, and ticketing intent.
+- [ ] User constraints normalized: exact date, origin/destination scope, named airports, profile, carrier, stops, baggage relevance, timing, and ticketing intent.
 - [ ] `route live-assemble --agent-brief` run from the runtime CLI, or runtime provenance failure reported before any fallback.
 - [ ] JSON parsed and answer based on `data.agent_report`, not raw segment dumps or static catalogs.
 - [ ] `recommended_options`, `priority_options`, `through_fare_checks`, `provider_failures`, and `source_boundaries` checked before final wording.

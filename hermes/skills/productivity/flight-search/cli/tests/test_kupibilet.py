@@ -335,7 +335,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(args.only_carrier, ["SU"])
         self.assertTrue(args.direct_only)
         self.assertEqual(args.limit, 20)
-        self.assertEqual(args.cache_ttl_seconds, 21600)
+        self.assertEqual(args.cache_ttl_seconds, 30 * 60)
         self.assertFalse(args.no_cache)
 
     def test_kb_roundtrip_parser_exposes_kupibilet_two_trip_command(self) -> None:
@@ -384,7 +384,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(args.command_name, "route kb-assemble")
         self.assertEqual(args.segment_limit, 30)
         self.assertEqual(args.limit_per_pair, 10)
-        self.assertEqual(args.live_cache_ttl_seconds, 21600)
+        self.assertEqual(args.live_cache_ttl_seconds, 30 * 60)
         self.assertFalse(args.no_live_cache)
         self.assertEqual(args.direct_route_index_ttl_seconds, 604800)
         self.assertFalse(args.no_direct_route_intel)

@@ -47,6 +47,11 @@ def load_doctor_envelope_schema() -> dict:
 
 
 class CliContractTests(unittest.TestCase):
+    def test_default_live_search_cache_ttl_is_30_minutes(self) -> None:
+        from flights_cli.config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
+
+        self.assertEqual(DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, 30 * 60)
+
     def test_route_commands_default_same_airport_minimum_is_120(self) -> None:
         parser = build_parser()
         cases = [
