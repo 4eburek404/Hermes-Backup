@@ -51,6 +51,17 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json doctor
 
 Doctor output is not a flight answer. Treat `ok: false` as an environment/readiness signal and inspect the structured issues.
 
+## Maintenance Check
+
+Use `maintenance check` when auditing source/runtime provenance or debugging local route-quality maintenance state. It is offline-only and reports paths, Git state, version markers, source/runtime parity, reference counts, generated-artifact counts, and doctor status without emitting credential values.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json maintenance check
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli maintenance check --runtime-path "$HOME/.hermes/skills/productivity/flight-search"
+```
+
+Missing runtime paths are reported as structured status, not treated as fatal CLI errors.
+
 ## Static Catalog Metadata Commands
 
 Static catalogs are metadata only: city, airport, country/region, airline, alliance, and aircraft data. Flight options come from live provider assembly.
