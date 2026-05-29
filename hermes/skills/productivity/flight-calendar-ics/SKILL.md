@@ -1,12 +1,12 @@
 ---
 name: flight-calendar-ics
-description: Use when creating importable .ics calendar files from airline ticket/itinerary data, especially Aeroflot-style tickets, booking confirmations, PDFs, email text, or manually supplied flight segments.
-version: 1.2.0
+description: Use when creating importable .ics calendar files from airline ticket/itinerary data, especially Aeroflot/Red Wings-style tickets, booking confirmations, PDFs, email text, or manually supplied flight segments.
+version: 1.3.0
 author: Hermes Agent
 license: MIT
 metadata:
   hermes:
-    tags: [travel, flights, calendar, ics, aeroflot, utair, ural, itinerary]
+    tags: [travel, flights, calendar, ics, aeroflot, redwings, utair, ural, itinerary]
     related_skills: [ocr-and-documents, maps, google-workspace]
 ---
 
@@ -18,7 +18,7 @@ Create RFC 5545 `.ics` calendar files from airline ticket data when the carrier 
 
 The normal deliverable is a local `.ics` file the user can import into a mail/calendar app. If the user explicitly asks to put the flights directly into Google Calendar, load `google-workspace` and use its Calendar workflow after generating/validating the event data.
 
-For agent execution, the preferred contract surface is the single Python entrypoint `scripts/flight_calendar_ics.py --json ...`. It returns a stable JSON envelope with an ordered internal process trace; use that instead of scraping human stdout from lower-level helper scripts. Details: `references/agent-cli-contract.md`. Canonical input is validated by `schemas/itinerary.v1.schema.json`; flow notes: `references/canonical-itinerary-contract.md`.
+For agent execution, the preferred contract surface is the single Python entrypoint `scripts/flight_calendar_ics.py --json ...`. It returns a stable JSON envelope with an ordered internal process trace; use that instead of scraping human stdout from lower-level helper scripts. Details: `references/agent-cli-contract.md`. Canonical input is validated by `schemas/itinerary.v1.schema.json`; flow notes: `references/canonical-itinerary-contract.md`. Carrier-specific workflow notes include `references/redwings-manage-booking.md` for Red Wings/Websky booking links.
 
 ## When to Use
 
@@ -26,7 +26,7 @@ Use this skill when the user asks to:
 
 - create a calendar file from a ticket, route receipt, itinerary, booking email, PDF, screenshot, or manual flight details;
 - replace a missing airline "download to calendar" feature;
-- produce an `.ics` attachment for Aeroflot/SU, Utair/UT, Ural Airlines/U6, or other airline flights;
+- produce an `.ics` attachment for Aeroflot/SU, Red Wings/WZ, Utair/UT, Ural Airlines/U6, or other airline flights;
 - add flight reminders, PNR/e-ticket/seat/baggage details to calendar events.
 
 Do not use it for flight search or itinerary comparison; load `flight-search` for that. Do not invent missing flight times or airports: ask or verify via ticket text/airline data when the missing field affects calendar correctness.
@@ -186,6 +186,24 @@ Operational notes:
 - Map fare information from `offers[].segment_id` where present. Do not infer baggage from fare brand; include baggage only when explicitly present in the booking data.
 - Verify per-airport timezones. Confirmed useful defaults include `SVX=Asia/Yekaterinburg` and `KUF=Europe/Samara`; support `--tz CODE=Area/City` overrides for unknown airports.
 
+## Red Wings Manage-Booking Workflow
+
+When the user sends a Red Wings booking email link, PDF, screenshot, or booking page URL, treat `flyredwings.com/booking` as a Websky JavaScript SPA and use the booking API pattern where appropriate rather than relying on static page extraction.
+
+Implementation reference:
+
+- `references/redwings-manage-booking.md` — observed Websky SPA route shapes, GraphQL `FindOrder` lookup, conversion notes, timezone reminders, and privacy handling.
+
+Operational notes:
+
+- Direct email/manage-booking links may have the hash route `https://flyredwings.com/booking/#/find/<PNR>/<SECRET>/Submit`. The second route value is an access secret from the email link; do not assume it is just the passenger surname.
+- The frontend lookup uses the Websky GraphQL endpoint observed as `https://wz.webskyx.com/graphql/query/nemo` with `FindOrder`-style variables `id`, `secret`, and `saveInProfile: false`.
+- Already-opened order pages may use routes like `#/booking/<ORDER_ID>/order`; prefer the `/find/<PNR>/<SECRET>/Submit` link for a working calendar booking URL when available.
+- If the user provides a Red Wings PDF/screenshot/order page but **not** the email/manage-booking link shaped `#/find/<PNR>/<SECRET>/Submit`, ask them to paste or forward that email link before promising a working one-click booking URL in the calendar. Do not guess `<SECRET>` from surname/PNR, and do not treat `#/booking/<ORDER_ID>/order` as equivalent.
+- Until a dedicated `redwings` CLI subcommand exists, manually fetch/normalize the order into the canonical itinerary JSON, then run the generic `--json make` path.
+- Verify per-airport timezones. Useful confirmed examples: `KUF=Europe/Samara`, `SVX=Asia/Yekaterinburg`.
+- Keep the full manage-booking URL, PNR, secret/order ID, passenger data, ticket numbers, contacts, and document data out of chat/logs; include the working direct booking URL only inside the private `.ics` when the user wants that functionality.
+
 ## Event Content Rules
 
 - `SUMMARY`: `<flight_number> <DEP>→<ARR>` plus carrier when useful, e.g. `SU1234 SVO→LED (Аэрофлот)`.
@@ -220,10 +238,13 @@ A generated calendar is acceptable only if:
 7. **Scraping legacy helper stdout instead of using the contract.** For agent work, call `scripts/flight_calendar_ics.py --json ...` and parse the envelope.
 8. **Writing private artifacts to casual shared paths.** Use deliberate private paths; the CLI writes generated JSON/ICS files as `0600`, but the path choice is still part of the privacy decision.
 
+9. **Assuming Red Wings email-link secret is a surname.** For Red Wings/Websky links shaped `#/find/<PNR>/<SECRET>/Submit`, the second value is an access secret from the link; do not echo it, and do not replace it with a guessed passenger surname.
+10. **Treating carrier SPA pages as static documents.** Red Wings, Ural, and Utair booking pages are SPAs; use the documented API/carrier workflow or ask for PDF/text fallback rather than trusting initial HTML.
+
 ## Verification Checklist
 
 - [ ] Source fields captured with provenance: ticket/email/manual input.
-- [ ] Single CLI entrypoint used: `scripts/flight_calendar_ics.py --json validate|make|aeroflot|ural|utair`.
+- [ ] Single CLI entrypoint used: `scripts/flight_calendar_ics.py --json validate|make|aeroflot|ural|utair` or the documented manual-normalize-then-`make` path for carriers without a dedicated subcommand such as Red Wings.
 - [ ] JSON envelope parsed: `schema_version=flight-calendar-ics-cli.v1`, `ok=true`, expected `command`, ordered `process`, and no private identifiers in stdout/stderr.
 - [ ] One VEVENT per flight segment.
 - [ ] `DTSTART`/`DTEND` are UTC and end with `Z`.
