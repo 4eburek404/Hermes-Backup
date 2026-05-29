@@ -83,7 +83,8 @@ Session researched live on 2026-05-25 from KupiBilet public site/help pages and 
 Live KupiBilet endpoint worked on 2026-05-25:
 
 ```bash
-cd ~/.hermes/skills/productivity/flight-search/cli
+HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+cd "$HERMES_HOME"/skills/productivity/flight-search/cli
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json kb-search SVX MOW \
   --depart-date 2026-06-08 --limit 2 --cache-ttl-seconds 0
 ```

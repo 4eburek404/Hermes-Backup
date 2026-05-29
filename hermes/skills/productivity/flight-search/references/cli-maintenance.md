@@ -128,11 +128,13 @@ Use this source-to-runtime gate after source docs or CLI changes and before touc
 1. Verify post-merge source provenance on `main`: pull with `--ff-only`, capture branch/status/HEAD, and verify expected merge ancestry when specific commits are in scope. If source provenance or focused tests fail, stop before runtime mutation.
 2. Verify version markers in `SKILL.md`, `cli/pyproject.toml`, and `cli/flights_cli/__init__.py` before and after sync.
 3. Run focused source tests before sync. Include schema/contract tests when `agent_report` behavior changes, and provider/airport policy tests when dispatch rules change.
-4. Back up the runtime skill to a timestamped directory under `/home/konstantin/hermes_skill_backups/` before every sync.
-5. Sync with `rsync -a --delete` and generated-artifact excludes: `__pycache__/`, `pycache/`, `.pytest_cache/`, `*.pyc`, and `*.egg-info`.
-6. Validate source/runtime parity with `diff -qr` using the same generated-artifact excludes.
-7. Run runtime checks after sync: runtime `flights --version`, runtime `flights --json doctor`, and targeted offline tests from the runtime `cli/` directory.
-8. Do not restart the Hermes gateway unless explicitly authorized. Use a new Hermes session/reset only when cached skill text must refresh.
+4. Back up the runtime skill before every sync. If the user specifies a backup shape/location, follow it exactly (for example a sibling `~/.hermes/skills/productivity/flight-search.backup-before-VERSION-YYYYmmdd-HHMMSS`) and verify version marker + size; otherwise use a clearly named timestamped backup under the standard backup area. Do not delete backups unless explicitly authorized.
+5. Before the real sync, run `rsync -a --delete --dry-run --itemize-changes` with the same generated-artifact excludes; validate itemized paths are relative/non-`..` and report deletions before executing. If output compaction hides the beginning/end, rerun to a temp file and summarize deletion count and path validation from that file.
+6. Sync with `rsync -a --delete` and generated-artifact excludes: `__pycache__/`, `pycache/`, `.pytest_cache/`, `*.pyc`, and `*.egg-info`.
+7. Validate source/runtime parity with `diff -qr` using the same generated-artifact excludes, then run key-file checksums for marker/config files when requested.
+8. Run runtime checks after sync from the runtime `cli/` directory: `python -m flights_cli --json doctor`, help/contract smoke for newly touched commands, and targeted offline tests when `pytest` is already available. Do not install packages just to run optional tests unless the user authorizes it.
+9. Clean only generated runtime artifacts created by validation (`.pytest_cache`, `__pycache__`, `*.pyc`, `*.egg-info`) and rerun parity afterward.
+10. Do not restart the Hermes gateway unless explicitly authorized. Use a new Hermes session/reset only when cached skill text must refresh.
 
 Before claiming a source edit is ready, report branch, HEAD, dirty state, changed files, validation commands, generated-artifact status, whether the legacy mirror remains absent, and whether runtime sync was intentionally not performed. Do not describe a source edit as backed up until it is committed, pushed, and the remote branch SHA has been compared with the local HEAD.
 
