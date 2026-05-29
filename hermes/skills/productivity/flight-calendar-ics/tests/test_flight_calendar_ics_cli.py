@@ -10,6 +10,7 @@ These tests intentionally exercise the CLI as an external agent-facing process:
 from __future__ import annotations
 
 import importlib.util
+import argparse
 import json
 import os
 import stat
@@ -79,7 +80,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assert_envelope(obj, ok=True, command="doctor")
         self.assertEqual(obj["data"]["entrypoint"], str(CLI))
         self.assertEqual(obj["data"]["entrypoint_kind"], "single-python-executable")
-        self.assertGreaterEqual(set(obj["data"]["commands"]), {"doctor", "validate", "make", "aeroflot"})
+        self.assertGreaterEqual(set(obj["data"]["commands"]), {"doctor", "validate", "make", "aeroflot", "ural", "utair"})
         self.assertIn("load_input", [step["step"] for step in obj["process"]])
         self.assertIn("emit_json", [step["step"] for step in obj["process"]])
 
@@ -95,6 +96,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertIn("make", properties["command"]["enum"])
         self.assertIn("validate", properties["command"]["enum"])
         self.assertIn("aeroflot", properties["command"]["enum"])
+        self.assertIn("ural", properties["command"]["enum"])
+        self.assertIn("utair", properties["command"]["enum"])
         self.assertIn("data", properties)
         self.assertIn("error", properties)
 
@@ -240,6 +243,300 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             self.assertEqual(rc, 0)
             self.assertEqual(stat.S_IMODE(output_json.stat().st_mode), 0o600)
             self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode), 0o600)
+
+    def test_ural_url_parser_decodes_tracking_redirect_without_local_env(self) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "ural_airlines_to_itinerary_test",
+            ROOT / "scripts" / "ural_airlines_to_itinerary.py",
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        target = "https://service.uralairlines.ru/?pnr=ZZ9ZZZ&lastName=DOE"
+        redirect = "https://tracker.example/click?u=https%3A%2F%2Fservice.uralairlines.ru%2F%3Fpnr%3DZZ9ZZZ%26lastName%3DDOE"
+
+        locator, last_name, booking_url = module.parse_ural_source(redirect, None, None)
+
+        self.assertEqual(locator, "ZZ9ZZZ")
+        self.assertEqual(last_name, "DOE")
+        self.assertEqual(booking_url, target)
+        self.assertEqual(module.DEFAULT_ENV_PATH, "/<version>/env/env.json")
+        self.assertNotIn(".env", module.DEFAULT_ENV_PATH)
+
+    def test_ural_command_uses_live_frontend_flow_and_writes_private_artifacts(self) -> None:
+        script_dir = str((ROOT / "scripts").resolve())
+        old_path = list(sys.path)
+        if script_dir not in sys.path:
+            sys.path.insert(0, script_dir)
+        try:
+            spec = importlib.util.spec_from_file_location("flight_calendar_ics_test", CLI)
+            self.assertIsNotNone(spec)
+            self.assertIsNotNone(spec.loader)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        finally:
+            sys.path[:] = old_path
+
+        fake_reservation = {
+            "success": True,
+            "data": {
+                "number": "ZZ9ZZZ",
+                "journey": {
+                    "outboundFlights": [
+                        {
+                            "referenceNumber": "1",
+                            "origin": "SVX",
+                            "destination": "DME",
+                            "departureDate": "2026-06-04T16:00:00",
+                            "arrivalDate": "2026-06-04T16:30:00",
+                            "departureDateUtc": "2026-06-04T11:00:00Z",
+                            "arrivalDateUtc": "2026-06-04T13:30:00Z",
+                            "flightNumber": "300",
+                            "operatingCarrier": "U6",
+                            "marketingCarrier": "U6",
+                            "aircraft": "Airbus A320neo",
+                            "classOfService": "E",
+                            "commercialFamily": "U6ECONOMY",
+                            "statuses": ["HK"],
+                        }
+                    ],
+                    "returnFlights": [],
+                    "separateFlights": [],
+                },
+                "passengers": [{"firstName": "JANE", "surname": "DOE", "referenceNumber": "P1"}],
+                "tickets": [{"number": "2620000000000", "passengerReference": "P1", "flightReferences": ["1"]}],
+            },
+        }
+        calls: list[dict] = []
+
+        def fake_fetch(locator: str, last_name: str, **kwargs: object) -> dict:
+            calls.append({"locator": locator, "last_name": last_name, **kwargs})
+            return fake_reservation
+
+        original_fetch = module.ural.fetch_ural_reservation
+        module.ural.fetch_ural_reservation = fake_fetch
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                output_json = Path(td) / "ural.json"
+                output_ics = Path(td) / "ural.ics"
+                args = argparse.Namespace(
+                    url="https://service.uralairlines.ru/?pnr=ZZ9ZZZ&lastName=DOE",
+                    pnr=None,
+                    last_name=None,
+                    output_json=output_json,
+                    output_ics=output_ics,
+                    tz=[],
+                    no_alarms=True,
+                    frontend_base=None,
+                )
+                process: list[dict] = []
+
+                rc, data = module.command_ural(args, process)
+
+                self.assertEqual(rc, 0)
+                self.assertEqual(calls[0]["locator"], "ZZ9ZZZ")
+                self.assertEqual(calls[0]["last_name"], "DOE")
+                self.assertIsNone(calls[0]["frontend_base"])
+                self.assertTrue(output_json.exists())
+                self.assertTrue(output_ics.exists())
+                self.assertEqual(stat.S_IMODE(output_json.stat().st_mode), 0o600)
+                self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode), 0o600)
+                self.assertEqual(data["segments_count"], 1)
+                self.assertEqual(data["segments"][0]["route"], "SVX->DME")
+                self.assertEqual(
+                    [step["step"] for step in process],
+                    [
+                        "parse_pnr_source",
+                        "load_timezone_map",
+                        "fetch_ural_reservation",
+                        "convert_to_itinerary",
+                        "build_calendar",
+                        "validate_ics",
+                        "write_json",
+                        "write_ics",
+                    ],
+                )
+                safe_output = json.dumps(data, ensure_ascii=False) + json.dumps(process, ensure_ascii=False)
+                for private_value in ["ZZ9ZZZ", "DOE", "JANE", "2620000000000"]:
+                    self.assertNotIn(private_value, safe_output)
+        finally:
+            module.ural.fetch_ural_reservation = original_fetch
+
+    def test_utair_url_parser_handles_cyrillic_surname(self) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "utair_to_itinerary_test",
+            ROOT / "scripts" / "utair_to_itinerary.py",
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        url = "https://www.utair.ru/order-manage?rloc=zz9zzz&last_name=%D0%98%D0%92%D0%90%D0%9D%D0%9E%D0%92%D0%90&utm_source=mail"
+
+        locator, last_name, booking_url = module.parse_utair_source(url, None, None)
+
+        self.assertEqual(locator, "ZZ9ZZZ")
+        self.assertEqual(last_name, "ИВАНОВА")
+        self.assertEqual(booking_url, url)
+
+    def test_utair_command_fetches_order_and_writes_private_artifacts(self) -> None:
+        script_dir = str((ROOT / "scripts").resolve())
+        old_path = list(sys.path)
+        if script_dir not in sys.path:
+            sys.path.insert(0, script_dir)
+        try:
+            spec = importlib.util.spec_from_file_location("flight_calendar_ics_utair_test", CLI)
+            self.assertIsNotNone(spec)
+            self.assertIsNotNone(spec.loader)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        finally:
+            sys.path[:] = old_path
+
+        fake_response = {
+            "future": [
+                {
+                    "rloc": "ZZ9ZZZ",
+                    "order_uuid": "uuid",
+                    "status": "T",
+                    "segments": [
+                        {
+                            "segment_id": "0",
+                            "ak": "UT",
+                            "flight_number": "281",
+                            "departure_airport_code": "SVX",
+                            "arrival_airport_code": "KUF",
+                            "departure_local_iso": "2026-06-10T11:50:00",
+                            "arrival_local_iso": "2026-06-10T12:30:00",
+                            "departure_city": "Екатеринбург",
+                            "arrival_city": "Самара",
+                            "status": "HK",
+                            "status_visual": "active",
+                        }
+                    ],
+                    "passengers": [
+                        {"passenger_id": "1", "first_name": "JANE", "last_name": "DOE", "type": "ADULT"}
+                    ],
+                    "tickets": [{"passenger_id": "1", "ticket": "2980000000000"}],
+                    "offers": [{"segment_id": "0", "brand_name": "Минимум", "brand_code": "MINIMUM_NEW"}],
+                }
+            ],
+            "past": [],
+        }
+        calls: list[dict] = []
+
+        def fake_fetch(locator: str, last_name: str, **kwargs: object) -> dict:
+            calls.append({"locator": locator, "last_name": last_name, **kwargs})
+            return fake_response
+
+        original_fetch_token = module.utair.fetch_utair_token
+        original_fetch_orders = module.utair.fetch_utair_orders
+        module.utair.fetch_utair_token = lambda: "fake-token"
+        module.utair.fetch_utair_orders = fake_fetch
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                output_json = Path(td) / "utair.json"
+                output_ics = Path(td) / "utair.ics"
+                args = argparse.Namespace(
+                    url="https://www.utair.ru/order-manage?rloc=ZZ9ZZZ&last_name=DOE&utm_source=mail",
+                    rloc=None,
+                    last_name=None,
+                    output_json=output_json,
+                    output_ics=output_ics,
+                    tz=[],
+                    no_alarms=True,
+                )
+                process: list[dict] = []
+
+                rc, data = module.command_utair(args, process)
+
+                self.assertEqual(rc, 0)
+                self.assertEqual(calls[0]["locator"], "ZZ9ZZZ")
+                self.assertEqual(calls[0]["last_name"], "DOE")
+                self.assertEqual(calls[0]["token"], "fake-token")
+                self.assertTrue(output_json.exists())
+                self.assertTrue(output_ics.exists())
+                self.assertEqual(stat.S_IMODE(output_json.stat().st_mode), 0o600)
+                self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode), 0o600)
+                self.assertEqual(data["segments_count"], 1)
+                self.assertEqual(data["segments"][0]["route"], "SVX->KUF")
+                self.assertEqual(
+                    [step["step"] for step in process],
+                    [
+                        "parse_pnr_source",
+                        "load_timezone_map",
+                        "fetch_utair_token",
+                        "fetch_utair_orders",
+                        "convert_to_itinerary",
+                        "build_calendar",
+                        "validate_ics",
+                        "write_json",
+                        "write_ics",
+                    ],
+                )
+                safe_output = json.dumps(data, ensure_ascii=False) + json.dumps(process, ensure_ascii=False)
+                for private_value in ["ZZ9ZZZ", "DOE", "JANE", "2980000000000", "fake-token"]:
+                    self.assertNotIn(private_value, safe_output)
+                ics_text = output_ics.read_text(encoding="utf-8")
+                self.assertIn("BEGIN:VCALENDAR", ics_text)
+                self.assertEqual(ics_text.count("BEGIN:VEVENT"), 1)
+                self.assertIn("DTSTART:20260610T065000Z", ics_text)
+                self.assertIn("DTEND:20260610T083000Z", ics_text)
+                unfolded_ics = ics_text.replace("\r\n ", "").replace("\n ", "")
+                self.assertIn("ZZ9ZZZ", unfolded_ics)
+                self.assertIn("JANE DOE", unfolded_ics)
+                self.assertIn("2980000000000", unfolded_ics)
+        finally:
+            module.utair.fetch_utair_token = original_fetch_token
+            module.utair.fetch_utair_orders = original_fetch_orders
+
+    def test_redact_masks_ural_booking_url_credentials(self) -> None:
+        script_dir = str((ROOT / "scripts").resolve())
+        old_path = list(sys.path)
+        if script_dir not in sys.path:
+            sys.path.insert(0, script_dir)
+        try:
+            spec = importlib.util.spec_from_file_location("flight_calendar_ics_redact_test", CLI)
+            self.assertIsNotNone(spec)
+            self.assertIsNotNone(spec.loader)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        finally:
+            sys.path[:] = old_path
+
+        redacted = module.redact("https://service.uralairlines.ru/?pnr=ZZ9ZZZ&lastName=DOE ticket_number=2620000000000")
+
+        self.assertNotIn("ZZ9ZZZ", redacted)
+        self.assertNotIn("DOE", redacted)
+        self.assertNotIn("2620000000000", redacted)
+        self.assertIn("[REDACTED]", redacted)
+
+    def test_redact_masks_utair_booking_url_credentials(self) -> None:
+        script_dir = str((ROOT / "scripts").resolve())
+        old_path = list(sys.path)
+        if script_dir not in sys.path:
+            sys.path.insert(0, script_dir)
+        try:
+            spec = importlib.util.spec_from_file_location("flight_calendar_ics_utair_redact_test", CLI)
+            self.assertIsNotNone(spec)
+            self.assertIsNotNone(spec.loader)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        finally:
+            sys.path[:] = old_path
+
+        redacted = module.redact(
+            "https://www.utair.ru/order-manage?rloc=ZZ9ZZZ&last_name=DOE "
+            "filters%5Blocator%5D=ZZ9ZZZ&filters[passenger_lastname]=DOE "
+            "Authorization: Bearer secret-token ticket=2980000000000"
+        )
+
+        for private_value in ["ZZ9ZZZ", "DOE", "secret-token", "2980000000000"]:
+            self.assertNotIn(private_value, redacted)
+        self.assertIn("[REDACTED]", redacted)
 
 
 if __name__ == "__main__":

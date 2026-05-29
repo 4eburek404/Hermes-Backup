@@ -1,12 +1,12 @@
 ---
 name: flight-calendar-ics
 description: Use when creating importable .ics calendar files from airline ticket/itinerary data, especially Aeroflot-style tickets, booking confirmations, PDFs, email text, or manually supplied flight segments.
-version: 1.1.0
+version: 1.2.0
 author: Hermes Agent
 license: MIT
 metadata:
   hermes:
-    tags: [travel, flights, calendar, ics, aeroflot, itinerary]
+    tags: [travel, flights, calendar, ics, aeroflot, utair, ural, itinerary]
     related_skills: [ocr-and-documents, maps, google-workspace]
 ---
 
@@ -26,7 +26,7 @@ Use this skill when the user asks to:
 
 - create a calendar file from a ticket, route receipt, itinerary, booking email, PDF, screenshot, or manual flight details;
 - replace a missing airline "download to calendar" feature;
-- produce an `.ics` attachment for Aeroflot/SU or other airline flights;
+- produce an `.ics` attachment for Aeroflot/SU, Utair/UT, Ural Airlines/U6, or other airline flights;
 - add flight reminders, PNR/e-ticket/seat/baggage details to calendar events.
 
 Do not use it for flight search or itinerary comparison; load `flight-search` for that. Do not invent missing flight times or airports: ask or verify via ticket text/airline data when the missing field affects calendar correctness.
@@ -98,6 +98,8 @@ python <skill_dir>/scripts/flight_calendar_ics.py --json validate \
   --input /path/to/itinerary.json
 ```
 
+For supported carrier manage-booking links, prefer the carrier subcommand (`aeroflot`, `ural`, or `utair`) so the CLI can fetch, normalize, save private JSON, and generate the calendar in one traceable workflow.
+
 Then generate the file:
 
 ```bash
@@ -129,6 +131,60 @@ Operational notes:
 - The converter has only a small built-in airport timezone map. If it stops on an unknown airport, verify the airport timezone and rerun with `--tz CODE=Area/City`.
 - Always verify UTC `DTSTART`/`DTEND`, event count, JSON envelope `ok=true`, and calendar details: `URL`/`Links`, PNR, passenger name, and ticket number present when supplied by the source.
 
+## Ural Airlines Manage-Booking Workflow
+
+When the user sends a Ural Airlines manage-booking link (`service.uralairlines.ru/?pnr=...&lastName=...`) or a tracking redirect whose `u=` parameter points there, decode the redirect and use the carrier's SPA/API rather than asking for manual flight details immediately.
+
+Use the one-command CLI path:
+
+```bash
+python <skill_dir>/scripts/flight_calendar_ics.py --json ural \
+  --url '<Ural Airlines manage-booking URL or tracker redirect>' \
+  --output-json /private/dir/ural-trip.input.json \
+  --output-ics /private/dir/ural-trip.ics
+```
+
+Implementation references:
+
+- `references/ural-airlines-manage-booking.md` — API/reservation fields and privacy notes.
+- `references/ural-airlines-live-frontend-flow.md` — live frontend flow using the carrier's current public frontend config instead of a local `.env`/copied `env.json`, including redaction and testing notes.
+- `references/ural-airlines-one-command-integration-case.md` — condensed case pattern for carrier-SPA one-command integration, including redirect parsing, frontend-derived headers, private intermediate JSON, TDD checks, and completion proof.
+
+Operational notes:
+
+- The frontend is a JS SPA; the initial HTML will not contain the itinerary. The CLI fetches the current frontend config/bundle at runtime and does not require a local `.env`/copied `env.json` for normal use.
+- The observed reservation lookup flow is `POST Session` then `GET Reservation` with `pnrNumber` and `lastName`, plus `X-Session` and frontend-generated `X-Api-Key` headers.
+- Do not hard-code obfuscated frontend header values; derive them from the current loaded frontend helper or fall back to user-supplied PDF/text if the carrier changes the bundle. Node.js is required for this helper execution.
+- Convert `journey.outboundFlights[]`, `returnFlights[]`, and `separateFlights[]` to standard itinerary segments; map `tickets[].flightReferences[]` to flight reference numbers when adding ticket details.
+- Verify airport timezones separately. For example, `SVX=Asia/Yekaterinburg`, `DME=Europe/Moscow`; do not assume one timezone for all segments.
+- Keep PNR, passenger names, document/contact data, ticket numbers, full booking URLs, and generated API headers out of chat/log summaries; include operational booking details in the private `.ics` when appropriate.
+
+## Utair Manage-Booking Workflow
+
+When the user sends a Utair manage-booking URL (`www.utair.ru/order-manage?rloc=...&last_name=...`), treat the page as a JavaScript SPA and use the carrier API flow rather than scraping the initial HTML.
+
+Target one-command CLI path:
+
+```bash
+python <skill_dir>/scripts/flight_calendar_ics.py --json utair \
+  --url '<Utair order-manage URL>' \
+  --output-json /private/dir/utair-trip.input.json \
+  --output-ics /private/dir/utair-trip.ics
+```
+
+Implementation references:
+
+- `references/utair-manage-booking.md` — confirmed OAuth/orders API flow, source parsing, response mapping, timezone, privacy, and TDD checklist.
+- `references/utair-one-command-integration-case.md` — condensed case pattern for converting Utair SPA/API booking access into a tested one-command agent workflow with privacy-preserving artifacts.
+
+Operational notes:
+
+- The observed flow is public client-credentials OAuth (`POST https://b.utair.ru/oauth/token`, `client_id=website_client`, `grant_type=client_credentials`) followed by `GET https://b.utair.ru/api/v3/orders` with `filters[locator]`, `filters[passenger_lastname]`, and `Authorization: Bearer <token>`.
+- Parse URL parameters `rloc` and `last_name`; ignore `utm_*`; never echo the raw manage-booking URL, locator, surname, passenger names, ticket numbers, or bearer token in stdout/stderr/chat.
+- Convert `future[]`/`past[]` order segments to the standard itinerary JSON before generating `.ics`; save both private JSON and ICS artifacts as owner-only `0600`.
+- Map fare information from `offers[].segment_id` where present. Do not infer baggage from fare brand; include baggage only when explicitly present in the booking data.
+- Verify per-airport timezones. Confirmed useful defaults include `SVX=Asia/Yekaterinburg` and `KUF=Europe/Samara`; support `--tz CODE=Area/City` overrides for unknown airports.
+
 ## Event Content Rules
 
 - `SUMMARY`: `<flight_number> <DEP>→<ARR>` plus carrier when useful, e.g. `SU1234 SVO→LED (Аэрофлот)`.
@@ -148,8 +204,9 @@ A generated calendar is acceptable only if:
 - no placeholder strings like `TBD`, `UNKNOWN`, `None`, or empty airport codes are in the final `.ics`;
 - booking URL, PNR, passenger full name, and ticket number are included in the `.ics` when present in the source, while private identifiers are not repeated in chat/logs;
 - agent execution used the single CLI entrypoint and the JSON envelope has `ok=true`, expected `command`, ordered `process`, and safe summary fields;
+- carrier/API workflows save the normalized standard itinerary JSON before `.ics` generation so the calendar is reproducible without refetching live booking data;
 - generated JSON/ICS artifacts containing booking data are written to intentional private paths with owner-only permissions;
-- the final message gives path/file attachment and concise import instructions.
+- the final message gives path/file attachment and concise import instructions without repeating raw booking credentials or personal ticket data.
 
 ## Common Pitfalls
 
@@ -165,7 +222,7 @@ A generated calendar is acceptable only if:
 ## Verification Checklist
 
 - [ ] Source fields captured with provenance: ticket/email/manual input.
-- [ ] Single CLI entrypoint used: `scripts/flight_calendar_ics.py --json validate|make|aeroflot`.
+- [ ] Single CLI entrypoint used: `scripts/flight_calendar_ics.py --json validate|make|aeroflot|ural|utair`.
 - [ ] JSON envelope parsed: `schema_version=flight-calendar-ics-cli.v1`, `ok=true`, expected `command`, ordered `process`, and no private identifiers in stdout/stderr.
 - [ ] One VEVENT per flight segment.
 - [ ] `DTSTART`/`DTEND` are UTC and end with `Z`.

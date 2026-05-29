@@ -19,9 +19,11 @@ from typing import Any, Callable
 
 import aeroflot_pnr_to_itinerary as aeroflot
 import make_flight_ics
+import ural_airlines_to_itinerary as ural
+import utair_to_itinerary as utair
 
 SCHEMA_VERSION = "flight-calendar-ics-cli.v1"
-COMMANDS = ["doctor", "validate", "make", "aeroflot"]
+COMMANDS = ["doctor", "validate", "make", "aeroflot", "ural", "utair"]
 
 
 class CliFailure(Exception):
@@ -47,7 +49,17 @@ def redact(text: str) -> str:
         (r"(?i)(pnr_key[\"'\s:=]+)[0-9a-f]{16,256}", r"\1[REDACTED]"),
         (r"(?i)(pnrLocator=)[^&\s]+", r"\1[REDACTED]"),
         (r"(?i)(pnr_locator[\"'\s:=]+)[A-Z0-9]{5,8}", r"\1[REDACTED]"),
+        (r"(?i)(pnr=)[^&\s]+", r"\1[REDACTED]"),
+        (r"(?i)(pnrNumber=)[^&\s]+", r"\1[REDACTED]"),
+        (r"(?i)(lastName=)[^&\s]+", r"\1[REDACTED]"),
+        (r"(?i)(rloc=)[^&\s]+", r"\1[REDACTED]"),
+        (r"(?i)(last_name=)[^&\s]+", r"\1[REDACTED]"),
+        (r"(?i)(filters(?:%5B|\[)locator(?:%5D|\])=)[^&\s]+", r"\1[REDACTED]"),
+        (r"(?i)(filters(?:%5B|\[)passenger_lastname(?:%5D|\])=)[^&\s]+", r"\1[REDACTED]"),
+        (r"(?i)(Authorization:\s*Bearer\s+)[^\s&]+", r"\1[REDACTED]"),
+        (r"(?i)(ticket=)\d{6,}", r"\1[REDACTED]"),
         (r"(?i)(ticket[_ -]?number[\"'\s:=]+)\d{6,}", r"\1[REDACTED]"),
+        (r"\b\d{13}\b", "[REDACTED]"),
     ]
     out = text
     for pattern, repl in patterns:
@@ -138,6 +150,8 @@ def command_doctor(_args: argparse.Namespace, process: list[dict[str, Any]]) -> 
         "legacy_scripts": [
             "scripts/make_flight_ics.py",
             "scripts/aeroflot_pnr_to_itinerary.py",
+            "scripts/ural_airlines_to_itinerary.py",
+            "scripts/utair_to_itinerary.py",
         ],
         "json_contract": {
             "ok": "boolean",
@@ -217,6 +231,75 @@ def command_aeroflot(args: argparse.Namespace, process: list[dict[str, Any]]) ->
     }
 
 
+def command_ural(args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
+    locator, last_name, booking_url = ural.parse_ural_source(args.url, args.pnr, args.last_name)
+    add_step(process, "parse_pnr_source")
+    tz_map = {**ural.DEFAULT_AIRPORT_TZ, **ural.parse_tz_overrides(args.tz)}
+    add_step(process, "load_timezone_map", overrides_count=len(args.tz))
+    reservation = ural.fetch_ural_reservation(
+        locator,
+        last_name,
+        booking_url=booking_url,
+        frontend_base=args.frontend_base,
+    )
+    add_step(process, "fetch_ural_reservation")
+    itinerary = ural.convert_to_itinerary(reservation, tz_map, booking_url=booking_url)
+    add_step(process, "convert_to_itinerary", segments_count=len(itinerary.get("flights", [])))
+    ics_text, summaries = make_flight_ics.build_calendar(itinerary, no_alarms=args.no_alarms)
+    add_step(process, "build_calendar", segments_count=len(summaries))
+    make_flight_ics.validate_ics_text(ics_text, len(summaries))
+    add_step(process, "validate_ics")
+    secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
+    add_step(process, "write_json", artifact="json", mode="0600")
+    ics_path = None
+    if args.output_ics:
+        secure_write_text(args.output_ics, ics_text)
+        ics_path = str(args.output_ics)
+        add_step(process, "write_ics", artifact="ics", mode="0600")
+    else:
+        add_step(process, "write_ics", "skipped", reason="--output-ics not supplied")
+    return 0, {
+        "segments_count": len(summaries),
+        "segments": aeroflot_segments(itinerary),
+        "json_path": str(args.output_json),
+        "ics_path": ics_path,
+        "write_performed": True,
+    }
+
+
+def command_utair(args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
+    locator, last_name, booking_url = utair.parse_utair_source(args.url, args.rloc, args.last_name)
+    add_step(process, "parse_pnr_source")
+    tz_map = {**utair.DEFAULT_AIRPORT_TZ, **utair.parse_tz_overrides(args.tz)}
+    add_step(process, "load_timezone_map", overrides_count=len(args.tz))
+    token = utair.fetch_utair_token()
+    add_step(process, "fetch_utair_token")
+    orders = utair.fetch_utair_orders(locator, last_name, token=token)
+    add_step(process, "fetch_utair_orders")
+    itinerary = utair.convert_to_itinerary(orders, tz_map, booking_url=booking_url)
+    add_step(process, "convert_to_itinerary", segments_count=len(itinerary.get("flights", [])))
+    ics_text, summaries = make_flight_ics.build_calendar(itinerary, no_alarms=args.no_alarms)
+    add_step(process, "build_calendar", segments_count=len(summaries))
+    make_flight_ics.validate_ics_text(ics_text, len(summaries))
+    add_step(process, "validate_ics")
+    secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
+    add_step(process, "write_json", artifact="json", mode="0600")
+    ics_path = None
+    if args.output_ics:
+        secure_write_text(args.output_ics, ics_text)
+        ics_path = str(args.output_ics)
+        add_step(process, "write_ics", artifact="ics", mode="0600")
+    else:
+        add_step(process, "write_ics", "skipped", reason="--output-ics not supplied")
+    return 0, {
+        "segments_count": len(summaries),
+        "segments": aeroflot_segments(itinerary),
+        "json_path": str(args.output_json),
+        "ics_path": ics_path,
+        "write_performed": True,
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Single CLI entrypoint for the flight-calendar-ics skill.")
     parser.add_argument("--json", action="store_true", help="Emit the stable machine-readable JSON envelope")
@@ -241,6 +324,25 @@ def build_parser() -> argparse.ArgumentParser:
     aero.add_argument("--output-ics", type=Path, help="Optional .ics path to generate immediately")
     aero.add_argument("--tz", action="append", default=[], help="Timezone override CODE=Area/City; repeatable")
     aero.add_argument("--no-alarms", action="store_true", help="Do not add VALARM reminders")
+
+    ural_parser = sub.add_parser("ural", help="Fetch a Ural Airlines PNR and write standard itinerary JSON, optionally .ics")
+    ural_parser.add_argument("--url", help="Ural Airlines manage-booking URL containing pnr and lastName")
+    ural_parser.add_argument("--pnr", help="Booking locator, if not using --url")
+    ural_parser.add_argument("--last-name", help="Passenger surname, if not using --url")
+    ural_parser.add_argument("--output-json", required=True, type=Path, help="Where to write itinerary JSON")
+    ural_parser.add_argument("--output-ics", type=Path, help="Optional .ics path to generate immediately")
+    ural_parser.add_argument("--tz", action="append", default=[], help="Timezone override CODE=Area/City; repeatable")
+    ural_parser.add_argument("--no-alarms", action="store_true", help="Do not add VALARM reminders")
+    ural_parser.add_argument("--frontend-base", help="Override Ural frontend base URL for diagnostics/tests")
+
+    utair_parser = sub.add_parser("utair", help="Fetch a Utair PNR and write standard itinerary JSON, optionally .ics")
+    utair_parser.add_argument("--url", help="Utair order-manage URL containing rloc and last_name")
+    utair_parser.add_argument("--rloc", help="Booking locator, if not using --url")
+    utair_parser.add_argument("--last-name", help="Passenger surname, if not using --url")
+    utair_parser.add_argument("--output-json", required=True, type=Path, help="Where to write itinerary JSON")
+    utair_parser.add_argument("--output-ics", type=Path, help="Optional .ics path to generate immediately")
+    utair_parser.add_argument("--tz", action="append", default=[], help="Timezone override CODE=Area/City; repeatable")
+    utair_parser.add_argument("--no-alarms", action="store_true", help="Do not add VALARM reminders")
     return parser
 
 
@@ -250,6 +352,8 @@ def run_command(args: argparse.Namespace, process: list[dict[str, Any]]) -> tupl
         "validate": command_validate,
         "make": command_make,
         "aeroflot": command_aeroflot,
+        "ural": command_ural,
+        "utair": command_utair,
     }
     handler = handlers.get(args.command)
     if handler is None:
