@@ -20,7 +20,7 @@ The goal is not just to analyze the page, but to make an agent-runnable command 
 3. Use Utair's observed public API flow:
    - `POST https://b.utair.ru/oauth/token`
    - form/body includes `client_id=website_client` and `grant_type=client_credentials`;
-   - then `GET https://b.utair.ru/api/v3/orders` with filters for locator and passenger surname and `Authorization: Bearer <token>`.
+   - then `GET https://b.utair.ru/api/v3/orders` with filters for locator/passenger surname and a bearer authorization header; do not record or print the bearer value.
 4. Convert returned `future[]` / `past[]` orders into the skill's standard itinerary JSON before building ICS.
 5. Generate through the stable agent contract:
 

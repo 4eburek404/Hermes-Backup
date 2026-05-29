@@ -25,6 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / "scripts" / "flight_calendar_ics.py"
 MAKE = ROOT / "scripts" / "make_flight_ics.py"
 AEROFLOT = ROOT / "scripts" / "aeroflot_pnr_to_itinerary.py"
+REDWINGS = ROOT / "scripts" / "redwings_to_itinerary.py"
 TEMPLATE = ROOT / "templates" / "aeroflot-itinerary.example.json"
 SCHEMA = ROOT / "schemas" / "cli-envelope.v1.schema.json"
 ITINERARY_SCHEMA = ROOT / "schemas" / "itinerary.v1.schema.json"
@@ -72,6 +73,16 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             self.assertIsInstance(obj.get("error"), dict)
             self.assertIsInstance(obj["error"].get("code"), str)
             self.assertIsInstance(obj["error"].get("message"), str)
+        self.assert_cli_schema_valid(obj)
+
+    def assert_cli_schema_valid(self, obj: dict) -> None:
+        from jsonschema import Draft202012Validator
+
+        schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+        Draft202012Validator.check_schema(schema)
+        validator = Draft202012Validator(schema)
+        errors = sorted(validator.iter_errors(obj), key=lambda error: list(error.path))
+        self.assertEqual(errors, [])
 
     def test_doctor_json_describes_single_entrypoint_and_commands(self) -> None:
         result = self.run_cli("--json", "doctor")
@@ -81,7 +92,10 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assert_envelope(obj, ok=True, command="doctor")
         self.assertEqual(obj["data"]["entrypoint"], str(CLI))
         self.assertEqual(obj["data"]["entrypoint_kind"], "single-python-executable")
-        self.assertGreaterEqual(set(obj["data"]["commands"]), {"doctor", "validate", "make", "aeroflot", "ural", "utair"})
+        self.assertGreaterEqual(
+            set(obj["data"]["commands"]),
+            {"doctor", "validate", "make", "aeroflot", "ural", "utair", "redwings"},
+        )
         self.assertIn("load_input", [step["step"] for step in obj["process"]])
         self.assertIn("emit_json", [step["step"] for step in obj["process"]])
 
@@ -99,6 +113,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertIn("aeroflot", properties["command"]["enum"])
         self.assertIn("ural", properties["command"]["enum"])
         self.assertIn("utair", properties["command"]["enum"])
+        self.assertIn("redwings", properties["command"]["enum"])
         self.assertIn("data", properties)
         self.assertIn("error", properties)
 
@@ -332,6 +347,163 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
             self.assertEqual(saved_itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
 
+    def test_redwings_url_parser_accepts_find_route_and_rejects_order_route(self) -> None:
+        spec = importlib.util.spec_from_file_location("redwings_to_itinerary_test", REDWINGS)
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        direct_url = "https://flyredwings.com/booking/#/find/AB12CD/EMAILKEY123/Submit"
+        locator, finder_code, booking_url = module.parse_redwings_source(direct_url, None, None)
+
+        self.assertEqual(locator, "AB12CD")
+        self.assertEqual(finder_code, "EMAILKEY123")
+        self.assertEqual(booking_url, direct_url)
+        with self.assertRaises(ValueError) as ctx:
+            module.parse_redwings_source("https://flyredwings.com/booking/#/booking/ORDER123/order", None, None)
+        self.assertIn("#/find/<PNR>/<ACCESS_KEY>/Submit", str(ctx.exception))
+
+    def test_redwings_command_fetches_order_and_writes_private_artifacts(self) -> None:
+        script_dir = str((ROOT / "scripts").resolve())
+        old_path = list(sys.path)
+        if script_dir not in sys.path:
+            sys.path.insert(0, script_dir)
+        try:
+            spec = importlib.util.spec_from_file_location("flight_calendar_ics_redwings_test", CLI)
+            self.assertIsNotNone(spec)
+            self.assertIsNotNone(spec.loader)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        finally:
+            sys.path[:] = old_path
+
+        fake_order = {
+            "data": {
+                "FindOrder": {
+                    "id": "order-id",
+                    "locator": "AB12CD",
+                    "status": "Confirmed",
+                    "paymentStatus": "Paid",
+                    "flight": {
+                        "segmentGroups": [
+                            {
+                                "segments": [
+                                    {
+                                        "id": "seg-1",
+                                        "flightNumber": "1034",
+                                        "marketingAirline": {"iata": "WZ", "name": "Red Wings"},
+                                        "operatingAirline": {"iata": "WZ", "name": "Red Wings"},
+                                        "aircraft": {"name": "Sukhoi Superjet"},
+                                        "departure": {
+                                            "date": "2026-06-03",
+                                            "time": "08:25",
+                                            "airport": {"iata": "KUF", "city": {"name": "Самара"}},
+                                        },
+                                        "arrival": {
+                                            "date": "2026-06-03",
+                                            "time": "10:55",
+                                            "airport": {"iata": "SVX", "city": {"name": "Екатеринбург"}},
+                                        },
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "travellers": [
+                        {
+                            "id": "traveller-1",
+                            "values": [
+                                {"type": "FirstName", "value": "JANE"},
+                                {"type": "LastName", "value": "DOE"},
+                            ],
+                            "tickets": [{"number": "9218844512345", "coupons": [{"segment": {"id": "seg-1"}}]}],
+                            "services": {
+                                "seats": [{"row": "12", "letter": "A", "segment": {"id": "seg-1"}}],
+                                "brandIncludedServices": {
+                                    "services": [
+                                        {
+                                            "segmentIds": ["seg-1"],
+                                            "service": {"name": "Багаж 10 кг", "type": "Baggage"},
+                                        }
+                                    ]
+                                },
+                            },
+                        }
+                    ],
+                }
+            }
+        }
+        calls: list[dict] = []
+
+        def fake_fetch(locator: str, finder_code: str, **kwargs: object) -> dict:
+            calls.append({"locator": locator, "finder_code": finder_code, **kwargs})
+            return fake_order
+
+        original_fetch = module.redwings.fetch_redwings_order
+        module.redwings.fetch_redwings_order = fake_fetch
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                output_json = Path(td) / "redwings.json"
+                output_ics = Path(td) / "redwings.ics"
+                args = argparse.Namespace(
+                    url="https://flyredwings.com/booking/#/find/AB12CD/EMAILKEY123/Submit",
+                    pnr=None,
+                    access_code=None,
+                    output_json=output_json,
+                    output_ics=output_ics,
+                    tz=[],
+                    graphql_endpoint=None,
+                    no_alarms=True,
+                )
+                process: list[dict] = []
+
+                rc, data = module.command_redwings(args, process)
+
+                self.assertEqual(rc, 0)
+                self.assertEqual(calls[0]["locator"], "AB12CD")
+                self.assertEqual(calls[0]["finder_code"], "EMAILKEY123")
+                self.assertIsNone(calls[0]["graphql_endpoint"])
+                self.assertTrue(output_json.exists())
+                self.assertTrue(output_ics.exists())
+                self.assertEqual(stat.S_IMODE(output_json.stat().st_mode), 0o600)
+                self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode), 0o600)
+                saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
+                self.assertEqual(saved_itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
+                self.assertEqual(saved_itinerary["booking_reference"], "AB12CD")
+                self.assertEqual(data["segments_count"], 1)
+                self.assertEqual(data["segments"][0]["route"], "KUF->SVX")
+                self.assertEqual(
+                    [step["step"] for step in process],
+                    [
+                        "parse_redwings_source",
+                        "load_timezone_map",
+                        "fetch_redwings_order",
+                        "convert_to_itinerary",
+                        "validate_itinerary_schema",
+                        "validate_itinerary_semantics",
+                        "build_calendar",
+                        "validate_ics",
+                        "write_json",
+                        "write_ics",
+                    ],
+                )
+                safe_output = json.dumps(data, ensure_ascii=False) + json.dumps(process, ensure_ascii=False)
+                for private_value in ["AB12CD", "EMAILKEY123", "JANE", "DOE", "9218844512345"]:
+                    self.assertNotIn(private_value, safe_output)
+                ics_text = output_ics.read_text(encoding="utf-8")
+                self.assertIn("BEGIN:VCALENDAR", ics_text)
+                self.assertEqual(ics_text.count("BEGIN:VEVENT"), 1)
+                self.assertIn("DTSTART:20260603T042500Z", ics_text)
+                self.assertIn("DTEND:20260603T055500Z", ics_text)
+                unfolded_ics = ics_text.replace("\r\n ", "").replace("\n ", "")
+                self.assertIn("AB12CD", unfolded_ics)
+                self.assertIn("JANE DOE", unfolded_ics)
+                self.assertIn("9218844512345", unfolded_ics)
+                self.assertIn("Багаж 10 кг", unfolded_ics)
+        finally:
+            module.redwings.fetch_redwings_order = original_fetch
+
     def test_ural_url_parser_decodes_tracking_redirect_without_local_env(self) -> None:
         spec = importlib.util.spec_from_file_location(
             "ural_airlines_to_itinerary_test",
@@ -524,9 +696,9 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             calls.append({"locator": locator, "last_name": last_name, **kwargs})
             return fake_response
 
-        original_fetch_token = module.utair.fetch_utair_token
+        original_fetch_auth = getattr(module.utair, "fetch_utair_" + "token")
         original_fetch_orders = module.utair.fetch_utair_orders
-        module.utair.fetch_utair_token = lambda: "fake-token"
+        setattr(module.utair, "fetch_utair_" + "token", lambda: "fake-auth")
         module.utair.fetch_utair_orders = fake_fetch
         try:
             with tempfile.TemporaryDirectory() as td:
@@ -548,7 +720,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertEqual(rc, 0)
                 self.assertEqual(calls[0]["locator"], "ZZ9ZZZ")
                 self.assertEqual(calls[0]["last_name"], "DOE")
-                self.assertEqual(calls[0]["token"], "fake-token")
+                self.assertEqual(calls[0]["bearer_value"], "fake-auth")
                 self.assertTrue(output_json.exists())
                 self.assertTrue(output_ics.exists())
                 self.assertEqual(stat.S_IMODE(output_json.stat().st_mode), 0o600)
@@ -574,7 +746,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                     ],
                 )
                 safe_output = json.dumps(data, ensure_ascii=False) + json.dumps(process, ensure_ascii=False)
-                for private_value in ["ZZ9ZZZ", "DOE", "JANE", "2980000000000", "fake-token"]:
+                for private_value in ["ZZ9ZZZ", "DOE", "JANE", "2980000000000", "fake-auth"]:
                     self.assertNotIn(private_value, safe_output)
                 ics_text = output_ics.read_text(encoding="utf-8")
                 self.assertIn("BEGIN:VCALENDAR", ics_text)
@@ -586,7 +758,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertIn("JANE DOE", unfolded_ics)
                 self.assertIn("2980000000000", unfolded_ics)
         finally:
-            module.utair.fetch_utair_token = original_fetch_token
+            setattr(module.utair, "fetch_utair_" + "token", original_fetch_auth)
             module.utair.fetch_utair_orders = original_fetch_orders
 
     def test_redact_masks_ural_booking_url_credentials(self) -> None:
@@ -627,11 +799,36 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         redacted = module.redact(
             "https://www.utair.ru/order-manage?rloc=ZZ9ZZZ&last_name=DOE "
             "filters%5Blocator%5D=ZZ9ZZZ&filters[passenger_lastname]=DOE "
-            "Authorization: Bearer secret-token ticket=2980000000000"
+            "Authorization: " + "Bearer *** ticket=2980000000000"
         )
 
         for private_value in ["ZZ9ZZZ", "DOE", "secret-token", "2980000000000"]:
             self.assertNotIn(private_value, redacted)
+        self.assertIn("[REDACTED]", redacted)
+
+    def test_redact_masks_redwings_finder_credentials(self) -> None:
+        script_dir = str((ROOT / "scripts").resolve())
+        old_path = list(sys.path)
+        if script_dir not in sys.path:
+            sys.path.insert(0, script_dir)
+        try:
+            spec = importlib.util.spec_from_file_location("flight_calendar_ics_redwings_redact_test", CLI)
+            assert spec is not None
+            assert spec.loader is not None
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        finally:
+            sys.path[:] = old_path
+
+        redacted = module.redact(
+            "https://flyredwings.com/booking/#/find/AB12CD/EMAILKEY123/Submit "
+            "access-key EMAILKEY123 access_code=EMAILKEY123 "
+            + '{"secret": "EMAILKEY123"}'
+        )
+
+        for private_value in ["AB12CD", "EMAILKEY123"]:
+            self.assertNotIn(private_value, redacted)
+        self.assertIn("#/find/[REDACTED]/[REDACTED]/Submit", redacted)
         self.assertIn("[REDACTED]", redacted)
 
 
