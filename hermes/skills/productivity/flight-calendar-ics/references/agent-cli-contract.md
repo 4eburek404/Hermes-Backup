@@ -27,7 +27,10 @@ Agents should not scrape their human stdout when the single CLI can be used. Use
 
 ## JSON envelope v1
 
-Schema file: `schemas/cli-envelope.v1.schema.json`.
+Schema files:
+
+- `schemas/cli-envelope.v1.schema.json` — response envelope emitted by `--json`.
+- `schemas/itinerary.v1.schema.json` — provider-agnostic canonical itinerary input consumed before ICS generation.
 
 Required top-level fields:
 
@@ -101,10 +104,12 @@ Process:
 
 1. `parse_args`
 2. `load_input`
-3. `build_calendar`
-4. `validate_ics`
-5. `no_write`
-6. `emit_json`
+3. `validate_itinerary_schema`
+4. `validate_itinerary_semantics`
+5. `build_calendar`
+6. `validate_ics`
+7. `no_write`
+8. `emit_json`
 
 Expected data includes:
 
@@ -120,10 +125,12 @@ Process:
 
 1. `parse_args`
 2. `load_input`
-3. `build_calendar`
-4. `validate_ics`
-5. `write_output`
-6. `emit_json`
+3. `validate_itinerary_schema`
+4. `validate_itinerary_semantics`
+5. `build_calendar`
+6. `validate_ics`
+7. `write_output`
+8. `emit_json`
 
 Safety contract:
 
@@ -142,11 +149,13 @@ Process:
 3. `load_timezone_map`
 4. `fetch_aeroflot_pnr`
 5. `convert_to_itinerary`
-6. `build_calendar`
-7. `validate_ics`
-8. `write_json`
-9. `write_ics` or skipped `write_ics`
-10. `emit_json`
+6. `validate_itinerary_schema`
+7. `validate_itinerary_semantics`
+8. `build_calendar`
+9. `validate_ics`
+10. `write_json`
+11. `write_ics` or skipped `write_ics`
+12. `emit_json`
 
 Safety contract:
 
@@ -166,11 +175,13 @@ Process:
 3. `load_timezone_map`
 4. `fetch_ural_reservation`
 5. `convert_to_itinerary`
-6. `build_calendar`
-7. `validate_ics`
-8. `write_json`
-9. `write_ics` or skipped `write_ics`
-10. `emit_json`
+6. `validate_itinerary_schema`
+7. `validate_itinerary_semantics`
+8. `build_calendar`
+9. `validate_ics`
+10. `write_json`
+11. `write_ics` or skipped `write_ics`
+12. `emit_json`
 
 Safety/runtime contract:
 
@@ -192,11 +203,13 @@ Process:
 4. `fetch_utair_token`
 5. `fetch_utair_orders`
 6. `convert_to_itinerary`
-7. `build_calendar`
-8. `validate_ics`
-9. `write_json`
-10. `write_ics` or skipped `write_ics`
-11. `emit_json`
+7. `validate_itinerary_schema`
+8. `validate_itinerary_semantics`
+9. `build_calendar`
+10. `validate_ics`
+11. `write_json`
+12. `write_ics` or skipped `write_ics`
+13. `emit_json`
 
 Safety/runtime contract:
 
@@ -220,6 +233,8 @@ The tests assert:
 - the single executable exists and emits the JSON envelope;
 - `doctor` describes the commands and entrypoint;
 - `validate` is check-only and machine-readable;
+- the canonical itinerary schema exists, is Draft 2020-12 valid, provider-agnostic, and validates `templates/aeroflot-itinerary.example.json`;
+- `validate` rejects unknown canonical fields and missing endpoint timezone at `validate_itinerary_schema` before `build_calendar`;
 - `make` writes an `.ics` file with mode `0600`;
 - `ural` decodes direct/tracker URLs, writes private JSON/ICS artifacts with mode `0600`, and keeps PNR/surname/ticket details out of stdout/stderr;
 - `utair` parses manage-booking URLs with Cyrillic surnames, writes private JSON/ICS artifacts with mode `0600`, and keeps locator/surname/passenger/ticket/token details out of stdout/stderr;

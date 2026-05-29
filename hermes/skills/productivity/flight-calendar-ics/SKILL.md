@@ -18,7 +18,7 @@ Create RFC 5545 `.ics` calendar files from airline ticket data when the carrier 
 
 The normal deliverable is a local `.ics` file the user can import into a mail/calendar app. If the user explicitly asks to put the flights directly into Google Calendar, load `google-workspace` and use its Calendar workflow after generating/validating the event data.
 
-For agent execution, the preferred contract surface is the single Python entrypoint `scripts/flight_calendar_ics.py --json ...`. It returns a stable JSON envelope with an ordered internal process trace; use that instead of scraping human stdout from lower-level helper scripts. Details: `references/agent-cli-contract.md`.
+For agent execution, the preferred contract surface is the single Python entrypoint `scripts/flight_calendar_ics.py --json ...`. It returns a stable JSON envelope with an ordered internal process trace; use that instead of scraping human stdout from lower-level helper scripts. Details: `references/agent-cli-contract.md`. Canonical input is validated by `schemas/itinerary.v1.schema.json`; flow notes: `references/canonical-itinerary-contract.md`.
 
 ## When to Use
 
@@ -41,18 +41,19 @@ Do not use it for flight search or itinerary comparison; load `flight-search` fo
    - booking URL, passenger full name, PNR, and ticket number when the source contains them.
 3. **Normalize local times.** Tickets usually print local departure and local arrival times. Convert to aware datetimes using IANA TZIDs, then write UTC `DTSTART`/`DTEND` into the `.ics`. Keep original local times in the description.
 4. **Keep the calendar event operationally complete.** Include the booking URL, PNR, passenger full name, ticket number, route/timing, baggage/seat/fare/status, and carrier details in the `.ics` when present. Do not print PNR keys, full booking URLs, passenger names, ticket/document/contact numbers, or fare/payment data in chat/logs unless explicitly required.
-5. **Generate `.ics` through the agent CLI.** Use `scripts/flight_calendar_ics.py --json make ...` as the default executable path. Lower-level scripts are compatibility/implementation surfaces, not the preferred agent contract.
+5. **Generate `.ics` through the agent CLI.** Use `scripts/flight_calendar_ics.py --json make ...` as the default executable path. The CLI gate is: load/normalize input → validate canonical itinerary schema → semantic validation → build calendar → validate ICS → emit envelope. Lower-level scripts are compatibility/implementation surfaces, not the preferred agent contract.
 6. **Validate before delivery.** Parse the CLI JSON envelope, require `ok=true`, inspect `process`, check `segments_count`, and verify the `.ics` contains `BEGIN:VCALENDAR`, one `BEGIN:VEVENT` per segment, UTC timestamps ending in `Z`, no placeholder values, readable route/flight summaries, and the expected booking URL/PNR/passenger/ticket fields inside the event. If possible, run a smoke import/open or parse check.
 7. **Deliver.** In Telegram, send the file as `MEDIA:/absolute/path/file.ics` and summarize segment count plus route/timing without repeating booking credentials or personal ticket data.
 
 ## Input Schema for the CLI
 
-Create a JSON file like `templates/aeroflot-itinerary.example.json` and run the CLI against it.
+Create a canonical itinerary JSON file like `templates/aeroflot-itinerary.example.json` and run the CLI against it. The formal input contract is `schemas/itinerary.v1.schema.json` (`schema_version: flight-calendar-ics-itinerary.v1`). This is distinct from `schemas/cli-envelope.v1.schema.json`, which describes the CLI response envelope.
 
 Top-level keys:
 
 ```json
 {
+  "schema_version": "flight-calendar-ics-itinerary.v1",
   "calendar_name": "Flights",
   "booking_reference": "ABC123",
   "links": ["https://www.aeroflot.ru/ru-ru/pnr?pnrKey=<key>&pnrLocator=ABC123"],
@@ -87,7 +88,7 @@ Top-level keys:
 }
 ```
 
-Required fields are `flight_number`, `departure.local`, `departure.airport`, `departure.tz`, `arrival.local`, `arrival.airport`, and `arrival.tz`. `local` must be ISO-like `YYYY-MM-DDTHH:MM` or `YYYY-MM-DD HH:MM`.
+Required fields are `schema_version`, `flights`, and per segment: `flight_number`, `departure.local`, `departure.airport`, `departure.tz`, `arrival.local`, `arrival.airport`, and `arrival.tz`. `local` must be ISO-like `YYYY-MM-DDTHH:MM`, `YYYY-MM-DDTHH:MM:SS`, or the same forms with a space separator. `schema_version` may be added automatically for older local inputs, but new adapters/templates must write it explicitly.
 
 ## Agent CLI Usage
 
@@ -108,7 +109,7 @@ python <skill_dir>/scripts/flight_calendar_ics.py --json make \
   --output /private/dir/aeroflot-trip.ics
 ```
 
-`validate` writes nothing. `make` validates first, writes the `.ics` with owner-only file mode `0600`, and returns `schema_version: flight-calendar-ics-cli.v1`, `ok`, `command`, ordered `process`, and either `data` or `error`; `--json` usage errors also return this envelope. The internal process for `make` is `parse_args → load_input → build_calendar → validate_ics → write_output → emit_json`. See `references/agent-cli-contract.md` for the agent contract and `references/hardening-review-checks.md` for the review checklist; the lower-level `scripts/make_flight_ics.py` remains a compatibility helper, not the preferred agent-facing contract, and must still write private `.ics` artifacts as `0600`.
+`validate` writes nothing. `make` validates first, writes the `.ics` with owner-only file mode `0600`, and returns `schema_version: flight-calendar-ics-cli.v1`, `ok`, `command`, ordered `process`, and either `data` or `error`; `--json` usage errors also return this envelope. The internal process for `make` is `parse_args → load_input → validate_itinerary_schema → validate_itinerary_semantics → build_calendar → validate_ics → write_output → emit_json`. See `references/agent-cli-contract.md` for the agent contract and `references/hardening-review-checks.md` for the review checklist; the lower-level `scripts/make_flight_ics.py` remains a compatibility helper, not the preferred agent-facing contract, and must still write private `.ics` artifacts as `0600`.
 
 ## Aeroflot PNR Link Workflow
 
@@ -126,7 +127,7 @@ The CLI POSTs to `/se/api/app/pnr/view/v3` with JSON keys `pnr_locator`, `pnr_ke
 Operational notes:
 
 - Treat the full URL, PNR locator, PNR key, passenger names, document numbers, and ticket numbers as private in chat/logs. For Aeroflot PNR links, the full booking URL, PNR, passenger full name, and ticket number must be written into the `.ics` so the imported calendar event can reopen the booking and show ticket details on any device.
-- Parse the `--json` envelope instead of relying on human stdout. For `aeroflot`, the internal process is `parse_args → parse_pnr_source → load_timezone_map → fetch_aeroflot_pnr → convert_to_itinerary → build_calendar → validate_ics → write_json → write_ics/skipped → emit_json`.
+- Parse the `--json` envelope instead of relying on human stdout. For `aeroflot`, the internal process is `parse_args → parse_pnr_source → load_timezone_map → fetch_aeroflot_pnr → convert_to_itinerary → validate_itinerary_schema → validate_itinerary_semantics → build_calendar → validate_ics → write_json → write_ics/skipped → emit_json`.
 - Aeroflot may intermittently return an Ngenix browser-check HTML page. The CLI uses browser-like headers; if Aeroflot still returns HTML, ask the user for the PDF/text/screenshot or use a real browser session.
 - The converter has only a small built-in airport timezone map. If it stops on an unknown airport, verify the airport timezone and rerun with `--tz CODE=Area/City`.
 - Always verify UTC `DTSTART`/`DTEND`, event count, JSON envelope `ok=true`, and calendar details: `URL`/`Links`, PNR, passenger name, and ticket number present when supplied by the source.
