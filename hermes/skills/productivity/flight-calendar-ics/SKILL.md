@@ -193,6 +193,7 @@ When the user sends a Red Wings booking email link, PDF, screenshot, or booking 
 Implementation reference:
 
 - `references/redwings-manage-booking.md` — observed Websky SPA route shapes, GraphQL `FindOrder` lookup, conversion notes, timezone reminders, and privacy handling.
+- `references/redwings-order-route-vs-email-link-case.md` — compact case note on why `#/booking/<ORDER_ID>/order` must not be treated as equivalent to the email `#/find/<PNR>/<SECRET>/Submit` access link.
 
 Operational notes:
 
