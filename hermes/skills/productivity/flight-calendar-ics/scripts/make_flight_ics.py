@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+import itinerary_contract
+
 UTC = dt.timezone.utc
 PLACEHOLDERS = {"", "tbd", "todo", "unknown", "none", "null", "n/a", "na", "?"}
 
@@ -366,6 +368,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     data = load_input(args.input)
+    try:
+        data = itinerary_contract.normalize_legacy_itinerary(data)
+        itinerary_contract.validate_itinerary_schema(data)
+        itinerary_contract.validate_itinerary_semantics(data)
+    except ValueError as exc:
+        die(str(exc))
     ics_text, summaries = build_calendar(data, no_alarms=args.no_alarms)
     validate_ics_text(ics_text, len(summaries))
 

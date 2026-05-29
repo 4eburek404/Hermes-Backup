@@ -420,6 +420,7 @@ def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_u
         die("no flight segments found in Utair response")
 
     return {
+        "schema_version": "flight-calendar-ics-itinerary.v1",
         "calendar_name": "Utair flights",
         "booking_reference": booking_reference,
         "links": [booking_url] if booking_url else [],
