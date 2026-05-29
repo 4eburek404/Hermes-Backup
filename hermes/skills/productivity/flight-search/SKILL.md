@@ -19,7 +19,7 @@ Static catalogs only normalize metadata; cached fare helpers do not validate sch
 
 ## When to Use
 
-Use for live flight search/comparison, direct-service checks, hub/airport choice, carrier-specific availability, baggage/ticketing/protection risk, date-window planning, or this CLI/report maintenance. Do not use for purchase actions, visa/hotel/ground research, or cached price hints unless explicitly requested as non-validated advisory data. Single-PNR/protection/baggage/fare-rule claims need purchase-screen/airline/GDS/seller/upstream proof.
+Use for live flight search/comparison, direct-service checks, hub/airport choice, carrier-specific availability, baggage/ticketing/protection risk, date-window planning, or this CLI/report maintenance. Do not use for purchase actions, visa/hotel/ground research, or static fare hints unless explicitly requested as non-validated advisory data. Single-PNR/protection/baggage/fare-rule claims need purchase-screen/airline/GDS/seller/upstream proof.
 
 ## Maintenance Mode Gate
 
@@ -69,7 +69,7 @@ Add `--return-date YYYY-MM-DD` for round trips. Add `--aggregate-control-carrier
 
 - Empty provider output is not proof of absence. Classify provider/horizon uncertainty, coverage gap, constraint mismatch, runtime/provider failure, structural unavailability, ticketing/protection uncertainty.
 - If CLI/JSON fails, report concrete layer and run safe provenance checks. If terminal capture truncates JSON, rerun the same read-only command to `mktemp` under `/tmp`, parse tolerant JSON, read `data.agent_report`, then remove the temp file.
-- If a decision-critical option is clipped/missing, run the relevant narrow probe instead of inventing details. RU→China avoid-Moscow arrival-deadline pattern: `references/china-avoid-moscow-arrival-deadline.md`.
+- If a decision-critical option is clipped/missing, run the relevant narrow probe instead of inventing details. Route-family exception patterns (including RU→China avoid-Moscow arrival deadlines) live in `references/debug-playbook.md`.
 
 ## Common Pitfalls
 
@@ -93,6 +93,10 @@ Add `--return-date YYYY-MM-DD` for round trips. Add `--aggregate-control-carrier
 
 ## References
 
-- `references/report-contract.md`, `references/source-boundaries.md`, `references/provider-aware-airport-priority.md`, `references/round-trip-ticketing-evidence.md`.
-- `references/debug-playbook.md`, `references/cli-maintenance.md`, `references/final-answer-rendering-rca.md`, `references/skill-audit-2026-05-28.md`.
-- `references/kupibilet-roundtrip-cli.md`, `references/kupibilet-feature-research.md`, `references/china-avoid-moscow-arrival-deadline.md`.
+- Canonical active references are bounded to five logical directions:
+  - `references/report-contract.md` — `agent_report` read order and final answer renderer contract.
+  - `references/source-boundaries.md` — evidence classes, absence, airport/connection boundaries, ticketing, OTA/smart-route semantics.
+  - `references/provider-aware-airport-priority.md` — provider/airport dispatch and city-code policy.
+  - `references/debug-playbook.md` — targeted probes and route-family exception patterns.
+  - `references/cli-maintenance.md` — source/runtime, schema/tests, sync, generated artifacts, and reference lifecycle.
+- Do not add per-incident/audit/handoff reference files by default; distill durable rules into the five files above or into tests, and leave raw history to session search.
