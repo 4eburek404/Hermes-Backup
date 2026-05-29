@@ -22,9 +22,10 @@ import itinerary_contract
 import make_flight_ics
 import ural_airlines_to_itinerary as ural
 import utair_to_itinerary as utair
+import redwings_to_itinerary as redwings
 
 SCHEMA_VERSION = "flight-calendar-ics-cli.v1"
-COMMANDS = ["doctor", "validate", "make", "aeroflot", "ural", "utair"]
+COMMANDS = ["doctor", "validate", "make", "aeroflot", "ural", "utair", "redwings"]
 
 
 class CliFailure(Exception):
@@ -58,6 +59,9 @@ def redact(text: str) -> str:
         (r"(?i)(filters(?:%5B|\[)locator(?:%5D|\])=)[^&\s]+", r"\1[REDACTED]"),
         (r"(?i)(filters(?:%5B|\[)passenger_lastname(?:%5D|\])=)[^&\s]+", r"\1[REDACTED]"),
         (r"(?i)(Authorization:\s*Bearer\s+)[^\s&]+", r"\1[REDACTED]"),
+        (r"(?i)(#/find/)[^/\s]+/[^/\s]+(/Submit)", r"\1[REDACTED]/[REDACTED]\2"),
+        (r"(?i)((?:access[-_ ]?key|access_code|finder_code)[\"'\s:=]+)[^\s&\"']+", r"\1[REDACTED]"),
+        (r"(?i)([\"']secret[\"']\s*:\s*[\"'])[^\"']+([\"'])", r"\1[REDACTED]\2"),
         (r"(?i)(ticket=)\d{6,}", r"\1[REDACTED]"),
         (r"(?i)(ticket[_ -]?number[\"'\s:=]+)\d{6,}", r"\1[REDACTED]"),
         (r"\b\d{13}\b", "[REDACTED]"),
@@ -171,6 +175,7 @@ def command_doctor(_args: argparse.Namespace, process: list[dict[str, Any]]) -> 
             "scripts/aeroflot_pnr_to_itinerary.py",
             "scripts/ural_airlines_to_itinerary.py",
             "scripts/utair_to_itinerary.py",
+            "scripts/redwings_to_itinerary.py",
         ],
         "json_contract": {
             "ok": "boolean",
@@ -297,11 +302,43 @@ def command_utair(args: argparse.Namespace, process: list[dict[str, Any]]) -> tu
     add_step(process, "parse_pnr_source")
     tz_map = {**utair.DEFAULT_AIRPORT_TZ, **utair.parse_tz_overrides(args.tz)}
     add_step(process, "load_timezone_map", overrides_count=len(args.tz))
-    token = utair.fetch_utair_token()
+    bearer_value = utair.fetch_utair_token()
     add_step(process, "fetch_utair_token")
-    orders = utair.fetch_utair_orders(locator, last_name, token=token)
+    orders = utair.fetch_utair_orders(locator, last_name, bearer_value=bearer_value)
     add_step(process, "fetch_utair_orders")
     itinerary = utair.convert_to_itinerary(orders, tz_map, booking_url=booking_url)
+    add_step(process, "convert_to_itinerary", segments_count=len(itinerary.get("flights", [])))
+    itinerary = validate_itinerary_contract(itinerary, process)
+    ics_text, summaries = make_flight_ics.build_calendar(itinerary, no_alarms=args.no_alarms)
+    add_step(process, "build_calendar", segments_count=len(summaries))
+    make_flight_ics.validate_ics_text(ics_text, len(summaries))
+    add_step(process, "validate_ics")
+    secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
+    add_step(process, "write_json", artifact="json", mode="0600")
+    ics_path = None
+    if args.output_ics:
+        secure_write_text(args.output_ics, ics_text)
+        ics_path = str(args.output_ics)
+        add_step(process, "write_ics", artifact="ics", mode="0600")
+    else:
+        add_step(process, "write_ics", "skipped", reason="--output-ics not supplied")
+    return 0, {
+        "segments_count": len(summaries),
+        "segments": aeroflot_segments(itinerary),
+        "json_path": str(args.output_json),
+        "ics_path": ics_path,
+        "write_performed": True,
+    }
+
+
+def command_redwings(args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
+    locator, finder_code, booking_url = redwings.parse_redwings_source(args.url, args.pnr, args.access_code)
+    add_step(process, "parse_redwings_source")
+    tz_map = {**redwings.DEFAULT_AIRPORT_TZ, **redwings.parse_tz_overrides(args.tz)}
+    add_step(process, "load_timezone_map", overrides_count=len(args.tz))
+    order = redwings.fetch_redwings_order(locator, finder_code, graphql_endpoint=args.graphql_endpoint)
+    add_step(process, "fetch_redwings_order")
+    itinerary = redwings.convert_to_itinerary(order, tz_map, booking_url=booking_url)
     add_step(process, "convert_to_itinerary", segments_count=len(itinerary.get("flights", [])))
     itinerary = validate_itinerary_contract(itinerary, process)
     ics_text, summaries = make_flight_ics.build_calendar(itinerary, no_alarms=args.no_alarms)
@@ -369,6 +406,16 @@ def build_parser() -> argparse.ArgumentParser:
     utair_parser.add_argument("--output-ics", type=Path, help="Optional .ics path to generate immediately")
     utair_parser.add_argument("--tz", action="append", default=[], help="Timezone override CODE=Area/City; repeatable")
     utair_parser.add_argument("--no-alarms", action="store_true", help="Do not add VALARM reminders")
+
+    redwings_parser = sub.add_parser("redwings", help="Fetch a Red Wings/Websky booking and write standard itinerary JSON, optionally .ics")
+    redwings_parser.add_argument("--url", help="Red Wings direct email/manage link shaped #/find/<PNR>/<ACCESS_KEY>/Submit")
+    redwings_parser.add_argument("--pnr", help="Booking locator, if not using --url")
+    redwings_parser.add_argument("--access-key", dest="access_code", help="Access key from the direct email/manage link, if not using --url")
+    redwings_parser.add_argument("--output-json", required=True, type=Path, help="Where to write itinerary JSON")
+    redwings_parser.add_argument("--output-ics", type=Path, help="Optional .ics path to generate immediately")
+    redwings_parser.add_argument("--tz", action="append", default=[], help="Timezone override CODE=Area/City; repeatable")
+    redwings_parser.add_argument("--no-alarms", action="store_true", help="Do not add VALARM reminders")
+    redwings_parser.add_argument("--graphql-endpoint", help="Override Websky GraphQL endpoint for diagnostics/tests")
     return parser
 
 
@@ -380,6 +427,7 @@ def run_command(args: argparse.Namespace, process: list[dict[str, Any]]) -> tupl
         "aeroflot": command_aeroflot,
         "ural": command_ural,
         "utair": command_utair,
+        "redwings": command_redwings,
     }
     handler = handlers.get(args.command)
     if handler is None:
