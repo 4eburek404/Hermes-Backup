@@ -58,7 +58,7 @@ If the agent only has a PDF, screenshot, or already-opened `#/booking/<ORDER_ID>
    - status/payment status when useful;
    - baggage/fare/seat/notes only if explicitly present.
 5. Save raw API responses and normalized JSON only to deliberate private paths with owner-only permissions.
-6. Generate `.ics` using `scripts/flight_calendar_ics.py --json make` until a dedicated `redwings` subcommand exists.
+6. Normal path: use the dedicated `redwings` command. Manual fetch/normalization is now fallback/debug only when the command fails or the source is not a direct manage link.
 
 ## Timezone reminders
 
@@ -80,9 +80,9 @@ The manage-booking URL, PNR/order ID, access secret, passenger name, ticket numb
 - Redact examples as `<PNR>`, `<SECRET>`, `<ORDER_ID>`, or `[REDACTED]`.
 - If displaying extracted PDF/API text to the user, redact booking codes, contacts, passenger names, ticket numbers, and IDs first.
 
-## Recommended future integration
+## CLI command
 
-A dedicated CLI subcommand should mirror the existing carrier flows:
+The dedicated CLI subcommand mirrors the existing carrier flows:
 
 ```bash
 python <skill_dir>/scripts/flight_calendar_ics.py --json redwings \
@@ -93,6 +93,6 @@ python <skill_dir>/scripts/flight_calendar_ics.py --json redwings \
 
 Expected process trace:
 
-`parse_args → parse_redwings_source → fetch_redwings_order → convert_to_itinerary → validate_itinerary_schema → validate_itinerary_semantics → build_calendar → validate_ics → write_json → write_ics/skipped → emit_json`
+`parse_args → parse_redwings_source → load_timezone_map → fetch_redwings_order → convert_to_itinerary → validate_itinerary_schema → validate_itinerary_semantics → build_calendar → validate_ics → write_json → write_ics/skipped → emit_json`
 
-Until implemented, do the fetch/normalization manually, then use the generic `make` command and perform the same validation checks.
+If the command fails because the SPA/API shape changed, use this reference to repair the live-flow converter or fall back to extracting source ticket data into the canonical itinerary schema and running `make`.

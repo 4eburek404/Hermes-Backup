@@ -25,7 +25,9 @@
         "make",
         "aeroflot",
         "ural",
-        "utair"
+        "utair",
+        "redwings",
+        "unknown"
       ]
     },
     "process": {
@@ -71,6 +73,9 @@
           "overrides_count": {
             "type": "integer",
             "minimum": 0
+          },
+          "schema_version": {
+            "type": "string"
           }
         }
       }
@@ -98,7 +103,8 @@
               "make",
               "aeroflot",
               "ural",
-              "utair"
+              "utair",
+              "redwings"
             ]
           }
         },
@@ -125,6 +131,22 @@
               "type": "string"
             },
             "error": {
+              "type": "string"
+            }
+          }
+        },
+        "input_contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schema_version",
+            "schema_path"
+          ],
+          "properties": {
+            "schema_version": {
+              "type": "string"
+            },
+            "schema_path": {
               "type": "string"
             }
           }

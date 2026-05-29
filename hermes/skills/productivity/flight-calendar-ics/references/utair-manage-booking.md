@@ -13,7 +13,7 @@ Utair's manage-booking page is a JavaScript SPA. The itinerary is not present in
 2. Query orders:
    - `GET https://b.utair.ru/api/v3/orders`
    - params: `filters[locator]=<PNR>`, `filters[passenger_lastname]=<LAST_NAME>`
-   - header: `Authorization: Bearer <token>`
+   - authorization bearer header; do not record or print the bearer value.
    - browser-like `Origin`/`Referer` headers.
 3. Convert returned `future[]` / `past[]` order data into the skill's standard itinerary JSON, then generate `.ics` through the single agent CLI.
 
@@ -101,7 +101,7 @@ Sensitive values:
 Rules:
 
 - Never echo sensitive values in stdout/stderr/chat summaries.
-- Redact `rloc=`, `last_name=`, `lastName=`, `filters[locator]`, `filters[passenger_lastname]`, URL-encoded variants, `Authorization: Bearer <token>`, and 13-digit ticket numbers.
+- Redact `rloc=`, `last_name=`, `lastName=`, `filters[locator]`, `filters[passenger_lastname]`, URL-encoded variants, bearer authorization headers, and 13-digit ticket numbers.
 - Write normalized JSON and `.ics` artifacts as owner-only `0600` in deliberate private directories.
 - It is acceptable and useful for the private `.ics` itself to contain booking details needed for import/use.
 
@@ -121,6 +121,6 @@ Add or update tests before implementation:
 Contract test command:
 
 ```bash
-cd /home/konstantin/.hermes/skills/productivity/flight-calendar-ics
+cd <flight-calendar-ics skill directory>
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_flight_calendar_ics_cli
 ```
