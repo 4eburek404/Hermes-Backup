@@ -13,6 +13,7 @@ from .commands.basic import (
     command_cities_search,
     command_doctor,
 )
+from .commands.maintenance import command_maintenance_check
 from .commands.metrics import command_metrics_workflow
 from .commands.providers import (
     command_fli_dates,
@@ -196,6 +197,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     doctor = sub.add_parser("doctor", help="Check local caches, plugin path, and auth presence.")
     doctor.set_defaults(func=command_doctor, command_name="doctor")
+
+    maintenance = sub.add_parser("maintenance", help="Local maintenance and provenance checks.")
+    maintenance_sub = maintenance.add_subparsers(dest="maintenance_command", required=True)
+    maintenance_check = maintenance_sub.add_parser(
+        "check",
+        help="Report source/runtime provenance and local maintenance status without network calls.",
+    )
+    maintenance_check.add_argument(
+        "--runtime-path",
+        help="Runtime flight-search skill path to compare against. Defaults to ~/.hermes/skills/productivity/flight-search.",
+    )
+    maintenance_check.set_defaults(func=command_maintenance_check, command_name="maintenance check")
 
     catalog = sub.add_parser("catalog", help="Travelpayouts static catalog commands.")
     catalog_sub = catalog.add_subparsers(dest="catalog_command", required=True)

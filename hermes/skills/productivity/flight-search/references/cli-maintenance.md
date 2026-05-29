@@ -106,7 +106,13 @@ Do not change schema version constants unless the schema contract itself changes
 
 Current source edits happen under `/home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-search`. Runtime state lives under `$HERMES_HOME/skills/productivity/flight-search` (usually `$HOME/.hermes/skills/productivity/flight-search`) and is a separate deployment/sync surface. The active release path may intentionally exclude this runtime/user skill. The legacy distribution mirror `cli/skill-clis/flights` must not be recreated.
 
-Before saying which version is current, check separately:
+Before saying which version is current, run the compact local maintenance report when the CLI is available:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json maintenance check
+```
+
+Then check separately when deeper evidence is required:
 
 - runtime skill `SKILL.md` version, bytes, and SHA-256;
 - runtime CLI markers: `cli/pyproject.toml`, `cli/flights_cli/__init__.py`, and `python3 -m flights_cli --version` from the runtime `cli/` directory;

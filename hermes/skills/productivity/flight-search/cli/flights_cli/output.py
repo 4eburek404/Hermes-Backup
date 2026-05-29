@@ -182,6 +182,28 @@ def render_human(command: str, data: Any) -> str:
                 f"main live commands: {', '.join(data['safety']['live_provider_commands'])}",
             ]
         )
+    if command == "maintenance check":
+        source = data["source"]
+        runtime = data["runtime"]
+        git = source.get("git") or {}
+        versions = data["versions"]
+        parity = data["source_runtime_parity"]
+        references = data["references"]
+        artifacts = data["generated_artifacts"]
+        return "\n".join(
+            [
+                "flight-search maintenance",
+                f"source: {'ok' if source['exists'] else 'missing'} {source['skill_path']}",
+                f"runtime: {'ok' if runtime['exists'] else 'missing'} {runtime['skill_path']}",
+                f"branch: {git.get('branch') or 'unknown'} dirty={git.get('dirty')}",
+                f"HEAD: {git.get('head') or 'unknown'}",
+                f"versions: skill={versions.get('skill_md') or 'unknown'} cli={versions.get('cli') or 'unknown'}",
+                f"parity: {parity['status']}",
+                f"doctor: {data['doctor']['status']}",
+                f"references: source={references['source_count']} runtime={references['runtime_count']}",
+                f"generated artifacts: source={artifacts['source_count']} runtime={artifacts['runtime_count']}",
+            ]
+        )
     if command == "catalog update":
         if data.get("dry_run"):
             lines = [f"catalog dry-run: {len(data.get('planned') or [])} files", f"cache: {data['cache_dir']}"]
