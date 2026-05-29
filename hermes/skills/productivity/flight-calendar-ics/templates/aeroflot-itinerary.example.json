@@ -1,0 +1,61 @@
+{
+  "calendar_name": "Aeroflot flights",
+  "booking_reference": "ABC123",
+  "passengers": [
+    "Ivan Ivanov"
+  ],
+  "alarms_minutes": [
+    1440,
+    180
+  ],
+  "flights": [
+    {
+      "carrier": "Аэрофлот",
+      "flight_number": "SU1234",
+      "departure": {
+        "airport": "SVO",
+        "city": "Москва",
+        "terminal": "B",
+        "local": "2026-06-01T09:15",
+        "tz": "Europe/Moscow"
+      },
+      "arrival": {
+        "airport": "LED",
+        "city": "Санкт-Петербург",
+        "terminal": "1",
+        "local": "2026-06-01T10:45",
+        "tz": "Europe/Moscow"
+      },
+      "seat": "12A",
+      "baggage": "1PC",
+      "ticket_number": "5552400000000",
+      "pnr": "ABC123",
+      "status": "confirmed",
+      "notes": "Check-in opens 24h before departure",
+      "links": [
+        "https://www.aeroflot.ru/"
+      ]
+    },
+    {
+      "carrier": "Аэрофлот",
+      "flight_number": "SU5678",
+      "departure": {
+        "airport": "LED",
+        "city": "Санкт-Петербург",
+        "terminal": "1",
+        "local": "2026-06-05T18:20",
+        "tz": "Europe/Moscow"
+      },
+      "arrival": {
+        "airport": "SVO",
+        "city": "Москва",
+        "terminal": "B",
+        "local": "2026-06-05T19:50",
+        "tz": "Europe/Moscow"
+      },
+      "seat": "14C",
+      "baggage": "1PC",
+      "status": "confirmed"
+    }
+  ]
+}
