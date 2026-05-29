@@ -193,34 +193,35 @@ def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_u
             baggage = "; ".join(str(x) for x in franchise if x) if isinstance(franchise, list) and franchise else None
             airline_code = seg.get("airline_code") or "SU"
             flight_number = f"{airline_code}{seg.get('flight_number')}"
-            flights.append(
-                {
-                    "carrier": seg.get("airline_name") or "Аэрофлот",
-                    "flight_number": flight_number,
-                    "departure": {
-                        "airport": dep_code,
-                        "city": dep.get("city_name"),
-                        "terminal": terminal_name(dep),
-                        "local": str(seg.get("departure") or "").replace(" ", "T"),
-                        "tz": tz_map[dep_code],
-                    },
-                    "arrival": {
-                        "airport": arr_code,
-                        "city": arr.get("city_name"),
-                        "terminal": terminal_name(arr),
-                        "local": str(seg.get("arrival") or "").replace(" ", "T"),
-                        "tz": tz_map[arr_code],
-                    },
-                    "baggage": baggage,
-                    "ticket_number": ticket_number,
-                    "pnr": data.get("pnr_locator"),
-                    "status": "confirmed" if seg.get("status_code") == "HK" else (seg.get("status_name") or "confirmed"),
-                    "cabin": seg.get("cabin_name"),
-                    "fare": seg.get("fare_group_name"),
-                    "aircraft": seg.get("aircraft_type_name"),
-                    "notes": "\n".join(notes),
-                }
-            )
+            flight = {
+                "carrier": seg.get("airline_name") or "Аэрофлот",
+                "flight_number": flight_number,
+                "departure": {
+                    "airport": dep_code,
+                    "city": dep.get("city_name"),
+                    "terminal": terminal_name(dep),
+                    "local": str(seg.get("departure") or "").replace(" ", "T"),
+                    "tz": tz_map[dep_code],
+                },
+                "arrival": {
+                    "airport": arr_code,
+                    "city": arr.get("city_name"),
+                    "terminal": terminal_name(arr),
+                    "local": str(seg.get("arrival") or "").replace(" ", "T"),
+                    "tz": tz_map[arr_code],
+                },
+                "baggage": baggage,
+                "ticket_number": ticket_number,
+                "pnr": data.get("pnr_locator"),
+                "status": "confirmed" if seg.get("status_code") == "HK" else (seg.get("status_name") or "confirmed"),
+                "cabin": seg.get("cabin_name"),
+                "fare": seg.get("fare_group_name"),
+                "aircraft": seg.get("aircraft_type_name"),
+            }
+            notes_text = "\n".join(notes)
+            if notes_text:
+                flight["notes"] = notes_text
+            flights.append(flight)
 
     if missing_tz:
         codes = ", ".join(sorted(missing_tz))
@@ -229,6 +230,7 @@ def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_u
         die("no flight segments found in Aeroflot response")
 
     return {
+        "schema_version": "flight-calendar-ics-itinerary.v1",
         "calendar_name": "Aeroflot flight",
         "booking_reference": data.get("pnr_locator"),
         "passengers": passenger_names(data),

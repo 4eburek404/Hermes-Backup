@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import aeroflot_pnr_to_itinerary as aeroflot
+import itinerary_contract
 import make_flight_ics
 import ural_airlines_to_itinerary as ural
 import utair_to_itinerary as utair
@@ -130,9 +131,27 @@ def safe_segment_summary(summary: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def validate_itinerary_contract(itinerary: dict[str, Any], process: list[dict[str, Any]]) -> dict[str, Any]:
+    normalized = itinerary_contract.normalize_legacy_itinerary(itinerary)
+    try:
+        itinerary_contract.validate_itinerary_schema(normalized)
+    except ValueError:
+        add_step(process, "validate_itinerary_schema", "error")
+        raise
+    add_step(process, "validate_itinerary_schema", schema_version=itinerary_contract.SCHEMA_VERSION)
+    try:
+        itinerary_contract.validate_itinerary_semantics(normalized)
+    except ValueError:
+        add_step(process, "validate_itinerary_semantics", "error")
+        raise
+    add_step(process, "validate_itinerary_semantics")
+    return normalized
+
+
 def build_and_validate(input_path: Path, *, no_alarms: bool, process: list[dict[str, Any]]) -> tuple[str, list[dict[str, Any]]]:
     data = make_flight_ics.load_input(input_path)
     add_step(process, "load_input")
+    data = validate_itinerary_contract(data, process)
     ics_text, summaries = make_flight_ics.build_calendar(data, no_alarms=no_alarms)
     add_step(process, "build_calendar", segments_count=len(summaries))
     make_flight_ics.validate_ics_text(ics_text, len(summaries))
@@ -159,6 +178,10 @@ def command_doctor(_args: argparse.Namespace, process: list[dict[str, Any]]) -> 
             "process": "ordered list of step/status objects",
             "data": "object when ok=true",
             "error": "object when ok=false",
+        },
+        "input_contract": {
+            "schema_version": itinerary_contract.SCHEMA_VERSION,
+            "schema_path": str(itinerary_contract.SCHEMA_PATH),
         },
         "sensitive_stdout_policy": "route/timestamp summaries only; no PNR keys, passenger names, ticket numbers, or full booking URLs",
     }
@@ -209,6 +232,7 @@ def command_aeroflot(args: argparse.Namespace, process: list[dict[str, Any]]) ->
     add_step(process, "fetch_aeroflot_pnr")
     itinerary = aeroflot.convert_to_itinerary(data, tz_map, booking_url=booking_url)
     add_step(process, "convert_to_itinerary", segments_count=len(itinerary.get("flights", [])))
+    itinerary = validate_itinerary_contract(itinerary, process)
     ics_text, summaries = make_flight_ics.build_calendar(itinerary, no_alarms=args.no_alarms)
     add_step(process, "build_calendar", segments_count=len(summaries))
     make_flight_ics.validate_ics_text(ics_text, len(summaries))
@@ -245,6 +269,7 @@ def command_ural(args: argparse.Namespace, process: list[dict[str, Any]]) -> tup
     add_step(process, "fetch_ural_reservation")
     itinerary = ural.convert_to_itinerary(reservation, tz_map, booking_url=booking_url)
     add_step(process, "convert_to_itinerary", segments_count=len(itinerary.get("flights", [])))
+    itinerary = validate_itinerary_contract(itinerary, process)
     ics_text, summaries = make_flight_ics.build_calendar(itinerary, no_alarms=args.no_alarms)
     add_step(process, "build_calendar", segments_count=len(summaries))
     make_flight_ics.validate_ics_text(ics_text, len(summaries))
@@ -278,6 +303,7 @@ def command_utair(args: argparse.Namespace, process: list[dict[str, Any]]) -> tu
     add_step(process, "fetch_utair_orders")
     itinerary = utair.convert_to_itinerary(orders, tz_map, booking_url=booking_url)
     add_step(process, "convert_to_itinerary", segments_count=len(itinerary.get("flights", [])))
+    itinerary = validate_itinerary_contract(itinerary, process)
     ics_text, summaries = make_flight_ics.build_calendar(itinerary, no_alarms=args.no_alarms)
     add_step(process, "build_calendar", segments_count=len(summaries))
     make_flight_ics.validate_ics_text(ics_text, len(summaries))
