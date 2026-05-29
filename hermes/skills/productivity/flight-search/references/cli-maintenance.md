@@ -1,15 +1,15 @@
 # CLI Maintenance Notes
 
-Keep CLI maintenance focused on current live provider assembly and the `agent_report` contract. Use this when modifying or auditing the flight-search CLI, provider layers, route-family logic, coverage controls, or documentation.
+Use this when modifying or auditing the flight-search CLI, provider layers, route-family logic, coverage controls, report contract, skill Markdown, or source/runtime sync. Keep maintenance behind the `SKILL.md` maintenance gate; ordinary route search should stay traveler-facing.
 
 ## Workflow
 
-- Work offline by default unless a task explicitly requires live provider access.
-- Add or update a focused failing test before behavior changes.
-- Test both the parser layer and subprocess CLI contract for date, profile, and flag behavior. A test that instantiates `argparse.Namespace` does not prove the CLI accepts the flag.
+- Work offline by default unless the task explicitly requires live provider access.
+- For behavior changes, add or update a focused failing test before implementation.
+- Test both parser/subprocess CLI contract and internal helpers. A test that instantiates `argparse.Namespace` does not prove the CLI accepts the flag.
 - Preserve `--json --agent-brief` as JSON-clean stdout.
 - Keep search behavior limited to current live provider assembly and documented targeted probes.
-- Static catalogs are metadata only: city, airport, country/region, airline, alliance, and aircraft data. Flight options come from live provider assembly.
+- Static catalogs are metadata only; flight options come from live provider assembly.
 - If validation is interrupted, do not report completion. Report the last completed gate and the missing gate.
 
 ## JSON stdout/stderr Rules
@@ -19,14 +19,7 @@ Keep CLI maintenance focused on current live provider assembly and the `agent_re
 - Do not print secrets, full credential paths, or unredacted provider URLs with sensitive query data.
 - If an error occurs, return the standard JSON error envelope with a concrete layer and actionable detail.
 
-## Provider URL Safety for FLI MCP
-
-- Treat FLI MCP as a sidecar selected by URL/config.
-- Validate URL shape before network use.
-- Do not log sensitive query parameters unnecessarily.
-- If the sidecar is unavailable, report degradation through provider failure fields rather than hiding the failure.
-
-## Provider-aware Airport Priority Rules
+## Provider and Airport Policy Coupling
 
 The durable source contract lives in `references/provider-aware-airport-priority.md`. Keep implementation, tests, and docs aligned with these invariants:
 
@@ -50,9 +43,9 @@ The durable source contract lives in `references/provider-aware-airport-priority
 
 - Candidate generation is stop-policy-first. Generate direct/one-stop preferred candidates before fallback candidates.
 - Do not let two-stop or three-plus routes consume `candidate_pool_limit` while preferred candidates still exist.
-- Two-stop options are reportable only when fallback is explicitly active or the report marks them as reportable.
+- Two-stop options are reportable only when fallback is explicitly active or the report marks them reportable.
 - Three-plus connection itineraries are suppressed from normal recommendations.
-- `candidate_pool_limit` is a safety/debug cap inside the active generation mode, not an answer-quality workaround. Do not raise it to hide generation-order defects.
+- `candidate_pool_limit` is a safety/debug cap inside the active generation mode, not an answer-quality workaround.
 - Use the shared stop-policy decision helper for assembly, ranking defense, provider aggregate projection, and report diagnostics. Do not reimplement reportability as a local `connections <= 2` check.
 - `agent_report.v1` projects declared generation state. Do not infer fallback mode from compact projected options alone.
 
@@ -64,7 +57,7 @@ When changing `data.agent_report`:
 2. Update report-building code.
 3. Update docs that tell agents how to read the fields.
 4. Update fixtures and tests that assert the contract.
-5. Re-run the focused contract tests before any broader validation.
+5. Re-run the focused contract tests before broader validation.
 
 Runtime-path pitfall: schema helpers and contract tests must support both layouts:
 
@@ -79,77 +72,104 @@ Do not add answer-facing fields without documenting how the agent should use the
 
 Use this when improving final user-visible flight output. The provider-neutral seam is `data.agent_report` -> `human_answer` -> Telegram/Markdown answer; do not copy provider-specific plugin formatter wording one-to-one.
 
-- Implement final-output changes in `cli/flights_cli/reporting/human_answer_renderer.py`, not by making agents copy `display.text`, `answer_lines`, or debug labels.
+- Implement final-output changes in `cli/flights_cli/reporting/human_answer_renderer.py`.
 - Keep `human_answer` in `cli/flights_cli/contracts/agent_report.v1.schema.json` and `cli/tests/test_agent_report_contract.py` synchronized with renderer changes.
-- Preserve provider neutrality: renderer input is normalized report fields, not provider client objects, cache semantics, booking URLs, or provider caveat text.
-- Test for negative format guarantees: no `agent report:`, `Best CLI-ranked option`, `Coverage diagnostics`, `provider_aggregate_candidate`, `provider-aggregate:`, pipe tables, or raw `probe_id` in user-facing text.
-- For round trips, test the exact answer shape: recommendation pair first, then outbound alternatives, return alternatives, and decision-useful purchase checks; sections should be separated as readable Telegram blocks, not field-by-field dumps.
-- For connected itineraries, tests must assert per-segment flight times such as `SU1437 18:10–18:55 → SU1844 20:35–21:55`, reject collapsed whole-journey ranges such as `SU1437→SU1844 | 01 авг 18:10–21:55`, and cover overnight/multi-day layovers where a later segment date must be visible inline (`B2976 02 авг 09:50–11:15`).
-- After renderer changes run `PYTHONDONTWRITEBYTECODE=1 python3 -m pytest tests/test_human_answer_renderer.py tests/test_agent_report_contract.py tests/test_final_answer_contract.py tests/test_flight_display.py tests/test_provider_aggregate_candidates.py -q`, then the full `PYTHONDONTWRITEBYTECODE=1 python3 -m pytest tests -q` before reporting completion.
+- Preserve provider neutrality: renderer input is normalized report fields, not provider client objects, booking URLs, cache semantics, or provider caveat text.
+- Test negative format guarantees: no `agent report:`, `Best CLI-ranked option`, `Coverage diagnostics`, `provider_aggregate_candidate`, `provider-aggregate:`, pipe tables, or raw `probe_id` in user-facing text.
+- For connected itineraries, tests must assert per-segment flight times such as `SU1437 18:10-18:55 -> SU1844 20:35-21:55`, reject collapsed whole-journey ranges, and cover overnight/multi-day layovers where a later segment date must be visible inline.
+
+Focused renderer/contract suite after renderer changes:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m pytest \
+  tests/test_human_answer_renderer.py \
+  tests/test_agent_report_contract.py \
+  tests/test_final_answer_contract.py \
+  tests/test_flight_display.py \
+  tests/test_provider_aggregate_candidates.py -q
+```
+
+Then run the full flight-search suite before reporting completion.
 
 ## Version Bump Checklist
 
 When bumping the skill/CLI version, keep these aligned:
 
-- Source `SKILL.md` frontmatter in the flight-search skill root.
-- Source `cli/pyproject.toml`.
-- Source `cli/flights_cli/__init__.py`.
-- Tests that assert the CLI version, doctor envelope, or human doctor output.
+- source `SKILL.md` frontmatter in the flight-search skill root;
+- source `cli/pyproject.toml`;
+- source `cli/flights_cli/__init__.py`;
+- tests that assert the CLI version, doctor envelope, or human doctor output.
 
 Do not change schema version constants unless the schema contract itself changes incompatibly.
 
+## Source, Runtime, and Mirror Validation
+
+Current source edits happen under `/home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-search`. Runtime state lives under `$HERMES_HOME/skills/productivity/flight-search` (usually `$HOME/.hermes/skills/productivity/flight-search`) and is a separate deployment/sync surface. The active release path may intentionally exclude this runtime/user skill. The legacy distribution mirror `cli/skill-clis/flights` must not be recreated.
+
+Before saying which version is current, check separately:
+
+- runtime skill `SKILL.md` version, bytes, and SHA-256;
+- runtime CLI markers: `cli/pyproject.toml`, `cli/flights_cli/__init__.py`, and `python3 -m flights_cli --version` from the runtime `cli/` directory;
+- active Hermes release: whether `~/.hermes/hermes-agent/skills/productivity/flight-search` exists;
+- local source checkout: `/home/konstantin/src/Hermes-Backup/hermes`, branch, HEAD, dirty state, and ahead/behind status;
+- GitHub publication state only when asked for published link/current remote version.
+
+If runtime is newer than GitHub, say so explicitly: operationally loaded runtime may be ahead of published source until source changes are committed and pushed.
+
+## Source-to-Runtime Gate
+
+Use this gate after source docs or CLI changes and before touching runtime:
+
+1. Verify source provenance: branch, HEAD, status, and expected target diff.
+2. Verify version markers in `SKILL.md`, `cli/pyproject.toml`, and `cli/flights_cli/__init__.py` when version is in scope.
+3. Run focused source tests before sync. Include schema/contract tests when `agent_report` behavior changes, and provider/airport policy tests when dispatch rules change.
+4. Back up the runtime skill before every sync. If no shape is specified, use a clearly named timestamped sibling or backup-area copy and verify size/hash.
+5. Before real sync, run a dry-run `rsync -a --delete --itemize-changes` with generated-artifact excludes; validate deletion paths are intended.
+6. Sync with generated-artifact excludes: `__pycache__/`, `.pytest_cache/`, `*.pyc`, and `*.egg-info`.
+7. Validate source/runtime parity with `diff -qr` using the same excludes, then run key-file checksums for marker/config files when requested.
+8. Run runtime checks after sync from the runtime `cli/` directory: `python -m flights_cli --json doctor`, help/contract smoke for newly touched commands, and targeted offline tests when available.
+9. Clean only generated runtime artifacts created by validation and rerun parity.
+10. Do not restart the Hermes gateway unless explicitly authorized. Use a new Hermes session/reset only when cached skill text must refresh.
+
 ## Generated Artifact Cleanup
 
-Before final reporting, check for generated files under the skill tree:
+Before final reporting, check for generated files under the skill tree without creating bytecode:
 
 ```bash
-SKILL_ROOT="$HOME/.hermes"/skills/productivity/flight-search
-find "$SKILL_ROOT" \( -name '__pycache__' -o -name '*.pyc' -o -name '.pytest_cache' -o -name '*.egg-info' \) -print
+HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+SKILL_ROOT="$HERMES_HOME/skills/productivity/flight-search"
+PYTHONDONTWRITEBYTECODE=1 SKILL_ROOT="$SKILL_ROOT" python3 - <<'PY'
+import os
+from pathlib import Path
+root = Path(os.environ['SKILL_ROOT'])
+patterns = ('__pycache__', '.pytest_cache')
+hits = []
+for path in root.rglob('*'):
+    if path.name in patterns or path.suffix == '.pyc' or path.name.endswith('.egg-info'):
+        hits.append(str(path))
+print('\n'.join(hits))
+PY
 ```
 
 Generated artifacts must be intentionally cleaned or reported. Prefer `PYTHONDONTWRITEBYTECODE=1` for validation commands.
 
-## Source, Runtime, and Mirror Validation
+## Markdown Reference Governance
 
-Current source edits happen under `/home/konstantin/src/Hermes-Backup/hermes` + `/skills/productivity/flight-search`. Runtime state lives under `$HERMES_HOME/skills/productivity/flight-search` (usually `$HOME/.hermes` + `/skills/productivity/flight-search`) and is a separate deployment/sync surface. The legacy distribution mirror `cli/skill-clis/flights` must not be recreated; active CLI validation belongs to the owning skill's `cli/` directory.
+Canonical active references are bounded to five logical directions:
 
-When asked what version the installed skill is and for the current GitHub link, do not assume runtime, local source, active Hermes release, and GitHub are aligned. Check all relevant layers separately:
+1. `references/report-contract.md` — how to read `agent_report` and render the final answer.
+2. `references/source-boundaries.md` — evidence classes, absence, airports, connections, ticketing, OTA/smart-route semantics.
+3. `references/provider-aware-airport-priority.md` — provider/airport dispatch and city-code policy.
+4. `references/debug-playbook.md` — targeted probes and route-family exception patterns.
+5. `references/cli-maintenance.md` — source/runtime, schema/tests, sync, generated artifacts, and this reference lifecycle.
 
-- runtime skill: `$HERMES_HOME/skills/productivity/flight-search/SKILL.md` frontmatter version, bytes, and SHA-256;
-- runtime CLI markers: `cli/pyproject.toml`, `cli/flights_cli/__init__.py`, and `python3 -m flights_cli --version` from the runtime `cli/` directory;
-- active Hermes release: verify whether `~/.hermes/hermes-agent/skills/productivity/flight-search` exists; current release-dir builds may intentionally exclude this runtime/user skill;
-- local source checkout: `/home/konstantin/src/Hermes-Backup/hermes`, including branch, HEAD, dirty state, and ahead/behind status;
-- GitHub publication state: `git ls-remote` for `https://github.com/4eburek404/Hermes-Backup`, then fetch raw `hermes/skills/productivity/flight-search/SKILL.md` for candidate branches and report the highest/published version with its blob URL.
+Do not add a new active reference for every incident, smoke run, audit, handoff, route example, or implementation report. First extract durable workflow rules, route-family logic, evidence boundaries, debug procedures, maintenance invariants, and agent skills. Put the distilled rule into the appropriate canonical reference or test; leave raw history to session search. Add a sixth active reference only when a new stable direction cannot be expressed in the five canonical files.
 
-If runtime is newer than GitHub, say so explicitly: the operationally loaded skill version is the runtime version, while the GitHub link may point to an older published version until source changes are committed and pushed. Do not call an older GitHub blob “current” without qualifying it as the current published GitHub version.
-
-Use this source-to-runtime gate after source docs or CLI changes and before touching runtime:
-
-1. Verify post-merge source provenance on `main`: pull with `--ff-only`, capture branch/status/HEAD, and verify expected merge ancestry when specific commits are in scope. If source provenance or focused tests fail, stop before runtime mutation.
-2. Verify version markers in `SKILL.md`, `cli/pyproject.toml`, and `cli/flights_cli/__init__.py` before and after sync.
-3. Run focused source tests before sync. Include schema/contract tests when `agent_report` behavior changes, and provider/airport policy tests when dispatch rules change.
-4. Back up the runtime skill to a timestamped directory under `/home/konstantin/hermes_skill_backups/` before every sync.
-5. Sync with `rsync -a --delete` and generated-artifact excludes: `__pycache__/`, `pycache/`, `.pytest_cache/`, `*.pyc`, and `*.egg-info`.
-6. Validate source/runtime parity with `diff -qr` using the same generated-artifact excludes.
-7. Run runtime checks after sync: runtime `flights --version`, runtime `flights --json doctor`, and targeted offline tests from the runtime `cli/` directory.
-8. Do not restart the Hermes gateway unless explicitly authorized. Use a new Hermes session/reset only when cached skill text must refresh.
-
-Before claiming a source edit is ready, report branch, HEAD, dirty state, changed files, validation commands, generated-artifact status, whether the legacy mirror remains absent, and whether runtime sync was intentionally not performed. Do not describe a source edit as backed up until it is committed, pushed, and the remote branch SHA has been compared with the local HEAD.
-
-## Markdown Consolidation Gate
-
-When consolidating flight-search Markdown knowledge, keep the active surface small and canonical. Treat runtime-only notes, smoke transcripts, audits, handoffs, and implementation reports as distillation sources, not files to copy into source. Move only durable rules into the canonical docs and tests, then remove noncanonical runtime-only Markdown through the normal source-to-runtime sync.
-
-Use this checklist before final reporting:
+Before final reporting after Markdown consolidation:
 
 - Confirm the canonical Markdown set explicitly.
 - Confirm no new incident, runbook, audit, handoff, smoke, or implementation-report Markdown was added.
 - Link from `SKILL.md` only to canonical references.
-- Put provider/airport policy in `references/provider-aware-airport-priority.md`; cross-reference it instead of duplicating provider-specific rules across docs.
+- Keep provider/airport policy in `references/provider-aware-airport-priority.md`; cross-reference it instead of duplicating provider-specific rules across docs.
 - If tests enforce documentation invariants, update the guard when the durable rule changes rather than preserving stale historical exceptions.
-- When editing active `SKILL.md` or referenced Markdown, run the prompt-surface/architecture guard or an equivalent forbidden-token scan before final reporting; if a durable rule needs a retired concept, rewrite it as current behavior language instead of reintroducing retired provider terminology. In this skill, older non-live advisory-fare wording can be retired prompt-surface language; express the rule as static advisory fare evidence instead.
-- After runtime sync, verify noncanonical runtime-only Markdown files are gone and source/runtime Markdown parity holds.
-
-## Supporting-File Distillation Policy
-
-Do not delete supporting files merely because they contain obsolete provider details, dated route examples, or migration history. First extract durable workflow rules, route-family logic, airport/connection constraints, evidence boundaries, debug procedures, maintenance invariants, and agent skills. Move the distilled rules into the right active document or test, then delete the historical file only after the useful knowledge is preserved elsewhere.
+- Verify noncanonical runtime-only Markdown files are gone and source/runtime Markdown parity holds after sync.
