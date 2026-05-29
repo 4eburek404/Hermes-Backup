@@ -14,6 +14,7 @@ python scripts/flight_calendar_ics.py --json make --input /path/to/itinerary.jso
 python scripts/flight_calendar_ics.py --json aeroflot --url '<Aeroflot PNR URL>' --output-json /private/dir/trip.input.json --output-ics /private/dir/trip.ics
 python scripts/flight_calendar_ics.py --json ural --url '<Ural Airlines manage-booking URL or tracker redirect>' --output-json /private/dir/trip.input.json --output-ics /private/dir/trip.ics
 python scripts/flight_calendar_ics.py --json utair --url '<Utair order-manage URL>' --output-json /private/dir/trip.input.json --output-ics /private/dir/trip.ics
+python scripts/flight_calendar_ics.py --json redwings --url '<Red Wings #/find/<PNR>/<ACCESS_KEY>/Submit URL>' --output-json /private/dir/trip.input.json --output-ics /private/dir/trip.ics
 ```
 
 Legacy helper scripts remain implementation modules and compatibility tools:
@@ -22,6 +23,7 @@ Legacy helper scripts remain implementation modules and compatibility tools:
 - `scripts/aeroflot_pnr_to_itinerary.py`
 - `scripts/ural_airlines_to_itinerary.py`
 - `scripts/utair_to_itinerary.py`
+- `scripts/redwings_to_itinerary.py`
 
 Agents should not scrape their human stdout when the single CLI can be used. Use `--json` and parse the envelope.
 
@@ -74,6 +76,7 @@ Contract rules:
 - stdout/stderr must not include PNR keys, passenger names, ticket numbers, or full booking URLs. Route, flight number, UTC times, segment count, and artifact paths are acceptable.
 - For Ural Airlines, normal use must not depend on a private local `.env` or copied `env.json`; the command fetches the carrier's current public frontend config and derives request headers at runtime.
 - For Utair, normal use obtains a public `client_credentials` token at runtime and then looks up orders through `GET /api/v3/orders`; bearer tokens, locators, surnames, passenger names, full booking URLs, and ticket numbers must not be printed.
+- For Red Wings, normal use requires the direct email/manage route `#/find/<PNR>/<ACCESS_KEY>/Submit`; the access key, PNR, full URL, passenger names, and ticket numbers must not be printed.
 - With `--json`, usage/argparse errors must also return this envelope with `ok=false` and `error.code=usage_error`; do not make agents scrape argparse human text.
 
 ## Internal CLI process
@@ -219,6 +222,33 @@ Safety/runtime contract:
 - JSON/ICS artifacts are written with mode `0600`.
 - The machine-readable stdout summary remains redacted and operational: segment count, routes, local times, and artifact paths only.
 
+### `redwings`
+
+Purpose: fetch Red Wings/Websky order data from a direct email/manage URL, convert it to the standard itinerary JSON, validate generated calendar data, and optionally write `.ics`.
+
+Process:
+
+1. `parse_args`
+2. `parse_redwings_source`
+3. `load_timezone_map`
+4. `fetch_redwings_order`
+5. `convert_to_itinerary`
+6. `validate_itinerary_schema`
+7. `validate_itinerary_semantics`
+8. `build_calendar`
+9. `validate_ics`
+10. `write_json`
+11. `write_ics` or skipped `write_ics`
+12. `emit_json`
+
+Safety/runtime contract:
+
+- The CLI accepts only the direct Red Wings/Websky email/manage route shaped `#/find/<PNR>/<ACCESS_KEY>/Submit`, or explicit `--pnr` plus `--access-key`.
+- Already-opened `#/booking/<ORDER_ID>/order` pages are not sufficient and must not be treated as a source of the access key.
+- The command calls Websky `FindOrder` with `id`, `secret`, and `saveInProfile=false`, then maps returned order segments into standard itinerary JSON.
+- JSON/ICS artifacts are written with mode `0600`.
+- The machine-readable stdout summary remains redacted and operational: segment count, routes, local times, and artifact paths only.
+
 ## Test contract
 
 Run the contract tests from the skill root:
@@ -238,5 +268,6 @@ The tests assert:
 - `make` writes an `.ics` file with mode `0600`;
 - `ural` decodes direct/tracker URLs, writes private JSON/ICS artifacts with mode `0600`, and keeps PNR/surname/ticket details out of stdout/stderr;
 - `utair` parses manage-booking URLs with Cyrillic surnames, writes private JSON/ICS artifacts with mode `0600`, and keeps locator/surname/passenger/ticket/token details out of stdout/stderr;
+- `redwings` accepts direct `#/find/<PNR>/<ACCESS_KEY>/Submit` routes, rejects already-opened order routes, writes private JSON/ICS artifacts with mode `0600`, and keeps PNR/access-key/passenger/ticket details out of stdout/stderr;
 - invalid alarms return a JSON `validation_error`, not a traceback;
 - stdout/stderr do not echo representative private values from the fixture.

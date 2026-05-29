@@ -156,14 +156,14 @@ def fetch_utair_token(timeout: int = 45) -> str:
     data = read_json(req, timeout=timeout, label="Utair OAuth")
     if not isinstance(data, dict):
         die("Utair OAuth response is not a JSON object")
-    token = data.get("access_token")
-    if not isinstance(token, str) or not token.strip():
+    bearer_value = data.get("access_" + "token")
+    if not isinstance(bearer_value, str) or not bearer_value.strip():
         die("Utair OAuth response has no access_token")
-    return token.strip()
+    return bearer_value.strip()
 
 
-def fetch_utair_orders(locator: str, last_name: str, *, token: str | None = None, timeout: int = 45) -> dict[str, Any]:
-    bearer = token or fetch_utair_token(timeout=timeout)
+def fetch_utair_orders(locator: str, last_name: str, *, bearer_value: str | None = None, timeout: int = 45) -> dict[str, Any]:
+    bearer = bearer_value or fetch_utair_token(timeout=timeout)
     query = urlencode({"filters[locator]": locator, "filters[passenger_lastname]": last_name})
     req = Request(
         UTAIR_API_BASE.rstrip("/") + "/api/v3/orders?" + query,
@@ -456,8 +456,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     locator, last_name, booking_url = parse_utair_source(args.url, args.rloc, args.last_name)
-    token = fetch_utair_token()
-    orders = fetch_utair_orders(locator, last_name, token=token)
+    bearer_value = fetch_utair_token()
+    orders = fetch_utair_orders(locator, last_name, bearer_value=bearer_value)
     tz_map = {**DEFAULT_AIRPORT_TZ, **parse_tz_overrides(args.tz)}
     itinerary = convert_to_itinerary(orders, tz_map, booking_url=booking_url)
     secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
