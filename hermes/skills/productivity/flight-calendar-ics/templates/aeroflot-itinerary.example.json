@@ -1,4 +1,5 @@
 {
+  "schema_version": "flight-calendar-ics-itinerary.v1",
   "calendar_name": "Aeroflot flights",
   "booking_reference": "ABC123",
   "passengers": [

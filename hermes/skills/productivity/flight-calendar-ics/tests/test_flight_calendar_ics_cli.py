@@ -27,6 +27,7 @@ MAKE = ROOT / "scripts" / "make_flight_ics.py"
 AEROFLOT = ROOT / "scripts" / "aeroflot_pnr_to_itinerary.py"
 TEMPLATE = ROOT / "templates" / "aeroflot-itinerary.example.json"
 SCHEMA = ROOT / "schemas" / "cli-envelope.v1.schema.json"
+ITINERARY_SCHEMA = ROOT / "schemas" / "itinerary.v1.schema.json"
 
 
 class FlightCalendarIcsCliContractTests(unittest.TestCase):
@@ -101,6 +102,36 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertIn("data", properties)
         self.assertIn("error", properties)
 
+    def test_itinerary_schema_documents_provider_agnostic_contract(self) -> None:
+        from jsonschema import Draft202012Validator
+
+        schema = json.loads(ITINERARY_SCHEMA.read_text(encoding="utf-8"))
+
+        Draft202012Validator.check_schema(schema)
+        self.assertEqual(schema["$id"], "https://hermes-agent.local/schemas/flight-calendar-ics-itinerary.v1.json")
+        self.assertEqual(schema["title"], "flight-calendar-ics canonical itinerary v1")
+        self.assertGreaterEqual(set(schema["required"]), {"schema_version", "flights"})
+        self.assertEqual(schema["properties"]["schema_version"]["const"], "flight-calendar-ics-itinerary.v1")
+        flight_segment = schema["$defs"]["flight_segment"]
+        self.assertGreaterEqual(set(flight_segment["required"]), {"flight_number", "departure", "arrival"})
+        endpoint = schema["$defs"]["airport_endpoint"]
+        self.assertGreaterEqual(set(endpoint["required"]), {"airport", "local", "tz"})
+        serialized = json.dumps(schema, ensure_ascii=False).lower()
+        for provider_name in ["aeroflot", "utair", "ural", "pnrkey", "last_name"]:
+            self.assertNotIn(provider_name, serialized)
+
+    def test_template_validates_against_canonical_itinerary_schema(self) -> None:
+        from jsonschema import Draft202012Validator
+
+        schema = json.loads(ITINERARY_SCHEMA.read_text(encoding="utf-8"))
+        data = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+        validator = Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
+
+        errors = sorted(validator.iter_errors(data), key=lambda error: list(error.path))
+
+        self.assertEqual(data["schema_version"], "flight-calendar-ics-itinerary.v1")
+        self.assertEqual(errors, [])
+
     def test_make_json_writes_private_ics_and_redacted_process_summary(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             output = Path(td) / "trip.ics"
@@ -116,7 +147,16 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             self.assertEqual([s["route"] for s in obj["data"]["segments"]], ["SVO->LED", "LED->SVO"])
             self.assertEqual(
                 [step["step"] for step in obj["process"]],
-                ["parse_args", "load_input", "build_calendar", "validate_ics", "write_output", "emit_json"],
+                [
+                    "parse_args",
+                    "load_input",
+                    "validate_itinerary_schema",
+                    "validate_itinerary_semantics",
+                    "build_calendar",
+                    "validate_ics",
+                    "write_output",
+                    "emit_json",
+                ],
             )
             combined_output = result.stdout + result.stderr
             for private_value in ["ABC123", "Ivan Ivanov", "5552400000000", "pnrKey"]:
@@ -132,8 +172,54 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertFalse(obj["data"]["write_performed"])
         self.assertEqual(
             [step["step"] for step in obj["process"]],
-            ["parse_args", "load_input", "build_calendar", "validate_ics", "no_write", "emit_json"],
+            [
+                "parse_args",
+                "load_input",
+                "validate_itinerary_schema",
+                "validate_itinerary_semantics",
+                "build_calendar",
+                "validate_ics",
+                "no_write",
+                "emit_json",
+            ],
         )
+
+    def test_validate_rejects_unknown_canonical_fields_before_calendar_build(self) -> None:
+        source = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+        source["unexpected_debug_payload"] = {"private": "SECRET1"}
+        with tempfile.TemporaryDirectory() as td:
+            input_path = Path(td) / "bad-extra.json"
+            input_path.write_text(json.dumps(source, ensure_ascii=False), encoding="utf-8")
+            result = self.run_cli("--json", "validate", "--input", str(input_path))
+
+        self.assertEqual(result.returncode, 2)
+        obj = self.parse_stdout_json(result)
+        self.assert_envelope(obj, ok=False, command="validate")
+        self.assertEqual(obj["error"]["code"], "validation_error")
+        self.assertIn("unexpected_debug_payload", obj["error"]["message"])
+        steps = [step["step"] for step in obj["process"]]
+        self.assertIn("validate_itinerary_schema", steps)
+        self.assertNotIn("build_calendar", steps)
+        combined_output = result.stdout + result.stderr
+        self.assertNotIn("SECRET1", combined_output)
+
+    def test_validate_rejects_missing_required_endpoint_timezone_at_schema_gate(self) -> None:
+        source = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+        source["flights"][0]["departure"].pop("tz")
+        with tempfile.TemporaryDirectory() as td:
+            input_path = Path(td) / "bad-missing-tz.json"
+            input_path.write_text(json.dumps(source, ensure_ascii=False), encoding="utf-8")
+            result = self.run_cli("--json", "validate", "--input", str(input_path))
+
+        self.assertEqual(result.returncode, 2)
+        obj = self.parse_stdout_json(result)
+        self.assert_envelope(obj, ok=False, command="validate")
+        self.assertEqual(obj["error"]["code"], "validation_error")
+        self.assertIn("flights[0].departure", obj["error"]["message"])
+        self.assertIn("tz", obj["error"]["message"])
+        steps = [step["step"] for step in obj["process"]]
+        self.assertIn("validate_itinerary_schema", steps)
+        self.assertNotIn("build_calendar", steps)
 
     def test_invalid_alarm_returns_machine_readable_validation_error(self) -> None:
         source = json.loads(TEMPLATE.read_text(encoding="utf-8"))
@@ -243,6 +329,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             self.assertEqual(rc, 0)
             self.assertEqual(stat.S_IMODE(output_json.stat().st_mode), 0o600)
             self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode), 0o600)
+            saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
+            self.assertEqual(saved_itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
 
     def test_ural_url_parser_decodes_tracking_redirect_without_local_env(self) -> None:
         spec = importlib.util.spec_from_file_location(
@@ -343,6 +431,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertTrue(output_ics.exists())
                 self.assertEqual(stat.S_IMODE(output_json.stat().st_mode), 0o600)
                 self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode), 0o600)
+                saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
+                self.assertEqual(saved_itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
                 self.assertEqual(data["segments_count"], 1)
                 self.assertEqual(data["segments"][0]["route"], "SVX->DME")
                 self.assertEqual(
@@ -352,6 +442,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                         "load_timezone_map",
                         "fetch_ural_reservation",
                         "convert_to_itinerary",
+                        "validate_itinerary_schema",
+                        "validate_itinerary_semantics",
                         "build_calendar",
                         "validate_ics",
                         "write_json",
@@ -461,6 +553,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertTrue(output_ics.exists())
                 self.assertEqual(stat.S_IMODE(output_json.stat().st_mode), 0o600)
                 self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode), 0o600)
+                saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
+                self.assertEqual(saved_itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
                 self.assertEqual(data["segments_count"], 1)
                 self.assertEqual(data["segments"][0]["route"], "SVX->KUF")
                 self.assertEqual(
@@ -471,6 +565,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                         "fetch_utair_token",
                         "fetch_utair_orders",
                         "convert_to_itinerary",
+                        "validate_itinerary_schema",
+                        "validate_itinerary_semantics",
                         "build_calendar",
                         "validate_ics",
                         "write_json",

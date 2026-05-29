@@ -465,6 +465,7 @@ def convert_to_itinerary(data_or_response: dict[str, Any], tz_map: dict[str, str
         die("no flight segments found in Ural Airlines response")
 
     return {
+        "schema_version": "flight-calendar-ics-itinerary.v1",
         "calendar_name": "Ural Airlines flights",
         "booking_reference": data.get("number"),
         "links": [booking_url] if booking_url else [],
