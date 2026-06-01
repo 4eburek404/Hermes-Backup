@@ -21,23 +21,12 @@ from urllib.error import HTTPError
 from urllib.parse import parse_qs, quote, urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
 
+import travelpayouts_airport_catalog as airport_catalog
+
 URAL_SERVICE_BASE = "https://service.uralairlines.ru/"
 DEFAULT_ENV_PATH = "/<version>/env/env.json"
 
-DEFAULT_AIRPORT_TZ = {
-    "DME": "Europe/Moscow",
-    "SVO": "Europe/Moscow",
-    "VKO": "Europe/Moscow",
-    "ZIA": "Europe/Moscow",
-    "LED": "Europe/Moscow",
-    "SVX": "Asia/Yekaterinburg",
-    "AER": "Europe/Moscow",
-    "KUF": "Europe/Samara",
-    "KZN": "Europe/Moscow",
-    "OVB": "Asia/Novosibirsk",
-    "TJM": "Asia/Yekaterinburg",
-    "UFA": "Asia/Yekaterinburg",
-}
+DEFAULT_AIRPORT_TZ: dict[str, str] = {}
 
 DEFAULT_AIRPORT_CITY = {
     "DME": "Москва",
@@ -489,7 +478,7 @@ def main(argv: list[str] | None = None) -> int:
 
     locator, last_name, booking_url = parse_ural_source(args.url, args.pnr, args.last_name)
     reservation = fetch_ural_reservation(locator, last_name, booking_url=booking_url)
-    tz_map = {**DEFAULT_AIRPORT_TZ, **parse_tz_overrides(args.tz)}
+    tz_map = airport_catalog.build_timezone_map(parse_tz_overrides(args.tz))
     itinerary = convert_to_itinerary(reservation, tz_map, booking_url=booking_url)
     args.output_json.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     fd = os.open(str(args.output_json), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
