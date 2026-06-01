@@ -8,7 +8,9 @@ A blocker-only review found issues after the initial CLI contract work had alrea
 
 1. The new CLI wrote private `.ics` files as owner-only, but compatibility helpers could still write private artifacts with default umask-derived permissions.
 2. `--json` command usage errors could bypass the machine-readable envelope because argparse parsing happened before the JSON-aware error handling path.
-3. The test suite initially covered the preferred CLI path more thoroughly than legacy/direct helper paths.
+3. A carrier-specific command can pass happy-path tests while still leaking credentials through usage/error messages if `redact()` does not understand that carrier's URL/secret shape.
+4. The CLI envelope schema can drift from real emitted envelopes (`doctor`, validation steps, unknown-command errors) unless tests validate actual outputs against `schemas/cli-envelope.v1.schema.json`.
+5. The test suite initially covered the preferred CLI path more thoroughly than legacy/direct helper paths.
 
 ## Durable review checklist
 
@@ -28,6 +30,15 @@ Before considering the skill clean:
   - `ok=false`
   - `error.code=usage_error`
   - no raw argparse usage text in stderr for agent-facing JSON mode
+- Validate representative *actual* CLI envelopes against `schemas/cli-envelope.v1.schema.json`, not just the schema file itself:
+  - `doctor --json` output, including metadata such as input-contract details;
+  - `validate --json` output, including process-step fields such as schema version;
+  - one usage/unknown-command error envelope (`command=unknown` when applicable).
+- When adding a carrier command, extend `redact()` and tests for that carrier's credential shape before GREEN:
+  - full manage-booking URL/hash route;
+  - named secret/access fields in argparse errors and exception strings;
+  - API payload snippets such as GraphQL `secret` fields;
+  - stdout/stderr/process JSON must not contain sentinel PNR/access/passenger/ticket values.
 - For validation failures with sensitive fixture values, assert stdout/stderr do not contain PNR, passenger names, ticket numbers, full booking URLs, or fixture sentinel strings.
 - Re-run the skill audit helper and require no blocker/warning findings before commit.
 - Run an independent blocker-only review after fixes, not only before fixes.
@@ -47,4 +58,6 @@ When a review finds a blocker:
 - Do not assume a new wrapper protects legacy helpers; direct helper invocation remains a public compatibility surface if documented or shipped.
 - Do not rely on process umask for privacy-sensitive travel artifacts.
 - Do not let `argparse.ArgumentParser.parse_args()` run outside the JSON-aware envelope path when `--json` is present.
+- Do not consider carrier support GREEN until both happy-path output and failure/error text are redaction-tested for that carrier's exact credential shape.
+- Do not trust schema-documentation tests alone; validate real CLI envelopes against the schema to catch drift in process/data fields.
 - Do not treat a clean runtime skill as source-complete; verify the source/backup repo copy separately after sync.
