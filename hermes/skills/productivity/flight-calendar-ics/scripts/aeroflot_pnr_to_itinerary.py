@@ -21,18 +21,14 @@ from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
 
+import travelpayouts_airport_catalog as airport_catalog
+
 AEROFLOT_BASE = "https://www.aeroflot.ru"
 AEROFLOT_PNR_API = AEROFLOT_BASE + "/se/api/app/pnr/view/v3"
 
-# Small safe default set. Add per trip with --tz CODE=Area/City when missing.
-DEFAULT_AIRPORT_TZ = {
-    "SVO": "Europe/Moscow",
-    "DME": "Europe/Moscow",
-    "VKO": "Europe/Moscow",
-    "ZIA": "Europe/Moscow",
-    "LED": "Europe/Moscow",
-    "SVX": "Asia/Yekaterinburg",
-}
+# Kept for old importers/tests, but intentionally empty: timezone defaults come
+# from the skill-bundled Travelpayouts airport catalog, not a manual fallback map.
+DEFAULT_AIRPORT_TZ: dict[str, str] = {}
 
 
 def secure_write_text(path: Path, text: str) -> None:
@@ -260,7 +256,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     locator, key, booking_url = parse_pnr_source(args.url, args.pnr_locator, args.pnr_key)
-    tz_map = {**DEFAULT_AIRPORT_TZ, **parse_tz_overrides(args.tz)}
+    tz_map = airport_catalog.build_timezone_map(parse_tz_overrides(args.tz))
     data = fetch_aeroflot_pnr(locator, key)
     itinerary = convert_to_itinerary(data, tz_map, booking_url=booking_url)
     secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
