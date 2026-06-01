@@ -14,7 +14,7 @@ python scripts/flight_calendar_ics.py --json make --input /path/to/itinerary.jso
 python scripts/flight_calendar_ics.py --json aeroflot --url '<Aeroflot PNR URL>' --output-json /private/dir/trip.input.json --output-ics /private/dir/trip.ics
 python scripts/flight_calendar_ics.py --json ural --url '<Ural Airlines manage-booking URL or tracker redirect>' --output-json /private/dir/trip.input.json --output-ics /private/dir/trip.ics
 python scripts/flight_calendar_ics.py --json utair --url '<Utair order-manage URL>' --output-json /private/dir/trip.input.json --output-ics /private/dir/trip.ics
-python scripts/flight_calendar_ics.py --json redwings --url '<Red Wings #/find/<PNR>/<ACCESS_KEY>/Submit URL>' --output-json /private/dir/trip.input.json --output-ics /private/dir/trip.ics
+python scripts/flight_calendar_ics.py --json redwings --url '<Red Wings /find/<PNR>/<ACCESS_KEY>/Submit URL>' --output-json /private/dir/trip.input.json --output-ics /private/dir/trip.ics
 ```
 
 Legacy helper scripts remain implementation modules and compatibility tools:
@@ -76,7 +76,6 @@ Contract rules:
 - stdout/stderr must not include PNR keys, passenger names, ticket numbers, or full booking URLs. Route, flight number, UTC times, segment count, and artifact paths are acceptable.
 - For Ural Airlines, normal use must not depend on a private local `.env` or copied `env.json`; the command fetches the carrier's current public frontend config and derives request headers at runtime.
 - For Utair, normal use obtains a public `client_credentials` token at runtime and then looks up orders through `GET /api/v3/orders`; bearer tokens, locators, surnames, passenger names, full booking URLs, and ticket numbers must not be printed.
-- For Red Wings, normal use requires the direct email/manage route `#/find/<PNR>/<ACCESS_KEY>/Submit`; the access key, PNR, full URL, passenger names, and ticket numbers must not be printed.
 - With `--json`, usage/argparse errors must also return this envelope with `ok=false` and `error.code=usage_error`; do not make agents scrape argparse human text.
 
 ## Internal CLI process

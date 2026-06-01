@@ -46,6 +46,39 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             timeout=20,
         )
 
+    def import_cli_module(self):
+        script_dir = str((ROOT / "scripts").resolve())
+        old_path = list(sys.path)
+        if script_dir not in sys.path:
+            sys.path.insert(0, script_dir)
+        try:
+            spec = importlib.util.spec_from_file_location("flight_calendar_ics_test", CLI)
+            self.assertIsNotNone(spec)
+            self.assertIsNotNone(spec.loader)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module
+        finally:
+            sys.path[:] = old_path
+
+    def import_script_module(self, filename: str, module_name: str | None = None):
+        script_dir = str((ROOT / "scripts").resolve())
+        old_path = list(sys.path)
+        if script_dir not in sys.path:
+            sys.path.insert(0, script_dir)
+        try:
+            spec = importlib.util.spec_from_file_location(
+                module_name or f"{Path(filename).stem}_test",
+                ROOT / "scripts" / filename,
+            )
+            self.assertIsNotNone(spec)
+            self.assertIsNotNone(spec.loader)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module
+        finally:
+            sys.path[:] = old_path
+
     def parse_stdout_json(self, result: subprocess.CompletedProcess[str]) -> dict:
         try:
             obj = json.loads(result.stdout)
@@ -57,7 +90,20 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertIsInstance(obj, dict)
         return obj
 
+    def assert_matches_cli_schema(self, obj: dict) -> None:
+        from jsonschema import Draft202012Validator
+
+        schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+        Draft202012Validator.check_schema(schema)
+        validator = Draft202012Validator(schema)
+        errors = sorted(validator.iter_errors(obj), key=lambda error: list(error.path))
+        self.assertEqual(
+            [],
+            [f"{'/'.join(map(str, error.absolute_path))}: {error.message}" for error in errors],
+        )
+
     def assert_envelope(self, obj: dict, *, ok: bool, command: str) -> None:
+        self.assert_matches_cli_schema(obj)
         self.assertEqual(obj.get("schema_version"), "flight-calendar-ics-cli.v1")
         self.assertEqual(obj.get("ok"), ok)
         self.assertEqual(obj.get("command"), command)
@@ -73,16 +119,6 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             self.assertIsInstance(obj.get("error"), dict)
             self.assertIsInstance(obj["error"].get("code"), str)
             self.assertIsInstance(obj["error"].get("message"), str)
-        self.assert_cli_schema_valid(obj)
-
-    def assert_cli_schema_valid(self, obj: dict) -> None:
-        from jsonschema import Draft202012Validator
-
-        schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
-        Draft202012Validator.check_schema(schema)
-        validator = Draft202012Validator(schema)
-        errors = sorted(validator.iter_errors(obj), key=lambda error: list(error.path))
-        self.assertEqual(errors, [])
 
     def test_doctor_json_describes_single_entrypoint_and_commands(self) -> None:
         result = self.run_cli("--json", "doctor")
@@ -92,10 +128,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assert_envelope(obj, ok=True, command="doctor")
         self.assertEqual(obj["data"]["entrypoint"], str(CLI))
         self.assertEqual(obj["data"]["entrypoint_kind"], "single-python-executable")
-        self.assertGreaterEqual(
-            set(obj["data"]["commands"]),
-            {"doctor", "validate", "make", "aeroflot", "ural", "utair", "redwings"},
-        )
+        self.assertGreaterEqual(set(obj["data"]["commands"]), {"doctor", "validate", "make", "aeroflot", "ural", "utair", "redwings"})
         self.assertIn("load_input", [step["step"] for step in obj["process"]])
         self.assertIn("emit_json", [step["step"] for step in obj["process"]])
 
@@ -284,12 +317,36 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             self.assertTrue(output.exists())
             self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
 
+    def test_provider_helpers_do_not_keep_manual_timezone_fallback_maps(self) -> None:
+        for filename in [
+            "aeroflot_pnr_to_itinerary.py",
+            "ural_airlines_to_itinerary.py",
+            "utair_to_itinerary.py",
+            "redwings_to_itinerary.py",
+        ]:
+            module = self.import_script_module(filename)
+            self.assertEqual(getattr(module, "DEFAULT_AIRPORT_TZ", {}), {}, filename)
+
+    def test_provider_timezone_map_uses_skill_bundled_travelpayouts_catalog_without_local_fallback(self) -> None:
+        module = self.import_cli_module()
+        catalog_path = ROOT / "assets" / "travelpayouts" / "airport_timezones.json"
+
+        catalog = module.load_travelpayouts_airport_timezones()
+        document = module.load_travelpayouts_airport_timezone_document()
+        tz_map = module.build_timezone_map({"KUF": "Asia/Shanghai"})
+
+        self.assertTrue(catalog_path.exists())
+        self.assertLess(catalog_path.stat().st_size, 1_000_000)
+        self.assertEqual(set(document), {"schema_version", "source", "source_files", "timezones"})
+        self.assertNotIn("city_code", catalog_path.read_text(encoding="utf-8"))
+        self.assertGreater(len(catalog), 1000)
+        self.assertEqual(catalog["KUF"], "Europe/Samara")
+        self.assertEqual(catalog["SVX"], "Asia/Yekaterinburg")
+        self.assertEqual(tz_map["KUF"], "Asia/Shanghai")
+        self.assertEqual(tz_map["SVX"], "Asia/Yekaterinburg")
+
     def test_legacy_aeroflot_helper_writes_private_artifacts_without_network(self) -> None:
-        spec = importlib.util.spec_from_file_location("aeroflot_pnr_to_itinerary_test", AEROFLOT)
-        self.assertIsNotNone(spec)
-        self.assertIsNotNone(spec.loader)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = self.import_script_module("aeroflot_pnr_to_itinerary.py", "aeroflot_pnr_to_itinerary_test")
 
         fake_response = {
             "pnr_locator": "ABC123",
@@ -505,14 +562,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             module.redwings.fetch_redwings_order = original_fetch
 
     def test_ural_url_parser_decodes_tracking_redirect_without_local_env(self) -> None:
-        spec = importlib.util.spec_from_file_location(
-            "ural_airlines_to_itinerary_test",
-            ROOT / "scripts" / "ural_airlines_to_itinerary.py",
-        )
-        self.assertIsNotNone(spec)
-        self.assertIsNotNone(spec.loader)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = self.import_script_module("ural_airlines_to_itinerary.py", "ural_airlines_to_itinerary_test")
 
         target = "https://service.uralairlines.ru/?pnr=ZZ9ZZZ&lastName=DOE"
         redirect = "https://tracker.example/click?u=https%3A%2F%2Fservice.uralairlines.ru%2F%3Fpnr%3DZZ9ZZZ%26lastName%3DDOE"
@@ -629,14 +679,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             module.ural.fetch_ural_reservation = original_fetch
 
     def test_utair_url_parser_handles_cyrillic_surname(self) -> None:
-        spec = importlib.util.spec_from_file_location(
-            "utair_to_itinerary_test",
-            ROOT / "scripts" / "utair_to_itinerary.py",
-        )
-        self.assertIsNotNone(spec)
-        self.assertIsNotNone(spec.loader)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = self.import_script_module("utair_to_itinerary.py", "utair_to_itinerary_test")
 
         url = "https://www.utair.ru/order-manage?rloc=zz9zzz&last_name=%D0%98%D0%92%D0%90%D0%9D%D0%9E%D0%92%D0%90&utm_source=mail"
 
@@ -696,9 +739,9 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             calls.append({"locator": locator, "last_name": last_name, **kwargs})
             return fake_response
 
-        original_fetch_auth = getattr(module.utair, "fetch_utair_" + "token")
+        original_fetch_token = module.utair.fetch_utair_token
         original_fetch_orders = module.utair.fetch_utair_orders
-        setattr(module.utair, "fetch_utair_" + "token", lambda: "fake-auth")
+        module.utair.fetch_utair_token = lambda: "fake-token"
         module.utair.fetch_utair_orders = fake_fetch
         try:
             with tempfile.TemporaryDirectory() as td:
@@ -720,7 +763,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertEqual(rc, 0)
                 self.assertEqual(calls[0]["locator"], "ZZ9ZZZ")
                 self.assertEqual(calls[0]["last_name"], "DOE")
-                self.assertEqual(calls[0]["bearer_value"], "fake-auth")
+                self.assertEqual(calls[0]["token"], "fake-token")
                 self.assertTrue(output_json.exists())
                 self.assertTrue(output_ics.exists())
                 self.assertEqual(stat.S_IMODE(output_json.stat().st_mode), 0o600)
@@ -746,7 +789,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                     ],
                 )
                 safe_output = json.dumps(data, ensure_ascii=False) + json.dumps(process, ensure_ascii=False)
-                for private_value in ["ZZ9ZZZ", "DOE", "JANE", "2980000000000", "fake-auth"]:
+                for private_value in ["ZZ9ZZZ", "DOE", "JANE", "2980000000000", "fake-token"]:
                     self.assertNotIn(private_value, safe_output)
                 ics_text = output_ics.read_text(encoding="utf-8")
                 self.assertIn("BEGIN:VCALENDAR", ics_text)
@@ -758,7 +801,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertIn("JANE DOE", unfolded_ics)
                 self.assertIn("2980000000000", unfolded_ics)
         finally:
-            setattr(module.utair, "fetch_utair_" + "token", original_fetch_auth)
+            module.utair.fetch_utair_token = original_fetch_token
             module.utair.fetch_utair_orders = original_fetch_orders
 
     def test_redact_masks_ural_booking_url_credentials(self) -> None:
@@ -799,7 +842,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         redacted = module.redact(
             "https://www.utair.ru/order-manage?rloc=ZZ9ZZZ&last_name=DOE "
             "filters%5Blocator%5D=ZZ9ZZZ&filters[passenger_lastname]=DOE "
-            "Authorization: " + "Bearer *** ticket=2980000000000"
+            "Authorization: Bearer secret-token ticket=2980000000000"
         )
 
         for private_value in ["ZZ9ZZZ", "DOE", "secret-token", "2980000000000"]:

@@ -20,6 +20,7 @@ from typing import Any, Callable
 import aeroflot_pnr_to_itinerary as aeroflot
 import itinerary_contract
 import make_flight_ics
+import travelpayouts_airport_catalog as airport_catalog
 import ural_airlines_to_itinerary as ural
 import utair_to_itinerary as utair
 import redwings_to_itinerary as redwings
@@ -124,6 +125,36 @@ def secure_write_text(path: Path, text: str) -> None:
             os.chmod(path, 0o600)
         except FileNotFoundError:
             pass
+
+
+def load_travelpayouts_airport_timezone_document(catalog_path: Path | None = None) -> dict[str, Any]:
+    """Load the bundled minimal Travelpayouts airport timezone catalog document."""
+    return airport_catalog.load_catalog_document(catalog_path)
+
+
+def load_travelpayouts_airport_timezones(catalog_path: Path | None = None) -> dict[str, str]:
+    """Load IATA -> IANA timezone data from the skill-bundled Travelpayouts asset."""
+    return airport_catalog.load_airport_timezones(catalog_path)
+
+
+def build_timezone_map(
+    overrides: dict[str, str] | None = None,
+    *,
+    catalog_path: Path | None = None,
+) -> dict[str, str]:
+    """Build timezone map: bundled Travelpayouts catalog < explicit --tz overrides."""
+    return airport_catalog.build_timezone_map(overrides, catalog_path=catalog_path)
+
+
+def add_timezone_map_step(process: list[dict[str, Any]], catalog_timezones: dict[str, str], overrides_count: int) -> None:
+    add_step(
+        process,
+        "load_timezone_map",
+        defaults_count=0,
+        catalog_source="skill-bundled-travelpayouts-airport-timezones",
+        catalog_timezones_count=len(catalog_timezones),
+        overrides_count=overrides_count,
+    )
 
 
 def safe_segment_summary(summary: dict[str, Any]) -> dict[str, Any]:
@@ -231,8 +262,10 @@ def aeroflot_segments(itinerary: dict[str, Any]) -> list[dict[str, Any]]:
 def command_aeroflot(args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
     locator, key, booking_url = aeroflot.parse_pnr_source(args.url, args.pnr_locator, args.pnr_key)
     add_step(process, "parse_pnr_source")
-    tz_map = {**aeroflot.DEFAULT_AIRPORT_TZ, **aeroflot.parse_tz_overrides(args.tz)}
-    add_step(process, "load_timezone_map", overrides_count=len(args.tz))
+    timezone_overrides = aeroflot.parse_tz_overrides(args.tz)
+    airport_catalog_timezones = load_travelpayouts_airport_timezones()
+    tz_map = build_timezone_map(timezone_overrides)
+    add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
     data = aeroflot.fetch_aeroflot_pnr(locator, key)
     add_step(process, "fetch_aeroflot_pnr")
     itinerary = aeroflot.convert_to_itinerary(data, tz_map, booking_url=booking_url)
@@ -263,8 +296,10 @@ def command_aeroflot(args: argparse.Namespace, process: list[dict[str, Any]]) ->
 def command_ural(args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
     locator, last_name, booking_url = ural.parse_ural_source(args.url, args.pnr, args.last_name)
     add_step(process, "parse_pnr_source")
-    tz_map = {**ural.DEFAULT_AIRPORT_TZ, **ural.parse_tz_overrides(args.tz)}
-    add_step(process, "load_timezone_map", overrides_count=len(args.tz))
+    timezone_overrides = ural.parse_tz_overrides(args.tz)
+    airport_catalog_timezones = load_travelpayouts_airport_timezones()
+    tz_map = build_timezone_map(timezone_overrides)
+    add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
     reservation = ural.fetch_ural_reservation(
         locator,
         last_name,
@@ -300,11 +335,13 @@ def command_ural(args: argparse.Namespace, process: list[dict[str, Any]]) -> tup
 def command_utair(args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
     locator, last_name, booking_url = utair.parse_utair_source(args.url, args.rloc, args.last_name)
     add_step(process, "parse_pnr_source")
-    tz_map = {**utair.DEFAULT_AIRPORT_TZ, **utair.parse_tz_overrides(args.tz)}
-    add_step(process, "load_timezone_map", overrides_count=len(args.tz))
-    bearer_value = utair.fetch_utair_token()
+    timezone_overrides = utair.parse_tz_overrides(args.tz)
+    airport_catalog_timezones = load_travelpayouts_airport_timezones()
+    tz_map = build_timezone_map(timezone_overrides)
+    add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
+    token = utair.fetch_utair_token()
     add_step(process, "fetch_utair_token")
-    orders = utair.fetch_utair_orders(locator, last_name, bearer_value=bearer_value)
+    orders = utair.fetch_utair_orders(locator, last_name, token=token)
     add_step(process, "fetch_utair_orders")
     itinerary = utair.convert_to_itinerary(orders, tz_map, booking_url=booking_url)
     add_step(process, "convert_to_itinerary", segments_count=len(itinerary.get("flights", [])))
@@ -334,8 +371,10 @@ def command_utair(args: argparse.Namespace, process: list[dict[str, Any]]) -> tu
 def command_redwings(args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
     locator, finder_code, booking_url = redwings.parse_redwings_source(args.url, args.pnr, args.access_code)
     add_step(process, "parse_redwings_source")
-    tz_map = {**redwings.DEFAULT_AIRPORT_TZ, **redwings.parse_tz_overrides(args.tz)}
-    add_step(process, "load_timezone_map", overrides_count=len(args.tz))
+    timezone_overrides = redwings.parse_tz_overrides(args.tz)
+    airport_catalog_timezones = load_travelpayouts_airport_timezones()
+    tz_map = build_timezone_map(timezone_overrides)
+    add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
     order = redwings.fetch_redwings_order(locator, finder_code, graphql_endpoint=args.graphql_endpoint)
     add_step(process, "fetch_redwings_order")
     itinerary = redwings.convert_to_itinerary(order, tz_map, booking_url=booking_url)
@@ -406,7 +445,6 @@ def build_parser() -> argparse.ArgumentParser:
     utair_parser.add_argument("--output-ics", type=Path, help="Optional .ics path to generate immediately")
     utair_parser.add_argument("--tz", action="append", default=[], help="Timezone override CODE=Area/City; repeatable")
     utair_parser.add_argument("--no-alarms", action="store_true", help="Do not add VALARM reminders")
-
     redwings_parser = sub.add_parser("redwings", help="Fetch a Red Wings/Websky booking and write standard itinerary JSON, optionally .ics")
     redwings_parser.add_argument("--url", help="Red Wings direct email/manage link shaped #/find/<PNR>/<ACCESS_KEY>/Submit")
     redwings_parser.add_argument("--pnr", help="Booking locator, if not using --url")

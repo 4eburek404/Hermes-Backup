@@ -17,34 +17,14 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, unquote, urlparse
 from urllib.request import Request, urlopen
 
+import travelpayouts_airport_catalog as airport_catalog
+
 REDWINGS_BOOKING_BASE = "https://flyredwings.com/booking/"
 REDWINGS_GRAPHQL_ENDPOINT = "https://wz.webskyx.com/graphql/query/nemo"
 
-DEFAULT_AIRPORT_TZ = {
-    "AER": "Europe/Moscow",
-    "CEK": "Asia/Yekaterinburg",
-    "DME": "Europe/Moscow",
-    "EGO": "Europe/Moscow",
-    "GOJ": "Europe/Moscow",
-    "HMA": "Asia/Yekaterinburg",
-    "KUF": "Europe/Samara",
-    "KZN": "Europe/Moscow",
-    "LED": "Europe/Moscow",
-    "MCX": "Europe/Moscow",
-    "MRV": "Europe/Moscow",
-    "NOZ": "Asia/Novokuznetsk",
-    "NSK": "Asia/Krasnoyarsk",
-    "NUX": "Asia/Yekaterinburg",
-    "OVB": "Asia/Novosibirsk",
-    "PEE": "Asia/Yekaterinburg",
-    "SGC": "Asia/Yekaterinburg",
-    "SVO": "Europe/Moscow",
-    "SVX": "Asia/Yekaterinburg",
-    "TJM": "Asia/Yekaterinburg",
-    "UFA": "Asia/Yekaterinburg",
-    "VKO": "Europe/Moscow",
-    "ZIA": "Europe/Moscow",
-}
+# Kept for old importers/tests, but intentionally empty: timezone defaults come
+# from the skill-bundled Travelpayouts airport catalog, not a manual fallback map.
+DEFAULT_AIRPORT_TZ: dict[str, str] = {}
 
 DEFAULT_AIRPORT_CITY = {
     "AER": "Сочи",
@@ -650,7 +630,7 @@ def main(argv: list[str] | None = None) -> int:
 
     locator, finder_code, booking_url = parse_redwings_source(args.url, args.pnr, args.finder_code)
     order = fetch_redwings_order(locator, finder_code, graphql_endpoint=args.graphql_endpoint)
-    tz_map = {**DEFAULT_AIRPORT_TZ, **parse_tz_overrides(args.tz)}
+    tz_map = airport_catalog.build_timezone_map(parse_tz_overrides(args.tz))
     itinerary = convert_to_itinerary(order, tz_map, booking_url=booking_url)
     secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
     print(json.dumps({"ok": True, "segments": len(itinerary["flights"]), "json": str(args.output_json)}, ensure_ascii=False))

@@ -4,15 +4,15 @@ Use this reference when maintaining or refactoring the skill itself, not during 
 
 ## Current disclosure shape
 
-`SKILL.md` is intentionally the quick-start and operational contract, but it can become too dense if every carrier implementation detail is kept there. Keep it progressive-disclosure oriented:
+`SKILL.md` is the small-model operating contract, not the carrier playbook. Keep it progressive-disclosure oriented and short enough that loading the skill does not crowd out the user's ticket data:
 
-- `SKILL.md`: trigger conditions, privacy rules, golden path, command matrix, minimal input shape, carrier entrypoints, quality bar, verification checklist.
+- `SKILL.md`: trigger conditions, explicit agent contract, carrier/source command matrix, privacy rules, failure rules, and verification checklist. It should let an agent classify the source, run one command, parse the envelope, verify, and send the file.
 - `references/agent-cli-contract.md`: full CLI JSON envelope contract, process traces, expected fields, command behavior.
 - Carrier references: API/SPA details, redirect parsing, live frontend discovery, response mapping, TDD case notes, and maintenance/debug detail for each airline.
 - `schemas/`: formal machine-readable contracts used by the CLI/tests.
 - `templates/`: copyable examples only, with fictional data.
 
-If a future update adds long carrier-specific troubleshooting, API field maps, or case-study history to `SKILL.md`, move that detail to `references/` and leave only a short pointer in the main file.
+If a future update adds long carrier-specific troubleshooting, API field maps, route/date/airport examples, provider-specific notes, or case-study history to `SKILL.md`, move that detail to `references/` and leave only a short command pointer in the main file.
 
 ## Schema model
 

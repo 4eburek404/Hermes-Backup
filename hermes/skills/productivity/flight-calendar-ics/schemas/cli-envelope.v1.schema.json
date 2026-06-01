@@ -26,8 +26,7 @@
         "aeroflot",
         "ural",
         "utair",
-        "redwings",
-        "unknown"
+        "redwings"
       ]
     },
     "process": {
@@ -55,6 +54,9 @@
           "reason": {
             "type": "string"
           },
+          "schema_version": {
+            "type": "string"
+          },
           "segments_count": {
             "type": "integer",
             "minimum": 0
@@ -74,7 +76,15 @@
             "type": "integer",
             "minimum": 0
           },
-          "schema_version": {
+          "defaults_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "catalog_timezones_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "catalog_source": {
             "type": "string"
           }
         }
@@ -144,7 +154,7 @@
           ],
           "properties": {
             "schema_version": {
-              "type": "string"
+              "const": "flight-calendar-ics-itinerary.v1"
             },
             "schema_path": {
               "type": "string"

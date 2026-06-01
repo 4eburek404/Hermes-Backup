@@ -69,7 +69,7 @@ Known useful examples from a verified case:
 - `KUF` / Samara Kurumoch: `Europe/Samara`.
 - `SVX` / Ekaterinburg Koltsovo: `Asia/Yekaterinburg`.
 
-Verify unknown airport timezones with `maps` or another trusted source.
+The dedicated CLI loads airport timezones from `assets/travelpayouts/airport_timezones.json`; verified explicit `--tz CODE=Area/City` overrides still win. Verify unknown airport timezones with `maps` or another trusted source.
 
 ## Privacy handling
 
