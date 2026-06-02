@@ -19,7 +19,7 @@ Static catalogs only normalize metadata; cached fare helpers do not validate sch
 
 ## When to Use
 
-Use for live flight search/comparison, direct-service checks, hub/airport choice, carrier-specific availability, baggage/ticketing/protection risk, date-window planning, or this CLI/report maintenance. Do not use for purchase actions, visa/hotel/ground research, or static fare hints unless explicitly requested as non-validated advisory data. Single-PNR/protection/baggage/fare-rule claims need purchase-screen/airline/GDS/seller/upstream proof.
+Use for live flight search/comparison, direct-service checks, hub/airport choice, carrier-specific availability, baggage/ticketing/protection risk, date-window planning, or this CLI/report maintenance. Also use it for immediate *travel-mode comparison follow-ups* after a flight search, such as “а поездом сколько стоит?” on the same route/dates: keep the answer as a cost/time comparison, not a full rail-booking workflow. Do not use for purchase actions, visa/hotel/ground research, or static fare hints unless explicitly requested as non-validated advisory data. Single-PNR/protection/baggage/fare-rule claims need purchase-screen/airline/GDS/seller/upstream proof.
 
 ## Maintenance Mode Gate
 
@@ -27,6 +27,7 @@ Default is traveler route search. Do not inspect source/runtime, raw candidates,
 
 ## Golden Path
 
+0. If the user follows up on a completed flight search with a non-flight price comparison (especially rail: “а поездом сколько?”), do a bounded adjacent comparison instead of rerunning the flight frontier. For Russian rail, use `references/rail-rzd-live-pricing.md` as the canonical bounded rail reference: resolve station codes, query both directions by exact dates through official RZD/pass.rzd, calculate round-trip minima by class, then compare against the already-found flight total with travel-time trade-off. Do not create or rely on an external docs file for this rail source policy.
 1. Normalize exact dates, route scope, named airports, carrier, stops, baggage, timing, ticketing intent, profile. Preserve named airports (`IST`, `SVO`, `DME`). Arrival deadline without departure date: search latest plausible departure first, then previous date; default “morning” to before local noon. Treat “avoid Moscow” as soft ranking unless explicit hard filter.
 2. Classify market before absence claims: RU domestic, RU-touching international, global non-RU, structurally constrained, or carrier-specific.
 3. Run from runtime skill CLI:
@@ -93,10 +94,11 @@ Add `--return-date YYYY-MM-DD` for round trips. Add `--aggregate-control-carrier
 
 ## References
 
-- Canonical active references are bounded to five logical directions:
+- Canonical active references are bounded to five core flight-search directions, plus bounded adjacent-mode notes when a flight session expands into direct travel-mode comparison:
   - `references/report-contract.md` — `agent_report` read order and final answer renderer contract.
   - `references/source-boundaries.md` — evidence classes, absence, airport/connection boundaries, ticketing, OTA/smart-route semantics.
   - `references/provider-aware-airport-priority.md` — provider/airport dispatch and city-code policy.
   - `references/debug-playbook.md` — targeted probes and route-family exception patterns.
   - `references/cli-maintenance.md` — source/runtime, schema/tests, sync, generated artifacts, and reference lifecycle.
-- Do not add per-incident/audit/handoff reference files by default; distill durable rules into the five files above or into tests, and leave raw history to session search.
+  - `references/rail-rzd-live-pricing.md` — RZD public endpoint/RID workflow for bounded train-price comparisons after a flight search.
+- Do not add per-incident/audit/handoff reference files by default; distill durable rules into the files above or into tests, and leave raw history to session search.
