@@ -401,6 +401,116 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertEqual(tz_map["KUF"], "Asia/Shanghai")
         self.assertEqual(tz_map["SVX"], "Asia/Yekaterinburg")
 
+    def test_aeroflot_parser_accepts_spa_fragment_deeplink(self) -> None:
+        module = self.import_script_module("aeroflot_pnr_to_itinerary.py", "aeroflot_pnr_to_itinerary_test")
+        key = "a" * 128
+        url = f"https://www.aeroflot.ru/sb/pnr/app/ru-ru#/pnr?pnr_key={key}&pnr_locator=ABC123"
+
+        locator, parsed_key, booking_url = module.parse_pnr_source(url, None, None)
+
+        self.assertEqual(locator, "ABC123")
+        self.assertEqual(parsed_key, key)
+        self.assertEqual(booking_url, url)
+
+    def test_aeroflot_name_search_generates_deeplink_without_browser_automation(self) -> None:
+        module = self.import_script_module("aeroflot_pnr_to_itinerary.py", "aeroflot_pnr_to_itinerary_test")
+        calls: list[dict] = []
+
+        def fake_post(payload: dict, *, timeout: int = 45, referer: str | None = None) -> dict:
+            calls.append({"payload": payload.copy(), "timeout": timeout, "referer": referer})
+            return {"success": True, "data": {"pnr_locator": payload["pnr_locator"], "pnr_key": "b" * 128}}
+
+        original_post = getattr(module, "post_aeroflot_pnr_json", None)
+        setattr(module, "post_aeroflot_pnr_json", fake_post)
+        try:
+            locator, key, booking_url = module.fetch_aeroflot_pnr_key_by_name(
+                "abc123",
+                "Ivanov",
+                first_name="",
+                timeout=7,
+            )
+        finally:
+            if original_post is None:
+                delattr(module, "post_aeroflot_pnr_json")
+            else:
+                setattr(module, "post_aeroflot_pnr_json", original_post)
+
+        self.assertEqual(locator, "ABC123")
+        self.assertEqual(key, "b" * 128)
+        self.assertEqual(
+            booking_url,
+            "https://www.aeroflot.ru/sb/pnr/app/ru-ru#/pnr?"
+            + "pnr_key="
+            + "b" * 128
+            + "&pnr_locator=ABC123",
+        )
+        self.assertEqual(
+            calls,
+            [
+                {
+                    "payload": {
+                        "pnr_locator": "ABC123",
+                        "last_name": "Ivanov",
+                        "first_name": "",
+                        "lang": "ru",
+                        "country": "ru",
+                    },
+                    "timeout": 7,
+                    "referer": "https://www.aeroflot.ru/sb/pnr/app/ru-ru#/search",
+                }
+            ],
+        )
+
+    def test_aeroflot_name_search_retries_with_first_name_when_surname_is_ambiguous(self) -> None:
+        module = self.import_script_module("aeroflot_pnr_to_itinerary.py", "aeroflot_pnr_to_itinerary_test")
+        calls: list[dict] = []
+
+        def fake_post(payload: dict, *, timeout: int = 45, referer: str | None = None) -> dict:
+            calls.append(payload.copy())
+            if len(calls) == 1:
+                return {"success": False, "error": {"type": "PassengerAmbiguous"}}
+            return {"success": True, "data": {"pnr_locator": payload["pnr_locator"], "pnr_key": "c" * 128}}
+
+        original_post = getattr(module, "post_aeroflot_pnr_json", None)
+        setattr(module, "post_aeroflot_pnr_json", fake_post)
+        try:
+            locator, key, booking_url = module.fetch_aeroflot_pnr_key_by_name(
+                "ABC123",
+                "Ivanov",
+                first_name="Ivan",
+            )
+        finally:
+            if original_post is None:
+                delattr(module, "post_aeroflot_pnr_json")
+            else:
+                setattr(module, "post_aeroflot_pnr_json", original_post)
+
+        self.assertEqual(locator, "ABC123")
+        self.assertEqual(key, "c" * 128)
+        self.assertIn("#/pnr?", booking_url)
+        self.assertEqual(calls[0]["first_name"], "")
+        self.assertEqual(calls[1]["first_name"], "Ivan")
+
+    def test_aeroflot_cli_accepts_locator_and_surname_without_existing_pnr_key(self) -> None:
+        module = self.import_cli_module()
+        parser = module.build_parser()
+
+        args = parser.parse_args(
+            [
+                "aeroflot",
+                "--pnr-locator",
+                "ABC123",
+                "--last-name",
+                "Ivanov",
+                "--output-json",
+                "/tmp/aeroflot.json",
+            ]
+        )
+
+        self.assertEqual(args.pnr_locator, "ABC123")
+        self.assertEqual(args.last_name, "Ivanov")
+        self.assertIsNone(args.pnr_key)
+
     def test_legacy_aeroflot_helper_writes_private_artifacts_without_network(self) -> None:
         module = self.import_script_module("aeroflot_pnr_to_itinerary.py", "aeroflot_pnr_to_itinerary_test")
 

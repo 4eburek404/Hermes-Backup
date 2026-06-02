@@ -51,13 +51,25 @@ OUT_DIR="$(mktemp -d /tmp/flight-ics.XXXXXX)"
 
 ## Command Matrix
 
-### Aeroflot / SU / URL has `pnrKey` + `pnrLocator`
+### Aeroflot / SU / URL has `pnrKey` + `pnrLocator`, or PDF/email has PNR + surname
 
 Use this CLI command directly. Do **not** call `web_extract` or scrape the URL first; the URL parameters are booking credentials and the CLI handles the Aeroflot API/redaction path.
+
+If a direct Aeroflot manage-booking URL already exists:
 
 ```bash
 python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json aeroflot \
   --url '<AEROFLOT_MANAGE_BOOKING_URL>' \
+  --output-json "$OUT_DIR/itinerary.json" \
+  --output-ics "$OUT_DIR/flights.ics" | tee "$OUT_DIR/envelope.json"
+```
+
+If only PNR + passenger surname are available, let the CLI generate `pnr_key` through the Aeroflot SPA API; add `--first-name` only when surname search is ambiguous:
+
+```bash
+python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json aeroflot \
+  --pnr-locator '<PNR>' \
+  --last-name '<SURNAME>' \
   --output-json "$OUT_DIR/itinerary.json" \
   --output-ics "$OUT_DIR/flights.ics" | tee "$OUT_DIR/envelope.json"
 ```
@@ -127,6 +139,7 @@ Open these only when needed:
 
 - `references/process-and-data-flow.md` — maintenance overview: data layers, flow diagram, command/module decomposition.
 - `references/pdf-attachment-layout-extraction.md` — cached PDF/document attachment lookup and Aeroflot-style layout disambiguation notes.
+- `references/aeroflot-pnr-surname-deeplink.md` — programmatically generate Aeroflot direct booking URLs from PNR + surname by calling the SPA PNR API and constructing `#/pnr?pnr_key=...&pnr_locator=...`.
 - `references/agent-cli-contract.md` — full JSON envelope, process traces, safety contract, test contract.
 - `references/agent-contract-distillation.md` — maintenance rule: keep `SKILL.md` short for small/free models; put provider/API detail in references.
 - `references/canonical-itinerary-contract.md` and `references/canonical-itinerary-schema.md` — provider-agnostic input model.
