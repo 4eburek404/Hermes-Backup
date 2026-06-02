@@ -260,7 +260,13 @@ def aeroflot_segments(itinerary: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def command_aeroflot(args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
-    locator, key, booking_url = aeroflot.parse_pnr_source(args.url, args.pnr_locator, args.pnr_key)
+    locator, key, booking_url = aeroflot.resolve_pnr_source(
+        args.url,
+        args.pnr_locator,
+        args.pnr_key,
+        args.last_name,
+        args.first_name,
+    )
     add_step(process, "parse_pnr_source")
     timezone_overrides = aeroflot.parse_tz_overrides(args.tz)
     airport_catalog_timezones = load_travelpayouts_airport_timezones()
@@ -422,6 +428,8 @@ def build_parser() -> argparse.ArgumentParser:
     aero.add_argument("--url", help="Aeroflot PNR share URL containing pnrKey and pnrLocator")
     aero.add_argument("--pnr-locator", help="Booking locator, if not using --url")
     aero.add_argument("--pnr-key", help="PNR key, if not using --url")
+    aero.add_argument("--last-name", help="Passenger surname; used to generate pnr_key when --pnr-key/--url is absent")
+    aero.add_argument("--first-name", help="Passenger first name fallback for ambiguous surname searches")
     aero.add_argument("--output-json", required=True, type=Path, help="Where to write itinerary JSON")
     aero.add_argument("--output-ics", type=Path, help="Optional .ics path to generate immediately")
     aero.add_argument("--tz", action="append", default=[], help="Timezone override CODE=Area/City; repeatable")
