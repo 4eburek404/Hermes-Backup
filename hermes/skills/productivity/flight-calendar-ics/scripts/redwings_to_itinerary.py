@@ -379,9 +379,8 @@ def passenger_name(traveller: dict[str, Any]) -> str | None:
     if clean(direct):
         return str(direct).strip()
     first = traveller_value(traveller, "FirstName", "LatinFirstName", "firstname", "first_name")
-    middle = traveller_value(traveller, "MiddleName", "LatinMiddleName", "middlename", "middle_name")
     last = traveller_value(traveller, "LastName", "LatinLastName", "lastname", "last_name", "surname")
-    parts = [first, middle, last]
+    parts = [last, first]
     name = " ".join(part for part in parts if part)
     return name or None
 

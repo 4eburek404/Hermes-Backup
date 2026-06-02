@@ -27,6 +27,82 @@ import redwings_to_itinerary as redwings
 
 SCHEMA_VERSION = "flight-calendar-ics-cli.v1"
 COMMANDS = ["doctor", "validate", "make", "aeroflot", "ural", "utair", "redwings"]
+AGENT_CONTRACT: dict[str, Any] = {
+    "normal_steps": [
+        {
+            "id": "collect_source",
+            "instruction": "Use explicit evidence or already-supplied attachments/cache; do not ask again for retrievable ticket data.",
+        },
+        {
+            "id": "run_one_command",
+            "instruction": "Create a private temp output directory and run exactly one --json command from dispatch_matrix.",
+        },
+        {
+            "id": "verify",
+            "instruction": "Parse the JSON envelope and verify schema_version, ok=true, segment count, private artifacts, UTC Z timestamps, and no placeholders.",
+        },
+        {
+            "id": "deliver",
+            "instruction": "Send MEDIA:/absolute/path/flights.ics with a safe summary only.",
+        },
+    ],
+    "dispatch_matrix": [
+        {
+            "source": "canonical_itinerary_json_or_manual_normalization",
+            "command": "make",
+            "argv_template": [
+                "--json", "make", "--input", "<PATH_TO_ITINERARY_JSON>", "--output", "<OUT_DIR>/flights.ics",
+            ],
+        },
+        {
+            "source": "aeroflot_url_or_pnr_plus_surname",
+            "command": "aeroflot",
+            "argv_template": [
+                "--json", "aeroflot", "--url", "<AEROFLOT_MANAGE_BOOKING_URL>",
+                "--output-json", "<OUT_DIR>/itinerary.json", "--output-ics", "<OUT_DIR>/flights.ics",
+            ],
+            "alternate_argv_template": [
+                "--json", "aeroflot", "--pnr-locator", "<PNR>", "--last-name", "<SURNAME>",
+                "--output-json", "<OUT_DIR>/itinerary.json", "--output-ics", "<OUT_DIR>/flights.ics",
+            ],
+            "notes": ["Add --first-name only for ambiguous surname lookup."],
+        },
+        {
+            "source": "ural_manage_booking_url_or_tracker_redirect",
+            "command": "ural",
+            "argv_template": [
+                "--json", "ural", "--url", "<URAL_MANAGE_BOOKING_OR_TRACKER_URL>",
+                "--output-json", "<OUT_DIR>/itinerary.json", "--output-ics", "<OUT_DIR>/flights.ics",
+            ],
+        },
+        {
+            "source": "utair_order_manage_url",
+            "command": "utair",
+            "argv_template": [
+                "--json", "utair", "--url", "<UTAIR_ORDER_MANAGE_URL>",
+                "--output-json", "<OUT_DIR>/itinerary.json", "--output-ics", "<OUT_DIR>/flights.ics",
+            ],
+        },
+        {
+            "source": "redwings_direct_find_url",
+            "command": "redwings",
+            "argv_template": [
+                "--json", "redwings", "--url", "<RED_WINGS_FIND_URL>",
+                "--output-json", "<OUT_DIR>/itinerary.json", "--output-ics", "<OUT_DIR>/flights.ics",
+            ],
+            "anti_path": "Do not infer access keys from PNR/surname or already-opened order pages.",
+        },
+    ],
+    "verification": {
+        "envelope": ["schema_version=flight-calendar-ics-cli.v1", "ok=true", "data.segments_count>=1"],
+        "ics": ["exists", "0600", "BEGIN:VCALENDAR", "VEVENT count equals segments_count", "UTC DTSTART/DTEND ending Z", "no TBD/UNKNOWN/None"],
+    },
+    "privacy": {
+        "chat_summary_must_omit": [
+            "no_pnr_keys", "no_full_booking_urls", "no_passenger_names", "no_ticket_numbers", "no_document_contact_or_payment_data",
+        ]
+    },
+}
 
 
 class CliFailure(Exception):
@@ -220,6 +296,7 @@ def command_doctor(_args: argparse.Namespace, process: list[dict[str, Any]]) -> 
             "schema_path": str(itinerary_contract.SCHEMA_PATH),
         },
         "sensitive_stdout_policy": "route/timestamp summaries only; no PNR keys, passenger names, ticket numbers, or full booking URLs",
+        "agent_contract": AGENT_CONTRACT,
     }
     return 0, data
 
@@ -260,7 +337,13 @@ def aeroflot_segments(itinerary: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def command_aeroflot(args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
-    locator, key, booking_url = aeroflot.parse_pnr_source(args.url, args.pnr_locator, args.pnr_key)
+    locator, key, booking_url = aeroflot.resolve_pnr_source(
+        args.url,
+        args.pnr_locator,
+        args.pnr_key,
+        args.last_name,
+        args.first_name,
+    )
     add_step(process, "parse_pnr_source")
     timezone_overrides = aeroflot.parse_tz_overrides(args.tz)
     airport_catalog_timezones = load_travelpayouts_airport_timezones()
@@ -422,6 +505,8 @@ def build_parser() -> argparse.ArgumentParser:
     aero.add_argument("--url", help="Aeroflot PNR share URL containing pnrKey and pnrLocator")
     aero.add_argument("--pnr-locator", help="Booking locator, if not using --url")
     aero.add_argument("--pnr-key", help="PNR key, if not using --url")
+    aero.add_argument("--last-name", help="Passenger surname; used to generate pnr_key when --pnr-key/--url is absent")
+    aero.add_argument("--first-name", help="Passenger first name fallback for ambiguous surname searches")
     aero.add_argument("--output-json", required=True, type=Path, help="Where to write itinerary JSON")
     aero.add_argument("--output-ics", type=Path, help="Optional .ics path to generate immediately")
     aero.add_argument("--tz", action="append", default=[], help="Timezone override CODE=Area/City; repeatable")
