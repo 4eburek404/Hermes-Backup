@@ -344,7 +344,7 @@ def local_datetime(value: Any) -> str:
 def passenger_names(data: dict[str, Any]) -> list[str]:
     names: list[str] = []
     for pax in data.get("passengers") or []:
-        parts = [pax.get("firstName"), pax.get("middleName"), pax.get("surname")]
+        parts = [pax.get("surname"), pax.get("firstName")]
         name = " ".join(str(item).strip() for item in parts if clean(item))
         if name:
             names.append(name)

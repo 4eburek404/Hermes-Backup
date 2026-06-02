@@ -180,6 +180,36 @@ def add_if(parts: list[str], label: str, value: Any) -> None:
         parts.append(f"{label}: {str(value).strip()}")
 
 
+def endpoint_city(endpoint: dict[str, Any], fallback_airport: str) -> str:
+    if not is_placeholder(endpoint.get("city")):
+        return str(endpoint.get("city")).strip()
+    return fallback_airport.strip().upper()
+
+
+def segment_route_time_label(dep_dt: dt.datetime, arr_dt: dt.datetime, dep_city: str, arr_city: str, *, separator: str) -> str:
+    return f"{dep_dt:%d.%m} {dep_city} {separator} {arr_city} {dep_dt:%H:%M} {arr_dt:%H:%M}"
+
+
+def primary_passenger_label(passengers: list[str]) -> str:
+    return passengers[0].strip() if passengers else ""
+
+
+def format_ticket_number(value: Any) -> str:
+    raw_parts = normalize_list(value)
+    formatted: list[str] = []
+    for raw in raw_parts:
+        for part in re.split(r"\s*,\s*", raw):
+            text = part.strip()
+            if not text:
+                continue
+            digits = re.sub(r"\s+", "", text)
+            if digits.isdigit() and len(digits) > 3:
+                formatted.append(f"{digits[:3]} {digits[3:]}")
+            else:
+                formatted.append(text)
+    return ", ".join(formatted)
+
+
 def build_event(
     flight: dict[str, Any],
     *,
@@ -208,46 +238,28 @@ def build_event(
             f"({utc_stamp(dep_dt)} -> {utc_stamp(arr_dt)})"
         )
 
-    carrier = str(flight.get("carrier") or "").strip()
-    summary = f"{flight_number} {dep_airport}→{arr_airport}"
-    if carrier:
-        summary += f" ({carrier})"
-
     booking_reference = flight.get("pnr") or calendar.get("booking_reference")
     passengers = normalize_list(flight.get("passengers") or calendar.get("passengers"))
     links = normalize_list(flight.get("links") or flight.get("url") or calendar.get("links"))
-
-    route_parts = []
-    dep_bits = [dep_airport]
-    arr_bits = [arr_airport]
-    if not is_placeholder(dep.get("city")):
-        dep_bits.append(str(dep.get("city")).strip())
-    if not is_placeholder(dep.get("terminal")):
-        dep_bits.append(f"terminal {str(dep.get('terminal')).strip()}")
-    if not is_placeholder(arr.get("city")):
-        arr_bits.append(str(arr.get("city")).strip())
-    if not is_placeholder(arr.get("terminal")):
-        arr_bits.append(f"terminal {str(arr.get('terminal')).strip()}")
-    route_parts.append("Departure: " + ", ".join(dep_bits))
-    route_parts.append("Arrival: " + ", ".join(arr_bits))
+    ticket_number = format_ticket_number(flight.get("ticket_number") or calendar.get("ticket_number"))
+    dep_city = endpoint_city(dep, dep_airport)
+    arr_city = endpoint_city(arr, arr_airport)
+    title_route = segment_route_time_label(dep_dt, arr_dt, dep_city, arr_city, separator="-")
+    description_route = segment_route_time_label(dep_dt, arr_dt, dep_city, arr_city, separator="->")
+    passenger = primary_passenger_label(passengers)
+    summary = " ".join(part for part in [passenger, title_route] if part)
+    location = f"{dep_city} → {arr_city}"
 
     desc: list[str] = []
-    add_if(desc, "Flight", f"{carrier + ' ' if carrier else ''}{flight_number}")
-    add_if(desc, "Route", f"{dep_airport} → {arr_airport}")
-    desc.extend(route_parts)
-    add_if(desc, "Departure local", display_dt(dep_dt, dep_tz))
-    add_if(desc, "Arrival local", display_dt(arr_dt, arr_tz))
-    add_if(desc, "Booking reference/PNR", booking_reference)
-    add_if(desc, "Passengers", passengers)
-    add_if(desc, "Ticket number", flight.get("ticket_number") or calendar.get("ticket_number"))
-    add_if(desc, "Seat", flight.get("seat"))
-    add_if(desc, "Baggage", flight.get("baggage"))
-    add_if(desc, "Cabin", flight.get("cabin"))
-    add_if(desc, "Fare", flight.get("fare"))
-    add_if(desc, "Aircraft", flight.get("aircraft"))
-    add_if(desc, "Status", flight.get("status") or "confirmed")
-    add_if(desc, "Notes", flight.get("notes") or calendar.get("notes"))
-    add_if(desc, "Links", links)
+    if not is_placeholder(booking_reference):
+        desc.append(f"PNR: {str(booking_reference).strip()}")
+    if ticket_number:
+        desc.append(f"Билет: {ticket_number}")
+    desc.append(description_route)
+    if not is_placeholder(flight.get("aircraft")):
+        desc.append(f"Самолет: {str(flight.get('aircraft')).strip()}")
+    if links:
+        desc.append(f"Бронирование: {links[0]}")
     description = "\n".join(desc)
 
     raw_status = str(flight.get("status") or "confirmed").strip().lower()
@@ -266,7 +278,7 @@ def build_event(
         prop("CREATED", utc_stamp(now_utc)),
         prop("LAST-MODIFIED", utc_stamp(now_utc)),
         prop("SUMMARY", summary),
-        prop("LOCATION", f"{dep_airport} → {arr_airport}"),
+        prop("LOCATION", location),
         prop("DESCRIPTION", description),
         prop("DTSTART", utc_stamp(dep_dt)),
         prop("DTEND", utc_stamp(arr_dt)),
@@ -282,7 +294,7 @@ def build_event(
             [
                 "BEGIN:VALARM",
                 prop("ACTION", "DISPLAY"),
-                prop("DESCRIPTION", f"Flight {flight_number} {dep_airport}→{arr_airport}"),
+                prop("DESCRIPTION", f"Flight {flight_number} {dep_city}→{arr_city}"),
                 prop("TRIGGER", duration_trigger(int(minutes))),
                 "END:VALARM",
             ]

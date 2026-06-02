@@ -141,7 +141,7 @@ def first_ticket_number(data: dict[str, Any]) -> str | None:
 def passenger_names(data: dict[str, Any]) -> list[str]:
     names: list[str] = []
     for pax in data.get("passengers") or []:
-        name = " ".join(str(x) for x in [pax.get("first_name"), pax.get("last_name")] if x)
+        name = " ".join(str(x) for x in [pax.get("last_name"), pax.get("first_name")] if x)
         if name:
             names.append(name)
     return names
