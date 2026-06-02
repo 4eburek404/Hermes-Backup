@@ -1,7 +1,7 @@
 ---
 name: flight-calendar-ics
 description: Use when creating importable .ics calendar files from airline booking links, tickets, itinerary JSON, PDFs, emails, screenshots, or manually supplied flight segments.
-version: 1.4.3
+version: 1.4.4
 author: Hermes Agent
 license: MIT
 metadata:
@@ -14,167 +14,77 @@ metadata:
 
 ## Overview
 
-Create importable `.ics` files from flight booking/ticket data. The default agent surface is one CLI:
+Create an importable `.ics` from flight evidence. The normal path is the single CLI:
 
 ```bash
 python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json <command> ...
 ```
 
-The agent's job is deliberately small: classify the source, run the matching CLI command, parse the JSON envelope, verify the `.ics`, and send it to chat. Do **not** reason through airline APIs or scrape helper stdout in the normal path. Open references only when a command fails, a carrier has no subcommand, or manual normalization is required.
-
-If the user asks to insert events directly into Google Calendar rather than receive an `.ics` file, first generate/validate the itinerary here, then load `google-workspace`.
+Do not reason through carrier APIs in `SKILL.md`. First ask the CLI for its machine-readable runbook/dispatch matrix; open references only for failures, manual normalization, or maintenance.
 
 ## When to Use
 
-Use this skill when the user asks for a calendar/ICS file from:
+Use this skill for airline booking links, ticket PDFs, route receipts, emails, screenshots, pasted flight segments, or canonical itinerary JSON.
 
-- an airline manage-booking link;
-- ticket/route receipt PDF, email text, screenshot, or pasted itinerary;
-- existing canonical itinerary JSON;
-- manual flight segments.
+Do not use it for flight search, fare comparison, or route planning; load `flight-search`. If the user wants direct Google Calendar insertion, first generate/validate the itinerary here, then load `google-workspace`.
 
-Do **not** use it for flight search, fare comparison, or route planning; load `flight-search` instead. Do not invent missing calendar-critical fields: flight number, local departure/arrival time, airport, timezone, or arrival date.
+## Golden Path
 
-## Agent Contract
+1. **Prepare evidence and workspace.** If the user already sent a PDF/email/screenshot/link in this conversation, inspect or reuse that source before asking again for PNR, surname, route, or times.
 
-1. Set paths from the skill loader and keep artifacts private:
+   ```bash
+   SKILL_DIR='<skill_dir returned by skill_view>'
+   OUT_DIR="$(mktemp -d /tmp/flight-ics.XXXXXX)"
+   python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json doctor > "$OUT_DIR/doctor.json"
+   ```
 
-```bash
-SKILL_DIR='<skill_dir returned by skill_view>'
-OUT_DIR="$(mktemp -d /tmp/flight-ics.XXXXXX)"
-```
+2. **Run exactly one CLI command.** Pick one command from `doctor.json` → `data.agent_contract.dispatch_matrix`; write private artifacts into `$OUT_DIR`; save stdout as `$OUT_DIR/envelope.json`.
 
-2. Determine the carrier/source from explicit evidence: URL domain, carrier name, flight prefix, or user-provided itinerary JSON. Pick **one** relevant route through the command matrix; do not try multiple carriers/helpers opportunistically. If carrier is unclear but a valid itinerary JSON is available, use `make`. If required fields are missing, ask for the ticket/PDF/email text instead of guessing.
-3. Run exactly one dispatch command from `## Command Matrix` with `--json`. Save stdout to `$OUT_DIR/envelope.json`; write private JSON/ICS artifacts into `$OUT_DIR`. If that route fails because the source was misclassified, stop with the JSON error and ask for missing evidence; switch routes only after new explicit evidence, not as a surprise fallback.
-4. Verify before delivery. Require: `schema_version=flight-calendar-ics-cli.v1`, `ok=true`, expected `command`, `data.segments_count >= 1`, output `.ics` exists, `BEGIN:VCALENDAR`, one `BEGIN:VEVENT` per segment, UTC `DTSTART`/`DTEND` values ending in `Z`, no placeholders such as `TBD`/`UNKNOWN`/`None`, and private JSON/ICS artifact mode `0600` when applicable. For carrier commands, `process[].step=load_timezone_map` should report `catalog_source=skill-bundled-travelpayouts-airport-timezones`, `defaults_count=0`, `catalog_timezones_count > 0`, and explicit `--tz` overrides when provided.
-5. Deliver only after verification: `MEDIA:/absolute/path/flights.ics`. In chat, summarize segment count and safe route/timing only. Do not repeat PNR keys, full booking URLs, passenger names, document/contact data, ticket numbers, fare/payment data, generated API headers, or bearer tokens.
+   ```bash
+   python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json <command> ... | tee "$OUT_DIR/envelope.json"
+   ```
 
-## Command Matrix
+   If no carrier command fits but flight facts are known, normalize to canonical itinerary JSON (`references/canonical-itinerary-contract.md`) and run `make`.
 
-### Aeroflot / SU / URL has `pnrKey` + `pnrLocator`, or PDF/email has PNR + surname
+3. **Verify and send.** Parse `envelope.json`; require `schema_version=flight-calendar-ics-cli.v1`, `ok=true`, `data.segments_count >= 1`, existing `.ics` mode `0600`, one `VEVENT` per segment, UTC `DTSTART`/`DTEND` ending in `Z`, and no `TBD`/`UNKNOWN`/`None`. Then respond with `MEDIA:/absolute/path/flights.ics` and a safe operational summary only.
 
-Use this CLI command directly. Do **not** call `web_extract` or scrape the URL first; the URL parameters are booking credentials and the CLI handles the Aeroflot API/redaction path.
+Privacy: never print PNR keys, full booking URLs, passenger names, ticket/document/contact/payment data, generated API headers, bearer tokens, or access keys in chat. Those may exist only inside the requested private artifact.
 
-If a direct Aeroflot manage-booking URL already exists:
+## Failure / Maintenance Gate
 
-```bash
-python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json aeroflot \
-  --url '<AEROFLOT_MANAGE_BOOKING_URL>' \
-  --output-json "$OUT_DIR/itinerary.json" \
-  --output-ics "$OUT_DIR/flights.ics" | tee "$OUT_DIR/envelope.json"
-```
-
-If only PNR + passenger surname are available, let the CLI generate `pnr_key` through the Aeroflot SPA API; add `--first-name` only when surname search is ambiguous:
-
-```bash
-python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json aeroflot \
-  --pnr-locator '<PNR>' \
-  --last-name '<SURNAME>' \
-  --output-json "$OUT_DIR/itinerary.json" \
-  --output-ics "$OUT_DIR/flights.ics" | tee "$OUT_DIR/envelope.json"
-```
-
-### Ural Airlines / U6 / Ural manage-booking URL or tracker redirect
-
-```bash
-python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json ural \
-  --url '<URAL_MANAGE_BOOKING_OR_TRACKER_URL>' \
-  --output-json "$OUT_DIR/itinerary.json" \
-  --output-ics "$OUT_DIR/flights.ics" | tee "$OUT_DIR/envelope.json"
-```
-
-### Utair / UT / Utair order-manage URL
-
-```bash
-python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json utair \
-  --url '<UTAIR_ORDER_MANAGE_URL>' \
-  --output-json "$OUT_DIR/itinerary.json" \
-  --output-ics "$OUT_DIR/flights.ics" | tee "$OUT_DIR/envelope.json"
-```
-
-### Existing canonical itinerary JSON, or manually normalized PDF/email/screenshot data
-
-```bash
-python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json make \
-  --input '<PATH_TO_ITINERARY_JSON>' \
-  --output "$OUT_DIR/flights.ics" | tee "$OUT_DIR/envelope.json"
-```
-
-Use `validate` only for a check-only run:
-
-```bash
-python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json validate --input '<PATH_TO_ITINERARY_JSON>'
-```
-
-### Red Wings / WZ / direct email manage-booking URL
-
-Use this CLI command for a Red Wings/Websky direct email/manage link shaped `#/find/<PNR>/<ACCESS_KEY>/Submit`. Do **not** infer the access key from surname, PNR, ticket data, or already-opened `#/booking/<ORDER_ID>/order` pages.
-
-```bash
-python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json redwings \
-  --url '<RED_WINGS_FIND_URL>' \
-  --output-json "$OUT_DIR/itinerary.json" \
-  --output-ics "$OUT_DIR/flights.ics" | tee "$OUT_DIR/envelope.json"
-```
-
-If the user only has a PDF/screenshot/order page, extract the visible flight facts, ask for the direct email/manage link when a working booking URL or missing details are needed, or normalize manually into canonical itinerary JSON and run `make`.
-
-## Canonical Itinerary Minimum
-
-For manual normalization, write provider-agnostic JSON matching `schemas/itinerary.v1.schema.json`. Top-level required keys are `schema_version` and `flights[]`. Each flight segment needs:
-
-- `flight_number`;
-- `departure.local`, `departure.airport`, `departure.tz`;
-- `arrival.local`, `arrival.airport`, `arrival.tz`.
-
-Optional booking details may be included in the private JSON/ICS when present in the source. The `.ics` should keep operational details useful on a phone, but the chat summary must stay redacted.
-
-### Event content defaults
-
-When generating or modifying calendar rendering, optimize for mobile calendar legibility rather than dumping every normalized field. Prefer passenger + date + city-only route summaries (`<Фамилия Имя> <DD.MM> <город вылета> - <город прилёта> <HH:MM dep> <HH:MM arr>`) when passenger/city data exists. Keep `DESCRIPTION` compact: PNR, ticket number, one date/route/time line, aircraft when present, and booking link. Do not put IATA-only route labels in `SUMMARY` when city names are available. See `references/event-content-format.md` before changing `SUMMARY`, `LOCATION`, `DESCRIPTION`, or alarm text.
+- CLI `ok=false`: fix the selected command/source from the JSON error. Switch routes only after new explicit evidence.
+- Unknown carrier or manual data: use canonical itinerary JSON + `make`.
+- PDF/document extraction ambiguity: open `references/pdf-attachment-layout-extraction.md`.
+- Missing timezone/catalog issue: open `references/travelpayouts-airport-timezones.md`; prefer bundled asset or explicit `--tz`, not local fallback maps.
+- Event wording/layout change: open `references/event-content-format.md` and update renderer tests first.
+- Carrier/API/CLI contract change: open `references/agent-cli-contract.md` and `references/hardening-review-checks.md`; add tests before implementation.
+- Source/runtime skill sync or commit evidence: open `references/source-runtime-sync.md`.
 
 ## References
 
-Open these only when needed:
-
-- `references/process-and-data-flow.md` — maintenance overview: data layers, flow diagram, command/module decomposition.
-- `references/source-runtime-sync.md` — maintenance playbook for source→runtime sync, runtime-only reference promotion, executable workflow wiring, parity checks, artifact cleanup, and scoped commit evidence.
-- `references/pdf-attachment-layout-extraction.md` — cached PDF/document attachment lookup and Aeroflot-style layout disambiguation notes.
-- `references/aeroflot-pnr-surname-deeplink.md` — programmatically generate Aeroflot direct booking URLs from PNR + surname by calling the SPA PNR API and constructing `#/pnr?pnr_key=...&pnr_locator=...`.
-- `references/agent-cli-contract.md` — full JSON envelope, process traces, safety contract, test contract.
-- `references/agent-contract-distillation.md` — maintenance rule: keep `SKILL.md` short for small/free models; put provider/API detail in references.
-- `references/canonical-itinerary-contract.md` and `references/canonical-itinerary-schema.md` — provider-agnostic input model.
-- Aeroflot URL handling is covered by the `aeroflot` command and the CLI contract; no separate reference is needed for the normal path.
-- `references/event-content-format.md` — compact mobile-friendly event content policy: passenger/date/city/time `SUMMARY`, short `DESCRIPTION`, and testing expectations for renderer changes.
-- `references/travelpayouts-airport-timezones.md` — why carrier commands use the skill-bundled Travelpayouts airport timezone asset over growing local airport maps one code at a time.
-- Carrier fallback/debug notes: `references/ural-airlines-manage-booking.md`, `references/utair-manage-booking.md`, `references/redwings-manage-booking.md`, `references/redwings-order-route-vs-email-link-case.md`.
-- `references/hardening-review-checks.md` and `references/skill-architecture-notes.md` — maintenance/review only.
-
-## Failure Rules
-
-- `ok=false` with unknown timezone: first check whether `process[].step=load_timezone_map` loaded the skill-bundled Travelpayouts airport timezone asset (`catalog_timezones_count > 0`). If the asset is missing/stale, rebuild `assets/travelpayouts/airport_timezones.json` from the Travelpayouts plugin airport cache using `scripts/travelpayouts_airport_catalog.py`; do not grow local carrier maps. If a verified airport timezone is absent from the asset, rerun once with explicit `--tz CODE=Area/City` (or fix JSON for `make`) and add a regression that protects the asset/catalog path, not a manual fallback map.
-- Airline returns browser-check/HTML or SPA shape changed: do not scrape static HTML. Ask for PDF/email/text/screenshot or use the relevant reference for a live-flow repair.
-- CLI usage errors with `--json` are still contract envelopes; fix the command instead of reading argparse prose.
-- Legacy helper scripts are implementation/compatibility surfaces. Do not use them as the agent path when `flight_calendar_ics.py --json ...` can do the job.
+- `references/agent-cli-contract.md` — CLI JSON envelope, `doctor.data.agent_contract`, process traces, tests, and dispatch contract.
+- `references/canonical-itinerary-contract.md` / `references/canonical-itinerary-schema.md` — provider-agnostic manual JSON input.
+- `references/aeroflot-pnr-surname-deeplink.md` — Aeroflot PNR + surname → `pnr_key` deep-link details.
+- `references/event-content-format.md` — compact mobile calendar summaries/descriptions.
+- `references/pdf-attachment-layout-extraction.md` — cached attachment/PDF extraction notes.
+- `references/travelpayouts-airport-timezones.md` — timezone asset and override policy.
+- `references/source-runtime-sync.md` — source↔runtime parity, cleanup, and commit workflow.
+- Carrier debug notes only when needed: `references/ural-airlines-manage-booking.md`, `references/utair-manage-booking.md`, `references/redwings-manage-booking.md`.
 
 ## Common Pitfalls
 
-1. Loading long carrier references before trying the command; this wastes context and hurts small models.
-2. Treating local printed times as UTC or using one timezone for all airports.
-3. Making one event for a multi-segment trip; use one `VEVENT` per segment.
-4. Sending a file without parsing the JSON envelope and checking event count/timestamps.
-5. Leaking booking credentials or passenger/ticket data in chat while trying to be helpful.
-6. Guessing Red Wings/Websky access secrets from surname/PNR; ask for the direct email/manage link instead.
-7. When modifying the CLI/provider commands, skipping `references/hardening-review-checks.md`: new carriers need redaction tests for their exact credential shape and real JSON envelopes validated against the envelope schema.
-8. Treating a newly discovered carrier/API flow as “saved” after only writing a reference. If the flow is meant to be reused, wire it into the class-level CLI/provider script with tests, update the command matrix, and sync source↔runtime; otherwise the next session will still need agent/manual glue.
+1. Re-asking for data that was already supplied in an attachment/cache.
+2. Trying several carriers/helpers opportunistically instead of selecting one CLI command from evidence.
+3. Scraping airline manage-booking URLs or helper stdout instead of using `flight_calendar_ics.py --json`.
+4. Sending the `.ics` before parsing the envelope and validating the event count/timestamps/placeholders.
+5. Leaking booking credentials or passenger/ticket data in chat summaries.
+6. Using one timezone for all airports or adding one-off local timezone maps.
+7. Treating Red Wings already-opened order pages as access-key sources; use the direct find link or manual canonical JSON.
 
 ## Verification Checklist
 
-- [ ] Carrier/source classified from explicit evidence.
-- [ ] Single CLI entrypoint used with `--json`.
-- [ ] Envelope parsed: `schema_version`, `ok`, `command`, ordered `process`, and safe `data` checked.
-- [ ] `.ics` exists; file mode/private path checked where applicable.
-- [ ] `VEVENT` count equals `data.segments_count`.
-- [ ] `DTSTART`/`DTEND` are UTC `Z` timestamps; no placeholders in final `.ics`.
-- [ ] Calendar content includes source booking details when present, but final chat does not leak private identifiers.
-- [ ] Telegram final response includes `MEDIA:/absolute/path/flights.ics` and concise import/use instructions.
+- [ ] Source classified from explicit evidence or normalized manually.
+- [ ] `doctor` read; exactly one `--json` command run; stdout saved to `envelope.json`.
+- [ ] Envelope passed: schema version, `ok=true`, command, process, segment count, safe data.
+- [ ] `.ics` exists with mode `0600`; `VEVENT` count equals segment count; UTC `DTSTART`/`DTEND` end in `Z`; no placeholders.
+- [ ] Final Telegram response includes `MEDIA:/absolute/path/flights.ics` and no private identifiers.

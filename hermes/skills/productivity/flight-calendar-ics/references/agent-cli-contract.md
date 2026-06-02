@@ -27,6 +27,29 @@ Legacy helper scripts remain implementation modules and compatibility tools:
 
 Agents should not scrape their human stdout when the single CLI can be used. Use `--json` and parse the envelope.
 
+## Machine-readable agent runbook
+
+`doctor` is the source of truth for the short agent workflow. It emits `data.agent_contract` so the active `SKILL.md` does not need to carry the full command matrix.
+
+Normal steps:
+
+1. `collect_source` — use explicit evidence or already-supplied attachments/cache; do not ask again for retrievable ticket data.
+2. `run_one_command` — create a private temp output directory and run exactly one `--json` command from `dispatch_matrix`.
+3. `verify` — parse the envelope and verify the generated `.ics` before delivery.
+4. `deliver` — send `MEDIA:/absolute/path/flights.ics` with a safe chat summary.
+
+`data.agent_contract.dispatch_matrix` contains argv templates for:
+
+- `make` — existing canonical itinerary JSON or manually normalized PDF/email/screenshot data;
+- `aeroflot` — Aeroflot direct booking URL, or PNR + surname with optional `--first-name` for ambiguous surname lookup;
+- `ural` — Ural Airlines manage-booking URL or tracker redirect;
+- `utair` — Utair order-manage URL;
+- `redwings` — Red Wings/Websky direct `#/find/<PNR>/<ACCESS_KEY>/Submit` link.
+
+The matrix uses placeholders only. It must never contain real PNRs, names, pnr keys, access keys, tokens, ticket numbers, or full personal booking URLs.
+
+If a future command can deterministically classify and dispatch sources by itself, add it to the CLI and expose it in `doctor` before adding prose to `SKILL.md`.
+
 ## JSON envelope v1
 
 Schema files:
@@ -260,7 +283,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_flight_calendar_ics_
 The tests assert:
 
 - the single executable exists and emits the JSON envelope;
-- `doctor` describes the commands and entrypoint;
+- `doctor` describes the commands, entrypoint, and `data.agent_contract` runbook/dispatch matrix;
 - `validate` is check-only and machine-readable;
 - the canonical itinerary schema exists, is Draft 2020-12 valid, provider-agnostic, and validates `templates/aeroflot-itinerary.example.json`;
 - `validate` rejects unknown canonical fields and missing endpoint timezone at `validate_itinerary_schema` before `build_calendar`;
