@@ -180,6 +180,62 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertEqual(data["schema_version"], "flight-calendar-ics-itinerary.v1")
         self.assertEqual(errors, [])
 
+    def test_make_ics_uses_compact_russian_event_content(self) -> None:
+        source = {
+            "schema_version": "flight-calendar-ics-itinerary.v1",
+            "calendar_name": "Flights",
+            "booking_reference": "18GHI4",
+            "passengers": ["Орлов Константин"],
+            "links": ["https://carrier.example/manage/18GHI4"],
+            "flights": [
+                {
+                    "carrier": "Авиакомпания",
+                    "flight_number": "SU1234",
+                    "departure": {
+                        "airport": "SVO",
+                        "city": "Москва",
+                        "local": "2026-06-08T14:40",
+                        "tz": "Europe/Moscow",
+                    },
+                    "arrival": {
+                        "airport": "SVX",
+                        "city": "Екатеринбург",
+                        "local": "2026-06-08T19:10",
+                        "tz": "Asia/Yekaterinburg",
+                    },
+                    "ticket_number": "55583566629584",
+                    "aircraft": "Boeing 737",
+                    "cabin": "Эконом",
+                    "fare": "Оптимум",
+                    "notes": "Лишнее описание не должно попасть в календарь",
+                    "status": "confirmed",
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as td:
+            input_path = Path(td) / "compact.json"
+            output_path = Path(td) / "compact.ics"
+            input_path.write_text(json.dumps(source, ensure_ascii=False), encoding="utf-8")
+
+            result = self.run_cli("--json", "make", "--input", str(input_path), "--output", str(output_path), "--no-alarms")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            unfolded_ics = output_path.read_text(encoding="utf-8").replace("\r\n ", "").replace("\n ", "")
+            self.assertIn(
+                "SUMMARY:Орлов Константин 08.06 Москва - Екатеринбург 14:40 19:10",
+                unfolded_ics,
+            )
+            self.assertIn(
+                "DESCRIPTION:PNR: 18GHI4\\n"
+                "Билет: 555 83566629584\\n"
+                "08.06 Москва -> Екатеринбург 14:40 19:10\\n"
+                "Самолет: Boeing 737\\n"
+                "Бронирование: https://carrier.example/manage/18GHI4",
+                unfolded_ics,
+            )
+            for verbose_label in ["Flight:", "Route:", "Departure local:", "Arrival local:", "Cabin:", "Fare:", "Notes:"]:
+                self.assertNotIn(verbose_label, unfolded_ics)
+
     def test_make_json_writes_private_ics_and_redacted_process_summary(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             output = Path(td) / "trip.ics"
@@ -207,7 +263,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 ],
             )
             combined_output = result.stdout + result.stderr
-            for private_value in ["ABC123", "Ivan Ivanov", "5552400000000", "pnrKey"]:
+            for private_value in ["ABC123", "Ivanov Ivan", "5552400000000", "pnrKey"]:
                 self.assertNotIn(private_value, combined_output)
 
     def test_validate_json_is_check_only_and_machine_readable(self) -> None:
@@ -403,6 +459,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode), 0o600)
             saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
             self.assertEqual(saved_itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
+            self.assertEqual(saved_itinerary["passengers"], ["Ivanov Ivan"])
 
     def test_redwings_url_parser_accepts_find_route_and_rejects_order_route(self) -> None:
         spec = importlib.util.spec_from_file_location("redwings_to_itinerary_test", REDWINGS)
@@ -555,9 +612,10 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertIn("DTEND:20260603T055500Z", ics_text)
                 unfolded_ics = ics_text.replace("\r\n ", "").replace("\n ", "")
                 self.assertIn("AB12CD", unfolded_ics)
-                self.assertIn("JANE DOE", unfolded_ics)
-                self.assertIn("9218844512345", unfolded_ics)
-                self.assertIn("Багаж 10 кг", unfolded_ics)
+                self.assertIn("DOE JANE", unfolded_ics)
+                self.assertIn("921 8844512345", unfolded_ics)
+                self.assertIn("Самолет: Sukhoi Superjet", unfolded_ics)
+                self.assertNotIn("Багаж 10 кг", unfolded_ics)
         finally:
             module.redwings.fetch_redwings_order = original_fetch
 
@@ -655,6 +713,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode), 0o600)
                 saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
                 self.assertEqual(saved_itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
+                self.assertEqual(saved_itinerary["passengers"], ["DOE JANE"])
                 self.assertEqual(data["segments_count"], 1)
                 self.assertEqual(data["segments"][0]["route"], "SVX->DME")
                 self.assertEqual(
@@ -770,6 +829,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode), 0o600)
                 saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
                 self.assertEqual(saved_itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
+                self.assertEqual(saved_itinerary["passengers"], ["DOE JANE"])
                 self.assertEqual(data["segments_count"], 1)
                 self.assertEqual(data["segments"][0]["route"], "SVX->KUF")
                 self.assertEqual(
@@ -798,8 +858,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertIn("DTEND:20260610T083000Z", ics_text)
                 unfolded_ics = ics_text.replace("\r\n ", "").replace("\n ", "")
                 self.assertIn("ZZ9ZZZ", unfolded_ics)
-                self.assertIn("JANE DOE", unfolded_ics)
-                self.assertIn("2980000000000", unfolded_ics)
+                self.assertIn("DOE JANE", unfolded_ics)
+                self.assertIn("298 0000000000", unfolded_ics)
         finally:
             module.utair.fetch_utair_token = original_fetch_token
             module.utair.fetch_utair_orders = original_fetch_orders

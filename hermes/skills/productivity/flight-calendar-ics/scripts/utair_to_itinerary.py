@@ -241,9 +241,8 @@ def passenger_names(order: dict[str, Any]) -> list[str]:
             name = str(direct).strip()
         else:
             parts = [
-                pax.get("first_name") or pax.get("firstName"),
-                pax.get("second_name") or pax.get("middle_name") or pax.get("middleName"),
                 pax.get("last_name") or pax.get("lastName") or pax.get("surname"),
+                pax.get("first_name") or pax.get("firstName"),
             ]
             name = " ".join(str(item).strip() for item in parts if clean(item))
         if name:

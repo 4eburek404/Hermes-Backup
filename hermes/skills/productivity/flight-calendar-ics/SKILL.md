@@ -117,14 +117,21 @@ For manual normalization, write provider-agnostic JSON matching `schemas/itinera
 
 Optional booking details may be included in the private JSON/ICS when present in the source. The `.ics` should keep operational details useful on a phone, but the chat summary must stay redacted.
 
+### Event content defaults
+
+When generating or modifying calendar rendering, optimize for mobile calendar legibility rather than dumping every normalized field. Prefer passenger + date + city-only route summaries (`<Фамилия Имя> <DD.MM> <город вылета> - <город прилёта> <HH:MM dep> <HH:MM arr>`) when passenger/city data exists. Keep `DESCRIPTION` compact: PNR, ticket number, one date/route/time line, aircraft when present, and booking link. Do not put IATA-only route labels in `SUMMARY` when city names are available. See `references/event-content-format.md` before changing `SUMMARY`, `LOCATION`, `DESCRIPTION`, or alarm text.
+
 ## References
 
 Open these only when needed:
 
+- `references/process-and-data-flow.md` — maintenance overview: data layers, flow diagram, command/module decomposition.
+- `references/pdf-attachment-layout-extraction.md` — cached PDF/document attachment lookup and Aeroflot-style layout disambiguation notes.
 - `references/agent-cli-contract.md` — full JSON envelope, process traces, safety contract, test contract.
 - `references/agent-contract-distillation.md` — maintenance rule: keep `SKILL.md` short for small/free models; put provider/API detail in references.
 - `references/canonical-itinerary-contract.md` and `references/canonical-itinerary-schema.md` — provider-agnostic input model.
 - Aeroflot URL handling is covered by the `aeroflot` command and the CLI contract; no separate reference is needed for the normal path.
+- `references/event-content-format.md` — compact mobile-friendly event content policy: passenger/date/city/time `SUMMARY`, short `DESCRIPTION`, and testing expectations for renderer changes.
 - `references/travelpayouts-airport-timezones.md` — why carrier commands use the skill-bundled Travelpayouts airport timezone asset over growing local airport maps one code at a time.
 - Carrier fallback/debug notes: `references/ural-airlines-manage-booking.md`, `references/utair-manage-booking.md`, `references/redwings-manage-booking.md`, `references/redwings-order-route-vs-email-link-case.md`.
 - `references/hardening-review-checks.md` and `references/skill-architecture-notes.md` — maintenance/review only.
