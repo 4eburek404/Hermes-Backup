@@ -138,6 +138,7 @@ When generating or modifying calendar rendering, optimize for mobile calendar le
 Open these only when needed:
 
 - `references/process-and-data-flow.md` — maintenance overview: data layers, flow diagram, command/module decomposition.
+- `references/source-runtime-sync.md` — maintenance playbook for source→runtime sync, runtime-only reference promotion, executable workflow wiring, parity checks, artifact cleanup, and scoped commit evidence.
 - `references/pdf-attachment-layout-extraction.md` — cached PDF/document attachment lookup and Aeroflot-style layout disambiguation notes.
 - `references/aeroflot-pnr-surname-deeplink.md` — programmatically generate Aeroflot direct booking URLs from PNR + surname by calling the SPA PNR API and constructing `#/pnr?pnr_key=...&pnr_locator=...`.
 - `references/agent-cli-contract.md` — full JSON envelope, process traces, safety contract, test contract.
@@ -165,6 +166,7 @@ Open these only when needed:
 5. Leaking booking credentials or passenger/ticket data in chat while trying to be helpful.
 6. Guessing Red Wings/Websky access secrets from surname/PNR; ask for the direct email/manage link instead.
 7. When modifying the CLI/provider commands, skipping `references/hardening-review-checks.md`: new carriers need redaction tests for their exact credential shape and real JSON envelopes validated against the envelope schema.
+8. Treating a newly discovered carrier/API flow as “saved” after only writing a reference. If the flow is meant to be reused, wire it into the class-level CLI/provider script with tests, update the command matrix, and sync source↔runtime; otherwise the next session will still need agent/manual glue.
 
 ## Verification Checklist
 
