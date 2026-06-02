@@ -129,6 +129,14 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertEqual(obj["data"]["entrypoint"], str(CLI))
         self.assertEqual(obj["data"]["entrypoint_kind"], "single-python-executable")
         self.assertGreaterEqual(set(obj["data"]["commands"]), {"doctor", "validate", "make", "aeroflot", "ural", "utair", "redwings"})
+        contract = obj["data"].get("agent_contract")
+        self.assertIsInstance(contract, dict)
+        self.assertEqual([step["id"] for step in contract["normal_steps"]], ["collect_source", "run_one_command", "verify", "deliver"])
+        self.assertEqual({item["command"] for item in contract["dispatch_matrix"]}, {"make", "aeroflot", "ural", "utair", "redwings"})
+        aeroflot_entry = next(item for item in contract["dispatch_matrix"] if item["command"] == "aeroflot")
+        self.assertIn("--output-json", aeroflot_entry["argv_template"])
+        self.assertIn("--output-ics", aeroflot_entry["argv_template"])
+        self.assertIn("no_full_booking_urls", contract["privacy"]["chat_summary_must_omit"])
         self.assertIn("load_input", [step["step"] for step in obj["process"]])
         self.assertIn("emit_json", [step["step"] for step in obj["process"]])
 
@@ -180,6 +188,62 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertEqual(data["schema_version"], "flight-calendar-ics-itinerary.v1")
         self.assertEqual(errors, [])
 
+    def test_make_ics_uses_compact_russian_event_content(self) -> None:
+        source = {
+            "schema_version": "flight-calendar-ics-itinerary.v1",
+            "calendar_name": "Flights",
+            "booking_reference": "18GHI4",
+            "passengers": ["Орлов Константин"],
+            "links": ["https://carrier.example/manage/18GHI4"],
+            "flights": [
+                {
+                    "carrier": "Авиакомпания",
+                    "flight_number": "SU1234",
+                    "departure": {
+                        "airport": "SVO",
+                        "city": "Москва",
+                        "local": "2026-06-08T14:40",
+                        "tz": "Europe/Moscow",
+                    },
+                    "arrival": {
+                        "airport": "SVX",
+                        "city": "Екатеринбург",
+                        "local": "2026-06-08T19:10",
+                        "tz": "Asia/Yekaterinburg",
+                    },
+                    "ticket_number": "55583566629584",
+                    "aircraft": "Boeing 737",
+                    "cabin": "Эконом",
+                    "fare": "Оптимум",
+                    "notes": "Лишнее описание не должно попасть в календарь",
+                    "status": "confirmed",
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as td:
+            input_path = Path(td) / "compact.json"
+            output_path = Path(td) / "compact.ics"
+            input_path.write_text(json.dumps(source, ensure_ascii=False), encoding="utf-8")
+
+            result = self.run_cli("--json", "make", "--input", str(input_path), "--output", str(output_path), "--no-alarms")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            unfolded_ics = output_path.read_text(encoding="utf-8").replace("\r\n ", "").replace("\n ", "")
+            self.assertIn(
+                "SUMMARY:Орлов Константин 08.06 Москва - Екатеринбург 14:40 19:10",
+                unfolded_ics,
+            )
+            self.assertIn(
+                "DESCRIPTION:PNR: 18GHI4\\n"
+                "Билет: 555 83566629584\\n"
+                "08.06 Москва -> Екатеринбург 14:40 19:10\\n"
+                "Самолет: Boeing 737\\n"
+                "Бронирование: https://carrier.example/manage/18GHI4",
+                unfolded_ics,
+            )
+            for verbose_label in ["Flight:", "Route:", "Departure local:", "Arrival local:", "Cabin:", "Fare:", "Notes:"]:
+                self.assertNotIn(verbose_label, unfolded_ics)
+
     def test_make_json_writes_private_ics_and_redacted_process_summary(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             output = Path(td) / "trip.ics"
@@ -207,7 +271,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 ],
             )
             combined_output = result.stdout + result.stderr
-            for private_value in ["ABC123", "Ivan Ivanov", "5552400000000", "pnrKey"]:
+            for private_value in ["ABC123", "Ivanov Ivan", "5552400000000", "pnrKey"]:
                 self.assertNotIn(private_value, combined_output)
 
     def test_validate_json_is_check_only_and_machine_readable(self) -> None:
@@ -345,6 +409,116 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertEqual(tz_map["KUF"], "Asia/Shanghai")
         self.assertEqual(tz_map["SVX"], "Asia/Yekaterinburg")
 
+    def test_aeroflot_parser_accepts_spa_fragment_deeplink(self) -> None:
+        module = self.import_script_module("aeroflot_pnr_to_itinerary.py", "aeroflot_pnr_to_itinerary_test")
+        key = "a" * 128
+        url = f"https://www.aeroflot.ru/sb/pnr/app/ru-ru#/pnr?pnr_key={key}&pnr_locator=ABC123"
+
+        locator, parsed_key, booking_url = module.parse_pnr_source(url, None, None)
+
+        self.assertEqual(locator, "ABC123")
+        self.assertEqual(parsed_key, key)
+        self.assertEqual(booking_url, url)
+
+    def test_aeroflot_name_search_generates_deeplink_without_browser_automation(self) -> None:
+        module = self.import_script_module("aeroflot_pnr_to_itinerary.py", "aeroflot_pnr_to_itinerary_test")
+        calls: list[dict] = []
+
+        def fake_post(payload: dict, *, timeout: int = 45, referer: str | None = None) -> dict:
+            calls.append({"payload": payload.copy(), "timeout": timeout, "referer": referer})
+            return {"success": True, "data": {"pnr_locator": payload["pnr_locator"], "pnr_key": "b" * 128}}
+
+        original_post = getattr(module, "post_aeroflot_pnr_json", None)
+        setattr(module, "post_aeroflot_pnr_json", fake_post)
+        try:
+            locator, key, booking_url = module.fetch_aeroflot_pnr_key_by_name(
+                "abc123",
+                "Ivanov",
+                first_name="",
+                timeout=7,
+            )
+        finally:
+            if original_post is None:
+                delattr(module, "post_aeroflot_pnr_json")
+            else:
+                setattr(module, "post_aeroflot_pnr_json", original_post)
+
+        self.assertEqual(locator, "ABC123")
+        self.assertEqual(key, "b" * 128)
+        self.assertEqual(
+            booking_url,
+            "https://www.aeroflot.ru/sb/pnr/app/ru-ru#/pnr?"
+            + "pnr_key="
+            + "b" * 128
+            + "&pnr_locator=ABC123",
+        )
+        self.assertEqual(
+            calls,
+            [
+                {
+                    "payload": {
+                        "pnr_locator": "ABC123",
+                        "last_name": "Ivanov",
+                        "first_name": "",
+                        "lang": "ru",
+                        "country": "ru",
+                    },
+                    "timeout": 7,
+                    "referer": "https://www.aeroflot.ru/sb/pnr/app/ru-ru#/search",
+                }
+            ],
+        )
+
+    def test_aeroflot_name_search_retries_with_first_name_when_surname_is_ambiguous(self) -> None:
+        module = self.import_script_module("aeroflot_pnr_to_itinerary.py", "aeroflot_pnr_to_itinerary_test")
+        calls: list[dict] = []
+
+        def fake_post(payload: dict, *, timeout: int = 45, referer: str | None = None) -> dict:
+            calls.append(payload.copy())
+            if len(calls) == 1:
+                return {"success": False, "error": {"type": "PassengerAmbiguous"}}
+            return {"success": True, "data": {"pnr_locator": payload["pnr_locator"], "pnr_key": "c" * 128}}
+
+        original_post = getattr(module, "post_aeroflot_pnr_json", None)
+        setattr(module, "post_aeroflot_pnr_json", fake_post)
+        try:
+            locator, key, booking_url = module.fetch_aeroflot_pnr_key_by_name(
+                "ABC123",
+                "Ivanov",
+                first_name="Ivan",
+            )
+        finally:
+            if original_post is None:
+                delattr(module, "post_aeroflot_pnr_json")
+            else:
+                setattr(module, "post_aeroflot_pnr_json", original_post)
+
+        self.assertEqual(locator, "ABC123")
+        self.assertEqual(key, "c" * 128)
+        self.assertIn("#/pnr?", booking_url)
+        self.assertEqual(calls[0]["first_name"], "")
+        self.assertEqual(calls[1]["first_name"], "Ivan")
+
+    def test_aeroflot_cli_accepts_locator_and_surname_without_existing_pnr_key(self) -> None:
+        module = self.import_cli_module()
+        parser = module.build_parser()
+
+        args = parser.parse_args(
+            [
+                "aeroflot",
+                "--pnr-locator",
+                "ABC123",
+                "--last-name",
+                "Ivanov",
+                "--output-json",
+                "/tmp/aeroflot.json",
+            ]
+        )
+
+        self.assertEqual(args.pnr_locator, "ABC123")
+        self.assertEqual(args.last_name, "Ivanov")
+        self.assertIsNone(args.pnr_key)
+
     def test_legacy_aeroflot_helper_writes_private_artifacts_without_network(self) -> None:
         module = self.import_script_module("aeroflot_pnr_to_itinerary.py", "aeroflot_pnr_to_itinerary_test")
 
@@ -403,6 +577,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode), 0o600)
             saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
             self.assertEqual(saved_itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
+            self.assertEqual(saved_itinerary["passengers"], ["Ivanov Ivan"])
 
     def test_redwings_url_parser_accepts_find_route_and_rejects_order_route(self) -> None:
         spec = importlib.util.spec_from_file_location("redwings_to_itinerary_test", REDWINGS)
@@ -555,9 +730,10 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertIn("DTEND:20260603T055500Z", ics_text)
                 unfolded_ics = ics_text.replace("\r\n ", "").replace("\n ", "")
                 self.assertIn("AB12CD", unfolded_ics)
-                self.assertIn("JANE DOE", unfolded_ics)
-                self.assertIn("9218844512345", unfolded_ics)
-                self.assertIn("Багаж 10 кг", unfolded_ics)
+                self.assertIn("DOE JANE", unfolded_ics)
+                self.assertIn("921 8844512345", unfolded_ics)
+                self.assertIn("Самолет: Sukhoi Superjet", unfolded_ics)
+                self.assertNotIn("Багаж 10 кг", unfolded_ics)
         finally:
             module.redwings.fetch_redwings_order = original_fetch
 
@@ -655,6 +831,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode), 0o600)
                 saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
                 self.assertEqual(saved_itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
+                self.assertEqual(saved_itinerary["passengers"], ["DOE JANE"])
                 self.assertEqual(data["segments_count"], 1)
                 self.assertEqual(data["segments"][0]["route"], "SVX->DME")
                 self.assertEqual(
@@ -770,6 +947,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode), 0o600)
                 saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
                 self.assertEqual(saved_itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
+                self.assertEqual(saved_itinerary["passengers"], ["DOE JANE"])
                 self.assertEqual(data["segments_count"], 1)
                 self.assertEqual(data["segments"][0]["route"], "SVX->KUF")
                 self.assertEqual(
@@ -798,8 +976,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertIn("DTEND:20260610T083000Z", ics_text)
                 unfolded_ics = ics_text.replace("\r\n ", "").replace("\n ", "")
                 self.assertIn("ZZ9ZZZ", unfolded_ics)
-                self.assertIn("JANE DOE", unfolded_ics)
-                self.assertIn("2980000000000", unfolded_ics)
+                self.assertIn("DOE JANE", unfolded_ics)
+                self.assertIn("298 0000000000", unfolded_ics)
         finally:
             module.utair.fetch_utair_token = original_fetch_token
             module.utair.fetch_utair_orders = original_fetch_orders

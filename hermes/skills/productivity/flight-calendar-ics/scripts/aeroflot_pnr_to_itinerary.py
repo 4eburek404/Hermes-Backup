@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Fetch Aeroflot manage-booking data and convert it to flight-calendar-ics JSON.
 
-Input can be a share URL containing pnrKey/pnrLocator or the two values passed
-explicitly. The script does not print PNR, passenger names, ticket numbers, or
-full source URLs. It always writes the Aeroflot booking URL into the requested
-JSON/ICS output so imported calendar events retain a direct booking link on any
-device.
+Input can be a direct/manage URL containing pnrKey/pnrLocator, the two values
+passed explicitly, or a booking locator plus passenger surname so the script can
+programmatically perform the same name search as the Aeroflot SPA and derive the
+pnr_key deep link. The script does not print PNR, passenger names, ticket
+numbers, or full source URLs. It always writes the Aeroflot booking URL into the
+requested JSON/ICS output so imported calendar events retain a direct booking
+link on any device.
 """
 from __future__ import annotations
 
@@ -16,7 +18,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
@@ -24,7 +26,10 @@ from urllib.request import Request, urlopen
 import travelpayouts_airport_catalog as airport_catalog
 
 AEROFLOT_BASE = "https://www.aeroflot.ru"
+AEROFLOT_APP_URL = AEROFLOT_BASE + "/sb/pnr/app/ru-ru"
+AEROFLOT_SEARCH_URL = AEROFLOT_APP_URL + "#/search"
 AEROFLOT_PNR_API = AEROFLOT_BASE + "/se/api/app/pnr/view/v3"
+AMBIGUOUS_PNR_ERROR_TYPES = {"PassengerAmbiguous", "SabrePNRAmbiguousException"}
 
 # Kept for old importers/tests, but intentionally empty: timezone defaults come
 # from the skill-bundled Travelpayouts airport catalog, not a manual fallback map.
@@ -45,35 +50,61 @@ def secure_write_text(path: Path, text: str) -> None:
             pass
 
 
-def die(message: str, code: int = 2) -> None:
+def die(message: str, code: int = 2) -> NoReturn:
     print(f"ERROR: {message}", file=sys.stderr)
     raise SystemExit(code)
+
+
+def pnr_query_params_from_url(booking_url: str) -> dict[str, list[str]]:
+    """Extract PNR query parameters from both normal and SPA-fragment URLs."""
+    parsed = urlparse(booking_url)
+    params = parse_qs(parsed.query)
+    if parsed.fragment and "?" in parsed.fragment:
+        fragment_query = parsed.fragment.split("?", 1)[1]
+        for key, values in parse_qs(fragment_query).items():
+            params.setdefault(key, values)
+    return params
+
+
+def normalize_locator(locator: str | None) -> str:
+    if not locator:
+        die("PNR locator is required")
+    locator = locator.strip().upper()
+    if not re.fullmatch(r"[A-Z0-9]{5,8}", locator):
+        die("PNR locator format looks invalid")
+    return locator
+
+
+def normalize_pnr_key(key: str | None) -> str:
+    if not key:
+        die("PNR key is required")
+    key = key.strip()
+    if not re.fullmatch(r"[0-9a-fA-F]{64,256}", key):
+        die("PNR key format looks invalid")
+    return key
+
+
+def build_aeroflot_booking_url(locator: str, key: str) -> str:
+    return AEROFLOT_APP_URL + "#/pnr?" + urlencode({"pnr_key": key, "pnr_locator": locator})
 
 
 def parse_pnr_source(url: str | None, locator: str | None, key: str | None) -> tuple[str, str, str]:
     booking_url = url.strip() if url else None
     if booking_url:
-        qs = parse_qs(urlparse(booking_url).query)
+        qs = pnr_query_params_from_url(booking_url)
         locator = locator or (qs.get("pnrLocator") or qs.get("pnr_locator") or [None])[0]
         key = key or (qs.get("pnrKey") or qs.get("pnr_key") or [None])[0]
     if not locator or not key:
         die("provide --url containing pnrKey/pnrLocator or both --pnr-locator and --pnr-key")
-    locator = locator.strip().upper()
-    key = key.strip()
-    if not re.fullmatch(r"[A-Z0-9]{5,8}", locator):
-        die("PNR locator format looks invalid")
-    if not re.fullmatch(r"[0-9a-fA-F]{64,256}", key):
-        die("PNR key format looks invalid")
+    locator = normalize_locator(locator)
+    key = normalize_pnr_key(key)
     if not booking_url:
-        booking_url = AEROFLOT_BASE + "/ru-ru/pnr?" + urlencode({"pnrKey": key, "pnrLocator": locator})
+        booking_url = build_aeroflot_booking_url(locator, key)
     return locator, key, booking_url
 
 
-def fetch_aeroflot_pnr(locator: str, key: str, *, timeout: int = 45) -> dict[str, Any]:
-    body = json.dumps(
-        {"pnr_locator": locator, "pnr_key": key, "lang": "ru", "country": "ru"},
-        ensure_ascii=False,
-    ).encode("utf-8")
+def post_aeroflot_pnr_json(payload: dict[str, Any], *, timeout: int = 45, referer: str | None = None) -> dict[str, Any]:
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = Request(
         AEROFLOT_PNR_API,
         data=body,
@@ -84,7 +115,7 @@ def fetch_aeroflot_pnr(locator: str, key: str, *, timeout: int = 45) -> dict[str
             "Content-Type": "application/json",
             "X-App-Identity": "0",
             "Origin": AEROFLOT_BASE,
-            "Referer": AEROFLOT_BASE + "/sb/pnr/app/ru-ru",
+            "Referer": referer or AEROFLOT_APP_URL,
         },
         method="POST",
     )
@@ -106,13 +137,89 @@ def fetch_aeroflot_pnr(locator: str, key: str, *, timeout: int = 45) -> dict[str
         obj = json.loads(text)
     except json.JSONDecodeError as exc:
         die(f"Aeroflot returned non-JSON response (HTTP {status}): {exc}")
+    if not isinstance(obj, dict):
+        die(f"Aeroflot returned non-object JSON response (HTTP {status})")
+    return obj
+
+
+def pnr_api_error_type(obj: dict[str, Any]) -> str:
+    err = obj.get("error") or {}
+    if isinstance(err, dict):
+        return str(err.get("type") or err.get("value") or "unknown error")
+    return str(err or "unknown error")
+
+
+def require_success_data(obj: dict[str, Any]) -> dict[str, Any]:
     if not obj.get("success"):
-        err = obj.get("error") or {}
-        die(f"Aeroflot PNR API returned success=false: {err.get('type') or err.get('value') or 'unknown error'}")
+        die(f"Aeroflot PNR API returned success=false: {pnr_api_error_type(obj)}")
     data = obj.get("data")
     if not isinstance(data, dict):
         die("Aeroflot PNR API response has no data object")
     return data
+
+
+def fetch_aeroflot_pnr_key_by_name(
+    locator: str,
+    last_name: str,
+    *,
+    first_name: str | None = None,
+    timeout: int = 45,
+) -> tuple[str, str, str]:
+    locator = normalize_locator(locator)
+    last_name = (last_name or "").strip()
+    fallback_first_name = (first_name or "").strip()
+    if not last_name:
+        die("passenger surname is required to generate an Aeroflot PNR deep link")
+
+    def request(name: str) -> dict[str, Any]:
+        return post_aeroflot_pnr_json(
+            {
+                "pnr_locator": locator,
+                "last_name": last_name,
+                "first_name": name,
+                "lang": "ru",
+                "country": "ru",
+            },
+            timeout=timeout,
+            referer=AEROFLOT_SEARCH_URL,
+        )
+
+    obj = request("")
+    if not obj.get("success") and pnr_api_error_type(obj) in AMBIGUOUS_PNR_ERROR_TYPES:
+        if not fallback_first_name:
+            die("Aeroflot PNR search is ambiguous; retry with passenger first name")
+        obj = request(fallback_first_name)
+
+    data = require_success_data(obj)
+    key = normalize_pnr_key(str(data.get("pnr_key") or ""))
+    returned_locator = normalize_locator(str(data.get("pnr_locator") or locator))
+    return returned_locator, key, build_aeroflot_booking_url(returned_locator, key)
+
+
+def resolve_pnr_source(
+    url: str | None,
+    locator: str | None,
+    key: str | None,
+    last_name: str | None = None,
+    first_name: str | None = None,
+) -> tuple[str, str, str]:
+    if url or key:
+        return parse_pnr_source(url, locator, key)
+    if locator and last_name:
+        return fetch_aeroflot_pnr_key_by_name(locator, last_name, first_name=first_name)
+    die(
+        "provide --url containing pnrKey/pnrLocator, both --pnr-locator and --pnr-key, "
+        "or --pnr-locator with --last-name to generate the key"
+    )
+
+
+def fetch_aeroflot_pnr(locator: str, key: str, *, timeout: int = 45) -> dict[str, Any]:
+    obj = post_aeroflot_pnr_json(
+        {"pnr_locator": locator, "pnr_key": key, "lang": "ru", "country": "ru"},
+        timeout=timeout,
+        referer=AEROFLOT_APP_URL,
+    )
+    return require_success_data(obj)
 
 
 def parse_tz_overrides(items: list[str]) -> dict[str, str]:
@@ -141,7 +248,7 @@ def first_ticket_number(data: dict[str, Any]) -> str | None:
 def passenger_names(data: dict[str, Any]) -> list[str]:
     names: list[str] = []
     for pax in data.get("passengers") or []:
-        name = " ".join(str(x) for x in [pax.get("first_name"), pax.get("last_name")] if x)
+        name = " ".join(str(x) for x in [pax.get("last_name"), pax.get("first_name")] if x)
         if name:
             names.append(name)
     return names
@@ -250,12 +357,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--url", help="Aeroflot PNR share URL containing pnrKey and pnrLocator")
     parser.add_argument("--pnr-locator", help="Booking locator, if not using --url")
     parser.add_argument("--pnr-key", help="PNR key, if not using --url")
+    parser.add_argument("--last-name", help="Passenger surname; used to generate pnr_key when --pnr-key/--url is absent")
+    parser.add_argument("--first-name", help="Passenger first name fallback for ambiguous surname searches")
     parser.add_argument("--output-json", required=True, type=Path, help="Where to write itinerary JSON")
     parser.add_argument("--output-ics", type=Path, help="Optional .ics path to generate immediately")
     parser.add_argument("--tz", action="append", default=[], help="Timezone override CODE=Area/City; repeatable")
     args = parser.parse_args(argv)
 
-    locator, key, booking_url = parse_pnr_source(args.url, args.pnr_locator, args.pnr_key)
+    locator, key, booking_url = resolve_pnr_source(args.url, args.pnr_locator, args.pnr_key, args.last_name, args.first_name)
     tz_map = airport_catalog.build_timezone_map(parse_tz_overrides(args.tz))
     data = fetch_aeroflot_pnr(locator, key)
     itinerary = convert_to_itinerary(data, tz_map, booking_url=booking_url)
