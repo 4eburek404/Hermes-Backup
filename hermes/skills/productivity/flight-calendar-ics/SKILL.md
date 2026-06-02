@@ -1,7 +1,7 @@
 ---
 name: flight-calendar-ics
 description: Use when creating importable .ics calendar files from airline booking links, tickets, itinerary JSON, PDFs, emails, screenshots, or manually supplied flight segments.
-version: 1.4.4
+version: 1.4.5
 author: Hermes Agent
 license: MIT
 metadata:
@@ -44,7 +44,7 @@ Do not use it for flight search, fare comparison, or route planning; load `fligh
    python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json <command> ... | tee "$OUT_DIR/envelope.json"
    ```
 
-   If no carrier command fits but flight facts are known, normalize to canonical itinerary JSON (`references/canonical-itinerary-contract.md`) and run `make`.
+   If no carrier command fits but flight facts are known, normalize to canonical itinerary JSON (`references/core/canonical-itinerary.md`) and run `make`.
 
 3. **Verify and send.** Parse `envelope.json`; require `schema_version=flight-calendar-ics-cli.v1`, `ok=true`, `data.segments_count >= 1`, existing `.ics` mode `0600`, one `VEVENT` per segment, UTC `DTSTART`/`DTEND` ending in `Z`, and no `TBD`/`UNKNOWN`/`None`. Then respond with `MEDIA:/absolute/path/flights.ics` and a safe operational summary only.
 
@@ -54,22 +54,23 @@ Privacy: never print PNR keys, full booking URLs, passenger names, ticket/docume
 
 - CLI `ok=false`: fix the selected command/source from the JSON error. Switch routes only after new explicit evidence.
 - Unknown carrier or manual data: use canonical itinerary JSON + `make`.
-- PDF/document extraction ambiguity: open `references/pdf-attachment-layout-extraction.md`.
-- Missing timezone/catalog issue: open `references/travelpayouts-airport-timezones.md`; prefer bundled asset or explicit `--tz`, not local fallback maps.
-- Event wording/layout change: open `references/event-content-format.md` and update renderer tests first.
-- Carrier/API/CLI contract change: open `references/agent-cli-contract.md` and `references/hardening-review-checks.md`; add tests before implementation.
-- Source/runtime skill sync or commit evidence: open `references/source-runtime-sync.md`.
+- PDF/document extraction ambiguity: open `references/core/manual-source-extraction.md`.
+- Missing timezone/catalog issue: open `references/core/timezone-catalog.md`; prefer bundled asset or explicit `--tz`, not local fallback maps.
+- Event wording/layout change: open `references/core/calendar-event-format.md` and update renderer tests first.
+- Carrier/API/CLI contract change: open `references/core/cli-contract.md`, the relevant carrier file under `references/carriers/`, and `references/core/privacy-hardening.md`; add tests before implementation.
+- Source/runtime skill sync or commit evidence: open `references/maintenance/source-runtime-sync.md`.
 
 ## References
 
-- `references/agent-cli-contract.md` — CLI JSON envelope, `doctor.data.agent_contract`, process traces, tests, and dispatch contract.
-- `references/canonical-itinerary-contract.md` / `references/canonical-itinerary-schema.md` — provider-agnostic manual JSON input.
-- `references/aeroflot-pnr-surname-deeplink.md` — Aeroflot PNR + surname → `pnr_key` deep-link details.
-- `references/event-content-format.md` — compact mobile calendar summaries/descriptions.
-- `references/pdf-attachment-layout-extraction.md` — cached attachment/PDF extraction notes.
-- `references/travelpayouts-airport-timezones.md` — timezone asset and override policy.
-- `references/source-runtime-sync.md` — source↔runtime parity, cleanup, and commit workflow.
-- Carrier debug notes only when needed: `references/ural-airlines-manage-booking.md`, `references/utair-manage-booking.md`, `references/redwings-manage-booking.md`.
+- `references/registry.md` — owner map for all references; check before adding or renaming support files.
+- `references/core/cli-contract.md` — CLI JSON envelope, `doctor.data.agent_contract`, process traces, tests, and dispatch contract.
+- `references/core/canonical-itinerary.md` — provider-agnostic manual JSON input and schema/semantic boundary.
+- `references/core/calendar-event-format.md` — compact mobile calendar summaries/descriptions.
+- `references/core/manual-source-extraction.md` — cached attachment/PDF/email/screenshot extraction notes.
+- `references/core/timezone-catalog.md` — timezone asset and override policy.
+- `references/core/privacy-hardening.md` — redaction, private artifact permissions, and hardening checks.
+- `references/maintenance/source-runtime-sync.md` — source↔runtime parity, cleanup, and commit workflow.
+- Carrier references only when needed: `references/carriers/aeroflot.md`, `references/carriers/ural-airlines.md`, `references/carriers/utair.md`, `references/carriers/redwings.md`.
 
 ## Common Pitfalls
 
