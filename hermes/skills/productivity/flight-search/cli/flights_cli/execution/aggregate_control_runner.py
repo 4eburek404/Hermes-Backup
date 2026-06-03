@@ -9,6 +9,8 @@ from ..domain.normalize import normalize_carrier_code
 from ..errors import CliError
 from ..ports.providers import ProviderProbeResult
 from .failure_classifier import error_payload_from_cli_error
+from .probe_intent import intent_from_aggregate_query
+from .probe_ledger import ProbeExecutionLedger
 
 
 def _aggregate_provider_name(args: argparse.Namespace) -> str:
@@ -36,7 +38,12 @@ def _control_from_not_supported(result: ProviderProbeResult, *, direction: str, 
     }
 
 
-def run_aggregate_controls(args: argparse.Namespace, plan: dict[str, Any], kupibilet_fetcher: Any | None = None) -> list[dict[str, Any]]:
+def run_aggregate_controls(
+    args: argparse.Namespace,
+    plan: dict[str, Any],
+    kupibilet_fetcher: Any | None = None,
+    probe_ledger: ProbeExecutionLedger | None = None,
+) -> list[dict[str, Any]]:
     limit = max(0, int(getattr(args, "aggregate_control_limit", 0) or 0))
     if limit <= 0:
         return []
@@ -82,9 +89,15 @@ def run_aggregate_controls(args: argparse.Namespace, plan: dict[str, Any], kupib
                 "cache_ttl_seconds": cache_ttl_seconds,
                 "use_cache": use_live_cache,
             }
+            intent = intent_from_aggregate_query(query, provider=adapter.name)
+            if probe_ledger is not None:
+                probe_ledger.plan_intents([intent])
             try:
                 result = adapter.search_aggregate(query)
             except CliError as exc:
+                error = error_payload_from_cli_error(exc)
+                if probe_ledger is not None:
+                    probe_ledger.record_failed(intent, provider=adapter.name, error=error)
                 controls.append(
                     {
                         "direction": direction,
@@ -99,10 +112,12 @@ def run_aggregate_controls(args: argparse.Namespace, plan: dict[str, Any], kupib
                         "suppressed_three_plus_count": 0,
                         "suppressed_airport_change_count": 0,
                         "cache_status": "unknown",
-                        "error": error_payload_from_cli_error(exc),
+                        "error": error,
                     }
                 )
                 continue
+            if probe_ledger is not None:
+                probe_ledger.record_provider_result(intent, result)
             if result.execution_state == "not_supported":
                 controls.append(
                     _control_from_not_supported(

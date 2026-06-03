@@ -1,19 +1,33 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
+from ..ports.providers import ProviderProbeResult
+from .probe_intent import ProbeIntent
 
-ControlKey = tuple[Any, Any, Any, Any, Any, Any]
+
+ControlKey = tuple[Any, Any, Any, Any, Any, Any, Any, Any]
+ControlInput = dict[str, Any] | Mapping[str, Any] | ProbeIntent
 
 
-def control_identity(control: dict[str, Any]) -> ControlKey:
+def _control_dict(control: ControlInput) -> dict[str, Any]:
+    if isinstance(control, ProbeIntent):
+        return control.to_control()
+    return dict(control)
+
+
+def control_identity(control: ControlInput) -> ControlKey:
+    item = _control_dict(control)
     return (
-        control.get("type"),
-        control.get("direction"),
-        control.get("origin"),
-        control.get("destination"),
-        control.get("date"),
-        control.get("carrier"),
+        item.get("type") or item.get("probe_type"),
+        item.get("direction"),
+        item.get("leg"),
+        item.get("origin"),
+        item.get("destination"),
+        item.get("date"),
+        item.get("carrier"),
+        item.get("provider"),
     )
 
 
@@ -26,37 +40,43 @@ class ProbeExecutionLedger:
         self._searched: list[dict[str, Any]] = []
         self._skipped: list[dict[str, Any]] = []
         self._failed: list[dict[str, Any]] = []
+        self._not_supported: list[dict[str, Any]] = []
         self._not_executed: list[dict[str, Any]] = []
         self._deduped: list[dict[str, Any]] = []
 
-    def plan_controls(self, controls: list[dict[str, Any]]) -> None:
+    def plan_controls(self, controls: list[ControlInput]) -> None:
         for control in controls:
-            if not isinstance(control, dict):
+            item = _control_dict(control)
+            if not isinstance(item, dict):
                 continue
-            key = control_identity(control)
+            key = control_identity(item)
             if key in self._planned:
-                self.record_deduped(control, original_probe_id=self._probe_ids.get(key))
+                self.record_deduped(item, original_probe_id=self._probe_ids.get(key))
                 continue
-            self._planned[key] = control
+            self._planned[key] = item
             self._planned_order.append(key)
-            self._probe_ids[key] = str(control.get("probe_id") or f"probe-{len(self._planned_order):03d}")
+            self._probe_ids[key] = str(item.get("probe_id") or f"probe-{len(self._planned_order):03d}")
+
+    def plan_intents(self, intents: list[ProbeIntent]) -> None:
+        self.plan_controls(list(intents))
 
     def record_searched(
         self,
-        control: dict[str, Any],
+        control: ControlInput,
         status: Any,
         provider: Any,
         offer_count: Any,
         cache_status: Any = None,
     ) -> None:
-        key = control_identity(control)
+        item = _control_dict(control)
+        key = control_identity(item)
         if key in self._terminal_keys:
-            self.record_deduped(control, original_probe_id=self._probe_ids.get(key))
+            self.record_deduped(item, original_probe_id=self._probe_ids.get(key))
             return
         self._terminal_keys.add(key)
         self._searched.append(
             self._diagnostic(
-                control,
+                item,
                 execution_state="searched",
                 status=status,
                 provider=provider,
@@ -65,24 +85,26 @@ class ProbeExecutionLedger:
             )
         )
 
-    def record_skipped(self, control: dict[str, Any], reason: Any) -> None:
-        key = control_identity(control)
+    def record_skipped(self, control: ControlInput, reason: Any) -> None:
+        item = _control_dict(control)
+        key = control_identity(item)
         if key in self._terminal_keys:
-            self.record_deduped(control, original_probe_id=self._probe_ids.get(key))
+            self.record_deduped(item, original_probe_id=self._probe_ids.get(key))
             return
         if key in self._planned:
             self._terminal_keys.add(key)
-        self._skipped.append(self._diagnostic(control, execution_state="skipped", status="skipped", reason=reason))
+        self._skipped.append(self._diagnostic(item, execution_state="skipped", status="skipped", reason=reason))
 
-    def record_failed(self, control: dict[str, Any], provider: Any, error: Any) -> None:
-        key = control_identity(control)
+    def record_failed(self, control: ControlInput, provider: Any, error: Any) -> None:
+        item = _control_dict(control)
+        key = control_identity(item)
         if key in self._terminal_keys:
-            self.record_deduped(control, original_probe_id=self._probe_ids.get(key))
+            self.record_deduped(item, original_probe_id=self._probe_ids.get(key))
             return
         self._terminal_keys.add(key)
         self._failed.append(
             self._diagnostic(
-                control,
+                item,
                 execution_state="failed",
                 status="error",
                 provider=provider,
@@ -91,10 +113,50 @@ class ProbeExecutionLedger:
             )
         )
 
-    def record_deduped(self, control: dict[str, Any], original_probe_id: Any = None) -> None:
+    def record_not_supported(self, control: ControlInput, provider: Any, reason: Any) -> None:
+        item = _control_dict(control)
+        key = control_identity(item)
+        if key in self._terminal_keys:
+            self.record_deduped(item, original_probe_id=self._probe_ids.get(key))
+            return
+        self._terminal_keys.add(key)
+        self._not_supported.append(
+            self._diagnostic(
+                item,
+                execution_state="not_supported",
+                status="not_supported",
+                provider=provider,
+                offer_count=0,
+                reason=reason,
+            )
+        )
+
+    def record_provider_result(self, control: ControlInput, result: ProviderProbeResult) -> None:
+        if result.execution_state == "not_supported":
+            reason = None
+            if result.result_summary:
+                reason = result.result_summary.get("reason")
+            if reason is None and result.errors:
+                reason = result.errors[0].get("message")
+            self.record_not_supported(control, provider=result.provider, reason=reason)
+            return
+        if result.execution_state == "failed":
+            self.record_failed(control, provider=result.provider, error=result.errors[0] if result.errors else None)
+            return
+        summary = result.result_summary if isinstance(result.result_summary, dict) else {}
+        self.record_searched(
+            control,
+            status=summary.get("status") or result.execution_state,
+            provider=result.provider,
+            offer_count=summary.get("offer_count", len(result.normalized_offers or [])),
+            cache_status=result.cache_status,
+        )
+
+    def record_deduped(self, control: ControlInput, original_probe_id: Any = None) -> None:
+        item = _control_dict(control)
         self._deduped.append(
             self._diagnostic(
-                control,
+                item,
                 execution_state="deduped",
                 status="deduped",
                 original_probe_id=original_probe_id,
@@ -121,6 +183,7 @@ class ProbeExecutionLedger:
             "searched_controls": self._searched,
             "skipped_controls": self._skipped,
             "failed_controls": self._failed,
+            "not_supported_controls": self._not_supported,
             "not_executed_controls": self._not_executed,
             "deduped_controls": self._deduped,
             "coverage_warnings": [
@@ -136,21 +199,25 @@ class ProbeExecutionLedger:
             },
         }
 
-    def _diagnostic(self, control: dict[str, Any], **extra: Any) -> dict[str, Any]:
-        key = control_identity(control)
+    def _diagnostic(self, control: ControlInput, **extra: Any) -> dict[str, Any]:
+        item_control = _control_dict(control)
+        key = control_identity(item_control)
         item = {
-            "type": control.get("type"),
-            "direction": control.get("direction"),
-            "origin": control.get("origin"),
-            "destination": control.get("destination"),
-            "date": control.get("date"),
-            "carrier": control.get("carrier"),
-            "leg": control.get("leg"),
-            "negative_evidence": control.get("negative_evidence"),
-            "probe_id": self._probe_ids.get(key) or control.get("probe_id"),
+            "type": item_control.get("type") or item_control.get("probe_type"),
+            "direction": item_control.get("direction"),
+            "origin": item_control.get("origin"),
+            "destination": item_control.get("destination"),
+            "date": item_control.get("date"),
+            "carrier": item_control.get("carrier"),
+            "leg": item_control.get("leg"),
+            "provider": item_control.get("provider"),
+            "negative_evidence": item_control.get("negative_evidence"),
+            "probe_id": self._probe_ids.get(key) or item_control.get("probe_id"),
         }
+        filters = item_control.get("filters")
+        if isinstance(filters, dict) and filters:
+            item["filters"] = filters
         for name, value in extra.items():
             if value is not None:
                 item[name] = value
         return {name: value for name, value in item.items() if value is not None}
-

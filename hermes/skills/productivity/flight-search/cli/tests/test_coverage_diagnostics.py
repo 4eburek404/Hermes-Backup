@@ -4,6 +4,7 @@ import unittest
 
 from flights_cli.services.agent_report import build_agent_report
 from flights_cli.services.agent_report_contract import validate_agent_report
+from flights_cli.reporting.coverage_projector import build_coverage_diagnostics
 
 
 def base_payload() -> dict:
@@ -82,6 +83,40 @@ def base_payload() -> dict:
 
 
 class CoverageDiagnosticsTests(unittest.TestCase):
+    def test_runtime_probe_ledger_prevents_posthoc_not_executed_controls(self) -> None:
+        plan = {
+            "coverage_mode": "targeted",
+            "coverage_limits": {},
+            "coverage_controls": [
+                {"type": "carrier_aggregate", "direction": "outbound", "origin": "SVX", "destination": "CDG", "date": "2026-08-16", "carrier": "SU"}
+            ],
+        }
+        live = {
+            "probe_ledger": {
+                "planned_controls": [],
+                "searched_controls": [],
+                "skipped_controls": [],
+                "failed_controls": [],
+                "not_supported_controls": [],
+                "not_executed_controls": [],
+                "deduped_controls": [],
+                "completeness": {
+                    "planned_count": 0,
+                    "terminal_count": 0,
+                    "all_planned_controls_have_terminal_state": True,
+                },
+            },
+            "segment_searches": [],
+            "aggregate_controls": [],
+        }
+
+        diagnostics = build_coverage_diagnostics(plan, live)
+
+        self.assertEqual(diagnostics["planned_controls"], [])
+        self.assertEqual(diagnostics["not_executed_controls"], [])
+        self.assertEqual(diagnostics["completeness"]["planned_count"], 0)
+        self.assertTrue(diagnostics["completeness"]["all_planned_controls_have_terminal_state"])
+
     def test_agent_report_has_machine_readable_coverage_diagnostics(self) -> None:
         report = build_agent_report(base_payload())
         validate_agent_report(report)
