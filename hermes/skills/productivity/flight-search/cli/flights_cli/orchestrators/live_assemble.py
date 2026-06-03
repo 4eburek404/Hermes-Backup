@@ -22,6 +22,8 @@ from ..domain.normalize import normalize_carrier_code, normalize_profile, parse_
 from ..errors import CliError
 from ..execution.aggregate_control_runner import run_aggregate_controls
 from ..execution.probe_dispatcher import dispatch_segment_probe, search_key
+from ..execution.probe_intent import intent_from_control, intent_from_segment
+from ..execution.probe_ledger import ProbeExecutionLedger
 from ..execution.request_deduper import RequestDeduper
 from ..execution.synthetic_control_runner import synthesize_moscow_gateway_control_results
 from ..providers.kupibilet import fetch_kupibilet_search
@@ -714,6 +716,7 @@ def run_live_route_assembly(args: argparse.Namespace, store: Store) -> dict[str,
     provider_policy = str(getattr(args, "provider_policy", "kupibilet") or "kupibilet")
     direct_route_index, direct_route_intel = direct_route_intel_context(args, store, plan)
     request_deduper = RequestDeduper()
+    probe_ledger = ProbeExecutionLedger()
 
     def skipped_by_offer_keys(
         spec: dict[str, Any],
@@ -906,10 +909,44 @@ def run_live_route_assembly(args: argparse.Namespace, store: Store) -> dict[str,
         priority_route_viability[direction] = viable
         return viable
 
+    def record_segment_probe_summary(
+        spec: dict[str, Any],
+        summary: dict[str, Any],
+        *,
+        provider_result: Any | None = None,
+    ) -> None:
+        intent_spec = {**spec, "only_carriers": spec.get("only_carriers") or only_carriers}
+        intent = intent_from_segment(intent_spec, provider=summary.get("provider"), probe_id=summary.get("probe_id"))
+        status = summary.get("status")
+        if status == "deduped":
+            probe_ledger.record_deduped(intent, original_probe_id=summary.get("original_probe_id"))
+            return
+        probe_ledger.plan_intents([intent])
+        if provider_result is not None:
+            probe_ledger.record_provider_result(intent, provider_result)
+            return
+        if status == "skipped":
+            probe_ledger.record_skipped(intent, reason=summary.get("reason"))
+            return
+        if status == "error":
+            probe_ledger.record_failed(intent, provider=summary.get("provider"), error=summary.get("error"))
+            return
+        if status == "not_supported":
+            probe_ledger.record_not_supported(intent, provider=summary.get("provider"), reason=summary.get("reason"))
+            return
+        probe_ledger.record_searched(
+            intent,
+            status=status or "ok",
+            provider=summary.get("provider"),
+            offer_count=summary.get("offer_count", 0),
+            cache_status=summary.get("cache_status"),
+        )
+
     for spec in plan["segments"]:
         skipped = skipped_by_condition(spec)
         if skipped is not None:
             searches.append(skipped)
+            record_segment_probe_summary(spec, skipped)
             continue
         for outcome in dispatch_segment_probe(
             spec=spec,
@@ -924,6 +961,7 @@ def run_live_route_assembly(args: argparse.Namespace, store: Store) -> dict[str,
             request_deduper=request_deduper,
         ):
             searches.append(outcome.summary)
+            record_segment_probe_summary(spec, outcome.summary, provider_result=outcome.provider_result)
             if outcome.failure is not None:
                 failures.append(outcome.failure)
                 continue
@@ -936,6 +974,11 @@ def run_live_route_assembly(args: argparse.Namespace, store: Store) -> dict[str,
 
     ensure_moscow_gateway_control_synthesized()
     assembled = assemble_segment_results(segment_results, args) if segment_results else empty_assembled_result(args)
+    aggregate_controls = run_aggregate_controls(args, plan, kupibilet_fetcher=fetch_kupibilet_search, probe_ledger=probe_ledger)
+    for control in plan.get("coverage_controls") or []:
+        if isinstance(control, dict) and control.get("type") == "city_pair_direct":
+            probe_ledger.plan_intents([intent_from_control(control, provider=provider_policy)])
+    probe_ledger.finalize_unexecuted()
     source_label = "Kupibilet frontend_search direct-only segment assembly"
     note = "Live aggregate source; recheck price/seat availability and whether segments can be ticketed together before purchase."
     if provider_policy != "kupibilet":
@@ -948,7 +991,8 @@ def run_live_route_assembly(args: argparse.Namespace, store: Store) -> dict[str,
         "plan": {key: value for key, value in plan.items() if key != "segments"},
         "segment_searches": searches,
         "hub_viability": hub_viability_summary(plan, searches),
-        "aggregate_controls": run_aggregate_controls(args, plan, kupibilet_fetcher=fetch_kupibilet_search),
+        "aggregate_controls": aggregate_controls,
+        "probe_ledger": probe_ledger.to_coverage_diagnostics(plan),
         "direct_route_intelligence": direct_route_intel,
         "failure_count": len(failures),
         "failures": failures,

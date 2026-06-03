@@ -272,7 +272,14 @@ def semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
                 )
 
     diagnostics = report.get("coverage_diagnostics") if isinstance(report.get("coverage_diagnostics"), dict) else {}
-    for required_key in ("planned_controls", "failed_controls", "not_executed_controls", "deduped_controls", "completeness"):
+    for required_key in (
+        "planned_controls",
+        "failed_controls",
+        "not_supported_controls",
+        "not_executed_controls",
+        "deduped_controls",
+        "completeness",
+    ):
         if required_key not in diagnostics:
             errors.append(
                 {

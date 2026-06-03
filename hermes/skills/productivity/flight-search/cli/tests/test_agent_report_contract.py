@@ -183,6 +183,7 @@ def valid_report() -> dict:
             "searched_controls": [],
             "skipped_controls": [],
             "failed_controls": [],
+            "not_supported_controls": [],
             "not_executed_controls": [
                 {
                     "type": "exact_airport_direct",
@@ -634,6 +635,21 @@ class AgentReportContractTests(unittest.TestCase):
         ]
 
         validate_agent_report(report)
+
+    def test_coverage_diagnostics_requires_not_supported_bucket(self) -> None:
+        report = valid_report()
+        del report["coverage_diagnostics"]["not_supported_controls"]
+
+        with self.assertRaises(CliError) as ctx:
+            validate_agent_report(report)
+
+        self.assertTrue(
+            any(
+                error["validator"] == "semantic"
+                and error["path"] == "$.coverage_diagnostics.not_supported_controls"
+                for error in ctx.exception.details["errors"]
+            )
+        )
 
     def test_missing_required_top_level_field_fails(self) -> None:
         report = valid_report()
