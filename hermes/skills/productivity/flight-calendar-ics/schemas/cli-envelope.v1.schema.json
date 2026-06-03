@@ -55,6 +55,31 @@
           "reason": {
             "type": "string"
           },
+          "route": {
+            "type": "string",
+            "enum": [
+              "make",
+              "aeroflot",
+              "ural",
+              "utair",
+              "redwings"
+            ]
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "candidate_count": {
+            "type": "integer",
+            "minimum": 0
+          },
           "schema_version": {
             "type": "string"
           },
@@ -233,6 +258,7 @@
                   "route": {
                     "type": "string",
                     "enum": [
+                      "auto",
                       "make",
                       "aeroflot",
                       "ural",
@@ -374,6 +400,42 @@
             "redwings"
           ]
         },
+        "route_detection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "route",
+            "confidence",
+            "evidence"
+          ],
+          "properties": {
+            "mode": {
+              "const": "auto"
+            },
+            "route": {
+              "type": "string",
+              "enum": [
+                "make",
+                "aeroflot",
+                "ural",
+                "utair",
+                "redwings"
+              ]
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
         "verification": {
           "type": "object",
           "additionalProperties": false,
@@ -427,6 +489,18 @@
         },
         "message": {
           "type": "string"
+        },
+        "safe_candidates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_disambiguation": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     }

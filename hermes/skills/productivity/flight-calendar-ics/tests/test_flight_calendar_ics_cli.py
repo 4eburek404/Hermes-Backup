@@ -133,7 +133,9 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertIsInstance(contract, dict)
         self.assertEqual([step["id"] for step in contract["normal_steps"]], ["collect_source", "run_one_command", "verify", "deliver"])
         self.assertEqual({item["command"] for item in contract["dispatch_matrix"]}, {"build"})
-        self.assertEqual({item["route"] for item in contract["dispatch_matrix"]}, {"make", "aeroflot", "ural", "utair", "redwings"})
+        self.assertEqual({item["route"] for item in contract["dispatch_matrix"]}, {"auto", "make", "aeroflot", "ural", "utair", "redwings"})
+        auto_entry = next(item for item in contract["dispatch_matrix"] if item["route"] == "auto")
+        self.assertEqual(auto_entry["argv_template"][:3], ["--json", "build", "auto"])
         aeroflot_entry = next(item for item in contract["dispatch_matrix"] if item["route"] == "aeroflot")
         self.assertEqual(aeroflot_entry["argv_template"][:3], ["--json", "build", "aeroflot"])
         for entry in contract["dispatch_matrix"]:
@@ -335,6 +337,232 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertEqual(args.url_file, Path("/tmp/source.txt"))
         self.assertFalse(hasattr(args, "output_json"))
         self.assertFalse(hasattr(args, "output_ics"))
+
+    def test_build_route_parser_accepts_auto_for_cli_owned_route_inference(self) -> None:
+        module = self.import_cli_module()
+        parser = module.build_parser()
+
+        args = parser.parse_args(["build", "auto", "--url-file", "/tmp/source.txt"])
+
+        self.assertEqual(args.command, "build")
+        self.assertEqual(args.route, "auto")
+        self.assertEqual(args.url_file, Path("/tmp/source.txt"))
+
+    def test_build_auto_infers_make_from_canonical_itinerary_input(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            output_dir = Path(td) / "auto-make-bundle"
+
+            result = self.run_cli(
+                "--json",
+                "build",
+                "auto",
+                "--input",
+                str(TEMPLATE),
+                "--output-dir",
+                str(output_dir),
+                "--no-alarms",
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            obj = self.parse_stdout_json(result)
+            self.assert_envelope(obj, ok=True, command="build")
+            self.assertEqual(obj["data"]["route"], "make")
+            self.assertEqual(obj["data"]["route_detection"]["mode"], "auto")
+            self.assertEqual(obj["data"]["route_detection"]["route"], "make")
+            self.assertIn("input_kind:canonical_itinerary_json", obj["data"]["route_detection"]["evidence"])
+            self.assertTrue((output_dir / "flights.ics").exists())
+            self.assertIn("infer_route", [step["step"] for step in obj["process"]])
+
+    def test_build_auto_infers_aeroflot_from_private_url_file_without_doctor(self) -> None:
+        module = self.import_cli_module()
+        original_command = getattr(module, "command_aeroflot")
+        calls: list[argparse.Namespace] = []
+
+        def fake_command_aeroflot(args: argparse.Namespace, process: list[dict]) -> tuple[int, dict]:
+            calls.append(args)
+            itinerary = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+            ics_text, summaries = module.make_flight_ics.build_calendar(itinerary, no_alarms=True)
+            module.secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
+            module.secure_write_text(args.output_ics, ics_text)
+            module.add_step(process, "fake_fetch_aeroflot_pnr")
+            module.add_step(process, "write_json", artifact="json", mode="0600")
+            module.add_step(process, "write_ics", artifact="ics", mode="0600")
+            return 0, {
+                "segments_count": len(summaries),
+                "segments": [module.safe_segment_summary(item) for item in summaries],
+                "json_path": str(args.output_json),
+                "ics_path": str(args.output_ics),
+                "write_performed": True,
+            }
+
+        setattr(module, "command_aeroflot", fake_command_aeroflot)
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                output_dir = Path(td) / "auto-aeroflot-bundle"
+                url_file = Path(td) / "source-url.txt"
+                private_key = "a" * 64
+                url_file.write_text(
+                    f"https://www.aeroflot.ru/RU-ru/pnr/?pnrKey={private_key}&pnrLocator=ABC123\n",
+                    encoding="utf-8",
+                )
+                args = argparse.Namespace(
+                    command="build",
+                    route="auto",
+                    input=None,
+                    url=None,
+                    url_file=url_file,
+                    pnr_locator=None,
+                    pnr_key=None,
+                    pnr=None,
+                    rloc=None,
+                    last_name=None,
+                    first_name=None,
+                    access_code=None,
+                    output_dir=output_dir,
+                    tz=[],
+                    no_alarms=True,
+                    frontend_base=None,
+                    graphql_endpoint=None,
+                )
+                process: list[dict] = []
+
+                rc, data = module.command_build(args, process)
+
+                self.assertEqual(rc, 0)
+                self.assertEqual(calls[0].url, f"https://www.aeroflot.ru/RU-ru/pnr/?pnrKey={private_key}&pnrLocator=ABC123")
+                self.assertEqual(data["route"], "aeroflot")
+                self.assertEqual(data["route_detection"]["route"], "aeroflot")
+                self.assertEqual(data["route_detection"]["confidence"], 1.0)
+                self.assertIn("host:aeroflot.ru", data["route_detection"]["evidence"])
+                self.assertIn("query_field:pnrKey", data["route_detection"]["evidence"])
+                self.assertIn("query_field:pnrLocator", data["route_detection"]["evidence"])
+                self.assertNotIn("doctor", [step["step"] for step in process])
+                safe_output = json.dumps(data, ensure_ascii=False) + json.dumps(process, ensure_ascii=False)
+                for private_value in [private_key, "ABC123"]:
+                    self.assertNotIn(private_value, safe_output)
+        finally:
+            setattr(module, "command_aeroflot", original_command)
+
+    def test_build_auto_rejects_redwings_order_page_without_leaking_order_id(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            output_dir = Path(td) / "auto-redwings-order"
+            url_file = Path(td) / "source-url.txt"
+            url_file.write_text("https://flyredwings.com/booking/#/booking/ORDER123/order\n", encoding="utf-8")
+
+            result = self.run_cli("--json", "build", "auto", "--url-file", str(url_file), "--output-dir", str(output_dir))
+
+            self.assertEqual(result.returncode, 2)
+            obj = self.parse_stdout_json(result)
+            self.assert_envelope(obj, ok=False, command="build")
+            self.assertEqual(obj["error"]["code"], "route_input_insufficient")
+            self.assertIn("direct find link", obj["error"]["message"])
+            self.assertIn("infer_route", [step["step"] for step in obj["process"]])
+            self.assertNotIn("ORDER123", result.stdout + result.stderr)
+
+    def test_build_auto_rejects_ambiguous_route_specific_args_without_private_values(self) -> None:
+        result = self.run_cli(
+            "--json",
+            "build",
+            "auto",
+            "--pnr",
+            "ABC123",
+            "--rloc",
+            "ZZ9ZZZ",
+            "--last-name",
+            "DOE",
+        )
+
+        self.assertEqual(result.returncode, 2)
+        obj = self.parse_stdout_json(result)
+        self.assert_envelope(obj, ok=False, command="build")
+        self.assertEqual(obj["error"]["code"], "route_ambiguous")
+        self.assertEqual(obj["error"]["safe_candidates"], ["ural", "utair"])
+        self.assertIn("explicit route", obj["error"]["required_disambiguation"][0])
+        for private_value in ["ABC123", "ZZ9ZZZ", "DOE"]:
+            self.assertNotIn(private_value, result.stdout + result.stderr)
+
+    def test_build_auto_locks_known_utair_host_before_generic_pnr_last_name_fields(self) -> None:
+        module = self.import_cli_module()
+        args = argparse.Namespace(
+            route="auto",
+            input=None,
+            url="https://booking.utair.ru/order-manage?pnr=UT1234&lastName=DOE",
+            url_file=None,
+            pnr_locator=None,
+            pnr_key=None,
+            pnr=None,
+            rloc=None,
+            last_name=None,
+            access_code=None,
+        )
+
+        detection = module.infer_build_route(args)
+
+        self.assertEqual(detection["route"], "utair")
+        self.assertEqual(detection["mode"], "auto")
+        self.assertIn("host:utair.ru", detection["evidence"])
+        self.assertIn("query_field:pnr", detection["evidence"])
+        self.assertIn("query_field:lastName", detection["evidence"])
+        self.assertNotIn("UT1234", json.dumps(detection, ensure_ascii=False))
+        self.assertNotIn("DOE", json.dumps(detection, ensure_ascii=False))
+
+    def test_build_auto_known_ural_host_with_utair_only_fields_fails_before_wrong_dispatch(self) -> None:
+        module = self.import_cli_module()
+        args = argparse.Namespace(
+            route="auto",
+            input=None,
+            url="https://service.uralairlines.ru/?rloc=ZZ9ZZZ&last_name=DOE",
+            url_file=None,
+            pnr_locator=None,
+            pnr_key=None,
+            pnr=None,
+            rloc=None,
+            last_name=None,
+            access_code=None,
+        )
+
+        with self.assertRaises(module.CliFailure) as raised:
+            module.infer_build_route(args)
+
+        self.assertEqual(raised.exception.code, "route_input_insufficient")
+        self.assertEqual(raised.exception.details["route"], "ural")
+        safe_failure = raised.exception.args[0] + json.dumps(raised.exception.details, ensure_ascii=False)
+        for private_value in ["ZZ9ZZZ", "DOE"]:
+            self.assertNotIn(private_value, safe_failure)
+
+    def test_build_auto_unknown_host_generic_pnr_last_name_is_ambiguous(self) -> None:
+        result = self.run_cli(
+            "--json",
+            "build",
+            "auto",
+            "--url",
+            "https://example.com/manage?pnr=ABC123&lastName=DOE",
+        )
+
+        self.assertEqual(result.returncode, 2)
+        obj = self.parse_stdout_json(result)
+        self.assert_envelope(obj, ok=False, command="build")
+        self.assertEqual(obj["error"]["code"], "route_ambiguous")
+        self.assertEqual(obj["error"]["safe_candidates"], ["ural", "utair"])
+        for private_value in ["ABC123", "DOE"]:
+            self.assertNotIn(private_value, result.stdout + result.stderr)
+
+    def test_build_auto_tracking_wrapper_with_multiple_known_hosts_is_ambiguous(self) -> None:
+        result = self.run_cli(
+            "--json",
+            "build",
+            "auto",
+            "--url",
+            "https://tracker.example/click?u=https%3A%2F%2Fwww.aeroflot.ru%2FRU-ru%2Fpnr%2F%3FpnrKey%3DKEY123%26pnrLocator%3DAF1234&next=https%3A%2F%2Fbooking.utair.ru%2Forder-manage%3Frloc%3DUT1234%26last_name%3DDOE",
+        )
+
+        self.assertEqual(result.returncode, 2)
+        obj = self.parse_stdout_json(result)
+        self.assert_envelope(obj, ok=False, command="build")
+        self.assertEqual(obj["error"]["code"], "route_ambiguous")
+        self.assertEqual(obj["error"]["safe_candidates"], ["aeroflot", "utair"])
+        for private_value in ["KEY123", "AF1234", "UT1234", "DOE"]:
+            self.assertNotIn(private_value, result.stdout + result.stderr)
 
     def test_build_route_wraps_carrier_command_with_bundle_paths_and_url_file(self) -> None:
         module = self.import_cli_module()
