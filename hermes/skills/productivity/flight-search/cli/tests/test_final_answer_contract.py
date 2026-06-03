@@ -179,7 +179,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         parsed = json.loads(text)
 
         Draft202012Validator.check_schema(schema)
-        self.assertEqual(parsed["$id"], "urn:hermes:flights-cli:flight-search-user-answer:v1")
+        self.assertEqual(parsed["$id"], "urn:hermes:flights-cli:flight-search-user-answer:v2")
         self.assertEqual(schema["properties"]["schema_version"]["const"], USER_ANSWER_SCHEMA_VERSION)
         self.assertIn("rendered_text", schema["required"])
         self.assertEqual(schema["properties"]["rendered_text"], {"type": "string", "minLength": 1})

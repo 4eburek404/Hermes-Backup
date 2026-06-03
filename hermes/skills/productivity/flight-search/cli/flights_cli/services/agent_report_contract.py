@@ -10,10 +10,11 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 
 from ..errors import CliError
+from ..reporting.agent_report_v2 import AGENT_REPORT_V2_SCHEMA_VERSION, legacy_agent_report_view
 from ..reporting.final_answer_contract import validate_user_answer_contract
 
-AGENT_REPORT_SCHEMA_VERSION = "agent_report.v1"
-AGENT_REPORT_SCHEMA_RESOURCE = "agent_report.v1.schema.json"
+AGENT_REPORT_SCHEMA_VERSION = AGENT_REPORT_V2_SCHEMA_VERSION
+AGENT_REPORT_SCHEMA_RESOURCE = "agent_report.v2.schema.json"
 AGENT_REPORT_SCHEMA_PACKAGE = "flights_cli.contracts"
 DETAILED_FLIGHT_NUMBER_RE = re.compile(r"\b(?=[A-Z0-9]{2}\s?\d{2,4}\b)(?=[A-Z0-9]*[A-Z])[A-Z0-9]{2}\s?\d{2,4}\b", re.IGNORECASE)
 DISPLAY_DATE_RE = re.compile(r"\b\d{2}(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b", re.IGNORECASE)
@@ -151,6 +152,7 @@ def ru_priority_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def user_answer_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
+    report = legacy_agent_report_view(report)
     user_answer = report.get("user_answer")
     if not isinstance(user_answer, dict):
         return []
@@ -178,6 +180,7 @@ def user_answer_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
+    report = legacy_agent_report_view(report)
     errors: list[dict[str, Any]] = []
     answer_text = "\n".join(str(line).lower() for line in report.get("answer_lines") or [])
 
@@ -269,6 +272,15 @@ def semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
                 )
 
     diagnostics = report.get("coverage_diagnostics") if isinstance(report.get("coverage_diagnostics"), dict) else {}
+    for required_key in ("planned_controls", "failed_controls", "not_executed_controls", "deduped_controls", "completeness"):
+        if required_key not in diagnostics:
+            errors.append(
+                {
+                    "path": f"$.coverage_diagnostics.{required_key}",
+                    "message": f"coverage_diagnostics requires canonical {required_key}",
+                    "validator": "semantic",
+                }
+            )
     completeness = diagnostics.get("completeness") if isinstance(diagnostics.get("completeness"), dict) else {}
     if completeness.get("planned_count") != completeness.get("terminal_count"):
         errors.append(

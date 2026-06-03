@@ -4,6 +4,7 @@ import json
 from typing import Any
 
 from .errors import CliError
+from .reporting.agent_report_v2 import legacy_agent_report_view
 
 def output_envelope(command: str, data: Any) -> dict[str, Any]:
     return {"ok": True, "command": command, "data": data, "issues": []}
@@ -21,6 +22,7 @@ def emit_json(data: Any) -> None:
 
 
 def render_agent_report_human(report: dict[str, Any]) -> str:
+    report = legacy_agent_report_view(report)
     user_answer = report.get("user_answer") if isinstance(report.get("user_answer"), dict) else {}
     if user_answer.get("rendered_text"):
         return str(user_answer["rendered_text"])

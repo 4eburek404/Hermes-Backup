@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:hermes:flights-cli:search-evidence:v2",
+  "title": "Hermes Flights CLI Search Evidence v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_boundaries", "provider_failures", "coverage_diagnostics", "through_fare_checks"],
+  "properties": {
+    "source_boundaries": {"type": "array", "items": {"type": "string"}},
+    "hub_viability": {"type": "array"},
+    "segment_searches": {"type": "array"},
+    "provider_failures": {"type": "array"},
+    "aggregate_controls": {"type": "array"},
+    "coverage_diagnostics": {"type": "object"},
+    "through_fare_checks": {"type": "array"},
+    "rejected_pair_warnings": {"type": "array"},
+    "stop_policy": {"type": "object"},
+    "stop_policy_diagnostics": {"type": "object"},
+    "ru_priority_controls": {"type": "object"}
+  }
+}

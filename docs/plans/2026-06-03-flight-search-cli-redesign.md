@@ -364,6 +364,13 @@ git commit -m "refactor: make user answer the canonical flight output"
 - Add a test that production `build_agent_report` emits `schema_version == "agent_report.v2"` only.
 - Remove production dependency on v1 schema before final branch completion.
 
+**Implementation note:**
+
+- Production builder now emits serialized `agent_report.v2` as a thin wrapper: `route`, `evidence`, `frontier`, `user_answer`, `diagnostics`.
+- Legacy top-level fields are kept only as temporary in-process aliases via `AgentReportV2` / `legacy_agent_report_view()`, not as public JSON contract fields.
+- Public CLI JSON tests should assert nested v2 paths such as `frontier.recommended_options`, `frontier.priority_options`, `evidence.source_boundaries`, and `diagnostics.answer_lines`.
+- `flight_search_user_answer.v2` is a version bump of the canonical user-answer contract; `user_answer.rendered_text` remains the final output source.
+
 **Validation:**
 
 ```bash

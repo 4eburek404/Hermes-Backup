@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:hermes:flights-cli:offer-frontier:v2",
+  "title": "Hermes Flights CLI Offer Frontier v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "offer_graph", "recommended_options", "priority_options"],
+  "properties": {
+    "status": {"type": "object"},
+    "offer_graph": {"type": "object"},
+    "recommended_options": {"type": "array"},
+    "priority_options": {"type": "array"},
+    "decision_stability": {"type": "object"},
+    "missing_evidence": {"type": "array"}
+  }
+}
