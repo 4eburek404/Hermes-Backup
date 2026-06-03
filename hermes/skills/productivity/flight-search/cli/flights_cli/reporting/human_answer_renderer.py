@@ -302,6 +302,14 @@ def verification_lines(report: dict[str, Any]) -> list[str]:
     )
     if not_executed_controls:
         lines.append("coverage неполное — не все live-проверки выполнены; повторить поиск, если это влияет на выбор.")
+    not_supported_controls = (
+        coverage_diagnostics.get("not_supported_controls")
+        if isinstance(coverage_diagnostics, dict)
+        and isinstance(coverage_diagnostics.get("not_supported_controls"), list)
+        else []
+    )
+    if not_supported_controls:
+        lines.append("текущий provider/source не поддерживает часть проверок — это граница источника, а не ошибка выполнения и не доказательство отсутствия рейса.")
     through_fare_checks = report.get("through_fare_checks") if isinstance(report.get("through_fare_checks"), list) else []
     options = reportable_options(report.get("recommended_options")) + reportable_options(report.get("priority_options"))
     ticketing_models = {str(option.get("ticketing_model") or "separate_segments") for option in options}

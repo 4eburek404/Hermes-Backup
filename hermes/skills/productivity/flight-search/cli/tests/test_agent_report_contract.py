@@ -107,6 +107,8 @@ def valid_offer_graph() -> dict:
             "planned_control_count": 1,
             "terminal_control_count": 1,
             "searched_control_count": 0,
+            "failed_control_count": 0,
+            "not_supported_control_count": 0,
             "missing_evidence_count": 1,
             "provider_failure_count": 0,
         },
@@ -129,6 +131,7 @@ def valid_offer_graph() -> dict:
                 "reason": "not_reached_by_current_live_execution",
             }
         ],
+        "capability_boundaries": [],
         "truth_language": {
             "inventory_scope": "live_provider_returned_inventory",
             "absence_claim": "bounded_live_controls_only",
@@ -647,6 +650,61 @@ class AgentReportContractTests(unittest.TestCase):
             any(
                 error["validator"] == "semantic"
                 and error["path"] == "$.coverage_diagnostics.not_supported_controls"
+                for error in ctx.exception.details["errors"]
+            )
+        )
+
+    def test_schema_defines_canonical_not_supported_coverage_bucket(self) -> None:
+        schema = load_agent_report_schema()
+
+        coverage_schema = schema["$defs"]["coverage_diagnostics"]
+        self.assertIn("not_supported_controls", coverage_schema["required"])
+        self.assertEqual(
+            schema["$defs"]["search_evidence"]["properties"]["coverage_diagnostics"],
+            {"$ref": "#/$defs/coverage_diagnostics"},
+        )
+        not_supported_schema = coverage_schema["properties"]["not_supported_controls"]["items"]
+        self.assertEqual(not_supported_schema["properties"]["execution_state"], {"const": "not_supported"})
+        self.assertEqual(not_supported_schema["properties"]["status"], {"const": "not_supported"})
+
+    def test_coverage_diagnostics_rejects_non_list_control_bucket(self) -> None:
+        report = valid_report()
+        report["coverage_diagnostics"]["not_supported_controls"] = "not-a-list"
+
+        with self.assertRaises(CliError) as ctx:
+            validate_agent_report(report)
+
+        self.assertTrue(
+            any(
+                error["path"] == "$.coverage_diagnostics.not_supported_controls"
+                and "must be a list" in error["message"]
+                for error in ctx.exception.details["errors"]
+            )
+        )
+
+    def test_not_supported_controls_require_not_supported_terminal_state(self) -> None:
+        report = valid_report()
+        report["coverage_diagnostics"]["not_supported_controls"] = [
+            {
+                "type": "full_route_aggregate",
+                "direction": "outbound",
+                "origin": "SVX",
+                "destination": "DEL",
+                "date": "2026-06-01",
+                "provider": "fli",
+                "execution_state": "not_executed",
+                "status": "not_executed",
+                "probe_id": "probe-not-supported-001",
+            }
+        ]
+
+        with self.assertRaises(CliError) as ctx:
+            validate_agent_report(report)
+
+        self.assertTrue(
+            any(
+                error["path"] == "$.coverage_diagnostics.not_supported_controls[0].execution_state"
+                and "not_supported" in error["message"]
                 for error in ctx.exception.details["errors"]
             )
         )

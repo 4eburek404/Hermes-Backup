@@ -72,8 +72,6 @@ STOP_POLICY_ALIASES = {
 def stop_policy_from_args(args: Any) -> StopPolicy:
     raw_name = str(getattr(args, "stop_policy", "") or "business-default")
     base = STOP_POLICY_ALIASES.get(raw_name, BUSINESS_DEFAULT_STOP_POLICY)
-    if raw_name in {"debug-all", "debug_all"} and bool(getattr(args, "agent_brief", False)):
-        base = BUSINESS_DEFAULT_STOP_POLICY
     max_connections = getattr(args, "max_connections", None)
     fallback_max_connections = getattr(args, "fallback_max_connections", None)
     if max_connections is None and fallback_max_connections is None:

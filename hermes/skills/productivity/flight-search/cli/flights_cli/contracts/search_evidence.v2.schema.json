@@ -11,11 +11,52 @@
     "segment_searches": {"type": "array"},
     "provider_failures": {"type": "array"},
     "aggregate_controls": {"type": "array"},
-    "coverage_diagnostics": {"type": "object"},
+    "coverage_diagnostics": {"$ref": "#/$defs/coverage_diagnostics"},
     "through_fare_checks": {"type": "array"},
     "rejected_pair_warnings": {"type": "array"},
     "stop_policy": {"type": "object"},
     "stop_policy_diagnostics": {"type": "object"},
     "ru_priority_controls": {"type": "object"}
+  },
+  "$defs": {
+    "coverage_diagnostics": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "coverage_mode",
+        "negative_evidence_type",
+        "planned_controls",
+        "searched_controls",
+        "skipped_controls",
+        "failed_controls",
+        "not_supported_controls",
+        "not_executed_controls",
+        "deduped_controls",
+        "completeness"
+      ],
+      "properties": {
+        "coverage_mode": {"type": ["string", "null"]},
+        "negative_evidence_type": {"type": ["string", "null"]},
+        "planned_controls": {"type": "array", "items": {"type": "object", "additionalProperties": true, "properties": {"execution_state": {"const": "planned"}}}},
+        "searched_controls": {"type": "array", "items": {"type": "object", "additionalProperties": true, "properties": {"execution_state": {"const": "searched"}}}},
+        "skipped_controls": {"type": "array", "items": {"type": "object", "additionalProperties": true, "properties": {"execution_state": {"const": "skipped"}}}},
+        "failed_controls": {"type": "array", "items": {"type": "object", "additionalProperties": true, "properties": {"execution_state": {"const": "failed"}, "status": {"const": "failed"}}}},
+        "not_supported_controls": {"type": "array", "items": {"type": "object", "additionalProperties": true, "properties": {"execution_state": {"const": "not_supported"}, "status": {"const": "not_supported"}}}},
+        "not_executed_controls": {"type": "array", "items": {"type": "object", "additionalProperties": true, "properties": {"execution_state": {"const": "not_executed"}, "status": {"const": "not_executed"}}}},
+        "deduped_controls": {"type": "array", "items": {"type": "object", "additionalProperties": true, "properties": {"execution_state": {"const": "deduped"}, "status": {"const": "deduped"}}}},
+        "coverage_warnings": {"type": "array"},
+        "limits": {"type": "object"},
+        "completeness": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["planned_count", "terminal_count", "all_planned_controls_have_terminal_state"],
+          "properties": {
+            "planned_count": {"type": "integer"},
+            "terminal_count": {"type": "integer"},
+            "all_planned_controls_have_terminal_state": {"type": "boolean"}
+          }
+        }
+      }
+    }
   }
 }

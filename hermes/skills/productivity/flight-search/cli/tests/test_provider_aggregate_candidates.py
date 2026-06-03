@@ -233,6 +233,57 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
         self.assertEqual(graph["collection"]["mode"], "progressive")
         self.assertEqual(graph["truth_language"]["inventory_scope"], "live_provider_returned_inventory")
 
+    def test_offer_graph_surfaces_not_supported_as_capability_boundary_not_missing_evidence(self) -> None:
+        payload = report_payload()
+        payload["live_search"]["probe_ledger"] = {
+            "coverage_mode": "targeted",
+            "negative_evidence_type": "bounded_live_controls_only",
+            "planned_controls": [
+                {
+                    "type": "full_route_aggregate",
+                    "direction": "outbound",
+                    "origin": "SVX",
+                    "destination": "DEL",
+                    "date": "2026-06-01",
+                    "probe_id": "agg-probe-001",
+                }
+            ],
+            "searched_controls": [],
+            "skipped_controls": [],
+            "failed_controls": [],
+            "not_supported_controls": [
+                {
+                    "type": "full_route_aggregate",
+                    "direction": "outbound",
+                    "origin": "SVX",
+                    "destination": "DEL",
+                    "date": "2026-06-01",
+                    "provider": "kupibilet",
+                    "reason": "provider_capability_not_supported",
+                    "execution_state": "not_supported",
+                    "status": "not_supported",
+                    "probe_id": "agg-probe-001",
+                }
+            ],
+            "not_executed_controls": [],
+            "deduped_controls": [],
+            "completeness": {
+                "planned_count": 1,
+                "terminal_count": 1,
+                "all_planned_controls_have_terminal_state": True,
+            },
+        }
+
+        report = build_agent_report(payload)
+        validate_agent_report(report)
+
+        graph = report["offer_graph"]
+        self.assertEqual(graph["evidence"]["not_supported_control_count"], 1)
+        self.assertEqual(graph["evidence"]["missing_evidence_count"], 0)
+        self.assertEqual(graph["missing_evidence"], [])
+        self.assertEqual(graph["capability_boundaries"][0]["reason"], "provider_capability_not_supported")
+        self.assertEqual(graph["collection"]["stop_reason"], "bounded_terminal_controls")
+
     def test_provider_aggregate_times_include_layover_from_segment_timestamps(self) -> None:
         payload = report_payload()
         payload["live_search"]["aggregate_controls"][0]["top_offers"] = [

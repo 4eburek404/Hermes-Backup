@@ -206,9 +206,13 @@ def has_any_signal(text: str, signals: tuple[str, ...]) -> bool:
 
 
 def build_user_answer_contract(agent_report: dict[str, Any], *, rendered_text: str | None = None) -> dict[str, Any]:
-    diagnostics = agent_report.get("coverage_diagnostics") if isinstance(agent_report.get("coverage_diagnostics"), dict) else {}
+    diagnostics_raw = agent_report.get("coverage_diagnostics")
+    diagnostics = diagnostics_raw if isinstance(diagnostics_raw, dict) else {}
     completeness = diagnostics.get("completeness") if isinstance(diagnostics.get("completeness"), dict) else {}
-    not_executed = diagnostics.get("not_executed_controls") if isinstance(diagnostics.get("not_executed_controls"), list) else []
+    not_executed_raw = diagnostics.get("not_executed_controls")
+    not_executed = not_executed_raw if isinstance(not_executed_raw, list) else []
+    not_supported_raw = diagnostics.get("not_supported_controls")
+    not_supported = not_supported_raw if isinstance(not_supported_raw, list) else []
     provider_failures = agent_report.get("provider_failures") if isinstance(agent_report.get("provider_failures"), list) else []
     through_fare_checks = agent_report.get("through_fare_checks") if isinstance(agent_report.get("through_fare_checks"), list) else []
     answer_text = canonical_rendered_text(agent_report, rendered_text)
@@ -251,13 +255,14 @@ def build_user_answer_contract(agent_report: dict[str, Any], *, rendered_text: s
             "planned_control_count": int(completeness.get("planned_count") or 0),
             "terminal_control_count": int(completeness.get("terminal_count") or 0),
             "not_executed_control_count": len(not_executed),
+            "not_supported_control_count": len(not_supported),
             "provider_failure_count": len(provider_failures),
             "through_fare_check_count": len(through_fare_checks),
         },
         "required_caveats": {
             "source_boundaries_included": not bool(agent_report.get("source_boundaries")) or has_any_signal(
                 answer_text_lower,
-                ("do not treat", "не доказывает", "не доказывают", "not proof", "does not prove"),
+                ("do not treat", "не доказывает", "не доказывают", "не доказательство", "not proof", "does not prove"),
             ),
             "coverage_incompleteness_acknowledged": not bool(not_executed) or has_any_signal(
                 answer_text_lower,

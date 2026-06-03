@@ -14,6 +14,7 @@ from jsonschema import Draft202012Validator
 
 from flights_cli.cli import apply_agent_brief_output, apply_agent_mode_defaults, build_parser, normalize_global_json
 from flights_cli.config import DEFAULT_ROUTE_HUBS
+from flights_cli.domain.stop_policy import stop_policy_from_args
 from flights_cli.env import load_env_file
 
 from helpers import PROJECT, TEST_ENV
@@ -265,6 +266,29 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(args.include_candidates, 5)
         self.assertEqual(args.max_candidates, 50)
         self.assertEqual(trimmed, {"agent_report": {"answer_lines": ["ok"]}})
+
+    def test_agent_brief_preserves_explicit_stop_policy_evidence_scope(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "route",
+                "kb-assemble",
+                "SVX",
+                "DEL",
+                "--depart-date",
+                "2026-06-01",
+                "--stop-policy",
+                "debug-all",
+                "--agent-brief",
+            ]
+        )
+
+        apply_agent_mode_defaults(args)
+        policy = stop_policy_from_args(args)
+
+        self.assertFalse(args.agent_mode)
+        self.assertTrue(args.agent_report)
+        self.assertEqual(policy.name, "debug_all")
+        self.assertFalse(policy.suppress_three_plus)
 
     def test_cli_does_not_add_public_output_taxonomy_flags(self) -> None:
         parser = build_parser()
