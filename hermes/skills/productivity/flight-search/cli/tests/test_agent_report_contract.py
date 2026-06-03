@@ -12,6 +12,7 @@ from jsonschema import Draft202012Validator
 
 from flights_cli.cli import main
 from flights_cli.errors import CliError
+from flights_cli.reporting.agent_report_v2 import build_agent_report_v2
 from flights_cli.reporting.final_answer_contract import build_user_answer_contract, validate_user_answer_contract
 from flights_cli.services.agent_report import build_agent_report
 from flights_cli.services.agent_report_contract import (
@@ -26,6 +27,12 @@ from flights_cli.services.agent_report_contract import (
 EXPECTED_TOP_LEVEL_REQUIRED = [
     "schema_version",
     "route",
+    "evidence",
+    "frontier",
+    "user_answer",
+    "diagnostics",
+]
+LEGACY_TOP_LEVEL_FIELDS = {
     "status",
     "source_boundaries",
     "hub_viability",
@@ -41,8 +48,7 @@ EXPECTED_TOP_LEVEL_REQUIRED = [
     "answer_lines",
     "display",
     "human_answer",
-    "user_answer",
-]
+}
 
 
 def valid_option() -> dict:
@@ -234,7 +240,7 @@ def valid_report() -> dict:
     }
     report["user_answer"] = build_user_answer_contract(report)
     report["human_answer"]["text"] = report["user_answer"]["rendered_text"]
-    return report
+    return build_agent_report_v2(report)
 
 
 def ru_priority_branch(
@@ -282,10 +288,16 @@ class AgentReportContractTests(unittest.TestCase):
 
         Draft202012Validator.check_schema(schema)
         self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
-        self.assertEqual(schema["$id"], "urn:hermes:flights-cli:agent-report:v1")
-        self.assertEqual(schema["title"], "Hermes Flights CLI Agent Report v1")
+        self.assertEqual(schema["$id"], "urn:hermes:flights-cli:agent-report:v2")
+        self.assertEqual(schema["title"], "Hermes Flights CLI Agent Report v2")
         self.assertEqual(schema["properties"]["schema_version"]["const"], AGENT_REPORT_SCHEMA_VERSION)
         self.assertEqual(schema["required"], EXPECTED_TOP_LEVEL_REQUIRED)
+        self.assertNotIn("display", schema["required"])
+        self.assertNotIn("answer_lines", schema["required"])
+        self.assertNotIn("human_answer", schema["required"])
+        self.assertIn("evidence", schema["properties"])
+        self.assertIn("frontier", schema["properties"])
+        self.assertIn("diagnostics", schema["properties"])
         self.assertIn("user_answer", schema["properties"])
         self.assertIs(schema["additionalProperties"], False)
 
@@ -293,9 +305,9 @@ class AgentReportContractTests(unittest.TestCase):
         text = resources.files(AGENT_REPORT_SCHEMA_PACKAGE).joinpath(AGENT_REPORT_SCHEMA_RESOURCE).read_text(encoding="utf-8")
         parsed = json.loads(text)
 
-        self.assertEqual(parsed["$id"], "urn:hermes:flights-cli:agent-report:v1")
+        self.assertEqual(parsed["$id"], "urn:hermes:flights-cli:agent-report:v2")
         self.assertLessEqual(len(text.splitlines()), 700)
-        self.assertLessEqual(len(text.encode("utf-8")), 17000)
+        self.assertLessEqual(len(text.encode("utf-8")), 12000)
 
     def test_valid_synthetic_agent_report_passes(self) -> None:
         report = valid_report()
@@ -505,6 +517,13 @@ class AgentReportContractTests(unittest.TestCase):
         self.assertEqual(graph["evidence"]["terminal_control_count"], 1)
         self.assertEqual(graph["evidence"]["missing_evidence_count"], 1)
         self.assertEqual(graph["missing_evidence"][0]["reason"], "not_reached_by_current_live_execution")
+        self.assertEqual(report["schema_version"], "agent_report.v2")
+        self.assertIn("evidence", report)
+        self.assertIn("frontier", report)
+        self.assertIn("diagnostics", report)
+        serialized_report = json.loads(json.dumps(report, ensure_ascii=False))
+        self.assertFalse(LEGACY_TOP_LEVEL_FIELDS & set(serialized_report))
+        self.assertEqual(serialized_report["frontier"]["offer_graph"], graph)
         validate_user_answer_contract(report["user_answer"])
         self.assertEqual(report["user_answer"]["rendered_text"], report["human_answer"]["text"])
 
@@ -628,13 +647,13 @@ class AgentReportContractTests(unittest.TestCase):
 
     def test_wrong_schema_version_fails(self) -> None:
         report = valid_report()
-        report["schema_version"] = "agent_report.v2"
+        report["schema_version"] = "agent_report.v3"
 
         with self.assertRaises(CliError) as ctx:
             validate_agent_report(report)
 
         self.assertEqual(ctx.exception.error_type, "contract_error")
-        self.assertEqual(ctx.exception.details["schema_version"], "agent_report.v2")
+        self.assertEqual(ctx.exception.details["schema_version"], "agent_report.v3")
 
     def test_extra_top_level_field_fails(self) -> None:
         report = valid_report()

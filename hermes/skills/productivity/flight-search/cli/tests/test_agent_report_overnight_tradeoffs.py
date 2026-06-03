@@ -78,7 +78,7 @@ class AgentReportOvernightTradeoffTests(CliSubprocessMixin, unittest.TestCase):
 
         assembled = self._assemble(payload, "--agent-report")
         report = assembled["data"]["agent_report"]
-        option = report["recommended_options"][0]
+        option = report["frontier"]["recommended_options"][0]
         connection = option["connections"][0]
 
         tradeoff_codes = {item["code"] for item in connection.get("tradeoffs", [])}
@@ -89,7 +89,7 @@ class AgentReportOvernightTradeoffTests(CliSubprocessMixin, unittest.TestCase):
         self.assertNotIn("long_layover", connection_risk_codes)
         self.assertNotIn("night_connection", connection_risk_codes)
 
-        answer_text = "\n".join(report["answer_lines"]).lower()
+        answer_text = "\n".join(report["diagnostics"]["answer_lines"]).lower()
         self.assertIn("connection trade-off", answer_text)
         self.assertIn("overnight", answer_text)
         self.assertIn("long wait", answer_text)

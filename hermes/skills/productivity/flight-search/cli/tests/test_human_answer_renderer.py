@@ -242,7 +242,7 @@ class HumanAnswerRendererTests(unittest.TestCase):
     def test_cli_human_render_prefers_canonical_user_answer_over_legacy_projections(self) -> None:
         report = valid_report()
         report["user_answer"] = {
-            "schema_version": "flight_search_user_answer.v1",
+            "schema_version": "flight_search_user_answer.v2",
             "route": {"origin": "SVX", "destination": "DEL", "dates": {"depart_date": "2026-06-01"}},
             "primary_recommendation": None,
             "alternatives": [],

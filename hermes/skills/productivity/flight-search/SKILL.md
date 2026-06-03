@@ -19,7 +19,7 @@ Static catalogs only normalize metadata; cached fare helpers do not validate sch
 
 ## When to Use
 
-Use for live flight search/comparison, direct-service checks, hub/airport choice, carrier-specific availability, baggage/ticketing/protection risk, date-window planning, or this CLI/report maintenance. Also use it for immediate *travel-mode comparison follow-ups* after a flight search, such as “а поездом сколько стоит?” on the same route/dates: keep the answer as a cost/time comparison, not a full rail-booking workflow. Do not use for purchase actions, visa/hotel/ground research, or static fare hints unless explicitly requested as non-validated advisory data. Single-PNR/protection/baggage/fare-rule claims need purchase-screen/airline/GDS/seller/upstream proof.
+Use for live flight search/comparison, direct-service checks, hub/airport choice, carrier-specific availability, baggage/ticketing/protection risk, date-window planning, or this CLI/report maintenance. Also use it for flight-search CLI/report redesign audits: decompose overloaded agent/output/evidence behavior before proposing code changes, and use `references/cli-redesign-governance.md` plus `references/agent-report-v2-migration.md` for the target architecture. Also use it for immediate *travel-mode comparison follow-ups* after a flight search, such as “а поездом сколько стоит?” on the same route/dates: keep the answer as a cost/time comparison, not a full rail-booking workflow. Do not use for purchase actions, visa/hotel/ground research, or static fare hints unless explicitly requested as non-validated advisory data. Single-PNR/protection/baggage/fare-rule claims need purchase-screen/airline/GDS/seller/upstream proof.
 
 ## Maintenance Mode Gate
 
@@ -44,8 +44,8 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json route live-assemble ORIG
 Add `--return-date YYYY-MM-DD` for round trips. Add `--aggregate-control-carrier CARRIER` for carrier tasks; if incomplete, run narrow `kb-search ORIGIN DEST --only-carrier CARRIER` for full route and likely hub legs. For KupiBilet “туда-обратно одним билетом”, use `kb-roundtrip` first. Multi-city/open-jaw has no arbitrary live command; use separate assemblies or offline `route validate`/`route rank` and label diagnostic.
 
 4. Read only `data.agent_report`.
-5. Read `offer_graph` first: use `constraints` to preserve scope, `collection`/`evidence`/`missing_evidence` to decide whether evidence is complete enough, and `frontier` to keep mandatory alternatives visible. Treat first provider output as progressive evidence: run targeted/polling probes when missing direct/carrier/exact-airport/through-fare evidence can change the recommendation; stop only on completeness limit, source exhaustion, unchanged decision frontier, or explicit time budget.
-6. Use `user_answer.rendered_text` as the canonical renderer output when present; `human_answer.text` is only a legacy projection/fallback and must mirror `user_answer.rendered_text` during v1 migration. Cross-check `recommended_options`, `priority_options`, `through_fare_checks`, `provider_failures`, and `source_boundaries` when `offer_graph` shows degraded or missing evidence. `display`/`answer_lines` are evidence/debug inputs, not final prose. `doctor` is provenance only.
+5. Read `frontier.offer_graph` first: use `constraints` to preserve scope, `collection`/`evidence`/`missing_evidence` to decide whether evidence is complete enough, and `frontier.offer_graph.frontier` to keep mandatory alternatives visible. Treat first provider output as progressive evidence: run targeted/polling probes when missing direct/carrier/exact-airport/through-fare evidence can change the recommendation; stop only on completeness limit, source exhaustion, unchanged decision frontier, or explicit time budget.
+6. Use `user_answer.rendered_text` as the canonical renderer output when present; `human_answer.text` is only a legacy projection/fallback and must mirror `user_answer.rendered_text` during migration. Cross-check `frontier.recommended_options`, `frontier.priority_options`, `evidence.through_fare_checks`, `evidence.provider_failures`, and `evidence.source_boundaries` when `frontier.offer_graph` shows degraded or missing evidence. `diagnostics.display`/`diagnostics.answer_lines` are evidence/debug inputs, not final prose. `doctor` is provenance only.
 
 ## Decision Rules
 
@@ -82,13 +82,15 @@ Add `--return-date YYYY-MM-DD` for round trips. Add `--aggregate-control-carrier
 5. Pasting raw `display`, diagnostics, JSON, or provider boilerplate as final answer.
 6. Hiding `priority_options` or carrier/provider aggregates behind generic cheapest/fastest output.
 7. Mixing source, runtime, and temporary checkouts without naming evidence layer.
+8. Replacing overloaded `--agent-*` behavior with a larger public flag matrix (`none/user/agent/debug/human/json`, `--format`, `--report`, `--evidence`) instead of keeping a thin legacy wrapper and moving semantics into internal request/probe/user-answer contracts.
+9. Letting temporary in-process `agent_report.v2` legacy aliases mask public JSON contract regressions; serialized reports must use nested `evidence`/`frontier`/`user_answer`/`diagnostics` paths.
 
 ## Verification Checklist
 
 - [ ] Constraints normalized.
 - [ ] Runtime `route live-assemble --agent-brief` run, or provenance failure reported before fallback.
 - [ ] Answer based on `data.agent_report`; prefer `user_answer.rendered_text`; use `human_answer.text` only as a legacy fallback/projection.
-- [ ] `recommended_options`, `priority_options`, `through_fare_checks`, `provider_failures`, and `source_boundaries` checked.
+- [ ] `frontier.recommended_options`, `frontier.priority_options`, `evidence.through_fare_checks`, `evidence.provider_failures`, and `evidence.source_boundaries` checked.
 - [ ] Required direct/carrier/exact-airport/Moscow controls or narrow probes run.
 - [ ] Ticketing/protection/baggage-through and terminal claims proven or explicitly unconfirmed.
 - [ ] Maintenance verifies source/runtime paths, branch/HEAD/status, versions, backup, parity, tests/doctor, and generated-artifact cleanup.
@@ -101,5 +103,7 @@ Add `--return-date YYYY-MM-DD` for round trips. Add `--aggregate-control-carrier
   - `references/provider-aware-airport-priority.md` — provider/airport dispatch and city-code policy.
   - `references/debug-playbook.md` — targeted probes and route-family exception patterns.
   - `references/cli-maintenance.md` — source/runtime, schema/tests, sync, generated artifacts, and reference lifecycle.
+  - `references/cli-redesign-governance.md` — target architecture for CLI/report redesign: agent/output/evidence decomposition, schema cutover, canonical user answer, provider ports, aggregate controls, and stop-policy contract.
+  - `references/agent-report-v2-migration.md` — practical migration pattern for splitting flat `agent_report.v1` into `agent_report.v2` evidence/frontier/user-answer/diagnostics layers while keeping only temporary internal legacy aliases.
   - `references/rail-rzd-live-pricing.md` — RZD public endpoint/RID workflow for bounded train-price comparisons after a flight search.
 - Do not add per-incident/audit/handoff reference files by default; distill durable rules into the files above or into tests, and leave raw history to session search.

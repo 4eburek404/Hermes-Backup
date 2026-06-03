@@ -12,8 +12,8 @@ from jsonschema.exceptions import ValidationError
 from ..errors import CliError
 from .human_answer_renderer import build_human_answer
 
-USER_ANSWER_SCHEMA_VERSION = "flight_search_user_answer.v1"
-USER_ANSWER_SCHEMA_RESOURCE = "flight_search_user_answer.v1.schema.json"
+USER_ANSWER_SCHEMA_VERSION = "flight_search_user_answer.v2"
+USER_ANSWER_SCHEMA_RESOURCE = "flight_search_user_answer.v2.schema.json"
 USER_ANSWER_SCHEMA_PACKAGE = "flights_cli.contracts"
 
 

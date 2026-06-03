@@ -103,7 +103,7 @@ class ArchitectureTests(unittest.TestCase):
         self.assertIn("frontier`, `missing_evidence`, and `truth_language`", report_text)
         self.assertIn("`user_answer.rendered_text` — canonical", report_text)
         self.assertIn("legacy projection/fallback", report_text)
-        self.assertIn("Read `offer_graph` first", skill_text)
+        self.assertIn("Read `frontier.offer_graph` first", skill_text)
 
     def test_module_dependency_boundaries(self) -> None:
         root = PROJECT / "flights_cli"
