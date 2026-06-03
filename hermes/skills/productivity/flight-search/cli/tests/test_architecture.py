@@ -93,6 +93,17 @@ class ArchitectureTests(unittest.TestCase):
         )
         self.assertIn("Move those distilled rules into the appropriate active document or test.", text)
 
+    def test_report_contract_makes_offer_graph_primary_decision_layer(self) -> None:
+        skill = PROJECT.parent / "SKILL.md"
+        report_contract = PROJECT.parent / "references" / "report-contract.md"
+        skill_text = skill.read_text(encoding="utf-8")
+        report_text = report_contract.read_text(encoding="utf-8")
+
+        self.assertIn("`offer_graph` — primary decision graph", report_text)
+        self.assertIn("frontier`, `missing_evidence`, and `truth_language`", report_text)
+        self.assertIn("Use `human_answer.text` as renderer output", report_text)
+        self.assertIn("Read `offer_graph` first", skill_text)
+
     def test_module_dependency_boundaries(self) -> None:
         root = PROJECT / "flights_cli"
         modules = {".".join(path.relative_to(PROJECT).with_suffix("").parts): path for path in root.rglob("*.py")}

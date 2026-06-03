@@ -57,7 +57,8 @@ When changing `data.agent_report`:
 2. Update report-building code.
 3. Update docs that tell agents how to read the fields.
 4. Update fixtures and tests that assert the contract.
-5. Re-run the focused contract tests before broader validation.
+5. If the change introduces a primary decision layer such as `offer_graph`, add an architecture/doc contract test that forces `SKILL.md` and `references/report-contract.md` to name the new read order; do not rely on code/schema tests alone.
+6. Re-run the focused contract tests before broader validation.
 
 Runtime-path pitfall: schema helpers and contract tests must support both layouts:
 
@@ -121,6 +122,17 @@ Then check separately when deeper evidence is required:
 - GitHub publication state only when asked for published link/current remote version.
 
 If runtime is newer than GitHub, say so explicitly: operationally loaded runtime may be ahead of published source until source changes are committed and pushed.
+
+## Runtime-to-Source Gate Before Publishing
+
+Use this when the user asks to “sync with runtime” before committing or pushing a flight-search change. Treat runtime as an explicit input surface, not as a cache to overwrite blindly.
+
+1. Verify source repo branch, `HEAD`, dirty status, origin URL, and whether the feature branch already has an upstream.
+2. Compare runtime and source with generated-artifact excludes. Under `set -euo pipefail`, wrap `diff -qr ... | wc -l` as `(diff -qr ... || true) | wc -l` or run `diff ... || true`; otherwise a real diff can abort the provenance command before later checks run.
+3. Inspect changed runtime files before copying. If runtime has task-relevant docs/contract changes, sync runtime -> source with `rsync -a --delete` plus excludes for `__pycache__/`, `.pytest_cache/`, `*.pyc`, and `*.egg-info`.
+4. Validate source/runtime parity after sync, run focused contract/doc tests and the full offline suite when the change touches `agent_report`, report contract, or user-facing decision logic.
+5. Clean generated artifacts created by tests before staging.
+6. Stage only the runtime-sync files that changed, run `git diff --cached --check` and an allowlist guard, commit the sync if needed, then push and verify local/remote SHA equality.
 
 ## Source-to-Runtime Gate
 
