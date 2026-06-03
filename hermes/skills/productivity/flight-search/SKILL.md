@@ -44,7 +44,8 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json route live-assemble ORIG
 Add `--return-date YYYY-MM-DD` for round trips. Add `--aggregate-control-carrier CARRIER` for carrier tasks; if incomplete, run narrow `kb-search ORIGIN DEST --only-carrier CARRIER` for full route and likely hub legs. For KupiBilet “туда-обратно одним билетом”, use `kb-roundtrip` first. Multi-city/open-jaw has no arbitrary live command; use separate assemblies or offline `route validate`/`route rank` and label diagnostic.
 
 4. Read only `data.agent_report`.
-5. Prefer `human_answer.text`; cross-check `recommended_options`, `priority_options`, `through_fare_checks`, `provider_failures`, and `source_boundaries`. `display`/`answer_lines` are evidence/debug inputs, not final prose. `doctor` is provenance only.
+5. Read `offer_graph` first: use `constraints` to preserve scope, `collection`/`evidence`/`missing_evidence` to decide whether evidence is complete enough, and `frontier` to keep mandatory alternatives visible. Treat first provider output as progressive evidence: run targeted/polling probes when missing direct/carrier/exact-airport/through-fare evidence can change the recommendation; stop only on completeness limit, source exhaustion, unchanged decision frontier, or explicit time budget.
+6. Use `human_answer.text` as renderer output; cross-check `recommended_options`, `priority_options`, `through_fare_checks`, `provider_failures`, and `source_boundaries` when `offer_graph` shows degraded or missing evidence. `display`/`answer_lines` are evidence/debug inputs, not final prose. `doctor` is provenance only.
 
 ## Decision Rules
 

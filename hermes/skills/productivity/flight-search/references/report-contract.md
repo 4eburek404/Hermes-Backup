@@ -1,18 +1,19 @@
 # Flight Report Contract
 
-Use this when reading `data.agent_report` or deciding what to show the user. The report is the evidence layer; `human_answer.text` is the deterministic traveler-facing layer. Raw CLI internals are debug-only.
+Use this when reading `data.agent_report` or deciding what to show the user. The report is the evidence layer; `offer_graph` is the primary decision graph; `human_answer.text` is deterministic renderer output. Raw CLI internals are debug-only.
 
 ## Read Order
 
-1. `human_answer.text` — provider-neutral Telegram/Markdown answer. Default final answer source when present.
-2. `recommended_options` — viable ranked options with segment details; cross-check decision-critical details.
-3. `priority_options` — controls that must stay visible even when lower-ranked: carrier-specific, direct/nonstop, exact-airport, Moscow/SVO, fastest, cheapest, or airport-quality controls.
-4. `through_fare_checks` — ticketing/protection evidence and required purchase-screen checks.
-5. `provider_failures` — degraded provider evidence; mention only when it changes confidence or next action.
-6. `source_boundaries` — source/proof limits; print only decision-useful caveats.
-7. `display` — deterministic itinerary fragments for evidence, not final prose.
-8. `answer_lines` — compact internal summary/warnings; do not copy diagnostic labels into final answers.
-9. `hub_viability`, `coverage_diagnostics`, `rejected_pair_warnings`, `stop_policy_diagnostics` — diagnostics for missing/demoted routes, not normal user output.
+1. `offer_graph` — primary decision graph. Read `constraints`, `collection`, `evidence`, `frontier`, `missing_evidence`, and `truth_language` before deciding whether the answer is complete enough.
+2. `human_answer.text` — provider-neutral Telegram/Markdown rendering of the selected frontier. Use `human_answer.text` as renderer output, not as proof that collection was exhaustive.
+3. `recommended_options` — viable ranked options with segment details; cross-check decision-critical details.
+4. `priority_options` — controls that must stay visible even when lower-ranked: carrier-specific, direct/nonstop, exact-airport, Moscow/SVO, fastest, cheapest, or airport-quality controls.
+5. `through_fare_checks` — ticketing/protection evidence and required purchase-screen checks.
+6. `provider_failures` — degraded provider evidence; mention only when it changes confidence or next action.
+7. `source_boundaries` — source/proof limits; print only decision-useful caveats.
+8. `display` — deterministic itinerary fragments for evidence, not final prose.
+9. `answer_lines` — compact internal summary/warnings; do not copy diagnostic labels into final answers.
+10. `hub_viability`, `coverage_diagnostics`, `rejected_pair_warnings`, `stop_policy_diagnostics` — diagnostics for missing/demoted routes, not normal user output.
 
 ## Detail Completeness
 
@@ -23,6 +24,19 @@ Do not present exact routing from a summary-only option. Any option named in `an
 - `missing`: do not infer routing; rerun a targeted probe or debug the report.
 
 `segment_results=[]` does not prove segment details are absent. Full route bodies can still live under `ranked_candidates[].candidate.journeys[].segments[]`. If the compact report clipped a cheaper, faster, direct, same-carrier, exact-airport, or Moscow-control option, escalate to `references/debug-playbook.md` instead of guessing.
+
+## Progressive Evidence and Offer Graph Discipline
+
+Treat the first live provider response as an initial frontier, not as complete inventory. The decision loop is:
+
+1. Build the unified offer graph from all available offers/controls.
+2. Read request constraints as hard/soft scope: directness, carrier, exact airport, baggage, timing, ticketing/protection, price sensitivity, and operational profile.
+3. Compare the current frontier against mandatory controls. Missing direct, carrier-specific, exact-airport, through-fare, or materially cheaper/faster evidence is `missing_evidence`, not a final absence claim.
+4. Run bounded progressive collection when it can change the answer: polling/additional provider probes, targeted carrier/direct/exact-airport controls, hub-leg probes, or purchase-screen/through-fare checks.
+5. Stop only when the completeness limit is reached, the source is exhausted, further probes would not change the recommendation/frontier, or an explicit time budget is exhausted.
+6. Phrase truth claims at the evidence boundary: “нашёл все прямые, которые вернул live-поставщик” / “provider evidence неполное”, not “все возможные рейсы” unless the source actually proves exhaustiveness.
+
+The user-facing frontier should include every option needed for the decision, not every raw offer: best viable recommendation, materially different direct/nonstop controls, requested-carrier/exact-airport controls, safer ticketing/protection, and meaningful cheapest/fastest alternatives. Hide dominated duplicates unless the user asks for raw inventory.
 
 ## Recommendation Rules
 

@@ -755,6 +755,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
     def test_agent_mode_runs_carrier_aggregate_control_and_reports_through_fare_check(self) -> None:
         from flights_cli.cli import apply_agent_mode_defaults
 
+        future_depart = date(date.today().year + 1, 6, 1).isoformat()
         args = build_parser().parse_args(
             [
                 "route",
@@ -762,7 +763,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
                 "SVX",
                 "DEL",
                 "--depart-date",
-                "2026-06-01",
+                future_depart,
                 "--agent-mode",
                 "--aggregate-control-carrier",
                 "SU",

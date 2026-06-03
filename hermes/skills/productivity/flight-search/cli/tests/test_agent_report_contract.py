@@ -34,6 +34,7 @@ EXPECTED_TOP_LEVEL_REQUIRED = [
     "priority_options",
     "aggregate_controls",
     "coverage_diagnostics",
+    "offer_graph",
     "through_fare_checks",
     "rejected_pair_warnings",
     "answer_lines",
@@ -74,6 +75,57 @@ def valid_option() -> dict:
             }
         ],
         "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage.",
+    }
+
+
+def valid_offer_graph() -> dict:
+    return {
+        "algorithm": "unified_offer_graph.v1",
+        "constraints": {
+            "origin": "SVX",
+            "destination": "DEL",
+            "dates": {"depart_date": "2026-06-01"},
+            "profile": "business",
+            "routing_strategy": "ru-priority",
+            "provider_policy": "kupibilet",
+        },
+        "collection": {
+            "mode": "progressive",
+            "phases": ["primary_segment_search", "targeted_controls", "frontier_projection"],
+            "stop_reason": "bounded_terminal_controls",
+        },
+        "evidence": {
+            "coverage_mode": "targeted",
+            "planned_control_count": 1,
+            "terminal_control_count": 1,
+            "searched_control_count": 0,
+            "missing_evidence_count": 1,
+            "provider_failure_count": 0,
+        },
+        "frontier": [
+            {
+                "option_id": "assembled-1:SVX-DEL",
+                "source": "recommended_options",
+                "role": "best_practical",
+                "detail_status": "full",
+                "evidence_status": "full",
+            }
+        ],
+        "missing_evidence": [
+            {
+                "type": "exact_airport_direct",
+                "direction": "outbound",
+                "origin": "SVX",
+                "destination": "DEL",
+                "date": "2026-06-01",
+                "reason": "not_reached_by_current_live_execution",
+            }
+        ],
+        "truth_language": {
+            "inventory_scope": "live_provider_returned_inventory",
+            "absence_claim": "bounded_live_controls_only",
+            "direct_wording": "нашёл все прямые, которые вернул live-поставщик",
+        },
     }
 
 
@@ -146,6 +198,7 @@ def valid_report() -> dict:
                 "all_planned_controls_have_terminal_state": True,
             },
         },
+        "offer_graph": valid_offer_graph(),
         "through_fare_checks": [],
         "rejected_pair_warnings": [],
         "answer_lines": [
@@ -390,6 +443,59 @@ class AgentReportContractTests(unittest.TestCase):
             validate_agent_report(report)
 
         self.assertTrue(any(error["validator"] == "semantic" for error in ctx.exception.details["errors"]))
+
+    def test_build_agent_report_always_projects_unified_offer_graph(self) -> None:
+        report = build_agent_report(
+            {
+                "profile": "business",
+                "assembly": {
+                    "ranked_output_count": 0,
+                    "ranked_total_count": 0,
+                    "candidate_count": 0,
+                    "candidate_pool_truncated": False,
+                },
+                "ranked_candidates": [],
+                "frontier_candidates": [],
+                "rejected_pairs": [],
+                "live_search": {
+                    "provider_policy": "kupibilet",
+                    "plan": {
+                        "origin": "SVX",
+                        "destination": "DEL",
+                        "origin_airports": ["SVX"],
+                        "destination_airports": ["DEL"],
+                        "dates": {"depart": "2026-06-01", "return": None},
+                        "profile": "business",
+                        "routing_strategy": "ru-priority",
+                        "coverage_mode": "targeted",
+                        "coverage_controls": [
+                            {
+                                "type": "full_route_aggregate",
+                                "direction": "outbound",
+                                "origin": "SVX",
+                                "destination": "DEL",
+                                "date": "2026-06-01",
+                            }
+                        ],
+                    },
+                    "hub_viability": [],
+                    "segment_searches": [],
+                    "aggregate_controls": [],
+                    "failure_count": 0,
+                    "failures": [],
+                },
+            }
+        )
+
+        graph = report["offer_graph"]
+        self.assertEqual(graph["algorithm"], "unified_offer_graph.v1")
+        self.assertEqual(graph["collection"]["mode"], "progressive")
+        self.assertEqual(graph["truth_language"]["inventory_scope"], "live_provider_returned_inventory")
+        self.assertEqual(graph["truth_language"]["absence_claim"], "bounded_live_controls_only")
+        self.assertEqual(graph["evidence"]["planned_control_count"], 1)
+        self.assertEqual(graph["evidence"]["terminal_control_count"], 1)
+        self.assertEqual(graph["evidence"]["missing_evidence_count"], 1)
+        self.assertEqual(graph["missing_evidence"][0]["reason"], "not_reached_by_current_live_execution")
 
     def test_v1_accepts_optional_omitted_counts(self) -> None:
         report = valid_report()

@@ -218,6 +218,21 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
         self.assertEqual(aggregate["ticketing_model"], "provider_aggregate")
         self.assertIn("One-way", aggregate["user_facing_label"])
 
+    def test_offer_graph_frontier_includes_provider_aggregate_candidate(self) -> None:
+        report = build_agent_report(report_payload())
+        validate_agent_report(report)
+
+        graph = report["offer_graph"]
+        frontier_by_id = {item["option_id"]: item for item in graph["frontier"]}
+
+        self.assertIn("provider-aggregate:outbound:agg-su-del", frontier_by_id)
+        aggregate_frontier = frontier_by_id["provider-aggregate:outbound:agg-su-del"]
+        self.assertEqual(aggregate_frontier["source"], "priority_options")
+        self.assertEqual(aggregate_frontier["role"], "provider_aggregate_candidate")
+        self.assertEqual(aggregate_frontier["evidence_status"], "provider_aggregate_unverified_ticketing")
+        self.assertEqual(graph["collection"]["mode"], "progressive")
+        self.assertEqual(graph["truth_language"]["inventory_scope"], "live_provider_returned_inventory")
+
     def test_provider_aggregate_times_include_layover_from_segment_timestamps(self) -> None:
         payload = report_payload()
         payload["live_search"]["aggregate_controls"][0]["top_offers"] = [
