@@ -57,7 +57,8 @@ When changing `data.agent_report`:
 2. Update report-building code.
 3. Update docs that tell agents how to read the fields.
 4. Update fixtures and tests that assert the contract.
-5. Re-run the focused contract tests before broader validation.
+5. If the change introduces a primary decision layer such as `offer_graph`, add an architecture/doc contract test that forces `SKILL.md` and `references/report-contract.md` to name the new read order; do not rely on code/schema tests alone.
+6. Re-run the focused contract tests before broader validation.
 
 Runtime-path pitfall: schema helpers and contract tests must support both layouts:
 

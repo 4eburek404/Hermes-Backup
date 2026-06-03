@@ -1,18 +1,19 @@
 # Flight Report Contract
 
-Use this when reading `data.agent_report` or deciding what to show the user. The report is the evidence layer; `human_answer.text` is the deterministic traveler-facing layer. Raw CLI internals are debug-only.
+Use this when reading `data.agent_report` or deciding what to show the user. The report is the evidence layer; `offer_graph` is the primary decision graph; `human_answer.text` is deterministic renderer output. Raw CLI internals are debug-only.
 
 ## Read Order
 
-1. `human_answer.text` — provider-neutral Telegram/Markdown answer. Default final answer source when present.
-2. `recommended_options` — viable ranked options with segment details; cross-check decision-critical details.
-3. `priority_options` — controls that must stay visible even when lower-ranked: carrier-specific, direct/nonstop, exact-airport, Moscow/SVO, fastest, cheapest, or airport-quality controls.
-4. `through_fare_checks` — ticketing/protection evidence and required purchase-screen checks.
-5. `provider_failures` — degraded provider evidence; mention only when it changes confidence or next action.
-6. `source_boundaries` — source/proof limits; print only decision-useful caveats.
-7. `display` — deterministic itinerary fragments for evidence, not final prose.
-8. `answer_lines` — compact internal summary/warnings; do not copy diagnostic labels into final answers.
-9. `hub_viability`, `coverage_diagnostics`, `rejected_pair_warnings`, `stop_policy_diagnostics` — diagnostics for missing/demoted routes, not normal user output.
+1. `offer_graph` — primary decision graph. Read `constraints`, `collection`, `evidence`, `frontier`, `missing_evidence`, and `truth_language` before deciding whether the answer is complete enough.
+2. `human_answer.text` — provider-neutral Telegram/Markdown rendering of the selected frontier. Use `human_answer.text` as renderer output, not as proof that collection was exhaustive.
+3. `recommended_options` — viable ranked options with segment details; cross-check decision-critical details.
+4. `priority_options` — controls that must stay visible even when lower-ranked: carrier-specific, direct/nonstop, exact-airport, Moscow/SVO, fastest, cheapest, or airport-quality controls.
+5. `through_fare_checks` — ticketing/protection evidence and required purchase-screen checks.
+6. `provider_failures` — degraded provider evidence; mention only when it changes confidence or next action.
+7. `source_boundaries` — source/proof limits; print only decision-useful caveats.
+8. `display` — deterministic itinerary fragments for evidence, not final prose.
+9. `answer_lines` — compact internal summary/warnings; do not copy diagnostic labels into final answers.
+10. `hub_viability`, `coverage_diagnostics`, `rejected_pair_warnings`, `stop_policy_diagnostics` — diagnostics for missing/demoted routes, not normal user output.
 
 ## Detail Completeness
 
