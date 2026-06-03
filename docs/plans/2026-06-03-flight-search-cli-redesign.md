@@ -4,7 +4,7 @@
 
 **Goal:** Разобрать перегруженный flight-search CLI/report path на понятные слои: пользовательский поиск, evidence/probe execution, decision/frontier, canonical user answer, agent/debug contract.
 
-**Architecture:** Публичный путь должен быть одним тонким wrapper-ом над общим pipeline: `SearchRequest -> ProbeIntent ledger -> provider ports -> assembled/ranked frontier -> user_answer -> renderer`. Agent/debug output не должен быть отдельной логикой ответа и не должен скрыто менять provider calls; если нужен больший evidence budget, это отдельный `EvidencePreset`.
+**Architecture:** Публичный путь должен быть одним тонким wrapper-ом над общим pipeline: `SearchRequest -> ProbeIntent ledger -> provider ports -> assembled/ranked frontier -> user_answer -> renderer`. Не вводим новую башню публичных режимов/флагов. Agent/debug поведение — внутренний контракт и legacy compatibility; output не должен скрыто менять provider calls. Если нужен больший evidence budget, это явное внутреннее evidence policy/plan, а не “человеку показать JSON”.
 
 **Tech Stack:** Python 3.11, argparse, JSON Schema Draft 2020-12, pytest/unittest, existing `flights_cli` package under `hermes/skills/productivity/flight-search/cli`.
 
@@ -92,8 +92,9 @@ Minimal public flags:
 - `--prefer-carrier`
 - `--avoid-carrier`
 - `--stops business|direct-one-stop|debug` or keep `--stop-policy` only as advanced if naming is not ready
-- `--format human|json|agent-json`
-- `--evidence standard|verified|debug`
+- existing global `--json` only when machine-readable output is explicitly required
+
+No new public `--format`, `--report-level`, `--agent-json`, `--evidence`, `none/user/agent/debug`, or similar taxonomy flags. Internal code may use small booleans/objects for clarity, but CLI surface stays narrow.
 
 Everything else becomes advanced/debug:
 
@@ -109,31 +110,18 @@ Everything else becomes advanced/debug:
 
 ### Agent-mode replacement
 
-Remove “agent mode” as a conceptual primitive. Replace it with orthogonal knobs:
+Remove “agent mode” as a conceptual primitive. Do **not** replace it with a menu of new public flags like `none/user/agent/debug/human/json`. That would just move the confusion.
 
-1. `ReportLevel`
-   - `none`: no structured report.
-   - `user`: include only canonical `user_answer`.
-   - `agent`: include `agent_report` with evidence/frontier/user_answer.
-   - `debug`: include debug internals and raw diagnostic projections.
+Target behavior:
 
-2. `OutputProfile`
-   - `human`: final prose from `user_answer`.
-   - `json`: stable JSON envelope with `user_answer`.
-   - `agent-json`: compact JSON envelope optimized for LLM/tool use.
+- There is one normal user path and one canonical `user_answer`.
+- `--json` remains the existing machine-output switch; we do not add `--format human|json|agent-json`.
+- `--agent-report` is a narrow compatibility flag: attach structured report, no search/evidence mutation.
+- `--agent-brief` is a narrow compatibility flag for tools: output only the compact report/user-answer payload, no search/evidence mutation.
+- `--agent-mode` is legacy. During migration it may keep old behavior behind tests, but it must not be a design foundation or golden-path flag.
+- Evidence expansion belongs in the planning/probe layer. If aggregate/full-route controls are needed, the pipeline should plan them from request/evidence needs, not because output is “agent”.
 
-3. `EvidencePreset`
-   - `standard`: bounded default evidence.
-   - `verified`: current “agent useful” evidence, including aggregate/full-route controls where they are needed.
-   - `debug`: broader probes and diagnostics, still bounded.
-
-Compatibility mapping during branch work only:
-
-- `--agent-report` -> `ReportLevel.agent`, no evidence budget mutation.
-- `--agent-brief` -> `OutputProfile.agent-json` + `ReportLevel.agent`, no evidence budget mutation.
-- old `--agent-mode` -> compatibility alias for `OutputProfile.agent-json` + `ReportLevel.agent` + `EvidencePreset.verified`.
-
-Final merge gate: do not merge with old `--agent-mode` as a first-class documented mode. It may remain only as a deprecated compatibility alias if tests assert the alias and docs mark it as legacy; preferred target is removal from golden path.
+Final merge gate: no new public agent-mode taxonomy. Old `--agent-mode` is removed from documentation or left only as explicitly deprecated compatibility; preferred public future is `flights search ...` plus existing `--json` when machine output is required.
 
 ---
 
@@ -205,7 +193,7 @@ Required contract fields should include:
   - `reportable_by_stop_policy`
   - `stop_policy_reason`
 
-`--include-stop-policy-diagnostics` should not survive as a confusing public flag. The contract should always include compact stop-policy status; detailed diagnostics belong to `ReportLevel.debug`.
+`--include-stop-policy-diagnostics` should not survive as a confusing public flag. The contract should always include compact stop-policy status; detailed diagnostics belong to debug/internal output only.
 
 ---
 
@@ -253,11 +241,10 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json maintenance check
 
 **Test cases:**
 
-- `--agent-report` maps to `ReportLevel.agent` and does not change evidence preset.
-- `--agent-brief` maps to compact agent JSON output and does not change evidence preset.
-- old `--agent-mode` maps to compatibility preset and is the only old flag allowed to imply verified evidence.
-- explicit `--evidence verified` changes evidence budget without changing output profile.
-- explicit `--format agent-json` changes output profile without changing evidence budget.
+- `--agent-report` attaches report but leaves output and aggregate-control defaults unchanged.
+- `--agent-brief` trims JSON to the compact report payload but leaves aggregate-control defaults unchanged.
+- old `--agent-mode` is explicitly legacy; if retained temporarily, tests must name its side effects so it cannot masquerade as normal output behavior.
+- No new public `--format`, `--evidence`, `--report-level`, or `--output-profile` flags are introduced by this task.
 
 **RED command:**
 
@@ -266,7 +253,7 @@ cd /home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-search/c
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests:. python3 -m pytest tests/test_cli_contract.py -q
 ```
 
-Expected: fail because taxonomy objects/options do not exist yet.
+Expected: fail because current `--agent-brief` still implies `--agent-mode` and `aggregate_control_limit=10`, and/or because no guard exists against new public taxonomy flags.
 
 **Commit after RED if doing strict step commits:**
 
@@ -277,26 +264,22 @@ git commit -m "test: define flight search CLI intent taxonomy"
 
 ---
 
-### Task 2: Implement `OutputProfile`, `ReportLevel`, and `EvidencePreset`
+### Task 2: Decouple agent brief/report from evidence side effects
 
-**Objective:** Replace ad-hoc `apply_agent_mode_defaults` mutation with explicit resolved intent.
+**Objective:** Replace ad-hoc `apply_agent_mode_defaults` mutation with narrow compatibility behavior, without adding a new public mode taxonomy.
 
 **Files:**
 
-- Create: `hermes/skills/productivity/flight-search/cli/flights_cli/cli_intent.py`
 - Modify: `hermes/skills/productivity/flight-search/cli/flights_cli/cli.py`
 - Test: `tests/test_cli_contract.py` / `tests/test_cli_intent_profiles.py`
 
 **Implementation notes:**
 
-- Add dataclasses or simple typed dicts:
-  - `OutputProfile`
-  - `ReportLevel`
-  - `EvidencePreset`
-  - `ResolvedCliIntent`
-- Parser stores raw flags.
-- A single resolver maps raw flags to intent.
-- Existing command functions should read resolved intent, not raw `agent_*` flags, after migration.
+- Keep existing global `--json`; do not add `--format` or similar.
+- Keep `--agent-report` as report attachment only.
+- Change `--agent-brief` so it implies report attachment and output trimming only; it must not imply aggregate controls.
+- Treat `--agent-mode` as legacy compatibility only. If retained temporarily, isolate and document its current output/evidence side effects in tests.
+- Prefer small helper functions/booleans over new enum taxonomies unless a later task proves they are necessary.
 
 **GREEN command:**
 
@@ -308,10 +291,9 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests:. python3 -m pytest tests/test_cli_co
 
 ```bash
 git add hermes/skills/productivity/flight-search/cli/flights_cli/cli.py \
-        hermes/skills/productivity/flight-search/cli/flights_cli/cli_intent.py \
         hermes/skills/productivity/flight-search/cli/tests/test_cli_contract.py
 git diff --cached --check
-git commit -m "refactor: separate flight search CLI intent profiles"
+git commit -m "refactor: decouple flight search agent brief output"
 ```
 
 ---
@@ -509,7 +491,7 @@ git commit -m "refactor: unify aggregate controls with probe ledger"
 **Behavior:**
 
 - Compact stop-policy status is always present in `user_answer` and `offer_frontier`.
-- Detailed stop diagnostics appear only at `ReportLevel.debug`.
+- Detailed stop diagnostics appear only in debug/internal output.
 - No public `--include-stop-policy-diagnostics` flag in golden path.
 
 **Validation:**
@@ -625,7 +607,7 @@ git commit -m "chore: remove legacy flight search report paths"
 cd /home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-search/cli
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests:. python3 -m pytest tests -q
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json maintenance check
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search SVX MOW --depart-date 2026-06-10 --format agent-json --evidence standard
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search SVX MOW --depart-date 2026-06-10
 ```
 
 The last command should be converted to an offline/mock smoke if live providers are not intended for validation.
@@ -638,8 +620,8 @@ The last command should be converted to an offline/mock smoke if live providers 
 
 ## Updated recommendations
 
-1. Do not keep “agent mode” as a single concept. Replace it with `ReportLevel`, `OutputProfile`, and `EvidencePreset`.
-2. Do not make output flags secretly change provider calls. Evidence expansion belongs only to `EvidencePreset`.
+1. Do not keep “agent mode” as a single concept, and do not replace it with a public mode taxonomy. Keep only narrow legacy report/brief behavior while the future public path becomes one `flights search` command.
+2. Do not make output flags secretly change provider calls. Evidence expansion belongs to the planning/probe layer, not to `--agent-*` output flags.
 3. Prefer hard schema cutover to v2, but do it on a feature branch with a mandatory legacy-removal gate before merge.
 4. Make `user_answer` the canonical user contract and render all human/prose output from it.
 5. Complete provider port integration; do not delete the port pattern.
