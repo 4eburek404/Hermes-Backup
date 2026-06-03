@@ -194,7 +194,7 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(ctx.exception.code, 2)
         self.assertIn("unrecognized arguments: --direct-only", stderr.getvalue())
 
-    def test_agent_mode_sets_compact_live_assembly_defaults(self) -> None:
+    def test_legacy_agent_mode_sets_compact_live_assembly_defaults(self) -> None:
         args = build_parser().parse_args(
             ["route", "kb-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--agent-mode"]
         )
@@ -228,7 +228,23 @@ class CliContractTests(unittest.TestCase):
 
         self.assertEqual(args.aggregate_control_limit, 10)
 
-    def test_agent_brief_implies_agent_mode_and_trims_json_payload(self) -> None:
+    def test_agent_report_is_report_attachment_without_output_or_evidence_side_effects(self) -> None:
+        args = build_parser().parse_args(
+            ["route", "kb-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--agent-report"]
+        )
+
+        apply_agent_mode_defaults(args)
+
+        self.assertFalse(args.agent_mode)
+        self.assertTrue(args.agent_report)
+        self.assertEqual(args.include_candidates, 5)
+        self.assertEqual(args.include_ranked_candidates, 5)
+        self.assertEqual(args.include_rejected_pairs, 20)
+        self.assertEqual(args.include_segment_results, 0)
+        self.assertEqual(args.max_candidates, 50)
+        self.assertEqual(args.aggregate_control_limit, 0)
+
+    def test_agent_brief_trims_payload_without_agent_mode_or_evidence_side_effects(self) -> None:
         args = build_parser().parse_args(
             ["route", "kb-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--agent-brief"]
         )
@@ -243,9 +259,26 @@ class CliContractTests(unittest.TestCase):
             },
         )
 
-        self.assertTrue(args.agent_mode)
+        self.assertFalse(args.agent_mode)
         self.assertTrue(args.agent_report)
+        self.assertEqual(args.aggregate_control_limit, 0)
+        self.assertEqual(args.include_candidates, 5)
+        self.assertEqual(args.max_candidates, 50)
         self.assertEqual(trimmed, {"agent_report": {"answer_lines": ["ok"]}})
+
+    def test_cli_does_not_add_public_output_taxonomy_flags(self) -> None:
+        parser = build_parser()
+        rejected_flag_cases = [
+            ["route", "kb-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--format", "agent-json"],
+            ["route", "kb-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--evidence", "verified"],
+            ["route", "kb-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--report-level", "agent"],
+            ["route", "kb-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--output-profile", "human"],
+        ]
+        for argv in rejected_flag_cases:
+            with self.subTest(argv=argv):
+                with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as ctx:
+                    parser.parse_args(argv)
+                self.assertEqual(ctx.exception.code, 2)
 
     def test_json_route_plan_envelope_and_repeatable_hubs(self) -> None:
         proc = subprocess.run(
