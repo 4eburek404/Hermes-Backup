@@ -25,6 +25,19 @@ Do not present exact routing from a summary-only option. Any option named in `an
 
 `segment_results=[]` does not prove segment details are absent. Full route bodies can still live under `ranked_candidates[].candidate.journeys[].segments[]`. If the compact report clipped a cheaper, faster, direct, same-carrier, exact-airport, or Moscow-control option, escalate to `references/debug-playbook.md` instead of guessing.
 
+## Progressive Evidence and Offer Graph Discipline
+
+Treat the first live provider response as an initial frontier, not as complete inventory. The decision loop is:
+
+1. Build the unified offer graph from all available offers/controls.
+2. Read request constraints as hard/soft scope: directness, carrier, exact airport, baggage, timing, ticketing/protection, price sensitivity, and operational profile.
+3. Compare the current frontier against mandatory controls. Missing direct, carrier-specific, exact-airport, through-fare, or materially cheaper/faster evidence is `missing_evidence`, not a final absence claim.
+4. Run bounded progressive collection when it can change the answer: polling/additional provider probes, targeted carrier/direct/exact-airport controls, hub-leg probes, or purchase-screen/through-fare checks.
+5. Stop only when the completeness limit is reached, the source is exhausted, further probes would not change the recommendation/frontier, or an explicit time budget is exhausted.
+6. Phrase truth claims at the evidence boundary: “нашёл все прямые, которые вернул live-поставщик” / “provider evidence неполное”, not “все возможные рейсы” unless the source actually proves exhaustiveness.
+
+The user-facing frontier should include every option needed for the decision, not every raw offer: best viable recommendation, materially different direct/nonstop controls, requested-carrier/exact-airport controls, safer ticketing/protection, and meaningful cheapest/fastest alternatives. Hide dominated duplicates unless the user asks for raw inventory.
+
 ## Recommendation Rules
 
 Lead with `recommended_options[0]` only when it is viable, has `detail_status=full`, and no mandatory control materially changes the decision.
