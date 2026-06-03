@@ -22,6 +22,7 @@ This registry is the ownership map for `flight-calendar-ics` references. Use it 
 - `core/manual-source-extraction.md` — PDF/email/screenshot/manual extraction into canonical itinerary JSON.
 - `core/timezone-catalog.md` — bundled Travelpayouts airport timezone asset, overrides, diagnostics, and regression rules.
 - `core/privacy-hardening.md` — redaction, private artifact permissions, JSON-mode failures, helper compatibility, and hardening review checks.
+- `core/output-bundle-design.md` — CLI-owned private output bundle, canonical artifact names, and verification boundary.
 
 ### Carriers
 

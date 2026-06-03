@@ -128,14 +128,17 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assert_envelope(obj, ok=True, command="doctor")
         self.assertEqual(obj["data"]["entrypoint"], str(CLI))
         self.assertEqual(obj["data"]["entrypoint_kind"], "single-python-executable")
-        self.assertGreaterEqual(set(obj["data"]["commands"]), {"doctor", "validate", "make", "aeroflot", "ural", "utair", "redwings"})
+        self.assertGreaterEqual(set(obj["data"]["commands"]), {"doctor", "validate", "make", "build", "aeroflot", "ural", "utair", "redwings"})
         contract = obj["data"].get("agent_contract")
         self.assertIsInstance(contract, dict)
         self.assertEqual([step["id"] for step in contract["normal_steps"]], ["collect_source", "run_one_command", "verify", "deliver"])
-        self.assertEqual({item["command"] for item in contract["dispatch_matrix"]}, {"make", "aeroflot", "ural", "utair", "redwings"})
-        aeroflot_entry = next(item for item in contract["dispatch_matrix"] if item["command"] == "aeroflot")
-        self.assertIn("--output-json", aeroflot_entry["argv_template"])
-        self.assertIn("--output-ics", aeroflot_entry["argv_template"])
+        self.assertEqual({item["command"] for item in contract["dispatch_matrix"]}, {"build"})
+        self.assertEqual({item["route"] for item in contract["dispatch_matrix"]}, {"make", "aeroflot", "ural", "utair", "redwings"})
+        aeroflot_entry = next(item for item in contract["dispatch_matrix"] if item["route"] == "aeroflot")
+        self.assertEqual(aeroflot_entry["argv_template"][:3], ["--json", "build", "aeroflot"])
+        for entry in contract["dispatch_matrix"]:
+            self.assertNotIn("--output-json", entry["argv_template"])
+            self.assertNotIn("--output-ics", entry["argv_template"])
         self.assertIn("no_full_booking_urls", contract["privacy"]["chat_summary_must_omit"])
         self.assertIn("load_input", [step["step"] for step in obj["process"]])
         self.assertIn("emit_json", [step["step"] for step in obj["process"]])
@@ -151,6 +154,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertIn("doctor", properties["command"]["enum"])
         self.assertIn("make", properties["command"]["enum"])
         self.assertIn("validate", properties["command"]["enum"])
+        self.assertIn("build", properties["command"]["enum"])
         self.assertIn("aeroflot", properties["command"]["enum"])
         self.assertIn("ural", properties["command"]["enum"])
         self.assertIn("utair", properties["command"]["enum"])
@@ -273,6 +277,127 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             combined_output = result.stdout + result.stderr
             for private_value in ["ABC123", "Ivanov Ivan", "5552400000000", "pnrKey"]:
                 self.assertNotIn(private_value, combined_output)
+
+    def test_build_make_creates_private_bundle_and_saved_envelope(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            output_dir = Path(td) / "bundle"
+            old_umask = os.umask(0o022)
+            try:
+                result = self.run_cli(
+                    "--json",
+                    "build",
+                    "make",
+                    "--input",
+                    str(TEMPLATE),
+                    "--output-dir",
+                    str(output_dir),
+                    "--no-alarms",
+                )
+            finally:
+                os.umask(old_umask)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            obj = self.parse_stdout_json(result)
+            self.assert_envelope(obj, ok=True, command="build")
+            self.assertEqual(obj["data"]["route"], "make")
+            self.assertEqual(obj["data"]["output_dir"], str(output_dir))
+            self.assertEqual(obj["data"]["json_path"], str(output_dir / "itinerary.json"))
+            self.assertEqual(obj["data"]["ics_path"], str(output_dir / "flights.ics"))
+            self.assertEqual(obj["data"]["envelope_path"], str(output_dir / "envelope.json"))
+            self.assertEqual(obj["data"]["verification"]["ok"], True)
+            self.assertEqual(obj["data"]["verification"]["event_count"], obj["data"]["segments_count"])
+            self.assertTrue(output_dir.is_dir())
+            self.assertEqual(stat.S_IMODE(output_dir.stat().st_mode), 0o700)
+            for artifact in [output_dir / "itinerary.json", output_dir / "flights.ics", output_dir / "envelope.json"]:
+                self.assertTrue(artifact.exists(), artifact)
+                self.assertEqual(stat.S_IMODE(artifact.stat().st_mode), 0o600, artifact)
+            saved_envelope = json.loads((output_dir / "envelope.json").read_text(encoding="utf-8"))
+            self.assertEqual(saved_envelope, obj)
+            ics_text = (output_dir / "flights.ics").read_text(encoding="utf-8")
+            self.assertIn("BEGIN:VCALENDAR", ics_text)
+            self.assertEqual(ics_text.count("BEGIN:VEVENT"), obj["data"]["segments_count"])
+            self.assertTrue(all(line.endswith("Z") for line in ics_text.splitlines() if line.startswith(("DTSTART:", "DTEND:"))))
+            self.assertIn("create_output_bundle", [step["step"] for step in obj["process"]])
+            self.assertIn("verify_bundle", [step["step"] for step in obj["process"]])
+            self.assertIn("write_envelope", [step["step"] for step in obj["process"]])
+            combined_output = result.stdout + result.stderr
+            for private_value in ["ABC123", "Ivanov Ivan", "5552400000000", "pnrKey"]:
+                self.assertNotIn(private_value, combined_output)
+
+    def test_build_route_parser_accepts_private_url_file_without_output_flags(self) -> None:
+        module = self.import_cli_module()
+        parser = module.build_parser()
+
+        args = parser.parse_args(["build", "redwings", "--url-file", "/tmp/source.txt"])
+
+        self.assertEqual(args.command, "build")
+        self.assertEqual(args.route, "redwings")
+        self.assertEqual(args.url_file, Path("/tmp/source.txt"))
+        self.assertFalse(hasattr(args, "output_json"))
+        self.assertFalse(hasattr(args, "output_ics"))
+
+    def test_build_route_wraps_carrier_command_with_bundle_paths_and_url_file(self) -> None:
+        module = self.import_cli_module()
+        original_command = getattr(module, "command_redwings")
+        calls: list[argparse.Namespace] = []
+
+        def fake_command_redwings(args: argparse.Namespace, process: list[dict]) -> tuple[int, dict]:
+            calls.append(args)
+            itinerary = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+            ics_text, summaries = module.make_flight_ics.build_calendar(itinerary, no_alarms=True)
+            module.secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
+            module.secure_write_text(args.output_ics, ics_text)
+            module.add_step(process, "fake_fetch_redwings_order")
+            module.add_step(process, "write_json", artifact="json", mode="0600")
+            module.add_step(process, "write_ics", artifact="ics", mode="0600")
+            return 0, {
+                "segments_count": len(summaries),
+                "segments": [module.safe_segment_summary(item) for item in summaries],
+                "json_path": str(args.output_json),
+                "ics_path": str(args.output_ics),
+                "write_performed": True,
+            }
+
+        setattr(module, "command_redwings", fake_command_redwings)
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                output_dir = Path(td) / "redwings-bundle"
+                url_file = Path(td) / "source-url.txt"
+                url_file.write_text("https://flyredwings.com/booking/#/find/AB12CD/EMAILKEY123/Submit\n", encoding="utf-8")
+                args = argparse.Namespace(
+                    command="build",
+                    route="redwings",
+                    url=None,
+                    url_file=url_file,
+                    pnr=None,
+                    access_code=None,
+                    output_dir=output_dir,
+                    tz=[],
+                    no_alarms=True,
+                    graphql_endpoint=None,
+                )
+                process: list[dict] = []
+
+                rc, data = module.command_build(args, process)
+
+                self.assertEqual(rc, 0)
+                self.assertEqual(calls[0].url, "https://flyredwings.com/booking/#/find/AB12CD/EMAILKEY123/Submit")
+                self.assertEqual(calls[0].output_json, output_dir / "itinerary.json")
+                self.assertEqual(calls[0].output_ics, output_dir / "flights.ics")
+                self.assertEqual(data["route"], "redwings")
+                self.assertEqual(data["output_dir"], str(output_dir))
+                self.assertEqual(data["json_path"], str(output_dir / "itinerary.json"))
+                self.assertEqual(data["ics_path"], str(output_dir / "flights.ics"))
+                self.assertEqual(data["envelope_path"], str(output_dir / "envelope.json"))
+                self.assertEqual(data["verification"]["ok"], True)
+                self.assertEqual(stat.S_IMODE((output_dir / "itinerary.json").stat().st_mode), 0o600)
+                self.assertEqual(stat.S_IMODE((output_dir / "flights.ics").stat().st_mode), 0o600)
+                self.assertFalse((output_dir / "envelope.json").exists(), "main() writes the final envelope after command_build returns")
+                safe_output = json.dumps(data, ensure_ascii=False) + json.dumps(process, ensure_ascii=False)
+                for private_value in ["AB12CD", "EMAILKEY123", "Ivanov Ivan", "5552400000000"]:
+                    self.assertNotIn(private_value, safe_output)
+        finally:
+            setattr(module, "command_redwings", original_command)
 
     def test_validate_json_is_check_only_and_machine_readable(self) -> None:
         result = self.run_cli("--json", "validate", "--input", str(TEMPLATE))

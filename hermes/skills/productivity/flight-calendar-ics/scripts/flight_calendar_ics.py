@@ -14,6 +14,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
@@ -26,7 +27,11 @@ import utair_to_itinerary as utair
 import redwings_to_itinerary as redwings
 
 SCHEMA_VERSION = "flight-calendar-ics-cli.v1"
-COMMANDS = ["doctor", "validate", "make", "aeroflot", "ural", "utair", "redwings"]
+BUNDLE_ROUTES = ["make", "aeroflot", "ural", "utair", "redwings"]
+COMMANDS = ["doctor", "validate", "make", "build", "aeroflot", "ural", "utair", "redwings"]
+BUNDLE_ITINERARY_NAME = "itinerary.json"
+BUNDLE_ICS_NAME = "flights.ics"
+BUNDLE_ENVELOPE_NAME = "envelope.json"
 AGENT_CONTRACT: dict[str, Any] = {
     "normal_steps": [
         {
@@ -35,11 +40,11 @@ AGENT_CONTRACT: dict[str, Any] = {
         },
         {
             "id": "run_one_command",
-            "instruction": "Create a private temp output directory and run exactly one --json command from dispatch_matrix.",
+            "instruction": "Run exactly one --json build <route> command from dispatch_matrix. The CLI owns the private output bundle, canonical artifact names, envelope persistence, and structural verification.",
         },
         {
             "id": "verify",
-            "instruction": "Parse the JSON envelope and verify schema_version, ok=true, segment count, private artifacts, UTC Z timestamps, and no placeholders.",
+            "instruction": "Parse stdout or bundle/envelope.json; require schema_version, ok=true, data.segments_count>=1, data.ics_path, and data.verification.ok=true.",
         },
         {
             "id": "deliver",
@@ -49,53 +54,41 @@ AGENT_CONTRACT: dict[str, Any] = {
     "dispatch_matrix": [
         {
             "source": "canonical_itinerary_json_or_manual_normalization",
-            "command": "make",
-            "argv_template": [
-                "--json", "make", "--input", "<PATH_TO_ITINERARY_JSON>", "--output", "<OUT_DIR>/flights.ics",
-            ],
+            "command": "build",
+            "route": "make",
+            "argv_template": ["--json", "build", "make", "--input", "<PATH_TO_ITINERARY_JSON>"],
         },
         {
             "source": "aeroflot_url_or_pnr_plus_surname",
-            "command": "aeroflot",
-            "argv_template": [
-                "--json", "aeroflot", "--url", "<AEROFLOT_MANAGE_BOOKING_URL>",
-                "--output-json", "<OUT_DIR>/itinerary.json", "--output-ics", "<OUT_DIR>/flights.ics",
-            ],
-            "alternate_argv_template": [
-                "--json", "aeroflot", "--pnr-locator", "<PNR>", "--last-name", "<SURNAME>",
-                "--output-json", "<OUT_DIR>/itinerary.json", "--output-ics", "<OUT_DIR>/flights.ics",
-            ],
-            "notes": ["Add --first-name only for ambiguous surname lookup."],
+            "command": "build",
+            "route": "aeroflot",
+            "argv_template": ["--json", "build", "aeroflot", "--url-file", "<PRIVATE_FILE_WITH_AEROFLOT_URL>"],
+            "alternate_argv_template": ["--json", "build", "aeroflot", "--pnr-locator", "<PNR>", "--last-name", "<SURNAME>"],
+            "notes": ["Prefer --url-file for private links; add --first-name only for ambiguous surname lookup."],
         },
         {
             "source": "ural_manage_booking_url_or_tracker_redirect",
-            "command": "ural",
-            "argv_template": [
-                "--json", "ural", "--url", "<URAL_MANAGE_BOOKING_OR_TRACKER_URL>",
-                "--output-json", "<OUT_DIR>/itinerary.json", "--output-ics", "<OUT_DIR>/flights.ics",
-            ],
+            "command": "build",
+            "route": "ural",
+            "argv_template": ["--json", "build", "ural", "--url-file", "<PRIVATE_FILE_WITH_URAL_URL>"],
         },
         {
             "source": "utair_order_manage_url",
-            "command": "utair",
-            "argv_template": [
-                "--json", "utair", "--url", "<UTAIR_ORDER_MANAGE_URL>",
-                "--output-json", "<OUT_DIR>/itinerary.json", "--output-ics", "<OUT_DIR>/flights.ics",
-            ],
+            "command": "build",
+            "route": "utair",
+            "argv_template": ["--json", "build", "utair", "--url-file", "<PRIVATE_FILE_WITH_UTAIR_URL>"],
         },
         {
             "source": "redwings_direct_find_url",
-            "command": "redwings",
-            "argv_template": [
-                "--json", "redwings", "--url", "<RED_WINGS_FIND_URL>",
-                "--output-json", "<OUT_DIR>/itinerary.json", "--output-ics", "<OUT_DIR>/flights.ics",
-            ],
+            "command": "build",
+            "route": "redwings",
+            "argv_template": ["--json", "build", "redwings", "--url-file", "<PRIVATE_FILE_WITH_RED_WINGS_FIND_URL>"],
             "anti_path": "Do not infer access keys from PNR/surname or already-opened order pages.",
         },
     ],
     "verification": {
-        "envelope": ["schema_version=flight-calendar-ics-cli.v1", "ok=true", "data.segments_count>=1"],
-        "ics": ["exists", "0600", "BEGIN:VCALENDAR", "VEVENT count equals segments_count", "UTC DTSTART/DTEND ending Z", "no TBD/UNKNOWN/None"],
+        "envelope": ["schema_version=flight-calendar-ics-cli.v1", "ok=true", "command=build", "data.segments_count>=1", "data.verification.ok=true"],
+        "bundle": ["private output directory 0700", "itinerary.json 0600", "flights.ics 0600", "envelope.json 0600", "VEVENT count equals segments_count", "UTC DTSTART/DTEND ending Z", "no TBD/UNKNOWN/None"],
     },
     "privacy": {
         "chat_summary_must_omit": [
@@ -201,6 +194,188 @@ def secure_write_text(path: Path, text: str) -> None:
             os.chmod(path, 0o600)
         except FileNotFoundError:
             pass
+
+
+def create_private_output_dir(output_dir: Path | None, process: list[dict[str, Any]]) -> Path:
+    if output_dir is None:
+        path = Path(tempfile.mkdtemp(prefix="flight-ics."))
+    else:
+        path = output_dir
+        if path.exists() and not path.is_dir():
+            raise CliFailure(f"output dir path exists and is not a directory: {path}", code="usage_error")
+        path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(path, 0o700)
+    add_step(process, "create_output_bundle")
+    return path
+
+
+def bundle_paths(output_dir: Path) -> dict[str, Path]:
+    return {
+        "json": output_dir / BUNDLE_ITINERARY_NAME,
+        "ics": output_dir / BUNDLE_ICS_NAME,
+        "envelope": output_dir / BUNDLE_ENVELOPE_NAME,
+    }
+
+
+def file_mode(path: Path) -> str:
+    return format(path.stat().st_mode & 0o777, "03o")
+
+
+def require_private_mode(path: Path, expected: str = "600") -> None:
+    try:
+        mode = file_mode(path)
+    except FileNotFoundError as exc:
+        raise CliFailure(f"expected artifact does not exist: {path}") from exc
+    if mode != expected:
+        raise CliFailure(f"artifact {path} has mode {mode}; expected {expected}")
+
+
+def read_private_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except FileNotFoundError as exc:
+        raise CliFailure(f"input file not found: {path}", code="usage_error") from exc
+
+
+def first_url_from_args(args: argparse.Namespace) -> str | None:
+    url = getattr(args, "url", None)
+    url_file = getattr(args, "url_file", None)
+    if url and url_file:
+        raise CliFailure("use either --url or --url-file, not both", code="usage_error")
+    if url_file:
+        text = read_private_text(url_file)
+        if not text:
+            raise CliFailure(f"url file is empty: {url_file}", code="usage_error")
+        return text.splitlines()[0].strip()
+    return url
+
+
+def verify_bundle_artifacts(paths: dict[str, Path], segments_count: int, process: list[dict[str, Any]]) -> dict[str, Any]:
+    require_private_mode(paths["json"])
+    require_private_mode(paths["ics"])
+    ics_text = paths["ics"].read_text(encoding="utf-8")
+    make_flight_ics.validate_ics_text(ics_text, segments_count)
+    event_count = ics_text.count("BEGIN:VEVENT")
+    dt_lines = [line for line in ics_text.splitlines() if line.startswith(("DTSTART", "DTEND"))]
+    non_utc = [line for line in dt_lines if not line.endswith("Z")]
+    if non_utc:
+        raise CliFailure("generated ICS contains DTSTART/DTEND values without UTC Z suffix")
+    add_step(process, "verify_bundle", segments_count=segments_count)
+    return {
+        "ok": True,
+        "event_count": event_count,
+        "utc_datetime_count": len(dt_lines),
+        "placeholder_free": True,
+        "private_modes": {"json": file_mode(paths["json"]), "ics": file_mode(paths["ics"])},
+    }
+
+
+def build_make_bundle(args: argparse.Namespace, paths: dict[str, Path], process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
+    if args.input is None:
+        raise CliFailure("build make requires --input", code="usage_error")
+    data = make_flight_ics.load_input(args.input)
+    add_step(process, "load_input")
+    data = validate_itinerary_contract(data, process)
+    ics_text, summaries = make_flight_ics.build_calendar(data, no_alarms=args.no_alarms)
+    add_step(process, "build_calendar", segments_count=len(summaries))
+    make_flight_ics.validate_ics_text(ics_text, len(summaries))
+    add_step(process, "validate_ics")
+    secure_write_text(paths["json"], json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+    add_step(process, "write_json", artifact="json", mode="0600")
+    secure_write_text(paths["ics"], ics_text)
+    add_step(process, "write_ics", artifact="ics", mode="0600")
+    return 0, {
+        "segments_count": len(summaries),
+        "segments": [safe_segment_summary(item) for item in summaries],
+        "json_path": str(paths["json"]),
+        "ics_path": str(paths["ics"]),
+        "write_performed": True,
+    }
+
+
+def build_route_args(args: argparse.Namespace, paths: dict[str, Path]) -> argparse.Namespace:
+    url = first_url_from_args(args)
+    if args.route == "aeroflot":
+        return argparse.Namespace(
+            url=url,
+            pnr_locator=args.pnr_locator,
+            pnr_key=args.pnr_key,
+            last_name=args.last_name,
+            first_name=args.first_name,
+            output_json=paths["json"],
+            output_ics=paths["ics"],
+            tz=args.tz,
+            no_alarms=args.no_alarms,
+        )
+    if args.route == "ural":
+        return argparse.Namespace(
+            url=url,
+            pnr=args.pnr,
+            last_name=args.last_name,
+            output_json=paths["json"],
+            output_ics=paths["ics"],
+            tz=args.tz,
+            no_alarms=args.no_alarms,
+            frontend_base=args.frontend_base,
+        )
+    if args.route == "utair":
+        return argparse.Namespace(
+            url=url,
+            rloc=args.rloc,
+            last_name=args.last_name,
+            output_json=paths["json"],
+            output_ics=paths["ics"],
+            tz=args.tz,
+            no_alarms=args.no_alarms,
+        )
+    if args.route == "redwings":
+        return argparse.Namespace(
+            url=url,
+            pnr=args.pnr,
+            access_code=args.access_code,
+            output_json=paths["json"],
+            output_ics=paths["ics"],
+            tz=args.tz,
+            no_alarms=args.no_alarms,
+            graphql_endpoint=args.graphql_endpoint,
+        )
+    raise CliFailure(f"unknown build route: {args.route}", code="usage_error")
+
+
+def command_build(args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
+    output_dir = create_private_output_dir(args.output_dir, process)
+    paths = bundle_paths(output_dir)
+    if args.route == "make":
+        exit_code, data = build_make_bundle(args, paths, process)
+    else:
+        route_args = build_route_args(args, paths)
+        handlers: dict[str, Callable[[argparse.Namespace, list[dict[str, Any]]], tuple[int, dict[str, Any]]]] = {
+            "aeroflot": command_aeroflot,
+            "ural": command_ural,
+            "utair": command_utair,
+            "redwings": command_redwings,
+        }
+        exit_code, data = handlers[args.route](route_args, process)
+    segments_count = int(data.get("segments_count") or 0)
+    verification = verify_bundle_artifacts(paths, segments_count, process)
+    bundled = dict(data)
+    bundled.update(
+        {
+            "route": args.route,
+            "output_dir": str(output_dir),
+            "json_path": str(paths["json"]),
+            "ics_path": str(paths["ics"]),
+            "envelope_path": str(paths["envelope"]),
+            "verification": verification,
+        }
+    )
+    return exit_code, bundled
+
+
+def write_envelope_artifact_if_requested(data: dict[str, Any], obj: dict[str, Any]) -> None:
+    envelope_path = data.get("envelope_path")
+    if envelope_path:
+        secure_write_text(Path(envelope_path), json.dumps(obj, ensure_ascii=False, indent=2) + "\n")
 
 
 def load_travelpayouts_airport_timezone_document(catalog_path: Path | None = None) -> dict[str, Any]:
@@ -501,6 +676,24 @@ def build_parser() -> argparse.ArgumentParser:
     make.add_argument("--output", "-o", type=Path, help="Output .ics path; defaults to input basename")
     make.add_argument("--no-alarms", action="store_true", help="Do not add VALARM reminders")
 
+    build = sub.add_parser("build", help="Create a private bundle: itinerary.json, flights.ics, envelope.json")
+    build.add_argument("route", choices=BUNDLE_ROUTES, help="Source route to build from")
+    build.add_argument("--output-dir", type=Path, help="Optional bundle directory; defaults to a private /tmp/flight-ics.* directory")
+    build.add_argument("--input", "-i", type=Path, help="Canonical itinerary JSON for build make")
+    build.add_argument("--url", help="Carrier booking URL; prefer --url-file for private inputs")
+    build.add_argument("--url-file", type=Path, help="Private file containing the carrier booking URL")
+    build.add_argument("--pnr-locator", help="Aeroflot booking locator, if not using --url/--url-file")
+    build.add_argument("--pnr-key", help="Aeroflot PNR key, if not using --url/--url-file")
+    build.add_argument("--pnr", help="Carrier booking locator for Ural/Red Wings, if not using --url/--url-file")
+    build.add_argument("--rloc", help="Utair booking locator, if not using --url/--url-file")
+    build.add_argument("--last-name", help="Passenger surname for lookup routes")
+    build.add_argument("--first-name", help="Passenger first name fallback for Aeroflot ambiguous surname lookup")
+    build.add_argument("--access-key", dest="access_code", help="Red Wings access key, if not using --url/--url-file")
+    build.add_argument("--tz", action="append", default=[], help="Timezone override CODE=Area/City; repeatable")
+    build.add_argument("--no-alarms", action="store_true", help="Do not add VALARM reminders")
+    build.add_argument("--frontend-base", help="Override Ural frontend base URL for diagnostics/tests")
+    build.add_argument("--graphql-endpoint", help="Override Websky GraphQL endpoint for diagnostics/tests")
+
     aero = sub.add_parser("aeroflot", help="Fetch an Aeroflot PNR and write standard itinerary JSON, optionally .ics")
     aero.add_argument("--url", help="Aeroflot PNR share URL containing pnrKey and pnrLocator")
     aero.add_argument("--pnr-locator", help="Booking locator, if not using --url")
@@ -547,6 +740,7 @@ def run_command(args: argparse.Namespace, process: list[dict[str, Any]]) -> tupl
         "doctor": command_doctor,
         "validate": command_validate,
         "make": command_make,
+        "build": command_build,
         "aeroflot": command_aeroflot,
         "ural": command_ural,
         "utair": command_utair,
@@ -581,9 +775,15 @@ def main(argv: list[str] | None = None) -> int:
         redirect = contextlib.redirect_stderr(stderr_buffer) if args.json else contextlib.nullcontext()
         with redirect:
             exit_code, data = run_command(args, process)
+        if args.json and data.get("envelope_path"):
+            add_step(process, "write_envelope", artifact="envelope", mode="0600")
         add_step(process, "emit_json" if args.json else "emit_human")
         obj = envelope(ok=True, command=args.command, process=process, data=data)
-        emit_json(obj) if args.json else emit_human(obj)
+        if args.json:
+            write_envelope_artifact_if_requested(data, obj)
+            emit_json(obj)
+        else:
+            emit_human(obj)
         return exit_code
     except CliFailure as exc:
         active_json = bool(json_mode if args is None else args.json)
