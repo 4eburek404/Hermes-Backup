@@ -35,6 +35,7 @@ This registry is the ownership map for `flight-calendar-ics` references. Use it 
 ### Maintenance
 
 - `maintenance/source-runtime-sync.md` — source ↔ runtime parity, deliberate sync, cleanup, and commit evidence for this skill.
+- `maintenance/model-evaluation.md` — cross-model eval harness rules, effective provider/model validation, and private-input exposure checks.
 
 ## Absorbed legacy map
 
