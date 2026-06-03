@@ -10,6 +10,7 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 
 from ..errors import CliError
+from .human_answer_renderer import build_human_answer
 
 USER_ANSWER_SCHEMA_VERSION = "flight_search_user_answer.v1"
 USER_ANSWER_SCHEMA_RESOURCE = "flight_search_user_answer.v1.schema.json"
@@ -180,14 +181,39 @@ def priority_options_for_user_contract(priority: list[Any], *, limit: int = 5) -
     return selected
 
 
-def build_user_answer_contract(agent_report: dict[str, Any]) -> dict[str, Any]:
+def rendered_answer_lines(rendered_text: str) -> list[str]:
+    return [line.strip() for line in rendered_text.splitlines() if line.strip()]
+
+
+def canonical_rendered_text(agent_report: dict[str, Any], rendered_text: str | None = None) -> str:
+    if rendered_text is not None and rendered_text.strip():
+        return rendered_text.strip()
+    generated: dict[str, Any] = build_human_answer(agent_report)
+    generated_text = str(generated.get("text") or "").strip()
+    if generated_text:
+        return generated_text
+    display = agent_report.get("display") if isinstance(agent_report.get("display"), dict) else {}
+    display_text = str(display.get("text") or "").strip()
+    if display_text:
+        return display_text
+    legacy_lines = [str(line).strip() for line in agent_report.get("answer_lines") or [] if str(line).strip()]
+    return "\n".join(legacy_lines) or "Нет пользовательского ответа."
+
+
+def has_any_signal(text: str, signals: tuple[str, ...]) -> bool:
+    lowered = text.lower()
+    return any(signal in lowered for signal in signals)
+
+
+def build_user_answer_contract(agent_report: dict[str, Any], *, rendered_text: str | None = None) -> dict[str, Any]:
     diagnostics = agent_report.get("coverage_diagnostics") if isinstance(agent_report.get("coverage_diagnostics"), dict) else {}
     completeness = diagnostics.get("completeness") if isinstance(diagnostics.get("completeness"), dict) else {}
     not_executed = diagnostics.get("not_executed_controls") if isinstance(diagnostics.get("not_executed_controls"), list) else []
     provider_failures = agent_report.get("provider_failures") if isinstance(agent_report.get("provider_failures"), list) else []
     through_fare_checks = agent_report.get("through_fare_checks") if isinstance(agent_report.get("through_fare_checks"), list) else []
-    answer_lines = [str(line) for line in agent_report.get("answer_lines") or [] if str(line)]
-    answer_text = "\n".join(answer_lines).lower()
+    answer_text = canonical_rendered_text(agent_report, rendered_text)
+    answer_lines = rendered_answer_lines(answer_text)
+    answer_text_lower = answer_text.lower()
     recommended = agent_report.get("recommended_options") if isinstance(agent_report.get("recommended_options"), list) else []
     priority = agent_report.get("priority_options") if isinstance(agent_report.get("priority_options"), list) else []
     route = agent_report.get("route") if isinstance(agent_report.get("route"), dict) else {}
@@ -229,12 +255,28 @@ def build_user_answer_contract(agent_report: dict[str, Any]) -> dict[str, Any]:
             "through_fare_check_count": len(through_fare_checks),
         },
         "required_caveats": {
-            "source_boundaries_included": bool(agent_report.get("source_boundaries")) and "do not treat" in answer_text,
-            "coverage_incompleteness_acknowledged": not bool(not_executed) or "coverage is incomplete" in answer_text or "not_executed" in answer_text,
-            "provider_failures_acknowledged": not bool(provider_failures) or "provider failure" in answer_text or "failed" in answer_text,
-            "through_fare_verification_required": not bool(through_fare_checks) or "through-fare" in answer_text or "through fare" in answer_text,
-            "purchase_screen_verification_required": "booking screen" in answer_text or "purchase-screen" in answer_text or "final fare" in answer_text,
+            "source_boundaries_included": not bool(agent_report.get("source_boundaries")) or has_any_signal(
+                answer_text_lower,
+                ("do not treat", "не доказывает", "не доказывают", "not proof", "does not prove"),
+            ),
+            "coverage_incompleteness_acknowledged": not bool(not_executed) or has_any_signal(
+                answer_text_lower,
+                ("coverage is incomplete", "coverage непол", "not_executed", "не все live-проверки", "неполное"),
+            ),
+            "provider_failures_acknowledged": not bool(provider_failures) or has_any_signal(
+                answer_text_lower,
+                ("provider failure", "failed", "live-проверок упала", "live-проверки упали"),
+            ),
+            "through_fare_verification_required": not bool(through_fare_checks) or has_any_signal(
+                answer_text_lower,
+                ("through-fare", "through fare", "сквозн", "единый тариф"),
+            ),
+            "purchase_screen_verification_required": has_any_signal(
+                answer_text_lower,
+                ("booking screen", "purchase-screen", "purchase screen", "final fare", "финальн"),
+            ),
         },
+        "rendered_text": answer_text,
         "answer_lines": answer_lines,
     }
 

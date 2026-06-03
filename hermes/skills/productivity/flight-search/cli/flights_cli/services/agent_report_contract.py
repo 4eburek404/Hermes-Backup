@@ -10,6 +10,7 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 
 from ..errors import CliError
+from ..reporting.final_answer_contract import validate_user_answer_contract
 
 AGENT_REPORT_SCHEMA_VERSION = "agent_report.v1"
 AGENT_REPORT_SCHEMA_RESOURCE = "agent_report.v1.schema.json"
@@ -149,6 +150,33 @@ def ru_priority_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
     return errors
 
 
+def user_answer_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
+    user_answer = report.get("user_answer")
+    if not isinstance(user_answer, dict):
+        return []
+    errors: list[dict[str, Any]] = []
+    try:
+        validate_user_answer_contract(user_answer)
+    except CliError as exc:
+        for error in (exc.details or {}).get("errors") or []:
+            if not isinstance(error, dict):
+                continue
+            detail = dict(error)
+            path = str(detail.get("path") or "$")
+            detail["path"] = "$.user_answer" + (path[1:] if path.startswith("$") else f".{path}")
+            errors.append(detail)
+    human_answer = report.get("human_answer") if isinstance(report.get("human_answer"), dict) else {}
+    if str(user_answer.get("rendered_text") or "") != str(human_answer.get("text") or ""):
+        errors.append(
+            {
+                "path": "$.human_answer.text",
+                "message": "legacy human_answer.text must mirror canonical user_answer.rendered_text",
+                "validator": "semantic",
+            }
+        )
+    return errors
+
+
 def semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
     errors: list[dict[str, Any]] = []
     answer_text = "\n".join(str(line).lower() for line in report.get("answer_lines") or [])
@@ -260,6 +288,7 @@ def semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
         )
 
     errors.extend(ru_priority_semantic_errors(report))
+    errors.extend(user_answer_semantic_errors(report))
     return errors
 
 

@@ -101,7 +101,8 @@ class ArchitectureTests(unittest.TestCase):
 
         self.assertIn("`offer_graph` — primary decision graph", report_text)
         self.assertIn("frontier`, `missing_evidence`, and `truth_language`", report_text)
-        self.assertIn("Use `human_answer.text` as renderer output", report_text)
+        self.assertIn("`user_answer.rendered_text` — canonical", report_text)
+        self.assertIn("legacy projection/fallback", report_text)
         self.assertIn("Read `offer_graph` first", skill_text)
 
     def test_module_dependency_boundaries(self) -> None:

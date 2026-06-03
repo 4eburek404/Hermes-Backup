@@ -21,6 +21,10 @@ def emit_json(data: Any) -> None:
 
 
 def render_agent_report_human(report: dict[str, Any]) -> str:
+    user_answer = report.get("user_answer") if isinstance(report.get("user_answer"), dict) else {}
+    if user_answer.get("rendered_text"):
+        return str(user_answer["rendered_text"])
+
     human_answer = report.get("human_answer") if isinstance(report.get("human_answer"), dict) else {}
     if human_answer.get("text"):
         return str(human_answer["text"])

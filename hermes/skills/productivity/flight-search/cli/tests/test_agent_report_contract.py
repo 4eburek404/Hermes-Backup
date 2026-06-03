@@ -233,6 +233,7 @@ def valid_report() -> dict:
         },
     }
     report["user_answer"] = build_user_answer_contract(report)
+    report["human_answer"]["text"] = report["user_answer"]["rendered_text"]
     return report
 
 
