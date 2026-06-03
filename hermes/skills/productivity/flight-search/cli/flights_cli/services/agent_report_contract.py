@@ -272,14 +272,16 @@ def semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
                 )
 
     diagnostics = report.get("coverage_diagnostics") if isinstance(report.get("coverage_diagnostics"), dict) else {}
-    for required_key in (
-        "planned_controls",
-        "failed_controls",
-        "not_supported_controls",
-        "not_executed_controls",
-        "deduped_controls",
-        "completeness",
-    ):
+    control_bucket_states = {
+        "planned_controls": "planned",
+        "searched_controls": "searched",
+        "skipped_controls": "skipped",
+        "failed_controls": "failed",
+        "not_supported_controls": "not_supported",
+        "not_executed_controls": "not_executed",
+        "deduped_controls": "deduped",
+    }
+    for required_key in (*control_bucket_states.keys(), "completeness"):
         if required_key not in diagnostics:
             errors.append(
                 {
@@ -288,6 +290,47 @@ def semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
                     "validator": "semantic",
                 }
             )
+            continue
+        if required_key in control_bucket_states and not isinstance(diagnostics.get(required_key), list):
+            errors.append(
+                {
+                    "path": f"$.coverage_diagnostics.{required_key}",
+                    "message": f"coverage_diagnostics.{required_key} must be a list",
+                    "validator": "semantic",
+                }
+            )
+    for bucket, expected_state in control_bucket_states.items():
+        controls = diagnostics.get(bucket)
+        if not isinstance(controls, list):
+            continue
+        for index, control in enumerate(controls):
+            if not isinstance(control, dict):
+                errors.append(
+                    {
+                        "path": f"$.coverage_diagnostics.{bucket}[{index}]",
+                        "message": f"coverage_diagnostics.{bucket}[{index}] must be an object",
+                        "validator": "semantic",
+                    }
+                )
+                continue
+            state = control.get("execution_state")
+            if state is not None and state != expected_state:
+                errors.append(
+                    {
+                        "path": f"$.coverage_diagnostics.{bucket}[{index}].execution_state",
+                        "message": f"{bucket} entries must have execution_state={expected_state}",
+                        "validator": "semantic",
+                    }
+                )
+            status = control.get("status")
+            if status is not None and expected_state in {"failed", "not_supported", "not_executed", "deduped"} and status != expected_state:
+                errors.append(
+                    {
+                        "path": f"$.coverage_diagnostics.{bucket}[{index}].status",
+                        "message": f"{bucket} entries with status must use status={expected_state}",
+                        "validator": "semantic",
+                    }
+                )
     completeness = diagnostics.get("completeness") if isinstance(diagnostics.get("completeness"), dict) else {}
     if completeness.get("planned_count") != completeness.get("terminal_count"):
         errors.append(

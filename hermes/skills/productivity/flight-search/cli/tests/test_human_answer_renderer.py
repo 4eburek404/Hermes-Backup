@@ -228,6 +228,37 @@ class HumanAnswerRendererTests(unittest.TestCase):
         self.assertIn("SU1419 00:40–01:20 → SU1832 02 авг 09:50–11:15", text)
         self.assertNotIn("SU1419 00:40–01:20 → SU1832 09:50–11:15 | 01 авг", text)
 
+    def test_not_supported_controls_render_as_source_boundary_not_incomplete_coverage(self) -> None:
+        report = valid_report()
+        report["coverage_diagnostics"]["not_executed_controls"] = []
+        report["coverage_diagnostics"]["not_supported_controls"] = [
+            {
+                "type": "full_route_aggregate",
+                "direction": "outbound",
+                "origin": "SVX",
+                "destination": "DEL",
+                "date": "2026-06-01",
+                "provider": "kupibilet",
+                "reason": "provider_capability_not_supported",
+                "execution_state": "not_supported",
+                "status": "not_supported",
+                "probe_id": "agg-probe-001",
+            }
+        ]
+        report["coverage_diagnostics"]["completeness"] = {
+            "planned_count": 1,
+            "terminal_count": 1,
+            "all_planned_controls_have_terminal_state": True,
+        }
+
+        text = build_human_answer(report)["text"]
+
+        self.assertIn("provider/source не поддерживает", text)
+        self.assertIn("граница источника", text)
+        self.assertNotIn("coverage неполное", text)
+        for marker in ("coverage_diagnostics", "probe_id", "agg-probe-001", "kupibilet"):
+            self.assertNotIn(marker, text.lower())
+
     def test_agent_report_attaches_canonical_user_answer_and_cli_human_render_uses_it(self) -> None:
         report = build_agent_report(report_payload())
 
@@ -251,6 +282,7 @@ class HumanAnswerRendererTests(unittest.TestCase):
                 "planned_control_count": 0,
                 "terminal_control_count": 0,
                 "not_executed_control_count": 0,
+                "not_supported_control_count": 0,
                 "provider_failure_count": 0,
                 "through_fare_check_count": 0,
             },

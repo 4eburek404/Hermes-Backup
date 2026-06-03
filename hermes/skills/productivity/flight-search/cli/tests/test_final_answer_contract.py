@@ -449,6 +449,43 @@ class FinalAnswerContractTests(unittest.TestCase):
             any("two separate one-way offers" in error["message"] for error in ctx.exception.details["errors"])
         )
 
+    def test_user_answer_counts_not_supported_controls_without_missing_evidence(self) -> None:
+        report = valid_report()
+        report["coverage_diagnostics"]["not_executed_controls"] = []
+        report["coverage_diagnostics"]["not_supported_controls"] = [
+            {
+                "type": "full_route_aggregate",
+                "direction": "outbound",
+                "origin": "SVX",
+                "destination": "DEL",
+                "date": "2026-06-01",
+                "provider": "kupibilet",
+                "reason": "provider_capability_not_supported",
+                "execution_state": "not_supported",
+                "status": "not_supported",
+                "probe_id": "agg-probe-001",
+            }
+        ]
+        report["coverage_diagnostics"]["completeness"] = {
+            "planned_count": 1,
+            "terminal_count": 1,
+            "all_planned_controls_have_terminal_state": True,
+        }
+
+        answer = build_user_answer_contract(
+            report,
+            rendered_text=(
+                "Нашёл варианты SVX→DEL. Текущий provider/source не поддерживает часть проверок; "
+                "это граница источника, не доказательство отсутствия. Финальную цену проверить на booking screen."
+            ),
+        )
+
+        validate_user_answer_contract(answer)
+        self.assertEqual(answer["evidence_status"]["not_supported_control_count"], 1)
+        self.assertEqual(answer["evidence_status"]["not_executed_control_count"], 0)
+        self.assertTrue(answer["evidence_status"]["coverage_complete"])
+        self.assertTrue(answer["required_caveats"]["coverage_incompleteness_acknowledged"])
+
     def test_rejects_missing_provider_failure_acknowledgement(self) -> None:
         answer = build_user_answer_contract(report_with_required_caveats())
         answer["required_caveats"]["provider_failures_acknowledged"] = False
