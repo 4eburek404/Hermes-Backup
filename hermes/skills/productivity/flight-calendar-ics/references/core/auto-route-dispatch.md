@@ -10,7 +10,7 @@ The happy path should let the agent run one CLI command and then deliver the ret
 python scripts/flight_calendar_ics.py --json build auto --url-file /private/source-url.txt
 ```
 
-`doctor` remains a machine-readable runbook for ambiguity, failures, evaluation, and maintenance — not a required step for obvious generation.
+`doctor` remains a machine-readable runbook for ambiguity, failures, and explicit diagnostics — not a required step for obvious generation or routine evaluation.
 
 ## Route inference boundary
 
