@@ -45,7 +45,7 @@ Add `--return-date YYYY-MM-DD` for round trips. Add `--aggregate-control-carrier
 
 4. Read only `data.agent_report`.
 5. Read `offer_graph` first: use `constraints` to preserve scope, `collection`/`evidence`/`missing_evidence` to decide whether evidence is complete enough, and `frontier` to keep mandatory alternatives visible. Treat first provider output as progressive evidence: run targeted/polling probes when missing direct/carrier/exact-airport/through-fare evidence can change the recommendation; stop only on completeness limit, source exhaustion, unchanged decision frontier, or explicit time budget.
-6. Use `human_answer.text` as renderer output; cross-check `recommended_options`, `priority_options`, `through_fare_checks`, `provider_failures`, and `source_boundaries` when `offer_graph` shows degraded or missing evidence. `display`/`answer_lines` are evidence/debug inputs, not final prose. `doctor` is provenance only.
+6. Use `user_answer.rendered_text` as the canonical renderer output when present; `human_answer.text` is only a legacy projection/fallback and must mirror `user_answer.rendered_text` during v1 migration. Cross-check `recommended_options`, `priority_options`, `through_fare_checks`, `provider_failures`, and `source_boundaries` when `offer_graph` shows degraded or missing evidence. `display`/`answer_lines` are evidence/debug inputs, not final prose. `doctor` is provenance only.
 
 ## Decision Rules
 
@@ -87,7 +87,7 @@ Add `--return-date YYYY-MM-DD` for round trips. Add `--aggregate-control-carrier
 
 - [ ] Constraints normalized.
 - [ ] Runtime `route live-assemble --agent-brief` run, or provenance failure reported before fallback.
-- [ ] Answer based on `data.agent_report`, preferably `human_answer.text`.
+- [ ] Answer based on `data.agent_report`; prefer `user_answer.rendered_text`; use `human_answer.text` only as a legacy fallback/projection.
 - [ ] `recommended_options`, `priority_options`, `through_fare_checks`, `provider_failures`, and `source_boundaries` checked.
 - [ ] Required direct/carrier/exact-airport/Moscow controls or narrow probes run.
 - [ ] Ticketing/protection/baggage-through and terminal claims proven or explicitly unconfirmed.

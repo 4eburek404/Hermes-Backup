@@ -1,19 +1,20 @@
 # Flight Report Contract
 
-Use this when reading `data.agent_report` or deciding what to show the user. The report is the evidence layer; `offer_graph` is the primary decision graph; `human_answer.text` is deterministic renderer output. Raw CLI internals are debug-only.
+Use this when reading `data.agent_report` or deciding what to show the user. The report is the evidence layer; `offer_graph` is the primary decision graph; `user_answer.rendered_text` is canonical renderer output; `human_answer.text` is a legacy projection/fallback. Raw CLI internals are debug-only.
 
 ## Read Order
 
 1. `offer_graph` — primary decision graph. Read `constraints`, `collection`, `evidence`, `frontier`, `missing_evidence`, and `truth_language` before deciding whether the answer is complete enough.
-2. `human_answer.text` — provider-neutral Telegram/Markdown rendering of the selected frontier. Use `human_answer.text` as renderer output, not as proof that collection was exhaustive.
-3. `recommended_options` — viable ranked options with segment details; cross-check decision-critical details.
-4. `priority_options` — controls that must stay visible even when lower-ranked: carrier-specific, direct/nonstop, exact-airport, Moscow/SVO, fastest, cheapest, or airport-quality controls.
-5. `through_fare_checks` — ticketing/protection evidence and required purchase-screen checks.
-6. `provider_failures` — degraded provider evidence; mention only when it changes confidence or next action.
-7. `source_boundaries` — source/proof limits; print only decision-useful caveats.
-8. `display` — deterministic itinerary fragments for evidence, not final prose.
-9. `answer_lines` — compact internal summary/warnings; do not copy diagnostic labels into final answers.
-10. `hub_viability`, `coverage_diagnostics`, `rejected_pair_warnings`, `stop_policy_diagnostics` — diagnostics for missing/demoted routes, not normal user output.
+2. `user_answer.rendered_text` — canonical provider-neutral Telegram/Markdown rendering of the selected frontier. Use it as renderer output, not as proof that collection was exhaustive.
+3. `human_answer.text` — legacy projection/fallback; during v1 migration it must mirror `user_answer.rendered_text` when both are present.
+4. `recommended_options` — viable ranked options with segment details; cross-check decision-critical details.
+5. `priority_options` — controls that must stay visible even when lower-ranked: carrier-specific, direct/nonstop, exact-airport, Moscow/SVO, fastest, cheapest, or airport-quality controls.
+6. `through_fare_checks` — ticketing/protection evidence and required purchase-screen checks.
+7. `provider_failures` — degraded provider evidence; mention only when it changes confidence or next action.
+8. `source_boundaries` — source/proof limits; print only decision-useful caveats.
+9. `display` — deterministic itinerary fragments for evidence, not final prose.
+10. `answer_lines` — compact internal summary/warnings; do not copy diagnostic labels into final answers.
+11. `hub_viability`, `coverage_diagnostics`, `rejected_pair_warnings`, `stop_policy_diagnostics` — diagnostics for missing/demoted routes, not normal user output.
 
 ## Detail Completeness
 
@@ -72,11 +73,13 @@ For carrier-specific existence questions, answer the carrier-route question firs
 
 The provider-neutral seam is:
 
-`data.agent_report` -> `human_answer` -> final Telegram/Markdown answer.
+`data.agent_report` -> `user_answer.rendered_text` -> final Telegram/Markdown answer.
+
+`human_answer.text` remains a legacy projection/fallback and must mirror `user_answer.rendered_text` while both fields exist.
 
 Implement final-output behavior in `cli/flights_cli/reporting/human_answer_renderer.py`. Do not make agents copy `display.text`, `answer_lines`, provider client objects, booking URLs, cache semantics, or plugin-specific wording.
 
-Negative guarantees for `human_answer.text` and final answers:
+Negative guarantees for `user_answer.rendered_text`, legacy `human_answer.text`, and final answers:
 
 - no `agent report:`;
 - no `Best CLI-ranked option`;

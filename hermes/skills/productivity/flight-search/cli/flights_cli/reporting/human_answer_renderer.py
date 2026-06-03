@@ -291,14 +291,22 @@ def section(title: str, lines: list[str]) -> dict[str, Any]:
 
 
 def verification_lines(report: dict[str, Any]) -> list[str]:
-    lines = []
+    lines = [
+        "текущий live/provider результат не доказывает отсутствие through fare, прямого рейса или защищённого билета; финальную цену, тариф, багаж и правила проверить на booking screen."
+    ]
+    not_executed_controls = (
+        coverage_diagnostics.get("not_executed_controls")
+        if isinstance((coverage_diagnostics := report.get("coverage_diagnostics")), dict)
+        and isinstance(coverage_diagnostics.get("not_executed_controls"), list)
+        else []
+    )
+    if not_executed_controls:
+        lines.append("coverage неполное — не все live-проверки выполнены; повторить поиск, если это влияет на выбор.")
     through_fare_checks = report.get("through_fare_checks") if isinstance(report.get("through_fare_checks"), list) else []
     options = reportable_options(report.get("recommended_options")) + reportable_options(report.get("priority_options"))
     ticketing_models = {str(option.get("ticketing_model") or "separate_segments") for option in options}
     if through_fare_checks or any(model != "single_ticket_proven" for model in ticketing_models):
-        lines.append("single PNR/багаж не доказаны — проверить на booking screen.")
-    else:
-        lines.append("проверить финальную цену, тариф и правила обмена/возврата на booking screen.")
+        lines.append("single PNR/багаж не доказаны — проверить through fare на booking screen.")
     if report.get("provider_failures"):
         lines.append("часть live-проверок упала — если это влияет на выбор, повторить поиск перед покупкой.")
     return lines
