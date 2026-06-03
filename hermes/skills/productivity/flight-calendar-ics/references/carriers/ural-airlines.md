@@ -16,11 +16,13 @@ Endpoint details are implementation notes that must be re-verified against the c
 
 1. Decode redirect links first: extract and URL-decode `u=` / `url=` query parameters.
 2. Parse useful values from direct or decoded service URL:
-   - `pnr`;
-   - `lastName`.
+   - `pnr` or `pnrNumber`;
+   - `lastName` or `surname`.
 3. Optional flags may provide `--pnr` and `--last-name` instead of `--url`.
 
-Do not print the raw URL, PNR, or surname in errors/stdout/stderr.
+Important insufficiency case: a Ural link shaped like `https://service.uralairlines.ru/?pnrOrTicket=<PNR_OR_TICKET>&agreementNew=on` is only a site/form prefill signal, not enough evidence for the live reservation API. The frontend's PNR search form requires both the PNR/ticket value and surname (observed query/pre-fill fields: `pnrOrTicketNumber` plus `surname`; API lookup still needs `lastName`). If only `pnrOrTicket`/`pnrOrTicketNumber` is present, return/request route input insufficiency rather than claiming the calendar generator failed.
+
+Do not print the raw URL, PNR, ticket number, or surname in errors/stdout/stderr.
 
 ## Live frontend/API flow
 
