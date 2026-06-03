@@ -10,6 +10,7 @@ Measure agent behavior around the CLI contract, not just raw CLI speed. The dire
 
 1. **Record provenance.** Capture branch, commit short/subject, clean/dirty git status, skill source path, CLI path, and whether runtime skill sync was deliberate.
 2. **Validate the effective model/provider.** After every subagent/session, compare requested `provider/model` with actual session metadata (`session.model`, `base_url`). Mark mismatches invalid or bucket them separately; do not attribute behavior to a model that did not actually run.
+   - If the model is served by Ollama Cloud, request `provider=ollama-cloud` directly and put the concrete Ollama model name in `model` (for example `deepseek-v4-pro`, `glm-5.1`, `gemini-3-flash-preview`, `gemma4:31b`). Do not label these rows as native `deepseek`, `zai`, or `gemini`; native providers may fail auth and fall back to another configured provider.
 3. **Use the same private evidence.** Store credential-bearing URLs in a private file such as `/tmp/flight_ics_private_input/url.txt` with mode `0600`. Do not print or read the file into model-visible output.
 4. **Use the one-command happy path.** For carrier URLs and canonical itinerary JSON, the evaluator should read `SKILL.md` once, then run exactly one normal generation command:
 
@@ -24,6 +25,8 @@ Measure agent behavior around the CLI contract, not just raw CLI speed. The dire
    ```
 
    Do not run `doctor`, explicit `build <route>`, source inspection, carrier-reference inspection, or broad scanner commands unless the eval explicitly measures diagnostics/failure handling.
+
+   In automated prompts, prefer literal absolute command strings (for example `python "/abs/skill/scripts/flight_calendar_ics.py" --json build auto --url-file "/private/source-url.txt" --output-dir "/abs/out"`). Do not ask agents to combine temporary same-line shell assignments with `$SKILL_DIR` in the command path: POSIX expands `$SKILL_DIR` before `SKILL_DIR=...` is applied to that command, causing repeatable `/scripts/flight_calendar_ics.py` failures.
 
 5. **Validate envelope, not private content.** Require:
    - `schema_version == flight-calendar-ics-cli.v1`
@@ -99,8 +102,10 @@ Read SKILL.md once. Run exactly one `--json build auto --url-file <private-file>
 ## Pitfalls
 
 - Comparing requested model labels instead of actual session model/provider.
+- Requesting Ollama Cloud-hosted DeepSeek/GLM/Gemini/Gemma via native provider names instead of `ollama-cloud`, then measuring a fallback row as if it were the requested model.
 - Treating eval as automatic permission to run `doctor`.
 - Treating keyword hits such as `pnrKey` field labels as leaked secrets.
 - Letting subagents dump private URL or `.ics` descriptions into stdout.
 - Reporting full session narratives instead of distilled metrics.
 - Interpreting provider wall-clock variance as CLI performance without a direct CLI smoke test.
+- Prompting Codex with a same-line `SKILL_DIR=... python "$SKILL_DIR/..."` command; use literal absolute paths or separate `export` lines.

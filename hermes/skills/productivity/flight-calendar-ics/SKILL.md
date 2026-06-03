@@ -41,6 +41,8 @@ Do not use it for flight search, fare comparison, or route planning; load `fligh
    python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json build auto --url-file /private/source-url.txt
    ```
 
+   Keep path variables on separate assignment/export lines, or pass literal absolute paths. Do not use same-line temporary assignments such as `SKILL_DIR=... python <quoted $SKILL_DIR path>`; POSIX shells expand command words before those temporary assignments are visible, which can turn the CLI path into `/scripts/flight_calendar_ics.py`.
+
    For canonical itinerary JSON:
 
    ```bash
@@ -83,6 +85,7 @@ Open these only when changing or debugging that layer:
 - `references/core/output-bundle-design.md` — CLI-owned private output bundle.
 - `references/maintenance/source-runtime-sync.md` — source↔runtime parity and commit evidence.
 - `references/maintenance/model-evaluation.md` — cross-model eval harness rules; evaluation still uses the one-command happy path unless diagnostics are explicitly under test.
+- `references/maintenance/eval-provider-and-shell-pitfalls.md` — provider identity/fallback and shell path pitfalls observed in cross-model evals.
 - Carrier refs only for carrier-specific fixes: `references/carriers/aeroflot.md`, `references/carriers/ural-airlines.md`, `references/carriers/utair.md`, `references/carriers/redwings.md`.
 
 ## Common Pitfalls
@@ -97,6 +100,7 @@ Open these only when changing or debugging that layer:
 8. Dumping private URL or `.ics` content into model-visible output.
 9. Using one timezone for all airports or adding local one-off timezone maps.
 10. Reading source, carrier docs, or generated `.ics` after a successful `build auto` envelope.
+11. Using same-line temporary shell assignments with `$SKILL_DIR` in the command path; assign/export first or use literal absolute paths.
 
 ## Verification Checklist
 
