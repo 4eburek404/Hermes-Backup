@@ -106,7 +106,7 @@ def add_agent_output_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--agent-mode",
         action="store_true",
-        help="Lite-agent preset: compact output, top-ranked candidate details, and an agent_report block.",
+        help="Legacy lite-agent preset: compact output, top-ranked candidate details, agent_report, and aggregate-control defaults.",
     )
     parser.add_argument(
         "--agent-report",
@@ -116,7 +116,7 @@ def add_agent_output_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--agent-brief",
         action="store_true",
-        help="Emit only the compact agent_report in JSON output. Implies --agent-mode defaults.",
+        help="Emit only the compact agent_report in JSON output. Implies --agent-report only, not legacy --agent-mode defaults.",
     )
 
 
@@ -152,7 +152,7 @@ def add_live_assembly_flags(parser: argparse.ArgumentParser) -> None:
         "--aggregate-control-limit",
         type=int,
         default=0,
-        help="Run non-direct Kupibilet full-route aggregate controls and keep N cheap offers after provider-offer filtering. 0 disables; --agent-mode sets 10.",
+        help="Run non-direct Kupibilet full-route aggregate controls and keep N cheap offers after provider-offer filtering. 0 disables; legacy --agent-mode sets 10.",
     )
     parser.add_argument(
         "--aggregate-control-carrier",
@@ -403,7 +403,7 @@ def auto_refresh_catalog(args: argparse.Namespace, store: Store) -> dict | None:
 
 def apply_agent_mode_defaults(args: argparse.Namespace) -> None:
     if bool(getattr(args, "agent_brief", False)):
-        args.agent_mode = True
+        args.agent_report = True
     if not bool(getattr(args, "agent_mode", False)):
         return
     args.agent_report = True
