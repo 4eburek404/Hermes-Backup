@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from flights_cli.execution.aggregate_control_runner import aggregate_control_summary, aggregate_offer_summary
+from flights_cli.adapters.providers.kupibilet_adapter import aggregate_control_summary, aggregate_offer_summary
 from flights_cli.services.agent_report import build_agent_report
 from flights_cli.services.agent_report_contract import validate_agent_report
 

@@ -398,6 +398,8 @@ git commit -m "refactor: split flight search report schemas"
 
 **Objective:** Make provider execution go through concrete provider adapters implementing `FlightProviderPort`.
 
+**Status:** Implemented on `flight-search-cli-redesign-plan` after `f0be4af`; pending commit in this task is `refactor: route flight probes through provider ports`.
+
 **Files:**
 
 - Modify: `ports/providers.py`
@@ -406,26 +408,43 @@ git commit -m "refactor: split flight search report schemas"
   - `adapters/providers/kupibilet_adapter.py`
   - `adapters/providers/fli_adapter.py`
 - Modify: `execution/probe_dispatcher.py`
-- Tests: provider dispatch and registry tests.
+- Modify: `execution/aggregate_control_runner.py`
+- Modify: `providers/fli_mcp.py` to remove the backward registry wrapper that created a provider↔adapter import cycle.
+- Tests: provider dispatch, aggregate port dispatch, registry tests, and architecture boundary tests.
 
 **Behavior:**
 
-- Registry returns adapter object, not only descriptor.
-- `dispatch_segment_probe` calls `provider_adapter.search_segment(query)`.
-- Provider-specific cache, normalization, summary, source boundary, and errors are inside adapters.
-- `ProviderProbeResult` becomes the common result shape used by contract projection.
+- Registry returns adapter objects implementing `FlightProviderPort`, not only descriptors.
+- `dispatch_segment_probe` calls `provider_adapter.search_segment(query)` and converts `ProviderProbeResult` into the existing `SegmentProbeOutcome` projection.
+- `run_aggregate_controls` calls `provider_adapter.search_aggregate(query)`; Kupibilet supports aggregate probes, FLI returns explicit `not_supported` evidence.
+- Provider-specific cache, normalization, summaries, source boundaries, city-code validation, and provider errors are inside adapters.
+- Core execution modules no longer import direct provider search/conversion/summary symbols such as `cached_kupibilet_search`, `cached_fli_mcp_search`, or provider result projectors.
+- `ProviderProbeResult` is the shared provider result shape for segment and aggregate dispatch; Task 6 can now unify aggregate controls into the ledger without redoing provider execution.
 
-**Validation:**
+**Validation completed:**
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests:. python3 -m pytest \
-  tests/test_provider_policy.py \
-  tests/test_route_workflows.py \
+  tests/test_probe_dispatcher.py \
+  tests/test_provider_capabilities.py \
+  tests/test_provider_port_dispatch.py \
+  tests/test_airport_priority_policy.py \
   tests/test_kupibilet.py \
   tests/test_fli_mcp.py -q
-```
+# 60 passed
 
-Use exact existing test filenames after checking repository names.
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests:. python3 -m pytest \
+  tests/test_provider_aggregate_candidates.py \
+  tests/test_provider_aggregate_stop_policy.py \
+  tests/test_coverage_controls.py \
+  tests/test_route_workflows.py \
+  tests/test_agent_report_p0_completeness.py \
+  tests/test_agent_report_p1_moscow_control.py -q
+# 43 passed
+
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests:. python3 -m pytest -p no:cacheprovider tests -q
+# 231 passed
+```
 
 **Commit:**
 

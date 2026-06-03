@@ -7,8 +7,11 @@ from pathlib import Path
 from flights_cli.adapters.providers.registry import (
     PROVIDER_REGISTRY,
     not_supported_probe_result,
+    provider_adapter,
+    provider_adapters_for_segment,
     providers_for_segment,
 )
+from flights_cli.ports.providers import FlightProviderPort, ProviderProbeResult
 from flights_cli.store import Store
 
 
@@ -40,6 +43,29 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self.assertTrue(fli.supports_global)
         self.assertFalse(fli.supports_full_route_aggregate)
 
+    def test_registry_values_are_concrete_provider_ports_not_descriptors(self) -> None:
+        self.assertEqual(set(PROVIDER_REGISTRY), {"kupibilet", "fli"})
+        for name, adapter in PROVIDER_REGISTRY.items():
+            with self.subTest(provider=name):
+                self.assertIsInstance(adapter, FlightProviderPort)
+                self.assertEqual(adapter.name, name)
+                self.assertTrue(callable(adapter.search_segment))
+                self.assertTrue(callable(adapter.search_aggregate))
+
+    def test_provider_adapter_lookup_returns_configured_adapter_object(self) -> None:
+        adapter = provider_adapter("kupibilet")
+
+        self.assertIs(adapter, PROVIDER_REGISTRY["kupibilet"])
+        self.assertIsInstance(adapter, FlightProviderPort)
+
+    def test_policy_can_return_adapter_objects_for_execution(self) -> None:
+        store = store_with_airports(self)
+
+        adapters = provider_adapters_for_segment({"origin": "IST", "destination": "LHR"}, store, "both")
+
+        self.assertEqual([adapter.name for adapter in adapters], ["kupibilet", "fli"])
+        self.assertTrue(all(isinstance(adapter, FlightProviderPort) for adapter in adapters))
+
     def test_auto_policy_uses_capability_registry_for_ru_touching_and_global_segments(self) -> None:
         store = store_with_airports(self)
 
@@ -62,6 +88,23 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self.assertEqual(payload["provider"], "fli")
         self.assertEqual(payload["probe_id"], "probe-123")
         self.assertEqual(payload["errors"][0]["type"], "not_supported")
+        self.assertIn("normalized_result", payload)
+
+    def test_fli_adapter_reports_aggregate_not_supported_through_common_result_shape(self) -> None:
+        result = provider_adapter("fli").search_aggregate(
+            {
+                "probe_id": "agg-fli-1",
+                "probe_type": "full_route_aggregate",
+                "origin": "IST",
+                "destination": "LHR",
+                "date": "2026-08-12",
+            }
+        )
+
+        self.assertIsInstance(result, ProviderProbeResult)
+        self.assertEqual(result.execution_state, "not_supported")
+        self.assertEqual(result.evidence_type, "not_supported")
+        self.assertEqual(result.provider, "fli")
 
 
 if __name__ == "__main__":

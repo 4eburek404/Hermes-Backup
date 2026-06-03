@@ -8,6 +8,7 @@ from unittest.mock import patch
 from flights_cli.errors import CliError
 from flights_cli.execution.probe_dispatcher import dispatch_segment_probe, search_key
 from flights_cli.execution.request_deduper import RequestDeduper
+from flights_cli.ports.providers import ProviderCapabilities, ProviderProbeResult
 from flights_cli.store import Store
 
 
@@ -20,6 +21,46 @@ def dispatcher_args(**overrides: object) -> argparse.Namespace:
     }
     values.update(overrides)
     return argparse.Namespace(**values)
+
+
+class FakeProviderAdapter:
+    name = "kupibilet"
+    capabilities = ProviderCapabilities(probe_types=frozenset({"segment_direct"}))
+
+    def __init__(self) -> None:
+        self.segment_queries: list[dict[str, object]] = []
+
+    def search_segment(self, query: dict[str, object]) -> ProviderProbeResult:
+        self.segment_queries.append(query)
+        segment_result = {
+            "direction": query["direction"],
+            "leg": query["leg"],
+            "offers": [{"id": "adapter-offer"}],
+        }
+        return ProviderProbeResult(
+            probe_id=str(query.get("probe_id") or "adapter-probe"),
+            probe_type="segment_direct",
+            provider="kupibilet",
+            query={"origin": query["origin"], "destination": query["destination"], "date": query["date"]},
+            execution_state="searched",
+            cache_status="disabled",
+            evidence_type="positive_live_evidence",
+            result_summary={
+                "direction": query["direction"],
+                "leg": query["leg"],
+                "origin": query["origin"],
+                "destination": query["destination"],
+                "date": query["date"],
+                "provider": "kupibilet",
+                "status": "ok",
+                "offer_count": 1,
+            },
+            normalized_offers=segment_result["offers"],
+            normalized_result=segment_result,
+        )
+
+    def search_aggregate(self, query: dict[str, object]) -> ProviderProbeResult:
+        raise AssertionError("not used by segment dispatcher")
 
 
 class ProbeDispatcherTests(unittest.TestCase):
@@ -35,10 +76,10 @@ class ProbeDispatcherTests(unittest.TestCase):
         segment_result = {"direction": "outbound", "leg": "origin_to_hub", "offers": [{"id": "offer-1"}]}
         summary = {"status": "ok", "offer_count": 1}
 
-        with patch("flights_cli.execution.probe_dispatcher.providers_for_segment", return_value=["kupibilet"]), \
-            patch("flights_cli.execution.probe_dispatcher.cached_kupibilet_search", return_value={"offers": [{"id": "raw-1"}]}) as search, \
-            patch("flights_cli.execution.probe_dispatcher.kupibilet_result_to_segment_result", return_value=segment_result), \
-            patch("flights_cli.execution.probe_dispatcher.kupibilet_segment_search_summary", return_value=summary):
+        with patch("flights_cli.adapters.providers.registry.providers_for_segment", return_value=["kupibilet"]), \
+            patch("flights_cli.adapters.providers.kupibilet_adapter.cached_kupibilet_search", return_value={"offers": [{"id": "raw-1"}]}) as search, \
+            patch("flights_cli.adapters.providers.kupibilet_adapter.kupibilet_result_to_segment_result", return_value=segment_result), \
+            patch("flights_cli.adapters.providers.kupibilet_adapter.kupibilet_segment_search_summary", return_value=summary):
             outcomes = dispatch_segment_probe(
                 spec=spec,
                 plan=plan,
@@ -63,12 +104,36 @@ class ProbeDispatcherTests(unittest.TestCase):
         self.assertTrue(call.kwargs["direct_only"])
         self.assertTrue(call.kwargs["use_cache"])
 
+    def test_dispatcher_executes_segment_probe_through_provider_port(self) -> None:
+        spec = {"direction": "outbound", "leg": "origin_to_hub", "origin": "SVX", "destination": "IST", "date": "2026-08-12"}
+        adapter = FakeProviderAdapter()
+
+        with patch("flights_cli.execution.probe_dispatcher.provider_adapters_for_segment", return_value=[adapter], create=True):
+            outcomes = dispatch_segment_probe(
+                spec=spec,
+                plan={"currency": "RUB"},
+                args=dispatcher_args(),
+                store=Store(),
+                only_carriers=["SU"],
+                cache_ttl_seconds=0,
+                use_live_cache=False,
+                provider_policy="kupibilet",
+            )
+
+        self.assertEqual(len(outcomes), 1)
+        self.assertEqual(outcomes[0].summary["provider"], "kupibilet")
+        self.assertEqual(outcomes[0].summary["status"], "ok")
+        self.assertEqual(outcomes[0].summary["cache_status"], "disabled")
+        self.assertEqual(outcomes[0].segment_result["offers"], [{"id": "adapter-offer"}])
+        self.assertEqual(adapter.segment_queries[0]["only_carriers"], ["SU"])
+        self.assertTrue(adapter.segment_queries[0]["direct_only"])
+
     def test_provider_error_returns_failure_outcome_without_raising_when_not_fail_fast(self) -> None:
         spec = {"direction": "outbound", "leg": "hub_to_destination", "origin": "IST", "destination": "LHR", "date": "2026-08-12"}
         plan = {"currency": "RUB"}
 
-        with patch("flights_cli.execution.probe_dispatcher.providers_for_segment", return_value=["fli"]), \
-            patch("flights_cli.execution.probe_dispatcher.cached_fli_mcp_search", side_effect=CliError("provider down", error_type="provider_unavailable")):
+        with patch("flights_cli.adapters.providers.registry.providers_for_segment", return_value=["fli"]), \
+            patch("flights_cli.adapters.providers.fli_adapter.cached_fli_mcp_search", side_effect=CliError("provider down", error_type="provider_unavailable")):
             outcomes = dispatch_segment_probe(
                 spec=spec,
                 plan=plan,
@@ -91,8 +156,8 @@ class ProbeDispatcherTests(unittest.TestCase):
         spec = {"direction": "outbound", "leg": "hub_to_destination", "origin": "IST", "destination": "LHR", "date": "2026-08-12"}
         plan = {"currency": "RUB"}
 
-        with patch("flights_cli.execution.probe_dispatcher.providers_for_segment", return_value=["fli"]), \
-            patch("flights_cli.execution.probe_dispatcher.cached_fli_mcp_search", side_effect=CliError("provider down", error_type="provider_unavailable")):
+        with patch("flights_cli.adapters.providers.registry.providers_for_segment", return_value=["fli"]), \
+            patch("flights_cli.adapters.providers.fli_adapter.cached_fli_mcp_search", side_effect=CliError("provider down", error_type="provider_unavailable")):
             with self.assertRaises(CliError):
                 dispatch_segment_probe(
                     spec=spec,
@@ -111,10 +176,10 @@ class ProbeDispatcherTests(unittest.TestCase):
         deduper = RequestDeduper()
         segment_result = {"direction": "outbound", "leg": "origin_to_hub", "offers": [{"id": "offer-1"}]}
 
-        with patch("flights_cli.execution.probe_dispatcher.providers_for_segment", return_value=["kupibilet"]), \
-            patch("flights_cli.execution.probe_dispatcher.cached_kupibilet_search", return_value={"offers": [{"id": "raw-1"}], "cache": {"hit": False}}) as search, \
-            patch("flights_cli.execution.probe_dispatcher.kupibilet_result_to_segment_result", return_value=segment_result), \
-            patch("flights_cli.execution.probe_dispatcher.kupibilet_segment_search_summary", return_value={"status": "ok", "offer_count": 1}):
+        with patch("flights_cli.adapters.providers.registry.providers_for_segment", return_value=["kupibilet"]), \
+            patch("flights_cli.adapters.providers.kupibilet_adapter.cached_kupibilet_search", return_value={"offers": [{"id": "raw-1"}], "cache": {"hit": False}}) as search, \
+            patch("flights_cli.adapters.providers.kupibilet_adapter.kupibilet_result_to_segment_result", return_value=segment_result), \
+            patch("flights_cli.adapters.providers.kupibilet_adapter.kupibilet_segment_search_summary", return_value={"status": "ok", "offer_count": 1}):
             first = dispatch_segment_probe(
                 spec=spec,
                 plan=plan,

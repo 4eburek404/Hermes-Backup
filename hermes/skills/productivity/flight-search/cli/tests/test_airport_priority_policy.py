@@ -285,8 +285,8 @@ class AirportPriorityPolicyTests(unittest.TestCase):
 
     def test_kupibilet_city_code_post_validation_accepts_moscow_actual_airport(self) -> None:
         spec = {"direction": "outbound", "leg": "direct_outbound", "origin": "MOW", "destination": "SVX", "date": "2026-08-12"}
-        with patch("flights_cli.execution.probe_dispatcher.providers_for_segment", return_value=["kupibilet"]), patch(
-            "flights_cli.execution.probe_dispatcher.cached_kupibilet_search",
+        with patch("flights_cli.adapters.providers.registry.providers_for_segment", return_value=["kupibilet"]), patch(
+            "flights_cli.adapters.providers.kupibilet_adapter.cached_kupibilet_search",
             return_value=kupibilet_result("MOW", "SVX", "SVO", "SVX"),
         ):
             outcomes = dispatch_segment_probe(
@@ -306,8 +306,8 @@ class AirportPriorityPolicyTests(unittest.TestCase):
 
     def test_kupibilet_city_code_post_validation_rejects_out_of_scope_airport(self) -> None:
         spec = {"direction": "outbound", "leg": "direct_outbound", "origin": "MOW", "destination": "SVX", "date": "2026-08-12"}
-        with patch("flights_cli.execution.probe_dispatcher.providers_for_segment", return_value=["kupibilet"]), patch(
-            "flights_cli.execution.probe_dispatcher.cached_kupibilet_search",
+        with patch("flights_cli.adapters.providers.registry.providers_for_segment", return_value=["kupibilet"]), patch(
+            "flights_cli.adapters.providers.kupibilet_adapter.cached_kupibilet_search",
             return_value=kupibilet_result("MOW", "SVX", "ZIA", "SVX"),
         ):
             outcomes = dispatch_segment_probe(
@@ -330,8 +330,8 @@ class AirportPriorityPolicyTests(unittest.TestCase):
     def test_kupibilet_city_code_post_validation_marks_missing_actual_airport_fields_invalid(self) -> None:
         spec = {"direction": "outbound", "leg": "direct_outbound", "origin": "SVX", "destination": "MOW", "date": "2026-08-12"}
         result = kupibilet_result("SVX", "MOW", "SVX", "")
-        with patch("flights_cli.execution.probe_dispatcher.providers_for_segment", return_value=["kupibilet"]), patch(
-            "flights_cli.execution.probe_dispatcher.cached_kupibilet_search",
+        with patch("flights_cli.adapters.providers.registry.providers_for_segment", return_value=["kupibilet"]), patch(
+            "flights_cli.adapters.providers.kupibilet_adapter.cached_kupibilet_search",
             return_value=result,
         ):
             outcomes = dispatch_segment_probe(
