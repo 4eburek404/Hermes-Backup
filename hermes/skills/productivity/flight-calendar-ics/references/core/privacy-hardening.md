@@ -22,10 +22,12 @@ Before considering the skill clean:
 
 - Run tests with `PYTHONDONTWRITEBYTECODE=1` and remove/check `__pycache__` / `*.pyc` afterward.
 - Test both preferred CLI and compatibility helpers that can write private artifacts:
-  - `scripts/flight_calendar_ics.py --json make|validate|aeroflot|ural|utair|redwings|doctor`
+  - preferred: `scripts/flight_calendar_ics.py --json build make|aeroflot|ural|utair|redwings`
+  - compatibility: `scripts/flight_calendar_ics.py --json make|validate|aeroflot|ural|utair|redwings|doctor`
   - `scripts/make_flight_ics.py` direct invocation
   - carrier helper direct invocations, with network mocked/stubbed when testing permissions.
 - Under a permissive umask such as `022`, assert private artifacts are still mode `0600`:
+  - `build` bundle `itinerary.json`, `flights.ics`, and `envelope.json`;
   - generated `.ics`;
   - carrier-derived itinerary JSON;
   - carrier-derived `.ics`.
@@ -36,6 +38,7 @@ Before considering the skill clean:
   - no raw argparse usage text in stderr for agent-facing JSON mode.
 - Validate representative actual CLI envelopes against `schemas/cli-envelope.v1.schema.json`, not just the schema file itself:
   - `doctor --json` output, including `agent_contract`;
+  - `build --json` output, including bundle paths and `data.verification`;
   - `validate --json` output, including process-step fields;
   - one usage/unknown-command error envelope.
 - When adding a carrier command, extend `redact()` and tests for that carrier's credential shape before GREEN:

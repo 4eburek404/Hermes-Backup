@@ -23,6 +23,7 @@
         "doctor",
         "validate",
         "make",
+        "build",
         "aeroflot",
         "ural",
         "utair",
@@ -65,7 +66,8 @@
             "type": "string",
             "enum": [
               "json",
-              "ics"
+              "ics",
+              "envelope"
             ]
           },
           "mode": {
@@ -111,6 +113,7 @@
               "doctor",
               "validate",
               "make",
+              "build",
               "aeroflot",
               "ural",
               "utair",
@@ -209,6 +212,7 @@
                 "required": [
                   "source",
                   "command",
+                  "route",
                   "argv_template"
                 ],
                 "properties": {
@@ -216,6 +220,17 @@
                     "type": "string"
                   },
                   "command": {
+                    "type": "string",
+                    "enum": [
+                      "build",
+                      "make",
+                      "aeroflot",
+                      "ural",
+                      "utair",
+                      "redwings"
+                    ]
+                  },
+                  "route": {
                     "type": "string",
                     "enum": [
                       "make",
@@ -254,7 +269,7 @@
               "additionalProperties": false,
               "required": [
                 "envelope",
-                "ics"
+                "bundle"
               ],
               "properties": {
                 "envelope": {
@@ -263,7 +278,7 @@
                     "type": "string"
                   }
                 },
-                "ics": {
+                "bundle": {
                   "type": "array",
                   "items": {
                     "type": "string"
@@ -342,6 +357,60 @@
         },
         "json_path": {
           "type": "string"
+        },
+        "envelope_path": {
+          "type": "string"
+        },
+        "output_dir": {
+          "type": "string"
+        },
+        "route": {
+          "type": "string",
+          "enum": [
+            "make",
+            "aeroflot",
+            "ural",
+            "utair",
+            "redwings"
+          ]
+        },
+        "verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ok",
+            "event_count"
+          ],
+          "properties": {
+            "ok": {
+              "type": "boolean"
+            },
+            "event_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "utc_datetime_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "placeholder_free": {
+              "type": "boolean"
+            },
+            "private_modes": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "json": {
+                  "type": "string",
+                  "pattern": "^[0-7]{3,4}$"
+                },
+                "ics": {
+                  "type": "string",
+                  "pattern": "^[0-7]{3,4}$"
+                }
+              }
+            }
+          }
         }
       }
     },
