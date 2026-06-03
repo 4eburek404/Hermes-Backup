@@ -123,6 +123,17 @@ Then check separately when deeper evidence is required:
 
 If runtime is newer than GitHub, say so explicitly: operationally loaded runtime may be ahead of published source until source changes are committed and pushed.
 
+## Runtime-to-Source Gate Before Publishing
+
+Use this when the user asks to “sync with runtime” before committing or pushing a flight-search change. Treat runtime as an explicit input surface, not as a cache to overwrite blindly.
+
+1. Verify source repo branch, `HEAD`, dirty status, origin URL, and whether the feature branch already has an upstream.
+2. Compare runtime and source with generated-artifact excludes. Under `set -euo pipefail`, wrap `diff -qr ... | wc -l` as `(diff -qr ... || true) | wc -l` or run `diff ... || true`; otherwise a real diff can abort the provenance command before later checks run.
+3. Inspect changed runtime files before copying. If runtime has task-relevant docs/contract changes, sync runtime -> source with `rsync -a --delete` plus excludes for `__pycache__/`, `.pytest_cache/`, `*.pyc`, and `*.egg-info`.
+4. Validate source/runtime parity after sync, run focused contract/doc tests and the full offline suite when the change touches `agent_report`, report contract, or user-facing decision logic.
+5. Clean generated artifacts created by tests before staging.
+6. Stage only the runtime-sync files that changed, run `git diff --cached --check` and an allowlist guard, commit the sync if needed, then push and verify local/remote SHA equality.
+
 ## Source-to-Runtime Gate
 
 Use this gate after source docs or CLI changes and before touching runtime:
