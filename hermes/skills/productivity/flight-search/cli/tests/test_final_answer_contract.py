@@ -181,6 +181,8 @@ class FinalAnswerContractTests(unittest.TestCase):
         Draft202012Validator.check_schema(schema)
         self.assertEqual(parsed["$id"], "urn:hermes:flights-cli:flight-search-user-answer:v1")
         self.assertEqual(schema["properties"]["schema_version"]["const"], USER_ANSWER_SCHEMA_VERSION)
+        self.assertIn("rendered_text", schema["required"])
+        self.assertEqual(schema["properties"]["rendered_text"], {"type": "string", "minLength": 1})
         self.assertLessEqual(len(text.encode("utf-8")), 10000)
 
     def test_builds_valid_user_answer_contract_from_agent_report(self) -> None:
@@ -192,6 +194,11 @@ class FinalAnswerContractTests(unittest.TestCase):
         self.assertEqual(answer["primary_recommendation"]["max_connections_per_journey"], 0)
         self.assertEqual(answer["stop_policy_status"]["policy"], "business_default")
         self.assertEqual(answer["evidence_status"]["provider_failure_count"], 1)
+        self.assertTrue(answer["rendered_text"].startswith("Нашёл варианты SVX→DEL"))
+        self.assertIn("часть live-проверок упала", answer["rendered_text"])
+        self.assertIn("through fare", answer["rendered_text"])
+        self.assertIn("не доказывает", answer["rendered_text"])
+        self.assertEqual(answer["answer_lines"], [line for line in answer["rendered_text"].splitlines() if line.strip()])
         self.assertTrue(answer["required_caveats"]["provider_failures_acknowledged"])
         self.assertTrue(answer["required_caveats"]["through_fare_verification_required"])
 

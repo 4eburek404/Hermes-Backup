@@ -5,6 +5,7 @@ import unittest
 
 from flights_cli.output import render_agent_report_human
 from flights_cli.reporting.human_answer_renderer import build_human_answer
+from flights_cli.reporting.final_answer_contract import validate_user_answer_contract
 from flights_cli.services.agent_report import build_agent_report
 from flights_cli.services.agent_report_contract import validate_agent_report
 from tests.test_agent_report_contract import valid_option, valid_report
@@ -227,14 +228,54 @@ class HumanAnswerRendererTests(unittest.TestCase):
         self.assertIn("SU1419 00:40–01:20 → SU1832 02 авг 09:50–11:15", text)
         self.assertNotIn("SU1419 00:40–01:20 → SU1832 09:50–11:15 | 01 авг", text)
 
-    def test_agent_report_attaches_human_answer_and_cli_human_render_uses_it(self) -> None:
+    def test_agent_report_attaches_canonical_user_answer_and_cli_human_render_uses_it(self) -> None:
         report = build_agent_report(report_payload())
 
         validate_agent_report(report)
-        text = report["human_answer"]["text"]
+        validate_user_answer_contract(report["user_answer"])
+        text = report["user_answer"]["rendered_text"]
         self.assertIn("Нашёл варианты SVX→DEL", text)
+        self.assertEqual(report["human_answer"]["text"], text)
         self.assertNotIn("agent report:", render_agent_report_human(report))
         self.assertEqual(render_agent_report_human(report), text)
+
+    def test_cli_human_render_prefers_canonical_user_answer_over_legacy_projections(self) -> None:
+        report = valid_report()
+        report["user_answer"] = {
+            "schema_version": "flight_search_user_answer.v1",
+            "route": {"origin": "SVX", "destination": "DEL", "dates": {"depart_date": "2026-06-01"}},
+            "primary_recommendation": None,
+            "alternatives": [],
+            "evidence_status": {
+                "coverage_complete": True,
+                "planned_control_count": 0,
+                "terminal_control_count": 0,
+                "not_executed_control_count": 0,
+                "provider_failure_count": 0,
+                "through_fare_check_count": 0,
+            },
+            "required_caveats": {
+                "source_boundaries_included": True,
+                "coverage_incompleteness_acknowledged": True,
+                "provider_failures_acknowledged": True,
+                "through_fare_verification_required": True,
+                "purchase_screen_verification_required": True,
+            },
+            "rendered_text": "CANONICAL USER ANSWER",
+            "answer_lines": ["CANONICAL USER ANSWER"],
+            "stop_policy_status": {
+                "policy": "business_default",
+                "max_reported_connections": 1,
+                "two_stop_fallback_used": False,
+                "three_plus_suppressed_count": 0,
+                "garbage_options_suppressed": False,
+            },
+        }
+        report["human_answer"]["text"] = "STALE HUMAN ANSWER"
+        report["display"]["text"] = "STALE DISPLAY"
+        report["answer_lines"] = ["STALE ANSWER LINE"]
+
+        self.assertEqual(render_agent_report_human(report), "CANONICAL USER ANSWER")
 
 
 if __name__ == "__main__":

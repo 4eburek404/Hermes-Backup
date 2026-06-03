@@ -12,6 +12,7 @@ from jsonschema import Draft202012Validator
 
 from flights_cli.cli import main
 from flights_cli.errors import CliError
+from flights_cli.reporting.final_answer_contract import build_user_answer_contract, validate_user_answer_contract
 from flights_cli.services.agent_report import build_agent_report
 from flights_cli.services.agent_report_contract import (
     AGENT_REPORT_SCHEMA_PACKAGE,
@@ -40,6 +41,7 @@ EXPECTED_TOP_LEVEL_REQUIRED = [
     "answer_lines",
     "display",
     "human_answer",
+    "user_answer",
 ]
 
 
@@ -130,7 +132,7 @@ def valid_offer_graph() -> dict:
 
 
 def valid_report() -> dict:
-    return {
+    report = {
         "schema_version": AGENT_REPORT_SCHEMA_VERSION,
         "route": {
             "origin": "SVX",
@@ -230,6 +232,8 @@ def valid_report() -> dict:
             ],
         },
     }
+    report["user_answer"] = build_user_answer_contract(report)
+    return report
 
 
 def ru_priority_branch(
@@ -281,6 +285,7 @@ class AgentReportContractTests(unittest.TestCase):
         self.assertEqual(schema["title"], "Hermes Flights CLI Agent Report v1")
         self.assertEqual(schema["properties"]["schema_version"]["const"], AGENT_REPORT_SCHEMA_VERSION)
         self.assertEqual(schema["required"], EXPECTED_TOP_LEVEL_REQUIRED)
+        self.assertIn("user_answer", schema["properties"])
         self.assertIs(schema["additionalProperties"], False)
 
     def test_schema_loads_as_package_resource_and_stays_compact(self) -> None:
@@ -292,7 +297,10 @@ class AgentReportContractTests(unittest.TestCase):
         self.assertLessEqual(len(text.encode("utf-8")), 17000)
 
     def test_valid_synthetic_agent_report_passes(self) -> None:
-        validate_agent_report(valid_report())
+        report = valid_report()
+        validate_agent_report(report)
+        validate_user_answer_contract(report["user_answer"])
+        self.assertEqual(report["user_answer"]["rendered_text"], report["human_answer"]["text"])
 
     def test_schema_accepts_ru_priority_controls_for_ru_touching_international_route(self) -> None:
         report = valid_report()
@@ -496,6 +504,8 @@ class AgentReportContractTests(unittest.TestCase):
         self.assertEqual(graph["evidence"]["terminal_control_count"], 1)
         self.assertEqual(graph["evidence"]["missing_evidence_count"], 1)
         self.assertEqual(graph["missing_evidence"][0]["reason"], "not_reached_by_current_live_execution")
+        validate_user_answer_contract(report["user_answer"])
+        self.assertEqual(report["user_answer"]["rendered_text"], report["human_answer"]["text"])
 
     def test_v1_accepts_optional_omitted_counts(self) -> None:
         report = valid_report()
