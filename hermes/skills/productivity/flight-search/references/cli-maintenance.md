@@ -4,6 +4,7 @@ Use this when modifying or auditing the flight-search CLI, provider layers, rout
 
 ## Workflow
 
+- Before any flight-search maintenance/refactor implementation, compare source and runtime first: paths, `SKILL.md` version, CLI version markers, source/runtime parity, and runtime-only reference docs. If runtime is newer or differs semantically, stop before code changes and preserve/merge the latest runtime guidance into source rather than starting from a stale checkout.
 - Work offline by default unless the task explicitly requires live provider access.
 - For behavior changes, add or update a focused failing test before implementation.
 - Test both parser/subprocess CLI contract and internal helpers. A test that instantiates `argparse.Namespace` does not prove the CLI accepts the flag.
@@ -38,6 +39,48 @@ The durable source contract lives in `references/provider-aware-airport-priority
 - For domestic Russian round trips, assert the direct return segment `DEST -> ORIGIN` and absence of default international hubs unless explicitly requested.
 - Moscow/SVO controls are first-class controls when relevant, not fallback-only behavior.
 - New live coverage probes need query-budget design: provider-aware cache keys, in-run de-duplication, bounded per-provider concurrency, rate-limit backoff, and visible live/cache/stale labels.
+
+## Skill-to-CLI Promotion Rules
+
+Use this when operational logic in `SKILL.md` starts compensating for deterministic CLI behavior. Prefer moving repeatable decision mechanics into the CLI/report contract rather than relying on agent prose.
+
+- Promote behavior, not wording: encode constraints, controls, evidence, stop reasons, and frontier roles as structured report fields; keep final prose in the renderer.
+- Treat the target architecture as constraints → executable evidence plan → progressive probes/polls → first-class offer graph → decision frontier/report. A report-only `offer_graph` or post-hoc `coverage_diagnostics` is not enough for completeness-sensitive behavior.
+- Move `ProbeExecutionLedger`-style state into execution/scheduling when it affects search completeness. Reporting should project the ledger; it should not be the first place that planned controls become searched/skipped/not-executed evidence.
+- For simple domestic round trips with decision-leading direct options, implement a bounded `kb-roundtrip --direct-only` style live control inside `route live-assemble` before asking the agent to run it manually. Preserve baggage, hand-luggage, seats-left, price deltas, and source caveats in `agent_report`.
+- Material round-trip bundle differences must be compared against normalized options before rendering, not by parsing `human_answer.text`. Treat price, baggage/hand-luggage, seats, ticketing/source confidence, and return-time alternatives as decision-changing dimensions.
+- Progressive collection should rebuild the offer graph after each fast batch, targeted control, aggregate probe, or provider poll, then stop only when a completeness limit is reached, the provider/source is exhausted, the decision frontier no longer changes, or an explicit time/query budget expires. Model Skyscanner-style live search as initial/create result plus poll/dobor; never treat the first provider response as complete by default.
+- Coverage and aggregate-control flags must not live as side paths. `coverage-mode`, `coverage-control`, carrier/full-route aggregate controls, direct controls, and round-trip package checks should all compile to a common `ProbeIntent`/evidence-goal model with provider capability and terminal status.
+- Absence language belongs in structured evidence: distinguish “all direct offers returned by live provider under request X” from “all possible flights”. Never let the renderer overclaim beyond source boundaries.
+- Add RED tests before promotion: trigger/no-trigger cases, mocked provider evidence projection, executable coverage/aggregate controls, `offer_graph.frontier` visibility, material-delta prioritization, renderer baggage wording, source-boundary caveats, and schema validation with `Draft202012Validator`.
+
+## CLI/Orchestrator Audit Checklist
+
+Use this when asked to audit or refactor the flight-search CLI rather than run a traveler search.
+
+- Start with provenance: source/runtime path, git branch/HEAD/status, and whether the runtime skill is intentionally ahead of source.
+- Dump the parser/subparser tree from `flights_cli.cli.build_parser()` and group flags by leaf command; do not infer documented flags from prose alone. In this CLI, `route kb-assemble` and `route live-assemble` share the live assembly runner, while `route assemble` is offline assembly over provided segment results.
+- Trace each decision flag end-to-end: CLI parser → args/default mutations such as `agent_mode`/`agent_brief` → route plan/live plan → probe dispatch/provider selection → assembly/ranking → report projection. Mark flags as core path, output preset, side path, diagnostic-only, or partially integrated.
+- Pay special attention to `coverage-mode`, `coverage-control`, `aggregate-control-*`, `provider-policy`, `direct-only`, round-trip/package modes, `agent-report`, `agent-mode`, `agent-brief`, and `human_answer`; these commonly blur algorithmic behavior with reporting defaults.
+- Distinguish projections from causes. If `offer_graph`, `coverage_diagnostics`, `missing_evidence`, `frontier`, or `human_answer` are created only inside reporting/builders after probes finish, they are not yet controlling search completeness.
+- Validate audit conclusions with focused offline contracts where possible. Some unittest modules import `helpers` as a top-level test helper; run with `PYTHONPATH=tests:.` from the CLI root when needed, e.g. `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests:. python3 -m unittest tests.test_coverage_controls tests.test_probe_ledger tests.test_agent_report_p0_completeness`.
+
+## CLI Surface and Contract Simplification
+
+Use this when the user asks whether flags, schemas, or commands are redundant, overloaded, or agent/user paths are too complex. For larger redesign work, also load `references/cli-redesign-governance.md`; it records the target decomposition into report level, output profile, evidence preset, canonical user answer, provider ports, unified probe ledger, and stop-policy contract.
+
+- Separate three concerns before recommending removals: **search/evidence semantics** (provider calls, probes, coverage controls), **decision semantics** (assembly, ranking, stop policy, frontier), and **output semantics** (JSON size, `agent_report`, `human_answer`, brief rendering). Do not describe a flag as output-only until tracing whether it changes provider calls or evidence budgets.
+- In the current CLI, `--agent-mode` is overloaded: it enables `agent_report`, changes output caps, and can set `aggregate_control_limit=10`. Treat it as a compatibility preset, not a clean output flag. Prefer a future split into an explicit report/output selector plus an explicit evidence/coverage preset.
+- `--agent-report` is the thin wrapper concept: attach and validate `data.agent_report` without otherwise changing output or search budgets.
+- `--agent-brief` should be treated as a compact-output selector only after refactor; if it implies `agent_mode`, call out the inherited evidence/budget side effect in audits and tests.
+- Keep ordinary user commands narrow. Hide or classify as advanced/debug the knobs for candidate pool limits, included raw/ranked/rejected bodies, segment-result inclusion, live-cache TTL, direct-route-intel TTL, fail-fast, day-offset fanout, coverage-control internals, and aggregate-control internals.
+- Prefer one public route-search wrapper over parallel user-facing variants. Provider-specific commands (`kb-search`, `kb-roundtrip`, `fli-search`, `fli-dates`) and offline `route plan/validate/rank/assemble` are diagnostics/development surfaces unless the user explicitly asks for provider-level proof.
+- If `route kb-assemble` remains, document or implement it as a compatibility alias for `route live-assemble --provider-policy kupibilet`; avoid maintaining duplicate user guidance for both.
+- Audit provider abstractions for real use, not just existence. `ProviderCapabilities`, `ProviderProbeResult`, and provider registry are valuable only if segment and aggregate probes dispatch through common provider adapters; otherwise they are scaffolding that can drift while live code still branches on provider names.
+- Aggregate/full-route/carrier controls should compile to the same probe-intent/ledger path as segment probes. Avoid separate mini-dispatchers that duplicate cache flags, provider calls, failure classification, and summary projection.
+- When `services/agent_report.py` is only an attach/validate seam, keep imports minimal. Do not let unused re-export imports hide the real builder/renderer/projector ownership.
+- For schema simplification, keep `flight_search_user_answer.v1` as the compact user-facing contract and avoid expanding `agent_report.v1` as a catch-all. If `agent_report` needs to carry evidence, frontier, and user answer at once, consider decomposing into evidence/probe status, offer frontier, and user answer subcontracts.
+- Treat `human_answer`, `display`, and `answer_lines` as potentially overlapping presentation layers. Pick one canonical user-answer contract and render from it; avoid parallel final-prose sources inside the agent report.
 
 ## Assembly and Stop-Policy Rules
 
@@ -142,12 +185,13 @@ Use this gate after source docs or CLI changes and before touching runtime:
 2. Verify version markers in `SKILL.md`, `cli/pyproject.toml`, and `cli/flights_cli/__init__.py` when version is in scope.
 3. Run focused source tests before sync. Include schema/contract tests when `agent_report` behavior changes, and provider/airport policy tests when dispatch rules change.
 4. Back up the runtime skill before every sync. If no shape is specified, use a clearly named timestamped sibling or backup-area copy and verify size/hash.
-5. Before real sync, run a dry-run `rsync -a --delete --itemize-changes` with generated-artifact excludes; validate deletion paths are intended.
-6. Sync with generated-artifact excludes: `__pycache__/`, `.pytest_cache/`, `*.pyc`, and `*.egg-info`.
-7. Validate source/runtime parity with `diff -qr` using the same excludes, then run key-file checksums for marker/config files when requested.
-8. Run runtime checks after sync from the runtime `cli/` directory: `python -m flights_cli --json doctor`, help/contract smoke for newly touched commands, and targeted offline tests when available.
-9. Clean only generated runtime artifacts created by validation and rerun parity.
-10. Do not restart the Hermes gateway unless explicitly authorized. Use a new Hermes session/reset only when cached skill text must refresh.
+5. Compare source and runtime before overwriting. If runtime has semantic, non-generated changes that are absent from the source/main being deployed, show the concise diff and ask whether to overwrite runtime, preserve it via a follow-up source branch/PR, or leave runtime intentionally ahead. Do not silently erase useful runtime-only operating rules. Treat runtime-only reference docs and a newer runtime `SKILL.md` version as semantic drift, not generated artifacts; stop before `rsync --delete` unless the user explicitly chooses overwrite.
+6. Before real sync, run a dry-run `rsync -a --delete --itemize-changes` with generated-artifact excludes; validate deletion paths are intended.
+7. Sync with generated-artifact excludes: `__pycache__/`, `.pytest_cache/`, `*.pyc`, and `*.egg-info`.
+8. Validate source/runtime parity with `diff -qr` using the same excludes, then run key-file checksums for marker/config files when requested.
+9. Run runtime checks after sync from the runtime `cli/` directory: `python -m flights_cli --json doctor`, help/contract smoke for newly touched commands, and targeted offline tests when available.
+10. Clean only generated runtime artifacts created by validation and rerun parity.
+11. Do not restart the Hermes gateway unless explicitly authorized. Use a new Hermes session/reset only when cached skill text must refresh.
 
 ## Generated Artifact Cleanup
 

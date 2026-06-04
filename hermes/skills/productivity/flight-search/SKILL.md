@@ -1,6 +1,6 @@
 ---
 name: flight-search
-version: 0.10.11
+version: 0.10.13
 description: Use when finding, comparing, or diagnosing live flight route options with the bundled flights CLI; assumes one adult in economy and never books tickets.
 metadata:
   hermes:
@@ -41,7 +41,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json route live-assemble ORIG
   --agent-brief
 ```
 
-Add `--return-date YYYY-MM-DD` for round trips. Add `--aggregate-control-carrier CARRIER` for carrier tasks; if incomplete, run narrow `kb-search ORIGIN DEST --only-carrier CARRIER` for full route and likely hub legs. For KupiBilet “туда-обратно одним билетом”, use `kb-roundtrip` first. Multi-city/open-jaw has no arbitrary live command; use separate assemblies or offline `route validate`/`route rank` and label diagnostic.
+Add `--return-date YYYY-MM-DD` for round trips. Add `--aggregate-control-carrier CARRIER` for carrier tasks; if incomplete, run narrow `kb-search ORIGIN DEST --only-carrier CARRIER` for full route and likely hub legs. For KupiBilet “туда-обратно одним билетом”, use `kb-roundtrip` first. For simple domestic round trips where a direct candidate is decision-leading, run `kb-roundtrip --direct-only` as a targeted control to verify live round-trip bundles, baggage/hand-luggage packages, seats, and alternative direct return times; this often gives cleaner purchase-screen candidates than summed one-way segment prices. Multi-city/open-jaw has no arbitrary live command; use separate assemblies or offline `route validate`/`route rank` and label diagnostic.
 
 4. Read only `data.agent_report`.
 5. Read `frontier.offer_graph` first: use `constraints` to preserve scope, `collection`/`evidence`/`missing_evidence` to decide whether evidence is complete enough, and `frontier.offer_graph.frontier` to keep mandatory alternatives visible. Treat first provider output as progressive evidence: run targeted/polling probes when missing direct/carrier/exact-airport/through-fare evidence can change the recommendation; stop only on completeness limit, source exhaustion, unchanged decision frontier, or explicit time budget.
@@ -62,7 +62,7 @@ Add `--return-date YYYY-MM-DD` for round trips. Add `--aggregate-control-carrier
 
 - Start with `нашёл`, `не нашёл`, or `evidence неполное`; then recommendation and why.
 - Use traveler/dispatcher bullets; no pipe tables; avoid internal labels unless diagnostics are requested.
-- Round trips: **Лучшая пара / рекомендация**, **Альтернативы туда**, **Альтернативы обратно**, **Отсекаю / fallback** if useful, **Проверить перед покупкой**.
+- Round trips: **Лучшая пара / рекомендация**, **Альтернативы туда**, **Альтернативы обратно**, **Отсекаю / fallback** if useful, **Проверить перед покупкой**. If a targeted `kb-roundtrip` control materially changes price or baggage packages versus `human_answer.text`, prefer the live round-trip bundle in the recommendation and state baggage/hand-luggage explicitly.
 - Itinerary lines show each segment’s times, differing dates, layover, elapsed time, price, and labels like `ночная`, `прилёт +1`, `длинная стыковка`, `fallback` when relevant.
 - Carrier-specific tasks keep carrier scope first; if “ищите ещё”, continue same carrier before broadening.
 - Caveats only when decision-relevant: unproven single-PNR/protection/baggage/fare rules, unconfirmed terminals, degraded provider evidence, or narrow probe needed.
@@ -84,6 +84,10 @@ Add `--return-date YYYY-MM-DD` for round trips. Add `--aggregate-control-carrier
 7. Mixing source, runtime, and temporary checkouts without naming evidence layer.
 8. Replacing overloaded `--agent-*` behavior with a larger public flag matrix (`none/user/agent/debug/human/json`, `--format`, `--report`, `--evidence`) instead of keeping a thin legacy wrapper and moving semantics into internal request/probe/user-answer contracts.
 9. Letting temporary in-process `agent_report.v2` legacy aliases mask public JSON contract regressions; serialized reports must use nested `evidence`/`frontier`/`user_answer`/`diagnostics` paths.
+10. Reintroducing provider execution shortcuts in `execution/*`: segment and aggregate probes should go through `adapters.providers.registry` → concrete `FlightProviderPort` adapters → `ProviderProbeResult`. Do not add backward provider→registry wrappers in provider modules; they create provider↔adapter import cycles caught by architecture tests.
+11. Building `planned_controls` / `not_executed_controls` in reporting from static `plan["coverage_controls"]` after live execution. For agent-path coverage, plan runtime `ProbeIntent`s and project terminal state from the unified `ProbeExecutionLedger`; reporting may only normalize an existing runtime ledger. Include first-class `not_supported_controls` in schema, semantic validation, report-budget trimming, and tests when provider capability boundaries are represented.
+12. Closing coverage buckets only at schema/validator level but forgetting downstream semantics. `not_executed_controls` and `failed_controls` are missing/degraded evidence; `not_supported_controls` is a terminal provider/source capability boundary. Offer graph and user-answer/human renderers should surface capability boundaries as bounded source limits when decision-relevant, but must not count them as missing evidence or make coverage incomplete by themselves.
+13. Treating `--agent-brief` as permission to narrow evidence scope. It may trim the output envelope and imply report attachment, but it must not override explicit route/evidence/search controls such as `--stop-policy debug-all`; only `--agent-mode` may preserve legacy compact/evidence-budget defaults.
 
 ## Verification Checklist
 
@@ -91,6 +95,10 @@ Add `--return-date YYYY-MM-DD` for round trips. Add `--aggregate-control-carrier
 - [ ] Runtime `route live-assemble --agent-brief` run, or provenance failure reported before fallback.
 - [ ] Answer based on `data.agent_report`; prefer `user_answer.rendered_text`; use `human_answer.text` only as a legacy fallback/projection.
 - [ ] `frontier.recommended_options`, `frontier.priority_options`, `evidence.through_fare_checks`, `evidence.provider_failures`, and `evidence.source_boundaries` checked.
+- [ ] When changing provider execution, follow `references/provider-port-pattern.md`: execution modules call `FlightProviderPort` adapters; provider-specific fetch/cache/normalization/summary logic stays under `adapters/providers/`.
+- [ ] When changing coverage diagnostics, verify runtime `ProbeIntent` → `ProbeExecutionLedger` → report projection end-to-end: segment, aggregate, and city-pair controls appear in one ledger; terminal buckets include searched/skipped/failed/not_supported/not_executed/deduped; `planned_controls` and `not_executed_controls` are not synthesized post-hoc by reporting when `live.probe_ledger` exists.
+- [ ] When adding or changing terminal coverage buckets, verify all downstream consumers: serialized schema, semantic validator, report-budget trimming, `offer_graph.evidence`/`missing_evidence`, `user_answer.evidence_status`, and human renderer wording. Specifically, `not_supported` should be surfaced as a provider/source capability boundary, not as `missing_evidence`, `provider_failure`, or incomplete coverage by itself.
+- [ ] When auditing `--agent-*` flags, include explicit tests that `--agent-report` and `--agent-brief` do not change search/evidence controls; `--agent-brief` may trim output only and must preserve explicit controls like `--stop-policy debug-all`.
 - [ ] Required direct/carrier/exact-airport/Moscow controls or narrow probes run.
 - [ ] Ticketing/protection/baggage-through and terminal claims proven or explicitly unconfirmed.
 - [ ] Maintenance verifies source/runtime paths, branch/HEAD/status, versions, backup, parity, tests/doctor, and generated-artifact cleanup.
