@@ -81,6 +81,7 @@ source evidence
 - `scripts/ural_airlines_to_itinerary.py` — Ural source parser, frontend/runtime API handling, fetcher, and adapter.
 - `scripts/utair_to_itinerary.py` — Utair source parser, token/order fetcher, and adapter.
 - `scripts/redwings_to_itinerary.py` — Red Wings/Websky source parser, order fetcher, and adapter.
+- `scripts/flight_calendar_common.py` — shared stdlib helpers for private artifact writes and CLI timezone override parsing; no carrier parsing or network access.
 - `scripts/itinerary_contract.py` — canonical itinerary normalization, JSON Schema validation, and semantic validation.
 - `scripts/make_flight_ics.py` — carrier-agnostic calendar builder and ICS validator; also retained as a compatibility helper.
 - `scripts/travelpayouts_airport_catalog.py` — builder/inspector/loader for bundled airport timezone asset.

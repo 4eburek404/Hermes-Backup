@@ -75,10 +75,10 @@ For `missing timezone for airport(s): CODE` failures:
 
 Useful tests:
 
-- provider helper `DEFAULT_AIRPORT_TZ` maps stay empty;
 - the bundled asset includes important historically problematic airports such as `KUF -> Europe/Samara`;
-- provider timezone map uses the bundled Travelpayouts asset;
-- explicit `--tz` override beats the asset.
+- `build_timezone_map(..., catalog_path=sentinel_catalog)` returns timezone values from that catalog path and still lets explicit `--tz` overrides win;
+- provider command/helper tests inject a sentinel `airport_catalog.load_airport_timezones()` map, then assert the saved canonical itinerary `departure.tz`/`arrival.tz` and any UTC `.ics` timestamps reflect the sentinel catalog values;
+- do not preserve long-lived absence tests for retired internal names such as deleted fallback-map shims.
 
 ## Maintenance verification
 
@@ -93,7 +93,6 @@ python -m py_compile scripts/flight_calendar_ics.py scripts/travelpayouts_airpor
 
 Then audit that:
 
-- `DEFAULT_AIRPORT_TZ == {}` for carrier helpers;
 - catalog schema is `travelpayouts-airport-timezones.v1`;
 - catalog has broad coverage (`len(timezones) > 1000`);
 - `KUF`, `SVO`, and `SVX` resolve to known expected zones;
