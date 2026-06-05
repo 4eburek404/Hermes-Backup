@@ -9,7 +9,6 @@ for the agent-facing orchestrator in ``flight_calendar_ics.py``.
 from __future__ import annotations
 
 import json
-import os
 import re
 from pathlib import Path
 from typing import Any
@@ -18,6 +17,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 import travelpayouts_airport_catalog as airport_catalog
+from flight_calendar_common import parse_tz_overrides, secure_write_text
 
 UTAIR_WEB_BASE = "https://www.utair.ru/"
 UTAIR_API_BASE = "https://b.utair.ru/"
@@ -92,20 +92,6 @@ def parse_utair_source(url: str | None, rloc: str | None, last_name: str | None)
     if not booking_url:
         booking_url = UTAIR_WEB_BASE.rstrip("/") + "/order-manage?" + urlencode({"rloc": locator, "last_name": surname})
     return locator, surname, booking_url
-
-
-def parse_tz_overrides(items: list[str]) -> dict[str, str]:
-    out: dict[str, str] = {}
-    for item in items:
-        if "=" not in item:
-            die(f"bad --tz value {item!r}; use CODE=Area/City")
-        code, tzid = item.split("=", 1)
-        code = code.strip().upper()
-        tzid = tzid.strip()
-        if not code or not tzid:
-            die(f"bad --tz value {item!r}; use CODE=Area/City")
-        out[code] = tzid
-    return out
 
 
 def read_json(req: Request, *, timeout: int = 45, label: str = "Utair API") -> Any:
@@ -415,19 +401,6 @@ def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_u
     }
 
 
-def secure_write_text(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
-            handle.write(text)
-    finally:
-        try:
-            os.chmod(path, 0o600)
-        except FileNotFoundError:
-            pass
-
-
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
@@ -442,7 +415,7 @@ def main(argv: list[str] | None = None) -> int:
     locator, last_name, booking_url = parse_utair_source(args.url, args.rloc, args.last_name)
     token = fetch_utair_token()
     orders = fetch_utair_orders(locator, last_name, token=token)
-    tz_map = airport_catalog.build_timezone_map(parse_tz_overrides(args.tz))
+    tz_map = airport_catalog.build_timezone_map(parse_tz_overrides(args.tz, fail=die))
     itinerary = convert_to_itinerary(orders, tz_map, booking_url=booking_url)
     secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
     print(json.dumps({"ok": True, "segments": len(itinerary["flights"]), "json": str(args.output_json)}, ensure_ascii=False))

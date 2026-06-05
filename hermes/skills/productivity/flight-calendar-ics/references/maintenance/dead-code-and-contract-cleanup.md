@@ -1,6 +1,6 @@
 # Dead-code and contract cleanup notes
 
-Use this reference when the user asks to audit `flight-calendar-ics` for dead code, stale tests, legacy shims, generated artifacts, or skill-library dirt.
+Use this reference when the user asks to audit `flight-calendar-ics` for dead code, stale tests, retired shims, generated artifacts, or skill-library dirt.
 
 ## Read-only audit shape
 
@@ -28,7 +28,8 @@ Use this reference when the user asks to audit `flight-calendar-ics` for dead co
 
 - Retired provider-helper timezone shims must not be preserved by long-lived absence tests. Keep only active catalog behavior checks: catalog loads, representative airports resolve, and explicit `--tz` overrides win.
 - Direct helper commands/scripts (`make`, `aeroflot`, `ural`, `utair`, `redwings`) are compatibility/diagnostic surfaces while `references/core/cli-contract.md` and `doctor.data.legacy_scripts` still list them. Do not delete their tests piecemeal; first decide whether the public contract is being retired, then update parser routes, docs, doctor output, tests, and references in one contract patch.
-- Legacy helper tests that call Python `main()` directly can leak noisy stdout after `unittest OK`; capture stdout/stderr with `contextlib.redirect_stdout/redirect_stderr` or run a subprocess with capture when the output itself is not under test.
+- Compatibility helper tests that call Python `main()` directly can leak noisy stdout after `unittest OK`; capture stdout/stderr with `contextlib.redirect_stdout/redirect_stderr` or run a subprocess with capture when the output itself is not under test.
+- Shared helper candidates are true cleanup only when behavior is identical across adapters. Keep carrier-shaped helpers local when names are similar but semantics differ, such as parser-specific `clean()` helpers.
 - Runtime/source drift is a blocker for cleanup sync. Runtime-only durable references must be promoted to source or deliberately removed before source→runtime parity is claimed.
 - Keep `references/registry.md` current. Every maintenance/core reference should have a semantic owner entry; missing registry entries cause duplicate future references.
 

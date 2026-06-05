@@ -37,7 +37,7 @@ Canonical bundle layout:
 3. **Success means deliverable ICS.** `build` must not return `ok=true` unless `data.ics_path` points to a verified `flights.ics`.
 4. **Verification is part of build.** `data.verification.ok=true` means file modes, `VEVENT` count, UTC `DTSTART`/`DTEND`, and placeholder checks passed.
 5. **Private inputs prefer files over argv.** For booking URLs and credential-bearing links, prefer `--url-file` over raw `--url` when practical.
-6. **Compatibility commands stay tested.** Legacy `make`/carrier commands with explicit output flags remain for transition and diagnostics, but `doctor.data.agent_contract.dispatch_matrix` should advertise `build` templates.
+6. **Compatibility commands stay tested.** Direct `make`/carrier commands with explicit output flags remain for transition and diagnostics, but `doctor.data.agent_contract.dispatch_matrix` should advertise `build` templates.
 
 ## Maintenance checklist
 

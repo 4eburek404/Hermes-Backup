@@ -47,7 +47,9 @@
     },
     "extensions": {
       "type": "object",
-      "additionalProperties": true
+      "additionalProperties": {
+        "$ref": "#/$defs/extension_value"
+      }
     },
     "flights": {
       "type": "array",
@@ -107,6 +109,35 @@
       },
       "uniqueItems": true
     },
+    "extension_value": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "string",
+          "maxLength": 5000
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/extension_value"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/extension_value"
+          }
+        }
+      ]
+    },
     "source": {
       "type": "object",
       "additionalProperties": false,
@@ -133,7 +164,9 @@
         },
         "extensions": {
           "type": "object",
-          "additionalProperties": true
+          "additionalProperties": {
+            "$ref": "#/$defs/extension_value"
+          }
         }
       }
     },
@@ -244,7 +277,9 @@
         },
         "extensions": {
           "type": "object",
-          "additionalProperties": true
+          "additionalProperties": {
+            "$ref": "#/$defs/extension_value"
+          }
         }
       }
     }

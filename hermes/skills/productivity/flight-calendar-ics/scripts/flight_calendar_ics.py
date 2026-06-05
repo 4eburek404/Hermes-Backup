@@ -26,6 +26,7 @@ import travelpayouts_airport_catalog as airport_catalog
 import ural_airlines_to_itinerary as ural
 import utair_to_itinerary as utair
 import redwings_to_itinerary as redwings
+from flight_calendar_common import parse_tz_overrides, secure_write_text
 
 SCHEMA_VERSION = "flight-calendar-ics-cli.v1"
 BUNDLE_ROUTES = ["make", "aeroflot", "ural", "utair", "redwings"]
@@ -200,18 +201,12 @@ def emit_human(obj: dict[str, Any]) -> None:
         print(f"ERROR: {err.get('message', 'unknown error')}", file=sys.stderr)
 
 
-def secure_write_text(path: Path, text: str) -> None:
-    """Write sensitive itinerary artifacts as owner-only files."""
-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
-            handle.write(text)
-    finally:
-        try:
-            os.chmod(path, 0o600)
-        except FileNotFoundError:
-            pass
+def _fail_usage(message: str) -> None:
+    raise CliFailure(message, code="usage_error")
+
+
+def parse_cli_tz_overrides(items: list[str]) -> dict[str, str]:
+    return parse_tz_overrides(items, fail=_fail_usage)
 
 
 def create_private_output_dir(output_dir: Path | None, process: list[dict[str, Any]]) -> Path:
@@ -837,7 +832,7 @@ def command_aeroflot(args: argparse.Namespace, process: list[dict[str, Any]]) ->
         args.first_name,
     )
     add_step(process, "parse_pnr_source")
-    timezone_overrides = aeroflot.parse_tz_overrides(args.tz)
+    timezone_overrides = parse_cli_tz_overrides(args.tz)
     airport_catalog_timezones = load_travelpayouts_airport_timezones()
     tz_map = build_timezone_map(timezone_overrides)
     add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
@@ -871,7 +866,7 @@ def command_aeroflot(args: argparse.Namespace, process: list[dict[str, Any]]) ->
 def command_ural(args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
     locator, last_name, booking_url = ural.parse_ural_source(args.url, args.pnr, args.last_name)
     add_step(process, "parse_pnr_source")
-    timezone_overrides = ural.parse_tz_overrides(args.tz)
+    timezone_overrides = parse_cli_tz_overrides(args.tz)
     airport_catalog_timezones = load_travelpayouts_airport_timezones()
     tz_map = build_timezone_map(timezone_overrides)
     add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
@@ -910,7 +905,7 @@ def command_ural(args: argparse.Namespace, process: list[dict[str, Any]]) -> tup
 def command_utair(args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
     locator, last_name, booking_url = utair.parse_utair_source(args.url, args.rloc, args.last_name)
     add_step(process, "parse_pnr_source")
-    timezone_overrides = utair.parse_tz_overrides(args.tz)
+    timezone_overrides = parse_cli_tz_overrides(args.tz)
     airport_catalog_timezones = load_travelpayouts_airport_timezones()
     tz_map = build_timezone_map(timezone_overrides)
     add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
@@ -946,7 +941,7 @@ def command_utair(args: argparse.Namespace, process: list[dict[str, Any]]) -> tu
 def command_redwings(args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
     locator, finder_code, booking_url = redwings.parse_redwings_source(args.url, args.pnr, args.access_code)
     add_step(process, "parse_redwings_source")
-    timezone_overrides = redwings.parse_tz_overrides(args.tz)
+    timezone_overrides = parse_cli_tz_overrides(args.tz)
     airport_catalog_timezones = load_travelpayouts_airport_timezones()
     tz_map = build_timezone_map(timezone_overrides)
     add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
