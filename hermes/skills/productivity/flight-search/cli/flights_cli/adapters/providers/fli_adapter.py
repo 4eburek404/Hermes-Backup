@@ -3,10 +3,11 @@ from __future__ import annotations
 from typing import Any, cast
 
 from ...domain.normalize import parse_iso_date
-from ...ports.providers import CacheStatus, EvidenceType, ProviderCapabilities, ProviderName, ProviderProbeResult, ProbeType
+from ...ports.providers import CacheStatus, ProviderCapabilities, ProviderName, ProviderProbeResult, ProbeType
 from ...providers.fli_mcp import cached_fli_mcp_search, fli_result_to_segment_result, fli_segment_search_summary
 from ...store import Store
 from ...execution.cache_status import cache_status_from_result
+from .common import evidence_type_for_offer_count, segment_probe_type_from_query
 
 
 FLI_CAPABILITIES = ProviderCapabilities(
@@ -20,20 +21,6 @@ FLI_CAPABILITIES = ProviderCapabilities(
     supports_cache=True,
     probe_types=frozenset({"segment_direct", "segment_hub_leg", "city_pair_direct"}),
 )
-
-
-def _probe_type_from_segment_query(query: dict[str, Any]) -> ProbeType:
-    probe_type = query.get("probe_type")
-    if probe_type in FLI_CAPABILITIES.probe_types:
-        return probe_type
-    leg = str(query.get("leg") or "")
-    return "segment_direct" if "direct" in leg else "segment_hub_leg"
-
-
-def _evidence_type(*, offer_count: int, cache_status: str) -> EvidenceType:
-    if offer_count > 0:
-        return "positive_cached_hint" if cache_status in {"cache_hit", "stale_cache_used"} else "positive_live_evidence"
-    return "negative_cache_absence" if cache_status in {"cache_hit", "stale_cache_used"} else "negative_provider_empty"
 
 
 class FliProviderAdapter:
@@ -82,7 +69,7 @@ class FliProviderAdapter:
         offer_count = len(segment_result.get("offers") or [])
         return ProviderProbeResult(
             probe_id=str(query.get("probe_id") or ""),
-            probe_type=_probe_type_from_segment_query(query),
+            probe_type=segment_probe_type_from_query(query, self.capabilities),
             provider="fli",
             query={
                 "origin": origin,
@@ -95,7 +82,7 @@ class FliProviderAdapter:
             },
             execution_state="searched",
             cache_status=cache_status,
-            evidence_type=_evidence_type(offer_count=offer_count, cache_status=cache_status),
+            evidence_type=evidence_type_for_offer_count(offer_count=offer_count, cache_status=cache_status),
             result_summary=summary,
             normalized_offers=list(segment_result.get("offers") or []),
             normalized_result=segment_result,

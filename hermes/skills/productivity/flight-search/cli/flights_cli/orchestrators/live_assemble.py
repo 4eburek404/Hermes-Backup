@@ -17,7 +17,7 @@ from ..config import (
     PRIORITY_SECONDARY_HUB,
     SUPPORTED_CURRENCIES,
 )
-from ..domain.airports import airport_priority_metadata, explicit_or_resolved_airports
+from ..domain.airports import explicit_or_resolved_airports
 from ..domain.normalize import normalize_carrier_code, normalize_profile, parse_iso_date
 from ..errors import CliError
 from ..execution.aggregate_control_runner import run_aggregate_controls
@@ -32,12 +32,11 @@ from ..services.agent_report import attach_agent_report
 from ..services.assembly import assemble_direction, assemble_segment_results, direct_journeys, empty_assembled_result
 from ..store import Store
 from .route_graph import (
+    append_unique_route_segment,
     coverage_controls_for_plan,
     resolve_route_graph_context,
     route_families_for_strategy,
     route_graph_from_segments,
-    route_segment_key,
-    route_segment_spec,
 )
 
 
@@ -84,16 +83,6 @@ def city_code_first_segment_options(
         )
     return options
 
-
-def segment_code_metadata(origin_code: str, dest_code: str) -> dict[str, Any]:
-    metadata: dict[str, Any] = {}
-    origin_priority = airport_priority_metadata(origin_code)
-    destination_priority = airport_priority_metadata(dest_code)
-    if origin_priority:
-        metadata["origin_airport_priority"] = origin_priority
-    if destination_priority:
-        metadata["destination_airport_priority"] = destination_priority
-    return metadata
 
 
 def provider_city_code_side(spec: dict[str, Any], side: str) -> bool:
@@ -324,23 +313,26 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
     )
 
     segments: list[dict[str, Any]] = []
-    seen: set[tuple[str, str, str, str, str]] = set()
+    seen: set[tuple[str, ...]] = set()
 
-    def add_segment(direction: str, leg: str, dep_date: date, origin_code: str, dest_code: str, **extra: Any) -> None:
-        if origin_code == dest_code:
-            return
-        spec = route_segment_spec(direction, leg, dep_date, origin_code, dest_code, **segment_code_metadata(origin_code, dest_code), **extra)
-        key = route_segment_key(spec, include_date=True)
-        if key in seen:
-            return
-        seen.add(key)
-        segments.append(spec)
+    def add_live_segment(direction: str, leg: str, dep_date: date, origin_code: str, dest_code: str, **extra: Any) -> None:
+        append_unique_route_segment(
+            segments,
+            seen,
+            direction=direction,
+            leg=leg,
+            dep_date=dep_date,
+            origin_code=origin_code,
+            dest_code=dest_code,
+            include_date=True,
+            extra=extra,
+        )
 
     route_families = route_families_for_strategy(routing_strategy, routing_profile)
     if routing_strategy == "ru-priority":
         for dest_code, dest_extra in destination_segment_options:
             for origin_code, origin_extra in origin_segment_options:
-                add_segment(
+                add_live_segment(
                     "outbound",
                     "direct_outbound",
                     depart,
@@ -353,7 +345,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
                 )
         if routing_profile == "asia-oceania":
             for origin_code in origin_airports:
-                add_segment(
+                add_live_segment(
                     "outbound",
                     "origin_to_hub",
                     depart,
@@ -367,7 +359,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
             for offset in outbound_second_offsets:
                 leg_date = depart + timedelta(days=offset)
                 for dest_code in destination_airports:
-                    add_segment(
+                    add_live_segment(
                         "outbound",
                         "hub_to_destination",
                         leg_date,
@@ -378,7 +370,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
                         preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                     )
         for origin_code in origin_airports:
-            add_segment(
+            add_live_segment(
                 "outbound",
                 "origin_to_hub",
                 depart,
@@ -389,7 +381,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
                 preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
             )
             if origin_code != PRIORITY_MOSCOW_GATEWAY:
-                add_segment(
+                add_live_segment(
                     "outbound",
                     "origin_to_gateway",
                     depart,
@@ -399,7 +391,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
                     priority=3 if routing_profile == "asia-oceania" else 2,
                     only_carriers=["SU"],
                 )
-                add_segment(
+                add_live_segment(
                     "outbound",
                     "gateway_to_hub",
                     depart,
@@ -412,7 +404,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
         for offset in outbound_second_offsets:
             leg_date = depart + timedelta(days=offset)
             for dest_code in destination_airports:
-                add_segment(
+                add_live_segment(
                     "outbound",
                     "hub_to_destination",
                     leg_date,
@@ -423,7 +415,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                 )
         for origin_code in origin_airports:
-            add_segment(
+            add_live_segment(
                 "outbound",
                 "origin_to_hub",
                 depart,
@@ -437,7 +429,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
         for offset in outbound_second_offsets:
             leg_date = depart + timedelta(days=offset)
             for dest_code in destination_airports:
-                add_segment(
+                add_live_segment(
                     "outbound",
                     "hub_to_destination",
                     leg_date,
@@ -451,7 +443,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
     elif routing_strategy == "domestic-ru":
         for dest_code, dest_extra in destination_segment_options:
             for origin_code, origin_extra in origin_segment_options:
-                add_segment(
+                add_live_segment(
                     "outbound",
                     "direct_outbound",
                     depart,
@@ -463,27 +455,27 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
                 )
         for origin_code in origin_airports:
             for hub in hubs:
-                add_segment("outbound", "origin_to_hub", depart, origin_code, hub, route_family="domestic_ru", priority=1)
+                add_live_segment("outbound", "origin_to_hub", depart, origin_code, hub, route_family="domestic_ru", priority=1)
         for offset in outbound_second_offsets:
             leg_date = depart + timedelta(days=offset)
             for hub in hubs:
                 for dest_code in destination_airports:
-                    add_segment("outbound", "hub_to_destination", leg_date, hub, dest_code, route_family="domestic_ru", priority=1)
+                    add_live_segment("outbound", "hub_to_destination", leg_date, hub, dest_code, route_family="domestic_ru", priority=1)
     else:
         for origin_code in origin_airports:
             for hub in hubs:
-                add_segment("outbound", "origin_to_hub", depart, origin_code, hub)
+                add_live_segment("outbound", "origin_to_hub", depart, origin_code, hub)
         for offset in outbound_second_offsets:
             leg_date = depart + timedelta(days=offset)
             for hub in hubs:
                 for dest_code in destination_airports:
-                    add_segment("outbound", "hub_to_destination", leg_date, hub, dest_code)
+                    add_live_segment("outbound", "hub_to_destination", leg_date, hub, dest_code)
 
     if ret:
         if routing_strategy == "ru-priority":
             for dest_code, dest_extra in destination_segment_options:
                 for origin_code, origin_extra in origin_segment_options:
-                    add_segment(
+                    add_live_segment(
                         "return",
                         "direct_return",
                         ret,
@@ -496,7 +488,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
                     )
             if routing_profile == "asia-oceania":
                 for dest_code in destination_airports:
-                    add_segment(
+                    add_live_segment(
                         "return",
                         "destination_to_hub",
                         ret,
@@ -509,7 +501,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
                 for offset in return_second_offsets:
                     leg_date = ret + timedelta(days=offset)
                     for origin_code in origin_airports:
-                        add_segment(
+                        add_live_segment(
                             "return",
                             "hub_to_origin",
                             leg_date,
@@ -521,7 +513,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
                             preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                         )
             for dest_code in destination_airports:
-                add_segment(
+                add_live_segment(
                     "return",
                     "destination_to_hub",
                     ret,
@@ -534,7 +526,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
             for offset in return_second_offsets:
                 leg_date = ret + timedelta(days=offset)
                 for origin_code in origin_airports:
-                    add_segment(
+                    add_live_segment(
                         "return",
                         "hub_to_origin",
                         leg_date,
@@ -545,7 +537,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
                         preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                     )
                     if origin_code != PRIORITY_MOSCOW_GATEWAY:
-                        add_segment(
+                        add_live_segment(
                             "return",
                             "hub_to_gateway",
                             leg_date,
@@ -555,7 +547,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
                             priority=3 if routing_profile == "asia-oceania" else 2,
                             only_carriers=["SU"],
                         )
-                        add_segment(
+                        add_live_segment(
                             "return",
                             "gateway_to_origin",
                             leg_date,
@@ -566,7 +558,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
                             only_carriers=["SU"],
                         )
             for dest_code in destination_airports:
-                add_segment(
+                add_live_segment(
                     "return",
                     "destination_to_hub",
                     ret,
@@ -580,7 +572,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
             for offset in return_second_offsets:
                 leg_date = ret + timedelta(days=offset)
                 for origin_code in origin_airports:
-                    add_segment(
+                    add_live_segment(
                         "return",
                         "hub_to_origin",
                         leg_date,
@@ -594,7 +586,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
         elif routing_strategy == "domestic-ru":
             for dest_code, dest_extra in destination_segment_options:
                 for origin_code, origin_extra in origin_segment_options:
-                    add_segment(
+                    add_live_segment(
                         "return",
                         "direct_return",
                         ret,
@@ -606,21 +598,21 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
                     )
             for dest_code in destination_airports:
                 for hub in hubs:
-                    add_segment("return", "destination_to_hub", ret, dest_code, hub, route_family="domestic_ru", priority=1)
+                    add_live_segment("return", "destination_to_hub", ret, dest_code, hub, route_family="domestic_ru", priority=1)
             for offset in return_second_offsets:
                 leg_date = ret + timedelta(days=offset)
                 for hub in hubs:
                     for origin_code in origin_airports:
-                        add_segment("return", "hub_to_origin", leg_date, hub, origin_code, route_family="domestic_ru", priority=1)
+                        add_live_segment("return", "hub_to_origin", leg_date, hub, origin_code, route_family="domestic_ru", priority=1)
         else:
             for dest_code in destination_airports:
                 for hub in hubs:
-                    add_segment("return", "destination_to_hub", ret, dest_code, hub)
+                    add_live_segment("return", "destination_to_hub", ret, dest_code, hub)
             for offset in return_second_offsets:
                 leg_date = ret + timedelta(days=offset)
                 for hub in hubs:
                     for origin_code in origin_airports:
-                        add_segment("return", "hub_to_origin", leg_date, hub, origin_code)
+                        add_live_segment("return", "hub_to_origin", leg_date, hub, origin_code)
 
     assembly_warning = (
         "KupiBilet live segment assembly uses direct-only one-way searches; availability and price still require final booking-screen recheck."

@@ -6,7 +6,7 @@ from datetime import date
 from unittest.mock import patch
 
 from flights_cli.adapters.providers.registry import providers_for_segment
-from flights_cli.domain.airports import explicit_or_resolved_airports
+from flights_cli.domain.airports import explicit_or_resolved_airports, segment_code_metadata
 from flights_cli.execution.probe_dispatcher import dispatch_segment_probe
 from flights_cli.orchestrators.live_assemble import build_live_route_segment_plan, run_live_route_assembly
 from flights_cli.store import Store
@@ -144,6 +144,12 @@ def empty_kupibilet_result(query_origin: str, query_destination: str, depart_dat
 
 
 class AirportPriorityPolicyTests(unittest.TestCase):
+    def test_segment_code_metadata_is_shared_airport_priority_projection(self) -> None:
+        self.assertEqual(
+            segment_code_metadata("SVX", "LHR"),
+            {"destination_airport_priority": {"city_code": "LON", "tier": 1, "role": "preferred"}},
+        )
+
     def test_ist_code_resolves_to_exact_ist_only_and_fli_direct_candidates_do_not_include_saw(self) -> None:
         store = Store()
         ist = store.resolve_location("IST")

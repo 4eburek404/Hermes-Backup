@@ -52,10 +52,6 @@ def provider_adapter(name: str, *, store: Store | None = None, kupibilet_fetcher
     raise CliError(f"unsupported provider {name!r}", error_type="validation_error")
 
 
-def provider_descriptor(name: str) -> FlightProviderPort:
-    """Backward-compatible alias: provider registry entries are now adapters."""
-    return provider_adapter(name)
-
 
 def providers_for_segment(spec: dict[str, Any], store: Store, policy: str) -> list[ProviderName]:
     normalized_policy = str(policy or "auto").strip().lower()
@@ -116,6 +112,5 @@ __all__ = [
     "not_supported_probe_result",
     "provider_adapter",
     "provider_adapters_for_segment",
-    "provider_descriptor",
     "providers_for_segment",
 ]

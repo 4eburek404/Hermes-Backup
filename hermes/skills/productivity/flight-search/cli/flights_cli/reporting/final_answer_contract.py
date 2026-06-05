@@ -7,10 +7,13 @@ from importlib import resources
 from typing import Any
 
 from jsonschema import Draft202012Validator
-from jsonschema.exceptions import ValidationError
+
+from ..contracts.schema_errors import validation_error_detail
 
 from ..errors import CliError
 from .human_answer_renderer import build_human_answer
+from .option_semantics import direction_segments, option_direction, route_requested_round_trip
+from .time_utils import display_minutes_between as minutes_between_iso, integer_or_none as int_or_none
 
 USER_ANSWER_SCHEMA_VERSION = "flight_search_user_answer.v3"
 USER_ANSWER_SCHEMA_RESOURCE = "flight_search_user_answer.v3.schema.json"
@@ -30,38 +33,8 @@ def user_answer_validator() -> Draft202012Validator:
     return Draft202012Validator(load_user_answer_schema())
 
 
-def validation_error_detail(error: ValidationError) -> dict[str, Any]:
-    path = "$"
-    if error.absolute_path:
-        path += "".join(f"[{part}]" if isinstance(part, int) else f".{part}" for part in error.absolute_path)
-    return {"path": path, "message": error.message, "validator": error.validator}
-
-
-def requested_round_trip(route: dict[str, Any]) -> bool:
-    dates = route.get("dates") if isinstance(route.get("dates"), dict) else {}
-    return bool(dates.get("return") or dates.get("return_date"))
-
-
 def is_provider_aggregate_option(option: dict[str, Any]) -> bool:
     return str(option.get("category") or "") == "provider_aggregate_candidate" or str(option.get("id") or "").startswith("provider-aggregate:")
-
-
-def option_direction(option: dict[str, Any]) -> str | None:
-    direction = option.get("direction")
-    if direction in ("outbound", "return"):
-        return str(direction)
-    option_id = str(option.get("id") or "")
-    if option_id.startswith("provider-aggregate:outbound:"):
-        return "outbound"
-    if option_id.startswith("provider-aggregate:return:"):
-        return "return"
-    segments = option.get("segments") if isinstance(option.get("segments"), list) else []
-    segment_directions = {str(segment.get("direction")) for segment in segments if isinstance(segment, dict) and segment.get("direction")}
-    if len(segment_directions) == 1:
-        only = next(iter(segment_directions))
-        if only in ("outbound", "return"):
-            return only
-    return None
 
 
 def route_label(option: dict[str, Any]) -> str:
@@ -187,11 +160,6 @@ def numeric_or_none(value: Any) -> int | float | None:
     return int(number) if number.is_integer() else number
 
 
-def int_or_none(value: Any) -> int | None:
-    number = numeric_or_none(value)
-    return int(number) if number is not None else None
-
-
 def compact_price_text(option: dict[str, Any]) -> str:
     price = option.get("price") if isinstance(option.get("price"), dict) else {}
     amount = numeric_or_none(price.get("amount"))
@@ -282,26 +250,6 @@ def catalog_segment(segment: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def direction_segments(option: dict[str, Any], direction: str) -> list[dict[str, Any]]:
-    return [segment for segment in option.get("segments") or [] if isinstance(segment, dict) and segment.get("direction") == direction]
-
-
-def minutes_between_iso(start: Any, end: Any) -> int | None:
-    if not isinstance(start, str) or not isinstance(end, str):
-        return None
-    from datetime import datetime
-
-    try:
-        first = datetime.fromisoformat(start.replace("Z", "+00:00"))
-        second = datetime.fromisoformat(end.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if (first.tzinfo is None) != (second.tzinfo is None):
-        first = first.replace(tzinfo=None)
-        second = second.replace(tzinfo=None)
-    return max(0, int((second - first).total_seconds() // 60))
-
-
 def direction_layovers(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
     layovers: list[dict[str, Any]] = []
     for previous, current in zip(segments, segments[1:]):
@@ -351,7 +299,7 @@ def iso_date(value: Any) -> str | None:
     return value[:10]
 
 
-def display_date(value: Any) -> str:
+def catalog_display_date(value: Any) -> str:
     date = iso_date(value)
     if not date:
         return "дата н/д"
@@ -361,7 +309,7 @@ def display_date(value: Any) -> str:
     return date
 
 
-def display_time(value: Any) -> str:
+def catalog_display_time(value: Any) -> str:
     if not isinstance(value, str) or "T" not in value:
         return "??:??"
     return value.split("T", 1)[1][:5]
@@ -370,13 +318,13 @@ def display_time(value: Any) -> str:
 def render_direction_for_catalog(segments: list[dict[str, Any]], direction: str) -> str | None:
     if not segments:
         return None
-    date = display_date(segments[0].get("departure_at"))
+    date = catalog_display_date(segments[0].get("departure_at"))
     flights = []
     for segment in segments:
         number = segment.get("flight_number") or segment.get("carrier") or "рейс"
         origin = segment.get("origin") or "???"
         destination = segment.get("destination") or "???"
-        flights.append(f"{number} {origin}-{destination} {display_time(segment.get('departure_at'))}-{display_time(segment.get('arrival_at'))}")
+        flights.append(f"{number} {origin}-{destination} {catalog_display_time(segment.get('departure_at'))}-{catalog_display_time(segment.get('arrival_at'))}")
     label = "туда" if direction == "outbound" else "обратно"
     return f"{date} {label}: " + " -> ".join(flights)
 
@@ -557,7 +505,7 @@ def build_user_answer_contract(agent_report: dict[str, Any], *, rendered_text: s
     stop_diagnostics = agent_report.get("stop_policy_diagnostics") if isinstance(agent_report.get("stop_policy_diagnostics"), dict) else {}
     two_stop_fallback_used = bool(stop_diagnostics.get("used_two_stop_fallback"))
 
-    is_round_trip_request = requested_round_trip(route)
+    is_round_trip_request = route_requested_round_trip(route)
     catalog = build_catalog_contract(recommended, priority, is_round_trip_request=is_round_trip_request)
     answer_mode = infer_answer_mode(is_round_trip_request=is_round_trip_request, options=catalog.get("items") or [])
     route_contract = {
@@ -707,13 +655,13 @@ def has_combined_pair_time_fields(item: dict[str, Any]) -> bool:
     return any(item.get(key) is not None for key in ("itinerary_elapsed_min", "flight_time_min", "layover_total_min"))
 
 
-def semantic_errors(answer: dict[str, Any]) -> list[dict[str, Any]]:
+def user_answer_contract_semantic_errors(answer: dict[str, Any]) -> list[dict[str, Any]]:
     errors: list[dict[str, Any]] = []
     evidence = answer.get("evidence_status") if isinstance(answer.get("evidence_status"), dict) else {}
     caveats = answer.get("required_caveats") if isinstance(answer.get("required_caveats"), dict) else {}
     stop_status = answer.get("stop_policy_status") if isinstance(answer.get("stop_policy_status"), dict) else {}
     route = answer.get("route") if isinstance(answer.get("route"), dict) else {}
-    is_round_trip_request = requested_round_trip(route)
+    is_round_trip_request = route_requested_round_trip(route)
     summary_entries: list[tuple[str, dict[str, Any]]] = []
     primary = answer.get("primary_recommendation")
     if isinstance(primary, dict):
@@ -915,7 +863,7 @@ def semantic_errors(answer: dict[str, Any]) -> list[dict[str, Any]]:
 def validate_user_answer_contract(answer: dict[str, Any]) -> None:
     errors = sorted(user_answer_validator().iter_errors(answer), key=lambda item: list(item.absolute_path))
     details = [validation_error_detail(error) for error in errors]
-    details.extend(semantic_errors(answer))
+    details.extend(user_answer_contract_semantic_errors(answer))
     if details:
         raise CliError(
             "flight_search_user_answer failed contract validation",

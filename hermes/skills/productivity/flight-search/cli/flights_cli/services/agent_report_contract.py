@@ -7,7 +7,8 @@ from importlib import resources
 from typing import Any
 
 from jsonschema import Draft202012Validator
-from jsonschema.exceptions import ValidationError
+
+from ..contracts.schema_errors import validation_error_detail
 
 from ..errors import CliError
 from ..reporting.agent_report_v2 import AGENT_REPORT_V2_SCHEMA_VERSION
@@ -70,16 +71,6 @@ def load_agent_report_schema() -> dict[str, Any]:
 def agent_report_validator() -> Draft202012Validator:
     return Draft202012Validator(load_agent_report_schema())
 
-
-def validation_error_detail(error: ValidationError) -> dict[str, Any]:
-    path = "$"
-    if error.absolute_path:
-        path += "".join(f"[{part}]" if isinstance(part, int) else f".{part}" for part in error.absolute_path)
-    return {
-        "path": path,
-        "message": error.message,
-        "validator": error.validator,
-    }
 
 
 def display_lines(display_option: dict[str, Any]) -> list[str]:
@@ -196,7 +187,7 @@ def user_answer_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
     return errors
 
 
-def semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
+def agent_report_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
     evidence = evidence_section(report)
     frontier = frontier_section(report)
     diagnostics_payload = diagnostics_section(report)
@@ -376,7 +367,7 @@ def semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
 def validate_agent_report(report: dict[str, Any]) -> None:
     errors = sorted(agent_report_validator().iter_errors(report), key=lambda item: list(item.absolute_path))
     details = [validation_error_detail(error) for error in errors]
-    details.extend(semantic_errors(report))
+    details.extend(agent_report_semantic_errors(report))
     if details:
         raise CliError(
             "agent_report failed contract validation",

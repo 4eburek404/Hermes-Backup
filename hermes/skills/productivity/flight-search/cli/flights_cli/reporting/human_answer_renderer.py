@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
 from typing import Any
+
+from .option_semantics import direction_segments, option_direction, report_requested_round_trip
+from .time_utils import display_minutes_between, integer_or_none, parse_iso
 
 HUMAN_ANSWER_FORMAT_VERSION = "flight_human_answer.v1"
 
@@ -31,35 +33,6 @@ DIAGNOSTIC_MARKERS = (
     "provider-aggregate:",
     "probe_id",
 )
-
-
-def parse_iso(value: Any) -> datetime | None:
-    if not isinstance(value, str) or not value:
-        return None
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-
-
-def minutes_between(start: Any, end: Any) -> int | None:
-    dep = parse_iso(start)
-    arr = parse_iso(end)
-    if dep is None or arr is None:
-        return None
-    if (dep.tzinfo is None) != (arr.tzinfo is None):
-        dep = dep.replace(tzinfo=None)
-        arr = arr.replace(tzinfo=None)
-    return max(0, int((arr - dep).total_seconds() // 60))
-
-
-def integer_or_none(value: Any) -> int | None:
-    if value is None or isinstance(value, bool):
-        return None
-    try:
-        return int(float(value))
-    except (TypeError, ValueError):
-        return None
 
 
 def human_duration(minutes: Any) -> str | None:
@@ -118,29 +91,6 @@ def human_price(option: dict[str, Any]) -> str:
     return re.sub(r"\s+", " ", normalized).strip()
 
 
-def option_direction(option: dict[str, Any]) -> str | None:
-    explicit = option.get("direction")
-    if explicit in ("outbound", "return"):
-        return str(explicit)
-    option_id = str(option.get("id") or "")
-    if option_id.startswith("provider-aggregate:outbound:"):
-        return "outbound"
-    if option_id.startswith("provider-aggregate:return:"):
-        return "return"
-    directions = {
-        str(segment.get("direction"))
-        for segment in option.get("segments") or []
-        if isinstance(segment, dict) and segment.get("direction") in ("outbound", "return")
-    }
-    return next(iter(directions)) if len(directions) == 1 else None
-
-
-def requested_round_trip(report: dict[str, Any]) -> bool:
-    route = report.get("route") if isinstance(report.get("route"), dict) else {}
-    dates = route.get("dates") if isinstance(route.get("dates"), dict) else {}
-    return bool(dates.get("return") or dates.get("return_date"))
-
-
 def route_text(report: dict[str, Any]) -> str:
     route = report.get("route") if isinstance(report.get("route"), dict) else {}
     origin = route.get("origin") or "???"
@@ -161,14 +111,6 @@ def valid_option(option: Any) -> bool:
 
 def reportable_options(options: Any) -> list[dict[str, Any]]:
     return [option for option in options or [] if valid_option(option)]
-
-
-def direction_segments(option: dict[str, Any], direction: str) -> list[dict[str, Any]]:
-    return [
-        segment
-        for segment in option.get("segments") or []
-        if isinstance(segment, dict) and str(segment.get("direction") or "") == direction
-    ]
 
 
 def first_last_segments(segments: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
@@ -208,7 +150,7 @@ def connection_labels(segments: list[dict[str, Any]]) -> list[str]:
     labels = []
     for previous, current in zip(segments, segments[1:]):
         airport = previous.get("destination") or current.get("origin") or "???"
-        duration = human_duration(minutes_between(previous.get("arrival_at"), current.get("departure_at")))
+        duration = human_duration(display_minutes_between(previous.get("arrival_at"), current.get("departure_at")))
         if duration:
             labels.append(f"{airport} {duration}")
     return labels
@@ -223,12 +165,12 @@ def itinerary_elapsed(option: dict[str, Any], direction: str, segments: list[dic
             return minutes
     first, last = first_last_segments(segments)
     if first and last:
-        return minutes_between(first.get("departure_at"), last.get("arrival_at"))
+        return display_minutes_between(first.get("departure_at"), last.get("arrival_at"))
     return integer_or_none(option.get("itinerary_elapsed_min") or option.get("elapsed_min"))
 
 
 def has_long_layover(segments: list[dict[str, Any]]) -> bool:
-    return any((minutes_between(prev.get("arrival_at"), cur.get("departure_at")) or 0) >= 8 * 60 for prev, cur in zip(segments, segments[1:]))
+    return any((display_minutes_between(prev.get("arrival_at"), cur.get("departure_at")) or 0) >= 8 * 60 for prev, cur in zip(segments, segments[1:]))
 
 
 def direction_line(option: dict[str, Any], direction: str, *, label: str | None = None) -> str | None:
@@ -328,7 +270,7 @@ def clean_text(text: str) -> str:
 
 
 def build_human_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
-    is_round_trip = requested_round_trip(agent_report)
+    is_round_trip = report_requested_round_trip(agent_report)
     recommended = reportable_options(agent_report.get("recommended_options"))
     priority = reportable_options(agent_report.get("priority_options"))
     route = route_text(agent_report)
