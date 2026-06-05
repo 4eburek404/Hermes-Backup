@@ -15,7 +15,7 @@ from ..config import (
     PRIORITY_ROUTE_CARRIERS,
     PRIORITY_SECONDARY_HUB,
 )
-from ..domain.airports import airport_scope_summary
+from ..domain.airports import airport_scope_summary, segment_code_metadata
 from ..domain.hubs import resolve_route_hubs, resolve_routing_strategy
 from ..errors import CliError
 from ..store import Store
@@ -126,6 +126,37 @@ def route_segment_key(spec: dict[str, Any], *, include_date: bool) -> tuple[str,
     if include_date:
         return (*key, str(spec.get("date") or ""))
     return key
+
+
+def append_unique_route_segment(
+    segments: list[dict[str, Any]],
+    seen: set[tuple[str, ...]],
+    *,
+    direction: str,
+    leg: str,
+    dep_date: Any,
+    origin_code: str,
+    dest_code: str,
+    include_date: bool,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    if origin_code == dest_code:
+        return None
+    spec = route_segment_spec(
+        direction,
+        leg,
+        dep_date,
+        origin_code,
+        dest_code,
+        **segment_code_metadata(origin_code, dest_code),
+        **(extra or {}),
+    )
+    key = route_segment_key(spec, include_date=include_date)
+    if key in seen:
+        return None
+    seen.add(key)
+    segments.append(spec)
+    return spec
 
 
 def airport_country(store: Store, code: str) -> str | None:

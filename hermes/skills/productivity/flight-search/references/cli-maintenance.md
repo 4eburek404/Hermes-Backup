@@ -209,14 +209,15 @@ Generated artifacts must be intentionally cleaned or reported. Prefer `PYTHONDON
 
 ## Markdown Reference Governance
 
-Canonical active references are bounded to five logical directions, plus bounded adjacent rail comparison:
+Canonical active references are bounded to six logical directions, plus bounded adjacent rail comparison:
 
 1. `references/report-contract.md` — how to read `agent_report`, contract lifecycle, and renderer contract.
 2. `references/source-boundaries.md` — evidence classes, absence, airports, connections, ticketing, OTA/smart-route semantics.
 3. `references/provider-aware-airport-priority.md` — provider/airport dispatch and city-code policy.
 4. `references/debug-playbook.md` — targeted probes and route-family exception patterns.
-5. `references/cli-maintenance.md` — source/runtime, schema/tests, provider ports, CLI-surface simplification, generated artifacts, and this reference lifecycle.
-6. `references/rail-rzd-live-pricing.md` — bounded train-price comparison after a flight search.
+5. `references/direct-date-window.md` — direct/nonstop inventory over a bounded date range; per-date direct-only probes and compact availability output.
+6. `references/cli-maintenance.md` — source/runtime, schema/tests, provider ports, CLI-surface simplification, generated artifacts, dead-code/duplicate cleanup, and this reference lifecycle.
+7. `references/rail-rzd-live-pricing.md` — bounded train-price comparison after a flight search.
 
 Do not add a new active reference for every incident, smoke run, audit, handoff, route example, migration note, or implementation report. First extract durable rules into the appropriate canonical reference or test; leave raw history to session search. Add another active reference only when a new stable direction cannot be expressed in the canonical files.
 

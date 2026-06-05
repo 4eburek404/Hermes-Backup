@@ -11,7 +11,8 @@ from flights_cli.adapters.providers.registry import (
     provider_adapters_for_segment,
     providers_for_segment,
 )
-from flights_cli.ports.providers import FlightProviderPort, ProviderProbeResult
+from flights_cli.adapters.providers.common import evidence_type_for_offer_count, segment_probe_type_from_query
+from flights_cli.ports.providers import FlightProviderPort, ProviderCapabilities, ProviderProbeResult
 from flights_cli.store import Store
 
 
@@ -43,7 +44,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self.assertTrue(fli.supports_global)
         self.assertFalse(fli.supports_full_route_aggregate)
 
-    def test_registry_values_are_concrete_provider_ports_not_descriptors(self) -> None:
+    def test_registry_values_are_concrete_provider_ports(self) -> None:
         self.assertEqual(set(PROVIDER_REGISTRY), {"kupibilet", "fli"})
         for name, adapter in PROVIDER_REGISTRY.items():
             with self.subTest(provider=name):
@@ -105,6 +106,20 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self.assertEqual(result.execution_state, "not_supported")
         self.assertEqual(result.evidence_type, "not_supported")
         self.assertEqual(result.provider, "fli")
+
+    def test_segment_probe_and_evidence_projection_use_shared_provider_helpers(self) -> None:
+        capabilities = ProviderCapabilities(probe_types=frozenset({"segment_direct", "city_pair_direct"}))
+
+        self.assertEqual(
+            segment_probe_type_from_query({"probe_type": "city_pair_direct", "leg": "hub"}, capabilities),
+            "city_pair_direct",
+        )
+        self.assertEqual(segment_probe_type_from_query({"leg": "direct_destination_control"}, capabilities), "segment_direct")
+        self.assertEqual(segment_probe_type_from_query({"leg": "hub_leg"}, capabilities), "segment_hub_leg")
+        self.assertEqual(evidence_type_for_offer_count(offer_count=1, cache_status="live"), "positive_live_evidence")
+        self.assertEqual(evidence_type_for_offer_count(offer_count=1, cache_status="cache_hit"), "positive_cached_hint")
+        self.assertEqual(evidence_type_for_offer_count(offer_count=0, cache_status="live"), "negative_provider_empty")
+        self.assertEqual(evidence_type_for_offer_count(offer_count=0, cache_status="stale_cache_used"), "negative_cache_absence")
 
 
 if __name__ == "__main__":

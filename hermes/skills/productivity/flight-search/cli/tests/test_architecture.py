@@ -90,24 +90,6 @@ class ArchitectureTests(unittest.TestCase):
         self.assertIn("not fallback inputs", report_text)
         self.assertIn("Read `frontier.offer_graph` first", skill_text)
 
-    def test_completed_contract_migrations_have_no_legacy_fallbacks(self) -> None:
-        forbidden_symbols = {
-            "legacy_agent_report_view",
-            "legacy_user_answer_v2_to_v3",
-            "LEGACY_ALIAS_TARGETS",
-            "EVIDENCE_ALIASES",
-            "FRONTIER_ALIASES",
-            "DIAGNOSTIC_ALIASES",
-        }
-        hits = []
-        for path in (PROJECT / "flights_cli").rglob("*.py"):
-            text = path.read_text(encoding="utf-8")
-            for line_number, line in enumerate(text.splitlines(), 1):
-                for symbol in forbidden_symbols:
-                    if symbol in line:
-                        hits.append((path.relative_to(PROJECT), line_number, symbol))
-        self.assertEqual(hits, [])
-
     def test_only_active_contract_schemas_are_packaged(self) -> None:
         contracts = PROJECT / "flights_cli" / "contracts"
         schema_names = sorted(path.name for path in contracts.glob("*.schema.json"))

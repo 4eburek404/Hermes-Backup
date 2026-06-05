@@ -32,6 +32,7 @@ Before adding another user-answer/final-answer/report contract, run a cleanup au
 ## Golden Path
 
 0. If the user follows up with a non-flight price comparison, especially “а поездом сколько?”, keep it bounded to cost/time comparison. For Russian rail, use `references/rail-rzd-live-pricing.md`: resolve stations, query official RZD/pass.rzd both directions by exact dates, calculate round-trip minima by class, then compare against the flight total.
+0a. If the user asks for **all direct/nonstop flights over a date window** (“все прямые”, “только прямые”, “на неделе”), treat it as a direct inventory task, not route recommendation. Follow `references/direct-date-window.md`: expand the date range and run bounded provider-live direct-only probes per date (`kb-search --direct-only` for RU-touching routes, `fli-search --direct-only` for non-RU/global routes, or the proposed/narrow `route direct-window` command when available). Do not split the workflow into schedule-site vs purchase-site layers and do not add airline/airport/aggregator schedule checks unless the user explicitly asks; at this stage the scenario is a CLI provider-live catalog. Do not present ordinary one-stop `route live-assemble` recommendations unless the user asks for alternatives.
 1. Normalize exact dates, route scope, named airports, carrier, stops, baggage, timing, ticketing intent, and profile. Preserve named airports (`IST`, `SVO`, `DME`). Arrival deadline without departure date: search latest plausible departure first, then previous date. Default “morning” to before local noon. Treat “avoid Moscow” as soft ranking unless explicit hard filter.
 2. Classify market before absence claims: RU domestic, RU-touching international, global non-RU, structurally constrained, or carrier-specific.
 3. Run from runtime skill CLI:
@@ -50,6 +51,7 @@ Add `--return-date YYYY-MM-DD` for round trips. Add `--aggregate-control-carrier
 
 ## Decision Rules
 
+- Direct-service/date-window requests: after the normal `route live-assemble` provenance check, run targeted `kb-search ORIGIN DEST --direct-only` for each exact date in the requested window when the user asks for “all direct” or a weekly schedule. Report every direct flight found and explicitly list dates with no direct offer in the live result. If a public schedule page is readily available, use it only as a corroborating cross-check for carrier/frequency/flight number, not as purchase/availability proof.
 - Profiles: `business` comfort/reliability; `safe` maximum connection safety; `balanced` neutral; `cheap` only explicit price-first.
 - Rank operational frontier first: direct/one-stop, practical airports, safe connections, ticketing/protection, carrier reliability, baggage; price after practicality unless requested otherwise.
 - Ticketing evidence: airline/GDS/purchase-screen single booking > provider aggregate without virtual/self-transfer signal > provider aggregate with virtual/interline signal > summed separate segments. Never claim single PNR, baggage-through, or missed-connection protection without proof.
@@ -92,6 +94,7 @@ Add `--return-date YYYY-MM-DD` for round trips. Add `--aggregate-control-carrier
 13. Reintroducing provider execution shortcuts: segment and aggregate probes should go through provider adapters/ports, not direct provider-specific branches in `execution/*`.
 14. Treating `--agent-brief` as permission to narrow evidence scope. It may trim output only; explicit evidence/search controls must still be honored.
 15. Assuming the visible Telegram answer changed just because CLI emitted `user_answer.rendered_text`. If the model rewrites it, user-visible behavior remains old.
+16. During CLI maintenance, treating `Protocol` ellipsis methods as dead runtime stubs or treating duplicate local helper names as deletion orders. Classify interface declarations separately, extract only shared behavior, use layer-specific names for different responsibilities, and run focused import/contract tests after each mechanical rename.
 
 ## Verification Checklist
 
@@ -112,7 +115,8 @@ Canonical active references are bounded to five core flight-search directions pl
 - `references/source-boundaries.md` — evidence classes, absence, airport/connection boundaries, ticketing, OTA/smart-route semantics.
 - `references/provider-aware-airport-priority.md` — provider/airport dispatch and city-code policy.
 - `references/debug-playbook.md` — targeted probes and route-family exception patterns.
-- `references/cli-maintenance.md` — source/runtime sync, schema/tests, provider ports, CLI-surface simplification, generated artifacts, and reference lifecycle.
+- `references/direct-date-window.md` — direct/nonstop inventory across a bounded date range, including per-date probes and compact output shape.
+- `references/cli-maintenance.md` — source/runtime sync, schema/tests, provider ports, CLI-surface simplification, dead-code/duplicate cleanup, generated artifacts, and reference lifecycle.
 - `references/rail-rzd-live-pricing.md` — RZD public endpoint/RID workflow for bounded train-price comparisons after a flight search.
 
 Do not add standalone migration, incident, audit, handoff, smoke, or proposal references by default. Distill durable rules into the files above or into tests; leave raw history to session search.
