@@ -20,6 +20,7 @@ This registry is the ownership map for `flight-calendar-ics` references. Use it 
 - `core/canonical-itinerary.md` — provider-agnostic itinerary JSON, schema vs semantic validation, and adapter boundary.
 - `core/calendar-event-format.md` — user-facing `.ics` event text: `SUMMARY`, `LOCATION`, `DESCRIPTION`, alarms, and renderer tests.
 - `core/manual-source-extraction.md` — PDF/email/screenshot/manual extraction into canonical itinerary JSON.
+- `core/pdf-receipt-normalization.md` — local airline receipt PDF normalization feature: private PyMuPDF/OCR extraction into calendar-safe canonical itinerary JSON and `build make`.
 - `core/timezone-catalog.md` — bundled Travelpayouts airport timezone asset, overrides, diagnostics, and regression rules.
 - `core/privacy-hardening.md` — redaction, private artifact permissions, JSON-mode failures, helper compatibility, and hardening review checks.
 - `core/output-bundle-design.md` — CLI-owned private output bundle, canonical artifact names, and verification boundary.
@@ -35,7 +36,9 @@ This registry is the ownership map for `flight-calendar-ics` references. Use it 
 ### Maintenance
 
 - `maintenance/source-runtime-sync.md` — source ↔ runtime parity, deliberate sync, cleanup, and commit evidence for this skill.
+- `maintenance/dead-code-and-contract-cleanup.md` — dead-code audit shape, retired shim checks, legacy command retirement dependencies, generated-artifact hygiene, and registry/source-runtime drift cleanup.
 - `maintenance/model-evaluation.md` — cross-model eval harness rules, effective provider/model validation, and private-input exposure checks.
+- `maintenance/eval-provider-and-shell-pitfalls.md` — provider identity/fallback checks and shell command-path pitfalls from cross-model evaluations.
 
 ## Absorbed legacy map
 

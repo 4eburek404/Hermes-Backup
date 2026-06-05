@@ -11,22 +11,20 @@ from __future__ import annotations
 import json
 import os
 import re
+import secrets
 import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
 from typing import Any, NamedTuple
 from urllib.error import HTTPError
-from urllib.parse import parse_qs, quote, urlencode, urljoin, urlparse
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
 
 import travelpayouts_airport_catalog as airport_catalog
 
 URAL_SERVICE_BASE = "https://service.uralairlines.ru/"
 DEFAULT_ENV_PATH = "/<version>/env/env.json"
-
-DEFAULT_AIRPORT_TZ: dict[str, str] = {}
 
 DEFAULT_AIRPORT_CITY = {
     "DME": "Москва",

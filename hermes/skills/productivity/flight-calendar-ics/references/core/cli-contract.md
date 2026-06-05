@@ -17,7 +17,7 @@ python scripts/flight_calendar_ics.py --json build utair --url-file /private/sou
 python scripts/flight_calendar_ics.py --json build redwings --url-file /private/source-url.txt
 ```
 
-The legacy direct commands remain compatibility/diagnostic surfaces and stay tested:
+The direct commands remain compatibility/diagnostic surfaces and stay tested:
 
 ```bash
 python scripts/flight_calendar_ics.py --json make --input /path/to/itinerary.json --output /private/dir/flights.ics
@@ -148,7 +148,7 @@ For normal `build` delivery:
 6. `data.verification.ok == true`.
 7. Final chat summary excludes PNR keys, access keys, passenger names, ticket numbers, bearer tokens, fare/payment details, and full booking URLs.
 
-The CLI's `verify_bundle` step owns the structural `.ics` checks: file modes, `BEGIN:VCALENDAR`, `VEVENT` count, UTC `DTSTART`/`DTEND`, and placeholder rejection. If using a legacy direct command instead of `build`, the agent must still perform those checks externally.
+The CLI's `verify_bundle` step owns the structural `.ics` checks: file modes, `BEGIN:VCALENDAR`, `VEVENT` count, UTC `DTSTART`/`DTEND`, and placeholder rejection. If using a direct command instead of `build`, the agent must still perform those checks externally.
 
 ## Test contract
 
@@ -166,7 +166,7 @@ The tests should assert:
 - `build make` creates a private bundle with `itinerary.json`, `flights.ics`, and `envelope.json`;
 - `build <carrier>` wraps carrier commands with canonical bundle paths and supports `--url-file`;
 - `validate` is check-only and machine-readable;
-- legacy `make` writes `.ics` with mode `0600`;
+- direct `make` writes `.ics` with mode `0600`;
 - each carrier command writes private artifacts with mode `0600` and keeps carrier-specific private values out of stdout/stderr;
 - invalid alarms and usage errors return JSON errors, not tracebacks or raw argparse text;
 - compatibility helper surfaces remain tested when they can write private artifacts.

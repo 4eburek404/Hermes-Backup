@@ -81,11 +81,6 @@ def utc_stamp(value: dt.datetime) -> str:
     return value.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
-def display_dt(value: dt.datetime, tzid: str | None) -> str:
-    tz_label = str(tzid).strip() if not is_placeholder(tzid) else str(value.tzinfo or "")
-    return value.strftime("%Y-%m-%d %H:%M") + (f" {tz_label}" if tz_label else "")
-
-
 def ical_escape(value: Any) -> str:
     text = str(value)
     text = text.replace("\\", "\\\\")
@@ -128,12 +123,6 @@ def normalize_list(value: Any) -> list[str]:
     return [str(value).strip()]
 
 
-def route_label(flight: dict[str, Any]) -> str:
-    dep = flight.get("departure", {})
-    arr = flight.get("arrival", {})
-    return f"{str(dep.get('airport', '')).strip().upper()}→{str(arr.get('airport', '')).strip().upper()}"
-
-
 def duration_trigger(minutes: int) -> str:
     if minutes <= 0:
         die(f"alarm minutes must be positive, got {minutes}")
@@ -167,17 +156,6 @@ def stable_uid(flight: dict[str, Any], booking_reference: str | None) -> str:
     ]
     digest = hashlib.sha256("|".join(pieces).encode("utf-8")).hexdigest()[:24]
     return f"flight-{digest}@hermes-agent.local"
-
-
-def add_if(parts: list[str], label: str, value: Any) -> None:
-    if is_placeholder(value):
-        return
-    if isinstance(value, list):
-        clean = [str(item).strip() for item in value if not is_placeholder(item)]
-        if clean:
-            parts.append(f"{label}: {', '.join(clean)}")
-    else:
-        parts.append(f"{label}: {str(value).strip()}")
 
 
 def endpoint_city(endpoint: dict[str, Any], fallback_airport: str) -> str:
