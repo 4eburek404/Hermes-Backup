@@ -1,20 +1,46 @@
 # Flight Report Contract
 
-Use this when reading `data.agent_report` or deciding what to show the user. The report is the evidence layer; `offer_graph` is the primary decision graph; `user_answer.rendered_text` is canonical renderer output; `human_answer.text` is a legacy projection/fallback. Raw CLI internals are debug-only.
+Use this when reading `data.agent_report` or deciding what to show the user. The report is the evidence layer; `frontier.offer_graph` is the primary decision graph; `user_answer.rendered_text` is canonical renderer output; `diagnostics.human_answer.text` is a debug mirror, not a fallback final-prose source. Raw CLI internals are debug-only.
+
+## Active Contract Registry
+
+Current contracts:
+
+- `agent_report.v2` — public serialized report envelope. Required top-level layers are `route`, `evidence`, `frontier`, `user_answer`, and `diagnostics`.
+- `flight_search_user_answer.v3` — canonical user-facing contract. Built by `cli/flights_cli/reporting/final_answer_contract.py`, validated before `agent_report.user_answer` is accepted, and rendered through `user_answer.rendered_text`.
+
+Retired/projection surfaces:
+
+- `flight_search_user_answer.v2` is rejected; there is no v2→v3 runtime adapter.
+- `diagnostics.human_answer`, `diagnostics.display`, and `diagnostics.answer_lines` are debug/mirror projections. They are not canonical final-prose sources and are not fallback inputs.
+- In-process legacy alias views are removed; serialized JSON and internal consumers should use nested v2 paths.
+
+Shadow subcontracts:
+
+- `common.v2`, `search_evidence.v2`, and `offer_frontier.v2` are not packaged active schemas. Reintroduce only with schema, builder, validator, and tests in the same change.
+
+Retired/proposed candidates:
+
+- `agent_report.v1`, `flight_search_user_answer.v1`, and `flight_search_user_answer.v2` are not packaged active schemas.
+- `flight_search_final_answer.v1` / `route live-answer` is not an active runtime contract unless a schema, builder, command path, and exactness regression tests exist. Until then the active seam remains `agent_report.v2.user_answer.rendered_text`.
 
 ## Read Order
 
-1. `offer_graph` — primary decision graph. Read `constraints`, `collection`, `evidence`, `frontier`, `missing_evidence`, and `truth_language` before deciding whether the answer is complete enough.
+`offer_graph` — primary decision graph; in serialized `agent_report.v2` it lives at `frontier.offer_graph`.
+
+1. `frontier.offer_graph` — primary decision graph. Read `constraints`, `collection`, `evidence`, `frontier`, `missing_evidence`, and `truth_language` before deciding whether the answer is complete enough.
 2. `user_answer.rendered_text` — canonical provider-neutral Telegram/Markdown rendering of the selected frontier. Use it as renderer output, not as proof that collection was exhaustive.
-3. `human_answer.text` — legacy projection/fallback; during v1 migration it must mirror `user_answer.rendered_text` when both are present.
-4. `recommended_options` — viable ranked options with segment details; cross-check decision-critical details.
-5. `priority_options` — controls that must stay visible even when lower-ranked: carrier-specific, direct/nonstop, exact-airport, Moscow/SVO, fastest, cheapest, or airport-quality controls.
-6. `through_fare_checks` — ticketing/protection evidence and required purchase-screen checks.
-7. `provider_failures` — degraded provider evidence; mention only when it changes confidence or next action.
-8. `source_boundaries` — source/proof limits; print only decision-useful caveats.
-9. `display` — deterministic itinerary fragments for evidence, not final prose.
-10. `answer_lines` — compact internal summary/warnings; do not copy diagnostic labels into final answers.
-11. `hub_viability`, `coverage_diagnostics`, `rejected_pair_warnings`, `stop_policy_diagnostics` — diagnostics for missing/demoted routes, not normal user output.
+3. `frontier.recommended_options` — viable ranked options with segment details; cross-check decision-critical details.
+4. `frontier.priority_options` — controls that must stay visible even when lower-ranked: carrier-specific, direct/nonstop, exact-airport, Moscow/SVO, fastest, cheapest, or airport-quality controls.
+5. `evidence.through_fare_checks` — ticketing/protection evidence and required purchase-screen checks.
+6. `evidence.provider_failures` — degraded provider evidence; mention only when it changes confidence or next action.
+7. `evidence.source_boundaries` — source/proof limits; print only decision-useful caveats.
+8. `diagnostics.human_answer.text` — debug mirror; while present it must mirror `user_answer.rendered_text`, but it is not fallback final prose.
+9. `diagnostics.display` — deterministic itinerary fragments for evidence, not final prose.
+10. `diagnostics.answer_lines` — compact internal summary/warnings; do not copy diagnostic labels into final answers.
+11. `diagnostics.hub_viability`, `diagnostics.coverage_diagnostics`, `diagnostics.rejected_pair_warnings`, `diagnostics.stop_policy_diagnostics` — diagnostics for missing/demoted routes, not normal user output.
+
+If a report exposes old top-level `recommended_options`, `priority_options`, `offer_graph`, `answer_lines`, `display`, `human_answer`, `coverage_diagnostics`, `provider_failures`, or `source_boundaries`, treat it as internal flat builder input or stale output. Public serialized reports must use v2 nested paths.
 
 ## Detail Completeness
 
@@ -41,7 +67,7 @@ The user-facing frontier should include every option needed for the decision, no
 
 ## Recommendation Rules
 
-Lead with `recommended_options[0]` only when it is viable, has `detail_status=full`, and no mandatory control materially changes the decision.
+Lead with `frontier.recommended_options[0]` only when it is viable, has `detail_status=full`, and no mandatory control materially changes the decision.
 
 Always surface materially different controls:
 
@@ -55,11 +81,11 @@ Always surface materially different controls:
 
 Explain lower ranking with concrete trade-offs: price, elapsed time, arrival time, airport quality, connection quality, ticketing/protection, baggage, or source confidence.
 
-`agent_report.stop_policy_diagnostics.candidate_generation_mode` and `fallback_used` describe how assembly generated the candidate pool. Treat two-stop options as reportable only when fallback is explicitly active or the report marks them reportable. Do not infer fallback mode from missing compact options or aggregate controls alone.
+Stop-policy diagnostics describe how assembly generated the candidate pool. Treat two-stop options as reportable only when fallback is explicitly active or the report marks them reportable. Do not infer fallback mode from missing compact options or aggregate controls alone.
 
 ## Route-Specific Controls
 
-Moscow/SVO is a first-class control for Russian-origin international routes, not fallback-only behavior. Show a viable via-SVO option even when a direct, IST/DXB, or other primary-hub option ranks better. The control must be a coherent same-airport route such as `origin -> SVO + SVO -> destination`; rejected `SVO vs IST` splices are invalid and should be explained as airport mismatches, not as viable itineraries.
+Moscow/SVO is a first-class control for Russian-origin international routes, not fallback-only behavior. Show a viable via-SVO option even when a direct, IST/DXB, or other primary-hub option ranks better. The control must be a coherent same-airport route such as `origin -> SVO + SVO -> destination`; rejected `SVO vs IST` splices are invalid and should be explained as airport mismatches, not viable itineraries.
 
 Provider-aware airport priority is part of the report contract; see `references/provider-aware-airport-priority.md`. City codes describe request scope, while normalized offers and user-facing display must expose actual airport codes. For Moscow city-code results, validate actual airports against `SVO`/`DME`/`VKO`; for London, treat `LHR` as the default business-priority airport and `LGW` as fallback. `IST` is not `SAW` unless the user explicitly requested `SAW`.
 
@@ -69,15 +95,24 @@ For domestic Russian routes, do not let the `business` profile bury objectively 
 
 For carrier-specific existence questions, answer the carrier-route question first, then show alternatives. Run targeted direct/carrier controls before saying a carrier does not fly a route; `live-assemble` alone is not negative proof.
 
-## Human Answer Renderer Contract
+## User Answer Renderer Contract
 
 The provider-neutral seam is:
 
-`data.agent_report` -> `user_answer.rendered_text` -> final Telegram/Markdown answer.
+```text
+data.agent_report
+  -> user_answer (flight_search_user_answer.v3)
+  -> user_answer.rendered_text
+  -> final Telegram/Markdown answer
+```
 
-`human_answer.text` remains a legacy projection/fallback and must mirror `user_answer.rendered_text` while both fields exist.
+`rendered_text` is a deterministic projection from the v3 object. Do not make it an independent blob. `diagnostics.human_answer.text` is legacy and must mirror `user_answer.rendered_text` while both exist.
 
-Implement final-output behavior in `cli/flights_cli/reporting/human_answer_renderer.py`. Do not make agents copy `display.text`, `answer_lines`, provider client objects, booking URLs, cache semantics, or plugin-specific wording.
+Implementation ownership:
+
+- `cli/flights_cli/reporting/final_answer_contract.py` builds/validates the v3 user answer and deterministic rendered text.
+- `cli/flights_cli/reporting/human_answer_renderer.py` and `cli/flights_cli/output.py` are compatibility/rendering seams; they must prefer `user_answer.rendered_text`.
+- Agents must not copy `display.text`, `answer_lines`, provider client objects, booking URLs, cache semantics, or plugin-specific wording as final prose.
 
 Negative guarantees for `user_answer.rendered_text`, legacy `human_answer.text`, and final answers:
 
@@ -94,19 +129,34 @@ Connected itineraries should show per-segment times, for example:
 
 Do not collapse that into only first departure and final arrival for a multi-leg journey. If a later segment departs on a different date, show that date inline.
 
+## User Answer Contract v3
+
+`flight_search_user_answer.v3` is the enforceable user-facing contract for CLI reports. It lives in `cli/flights_cli/contracts/flight_search_user_answer.v3.schema.json`, is built by `cli/flights_cli/reporting/final_answer_contract.py`, and is semantically validated before `agent_report.user_answer` is accepted.
+
+Required v3 fields:
+
+- `schema_version="flight_search_user_answer.v3"`.
+- `answer_mode`: `recommendation`, `catalog`, or `no_viable_options`. The builder infers mode from route/frontier; do not add public “catalog mode” flags.
+- `catalog.presentation`: deterministic compact numbered Russian output metadata.
+- `catalog.items[]`: one item per user-visible frontier option. Numbers must be contiguous from 1. Each item carries `option_id`, `covers_requested_trip`, `journey_scope`, `ticketing_model`, `total_price`, `directions.outbound/return`, `baggage`, `protection`, `badges`, `caveats`, and `render_line`.
+- Legacy-compatible fields remain present for readers during migration: `primary_recommendation`, `alternatives`, `evidence_status`, `required_caveats`, `stop_policy_status`, `rendered_text`, `answer_lines`.
+
+Semantic validation must reject: empty catalog mode, non-contiguous numbering, rendered text that loses numbered catalog items, round-trip catalog items without outbound+return directions, unproven ticketing models that do not require purchase-screen verification.
+
+MCP `outputSchema` is only a transport description for `structuredContent`. It does not replace the domain schema, builder, semantic validator, or renderer.
+
 ## Answer Shape
 
 For ordinary one-way tasks, start with `нашёл`, `не нашёл`, or `evidence неполное`, then give the recommendation and decision-critical alternatives/caveats.
 
-For round trips:
+For round trips and multi-option frontiers, use v3 catalog shape:
 
-1. **Лучшая пара / рекомендация** — outbound line, return line, total price, ticketing/protection caveat.
-2. **Альтернативы туда** — viable one-way outbound options, compact line each.
-3. **Альтернативы обратно** — viable one-way return options, compact line each.
-4. **Отсекаю / fallback** — only if useful: long waits, unprotected/self-transfer, multi-stop, or non-matching carriers.
-5. **Проверить перед покупкой** — single PNR/protection, baggage-through, fare rules, terminals when connection risk matters.
+1. Numbered compact options from `catalog.items[]`; each line must include price, outbound/return detail when available, and decision-critical risk badges/caveats.
+2. Keep safer ticketing/protection/baggage options visible even when they are not cheapest.
+3. Keep one-way/provider aggregates visible only as directional alternatives; do not present them as covering a round trip.
+4. End with `Проверить перед покупкой`: single PNR/protection, baggage-through, fare rules, terminals when connection risk matters.
 
-Use `display.options[].lines`, `recommended_options`, and `priority_options` as evidence for compact lines. Never present summed separate-segment prices as confirmed airline/GDS through fares.
+Use `diagnostics.display.options[].lines`, `frontier.recommended_options`, and `frontier.priority_options` only as evidence to build the v3 object. Never present summed separate-segment prices as confirmed airline/GDS through fares.
 
 ## Final Caveat Discipline
 

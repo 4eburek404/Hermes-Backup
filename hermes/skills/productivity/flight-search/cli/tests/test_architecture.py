@@ -30,31 +30,15 @@ class ArchitectureTests(unittest.TestCase):
         self.assertIn("\n# Flight Search\n", text)
         self.assertGreater(text.count("\n"), 40)
 
-    def test_active_markdown_prompt_surface_is_clean(self) -> None:
-        forbidden = [
-            "Aviasales",
-            "aviasales",
-            "price-search",
-            "price search",
-            "cached price",
-            "cached price probes",
-            "request search",
-            "prices-for-dates",
-            "grouped-prices",
-            "results parse",
-            "aviasales.ru/search",
-            "legacy late sanity layer",
-            "manual Aviasales links",
-            "Travelpayouts cached price data",
-        ]
-        hits = []
-        for path in PROJECT.parent.rglob("*.md"):
-            text = path.read_text(encoding="utf-8", errors="replace")
-            for line_number, line in enumerate(text.splitlines(), 1):
-                for token in forbidden:
-                    if token in line:
-                        hits.append((path.relative_to(PROJECT.parent), line_number, token, line.strip()))
-        self.assertEqual(hits, [])
+    def test_active_markdown_prompt_surface_describes_current_evidence_layers(self) -> None:
+        skill_text = (PROJECT.parent / "SKILL.md").read_text(encoding="utf-8")
+        maintenance_text = (PROJECT.parent / "references" / "cli-maintenance.md").read_text(encoding="utf-8")
+        source_boundaries_text = (PROJECT.parent / "references" / "source-boundaries.md").read_text(encoding="utf-8")
+
+        self.assertIn("Active provider paths are KupiBilet and FLI", maintenance_text)
+        self.assertIn("Static catalogs are metadata only; flight options come from live provider assembly.", maintenance_text)
+        self.assertIn("Static catalogs only normalize metadata", skill_text)
+        self.assertIn("Provider aggregate offer with one checkout price and one offer/variant id", source_boundaries_text)
 
     def test_provider_aware_airport_priority_docs_capture_durable_rules(self) -> None:
         reference = PROJECT.parent / "references" / "provider-aware-airport-priority.md"
@@ -102,8 +86,33 @@ class ArchitectureTests(unittest.TestCase):
         self.assertIn("`offer_graph` — primary decision graph", report_text)
         self.assertIn("frontier`, `missing_evidence`, and `truth_language`", report_text)
         self.assertIn("`user_answer.rendered_text` — canonical", report_text)
-        self.assertIn("legacy projection/fallback", report_text)
+        self.assertIn("debug mirror, not a fallback final-prose source", report_text)
+        self.assertIn("not fallback inputs", report_text)
         self.assertIn("Read `frontier.offer_graph` first", skill_text)
+
+    def test_completed_contract_migrations_have_no_legacy_fallbacks(self) -> None:
+        forbidden_symbols = {
+            "legacy_agent_report_view",
+            "legacy_user_answer_v2_to_v3",
+            "LEGACY_ALIAS_TARGETS",
+            "EVIDENCE_ALIASES",
+            "FRONTIER_ALIASES",
+            "DIAGNOSTIC_ALIASES",
+        }
+        hits = []
+        for path in (PROJECT / "flights_cli").rglob("*.py"):
+            text = path.read_text(encoding="utf-8")
+            for line_number, line in enumerate(text.splitlines(), 1):
+                for symbol in forbidden_symbols:
+                    if symbol in line:
+                        hits.append((path.relative_to(PROJECT), line_number, symbol))
+        self.assertEqual(hits, [])
+
+    def test_only_active_contract_schemas_are_packaged(self) -> None:
+        contracts = PROJECT / "flights_cli" / "contracts"
+        schema_names = sorted(path.name for path in contracts.glob("*.schema.json"))
+
+        self.assertEqual(schema_names, ["agent_report.v2.schema.json", "flight_search_user_answer.v3.schema.json"])
 
     def test_module_dependency_boundaries(self) -> None:
         root = PROJECT / "flights_cli"

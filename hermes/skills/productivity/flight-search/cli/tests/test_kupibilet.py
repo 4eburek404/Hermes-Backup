@@ -842,9 +842,9 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(ledger["not_executed_controls"], [])
         self.assertEqual(ledger["completeness"]["planned_count"], ledger["completeness"]["terminal_count"])
         report = result["agent_report"]
-        self.assertEqual(report["coverage_diagnostics"]["not_executed_controls"], [])
-        self.assertEqual(report["through_fare_checks"][0]["carrier"], "SU")
-        self.assertIn("Through-fare check required", " ".join(report["answer_lines"]))
+        self.assertEqual(report["evidence"]["coverage_diagnostics"]["not_executed_controls"], [])
+        self.assertEqual(report["evidence"]["through_fare_checks"][0]["carrier"], "SU")
+        self.assertIn("Through-fare check required", " ".join(report["diagnostics"]["answer_lines"]))
 
     def test_direct_route_intel_skips_absent_direct_control_to_svx(self) -> None:
         args = build_parser().parse_args(
