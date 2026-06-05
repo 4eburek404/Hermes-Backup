@@ -88,15 +88,15 @@ python3 -m flights_cli --json route live-assemble ORIGIN DEST \
   --agent-brief
 ```
 
-Read only `data.agent_report` for the user answer. Use:
+Read only `data.agent_report` for the user answer. Primary serialized paths:
 
-- `display`
-- `answer_lines`
-- `recommended_options`
-- `priority_options`
-- `through_fare_checks`
-- `provider_failures`
-- `source_boundaries`
+- `frontier.offer_graph`
+- `user_answer.rendered_text`
+- `frontier.recommended_options`
+- `frontier.priority_options`
+- `evidence.through_fare_checks`
+- `evidence.provider_failures`
+- `evidence.source_boundaries`
 
 `route live-assemble` searches and compares route options for the default scope of one adult in economy. It does not buy or book tickets, and final fare, baggage-through, refund/change conditions, disruption protection, and single-PNR claims require purchase-screen, airline/GDS, seller, or explicit upstream proof.
 
@@ -152,13 +152,13 @@ City codes and airport codes are not interchangeable evidence. Keep these bounda
 
 For city-code searches, display actual airport codes from normalized offers. A `MOW` request scope is not enough by itself: actual departure/arrival airports must validate against `SVO`/`DME`/`VKO` before an offer is accepted.
 
-Default connection thresholds:
+Default connection thresholds are maintained in `references/source-boundaries.md`. In short:
 
-- same airport, separate tickets: 90 min minimum acceptable;
-- same airport, separate tickets: 120 min business/comfort preferred;
-- same-airport 90-119 min: label tight;
-- cross-airport or airport mismatch: 300 min default;
-- protected ticket: 60 min can be acceptable only when protection is proven.
+- protected/single-ticket international: MCT or at least 60 min, whichever is higher; label 60-89 min as tight unless airport evidence supports it;
+- same airport, separate/virtual/self-transfer without checked baggage: 120 min minimum;
+- same airport, separate/virtual/self-transfer with checked baggage: 180 min minimum, preferably 3-5h at high-friction airports;
+- cross-airport or airport mismatch: 300 min default and label as ground-transfer risk;
+- protected ticket claims require ticketing/protection proof, not just segment timing.
 
 ## Targeted Debug Probes
 

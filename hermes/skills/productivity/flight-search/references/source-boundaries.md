@@ -38,7 +38,7 @@ City-scope defaults:
 
 - Dubai: `DXB` primary; `DWC` secondary when relevant; include `SHJ` only when the user asks for Sharjah, a Sharjah-based carrier, cheapest UAE-wide options, or a provider returns it and it is labeled.
 - Moscow: `SVO`, `DME`, and `VKO` are not interchangeable. Keep continuity explicit and label any ground transfer.
-- London: prefer `LHR` for business travel when practical. `LGW`, `STN`, and `LTN` can be fallbacks, but label airport-quality and transfer trade-offs.
+- London: airport continuity matters (`LHR`, `LGW`, `STN`, `LTN` are separate airports); provider-specific priority tiers live in `references/provider-aware-airport-priority.md`.
 
 Provider-specific airport priority and dispatch semantics live in `references/provider-aware-airport-priority.md`.
 
