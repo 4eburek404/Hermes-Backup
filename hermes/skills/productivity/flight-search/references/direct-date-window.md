@@ -14,7 +14,7 @@ Use this reference when the user asks for all direct/nonstop flights over a boun
 2. Prefer the narrow direct-only live probe for each date. Use provider-policy semantics:
    - RU-touching routes: KupiBilet (`kb-search --direct-only`).
    - non-RU/global routes: FLI (`fli-search --direct-only`).
-   - future preferred interface: a single `route direct-window` command that expands dates and dispatches to KupiBilet/FLI via `--provider-policy auto`.
+   - proposed-only interface, not active unless `flights_cli route --help` exposes it: a single `route direct-window` command that expands dates and dispatches to KupiBilet/FLI via `--provider-policy auto`.
 
 KupiBilet example:
 
@@ -59,9 +59,9 @@ Do not use ordinary `route live-assemble` output as the final answer for a direc
 
 5. Do **not** add airline-site, airport-site, schedule-aggregator, or external timetable checks by default. At the current stage, direct date-window inventory is a provider-live CLI scenario: use KupiBilet for RU-touching routes and FLI for non-RU/global routes. Only add external site checks if the user explicitly asks for corroboration or debugging outside the provider-live scope.
 
-## Recommended CLI Surface
+## Proposed CLI Surface, not Active Golden Path
 
-Add/maintain a narrow command for this scenario rather than forcing agents to hand-loop provider commands:
+A narrow command would be useful for this scenario, but it is not the current active path unless live CLI help exposes it:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json route direct-window ORIGIN DEST \

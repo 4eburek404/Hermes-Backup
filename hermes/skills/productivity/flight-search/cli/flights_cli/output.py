@@ -151,7 +151,9 @@ def render_human(command: str, data: Any) -> str:
                 ),
                 f"catalog refresh: {policy['mode']} max_age={policy['max_age']} stale={staleness['stale_count']}/{staleness['checked_count']}",
                 f"default hubs: {', '.join(item['code'] for item in data.get('default_route_hubs', []))}",
-                f"main live commands: {', '.join(data['safety']['live_provider_commands'])}",
+                f"primary route command: {data['safety']['primary_route_command']}",
+                f"targeted probe commands: {', '.join(data['safety']['targeted_probe_commands'])}",
+                f"compatibility commands: {', '.join(data['safety']['compatibility_commands'])}",
             ]
         )
     if command == "maintenance check":
@@ -271,7 +273,7 @@ def render_human(command: str, data: Any) -> str:
         live = data.get("live_search", {})
         plan = live.get("plan", {})
         metrics = plan.get("metrics", {})
-        label = "Kupibilet direct-segment assembly" if command == "route kb-assemble" else "Provider-policy live assembly"
+        label = "Kupibilet compatibility assembly" if command == "route kb-assemble" else "Provider-policy live assembly"
         lines = [
             f"{label}: {plan.get('origin')} → {plan.get('destination')}",
             f"strategy: {plan.get('routing_strategy', 'hub-list')}",

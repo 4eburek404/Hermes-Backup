@@ -5,6 +5,13 @@ import sys
 from typing import Any
 
 from .. import __skill_name__, __skill_version__, __version__
+from ..command_surface import (
+    CATALOG_REFRESH_COMMANDS,
+    COMPATIBILITY_COMMANDS,
+    LIVE_PROVIDER_COMMANDS,
+    PRIMARY_ROUTE_COMMAND,
+    TARGETED_PROBE_COMMANDS,
+)
 from ..config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, DEFAULT_ROUTE_HUB_NOTES, DEFAULT_ROUTE_HUBS, RISK_PROFILES
 from ..domain.airports import explain_airport
 from ..providers.route_intel import svx_route_index_path
@@ -50,7 +57,7 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
             "max_age": args.catalog_max_age,
             "max_age_seconds": max_age_seconds,
             "timeout": args.catalog_refresh_timeout,
-            "applies_to": ["cities search", "airports explain", "route plan", "route kb-assemble", "route live-assemble", "metrics workflow"],
+            "applies_to": list(CATALOG_REFRESH_COMMANDS),
         },
         "catalog_staleness": catalog_staleness(store.cache_dir, max_age_seconds=max_age_seconds),
         "runtime_evidence_policy": {
@@ -79,7 +86,10 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         "safety": {
             "booking_or_purchase": False,
             "docker_touched": False,
-            "live_provider_commands": ["kb-search", "kb-roundtrip", "fli-search", "fli-dates", "route kb-assemble", "route live-assemble"],
+            "primary_route_command": PRIMARY_ROUTE_COMMAND,
+            "targeted_probe_commands": list(TARGETED_PROBE_COMMANDS),
+            "compatibility_commands": list(COMPATIBILITY_COMMANDS),
+            "live_provider_commands": list(LIVE_PROVIDER_COMMANDS),
         },
         "risk_profiles": {
             name: {

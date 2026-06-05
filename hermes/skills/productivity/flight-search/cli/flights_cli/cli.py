@@ -21,7 +21,14 @@ from .commands.providers import (
     command_kb_roundtrip,
     command_kb_search,
 )
-from .commands.route import command_route_assemble, command_route_kb_assemble, command_route_live_assemble, command_route_plan, command_route_rank, command_route_validate
+from .commands.route import (
+    command_route_assemble,
+    command_route_kb_assemble,
+    command_route_live_assemble,
+    command_route_plan,
+    command_route_rank,
+    command_route_validate,
+)
 from .config import (
     DEFAULT_COVERAGE_CONTROL_LIMIT,
     DEFAULT_CURRENCY,
@@ -41,7 +48,8 @@ from .providers.static_catalog import (
 )
 from .store import Store
 
-def add_common_route_flags(parser: argparse.ArgumentParser) -> None:
+
+def add_route_scope_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("origin", help="Origin city/airport, e.g. SVX or Ekaterinburg")
     parser.add_argument("destination", help="Destination city/airport, e.g. LON or London")
     parser.add_argument("--depart-date", required=True, help="Departure date YYYY-MM-DD")
@@ -55,12 +63,8 @@ def add_common_route_flags(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--origin-airport", action="append", help="Force origin airport. Repeatable.")
     parser.add_argument("--destination-airport", action="append", help="Force destination airport. Repeatable.")
-    parser.add_argument("--currency", default=DEFAULT_CURRENCY, help="Currency. Default RUB.")
-    parser.add_argument("--ticketing", choices=["separate", "single"], default="separate")
-    parser.add_argument("--profile", choices=sorted(RISK_PROFILES), default="balanced", help="Risk/ranking profile.")
-    parser.add_argument("--min-same-airport-min", type=int, default=120)
-    parser.add_argument("--min-cross-airport-min", type=int, default=300)
     parser.add_argument("--max-airports-per-city", type=int, default=6)
+    parser.add_argument("--currency", default=DEFAULT_CURRENCY, help="Currency. Default RUB.")
     parser.add_argument(
         "--coverage-mode",
         choices=["standard", "targeted", "full"],
@@ -78,6 +82,18 @@ def add_common_route_flags(parser: argparse.ArgumentParser) -> None:
         default=DEFAULT_COVERAGE_CONTROL_LIMIT,
         help="Maximum planned coverage controls to surface in route metadata. Default 12; this is a fan-out guardrail, not a cache/rate-limit implementation.",
     )
+
+
+def add_connection_policy_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--ticketing", choices=["separate", "single"], default="separate")
+    parser.add_argument("--profile", choices=sorted(RISK_PROFILES), default="balanced", help="Risk/ranking profile.")
+    parser.add_argument("--min-same-airport-min", type=int, default=120)
+    parser.add_argument("--min-cross-airport-min", type=int, default=300)
+
+
+def add_common_route_flags(parser: argparse.ArgumentParser) -> None:
+    add_route_scope_flags(parser)
+    add_connection_policy_flags(parser)
     add_stop_policy_flags(parser)
 
 
@@ -124,6 +140,21 @@ def add_fli_mcp_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--timeout", type=int, default=60, help="HTTP timeout seconds for FLI MCP calls.")
 
 
+def add_provider_cache_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--cache-ttl-seconds", type=int, default=DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, help="Short-lived live-search cache TTL seconds. Use 0 to disable.")
+    parser.add_argument("--no-cache", action="store_true", help="Bypass live-search cache.")
+
+
+def add_assembly_output_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--limit-per-pair", type=int, default=DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR)
+    parser.add_argument("--candidate-pool-limit", type=int, default=5000, help="Maximum raw assembled candidates to score before ranked output is capped.")
+    parser.add_argument("--max-candidates", type=int, default=50, help="Maximum ranked candidates to output after scoring.")
+    parser.add_argument("--max-reasons", type=int, default=5)
+    parser.add_argument("--include-candidates", type=int, default=5)
+    parser.add_argument("--include-ranked-candidates", type=int, default=5, help="Include full candidate bodies for first N ranked candidates.")
+    parser.add_argument("--include-rejected-pairs", type=int, default=20)
+
+
 def add_live_assembly_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--segment-limit", type=int, default=30, help="Max direct offers kept per live segment search.")
     parser.add_argument("--timeout", type=int, default=60, help="HTTP timeout seconds per live segment search.")
@@ -139,13 +170,7 @@ def add_live_assembly_flags(parser: argparse.ArgumentParser) -> None:
         type=int,
         help="Day offset(s) for hub→origin searches after return date. Repeatable. Default: 0, 1, and 2.",
     )
-    parser.add_argument("--limit-per-pair", type=int, default=DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR)
-    parser.add_argument("--candidate-pool-limit", type=int, default=5000, help="Maximum raw assembled candidates to score before ranked output is capped.")
-    parser.add_argument("--max-candidates", type=int, default=50, help="Maximum ranked candidates to output after scoring.")
-    parser.add_argument("--max-reasons", type=int, default=5)
-    parser.add_argument("--include-candidates", type=int, default=5)
-    parser.add_argument("--include-ranked-candidates", type=int, default=5, help="Include full candidate bodies for first N ranked candidates.")
-    parser.add_argument("--include-rejected-pairs", type=int, default=20)
+    add_assembly_output_flags(parser)
     parser.add_argument("--include-segment-results", type=int, default=0, help="Include first N normalized segment-result blocks in JSON output.")
     parser.add_argument(
         "--aggregate-control-limit",
@@ -166,6 +191,220 @@ def add_live_assembly_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--no-direct-route-intel", action="store_true", help="Do not skip direct-control probes using the official SVX route index.")
     add_agent_output_flags(parser)
     add_carrier_selection_flags(parser)
+
+
+def _parent(add_flags) -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(add_help=False)
+    add_flags(parser)
+    return parser
+
+
+def route_query_parent() -> argparse.ArgumentParser:
+    return _parent(add_common_route_flags)
+
+
+def connection_policy_parent() -> argparse.ArgumentParser:
+    return _parent(add_connection_policy_flags)
+
+
+def stop_policy_parent() -> argparse.ArgumentParser:
+    return _parent(add_stop_policy_flags)
+
+
+def carrier_selection_parent() -> argparse.ArgumentParser:
+    return _parent(add_carrier_selection_flags)
+
+
+def agent_output_parent() -> argparse.ArgumentParser:
+    return _parent(add_agent_output_flags)
+
+
+def assembly_output_parent() -> argparse.ArgumentParser:
+    return _parent(add_assembly_output_flags)
+
+
+def live_assembly_parent() -> argparse.ArgumentParser:
+    return _parent(add_live_assembly_flags)
+
+
+def _register_doctor_commands(sub) -> None:
+    doctor = sub.add_parser("doctor", help="Check local caches and static catalog status.")
+    doctor.set_defaults(func=command_doctor, command_name="doctor")
+
+
+def _register_maintenance_commands(sub) -> None:
+    maintenance = sub.add_parser("maintenance", help="Local maintenance and provenance checks.")
+    maintenance_sub = maintenance.add_subparsers(dest="maintenance_command", required=True)
+    maintenance_check = maintenance_sub.add_parser(
+        "check",
+        help="Report source/runtime provenance and local maintenance status without network calls.",
+    )
+    maintenance_check.add_argument(
+        "--runtime-path",
+        help="Runtime flight-search skill path to compare against. Defaults to ~/.hermes/skills/productivity/flight-search.",
+    )
+    maintenance_check.set_defaults(func=command_maintenance_check, command_name="maintenance check")
+
+
+def _register_catalog_commands(sub) -> None:
+    catalog = sub.add_parser("catalog", help="Static catalog commands.")
+    catalog_sub = catalog.add_subparsers(dest="catalog_command", required=True)
+    catalog_update = catalog_sub.add_parser("update", help="Download public static catalog JSON files.")
+    catalog_update.add_argument("--only", action="append", help="Catalog item name. Repeatable; defaults to all static files.")
+    catalog_update.add_argument("--timeout", type=int, default=30, help="HTTP timeout seconds per static file.")
+    catalog_update.add_argument("--dry-run", action="store_true", help="Show files that would be downloaded without writing cache.")
+    catalog_update.set_defaults(func=command_catalog_update, command_name="catalog update")
+    catalog_manifest = catalog_sub.add_parser("manifest", help="Show the local static catalog manifest.")
+    catalog_manifest.set_defaults(func=command_catalog_manifest, command_name="catalog manifest")
+
+
+def _register_metadata_commands(sub) -> None:
+    cities = sub.add_parser("cities", help="City lookup commands.")
+    cities_sub = cities.add_subparsers(dest="cities_command", required=True)
+    cities_search = cities_sub.add_parser("search", help="Search city name or IATA code in local cache.")
+    cities_search.add_argument("query")
+    cities_search.add_argument("--limit", type=int, default=5)
+    cities_search.set_defaults(func=command_cities_search, command_name="cities search", requires_catalog=True)
+
+    airports = sub.add_parser("airports", help="Airport rule lookup commands.")
+    airports_sub = airports.add_subparsers(dest="airports_command", required=True)
+    airports_explain = airports_sub.add_parser("explain", help="Explain airport and multi-airport risk rules.")
+    airports_explain.add_argument("code", nargs="+")
+    airports_explain.set_defaults(func=command_airports_explain, command_name="airports explain", requires_catalog=True)
+
+
+def _add_kb_search_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("origin", help="Origin IATA code (e.g. SVX).")
+    parser.add_argument("destination", help="Destination city/airport IATA code (e.g. MOW or SVO).")
+    parser.add_argument("--depart-date", required=True, help="Departure date YYYY-MM-DD.")
+    parser.add_argument("--currency", default=DEFAULT_CURRENCY, help="Currency code (default: RUB).")
+    parser.add_argument("--only-carrier", action="append", help="Require each flight leg to match this marketing or operating carrier. Repeatable.")
+    parser.add_argument("--direct-only", action="store_true", help="Only direct one-leg offers.")
+    parser.add_argument("--limit", type=int, default=20, help="Maximum normalized offers to show.")
+    parser.add_argument("--timeout", type=int, default=60, help="HTTP timeout seconds.")
+    add_provider_cache_flags(parser)
+
+
+def _add_kb_roundtrip_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("origin", help="Origin IATA code (e.g. SVX).")
+    parser.add_argument("destination", help="Destination city/airport IATA code (e.g. BJS or PKX).")
+    parser.add_argument("--depart-date", required=True, help="Outbound date YYYY-MM-DD.")
+    parser.add_argument("--return-date", required=True, help="Return date YYYY-MM-DD.")
+    parser.add_argument("--currency", default=DEFAULT_CURRENCY, help="Currency code (default: RUB).")
+    parser.add_argument("--only-carrier", action="append", help="Require every outbound/return flight leg to match this marketing or operating carrier. Repeatable.")
+    parser.add_argument("--direct-only", action="store_true", help="Only direct one-leg outbound and direct one-leg return offers.")
+    parser.add_argument("--limit", type=int, default=20, help="Maximum normalized round-trip fare packages to show.")
+    parser.add_argument("--timeout", type=int, default=60, help="HTTP timeout seconds.")
+    add_provider_cache_flags(parser)
+
+
+def _add_fli_search_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("origin", help="Origin airport IATA code (e.g. IST).")
+    parser.add_argument("destination", help="Destination airport IATA code (e.g. LHR).")
+    parser.add_argument("--depart-date", required=True, help="Departure date YYYY-MM-DD.")
+    parser.add_argument("--currency", default=DEFAULT_CURRENCY, help="Fallback currency code when FLI omits one (default: RUB).")
+    parser.add_argument("--only-carrier", action="append", help="Filter by airline IATA code. Repeatable.")
+    parser.add_argument("--direct-only", action="store_true", help="Request non-stop results only.")
+    parser.add_argument("--max-stops", choices=["ANY", "NON_STOP", "ONE_STOP", "TWO_PLUS_STOPS"], default="ANY")
+    parser.add_argument("--cabin-class", choices=["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS", "FIRST"], default="ECONOMY")
+    parser.add_argument("--sort-by", choices=["TOP_FLIGHTS", "BEST", "CHEAPEST", "DEPARTURE_TIME", "ARRIVAL_TIME", "DURATION", "EMISSIONS"], default="CHEAPEST")
+    parser.add_argument("--passengers", type=int, default=1)
+    parser.add_argument("--limit", type=int, default=20, help="Maximum normalized offers to show.")
+    add_fli_mcp_flags(parser)
+    add_provider_cache_flags(parser)
+
+
+def _add_fli_dates_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("origin", help="Origin airport IATA code (e.g. IST).")
+    parser.add_argument("destination", help="Destination airport IATA code (e.g. LHR).")
+    parser.add_argument("--from-date", required=True, help="Start date YYYY-MM-DD.")
+    parser.add_argument("--to-date", required=True, help="End date YYYY-MM-DD.")
+    parser.add_argument("--trip-duration", type=int, default=3, help="Trip duration in days for round-trip date search.")
+    parser.add_argument("--round-trip", action="store_true", help="Search round-trip date prices.")
+    parser.add_argument("--only-carrier", action="append", help="Filter by airline IATA code. Repeatable.")
+    parser.add_argument("--direct-only", action="store_true", help="Request non-stop results only.")
+    parser.add_argument("--max-stops", choices=["ANY", "NON_STOP", "ONE_STOP", "TWO_PLUS_STOPS"], default="ANY")
+    parser.add_argument("--cabin-class", choices=["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS", "FIRST"], default="ECONOMY")
+    parser.add_argument("--sort-by-price", action="store_true", help="Sort dates by lowest price.")
+    parser.add_argument("--passengers", type=int, default=1)
+    parser.add_argument("--limit", type=int, default=30)
+    add_fli_mcp_flags(parser)
+
+
+def _register_provider_probe_commands(sub) -> None:
+    kb_search = sub.add_parser("kb-search", help="Kupibilet live aggregate search; use --only-carrier SU for Aeroflot-marketed flights.")
+    _add_kb_search_flags(kb_search)
+    kb_search.set_defaults(func=command_kb_search, command_name="kb-search")
+
+    kb_roundtrip = sub.add_parser("kb-roundtrip", help="Kupibilet live round-trip aggregate search using a two-trip frontend_search request.")
+    _add_kb_roundtrip_flags(kb_roundtrip)
+    kb_roundtrip.set_defaults(func=command_kb_roundtrip, command_name="kb-roundtrip")
+
+    fli_search = sub.add_parser("fli-search", help="FLI MCP live Google Flights search through a self-hosted MCP HTTP server.")
+    _add_fli_search_flags(fli_search)
+    fli_search.set_defaults(func=command_fli_search, command_name="fli-search", requires_catalog=True)
+
+    fli_dates = sub.add_parser("fli-dates", help="FLI MCP flexible date search through a self-hosted MCP HTTP server.")
+    _add_fli_dates_flags(fli_dates)
+    fli_dates.set_defaults(func=command_fli_dates, command_name="fli-dates")
+
+
+def _register_route_commands(sub) -> None:
+    route = sub.add_parser("route", help="Route planning and validation commands.")
+    route_sub = route.add_subparsers(dest="route_command", required=True)
+
+    route_plan = route_sub.add_parser("plan", parents=[route_query_parent()], help="Build segment query plan through hubs without API calls.")
+    route_plan.set_defaults(func=command_route_plan, command_name="route plan", requires_catalog=True)
+
+    route_validate = route_sub.add_parser("validate", parents=[connection_policy_parent()], help="Validate airport compatibility and connection windows from JSON.")
+    route_validate.add_argument("--input", default="-", help="Input JSON file, or - for stdin.")
+    route_validate.set_defaults(func=command_route_validate, command_name="route validate")
+
+    route_rank = route_sub.add_parser(
+        "rank",
+        parents=[connection_policy_parent(), carrier_selection_parent(), stop_policy_parent()],
+        help="Score and rank itinerary candidates from JSON.",
+    )
+    route_rank.add_argument("--input", default="-", help="Input JSON list, or object with itineraries/candidates.")
+    route_rank.add_argument("--max-reasons", type=int, default=5)
+    route_rank.set_defaults(func=command_route_rank, command_name="route rank")
+
+    route_assemble = route_sub.add_parser(
+        "assemble",
+        parents=[connection_policy_parent(), assembly_output_parent(), stop_policy_parent(), agent_output_parent(), carrier_selection_parent()],
+        help="Assemble parsed segment results into ranked itinerary candidates.",
+    )
+    route_assemble.add_argument("--input", action="append", help="Parsed result JSON. Repeatable; omit for stdin.")
+    route_assemble.set_defaults(func=command_route_assemble, command_name="route assemble")
+
+    route_kb_assemble = route_sub.add_parser(
+        "kb-assemble",
+        parents=[route_query_parent(), live_assembly_parent()],
+        help="Compatibility alias for route live-assemble --provider-policy kupibilet.",
+    )
+    route_kb_assemble.set_defaults(provider_policy="kupibilet", fli_mcp_url=None)
+    route_kb_assemble.set_defaults(func=command_route_kb_assemble, command_name="route kb-assemble", requires_catalog=True)
+
+    route_live_assemble = route_sub.add_parser(
+        "live-assemble",
+        parents=[route_query_parent(), live_assembly_parent()],
+        help="Primary route search: provider-policy live segment searches and compact agent_report.",
+    )
+    route_live_assemble.add_argument(
+        "--provider-policy",
+        choices=["auto", "kupibilet", "fli", "both"],
+        default="auto",
+        help="Live provider policy. auto uses Kupibilet for RU-touching segments and FLI MCP for non-RU segments.",
+    )
+    route_live_assemble.add_argument("--fli-mcp-url", default=os.getenv("FLIGHTS_FLI_MCP_URL", FLI_MCP_DEFAULT_URL), help="FLI MCP HTTP URL for provider-policy fli/both/auto.")
+    route_live_assemble.set_defaults(func=command_route_live_assemble, command_name="route live-assemble", requires_catalog=True)
+
+
+def _register_metrics_commands(sub) -> None:
+    metrics = sub.add_parser("metrics", help="Workflow metrics commands.")
+    metrics_sub = metrics.add_subparsers(dest="metrics_command", required=True)
+    metrics_workflow = metrics_sub.add_parser("workflow", parents=[route_query_parent()], help="Compare manual planning operations with CLI planning.")
+    metrics_workflow.set_defaults(func=command_metrics_workflow, command_name="metrics workflow", requires_catalog=True)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -194,186 +433,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    doctor = sub.add_parser("doctor", help="Check local caches and static catalog status.")
-    doctor.set_defaults(func=command_doctor, command_name="doctor")
-
-    maintenance = sub.add_parser("maintenance", help="Local maintenance and provenance checks.")
-    maintenance_sub = maintenance.add_subparsers(dest="maintenance_command", required=True)
-    maintenance_check = maintenance_sub.add_parser(
-        "check",
-        help="Report source/runtime provenance and local maintenance status without network calls.",
-    )
-    maintenance_check.add_argument(
-        "--runtime-path",
-        help="Runtime flight-search skill path to compare against. Defaults to ~/.hermes/skills/productivity/flight-search.",
-    )
-    maintenance_check.set_defaults(func=command_maintenance_check, command_name="maintenance check")
-
-    catalog = sub.add_parser("catalog", help="Static catalog commands.")
-    catalog_sub = catalog.add_subparsers(dest="catalog_command", required=True)
-    catalog_update = catalog_sub.add_parser("update", help="Download public static catalog JSON files.")
-    catalog_update.add_argument("--only", action="append", help="Catalog item name. Repeatable; defaults to all static files.")
-    catalog_update.add_argument("--timeout", type=int, default=30, help="HTTP timeout seconds per static file.")
-    catalog_update.add_argument("--dry-run", action="store_true", help="Show files that would be downloaded without writing cache.")
-    catalog_update.set_defaults(func=command_catalog_update, command_name="catalog update")
-    catalog_manifest = catalog_sub.add_parser("manifest", help="Show the local static catalog manifest.")
-    catalog_manifest.set_defaults(func=command_catalog_manifest, command_name="catalog manifest")
-
-    cities = sub.add_parser("cities", help="City lookup commands.")
-    cities_sub = cities.add_subparsers(dest="cities_command", required=True)
-    cities_search = cities_sub.add_parser("search", help="Search city name or IATA code in local cache.")
-    cities_search.add_argument("query")
-    cities_search.add_argument("--limit", type=int, default=5)
-    cities_search.set_defaults(func=command_cities_search, command_name="cities search", requires_catalog=True)
-
-    airports = sub.add_parser("airports", help="Airport rule lookup commands.")
-    airports_sub = airports.add_subparsers(dest="airports_command", required=True)
-    airports_explain = airports_sub.add_parser("explain", help="Explain airport and multi-airport risk rules.")
-    airports_explain.add_argument("code", nargs="+")
-    airports_explain.set_defaults(func=command_airports_explain, command_name="airports explain", requires_catalog=True)
-
-    kb_search = sub.add_parser("kb-search", help="Kupibilet live aggregate search; use --only-carrier SU for Aeroflot-marketed flights.")
-    kb_search.add_argument("origin", help="Origin IATA code (e.g. SVX).")
-    kb_search.add_argument("destination", help="Destination city/airport IATA code (e.g. MOW or SVO).")
-    kb_search.add_argument("--depart-date", required=True, help="Departure date YYYY-MM-DD.")
-    kb_search.add_argument("--currency", default=DEFAULT_CURRENCY, help="Currency code (default: RUB).")
-    kb_search.add_argument("--only-carrier", action="append", help="Require each flight leg to match this marketing or operating carrier. Repeatable.")
-    kb_search.add_argument("--direct-only", action="store_true", help="Only direct one-leg offers.")
-    kb_search.add_argument("--limit", type=int, default=20, help="Maximum normalized offers to show.")
-    kb_search.add_argument("--timeout", type=int, default=60, help="HTTP timeout seconds.")
-    kb_search.add_argument("--cache-ttl-seconds", type=int, default=DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, help="Short-lived live-search cache TTL seconds. Use 0 to disable.")
-    kb_search.add_argument("--no-cache", action="store_true", help="Bypass live-search cache.")
-    kb_search.set_defaults(func=command_kb_search, command_name="kb-search")
-
-    kb_roundtrip = sub.add_parser("kb-roundtrip", help="Kupibilet live round-trip aggregate search using a two-trip frontend_search request.")
-    kb_roundtrip.add_argument("origin", help="Origin IATA code (e.g. SVX).")
-    kb_roundtrip.add_argument("destination", help="Destination city/airport IATA code (e.g. BJS or PKX).")
-    kb_roundtrip.add_argument("--depart-date", required=True, help="Outbound date YYYY-MM-DD.")
-    kb_roundtrip.add_argument("--return-date", required=True, help="Return date YYYY-MM-DD.")
-    kb_roundtrip.add_argument("--currency", default=DEFAULT_CURRENCY, help="Currency code (default: RUB).")
-    kb_roundtrip.add_argument("--only-carrier", action="append", help="Require every outbound/return flight leg to match this marketing or operating carrier. Repeatable.")
-    kb_roundtrip.add_argument("--direct-only", action="store_true", help="Only direct one-leg outbound and direct one-leg return offers.")
-    kb_roundtrip.add_argument("--limit", type=int, default=20, help="Maximum normalized round-trip fare packages to show.")
-    kb_roundtrip.add_argument("--timeout", type=int, default=60, help="HTTP timeout seconds.")
-    kb_roundtrip.add_argument("--cache-ttl-seconds", type=int, default=DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, help="Short-lived live-search cache TTL seconds. Use 0 to disable.")
-    kb_roundtrip.add_argument("--no-cache", action="store_true", help="Bypass live-search cache.")
-    kb_roundtrip.set_defaults(func=command_kb_roundtrip, command_name="kb-roundtrip")
-
-    fli_search = sub.add_parser("fli-search", help="FLI MCP live Google Flights search through a self-hosted MCP HTTP server.")
-    fli_search.add_argument("origin", help="Origin airport IATA code (e.g. IST).")
-    fli_search.add_argument("destination", help="Destination airport IATA code (e.g. LHR).")
-    fli_search.add_argument("--depart-date", required=True, help="Departure date YYYY-MM-DD.")
-    fli_search.add_argument("--currency", default=DEFAULT_CURRENCY, help="Fallback currency code when FLI omits one (default: RUB).")
-    fli_search.add_argument("--only-carrier", action="append", help="Filter by airline IATA code. Repeatable.")
-    fli_search.add_argument("--direct-only", action="store_true", help="Request non-stop results only.")
-    fli_search.add_argument("--max-stops", choices=["ANY", "NON_STOP", "ONE_STOP", "TWO_PLUS_STOPS"], default="ANY")
-    fli_search.add_argument("--cabin-class", choices=["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS", "FIRST"], default="ECONOMY")
-    fli_search.add_argument("--sort-by", choices=["TOP_FLIGHTS", "BEST", "CHEAPEST", "DEPARTURE_TIME", "ARRIVAL_TIME", "DURATION", "EMISSIONS"], default="CHEAPEST")
-    fli_search.add_argument("--passengers", type=int, default=1)
-    fli_search.add_argument("--limit", type=int, default=20, help="Maximum normalized offers to show.")
-    add_fli_mcp_flags(fli_search)
-    fli_search.add_argument("--cache-ttl-seconds", type=int, default=DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, help="Short-lived live-search cache TTL seconds. Use 0 to disable.")
-    fli_search.add_argument("--no-cache", action="store_true", help="Bypass live-search cache.")
-    fli_search.set_defaults(func=command_fli_search, command_name="fli-search", requires_catalog=True)
-
-    fli_dates = sub.add_parser("fli-dates", help="FLI MCP flexible date search through a self-hosted MCP HTTP server.")
-    fli_dates.add_argument("origin", help="Origin airport IATA code (e.g. IST).")
-    fli_dates.add_argument("destination", help="Destination airport IATA code (e.g. LHR).")
-    fli_dates.add_argument("--from-date", required=True, help="Start date YYYY-MM-DD.")
-    fli_dates.add_argument("--to-date", required=True, help="End date YYYY-MM-DD.")
-    fli_dates.add_argument("--trip-duration", type=int, default=3, help="Trip duration in days for round-trip date search.")
-    fli_dates.add_argument("--round-trip", action="store_true", help="Search round-trip date prices.")
-    fli_dates.add_argument("--only-carrier", action="append", help="Filter by airline IATA code. Repeatable.")
-    fli_dates.add_argument("--direct-only", action="store_true", help="Request non-stop results only.")
-    fli_dates.add_argument("--max-stops", choices=["ANY", "NON_STOP", "ONE_STOP", "TWO_PLUS_STOPS"], default="ANY")
-    fli_dates.add_argument("--cabin-class", choices=["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS", "FIRST"], default="ECONOMY")
-    fli_dates.add_argument("--sort-by-price", action="store_true", help="Sort dates by lowest price.")
-    fli_dates.add_argument("--passengers", type=int, default=1)
-    fli_dates.add_argument("--limit", type=int, default=30)
-    add_fli_mcp_flags(fli_dates)
-    fli_dates.set_defaults(func=command_fli_dates, command_name="fli-dates")
-
-    route = sub.add_parser("route", help="Route planning and validation commands.")
-    route_sub = route.add_subparsers(dest="route_command", required=True)
-    route_plan = route_sub.add_parser("plan", help="Build segment query plan through hubs without API calls.")
-    add_common_route_flags(route_plan)
-    route_plan.set_defaults(func=command_route_plan, command_name="route plan", requires_catalog=True)
-
-    route_validate = route_sub.add_parser("validate", help="Validate airport compatibility and connection windows from JSON.")
-    route_validate.add_argument("--input", default="-", help="Input JSON file, or - for stdin.")
-    route_validate.add_argument("--ticketing", choices=["separate", "single"], default="separate")
-    route_validate.add_argument("--profile", choices=sorted(RISK_PROFILES), default="balanced")
-    route_validate.add_argument("--min-same-airport-min", type=int, default=120)
-    route_validate.add_argument("--min-cross-airport-min", type=int, default=300)
-    route_validate.set_defaults(func=command_route_validate, command_name="route validate")
-
-    route_rank = route_sub.add_parser("rank", help="Score and rank itinerary candidates from JSON.")
-    route_rank.add_argument("--input", default="-", help="Input JSON list, or object with itineraries/candidates.")
-    route_rank.add_argument("--ticketing", choices=["separate", "single"], default="separate")
-    route_rank.add_argument("--profile", choices=sorted(RISK_PROFILES), default="balanced")
-    route_rank.add_argument("--min-same-airport-min", type=int, default=120)
-    route_rank.add_argument("--min-cross-airport-min", type=int, default=300)
-    route_rank.add_argument("--max-reasons", type=int, default=5)
-    add_carrier_selection_flags(route_rank)
-    add_stop_policy_flags(route_rank)
-    route_rank.set_defaults(func=command_route_rank, command_name="route rank")
-
-    route_assemble = route_sub.add_parser("assemble", help="Assemble parsed segment results into ranked itinerary candidates.")
-    route_assemble.add_argument("--input", action="append", help="Parsed result JSON. Repeatable; omit for stdin.")
-    route_assemble.add_argument("--ticketing", choices=["separate", "single"], default="separate")
-    route_assemble.add_argument("--profile", choices=sorted(RISK_PROFILES), default="balanced")
-    route_assemble.add_argument("--min-same-airport-min", type=int, default=120)
-    route_assemble.add_argument("--min-cross-airport-min", type=int, default=300)
-    route_assemble.add_argument(
-        "--limit-per-pair",
-        type=int,
-        default=DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR,
-        help=(
-            "Depth per segment-result list before pairing (default: 10). "
-            "Keep >=10 for complex routes so frontier-relevant options (schedule, duration, "
-            "connection safety, airport/carrier preference) are not truncated before ranking."
-        ),
-    )
-    route_assemble.add_argument("--candidate-pool-limit", type=int, default=5000, help="Maximum raw assembled candidates to score before ranked output is capped.")
-    route_assemble.add_argument("--max-candidates", type=int, default=50, help="Maximum ranked candidates to output after scoring.")
-    route_assemble.add_argument("--max-reasons", type=int, default=5)
-    route_assemble.add_argument("--include-candidates", type=int, default=5, help="Include first N raw assembled candidates in JSON output.")
-    route_assemble.add_argument("--include-ranked-candidates", type=int, default=5, help="Include full candidate bodies for first N ranked candidates.")
-    route_assemble.add_argument("--include-rejected-pairs", type=int, default=20, help="Include first N rejected/airport-mismatch pairs.")
-    add_stop_policy_flags(route_assemble)
-    add_agent_output_flags(route_assemble)
-    add_carrier_selection_flags(route_assemble)
-    route_assemble.set_defaults(func=command_route_assemble, command_name="route assemble")
-
-    route_kb_assemble = route_sub.add_parser(
-        "kb-assemble",
-        help="Run Kupibilet direct-only segment searches through hubs and assemble ranked candidates.",
-    )
-    add_common_route_flags(route_kb_assemble)
-    add_live_assembly_flags(route_kb_assemble)
-    route_kb_assemble.set_defaults(provider_policy="kupibilet", fli_mcp_url=None)
-    route_kb_assemble.set_defaults(func=command_route_kb_assemble, command_name="route kb-assemble", requires_catalog=True)
-
-    route_live_assemble = route_sub.add_parser(
-        "live-assemble",
-        help="Run provider-policy live segment searches: Kupibilet for Russia-touching legs, FLI MCP for global legs.",
-    )
-    add_common_route_flags(route_live_assemble)
-    add_live_assembly_flags(route_live_assemble)
-    route_live_assemble.add_argument(
-        "--provider-policy",
-        choices=["auto", "kupibilet", "fli", "both"],
-        default="auto",
-        help="Live provider policy. auto uses Kupibilet for RU-touching segments and FLI MCP for non-RU segments.",
-    )
-    route_live_assemble.add_argument("--fli-mcp-url", default=os.getenv("FLIGHTS_FLI_MCP_URL", FLI_MCP_DEFAULT_URL), help="FLI MCP HTTP URL for provider-policy fli/both/auto.")
-    route_live_assemble.set_defaults(func=command_route_live_assemble, command_name="route live-assemble", requires_catalog=True)
-
-    metrics = sub.add_parser("metrics", help="Workflow metrics commands.")
-    metrics_sub = metrics.add_subparsers(dest="metrics_command", required=True)
-    metrics_workflow = metrics_sub.add_parser("workflow", help="Compare manual planning operations with CLI planning.")
-    add_common_route_flags(metrics_workflow)
-    metrics_workflow.set_defaults(func=command_metrics_workflow, command_name="metrics workflow", requires_catalog=True)
+    _register_doctor_commands(sub)
+    _register_maintenance_commands(sub)
+    _register_catalog_commands(sub)
+    _register_metadata_commands(sub)
+    _register_provider_probe_commands(sub)
+    _register_route_commands(sub)
+    _register_metrics_commands(sub)
 
     return parser
 

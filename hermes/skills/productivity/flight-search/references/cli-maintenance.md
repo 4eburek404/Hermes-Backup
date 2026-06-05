@@ -70,24 +70,11 @@ Use this gate after source docs or CLI changes and before touching runtime:
 
 ## Contract Registry and Lifecycle
 
-Current public contracts:
+The current report/user-answer registry lives in `references/report-contract.md`; do not duplicate or fork it here. Maintenance changes that touch reports must still update the schema, report-building code, docs that tell agents how to read fields, fixtures/tests, and focused contract tests in one change.
 
-- `agent_report.v2` — serialized report envelope with `route`, `evidence`, `frontier`, `user_answer`, `diagnostics`.
-- `flight_search_user_answer.v3` — canonical user-facing answer contract; `rendered_text` is deterministic renderer output.
+Before adding or documenting another final-answer/report surface, classify every touched surface as current, retired/projection, shadow, or proposed according to `references/report-contract.md`. Do not introduce another v1/v2/v3 layer until the ownership map is clear.
 
-Retired legacy/projection surfaces:
-
-- `flight_search_user_answer.v2` is rejected; there is no v2→v3 runtime adapter.
-- `diagnostics.human_answer`, `diagnostics.display`, and `diagnostics.answer_lines` are debug/mirror projections only, not canonical final-prose sources and not fallback inputs.
-- In-process legacy alias views are removed; consumers must read nested `agent_report.v2` paths.
-
-Removed/shadow/proposed lifecycle:
-
-- `common.v2`, `search_evidence.v2`, and `offer_frontier.v2` are not packaged active schemas.
-- `agent_report.v1`, `flight_search_user_answer.v1`, and `flight_search_user_answer.v2` are not packaged active schemas.
-- `flight_search_final_answer.v1` and `route live-answer` are proposed-only until schema, builder, command path, and exactness regression tests exist. Do not document them as Golden Path commands.
-
-Schema/report changes must update, in one change: schema contract, report-building code, docs that tell agents how to read fields, fixtures/tests, and focused contract tests. Public JSON tests should assert nested v2 paths such as `report["frontier"]["recommended_options"]`, not top-level legacy aliases.
+Public JSON tests should assert nested `agent_report.v2` paths such as `report["frontier"]["recommended_options"]`, not top-level legacy aliases.
 
 ## CLI Surface and Contract Simplification
 
@@ -99,6 +86,7 @@ Use this when the user asks whether flags, schemas, commands, or agent/user path
 
 Rules:
 
+- Context7/CPython argparse guidance: keep `add_subparsers(required=True)` at every command level, attach leaf handlers with `set_defaults(func=...)`, and use parent parsers with `add_help=False` for shared option groups instead of copy-pasting flags.
 - Do not treat “agent mode” as one design primitive. It can conflate report attachment, output shape, and evidence budget.
 - Do not solve overload by adding a larger public taxonomy (`none/user/agent/debug/human/json`, `--format`, `--report`, `--evidence`) without a concrete consumer and contract.
 - `--agent-report` should be a thin wrapper that attaches/validates `data.agent_report` without changing search budget.
@@ -174,6 +162,16 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests:. python3 -m pytest   tests/test_huma
 
 Then run the full flight-search suite before reporting completion when behavior changed.
 
+## Maintenance Pitfalls
+
+- Mixing source, runtime, and temporary checkouts without naming the evidence layer.
+- Calling a refactor “complete” while source/runtime parity still has semantic diffs.
+- Letting `--agent-*` compatibility flags become a larger public flag matrix instead of separating search/evidence, decision, and output concerns internally.
+- Treating MCP `outputSchema`, prompt text, or debug mirrors (`diagnostics.human_answer`, `diagnostics.display`, `diagnostics.answer_lines`) as the domain contract; the enforceable layer lives in `references/report-contract.md` plus schema/builder/validator/tests.
+- Reintroducing provider execution shortcuts: segment and aggregate probes should go through provider adapters/ports, not direct provider-specific branches in `execution/*`.
+- Treating `--agent-brief` as permission to narrow evidence scope. It may trim output only; explicit evidence/search controls must still be honored.
+- During dead-code cleanup, classify `Protocol` ellipsis methods as interface declarations, not runtime stubs; use layer-specific names for helpers with different responsibilities.
+
 ## Version Bump Checklist
 
 When bumping the skill/CLI version, keep aligned:
@@ -200,8 +198,7 @@ hits = []
 for path in root.rglob('*'):
     if path.name in {'__pycache__', '.pytest_cache'} or path.suffix == '.pyc' or path.name.endswith('.egg-info'):
         hits.append(str(path))
-print('
-'.join(hits))
+print('\n'.join(hits))
 PY
 ```
 

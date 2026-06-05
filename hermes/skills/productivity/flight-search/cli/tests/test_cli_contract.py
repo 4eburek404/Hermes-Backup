@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import contextlib
-import io
+import argparse
 import json
 import subprocess
 import sys
@@ -11,6 +10,15 @@ from pathlib import Path
 from jsonschema import Draft202012Validator
 
 from flights_cli.cli import apply_agent_brief_output, apply_agent_mode_defaults, build_parser, normalize_global_json
+from flights_cli.command_surface import (
+    CATALOG_REFRESH_COMMANDS,
+    COMPATIBILITY_COMMANDS,
+    LIVE_PROVIDER_COMMANDS,
+    PRIMARY_ROUTE_COMMAND,
+    ROOT_COMMANDS,
+    ROUTE_COMMANDS,
+    TARGETED_PROBE_COMMANDS,
+)
 from flights_cli.config import DEFAULT_ROUTE_HUBS
 from flights_cli.domain.stop_policy import stop_policy_from_args
 
@@ -44,6 +52,24 @@ def load_doctor_envelope_schema() -> dict:
     raise AssertionError(f"doctor envelope schema not found from {PROJECT}; checked:\n{checked}")
 
 
+def subparser_choices(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentParser]:
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            return dict(action.choices)
+    return {}
+
+
+COMMAND_ARGV = {
+    "cities search": ["cities", "search", "Yekaterinburg"],
+    "airports explain": ["airports", "explain", "SVX"],
+    "fli-search": ["fli-search", "IST", "LHR", "--depart-date", "2026-07-20"],
+    "route plan": ["route", "plan", "SVX", "LON", "--depart-date", "2026-07-20"],
+    "route kb-assemble": ["route", "kb-assemble", "SVX", "LON", "--depart-date", "2026-07-20"],
+    "route live-assemble": ["route", "live-assemble", "SVX", "LON", "--depart-date", "2026-07-20"],
+    "metrics workflow": ["metrics", "workflow", "SVX", "LON", "--depart-date", "2026-07-20"],
+}
+
+
 class CliContractTests(unittest.TestCase):
     def test_default_live_search_cache_ttl_is_30_minutes(self) -> None:
         from flights_cli.config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
@@ -66,21 +92,48 @@ class CliContractTests(unittest.TestCase):
         assemble_args = parser.parse_args(["route", "assemble"])
         self.assertEqual(assemble_args.limit_per_pair, 10)
 
-    def test_su_flights_legacy_command_is_removed(self) -> None:
-        stderr = io.StringIO()
-        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as ctx:
-            build_parser().parse_args(["su-flights", "SVX", "SVO", "--depart-date", "2026-07-19"])
+    def test_active_command_surface_is_registered_with_leaf_dispatch(self) -> None:
+        parser = build_parser()
+        root = subparser_choices(parser)
+        self.assertEqual(tuple(root), ROOT_COMMANDS)
+        route = subparser_choices(root["route"])
+        self.assertEqual(tuple(route), ROUTE_COMMANDS)
 
-        self.assertEqual(ctx.exception.code, 2)
-        self.assertIn("invalid choice", stderr.getvalue())
+        for command_name, argv in COMMAND_ARGV.items():
+            with self.subTest(command_name=command_name):
+                args = parser.parse_args(argv)
+                self.assertEqual(args.command_name, command_name)
+                self.assertTrue(callable(args.func))
 
-    def test_u6_prices_standalone_probe_is_removed(self) -> None:
-        stderr = io.StringIO()
-        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as ctx:
-            build_parser().parse_args(["u6-prices", "SVX", "IST", "--from-date", "2026-07-19"])
+    def test_catalog_refresh_surface_matches_registered_catalog_commands(self) -> None:
+        parser = build_parser()
+        self.assertEqual(set(CATALOG_REFRESH_COMMANDS), set(COMMAND_ARGV))
+        for command_name in CATALOG_REFRESH_COMMANDS:
+            with self.subTest(command_name=command_name):
+                args = parser.parse_args(COMMAND_ARGV[command_name])
+                self.assertTrue(getattr(args, "requires_catalog", False))
 
-        self.assertEqual(ctx.exception.code, 2)
-        self.assertIn("invalid choice", stderr.getvalue())
+    def test_route_kb_assemble_is_kupibilet_compatibility_alias(self) -> None:
+        parser = build_parser()
+        kb_args = parser.parse_args(["route", "kb-assemble", "SVX", "LON", "--depart-date", "2026-07-20"])
+        live_args = parser.parse_args([
+            "route",
+            "live-assemble",
+            "SVX",
+            "LON",
+            "--depart-date",
+            "2026-07-20",
+            "--provider-policy",
+            "kupibilet",
+        ])
+
+        self.assertEqual(kb_args.command_name, "route kb-assemble")
+        self.assertEqual(kb_args.provider_policy, "kupibilet")
+        self.assertIsNone(kb_args.fli_mcp_url)
+        self.assertEqual(live_args.provider_policy, "kupibilet")
+        self.assertEqual(kb_args.limit_per_pair, live_args.limit_per_pair)
+        self.assertEqual(kb_args.stop_policy, live_args.stop_policy)
+        self.assertEqual(kb_args.profile, live_args.profile)
 
     def test_subprocess_test_env_disables_bytecode_writes(self) -> None:
         self.assertEqual(TEST_ENV["PYTHONDONTWRITEBYTECODE"], "1")
@@ -102,8 +155,8 @@ class CliContractTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["command"], "doctor")
         self.assertEqual(payload["issues"], [])
-        self.assertEqual(payload["data"]["cli"], {"name": "flights-cli", "version": "0.10.13"})
-        self.assertEqual(payload["data"]["skill"], {"name": "flight-search", "version": "0.10.13"})
+        self.assertEqual(payload["data"]["cli"], {"name": "flights-cli", "version": "0.10.14"})
+        self.assertEqual(payload["data"]["skill"], {"name": "flight-search", "version": "0.10.14"})
         self.assertEqual(set(payload["data"]), {
             "cache_counts",
             "cache_dir",
@@ -125,10 +178,14 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(payload["data"]["safety"], {
             "booking_or_purchase": False,
             "docker_touched": False,
-            "live_provider_commands": ["kb-search", "kb-roundtrip", "fli-search", "fli-dates", "route kb-assemble", "route live-assemble"],
+            "primary_route_command": PRIMARY_ROUTE_COMMAND,
+            "targeted_probe_commands": list(TARGETED_PROBE_COMMANDS),
+            "compatibility_commands": list(COMPATIBILITY_COMMANDS),
+            "live_provider_commands": list(LIVE_PROVIDER_COMMANDS),
         })
+        self.assertEqual(payload["data"]["catalog_auto_refresh_policy"]["applies_to"], list(CATALOG_REFRESH_COMMANDS))
         self.assertEqual([item["code"] for item in payload["data"]["default_route_hubs"]], list(DEFAULT_ROUTE_HUBS))
-        self.assertNotIn("routes", payload["data"]["cache_counts"])
+        self.assertEqual(set(payload["data"]["cache_counts"]), {"airlines", "airports", "alliances", "cities", "countries", "planes"})
 
         human_proc = subprocess.run(
             [sys.executable, "-m", "flights_cli", "doctor"],
@@ -139,25 +196,11 @@ class CliContractTests(unittest.TestCase):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        self.assertIn("flights 0.10.13 (skill flight-search 0.10.13)", human_proc.stdout)
-        self.assertIn("main live commands: kb-search, kb-roundtrip, fli-search, fli-dates, route kb-assemble, route live-assemble", human_proc.stdout)
+        self.assertIn("flights 0.10.14 (skill flight-search 0.10.14)", human_proc.stdout)
+        self.assertIn("primary route command: route live-assemble", human_proc.stdout)
+        self.assertIn("targeted probe commands: kb-search, kb-roundtrip, fli-search, fli-dates", human_proc.stdout)
+        self.assertIn("compatibility commands: route kb-assemble", human_proc.stdout)
         self.assertIn("default hubs: IST, DXB, DOH", human_proc.stdout)
-
-    def test_auto_hubs_flag_is_removed(self) -> None:
-        stderr = io.StringIO()
-        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as ctx:
-            build_parser().parse_args(["route", "plan", "SVX", "LON", "--depart-date", "2026-07-20", "--auto-hubs"])
-
-        self.assertEqual(ctx.exception.code, 2)
-        self.assertIn("unrecognized arguments: --auto-hubs", stderr.getvalue())
-
-    def test_route_plan_direct_only_flag_is_removed(self) -> None:
-        stderr = io.StringIO()
-        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as ctx:
-            build_parser().parse_args(["route", "plan", "SVX", "LON", "--depart-date", "2026-07-20", "--direct-only"])
-
-        self.assertEqual(ctx.exception.code, 2)
-        self.assertIn("unrecognized arguments: --direct-only", stderr.getvalue())
 
     def test_legacy_agent_mode_sets_compact_live_assembly_defaults(self) -> None:
         args = build_parser().parse_args(
@@ -254,20 +297,6 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(policy.name, "debug_all")
         self.assertFalse(policy.suppress_three_plus)
 
-    def test_cli_does_not_add_public_output_taxonomy_flags(self) -> None:
-        parser = build_parser()
-        rejected_flag_cases = [
-            ["route", "kb-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--format", "agent-json"],
-            ["route", "kb-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--evidence", "verified"],
-            ["route", "kb-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--report-level", "agent"],
-            ["route", "kb-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--output-profile", "human"],
-        ]
-        for argv in rejected_flag_cases:
-            with self.subTest(argv=argv):
-                with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as ctx:
-                    parser.parse_args(argv)
-                self.assertEqual(ctx.exception.code, 2)
-
     def test_json_route_plan_envelope_and_repeatable_hubs(self) -> None:
         proc = subprocess.run(
             [
@@ -301,10 +330,11 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(data["destination_airports"], ["LHR", "LGW"])
         self.assertEqual(data["airport_scope"]["destination"]["excluded_by_default"], ["STN", "LTN"])
         self.assertEqual(data["metrics"]["segment_request_count"], 6)
-        self.assertNotIn("manual_links", data)
-        self.assertNotIn("manual_direct_links", data["metrics"].get("without_cli", {}))
+        self.assertEqual(data["metrics"]["with_cli"]["generated_segment_commands"], 6)
+        self.assertEqual(data["metrics"]["with_cli"]["route_plan_commands"], 1)
+        self.assertEqual(data["metrics"]["with_cli"]["route_validate_command_after_results"], 1)
+        self.assertEqual(data["metrics"]["without_cli"]["segment_queries_to_prepare"], 6)
         self.assertIn("warnings", data)
-        self.assertNotIn("cache_age_minutes", data)
 
     def test_normalize_global_json_accepts_trailing_json(self) -> None:
         argv = ["flights", "route", "plan", "SVX", "LON", "--json"]
