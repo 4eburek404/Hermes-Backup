@@ -5,9 +5,15 @@ import sys
 from typing import Any
 
 from .. import __skill_name__, __skill_version__, __version__
-from ..config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, DEFAULT_ROUTE_HUB_NOTES, DEFAULT_ROUTE_HUBS, PLUGIN_PATH, RISK_PROFILES
+from ..command_surface import (
+    CATALOG_REFRESH_COMMANDS,
+    COMPATIBILITY_COMMANDS,
+    LIVE_PROVIDER_COMMANDS,
+    PRIMARY_ROUTE_COMMAND,
+    TARGETED_PROBE_COMMANDS,
+)
+from ..config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, DEFAULT_ROUTE_HUB_NOTES, DEFAULT_ROUTE_HUBS, RISK_PROFILES
 from ..domain.airports import explain_airport
-from ..env import auth_presence
 from ..providers.route_intel import svx_route_index_path
 from ..providers.static_catalog import active_catalog_manifest, catalog_staleness, download_static_catalog, parse_ttl_seconds
 from ..store import Store, city_to_output
@@ -36,8 +42,6 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         "skill": {"name": __skill_name__, "version": __skill_version__},
         "python": sys.executable,
         "offline_first": True,
-        "hermes_plugin_path": str(PLUGIN_PATH),
-        "hermes_plugin_exists": PLUGIN_PATH.exists(),
         "cache_dir": str(store.cache_dir),
         "cache_dir_exists": store.cache_dir.exists(),
         "cache_files": cache_files,
@@ -53,7 +57,7 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
             "max_age": args.catalog_max_age,
             "max_age_seconds": max_age_seconds,
             "timeout": args.catalog_refresh_timeout,
-            "applies_to": ["cities search", "airports explain", "route plan", "route kb-assemble", "route live-assemble", "metrics workflow"],
+            "applies_to": list(CATALOG_REFRESH_COMMANDS),
         },
         "catalog_staleness": catalog_staleness(store.cache_dir, max_age_seconds=max_age_seconds),
         "runtime_evidence_policy": {
@@ -79,17 +83,13 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
             {"code": hub, "note": DEFAULT_ROUTE_HUB_NOTES.get(hub)}
             for hub in DEFAULT_ROUTE_HUBS
         ],
-        "auth": {
-            "travelpayouts_token": auth_presence("TRAVELPAYOUTS_TOKEN"),
-            "travelpayouts_marker": auth_presence("TRAVELPAYOUTS_MARKER"),
-        },
         "safety": {
             "booking_or_purchase": False,
             "docker_touched": False,
-            "travelpayouts_usage": "static_catalog_only",
-            "travelpayouts_price_search_enabled": False,
-            "live_provider_commands": ["kb-search", "kb-roundtrip", "fli-search", "fli-dates", "route kb-assemble", "route live-assemble"],
-            "legacy_debug_commands": [],
+            "primary_route_command": PRIMARY_ROUTE_COMMAND,
+            "targeted_probe_commands": list(TARGETED_PROBE_COMMANDS),
+            "compatibility_commands": list(COMPATIBILITY_COMMANDS),
+            "live_provider_commands": list(LIVE_PROVIDER_COMMANDS),
         },
         "risk_profiles": {
             name: {

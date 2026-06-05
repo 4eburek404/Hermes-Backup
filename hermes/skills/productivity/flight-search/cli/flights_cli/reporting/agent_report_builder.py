@@ -8,6 +8,8 @@ from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY, StopPolicy, decid
 from .answer_line_renderer import build_answer_lines
 from .coverage_projector import build_coverage_diagnostics
 from .flight_display import build_flight_display
+from .agent_report_v2 import build_agent_report_v2
+from .final_answer_contract import build_user_answer_contract
 from .human_answer_renderer import build_human_answer
 from .option_projector import candidate_options_from_details, priority_candidate_options, ranked_candidate_options
 from .offer_graph_projector import build_offer_graph
@@ -790,7 +792,7 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
     fallback_origin = fallback_segments[0].get("origin") if fallback_segments else None
     fallback_destination = fallback_segments[-1].get("destination") if fallback_segments else None
     report = {
-        "schema_version": "agent_report.v1",
+        "schema_version": "agent_report.v2",
         "route": {
             "origin": plan.get("origin") or fallback_origin,
             "destination": plan.get("destination") or fallback_destination,
@@ -826,5 +828,11 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
     report["offer_graph"] = build_offer_graph(report, plan, live, data)
     report["display"] = build_flight_display(report, store)
     report["answer_lines"] = build_answer_lines(report)
-    report["human_answer"] = build_human_answer(report)
-    return apply_agent_report_budget(report)
+    human_answer = build_human_answer(report)
+    report["user_answer"] = build_user_answer_contract(report, rendered_text=str(human_answer.get("text") or ""))
+    report["human_answer"] = {
+        "format_version": human_answer.get("format_version") or "flight_human_answer.v1",
+        "text": report["user_answer"]["rendered_text"],
+        "sections": human_answer.get("sections") if isinstance(human_answer.get("sections"), list) else [],
+    }
+    return build_agent_report_v2(apply_agent_report_budget(report))

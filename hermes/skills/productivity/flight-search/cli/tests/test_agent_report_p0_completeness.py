@@ -60,13 +60,13 @@ class AgentReportP0CompletenessTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual([item["rank"] for item in data["ranked"]], [1])
         self.assertEqual(data["recommendations"]["cheapest_acceptable"]["rank"], 3)
 
-        options_by_category = {option.get("category"): option for option in report["recommended_options"]}
+        options_by_category = {option.get("category"): option for option in report["frontier"]["recommended_options"]}
         self.assertIn("cheapest_acceptable", options_by_category)
         cheapest = options_by_category["cheapest_acceptable"]
         self.assertEqual(cheapest["rank"], 3)
         self.assertEqual(cheapest.get("detail_status"), "full")
         self.assertEqual([segment["flight_number"] for segment in cheapest["segments"]], ["SU300"])
-        self.assertIn("Cheapest acceptable", "\n".join(report["answer_lines"]))
+        self.assertIn("Cheapest acceptable", "\n".join(report["diagnostics"]["answer_lines"]))
 
 
 if __name__ == "__main__":

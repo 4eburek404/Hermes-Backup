@@ -4,6 +4,7 @@ import json
 from typing import Any
 
 from .errors import CliError
+from .reporting.final_answer_contract import validate_user_answer_contract
 
 def output_envelope(command: str, data: Any) -> dict[str, Any]:
     return {"ok": True, "command": command, "data": data, "issues": []}
@@ -21,36 +22,10 @@ def emit_json(data: Any) -> None:
 
 
 def render_agent_report_human(report: dict[str, Any]) -> str:
-    human_answer = report.get("human_answer") if isinstance(report.get("human_answer"), dict) else {}
-    if human_answer.get("text"):
-        return str(human_answer["text"])
-
-    lines = ["agent report:"]
-    display = report.get("display") if isinstance(report.get("display"), dict) else {}
-    if display.get("text"):
-        lines.append(str(display["text"]))
-    for line in report.get("answer_lines") or []:
-        lines.append(f"  {line}")
-    route = report.get("route") or {}
-    status = report.get("status") or {}
-    lines.extend(
-        [
-            "",
-            f"route: {route.get('origin')} -> {route.get('destination')} dates={route.get('dates')}",
-            f"ranked: {status.get('ranked_output_count')} output / {status.get('ranked_total_count')} total; candidates={status.get('candidate_count')}",
-        ]
-    )
-    controls = report.get("aggregate_controls") or []
-    if controls:
-        lines.append("aggregate controls:")
-        for control in controls[:6]:
-            filters = control.get("filters") or {}
-            carriers = ",".join(filters.get("only_carriers") or []) or "any"
-            lines.append(
-                f"  {control.get('direction')} {control.get('origin')}->{control.get('destination')} "
-                f"carrier={carriers} status={control.get('status')} offers={control.get('offer_count')}"
-            )
-    return "\n".join(lines)
+    raw_user_answer = report.get("user_answer")
+    user_answer: dict[str, Any] = raw_user_answer if isinstance(raw_user_answer, dict) else {}
+    validate_user_answer_contract(user_answer)
+    return str(user_answer["rendered_text"])
 
 
 def render_human(command: str, data: Any) -> str:
@@ -163,23 +138,22 @@ def render_human(command: str, data: Any) -> str:
         return "\n".join(lines)
     if command == "doctor":
         counts = data["cache_counts"]
-        tp_auth = data["auth"]["travelpayouts_token"]
         policy = data["catalog_auto_refresh_policy"]
         staleness = data["catalog_staleness"]
         skill = data.get("skill") or {}
         return "\n".join(
             [
                 f"flights {data['version']} (skill {skill.get('name', 'unknown')} {skill.get('version', 'unknown')})",
-                f"plugin: {'ok' if data['hermes_plugin_exists'] else 'missing'} {data['hermes_plugin_path']}",
+                f"cache dir: {data['cache_dir']}",
                 (
                     f"cache: countries={counts['countries']} cities={counts['cities']} airports={counts['airports']} "
                     f"airlines={counts['airlines']} alliances={counts['alliances']} planes={counts['planes']}"
                 ),
                 f"catalog refresh: {policy['mode']} max_age={policy['max_age']} stale={staleness['stale_count']}/{staleness['checked_count']}",
                 f"default hubs: {', '.join(item['code'] for item in data.get('default_route_hubs', []))}",
-                f"Travelpayouts auth: {'present' if tp_auth['available'] else 'missing'}",
-                "Travelpayouts usage: static catalogs only",
-                f"main live commands: {', '.join(data['safety']['live_provider_commands'])}",
+                f"primary route command: {data['safety']['primary_route_command']}",
+                f"targeted probe commands: {', '.join(data['safety']['targeted_probe_commands'])}",
+                f"compatibility commands: {', '.join(data['safety']['compatibility_commands'])}",
             ]
         )
     if command == "maintenance check":
@@ -299,7 +273,7 @@ def render_human(command: str, data: Any) -> str:
         live = data.get("live_search", {})
         plan = live.get("plan", {})
         metrics = plan.get("metrics", {})
-        label = "Kupibilet direct-segment assembly" if command == "route kb-assemble" else "Provider-policy live assembly"
+        label = "Kupibilet compatibility assembly" if command == "route kb-assemble" else "Provider-policy live assembly"
         lines = [
             f"{label}: {plan.get('origin')} → {plan.get('destination')}",
             f"strategy: {plan.get('routing_strategy', 'hub-list')}",

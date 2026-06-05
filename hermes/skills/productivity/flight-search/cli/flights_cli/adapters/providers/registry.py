@@ -1,51 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from ...errors import CliError
-from ...ports.providers import ProbeType, ProviderCapabilities, ProviderName, ProviderProbeResult
+from ...ports.providers import FlightProviderPort, ProbeType, ProviderName, ProviderProbeResult
 from ...store import Store
+from .fli_adapter import FLI_CAPABILITIES, FliProviderAdapter
+from .kupibilet_adapter import KUPIBILET_CAPABILITIES, KupibiletProviderAdapter
 
 
-@dataclass(frozen=True)
-class ProviderDescriptor:
-    name: ProviderName
-    capabilities: ProviderCapabilities
-
-    def supports_probe(self, probe_type: ProbeType) -> bool:
-        return probe_type in self.capabilities.probe_types
-
-
-PROVIDER_REGISTRY: dict[ProviderName, ProviderDescriptor] = {
-    "kupibilet": ProviderDescriptor(
-        name="kupibilet",
-        capabilities=ProviderCapabilities(
-            supports_ru_touching=True,
-            supports_global=True,
-            supports_city_code=True,
-            supports_direct_only=True,
-            supports_carrier_filter=True,
-            supports_full_route_aggregate=True,
-            supports_round_trip=False,
-            supports_cache=True,
-            probe_types=frozenset({"segment_direct", "segment_hub_leg", "full_route_aggregate", "carrier_aggregate", "city_pair_direct"}),
-        ),
-    ),
-    "fli": ProviderDescriptor(
-        name="fli",
-        capabilities=ProviderCapabilities(
-            supports_ru_touching=False,
-            supports_global=True,
-            supports_city_code=False,
-            supports_direct_only=True,
-            supports_carrier_filter=True,
-            supports_full_route_aggregate=False,
-            supports_round_trip=False,
-            supports_cache=True,
-            probe_types=frozenset({"segment_direct", "segment_hub_leg", "city_pair_direct"}),
-        ),
-    ),
+PROVIDER_REGISTRY: dict[ProviderName, FlightProviderPort] = {
+    "kupibilet": KupibiletProviderAdapter(),
+    "fli": FliProviderAdapter(),
 }
 
 
@@ -70,17 +36,27 @@ def is_ru_touching_segment(spec: dict[str, Any], store: Store) -> bool:
     return "RU" in {origin_country, destination_country}
 
 
-def provider_descriptor(name: str) -> ProviderDescriptor:
+def provider_adapter(name: str, *, store: Store | None = None, kupibilet_fetcher: Any | None = None, fli_fetcher: Any | None = None) -> FlightProviderPort:
     normalized = name.strip().lower()
-    if normalized not in PROVIDER_REGISTRY:
-        raise CliError(f"unsupported provider {name!r}", error_type="validation_error")
-    return PROVIDER_REGISTRY[normalized]  # type: ignore[index]
+    if normalized == "kupibilet":
+        if store is None and kupibilet_fetcher is None:
+            return PROVIDER_REGISTRY["kupibilet"]
+        kwargs: dict[str, Any] = {"store": store}
+        if kupibilet_fetcher is not None:
+            kwargs["fetcher"] = kupibilet_fetcher
+        return KupibiletProviderAdapter(**kwargs)
+    if normalized == "fli":
+        if store is None and fli_fetcher is None:
+            return PROVIDER_REGISTRY["fli"]
+        return FliProviderAdapter(store=store, fetcher=fli_fetcher)
+    raise CliError(f"unsupported provider {name!r}", error_type="validation_error")
+
 
 
 def providers_for_segment(spec: dict[str, Any], store: Store, policy: str) -> list[ProviderName]:
     normalized_policy = str(policy or "auto").strip().lower()
     if normalized_policy in {"kupibilet", "fli"}:
-        return [provider_descriptor(normalized_policy).name]
+        return [cast(ProviderName, provider_adapter(normalized_policy).name)]
     if normalized_policy == "both":
         return ["kupibilet", "fli"]
     if normalized_policy != "auto":
@@ -88,6 +64,20 @@ def providers_for_segment(spec: dict[str, Any], store: Store, policy: str) -> li
     if is_ru_touching_segment(spec, store):
         return ["kupibilet"]
     return ["fli"]
+
+
+def provider_adapters_for_segment(
+    spec: dict[str, Any],
+    store: Store,
+    policy: str,
+    *,
+    kupibilet_fetcher: Any | None = None,
+    fli_fetcher: Any | None = None,
+) -> list[FlightProviderPort]:
+    return [
+        provider_adapter(name, store=store, kupibilet_fetcher=kupibilet_fetcher, fli_fetcher=fli_fetcher)
+        for name in providers_for_segment(spec, store, policy)
+    ]
 
 
 def not_supported_probe_result(
@@ -110,3 +100,17 @@ def not_supported_probe_result(
         source_boundary={"warning": "provider capability does not support this probe type"},
         errors=[{"type": "not_supported", "message": reason}],
     )
+
+
+__all__ = [
+    "FLI_CAPABILITIES",
+    "KUPIBILET_CAPABILITIES",
+    "PROVIDER_REGISTRY",
+    "airport_country_code",
+    "is_ru_touching_segment",
+    "location_country_code",
+    "not_supported_probe_result",
+    "provider_adapter",
+    "provider_adapters_for_segment",
+    "providers_for_segment",
+]

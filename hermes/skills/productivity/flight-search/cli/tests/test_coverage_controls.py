@@ -6,6 +6,7 @@ import unittest
 from flights_cli.cli import build_parser
 from flights_cli.orchestrators.live_assemble import build_live_route_segment_plan
 from flights_cli.orchestrators.route_plan import build_route_plan
+from flights_cli.reporting.coverage_projector import build_coverage_diagnostics
 from flights_cli.store import Store
 
 
@@ -169,6 +170,48 @@ class CoverageControlsTests(unittest.TestCase):
         self.assertEqual(result["coverage_limits"]["requested_controls"], ["carrier_aggregate:SU"])
         self.assertLessEqual(len(result["coverage_controls"]), 4)
         self.assertIn("carrier_aggregate", {control["type"] for control in result["coverage_controls"]})
+
+    def test_runtime_probe_ledger_suppresses_static_plan_fallback_controls(self) -> None:
+        plan = {
+            "coverage_mode": "targeted",
+            "coverage_limits": {"coverage_control_limit": 1},
+            "coverage_controls": [
+                {
+                    "type": "exact_airport_direct",
+                    "direction": "outbound",
+                    "origin": "SVX",
+                    "destination": "CDG",
+                    "date": "2026-08-16",
+                }
+            ],
+        }
+        live = {
+            "probe_ledger": {
+                "coverage_mode": "targeted",
+                "negative_evidence_type": "bounded_live_controls_only",
+                "planned_controls": [],
+                "searched_controls": [],
+                "skipped_controls": [],
+                "failed_controls": [],
+                "not_supported_controls": [],
+                "not_executed_controls": [],
+                "deduped_controls": [],
+                "coverage_warnings": [],
+                "limits": {},
+                "completeness": {
+                    "planned_count": 0,
+                    "terminal_count": 0,
+                    "all_planned_controls_have_terminal_state": True,
+                },
+            }
+        }
+
+        diagnostics = build_coverage_diagnostics(plan, live)
+
+        self.assertEqual(diagnostics["planned_controls"], [])
+        self.assertEqual(diagnostics["not_executed_controls"], [])
+        self.assertEqual(diagnostics["completeness"]["planned_count"], 0)
+        self.assertEqual(diagnostics["completeness"]["terminal_count"], 0)
 
 
 if __name__ == "__main__":

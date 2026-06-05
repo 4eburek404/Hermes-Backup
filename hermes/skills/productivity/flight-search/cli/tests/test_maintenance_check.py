@@ -47,7 +47,7 @@ class MaintenanceCheckTests(unittest.TestCase):
 
         self.assertEqual(data["runtime"]["skill_path"], str(missing_runtime))
         self.assertFalse(data["runtime"]["exists"])
-        self.assertEqual(data["versions"], {"skill_md": "0.10.11", "cli": "0.10.11"})
+        self.assertEqual(data["versions"], {"skill_md": "0.10.14", "cli": "0.10.14"})
         self.assertEqual(data["source_runtime_parity"]["status"], "runtime_missing")
         self.assertEqual(data["doctor"]["status"], "ok")
         self.assertGreaterEqual(data["references"]["source_count"], 5)

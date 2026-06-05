@@ -5,7 +5,56 @@ from typing import Any
 from ..execution.probe_ledger import ProbeExecutionLedger, control_identity
 
 
+CONTROL_BUCKETS = [
+    "planned_controls",
+    "searched_controls",
+    "skipped_controls",
+    "failed_controls",
+    "not_supported_controls",
+    "not_executed_controls",
+    "deduped_controls",
+]
+
+
+def _coverage_warnings() -> list[str]:
+    return [
+        "segment_absence_is_not_route_absence",
+        "provider_empty_is_not_carrier_absence",
+        "cache_absence_is_not_negative_evidence",
+    ]
+
+
+def _runtime_ledger_diagnostics(plan: dict[str, Any], ledger: dict[str, Any]) -> dict[str, Any]:
+    diagnostics: dict[str, Any] = {
+        "coverage_mode": ledger.get("coverage_mode") or plan.get("coverage_mode") or "standard",
+        "negative_evidence_type": ledger.get("negative_evidence_type") or "bounded_live_controls_only",
+        "coverage_warnings": ledger.get("coverage_warnings") or _coverage_warnings(),
+        "limits": ledger.get("limits") or plan.get("coverage_limits") or {},
+    }
+    for bucket in CONTROL_BUCKETS:
+        values = ledger.get(bucket)
+        diagnostics[bucket] = values if isinstance(values, list) else []
+    completeness = ledger.get("completeness") if isinstance(ledger.get("completeness"), dict) else None
+    if completeness is None:
+        planned_count = len(diagnostics["planned_controls"])
+        terminal_count = sum(
+            len(diagnostics[bucket])
+            for bucket in ("searched_controls", "skipped_controls", "failed_controls", "not_supported_controls", "not_executed_controls")
+        )
+        completeness = {
+            "planned_count": planned_count,
+            "terminal_count": terminal_count,
+            "all_planned_controls_have_terminal_state": planned_count == terminal_count,
+        }
+    diagnostics["completeness"] = completeness
+    return diagnostics
+
+
 def build_coverage_diagnostics(plan: dict[str, Any], live: dict[str, Any]) -> dict[str, Any]:
+    runtime_ledger = live.get("probe_ledger") if isinstance(live.get("probe_ledger"), dict) else None
+    if runtime_ledger is not None:
+        return _runtime_ledger_diagnostics(plan, runtime_ledger)
+
     controls = [item for item in plan.get("coverage_controls") or [] if isinstance(item, dict)]
     ledger = ProbeExecutionLedger()
     ledger.plan_controls(controls)
@@ -41,7 +90,15 @@ def build_coverage_diagnostics(plan: dict[str, Any], live: dict[str, Any]) -> di
                 reason=item.get("reason"),
             )
             continue
-        key = ("exact_airport_direct", item.get("direction"), item.get("origin"), item.get("destination"), item.get("date"), None)
+        key = control_identity(
+            {
+                "type": "exact_airport_direct",
+                "direction": item.get("direction"),
+                "origin": item.get("origin"),
+                "destination": item.get("destination"),
+                "date": item.get("date"),
+            }
+        )
         control = by_key.get(key)
         if control:
             ledger.record_searched(
@@ -59,7 +116,16 @@ def build_coverage_diagnostics(plan: dict[str, Any], live: dict[str, Any]) -> di
         carriers = [str(code).upper() for code in filters.get("only_carriers") or [] if code]
         if carriers:
             for carrier in carriers:
-                key = ("carrier_aggregate", item.get("direction"), item.get("origin"), item.get("destination"), item.get("date"), carrier)
+                key = control_identity(
+                    {
+                        "type": "carrier_aggregate",
+                        "direction": item.get("direction"),
+                        "origin": item.get("origin"),
+                        "destination": item.get("destination"),
+                        "date": item.get("date"),
+                        "carrier": carrier,
+                    }
+                )
                 control = by_key.get(key)
                 if control:
                     if item.get("status") == "error":
@@ -73,7 +139,15 @@ def build_coverage_diagnostics(plan: dict[str, Any], live: dict[str, Any]) -> di
                             cache_status=item.get("cache_status"),
                         )
         else:
-            key = ("full_route_aggregate", item.get("direction"), item.get("origin"), item.get("destination"), item.get("date"), None)
+            key = control_identity(
+                {
+                    "type": "full_route_aggregate",
+                    "direction": item.get("direction"),
+                    "origin": item.get("origin"),
+                    "destination": item.get("destination"),
+                    "date": item.get("date"),
+                }
+            )
             control = by_key.get(key)
             if control:
                 if item.get("status") == "error":

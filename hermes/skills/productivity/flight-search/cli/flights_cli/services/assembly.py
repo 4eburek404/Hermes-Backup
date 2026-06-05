@@ -7,6 +7,7 @@ from ..config import RISK_PROFILES
 from ..domain.airports import airport_group
 from ..domain.carriers import segment_carriers
 from ..domain.normalize import currency_value, price_value
+from ..domain.stop_metrics import journey_connection_count
 from ..domain.stop_policy import decide_stop_policy, stop_policy_from_args, stop_policy_payload
 from ..domain.time import elapsed_minutes, minutes_between
 from ..errors import CliError
@@ -274,11 +275,6 @@ def direct_journeys(
             )
     journeys.sort(key=pair_sort_key)
     return journeys
-
-
-def journey_connection_count(journey: dict[str, Any]) -> int:
-    segments = [segment for segment in (journey.get("segments") or []) if isinstance(segment, dict)]
-    return max(0, len(segments) - 1)
 
 
 def journey_stop_policy_bucket(journey: dict[str, Any], stop_policy: Any) -> str:

@@ -832,9 +832,19 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             if control.get("filters", {}).get("only_carriers") == ["SU"]
         ]
         self.assertEqual(carrier_controls[0]["top_offers"][0]["flight_numbers"], ["SU1419", "SU232"])
+        ledger = result["live_search"]["probe_ledger"]
+        planned_types = {item["type"] for item in ledger["planned_controls"]}
+        searched_types = {item["type"] for item in ledger["searched_controls"]}
+        self.assertIn("segment_direct", planned_types)
+        self.assertIn("segment_hub_leg", planned_types)
+        self.assertIn("carrier_aggregate", planned_types)
+        self.assertIn("carrier_aggregate", searched_types)
+        self.assertEqual(ledger["not_executed_controls"], [])
+        self.assertEqual(ledger["completeness"]["planned_count"], ledger["completeness"]["terminal_count"])
         report = result["agent_report"]
-        self.assertEqual(report["through_fare_checks"][0]["carrier"], "SU")
-        self.assertIn("Through-fare check required", " ".join(report["answer_lines"]))
+        self.assertEqual(report["evidence"]["coverage_diagnostics"]["not_executed_controls"], [])
+        self.assertEqual(report["evidence"]["through_fare_checks"][0]["carrier"], "SU")
+        self.assertIn("Through-fare check required", " ".join(report["diagnostics"]["answer_lines"]))
 
     def test_direct_route_intel_skips_absent_direct_control_to_svx(self) -> None:
         args = build_parser().parse_args(

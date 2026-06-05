@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
+
+from .time_utils import display_minutes_between, integer_or_none, parse_iso
 
 MONTH_CODES = [
     "",
@@ -20,26 +21,6 @@ MONTH_CODES = [
 ]
 
 SUMMARY_ONLY_DETAIL_FALLBACK = "Подробности рейсов не включены в краткий отчёт."
-
-
-def parse_iso(value: Any) -> datetime | None:
-    if not isinstance(value, str) or not value:
-        return None
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-
-
-def minutes_between(start: Any, end: Any) -> int | None:
-    dep = parse_iso(start)
-    arr = parse_iso(end)
-    if not dep or not arr:
-        return None
-    if (dep.tzinfo is None) != (arr.tzinfo is None):
-        dep = dep.replace(tzinfo=None)
-        arr = arr.replace(tzinfo=None)
-    return max(0, int((arr - dep).total_seconds() // 60))
 
 
 def display_time(value: Any) -> str:
@@ -63,15 +44,6 @@ def display_duration(minutes: Any) -> str:
         return "?:??"
     hours, mins = divmod(max(0, value), 60)
     return f"{hours}:{mins:02d}"
-
-
-def integer_or_none(value: Any) -> int | None:
-    if value is None or isinstance(value, bool):
-        return None
-    try:
-        return int(float(value))
-    except (TypeError, ValueError):
-        return None
 
 
 class PlaceLookup:
@@ -116,7 +88,7 @@ def segment_duration(segment: dict[str, Any]) -> int | None:
             return int(float(segment[key]))
         except (TypeError, ValueError):
             continue
-    return minutes_between(segment.get("departure_at"), segment.get("arrival_at"))
+    return display_minutes_between(segment.get("departure_at"), segment.get("arrival_at"))
 
 
 def render_segment_line(segment: dict[str, Any], places: PlaceLookup) -> str:
@@ -134,7 +106,7 @@ def render_segment_line(segment: dict[str, Any], places: PlaceLookup) -> str:
 
 def render_connection_line(previous: dict[str, Any], next_segment: dict[str, Any], places: PlaceLookup) -> str:
     airport = previous.get("destination") or next_segment.get("origin")
-    duration = minutes_between(previous.get("arrival_at"), next_segment.get("departure_at"))
+    duration = display_minutes_between(previous.get("arrival_at"), next_segment.get("departure_at"))
     return f"пересадка {places.place_name(airport)} {display_duration(duration)}"
 
 
@@ -166,7 +138,7 @@ def segment_groups(segments: list[dict[str, Any]]) -> list[tuple[str, list[dict[
 def group_elapsed(segments: list[dict[str, Any]]) -> int | None:
     if not segments:
         return None
-    return minutes_between(segments[0].get("departure_at"), segments[-1].get("arrival_at"))
+    return display_minutes_between(segments[0].get("departure_at"), segments[-1].get("arrival_at"))
 
 
 def render_group_lines(segments: list[dict[str, Any]], places: PlaceLookup) -> list[str]:

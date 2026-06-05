@@ -49,18 +49,18 @@ Use `doctor` for environment readiness and degradation clues, not as flight evid
 
 ## JSON Extraction
 
-Read only the JSON payload for decisions. For command output that includes logs, extract the JSON envelope first and then inspect `data.agent_report`.
+Read only the JSON payload for decisions. For command output that includes logs, extract the JSON envelope first and then inspect `data.agent_report`. The canonical read order lives in `references/report-contract.md`; debug may inspect `diagnostics.*`, but final prose still comes from `user_answer.rendered_text`.
 
-Decision fields:
+Decision fields in serialized `agent_report.v2`:
 
-- `human_answer`;
-- `display`;
-- `answer_lines`;
-- `recommended_options`;
-- `priority_options`;
-- `through_fare_checks`;
-- `provider_failures`;
-- `source_boundaries`.
+- `frontier.offer_graph`;
+- `user_answer.rendered_text`;
+- `frontier.recommended_options`;
+- `frontier.priority_options`;
+- `evidence.through_fare_checks`;
+- `evidence.provider_failures`;
+- `evidence.source_boundaries`;
+- `diagnostics.*` for debug only.
 
 If parsing fails, report the parse layer and rerun with JSON-clean stdout/stderr settings before making a travel claim.
 

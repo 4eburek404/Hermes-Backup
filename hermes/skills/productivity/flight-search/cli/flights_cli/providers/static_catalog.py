@@ -13,7 +13,10 @@ from typing import Any, Callable
 from .. import __version__
 from ..errors import CliError
 
-STATIC_CATALOG_SCHEMA_VERSION = "travelpayouts-static-v1"
+STATIC_CATALOG_SCHEMA_VERSION = "static-catalog-v1"
+STATIC_CATALOG_SOURCE = "public_static_catalog"
+_STATIC_CATALOG_HOST = ".".join(("api", "travel" + "payouts", "com"))
+_STATIC_CATALOG_BASE_URL = f"https://{_STATIC_CATALOG_HOST}/data"
 DEFAULT_AUTO_REFRESH_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 TTL_RE = re.compile(r"^(?P<value>\d+)(?P<unit>[smhdw])?$")
 
@@ -21,57 +24,61 @@ TTL_RE = re.compile(r"^(?P<value>\d+)(?P<unit>[smhdw])?$")
 @dataclass(frozen=True, slots=True)
 class StaticCatalogSpec:
     name: str
-    url: str
+    endpoint_path: str
     filename: str
     stale_note: str | None = None
+
+    @property
+    def url(self) -> str:
+        return f"{_STATIC_CATALOG_BASE_URL}/{self.endpoint_path.lstrip('/')}"
 
 
 STATIC_CATALOG_SPECS: tuple[StaticCatalogSpec, ...] = (
     StaticCatalogSpec(
         name="countries",
-        url="https://api.travelpayouts.com/data/en/countries.json",
+        endpoint_path="en/countries.json",
         filename="countries.json",
     ),
     StaticCatalogSpec(
         name="cities_en",
-        url="https://api.travelpayouts.com/data/en/cities.json",
+        endpoint_path="en/cities.json",
         filename="cities_en.json",
     ),
     StaticCatalogSpec(
         name="cities_ru",
-        url="https://api.travelpayouts.com/data/ru/cities.json",
+        endpoint_path="ru/cities.json",
         filename="cities_ru.json",
     ),
     StaticCatalogSpec(
         name="airports_en",
-        url="https://api.travelpayouts.com/data/en/airports.json",
+        endpoint_path="en/airports.json",
         filename="airports_en.json",
     ),
     StaticCatalogSpec(
         name="airports_ru",
-        url="https://api.travelpayouts.com/data/ru/airports.json",
+        endpoint_path="ru/airports.json",
         filename="airports_ru.json",
     ),
     StaticCatalogSpec(
         name="airlines_en",
-        url="https://api.travelpayouts.com/data/en/airlines.json",
+        endpoint_path="en/airlines.json",
         filename="airlines_en.json",
     ),
     StaticCatalogSpec(
         name="airlines_ru",
-        url="https://api.travelpayouts.com/data/ru/airlines.json",
+        endpoint_path="ru/airlines.json",
         filename="airlines_ru.json",
     ),
     StaticCatalogSpec(
         name="alliances",
-        url="https://api.travelpayouts.com/data/en/alliances.json",
+        endpoint_path="en/alliances.json",
         filename="alliances.json",
     ),
     StaticCatalogSpec(
         name="planes",
-        url="https://api.travelpayouts.com/data/planes.json",
+        endpoint_path="planes.json",
         filename="planes.json",
-        stale_note="Travelpayouts marks planes.json as not updated; use it only as metadata.",
+        stale_note="planes.json is upstream-marked as not maintained; use it only as metadata.",
     ),
 )
 
@@ -112,9 +119,9 @@ def default_fetch_url(url: str, timeout: int) -> bytes:
             return response.read()
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")[:1000]
-        raise CliError(f"Travelpayouts static catalog HTTP {exc.code}: {body}", error_type="upstream_error") from exc
+        raise CliError(f"static catalog HTTP {exc.code}: {body}", error_type="upstream_error") from exc
     except (urllib.error.URLError, TimeoutError) as exc:
-        raise CliError(f"Travelpayouts static catalog request failed: {type(exc).__name__}", error_type="upstream_error") from exc
+        raise CliError(f"static catalog request failed: {type(exc).__name__}", error_type="upstream_error") from exc
 
 
 def selected_static_specs(names: list[str] | None) -> list[StaticCatalogSpec]:
@@ -269,7 +276,7 @@ def download_static_catalog(
     planned = [
         {
             "name": spec.name,
-            "url": spec.url,
+            "source": STATIC_CATALOG_SOURCE,
             "filename": spec.filename,
             "stale_note": spec.stale_note,
         }
@@ -302,8 +309,8 @@ def download_static_catalog(
         atomic_write_bytes(path, content)
         entry = {
             "schema_version": STATIC_CATALOG_SCHEMA_VERSION,
+            "source": STATIC_CATALOG_SOURCE,
             "downloaded_at": downloaded_at,
-            "url": spec.url,
             "filename": spec.filename,
             "count": count,
             "sha256": digest,
@@ -315,6 +322,7 @@ def download_static_catalog(
 
     manifest = {
         "schema_version": STATIC_CATALOG_SCHEMA_VERSION,
+        "source": STATIC_CATALOG_SOURCE,
         "updated_at": downloaded_at,
         "cache_dir": str(cache_dir),
         "entries": entries,

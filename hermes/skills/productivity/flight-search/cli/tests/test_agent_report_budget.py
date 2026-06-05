@@ -5,6 +5,7 @@ import json
 import unittest
 
 from flights_cli.reporting.flight_display import build_flight_display
+from flights_cli.reporting.agent_report_v2 import build_agent_report_v2
 from flights_cli.reporting.report_budget import AgentReportBudget, apply_agent_report_budget, serialized_report_size
 from flights_cli.services.agent_report_contract import validate_agent_report
 from tests.test_agent_report_contract import valid_option, valid_report
@@ -35,6 +36,10 @@ def coverage_control(index: int, bucket: str) -> dict:
         "execution_state": bucket.replace("_controls", ""),
         "probe_id": f"probe-{index:03d}",
     }
+
+
+def validate_budgeted_flat_report(report: dict) -> None:
+    validate_agent_report(build_agent_report_v2(report))
 
 
 class AgentReportBudgetTests(unittest.TestCase):
@@ -78,7 +83,7 @@ class AgentReportBudgetTests(unittest.TestCase):
 
         budgeted = apply_agent_report_budget(report, AgentReportBudget(max_bytes=1))
 
-        validate_agent_report(budgeted)
+        validate_budgeted_flat_report(budgeted)
         full_display = next(option for option in budgeted["display"]["options"] if option["id"] == "option-full")
         summary_display = next(option for option in budgeted["display"]["options"] if option["id"] == "option-summary")
         self.assertEqual(budgeted["recommended_options"][0]["detail_status"], "full")
@@ -117,6 +122,7 @@ class AgentReportBudgetTests(unittest.TestCase):
                 "searched_controls": [coverage_control(index, "searched_controls") for index in range(40)],
                 "skipped_controls": [coverage_control(index, "skipped_controls") for index in range(30)],
                 "failed_controls": [coverage_control(index, "failed_controls") for index in range(5)],
+                "not_supported_controls": [coverage_control(index, "not_supported_controls") for index in range(6)],
                 "not_executed_controls": [coverage_control(index, "not_executed_controls") for index in range(8)],
                 "deduped_controls": [coverage_control(index, "deduped_controls") for index in range(10)],
             }
@@ -132,7 +138,7 @@ class AgentReportBudgetTests(unittest.TestCase):
 
         budgeted = apply_agent_report_budget(report, AgentReportBudget(max_bytes=65536))
 
-        validate_agent_report(budgeted)
+        validate_budgeted_flat_report(budgeted)
         self.assertLessEqual(serialized_report_size(budgeted), 65536)
         self.assertIn("omitted_counts", budgeted)
         self.assertGreater(budgeted["omitted_counts"]["recommended_options"], 0)
@@ -157,10 +163,29 @@ class AgentReportBudgetTests(unittest.TestCase):
 
         budgeted = apply_agent_report_budget(report, AgentReportBudget(max_bytes=65536))
 
-        validate_agent_report(budgeted)
+        validate_budgeted_flat_report(budgeted)
         self.assertEqual(len(budgeted["recommended_options"]), 5)
         self.assertTrue(all(option["segments"] for option in budgeted["recommended_options"]))
         self.assertEqual(budgeted["omitted_counts"]["recommended_options"], 2)
+
+    def test_budget_prioritizes_not_supported_controls_before_not_executed(self) -> None:
+        report = valid_report()
+        report["coverage_diagnostics"].update(
+            {
+                "failed_controls": [coverage_control(index, "failed_controls") for index in range(2)],
+                "not_supported_controls": [coverage_control(index, "not_supported_controls") for index in range(4)],
+                "not_executed_controls": [coverage_control(index, "not_executed_controls") for index in range(4)],
+            }
+        )
+
+        budgeted = apply_agent_report_budget(report, AgentReportBudget(max_coverage_controls=5))
+
+        validate_budgeted_flat_report(budgeted)
+        diagnostics = budgeted["coverage_diagnostics"]
+        self.assertEqual(len(diagnostics["failed_controls"]), 2)
+        self.assertEqual(len(diagnostics["not_supported_controls"]), 3)
+        self.assertEqual(diagnostics["not_executed_controls"], [])
+        self.assertEqual(budgeted["omitted_counts"]["coverage_controls"], 6)
 
 
 if __name__ == "__main__":
