@@ -10,7 +10,6 @@ import argparse
 import datetime as dt
 import hashlib
 import json
-import os
 import re
 import sys
 from pathlib import Path
@@ -18,43 +17,23 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import itinerary_contract
+from flight_calendar_common import secure_write_text
 
 UTC = dt.timezone.utc
-PLACEHOLDERS = {"", "tbd", "todo", "unknown", "none", "null", "n/a", "na", "?"}
-
-
-def secure_write_text(path: Path, text: str) -> None:
-    """Write itinerary/ICS artifacts as owner-only files even under permissive umask."""
-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
-            handle.write(text)
-    finally:
-        try:
-            os.chmod(path, 0o600)
-        except FileNotFoundError:
-            pass
-
-
 def die(message: str, code: int = 2) -> None:
     print(f"ERROR: {message}", file=sys.stderr)
     raise SystemExit(code)
 
 
-def is_placeholder(value: Any) -> bool:
-    return value is None or str(value).strip().lower() in PLACEHOLDERS
-
-
 def require_text(obj: dict[str, Any], key: str, context: str) -> str:
     value = obj.get(key)
-    if is_placeholder(value):
+    if itinerary_contract.is_placeholder(value):
         die(f"missing required field: {context}.{key}")
     return str(value).strip()
 
 
 def parse_local(value: str, tzid: str | None, context: str) -> dt.datetime:
-    if is_placeholder(value):
+    if itinerary_contract.is_placeholder(value):
         die(f"missing required local datetime: {context}.local")
     raw = str(value).strip()
     normalized = raw.replace(" ", "T", 1)
@@ -68,7 +47,7 @@ def parse_local(value: str, tzid: str | None, context: str) -> dt.datetime:
     if parsed.tzinfo is not None:
         return parsed
 
-    if is_placeholder(tzid):
+    if itinerary_contract.is_placeholder(tzid):
         die(f"missing required timezone: {context}.tz (IANA TZID, e.g. Europe/Moscow)")
     try:
         zone = ZoneInfo(str(tzid).strip())
@@ -117,8 +96,8 @@ def normalize_list(value: Any) -> list[str]:
     if value is None:
         return []
     if isinstance(value, list):
-        return [str(item).strip() for item in value if not is_placeholder(item)]
-    if is_placeholder(value):
+        return [str(item).strip() for item in value if not itinerary_contract.is_placeholder(item)]
+    if itinerary_contract.is_placeholder(value):
         return []
     return [str(value).strip()]
 
@@ -159,7 +138,7 @@ def stable_uid(flight: dict[str, Any], booking_reference: str | None) -> str:
 
 
 def endpoint_city(endpoint: dict[str, Any], fallback_airport: str) -> str:
-    if not is_placeholder(endpoint.get("city")):
+    if not itinerary_contract.is_placeholder(endpoint.get("city")):
         return str(endpoint.get("city")).strip()
     return fallback_airport.strip().upper()
 
@@ -229,12 +208,12 @@ def build_event(
     location = f"{dep_city} → {arr_city}"
 
     desc: list[str] = []
-    if not is_placeholder(booking_reference):
+    if not itinerary_contract.is_placeholder(booking_reference):
         desc.append(f"PNR: {str(booking_reference).strip()}")
     if ticket_number:
         desc.append(f"Билет: {ticket_number}")
     desc.append(description_route)
-    if not is_placeholder(flight.get("aircraft")):
+    if not itinerary_contract.is_placeholder(flight.get("aircraft")):
         desc.append(f"Самолет: {str(flight.get('aircraft')).strip()}")
     if links:
         desc.append(f"Бронирование: {links[0]}")

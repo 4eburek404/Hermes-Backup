@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import subprocess
 import sys
@@ -24,26 +23,13 @@ from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 import travelpayouts_airport_catalog as airport_catalog
+from flight_calendar_common import parse_tz_overrides, secure_write_text
 
 AEROFLOT_BASE = "https://www.aeroflot.ru"
 AEROFLOT_APP_URL = AEROFLOT_BASE + "/sb/pnr/app/ru-ru"
 AEROFLOT_SEARCH_URL = AEROFLOT_APP_URL + "#/search"
 AEROFLOT_PNR_API = AEROFLOT_BASE + "/se/api/app/pnr/view/v3"
 AMBIGUOUS_PNR_ERROR_TYPES = {"PassengerAmbiguous", "SabrePNRAmbiguousException"}
-
-def secure_write_text(path: Path, text: str) -> None:
-    """Write private Aeroflot booking artifacts as owner-only files."""
-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
-            handle.write(text)
-    finally:
-        try:
-            os.chmod(path, 0o600)
-        except FileNotFoundError:
-            pass
-
 
 def die(message: str, code: int = 2) -> NoReturn:
     print(f"ERROR: {message}", file=sys.stderr)
@@ -217,20 +203,6 @@ def fetch_aeroflot_pnr(locator: str, key: str, *, timeout: int = 45) -> dict[str
     return require_success_data(obj)
 
 
-def parse_tz_overrides(items: list[str]) -> dict[str, str]:
-    out: dict[str, str] = {}
-    for item in items:
-        if "=" not in item:
-            die(f"bad --tz value {item!r}; use CODE=Area/City")
-        code, tzid = item.split("=", 1)
-        code = code.strip().upper()
-        tzid = tzid.strip()
-        if not code or not tzid:
-            die(f"bad --tz value {item!r}; use CODE=Area/City")
-        out[code] = tzid
-    return out
-
-
 def first_ticket_number(data: dict[str, Any]) -> str | None:
     for pax in data.get("passengers") or []:
         for ticket in ((pax.get("ticketing_documents") or {}).get("tickets") or []):
@@ -360,7 +332,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     locator, key, booking_url = resolve_pnr_source(args.url, args.pnr_locator, args.pnr_key, args.last_name, args.first_name)
-    tz_map = airport_catalog.build_timezone_map(parse_tz_overrides(args.tz))
+    tz_map = airport_catalog.build_timezone_map(parse_tz_overrides(args.tz, fail=die))
     data = fetch_aeroflot_pnr(locator, key)
     itinerary = convert_to_itinerary(data, tz_map, booking_url=booking_url)
     secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")

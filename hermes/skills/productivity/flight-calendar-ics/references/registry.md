@@ -36,7 +36,7 @@ This registry is the ownership map for `flight-calendar-ics` references. Use it 
 ### Maintenance
 
 - `maintenance/source-runtime-sync.md` — source ↔ runtime parity, deliberate sync, cleanup, and commit evidence for this skill.
-- `maintenance/dead-code-and-contract-cleanup.md` — dead-code audit shape, retired shim checks, legacy command retirement dependencies, generated-artifact hygiene, and registry/source-runtime drift cleanup.
+- `maintenance/dead-code-and-contract-cleanup.md` — dead-code audit shape, retired shim checks, compatibility command retirement dependencies, generated-artifact hygiene, and registry/source-runtime drift cleanup.
 - `maintenance/model-evaluation.md` — cross-model eval harness rules, effective provider/model validation, and private-input exposure checks.
 - `maintenance/eval-provider-and-shell-pitfalls.md` — provider identity/fallback checks and shell command-path pitfalls from cross-model evaluations.
 

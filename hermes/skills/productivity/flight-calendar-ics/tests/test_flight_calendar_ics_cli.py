@@ -180,6 +180,10 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertGreaterEqual(set(flight_segment["required"]), {"flight_number", "departure", "arrival"})
         endpoint = schema["$defs"]["airport_endpoint"]
         self.assertGreaterEqual(set(endpoint["required"]), {"airport", "local", "tz"})
+        extension_value_ref = {"$ref": "#/$defs/extension_value"}
+        self.assertEqual(schema["properties"]["extensions"]["additionalProperties"], extension_value_ref)
+        self.assertEqual(schema["$defs"]["source"]["properties"]["extensions"]["additionalProperties"], extension_value_ref)
+        self.assertEqual(flight_segment["properties"]["extensions"]["additionalProperties"], extension_value_ref)
         serialized = json.dumps(schema, ensure_ascii=False).lower()
         for provider_name in ["aeroflot", "utair", "ural", "pnrkey", "last_name"]:
             self.assertNotIn(provider_name, serialized)

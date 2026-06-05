@@ -12,7 +12,7 @@ metadata:
 
 # Flight Calendar ICS
 
-## Purpose
+## Overview
 
 Create an importable `.ics` from flight evidence.
 
