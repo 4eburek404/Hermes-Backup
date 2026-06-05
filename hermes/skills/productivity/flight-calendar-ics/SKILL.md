@@ -67,6 +67,7 @@ Use diagnostics only when the one-command path fails or the operator explicitly 
 
 - CLI `ok=false`: use the JSON error code to fix the selected source; switch routes only after new evidence.
 - Unknown carrier or manual data: normalize to canonical itinerary JSON and run `build make`.
+- Local airline receipt PDF feature: extract only calendar-safe operational fields with PyMuPDF/OCR, verify ambiguous city→airport mapping when needed, write private canonical JSON, then run `--json build make --input /private/itinerary.json`. See `references/core/pdf-receipt-normalization.md`.
 - Explicit carrier command (`build aeroflot|ural|utair|redwings`) is for diagnostics/tests or a deliberate user/operator choice, not the default.
 - `doctor` is a diagnostic runbook, not a route-selection step. Do not run it merely because this is an evaluation; run it only when the evaluation specifically measures diagnostics or the CLI contract is unknown.
 
@@ -80,10 +81,12 @@ Open these only when changing or debugging that layer:
 - `references/core/canonical-itinerary.md` — provider-agnostic manual JSON input.
 - `references/core/calendar-event-format.md` — `.ics` text layout.
 - `references/core/manual-source-extraction.md` — PDF/email/screenshot/manual extraction.
+- `references/core/pdf-receipt-normalization.md` — local airline receipt PDF normalization feature: PyMuPDF/OCR extraction → privacy-safe canonical itinerary JSON → `build make`.
 - `references/core/timezone-catalog.md` — airport timezone asset and overrides.
 - `references/core/privacy-hardening.md` — redaction tests, private artifact permissions, exact sentinel checks.
 - `references/core/output-bundle-design.md` — CLI-owned private output bundle.
 - `references/maintenance/source-runtime-sync.md` — source↔runtime parity and commit evidence.
+- `references/maintenance/dead-code-and-contract-cleanup.md` — cleanup audit for dead code, legacy shims, stale tests, generated artifacts, registry gaps, and source/runtime drift.
 - `references/maintenance/model-evaluation.md` — cross-model eval harness rules; evaluation still uses the one-command happy path unless diagnostics are explicitly under test.
 - `references/maintenance/eval-provider-and-shell-pitfalls.md` — provider identity/fallback and shell path pitfalls observed in cross-model evals.
 - Carrier refs only for carrier-specific fixes: `references/carriers/aeroflot.md`, `references/carriers/ural-airlines.md`, `references/carriers/utair.md`, `references/carriers/redwings.md`.

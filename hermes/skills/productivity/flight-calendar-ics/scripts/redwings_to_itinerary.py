@@ -22,10 +22,6 @@ import travelpayouts_airport_catalog as airport_catalog
 REDWINGS_BOOKING_BASE = "https://flyredwings.com/booking/"
 REDWINGS_GRAPHQL_ENDPOINT = "https://wz.webskyx.com/graphql/query/nemo"
 
-# Kept for old importers/tests, but intentionally empty: timezone defaults come
-# from the skill-bundled Travelpayouts airport catalog, not a manual fallback map.
-DEFAULT_AIRPORT_TZ: dict[str, str] = {}
-
 DEFAULT_AIRPORT_CITY = {
     "AER": "Сочи",
     "CEK": "Челябинск",

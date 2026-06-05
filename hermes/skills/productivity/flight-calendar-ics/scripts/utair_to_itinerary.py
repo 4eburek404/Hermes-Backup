@@ -22,8 +22,6 @@ import travelpayouts_airport_catalog as airport_catalog
 UTAIR_WEB_BASE = "https://www.utair.ru/"
 UTAIR_API_BASE = "https://b.utair.ru/"
 
-DEFAULT_AIRPORT_TZ: dict[str, str] = {}
-
 DEFAULT_AIRPORT_CITY = {
     "SVX": "Екатеринбург",
     "KUF": "Самара",

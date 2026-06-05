@@ -34,13 +34,6 @@ def _looks_like_iata_timezone(code: str, timezone: str) -> bool:
     return bool(IATA_RE.fullmatch(code) and "/" in timezone and not timezone.startswith("/"))
 
 
-def _read_json_array(path: Path) -> list[Any]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(data, list):
-        raise ValueError(f"{path} must contain a JSON array")
-    return data
-
-
 def extract_airport_timezones(source_dir: Path) -> tuple[dict[str, str], list[dict[str, Any]]]:
     """Extract only IATA -> IANA timezone entries from Travelpayouts airport JSON files.
 

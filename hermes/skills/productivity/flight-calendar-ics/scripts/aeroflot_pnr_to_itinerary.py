@@ -31,11 +31,6 @@ AEROFLOT_SEARCH_URL = AEROFLOT_APP_URL + "#/search"
 AEROFLOT_PNR_API = AEROFLOT_BASE + "/se/api/app/pnr/view/v3"
 AMBIGUOUS_PNR_ERROR_TYPES = {"PassengerAmbiguous", "SabrePNRAmbiguousException"}
 
-# Kept for old importers/tests, but intentionally empty: timezone defaults come
-# from the skill-bundled Travelpayouts airport catalog, not a manual fallback map.
-DEFAULT_AIRPORT_TZ: dict[str, str] = {}
-
-
 def secure_write_text(path: Path, text: str) -> None:
     """Write private Aeroflot booking artifacts as owner-only files."""
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
