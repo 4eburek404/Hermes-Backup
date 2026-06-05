@@ -129,7 +129,7 @@ Use JSON Schema Draft 2020-12:
 - require per-segment `flight_number`, `departure`, and `arrival`;
 - require endpoint fields `airport`, `local`, and `tz`;
 - set `additionalProperties: false` on canonical objects to catch typos;
-- add a controlled `extensions` object on flight segments only if provider-specific metadata must survive normalization;
+- add controlled `extensions` objects only when provider-specific metadata must survive normalization; extension values must match `$defs.extension_value`, not arbitrary schema-free blobs;
 - use `format: uri` for links and `format: date-time` for machine timestamps, enforced with `Draft202012Validator.FORMAT_CHECKER`.
 
 Reusable patterns:

@@ -18,6 +18,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 from pathlib import Path
 
 
@@ -178,6 +180,10 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertGreaterEqual(set(flight_segment["required"]), {"flight_number", "departure", "arrival"})
         endpoint = schema["$defs"]["airport_endpoint"]
         self.assertGreaterEqual(set(endpoint["required"]), {"airport", "local", "tz"})
+        extension_value_ref = {"$ref": "#/$defs/extension_value"}
+        self.assertEqual(schema["properties"]["extensions"]["additionalProperties"], extension_value_ref)
+        self.assertEqual(schema["$defs"]["source"]["properties"]["extensions"]["additionalProperties"], extension_value_ref)
+        self.assertEqual(flight_segment["properties"]["extensions"]["additionalProperties"], extension_value_ref)
         serialized = json.dumps(schema, ensure_ascii=False).lower()
         for provider_name in ["aeroflot", "utair", "ural", "pnrkey", "last_name"]:
             self.assertNotIn(provider_name, serialized)
@@ -714,9 +720,9 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertIn("--input", obj["error"]["message"])
         self.assertNotIn("usage:", result.stderr.lower())
 
-    def test_legacy_make_writes_private_ics_artifact(self) -> None:
+    def test_direct_make_script_writes_private_ics_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as td:
-            output = Path(td) / "legacy-trip.ics"
+            output = Path(td) / "direct-trip.ics"
             old_umask = os.umask(0o022)
             try:
                 result = subprocess.run(
@@ -733,16 +739,6 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertTrue(output.exists())
             self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
-
-    def test_provider_helpers_do_not_keep_manual_timezone_fallback_maps(self) -> None:
-        for filename in [
-            "aeroflot_pnr_to_itinerary.py",
-            "ural_airlines_to_itinerary.py",
-            "utair_to_itinerary.py",
-            "redwings_to_itinerary.py",
-        ]:
-            module = self.import_script_module(filename)
-            self.assertEqual(getattr(module, "DEFAULT_AIRPORT_TZ", {}), {}, filename)
 
     def test_provider_timezone_map_uses_skill_bundled_travelpayouts_catalog_without_local_fallback(self) -> None:
         module = self.import_cli_module()
@@ -761,6 +757,26 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertEqual(catalog["SVX"], "Asia/Yekaterinburg")
         self.assertEqual(tz_map["KUF"], "Asia/Shanghai")
         self.assertEqual(tz_map["SVX"], "Asia/Yekaterinburg")
+
+        with tempfile.TemporaryDirectory() as td:
+            sentinel_catalog = Path(td) / "airport_timezones.json"
+            sentinel_catalog.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "travelpayouts-airport-timezones.v1",
+                        "source": "test-sentinel-catalog",
+                        "source_files": ["test-fixture"],
+                        "timezones": {"KUF": "Asia/Tokyo", "SVX": "Pacific/Auckland"},
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            sentinel_tz_map = module.build_timezone_map({"KUF": "Europe/Samara"}, catalog_path=sentinel_catalog)
+
+        self.assertEqual(sentinel_tz_map["SVX"], "Pacific/Auckland")
+        self.assertEqual(sentinel_tz_map["KUF"], "Europe/Samara")
+        self.assertNotIn("SVO", sentinel_tz_map)
 
     def test_aeroflot_parser_accepts_spa_fragment_deeplink(self) -> None:
         module = self.import_script_module("aeroflot_pnr_to_itinerary.py", "aeroflot_pnr_to_itinerary_test")
@@ -872,7 +888,67 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertEqual(args.last_name, "Ivanov")
         self.assertIsNone(args.pnr_key)
 
-    def test_legacy_aeroflot_helper_writes_private_artifacts_without_network(self) -> None:
+    def test_aeroflot_command_uses_timezone_catalog_for_saved_itinerary(self) -> None:
+        module = self.import_cli_module()
+        fake_response = {
+            "pnr_locator": "ABC123",
+            "passengers": [{"first_name": "Ivan", "last_name": "Ivanov"}],
+            "legs": [
+                {
+                    "segments": [
+                        {
+                            "origin": {"airport_code": "KUF", "city_name": "Самара"},
+                            "destination": {"airport_code": "SVX", "city_name": "Екатеринбург"},
+                            "departure": "2026-06-01 09:15:00",
+                            "arrival": "2026-06-01 10:45:00",
+                            "airline_code": "SU",
+                            "airline_name": "Аэрофлот",
+                            "flight_number": "1234",
+                            "status_code": "HK",
+                        }
+                    ]
+                }
+            ],
+        }
+        original_fetch = module.aeroflot.fetch_aeroflot_pnr
+        original_catalog = module.airport_catalog.load_airport_timezones
+        module.aeroflot.fetch_aeroflot_pnr = lambda _locator, _key: fake_response
+        module.airport_catalog.load_airport_timezones = lambda catalog_path=None: {"KUF": "Asia/Tokyo", "SVX": "Asia/Tokyo"}
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                output_json = Path(td) / "aeroflot.json"
+                output_ics = Path(td) / "aeroflot.ics"
+                args = argparse.Namespace(
+                    url=None,
+                    pnr_locator="ABC123",
+                    pnr_key="a" * 64,
+                    last_name=None,
+                    first_name=None,
+                    output_json=output_json,
+                    output_ics=output_ics,
+                    tz=[],
+                    no_alarms=True,
+                )
+                process: list[dict] = []
+
+                rc, data = module.command_aeroflot(args, process)
+
+                self.assertEqual(rc, 0)
+                saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
+                self.assertEqual(saved_itinerary["flights"][0]["departure"]["tz"], "Asia/Tokyo")
+                self.assertEqual(saved_itinerary["flights"][0]["arrival"]["tz"], "Asia/Tokyo")
+                timezone_step = next(step for step in process if step["step"] == "load_timezone_map")
+                self.assertEqual(timezone_step["defaults_count"], 0)
+                self.assertEqual(timezone_step["catalog_timezones_count"], 2)
+                self.assertEqual(data["segments"][0]["route"], "KUF->SVX")
+                ics_text = output_ics.read_text(encoding="utf-8")
+                self.assertIn("DTSTART:20260601T001500Z", ics_text)
+                self.assertIn("DTEND:20260601T014500Z", ics_text)
+        finally:
+            module.aeroflot.fetch_aeroflot_pnr = original_fetch
+            module.airport_catalog.load_airport_timezones = original_catalog
+
+    def test_direct_aeroflot_helper_writes_private_artifacts_without_network(self) -> None:
         module = self.import_script_module("aeroflot_pnr_to_itinerary.py", "aeroflot_pnr_to_itinerary_test")
 
         fake_response = {
@@ -888,8 +964,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 {
                     "segments": [
                         {
-                            "origin": {"airport_code": "SVO", "city_name": "Москва", "terminal_code": "B"},
-                            "destination": {"airport_code": "LED", "city_name": "Санкт-Петербург", "terminal_code": "1"},
+                            "origin": {"airport_code": "KUF", "city_name": "Самара", "terminal_code": "1"},
+                            "destination": {"airport_code": "SVX", "city_name": "Екатеринбург", "terminal_code": "1"},
                             "departure": "2026-06-01 09:15:00",
                             "arrival": "2026-06-01 10:45:00",
                             "airline_code": "SU",
@@ -903,34 +979,45 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             ],
         }
         original_fetch = module.fetch_aeroflot_pnr
+        original_catalog = module.airport_catalog.load_airport_timezones
         module.fetch_aeroflot_pnr = lambda _locator, _key: fake_response
+        module.airport_catalog.load_airport_timezones = lambda catalog_path=None: {"KUF": "Asia/Tokyo", "SVX": "Asia/Tokyo"}
         with tempfile.TemporaryDirectory() as td:
             output_json = Path(td) / "aeroflot.json"
             output_ics = Path(td) / "aeroflot.ics"
             old_umask = os.umask(0o022)
             try:
-                rc = module.main(
-                    [
-                        "--pnr-locator",
-                        "ABC123",
-                        "--pnr-key",
-                        "a" * 64,
-                        "--output-json",
-                        str(output_json),
-                        "--output-ics",
-                        str(output_ics),
-                    ]
-                )
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    rc = module.main(
+                        [
+                            "--pnr-locator",
+                            "ABC123",
+                            "--pnr-key",
+                            "a" * 64,
+                            "--output-json",
+                            str(output_json),
+                            "--output-ics",
+                            str(output_ics),
+                        ]
+                    )
             finally:
                 os.umask(old_umask)
                 module.fetch_aeroflot_pnr = original_fetch
+                module.airport_catalog.load_airport_timezones = original_catalog
 
             self.assertEqual(rc, 0)
+            combined_output = stdout.getvalue() + stderr.getvalue()
+            for private_value in ["ABC123", "Ivan", "Ivanov", "5552400000000"]:
+                self.assertNotIn(private_value, combined_output)
             self.assertEqual(stat.S_IMODE(output_json.stat().st_mode), 0o600)
             self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode), 0o600)
             saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
             self.assertEqual(saved_itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
             self.assertEqual(saved_itinerary["passengers"], ["Ivanov Ivan"])
+            self.assertEqual(saved_itinerary["flights"][0]["departure"]["tz"], "Asia/Tokyo")
+            self.assertEqual(saved_itinerary["flights"][0]["arrival"]["tz"], "Asia/Tokyo")
 
     def test_redwings_url_parser_accepts_find_route_and_rejects_order_route(self) -> None:
         spec = importlib.util.spec_from_file_location("redwings_to_itinerary_test", REDWINGS)
@@ -1026,7 +1113,9 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             return fake_order
 
         original_fetch = module.redwings.fetch_redwings_order
+        original_catalog = module.airport_catalog.load_airport_timezones
         module.redwings.fetch_redwings_order = fake_fetch
+        module.airport_catalog.load_airport_timezones = lambda catalog_path=None: {"KUF": "Asia/Tokyo", "SVX": "Asia/Tokyo"}
         try:
             with tempfile.TemporaryDirectory() as td:
                 output_json = Path(td) / "redwings.json"
@@ -1056,6 +1145,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
                 self.assertEqual(saved_itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
                 self.assertEqual(saved_itinerary["booking_reference"], "AB12CD")
+                self.assertEqual(saved_itinerary["flights"][0]["departure"]["tz"], "Asia/Tokyo")
+                self.assertEqual(saved_itinerary["flights"][0]["arrival"]["tz"], "Asia/Tokyo")
                 self.assertEqual(data["segments_count"], 1)
                 self.assertEqual(data["segments"][0]["route"], "KUF->SVX")
                 self.assertEqual(
@@ -1079,8 +1170,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 ics_text = output_ics.read_text(encoding="utf-8")
                 self.assertIn("BEGIN:VCALENDAR", ics_text)
                 self.assertEqual(ics_text.count("BEGIN:VEVENT"), 1)
-                self.assertIn("DTSTART:20260603T042500Z", ics_text)
-                self.assertIn("DTEND:20260603T055500Z", ics_text)
+                self.assertIn("DTSTART:20260602T232500Z", ics_text)
+                self.assertIn("DTEND:20260603T015500Z", ics_text)
                 unfolded_ics = ics_text.replace("\r\n ", "").replace("\n ", "")
                 self.assertIn("AB12CD", unfolded_ics)
                 self.assertIn("DOE JANE", unfolded_ics)
@@ -1089,6 +1180,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertNotIn("Багаж 10 кг", unfolded_ics)
         finally:
             module.redwings.fetch_redwings_order = original_fetch
+            module.airport_catalog.load_airport_timezones = original_catalog
 
     def test_ural_url_parser_decodes_tracking_redirect_without_local_env(self) -> None:
         module = self.import_script_module("ural_airlines_to_itinerary.py", "ural_airlines_to_itinerary_test")
@@ -1155,7 +1247,9 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             return fake_reservation
 
         original_fetch = module.ural.fetch_ural_reservation
+        original_catalog = module.airport_catalog.load_airport_timezones
         module.ural.fetch_ural_reservation = fake_fetch
+        module.airport_catalog.load_airport_timezones = lambda catalog_path=None: {"SVX": "Asia/Tokyo", "DME": "Asia/Tokyo"}
         try:
             with tempfile.TemporaryDirectory() as td:
                 output_json = Path(td) / "ural.json"
@@ -1185,6 +1279,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
                 self.assertEqual(saved_itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
                 self.assertEqual(saved_itinerary["passengers"], ["DOE JANE"])
+                self.assertEqual(saved_itinerary["flights"][0]["departure"]["tz"], "Asia/Tokyo")
+                self.assertEqual(saved_itinerary["flights"][0]["arrival"]["tz"], "Asia/Tokyo")
                 self.assertEqual(data["segments_count"], 1)
                 self.assertEqual(data["segments"][0]["route"], "SVX->DME")
                 self.assertEqual(
@@ -1207,6 +1303,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                     self.assertNotIn(private_value, safe_output)
         finally:
             module.ural.fetch_ural_reservation = original_fetch
+            module.airport_catalog.load_airport_timezones = original_catalog
 
     def test_utair_url_parser_handles_cyrillic_surname(self) -> None:
         module = self.import_script_module("utair_to_itinerary.py", "utair_to_itinerary_test")
@@ -1271,8 +1368,10 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
 
         original_fetch_token = module.utair.fetch_utair_token
         original_fetch_orders = module.utair.fetch_utair_orders
+        original_catalog = module.airport_catalog.load_airport_timezones
         module.utair.fetch_utair_token = lambda: "fake-token"
         module.utair.fetch_utair_orders = fake_fetch
+        module.airport_catalog.load_airport_timezones = lambda catalog_path=None: {"SVX": "Asia/Tokyo", "KUF": "Asia/Tokyo"}
         try:
             with tempfile.TemporaryDirectory() as td:
                 output_json = Path(td) / "utair.json"
@@ -1301,6 +1400,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
                 self.assertEqual(saved_itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
                 self.assertEqual(saved_itinerary["passengers"], ["DOE JANE"])
+                self.assertEqual(saved_itinerary["flights"][0]["departure"]["tz"], "Asia/Tokyo")
+                self.assertEqual(saved_itinerary["flights"][0]["arrival"]["tz"], "Asia/Tokyo")
                 self.assertEqual(data["segments_count"], 1)
                 self.assertEqual(data["segments"][0]["route"], "SVX->KUF")
                 self.assertEqual(
@@ -1325,8 +1426,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 ics_text = output_ics.read_text(encoding="utf-8")
                 self.assertIn("BEGIN:VCALENDAR", ics_text)
                 self.assertEqual(ics_text.count("BEGIN:VEVENT"), 1)
-                self.assertIn("DTSTART:20260610T065000Z", ics_text)
-                self.assertIn("DTEND:20260610T083000Z", ics_text)
+                self.assertIn("DTSTART:20260610T025000Z", ics_text)
+                self.assertIn("DTEND:20260610T033000Z", ics_text)
                 unfolded_ics = ics_text.replace("\r\n ", "").replace("\n ", "")
                 self.assertIn("ZZ9ZZZ", unfolded_ics)
                 self.assertIn("DOE JANE", unfolded_ics)
@@ -1334,6 +1435,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         finally:
             module.utair.fetch_utair_token = original_fetch_token
             module.utair.fetch_utair_orders = original_fetch_orders
+            module.airport_catalog.load_airport_timezones = original_catalog
 
     def test_redact_masks_ural_booking_url_credentials(self) -> None:
         script_dir = str((ROOT / "scripts").resolve())

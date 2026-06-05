@@ -12,21 +12,19 @@ import json
 import os
 import re
 import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
 from typing import Any, NamedTuple
 from urllib.error import HTTPError
-from urllib.parse import parse_qs, quote, urlencode, urljoin, urlparse
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
 
 import travelpayouts_airport_catalog as airport_catalog
+from flight_calendar_common import parse_tz_overrides, secure_write_text
 
 URAL_SERVICE_BASE = "https://service.uralairlines.ru/"
 DEFAULT_ENV_PATH = "/<version>/env/env.json"
-
-DEFAULT_AIRPORT_TZ: dict[str, str] = {}
 
 DEFAULT_AIRPORT_CITY = {
     "DME": "Москва",
@@ -316,20 +314,6 @@ def fetch_ural_reservation(
     return reservation
 
 
-def parse_tz_overrides(items: list[str]) -> dict[str, str]:
-    out: dict[str, str] = {}
-    for item in items:
-        if "=" not in item:
-            die(f"bad --tz value {item!r}; use CODE=Area/City")
-        code, tzid = item.split("=", 1)
-        code = code.strip().upper()
-        tzid = tzid.strip()
-        if not code or not tzid:
-            die(f"bad --tz value {item!r}; use CODE=Area/City")
-        out[code] = tzid
-    return out
-
-
 def clean(value: Any) -> Any:
     return None if value in (None, "", []) else value
 
@@ -478,13 +462,9 @@ def main(argv: list[str] | None = None) -> int:
 
     locator, last_name, booking_url = parse_ural_source(args.url, args.pnr, args.last_name)
     reservation = fetch_ural_reservation(locator, last_name, booking_url=booking_url)
-    tz_map = airport_catalog.build_timezone_map(parse_tz_overrides(args.tz))
+    tz_map = airport_catalog.build_timezone_map(parse_tz_overrides(args.tz, fail=die))
     itinerary = convert_to_itinerary(reservation, tz_map, booking_url=booking_url)
-    args.output_json.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    fd = os.open(str(args.output_json), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        handle.write(json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
-    os.chmod(args.output_json, 0o600)
+    secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
     print(json.dumps({"ok": True, "segments": len(itinerary["flights"]), "json": str(args.output_json)}, ensure_ascii=False))
     return 0
 
