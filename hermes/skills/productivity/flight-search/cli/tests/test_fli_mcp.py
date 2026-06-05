@@ -6,12 +6,12 @@ from pathlib import Path
 
 from flights_cli.cli import build_parser
 from flights_cli.errors import CliError
+from flights_cli.adapters.providers.registry import providers_for_segment
 from flights_cli.providers.fli_mcp import (
     decode_mcp_response,
     fli_result_to_segment_result,
     normalize_mcp_url,
     parse_fli_flight_search,
-    providers_for_segment,
     resolve_fli_airport,
 )
 from flights_cli.store import Store

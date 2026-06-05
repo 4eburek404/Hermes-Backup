@@ -39,6 +39,9 @@ These invariants can be proved with mocked/offline execution unless the question
 
 - `direct_destination_control` is a search branch, not a nonstop claim.
 - RU-priority controls remain structural: branch visibility must link to structured `priority_options` fields such as `control_family`, `control_branch`, `visibility_role`, and `priority_option_id`.
+- Moscow/SVO is a first-class control for Russian-origin international routes, not fallback-only behavior. Viable via-SVO controls must be coherent same-airport routes; rejected airport splices such as `SVO` vs `IST` are invalid itineraries.
+- For domestic Russian routes, do not let profile scoring bury objectively better direct flights: if both airports are in Russia and direct domestic offers exist, the report/user answer must keep the cheapest/fastest direct option visible even if carrier weighting ranks a hub option higher.
+- For carrier-specific existence questions, answer the carrier-route scope first and run targeted direct/carrier controls before saying the carrier does not fly the route.
 - Semantic validation must use structured fields, not only `answer_lines`.
 - Display/report output must show actual airport codes from normalized offers; city codes are request scope, not a substitute for actual departure/arrival airports.
 

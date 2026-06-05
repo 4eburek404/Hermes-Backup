@@ -106,6 +106,7 @@ def _trim_coverage_controls(report: dict[str, Any], limit: int, omitted: dict[st
         return
     buckets = [
         "failed_controls",
+        "not_supported_controls",
         "not_executed_controls",
         "searched_controls",
         "skipped_controls",

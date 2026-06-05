@@ -701,12 +701,6 @@ def fli_segment_search_summary(spec: dict[str, Any], result: dict[str, Any], seg
     }
 
 
-def providers_for_segment(spec: dict[str, Any], store: Store, policy: str) -> list[str]:
-    from ..adapters.providers.registry import providers_for_segment as registry_providers_for_segment
-
-    return list(registry_providers_for_segment(spec, store, policy))
-
-
 def run_fli_search(args: argparse.Namespace, store: Store | None = None) -> dict[str, Any]:
     origin = normalize_iata(args.origin, "origin")
     destination = normalize_iata(args.destination, "destination")

@@ -12,13 +12,15 @@ def build_offer_graph(report: dict[str, Any], plan: dict[str, Any], live: dict[s
     constraints define the request scope, evidence summarizes what was searched or
     still missing, and frontier lists the non-hidden options the agent must compare.
     """
-    coverage = report.get("coverage_diagnostics") if isinstance(report.get("coverage_diagnostics"), dict) else {}
+    coverage_raw = report.get("coverage_diagnostics")
+    coverage = coverage_raw if isinstance(coverage_raw, dict) else {}
     completeness = coverage.get("completeness") if isinstance(coverage.get("completeness"), dict) else {}
     route = report.get("route") if isinstance(report.get("route"), dict) else {}
     status = report.get("status") if isinstance(report.get("status"), dict) else {}
     provider_failures = report.get("provider_failures") if isinstance(report.get("provider_failures"), list) else []
     aggregate_controls = report.get("aggregate_controls") if isinstance(report.get("aggregate_controls"), list) else []
     missing_evidence = missing_evidence_controls(coverage)
+    capability_boundaries = capability_boundary_controls(coverage)
 
     return {
         "algorithm": OFFER_GRAPH_ALGORITHM,
@@ -48,6 +50,7 @@ def build_offer_graph(report: dict[str, Any], plan: dict[str, Any], live: dict[s
             "searched_control_count": len(coverage.get("searched_controls") or []),
             "skipped_control_count": len(coverage.get("skipped_controls") or []),
             "failed_control_count": len(coverage.get("failed_controls") or []),
+            "not_supported_control_count": len(capability_boundaries),
             "missing_evidence_count": len(missing_evidence),
             "provider_failure_count": len(provider_failures),
             "aggregate_control_count": len(aggregate_controls),
@@ -56,11 +59,13 @@ def build_offer_graph(report: dict[str, Any], plan: dict[str, Any], live: dict[s
         },
         "frontier": frontier_options(report),
         "missing_evidence": missing_evidence,
+        "capability_boundaries": capability_boundaries,
         "truth_language": {
             "inventory_scope": "live_provider_returned_inventory",
             "absence_claim": "bounded_live_controls_only",
             "direct_wording": "нашёл все прямые, которые вернул live-поставщик",
             "negative_wording": "не нашёл в выполненных live/probe источниках; это не доказательство отсутствия вне границ источника",
+            "capability_boundary_wording": "часть проверок не поддерживается текущим provider/source; это граница источника, не доказательство отсутствия рейса",
         },
     }
 
@@ -104,6 +109,27 @@ def missing_evidence_controls(coverage: dict[str, Any]) -> list[dict[str, Any]]:
             }
             missing.append({key: value for key, value in projected.items() if value is not None})
     return missing
+
+
+def capability_boundary_controls(coverage: dict[str, Any]) -> list[dict[str, Any]]:
+    boundaries: list[dict[str, Any]] = []
+    for item in coverage.get("not_supported_controls") or []:
+        if not isinstance(item, dict):
+            continue
+        projected = {
+            "type": item.get("type"),
+            "direction": item.get("direction"),
+            "origin": item.get("origin"),
+            "destination": item.get("destination"),
+            "date": item.get("date"),
+            "carrier": item.get("carrier"),
+            "reason": item.get("reason") or item.get("execution_state") or item.get("status"),
+            "provider": item.get("provider"),
+            "cache_status": item.get("cache_status"),
+            "probe_id": item.get("probe_id"),
+        }
+        boundaries.append({key: value for key, value in projected.items() if value is not None})
+    return boundaries
 
 
 def frontier_options(report: dict[str, Any]) -> list[dict[str, Any]]:

@@ -104,6 +104,17 @@ def airport_priority_metadata(code: str) -> dict[str, Any] | None:
     return None
 
 
+def segment_code_metadata(origin_code: str, dest_code: str) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    origin_priority = airport_priority_metadata(origin_code)
+    destination_priority = airport_priority_metadata(dest_code)
+    if origin_priority:
+        metadata["origin_airport_priority"] = origin_priority
+    if destination_priority:
+        metadata["destination_airport_priority"] = destination_priority
+    return metadata
+
+
 def explicit_or_resolved_airports(
     store: Store,
     location: Location,

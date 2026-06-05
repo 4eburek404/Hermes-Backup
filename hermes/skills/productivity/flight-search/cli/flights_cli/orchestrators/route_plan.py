@@ -15,31 +15,20 @@ from ..config import (
     SINGLE_AIRPORT_NOTES,
     SUPPORTED_CURRENCIES,
 )
-from ..domain.airports import airport_pair_risk, airport_priority_metadata, explicit_or_resolved_airports, explain_airport
+from ..domain.airports import airport_pair_risk, explicit_or_resolved_airports, explain_airport
 from ..domain.normalize import normalize_carrier_code, normalize_profile, parse_iso_date
 from ..errors import CliError
 from ..adapters.providers.registry import providers_for_segment
 from ..services.validation import connection_rule
 from ..store import Store
 from .route_graph import (
+    append_unique_route_segment,
     coverage_controls_for_plan,
     resolve_route_graph_context,
     route_families_for_strategy,
     route_graph_from_segments,
-    route_segment_key,
-    route_segment_spec,
 )
 
-
-def segment_code_metadata(origin_code: str, dest_code: str) -> dict[str, Any]:
-    metadata: dict[str, Any] = {}
-    origin_priority = airport_priority_metadata(origin_code)
-    destination_priority = airport_priority_metadata(dest_code)
-    if origin_priority:
-        metadata["origin_airport_priority"] = origin_priority
-    if destination_priority:
-        metadata["destination_airport_priority"] = destination_priority
-    return metadata
 
 
 def live_segment_command(spec: dict[str, Any], store: Store, currency: str, limit: int = 30) -> str:
@@ -129,9 +118,9 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         warnings.append(SINGLE_AIRPORT_NOTES["AYT"])
 
     segments: list[dict[str, Any]] = []
-    seen: set[tuple[str, str, str, str]] = set()
+    seen: set[tuple[str, ...]] = set()
 
-    def add_segment(
+    def add_planned_segment(
         direction: str,
         leg: str,
         dep_date: date,
@@ -139,16 +128,21 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         dest_code: str,
         **extra: Any,
     ) -> None:
-        if origin_code == dest_code:
+        spec = append_unique_route_segment(
+            segments,
+            seen,
+            direction=direction,
+            leg=leg,
+            dep_date=dep_date,
+            origin_code=origin_code,
+            dest_code=dest_code,
+            include_date=False,
+            extra=extra,
+        )
+        if spec is None:
             return
-        spec = route_segment_spec(direction, leg, dep_date, origin_code, dest_code, **segment_code_metadata(origin_code, dest_code), **extra)
-        key = route_segment_key(spec, include_date=False)
-        if key in seen:
-            return
-        seen.add(key)
-        segments.append(
+        spec.update(
             {
-                **spec,
                 "airport_pair_risk": airport_pair_risk(origin_code, dest_code),
                 "provider_policy": "auto",
                 "command": live_segment_command(spec, store, currency),
@@ -159,7 +153,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     if routing_strategy == "ru-priority":
         for origin_code in origin_airports:
             for dest_code in destination_airports:
-                add_segment(
+                add_planned_segment(
                     "outbound",
                     "direct_outbound",
                     depart,
@@ -172,7 +166,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                 )
         if routing_profile == "asia-oceania":
             for origin_code in origin_airports:
-                add_segment(
+                add_planned_segment(
                     "outbound",
                     "origin_to_hub",
                     depart,
@@ -185,7 +179,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                 )
             for dest_code in destination_airports:
-                add_segment(
+                add_planned_segment(
                     "outbound",
                     "hub_to_destination",
                     depart,
@@ -197,7 +191,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                 )
         for origin_code in origin_airports:
-            add_segment(
+            add_planned_segment(
                 "outbound",
                 "origin_to_hub",
                 depart,
@@ -209,7 +203,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                 preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
             )
             if origin_code != PRIORITY_MOSCOW_GATEWAY:
-                add_segment(
+                add_planned_segment(
                     "outbound",
                     "origin_to_gateway",
                     depart,
@@ -220,7 +214,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                     condition="Moscow/SVO control; run even if origin->IST direct exists",
                     only_carriers=["SU"],
                 )
-            add_segment(
+            add_planned_segment(
                 "outbound",
                 "gateway_to_hub",
                 depart,
@@ -232,7 +226,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                 only_carriers=["SU"],
             )
         for dest_code in destination_airports:
-            add_segment(
+            add_planned_segment(
                 "outbound",
                 "hub_to_destination",
                 depart,
@@ -244,7 +238,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                 preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
             )
         for origin_code in origin_airports:
-            add_segment(
+            add_planned_segment(
                 "outbound",
                 "origin_to_hub",
                 depart,
@@ -256,7 +250,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                 preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
             )
         for dest_code in destination_airports:
-            add_segment(
+            add_planned_segment(
                 "outbound",
                 "hub_to_destination",
                 depart,
@@ -270,7 +264,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     elif routing_strategy == "domestic-ru":
         for origin_code in origin_airports:
             for dest_code in destination_airports:
-                add_segment(
+                add_planned_segment(
                     "outbound",
                     "direct_outbound",
                     depart,
@@ -282,23 +276,23 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                 )
         for origin_code in origin_airports:
             for hub in hubs:
-                add_segment("outbound", "origin_to_hub", depart, origin_code, hub, route_family="domestic_ru", priority=1)
+                add_planned_segment("outbound", "origin_to_hub", depart, origin_code, hub, route_family="domestic_ru", priority=1)
         for hub in hubs:
             for dest_code in destination_airports:
-                add_segment("outbound", "hub_to_destination", depart, hub, dest_code, route_family="domestic_ru", priority=1)
+                add_planned_segment("outbound", "hub_to_destination", depart, hub, dest_code, route_family="domestic_ru", priority=1)
     else:
         for origin_code in origin_airports:
             for hub in hubs:
-                add_segment("outbound", "origin_to_hub", depart, origin_code, hub)
+                add_planned_segment("outbound", "origin_to_hub", depart, origin_code, hub)
         for hub in hubs:
             for dest_code in destination_airports:
-                add_segment("outbound", "hub_to_destination", depart, hub, dest_code)
+                add_planned_segment("outbound", "hub_to_destination", depart, hub, dest_code)
 
     if ret:
         if routing_strategy == "ru-priority":
             for dest_code in destination_airports:
                 for origin_code in origin_airports:
-                    add_segment(
+                    add_planned_segment(
                         "return",
                         "direct_return",
                         ret,
@@ -311,7 +305,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                     )
             if routing_profile == "asia-oceania":
                 for dest_code in destination_airports:
-                    add_segment(
+                    add_planned_segment(
                         "return",
                         "destination_to_hub",
                         ret,
@@ -323,7 +317,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                         preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                     )
                 for origin_code in origin_airports:
-                    add_segment(
+                    add_planned_segment(
                         "return",
                         "hub_to_origin",
                         ret,
@@ -336,7 +330,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                         preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                     )
             for dest_code in destination_airports:
-                add_segment(
+                add_planned_segment(
                     "return",
                     "destination_to_hub",
                     ret,
@@ -348,7 +342,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                 )
             for origin_code in origin_airports:
-                add_segment(
+                add_planned_segment(
                     "return",
                     "hub_to_origin",
                     ret,
@@ -359,7 +353,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                     condition="use IST->origin direct when available",
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                 )
-                add_segment(
+                add_planned_segment(
                     "return",
                     "hub_to_gateway",
                     ret,
@@ -371,7 +365,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                     only_carriers=["SU"],
                 )
                 if origin_code != PRIORITY_MOSCOW_GATEWAY:
-                    add_segment(
+                    add_planned_segment(
                         "return",
                         "gateway_to_origin",
                         ret,
@@ -383,7 +377,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                         only_carriers=["SU"],
                     )
             for dest_code in destination_airports:
-                add_segment(
+                add_planned_segment(
                     "return",
                     "destination_to_hub",
                     ret,
@@ -395,7 +389,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                 )
             for origin_code in origin_airports:
-                add_segment(
+                add_planned_segment(
                     "return",
                     "hub_to_origin",
                     ret,
@@ -409,7 +403,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         elif routing_strategy == "domestic-ru":
             for dest_code in destination_airports:
                 for origin_code in origin_airports:
-                    add_segment(
+                    add_planned_segment(
                         "return",
                         "direct_return",
                         ret,
@@ -421,7 +415,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                     )
             for dest_code in destination_airports:
                 for hub in hubs:
-                    add_segment(
+                    add_planned_segment(
                         "return",
                         "destination_to_hub",
                         ret,
@@ -432,7 +426,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
                     )
             for hub in hubs:
                 for origin_code in origin_airports:
-                    add_segment(
+                    add_planned_segment(
                         "return",
                         "hub_to_origin",
                         ret,
@@ -444,10 +438,10 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         else:
             for dest_code in destination_airports:
                 for hub in hubs:
-                    add_segment("return", "destination_to_hub", ret, dest_code, hub)
+                    add_planned_segment("return", "destination_to_hub", ret, dest_code, hub)
             for hub in hubs:
                 for origin_code in origin_airports:
-                    add_segment("return", "hub_to_origin", ret, hub, origin_code)
+                    add_planned_segment("return", "hub_to_origin", ret, hub, origin_code)
 
     itinerary_families = []
     for hub in hubs:
@@ -547,7 +541,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
             "profile_rank_order": RISK_PROFILES[profile]["rank_order"],
             "notes": [
                 "Metrics are deterministic planning operations, not network fetch latency.",
-                "The CLI does not call retired Travelpayouts price APIs during route plan.",
+                "Route planning uses metadata catalogs only; live offers come from active provider commands.",
             ],
         },
     }

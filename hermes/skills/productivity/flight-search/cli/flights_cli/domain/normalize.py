@@ -113,7 +113,7 @@ def normalize_transfer(raw: Any) -> dict[str, Any] | None:
         try:
             transfer["duration_seconds"] = max(0, int(float(duration)))
         except (TypeError, ValueError):
-            pass
+            transfer.pop("duration_seconds", None)
     for key in ("night_transfer", "visa_required"):
         if key in raw:
             transfer[key] = bool(raw.get(key))

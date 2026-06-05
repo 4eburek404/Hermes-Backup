@@ -77,13 +77,13 @@ class AgentReportP1MoscowControlTests(CliSubprocessMixin, unittest.TestCase):
             "1",
         )
         report = assembled["data"]["agent_report"]
-        moscow = next((item for item in report["priority_options"] if item.get("category") == "moscow_gateway_control"), None)
+        moscow = next((item for item in report["frontier"]["priority_options"] if item.get("category") == "moscow_gateway_control"), None)
 
         self.assertIsNotNone(moscow)
         self.assertGreater(moscow["rank"], 1)
         self.assertEqual(moscow["detail_status"], "full")
         self.assertEqual([segment["origin"] for segment in moscow["segments"]], ["SVX", "SVO"])
-        self.assertIn("Moscow gateway control", " ".join(report["answer_lines"]))
+        self.assertIn("Moscow gateway control", " ".join(report["diagnostics"]["answer_lines"]))
 
 
 if __name__ == "__main__":

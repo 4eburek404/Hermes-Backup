@@ -4,6 +4,7 @@ import copy
 import json
 import unittest
 from importlib import resources
+from unittest.mock import patch
 
 from jsonschema import Draft202012Validator
 
@@ -179,9 +180,26 @@ class FinalAnswerContractTests(unittest.TestCase):
         parsed = json.loads(text)
 
         Draft202012Validator.check_schema(schema)
-        self.assertEqual(parsed["$id"], "urn:hermes:flights-cli:flight-search-user-answer:v1")
+        self.assertEqual(parsed["$id"], "urn:hermes:flights-cli:flight-search-user-answer:v3")
+        expected_keys = {
+            "schema_version",
+            "answer_mode",
+            "route",
+            "catalog",
+            "primary_recommendation",
+            "alternatives",
+            "evidence_status",
+            "required_caveats",
+            "rendered_text",
+            "answer_lines",
+            "stop_policy_status",
+        }
+        self.assertEqual(set(schema["required"]), expected_keys)
+        self.assertEqual(set(schema["properties"]), expected_keys)
         self.assertEqual(schema["properties"]["schema_version"]["const"], USER_ANSWER_SCHEMA_VERSION)
-        self.assertLessEqual(len(text.encode("utf-8")), 10000)
+        self.assertIn("rendered_text", schema["required"])
+        self.assertEqual(schema["properties"]["rendered_text"], {"type": "string", "minLength": 1})
+        self.assertLessEqual(len(text.encode("utf-8")), 20000)
 
     def test_builds_valid_user_answer_contract_from_agent_report(self) -> None:
         answer = build_user_answer_contract(report_with_required_caveats())
@@ -192,6 +210,11 @@ class FinalAnswerContractTests(unittest.TestCase):
         self.assertEqual(answer["primary_recommendation"]["max_connections_per_journey"], 0)
         self.assertEqual(answer["stop_policy_status"]["policy"], "business_default")
         self.assertEqual(answer["evidence_status"]["provider_failure_count"], 1)
+        self.assertTrue(answer["rendered_text"].startswith("Нашёл варианты SVX→DEL"))
+        self.assertIn("часть live-проверок упала", answer["rendered_text"])
+        self.assertIn("through fare", answer["rendered_text"])
+        self.assertIn("не доказывает", answer["rendered_text"])
+        self.assertEqual(answer["answer_lines"], [line for line in answer["rendered_text"].splitlines() if line.strip()])
         self.assertTrue(answer["required_caveats"]["provider_failures_acknowledged"])
         self.assertTrue(answer["required_caveats"]["through_fare_verification_required"])
 
@@ -441,6 +464,56 @@ class FinalAnswerContractTests(unittest.TestCase):
         self.assertTrue(
             any("two separate one-way offers" in error["message"] for error in ctx.exception.details["errors"])
         )
+
+    def test_user_answer_counts_not_supported_controls_without_missing_evidence(self) -> None:
+        report = valid_report()
+        report["coverage_diagnostics"]["not_executed_controls"] = []
+        report["coverage_diagnostics"]["not_supported_controls"] = [
+            {
+                "type": "full_route_aggregate",
+                "direction": "outbound",
+                "origin": "SVX",
+                "destination": "DEL",
+                "date": "2026-06-01",
+                "provider": "kupibilet",
+                "reason": "provider_capability_not_supported",
+                "execution_state": "not_supported",
+                "status": "not_supported",
+                "probe_id": "agg-probe-001",
+            }
+        ]
+        report["coverage_diagnostics"]["completeness"] = {
+            "planned_count": 1,
+            "terminal_count": 1,
+            "all_planned_controls_have_terminal_state": True,
+        }
+
+        answer = build_user_answer_contract(
+            report,
+            rendered_text=(
+                "Нашёл варианты SVX→DEL. Текущий provider/source не поддерживает часть проверок; "
+                "это граница источника, не доказательство отсутствия. Финальную цену проверить на booking screen."
+            ),
+        )
+
+        validate_user_answer_contract(answer)
+        self.assertEqual(answer["evidence_status"]["not_supported_control_count"], 1)
+        self.assertEqual(answer["evidence_status"]["not_executed_control_count"], 0)
+        self.assertTrue(answer["evidence_status"]["coverage_complete"])
+        self.assertTrue(answer["required_caveats"]["coverage_incompleteness_acknowledged"])
+
+    def test_build_user_answer_contract_does_not_fallback_to_legacy_display_or_answer_lines(self) -> None:
+        report = valid_report()
+        report["recommended_options"] = []
+        report["priority_options"] = []
+        report["display"]["text"] = "STALE DISPLAY"
+        report["answer_lines"] = ["STALE ANSWER LINE"]
+
+        with patch("flights_cli.reporting.final_answer_contract.build_human_answer", return_value={"text": ""}):
+            answer = build_user_answer_contract(report)
+
+        self.assertNotEqual(answer["rendered_text"], "STALE DISPLAY")
+        self.assertNotIn("STALE ANSWER LINE", answer["rendered_text"])
 
     def test_rejects_missing_provider_failure_acknowledgement(self) -> None:
         answer = build_user_answer_contract(report_with_required_caveats())

@@ -418,10 +418,10 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
         report = assembled["data"]["agent_report"]
 
         self.assertEqual(assembled["data"]["candidates"], [])
-        self.assertEqual(report["schema_version"], "agent_report.v1")
-        self.assertEqual(report["recommended_options"][0]["segments"][0]["flight_number"], "SU630")
-        self.assertIn("Best CLI-ranked option", report["answer_lines"][0])
-        self.assertIn("does not construct GDS", report["source_boundaries"][0])
+        self.assertEqual(report["schema_version"], "agent_report.v2")
+        self.assertEqual(report["frontier"]["recommended_options"][0]["segments"][0]["flight_number"], "SU630")
+        self.assertIn("Best CLI-ranked option", report["diagnostics"]["answer_lines"][0])
+        self.assertIn("does not construct GDS", report["evidence"]["source_boundaries"][0])
 
     def test_agent_report_surfaces_hidden_all_su_svo_priority_option(self) -> None:
         def offer(
@@ -489,14 +489,15 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
 
         self.assertEqual(len(assembled["data"]["ranked"]), 1)
         self.assertEqual(assembled["data"]["ranked"][0]["id"], "assembled-1:SVX-DEL")
-        self.assertEqual(report["priority_options"][0]["category"], "all_su_svo")
-        self.assertGreater(report["priority_options"][0]["rank"], 1)
+        priority_options = report["frontier"]["priority_options"]
+        self.assertEqual(priority_options[0]["category"], "all_su_svo")
+        self.assertGreater(priority_options[0]["rank"], 1)
         self.assertEqual(
-            [segment["flight_number"] for segment in report["priority_options"][0]["segments"]],
+            [segment["flight_number"] for segment in priority_options[0]["segments"]],
             ["SU1403", "SU232"],
         )
-        self.assertEqual(report["through_fare_checks"][0]["carrier"], "SU")
-        self.assertIn("Priority control", " ".join(report["answer_lines"]))
+        self.assertEqual(report["evidence"]["through_fare_checks"][0]["carrier"], "SU")
+        self.assertIn("Priority control", " ".join(report["diagnostics"]["answer_lines"]))
 
     def test_agent_brief_json_returns_only_report(self) -> None:
         payload = {
@@ -586,8 +587,12 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
 
         self.assertTrue(result["ok"])
         self.assertEqual(set(result["data"]), {"agent_report"})
-        self.assertIn("answer_lines", result["data"]["agent_report"])
-        self.assertLessEqual(len(json.dumps(result["data"]["agent_report"], ensure_ascii=False, indent=2, sort_keys=True).encode("utf-8")), 65536)
+        agent_report = result["data"]["agent_report"]
+        self.assertEqual(agent_report["schema_version"], "agent_report.v2")
+        self.assertIn("user_answer", agent_report)
+        self.assertIn("answer_lines", agent_report["diagnostics"])
+        self.assertNotIn("answer_lines", agent_report)
+        self.assertLessEqual(len(json.dumps(agent_report, ensure_ascii=False, indent=2, sort_keys=True).encode("utf-8")), 65536)
 
     def test_route_assemble_combines_hub_outbound_with_direct_return_and_dedupes(self) -> None:
         def offer(

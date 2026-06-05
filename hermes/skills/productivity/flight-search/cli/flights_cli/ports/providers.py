@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, runtime_checkable
 
 
 ProviderName = Literal["kupibilet", "fli"]
@@ -50,6 +50,7 @@ class ProviderProbeResult:
     evidence_type: EvidenceType = "not_executed"
     result_summary: dict[str, Any] = field(default_factory=dict)
     normalized_offers: list[dict[str, Any]] = field(default_factory=list)
+    normalized_result: dict[str, Any] = field(default_factory=dict)
     source_boundary: dict[str, Any] = field(default_factory=dict)
     errors: list[dict[str, Any]] = field(default_factory=list)
 
@@ -64,11 +65,13 @@ class ProviderProbeResult:
             "evidence_type": self.evidence_type,
             "result_summary": self.result_summary,
             "normalized_offers": self.normalized_offers,
+            "normalized_result": self.normalized_result,
             "source_boundary": self.source_boundary,
             "errors": self.errors,
         }
 
 
+@runtime_checkable
 class FlightProviderPort(Protocol):
     name: ProviderName
     capabilities: ProviderCapabilities

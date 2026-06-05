@@ -74,7 +74,7 @@ def positive_minutes(value: Any) -> int | None:
     return minutes if minutes >= 0 else None
 
 
-def minutes_between(start_value: Any, end_value: Any) -> int | None:
+def strict_nonnegative_minutes_between(start_value: Any, end_value: Any) -> int | None:
     start = parse_segment_datetime(start_value)
     end = parse_segment_datetime(end_value)
     if start is None or end is None:
@@ -92,7 +92,7 @@ def segment_duration_min(segment: dict[str, Any]) -> int | None:
     explicit = positive_minutes(segment.get("duration"))
     if explicit is not None:
         return explicit
-    return minutes_between(segment.get("departure_at"), segment.get("arrival_at"))
+    return strict_nonnegative_minutes_between(segment.get("departure_at"), segment.get("arrival_at"))
 
 
 def flight_time_from_segments(segments: list[dict[str, Any]]) -> int | None:
@@ -109,7 +109,7 @@ def layover_time_from_segments(segments: list[dict[str, Any]]) -> int | None:
         return 0 if segments else None
     layovers: list[int] = []
     for previous, current in zip(segments, segments[1:]):
-        gap = minutes_between(previous.get("arrival_at"), current.get("departure_at"))
+        gap = strict_nonnegative_minutes_between(previous.get("arrival_at"), current.get("departure_at"))
         if gap is None:
             return None
         layovers.append(gap)
@@ -120,7 +120,7 @@ def aggregate_time_fields(offer: dict[str, Any]) -> dict[str, int | None]:
     segments = [segment for segment in offer.get("segments") or [] if isinstance(segment, dict)]
     itinerary_elapsed_min: int | None = None
     if segments:
-        itinerary_elapsed_min = minutes_between(segments[0].get("departure_at"), segments[-1].get("arrival_at"))
+        itinerary_elapsed_min = strict_nonnegative_minutes_between(segments[0].get("departure_at"), segments[-1].get("arrival_at"))
 
     flight_time_min = flight_time_from_segments(segments)
     if flight_time_min is None:
