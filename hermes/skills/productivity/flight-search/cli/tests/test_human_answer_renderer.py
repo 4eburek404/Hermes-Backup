@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import unittest
 
+from flights_cli.errors import CliError
 from flights_cli.output import render_agent_report_human
 from flights_cli.reporting.human_answer_renderer import build_human_answer
 from flights_cli.reporting.final_answer_contract import validate_user_answer_contract
@@ -22,7 +23,6 @@ FORBIDDEN_DIAGNOSTIC_MARKERS = (
     "probe_id",
     "rank=",
     "Kupibilet",
-    "Travelpayouts",
 )
 
 
@@ -266,15 +266,17 @@ class HumanAnswerRendererTests(unittest.TestCase):
         validate_user_answer_contract(report["user_answer"])
         text = report["user_answer"]["rendered_text"]
         self.assertIn("Нашёл варианты SVX→DEL", text)
-        self.assertEqual(report["human_answer"]["text"], text)
+        self.assertEqual(report["diagnostics"]["human_answer"]["text"], text)
         self.assertNotIn("agent report:", render_agent_report_human(report))
         self.assertEqual(render_agent_report_human(report), text)
 
-    def test_cli_human_render_prefers_canonical_user_answer_over_legacy_projections(self) -> None:
+    def test_cli_human_render_prefers_canonical_v3_user_answer_over_legacy_projections(self) -> None:
         report = valid_report()
         report["user_answer"] = {
-            "schema_version": "flight_search_user_answer.v2",
+            "schema_version": "flight_search_user_answer.v3",
+            "answer_mode": "recommendation",
             "route": {"origin": "SVX", "destination": "DEL", "dates": {"depart_date": "2026-06-01"}},
+            "catalog": {"presentation": {"style": "numbered_compact", "language": "ru", "max_items": 10}, "items": []},
             "primary_recommendation": None,
             "alternatives": [],
             "evidence_status": {
@@ -308,6 +310,26 @@ class HumanAnswerRendererTests(unittest.TestCase):
         report["answer_lines"] = ["STALE ANSWER LINE"]
 
         self.assertEqual(render_agent_report_human(report), "CANONICAL USER ANSWER")
+
+    def test_cli_human_render_rejects_invalid_user_answer_instead_of_diagnostics_fallback(self) -> None:
+        report = valid_report()
+        report["user_answer"] = {"schema_version": "flight_search_user_answer.v3"}
+        report["human_answer"]["text"] = "STALE HUMAN ANSWER"
+        report["display"]["text"] = "STALE DISPLAY"
+        report["answer_lines"] = ["STALE ANSWER LINE"]
+
+        with self.assertRaises(CliError) as ctx:
+            render_agent_report_human(report)
+
+        self.assertEqual(ctx.exception.error_type, "contract_error")
+
+    def test_cli_human_render_rejects_legacy_v2_user_answer(self) -> None:
+        report = valid_report()
+        report["user_answer"]["schema_version"] = "flight_search_user_answer.v2"
+        report["user_answer"]["rendered_text"] = "LEGACY V2 USER ANSWER"
+
+        with self.assertRaises(CliError):
+            render_agent_report_human(report)
 
 
 if __name__ == "__main__":

@@ -4,15 +4,11 @@ import re
 from pathlib import Path
 from typing import Any
 
-PLUGIN_PATH = Path.home() / ".hermes" / "plugins" / "travelpayouts-flights"
-
-CACHE_DIR = PLUGIN_PATH / "cache"
+CACHE_DIR = Path.home() / ".hermes" / "cache" / "flight-search"
 
 LIVE_SEARCH_CACHE_DIR = CACHE_DIR / "live_search"
 
 ROUTE_INTEL_CACHE_DIR = CACHE_DIR / "route_intel"
-
-HERMES_ENV_PATH = Path.home() / ".hermes" / ".env"
 
 KUPIBILET_FRONTEND_SEARCH_URL = "https://api-rs-lb.kupibilet.ru/frontend_search"
 
@@ -156,8 +152,6 @@ DEFAULT_ROUTE_HUB_NOTES = {
 IATA_RE = re.compile(r"^[A-Z]{3}$")
 
 CARRIER_RE = re.compile(r"^[A-Z0-9]{2,3}$")
-
-TRAVELPAYOUTS_ENV_KEYS = {"TRAVELPAYOUTS_TOKEN", "TRAVELPAYOUTS_MARKER"}
 
 MULTI_AIRPORT_GROUPS: dict[str, dict[str, Any]] = {
     "istanbul": {

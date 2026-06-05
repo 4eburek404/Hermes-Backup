@@ -125,10 +125,10 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         return report
 
     def _control_option(self, report: dict[str, Any], branch: str) -> dict[str, Any]:
-        control = report["ru_priority_controls"][f"{branch}_control"]
+        control = report["evidence"]["ru_priority_controls"][f"{branch}_control"]
         self.assertTrue(control["visible"], branch)
         self.assertIsInstance(control["priority_option_id"], str)
-        option = next(item for item in report["priority_options"] if item["id"] == control["priority_option_id"])
+        option = next(item for item in report["frontier"]["priority_options"] if item["id"] == control["priority_option_id"])
         self.assertEqual(option.get("control_family"), "ru_priority")
         self.assertEqual(option.get("control_branch"), branch)
         self.assertEqual(option.get("visibility_role"), "priority_control")
@@ -154,7 +154,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
             destination_airports=LON_AIRPORTS,
         )
 
-        controls = report["ru_priority_controls"]
+        controls = report["evidence"]["ru_priority_controls"]
         self.assertTrue(controls["direct_destination_control"]["checked"])
         self.assertTrue(controls["direct_destination_control"]["viable"])
         self.assertFalse(controls["ist_primary_hub_control"]["viable"])
@@ -186,7 +186,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
             destination_airports=LON_AIRPORTS,
         )
 
-        controls = report["ru_priority_controls"]
+        controls = report["evidence"]["ru_priority_controls"]
         control = controls["direct_destination_control"]
         self.assertTrue(control["checked"])
         self.assertEqual(control["execution_state"], "executed")
@@ -233,7 +233,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
             destination_airports=LON_AIRPORTS,
         )
 
-        controls = report["ru_priority_controls"]
+        controls = report["evidence"]["ru_priority_controls"]
         self.assertTrue(controls["requested"])
         self.assertTrue(controls["checked"])
         self.assertEqual(set(controls["scope"]["destination_airports"]), set(LON_AIRPORTS))
@@ -278,7 +278,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
             destination_airports=LON_AIRPORTS,
         )
 
-        controls = report["ru_priority_controls"]
+        controls = report["evidence"]["ru_priority_controls"]
         self.assertTrue(controls["moscow_gateway_control"]["checked"])
         self.assertEqual(controls["moscow_gateway_control"]["execution_state"], "executed")
         self.assertTrue(controls["moscow_gateway_control"]["viable"])
@@ -307,7 +307,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
             destination_airports=LON_AIRPORTS,
         )
 
-        control = report["ru_priority_controls"]["moscow_gateway_control"]
+        control = report["evidence"]["ru_priority_controls"]["moscow_gateway_control"]
         self.assertTrue(control["checked"])
         self.assertEqual(control["execution_state"], "partial")
         self.assertFalse(control["viable"])
@@ -323,7 +323,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
             destination_airports=LON_AIRPORTS,
         )
 
-        control = report["ru_priority_controls"]["moscow_gateway_control"]
+        control = report["evidence"]["ru_priority_controls"]["moscow_gateway_control"]
         self.assertTrue(control["checked"])
         self.assertEqual(control["execution_state"], "executed_no_viable_result")
         self.assertFalse(control["viable"])
@@ -367,7 +367,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
             destination_airports=LON_AIRPORTS,
         )
 
-        controls = report["ru_priority_controls"]
+        controls = report["evidence"]["ru_priority_controls"]
         self.assertTrue(controls["moscow_gateway_control"]["checked"])
         self.assertFalse(controls["moscow_gateway_control"]["viable"])
         self.assertTrue(controls["moscow_via_ist_fallback_control"]["checked"])
@@ -439,7 +439,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
             destination_airports=LON_AIRPORTS,
         )
 
-        controls = report["ru_priority_controls"]
+        controls = report["evidence"]["ru_priority_controls"]
         self.assertTrue(controls["moscow_gateway_control"]["checked"])
         self.assertTrue(controls["moscow_gateway_control"]["viable"])
         self.assertTrue(controls["moscow_gateway_control"]["visible"])
@@ -453,7 +453,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         self._control_option(report, "moscow_gateway")
         fallback_priority_options = [
             item
-            for item in report["priority_options"]
+            for item in report["frontier"]["priority_options"]
             if item.get("control_branch") == "moscow_via_ist_fallback" and item.get("visibility_role") == "priority_control"
         ]
         self.assertEqual(fallback_priority_options, [])
@@ -499,7 +499,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
             destination_airports=LON_AIRPORTS,
         )
 
-        controls = report["ru_priority_controls"]
+        controls = report["evidence"]["ru_priority_controls"]
         self.assertTrue(controls["ist_primary_hub_control"]["viable"])
         fallback = controls["moscow_via_ist_fallback_control"]
         self.assertTrue(fallback["checked"])
@@ -510,7 +510,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         self.assertEqual(fallback["evidence_option_ids"], [])
         fallback_priority_options = [
             item
-            for item in report["priority_options"]
+            for item in report["frontier"]["priority_options"]
             if item.get("control_branch") == "moscow_via_ist_fallback" and item.get("visibility_role") == "priority_control"
         ]
         self.assertEqual(fallback_priority_options, [])
@@ -538,7 +538,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
             destination_airports=LON_AIRPORTS,
         )
 
-        controls = report["ru_priority_controls"]
+        controls = report["evidence"]["ru_priority_controls"]
         self.assertFalse(controls["moscow_gateway_control"]["viable"])
         self.assertFalse(controls["moscow_via_ist_fallback_control"]["viable"])
         self.assertEqual(controls["decision"], "no_viable_ru_priority_control")
@@ -603,7 +603,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
             destination_airports=["MCT"],
         )
 
-        controls = report["ru_priority_controls"]
+        controls = report["evidence"]["ru_priority_controls"]
         self.assertTrue(controls["ist_primary_hub_control"]["viable"])
         self.assertTrue(controls["moscow_gateway_control"]["viable"])
         self.assertFalse(controls["moscow_via_ist_fallback_control"]["viable"])
@@ -635,7 +635,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         )
 
         self.assertNotIn("ru_priority_controls", report)
-        self.assertFalse(any(item.get("control_family") == "ru_priority" for item in report["priority_options"]))
+        self.assertFalse(any(item.get("control_family") == "ru_priority" for item in report["frontier"]["priority_options"]))
 
 
 if __name__ == "__main__":

@@ -547,7 +547,7 @@ def build_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
             "profile_rank_order": RISK_PROFILES[profile]["rank_order"],
             "notes": [
                 "Metrics are deterministic planning operations, not network fetch latency.",
-                "The CLI does not call retired Travelpayouts price APIs during route plan.",
+                "Route planning uses metadata catalogs only; live offers come from active provider commands.",
             ],
         },
     }

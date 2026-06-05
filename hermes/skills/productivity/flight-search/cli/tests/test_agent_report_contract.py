@@ -244,7 +244,15 @@ def valid_report() -> dict:
     }
     report["user_answer"] = build_user_answer_contract(report)
     report["human_answer"]["text"] = report["user_answer"]["rendered_text"]
-    return build_agent_report_v2(report)
+    return report
+
+
+def valid_agent_report_v2(report: dict | None = None) -> dict:
+    return build_agent_report_v2(report or valid_report())
+
+
+def validate_flat_agent_report(report: dict) -> None:
+    validate_agent_report(valid_agent_report_v2(report))
 
 
 def ru_priority_branch(
@@ -315,9 +323,23 @@ class AgentReportContractTests(unittest.TestCase):
 
     def test_valid_synthetic_agent_report_passes(self) -> None:
         report = valid_report()
-        validate_agent_report(report)
+        validate_flat_agent_report(report)
         validate_user_answer_contract(report["user_answer"])
         self.assertEqual(report["user_answer"]["rendered_text"], report["human_answer"]["text"])
+
+    def test_agent_report_v2_runtime_mapping_does_not_expose_legacy_aliases(self) -> None:
+        report = valid_agent_report_v2()
+
+        self.assertEqual(
+            set(report.keys()),
+            {"schema_version", "route", "evidence", "frontier", "user_answer", "diagnostics"},
+        )
+        for legacy_key in LEGACY_TOP_LEVEL_FIELDS:
+            with self.subTest(legacy_key=legacy_key):
+                self.assertNotIn(legacy_key, report)
+                self.assertIsNone(report.get(legacy_key))
+                with self.assertRaises(KeyError):
+                    _ = report[legacy_key]
 
     def test_schema_accepts_ru_priority_controls_for_ru_touching_international_route(self) -> None:
         report = valid_report()
@@ -326,7 +348,7 @@ class AgentReportContractTests(unittest.TestCase):
         report["route"]["routing_strategy"] = "ru-priority"
         report["ru_priority_controls"] = valid_ru_priority_controls()
 
-        validate_agent_report(report)
+        validate_flat_agent_report(report)
 
     def test_ru_priority_branch_without_execution_state_fails_semantic_validation(self) -> None:
         report = valid_report()
@@ -334,12 +356,12 @@ class AgentReportContractTests(unittest.TestCase):
         del report["ru_priority_controls"]["moscow_gateway_control"]["execution_state"]
 
         with self.assertRaises(CliError) as ctx:
-            validate_agent_report(report)
+            validate_flat_agent_report(report)
 
         self.assertTrue(
             any(
                 error["validator"] == "semantic"
-                and error["path"] == "$.ru_priority_controls.moscow_gateway_control.execution_state"
+                and error["path"] == "$.evidence.ru_priority_controls.moscow_gateway_control.execution_state"
                 and "execution_state" in error["message"]
                 for error in ctx.exception.details["errors"]
             )
@@ -363,7 +385,7 @@ class AgentReportContractTests(unittest.TestCase):
         )
 
         with self.assertRaises(CliError) as ctx:
-            validate_agent_report(report)
+            validate_flat_agent_report(report)
 
         self.assertTrue(
             any(
@@ -402,7 +424,7 @@ class AgentReportContractTests(unittest.TestCase):
         self.assertNotIn("priority", answer_text.lower())
         self.assertNotIn("Контроль", answer_text)
 
-        validate_agent_report(report)
+        validate_flat_agent_report(report)
 
     def test_summary_only_display_rejects_detailed_flight_lines(self) -> None:
         report = valid_report()
@@ -430,7 +452,7 @@ class AgentReportContractTests(unittest.TestCase):
         report["display"]["text"] = "\n\n".join(option["text"] for option in report["display"]["options"])
 
         with self.assertRaises(CliError) as ctx:
-            validate_agent_report(report)
+            validate_flat_agent_report(report)
 
         self.assertTrue(
             any(
@@ -442,7 +464,7 @@ class AgentReportContractTests(unittest.TestCase):
     def test_canonical_coverage_diagnostics_requires_terminal_fields(self) -> None:
         report = valid_report()
 
-        validate_agent_report(report)
+        validate_flat_agent_report(report)
 
     def test_canonical_coverage_diagnostics_rejects_old_minimal_shape(self) -> None:
         report = valid_report()
@@ -450,7 +472,7 @@ class AgentReportContractTests(unittest.TestCase):
             del report["coverage_diagnostics"][key]
 
         with self.assertRaises(CliError) as ctx:
-            validate_agent_report(report)
+            validate_flat_agent_report(report)
 
         messages = " ".join(error["message"] for error in ctx.exception.details["errors"])
         self.assertIn("planned_controls", messages)
@@ -465,7 +487,7 @@ class AgentReportContractTests(unittest.TestCase):
         }
 
         with self.assertRaises(CliError) as ctx:
-            validate_agent_report(report)
+            validate_flat_agent_report(report)
 
         self.assertTrue(any(error["validator"] == "semantic" for error in ctx.exception.details["errors"]))
 
@@ -512,7 +534,7 @@ class AgentReportContractTests(unittest.TestCase):
             }
         )
 
-        graph = report["offer_graph"]
+        graph = report["frontier"]["offer_graph"]
         self.assertEqual(graph["algorithm"], "unified_offer_graph.v1")
         self.assertEqual(graph["collection"]["mode"], "progressive")
         self.assertEqual(graph["truth_language"]["inventory_scope"], "live_provider_returned_inventory")
@@ -529,7 +551,7 @@ class AgentReportContractTests(unittest.TestCase):
         self.assertFalse(LEGACY_TOP_LEVEL_FIELDS & set(serialized_report))
         self.assertEqual(serialized_report["frontier"]["offer_graph"], graph)
         validate_user_answer_contract(report["user_answer"])
-        self.assertEqual(report["user_answer"]["rendered_text"], report["human_answer"]["text"])
+        self.assertEqual(report["user_answer"]["rendered_text"], report["diagnostics"]["human_answer"]["text"])
 
     def test_v1_accepts_optional_omitted_counts(self) -> None:
         report = valid_report()
@@ -539,7 +561,7 @@ class AgentReportContractTests(unittest.TestCase):
             "option_segments": 3,
         }
 
-        validate_agent_report(report)
+        validate_flat_agent_report(report)
 
     def test_v1_accepts_runtime_evidence_optional_fields(self) -> None:
         report = valid_report()
@@ -580,7 +602,7 @@ class AgentReportContractTests(unittest.TestCase):
         ]
         report["answer_lines"].append("Provider failure: 1 probe failed; see provider_failures for details.")
 
-        validate_agent_report(report)
+        validate_flat_agent_report(report)
 
     def test_v1_accepts_optional_stop_policy_fields(self) -> None:
         report = valid_report()
@@ -603,7 +625,7 @@ class AgentReportContractTests(unittest.TestCase):
         report["recommended_options"][0]["stop_tier"] = "T0_DIRECT"
         report["recommended_options"][0]["max_connections_per_journey"] = 0
 
-        validate_agent_report(report)
+        validate_flat_agent_report(report)
 
     def test_structured_risk_reasons_are_allowed(self) -> None:
         report = valid_report()
@@ -637,19 +659,19 @@ class AgentReportContractTests(unittest.TestCase):
             }
         ]
 
-        validate_agent_report(report)
+        validate_flat_agent_report(report)
 
     def test_coverage_diagnostics_requires_not_supported_bucket(self) -> None:
         report = valid_report()
         del report["coverage_diagnostics"]["not_supported_controls"]
 
         with self.assertRaises(CliError) as ctx:
-            validate_agent_report(report)
+            validate_flat_agent_report(report)
 
         self.assertTrue(
             any(
                 error["validator"] == "semantic"
-                and error["path"] == "$.coverage_diagnostics.not_supported_controls"
+                and error["path"] == "$.evidence.coverage_diagnostics.not_supported_controls"
                 for error in ctx.exception.details["errors"]
             )
         )
@@ -672,11 +694,11 @@ class AgentReportContractTests(unittest.TestCase):
         report["coverage_diagnostics"]["not_supported_controls"] = "not-a-list"
 
         with self.assertRaises(CliError) as ctx:
-            validate_agent_report(report)
+            validate_flat_agent_report(report)
 
         self.assertTrue(
             any(
-                error["path"] == "$.coverage_diagnostics.not_supported_controls"
+                error["path"] == "$.evidence.coverage_diagnostics.not_supported_controls"
                 and "must be a list" in error["message"]
                 for error in ctx.exception.details["errors"]
             )
@@ -699,11 +721,11 @@ class AgentReportContractTests(unittest.TestCase):
         ]
 
         with self.assertRaises(CliError) as ctx:
-            validate_agent_report(report)
+            validate_flat_agent_report(report)
 
         self.assertTrue(
             any(
-                error["path"] == "$.coverage_diagnostics.not_supported_controls[0].execution_state"
+                error["path"] == "$.evidence.coverage_diagnostics.not_supported_controls[0].execution_state"
                 and "not_supported" in error["message"]
                 for error in ctx.exception.details["errors"]
             )
@@ -714,13 +736,13 @@ class AgentReportContractTests(unittest.TestCase):
         del report["source_boundaries"]
 
         with self.assertRaises(CliError) as ctx:
-            validate_agent_report(report)
+            validate_flat_agent_report(report)
 
         self.assertEqual(ctx.exception.error_type, "contract_error")
         self.assertIn("source_boundaries", ctx.exception.details["errors"][0]["message"])
 
     def test_wrong_schema_version_fails(self) -> None:
-        report = valid_report()
+        report = valid_agent_report_v2()
         report["schema_version"] = "agent_report.v3"
 
         with self.assertRaises(CliError) as ctx:
@@ -730,7 +752,7 @@ class AgentReportContractTests(unittest.TestCase):
         self.assertEqual(ctx.exception.details["schema_version"], "agent_report.v3")
 
     def test_extra_top_level_field_fails(self) -> None:
-        report = valid_report()
+        report = valid_agent_report_v2()
         report["debug_dump"] = {}
 
         with self.assertRaises(CliError) as ctx:
@@ -747,7 +769,7 @@ class AgentReportContractTests(unittest.TestCase):
         report["priority_options"] = [priority]
         report["answer_lines"] = ["Best CLI-ranked option: 10 000 RUB."]
 
-        validate_agent_report(report)
+        validate_flat_agent_report(report)
 
     def test_through_fare_checks_must_surface_in_answer_lines(self) -> None:
         report = valid_report()
@@ -764,7 +786,7 @@ class AgentReportContractTests(unittest.TestCase):
         report["answer_lines"] = ["Best CLI-ranked option: 10 000 RUB."]
 
         with self.assertRaises(CliError) as ctx:
-            validate_agent_report(report)
+            validate_flat_agent_report(report)
 
         self.assertEqual(ctx.exception.error_type, "contract_error")
         self.assertTrue(any("through-fare verification" in error["message"] for error in ctx.exception.details["errors"]))
@@ -785,7 +807,7 @@ class AgentReportContractTests(unittest.TestCase):
         report["answer_lines"] = ["Best CLI-ranked option: 10 000 RUB."]
 
         with self.assertRaises(CliError) as ctx:
-            validate_agent_report(report)
+            validate_flat_agent_report(report)
 
         self.assertEqual(ctx.exception.error_type, "contract_error")
         self.assertTrue(any("provider failures" in error["message"] for error in ctx.exception.details["errors"]))
@@ -816,8 +838,8 @@ class AgentReportContractTests(unittest.TestCase):
         )
 
         validate_agent_report(report)
-        self.assertEqual(report["provider_failures"][0]["provider"], "fli")
-        self.assertIn("Provider failure: FLI failed", " ".join(report["answer_lines"]))
+        self.assertEqual(report["evidence"]["provider_failures"][0]["provider"], "fli")
+        self.assertIn("Provider failure: FLI failed", " ".join(report["diagnostics"]["answer_lines"]))
 
     def test_json_cli_envelope_reports_contract_failure(self) -> None:
         payload = {

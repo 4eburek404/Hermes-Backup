@@ -32,7 +32,6 @@ from .config import (
     DEFAULT_ROUTING_STRATEGY,
     RISK_PROFILES,
 )
-from .env import load_env_file
 from .errors import CliError
 from .output import emit_json, error_envelope, output_envelope, render_human
 from .providers.static_catalog import (
@@ -195,7 +194,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    doctor = sub.add_parser("doctor", help="Check local caches, plugin path, and auth presence.")
+    doctor = sub.add_parser("doctor", help="Check local caches and static catalog status.")
     doctor.set_defaults(func=command_doctor, command_name="doctor")
 
     maintenance = sub.add_parser("maintenance", help="Local maintenance and provenance checks.")
@@ -210,9 +209,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     maintenance_check.set_defaults(func=command_maintenance_check, command_name="maintenance check")
 
-    catalog = sub.add_parser("catalog", help="Travelpayouts static catalog commands.")
+    catalog = sub.add_parser("catalog", help="Static catalog commands.")
     catalog_sub = catalog.add_subparsers(dest="catalog_command", required=True)
-    catalog_update = catalog_sub.add_parser("update", help="Download no-token Travelpayouts static catalog JSON files.")
+    catalog_update = catalog_sub.add_parser("update", help="Download public static catalog JSON files.")
     catalog_update.add_argument("--only", action="append", help="Catalog item name. Repeatable; defaults to all static files.")
     catalog_update.add_argument("--timeout", type=int, default=30, help="HTTP timeout seconds per static file.")
     catalog_update.add_argument("--dry-run", action="store_true", help="Show files that would be downloaded without writing cache.")
@@ -430,7 +429,6 @@ def apply_agent_brief_output(args: argparse.Namespace, data: object) -> object:
 
 
 def main(argv: list[str] | None = None) -> int:
-    load_env_file()
     argv = normalize_global_json(list(sys.argv if argv is None else argv))
     parser = build_parser()
     args = parser.parse_args(argv[1:])

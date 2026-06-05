@@ -121,7 +121,7 @@ class CoverageDiagnosticsTests(unittest.TestCase):
         report = build_agent_report(base_payload())
         validate_agent_report(report)
 
-        diagnostics = report["coverage_diagnostics"]
+        diagnostics = report["evidence"]["coverage_diagnostics"]
         self.assertEqual(diagnostics["coverage_mode"], "targeted")
         self.assertEqual(diagnostics["negative_evidence_type"], "bounded_live_controls_only")
         self.assertIn("segment_absence_is_not_route_absence", diagnostics["coverage_warnings"])
@@ -139,7 +139,7 @@ class CoverageDiagnosticsTests(unittest.TestCase):
 
     def test_answer_lines_keep_coverage_diagnostics_compact(self) -> None:
         report = build_agent_report(base_payload())
-        joined = " ".join(report["answer_lines"])
+        joined = " ".join(report["diagnostics"]["answer_lines"])
 
         self.assertIn("Coverage diagnostics", joined)
         self.assertIn("not_executed=1", joined)
