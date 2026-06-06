@@ -5,7 +5,7 @@ Use this reference when the user asks to audit `flight-calendar-ics` for dead co
 ## Read-only audit shape
 
 1. Prove both layers before conclusions:
-   - canonical source: `/home/konstantin/Hermes-Backup/hermes/skills/productivity/flight-calendar-ics`
+   - canonical source: `/home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-calendar-ics`
    - active runtime: `/home/konstantin/.hermes/skills/productivity/flight-calendar-ics`
    - check branch/status in the source repo and compare source/runtime manifests before any sync.
 2. Prefer AST/static indexing before runtime poking:
