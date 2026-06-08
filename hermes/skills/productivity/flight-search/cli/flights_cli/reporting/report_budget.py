@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
-from .flight_display import sanitize_summary_only_display
+from .projections.itinerary_display import sanitize_summary_only_display
 
 
 @dataclass(frozen=True)

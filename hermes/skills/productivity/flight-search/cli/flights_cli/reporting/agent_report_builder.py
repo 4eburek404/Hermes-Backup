@@ -5,12 +5,12 @@ from typing import Any
 from ..config import SPECIAL_CITY_AIRPORTS
 from ..domain.stop_metrics import offer_stop_metrics
 from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY, StopPolicy, decide_stop_policy, stop_policy_payload
-from .answer_line_renderer import build_answer_lines
+from .projections.summary_lines import build_summary_lines
 from .coverage_projector import build_coverage_diagnostics
-from .flight_display import build_flight_display
+from .projections.itinerary_display import build_itinerary_display
 from .agent_report_v2 import build_agent_report_v2
 from .user_answer import build_user_answer
-from .human_answer_renderer import build_human_answer
+from .projections.human_answer_mirror import build_human_answer_mirror
 from .option_projector import candidate_options_from_details, priority_candidate_options, ranked_candidate_options
 from .offer_graph_projector import build_offer_graph
 from .provider_aggregate_projector import aggregate_control_summary, provider_aggregate_candidate_options
@@ -826,9 +826,9 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
     if ru_priority_controls is not None:
         report["ru_priority_controls"] = ru_priority_controls
     report["offer_graph"] = build_offer_graph(report, plan, live, data)
-    report["display"] = build_flight_display(report, store)
-    report["answer_lines"] = build_answer_lines(report)
-    human_answer = build_human_answer(report)
+    report["display"] = build_itinerary_display(report, store)
+    report["answer_lines"] = build_summary_lines(report)
+    human_answer = build_human_answer_mirror(report)
     report["user_answer"] = build_user_answer(report, rendered_text=str(human_answer.get("text") or ""))
     report["human_answer"] = {
         "format_version": human_answer.get("format_version") or "flight_human_answer.v1",

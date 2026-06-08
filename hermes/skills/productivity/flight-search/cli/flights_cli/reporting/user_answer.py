@@ -12,7 +12,7 @@ from ..contracts.registry import current_contract
 from ..contracts.schema_errors import validation_error_detail
 
 from ..errors import CliError
-from .human_answer_renderer import build_human_answer
+from .projections.human_answer_mirror import build_human_answer_mirror
 from .option_semantics import direction_segments, option_direction, route_requested_round_trip
 from .time_utils import display_minutes_between as minutes_between_iso, integer_or_none as int_or_none
 
@@ -478,7 +478,7 @@ def rendered_answer_lines(rendered_text: str) -> list[str]:
 def canonical_user_answer_text(agent_report: dict[str, Any], rendered_text: str | None = None) -> str:
     if rendered_text is not None and rendered_text.strip():
         return rendered_text.strip()
-    generated: dict[str, Any] = build_human_answer(agent_report)
+    generated: dict[str, Any] = build_human_answer_mirror(agent_report)
     generated_text = str(generated.get("text") or "").strip()
     if generated_text:
         return generated_text

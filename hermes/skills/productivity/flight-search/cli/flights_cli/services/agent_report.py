@@ -8,7 +8,7 @@ from ..reporting.agent_report_builder import (
     provider_failures,
     rejected_pair_warnings,
 )
-from ..reporting.answer_line_renderer import build_answer_lines
+from ..reporting.projections.summary_lines import build_summary_lines
 from ..reporting.coverage_projector import build_coverage_diagnostics
 from ..reporting.formatting import minutes_label, price_label, segment_line
 from ..reporting.option_projector import (

@@ -509,7 +509,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         report["display"]["text"] = "STALE DISPLAY"
         report["answer_lines"] = ["STALE ANSWER LINE"]
 
-        with patch("flights_cli.reporting.final_answer_contract.build_human_answer", return_value={"text": ""}):
+        with patch("flights_cli.reporting.user_answer.build_human_answer_mirror", return_value={"text": ""}):
             answer = build_user_answer_contract(report)
 
         self.assertNotEqual(answer["rendered_text"], "STALE DISPLAY")
