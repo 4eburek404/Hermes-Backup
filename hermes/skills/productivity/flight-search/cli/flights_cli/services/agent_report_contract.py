@@ -12,7 +12,7 @@ from ..contracts.schema_errors import validation_error_detail
 
 from ..errors import CliError
 from ..reporting.agent_report_v2 import AGENT_REPORT_V2_SCHEMA_VERSION
-from ..reporting.final_answer_contract import validate_user_answer_contract
+from ..reporting.user_answer import validate_user_answer
 
 AGENT_REPORT_SCHEMA_VERSION = AGENT_REPORT_V2_SCHEMA_VERSION
 AGENT_REPORT_SCHEMA_RESOURCE = "agent_report.v2.schema.json"
@@ -165,7 +165,7 @@ def user_answer_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
         return []
     errors: list[dict[str, Any]] = []
     try:
-        validate_user_answer_contract(user_answer)
+        validate_user_answer(user_answer)
     except CliError as exc:
         for error in (exc.details or {}).get("errors") or []:
             if not isinstance(error, dict):

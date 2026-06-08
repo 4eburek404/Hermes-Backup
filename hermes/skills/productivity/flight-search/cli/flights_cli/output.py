@@ -4,7 +4,7 @@ import json
 from typing import Any
 
 from .errors import CliError
-from .reporting.final_answer_contract import validate_user_answer_contract
+from .reporting.user_answer import validate_user_answer
 
 def output_envelope(command: str, data: Any) -> dict[str, Any]:
     return {"ok": True, "command": command, "data": data, "issues": []}
@@ -24,7 +24,7 @@ def emit_json(data: Any) -> None:
 def render_agent_report_human(report: dict[str, Any]) -> str:
     raw_user_answer = report.get("user_answer")
     user_answer: dict[str, Any] = raw_user_answer if isinstance(raw_user_answer, dict) else {}
-    validate_user_answer_contract(user_answer)
+    validate_user_answer(user_answer)
     return str(user_answer["rendered_text"])
 
 
