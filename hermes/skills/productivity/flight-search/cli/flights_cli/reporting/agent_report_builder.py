@@ -8,7 +8,7 @@ from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY, StopPolicy, decid
 from .projections.summary_lines import build_summary_lines
 from .coverage_projector import build_coverage_diagnostics
 from .projections.itinerary_display import build_itinerary_display
-from .agent_report_v2 import build_agent_report_v2
+from .agent_report_projector import project_agent_report
 from .user_answer import build_user_answer
 from .projections.human_answer_mirror import build_human_answer_mirror
 from .option_projector import candidate_options_from_details, priority_candidate_options, ranked_candidate_options
@@ -835,4 +835,4 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
         "text": report["user_answer"]["rendered_text"],
         "sections": human_answer.get("sections") if isinstance(human_answer.get("sections"), list) else [],
     }
-    return build_agent_report_v2(apply_agent_report_budget(report))
+    return project_agent_report(apply_agent_report_budget(report))
