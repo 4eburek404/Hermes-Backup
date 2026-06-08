@@ -26,6 +26,7 @@ from ..execution.probe_intent import intent_from_control, intent_from_segment
 from ..execution.probe_ledger import ProbeExecutionLedger
 from ..execution.request_deduper import RequestDeduper
 from ..execution.synthetic_control_runner import synthesize_moscow_gateway_control_results
+from ..pipeline.search_pipeline import build_legacy_live_route_search_flow
 from ..providers.kupibilet import fetch_kupibilet_search
 from ..providers.route_intel import load_or_refresh_svx_route_index, svx_direct_route_index_summary
 from ..services.agent_report import attach_agent_report
@@ -686,8 +687,9 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
 
 
 def run_live_route_assembly(args: argparse.Namespace, store: Store) -> dict[str, Any]:
+    flow = build_legacy_live_route_search_flow(args)
     plan = build_live_route_segment_plan(args, store)
-    max_searches = max(1, int(args.max_segment_searches))
+    max_searches = max(1, int(flow.evidence_plan.max_segment_searches))
     if plan["metrics"]["segment_search_count"] > max_searches:
         raise CliError(
             f"planned {plan['metrics']['segment_search_count']} segment searches exceeds --max-segment-searches {max_searches}",
@@ -703,9 +705,9 @@ def run_live_route_assembly(args: argparse.Namespace, store: Store) -> dict[str,
     offer_counts: dict[tuple[str, str, str, str], int] = {}
     synthetic_moscow_control_done: set[str] = set()
     priority_route_viability: dict[str, bool] = {}
-    cache_ttl_seconds = int(getattr(args, "live_cache_ttl_seconds", DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS))
-    use_live_cache = not bool(getattr(args, "no_live_cache", False))
-    provider_policy = str(getattr(args, "provider_policy", "kupibilet") or "kupibilet")
+    cache_ttl_seconds = int(flow.evidence_plan.live_cache_ttl_seconds)
+    use_live_cache = bool(flow.evidence_plan.live_cache_enabled)
+    provider_policy = flow.evidence_plan.provider_policy
     direct_route_index, direct_route_intel = direct_route_intel_context(args, store, plan)
     request_deduper = RequestDeduper()
     probe_ledger = ProbeExecutionLedger()

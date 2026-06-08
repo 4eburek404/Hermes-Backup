@@ -155,8 +155,8 @@ class CliContractTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["command"], "doctor")
         self.assertEqual(payload["issues"], [])
-        self.assertEqual(payload["data"]["cli"], {"name": "flights-cli", "version": "0.10.14"})
-        self.assertEqual(payload["data"]["skill"], {"name": "flight-search", "version": "0.10.14"})
+        self.assertEqual(payload["data"]["cli"], {"name": "flights-cli", "version": "0.10.15"})
+        self.assertEqual(payload["data"]["skill"], {"name": "flight-search", "version": "0.10.15"})
         self.assertEqual(set(payload["data"]), {
             "cache_counts",
             "cache_dir",
@@ -196,7 +196,7 @@ class CliContractTests(unittest.TestCase):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        self.assertIn("flights 0.10.14 (skill flight-search 0.10.14)", human_proc.stdout)
+        self.assertIn("flights 0.10.15 (skill flight-search 0.10.15)", human_proc.stdout)
         self.assertIn("primary route command: route live-assemble", human_proc.stdout)
         self.assertIn("targeted probe commands: kb-search, kb-roundtrip, fli-search, fli-dates", human_proc.stdout)
         self.assertIn("compatibility commands: route kb-assemble", human_proc.stdout)
