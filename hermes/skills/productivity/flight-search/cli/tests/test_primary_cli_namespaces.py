@@ -1,0 +1,147 @@
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from jsonschema import Draft202012Validator
+
+from flights_cli.cli import auto_refresh_catalog, build_parser
+from flights_cli.command_surface import CATALOG_READ_COMMANDS, CATALOG_REFRESH_COMMANDS, PRIMARY_ROUTE_COMMAND
+from flights_cli.contracts.registry import current_contract
+from flights_cli.store import Store
+
+
+MINIMAL_SEARCH_REQUEST = {
+    "schema_version": "flight_search_request.v1",
+    "origin": "SVX",
+    "destination": "LON",
+    "depart_date": "2026-07-20",
+    "return_date": "2026-07-25",
+    "currency": "RUB",
+    "profile": "balanced",
+    "ticketing": "separate",
+    "provider_policy": "auto",
+}
+
+
+class PrimaryCliNamespaceTests(unittest.TestCase):
+    def test_primary_search_diagnose_and_maint_namespaces_parse_target_commands(self) -> None:
+        parser = build_parser()
+
+        parsed = {
+            "search": parser.parse_args(["search", "--request", "request.json"]),
+            "diagnose plan": parser.parse_args(["diagnose", "plan", "--request", "request.json"]),
+            "diagnose probe kupibilet": parser.parse_args(["diagnose", "probe", "--provider", "kupibilet", "--request", "probe.json"]),
+            "diagnose probe fli": parser.parse_args(["diagnose", "probe", "--provider", "fli", "--request", "probe.json"]),
+            "diagnose render": parser.parse_args(["diagnose", "render", "--input", "agent-report.json"]),
+            "maint doctor": parser.parse_args(["maint", "doctor"]),
+            "maint catalog manifest": parser.parse_args(["maint", "catalog", "manifest"]),
+            "maint catalog refresh": parser.parse_args(["maint", "catalog", "refresh", "--dry-run"]),
+        }
+
+        self.assertEqual(parsed["search"].command_name, "search")
+        self.assertEqual(parsed["diagnose plan"].command_name, "diagnose plan")
+        self.assertEqual(parsed["diagnose probe kupibilet"].provider, "kupibilet")
+        self.assertEqual(parsed["diagnose probe fli"].provider, "fli")
+        self.assertEqual(parsed["diagnose render"].command_name, "diagnose render")
+        self.assertEqual(parsed["maint doctor"].command_name, "maint doctor")
+        self.assertEqual(parsed["maint catalog manifest"].command_name, "maint catalog manifest")
+        self.assertTrue(parsed["maint catalog refresh"].dry_run)
+        self.assertEqual(PRIMARY_ROUTE_COMMAND, "search")
+
+    def test_catalog_read_commands_are_read_only_and_refresh_is_explicit(self) -> None:
+        parser = build_parser()
+        argv_by_command = {
+            "cities search": ["cities", "search", "London"],
+            "airports explain": ["airports", "explain", "LHR"],
+            "fli-search": ["fli-search", "IST", "LHR", "--depart-date", "2026-07-20"],
+            "route plan": ["route", "plan", "SVX", "LON", "--depart-date", "2026-07-20"],
+            "route kb-assemble": ["route", "kb-assemble", "SVX", "LON", "--depart-date", "2026-07-20"],
+            "route live-assemble": ["route", "live-assemble", "SVX", "LON", "--depart-date", "2026-07-20"],
+            "metrics workflow": ["metrics", "workflow", "SVX", "LON", "--depart-date", "2026-07-20"],
+            "search": ["search", "--request", "request.json"],
+            "diagnose plan": ["diagnose", "plan", "--request", "request.json"],
+        }
+        self.assertEqual(set(CATALOG_READ_COMMANDS), set(argv_by_command))
+        self.assertEqual(CATALOG_REFRESH_COMMANDS, ("maint catalog refresh",))
+        for command_name, argv in argv_by_command.items():
+            with self.subTest(command_name=command_name):
+                args = parser.parse_args(argv)
+                self.assertEqual(getattr(args, "catalog_access", None), "read_only")
+                with patch("flights_cli.cli.refresh_static_catalog_if_needed") as refresh:
+                    self.assertIsNone(auto_refresh_catalog(args, Store()))
+                    refresh.assert_not_called()
+
+    def test_search_request_and_result_contract_resources_validate_minimal_payloads(self) -> None:
+        from importlib import resources
+
+        request_contract = current_contract("search_request")
+        result_contract = current_contract("search_result")
+        request_schema = json.loads(resources.files("flights_cli.contracts").joinpath(request_contract["schema_resource"]).read_text(encoding="utf-8"))
+        result_schema = json.loads(resources.files("flights_cli.contracts").joinpath(result_contract["schema_resource"]).read_text(encoding="utf-8"))
+        Draft202012Validator.check_schema(request_schema)
+        Draft202012Validator.check_schema(result_schema)
+
+        Draft202012Validator(request_schema).validate(MINIMAL_SEARCH_REQUEST)
+        Draft202012Validator(result_schema).validate(
+            {
+                "schema_version": "flight_search_result.v1",
+                "wire_version": "flight_search_result.v1",
+                "request": MINIMAL_SEARCH_REQUEST,
+                "agent_report": {"schema_version": "agent_report.v2"},
+                "route_result": {"agent_report": {"schema_version": "agent_report.v2"}},
+            }
+        )
+
+    def test_search_app_adapts_request_to_legacy_live_assembly_and_wraps_result(self) -> None:
+        from flights_cli.apps.search import command_search
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            request_path = Path(tmp_dir) / "request.json"
+            request_path.write_text(json.dumps(MINIMAL_SEARCH_REQUEST), encoding="utf-8")
+            args = argparse.Namespace(request=str(request_path), command_name="search")
+            captured: dict[str, object] = {}
+
+            def fake_run(legacy_args: argparse.Namespace, store: Store) -> dict[str, object]:
+                captured["origin"] = legacy_args.origin
+                captured["destination"] = legacy_args.destination
+                captured["command_name"] = legacy_args.command_name
+                captured["agent_brief"] = legacy_args.agent_brief
+                return {"agent_report": {"schema_version": "agent_report.v2"}, "legacy": True}
+
+            with patch("flights_cli.apps.search.run_live_route_assembly", side_effect=fake_run):
+                result = command_search(args, Store())
+
+        self.assertEqual(captured, {"origin": "SVX", "destination": "LON", "command_name": "route live-assemble", "agent_brief": True})
+        self.assertEqual(result["schema_version"], "flight_search_result.v1")
+        self.assertEqual(result["wire_version"], "flight_search_result.v1")
+        self.assertEqual(result["request"], MINIMAL_SEARCH_REQUEST)
+        self.assertEqual(result["agent_report"], {"schema_version": "agent_report.v2"})
+        self.assertTrue(result["route_result"]["legacy"])
+
+    def test_search_json_errors_are_machine_parseable_on_stdout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            request_path = Path(tmp_dir) / "invalid-request.json"
+            request_path.write_text(json.dumps({"schema_version": "flight_search_request.v1"}), encoding="utf-8")
+            proc = subprocess.run(
+                [sys.executable, "-m", "flights_cli", "--json", "search", "--request", str(request_path)],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+        self.assertEqual(proc.returncode, 1)
+        payload = json.loads(proc.stdout)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["type"], "validation_error")
+        self.assertEqual(proc.stderr, "")
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -8,7 +8,7 @@ from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY, StopPolicy, decid
 from .projections.summary_lines import build_summary_lines
 from .coverage_projector import build_coverage_diagnostics
 from .projections.itinerary_display import build_itinerary_display
-from .agent_report_projector import project_agent_report
+from .agent_report_projector import AGENT_REPORT_SCHEMA_VERSION, project_agent_report
 from .user_answer import build_user_answer
 from .projections.human_answer_mirror import build_human_answer_mirror
 from .option_projector import candidate_options_from_details, priority_candidate_options, ranked_candidate_options
@@ -792,7 +792,7 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
     fallback_origin = fallback_segments[0].get("origin") if fallback_segments else None
     fallback_destination = fallback_segments[-1].get("destination") if fallback_segments else None
     report = {
-        "schema_version": "agent_report.v2",
+        "schema_version": AGENT_REPORT_SCHEMA_VERSION,
         "route": {
             "origin": plan.get("origin") or fallback_origin,
             "destination": plan.get("destination") or fallback_destination,

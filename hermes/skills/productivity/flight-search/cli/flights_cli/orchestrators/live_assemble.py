@@ -27,7 +27,6 @@ from ..execution.probe_ledger import ProbeExecutionLedger
 from ..execution.request_deduper import RequestDeduper
 from ..execution.synthetic_control_runner import synthesize_moscow_gateway_control_results
 from ..pipeline.search_pipeline import build_legacy_live_route_search_flow
-from ..providers.kupibilet import fetch_kupibilet_search
 from ..providers.route_intel import load_or_refresh_svx_route_index, svx_direct_route_index_summary
 from ..services.agent_report import attach_agent_report
 from ..services.assembly import assemble_direction, assemble_segment_results, direct_journeys, empty_assembled_result
@@ -39,6 +38,12 @@ from .route_graph import (
     route_families_for_strategy,
     route_graph_from_segments,
 )
+
+# Compatibility injection hook for older tests and callers that patch
+# ``flights_cli.orchestrators.live_assemble.fetch_kupibilet_search``.
+# Production keeps this as None so provider calls are resolved through the
+# provider-port registry in ``execution.*``.
+fetch_kupibilet_search: Any | None = None
 
 
 def provider_policy_allows_kupibilet(policy: str | None) -> bool:

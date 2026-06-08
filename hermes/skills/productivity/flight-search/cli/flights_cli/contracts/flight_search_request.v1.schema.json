@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermes.local/flights/flight_search_request.v1.schema.json",
+  "title": "Flight Search Request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "origin", "destination", "depart_date"],
+  "properties": {
+    "schema_version": {"const": "flight_search_request.v1"},
+    "origin": {"type": "string", "minLength": 3},
+    "destination": {"type": "string", "minLength": 3},
+    "depart_date": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+    "return_date": {"type": ["string", "null"], "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+    "currency": {"type": "string", "default": "RUB"},
+    "profile": {"type": "string", "default": "balanced"},
+    "ticketing": {"type": "string", "enum": ["separate", "single"], "default": "separate"},
+    "provider_policy": {"type": "string", "enum": ["auto", "kupibilet", "fli", "both"], "default": "auto"},
+    "route_options": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hubs": {"type": "array", "items": {"type": "string"}},
+        "routing_strategy": {"type": "string", "enum": ["auto", "hub-list", "ru-priority", "domestic-ru"]},
+        "origin_airports": {"type": "array", "items": {"type": "string"}},
+        "destination_airports": {"type": "array", "items": {"type": "string"}},
+        "max_airports_per_city": {"type": "integer", "minimum": 1},
+        "coverage_mode": {"type": "string", "enum": ["standard", "targeted", "full"]},
+        "coverage_controls": {"type": "array", "items": {"type": "string"}},
+        "coverage_control_limit": {"type": "integer", "minimum": 0},
+        "min_same_airport_min": {"type": "integer", "minimum": 0},
+        "min_cross_airport_min": {"type": "integer", "minimum": 0},
+        "stop_policy": {"type": "string", "enum": ["business-default", "strict-direct-one-stop", "allow-two-stop-fallback", "debug-all"]},
+        "max_connections": {"type": ["integer", "null"], "minimum": 0},
+        "fallback_max_connections": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "segment_limit": {"type": "integer", "minimum": 1},
+        "timeout": {"type": "integer", "minimum": 1},
+        "outbound_second_leg_day_offsets": {"type": "array", "items": {"type": "integer"}},
+        "return_second_leg_day_offsets": {"type": "array", "items": {"type": "integer"}},
+        "aggregate_control_limit": {"type": "integer", "minimum": 0},
+        "aggregate_control_carriers": {"type": "array", "items": {"type": "string"}},
+        "max_segment_searches": {"type": "integer", "minimum": 1},
+        "fail_fast": {"type": "boolean"},
+        "live_cache_ttl_seconds": {"type": "integer", "minimum": 0},
+        "no_live_cache": {"type": "boolean"},
+        "direct_route_index_ttl_seconds": {"type": "integer", "minimum": 0},
+        "no_direct_route_intel": {"type": "boolean"},
+        "fli_mcp_url": {"type": "string"}
+      }
+    },
+    "filters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "only_carriers": {"type": "array", "items": {"type": "string"}},
+        "exclude_carriers": {"type": "array", "items": {"type": "string"}},
+        "prefer_carriers": {"type": "array", "items": {"type": "string"}},
+        "avoid_carriers": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "agent_brief": {"type": "boolean"},
+        "include_stop_policy_diagnostics": {"type": "boolean"},
+        "limit_per_pair": {"type": "integer", "minimum": 1},
+        "candidate_pool_limit": {"type": "integer", "minimum": 1},
+        "max_candidates": {"type": "integer", "minimum": 0},
+        "max_reasons": {"type": "integer", "minimum": 0},
+        "include_candidates": {"type": "integer", "minimum": 0},
+        "include_ranked_candidates": {"type": "integer", "minimum": 0},
+        "include_rejected_pairs": {"type": "integer", "minimum": 0},
+        "include_segment_results": {"type": "integer", "minimum": 0},
+        "include_filtered": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

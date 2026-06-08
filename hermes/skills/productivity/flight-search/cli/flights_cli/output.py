@@ -136,7 +136,7 @@ def render_human(command: str, data: Any) -> str:
                 if leg_bits:
                     lines.append(f"     {journey.get('direction')}: " + " | ".join(leg_bits))
         return "\n".join(lines)
-    if command == "doctor":
+    if command in {"doctor", "maint doctor"}:
         counts = data["cache_counts"]
         policy = data["catalog_auto_refresh_policy"]
         staleness = data["catalog_staleness"]
@@ -178,7 +178,7 @@ def render_human(command: str, data: Any) -> str:
                 f"generated artifacts: source={artifacts['source_count']} runtime={artifacts['runtime_count']}",
             ]
         )
-    if command == "catalog update":
+    if command in {"catalog update", "maint catalog refresh"}:
         if data.get("dry_run"):
             lines = [f"catalog dry-run: {len(data.get('planned') or [])} files", f"cache: {data['cache_dir']}"]
             for item in data.get("planned") or []:
@@ -188,7 +188,7 @@ def render_human(command: str, data: Any) -> str:
         for item in data.get("updated") or []:
             lines.append(f"  {item['name']}: count={item['count']} sha256={str(item['sha256'])[:12]}")
         return "\n".join(lines)
-    if command == "catalog manifest":
+    if command in {"catalog manifest", "maint catalog manifest"}:
         entries = (data.get("manifest") or {}).get("entries") or {}
         staleness = data.get("catalog_staleness") or {}
         lines = [

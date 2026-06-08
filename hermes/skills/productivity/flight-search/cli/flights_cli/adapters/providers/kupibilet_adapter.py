@@ -203,7 +203,7 @@ class KupibiletProviderAdapter:
     name: ProviderName = "kupibilet"
     capabilities = KUPIBILET_CAPABILITIES
 
-    def __init__(self, *, store: Store | None = None, fetcher: Any = fetch_kupibilet_search) -> None:
+    def __init__(self, *, store: Store | None = None, fetcher: Any | None = None) -> None:
         self.store = store
         self.fetcher = fetcher
 

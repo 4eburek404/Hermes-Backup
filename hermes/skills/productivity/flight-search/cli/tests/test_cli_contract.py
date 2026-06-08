@@ -11,6 +11,7 @@ from jsonschema import Draft202012Validator
 
 from flights_cli.cli import apply_agent_brief_output, apply_agent_mode_defaults, build_parser, normalize_global_json
 from flights_cli.command_surface import (
+    CATALOG_READ_COMMANDS,
     CATALOG_REFRESH_COMMANDS,
     COMPATIBILITY_COMMANDS,
     LIVE_PROVIDER_COMMANDS,
@@ -67,6 +68,12 @@ COMMAND_ARGV = {
     "route kb-assemble": ["route", "kb-assemble", "SVX", "LON", "--depart-date", "2026-07-20"],
     "route live-assemble": ["route", "live-assemble", "SVX", "LON", "--depart-date", "2026-07-20"],
     "metrics workflow": ["metrics", "workflow", "SVX", "LON", "--depart-date", "2026-07-20"],
+    "search": ["search", "--request", "request.json"],
+    "diagnose plan": ["diagnose", "plan", "--request", "request.json"],
+}
+
+CATALOG_REFRESH_ARGV = {
+    "maint catalog refresh": ["maint", "catalog", "refresh", "--dry-run"],
 }
 
 
@@ -107,11 +114,17 @@ class CliContractTests(unittest.TestCase):
 
     def test_catalog_refresh_surface_matches_registered_catalog_commands(self) -> None:
         parser = build_parser()
-        self.assertEqual(set(CATALOG_REFRESH_COMMANDS), set(COMMAND_ARGV))
-        for command_name in CATALOG_REFRESH_COMMANDS:
+        self.assertEqual(set(CATALOG_READ_COMMANDS), set(COMMAND_ARGV))
+        self.assertEqual(set(CATALOG_REFRESH_COMMANDS), set(CATALOG_REFRESH_ARGV))
+        for command_name in CATALOG_READ_COMMANDS:
             with self.subTest(command_name=command_name):
                 args = parser.parse_args(COMMAND_ARGV[command_name])
                 self.assertTrue(getattr(args, "requires_catalog", False))
+                self.assertEqual(getattr(args, "catalog_access", None), "read_only")
+        for command_name in CATALOG_REFRESH_COMMANDS:
+            with self.subTest(command_name=command_name):
+                args = parser.parse_args(CATALOG_REFRESH_ARGV[command_name])
+                self.assertEqual(getattr(args, "catalog_access", None), "refresh_explicit")
 
     def test_route_kb_assemble_is_kupibilet_compatibility_alias(self) -> None:
         parser = build_parser()
@@ -197,9 +210,9 @@ class CliContractTests(unittest.TestCase):
             stderr=subprocess.PIPE,
         )
         self.assertIn("flights 0.10.15 (skill flight-search 0.10.15)", human_proc.stdout)
-        self.assertIn("primary route command: route live-assemble", human_proc.stdout)
-        self.assertIn("targeted probe commands: kb-search, kb-roundtrip, fli-search, fli-dates", human_proc.stdout)
-        self.assertIn("compatibility commands: route kb-assemble", human_proc.stdout)
+        self.assertIn("primary route command: search", human_proc.stdout)
+        self.assertIn("targeted probe commands: diagnose probe", human_proc.stdout)
+        self.assertIn("compatibility commands: route live-assemble", human_proc.stdout)
         self.assertIn("default hubs: IST, DXB, DOH", human_proc.stdout)
 
     def test_legacy_agent_mode_sets_compact_live_assembly_defaults(self) -> None:

@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import sys
+from typing import Any
 
 from . import __version__
 from .commands.basic import (
@@ -13,6 +14,9 @@ from .commands.basic import (
     command_cities_search,
     command_doctor,
 )
+from .apps.diagnose import command_diagnose_plan, command_diagnose_probe, command_diagnose_render
+from .apps.maint import command_maint_catalog_manifest, command_maint_catalog_refresh, command_maint_doctor
+from .apps.search import command_search
 from .commands.maintenance import command_maintenance_check
 from .commands.metrics import command_metrics_workflow
 from .commands.providers import (
@@ -227,9 +231,34 @@ def live_assembly_parent() -> argparse.ArgumentParser:
     return _parent(add_live_assembly_flags)
 
 
+def _catalog_read_defaults(**kwargs: Any) -> dict[str, Any]:
+    return {"catalog_access": "read_only", "requires_catalog": True, **kwargs}
+
+
 def _register_doctor_commands(sub) -> None:
     doctor = sub.add_parser("doctor", help="Check local caches and static catalog status.")
     doctor.set_defaults(func=command_doctor, command_name="doctor")
+
+
+def _register_primary_search_commands(sub) -> None:
+    search = sub.add_parser("search", help="Primary request-file route search; JSON output keeps flight_search_result.v1 envelope.")
+    search.add_argument("--request", required=True, help="flight_search_request.v1 JSON file, or - for stdin.")
+    search.set_defaults(func=command_search, command_name="search", error_envelope_stdout=True, **_catalog_read_defaults())
+
+
+def _register_diagnose_commands(sub) -> None:
+    diagnose = sub.add_parser("diagnose", help="Diagnostics for plan/probe/render workflows.")
+    diagnose_sub = diagnose.add_subparsers(dest="diagnose_command", required=True)
+    plan = diagnose_sub.add_parser("plan", help="Render the route segment plan from a flight_search_request.v1 file without provider calls.")
+    plan.add_argument("--request", required=True, help="flight_search_request.v1 JSON file, or - for stdin.")
+    plan.set_defaults(func=command_diagnose_plan, command_name="diagnose plan", **_catalog_read_defaults())
+    probe = diagnose_sub.add_parser("probe", help="Run a single provider probe from a probe JSON file.")
+    probe.add_argument("--provider", required=True, choices=["kupibilet", "fli"])
+    probe.add_argument("--request", required=True, help="Probe JSON file, or - for stdin.")
+    probe.set_defaults(func=command_diagnose_probe, command_name="diagnose probe")
+    render = diagnose_sub.add_parser("render", help="Render human-answer diagnostics from an agent_report JSON file.")
+    render.add_argument("--input", required=True, help="agent_report JSON file, output envelope, or - for stdin.")
+    render.set_defaults(func=command_diagnose_render, command_name="diagnose render")
 
 
 def _register_maintenance_commands(sub) -> None:
@@ -244,6 +273,22 @@ def _register_maintenance_commands(sub) -> None:
         help="Runtime flight-search skill path to compare against. Defaults to ~/.hermes/skills/productivity/flight-search.",
     )
     maintenance_check.set_defaults(func=command_maintenance_check, command_name="maintenance check")
+
+
+def _register_maint_commands(sub) -> None:
+    maint = sub.add_parser("maint", help="Primary maintenance namespace.")
+    maint_sub = maint.add_subparsers(dest="maint_command", required=True)
+    doctor = maint_sub.add_parser("doctor", help="Check local caches and static catalog status without provider calls.")
+    doctor.set_defaults(func=command_maint_doctor, command_name="maint doctor")
+    catalog = maint_sub.add_parser("catalog", help="Static catalog maintenance.")
+    catalog_sub = catalog.add_subparsers(dest="maint_catalog_command", required=True)
+    manifest = catalog_sub.add_parser("manifest", help="Show the local static catalog manifest.")
+    manifest.set_defaults(func=command_maint_catalog_manifest, command_name="maint catalog manifest")
+    refresh = catalog_sub.add_parser("refresh", help="Download public static catalog JSON files explicitly.")
+    refresh.add_argument("--only", action="append", help="Catalog item name. Repeatable; defaults to all static files.")
+    refresh.add_argument("--timeout", type=int, default=30, help="HTTP timeout seconds per static file.")
+    refresh.add_argument("--dry-run", action="store_true", help="Show files that would be downloaded without writing cache.")
+    refresh.set_defaults(func=command_maint_catalog_refresh, command_name="maint catalog refresh", catalog_access="refresh_explicit")
 
 
 def _register_catalog_commands(sub) -> None:
@@ -264,13 +309,13 @@ def _register_metadata_commands(sub) -> None:
     cities_search = cities_sub.add_parser("search", help="Search city name or IATA code in local cache.")
     cities_search.add_argument("query")
     cities_search.add_argument("--limit", type=int, default=5)
-    cities_search.set_defaults(func=command_cities_search, command_name="cities search", requires_catalog=True)
+    cities_search.set_defaults(func=command_cities_search, command_name="cities search", **_catalog_read_defaults())
 
     airports = sub.add_parser("airports", help="Airport rule lookup commands.")
     airports_sub = airports.add_subparsers(dest="airports_command", required=True)
     airports_explain = airports_sub.add_parser("explain", help="Explain airport and multi-airport risk rules.")
     airports_explain.add_argument("code", nargs="+")
-    airports_explain.set_defaults(func=command_airports_explain, command_name="airports explain", requires_catalog=True)
+    airports_explain.set_defaults(func=command_airports_explain, command_name="airports explain", **_catalog_read_defaults())
 
 
 def _add_kb_search_flags(parser: argparse.ArgumentParser) -> None:
@@ -342,7 +387,7 @@ def _register_provider_probe_commands(sub) -> None:
 
     fli_search = sub.add_parser("fli-search", help="FLI MCP live Google Flights search through a self-hosted MCP HTTP server.")
     _add_fli_search_flags(fli_search)
-    fli_search.set_defaults(func=command_fli_search, command_name="fli-search", requires_catalog=True)
+    fli_search.set_defaults(func=command_fli_search, command_name="fli-search", **_catalog_read_defaults())
 
     fli_dates = sub.add_parser("fli-dates", help="FLI MCP flexible date search through a self-hosted MCP HTTP server.")
     _add_fli_dates_flags(fli_dates)
@@ -354,7 +399,7 @@ def _register_route_commands(sub) -> None:
     route_sub = route.add_subparsers(dest="route_command", required=True)
 
     route_plan = route_sub.add_parser("plan", parents=[route_query_parent()], help="Build segment query plan through hubs without API calls.")
-    route_plan.set_defaults(func=command_route_plan, command_name="route plan", requires_catalog=True)
+    route_plan.set_defaults(func=command_route_plan, command_name="route plan", **_catalog_read_defaults())
 
     route_validate = route_sub.add_parser("validate", parents=[connection_policy_parent()], help="Validate airport compatibility and connection windows from JSON.")
     route_validate.add_argument("--input", default="-", help="Input JSON file, or - for stdin.")
@@ -383,7 +428,7 @@ def _register_route_commands(sub) -> None:
         help="Compatibility alias for route live-assemble --provider-policy kupibilet.",
     )
     route_kb_assemble.set_defaults(provider_policy="kupibilet", fli_mcp_url=None)
-    route_kb_assemble.set_defaults(func=command_route_kb_assemble, command_name="route kb-assemble", requires_catalog=True)
+    route_kb_assemble.set_defaults(func=command_route_kb_assemble, command_name="route kb-assemble", **_catalog_read_defaults())
 
     route_live_assemble = route_sub.add_parser(
         "live-assemble",
@@ -397,14 +442,14 @@ def _register_route_commands(sub) -> None:
         help="Live provider policy. auto uses Kupibilet for RU-touching segments and FLI MCP for non-RU segments.",
     )
     route_live_assemble.add_argument("--fli-mcp-url", default=os.getenv("FLIGHTS_FLI_MCP_URL", FLI_MCP_DEFAULT_URL), help="FLI MCP HTTP URL for provider-policy fli/both/auto.")
-    route_live_assemble.set_defaults(func=command_route_live_assemble, command_name="route live-assemble", requires_catalog=True)
+    route_live_assemble.set_defaults(func=command_route_live_assemble, command_name="route live-assemble", **_catalog_read_defaults())
 
 
 def _register_metrics_commands(sub) -> None:
     metrics = sub.add_parser("metrics", help="Workflow metrics commands.")
     metrics_sub = metrics.add_subparsers(dest="metrics_command", required=True)
     metrics_workflow = metrics_sub.add_parser("workflow", parents=[route_query_parent()], help="Compare manual planning operations with CLI planning.")
-    metrics_workflow.set_defaults(func=command_metrics_workflow, command_name="metrics workflow", requires_catalog=True)
+    metrics_workflow.set_defaults(func=command_metrics_workflow, command_name="metrics workflow", **_catalog_read_defaults())
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -433,6 +478,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
+    _register_primary_search_commands(sub)
+    _register_diagnose_commands(sub)
+    _register_maint_commands(sub)
     _register_doctor_commands(sub)
     _register_maintenance_commands(sub)
     _register_catalog_commands(sub)
@@ -451,7 +499,10 @@ def normalize_global_json(argv: list[str]) -> list[str]:
 
 
 def auto_refresh_catalog(args: argparse.Namespace, store: Store) -> dict | None:
-    if not getattr(args, "requires_catalog", False):
+    # Catalog-dependent search/diagnostic commands are read-only by default.
+    # Refresh is now an explicit maintenance action (`maint catalog refresh`) to
+    # keep normal search paths free of hidden network/file-write side effects.
+    if getattr(args, "catalog_access", None) != "auto_refresh":
         return None
     if args.catalog_refresh not in {"auto", "always", "never"}:
         raise CliError("catalog refresh policy must be one of auto, always, never", error_type="validation_error")
@@ -508,7 +559,10 @@ def main(argv: list[str] | None = None) -> int:
         data = apply_agent_brief_output(args, data)
     except CliError as exc:
         if args.json:
-            print(json.dumps(error_envelope(exc), ensure_ascii=False, indent=2, sort_keys=True), file=sys.stderr)
+            if getattr(args, "error_envelope_stdout", False):
+                emit_json(error_envelope(exc))
+            else:
+                print(json.dumps(error_envelope(exc), ensure_ascii=False, indent=2, sort_keys=True), file=sys.stderr)
         else:
             print(f"error: {exc.message}", file=sys.stderr)
             if exc.details is not None:
