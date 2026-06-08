@@ -13,7 +13,7 @@ metadata:
 
 ## Overview
 
-Default path: normalize request → run runtime CLI `route live-assemble --agent-brief` → read `data.agent_report` → answer from the deterministic user-answer renderer.
+Default path: normalize request → write a `flight_search_request.v1` JSON file → run runtime CLI `search --request …` → read `data.agent_report` → answer from the deterministic user-answer renderer.
 
 The active public contracts are `agent_report.v2` and `flight_search_user_answer.v3`. `user_answer.rendered_text` is the canonical user-facing renderer output; `diagnostics.human_answer`, `diagnostics.display`, and `diagnostics.answer_lines` are debug/mirror projections, not fallback final-prose sources. Static catalogs only normalize metadata; cached fare helpers do not validate schedules, availability, connections, ticketing, or provider offers. This skill never books or buys tickets.
 
@@ -25,7 +25,7 @@ Do not use for purchase actions, visa/hotel/ground research, or static fare hint
 
 ## Scenario Decision Map
 
-The CLI has a rich internal surface (17 commands), but agent-facing workflow is a **flow-decision gate plus two-level Golden Path**. Do not start by choosing among commands. First classify the request by intent, market, and evidence requirement; then run one primary command and only targeted follow-up probes. Provider dispatch is automatic inside `route live-assemble` under `--provider-policy auto`: RU-touching segments → KupiBilet, non-RU segments → FLI. The agent does not choose providers unless the user/debug task requires an override.
+The CLI has a rich internal surface, but agent-facing workflow is a **flow-decision gate plus two-level Golden Path**. Do not start by choosing among commands. First classify the request by intent, market, and evidence requirement; then run one primary command and only targeted follow-up probes. Provider dispatch is automatic inside the primary `search --request` flow through the provider-policy port: RU-touching segments → KupiBilet, non-RU segments → FLI. The agent does not choose providers unless the user/debug task requires an override.
 
 Mandatory first-pass classes:
 
@@ -38,20 +38,20 @@ Important limitation: global non-RU routes must not silently inherit Russia-prio
 ### Level 1 — Primary Command (after flow decision)
 
 ```bash
-route live-assemble ORIGIN DEST --depart-date YYYY-MM-DD --profile PROFILE --agent-brief
+python3 -m flights_cli --json search --request /path/to/flight_search_request.v1.json
 ```
 
-Add `--return-date YYYY-MM-DD` for round trips. Read `data.agent_report` → copy `user_answer.rendered_text` as answer.
+The request file must use `schema_version: flight_search_request.v1` and include origin, destination, depart_date, optional return_date, currency/profile/ticketing/provider_policy fields. Read `data.agent_report` → copy `user_answer.rendered_text` as answer.
 
 ### Level 2 — Triggered Follow-ups
 
 | User intent / Trigger | Follow-up command | Notes |
 |---|---|---|
-| RF internal round trip, need live direct-return confirmation | `kb-roundtrip ORIGIN DEST --depart-date … --return-date … --direct-only` | Single-checkout round-trip evidence for direct return |
-| Carrier-specific round trip (e.g. "Аэрофлот туда-обратно") | `kb-roundtrip ORIGIN DEST --depart-date … --return-date … --only-carrier SU` | One-order carrier bundle evidence |
-| "Только прямые на неделе XX–YY" | `kb-search --direct-only` (RU) or `fli-search --direct-only` (non-RU) per date | See `references/direct-date-window.md` |
-| Carrier exists on route? | `kb-search --only-carrier XX` (RU) or targeted coverage control | Answer carrier scope first, then alternatives |
-| Exact-airport direct control (e.g. IST→LHR only) | `fli-search --direct-only` or `--coverage-control exact_airport_direct` | Confirm or deny specific airport |
+| RF internal round trip, need live direct-return confirmation | `diagnose kb-roundtrip ORIGIN DEST --depart-date … --return-date … --direct-only` | Single-checkout round-trip evidence for direct return |
+| Carrier-specific round trip (e.g. "Аэрофлот туда-обратно") | `diagnose kb-roundtrip ORIGIN DEST --depart-date … --return-date … --only-carrier SU` | One-order carrier bundle evidence |
+| "Только прямые на неделе XX–YY" | `diagnose kb-search --direct-only` (RU) or `diagnose fli-search --direct-only` (non-RU) per date | See `references/direct-date-window.md` |
+| Carrier exists on route? | `diagnose kb-search --only-carrier XX` (RU) or targeted coverage control | Answer carrier scope first, then alternatives |
+| Exact-airport direct control (e.g. IST→LHR only) | `diagnose fli-search --direct-only` or `--coverage-control exact_airport_direct` | Confirm or deny specific airport |
 | "А поездом?" on same route/dates | RZD probe per `references/rail-rzd-live-pricing.md` | Bounded comparison only |
 | --agent-brief hides evidence/failed providers, need debug | Re-run with `--agent-report` (keeps full output) | `--agent-brief` trims to `agent_report` only; `--agent-report` keeps `evidence`, `frontier`, `diagnostics` |
 
@@ -75,7 +75,7 @@ For CLI/report refactor planning, first untangle the current structure before se
 ## Golden Path
 
 0. If the user follows up with a non-flight price comparison, especially “а поездом сколько?”, keep it bounded to cost/time comparison. For Russian rail, use `references/rail-rzd-live-pricing.md`: resolve stations, query official RZD/pass.rzd both directions by exact dates, calculate round-trip minima by class, then compare against the flight total.
-0a. If the user asks for **all direct/nonstop flights over a date window** (“все прямые”, “только прямые”, “на неделе”), treat it as direct inventory, not route recommendation. Follow `references/direct-date-window.md`: expand the range, run bounded provider-live direct-only probes per date, and do not present connected `route live-assemble` alternatives unless the user asks.
+0a. If the user asks for **all direct/nonstop flights over a date window** (“все прямые”, “только прямые”, “на неделе”), treat it as direct inventory, not route recommendation. Follow `references/direct-date-window.md`: expand the range, run bounded provider-live direct-only probes per date, and do not present connected-route alternatives unless the user asks.
 1. Normalize exact dates, route scope, named airports, carrier, stops, baggage, timing, ticketing intent, and profile. Preserve named airports (`IST`, `SVO`, `DME`). Arrival deadline without departure date: search latest plausible departure first, then previous date. Default “morning” to before local noon. Treat “avoid Moscow” as soft ranking unless explicit hard filter.
 2. Classify flow before command/provider reasoning: intent (`route_recommendation`, `direct_inventory`, `ticketing_proof`, `carrier_or_airport_scope`, `adjacent_mode`, `maintenance`), market (`ru_domestic`, `ru_touching_international`, `global_non_ru`, `structurally_constrained`), and evidence requirement (`shopping_advisory`, `ticketing_required`, `absence_claim`, `diagnostic_only`). Use `references/flow-decision-router.md` when in doubt.
 3. Select routing from that flow: `ru_domestic` → `domestic-ru`; `ru_touching_international` → `ru-priority` may be appropriate; `global_non_ru` must not silently use Russia-priority/Moscow controls. If the current CLI plan does so, report the limitation or pass explicit routing/hub constraints instead of presenting it as a neutral global search.
@@ -84,10 +84,23 @@ For CLI/report refactor planning, first untangle the current structure before se
 ```bash
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 cd "$HERMES_HOME"/skills/productivity/flight-search/cli
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json route live-assemble ORIGIN DEST   --depart-date YYYY-MM-DD   --profile PROFILE   --agent-brief
+cat > /tmp/flight-search-request.json <<'JSON'
+{
+  "schema_version": "flight_search_request.v1",
+  "origin": "ORIGIN",
+  "destination": "DEST",
+  "depart_date": "YYYY-MM-DD",
+  "currency": "RUB",
+  "profile": "balanced",
+  "ticketing": "separate",
+  "provider_policy": "auto",
+  "output": {"agent_brief": true}
+}
+JSON
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request /tmp/flight-search-request.json
 ```
 
-Add `--return-date YYYY-MM-DD` for round trips. Add `--aggregate-control-carrier CARRIER` for carrier tasks. For KupiBilet “туда-обратно одним билетом”, use `kb-roundtrip` first. For simple domestic round trips where a direct candidate is decision-leading, run `kb-roundtrip --direct-only` as a targeted control for live bundles, baggage/hand-luggage packages, seats, and alternative direct return times. Multi-city/open-jaw has no arbitrary live command; use separate assemblies or offline `route validate`/`route rank` and label diagnostic.
+Add `return_date` to the request for round trips. Add `filters.only_carriers` or explicit diagnose probes for carrier tasks. For KupiBilet “туда-обратно одним билетом”, use `diagnose kb-roundtrip` first. For simple domestic round trips where a direct candidate is decision-leading, run `diagnose kb-roundtrip --direct-only` as a targeted control for live bundles, baggage/hand-luggage packages, seats, and alternative direct return times. Multi-city/open-jaw has no arbitrary live command; use separate assemblies or offline `route validate`/`route rank` and label diagnostic.
 
 4. Read only `data.agent_report`.
 5. Read `frontier.offer_graph` first: use `constraints`, `collection`, `evidence`, `missing_evidence`, and `frontier` to decide whether evidence is complete enough. Treat first provider output as progressive evidence; run targeted/polling probes when missing direct/carrier/exact-airport/through-fare evidence can change the recommendation. Stop only on completeness limit, source exhaustion, unchanged decision frontier, or explicit time budget.
@@ -136,18 +149,17 @@ Add `--return-date YYYY-MM-DD` for round trips. Add `--aggregate-control-carrier
 4. Silently widening named airports to city scope.
 5. Pasting raw `display`, diagnostics, JSON, provider boilerplate, or `answer_lines` as final answer.
 6. Hiding `priority_options` or carrier/provider aggregates behind generic cheapest/fastest output.
-7. Finalizing RU-touching international round trips from `route live-assemble` alone when baggage/PNR/through-fare evidence is weak; targeted `kb-roundtrip` and carrier-specific aggregate controls can materially change the practical recommendation.
-8. Calling provider-specific probe commands (`kb-search`, `fli-search`) as the primary search — always start with flow classification, then `route live-assemble`; use probes only as Level 2 follow-ups per the Scenario Decision Map.
+7. Finalizing RU-touching international round trips from the primary search alone when baggage/PNR/through-fare evidence is weak; targeted `diagnose kb-roundtrip` and carrier-specific aggregate controls can materially change the practical recommendation.
+8. Calling provider-specific probe commands (`diagnose kb-search`, `diagnose fli-search`) as the primary search — always start with flow classification, then `search --request`; use probes only as Level 2 follow-ups per the Scenario Decision Map.
 9. Treating “international” as one bucket: distinguish RU-touching international from global non-RU before accepting `ru-priority`, SVO/Moscow controls, or Russian provider assumptions.
-10. Using `--agent-mode` (legacy) — use `--agent-brief` or `--agent-report` instead.
-11. Calling proposed/nonexistent commands from `references/direct-date-window.md` — `route direct-window` is not implemented; use per-date `kb-search --direct-only`/`fli-search --direct-only` instead.
-12. Maintenance/refactor pitfalls live in `references/cli-maintenance.md`; ordinary route search should stay traveler-facing.
+10. Calling proposed/nonexistent commands from `references/direct-date-window.md` — `route direct-window` is not implemented; use per-date `diagnose kb-search --direct-only`/`diagnose fli-search --direct-only` instead.
+11. Maintenance/refactor pitfalls live in `references/cli-maintenance.md`; ordinary route search should stay traveler-facing.
 
 ## Verification Checklist
 
 - [ ] Constraints normalized and route scope preserved.
 - [ ] Flow decision made before command/provider reasoning: intent, market, evidence need, and routing strategy are explicit.
-- [ ] Runtime `route live-assemble --agent-brief` run, or provenance failure reported before fallback.
+- [ ] Runtime `search --request` run with a `flight_search_request.v1` file, or provenance failure reported before fallback.
 - [ ] Answer based on `data.agent_report`; `user_answer.rendered_text` copied when present and valid; `diagnostics.human_answer`, `diagnostics.display`, and `diagnostics.answer_lines` never used as final-prose fallback.
 - [ ] `frontier.offer_graph`, `frontier.recommended_options`, `frontier.priority_options`, `evidence.through_fare_checks`, `evidence.provider_failures`, and `evidence.source_boundaries` checked when decision-relevant.
 - [ ] Required direct/carrier/exact-airport/Moscow controls or narrow probes run.
@@ -163,7 +175,7 @@ Canonical active references are bounded to six core flight-search directions plu
 - `references/source-boundaries.md` — evidence classes, absence, airport/connection boundaries, ticketing, OTA/smart-route semantics.
 - `references/provider-aware-airport-priority.md` — provider/airport dispatch and city-code policy. **SSOT for all airport-priority rules** (IST/SAW, London tiers, Moscow MOW/SVO/DME/VBK, Dubai); do not duplicate these rules in other files.
 - `references/debug-playbook.md` — targeted probes and route-family exception patterns.
-- `references/direct-date-window.md` — direct/nonstop inventory across a bounded date range, including per-date probes and compact output shape. Note: `route direct-window` command is not implemented; use per-date `kb-search --direct-only`/`fli-search --direct-only` instead.
+- `references/direct-date-window.md` — direct/nonstop inventory across a bounded date range, including per-date probes and compact output shape. Note: `route direct-window` command is not implemented; use per-date `diagnose kb-search --direct-only`/`diagnose fli-search --direct-only` instead.
 - `references/cli-maintenance.md` — source/runtime sync, schema/tests, provider ports, CLI-surface simplification, dead-code/duplicate cleanup, generated artifacts, and reference lifecycle.
 - `references/rail-rzd-live-pricing.md` — RZD public endpoint/RID workflow for bounded train-price comparisons after a flight search.
 - `references/flow-decision-router.md` — first-pass intent/market/evidence router for deciding the data flow before choosing commands; includes global non-RU vs RU-touching boundaries and audit signals.

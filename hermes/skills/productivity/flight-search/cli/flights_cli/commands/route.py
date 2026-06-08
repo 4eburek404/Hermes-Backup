@@ -37,9 +37,6 @@ def command_route_rank(args: argparse.Namespace, store: Store) -> dict[str, Any]
     return rank_candidate_list(candidates, args)
 
 
-def command_route_kb_assemble(args: argparse.Namespace, store: Store) -> dict[str, Any]:
-    return run_live_route_assembly(args, store)
-
 
 def command_route_live_assemble(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     return run_live_route_assembly(args, store)

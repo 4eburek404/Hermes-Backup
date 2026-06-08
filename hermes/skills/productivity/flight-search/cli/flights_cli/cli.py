@@ -27,7 +27,6 @@ from .commands.providers import (
 )
 from .commands.route import (
     command_route_assemble,
-    command_route_kb_assemble,
     command_route_live_assemble,
     command_route_plan,
     command_route_rank,
@@ -123,11 +122,6 @@ def add_carrier_selection_flags(parser: argparse.ArgumentParser) -> None:
 
 def add_agent_output_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
-        "--agent-mode",
-        action="store_true",
-        help="Legacy lite-agent preset: compact output, top-ranked candidate details, agent_report, and aggregate-control defaults.",
-    )
-    parser.add_argument(
         "--agent-report",
         action="store_true",
         help="Include a compact agent_report block without changing other output limits.",
@@ -135,7 +129,7 @@ def add_agent_output_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--agent-brief",
         action="store_true",
-        help="Emit only the compact agent_report in JSON output. Implies --agent-report only, not legacy --agent-mode defaults.",
+        help="Emit only the compact agent_report in JSON output. Implies --agent-report.",
     )
 
 
@@ -180,7 +174,7 @@ def add_live_assembly_flags(parser: argparse.ArgumentParser) -> None:
         "--aggregate-control-limit",
         type=int,
         default=0,
-        help="Run non-direct Kupibilet full-route aggregate controls and keep N cheap offers after provider-offer filtering. 0 disables; legacy --agent-mode sets 10.",
+        help="Run non-direct Kupibilet full-route aggregate controls and keep N cheap offers after provider-offer filtering. 0 disables.",
     )
     parser.add_argument(
         "--aggregate-control-carrier",
@@ -259,6 +253,22 @@ def _register_diagnose_commands(sub) -> None:
     render = diagnose_sub.add_parser("render", help="Render human-answer diagnostics from an agent_report JSON file.")
     render.add_argument("--input", required=True, help="agent_report JSON file, output envelope, or - for stdin.")
     render.set_defaults(func=command_diagnose_render, command_name="diagnose render")
+
+    kb_search = diagnose_sub.add_parser("kb-search", help="Kupibilet live aggregate diagnostic; use --only-carrier SU for Aeroflot-marketed flights.")
+    _add_kb_search_flags(kb_search)
+    kb_search.set_defaults(func=command_kb_search, command_name="diagnose kb-search")
+
+    kb_roundtrip = diagnose_sub.add_parser("kb-roundtrip", help="Kupibilet live round-trip aggregate diagnostic using a two-trip frontend_search request.")
+    _add_kb_roundtrip_flags(kb_roundtrip)
+    kb_roundtrip.set_defaults(func=command_kb_roundtrip, command_name="diagnose kb-roundtrip")
+
+    fli_search = diagnose_sub.add_parser("fli-search", help="FLI MCP live Google Flights diagnostic through a self-hosted MCP HTTP server.")
+    _add_fli_search_flags(fli_search)
+    fli_search.set_defaults(func=command_fli_search, command_name="diagnose fli-search", **_catalog_read_defaults())
+
+    fli_dates = diagnose_sub.add_parser("fli-dates", help="FLI MCP flexible-date diagnostic through a self-hosted MCP HTTP server.")
+    _add_fli_dates_flags(fli_dates)
+    fli_dates.set_defaults(func=command_fli_dates, command_name="diagnose fli-dates")
 
 
 def _register_maintenance_commands(sub) -> None:
@@ -376,24 +386,6 @@ def _add_fli_dates_flags(parser: argparse.ArgumentParser) -> None:
     add_fli_mcp_flags(parser)
 
 
-def _register_provider_probe_commands(sub) -> None:
-    kb_search = sub.add_parser("kb-search", help="Kupibilet live aggregate search; use --only-carrier SU for Aeroflot-marketed flights.")
-    _add_kb_search_flags(kb_search)
-    kb_search.set_defaults(func=command_kb_search, command_name="kb-search")
-
-    kb_roundtrip = sub.add_parser("kb-roundtrip", help="Kupibilet live round-trip aggregate search using a two-trip frontend_search request.")
-    _add_kb_roundtrip_flags(kb_roundtrip)
-    kb_roundtrip.set_defaults(func=command_kb_roundtrip, command_name="kb-roundtrip")
-
-    fli_search = sub.add_parser("fli-search", help="FLI MCP live Google Flights search through a self-hosted MCP HTTP server.")
-    _add_fli_search_flags(fli_search)
-    fli_search.set_defaults(func=command_fli_search, command_name="fli-search", **_catalog_read_defaults())
-
-    fli_dates = sub.add_parser("fli-dates", help="FLI MCP flexible date search through a self-hosted MCP HTTP server.")
-    _add_fli_dates_flags(fli_dates)
-    fli_dates.set_defaults(func=command_fli_dates, command_name="fli-dates")
-
-
 def _register_route_commands(sub) -> None:
     route = sub.add_parser("route", help="Route planning and validation commands.")
     route_sub = route.add_subparsers(dest="route_command", required=True)
@@ -421,14 +413,6 @@ def _register_route_commands(sub) -> None:
     )
     route_assemble.add_argument("--input", action="append", help="Parsed result JSON. Repeatable; omit for stdin.")
     route_assemble.set_defaults(func=command_route_assemble, command_name="route assemble")
-
-    route_kb_assemble = route_sub.add_parser(
-        "kb-assemble",
-        parents=[route_query_parent(), live_assembly_parent()],
-        help="Compatibility alias for route live-assemble --provider-policy kupibilet.",
-    )
-    route_kb_assemble.set_defaults(provider_policy="kupibilet", fli_mcp_url=None)
-    route_kb_assemble.set_defaults(func=command_route_kb_assemble, command_name="route kb-assemble", **_catalog_read_defaults())
 
     route_live_assemble = route_sub.add_parser(
         "live-assemble",
@@ -485,7 +469,6 @@ def build_parser() -> argparse.ArgumentParser:
     _register_maintenance_commands(sub)
     _register_catalog_commands(sub)
     _register_metadata_commands(sub)
-    _register_provider_probe_commands(sub)
     _register_route_commands(sub)
     _register_metrics_commands(sub)
 
@@ -517,24 +500,9 @@ def auto_refresh_catalog(args: argparse.Namespace, store: Store) -> dict | None:
     )
 
 
-def apply_agent_mode_defaults(args: argparse.Namespace) -> None:
+def apply_agent_output_defaults(args: argparse.Namespace) -> None:
     if bool(getattr(args, "agent_brief", False)):
         args.agent_report = True
-    if not bool(getattr(args, "agent_mode", False)):
-        return
-    args.agent_report = True
-    if hasattr(args, "include_candidates"):
-        args.include_candidates = 0
-    if hasattr(args, "include_ranked_candidates"):
-        args.include_ranked_candidates = max(5, int(args.include_ranked_candidates))
-    if hasattr(args, "include_rejected_pairs"):
-        args.include_rejected_pairs = min(5, int(args.include_rejected_pairs))
-    if hasattr(args, "include_segment_results"):
-        args.include_segment_results = 0
-    if hasattr(args, "max_candidates"):
-        args.max_candidates = min(10, int(args.max_candidates))
-    if hasattr(args, "aggregate_control_limit") and int(args.aggregate_control_limit) <= 0:
-        args.aggregate_control_limit = 10
 
 
 def apply_agent_brief_output(args: argparse.Namespace, data: object) -> object:
@@ -549,7 +517,7 @@ def main(argv: list[str] | None = None) -> int:
     argv = normalize_global_json(list(sys.argv if argv is None else argv))
     parser = build_parser()
     args = parser.parse_args(argv[1:])
-    apply_agent_mode_defaults(args)
+    apply_agent_output_defaults(args)
     store = Store()
     try:
         catalog_auto_refresh = auto_refresh_catalog(args, store)

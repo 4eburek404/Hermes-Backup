@@ -44,6 +44,7 @@ class FliMcpTests(unittest.TestCase):
     def test_fli_search_parser_defaults_to_self_hosted_mcp_url(self) -> None:
         args = build_parser().parse_args(
             [
+                "diagnose",
                 "fli-search",
                 "IST",
                 "LHR",
@@ -55,7 +56,7 @@ class FliMcpTests(unittest.TestCase):
             ]
         )
 
-        self.assertEqual(args.command_name, "fli-search")
+        self.assertEqual(args.command_name, "diagnose fli-search")
         self.assertEqual(args.mcp_url, "http://127.0.0.1:8000/mcp")
         self.assertTrue(args.direct_only)
         self.assertEqual(args.only_carrier, ["TK"])

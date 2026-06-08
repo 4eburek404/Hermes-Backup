@@ -34,7 +34,6 @@ def live_args(**overrides: object) -> argparse.Namespace:
         "coverage_control": None,
         "coverage_control_limit": 12,
         "agent_report": False,
-        "agent_mode": False,
         "agent_brief": False,
     }
     values.update(overrides)

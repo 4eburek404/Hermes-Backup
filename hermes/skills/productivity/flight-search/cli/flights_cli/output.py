@@ -31,7 +31,7 @@ def render_agent_report_human(report: dict[str, Any]) -> str:
 def render_human(command: str, data: Any) -> str:
     if isinstance(data, dict) and isinstance(data.get("agent_report"), dict):
         return render_agent_report_human(data["agent_report"])
-    if command == "fli-search":
+    if command in {"diagnose fli-search", "fli-search"}:
         lines = [
             f"FLI MCP live search: {data['origin']} → {data['destination']}",
             f"Date: {data['depart_date']}",
@@ -57,7 +57,7 @@ def render_human(command: str, data: Any) -> str:
             if leg_bits:
                 lines.append("     " + " | ".join(leg_bits))
         return "\n".join(lines)
-    if command == "fli-dates":
+    if command in {"diagnose fli-dates", "fli-dates"}:
         lines = [
             f"FLI MCP date search: {data['origin']} → {data['destination']}",
             f"Range: {data.get('from_date')} — {data.get('to_date')}",
@@ -70,7 +70,7 @@ def render_human(command: str, data: Any) -> str:
         if not data.get("dates"):
             lines.append("(no priced dates found)")
         return "\n".join(lines)
-    if command == "kb-search":
+    if command in {"diagnose kb-search", "kb-search"}:
         lines = [
             f"Kupibilet live search: {data['origin']} → {data['destination']}",
             f"Date: {data['depart_date']}",
@@ -99,7 +99,7 @@ def render_human(command: str, data: Any) -> str:
             if leg_bits:
                 lines.append("     " + " | ".join(leg_bits))
         return "\n".join(lines)
-    if command == "kb-roundtrip":
+    if command in {"diagnose kb-roundtrip", "kb-roundtrip"}:
         lines = [
             f"Kupibilet live round-trip search: {data['origin']} ↔ {data['destination']}",
             f"Dates: {data['depart_date']} → {data['return_date']}",
@@ -268,12 +268,12 @@ def render_human(command: str, data: Any) -> str:
                 f"{item['rank']}. {item['id']} risk={item['risk']['score']}:{item['risk']['grade']} price={item['price']} elapsed={item['elapsed_min']}"
             )
         return "\n".join(lines)
-    if command in {"route kb-assemble", "route live-assemble"}:
+    if command == "route live-assemble":
         assembly = data["assembly"]
         live = data.get("live_search", {})
         plan = live.get("plan", {})
         metrics = plan.get("metrics", {})
-        label = "Kupibilet compatibility assembly" if command == "route kb-assemble" else "Provider-policy live assembly"
+        label = "Provider-policy live assembly"
         lines = [
             f"{label}: {plan.get('origin')} → {plan.get('destination')}",
             f"strategy: {plan.get('routing_strategy', 'hub-list')}",

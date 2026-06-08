@@ -9,7 +9,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from flights_cli.cli import apply_agent_brief_output, apply_agent_mode_defaults, build_parser, normalize_global_json
+from flights_cli.cli import apply_agent_brief_output, apply_agent_output_defaults, build_parser, normalize_global_json
 from flights_cli.command_surface import (
     CATALOG_READ_COMMANDS,
     CATALOG_REFRESH_COMMANDS,
@@ -63,13 +63,19 @@ def subparser_choices(parser: argparse.ArgumentParser) -> dict[str, argparse.Arg
 COMMAND_ARGV = {
     "cities search": ["cities", "search", "Yekaterinburg"],
     "airports explain": ["airports", "explain", "SVX"],
-    "fli-search": ["fli-search", "IST", "LHR", "--depart-date", "2026-07-20"],
+    "diagnose fli-search": ["diagnose", "fli-search", "IST", "LHR", "--depart-date", "2026-07-20"],
     "route plan": ["route", "plan", "SVX", "LON", "--depart-date", "2026-07-20"],
-    "route kb-assemble": ["route", "kb-assemble", "SVX", "LON", "--depart-date", "2026-07-20"],
     "route live-assemble": ["route", "live-assemble", "SVX", "LON", "--depart-date", "2026-07-20"],
     "metrics workflow": ["metrics", "workflow", "SVX", "LON", "--depart-date", "2026-07-20"],
     "search": ["search", "--request", "request.json"],
     "diagnose plan": ["diagnose", "plan", "--request", "request.json"],
+}
+
+TARGETED_PROBE_ARGV = {
+    "diagnose probe": ["diagnose", "probe", "--provider", "kupibilet", "--request", "probe.json"],
+    "diagnose kb-search": ["diagnose", "kb-search", "SVX", "MOW", "--depart-date", "2026-07-19"],
+    "diagnose kb-roundtrip": ["diagnose", "kb-roundtrip", "SVX", "BJS", "--depart-date", "2026-08-01", "--return-date", "2026-08-08"],
+    "diagnose fli-dates": ["diagnose", "fli-dates", "IST", "LHR", "--from-date", "2026-07-20", "--to-date", "2026-07-22"],
 }
 
 CATALOG_REFRESH_ARGV = {
@@ -111,6 +117,11 @@ class CliContractTests(unittest.TestCase):
                 args = parser.parse_args(argv)
                 self.assertEqual(args.command_name, command_name)
                 self.assertTrue(callable(args.func))
+        for command_name, argv in TARGETED_PROBE_ARGV.items():
+            with self.subTest(command_name=command_name):
+                args = parser.parse_args(argv)
+                self.assertEqual(args.command_name, command_name)
+                self.assertTrue(callable(args.func))
 
     def test_catalog_refresh_surface_matches_registered_catalog_commands(self) -> None:
         parser = build_parser()
@@ -126,10 +137,9 @@ class CliContractTests(unittest.TestCase):
                 args = parser.parse_args(CATALOG_REFRESH_ARGV[command_name])
                 self.assertEqual(getattr(args, "catalog_access", None), "refresh_explicit")
 
-    def test_route_kb_assemble_is_kupibilet_compatibility_alias(self) -> None:
+    def test_route_live_assemble_accepts_explicit_kupibilet_provider_policy(self) -> None:
         parser = build_parser()
-        kb_args = parser.parse_args(["route", "kb-assemble", "SVX", "LON", "--depart-date", "2026-07-20"])
-        live_args = parser.parse_args([
+        args = parser.parse_args([
             "route",
             "live-assemble",
             "SVX",
@@ -140,13 +150,11 @@ class CliContractTests(unittest.TestCase):
             "kupibilet",
         ])
 
-        self.assertEqual(kb_args.command_name, "route kb-assemble")
-        self.assertEqual(kb_args.provider_policy, "kupibilet")
-        self.assertIsNone(kb_args.fli_mcp_url)
-        self.assertEqual(live_args.provider_policy, "kupibilet")
-        self.assertEqual(kb_args.limit_per_pair, live_args.limit_per_pair)
-        self.assertEqual(kb_args.stop_policy, live_args.stop_policy)
-        self.assertEqual(kb_args.profile, live_args.profile)
+        self.assertEqual(args.command_name, "route live-assemble")
+        self.assertEqual(args.provider_policy, "kupibilet")
+        self.assertEqual(args.limit_per_pair, 10)
+        self.assertEqual(args.stop_policy, "business-default")
+        self.assertEqual(args.profile, "balanced")
 
     def test_subprocess_test_env_disables_bytecode_writes(self) -> None:
         self.assertEqual(TEST_ENV["PYTHONDONTWRITEBYTECODE"], "1")
@@ -211,52 +219,17 @@ class CliContractTests(unittest.TestCase):
         )
         self.assertIn("flights 0.10.15 (skill flight-search 0.10.15)", human_proc.stdout)
         self.assertIn("primary route command: search", human_proc.stdout)
-        self.assertIn("targeted probe commands: diagnose probe", human_proc.stdout)
-        self.assertIn("compatibility commands: route live-assemble", human_proc.stdout)
+        self.assertIn("targeted probe commands: diagnose probe, diagnose kb-search, diagnose kb-roundtrip, diagnose fli-search, diagnose fli-dates", human_proc.stdout)
+        self.assertIn("compatibility commands: route live-assemble, maintenance check, catalog update, catalog manifest, doctor", human_proc.stdout)
         self.assertIn("default hubs: IST, DXB, DOH", human_proc.stdout)
-
-    def test_legacy_agent_mode_sets_compact_live_assembly_defaults(self) -> None:
-        args = build_parser().parse_args(
-            ["route", "kb-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--agent-mode"]
-        )
-
-        apply_agent_mode_defaults(args)
-
-        self.assertTrue(args.agent_report)
-        self.assertEqual(args.include_candidates, 0)
-        self.assertEqual(args.include_ranked_candidates, 5)
-        self.assertEqual(args.include_rejected_pairs, 5)
-        self.assertEqual(args.include_segment_results, 0)
-        self.assertEqual(args.max_candidates, 10)
-        self.assertEqual(args.aggregate_control_limit, 10)
-
-    def test_agent_mode_preserves_compact_carrier_aggregate_default(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "route",
-                "kb-assemble",
-                "SVX",
-                "DEL",
-                "--depart-date",
-                "2026-06-01",
-                "--agent-mode",
-                "--aggregate-control-carrier",
-                "SU",
-            ]
-        )
-
-        apply_agent_mode_defaults(args)
-
-        self.assertEqual(args.aggregate_control_limit, 10)
 
     def test_agent_report_is_report_attachment_without_output_or_evidence_side_effects(self) -> None:
         args = build_parser().parse_args(
-            ["route", "kb-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--agent-report"]
+            ["route", "live-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--provider-policy", "kupibilet", "--agent-report"]
         )
 
-        apply_agent_mode_defaults(args)
+        apply_agent_output_defaults(args)
 
-        self.assertFalse(args.agent_mode)
         self.assertTrue(args.agent_report)
         self.assertEqual(args.include_candidates, 5)
         self.assertEqual(args.include_ranked_candidates, 5)
@@ -265,12 +238,12 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(args.max_candidates, 50)
         self.assertEqual(args.aggregate_control_limit, 0)
 
-    def test_agent_brief_trims_payload_without_agent_mode_or_evidence_side_effects(self) -> None:
+    def test_agent_brief_trims_payload_without_legacy_preset_side_effects(self) -> None:
         args = build_parser().parse_args(
-            ["route", "kb-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--agent-brief"]
+            ["route", "live-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--provider-policy", "kupibilet", "--agent-brief"]
         )
 
-        apply_agent_mode_defaults(args)
+        apply_agent_output_defaults(args)
         trimmed = apply_agent_brief_output(
             args,
             {
@@ -280,7 +253,6 @@ class CliContractTests(unittest.TestCase):
             },
         )
 
-        self.assertFalse(args.agent_mode)
         self.assertTrue(args.agent_report)
         self.assertEqual(args.aggregate_control_limit, 0)
         self.assertEqual(args.include_candidates, 5)
@@ -291,7 +263,9 @@ class CliContractTests(unittest.TestCase):
         args = build_parser().parse_args(
             [
                 "route",
-                "kb-assemble",
+                "live-assemble",
+                "--provider-policy",
+                "kupibilet",
                 "SVX",
                 "DEL",
                 "--depart-date",
@@ -302,10 +276,9 @@ class CliContractTests(unittest.TestCase):
             ]
         )
 
-        apply_agent_mode_defaults(args)
+        apply_agent_output_defaults(args)
         policy = stop_policy_from_args(args)
 
-        self.assertFalse(args.agent_mode)
         self.assertTrue(args.agent_report)
         self.assertEqual(policy.name, "debug_all")
         self.assertFalse(policy.suppress_three_plus)

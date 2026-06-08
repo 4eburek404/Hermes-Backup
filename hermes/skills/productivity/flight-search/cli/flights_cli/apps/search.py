@@ -106,7 +106,6 @@ def legacy_live_args_from_search_request(payload: dict[str, Any]) -> argparse.Na
         no_live_cache=_bool_option(evidence, "no_live_cache", False),
         direct_route_index_ttl_seconds=_int_option(evidence, "direct_route_index_ttl_seconds", DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS),
         no_direct_route_intel=_bool_option(evidence, "no_direct_route_intel", False),
-        agent_mode=False,
         agent_report=True,
         agent_brief=_bool_option(output, "agent_brief", True),
         only_carrier=_list_option(filters, "only_carriers"),

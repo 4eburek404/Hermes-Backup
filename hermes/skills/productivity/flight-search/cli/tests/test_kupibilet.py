@@ -318,6 +318,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
     def test_kb_search_parser_exposes_live_kupibilet_command(self) -> None:
         args = build_parser().parse_args(
             [
+                "diagnose",
                 "kb-search",
                 "SVX",
                 "MOW",
@@ -331,7 +332,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             ]
         )
 
-        self.assertEqual(args.command_name, "kb-search")
+        self.assertEqual(args.command_name, "diagnose kb-search")
         self.assertEqual(args.only_carrier, ["SU"])
         self.assertTrue(args.direct_only)
         self.assertEqual(args.limit, 20)
@@ -341,6 +342,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
     def test_kb_roundtrip_parser_exposes_kupibilet_two_trip_command(self) -> None:
         args = build_parser().parse_args(
             [
+                "diagnose",
                 "kb-roundtrip",
                 "SVX",
                 "BJS",
@@ -356,7 +358,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             ]
         )
 
-        self.assertEqual(args.command_name, "kb-roundtrip")
+        self.assertEqual(args.command_name, "diagnose kb-roundtrip")
         self.assertEqual(args.only_carrier, ["U6"])
         self.assertTrue(args.direct_only)
         self.assertEqual(args.depart_date, "2026-08-01")
@@ -367,7 +369,9 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         args = build_parser().parse_args(
             [
                 "route",
-                "kb-assemble",
+                "live-assemble",
+                "--provider-policy",
+                "kupibilet",
                 "SVX",
                 "CDG",
                 "--depart-date",
@@ -381,7 +385,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             ]
         )
 
-        self.assertEqual(args.command_name, "route kb-assemble")
+        self.assertEqual(args.command_name, "route live-assemble")
         self.assertEqual(args.segment_limit, 30)
         self.assertEqual(args.limit_per_pair, 10)
         self.assertEqual(args.live_cache_ttl_seconds, 30 * 60)
@@ -397,7 +401,9 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         args = build_parser().parse_args(
             [
                 "route",
-                "kb-assemble",
+                "live-assemble",
+                "--provider-policy",
+                "kupibilet",
                 "SVX",
                 "CDG",
                 "--depart-date",
@@ -418,7 +424,9 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         args = build_parser().parse_args(
             [
                 "route",
-                "kb-assemble",
+                "live-assemble",
+                "--provider-policy",
+                "kupibilet",
                 "SVX",
                 "BJS",
                 "--depart-date",
@@ -447,7 +455,9 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         args = build_parser().parse_args(
             [
                 "route",
-                "kb-assemble",
+                "live-assemble",
+                "--provider-policy",
+                "kupibilet",
                 "SVX",
                 "CDG",
                 "--depart-date",
@@ -593,7 +603,9 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         args = build_parser().parse_args(
             [
                 "route",
-                "kb-assemble",
+                "live-assemble",
+                "--provider-policy",
+                "kupibilet",
                 "SVX",
                 "MUC",
                 "--depart-date",
@@ -671,7 +683,9 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         args = build_parser().parse_args(
             [
                 "route",
-                "kb-assemble",
+                "live-assemble",
+                "--provider-policy",
+                "kupibilet",
                 "SVX",
                 "MUC",
                 "--depart-date",
@@ -752,26 +766,30 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(len(skipped), 1)
         self.assertEqual(skipped[0]["destination"], "MUC")
 
-    def test_agent_mode_runs_carrier_aggregate_control_and_reports_through_fare_check(self) -> None:
-        from flights_cli.cli import apply_agent_mode_defaults
+    def test_explicit_carrier_aggregate_control_reports_through_fare_check(self) -> None:
+        from flights_cli.cli import apply_agent_output_defaults
 
         future_depart = date(date.today().year + 1, 6, 1).isoformat()
         args = build_parser().parse_args(
             [
                 "route",
-                "kb-assemble",
+                "live-assemble",
+                "--provider-policy",
+                "kupibilet",
                 "SVX",
                 "DEL",
                 "--depart-date",
                 future_depart,
-                "--agent-mode",
+                "--agent-report",
+                "--aggregate-control-limit",
+                "10",
                 "--aggregate-control-carrier",
                 "SU",
                 "--no-live-cache",
                 "--no-direct-route-intel",
             ]
         )
-        apply_agent_mode_defaults(args)
+        apply_agent_output_defaults(args)
         calls: list[tuple[str, str, bool, tuple[str, ...]]] = []
 
         def fake_fetch(origin: str, destination: str, depart_date: object, *, direct_only: bool, only_carriers: list[str], **_: object) -> dict:
@@ -850,7 +868,9 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         args = build_parser().parse_args(
             [
                 "route",
-                "kb-assemble",
+                "live-assemble",
+                "--provider-policy",
+                "kupibilet",
                 "MUC",
                 "SVX",
                 "--depart-date",
@@ -902,7 +922,9 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         args = build_parser().parse_args(
             [
                 "route",
-                "kb-assemble",
+                "live-assemble",
+                "--provider-policy",
+                "kupibilet",
                 "SVX",
                 "BJS",
                 "--depart-date",

@@ -44,14 +44,10 @@ def _as_int(value: object, default: int) -> int:
 
 
 def _route_mode(command_name: str) -> str:
-    if command_name == "route kb-assemble":
-        return "kb_assemble"
     return "live_assemble"
 
 
 def _default_provider_policy(command_name: str) -> str:
-    if command_name == "route kb-assemble":
-        return "kupibilet"
     return "auto"
 
 

@@ -9,10 +9,6 @@ ROOT_COMMANDS = (
     "catalog",
     "cities",
     "airports",
-    "kb-search",
-    "kb-roundtrip",
-    "fli-search",
-    "fli-dates",
     "route",
     "metrics",
 )
@@ -22,23 +18,26 @@ ROUTE_COMMANDS = (
     "validate",
     "rank",
     "assemble",
-    "kb-assemble",
     "live-assemble",
 )
 
 PRIMARY_ROUTE_COMMAND = "search"
 LEGACY_PRIMARY_ROUTE_COMMAND = "route live-assemble"
-TARGETED_PROBE_COMMANDS = ("diagnose probe",)
-LEGACY_TARGETED_PROBE_COMMANDS = ("kb-search", "kb-roundtrip", "fli-search", "fli-dates")
-COMPATIBILITY_COMMANDS = ("route live-assemble", "route kb-assemble", *LEGACY_TARGETED_PROBE_COMMANDS, "maintenance check", "catalog update", "catalog manifest", "doctor")
-LIVE_PROVIDER_COMMANDS = (PRIMARY_ROUTE_COMMAND, *TARGETED_PROBE_COMMANDS, LEGACY_PRIMARY_ROUTE_COMMAND, "route kb-assemble", *LEGACY_TARGETED_PROBE_COMMANDS)
+TARGETED_PROBE_COMMANDS = (
+    "diagnose probe",
+    "diagnose kb-search",
+    "diagnose kb-roundtrip",
+    "diagnose fli-search",
+    "diagnose fli-dates",
+)
+COMPATIBILITY_COMMANDS = ("route live-assemble", "maintenance check", "catalog update", "catalog manifest", "doctor")
+LIVE_PROVIDER_COMMANDS = (PRIMARY_ROUTE_COMMAND, *TARGETED_PROBE_COMMANDS, LEGACY_PRIMARY_ROUTE_COMMAND)
 
 CATALOG_READ_COMMANDS = (
     "cities search",
     "airports explain",
-    "fli-search",
+    "diagnose fli-search",
     "route plan",
-    "route kb-assemble",
     "route live-assemble",
     "metrics workflow",
     "search",

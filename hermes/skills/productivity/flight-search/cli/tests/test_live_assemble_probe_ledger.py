@@ -21,7 +21,6 @@ def live_args(**overrides: object) -> argparse.Namespace:
         "include_segment_results": 0,
         "aggregate_control_limit": 0,
         "agent_report": False,
-        "agent_mode": False,
         "agent_brief": False,
     }
     values.update(overrides)
