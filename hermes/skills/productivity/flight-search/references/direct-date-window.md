@@ -59,9 +59,11 @@ Do not use ordinary `route live-assemble` output as the final answer for a direc
 
 5. Do **not** add airline-site, airport-site, schedule-aggregator, or external timetable checks by default. At the current stage, direct date-window inventory is a provider-live CLI scenario: use KupiBilet for RU-touching routes and FLI for non-RU/global routes. Only add external site checks if the user explicitly asks for corroboration or debugging outside the provider-live scope.
 
-## Proposed CLI Surface, not Active Golden Path
+## Proposed CLI Surface — NOT IMPLEMENTED
 
-A narrow command would be useful for this scenario, but it is not the current active path unless live CLI help exposes it:
+⚠️ **The `route direct-window` command described below does not exist.** Do not call it. The current Golden Path for direct-only inventory is `kb-search --direct-only` / `fli-search --direct-only` per date, or `route live-assemble --max-connections 0 --fallback-max-connections 0`.
+
+A future narrow command may be added; until then this section describes the intended semantics only:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json route direct-window ORIGIN DEST \
