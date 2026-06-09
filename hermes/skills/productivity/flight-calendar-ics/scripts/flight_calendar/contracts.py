@@ -134,9 +134,46 @@ _AGENT_CONTRACT_TEMPLATE: dict[str, Any] = {
         "envelope": ["schema_version=flight-calendar-ics-cli.v1", "ok=true", "command=build", "data.segments_count>=1", "data.verification.ok=true"],
         "bundle": ["private output directory 0700", "itinerary.json 0600", "flights.ics 0600", "envelope.json 0600", "VEVENT count equals segments_count", "UTC DTSTART/DTEND ending Z", "no TBD/UNKNOWN/None"],
     },
+    "failure_path": {
+        "steps": [
+            "read_json_error_code",
+            "keep_private_source_private",
+            "do_not_switch_route_without_new_evidence",
+            "run_diagnose_only_after_failure_or_explicit_request",
+        ],
+        "diagnostics_trigger": "build_auto_failed_or_user_requested_diagnostics",
+        "route_switch_rule": "do_not_switch_route_without_new_evidence",
+    },
+    "diagnostics": {
+        "commands": [
+            "diagnose doctor",
+            "diagnose route-detect",
+            "diagnose validate",
+            "diagnose bundle-check",
+            "diagnose privacy-check",
+            "diagnose timezone inspect",
+        ],
+        "write_performed": False,
+    },
+    "maintenance": {
+        "commands": [
+            "maint contracts",
+            "maint source-runtime diff",
+            "maint refs registry-check",
+            "maint audit",
+            "maint timezone-catalog inspect",
+        ],
+        "runtime_sync_requires_approval": True,
+    },
     "privacy": {
         "chat_summary_must_omit": [
-            "no_pnr_keys", "no_full_booking_urls", "no_passenger_names", "no_ticket_numbers", "no_document_contact_or_payment_data",
+            "no_pnr_keys",
+            "no_full_booking_urls",
+            "no_passenger_names",
+            "no_ticket_numbers",
+            "no_document_contact_or_payment_data",
+            "no_generated_ics_dump",
+            "no_agent_owned_output_plumbing",
         ]
     },
 }

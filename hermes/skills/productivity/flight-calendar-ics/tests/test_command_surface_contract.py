@@ -93,6 +93,11 @@ class CommandSurfaceContractTests(unittest.TestCase):
         self.assertEqual([step["id"] for step in agent_contract["normal_steps"]], ["collect_source", "run_one_command", "verify", "deliver"])
         self.assertEqual({item["command"] for item in agent_contract["dispatch_matrix"]}, {"build"})
         self.assertEqual({item["route"] for item in agent_contract["dispatch_matrix"]}, {"auto", "make", "aeroflot", "ural", "utair", "redwings"})
+        self.assertEqual(agent_contract["failure_path"]["route_switch_rule"], "do_not_switch_route_without_new_evidence")
+        self.assertEqual(agent_contract["failure_path"]["diagnostics_trigger"], "build_auto_failed_or_user_requested_diagnostics")
+        self.assertIn("diagnose route-detect", agent_contract["diagnostics"]["commands"])
+        self.assertIn("maint refs registry-check", agent_contract["maintenance"]["commands"])
+        self.assertIn("no_generated_ics_dump", agent_contract["privacy"]["chat_summary_must_omit"])
 
     def test_command_surfaces_classify_build_auto_as_production(self) -> None:
         contracts = self.import_contracts()
@@ -159,6 +164,9 @@ class CommandSurfaceContractTests(unittest.TestCase):
         self.assertEqual([step["id"] for step in contract["normal_steps"]], ["collect_source", "run_one_command", "verify", "deliver"])
         self.assertEqual({item["command"] for item in contract["dispatch_matrix"]}, {"build"})
         self.assertIn("auto", {item["route"] for item in contract["dispatch_matrix"]})
+        self.assertEqual(contract["failure_path"]["diagnostics_trigger"], "build_auto_failed_or_user_requested_diagnostics")
+        self.assertIn("read_json_error_code", contract["failure_path"]["steps"])
+        self.assertEqual(contract["maintenance"]["runtime_sync_requires_approval"], True)
         serialized_happy_path = json.dumps(
             {
                 "normal_steps": contract["normal_steps"],

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import importlib
 import subprocess
 import sys
 import tempfile
@@ -137,6 +138,45 @@ class MaintNamespaceContractTests(unittest.TestCase):
         self.assertIn("core/cli-contract.md", data["references_seen"])
         self.assertEqual(data["unregistered"], [])
         self.assertEqual(data["duplicate_owners"], [])
+        self.assertEqual(data["broken_links"], [])
+        self.assertEqual(data["broken_markdown_links"], [])
+
+    def test_maint_refs_registry_check_detects_missing_markdown_link_targets(self) -> None:
+        script_dir = str((ROOT / "scripts").resolve())
+        old_path = list(sys.path)
+        if script_dir not in sys.path:
+            sys.path.insert(0, script_dir)
+        try:
+            maintenance = importlib.import_module("flight_calendar.maintenance")
+        finally:
+            sys.path[:] = old_path
+
+        with tempfile.TemporaryDirectory(prefix="flight-maint-refs.") as tmp:
+            skill_root = Path(tmp)
+            references = skill_root / "references"
+            references.mkdir()
+            (references / "registry.md").write_text(
+                "# Registry\n\n"
+                "## Canonical owners\n\n"
+                "- `owner.md` — owner.\n\n"
+                "## Add/change rules\n",
+                encoding="utf-8",
+            )
+            (references / "owner.md").write_text(
+                "# Owner\n\nSee [missing](missing.md) and [ok](owner.md).\n",
+                encoding="utf-8",
+            )
+
+            data = maintenance.refs_registry_check_report(skill_root)
+
+        self.assertEqual(data["references_seen"], ["owner.md"])
+        self.assertEqual(data["unregistered"], [])
+        self.assertEqual(data["broken_links"], [])
+        self.assertEqual(
+            data["broken_markdown_links"],
+            [{"source": "owner.md", "target": "missing.md"}],
+        )
+        self.assertEqual(data["ok"], False)
 
     def test_maint_clean_dry_run_never_deletes(self) -> None:
         with tempfile.TemporaryDirectory(prefix="flight-maint-clean.") as tmp:

@@ -12,36 +12,22 @@ metadata:
 
 # Flight Calendar ICS
 
+Create an importable `.ics` from private flight evidence through the skill-owned CLI.
+
 ## Overview
 
-Create an importable `.ics` from flight evidence.
+Normal generation is one CLI-owned `build auto` command. The CLI owns route detection, private output bundle creation, canonical artifact names, and verification.
 
-Normal generation is one CLI-owned command:
+## Mandatory Runbook
 
-```bash
-python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json build auto --url-file /private/source-url.txt
-```
+1. Keep the source private. Store credential-bearing URLs or extracted itinerary JSON in a private local file. Do not print source contents or generated `.ics` text.
 
-`build auto` means the CLI selects the route. The current route rule is known-host-first: if the input URL contains a known carrier host, that host locks the carrier namespace before generic field names are considered. Generic fields such as PNR/surname must not override a known host.
-
-## When to Use
-
-Use this skill for airline booking links, ticket PDFs, route receipts, emails, screenshots, pasted flight segments, or canonical itinerary JSON.
-
-Do not use it for flight search, fare comparison, or route planning; load `flight-search`. If the user wants direct Google Calendar insertion, first generate/validate the itinerary here, then load `google-workspace`.
-
-## Golden Path
-
-1. **Keep evidence private.** If the source is a credential-bearing carrier URL, store it in a private file and pass it with `--url-file`. Do not print, read back, summarize, or grep the URL or generated `.ics` content.
-
-2. **Run exactly one generation command.** Let the CLI infer the route, create the private bundle, choose artifact names, and verify the calendar.
+2. Run exactly one JSON build command.
 
    ```bash
    SKILL_DIR='<skill_dir returned by skill_view>'
    python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json build auto --url-file /private/source-url.txt
    ```
-
-   Keep path variables on separate assignment/export lines, or pass literal absolute paths. Do not use same-line temporary assignments such as `SKILL_DIR=... python <quoted $SKILL_DIR path>`; POSIX shells expand command words before those temporary assignments are visible, which can turn the CLI path into `/scripts/flight_calendar_ics.py`.
 
    For canonical itinerary JSON:
 
@@ -49,68 +35,51 @@ Do not use it for flight search, fare comparison, or route planning; load `fligh
    python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json build auto --input /private/itinerary.json
    ```
 
-   Do not run `doctor`, read carrier references, inspect CLI source, add `mktemp`, `chmod`, `tee`, `--output-json`, `--output-ics`, or stdout redirection on a successful happy path. `--output-dir` is only for reproducible diagnostics/tests or an explicit user-selected destination.
+3. Parse the JSON envelope from stdout or `data.envelope_path`.
 
-3. **Verify the envelope, then send.** Parse stdout or `data.envelope_path`; require:
-   - `schema_version=flight-calendar-ics-cli.v1`
-   - `ok=true`
-   - `command=build`
-   - `data.segments_count >= 1`
-   - `data.ics_path` exists
-   - `data.verification.ok=true`
+4. Require verification: `schema_version=flight-calendar-ics-cli.v1`, `ok=true`, `command=build`, `data.segments_count >= 1`, `data.ics_path` exists, and `data.verification.ok=true`.
 
-   Then respond with `MEDIA:/absolute/path/flights.ics` and a short operational summary. Do not include PNR keys, full booking URLs, passenger names, ticket/document/contact/payment data, generated API headers, bearer tokens, or access keys in chat.
+5. Return `MEDIA:/absolute/path/flights.ics` plus a safe operational summary.
 
-## Non-Happy Path
+## Use / Do Not Use
 
-Use diagnostics only when the one-command path fails or the operator explicitly asks for diagnostics/evaluation:
+Use for airline booking links, ticket PDFs, route receipts, emails, screenshots, pasted flight segments, or canonical itinerary JSON.
 
-- CLI `ok=false`: use the JSON error code to fix the selected source; switch routes only after new evidence.
-- Unknown carrier or manual data: normalize to canonical itinerary JSON and run `build make`.
-- Local airline receipt PDF feature: extract only calendar-safe operational fields with PyMuPDF/OCR, verify ambiguous city→airport mapping when needed, write private canonical JSON, then run `--json build make --input /private/itinerary.json`. See `references/core/pdf-receipt-normalization.md`.
-- Explicit carrier command (`build aeroflot|ural|utair|redwings`) is for diagnostics/tests or a deliberate user/operator choice, not the default.
-- `doctor` is a diagnostic runbook, not a route-selection step. Do not run it merely because this is an evaluation; run it only when the evaluation specifically measures diagnostics or the CLI contract is unknown.
+Do not use for flight search, fare comparison, or route planning; load `flight-search` instead. For direct Google Calendar insertion, generate and verify the `.ics` first, then load `google-workspace`.
 
-## Maintenance References
+Do not run `doctor`, read carrier references, inspect generated `.ics`, or try carrier helpers on a successful happy path.
 
-Open these only when changing or debugging that layer:
+## Failure Path
 
-- `references/registry.md` — owner map for references.
-- `references/core/cli-contract.md` — JSON envelope, `doctor`, process traces, schema contract.
-- `references/core/auto-route-dispatch.md` — `build auto`, known-host-first route inference, ambiguity errors.
-- `references/core/canonical-itinerary.md` — provider-agnostic manual JSON input.
-- `references/core/calendar-event-format.md` — `.ics` text layout.
-- `references/core/manual-source-extraction.md` — PDF/email/screenshot/manual extraction.
-- `references/core/pdf-receipt-normalization.md` — local airline receipt PDF normalization feature: PyMuPDF/OCR extraction → privacy-safe canonical itinerary JSON → `build make`.
-- `references/core/timezone-catalog.md` — airport timezone asset and overrides.
-- `references/core/privacy-hardening.md` — redaction tests, private artifact permissions, exact sentinel checks.
-- `references/core/output-bundle-design.md` — CLI-owned private output bundle.
-- `references/maintenance/source-runtime-sync.md` — source↔runtime parity and commit evidence.
-- `references/maintenance/dead-code-and-contract-cleanup.md` — cleanup audit for dead code, legacy shims, stale tests, generated artifacts, registry gaps, and source/runtime drift.
-- `references/maintenance/structural-cleanup-review.md` — read-only review sequence and cleanup priority order before bringing this skill into a clean structured state.
-- `references/maintenance/layer-boundary.md` — durable architecture boundary: keep production calendar creation in `build auto`; put diagnostics, cleanup, eval, registry checks, and source/runtime drift work behind CLI-owned `diagnose ...` and `maint ...` surfaces in the same skill package, not a separate maintenance skill.
-- `references/maintenance/model-evaluation.md` — cross-model eval harness rules; evaluation still uses the one-command happy path unless diagnostics are explicitly under test.
-- `references/maintenance/eval-provider-and-shell-pitfalls.md` — provider identity/fallback and shell command-path pitfalls observed in cross-model evals.
-- Carrier refs only for carrier-specific fixes: `references/carriers/aeroflot.md`, `references/carriers/ural-airlines.md`, `references/carriers/utair.md`, `references/carriers/redwings.md`.
+Read the JSON error code. Keep the source private. Do not switch routes without new evidence.
 
-## Common Pitfalls
+Use `diagnose ...` only when `build auto` fails or diagnostics are explicitly requested. Unknown/manual sources should be normalized to private canonical JSON, then retried with `--json build auto --input /private/itinerary.json`.
 
-1. Re-asking for data already supplied in an attachment/cache.
-2. Treating `doctor` as mandatory for obvious carrier URLs.
-3. Leaving route dispatch to the agent instead of running `build auto`.
-4. Trying several carrier helpers opportunistically instead of letting the CLI return an ambiguity/error envelope.
-5. Scraping airline manage-booking pages or helper stdout instead of using the CLI envelope.
-6. Reintroducing agent-owned output plumbing on the happy path.
-7. Sending the `.ics` before checking `data.verification.ok=true`.
-8. Dumping private URL or `.ics` content into model-visible output.
-9. Using one timezone for all airports or adding local one-off timezone maps.
-10. Reading source, carrier docs, or generated `.ics` after a successful `build auto` envelope.
-11. Using same-line temporary shell assignments with `$SKILL_DIR` in the command path; assign/export first or use literal absolute paths.
+## Expanded Troubleshooting
+
+- `references/core/source-normalization.md` — PDF/email/screenshot/manual extraction into canonical JSON.
+- `references/maintenance/operations.md` — read-only `maint ...`, source/runtime checks, cleanup, and refactor rules.
+- `references/registry.md` — current reference owner map.
+
+Carrier references are for carrier-specific fixes only: `references/carriers/aeroflot.md`, `references/carriers/ural-airlines.md`, `references/carriers/utair.md`, `references/carriers/redwings.md`.
+
+## Operator Notes
+
+- `diagnose doctor`, `diagnose route-detect`, `diagnose validate`, `diagnose bundle-check`, and `diagnose privacy-check` are diagnostic surfaces.
+- `maint contracts`, `maint refs registry-check`, `maint source-runtime diff`, and `maint audit` are read-only maintenance surfaces.
+- Runtime sync into `~/.hermes/skills/...` requires explicit approval.
+- If using `SKILL_DIR`, assign it on a separate shell line before invoking the command.
+
+## Privacy Rules
+
+- Do not expose private booking URLs, booking keys, locators, passenger names, ticket numbers, document/contact/payment data, generated headers, authentication material, or real generated `.ics` text.
+- Use `--url-file` for credential-bearing links.
+- Keep examples and tests synthetic.
+- Send only the verified media file and a safe summary.
 
 ## Verification Checklist
 
-- [ ] Source stayed private or was normalized manually.
-- [ ] Happy path used exactly one `--json build auto ...` command.
-- [ ] No `doctor`, source reading, carrier reference reading, or generated `.ics` dump after successful `build auto`.
-- [ ] Envelope passed: schema version, `ok=true`, `command=build`, route, segment count, `data.verification.ok=true`.
-- [ ] `data.ics_path` exists and final response sends it as `MEDIA:/absolute/path/flights.ics` without private identifiers.
+- [ ] Source stayed private.
+- [ ] Exactly one `--json build auto ...` command ran for normal generation.
+- [ ] Envelope passed schema, success, segment count, `data.ics_path`, and `data.verification.ok=true` checks.
+- [ ] Final response used `MEDIA:/absolute/path/flights.ics` without private identifiers.

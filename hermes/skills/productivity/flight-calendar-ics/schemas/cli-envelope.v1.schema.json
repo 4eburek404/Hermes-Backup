@@ -251,6 +251,9 @@
             "normal_steps",
             "dispatch_matrix",
             "verification",
+            "failure_path",
+            "diagnostics",
+            "maintenance",
             "privacy"
           ],
           "properties": {
@@ -361,6 +364,67 @@
                   "items": {
                     "type": "string"
                   }
+                }
+              }
+            },
+            "failure_path": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "steps",
+                "diagnostics_trigger",
+                "route_switch_rule"
+              ],
+              "properties": {
+                "steps": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "diagnostics_trigger": {
+                  "const": "build_auto_failed_or_user_requested_diagnostics"
+                },
+                "route_switch_rule": {
+                  "const": "do_not_switch_route_without_new_evidence"
+                }
+              }
+            },
+            "diagnostics": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "commands",
+                "write_performed"
+              ],
+              "properties": {
+                "commands": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "write_performed": {
+                  "const": false
+                }
+              }
+            },
+            "maintenance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "commands",
+                "runtime_sync_requires_approval"
+              ],
+              "properties": {
+                "commands": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "runtime_sync_requires_approval": {
+                  "const": true
                 }
               }
             },
@@ -626,6 +690,25 @@
           "type": "array",
           "items": {
             "type": "string"
+          }
+        },
+        "broken_markdown_links": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source",
+              "target"
+            ],
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              }
+            }
           }
         },
         "candidates": {

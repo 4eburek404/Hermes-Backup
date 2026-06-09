@@ -45,13 +45,13 @@ Submit modes:
 After successful name search, response data contains `pnr_key` and `pnr_locator`. The SPA navigates to:
 
 ```text
-#/pnr?pnr_key=<pnr_key>&pnr_locator=<pnr_locator>
+private deep-link fragment with redacted key and locator parameters
 ```
 
 The direct booking URL is:
 
 ```text
-https://www.aeroflot.ru/sb/pnr/app/ru-ru#/pnr?pnr_key=<urlencoded pnr_key>&pnr_locator=<urlencoded pnr_locator>
+private generated booking deep-link with redacted query parameters
 ```
 
 ## Programmatic algorithm
@@ -145,7 +145,7 @@ It is acceptable to write the generated URL into private `.ics` artifacts reques
 - Do not use browser automation when the API can obtain `pnr_key` programmatically.
 - Do not stop after surname lookup if the API reports passenger ambiguity and first name is available.
 - Do not expose generated `pnr_key` or direct URL in summaries; deliver it only inside the private `.ics` when requested.
-- If PDF layout is ambiguous, use `core/manual-source-extraction.md` before deciding segment times are missing.
+- If PDF layout is ambiguous, use `core/source-normalization.md` before deciding segment times are missing.
 
 ## Verification
 

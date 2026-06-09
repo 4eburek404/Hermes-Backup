@@ -4,68 +4,54 @@ This registry is the ownership map for `flight-calendar-ics` references. Use it 
 
 ## Principles
 
-- One semantic owner per function. Neighboring files link to each other instead of restating procedures.
+- One semantic owner per function. Neighboring files link instead of restating procedures.
 - One airline, one reference file. Case notes are absorbed into the airline owner and then retired.
-- CLI-deterministic behavior belongs in `scripts/`, `schemas/`, and tests; references explain contracts, boundaries, and maintenance.
-- Historical cases are not architecture. Extract the rule, verification proof, and anti-path into the owner file.
-- Keep active generation flow in `../SKILL.md` compact; keep maintenance/debug detail here.
-- Do not store concrete PNRs, passenger names, tokens, access keys, ticket numbers, contacts, document data, or full personal booking URLs in references.
+- CLI-deterministic behavior belongs in `scripts/`, `schemas/`, parser/help/errors, diagnostics/maint reports, and tests.
+- References keep durable conceptual/operator material only.
+- Keep `../SKILL.md` compact; keep troubleshooting and maintenance detail below this registry.
+- Do not store concrete PNRs, passenger names, tokens, access keys, ticket numbers, contacts, document data, payment data, or full private booking URLs in references.
 
 ## Canonical owners
 
 ### Core
 
-- `core/cli-contract.md` — single CLI entrypoint, `doctor.data.agent_contract`, JSON envelope, process traces, and CLI contract tests.
-- `core/architecture-and-data-flow.md` — system layers, module ownership, boundaries, and high-level data movement.
-- `core/canonical-itinerary.md` — provider-agnostic itinerary JSON, schema vs semantic validation, and adapter boundary.
-- `core/calendar-event-format.md` — user-facing `.ics` event text: `SUMMARY`, `LOCATION`, `DESCRIPTION`, alarms, and renderer tests.
-- `core/manual-source-extraction.md` — PDF/email/screenshot/manual extraction into canonical itinerary JSON.
-- `core/pdf-receipt-normalization.md` — local airline receipt PDF normalization feature: private PyMuPDF/OCR extraction into calendar-safe canonical itinerary JSON and `build make`.
-- `core/timezone-catalog.md` — bundled Travelpayouts airport timezone asset, overrides, diagnostics, and regression rules.
-- `core/privacy-hardening.md` — redaction, private artifact permissions, JSON-mode failures, helper compatibility, and hardening review checks.
-- `core/output-bundle-design.md` — CLI-owned private output bundle, canonical artifact names, and verification boundary.
-- `core/auto-route-dispatch.md` — `build auto` route inference: host-first deterministic dispatch, tracking wrapper handling, ambiguity errors, and privacy-safe evidence.
+- `core/cli-contract.md` — stable CLI/envelope/doctor contract boundaries and verification owners.
+- `core/architecture-and-data-flow.md` — conceptual layers, module ownership, agent boundary, and maintenance namespace boundary.
+- `core/itinerary-and-event-format.md` — canonical itinerary role, semantic fields, validation layers, and safe calendar event text.
+- `core/source-normalization.md` — PDF/email/screenshot/manual extraction into private canonical JSON.
+- `core/timezone-catalog.md` — airport timezone catalog, diagnostics, and maintenance rules.
+- `core/privacy-hardening.md` — sensitive data classes, redaction/bundle expectations, test pattern, and safe reporting.
 
 ### Carriers
 
-- `carriers/aeroflot.md` — Aeroflot PNR/name lookup, `pnr_key` direct deep-link generation, and Aeroflot-specific privacy.
-- `carriers/redwings.md` — Red Wings/Websky direct find route, GraphQL order lookup, and rejected already-opened order routes.
+- `carriers/aeroflot.md` — Aeroflot lookup/deep-link operator notes and Aeroflot-specific privacy.
+- `carriers/redwings.md` — Red Wings/Websky direct find route, order lookup, and rejected already-opened order routes.
 - `carriers/ural-airlines.md` — Ural manage-booking/tracker parsing, live frontend config, API-key helper, session/reservation flow.
-- `carriers/utair.md` — Utair order-manage parsing, OAuth client-credentials token, orders API, and response mapping.
+- `carriers/utair.md` — Utair order-manage parsing, OAuth client-credentials flow, orders API, and response mapping.
 
 ### Maintenance
 
-- `maintenance/source-runtime-sync.md` — source ↔ runtime parity, deliberate sync, cleanup, and commit evidence for this skill.
-- `maintenance/dead-code-and-contract-cleanup.md` — dead-code audit shape, retired shim checks, compatibility command retirement dependencies, generated-artifact hygiene, and registry/source-runtime drift cleanup.
-- `maintenance/structural-cleanup-review.md` — read-only cleanup review sequence, source/runtime drift classification, audit calibration, and structural cleanup priorities.
-- `maintenance/layer-boundary.md` — architecture boundary for keeping production `build auto`, diagnostics `diagnose ...`, and read-only maintenance `maint ...` inside one skill package.
-- `maintenance/refactor-tdd-playbook.md` — TDD extraction sequence and acceptance checkpoints for source-only refactor slices.
-- `maintenance/cross-model-review.md` — named-model review evidence capture, synthesis rules, and false-positive verification protocol.
-- `maintenance/model-evaluation.md` — cross-model eval harness rules, effective provider/model validation, and private-input exposure checks.
-- `maintenance/eval-provider-and-shell-pitfalls.md` — provider identity/fallback checks and shell command-path pitfalls from cross-model evaluations.
+- `maintenance/operations.md` — layer boundary, read-only maint commands, source/runtime checks, cleanup rules, and TDD refactor sequence.
+- `maintenance/evaluation.md` — model-evaluation, cross-model review, provider identity, shell pitfalls, and privacy-safe evidence rules.
 
 ## Absorbed legacy map
 
-- `agent-cli-contract.md` → `core/cli-contract.md`.
-- `process-and-data-flow.md` → `core/architecture-and-data-flow.md`, `core/cli-contract.md`, `core/canonical-itinerary.md`, `core/privacy-hardening.md`, `core/timezone-catalog.md`, and `core/calendar-event-format.md`.
-- `agent-contract-distillation.md` → `core/architecture-and-data-flow.md` and `core/cli-contract.md`.
-- `skill-architecture-notes.md` → `core/architecture-and-data-flow.md`.
-- `canonical-itinerary-contract.md` + `canonical-itinerary-schema.md` → `core/canonical-itinerary.md`.
-- `event-content-format.md` → `core/calendar-event-format.md`.
-- `pdf-attachment-layout-extraction.md` → `core/manual-source-extraction.md`.
-- `travelpayouts-airport-timezones.md` → `core/timezone-catalog.md`.
-- `hardening-review-checks.md` → `core/privacy-hardening.md`.
-- `source-runtime-sync.md` → `maintenance/source-runtime-sync.md`.
-- `aeroflot-pnr-surname-deeplink.md` → `carriers/aeroflot.md`.
-- `redwings-manage-booking.md` + `redwings-order-route-vs-email-link-case.md` → `carriers/redwings.md`.
-- `ural-airlines-manage-booking.md` + `ural-airlines-live-frontend-flow.md` + `ural-airlines-one-command-integration-case.md` → `carriers/ural-airlines.md`.
-- `utair-manage-booking.md` + `utair-one-command-integration-case.md` → `carriers/utair.md`.
+Legacy/case-note maps are intentionally summarized by owner instead of listing retired filenames that link scanners may confuse for active targets:
+
+- CLI/process/architecture notes are absorbed by `core/cli-contract.md` and `core/architecture-and-data-flow.md`.
+- Canonical itinerary and calendar event-format notes are absorbed by `core/itinerary-and-event-format.md`, schemas, renderer tests, and bundle verification.
+- Manual/PDF/source extraction notes are absorbed by `core/source-normalization.md` and canonical-input tests.
+- Timezone notes are absorbed by `core/timezone-catalog.md` and timezone diagnostics/tests.
+- Privacy/bundle/route-dispatch rules are absorbed by `core/privacy-hardening.md`, `contracts.py`, `route_detection.py`, `bundle.py`, schema, and contract tests.
+- Source/runtime, layer-boundary, cleanup, and refactor playbooks are absorbed by `maintenance/operations.md` and `maint ...` tests.
+- Model-evaluation, provider, shell, and cross-model-review notes are absorbed by `maintenance/evaluation.md`.
+- Carrier case notes are absorbed by their single airline owner under `carriers/`.
 
 ## Add/change rules
 
 1. Name the behavior gap before adding material.
 2. Choose an owner above; patch that file instead of creating another case note.
-3. If the rule is deterministic and agent-facing, encode it in CLI `doctor`, schemas, scripts, or tests before adding prose.
+3. If the rule is deterministic and agent-facing, encode it in CLI `doctor`, schemas, scripts, parser/help/errors, or tests before adding prose.
 4. If no owner fits, decide whether this is a new carrier, a new core responsibility, a template, a script/schema concern, or another skill's domain.
-5. Adding a new airline requires exactly one owner file under `carriers/`, a CLI command or explicit manual fallback rule, tests, and `../SKILL.md`/registry links.
-6. After renaming/removing references, run a link scan, contract tests, and source/runtime parity verification.
+5. Adding a new airline requires exactly one owner file under `carriers/`, a CLI command or explicit manual fallback rule, tests, and registry/SKILL links.
+6. After renaming/removing references, run `maint refs registry-check`, contract tests, and source/runtime parity verification when in scope.

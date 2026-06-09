@@ -9,6 +9,7 @@ from typing import Any
 import travelpayouts_airport_catalog as airport_catalog
 
 GENERATED_IGNORED = ["__pycache__/", ".pytest_cache/", "*.pyc"]
+MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
 
 
 def _is_generated(path: Path, root: Path) -> bool:
@@ -29,6 +30,54 @@ def _relative_files(root: Path) -> dict[str, str]:
         rel = path.relative_to(root).as_posix()
         files[rel] = hashlib.sha256(path.read_bytes()).hexdigest()
     return files
+
+
+def _is_local_markdown_link(target: str) -> bool:
+    target = target.strip()
+    if not target or target.startswith("#"):
+        return False
+    lowered = target.lower()
+    if "://" in lowered or lowered.startswith(("mailto:", "tel:", "data:")):
+        return False
+    path_part = target.split("#", 1)[0].split("?", 1)[0]
+    return path_part.endswith(".md")
+
+
+def _markdown_link_target_path(source: Path, raw_target: str) -> Path:
+    path_part = raw_target.strip().split("#", 1)[0].split("?", 1)[0]
+    return (source.parent / path_part).resolve()
+
+
+def _reference_source_name(path: Path, skill_root: Path, references_dir: Path) -> str:
+    if path == skill_root / "SKILL.md":
+        return "SKILL.md"
+    if path.is_relative_to(references_dir):
+        return path.relative_to(references_dir).as_posix()
+    return path.relative_to(skill_root).as_posix()
+
+
+def _broken_markdown_links(skill_root: Path) -> list[dict[str, str]]:
+    skill_root = skill_root.resolve()
+    references_dir = skill_root / "references"
+    markdown_files = [skill_root / "SKILL.md"] + sorted(references_dir.rglob("*.md"))
+    broken: list[dict[str, str]] = []
+    for source in markdown_files:
+        if not source.exists():
+            continue
+        source_text = source.read_text(encoding="utf-8")
+        for match in MARKDOWN_LINK_RE.finditer(source_text):
+            raw_target = match.group(1).strip()
+            if not _is_local_markdown_link(raw_target):
+                continue
+            target_path = _markdown_link_target_path(source, raw_target)
+            if not target_path.exists():
+                broken.append(
+                    {
+                        "source": _reference_source_name(source, skill_root, references_dir),
+                        "target": raw_target,
+                    }
+                )
+    return sorted(broken, key=lambda item: (item["source"], item["target"]))
 
 
 def _source_runtime_base(source_dir: Path, runtime_dir: Path) -> dict[str, Any]:
@@ -100,13 +149,15 @@ def refs_registry_check_report(skill_root: Path) -> dict[str, Any]:
     actual = set(references_seen)
     unregistered = sorted(actual - registered)
     broken_links = sorted(registered - actual)
+    broken_markdown_links = _broken_markdown_links(skill_root)
     return {
         "registry_path": str(registry_path.resolve()),
         "references_seen": references_seen,
         "unregistered": unregistered,
         "duplicate_owners": duplicate_owners,
         "broken_links": broken_links,
-        "ok": not (unregistered or duplicate_owners or broken_links),
+        "broken_markdown_links": broken_markdown_links,
+        "ok": not (unregistered or duplicate_owners or broken_links or broken_markdown_links),
     }
 
 
@@ -144,6 +195,7 @@ def audit_report(skill_root: Path, source_dir: Path, runtime_dir: Path, target_d
                 "ok": registry["ok"],
                 "unregistered_count": len(registry["unregistered"]),
                 "broken_links_count": len(registry["broken_links"]),
+                "broken_markdown_links_count": len(registry["broken_markdown_links"]),
             },
             "source_runtime": {
                 key: value
