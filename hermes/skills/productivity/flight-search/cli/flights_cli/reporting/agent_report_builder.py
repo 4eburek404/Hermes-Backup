@@ -788,6 +788,8 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
         priority_options = ru_priority_priority_options + priority_options
     stop_policy_diagnostics = merge_stop_policy_diagnostics(data, raw_aggregate_controls, preferred_available)
     coverage_diagnostics = build_coverage_diagnostics(plan, live)
+    plan_flow_decision = plan.get("flow_decision") if isinstance(plan, dict) else {}
+    plan_evidence_plan = plan.get("evidence_plan") if isinstance(plan, dict) else {}
     fallback_segments = options[0].get("segments") if options else []
     fallback_origin = fallback_segments[0].get("origin") if fallback_segments else None
     fallback_destination = fallback_segments[-1].get("destination") if fallback_segments else None
@@ -802,6 +804,8 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
             "profile": data.get("profile") or plan.get("profile"),
             "routing_strategy": plan.get("routing_strategy"),
             "provider_policy": live.get("provider_policy"),
+            "flow_decision": plan_flow_decision if isinstance(plan_flow_decision, dict) else {},
+            "evidence_plan": plan_evidence_plan if isinstance(plan_evidence_plan, dict) else {},
         },
         "status": {
             "ranked_output_count": assembly.get("ranked_output_count", len(data.get("ranked") or [])),

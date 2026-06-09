@@ -137,6 +137,13 @@ Required v3 fields:
 
 Semantic validation must reject: empty catalog mode, non-contiguous numbering, rendered text that loses numbered catalog items, round-trip catalog items without outbound+return directions, unproven ticketing models that do not require purchase-screen verification.
 
+Mutation guardrails for renderer/user-answer changes:
+
+- False single-PNR, through-fare, baggage-through, protected-connection, terminal, or final-price claims must fail unless supported by structured evidence.
+- Required caveats in `required_caveats`, ticketing model, missing evidence, or source boundaries must remain visible in `rendered_text` when they change the decision.
+- `catalog.items[*].render_line` must stay derived from structured route, price, risk, direction, baggage, and protection fields; mutate-and-validate tests should catch contradictory rendered dates, prices, segments, or mode/catalog state.
+- Diagnostic summary projections may mirror the rendered text for debugging, but must not become a separate source for final prose.
+
 MCP `outputSchema` is only a transport description for `structuredContent`. It does not replace the domain schema, builder, semantic validator, or renderer.
 
 ## Answer Shape

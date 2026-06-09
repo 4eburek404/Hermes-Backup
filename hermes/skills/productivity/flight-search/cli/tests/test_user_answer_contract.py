@@ -218,6 +218,43 @@ class FinalAnswerContractTests(unittest.TestCase):
         self.assertTrue(answer["required_caveats"]["provider_failures_acknowledged"])
         self.assertTrue(answer["required_caveats"]["through_fare_verification_required"])
 
+    def test_renderer_uses_report_truth_language_for_absence_scope(self) -> None:
+        report = valid_report()
+        report["recommended_options"] = []
+        report["priority_options"] = []
+        report["offer_graph"]["truth_language"]["negative_wording"] = (
+            "структурированная граница: не нашёл в выполненных live/probe источниках; "
+            "это не доказательство отсутствия вне границ источника"
+        )
+        report["coverage_diagnostics"]["searched_controls"] = [
+            {
+                "type": "exact_airport_direct",
+                "direction": "outbound",
+                "origin": "SVX",
+                "destination": "DEL",
+                "date": "2026-06-01",
+                "execution_state": "searched",
+                "status": "ok",
+                "offer_count": 0,
+                "evidence_type": "provider_empty",
+                "absence_class": "provider_empty_not_structural_absence",
+            }
+        ]
+        report["coverage_diagnostics"]["not_executed_controls"] = []
+        report["coverage_diagnostics"]["completeness"] = {
+            "planned_count": 1,
+            "terminal_count": 1,
+            "all_planned_controls_have_terminal_state": True,
+        }
+
+        answer = build_user_answer(report)
+
+        validate_user_answer(answer)
+        self.assertEqual(answer["answer_mode"], "no_viable_options")
+        self.assertIn("структурированная граница", answer["rendered_text"])
+        self.assertIn("provider_empty_not_structural_absence", str(report["coverage_diagnostics"]["searched_controls"]))
+        self.assertNotIn("structural absence", answer["rendered_text"].lower())
+
     def test_round_trip_provider_aggregate_alternatives_are_directional_not_full_trip(self) -> None:
         report = report_with_required_caveats()
         report["route"]["dates"] = {"depart_date": "2026-07-19", "return_date": "2026-07-24"}

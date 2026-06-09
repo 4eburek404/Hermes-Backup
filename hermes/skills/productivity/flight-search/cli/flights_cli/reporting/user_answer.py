@@ -446,10 +446,13 @@ def render_catalog_answer(route: dict[str, Any], catalog: dict[str, Any], *, cav
     destination = route.get("destination") or "???"
     lines = [f"Нашёл варианты {origin}→{destination}."]
     lines.extend(str(item.get("render_line") or "") for item in catalog.get("items") or [] if isinstance(item, dict))
+    negative_wording = str(caveat_context.get("negative_wording") or "").strip()
     checks: list[str] = [
         "Проверить перед покупкой: single PNR/багаж/through fare не доказаны; финальную цену, тариф, багаж и правила проверить на booking screen.",
         "Текущий live/provider результат не доказывает отсутствие through fare, прямого рейса или защищённого билета.",
     ]
+    if negative_wording and negative_wording not in checks:
+        checks.append(negative_wording)
     if caveat_context.get("not_executed"):
         checks.append("Coverage неполное: не все live-проверки выполнены.")
     if caveat_context.get("provider_failures"):
@@ -505,6 +508,10 @@ def build_user_answer(agent_report: dict[str, Any], *, rendered_text: str | None
     route = agent_report.get("route") if isinstance(agent_report.get("route"), dict) else {}
     stop_policy = agent_report.get("stop_policy") if isinstance(agent_report.get("stop_policy"), dict) else {}
     stop_diagnostics = agent_report.get("stop_policy_diagnostics") if isinstance(agent_report.get("stop_policy_diagnostics"), dict) else {}
+    offer_graph_raw = agent_report.get("offer_graph")
+    offer_graph: dict[str, Any] = offer_graph_raw if isinstance(offer_graph_raw, dict) else {}
+    truth_language_raw = offer_graph.get("truth_language")
+    truth_language: dict[str, Any] = truth_language_raw if isinstance(truth_language_raw, dict) else {}
     two_stop_fallback_used = bool(stop_diagnostics.get("used_two_stop_fallback"))
 
     is_round_trip_request = route_requested_round_trip(route)
@@ -519,7 +526,11 @@ def build_user_answer(agent_report: dict[str, Any], *, rendered_text: str | None
         answer_text = render_catalog_answer(
             route_contract,
             catalog,
-            caveat_context={"not_executed": not_executed, "provider_failures": provider_failures},
+            caveat_context={
+                "not_executed": not_executed,
+                "provider_failures": provider_failures,
+                "negative_wording": truth_language.get("negative_wording"),
+            },
         )
     else:
         answer_text = canonical_user_answer_text(agent_report, rendered_text)

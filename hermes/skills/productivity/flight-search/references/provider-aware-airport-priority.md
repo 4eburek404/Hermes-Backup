@@ -9,8 +9,12 @@ Use this source reference when maintaining route planning, provider dispatch, or
 
 ## Airport priority policy
 
+This file is the single source of truth for airport/provider priority rules. Other docs may describe airport continuity as a source boundary, but should point here for city-code expansion and provider dispatch details.
+
 - IST means the exact airport code `IST`; do not add `SAW` unless the user explicitly requests `SAW`.
 - London defaults to business-priority airport tiers: LHR first; `LGW` fallback only if `LHR` has no accepted/viable offers; `STN` and `LTN` excluded by default.
+- Dubai city scope defaults to `DXB` primary. Use `DWC` as secondary when relevant; include `SHJ` only when the user asks for Sharjah, a Sharjah-based carrier, cheapest UAE-wide options, or a provider returns it and the report labels it.
+- Moscow airports are not interchangeable for itinerary continuity; KupiBilet city-code behavior is covered below, and reports must still show actual `SVO`/`DME`/`VKO` airports.
 - Keep preferred-tier and excluded-by-default metadata in the plan/report surface so ranking and audits can explain why one airport was preferred or suppressed.
 
 ## KupiBilet MOW city-code policy

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from typing import Any
 
 from .evidence_plan import EvidencePlan, plan_evidence
 from .flow_decision import FlowDecision, decide_flow
@@ -17,9 +18,9 @@ class LiveRouteSearchFlow:
     evidence_plan: EvidencePlan
 
 
-def build_live_route_search_flow(args: argparse.Namespace) -> LiveRouteSearchFlow:
+def build_live_route_search_flow(args: argparse.Namespace, store: Any | None = None) -> LiveRouteSearchFlow:
     request = search_request_from_live_args(args)
-    flow_decision = decide_flow(request)
+    flow_decision = decide_flow(request, store)
     evidence_plan = plan_evidence(request, flow_decision)
     return LiveRouteSearchFlow(
         request=request,

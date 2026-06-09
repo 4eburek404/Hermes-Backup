@@ -106,7 +106,7 @@ class ProbeExecutionLedger:
             self._diagnostic(
                 item,
                 execution_state="failed",
-                status="error",
+                status="failed",
                 provider=provider,
                 offer_count=0,
                 error=error,
@@ -202,6 +202,9 @@ class ProbeExecutionLedger:
     def _diagnostic(self, control: ControlInput, **extra: Any) -> dict[str, Any]:
         item_control = _control_dict(control)
         key = control_identity(item_control)
+        execution_state = extra.get("execution_state")
+        offer_count = extra.get("offer_count")
+        evidence_type, absence_class = self._evidence_classification(item_control, execution_state, offer_count)
         item = {
             "type": item_control.get("type") or item_control.get("probe_type"),
             "direction": item_control.get("direction"),
@@ -212,6 +215,8 @@ class ProbeExecutionLedger:
             "leg": item_control.get("leg"),
             "provider": item_control.get("provider"),
             "negative_evidence": item_control.get("negative_evidence"),
+            "evidence_type": evidence_type,
+            "absence_class": absence_class,
             "probe_id": self._probe_ids.get(key) or item_control.get("probe_id"),
         }
         filters = item_control.get("filters")
@@ -221,3 +226,28 @@ class ProbeExecutionLedger:
             if value is not None:
                 item[name] = value
         return {name: value for name, value in item.items() if value is not None}
+
+    @staticmethod
+    def _evidence_classification(control: dict[str, Any], execution_state: Any, offer_count: Any) -> tuple[str | None, str | None]:
+        negative_evidence = str(control.get("negative_evidence") or "")
+        try:
+            count = int(offer_count) if offer_count is not None else None
+        except (TypeError, ValueError):
+            count = None
+        if execution_state == "searched" and count == 0:
+            if "carrier" in negative_evidence:
+                return "provider_empty", "provider_empty_not_carrier_absence"
+            if "aggregate" in negative_evidence:
+                return "provider_empty", "provider_empty_not_route_absence"
+            return "provider_empty", "provider_empty_not_structural_absence"
+        if execution_state == "searched" and count is not None and count > 0:
+            return "provider_positive", None
+        if execution_state == "failed":
+            return "runtime_provider_failure", "runtime_provider_failure"
+        if execution_state == "not_supported":
+            return "provider_coverage_gap", "provider_coverage_gap"
+        if execution_state == "skipped":
+            return "constraint_mismatch", "constraint_mismatch"
+        if execution_state == "not_executed":
+            return "missing_evidence", "not_executed"
+        return None, None

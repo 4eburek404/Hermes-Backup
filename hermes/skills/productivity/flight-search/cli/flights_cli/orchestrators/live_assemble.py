@@ -280,6 +280,8 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
     if currency not in SUPPORTED_CURRENCIES:
         raise CliError(f"currency must be one of {', '.join(sorted(SUPPORTED_CURRENCIES))}", error_type="validation_error")
     profile = normalize_profile(getattr(args, "profile", "balanced"))
+    flow = build_live_route_search_flow(args, store)
+    direct_only = bool(flow.evidence_plan.direct_only)
 
     origin = store.resolve_location(args.origin)
     destination = store.resolve_location(args.destination)
@@ -335,7 +337,28 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
         )
 
     route_families = route_families_for_strategy(routing_strategy, routing_profile)
-    if routing_strategy == "ru-priority":
+    include_generic_direct_controls = flow.flow_decision.market_class == "global_non_ru"
+    if direct_only:
+        route_families = [
+            {
+                "id": "direct_inventory",
+                "priority": 0,
+                "condition": "direct-only request: search exact origin/destination airport pairs and do not assemble connecting fallback routes.",
+            }
+        ]
+        for dest_code, dest_extra in destination_segment_options:
+            for origin_code, origin_extra in origin_segment_options:
+                add_live_segment(
+                    "outbound",
+                    "direct_outbound",
+                    depart,
+                    origin_code,
+                    dest_code,
+                    route_family="direct_inventory",
+                    priority=0,
+                    **{**origin_extra, **dest_extra},
+                )
+    elif routing_strategy == "ru-priority":
         for dest_code, dest_extra in destination_segment_options:
             for origin_code, origin_extra in origin_segment_options:
                 add_live_segment(
@@ -468,17 +491,43 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
                 for dest_code in destination_airports:
                     add_live_segment("outbound", "hub_to_destination", leg_date, hub, dest_code, route_family="domestic_ru", priority=1)
     else:
+        if include_generic_direct_controls:
+            for dest_code, dest_extra in destination_segment_options:
+                for origin_code, origin_extra in origin_segment_options:
+                    add_live_segment(
+                        "outbound",
+                        "direct_outbound",
+                        depart,
+                        origin_code,
+                        dest_code,
+                        route_family="direct_control",
+                        priority=0,
+                        **{**origin_extra, **dest_extra},
+                    )
         for origin_code in origin_airports:
             for hub in hubs:
-                add_live_segment("outbound", "origin_to_hub", depart, origin_code, hub)
+                add_live_segment("outbound", "origin_to_hub", depart, origin_code, hub, route_family="hub_list", priority=1)
         for offset in outbound_second_offsets:
             leg_date = depart + timedelta(days=offset)
             for hub in hubs:
                 for dest_code in destination_airports:
-                    add_live_segment("outbound", "hub_to_destination", leg_date, hub, dest_code)
+                    add_live_segment("outbound", "hub_to_destination", leg_date, hub, dest_code, route_family="hub_list", priority=1)
 
     if ret:
-        if routing_strategy == "ru-priority":
+        if direct_only:
+            for dest_code, dest_extra in destination_segment_options:
+                for origin_code, origin_extra in origin_segment_options:
+                    add_live_segment(
+                        "return",
+                        "direct_return",
+                        ret,
+                        dest_code,
+                        origin_code,
+                        route_family="direct_inventory",
+                        priority=0,
+                        **{**dest_extra, **origin_extra},
+                    )
+        elif routing_strategy == "ru-priority":
             for dest_code, dest_extra in destination_segment_options:
                 for origin_code, origin_extra in origin_segment_options:
                     add_live_segment(
@@ -611,14 +660,27 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
                     for origin_code in origin_airports:
                         add_live_segment("return", "hub_to_origin", leg_date, hub, origin_code, route_family="domestic_ru", priority=1)
         else:
+            if include_generic_direct_controls:
+                for dest_code, dest_extra in destination_segment_options:
+                    for origin_code, origin_extra in origin_segment_options:
+                        add_live_segment(
+                            "return",
+                            "direct_return",
+                            ret,
+                            dest_code,
+                            origin_code,
+                            route_family="direct_control",
+                            priority=0,
+                            **{**dest_extra, **origin_extra},
+                        )
             for dest_code in destination_airports:
                 for hub in hubs:
-                    add_live_segment("return", "destination_to_hub", ret, dest_code, hub)
+                    add_live_segment("return", "destination_to_hub", ret, dest_code, hub, route_family="hub_list", priority=1)
             for offset in return_second_offsets:
                 leg_date = ret + timedelta(days=offset)
                 for hub in hubs:
                     for origin_code in origin_airports:
-                        add_live_segment("return", "hub_to_origin", leg_date, hub, origin_code)
+                        add_live_segment("return", "hub_to_origin", leg_date, hub, origin_code, route_family="hub_list", priority=1)
 
     assembly_warning = (
         "KupiBilet live segment assembly uses direct-only one-way searches; availability and price still require final booking-screen recheck."
@@ -653,6 +715,8 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
         requested_controls=route_context.coverage_limits.get("requested_controls"),
         coverage_control_limit=route_context.coverage_limits.get("coverage_control_limit"),
     )
+    if direct_only:
+        coverage_controls = [control for control in coverage_controls if control.get("type") == "exact_airport_direct"]
     route_graph = route_graph_from_segments(
         routing_strategy=routing_strategy,
         routing_profile=routing_profile,
@@ -674,7 +738,16 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
         "airport_scope": route_context.airport_scope,
         "coverage_mode": route_context.coverage_mode,
         "coverage_controls": coverage_controls,
-        "coverage_limits": route_context.coverage_limits,
+        "coverage_limits": {
+            **route_context.coverage_limits,
+            "freshness_policy": flow.evidence_plan.freshness_policy,
+            "required_controls": list(flow.evidence_plan.required_controls),
+            "absence_taxonomy": list(flow.evidence_plan.absence_taxonomy),
+            "missing_evidence": list(flow.evidence_plan.missing_evidence),
+        },
+        "direct_only": direct_only,
+        "flow_decision": flow.flow_decision.to_dict(),
+        "evidence_plan": flow.evidence_plan.to_dict(),
         "route_graph": route_graph,
         "route_families": route_families,
         "dates": {"depart": depart.isoformat(), "return": ret.isoformat() if ret else None},
@@ -692,7 +765,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
 
 
 def run_live_route_assembly(args: argparse.Namespace, store: Store) -> dict[str, Any]:
-    flow = build_live_route_search_flow(args)
+    flow = build_live_route_search_flow(args, store)
     plan = build_live_route_segment_plan(args, store)
     max_searches = max(1, int(flow.evidence_plan.max_segment_searches))
     if plan["metrics"]["segment_search_count"] > max_searches:

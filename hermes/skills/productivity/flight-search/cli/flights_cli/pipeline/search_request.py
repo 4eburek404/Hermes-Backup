@@ -57,6 +57,12 @@ def search_request_from_live_args(args: argparse.Namespace) -> SearchRequest:
         getattr(args, "provider_policy", None) or _default_provider_policy(command_name)
     ).strip().lower()
     compatibility_options: dict[str, Any] = {
+        "routing_strategy": str(getattr(args, "routing_strategy", "auto") or "auto"),
+        "hub": _as_tuple(getattr(args, "hub", None)),
+        "origin_airport": _as_tuple(getattr(args, "origin_airport", None)),
+        "destination_airport": _as_tuple(getattr(args, "destination_airport", None)),
+        "max_connections": getattr(args, "max_connections", None),
+        "fallback_max_connections": getattr(args, "fallback_max_connections", None),
         "max_segment_searches": _as_int(getattr(args, "max_segment_searches", 300), 300),
         "live_cache_ttl_seconds": _as_int(getattr(args, "live_cache_ttl_seconds", 0), 0),
         "no_live_cache": bool(getattr(args, "no_live_cache", False)),

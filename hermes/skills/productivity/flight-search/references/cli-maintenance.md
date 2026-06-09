@@ -14,6 +14,8 @@ Important UX boundary: the flight-search CLI is an agent-facing implementation t
 - Preserve `--json --agent-brief` as JSON-clean stdout.
 - Keep search behavior limited to current live provider assembly and documented targeted probes.
 - Static catalogs are metadata only; flight options come from live provider assembly.
+- Historical audit/session/proposal notes should not remain active references. Distill durable rules into this file, the other canonical references, executable report fields, or tests; leave raw history to session search.
+- Do not publish copy-paste command blocks for unimplemented/future surfaces. If a future command is worth keeping, label it as backlog prose and keep the implemented replacement path nearby.
 - If validation is interrupted, report the last completed gate and the missing gate; do not report completion.
 
 ## JSON stdout/stderr Rules
