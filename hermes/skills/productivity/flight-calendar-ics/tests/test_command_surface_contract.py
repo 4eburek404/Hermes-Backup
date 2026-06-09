@@ -1,0 +1,173 @@
+#!/usr/bin/env python3
+"""Command surface contract tests for flight-calendar-ics.
+
+These tests lock Phase 1 CLI-surface classification without changing the
+existing root command behavior.  The preferred production happy path is the
+``build auto`` surface; legacy/root commands remain accepted as compatibility
+surfaces, and future namespace names are append-only in the v1 envelope schema.
+"""
+from __future__ import annotations
+
+import importlib
+import json
+import os
+import subprocess
+import sys
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = ROOT / "scripts"
+CLI = SCRIPTS / "flight_calendar_ics.py"
+SCHEMA = ROOT / "schemas" / "cli-envelope.v1.schema.json"
+LEGACY_ROOT_COMMANDS = {"doctor", "validate", "make", "aeroflot", "ural", "utair", "redwings"}
+
+
+class CommandSurfaceContractTests(unittest.TestCase):
+    maxDiff = None
+
+    def import_contracts(self):
+        old_path = list(sys.path)
+        script_dir = str(SCRIPTS.resolve())
+        if script_dir not in sys.path:
+            sys.path.insert(0, script_dir)
+        try:
+            return importlib.import_module("flight_calendar.contracts")
+        finally:
+            sys.path[:] = old_path
+
+    def run_cli(self, *args: str) -> subprocess.CompletedProcess[str]:
+        env = os.environ.copy()
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        return subprocess.run(
+            [sys.executable, str(CLI), *args],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            timeout=20,
+        )
+
+    def parse_stdout_json(self, result: subprocess.CompletedProcess[str]) -> dict:
+        try:
+            obj = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:  # pragma: no cover - assertion helper
+            self.fail(
+                f"stdout is not valid JSON: {exc}\n"
+                f"exit={result.returncode}\nstdout={result.stdout!r}\nstderr={result.stderr!r}"
+            )
+        self.assertIsInstance(obj, dict)
+        return obj
+
+    def assert_matches_cli_schema(self, obj: dict) -> None:
+        from jsonschema import Draft202012Validator
+
+        schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+        Draft202012Validator.check_schema(schema)
+        validator = Draft202012Validator(schema)
+        errors = sorted(validator.iter_errors(obj), key=lambda error: list(error.path))
+        self.assertEqual(
+            [],
+            [f"{'/'.join(map(str, error.absolute_path))}: {error.message}" for error in errors],
+        )
+
+    def test_contract_registry_lists_current_wire_contracts(self) -> None:
+        contracts = self.import_contracts()
+
+        self.assertEqual(contracts.SCHEMA_VERSION, "flight-calendar-ics-cli.v1")
+        self.assertEqual(contracts.BUNDLE_ROUTES, ["make", "aeroflot", "ural", "utair", "redwings"])
+        self.assertEqual(contracts.BUILD_ROUTE_CHOICES, ["auto", "make", "aeroflot", "ural", "utair", "redwings"])
+        self.assertGreaterEqual(set(contracts.COMMANDS), {*LEGACY_ROOT_COMMANDS, "build", "diagnose", "maint"})
+        self.assertEqual(contracts.CONTRACT_REGISTRY["schema_version"], contracts.SCHEMA_VERSION)
+        self.assertEqual(contracts.CONTRACT_REGISTRY["wire_commands"], contracts.COMMANDS)
+        self.assertEqual(
+            contracts.CONTRACT_REGISTRY["cli_envelope"],
+            {
+                "schema_version": "flight-calendar-ics-cli.v1",
+                "schema_path": "schemas/cli-envelope.v1.schema.json",
+            },
+        )
+        self.assertEqual(contracts.CONTRACT_REGISTRY["command_registry"], contracts.COMMAND_SURFACES)
+        agent_contract = contracts.build_agent_contract()
+        self.assertEqual([step["id"] for step in agent_contract["normal_steps"]], ["collect_source", "run_one_command", "verify", "deliver"])
+        self.assertEqual({item["command"] for item in agent_contract["dispatch_matrix"]}, {"build"})
+        self.assertEqual({item["route"] for item in agent_contract["dispatch_matrix"]}, {"auto", "make", "aeroflot", "ural", "utair", "redwings"})
+
+    def test_command_surfaces_classify_build_auto_as_production(self) -> None:
+        contracts = self.import_contracts()
+        surfaces = contracts.COMMAND_SURFACES
+
+        self.assertEqual(set(surfaces), {"production", "diagnostic", "maintenance", "compatibility"})
+        self.assertIn("build auto", surfaces["production"])
+        self.assertNotIn("doctor", surfaces["production"])
+        self.assertNotIn("validate", surfaces["production"])
+        self.assertNotIn("make", surfaces["production"])
+
+    def test_root_commands_are_compatibility_not_production(self) -> None:
+        contracts = self.import_contracts()
+        surfaces = contracts.COMMAND_SURFACES
+
+        self.assertTrue(LEGACY_ROOT_COMMANDS.issubset(set(surfaces["compatibility"])))
+        self.assertTrue(LEGACY_ROOT_COMMANDS.isdisjoint(set(surfaces["production"])))
+        self.assertIn("build auto", surfaces["production"])
+        self.assertNotIn("build auto", surfaces["compatibility"])
+
+    def test_cli_envelope_schema_accepts_diagnose_and_maint_namespaces(self) -> None:
+        command_registry = {
+            "production": ["build auto"],
+            "diagnostic": ["diagnose doctor"],
+            "maintenance": ["maint contracts"],
+            "compatibility": sorted(LEGACY_ROOT_COMMANDS),
+        }
+        for command, surface in [("diagnose", "diagnostic"), ("maint", "maintenance")]:
+            envelope = {
+                "schema_version": "flight-calendar-ics-cli.v1",
+                "ok": True,
+                "command": command,
+                "process": [{"step": "parse_args", "status": "ok"}],
+                "data": {
+                    "commands": [command],
+                    "surface": surface,
+                    "subcommand": "contracts",
+                    "command_registry": command_registry,
+                },
+            }
+            with self.subTest(command=command):
+                self.assert_matches_cli_schema(envelope)
+
+    def test_doctor_reports_classified_surfaces_without_requiring_doctor_for_happy_path(self) -> None:
+        result = self.run_cli("--json", "doctor")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        obj = self.parse_stdout_json(result)
+        self.assert_matches_cli_schema(obj)
+        self.assertEqual(obj["schema_version"], "flight-calendar-ics-cli.v1")
+        self.assertTrue(obj["ok"])
+        self.assertEqual(obj["command"], "doctor")
+        self.assertEqual(obj["data"]["schema_version"], "flight-calendar-ics-cli.v1")
+
+        registry = obj["data"].get("command_registry")
+        self.assertIsInstance(registry, dict)
+        self.assertEqual(set(registry), {"production", "diagnostic", "maintenance", "compatibility"})
+        self.assertIn("build auto", registry["production"])
+        self.assertTrue(LEGACY_ROOT_COMMANDS.issubset(set(registry["compatibility"])))
+        self.assertTrue(LEGACY_ROOT_COMMANDS.isdisjoint(set(registry["production"])))
+
+        contract = obj["data"].get("agent_contract")
+        self.assertIsInstance(contract, dict)
+        self.assertEqual([step["id"] for step in contract["normal_steps"]], ["collect_source", "run_one_command", "verify", "deliver"])
+        self.assertEqual({item["command"] for item in contract["dispatch_matrix"]}, {"build"})
+        self.assertIn("auto", {item["route"] for item in contract["dispatch_matrix"]})
+        serialized_happy_path = json.dumps(
+            {
+                "normal_steps": contract["normal_steps"],
+                "dispatch_matrix": contract["dispatch_matrix"],
+            },
+            ensure_ascii=False,
+        )
+        self.assertNotIn("doctor", serialized_happy_path)
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

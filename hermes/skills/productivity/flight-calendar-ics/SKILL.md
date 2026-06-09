@@ -87,8 +87,10 @@ Open these only when changing or debugging that layer:
 - `references/core/output-bundle-design.md` — CLI-owned private output bundle.
 - `references/maintenance/source-runtime-sync.md` — source↔runtime parity and commit evidence.
 - `references/maintenance/dead-code-and-contract-cleanup.md` — cleanup audit for dead code, legacy shims, stale tests, generated artifacts, registry gaps, and source/runtime drift.
+- `references/maintenance/structural-cleanup-review.md` — read-only review sequence and cleanup priority order before bringing this skill into a clean structured state.
+- `references/maintenance/layer-boundary.md` — durable architecture boundary: keep production calendar creation in `build auto`; put diagnostics, cleanup, eval, registry checks, and source/runtime drift work behind CLI-owned `diagnose ...` and `maint ...` surfaces in the same skill package, not a separate maintenance skill.
 - `references/maintenance/model-evaluation.md` — cross-model eval harness rules; evaluation still uses the one-command happy path unless diagnostics are explicitly under test.
-- `references/maintenance/eval-provider-and-shell-pitfalls.md` — provider identity/fallback and shell path pitfalls observed in cross-model evals.
+- `references/maintenance/eval-provider-and-shell-pitfalls.md` — provider identity/fallback and shell command-path pitfalls observed in cross-model evals.
 - Carrier refs only for carrier-specific fixes: `references/carriers/aeroflot.md`, `references/carriers/ural-airlines.md`, `references/carriers/utair.md`, `references/carriers/redwings.md`.
 
 ## Common Pitfalls

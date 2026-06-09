@@ -37,6 +37,10 @@ This registry is the ownership map for `flight-calendar-ics` references. Use it 
 
 - `maintenance/source-runtime-sync.md` — source ↔ runtime parity, deliberate sync, cleanup, and commit evidence for this skill.
 - `maintenance/dead-code-and-contract-cleanup.md` — dead-code audit shape, retired shim checks, compatibility command retirement dependencies, generated-artifact hygiene, and registry/source-runtime drift cleanup.
+- `maintenance/structural-cleanup-review.md` — read-only cleanup review sequence, source/runtime drift classification, audit calibration, and structural cleanup priorities.
+- `maintenance/layer-boundary.md` — architecture boundary for keeping production `build auto`, diagnostics `diagnose ...`, and read-only maintenance `maint ...` inside one skill package.
+- `maintenance/refactor-tdd-playbook.md` — TDD extraction sequence and acceptance checkpoints for source-only refactor slices.
+- `maintenance/cross-model-review.md` — named-model review evidence capture, synthesis rules, and false-positive verification protocol.
 - `maintenance/model-evaluation.md` — cross-model eval harness rules, effective provider/model validation, and private-input exposure checks.
 - `maintenance/eval-provider-and-shell-pitfalls.md` — provider identity/fallback checks and shell command-path pitfalls from cross-model evaluations.
 

@@ -6,7 +6,7 @@ Use this file when changing the `flight-calendar-ics` implementation, tests, tem
 
 This skill has two operational copies:
 
-- source repository copy: `/home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-calendar-ics`
+- source repository copy: `/home/konstantin/src/Hermes-Backup-flight-calendar-ics/hermes/skills/productivity/flight-calendar-ics`
 - runtime copy loaded by Hermes: `/home/konstantin/.hermes/skills/productivity/flight-calendar-ics`
 
 Keep this source/runtime mapping in this reference or another canonical skill document, not in always-on `MEMORY.md`. If cleanup removes or renames the source checkout, update this reference and remove any obsolete memory entry instead of replacing it with another path unless the user explicitly wants the path in permanent context.
@@ -33,16 +33,17 @@ Treat source → runtime synchronization as a deliberate side effect. Do not sil
 
 When cleanup work lands through a PR, do not stop at “PR merged”. Finalize the operational skill state:
 
-1. Verify the PR state and merge commit, then check out `main` and fast-forward to `origin/main`.
-2. Confirm the PR head is an ancestor of `main` when available; this distinguishes a completed merge from a stale local branch.
-3. Sync the runtime skill from the freshly updated source copy only after creating a runtime backup.
-4. Run the scoped runtime checks after sync, not only source-repo checks before merge:
-   - `PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile scripts/*.py tests/*.py`
-   - `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_flight_calendar_ics_cli -v`
-   - `PYTHONDONTWRITEBYTECODE=1 python3 scripts/flight_calendar_ics.py --json doctor`
-   - `PYTHONDONTWRITEBYTECODE=1 python3 scripts/travelpayouts_airport_catalog.py inspect`
-5. Verify source/runtime parity after tests and cleanup; expected clean result is `only_source=0`, `only_runtime=0`, `changed=0`, and `generated=0` in both trees.
-6. Report whether local/remote feature branches still exist separately from merge completion; do not delete branches unless the user requested that side effect.
+1. Verify the PR state and merge commit, then check out `main`, restore missing `origin`/upstream metadata if needed, and fetch the base branch explicitly with `git fetch --prune origin main`.
+2. Confirm local `HEAD`, `origin/main`, and `git ls-remote origin refs/heads/main` agree before using the source tree for runtime sync. If GitHub reports an older PR `mergeCommit` but the actual remote `main` was force-updated, report the ref rewrite and compare the `flight-calendar-ics` paths between the PR head and current `HEAD`; do not block runtime sync merely because the old merge commit is no longer an ancestor when the skill paths are identical.
+3. Confirm the PR head is an ancestor of `main` when history has not been rewritten; this distinguishes a completed merge from a stale local branch.
+4. Sync the runtime skill from the freshly updated source copy only after creating a runtime backup.
+5. Run the scoped runtime checks after sync, not only source-repo checks before merge:
+   - `PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile scripts/*.py scripts/flight_calendar/*.py tests/*.py`
+   - `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v`
+   - `PYTHONDONTWRITEBYTECODE=1 python3 scripts/flight_calendar_ics.py --json diagnose doctor`
+   - `PYTHONDONTWRITEBYTECODE=1 python3 scripts/flight_calendar_ics.py --json maint timezone-catalog inspect`
+6. Verify source/runtime parity after tests and cleanup; expected clean result is `only_source=0`, `only_runtime=0`, `changed=0`, and `generated=0` in both trees.
+7. Report whether local/remote feature branches still exist separately from merge completion; do not delete branches unless the user requested that side effect.
 
 ## Verification evidence to report
 

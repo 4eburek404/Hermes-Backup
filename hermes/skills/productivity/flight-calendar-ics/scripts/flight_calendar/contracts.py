@@ -1,0 +1,152 @@
+"""Central registry for flight-calendar-ics CLI wire contracts.
+
+This module is deliberately data-only: importing it must not touch network,
+runtime skill state, or private booking values.  The single CLI entrypoint uses
+these constants to keep its doctor output, parser choices, and JSON envelope
+contract in sync.
+"""
+from __future__ import annotations
+
+from copy import deepcopy
+from typing import Any
+
+
+SCHEMA_VERSION = "flight-calendar-ics-cli.v1"
+
+BUNDLE_ROUTES = ["make", "aeroflot", "ural", "utair", "redwings"]
+BUILD_ROUTE_CHOICES = ["auto", *BUNDLE_ROUTES]
+
+LEGACY_ROOT_COMMANDS = ["doctor", "validate", "make", "build", "aeroflot", "ural", "utair", "redwings"]
+NAMESPACE_COMMANDS = ["diagnose", "maint"]
+COMMANDS = [*LEGACY_ROOT_COMMANDS, *NAMESPACE_COMMANDS]
+
+COMMAND_SURFACES: dict[str, list[str]] = {
+    "production": [
+        "build auto",
+    ],
+    "diagnostic": [
+        "diagnose doctor",
+        "diagnose validate",
+        "diagnose route-detect",
+        "diagnose bundle-check",
+        "diagnose privacy-check",
+        "diagnose carrier-probe",
+        "diagnose timezone inspect",
+        "build make",
+        "build aeroflot",
+        "build ural",
+        "build utair",
+        "build redwings",
+    ],
+    "maintenance": [
+        "maint doctor",
+        "maint contracts",
+        "maint source-runtime diff",
+        "maint source-runtime-sync",
+        "maint refs registry-check",
+        "maint clean --dry-run",
+        "maint audit",
+        "maint timezone-catalog inspect",
+    ],
+    "compatibility": [
+        *LEGACY_ROOT_COMMANDS,
+    ],
+}
+
+CONTRACT_REGISTRY: dict[str, Any] = {
+    "schema_version": SCHEMA_VERSION,
+    "wire_commands": COMMANDS,
+    "build_routes": BUILD_ROUTE_CHOICES,
+    "command_registry": COMMAND_SURFACES,
+    "cli_envelope": {
+        "schema_version": SCHEMA_VERSION,
+        "schema_path": "schemas/cli-envelope.v1.schema.json",
+    },
+    "agent_contract": {
+        "schema_version": SCHEMA_VERSION,
+        "entrypoint": "scripts/flight_calendar_ics.py",
+    },
+}
+
+_AGENT_CONTRACT_TEMPLATE: dict[str, Any] = {
+    "normal_steps": [
+        {
+            "id": "collect_source",
+            "instruction": "Use explicit evidence or already-supplied attachments/cache; do not ask again for retrievable ticket data.",
+        },
+        {
+            "id": "run_one_command",
+            "instruction": "Run exactly one --json build auto command for ordinary carrier URLs/canonical JSON. Use explicit build <route> only for diagnostics, tests, or when the user has already selected a route. The CLI owns route inference, the private output bundle, canonical artifact names, envelope persistence, and structural verification.",
+        },
+        {
+            "id": "verify",
+            "instruction": "Parse stdout or bundle/envelope.json; require schema_version, ok=true, data.segments_count>=1, data.ics_path, and data.verification.ok=true.",
+        },
+        {
+            "id": "deliver",
+            "instruction": "Send MEDIA:/absolute/path/flights.ics with a safe summary only.",
+        },
+    ],
+    "dispatch_matrix": [
+        {
+            "source": "carrier_url_or_canonical_itinerary_json",
+            "command": "build",
+            "route": "auto",
+            "argv_template": ["--json", "build", "auto", "--url-file", "<PRIVATE_FILE_WITH_SOURCE_URL>"],
+            "alternate_argv_template": ["--json", "build", "auto", "--input", "<PATH_TO_ITINERARY_JSON>"],
+            "notes": ["Preferred happy path: let the CLI infer the route from a safe source fingerprint and return route_detection in the envelope."],
+        },
+        {
+            "source": "canonical_itinerary_json_or_manual_normalization",
+            "command": "build",
+            "route": "make",
+            "argv_template": ["--json", "build", "make", "--input", "<PATH_TO_ITINERARY_JSON>"],
+        },
+        {
+            "source": "aeroflot_url_or_pnr_plus_surname",
+            "command": "build",
+            "route": "aeroflot",
+            "argv_template": ["--json", "build", "aeroflot", "--url-file", "<PRIVATE_FILE_WITH_AEROFLOT_URL>"],
+            "alternate_argv_template": ["--json", "build", "aeroflot", "--pnr-locator", "<PNR>", "--last-name", "<SURNAME>"],
+            "notes": ["Prefer --url-file for private links; add --first-name only for ambiguous surname lookup."],
+        },
+        {
+            "source": "ural_manage_booking_url_or_tracker_redirect",
+            "command": "build",
+            "route": "ural",
+            "argv_template": ["--json", "build", "ural", "--url-file", "<PRIVATE_FILE_WITH_URAL_URL>"],
+        },
+        {
+            "source": "utair_order_manage_url",
+            "command": "build",
+            "route": "utair",
+            "argv_template": ["--json", "build", "utair", "--url-file", "<PRIVATE_FILE_WITH_UTAIR_URL>"],
+        },
+        {
+            "source": "redwings_direct_find_url",
+            "command": "build",
+            "route": "redwings",
+            "argv_template": ["--json", "build", "redwings", "--url-file", "<PRIVATE_FILE_WITH_RED_WINGS_FIND_URL>"],
+            "anti_path": "Do not infer access keys from PNR/surname or already-opened order pages.",
+        },
+    ],
+    "verification": {
+        "envelope": ["schema_version=flight-calendar-ics-cli.v1", "ok=true", "command=build", "data.segments_count>=1", "data.verification.ok=true"],
+        "bundle": ["private output directory 0700", "itinerary.json 0600", "flights.ics 0600", "envelope.json 0600", "VEVENT count equals segments_count", "UTC DTSTART/DTEND ending Z", "no TBD/UNKNOWN/None"],
+    },
+    "privacy": {
+        "chat_summary_must_omit": [
+            "no_pnr_keys", "no_full_booking_urls", "no_passenger_names", "no_ticket_numbers", "no_document_contact_or_payment_data",
+        ]
+    },
+}
+
+
+def build_agent_contract() -> dict[str, Any]:
+    """Return the stable agent contract shape used by doctor output."""
+    return deepcopy(_AGENT_CONTRACT_TEMPLATE)
+
+
+def build_command_registry() -> dict[str, list[str]]:
+    """Return a copy of command-surface classifications for JSON output."""
+    return deepcopy(COMMAND_SURFACES)

@@ -27,7 +27,9 @@
         "aeroflot",
         "ural",
         "utair",
-        "redwings"
+        "redwings",
+        "diagnose",
+        "maint"
       ]
     },
     "process": {
@@ -142,8 +144,58 @@
               "aeroflot",
               "ural",
               "utair",
-              "redwings"
+              "redwings",
+              "diagnose",
+              "maint"
             ]
+          }
+        },
+        "surface": {
+          "type": "string",
+          "enum": [
+            "production",
+            "diagnostic",
+            "maintenance",
+            "compatibility"
+          ]
+        },
+        "subcommand": {
+          "type": "string"
+        },
+        "command_registry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "production",
+            "diagnostic",
+            "maintenance",
+            "compatibility"
+          ],
+          "properties": {
+            "production": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "diagnostic": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "maintenance": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "compatibility": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           }
         },
         "legacy_scripts": {
@@ -375,6 +427,54 @@
         "write_performed": {
           "type": "boolean"
         },
+        "checks": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "command_registry_present": {
+              "type": "boolean"
+            },
+            "production_happy_path_present": {
+              "type": "boolean"
+            },
+            "diagnose_namespace_present": {
+              "type": "boolean"
+            },
+            "maint_namespace_present": {
+              "type": "boolean"
+            }
+          }
+        },
+        "source_only": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "runtime_only": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "changed_shared": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "same_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runtime_count": {
+          "type": "integer",
+          "minimum": 0
+        },
         "ics_path": {
           "type": [
             "string",
@@ -471,7 +571,117 @@
                   "pattern": "^[0-7]{3,4}$"
                 }
               }
+            },
+            "error": {
+              "type": "string"
             }
+          }
+        },
+        "source_path": {
+          "type": "string"
+        },
+        "runtime_path": {
+          "type": "string"
+        },
+        "registry_path": {
+          "type": "string"
+        },
+        "catalog_path": {
+          "type": "string"
+        },
+        "bundle_dir": {
+          "type": "string"
+        },
+        "carrier": {
+          "type": "string"
+        },
+        "catalog_schema_version": {
+          "type": "string"
+        },
+        "generated_ignored": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "references_seen": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unregistered": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "duplicate_owners": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "broken_links": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sample_airports": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "checked_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "file_contents_included": {
+          "type": "boolean"
+        },
+        "dry_run": {
+          "type": "boolean"
+        },
+        "deletions_performed": {
+          "type": "boolean"
+        },
+        "private_contents_printed": {
+          "type": "boolean"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "airports_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "timezones_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "files": {
+          "type": "object"
+        },
+        "reports": {
+          "type": "object"
+        },
+        "safe_adapter_metadata": {
+          "type": "object"
+        },
+        "violations": {
+          "type": "array",
+          "items": {
+            "type": "object"
           }
         }
       }
