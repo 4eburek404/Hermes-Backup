@@ -314,6 +314,20 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             self.assertEqual(obj["data"]["envelope_path"], str(output_dir / "envelope.json"))
             self.assertEqual(obj["data"]["verification"]["ok"], True)
             self.assertEqual(obj["data"]["verification"]["event_count"], obj["data"]["segments_count"])
+            handoff = obj["data"]["agent_handoff"]
+            self.assertEqual(handoff["media"], f"MEDIA:{output_dir / 'flights.ics'}")
+            self.assertFalse(handoff["artifact_inspection_required"])
+            self.assertEqual(
+                handoff["safe_summary"],
+                {
+                    "route": "make",
+                    "route_detection_mode": "explicit",
+                    "segments_count": obj["data"]["segments_count"],
+                    "verification_ok": True,
+                    "vevent_count": obj["data"]["segments_count"],
+                    "ics_mode": "600",
+                },
+            )
             self.assertTrue(output_dir.is_dir())
             self.assertEqual(stat.S_IMODE(output_dir.stat().st_mode), 0o700)
             for artifact in [output_dir / "itinerary.json", output_dir / "flights.ics", output_dir / "envelope.json"]:
@@ -376,6 +390,14 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             self.assertEqual(obj["data"]["route_detection"]["mode"], "auto")
             self.assertEqual(obj["data"]["route_detection"]["route"], "make")
             self.assertIn("input_kind:canonical_itinerary_json", obj["data"]["route_detection"]["evidence"])
+            handoff = obj["data"]["agent_handoff"]
+            self.assertTrue(handoff["ready"])
+            self.assertEqual(handoff["media"], f"MEDIA:{output_dir / 'flights.ics'}")
+            self.assertFalse(handoff["artifact_inspection_required"])
+            self.assertEqual(handoff["safe_summary"]["route"], "make")
+            self.assertEqual(handoff["safe_summary"]["route_detection_mode"], "auto")
+            self.assertEqual(handoff["safe_summary"]["vevent_count"], obj["data"]["segments_count"])
+            self.assertEqual(handoff["safe_summary"]["ics_mode"], "600")
             self.assertTrue((output_dir / "flights.ics").exists())
             self.assertIn("infer_route", [step["step"] for step in obj["process"]])
 

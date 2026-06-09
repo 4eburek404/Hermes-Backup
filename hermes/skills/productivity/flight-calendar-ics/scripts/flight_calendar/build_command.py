@@ -16,6 +16,45 @@ InferRoute = Callable[[argparse.Namespace], dict[str, Any]]
 Verifier = Callable[[dict[str, Path], int, list[dict[str, Any]]], dict[str, Any]]
 
 
+def build_agent_handoff(
+    *,
+    route: str,
+    route_detection: dict[str, Any] | None,
+    paths: dict[str, Path],
+    segments_count: int,
+    verification: dict[str, Any],
+) -> dict[str, Any]:
+    """Return the code-owned delivery handoff agents can copy without inspecting artifacts."""
+    raw_private_modes = verification.get("private_modes")
+    private_modes: dict[str, Any] = raw_private_modes if isinstance(raw_private_modes, dict) else {}
+    event_count = int(verification.get("event_count") or 0)
+    ics_mode = str(private_modes.get("ics") or "")
+    verification_ok = verification.get("ok") is True
+    ready = bool(segments_count >= 1 and verification_ok and event_count == segments_count and ics_mode == "600")
+    if not ready:
+        raise CliFailure(
+            "build verification did not produce a delivery-ready agent handoff",
+            code="verification_error",
+            details={"required_disambiguation": ["inspect data.verification for failed code-owned checks"]},
+        )
+    route_detection_mode = str(route_detection.get("mode")) if route_detection else "explicit"
+    ics_path = str(paths["ics"].resolve())
+    return {
+        "ready": True,
+        "media": f"MEDIA:{ics_path}",
+        "artifact_inspection_required": False,
+        "verification_source": "flight_calendar.bundle.verify_bundle_artifacts",
+        "safe_summary": {
+            "route": route,
+            "route_detection_mode": route_detection_mode,
+            "segments_count": segments_count,
+            "verification_ok": verification_ok,
+            "vevent_count": event_count,
+            "ics_mode": ics_mode,
+        },
+    }
+
+
 def run_build_command(
     args: argparse.Namespace,
     process: list[dict[str, Any]],
@@ -57,15 +96,23 @@ def run_build_command(
         exit_code, data = handler(route_args, process)
     segments_count = int(data.get("segments_count") or 0)
     verification = verifier(paths, segments_count, process)
+    agent_handoff = build_agent_handoff(
+        route=route,
+        route_detection=route_detection,
+        paths=paths,
+        segments_count=segments_count,
+        verification=verification,
+    )
     bundled = dict(data)
     bundled.update(
         {
             "route": route,
-            "output_dir": str(output_dir),
-            "json_path": str(paths["json"]),
-            "ics_path": str(paths["ics"]),
-            "envelope_path": str(paths["envelope"]),
+            "output_dir": str(output_dir.resolve()),
+            "json_path": str(paths["json"].resolve()),
+            "ics_path": str(paths["ics"].resolve()),
+            "envelope_path": str(paths["envelope"].resolve()),
             "verification": verification,
+            "agent_handoff": agent_handoff,
         }
     )
     if route_detection is not None:

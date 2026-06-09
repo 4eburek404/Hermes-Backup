@@ -87,6 +87,23 @@ class BuildCommandAndCarrierAdaptersContractTests(unittest.TestCase):
         self.assertEqual(data["route_detection"]["evidence"], ["host:flyredwings.com"])
         self.assertEqual(data["verification"]["ok"], True)
         self.assertEqual(data["envelope_path"], str(output_dir / "envelope.json"))
+        self.assertEqual(
+            data["agent_handoff"],
+            {
+                "ready": True,
+                "media": f"MEDIA:{output_dir / 'flights.ics'}",
+                "artifact_inspection_required": False,
+                "verification_source": "flight_calendar.bundle.verify_bundle_artifacts",
+                "safe_summary": {
+                    "route": "redwings",
+                    "route_detection_mode": "auto",
+                    "segments_count": 1,
+                    "verification_ok": True,
+                    "vevent_count": 1,
+                    "ics_mode": "600",
+                },
+            },
+        )
         self.assertEqual(calls[0]["args"].output_json, output_dir / "itinerary.json")
         self.assertEqual(calls[0]["args"].output_ics, output_dir / "flights.ics")
         self.assertEqual([step["step"] for step in process], ["infer_route", "create_output_bundle"])

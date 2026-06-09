@@ -37,9 +37,9 @@ Normal generation is one CLI-owned `build auto` command. The CLI owns route dete
 
 3. Parse the JSON envelope from stdout or `data.envelope_path`.
 
-4. Require verification: `schema_version=flight-calendar-ics-cli.v1`, `ok=true`, `command=build`, `data.segments_count >= 1`, `data.ics_path` exists, and `data.verification.ok=true`.
+4. Require the code-owned handoff: `schema_version=flight-calendar-ics-cli.v1`, `ok=true`, `command=build`, `data.agent_handoff.ready=true`, `data.agent_handoff.artifact_inspection_required=false`, and `data.verification.ok=true`.
 
-5. Return `MEDIA:/absolute/path/flights.ics` plus a safe operational summary.
+5. Return `data.agent_handoff.media` plus `data.agent_handoff.safe_summary`. Do not open generated artifacts for reporting.
 
 ## Use / Do Not Use
 
@@ -47,7 +47,7 @@ Use for airline booking links, ticket PDFs, route receipts, emails, screenshots,
 
 Do not use for flight search, fare comparison, or route planning; load `flight-search` instead. For direct Google Calendar insertion, generate and verify the `.ics` first, then load `google-workspace`.
 
-Do not run `doctor`, read carrier references, inspect generated `.ics`, or try carrier helpers on a successful happy path.
+Do not run `doctor`, read carrier references, inspect generated `.ics`, or try carrier helpers on a successful happy path. Treat post-build reporting as code-owned `data.agent_handoff` extraction.
 
 ## Failure Path
 
@@ -81,5 +81,5 @@ Carrier references are for carrier-specific fixes only: `references/carriers/aer
 
 - [ ] Source stayed private.
 - [ ] Exactly one `--json build auto ...` command ran for normal generation.
-- [ ] Envelope passed schema, success, segment count, `data.ics_path`, and `data.verification.ok=true` checks.
-- [ ] Final response used `MEDIA:/absolute/path/flights.ics` without private identifiers.
+- [ ] Envelope passed schema, success, code-owned handoff, and `data.verification.ok=true` checks.
+- [ ] Final response copied `data.agent_handoff.media` and `data.agent_handoff.safe_summary` without private identifiers.

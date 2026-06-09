@@ -22,6 +22,8 @@ Every `--json` response uses:
 - `process[]`
 - optional `data` or `error`
 
+For successful `build ...` responses, `data.agent_handoff` is the code-owned delivery/reporting surface. Agents copy `data.agent_handoff.media` and `data.agent_handoff.safe_summary`; they do not open generated artifacts to recount events or modes.
+
 Append fields only when possible. If `data` gains a new key, update the schema and a narrow contract test in the same slice because the schema uses `additionalProperties: false`.
 
 ## `doctor.data.agent_contract`

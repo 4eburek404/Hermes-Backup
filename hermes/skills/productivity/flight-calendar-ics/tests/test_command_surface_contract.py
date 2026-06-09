@@ -97,6 +97,9 @@ class CommandSurfaceContractTests(unittest.TestCase):
         self.assertEqual(agent_contract["failure_path"]["diagnostics_trigger"], "build_auto_failed_or_user_requested_diagnostics")
         self.assertIn("diagnose route-detect", agent_contract["diagnostics"]["commands"])
         self.assertIn("maint refs registry-check", agent_contract["maintenance"]["commands"])
+        self.assertIn("data.agent_handoff.ready=true", agent_contract["verification"]["envelope"])
+        self.assertIn("data.agent_handoff.artifact_inspection_required=false", agent_contract["verification"]["envelope"])
+        self.assertIn("data.agent_handoff.safe_summary.vevent_count", agent_contract["verification"]["reporting_fields"])
         self.assertIn("no_generated_ics_dump", agent_contract["privacy"]["chat_summary_must_omit"])
 
     def test_command_surfaces_classify_build_auto_as_production(self) -> None:
@@ -140,6 +143,46 @@ class CommandSurfaceContractTests(unittest.TestCase):
             }
             with self.subTest(command=command):
                 self.assert_matches_cli_schema(envelope)
+
+    def test_cli_envelope_schema_accepts_code_owned_agent_handoff_for_build(self) -> None:
+        envelope = {
+            "schema_version": "flight-calendar-ics-cli.v1",
+            "ok": True,
+            "command": "build",
+            "process": [{"step": "parse_args", "status": "ok"}],
+            "data": {
+                "segments_count": 1,
+                "route": "make",
+                "output_dir": "/tmp/flight-ics.synthetic",
+                "json_path": "/tmp/flight-ics.synthetic/itinerary.json",
+                "ics_path": "/tmp/flight-ics.synthetic/flights.ics",
+                "envelope_path": "/tmp/flight-ics.synthetic/envelope.json",
+                "write_performed": True,
+                "verification": {
+                    "ok": True,
+                    "event_count": 1,
+                    "utc_datetime_count": 2,
+                    "placeholder_free": True,
+                    "private_modes": {"json": "600", "ics": "600"},
+                },
+                "agent_handoff": {
+                    "ready": True,
+                    "media": "MEDIA:/tmp/flight-ics.synthetic/flights.ics",
+                    "artifact_inspection_required": False,
+                    "verification_source": "flight_calendar.bundle.verify_bundle_artifacts",
+                    "safe_summary": {
+                        "route": "make",
+                        "route_detection_mode": "auto",
+                        "segments_count": 1,
+                        "verification_ok": True,
+                        "vevent_count": 1,
+                        "ics_mode": "600",
+                    },
+                },
+            },
+        }
+
+        self.assert_matches_cli_schema(envelope)
 
     def test_doctor_reports_classified_surfaces_without_requiring_doctor_for_happy_path(self) -> None:
         result = self.run_cli("--json", "doctor")

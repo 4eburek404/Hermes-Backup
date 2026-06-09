@@ -364,6 +364,12 @@
                   "items": {
                     "type": "string"
                   }
+                },
+                "reporting_fields": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
                 }
               }
             },
@@ -765,6 +771,78 @@
           "type": "array",
           "items": {
             "type": "object"
+          }
+        },
+        "agent_handoff": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ready",
+            "media",
+            "artifact_inspection_required",
+            "verification_source",
+            "safe_summary"
+          ],
+          "properties": {
+            "ready": {
+              "const": true
+            },
+            "media": {
+              "type": "string",
+              "pattern": "^MEDIA:/"
+            },
+            "artifact_inspection_required": {
+              "const": false
+            },
+            "verification_source": {
+              "const": "flight_calendar.bundle.verify_bundle_artifacts"
+            },
+            "safe_summary": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "route",
+                "route_detection_mode",
+                "segments_count",
+                "verification_ok",
+                "vevent_count",
+                "ics_mode"
+              ],
+              "properties": {
+                "route": {
+                  "type": "string",
+                  "enum": [
+                    "make",
+                    "aeroflot",
+                    "ural",
+                    "utair",
+                    "redwings"
+                  ]
+                },
+                "route_detection_mode": {
+                  "type": "string",
+                  "enum": [
+                    "auto",
+                    "explicit"
+                  ]
+                },
+                "segments_count": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "verification_ok": {
+                  "const": true
+                },
+                "vevent_count": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "ics_mode": {
+                  "type": "string",
+                  "pattern": "^[0-7]{3,4}$"
+                }
+              }
+            }
           }
         }
       }

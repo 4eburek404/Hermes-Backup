@@ -80,11 +80,11 @@ _AGENT_CONTRACT_TEMPLATE: dict[str, Any] = {
         },
         {
             "id": "verify",
-            "instruction": "Parse stdout or bundle/envelope.json; require schema_version, ok=true, data.segments_count>=1, data.ics_path, and data.verification.ok=true.",
+            "instruction": "Parse stdout or bundle/envelope.json; require schema_version, ok=true, command=build, data.agent_handoff.ready=true, data.agent_handoff.artifact_inspection_required=false, and data.verification.ok=true. Use data.agent_handoff.safe_summary for route/count/mode reporting; do not inspect generated artifacts.",
         },
         {
             "id": "deliver",
-            "instruction": "Send MEDIA:/absolute/path/flights.ics with a safe summary only.",
+            "instruction": "Send data.agent_handoff.media with data.agent_handoff.safe_summary only.",
         },
     ],
     "dispatch_matrix": [
@@ -131,7 +131,24 @@ _AGENT_CONTRACT_TEMPLATE: dict[str, Any] = {
         },
     ],
     "verification": {
-        "envelope": ["schema_version=flight-calendar-ics-cli.v1", "ok=true", "command=build", "data.segments_count>=1", "data.verification.ok=true"],
+        "envelope": [
+            "schema_version=flight-calendar-ics-cli.v1",
+            "ok=true",
+            "command=build",
+            "data.segments_count>=1",
+            "data.verification.ok=true",
+            "data.agent_handoff.ready=true",
+            "data.agent_handoff.artifact_inspection_required=false",
+        ],
+        "reporting_fields": [
+            "data.agent_handoff.media",
+            "data.agent_handoff.safe_summary.route",
+            "data.agent_handoff.safe_summary.route_detection_mode",
+            "data.agent_handoff.safe_summary.segments_count",
+            "data.agent_handoff.safe_summary.vevent_count",
+            "data.agent_handoff.safe_summary.ics_mode",
+            "data.agent_handoff.safe_summary.verification_ok",
+        ],
         "bundle": ["private output directory 0700", "itinerary.json 0600", "flights.ics 0600", "envelope.json 0600", "VEVENT count equals segments_count", "UTC DTSTART/DTEND ending Z", "no TBD/UNKNOWN/None"],
     },
     "failure_path": {
