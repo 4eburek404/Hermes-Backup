@@ -39,9 +39,15 @@ Measure agent behavior around the CLI contract, not just raw CLI speed. The dire
    - `data.ics_path` exists
    - private artifacts intended for private use are mode `0600`
 
+   For VEVENT counts, file mode, byte size, or timestamp-shape checks, use count-only terminal/Python commands that print only numbers/booleans/fingerprints. Do **not** call `read_file` on generated `.ics` files during eval: calendar descriptions can contain PNR/passenger/booking details, and reading the file injects them into the persisted model session even if the final report redacts them.
+
 6. **Check private-input exposure narrowly.** This is not a generic secret scanner. For eval reporting, check only that known private input values from the test fixture are absent from stdout/stderr/result/envelope/report. Prefer exact known-value checks or hashed manifests. Do not flag safe labels such as field names, carrier names, route names, or documentation words.
 
 7. **Compare against prior runs.** Track success, elapsed seconds, tool calls, selected command, route, route-detection mode, envelope verification, private-input exposure status, `doctor` usage from session/tool trace (not model self-report), retries, and effective model/provider match.
+
+8. **For branch comparisons, run two layers.** Use the same private input and requested provider/model for both branches. First run a direct CLI smoke per branch to isolate product latency and output contract. Then run the model-driven Hermes eval per branch to measure agent/tool-loop behavior. Normalize into one comparison artifact with branch commit, effective model/base URL, model wall-clock, direct CLI elapsed, tool calls, terminal commands, `doctor` usage, privacy sentinel exposure, result paths, and `.ics` fingerprints.
+
+9. **Verify actual tool commands structurally.** When checking `doctor` usage, retries, or extra diagnostics, parse the persisted session `messages[*].tool_calls[*].function` records and inspect actual `terminal` command arguments. Do not grep the whole session JSON; it contains tool schemas, prompts, and skill text that can create false positives.
 
 ## Why Not Broad Credential Grep Here
 
@@ -104,8 +110,10 @@ Read SKILL.md once. Run exactly one `--json build auto --url-file <private-file>
 - Comparing requested model labels instead of actual session model/provider.
 - Requesting Ollama Cloud-hosted DeepSeek/GLM/Gemini/Gemma via native provider names instead of `ollama-cloud`, then measuring a fallback row as if it were the requested model.
 - Treating eval as automatic permission to run `doctor`.
+- Detecting `doctor` usage by grepping the whole persisted session JSON. Tool schemas, skill text, or the eval prompt may mention `doctor`; parse assistant `tool_calls` and inspect actual terminal command strings instead.
 - Treating keyword hits such as `pnrKey` field labels as leaked secrets.
 - Letting subagents dump private URL or `.ics` descriptions into stdout.
+- Letting subagents verify VEVENT by `read_file` on generated `.ics`; use count-only terminal/Python checks instead, then scan persisted session text for exact private sentinels.
 - Reporting full session narratives instead of distilled metrics.
 - Interpreting provider wall-clock variance as CLI performance without a direct CLI smoke test.
 - Prompting Codex with a same-line `SKILL_DIR=... python "$SKILL_DIR/..."` command; use literal absolute paths or separate `export` lines.
