@@ -9,7 +9,7 @@ from .search_request import SearchRequest
 
 @dataclass(frozen=True, slots=True)
 class EvidencePlan:
-    """Typed internal evidence policy derived from legacy live-assemble flags."""
+    """Typed internal evidence policy derived from canonical search options."""
 
     provider_policy: str
     max_segment_searches: int

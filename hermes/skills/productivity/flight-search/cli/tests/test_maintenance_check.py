@@ -20,7 +20,7 @@ class MaintenanceCheckTests(unittest.TestCase):
                     "-m",
                     "flights_cli",
                     "--json",
-                    "maintenance",
+                    "maint",
                     "check",
                     "--runtime-path",
                     str(missing_runtime),
@@ -35,7 +35,7 @@ class MaintenanceCheckTests(unittest.TestCase):
 
         payload = json.loads(proc.stdout)
         self.assertTrue(payload["ok"])
-        self.assertEqual(payload["command"], "maintenance check")
+        self.assertEqual(payload["command"], "maint check")
         self.assertEqual(payload["issues"], [])
 
         data = payload["data"]
@@ -63,7 +63,7 @@ class MaintenanceCheckTests(unittest.TestCase):
                     sys.executable,
                     "-m",
                     "flights_cli",
-                    "maintenance",
+                    "maint",
                     "check",
                     "--runtime-path",
                     str(missing_runtime),

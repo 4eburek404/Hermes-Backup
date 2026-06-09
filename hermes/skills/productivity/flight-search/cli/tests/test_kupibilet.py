@@ -26,7 +26,7 @@ from flights_cli.providers.kupibilet import (
 from flights_cli.providers.live_cache import live_cache_key, read_live_cache, write_live_cache
 from flights_cli.store import Store
 
-from helpers import CliSubprocessMixin
+from helpers import CliSubprocessMixin, live_assembly_args
 
 
 class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
@@ -366,26 +366,16 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(args.limit, 10)
 
     def test_route_kb_command_parser_and_default_day_offsets(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "route",
-                "live-assemble",
-                "--provider-policy",
-                "kupibilet",
-                "SVX",
-                "CDG",
-                "--depart-date",
-                "2026-08-15",
-                "--return-date",
-                "2026-08-19",
-                "--hub",
-                "IST",
-                "--hub",
-                "AYT",
-            ]
-        )
+        args = live_assembly_args(
+                origin='SVX',
+                destination='CDG',
+                depart_date='2026-08-15',
+                return_date='2026-08-19',
+                provider_policy='kupibilet',
+                hubs=['IST', 'AYT'],
+            )
 
-        self.assertEqual(args.command_name, "route live-assemble")
+        self.assertEqual(args.command_name, "search")
         self.assertEqual(args.segment_limit, 30)
         self.assertEqual(args.limit_per_pair, 10)
         self.assertEqual(args.live_cache_ttl_seconds, 30 * 60)
@@ -398,20 +388,13 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(plan["metrics"]["segment_search_count"], 14)
 
     def test_route_kb_command_uses_ru_priority_strategy_when_none_are_passed(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "route",
-                "live-assemble",
-                "--provider-policy",
-                "kupibilet",
-                "SVX",
-                "CDG",
-                "--depart-date",
-                "2026-08-15",
-                "--return-date",
-                "2026-08-19",
-            ]
-        )
+        args = live_assembly_args(
+                origin='SVX',
+                destination='CDG',
+                depart_date='2026-08-15',
+                return_date='2026-08-19',
+                provider_policy='kupibilet',
+            )
 
         plan = build_live_route_segment_plan(args, Store())
 
@@ -421,20 +404,13 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(plan["metrics"]["segment_search_count"], 24)
 
     def test_route_kb_command_uses_asia_profile_for_beijing(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "route",
-                "live-assemble",
-                "--provider-policy",
-                "kupibilet",
-                "SVX",
-                "BJS",
-                "--depart-date",
-                "2026-09-15",
-                "--return-date",
-                "2026-09-20",
-            ]
-        )
+        args = live_assembly_args(
+                origin='SVX',
+                destination='BJS',
+                depart_date='2026-09-15',
+                return_date='2026-09-20',
+                provider_policy='kupibilet',
+            )
 
         plan = build_live_route_segment_plan(args, Store())
 
@@ -452,22 +428,14 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertIn(("return", "SVO", "SVX", "2026-09-22", "hub_to_origin", "svo_asia"), segments)
 
     def test_route_kb_command_hub_list_strategy_uses_default_hubs(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "route",
-                "live-assemble",
-                "--provider-policy",
-                "kupibilet",
-                "SVX",
-                "CDG",
-                "--depart-date",
-                "2026-08-15",
-                "--return-date",
-                "2026-08-19",
-                "--routing-strategy",
-                "hub-list",
-            ]
-        )
+        args = live_assembly_args(
+                origin='SVX',
+                destination='CDG',
+                depart_date='2026-08-15',
+                return_date='2026-08-19',
+                provider_policy='kupibilet',
+                routing_strategy='hub-list',
+            )
 
         plan = build_live_route_segment_plan(args, Store())
 
@@ -600,22 +568,15 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(synthetic_searches[0]["route_family"], "moscow_gateway_control")
 
     def test_ru_priority_skips_dxb_when_ist_pair_is_usable(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "route",
-                "live-assemble",
-                "--provider-policy",
-                "kupibilet",
-                "SVX",
-                "MUC",
-                "--depart-date",
-                "2026-08-12",
-                "--include-segment-results",
-                "10",
-                "--no-live-cache",
-                "--no-direct-route-intel",
-            ]
-        )
+        args = live_assembly_args(
+                origin='SVX',
+                destination='MUC',
+                depart_date='2026-08-12',
+                provider_policy='kupibilet',
+                include_segment_results=10,
+                no_live_cache=True,
+                no_direct_route_intel=True,
+            )
         calls: list[tuple[str, str]] = []
 
         def kb_result(origin: str, destination: str, depart_date: object, dep: str | None = None, arr: str | None = None) -> dict:
@@ -680,19 +641,13 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertTrue(all(search["route_family"] == "dxb_direct" for search in skipped_dxb))
 
     def test_direct_route_intel_skips_absent_svx_direct_control(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "route",
-                "live-assemble",
-                "--provider-policy",
-                "kupibilet",
-                "SVX",
-                "MUC",
-                "--depart-date",
-                "2026-08-12",
-                "--no-live-cache",
-            ]
-        )
+        args = live_assembly_args(
+                origin='SVX',
+                destination='MUC',
+                depart_date='2026-08-12',
+                provider_policy='kupibilet',
+                no_live_cache=True,
+            )
         calls: list[tuple[str, str]] = []
         route_index = {
             "source": "test official schedule",
@@ -770,25 +725,17 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         from flights_cli.cli import apply_agent_output_defaults
 
         future_depart = date(date.today().year + 1, 6, 1).isoformat()
-        args = build_parser().parse_args(
-            [
-                "route",
-                "live-assemble",
-                "--provider-policy",
-                "kupibilet",
-                "SVX",
-                "DEL",
-                "--depart-date",
-                future_depart,
-                "--agent-report",
-                "--aggregate-control-limit",
-                "10",
-                "--aggregate-control-carrier",
-                "SU",
-                "--no-live-cache",
-                "--no-direct-route-intel",
-            ]
-        )
+        args = live_assembly_args(
+                origin='SVX',
+                destination='DEL',
+                depart_date=future_depart,
+                provider_policy='kupibilet',
+                aggregate_control_limit=10,
+                aggregate_control_carriers=['SU'],
+                no_live_cache=True,
+                no_direct_route_intel=True,
+                agent_report=True,
+            )
         apply_agent_output_defaults(args)
         calls: list[tuple[str, str, bool, tuple[str, ...]]] = []
 
@@ -865,19 +812,13 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertIn("Through-fare check required", " ".join(report["diagnostics"]["answer_lines"]))
 
     def test_direct_route_intel_skips_absent_direct_control_to_svx(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "route",
-                "live-assemble",
-                "--provider-policy",
-                "kupibilet",
-                "MUC",
-                "SVX",
-                "--depart-date",
-                "2026-08-12",
-                "--no-live-cache",
-            ]
-        )
+        args = live_assembly_args(
+                origin='MUC',
+                destination='SVX',
+                depart_date='2026-08-12',
+                provider_policy='kupibilet',
+                no_live_cache=True,
+            )
         calls: list[tuple[str, str]] = []
         route_index = {
             "source": "test official schedule",
@@ -919,19 +860,13 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(skipped[0]["origin"], "MUC")
 
     def test_direct_route_intel_keeps_known_beijing_direct_airport(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "route",
-                "live-assemble",
-                "--provider-policy",
-                "kupibilet",
-                "SVX",
-                "BJS",
-                "--depart-date",
-                "2026-09-15",
-                "--no-live-cache",
-            ]
-        )
+        args = live_assembly_args(
+                origin='SVX',
+                destination='BJS',
+                depart_date='2026-09-15',
+                provider_policy='kupibilet',
+                no_live_cache=True,
+            )
         calls: list[tuple[str, str]] = []
         route_index = {
             "source": "test official schedule",

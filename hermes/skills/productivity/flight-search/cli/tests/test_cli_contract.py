@@ -9,11 +9,11 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
+from flights_cli.apps import search as search_app
 from flights_cli.cli import apply_agent_brief_output, apply_agent_output_defaults, build_parser, normalize_global_json
 from flights_cli.command_surface import (
     CATALOG_READ_COMMANDS,
     CATALOG_REFRESH_COMMANDS,
-    COMPATIBILITY_COMMANDS,
     LIVE_PROVIDER_COMMANDS,
     PRIMARY_ROUTE_COMMAND,
     ROOT_COMMANDS,
@@ -65,7 +65,6 @@ COMMAND_ARGV = {
     "airports explain": ["airports", "explain", "SVX"],
     "diagnose fli-search": ["diagnose", "fli-search", "IST", "LHR", "--depart-date", "2026-07-20"],
     "route plan": ["route", "plan", "SVX", "LON", "--depart-date", "2026-07-20"],
-    "route live-assemble": ["route", "live-assemble", "SVX", "LON", "--depart-date", "2026-07-20"],
     "metrics workflow": ["metrics", "workflow", "SVX", "LON", "--depart-date", "2026-07-20"],
     "search": ["search", "--request", "request.json"],
     "diagnose plan": ["diagnose", "plan", "--request", "request.json"],
@@ -81,6 +80,43 @@ TARGETED_PROBE_ARGV = {
 CATALOG_REFRESH_ARGV = {
     "maint catalog refresh": ["maint", "catalog", "refresh", "--dry-run"],
 }
+
+
+def live_search_args(**overrides: object) -> argparse.Namespace:
+    request = {
+        "schema_version": "flight_search_request.v1",
+        "origin": overrides.pop("origin", "SVX"),
+        "destination": overrides.pop("destination", "DEL"),
+        "depart_date": overrides.pop("depart_date", "2026-06-01"),
+        "return_date": overrides.pop("return_date", None),
+        "currency": overrides.pop("currency", "RUB"),
+        "profile": overrides.pop("profile", "balanced"),
+        "ticketing": overrides.pop("ticketing", "separate"),
+        "provider_policy": overrides.pop("provider_policy", "kupibilet"),
+        "route_options": {
+            "stop_policy": overrides.pop("stop_policy", "business-default"),
+            "max_connections": overrides.pop("max_connections", None),
+            "fallback_max_connections": overrides.pop("fallback_max_connections", None),
+        },
+        "output": {
+            "agent_brief": overrides.pop("agent_brief", False),
+            "include_candidates": overrides.pop("include_candidates", 5),
+            "include_ranked_candidates": overrides.pop("include_ranked_candidates", 5),
+            "include_rejected_pairs": overrides.pop("include_rejected_pairs", 20),
+            "include_segment_results": overrides.pop("include_segment_results", 0),
+            "max_candidates": overrides.pop("max_candidates", 50),
+        },
+        "evidence": {
+            "aggregate_control_limit": overrides.pop("aggregate_control_limit", 0),
+        },
+    }
+    adapter = getattr(search_app, "live_assembly_args_from_search_request", None)
+    if not callable(adapter):
+        raise AssertionError("search app must expose live_assembly_args_from_search_request as the canonical search→assembly adapter")
+    args = adapter(request)
+    for key, value in overrides.items():
+        setattr(args, key, value)
+    return args
 
 
 class CliContractTests(unittest.TestCase):
@@ -137,20 +173,10 @@ class CliContractTests(unittest.TestCase):
                 args = parser.parse_args(CATALOG_REFRESH_ARGV[command_name])
                 self.assertEqual(getattr(args, "catalog_access", None), "refresh_explicit")
 
-    def test_route_live_assemble_accepts_explicit_kupibilet_provider_policy(self) -> None:
-        parser = build_parser()
-        args = parser.parse_args([
-            "route",
-            "live-assemble",
-            "SVX",
-            "LON",
-            "--depart-date",
-            "2026-07-20",
-            "--provider-policy",
-            "kupibilet",
-        ])
+    def test_search_request_accepts_explicit_kupibilet_provider_policy(self) -> None:
+        args = live_search_args(destination="LON", depart_date="2026-07-20", provider_policy="kupibilet")
 
-        self.assertEqual(args.command_name, "route live-assemble")
+        self.assertEqual(args.command_name, "search")
         self.assertEqual(args.provider_policy, "kupibilet")
         self.assertEqual(args.limit_per_pair, 10)
         self.assertEqual(args.stop_policy, "business-default")
@@ -161,7 +187,7 @@ class CliContractTests(unittest.TestCase):
 
     def test_json_doctor_envelope(self) -> None:
         proc = subprocess.run(
-            [sys.executable, "-m", "flights_cli", "--json", "doctor"],
+            [sys.executable, "-m", "flights_cli", "--json", "maint", "doctor"],
             cwd=PROJECT,
             env=TEST_ENV,
             check=True,
@@ -174,7 +200,7 @@ class CliContractTests(unittest.TestCase):
         Draft202012Validator.check_schema(doctor_schema)
         Draft202012Validator(doctor_schema).validate(payload)
         self.assertTrue(payload["ok"])
-        self.assertEqual(payload["command"], "doctor")
+        self.assertEqual(payload["command"], "maint doctor")
         self.assertEqual(payload["issues"], [])
         self.assertEqual(payload["data"]["cli"], {"name": "flights-cli", "version": "0.10.15"})
         self.assertEqual(payload["data"]["skill"], {"name": "flight-search", "version": "0.10.15"})
@@ -201,7 +227,6 @@ class CliContractTests(unittest.TestCase):
             "docker_touched": False,
             "primary_route_command": PRIMARY_ROUTE_COMMAND,
             "targeted_probe_commands": list(TARGETED_PROBE_COMMANDS),
-            "compatibility_commands": list(COMPATIBILITY_COMMANDS),
             "live_provider_commands": list(LIVE_PROVIDER_COMMANDS),
         })
         self.assertEqual(payload["data"]["catalog_auto_refresh_policy"]["applies_to"], list(CATALOG_REFRESH_COMMANDS))
@@ -209,7 +234,7 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(set(payload["data"]["cache_counts"]), {"airlines", "airports", "alliances", "cities", "countries", "planes"})
 
         human_proc = subprocess.run(
-            [sys.executable, "-m", "flights_cli", "doctor"],
+            [sys.executable, "-m", "flights_cli", "maint", "doctor"],
             cwd=PROJECT,
             env=TEST_ENV,
             check=True,
@@ -220,13 +245,10 @@ class CliContractTests(unittest.TestCase):
         self.assertIn("flights 0.10.15 (skill flight-search 0.10.15)", human_proc.stdout)
         self.assertIn("primary route command: search", human_proc.stdout)
         self.assertIn("targeted probe commands: diagnose probe, diagnose kb-search, diagnose kb-roundtrip, diagnose fli-search, diagnose fli-dates", human_proc.stdout)
-        self.assertIn("compatibility commands: route live-assemble, maintenance check, catalog update, catalog manifest, doctor", human_proc.stdout)
         self.assertIn("default hubs: IST, DXB, DOH", human_proc.stdout)
 
     def test_agent_report_is_report_attachment_without_output_or_evidence_side_effects(self) -> None:
-        args = build_parser().parse_args(
-            ["route", "live-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--provider-policy", "kupibilet", "--agent-report"]
-        )
+        args = live_search_args(agent_report=True)
 
         apply_agent_output_defaults(args)
 
@@ -238,10 +260,8 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(args.max_candidates, 50)
         self.assertEqual(args.aggregate_control_limit, 0)
 
-    def test_agent_brief_trims_payload_without_legacy_preset_side_effects(self) -> None:
-        args = build_parser().parse_args(
-            ["route", "live-assemble", "SVX", "DEL", "--depart-date", "2026-06-01", "--provider-policy", "kupibilet", "--agent-brief"]
-        )
+    def test_agent_brief_trims_payload_without_preset_side_effects(self) -> None:
+        args = live_search_args(agent_brief=True)
 
         apply_agent_output_defaults(args)
         trimmed = apply_agent_brief_output(
@@ -260,21 +280,7 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(trimmed, {"agent_report": {"answer_lines": ["ok"]}})
 
     def test_agent_brief_preserves_explicit_stop_policy_evidence_scope(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "route",
-                "live-assemble",
-                "--provider-policy",
-                "kupibilet",
-                "SVX",
-                "DEL",
-                "--depart-date",
-                "2026-06-01",
-                "--stop-policy",
-                "debug-all",
-                "--agent-brief",
-            ]
-        )
+        args = live_search_args(stop_policy="debug-all", agent_brief=True)
 
         apply_agent_output_defaults(args)
         policy = stop_policy_from_args(args)

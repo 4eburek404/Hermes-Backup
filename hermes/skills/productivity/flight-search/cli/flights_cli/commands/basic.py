@@ -8,7 +8,6 @@ from .. import __skill_name__, __skill_version__, __version__
 from ..command_surface import (
     CATALOG_READ_COMMANDS,
     CATALOG_REFRESH_COMMANDS,
-    COMPATIBILITY_COMMANDS,
     LIVE_PROVIDER_COMMANDS,
     PRIMARY_ROUTE_COMMAND,
     TARGETED_PROBE_COMMANDS,
@@ -91,7 +90,6 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
             "docker_touched": False,
             "primary_route_command": PRIMARY_ROUTE_COMMAND,
             "targeted_probe_commands": list(TARGETED_PROBE_COMMANDS),
-            "compatibility_commands": list(COMPATIBILITY_COMMANDS),
             "live_provider_commands": list(LIVE_PROVIDER_COMMANDS),
         },
         "risk_profiles": {

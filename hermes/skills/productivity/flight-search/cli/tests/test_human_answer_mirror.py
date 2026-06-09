@@ -5,8 +5,8 @@ import unittest
 
 from flights_cli.errors import CliError
 from flights_cli.output import render_agent_report_human
-from flights_cli.reporting.human_answer_renderer import build_human_answer
-from flights_cli.reporting.final_answer_contract import validate_user_answer_contract
+from flights_cli.reporting.projections.human_answer_mirror import build_human_answer_mirror
+from flights_cli.reporting.user_answer import validate_user_answer
 from flights_cli.services.agent_report import build_agent_report
 from flights_cli.services.agent_report_contract import validate_agent_report
 from tests.test_agent_report_contract import valid_option, valid_report
@@ -195,7 +195,7 @@ class HumanAnswerRendererTests(unittest.TestCase):
             }
         ]
 
-        answer = build_human_answer(report)
+        answer = build_human_answer_mirror(report)
         text = answer["text"]
 
         self.assertEqual(answer["format_version"], "flight_human_answer.v1")
@@ -223,7 +223,7 @@ class HumanAnswerRendererTests(unittest.TestCase):
         report["recommended_options"][0]["segments"][1]["departure_at"] = "2026-08-02T09:50:00+03:00"
         report["recommended_options"][0]["segments"][1]["arrival_at"] = "2026-08-02T11:15:00+03:00"
 
-        text = build_human_answer(report)["text"]
+        text = build_human_answer_mirror(report)["text"]
 
         self.assertIn("SU1419 00:40–01:20 → SU1832 02 авг 09:50–11:15", text)
         self.assertNotIn("SU1419 00:40–01:20 → SU1832 09:50–11:15 | 01 авг", text)
@@ -251,7 +251,7 @@ class HumanAnswerRendererTests(unittest.TestCase):
             "all_planned_controls_have_terminal_state": True,
         }
 
-        text = build_human_answer(report)["text"]
+        text = build_human_answer_mirror(report)["text"]
 
         self.assertIn("provider/source не поддерживает", text)
         self.assertIn("граница источника", text)
@@ -263,7 +263,7 @@ class HumanAnswerRendererTests(unittest.TestCase):
         report = build_agent_report(report_payload())
 
         validate_agent_report(report)
-        validate_user_answer_contract(report["user_answer"])
+        validate_user_answer(report["user_answer"])
         text = report["user_answer"]["rendered_text"]
         self.assertIn("Нашёл варианты SVX→DEL", text)
         self.assertEqual(report["diagnostics"]["human_answer"]["text"], text)

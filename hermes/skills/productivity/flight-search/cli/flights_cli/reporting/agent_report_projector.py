@@ -5,7 +5,6 @@ from typing import Any
 from ..contracts.registry import current_contract
 
 AGENT_REPORT_SCHEMA_VERSION = current_contract("agent_report")["schema_version"]
-AGENT_REPORT_V2_SCHEMA_VERSION = AGENT_REPORT_SCHEMA_VERSION
 
 
 def project_agent_report(flat_report: dict[str, Any]) -> dict[str, Any]:
@@ -46,7 +45,3 @@ def project_agent_report(flat_report: dict[str, Any]) -> dict[str, Any]:
         "user_answer": flat_report.get("user_answer") or {},
         "diagnostics": diagnostics,
     }
-
-
-# Compatibility alias for legacy imports during the staged migration.
-build_agent_report_v2 = project_agent_report

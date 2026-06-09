@@ -872,9 +872,3 @@ def validate_user_answer(answer: dict[str, Any]) -> None:
             error_type="contract_error",
             details={"schema_version": answer.get("schema_version"), "errors": details},
         )
-
-
-# Compatibility aliases for legacy imports during the staged migration.
-build_user_answer_contract = build_user_answer
-validate_user_answer_contract = validate_user_answer
-canonical_rendered_text = canonical_user_answer_text

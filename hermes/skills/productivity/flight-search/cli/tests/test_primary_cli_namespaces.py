@@ -70,7 +70,6 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
             "airports explain": ["airports", "explain", "LHR"],
             "diagnose fli-search": ["diagnose", "fli-search", "IST", "LHR", "--depart-date", "2026-07-20"],
             "route plan": ["route", "plan", "SVX", "LON", "--depart-date", "2026-07-20"],
-            "route live-assemble": ["route", "live-assemble", "SVX", "LON", "--depart-date", "2026-07-20"],
             "metrics workflow": ["metrics", "workflow", "SVX", "LON", "--depart-date", "2026-07-20"],
             "search": ["search", "--request", "request.json"],
             "diagnose plan": ["diagnose", "plan", "--request", "request.json"],
@@ -106,7 +105,7 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
             }
         )
 
-    def test_search_app_adapts_request_to_legacy_live_assembly_and_wraps_result(self) -> None:
+    def test_search_app_adapts_request_to_live_assembly_and_wraps_result(self) -> None:
         from flights_cli.apps.search import command_search
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -115,22 +114,22 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
             args = argparse.Namespace(request=str(request_path), command_name="search")
             captured: dict[str, object] = {}
 
-            def fake_run(legacy_args: argparse.Namespace, store: Store) -> dict[str, object]:
-                captured["origin"] = legacy_args.origin
-                captured["destination"] = legacy_args.destination
-                captured["command_name"] = legacy_args.command_name
-                captured["agent_brief"] = legacy_args.agent_brief
-                return {"agent_report": {"schema_version": "agent_report.v2"}, "legacy": True}
+            def fake_run(live_assembly_args: argparse.Namespace, store: Store) -> dict[str, object]:
+                captured["origin"] = live_assembly_args.origin
+                captured["destination"] = live_assembly_args.destination
+                captured["command_name"] = live_assembly_args.command_name
+                captured["agent_brief"] = live_assembly_args.agent_brief
+                return {"agent_report": {"schema_version": "agent_report.v2"}, "assembly": True}
 
             with patch("flights_cli.apps.search.run_live_route_assembly", side_effect=fake_run):
                 result = command_search(args, Store())
 
-        self.assertEqual(captured, {"origin": "SVX", "destination": "LON", "command_name": "route live-assemble", "agent_brief": True})
+        self.assertEqual(captured, {"origin": "SVX", "destination": "LON", "command_name": "search", "agent_brief": True})
         self.assertEqual(result["schema_version"], "flight_search_result.v1")
         self.assertEqual(result["wire_version"], "flight_search_result.v1")
         self.assertEqual(result["request"], MINIMAL_SEARCH_REQUEST)
         self.assertEqual(result["agent_report"], {"schema_version": "agent_report.v2"})
-        self.assertTrue(result["route_result"]["legacy"])
+        self.assertTrue(result["route_result"]["assembly"])
 
     def test_search_json_errors_are_machine_parseable_on_stdout(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

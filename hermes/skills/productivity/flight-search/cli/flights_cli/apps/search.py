@@ -56,7 +56,7 @@ def normalize_search_request(payload: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def legacy_live_args_from_search_request(payload: dict[str, Any]) -> argparse.Namespace:
+def live_assembly_args_from_search_request(payload: dict[str, Any]) -> argparse.Namespace:
     request = normalize_search_request(payload)
     validate_contract_payload("search_request", request, error_type="validation_error")
     route = request.get("route_options") if isinstance(request.get("route_options"), dict) else {}
@@ -64,7 +64,7 @@ def legacy_live_args_from_search_request(payload: dict[str, Any]) -> argparse.Na
     filters = request.get("filters") if isinstance(request.get("filters"), dict) else {}
     output = request.get("output") if isinstance(request.get("output"), dict) else {}
     return argparse.Namespace(
-        command_name="route live-assemble",
+        command_name="search",
         origin=request["origin"],
         destination=request["destination"],
         depart_date=str(request["depart_date"]),
@@ -132,6 +132,6 @@ def build_search_result(request: dict[str, Any], route_result: dict[str, Any]) -
 
 def command_search(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     request = normalize_search_request(read_json_document(args.request))
-    legacy_args = legacy_live_args_from_search_request(request)
-    route_result = run_live_route_assembly(legacy_args, store)
+    live_assembly_args = live_assembly_args_from_search_request(request)
+    route_result = run_live_route_assembly(live_assembly_args, store)
     return build_search_result(request, route_result)

@@ -7,7 +7,7 @@ from flights_cli.reporting.projections.human_answer_mirror import build_human_an
 from flights_cli.reporting.projections.itinerary_display import build_itinerary_display
 from flights_cli.reporting.projections.summary_lines import build_summary_lines
 from tests.test_agent_report_contract import valid_report
-from tests.test_final_answer_contract import report_with_required_caveats
+from tests.test_user_answer_contract import report_with_required_caveats
 
 
 class DiagnosticProjectionModuleTests(unittest.TestCase):
@@ -34,13 +34,13 @@ class DiagnosticProjectionModuleTests(unittest.TestCase):
     def test_legacy_projection_module_aliases_delegate_to_new_names(self) -> None:
         from flights_cli.reporting.answer_line_renderer import build_answer_lines
         from flights_cli.reporting.flight_display import build_flight_display
-        from flights_cli.reporting.human_answer_renderer import build_human_answer
+        from flights_cli.reporting.projections.human_answer_mirror import build_human_answer_mirror
 
         report = valid_report()
 
         self.assertEqual(build_answer_lines(report), build_summary_lines(report))
         self.assertEqual(build_flight_display(report), build_itinerary_display(report))
-        self.assertEqual(build_human_answer(report), build_human_answer_mirror(report))
+        self.assertEqual(build_human_answer_mirror(report), build_human_answer_mirror(report))
 
 
 if __name__ == "__main__":

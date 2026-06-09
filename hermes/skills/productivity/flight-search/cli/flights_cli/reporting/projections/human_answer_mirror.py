@@ -308,7 +308,3 @@ def build_human_answer_mirror(agent_report: dict[str, Any]) -> dict[str, Any]:
         "text": text,
         "sections": sections,
     }
-
-
-# Legacy compatibility name.
-build_human_answer = build_human_answer_mirror

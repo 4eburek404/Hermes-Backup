@@ -4,10 +4,10 @@ import argparse
 import unittest
 from unittest.mock import patch
 
-from flights_cli.cli import build_parser
 from flights_cli.orchestrators.live_assemble import run_live_route_assembly
-from flights_cli.pipeline.search_pipeline import build_legacy_live_route_search_flow
+from flights_cli.pipeline.search_pipeline import build_live_route_search_flow
 from flights_cli.store import Store
+from helpers import live_assembly_args
 
 
 def live_args(**overrides: object) -> argparse.Namespace:
@@ -42,27 +42,20 @@ def live_args(**overrides: object) -> argparse.Namespace:
 
 class LiveRoutePipelineTests(unittest.TestCase):
     def test_live_assemble_args_adapt_to_typed_search_flow(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "route",
-                "live-assemble",
-                "SVX",
-                "CDG",
-                "--depart-date",
-                "2026-08-16",
-                "--return-date",
-                "2026-08-20",
-                "--profile",
-                "business",
-                "--agent-brief",
-                "--no-live-cache",
-                "--no-direct-route-intel",
-            ]
+        args = live_assembly_args(
+            origin="SVX",
+            destination="CDG",
+            depart_date="2026-08-16",
+            return_date="2026-08-20",
+            profile="business",
+            agent_brief=True,
+            no_live_cache=True,
+            no_direct_route_intel=True,
         )
 
-        flow = build_legacy_live_route_search_flow(args)
+        flow = build_live_route_search_flow(args)
 
-        self.assertEqual(flow.request.command_name, "route live-assemble")
+        self.assertEqual(flow.request.command_name, "search")
         self.assertEqual(flow.request.origin, "SVX")
         self.assertEqual(flow.request.destination, "CDG")
         self.assertEqual(flow.request.depart_date, "2026-08-16")
@@ -97,7 +90,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
         }
 
         with (
-            patch("flights_cli.orchestrators.live_assemble.build_legacy_live_route_search_flow", wraps=build_legacy_live_route_search_flow) as build_flow,
+            patch("flights_cli.orchestrators.live_assemble.build_live_route_search_flow", wraps=build_live_route_search_flow) as build_flow,
             patch("flights_cli.orchestrators.live_assemble.build_live_route_segment_plan", return_value=plan),
             patch("flights_cli.orchestrators.live_assemble.empty_assembled_result", return_value={}),
             patch("flights_cli.orchestrators.live_assemble.run_aggregate_controls", return_value=[]),

@@ -57,8 +57,8 @@ Required first step before provider or command reasoning:
     "evidence_class": "shopping_advisory | ticketing_required | absence_claim | diagnostic_only",
     "routing_strategy": "domestic-ru | ru-priority | global-non-ru | hub-list",
     "provider_plan": ["kupibilet", "fli"],
-    "primary_command": "route live-assemble",
-    "allowed_followups": ["kb-roundtrip", "kb-search --direct-only", "fli-search --direct-only"],
+    "primary_command": "search --request",
+    "allowed_followups": ["diagnose kb-roundtrip", "diagnose kb-search --direct-only", "diagnose fli-search --direct-only"],
     "limitations": []
   }
 }

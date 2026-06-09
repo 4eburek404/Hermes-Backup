@@ -1,6 +1,6 @@
 # flights CLI
 
-Concise manual for the flight-search skill-owned CLI. The skill's Golden Path is `route live-assemble --agent-brief`; other commands support setup, metadata, or targeted diagnostics.
+Concise manual for the flight-search skill-owned CLI. The skill's Golden Path is `search --request`; other commands support setup, metadata, or targeted diagnostics.
 
 ## What It Automates
 
@@ -28,7 +28,7 @@ For source-development checkouts, use the source root documented in `references/
 For one-off local runs without installation, execute from the same directory:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json doctor
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json maint doctor
 ```
 
 ## Dependencies
@@ -41,23 +41,23 @@ Use `--json` for agent work. Successful commands return a JSON envelope with com
 
 Stdout must stay JSON-clean in `--json` mode. Human diagnostics and provider logs belong on stderr or structured fields.
 
-## Doctor
+## Maint Doctor
 
 Use doctor for environment readiness and degradation clues:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json doctor
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json maint doctor
 ```
 
 Doctor output is not a flight answer. Treat `ok: false` as an environment/readiness signal and inspect the structured issues.
 
 ## Maintenance Check
 
-Use `maintenance check` when auditing source/runtime provenance or debugging local route-quality maintenance state. It is offline-only and reports paths, Git state, version markers, source/runtime parity, reference counts, generated-artifact counts, and doctor status without emitting credential values.
+Use `maint check` when auditing source/runtime provenance or debugging local route-quality maintenance state. It is offline-only and reports paths, Git state, version markers, source/runtime parity, reference counts, generated-artifact counts, and doctor status without emitting credential values.
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json maintenance check
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli maintenance check --runtime-path "$HOME/.hermes/skills/productivity/flight-search"
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json maint check
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli maint check --runtime-path "$HOME/.hermes/skills/productivity/flight-search"
 ```
 
 Missing runtime paths are reported as structured status, not treated as fatal CLI errors.
@@ -69,23 +69,33 @@ Static catalogs are metadata only: city, airport, country/region, airline, allia
 Useful metadata commands:
 
 ```bash
-python3 -m flights_cli --json catalog manifest
-python3 -m flights_cli --json catalog update --dry-run
+python3 -m flights_cli --json maint catalog manifest
+python3 -m flights_cli --json maint catalog refresh --dry-run
 python3 -m flights_cli --json cities search Yekaterinburg
 python3 -m flights_cli --json airports explain SVX MOW
 ```
 
 Use these commands for normalization and airport/city boundaries, not for availability claims.
 
-## Golden Path: route live-assemble --agent-brief
+## Golden Path: search --request
 
 Primary agent command:
 
 ```bash
-python3 -m flights_cli --json route live-assemble ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --profile balanced \
-  --agent-brief
+cat > /tmp/flight-search-request.json <<'JSON'
+{
+  "schema_version": "flight_search_request.v1",
+  "origin": "ORIGIN",
+  "destination": "DEST",
+  "depart_date": "YYYY-MM-DD",
+  "currency": "RUB",
+  "profile": "balanced",
+  "ticketing": "separate",
+  "provider_policy": "auto",
+  "output": {"agent_brief": true}
+}
+JSON
+python3 -m flights_cli --json search --request /tmp/flight-search-request.json
 ```
 
 Read only `data.agent_report` for the user answer. Primary serialized paths:
@@ -98,17 +108,17 @@ Read only `data.agent_report` for the user answer. Primary serialized paths:
 - `evidence.provider_failures`
 - `evidence.source_boundaries`
 
-`route live-assemble` searches and compares route options for the default scope of one adult in economy. It does not buy or book tickets, and final fare, baggage-through, refund/change conditions, disruption protection, and single-PNR claims require purchase-screen, airline/GDS, seller, or explicit upstream proof.
+`search --request` searches and compares route options for the default scope of one adult in economy. It does not buy or book tickets, and final fare, baggage-through, refund/change conditions, disruption protection, and single-PNR claims require purchase-screen, airline/GDS, seller, or explicit upstream proof.
 
-Common options:
+Common request fields:
 
-- `--return-date YYYY-MM-DD`
-- `--profile balanced|business|cheap|safe`
-- `--provider-policy auto|kupibilet|fli|both`
-- `--stop-policy business-default|strict-direct-one-stop|allow-two-stop-fallback|debug-all`
-- `--aggregate-control-carrier CODE`
-- `--coverage-mode standard|targeted|full`
-- `--no-live-cache` for a fresh live probe when appropriate
+- `return_date: "YYYY-MM-DD"`
+- `profile: "balanced"|"business"|"cheap"|"safe"`
+- `provider_policy: "auto"|"kupibilet"|"fli"|"both"`
+- `route_options.stop_policy: "business-default"|"strict-direct-one-stop"|"allow-two-stop-fallback"|"debug-all"`
+- `evidence.aggregate_control_carriers: ["CODE"]`
+- `route_options.coverage_mode: "standard"|"targeted"|"full"`
+- `evidence.no_live_cache: true` for a fresh live probe when appropriate
 
 ## Risk Profiles
 
@@ -132,7 +142,7 @@ Unsafe transfers can still be rejected under any profile.
 
 ## Provider Policy
 
-`route live-assemble` chooses a live source mix through `--provider-policy`:
+`search --request` chooses a live source mix through `provider_policy`:
 
 - `auto`: let the CLI choose the current source mix by segment.
 - `kupibilet`, `fli`, `both`: explicit diagnostic or comparison modes.
@@ -167,17 +177,17 @@ Use targeted probes only after the main assembled report leaves a specific uncer
 Direct or carrier probe:
 
 ```bash
-python3 -m flights_cli --json kb-search ORIGIN DEST \
+python3 -m flights_cli --json diagnose kb-search ORIGIN DEST \
   --depart-date YYYY-MM-DD \
   --direct-only \
   --limit 20
 
-python3 -m flights_cli --json kb-search ORIGIN DEST \
+python3 -m flights_cli --json diagnose kb-search ORIGIN DEST \
   --depart-date YYYY-MM-DD \
   --only-carrier CODE \
   --limit 20
 
-python3 -m flights_cli --json kb-roundtrip ORIGIN DEST \
+python3 -m flights_cli --json diagnose kb-roundtrip ORIGIN DEST \
   --depart-date YYYY-MM-DD \
   --return-date YYYY-MM-DD \
   --only-carrier CODE \
@@ -188,7 +198,7 @@ python3 -m flights_cli --json kb-roundtrip ORIGIN DEST \
 Sidecar segment probe:
 
 ```bash
-python3 -m flights_cli --json fli-search ORIGIN DEST \
+python3 -m flights_cli --json diagnose fli-search ORIGIN DEST \
   --depart-date YYYY-MM-DD \
   --direct-only \
   --limit 20

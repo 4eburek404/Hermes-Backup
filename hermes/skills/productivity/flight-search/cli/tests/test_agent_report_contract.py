@@ -12,8 +12,8 @@ from jsonschema import Draft202012Validator
 
 from flights_cli.cli import main
 from flights_cli.errors import CliError
-from flights_cli.reporting.agent_report_v2 import build_agent_report_v2
-from flights_cli.reporting.final_answer_contract import build_user_answer_contract, validate_user_answer_contract
+from flights_cli.reporting.agent_report_projector import project_agent_report
+from flights_cli.reporting.user_answer import build_user_answer, validate_user_answer
 from flights_cli.services.agent_report import build_agent_report
 from flights_cli.services.agent_report_contract import (
     AGENT_REPORT_SCHEMA_PACKAGE,
@@ -242,13 +242,13 @@ def valid_report() -> dict:
             ],
         },
     }
-    report["user_answer"] = build_user_answer_contract(report)
+    report["user_answer"] = build_user_answer(report)
     report["human_answer"]["text"] = report["user_answer"]["rendered_text"]
     return report
 
 
 def valid_agent_report_v2(report: dict | None = None) -> dict:
-    return build_agent_report_v2(report or valid_report())
+    return project_agent_report(report or valid_report())
 
 
 def validate_flat_agent_report(report: dict) -> None:
@@ -324,7 +324,7 @@ class AgentReportContractTests(unittest.TestCase):
     def test_valid_synthetic_agent_report_passes(self) -> None:
         report = valid_report()
         validate_flat_agent_report(report)
-        validate_user_answer_contract(report["user_answer"])
+        validate_user_answer(report["user_answer"])
         self.assertEqual(report["user_answer"]["rendered_text"], report["human_answer"]["text"])
 
     def test_agent_report_v2_runtime_mapping_does_not_expose_legacy_aliases(self) -> None:
@@ -550,7 +550,7 @@ class AgentReportContractTests(unittest.TestCase):
         serialized_report = json.loads(json.dumps(report, ensure_ascii=False))
         self.assertFalse(LEGACY_TOP_LEVEL_FIELDS & set(serialized_report))
         self.assertEqual(serialized_report["frontier"]["offer_graph"], graph)
-        validate_user_answer_contract(report["user_answer"])
+        validate_user_answer(report["user_answer"])
         self.assertEqual(report["user_answer"]["rendered_text"], report["diagnostics"]["human_answer"]["text"])
 
     def test_v1_accepts_optional_omitted_counts(self) -> None:

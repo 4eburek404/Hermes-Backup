@@ -12,6 +12,7 @@ from flights_cli.execution.aggregate_control_runner import run_aggregate_control
 from flights_cli.orchestrators.live_assemble import run_live_route_assembly
 from flights_cli.ports.providers import ProviderCapabilities, ProviderProbeResult
 from flights_cli.store import Store
+from helpers import live_assembly_args
 
 
 class FakeAggregateAdapter:
@@ -97,24 +98,16 @@ class FakeSegmentAdapter:
 
 class ProviderPortDispatchTests(unittest.TestCase):
     def test_live_route_assembly_dispatches_segment_search_through_provider_port(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "route",
-                "live-assemble",
-                "SVX",
-                "LON",
-                "--depart-date",
-                "2026-07-20",
-                "--provider-policy",
-                "kupibilet",
-                "--max-segment-searches",
-                "20",
-                "--aggregate-control-limit",
-                "0",
-                "--no-live-cache",
-                "--no-direct-route-intel",
-            ]
-        )
+        args = live_assembly_args(
+                origin='SVX',
+                destination='LON',
+                depart_date='2026-07-20',
+                provider_policy='kupibilet',
+                max_segment_searches=20,
+                aggregate_control_limit=0,
+                no_live_cache=True,
+                no_direct_route_intel=True,
+            )
         adapter = FakeSegmentAdapter()
 
         with patch("flights_cli.execution.probe_dispatcher.provider_adapters_for_segment", return_value=[adapter], create=True):

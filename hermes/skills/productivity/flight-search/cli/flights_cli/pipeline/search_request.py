@@ -7,10 +7,10 @@ from typing import Any, Mapping
 
 @dataclass(frozen=True, slots=True)
 class SearchRequest:
-    """Typed internal request extracted from legacy route live-assemble flags.
+    """Typed internal request extracted from canonical search assembly options.
 
-    This is not a public wire contract yet. The legacy argparse namespace remains
-    the source of CLI behavior while the pipeline is introduced incrementally.
+    The public wire contract is flight_search_request.v1; this dataclass keeps the
+    runtime assembly pipeline explicit after argparse/request-file adaptation.
     """
 
     command_name: str
@@ -52,7 +52,7 @@ def _default_provider_policy(command_name: str) -> str:
 
 
 def search_request_from_live_args(args: argparse.Namespace) -> SearchRequest:
-    command_name = str(getattr(args, "command_name", "route live-assemble") or "route live-assemble")
+    command_name = str(getattr(args, "command_name", "search") or "search")
     provider_policy = str(
         getattr(args, "provider_policy", None) or _default_provider_policy(command_name)
     ).strip().lower()

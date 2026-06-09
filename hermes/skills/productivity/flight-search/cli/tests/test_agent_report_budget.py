@@ -5,7 +5,7 @@ import json
 import unittest
 
 from flights_cli.reporting.flight_display import build_flight_display
-from flights_cli.reporting.agent_report_v2 import build_agent_report_v2
+from flights_cli.reporting.agent_report_projector import project_agent_report
 from flights_cli.reporting.report_budget import AgentReportBudget, apply_agent_report_budget, serialized_report_size
 from flights_cli.services.agent_report_contract import validate_agent_report
 from tests.test_agent_report_contract import valid_option, valid_report
@@ -39,7 +39,7 @@ def coverage_control(index: int, bucket: str) -> dict:
 
 
 def validate_budgeted_flat_report(report: dict) -> None:
-    validate_agent_report(build_agent_report_v2(report))
+    validate_agent_report(project_agent_report(report))
 
 
 class AgentReportBudgetTests(unittest.TestCase):

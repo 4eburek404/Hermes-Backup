@@ -136,7 +136,7 @@ def render_human(command: str, data: Any) -> str:
                 if leg_bits:
                     lines.append(f"     {journey.get('direction')}: " + " | ".join(leg_bits))
         return "\n".join(lines)
-    if command in {"doctor", "maint doctor"}:
+    if command == "maint doctor":
         counts = data["cache_counts"]
         policy = data["catalog_auto_refresh_policy"]
         staleness = data["catalog_staleness"]
@@ -153,10 +153,9 @@ def render_human(command: str, data: Any) -> str:
                 f"default hubs: {', '.join(item['code'] for item in data.get('default_route_hubs', []))}",
                 f"primary route command: {data['safety']['primary_route_command']}",
                 f"targeted probe commands: {', '.join(data['safety']['targeted_probe_commands'])}",
-                f"compatibility commands: {', '.join(data['safety']['compatibility_commands'])}",
             ]
         )
-    if command == "maintenance check":
+    if command == "maint check":
         source = data["source"]
         runtime = data["runtime"]
         git = source.get("git") or {}
@@ -178,7 +177,7 @@ def render_human(command: str, data: Any) -> str:
                 f"generated artifacts: source={artifacts['source_count']} runtime={artifacts['runtime_count']}",
             ]
         )
-    if command in {"catalog update", "maint catalog refresh"}:
+    if command == "maint catalog refresh":
         if data.get("dry_run"):
             lines = [f"catalog dry-run: {len(data.get('planned') or [])} files", f"cache: {data['cache_dir']}"]
             for item in data.get("planned") or []:
@@ -188,7 +187,7 @@ def render_human(command: str, data: Any) -> str:
         for item in data.get("updated") or []:
             lines.append(f"  {item['name']}: count={item['count']} sha256={str(item['sha256'])[:12]}")
         return "\n".join(lines)
-    if command in {"catalog manifest", "maint catalog manifest"}:
+    if command == "maint catalog manifest":
         entries = (data.get("manifest") or {}).get("entries") or {}
         staleness = data.get("catalog_staleness") or {}
         lines = [
@@ -264,46 +263,6 @@ def render_human(command: str, data: Any) -> str:
             f"rejected pairs: {assembly.get('rejected_pair_count', 0)}",
         ]
         for item in data["ranked"]:
-            lines.append(
-                f"{item['rank']}. {item['id']} risk={item['risk']['score']}:{item['risk']['grade']} price={item['price']} elapsed={item['elapsed_min']}"
-            )
-        return "\n".join(lines)
-    if command == "route live-assemble":
-        assembly = data["assembly"]
-        live = data.get("live_search", {})
-        plan = live.get("plan", {})
-        metrics = plan.get("metrics", {})
-        label = "Provider-policy live assembly"
-        lines = [
-            f"{label}: {plan.get('origin')} → {plan.get('destination')}",
-            f"strategy: {plan.get('routing_strategy', 'hub-list')}",
-            f"provider policy: {live.get('provider_policy', 'kupibilet')}",
-            f"hubs: {', '.join(plan.get('hubs') or [])}",
-            f"segment searches: {len(live.get('segment_searches') or [])}/{metrics.get('segment_search_count', 0)} failures={live.get('failure_count', 0)}",
-            f"assembled candidates: {assembly['candidate_count']} from outbound_pairs={assembly['outbound_pair_count']} return_pairs={assembly['return_pair_count']}",
-            f"rejected pairs: {assembly.get('rejected_pair_count', 0)}",
-            f"note: {live.get('note', '')}",
-        ]
-        viability = live.get("hub_viability") or []
-        if viability:
-            viable_hubs = [item["hub"] for item in viability if item.get("viable")]
-            missing = [f"{item['hub']} missing={','.join(item.get('missing_legs') or [])}" for item in viability if not item.get("viable")]
-            lines.append(f"viable hubs: {', '.join(viable_hubs) if viable_hubs else 'none'}")
-            if missing:
-                lines.append(f"incomplete hubs: {'; '.join(missing[:6])}")
-        direct_intel = live.get("direct_route_intelligence") or {}
-        if direct_intel.get("enabled"):
-            if direct_intel.get("available"):
-                cache = direct_intel.get("cache") or {}
-                lines.append(
-                    f"direct route index: available cache={'hit' if cache.get('hit') else 'refreshed'}"
-                )
-            else:
-                lines.append(f"direct route index: unavailable ({direct_intel.get('reason')})")
-        lines.append("")
-        if not data.get("ranked"):
-            lines.append("(no assembled candidates)")
-        for item in data.get("ranked", [])[:10]:
             lines.append(
                 f"{item['rank']}. {item['id']} risk={item['risk']['score']}:{item['risk']['grade']} price={item['price']} elapsed={item['elapsed_min']}"
             )

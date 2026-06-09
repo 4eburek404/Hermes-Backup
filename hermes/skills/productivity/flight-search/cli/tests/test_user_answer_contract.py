@@ -9,13 +9,13 @@ from unittest.mock import patch
 from jsonschema import Draft202012Validator
 
 from flights_cli.errors import CliError
-from flights_cli.reporting.final_answer_contract import (
+from flights_cli.reporting.user_answer import (
     USER_ANSWER_SCHEMA_PACKAGE,
     USER_ANSWER_SCHEMA_RESOURCE,
     USER_ANSWER_SCHEMA_VERSION,
-    build_user_answer_contract,
+    build_user_answer,
     load_user_answer_schema,
-    validate_user_answer_contract,
+    validate_user_answer,
 )
 from tests.test_agent_report_contract import valid_option, valid_report
 
@@ -158,7 +158,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         report = report_with_required_caveats()
         report["route"]["dates"] = {"depart_date": "2026-07-19", "return_date": "2026-07-24"}
         report["recommended_options"] = [self._round_trip_option("assembled-primary")]
-        return build_user_answer_contract(report)
+        return build_user_answer(report)
 
     def _minimal_alternative(self, alternative_id: str, **overrides: object) -> dict:
         alternative = {
@@ -202,9 +202,9 @@ class FinalAnswerContractTests(unittest.TestCase):
         self.assertLessEqual(len(text.encode("utf-8")), 20000)
 
     def test_builds_valid_user_answer_contract_from_agent_report(self) -> None:
-        answer = build_user_answer_contract(report_with_required_caveats())
+        answer = build_user_answer(report_with_required_caveats())
 
-        validate_user_answer_contract(answer)
+        validate_user_answer(answer)
         self.assertEqual(answer["schema_version"], USER_ANSWER_SCHEMA_VERSION)
         self.assertEqual(answer["primary_recommendation"]["id"], "assembled-1:SVX-DEL")
         self.assertEqual(answer["primary_recommendation"]["max_connections_per_journey"], 0)
@@ -228,9 +228,9 @@ class FinalAnswerContractTests(unittest.TestCase):
             self._provider_aggregate_option("return"),
         ]
 
-        answer = build_user_answer_contract(report)
+        answer = build_user_answer(report)
 
-        validate_user_answer_contract(answer)
+        validate_user_answer(answer)
         alternatives = {item["id"]: item for item in answer["alternatives"]}
         assembled = alternatives["assembled-round-trip"]
         outbound = alternatives["provider-aggregate:outbound:agg-outbound"]
@@ -259,7 +259,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         self.assertNotIn("single pnr", combined_text.replace("not proven as single pnr", ""))
         self.assertNotIn("protected round-trip", combined_text.replace("not proven as single pnr / protected round-trip", ""))
 
-    def test_build_user_answer_contract_preserves_two_one_way_pair_alternative(self) -> None:
+    def test_build_user_answer_preserves_two_one_way_pair_alternative(self) -> None:
         report = report_with_required_caveats()
         report["route"]["dates"] = {"depart_date": "2026-07-19", "return_date": "2026-07-24"}
         report["recommended_options"] = [self._round_trip_option("assembled-primary")]
@@ -267,8 +267,8 @@ class FinalAnswerContractTests(unittest.TestCase):
             self._round_trip_option(f"assembled-filler-{index}") for index in range(5)
         ] + [self._two_one_way_pair_option()]
 
-        answer = build_user_answer_contract(report)
-        validate_user_answer_contract(answer)
+        answer = build_user_answer(report)
+        validate_user_answer(answer)
 
         alternatives = {item["id"]: item for item in answer["alternatives"]}
         self.assertIn("provider-aggregate:two-one-way-pair:agg-outbound+agg-return", alternatives)
@@ -301,7 +301,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         ]
 
         with self.assertRaises(CliError) as ctx:
-            validate_user_answer_contract(answer)
+            validate_user_answer(answer)
 
         self.assertTrue(any("ticketing_model" in error["message"] for error in ctx.exception.details["errors"]))
 
@@ -322,7 +322,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         ]
 
         with self.assertRaises(CliError) as ctx:
-            validate_user_answer_contract(answer)
+            validate_user_answer(answer)
 
         messages = " ".join(error["message"] for error in ctx.exception.details["errors"])
         self.assertIn("single PNR", messages)
@@ -348,7 +348,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         ]
 
         with self.assertRaises(CliError) as ctx:
-            validate_user_answer_contract(answer)
+            validate_user_answer(answer)
 
         self.assertTrue(any("Travel time" in error["message"] for error in ctx.exception.details["errors"]))
 
@@ -372,7 +372,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         ]
 
         with self.assertRaises(CliError) as ctx:
-            validate_user_answer_contract(answer)
+            validate_user_answer(answer)
 
         messages = " ".join(error["message"] for error in ctx.exception.details["errors"])
         self.assertIn("ambiguous", messages)
@@ -395,7 +395,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         ]
 
         with self.assertRaises(CliError) as ctx:
-            validate_user_answer_contract(answer)
+            validate_user_answer(answer)
 
         messages = " ".join(error["message"] for error in ctx.exception.details["errors"])
         self.assertIn("combined", messages)
@@ -415,7 +415,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         ]
 
         with self.assertRaises(CliError) as ctx:
-            validate_user_answer_contract(answer)
+            validate_user_answer(answer)
 
         messages = " ".join(error["message"] for error in ctx.exception.details["errors"])
         self.assertIn("outbound_only", messages)
@@ -436,7 +436,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         ]
 
         with self.assertRaises(CliError) as ctx:
-            validate_user_answer_contract(answer)
+            validate_user_answer(answer)
 
         messages = " ".join(error["message"] for error in ctx.exception.details["errors"])
         self.assertIn("return_only", messages)
@@ -459,7 +459,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         ]
 
         with self.assertRaises(CliError) as ctx:
-            validate_user_answer_contract(answer)
+            validate_user_answer(answer)
 
         self.assertTrue(
             any("two separate one-way offers" in error["message"] for error in ctx.exception.details["errors"])
@@ -488,7 +488,7 @@ class FinalAnswerContractTests(unittest.TestCase):
             "all_planned_controls_have_terminal_state": True,
         }
 
-        answer = build_user_answer_contract(
+        answer = build_user_answer(
             report,
             rendered_text=(
                 "Нашёл варианты SVX→DEL. Текущий provider/source не поддерживает часть проверок; "
@@ -496,13 +496,13 @@ class FinalAnswerContractTests(unittest.TestCase):
             ),
         )
 
-        validate_user_answer_contract(answer)
+        validate_user_answer(answer)
         self.assertEqual(answer["evidence_status"]["not_supported_control_count"], 1)
         self.assertEqual(answer["evidence_status"]["not_executed_control_count"], 0)
         self.assertTrue(answer["evidence_status"]["coverage_complete"])
         self.assertTrue(answer["required_caveats"]["coverage_incompleteness_acknowledged"])
 
-    def test_build_user_answer_contract_does_not_fallback_to_legacy_display_or_answer_lines(self) -> None:
+    def test_build_user_answer_does_not_fallback_to_legacy_display_or_answer_lines(self) -> None:
         report = valid_report()
         report["recommended_options"] = []
         report["priority_options"] = []
@@ -510,46 +510,46 @@ class FinalAnswerContractTests(unittest.TestCase):
         report["answer_lines"] = ["STALE ANSWER LINE"]
 
         with patch("flights_cli.reporting.user_answer.build_human_answer_mirror", return_value={"text": ""}):
-            answer = build_user_answer_contract(report)
+            answer = build_user_answer(report)
 
         self.assertNotEqual(answer["rendered_text"], "STALE DISPLAY")
         self.assertNotIn("STALE ANSWER LINE", answer["rendered_text"])
 
     def test_rejects_missing_provider_failure_acknowledgement(self) -> None:
-        answer = build_user_answer_contract(report_with_required_caveats())
+        answer = build_user_answer(report_with_required_caveats())
         answer["required_caveats"]["provider_failures_acknowledged"] = False
 
         with self.assertRaises(CliError) as ctx:
-            validate_user_answer_contract(answer)
+            validate_user_answer(answer)
 
         self.assertEqual(ctx.exception.error_type, "contract_error")
         self.assertTrue(any("provider failures" in error["message"] for error in ctx.exception.details["errors"]))
 
     def test_rejects_missing_through_fare_verification(self) -> None:
-        answer = build_user_answer_contract(report_with_required_caveats())
+        answer = build_user_answer(report_with_required_caveats())
         answer["required_caveats"]["through_fare_verification_required"] = False
 
         with self.assertRaises(CliError) as ctx:
-            validate_user_answer_contract(answer)
+            validate_user_answer(answer)
 
         self.assertTrue(any("through-fare" in error["message"] for error in ctx.exception.details["errors"]))
 
     def test_rejects_missing_coverage_incompleteness_acknowledgement(self) -> None:
-        answer = build_user_answer_contract(report_with_required_caveats())
+        answer = build_user_answer(report_with_required_caveats())
         answer["required_caveats"]["coverage_incompleteness_acknowledged"] = False
 
         with self.assertRaises(CliError) as ctx:
-            validate_user_answer_contract(answer)
+            validate_user_answer(answer)
 
         self.assertTrue(any("incomplete coverage" in error["message"] for error in ctx.exception.details["errors"]))
 
     def test_rejects_missing_source_boundary_and_purchase_verification(self) -> None:
-        answer = build_user_answer_contract(report_with_required_caveats())
+        answer = build_user_answer(report_with_required_caveats())
         answer["required_caveats"]["source_boundaries_included"] = False
         answer["required_caveats"]["purchase_screen_verification_required"] = False
 
         with self.assertRaises(CliError) as ctx:
-            validate_user_answer_contract(answer)
+            validate_user_answer(answer)
 
         messages = " ".join(error["message"] for error in ctx.exception.details["errors"])
         self.assertIn("source-boundary", messages)

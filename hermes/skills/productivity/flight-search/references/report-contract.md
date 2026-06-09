@@ -7,7 +7,7 @@ Use this when reading `data.agent_report` or deciding what to show the user. The
 Current contracts:
 
 - `agent_report.v2` — public serialized report envelope. Required top-level layers are `route`, `evidence`, `frontier`, `user_answer`, and `diagnostics`.
-- `flight_search_user_answer.v3` — canonical user-facing contract. Built by `cli/flights_cli/reporting/final_answer_contract.py`, validated before `agent_report.user_answer` is accepted, and rendered through `user_answer.rendered_text`.
+- `flight_search_user_answer.v3` — canonical user-facing contract. Built by `cli/flights_cli/reporting/user_answer.py`, validated before `agent_report.user_answer` is accepted, and rendered through `user_answer.rendered_text`.
 
 Retired/projection surfaces:
 
@@ -104,8 +104,8 @@ data.agent_report
 
 Implementation ownership:
 
-- `cli/flights_cli/reporting/final_answer_contract.py` builds/validates the v3 user answer and deterministic rendered text.
-- `cli/flights_cli/reporting/human_answer_renderer.py` and `cli/flights_cli/output.py` are compatibility/rendering seams; they must prefer `user_answer.rendered_text`.
+- `cli/flights_cli/reporting/user_answer.py` builds/validates the v3 user answer and deterministic rendered text.
+- `cli/flights_cli/reporting/projections/human_answer_mirror.py` and `cli/flights_cli/output.py` are diagnostic/rendering seams; they must prefer `user_answer.rendered_text`.
 - Agents must not copy `display.text`, `answer_lines`, provider client objects, booking URLs, cache semantics, or plugin-specific wording as final prose.
 
 Negative guarantees for `user_answer.rendered_text`, legacy `human_answer.text`, and final answers:
@@ -125,7 +125,7 @@ Do not collapse that into only first departure and final arrival for a multi-leg
 
 ## User Answer Contract v3
 
-`flight_search_user_answer.v3` is the enforceable user-facing contract for CLI reports. It lives in `cli/flights_cli/contracts/flight_search_user_answer.v3.schema.json`, is built by `cli/flights_cli/reporting/final_answer_contract.py`, and is semantically validated before `agent_report.user_answer` is accepted.
+`flight_search_user_answer.v3` is the enforceable user-facing contract for CLI reports. It lives in `cli/flights_cli/contracts/flight_search_user_answer.v3.schema.json`, is built by `cli/flights_cli/reporting/user_answer.py`, and is semantically validated before `agent_report.user_answer` is accepted.
 
 Required v3 fields:
 

@@ -26,7 +26,7 @@ from ..execution.probe_intent import intent_from_control, intent_from_segment
 from ..execution.probe_ledger import ProbeExecutionLedger
 from ..execution.request_deduper import RequestDeduper
 from ..execution.synthetic_control_runner import synthesize_moscow_gateway_control_results
-from ..pipeline.search_pipeline import build_legacy_live_route_search_flow
+from ..pipeline.search_pipeline import build_live_route_search_flow
 from ..providers.route_intel import load_or_refresh_svx_route_index, svx_direct_route_index_summary
 from ..services.agent_report import attach_agent_report
 from ..services.assembly import assemble_direction, assemble_segment_results, direct_journeys, empty_assembled_result
@@ -692,7 +692,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
 
 
 def run_live_route_assembly(args: argparse.Namespace, store: Store) -> dict[str, Any]:
-    flow = build_legacy_live_route_search_flow(args)
+    flow = build_live_route_search_flow(args)
     plan = build_live_route_segment_plan(args, store)
     max_searches = max(1, int(flow.evidence_plan.max_segment_searches))
     if plan["metrics"]["segment_search_count"] > max_searches:

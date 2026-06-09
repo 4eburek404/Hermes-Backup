@@ -6,7 +6,7 @@ Structural weaknesses identified during deep audit of the skill, CLI surface, re
 
 **Problem:** SKILL.md listed 17 CLI commands and vague "run probes when missing evidence" triggers, but did not map user intents to concrete command paths. Agent had to guess which command fits which scenario.
 
-**Evidence:** Fli (upstream) has 3 commands, Amadeus has 2 endpoints. flights_cli has 17 unique entry points (22 with dedup). Golden Path said "run route live-assemble" but did not explain when follow-up probes were needed or why.
+**Evidence:** Fli (upstream) has 3 commands, Amadeus has 2 endpoints. flights_cli previously had 17 unique entry points (22 with dedup). The old Golden Path named the provider-live route command directly but did not explain when follow-up probes were needed or why.
 
 **Fix (applied):** Added "Scenario Decision Map" section to SKILL.md with two-level Golden Path: Level 1 = one command for 90% of tasks, Level 2 = specific user-intent triggers → specific follow-up commands. Added Profile Quick Reference table.
 
@@ -22,15 +22,15 @@ Structural weaknesses identified during deep audit of the skill, CLI surface, re
 
 **Problem:** `direct-date-window.md` documents a `route direct-window` command that does not exist in CLI. The "Proposed CLI Surface" section (lines ~55-80) describes expected semantics as if the command exists. Agent calling it gets an error.
 
-**Recommended fix:** Rewrite `direct-date-window.md` to remove the proposed-command section. Current Golden Path = per-date `kb-search --direct-only` / `fli-search --direct-only` or `route live-assemble --max-connections 0 --fallback-max-connections 0`. If `route direct-window` is implemented later, add it back at that time. Note added to SKILL.md references list (done).
+**Recommended fix:** Rewrite `direct-date-window.md` to remove the proposed-command section. Current Golden Path = `search --request`; direct-window inventory still uses per-date `diagnose kb-search --direct-only` / `diagnose fli-search --direct-only`. If `route direct-window` is implemented later, add it back at that time. Note added to SKILL.md references list (done).
 
 **Priority:** Medium (agent may attempt nonexistent command).
 
-## 4. `route kb-assemble` — Undocumented Compatibility Alias
+## 4. Retired route compatibility alias
 
-**Problem:** `command_surface.py` declares `COMPATIBILITY_COMMANDS = ("route kb-assemble",)`. It exists as an alias for `route live-assemble --provider-policy kupibilet`. `cli-maintenance.md` mentions it conditionally but does not state this mapping explicitly.
+**Problem:** The old command surface carried route compatibility aliases that duplicated provider-policy search behavior and confused the production/diagnostic split.
 
-**Recommended fix:** Either (a) delete `kb-assemble` from CLI surface and `command_surface.py` since `--provider-policy kupibilet` already replaces it, or (b) add explicit documentation: "`route kb-assemble` = compat alias for `route live-assemble --provider-policy kupibilet`. Do not use for new tasks."
+**Recommended fix:** Delete compatibility aliases from the public CLI surface; keep provider overrides in the canonical request contract or diagnostic probes.
 
 **Priority:** Low (functional, but adds surface confusion).
 
@@ -52,7 +52,7 @@ Structural weaknesses identified during deep audit of the skill, CLI surface, re
 
 ## 7. Weak v3 Catalog Semantic Test Coverage
 
-**Problem:** `flight_search_user_answer.v3` has 14 required fields per catalog item. Semantic validation in `final_answer_contract.py:684` checks contiguous numbering. But `test_catalog_answer_contract.py` has only 4 tests (one with `[1, 2]`). No negative tests for: gaps, zero-based numbering, duplicates, empty catalog, single-item catalog, 10+ items, `detail_status=missing` in catalog, round-trip item without return direction.
+**Problem:** `flight_search_user_answer.v3` has 14 required fields per catalog item. Semantic validation in `reporting/user_answer.py` checks contiguous numbering. But `test_catalog_answer_contract.py` had only 4 tests (one with `[1, 2]`). No negative tests for: gaps, zero-based numbering, duplicates, empty catalog, single-item catalog, 10+ items, `detail_status=missing` in catalog, round-trip item without return direction.
 
 **Recommended fix:** Add 8-10 negative test cases to `test_catalog_answer_contract.py`: empty catalog (must fail), gaps `[1,3]` (must fail), zero-based `[0,1]` (must fail), duplicates `[1,1,2]` (must fail), single-item catalog (valid), `answer_mode=recommendation` with catalog (must fail), `detail_status=missing` in catalog items (must surface caveat), round-trip catalog item without `return` direction (must fail).
 
@@ -103,8 +103,8 @@ Structural weaknesses identified during deep audit of the skill, CLI surface, re
 | Metric | Value |
 |---|---|
 | Total unique CLI commands | 17 |
-| Primary command (Golden Path) | `route live-assemble` |
-| Flags on `route live-assemble` | 50 |
+| Primary command (Golden Path) | `search --request` |
+| Former provider-live route flags | 50 |
 | Fli (upstream) commands | 3 |
 | Amadeus API endpoints | 2 |
 | SKILL.md + references total lines | ~1111 |

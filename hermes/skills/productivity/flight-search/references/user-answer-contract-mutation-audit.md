@@ -1,6 +1,6 @@
 # User-answer contract mutation audit notes
 
-Use when auditing or changing `flight_search_user_answer.v3`, `final_answer_contract.py`, or any user-facing flight-search renderer.
+Use when auditing or changing `flight_search_user_answer.v3`, `reporting/user_answer.py`, or any user-facing flight-search renderer.
 
 ## Why this exists
 
@@ -8,7 +8,7 @@ A previous audit found that the contract layer can validate JSON shape while all
 
 ## Mutation checks to run
 
-Start from a known-valid `build_user_answer_contract(...)` fixture, mutate one property at a time, and call `validate_user_answer_contract(...)`.
+Start from a known-valid `build_user_answer(...)` fixture, mutate one property at a time, and call `validate_user_answer(...)`.
 
 High-priority mutations that must fail unless evidence is proven:
 

@@ -9,10 +9,7 @@ from typing import Any
 from . import __version__
 from .commands.basic import (
     command_airports_explain,
-    command_catalog_manifest,
-    command_catalog_update,
     command_cities_search,
-    command_doctor,
 )
 from .apps.diagnose import command_diagnose_plan, command_diagnose_probe, command_diagnose_render
 from .apps.maint import command_maint_catalog_manifest, command_maint_catalog_refresh, command_maint_doctor
@@ -27,7 +24,6 @@ from .commands.providers import (
 )
 from .commands.route import (
     command_route_assemble,
-    command_route_live_assemble,
     command_route_plan,
     command_route_rank,
     command_route_validate,
@@ -229,11 +225,6 @@ def _catalog_read_defaults(**kwargs: Any) -> dict[str, Any]:
     return {"catalog_access": "read_only", "requires_catalog": True, **kwargs}
 
 
-def _register_doctor_commands(sub) -> None:
-    doctor = sub.add_parser("doctor", help="Check local caches and static catalog status.")
-    doctor.set_defaults(func=command_doctor, command_name="doctor")
-
-
 def _register_primary_search_commands(sub) -> None:
     search = sub.add_parser("search", help="Primary request-file route search; JSON output keeps flight_search_result.v1 envelope.")
     search.add_argument("--request", required=True, help="flight_search_request.v1 JSON file, or - for stdin.")
@@ -271,23 +262,18 @@ def _register_diagnose_commands(sub) -> None:
     fli_dates.set_defaults(func=command_fli_dates, command_name="diagnose fli-dates")
 
 
-def _register_maintenance_commands(sub) -> None:
-    maintenance = sub.add_parser("maintenance", help="Local maintenance and provenance checks.")
-    maintenance_sub = maintenance.add_subparsers(dest="maintenance_command", required=True)
-    maintenance_check = maintenance_sub.add_parser(
-        "check",
-        help="Report source/runtime provenance and local maintenance status without network calls.",
-    )
-    maintenance_check.add_argument(
-        "--runtime-path",
-        help="Runtime flight-search skill path to compare against. Defaults to ~/.hermes/skills/productivity/flight-search.",
-    )
-    maintenance_check.set_defaults(func=command_maintenance_check, command_name="maintenance check")
-
-
 def _register_maint_commands(sub) -> None:
     maint = sub.add_parser("maint", help="Primary maintenance namespace.")
     maint_sub = maint.add_subparsers(dest="maint_command", required=True)
+    check = maint_sub.add_parser(
+        "check",
+        help="Report source/runtime provenance and local maintenance status without network calls.",
+    )
+    check.add_argument(
+        "--runtime-path",
+        help="Runtime flight-search skill path to compare against. Defaults to ~/.hermes/skills/productivity/flight-search.",
+    )
+    check.set_defaults(func=command_maintenance_check, command_name="maint check")
     doctor = maint_sub.add_parser("doctor", help="Check local caches and static catalog status without provider calls.")
     doctor.set_defaults(func=command_maint_doctor, command_name="maint doctor")
     catalog = maint_sub.add_parser("catalog", help="Static catalog maintenance.")
@@ -299,19 +285,6 @@ def _register_maint_commands(sub) -> None:
     refresh.add_argument("--timeout", type=int, default=30, help="HTTP timeout seconds per static file.")
     refresh.add_argument("--dry-run", action="store_true", help="Show files that would be downloaded without writing cache.")
     refresh.set_defaults(func=command_maint_catalog_refresh, command_name="maint catalog refresh", catalog_access="refresh_explicit")
-
-
-def _register_catalog_commands(sub) -> None:
-    catalog = sub.add_parser("catalog", help="Static catalog commands.")
-    catalog_sub = catalog.add_subparsers(dest="catalog_command", required=True)
-    catalog_update = catalog_sub.add_parser("update", help="Download public static catalog JSON files.")
-    catalog_update.add_argument("--only", action="append", help="Catalog item name. Repeatable; defaults to all static files.")
-    catalog_update.add_argument("--timeout", type=int, default=30, help="HTTP timeout seconds per static file.")
-    catalog_update.add_argument("--dry-run", action="store_true", help="Show files that would be downloaded without writing cache.")
-    catalog_update.set_defaults(func=command_catalog_update, command_name="catalog update")
-    catalog_manifest = catalog_sub.add_parser("manifest", help="Show the local static catalog manifest.")
-    catalog_manifest.set_defaults(func=command_catalog_manifest, command_name="catalog manifest")
-
 
 def _register_metadata_commands(sub) -> None:
     cities = sub.add_parser("cities", help="City lookup commands.")
@@ -414,21 +387,6 @@ def _register_route_commands(sub) -> None:
     route_assemble.add_argument("--input", action="append", help="Parsed result JSON. Repeatable; omit for stdin.")
     route_assemble.set_defaults(func=command_route_assemble, command_name="route assemble")
 
-    route_live_assemble = route_sub.add_parser(
-        "live-assemble",
-        parents=[route_query_parent(), live_assembly_parent()],
-        help="Primary route search: provider-policy live segment searches and compact agent_report.",
-    )
-    route_live_assemble.add_argument(
-        "--provider-policy",
-        choices=["auto", "kupibilet", "fli", "both"],
-        default="auto",
-        help="Live provider policy. auto uses Kupibilet for RU-touching segments and FLI MCP for non-RU segments.",
-    )
-    route_live_assemble.add_argument("--fli-mcp-url", default=os.getenv("FLIGHTS_FLI_MCP_URL", FLI_MCP_DEFAULT_URL), help="FLI MCP HTTP URL for provider-policy fli/both/auto.")
-    route_live_assemble.set_defaults(func=command_route_live_assemble, command_name="route live-assemble", **_catalog_read_defaults())
-
-
 def _register_metrics_commands(sub) -> None:
     metrics = sub.add_parser("metrics", help="Workflow metrics commands.")
     metrics_sub = metrics.add_subparsers(dest="metrics_command", required=True)
@@ -465,9 +423,6 @@ def build_parser() -> argparse.ArgumentParser:
     _register_primary_search_commands(sub)
     _register_diagnose_commands(sub)
     _register_maint_commands(sub)
-    _register_doctor_commands(sub)
-    _register_maintenance_commands(sub)
-    _register_catalog_commands(sub)
     _register_metadata_commands(sub)
     _register_route_commands(sub)
     _register_metrics_commands(sub)
