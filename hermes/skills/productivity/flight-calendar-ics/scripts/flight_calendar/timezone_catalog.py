@@ -16,7 +16,7 @@ from typing import Any
 
 SCHEMA_VERSION = "airport-timezones.v1"
 RAW_AIRPORT_FILENAMES = ("airports_en.json", "airports_ru.json", "airports.json")
-SKILL_DIR = Path(__file__).resolve().parents[1]
+SKILL_DIR = Path(__file__).resolve().parents[2]
 CATALOG_PATH = SKILL_DIR / "data" / "airport-timezones.json"
 IATA_RE = re.compile(r"^[A-Z0-9]{3}$")
 

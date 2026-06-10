@@ -67,15 +67,6 @@ class EntrypointWrapperContractTests(unittest.TestCase):
                 "--json maint audit",
                 "--json maint timezone-catalog inspect",
             ],
-            "compatibility": [
-                "--json doctor",
-                "--json validate --input templates/aeroflot-itinerary.example.json",
-                "--json make --input templates/aeroflot-itinerary.example.json",
-                "--json aeroflot --output-json /tmp/aeroflot.json --pnr-locator ABC123 --pnr-key KEY",
-                "--json ural --output-json /tmp/ural.json --pnr ABC123 --last-name TEST",
-                "--json utair --output-json /tmp/utair.json --rloc ABC123 --last-name TEST",
-                "--json redwings --output-json /tmp/redwings.json --pnr ABC123 --access-key KEY",
-            ],
         }
         registry = build_command_registry()
 

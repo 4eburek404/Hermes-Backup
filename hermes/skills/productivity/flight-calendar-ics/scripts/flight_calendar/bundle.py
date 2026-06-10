@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from flight_calendar import ics_render as make_flight_ics
+from flight_calendar import ics_render
 from flight_calendar.envelope import CliFailure, add_step
 
 
@@ -53,7 +53,7 @@ def verify_bundle_artifacts(paths: dict[str, Path], segments_count: int, process
     require_private_mode(paths["json"])
     require_private_mode(paths["ics"])
     ics_text = paths["ics"].read_text(encoding="utf-8")
-    make_flight_ics.validate_ics_text(ics_text, segments_count)
+    ics_render.validate_ics_text(ics_text, segments_count)
     event_count = ics_text.count("BEGIN:VEVENT")
     dt_lines = [line for line in ics_text.splitlines() if line.startswith(("DTSTART", "DTEND"))]
     non_utc = [line for line in dt_lines if not line.endswith("Z")]

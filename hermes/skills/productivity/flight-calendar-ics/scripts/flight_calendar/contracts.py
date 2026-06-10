@@ -16,9 +16,7 @@ SCHEMA_VERSION = "flight-calendar-ics-cli.v1"
 BUNDLE_ROUTES = ["make", "aeroflot", "ural", "utair", "redwings"]
 BUILD_ROUTE_CHOICES = ["auto", *BUNDLE_ROUTES]
 
-LEGACY_ROOT_COMMANDS = ["doctor", "validate", "make", "build", "aeroflot", "ural", "utair", "redwings"]
-NAMESPACE_COMMANDS = ["diagnose", "maint"]
-COMMANDS = [*LEGACY_ROOT_COMMANDS, *NAMESPACE_COMMANDS]
+COMMANDS = ["doctor", "build", "diagnose", "maint"]
 
 COMMAND_SURFACES: dict[str, list[str]] = {
     "production": [
@@ -47,9 +45,6 @@ COMMAND_SURFACES: dict[str, list[str]] = {
         "maint clean --dry-run",
         "maint audit",
         "maint timezone-catalog inspect",
-    ],
-    "compatibility": [
-        *LEGACY_ROOT_COMMANDS,
     ],
 }
 

@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Command surface contract tests for flight-calendar-ics.
 
-These tests lock Phase 1 CLI-surface classification without changing the
-existing root command behavior.  The preferred production happy path is the
-``build auto`` surface; legacy/root commands remain accepted as compatibility
-surfaces, and future namespace names are append-only in the v1 envelope schema.
+These tests lock the single command truth table: the production happy path is
+``build auto``; diagnostics and maintenance live under their namespaces; legacy
+root commands are removed and must be rejected by the CLI.
 """
 from __future__ import annotations
 
@@ -21,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 CLI = SCRIPTS / "flight_calendar_ics.py"
 SCHEMA = ROOT / "schemas" / "cli-envelope.v1.schema.json"
-LEGACY_ROOT_COMMANDS = {"doctor", "validate", "make", "aeroflot", "ural", "utair", "redwings"}
+REMOVED_ROOT_COMMANDS = {"validate", "make", "aeroflot", "ural", "utair", "redwings"}
 
 
 class CommandSurfaceContractTests(unittest.TestCase):
@@ -78,7 +77,7 @@ class CommandSurfaceContractTests(unittest.TestCase):
         self.assertEqual(contracts.SCHEMA_VERSION, "flight-calendar-ics-cli.v1")
         self.assertEqual(contracts.BUNDLE_ROUTES, ["make", "aeroflot", "ural", "utair", "redwings"])
         self.assertEqual(contracts.BUILD_ROUTE_CHOICES, ["auto", "make", "aeroflot", "ural", "utair", "redwings"])
-        self.assertGreaterEqual(set(contracts.COMMANDS), {*LEGACY_ROOT_COMMANDS, "build", "diagnose", "maint"})
+        self.assertEqual(contracts.COMMANDS, ["doctor", "build", "diagnose", "maint"])
         self.assertEqual(contracts.CONTRACT_REGISTRY["schema_version"], contracts.SCHEMA_VERSION)
         self.assertEqual(contracts.CONTRACT_REGISTRY["wire_commands"], contracts.COMMANDS)
         self.assertEqual(
@@ -106,27 +105,28 @@ class CommandSurfaceContractTests(unittest.TestCase):
         contracts = self.import_contracts()
         surfaces = contracts.COMMAND_SURFACES
 
-        self.assertEqual(set(surfaces), {"production", "diagnostic", "maintenance", "compatibility"})
+        self.assertEqual(set(surfaces), {"production", "diagnostic", "maintenance"})
         self.assertIn("build auto", surfaces["production"])
         self.assertNotIn("doctor", surfaces["production"])
         self.assertNotIn("validate", surfaces["production"])
         self.assertNotIn("make", surfaces["production"])
 
-    def test_root_commands_are_compatibility_not_production(self) -> None:
+    def test_legacy_root_commands_are_removed_and_rejected(self) -> None:
         contracts = self.import_contracts()
-        surfaces = contracts.COMMAND_SURFACES
+        all_surface_commands = {cmd for cmds in contracts.COMMAND_SURFACES.values() for cmd in cmds}
 
-        self.assertTrue(LEGACY_ROOT_COMMANDS.issubset(set(surfaces["compatibility"])))
-        self.assertTrue(LEGACY_ROOT_COMMANDS.isdisjoint(set(surfaces["production"])))
-        self.assertIn("build auto", surfaces["production"])
-        self.assertNotIn("build auto", surfaces["compatibility"])
+        self.assertTrue(REMOVED_ROOT_COMMANDS.isdisjoint(all_surface_commands))
+        self.assertTrue(REMOVED_ROOT_COMMANDS.isdisjoint(set(contracts.COMMANDS)))
+        for legacy in sorted(REMOVED_ROOT_COMMANDS):
+            with self.subTest(command=legacy):
+                result = self.run_cli("--json", legacy)
+                self.assertNotEqual(result.returncode, 0, f"root '{legacy}' must be rejected")
 
     def test_cli_envelope_schema_accepts_diagnose_and_maint_namespaces(self) -> None:
         command_registry = {
             "production": ["build auto"],
             "diagnostic": ["diagnose doctor"],
             "maintenance": ["maint contracts"],
-            "compatibility": sorted(LEGACY_ROOT_COMMANDS),
         }
         for command, surface in [("diagnose", "diagnostic"), ("maint", "maintenance")]:
             envelope = {
@@ -197,10 +197,9 @@ class CommandSurfaceContractTests(unittest.TestCase):
 
         registry = obj["data"].get("command_registry")
         self.assertIsInstance(registry, dict)
-        self.assertEqual(set(registry), {"production", "diagnostic", "maintenance", "compatibility"})
+        self.assertEqual(set(registry), {"production", "diagnostic", "maintenance"})
         self.assertIn("build auto", registry["production"])
-        self.assertTrue(LEGACY_ROOT_COMMANDS.issubset(set(registry["compatibility"])))
-        self.assertTrue(LEGACY_ROOT_COMMANDS.isdisjoint(set(registry["production"])))
+        self.assertTrue(REMOVED_ROOT_COMMANDS.isdisjoint(set(registry["production"])))
 
         contract = obj["data"].get("agent_contract")
         self.assertIsInstance(contract, dict)

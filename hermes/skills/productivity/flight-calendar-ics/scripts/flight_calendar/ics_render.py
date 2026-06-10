@@ -6,7 +6,6 @@ converting ticket-local times with IANA TZIDs via zoneinfo.
 """
 from __future__ import annotations
 
-import argparse
 import datetime as dt
 import hashlib
 import json
@@ -17,7 +16,6 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from flight_calendar import itinerary_contract
-from flight_calendar.common import secure_write_text
 
 UTC = dt.timezone.utc
 def die(message: str, code: int = 2) -> None:
@@ -326,37 +324,3 @@ def load_input(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         die("input JSON root must be an object")
     return data
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Generate .ics calendar files from flight itinerary JSON.")
-    parser.add_argument("--input", "-i", required=True, type=Path, help="Path to itinerary JSON")
-    parser.add_argument("--output", "-o", type=Path, help="Output .ics path; defaults to input basename")
-    parser.add_argument("--check-only", action="store_true", help="Validate input and print normalized segments without writing")
-    parser.add_argument("--no-alarms", action="store_true", help="Do not add VALARM reminders")
-    args = parser.parse_args(argv)
-
-    data = load_input(args.input)
-    try:
-        data = itinerary_contract.normalize_legacy_itinerary(data)
-        itinerary_contract.validate_itinerary_schema(data)
-        itinerary_contract.validate_itinerary_semantics(data)
-    except ValueError as exc:
-        die(str(exc))
-    ics_text, summaries = build_calendar(data, no_alarms=args.no_alarms)
-    validate_ics_text(ics_text, len(summaries))
-
-    if args.check_only:
-        print(json.dumps({"ok": True, "segments": summaries}, ensure_ascii=False, indent=2))
-        return 0
-
-    output = args.output or args.input.with_suffix(".ics")
-    secure_write_text(output, ics_text)
-    print(f"OK: wrote {output} ({len(summaries)} segment(s))")
-    for item in summaries:
-        print(f"- {item['flight_number']} {item['route']} {item['dtstart_utc']} -> {item['dtend_utc']}")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

@@ -21,15 +21,10 @@
       "type": "string",
       "enum": [
         "doctor",
-        "validate",
-        "make",
         "build",
-        "aeroflot",
-        "ural",
-        "utair",
-        "redwings",
         "diagnose",
-        "maint"
+        "maint",
+        "unknown"
       ]
     },
     "process": {
@@ -138,15 +133,10 @@
             "type": "string",
             "enum": [
               "doctor",
-              "validate",
-              "make",
               "build",
-              "aeroflot",
-              "ural",
-              "utair",
-              "redwings",
               "diagnose",
-              "maint"
+              "maint",
+              "unknown"
             ]
           }
         },
@@ -155,8 +145,7 @@
           "enum": [
             "production",
             "diagnostic",
-            "maintenance",
-            "compatibility"
+            "maintenance"
           ]
         },
         "subcommand": {
@@ -168,8 +157,7 @@
           "required": [
             "production",
             "diagnostic",
-            "maintenance",
-            "compatibility"
+            "maintenance"
           ],
           "properties": {
             "production": {
@@ -189,19 +177,7 @@
               "items": {
                 "type": "string"
               }
-            },
-            "compatibility": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
             }
-          }
-        },
-        "legacy_scripts": {
-          "type": "array",
-          "items": {
-            "type": "string"
           }
         },
         "json_contract": {

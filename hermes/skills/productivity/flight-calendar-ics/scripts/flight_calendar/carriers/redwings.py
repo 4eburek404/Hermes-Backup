@@ -10,14 +10,11 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 from typing import Any, NoReturn
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, unquote, urlparse
 from urllib.request import Request, urlopen
 
-from flight_calendar import timezone_catalog as airport_catalog
-from flight_calendar.common import parse_tz_overrides, secure_write_text
 
 REDWINGS_BOOKING_BASE = "https://flyredwings.com/booking/"
 REDWINGS_GRAPHQL_ENDPOINT = "https://wz.webskyx.com/graphql/query/nemo"
@@ -557,28 +554,3 @@ def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_u
         "notes": "Сформировано из данных страницы управления бронированием Red Wings.",
         "flights": flights,
     }
-
-
-def main(argv: list[str] | None = None) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Convert Red Wings/Websky manage-booking data to flight-calendar-ics JSON.")
-    parser.add_argument("--url", help="Red Wings direct email/manage link shaped #/find/<PNR>/<ACCESS_KEY>/Submit")
-    parser.add_argument("--pnr", help="Booking locator, if not using --url")
-    parser.add_argument("--access-key", dest="finder_code", help="Access key from the direct email/manage link, if not using --url")
-    parser.add_argument("--output-json", required=True, type=Path, help="Where to write itinerary JSON")
-    parser.add_argument("--tz", action="append", default=[], help="Timezone override CODE=Area/City; repeatable")
-    parser.add_argument("--graphql-endpoint", help="Override Websky GraphQL endpoint for diagnostics/tests")
-    args = parser.parse_args(argv)
-
-    locator, finder_code, booking_url = parse_redwings_source(args.url, args.pnr, args.finder_code)
-    order = fetch_redwings_order(locator, finder_code, graphql_endpoint=args.graphql_endpoint)
-    tz_map = airport_catalog.build_timezone_map(parse_tz_overrides(args.tz, fail=die))
-    itinerary = convert_to_itinerary(order, tz_map, booking_url=booking_url)
-    secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
-    print(json.dumps({"ok": True, "segments": len(itinerary["flights"]), "json": str(args.output_json)}, ensure_ascii=False))
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

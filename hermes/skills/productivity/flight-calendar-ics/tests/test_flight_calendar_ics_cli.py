@@ -25,21 +25,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / "scripts" / "flight_calendar_ics.py"
-MAKE = ROOT / "scripts" / "flight_calendar" / "ics_render.py"
-AEROFLOT = ROOT / "scripts" / "flight_calendar" / "carriers" / "aeroflot.py"
-REDWINGS = ROOT / "scripts" / "flight_calendar" / "carriers" / "redwings.py"
-URAL = ROOT / "scripts" / "flight_calendar" / "carriers" / "ural.py"
-UTAIR = ROOT / "scripts" / "flight_calendar" / "carriers" / "utair.py"
 TEMPLATE = ROOT / "templates" / "aeroflot-itinerary.example.json"
 SCHEMA = ROOT / "schemas" / "cli-envelope.v1.schema.json"
 ITINERARY_SCHEMA = ROOT / "schemas" / "itinerary.v1.schema.json"
-
-_LEGACY_SCRIPT_MAP = {
-    "aeroflot_pnr_to_itinerary.py": AEROFLOT,
-    "ural_airlines_to_itinerary.py": URAL,
-    "utair_to_itinerary.py": UTAIR,
-    "redwings_to_itinerary.py": REDWINGS,
-}
 
 
 class FlightCalendarIcsCliContractTests(unittest.TestCase):
@@ -72,22 +60,13 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         finally:
             sys.path[:] = old_path
 
-    def import_script_module(self, filename: str, module_name: str | None = None):
+    def import_carrier_module(self, name: str):
         script_dir = str((ROOT / "scripts").resolve())
         old_path = list(sys.path)
         if script_dir not in sys.path:
             sys.path.insert(0, script_dir)
-        resolved = _LEGACY_SCRIPT_MAP.get(filename, ROOT / "scripts" / filename)
         try:
-            spec = importlib.util.spec_from_file_location(
-                module_name or f"{Path(filename).stem}_test",
-                resolved,
-            )
-            self.assertIsNotNone(spec)
-            self.assertIsNotNone(spec.loader)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            return module
+            return importlib.import_module(f"flight_calendar.carriers.{name}")
         finally:
             sys.path[:] = old_path
 
@@ -140,7 +119,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assert_envelope(obj, ok=True, command="doctor")
         self.assertEqual(obj["data"]["entrypoint"], str(CLI))
         self.assertEqual(obj["data"]["entrypoint_kind"], "single-python-executable")
-        self.assertGreaterEqual(set(obj["data"]["commands"]), {"doctor", "validate", "make", "build", "aeroflot", "ural", "utair", "redwings"})
+        self.assertEqual(obj["data"]["commands"], ["doctor", "build", "diagnose", "maint"])
         contract = obj["data"].get("agent_contract")
         self.assertIsInstance(contract, dict)
         self.assertEqual([step["id"] for step in contract["normal_steps"]], ["collect_source", "run_one_command", "verify", "deliver"])
@@ -165,14 +144,13 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertGreaterEqual(set(schema["required"]), {"schema_version", "ok", "command", "process"})
         properties = schema["properties"]
         self.assertEqual(properties["schema_version"]["const"], "flight-calendar-ics-cli.v1")
-        self.assertIn("doctor", properties["command"]["enum"])
-        self.assertIn("make", properties["command"]["enum"])
-        self.assertIn("validate", properties["command"]["enum"])
+        self.assertEqual(
+            properties["command"]["enum"],
+            ["doctor", "build", "diagnose", "maint", "unknown"],
+        )
         self.assertIn("build", properties["command"]["enum"])
-        self.assertIn("aeroflot", properties["command"]["enum"])
-        self.assertIn("ural", properties["command"]["enum"])
-        self.assertIn("utair", properties["command"]["enum"])
-        self.assertIn("redwings", properties["command"]["enum"])
+        for legacy in ["aeroflot", "ural", "utair", "redwings", "make", "validate"]:
+            self.assertNotIn(legacy, properties["command"]["enum"])
         self.assertIn("data", properties)
         self.assertIn("error", properties)
 
@@ -244,13 +222,13 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as td:
             input_path = Path(td) / "compact.json"
-            output_path = Path(td) / "compact.ics"
+            output_dir = Path(td) / "compact-bundle"
             input_path.write_text(json.dumps(source, ensure_ascii=False), encoding="utf-8")
 
-            result = self.run_cli("--json", "make", "--input", str(input_path), "--output", str(output_path), "--no-alarms")
+            result = self.run_cli("--json", "build", "make", "--input", str(input_path), "--output-dir", str(output_dir), "--no-alarms")
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            unfolded_ics = output_path.read_text(encoding="utf-8").replace("\r\n ", "").replace("\n ", "")
+            unfolded_ics = (output_dir / "flights.ics").read_text(encoding="utf-8").replace("\r\n ", "").replace("\n ", "")
             self.assertIn(
                 "SUMMARY:Орлов Константин 08.06 Москва - Екатеринбург 14:40 19:10",
                 unfolded_ics,
@@ -266,32 +244,23 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             for verbose_label in ["Flight:", "Route:", "Departure local:", "Arrival local:", "Cabin:", "Fare:", "Notes:"]:
                 self.assertNotIn(verbose_label, unfolded_ics)
 
-    def test_make_json_writes_private_ics_and_redacted_process_summary(self) -> None:
+    def test_build_make_writes_private_ics_and_redacted_process_summary(self) -> None:
         with tempfile.TemporaryDirectory() as td:
-            output = Path(td) / "trip.ics"
-            result = self.run_cli("--json", "make", "--input", str(TEMPLATE), "--output", str(output))
+            output_dir = Path(td) / "trip-bundle"
+            result = self.run_cli("--json", "build", "make", "--input", str(TEMPLATE), "--output-dir", str(output_dir))
 
             self.assertEqual(result.returncode, 0, result.stderr)
+            output = output_dir / "flights.ics"
             self.assertTrue(output.exists())
             self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
             obj = self.parse_stdout_json(result)
-            self.assert_envelope(obj, ok=True, command="make")
+            self.assert_envelope(obj, ok=True, command="build")
             self.assertEqual(obj["data"]["segments_count"], 2)
-            self.assertEqual(obj["data"]["ics_path"], str(output))
+            self.assertEqual(obj["data"]["ics_path"], str(output.resolve()))
             self.assertEqual([s["route"] for s in obj["data"]["segments"]], ["SVO->LED", "LED->SVO"])
-            self.assertEqual(
-                [step["step"] for step in obj["process"]],
-                [
-                    "parse_args",
-                    "load_input",
-                    "validate_itinerary_schema",
-                    "validate_itinerary_semantics",
-                    "build_calendar",
-                    "validate_ics",
-                    "write_output",
-                    "emit_json",
-                ],
-            )
+            steps = [step["step"] for step in obj["process"]]
+            for required_step in ["load_input", "validate_itinerary_schema", "validate_itinerary_semantics", "build_calendar", "validate_ics", "write_ics"]:
+                self.assertIn(required_step, steps)
             combined_output = result.stdout + result.stderr
             for private_value in ["ABC123", "Ivanov Ivan", "5552400000000", "pnrKey"]:
                 self.assertNotIn(private_value, combined_output)
@@ -413,13 +382,14 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
 
     def test_build_auto_infers_aeroflot_from_private_url_file_without_doctor(self) -> None:
         module = self.import_cli_module()
-        original_command = getattr(module, "command_aeroflot")
+        parser_module = sys.modules["flight_calendar.parser"]
+        original_command = parser_module.command_aeroflot
         calls: list[argparse.Namespace] = []
 
         def fake_command_aeroflot(args: argparse.Namespace, process: list[dict]) -> tuple[int, dict]:
             calls.append(args)
             itinerary = json.loads(TEMPLATE.read_text(encoding="utf-8"))
-            ics_text, summaries = module.make_flight_ics.build_calendar(itinerary, no_alarms=True)
+            ics_text, summaries = module.ics_render.build_calendar(itinerary, no_alarms=True)
             module.secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
             module.secure_write_text(args.output_ics, ics_text)
             module.add_step(process, "fake_fetch_aeroflot_pnr")
@@ -433,7 +403,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 "write_performed": True,
             }
 
-        setattr(module, "command_aeroflot", fake_command_aeroflot)
+        setattr(parser_module, "command_aeroflot", fake_command_aeroflot)
         try:
             with tempfile.TemporaryDirectory() as td:
                 output_dir = Path(td) / "auto-aeroflot-bundle"
@@ -479,7 +449,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 for private_value in [private_key, "ABC123"]:
                     self.assertNotIn(private_value, safe_output)
         finally:
-            setattr(module, "command_aeroflot", original_command)
+            setattr(parser_module, "command_aeroflot", original_command)
 
     def test_build_auto_rejects_redwings_order_page_without_leaking_order_id(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -604,13 +574,14 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
 
     def test_build_route_wraps_carrier_command_with_bundle_paths_and_url_file(self) -> None:
         module = self.import_cli_module()
-        original_command = getattr(module, "command_redwings")
+        parser_module = sys.modules["flight_calendar.parser"]
+        original_command = parser_module.command_redwings
         calls: list[argparse.Namespace] = []
 
         def fake_command_redwings(args: argparse.Namespace, process: list[dict]) -> tuple[int, dict]:
             calls.append(args)
             itinerary = json.loads(TEMPLATE.read_text(encoding="utf-8"))
-            ics_text, summaries = module.make_flight_ics.build_calendar(itinerary, no_alarms=True)
+            ics_text, summaries = module.ics_render.build_calendar(itinerary, no_alarms=True)
             module.secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
             module.secure_write_text(args.output_ics, ics_text)
             module.add_step(process, "fake_fetch_redwings_order")
@@ -624,7 +595,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 "write_performed": True,
             }
 
-        setattr(module, "command_redwings", fake_command_redwings)
+        setattr(parser_module, "command_redwings", fake_command_redwings)
         try:
             with tempfile.TemporaryDirectory() as td:
                 output_dir = Path(td) / "redwings-bundle"
@@ -663,14 +634,15 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 for private_value in ["AB12CD", "EMAILKEY123", "Ivanov Ivan", "5552400000000"]:
                     self.assertNotIn(private_value, safe_output)
         finally:
-            setattr(module, "command_redwings", original_command)
+            setattr(parser_module, "command_redwings", original_command)
 
     def test_validate_json_is_check_only_and_machine_readable(self) -> None:
-        result = self.run_cli("--json", "validate", "--input", str(TEMPLATE))
+        result = self.run_cli("--json", "diagnose", "validate", "--input", str(TEMPLATE))
 
         self.assertEqual(result.returncode, 0, result.stderr)
         obj = self.parse_stdout_json(result)
-        self.assert_envelope(obj, ok=True, command="validate")
+        self.assert_envelope(obj, ok=True, command="diagnose")
+        self.assertEqual(obj["data"]["subcommand"], "validate")
         self.assertEqual(obj["data"]["segments_count"], 2)
         self.assertFalse(obj["data"]["write_performed"])
         self.assertEqual(
@@ -693,11 +665,11 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             input_path = Path(td) / "bad-extra.json"
             input_path.write_text(json.dumps(source, ensure_ascii=False), encoding="utf-8")
-            result = self.run_cli("--json", "validate", "--input", str(input_path))
+            result = self.run_cli("--json", "diagnose", "validate", "--input", str(input_path))
 
         self.assertEqual(result.returncode, 2)
         obj = self.parse_stdout_json(result)
-        self.assert_envelope(obj, ok=False, command="validate")
+        self.assert_envelope(obj, ok=False, command="diagnose")
         self.assertEqual(obj["error"]["code"], "validation_error")
         self.assertIn("unexpected_debug_payload", obj["error"]["message"])
         steps = [step["step"] for step in obj["process"]]
@@ -712,11 +684,11 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             input_path = Path(td) / "bad-missing-tz.json"
             input_path.write_text(json.dumps(source, ensure_ascii=False), encoding="utf-8")
-            result = self.run_cli("--json", "validate", "--input", str(input_path))
+            result = self.run_cli("--json", "diagnose", "validate", "--input", str(input_path))
 
         self.assertEqual(result.returncode, 2)
         obj = self.parse_stdout_json(result)
-        self.assert_envelope(obj, ok=False, command="validate")
+        self.assert_envelope(obj, ok=False, command="diagnose")
         self.assertEqual(obj["error"]["code"], "validation_error")
         self.assertIn("flights[0].departure", obj["error"]["message"])
         self.assertIn("tz", obj["error"]["message"])
@@ -732,45 +704,40 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             input_path = Path(td) / "bad-alarm.json"
             input_path.write_text(json.dumps(source, ensure_ascii=False), encoding="utf-8")
-            result = self.run_cli("--json", "validate", "--input", str(input_path))
+            result = self.run_cli("--json", "diagnose", "validate", "--input", str(input_path))
 
         self.assertEqual(result.returncode, 2)
         obj = self.parse_stdout_json(result)
-        self.assert_envelope(obj, ok=False, command="validate")
+        self.assert_envelope(obj, ok=False, command="diagnose")
         self.assertEqual(obj["error"]["code"], "validation_error")
         self.assertIn("alarm", obj["error"]["message"].lower())
         combined_output = result.stdout + result.stderr
         self.assertNotIn("SECRET1", combined_output)
         self.assertNotIn("Private Passenger", combined_output)
     def test_json_usage_error_still_returns_machine_readable_envelope(self) -> None:
-        result = self.run_cli("--json", "validate")
+        result = self.run_cli("--json", "diagnose", "validate")
 
         self.assertEqual(result.returncode, 2)
         obj = self.parse_stdout_json(result)
-        self.assert_envelope(obj, ok=False, command="validate")
+        self.assert_envelope(obj, ok=False, command="diagnose")
         self.assertEqual(obj["error"]["code"], "usage_error")
         self.assertIn("--input", obj["error"]["message"])
         self.assertNotIn("usage:", result.stderr.lower())
 
-    def test_direct_make_script_writes_private_ics_artifact(self) -> None:
+    def test_build_make_keeps_private_artifact_modes_under_permissive_umask(self) -> None:
         with tempfile.TemporaryDirectory() as td:
-            output = Path(td) / "direct-trip.ics"
+            output_dir = Path(td) / "umask-bundle"
             old_umask = os.umask(0o022)
             try:
-                result = subprocess.run(
-                    [sys.executable, str(MAKE), "--input", str(TEMPLATE), "--output", str(output)],
-                    cwd=ROOT,
-                    env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-                    text=True,
-                    capture_output=True,
-                    timeout=20,
-                )
+                result = self.run_cli("--json", "build", "make", "--input", str(TEMPLATE), "--output-dir", str(output_dir))
             finally:
                 os.umask(old_umask)
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertTrue(output.exists())
-            self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
+            for artifact in ["flights.ics", "itinerary.json", "envelope.json"]:
+                path = output_dir / artifact
+                self.assertTrue(path.exists(), artifact)
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600, artifact)
 
     def test_provider_timezone_map_uses_skill_bundled_catalog_without_local_fallback(self) -> None:
         module = self.import_cli_module()
@@ -811,7 +778,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertNotIn("SVO", sentinel_tz_map)
 
     def test_aeroflot_parser_accepts_spa_fragment_deeplink(self) -> None:
-        module = self.import_script_module("aeroflot_pnr_to_itinerary.py", "aeroflot_pnr_to_itinerary_test")
+        module = self.import_carrier_module("aeroflot")
         key = "a" * 128
         url = f"https://www.aeroflot.ru/sb/pnr/app/ru-ru#/pnr?pnr_key={key}&pnr_locator=ABC123"
 
@@ -822,7 +789,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertEqual(booking_url, url)
 
     def test_aeroflot_name_search_generates_deeplink_without_browser_automation(self) -> None:
-        module = self.import_script_module("aeroflot_pnr_to_itinerary.py", "aeroflot_pnr_to_itinerary_test")
+        module = self.import_carrier_module("aeroflot")
         calls: list[dict] = []
 
         def fake_post(payload: dict, *, timeout: int = 45, referer: str | None = None) -> dict:
@@ -871,7 +838,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         )
 
     def test_aeroflot_name_search_retries_with_first_name_when_surname_is_ambiguous(self) -> None:
-        module = self.import_script_module("aeroflot_pnr_to_itinerary.py", "aeroflot_pnr_to_itinerary_test")
+        module = self.import_carrier_module("aeroflot")
         calls: list[dict] = []
 
         def fake_post(payload: dict, *, timeout: int = 45, referer: str | None = None) -> dict:
@@ -900,21 +867,22 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertEqual(calls[0]["first_name"], "")
         self.assertEqual(calls[1]["first_name"], "Ivan")
 
-    def test_aeroflot_cli_accepts_locator_and_surname_without_existing_pnr_key(self) -> None:
+    def test_build_aeroflot_accepts_locator_and_surname_without_existing_pnr_key(self) -> None:
         module = self.import_cli_module()
         parser = module.build_parser()
 
         args = parser.parse_args(
             [
+                "build",
                 "aeroflot",
                 "--pnr-locator",
                 "ABC123",
                 "--last-name",
                 "Ivanov",
-                "--output-json",
-                "/tmp/aeroflot.json",
             ]
         )
+
+        self.assertEqual(args.route, "aeroflot")
 
         self.assertEqual(args.pnr_locator, "ABC123")
         self.assertEqual(args.last_name, "Ivanov")
@@ -980,8 +948,9 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             module.aeroflot.fetch_aeroflot_pnr = original_fetch
             module.airport_catalog.load_airport_timezones = original_catalog
 
-    def test_direct_aeroflot_helper_writes_private_artifacts_without_network(self) -> None:
-        module = self.import_script_module("aeroflot_pnr_to_itinerary.py", "aeroflot_pnr_to_itinerary_test")
+    def test_aeroflot_command_writes_private_artifacts_without_network(self) -> None:
+        module = self.import_cli_module()
+        carrier = self.import_carrier_module("aeroflot")
 
         fake_response = {
             "pnr_locator": "ABC123",
@@ -1010,33 +979,33 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 }
             ],
         }
-        original_fetch = module.fetch_aeroflot_pnr
+        original_fetch = carrier.fetch_aeroflot_pnr
         original_catalog = module.airport_catalog.load_airport_timezones
-        module.fetch_aeroflot_pnr = lambda _locator, _key: fake_response
+        carrier.fetch_aeroflot_pnr = lambda _locator, _key: fake_response
         module.airport_catalog.load_airport_timezones = lambda catalog_path=None: {"KUF": "Asia/Tokyo", "SVX": "Asia/Tokyo"}
         with tempfile.TemporaryDirectory() as td:
             output_json = Path(td) / "aeroflot.json"
             output_ics = Path(td) / "aeroflot.ics"
+            args = argparse.Namespace(
+                url=None,
+                pnr_locator="ABC123",
+                pnr_key="a" * 64,
+                last_name=None,
+                first_name=None,
+                output_json=output_json,
+                output_ics=output_ics,
+                tz=[],
+                no_alarms=True,
+            )
             old_umask = os.umask(0o022)
             try:
                 stdout = StringIO()
                 stderr = StringIO()
                 with redirect_stdout(stdout), redirect_stderr(stderr):
-                    rc = module.main(
-                        [
-                            "--pnr-locator",
-                            "ABC123",
-                            "--pnr-key",
-                            "a" * 64,
-                            "--output-json",
-                            str(output_json),
-                            "--output-ics",
-                            str(output_ics),
-                        ]
-                    )
+                    rc, _data = module.command_aeroflot(args, [])
             finally:
                 os.umask(old_umask)
-                module.fetch_aeroflot_pnr = original_fetch
+                carrier.fetch_aeroflot_pnr = original_fetch
                 module.airport_catalog.load_airport_timezones = original_catalog
 
             self.assertEqual(rc, 0)
@@ -1052,11 +1021,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             self.assertEqual(saved_itinerary["flights"][0]["arrival"]["tz"], "Asia/Tokyo")
 
     def test_redwings_url_parser_accepts_find_route_and_rejects_order_route(self) -> None:
-        spec = importlib.util.spec_from_file_location("redwings_to_itinerary_test", REDWINGS)
-        self.assertIsNotNone(spec)
-        self.assertIsNotNone(spec.loader)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = self.import_carrier_module("redwings")
 
         direct_url = "https://flyredwings.com/booking/#/find/AB12CD/EMAILKEY123/Submit"
         locator, finder_code, booking_url = module.parse_redwings_source(direct_url, None, None)
@@ -1215,7 +1180,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             module.airport_catalog.load_airport_timezones = original_catalog
 
     def test_ural_url_parser_decodes_tracking_redirect_without_local_env(self) -> None:
-        module = self.import_script_module("ural_airlines_to_itinerary.py", "ural_airlines_to_itinerary_test")
+        module = self.import_carrier_module("ural")
 
         target = "https://service.uralairlines.ru/?pnr=ZZ9ZZZ&lastName=DOE"
         redirect = "https://tracker.example/click?u=https%3A%2F%2Fservice.uralairlines.ru%2F%3Fpnr%3DZZ9ZZZ%26lastName%3DDOE"
@@ -1338,7 +1303,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             module.airport_catalog.load_airport_timezones = original_catalog
 
     def test_utair_url_parser_handles_cyrillic_surname(self) -> None:
-        module = self.import_script_module("utair_to_itinerary.py", "utair_to_itinerary_test")
+        module = self.import_carrier_module("utair")
 
         url = "https://www.utair.ru/order-manage?rloc=zz9zzz&last_name=%D0%98%D0%92%D0%90%D0%9D%D0%9E%D0%92%D0%90&utm_source=mail"
 

@@ -11,19 +11,14 @@ link on any device.
 """
 from __future__ import annotations
 
-import argparse
 import json
 import re
 import sys
-from pathlib import Path
 from typing import Any, NoReturn
 from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
 
-from flight_calendar import timezone_catalog as airport_catalog
-from flight_calendar import ics_render
-from flight_calendar.common import parse_tz_overrides, secure_write_text
 
 AEROFLOT_BASE = "https://www.aeroflot.ru"
 AEROFLOT_APP_URL = AEROFLOT_BASE + "/sb/pnr/app/ru-ru"
@@ -309,52 +304,3 @@ def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_u
         "notes": "Сформировано из данных страницы управления бронированием Аэрофлота.",
         "flights": flights,
     }
-
-
-def maybe_generate_ics(input_json: Path, output_ics: Path) -> None:
-    data = ics_render.load_input(input_json)
-    try:
-        ics_text, summaries = ics_render.build_calendar(data)
-        ics_render.validate_ics_text(ics_text, len(summaries))
-    except ValueError as exc:
-        die(str(exc))
-    secure_write_text(output_ics, ics_text)
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Convert Aeroflot PNR URL/API data to flight-calendar-ics JSON/ICS.")
-    parser.add_argument("--url", help="Aeroflot PNR share URL containing pnrKey and pnrLocator")
-    parser.add_argument("--pnr-locator", help="Booking locator, if not using --url")
-    parser.add_argument("--pnr-key", help="PNR key, if not using --url")
-    parser.add_argument("--last-name", help="Passenger surname; used to generate pnr_key when --pnr-key/--url is absent")
-    parser.add_argument("--first-name", help="Passenger first name fallback for ambiguous surname searches")
-    parser.add_argument("--output-json", required=True, type=Path, help="Where to write itinerary JSON")
-    parser.add_argument("--output-ics", type=Path, help="Optional .ics path to generate immediately")
-    parser.add_argument("--tz", action="append", default=[], help="Timezone override CODE=Area/City; repeatable")
-    args = parser.parse_args(argv)
-
-    locator, key, booking_url = resolve_pnr_source(args.url, args.pnr_locator, args.pnr_key, args.last_name, args.first_name)
-    tz_map = airport_catalog.build_timezone_map(parse_tz_overrides(args.tz, fail=die))
-    data = fetch_aeroflot_pnr(locator, key)
-    itinerary = convert_to_itinerary(data, tz_map, booking_url=booking_url)
-    secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
-
-    if args.output_ics:
-        args.output_ics.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        maybe_generate_ics(args.output_json, args.output_ics)
-
-    segments = [
-        {
-            "flight_number": f["flight_number"],
-            "route": f"{f['departure']['airport']}->{f['arrival']['airport']}",
-            "departure_local": f["departure"]["local"],
-            "arrival_local": f["arrival"]["local"],
-        }
-        for f in itinerary["flights"]
-    ]
-    print(json.dumps({"ok": True, "segments": segments, "json": str(args.output_json), "ics": str(args.output_ics) if args.output_ics else None}, ensure_ascii=False, indent=2))
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

@@ -10,14 +10,11 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
 
-from flight_calendar import timezone_catalog as airport_catalog
-from flight_calendar.common import parse_tz_overrides, secure_write_text
 
 UTAIR_WEB_BASE = "https://www.utair.ru/"
 UTAIR_API_BASE = "https://b.utair.ru/"
@@ -383,28 +380,3 @@ def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_u
         "notes": "Сформировано из данных страницы управления бронированием Utair.",
         "flights": flights,
     }
-
-
-def main(argv: list[str] | None = None) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Convert Utair manage-booking URL/API data to flight-calendar-ics JSON.")
-    parser.add_argument("--url", help="Utair order-manage URL containing rloc and last_name")
-    parser.add_argument("--rloc", help="Booking locator, if not using --url")
-    parser.add_argument("--last-name", help="Passenger surname, if not using --url")
-    parser.add_argument("--output-json", required=True, type=Path, help="Where to write itinerary JSON")
-    parser.add_argument("--tz", action="append", default=[], help="Timezone override CODE=Area/City; repeatable")
-    args = parser.parse_args(argv)
-
-    locator, last_name, booking_url = parse_utair_source(args.url, args.rloc, args.last_name)
-    token = fetch_utair_token()
-    orders = fetch_utair_orders(locator, last_name, token=token)
-    tz_map = airport_catalog.build_timezone_map(parse_tz_overrides(args.tz, fail=die))
-    itinerary = convert_to_itinerary(orders, tz_map, booking_url=booking_url)
-    secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
-    print(json.dumps({"ok": True, "segments": len(itinerary["flights"]), "json": str(args.output_json)}, ensure_ascii=False))
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

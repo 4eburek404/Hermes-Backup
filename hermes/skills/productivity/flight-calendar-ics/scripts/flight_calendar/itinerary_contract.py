@@ -17,7 +17,7 @@ from typing import Any, Iterable
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 SCHEMA_VERSION = "flight-calendar-ics-itinerary.v1"
-SCHEMA_PATH = Path(__file__).resolve().parents[1] / "schemas" / "itinerary.v1.schema.json"
+SCHEMA_PATH = Path(__file__).resolve().parents[2] / "schemas" / "itinerary.v1.schema.json"
 UTC = dt.timezone.utc
 PLACEHOLDERS = {"", "tbd", "todo", "unknown", "none", "null", "n/a", "na", "?"}
 

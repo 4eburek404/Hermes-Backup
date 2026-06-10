@@ -14,14 +14,11 @@ import re
 import subprocess
 import tempfile
 import time
-from pathlib import Path
 from typing import Any, NamedTuple
 from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
 
-from flight_calendar import timezone_catalog as airport_catalog
-from flight_calendar.common import parse_tz_overrides, secure_write_text
 
 URAL_SERVICE_BASE = "https://service.uralairlines.ru/"
 DEFAULT_ENV_PATH = "/<version>/env/env.json"
@@ -431,27 +428,3 @@ def convert_to_itinerary(data_or_response: dict[str, Any], tz_map: dict[str, str
         "notes": "Сформировано из данных страницы управления бронированием Уральских авиалиний.",
         "flights": flights,
     }
-
-
-def main(argv: list[str] | None = None) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Convert Ural Airlines manage-booking URL/API data to flight-calendar-ics JSON.")
-    parser.add_argument("--url", help="Ural Airlines manage-booking URL containing pnr and lastName")
-    parser.add_argument("--pnr", help="Booking locator, if not using --url")
-    parser.add_argument("--last-name", help="Passenger surname, if not using --url")
-    parser.add_argument("--output-json", required=True, type=Path, help="Where to write itinerary JSON")
-    parser.add_argument("--tz", action="append", default=[], help="Timezone override CODE=Area/City; repeatable")
-    args = parser.parse_args(argv)
-
-    locator, last_name, booking_url = parse_ural_source(args.url, args.pnr, args.last_name)
-    reservation = fetch_ural_reservation(locator, last_name, booking_url=booking_url)
-    tz_map = airport_catalog.build_timezone_map(parse_tz_overrides(args.tz, fail=die))
-    itinerary = convert_to_itinerary(reservation, tz_map, booking_url=booking_url)
-    secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
-    print(json.dumps({"ok": True, "segments": len(itinerary["flights"]), "json": str(args.output_json)}, ensure_ascii=False))
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
