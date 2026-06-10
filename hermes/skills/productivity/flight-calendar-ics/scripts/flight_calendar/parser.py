@@ -16,14 +16,11 @@ import sys
 from pathlib import Path
 from typing import Any, Callable
 
-import aeroflot_pnr_to_itinerary as aeroflot
-import itinerary_contract
-import make_flight_ics
-import timezone_catalog as airport_catalog
-import ural_airlines_to_itinerary as ural
-import utair_to_itinerary as utair
-import redwings_to_itinerary as redwings
-from flight_calendar_common import parse_tz_overrides, secure_write_text
+from flight_calendar import itinerary_contract
+from flight_calendar.carriers import aeroflot, redwings, ural, utair
+from flight_calendar import ics_render as make_flight_ics
+from flight_calendar import timezone_catalog as airport_catalog
+from flight_calendar.common import parse_tz_overrides, secure_write_text
 from flight_calendar.contracts import (
     BUILD_ROUTE_CHOICES,
     COMMANDS,
@@ -177,11 +174,11 @@ def command_doctor(_args: argparse.Namespace, process: list[dict[str, Any]]) -> 
         "schema_version": SCHEMA_VERSION,
         "commands": COMMANDS,
         "legacy_scripts": [
-            "scripts/make_flight_ics.py",
-            "scripts/aeroflot_pnr_to_itinerary.py",
-            "scripts/ural_airlines_to_itinerary.py",
-            "scripts/utair_to_itinerary.py",
-            "scripts/redwings_to_itinerary.py",
+            "scripts/flight_calendar/ics_render.py",
+            "scripts/flight_calendar/carriers/aeroflot.py",
+            "scripts/flight_calendar/carriers/ural.py",
+            "scripts/flight_calendar/carriers/utair.py",
+            "scripts/flight_calendar/carriers/redwings.py",
         ],
         "json_contract": {
             "ok": "boolean",

@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-import make_flight_ics
+from flight_calendar import ics_render as make_flight_ics
 from flight_calendar.envelope import CliFailure, add_step
 
 

@@ -25,12 +25,21 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / "scripts" / "flight_calendar_ics.py"
-MAKE = ROOT / "scripts" / "make_flight_ics.py"
-AEROFLOT = ROOT / "scripts" / "aeroflot_pnr_to_itinerary.py"
-REDWINGS = ROOT / "scripts" / "redwings_to_itinerary.py"
+MAKE = ROOT / "scripts" / "flight_calendar" / "ics_render.py"
+AEROFLOT = ROOT / "scripts" / "flight_calendar" / "carriers" / "aeroflot.py"
+REDWINGS = ROOT / "scripts" / "flight_calendar" / "carriers" / "redwings.py"
+URAL = ROOT / "scripts" / "flight_calendar" / "carriers" / "ural.py"
+UTAIR = ROOT / "scripts" / "flight_calendar" / "carriers" / "utair.py"
 TEMPLATE = ROOT / "templates" / "aeroflot-itinerary.example.json"
 SCHEMA = ROOT / "schemas" / "cli-envelope.v1.schema.json"
 ITINERARY_SCHEMA = ROOT / "schemas" / "itinerary.v1.schema.json"
+
+_LEGACY_SCRIPT_MAP = {
+    "aeroflot_pnr_to_itinerary.py": AEROFLOT,
+    "ural_airlines_to_itinerary.py": URAL,
+    "utair_to_itinerary.py": UTAIR,
+    "redwings_to_itinerary.py": REDWINGS,
+}
 
 
 class FlightCalendarIcsCliContractTests(unittest.TestCase):
@@ -68,10 +77,11 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         old_path = list(sys.path)
         if script_dir not in sys.path:
             sys.path.insert(0, script_dir)
+        resolved = _LEGACY_SCRIPT_MAP.get(filename, ROOT / "scripts" / filename)
         try:
             spec = importlib.util.spec_from_file_location(
                 module_name or f"{Path(filename).stem}_test",
-                ROOT / "scripts" / filename,
+                resolved,
             )
             self.assertIsNotNone(spec)
             self.assertIsNotNone(spec.loader)

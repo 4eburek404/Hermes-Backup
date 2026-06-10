@@ -9,7 +9,7 @@ Calendar generation must convert each segment from local airport time to UTC usi
 ## Owner surfaces
 
 - Asset: `data/airport-timezones.json`.
-- Loader/generator: `scripts/timezone_catalog.py`.
+- Loader/generator: `scripts/flight_calendar/timezone_catalog.py`.
 - Diagnostics: `diagnose timezone inspect` and `maint timezone-catalog inspect`.
 - Tests: route/bundle/timezone contract tests.
 

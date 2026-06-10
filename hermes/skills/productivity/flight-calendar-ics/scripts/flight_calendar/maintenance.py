@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-import timezone_catalog as airport_catalog
+from flight_calendar import timezone_catalog as airport_catalog
 
 GENERATED_IGNORED = ["__pycache__/", ".pytest_cache/", "*.pyc"]
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")

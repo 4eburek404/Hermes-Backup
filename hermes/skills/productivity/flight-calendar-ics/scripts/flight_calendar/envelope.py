@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from flight_calendar.contracts import SCHEMA_VERSION
-from flight_calendar_common import secure_write_text
+from flight_calendar.common import secure_write_text
 
 
 class CliFailure(Exception):

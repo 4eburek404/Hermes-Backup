@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import timezone_catalog as airport_catalog
+from flight_calendar import timezone_catalog as airport_catalog
 from flight_calendar.envelope import add_step
 
 
