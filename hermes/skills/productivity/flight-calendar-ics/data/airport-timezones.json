@@ -1,6 +1,6 @@
 {
-  "schema_version": "travelpayouts-airport-timezones.v1",
-  "source": "Derived from Travelpayouts plugin airport cache; only code -> time_zone is retained.",
+  "schema_version": "airport-timezones.v1",
+  "source": "Compact derived airport catalog; only code -> time_zone is retained.",
   "source_files": [
     {
       "filename": "airports_en.json",

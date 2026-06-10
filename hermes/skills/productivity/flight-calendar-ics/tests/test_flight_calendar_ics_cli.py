@@ -762,12 +762,12 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             self.assertTrue(output.exists())
             self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
 
-    def test_provider_timezone_map_uses_skill_bundled_travelpayouts_catalog_without_local_fallback(self) -> None:
+    def test_provider_timezone_map_uses_skill_bundled_catalog_without_local_fallback(self) -> None:
         module = self.import_cli_module()
-        catalog_path = ROOT / "assets" / "travelpayouts" / "airport_timezones.json"
+        catalog_path = ROOT / "data" / "airport-timezones.json"
 
-        catalog = module.load_travelpayouts_airport_timezones()
-        document = module.load_travelpayouts_airport_timezone_document()
+        catalog = module.load_airport_timezones()
+        document = module.load_airport_timezone_document()
         tz_map = module.build_timezone_map({"KUF": "Asia/Shanghai"})
 
         self.assertTrue(catalog_path.exists())
@@ -785,7 +785,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             sentinel_catalog.write_text(
                 json.dumps(
                     {
-                        "schema_version": "travelpayouts-airport-timezones.v1",
+                        "schema_version": "airport-timezones.v1",
                         "source": "test-sentinel-catalog",
                         "source_files": ["test-fixture"],
                         "timezones": {"KUF": "Asia/Tokyo", "SVX": "Pacific/Auckland"},

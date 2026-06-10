@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Minimal Travelpayouts airport timezone catalog support for flight-calendar-ics.
+"""Minimal airport timezone catalog support for flight-calendar-ics.
 
-The Travelpayouts plugin keeps large airport reference JSON files with many
-fields. This skill only needs one field for calendar correctness: IATA airport
-code -> IANA timezone. The bundled asset is therefore a compact derived catalog,
-not a copy of every Travelpayouts dictionary.
+The bundled asset is a compact derived catalog with a single field needed for
+calendar correctness: IATA airport code -> IANA timezone. It is not a copy of
+any full airport reference dictionary; only ``code -> time_zone`` is retained.
 """
 from __future__ import annotations
 
@@ -15,10 +14,10 @@ import re
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = "travelpayouts-airport-timezones.v1"
+SCHEMA_VERSION = "airport-timezones.v1"
 RAW_AIRPORT_FILENAMES = ("airports_en.json", "airports_ru.json", "airports.json")
 SKILL_DIR = Path(__file__).resolve().parents[1]
-CATALOG_PATH = SKILL_DIR / "assets" / "travelpayouts" / "airport_timezones.json"
+CATALOG_PATH = SKILL_DIR / "data" / "airport-timezones.json"
 IATA_RE = re.compile(r"^[A-Z0-9]{3}$")
 
 
@@ -35,11 +34,10 @@ def _looks_like_iata_timezone(code: str, timezone: str) -> bool:
 
 
 def extract_airport_timezones(source_dir: Path) -> tuple[dict[str, str], list[dict[str, Any]]]:
-    """Extract only IATA -> IANA timezone entries from Travelpayouts airport JSON files.
+    """Extract only IATA -> IANA timezone entries from raw airport JSON files.
 
-    Source precedence matches the previous reader order: airports_en.json,
-    airports_ru.json, then airports.json. Later files can replace earlier values
-    if Travelpayouts differs across localized catalogs.
+    Source precedence is airports_en.json, airports_ru.json, then airports.json.
+    Later files can replace earlier values if localized catalogs differ.
     """
     timezones: dict[str, str] = {}
     source_files: list[dict[str, Any]] = []
@@ -74,7 +72,7 @@ def build_catalog_document(source_dir: Path) -> dict[str, Any]:
     timezones, source_files = extract_airport_timezones(source_dir)
     return {
         "schema_version": SCHEMA_VERSION,
-        "source": "Derived from Travelpayouts plugin airport cache; only code -> time_zone is retained.",
+        "source": "Compact derived airport catalog; only code -> time_zone is retained.",
         "source_files": source_files,
         "timezones": timezones,
     }
@@ -112,12 +110,11 @@ def load_airport_timezones(catalog_path: Path | None = None) -> dict[str, str]:
 
 
 def build_timezone_map(overrides: dict[str, str] | None = None, *, catalog_path: Path | None = None) -> dict[str, str]:
-    """Build timezone map: bundled Travelpayouts catalog < explicit overrides.
+    """Build timezone map: bundled catalog < explicit overrides.
 
     There is intentionally no local/manual fallback map here. If an airport is
-    missing from the Travelpayouts-derived asset, update the asset from the
-    Travelpayouts airport cache or pass a deliberate explicit override supplied
-    by the user/operator.
+    missing from the bundled asset, regenerate the asset from the raw airport
+    cache or pass a deliberate explicit override supplied by the user/operator.
     """
     timezone_map = load_airport_timezones(catalog_path)
     for code, timezone in (overrides or {}).items():
@@ -139,12 +136,12 @@ def catalog_metadata(catalog_path: Path | None = None) -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Build or inspect the flight-calendar-ics Travelpayouts airport timezone asset.")
+    parser = argparse.ArgumentParser(description="Build or inspect the flight-calendar-ics airport timezone asset.")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    build = sub.add_parser("build", help="Extract code -> time_zone from Travelpayouts airport JSON cache files")
+    build = sub.add_parser("build", help="Extract code -> time_zone from raw airport JSON cache files")
     build.add_argument("--source-dir", required=True, type=Path, help="Directory containing airports_en.json, airports_ru.json, airports.json")
-    build.add_argument("--output", type=Path, default=CATALOG_PATH, help="Output airport_timezones.json path")
+    build.add_argument("--output", type=Path, default=CATALOG_PATH, help="Output airport-timezones.json path")
 
     inspect = sub.add_parser("inspect", help="Print metadata for the bundled timezone asset")
     inspect.add_argument("--catalog", type=Path, default=CATALOG_PATH, help="Catalog asset path")

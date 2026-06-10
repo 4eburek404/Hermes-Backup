@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-import travelpayouts_airport_catalog as airport_catalog
+import timezone_catalog as airport_catalog
 
 GENERATED_IGNORED = ["__pycache__/", ".pytest_cache/", "*.pyc"]
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
@@ -174,7 +174,7 @@ def clean_dry_run_report(target_dir: Path) -> dict[str, Any]:
 
 
 def timezone_catalog_report(skill_root: Path) -> dict[str, Any]:
-    catalog_path = skill_root / "assets" / "travelpayouts" / "airport_timezones.json"
+    catalog_path = skill_root / "data" / "airport-timezones.json"
     document = airport_catalog.load_catalog_document(catalog_path)
     timezones = airport_catalog.load_airport_timezones(catalog_path)
     return {

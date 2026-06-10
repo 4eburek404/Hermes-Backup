@@ -20,26 +20,12 @@ from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
 
-import travelpayouts_airport_catalog as airport_catalog
+import timezone_catalog as airport_catalog
 from flight_calendar_common import parse_tz_overrides, secure_write_text
 
 URAL_SERVICE_BASE = "https://service.uralairlines.ru/"
 DEFAULT_ENV_PATH = "/<version>/env/env.json"
 
-DEFAULT_AIRPORT_CITY = {
-    "DME": "Москва",
-    "SVO": "Москва",
-    "VKO": "Москва",
-    "ZIA": "Москва",
-    "LED": "Санкт-Петербург",
-    "SVX": "Екатеринбург",
-    "AER": "Сочи",
-    "KUF": "Самара",
-    "KZN": "Казань",
-    "OVB": "Новосибирск",
-    "TJM": "Тюмень",
-    "UFA": "Уфа",
-}
 
 
 class FrontendAssets(NamedTuple):
@@ -410,13 +396,11 @@ def convert_to_itinerary(data_or_response: dict[str, Any], tz_map: dict[str, str
                     "flight_number": flight_number,
                     "departure": {
                         "airport": dep_code,
-                        "city": DEFAULT_AIRPORT_CITY.get(dep_code),
                         "local": local_datetime(seg.get("departureDate")),
                         "tz": tz_map[dep_code],
                     },
                     "arrival": {
                         "airport": arr_code,
-                        "city": DEFAULT_AIRPORT_CITY.get(arr_code),
                         "local": local_datetime(seg.get("arrivalDate")),
                         "tz": tz_map[arr_code],
                     },

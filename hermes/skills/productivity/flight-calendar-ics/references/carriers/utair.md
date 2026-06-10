@@ -95,11 +95,6 @@ Expected process trace:
 parse_args -> parse_pnr_source -> load_timezone_map -> fetch_utair_token -> fetch_utair_orders -> convert_to_itinerary -> build_calendar -> validate_ics -> write_json -> write_ics/skipped -> emit_json
 ```
 
-## Timezone handling
-
-Utair tickets print local times. Convert to UTC `DTSTART`/`DTEND` using per-airport IANA timezones from the bundled catalog or explicit `--tz CODE=Area/City`.
-
-If an airport timezone is unknown, stop with a clear redacted error and support `--tz` override. Do not assume one timezone for all airports.
 
 ## Privacy
 

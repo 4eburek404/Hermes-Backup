@@ -8,8 +8,8 @@ Calendar generation must convert each segment from local airport time to UTC usi
 
 ## Owner surfaces
 
-- Asset: `assets/travelpayouts/airport_timezones.json`.
-- Loader/generator: `scripts/travelpayouts_airport_catalog.py`.
+- Asset: `data/airport-timezones.json`.
+- Loader/generator: `scripts/timezone_catalog.py`.
 - Diagnostics: `diagnose timezone inspect` and `maint timezone-catalog inspect`.
 - Tests: route/bundle/timezone contract tests.
 

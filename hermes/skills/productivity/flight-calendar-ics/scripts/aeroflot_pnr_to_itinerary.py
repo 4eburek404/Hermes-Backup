@@ -22,7 +22,7 @@ from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
 
-import travelpayouts_airport_catalog as airport_catalog
+import timezone_catalog as airport_catalog
 from flight_calendar_common import parse_tz_overrides, secure_write_text
 
 AEROFLOT_BASE = "https://www.aeroflot.ru"

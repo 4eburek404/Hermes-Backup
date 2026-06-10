@@ -19,7 +19,7 @@ from typing import Any, Callable
 import aeroflot_pnr_to_itinerary as aeroflot
 import itinerary_contract
 import make_flight_ics
-import travelpayouts_airport_catalog as airport_catalog
+import timezone_catalog as airport_catalog
 import ural_airlines_to_itinerary as ural
 import utair_to_itinerary as utair
 import redwings_to_itinerary as redwings
@@ -66,8 +66,8 @@ from flight_calendar.segments import itinerary_flight_segments, safe_segment_sum
 from flight_calendar.timezones import (
     add_timezone_map_step,
     build_timezone_map,
-    load_travelpayouts_airport_timezone_document,
-    load_travelpayouts_airport_timezones,
+    load_airport_timezone_document,
+    load_airport_timezones,
 )
 
 SKILL_ROOT = Path(__file__).resolve().parents[2]
@@ -84,12 +84,12 @@ def parse_cli_tz_overrides(items: list[str]) -> dict[str, str]:
     return parse_tz_overrides(items, fail=_fail_usage)
 
 
-def load_travelpayouts_airport_timezone_document(catalog_path: Path | None = None) -> dict[str, Any]:
+def load_airport_timezone_document(catalog_path: Path | None = None) -> dict[str, Any]:
     """Backward-compatible wrapper around the bundled airport timezone catalog."""
     return airport_catalog.load_catalog_document(catalog_path)
 
 
-def load_travelpayouts_airport_timezones(catalog_path: Path | None = None) -> dict[str, str]:
+def load_airport_timezones(catalog_path: Path | None = None) -> dict[str, str]:
     """Backward-compatible wrapper around the bundled airport timezone map."""
     return airport_catalog.load_airport_timezones(catalog_path)
 
@@ -388,7 +388,7 @@ def command_aeroflot(args: argparse.Namespace, process: list[dict[str, Any]]) ->
     )
     add_step(process, "parse_pnr_source")
     timezone_overrides = parse_cli_tz_overrides(args.tz)
-    airport_catalog_timezones = load_travelpayouts_airport_timezones()
+    airport_catalog_timezones = load_airport_timezones()
     tz_map = build_timezone_map(timezone_overrides)
     add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
     data = aeroflot.fetch_aeroflot_pnr(locator, key)
@@ -422,7 +422,7 @@ def command_ural(args: argparse.Namespace, process: list[dict[str, Any]]) -> tup
     locator, last_name, booking_url = ural.parse_ural_source(args.url, args.pnr, args.last_name)
     add_step(process, "parse_pnr_source")
     timezone_overrides = parse_cli_tz_overrides(args.tz)
-    airport_catalog_timezones = load_travelpayouts_airport_timezones()
+    airport_catalog_timezones = load_airport_timezones()
     tz_map = build_timezone_map(timezone_overrides)
     add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
     reservation = ural.fetch_ural_reservation(
@@ -461,7 +461,7 @@ def command_utair(args: argparse.Namespace, process: list[dict[str, Any]]) -> tu
     locator, last_name, booking_url = utair.parse_utair_source(args.url, args.rloc, args.last_name)
     add_step(process, "parse_pnr_source")
     timezone_overrides = parse_cli_tz_overrides(args.tz)
-    airport_catalog_timezones = load_travelpayouts_airport_timezones()
+    airport_catalog_timezones = load_airport_timezones()
     tz_map = build_timezone_map(timezone_overrides)
     add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
     token = utair.fetch_utair_token()
@@ -497,7 +497,7 @@ def command_redwings(args: argparse.Namespace, process: list[dict[str, Any]]) ->
     locator, finder_code, booking_url = redwings.parse_redwings_source(args.url, args.pnr, args.access_code)
     add_step(process, "parse_redwings_source")
     timezone_overrides = parse_cli_tz_overrides(args.tz)
-    airport_catalog_timezones = load_travelpayouts_airport_timezones()
+    airport_catalog_timezones = load_airport_timezones()
     tz_map = build_timezone_map(timezone_overrides)
     add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
     order = redwings.fetch_redwings_order(locator, finder_code, graphql_endpoint=args.graphql_endpoint)

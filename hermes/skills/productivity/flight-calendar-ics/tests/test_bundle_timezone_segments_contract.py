@@ -64,10 +64,10 @@ class BundleTimezoneSegmentsContractTests(unittest.TestCase):
             self.assertEqual(file_mode(path), "644")
 
     def test_timezone_helpers_use_bundled_catalog_and_record_process_step(self) -> None:
-        from flight_calendar.timezones import add_timezone_map_step, build_timezone_map, load_travelpayouts_airport_timezones
+        from flight_calendar.timezones import add_timezone_map_step, build_timezone_map, load_airport_timezones
 
         overrides = {"SVX": "Asia/Yekaterinburg"}
-        catalog = load_travelpayouts_airport_timezones()
+        catalog = load_airport_timezones()
         tz_map = build_timezone_map(overrides)
         process: list[dict[str, object]] = []
         add_timezone_map_step(process, catalog, overrides_count=len(overrides))
@@ -76,7 +76,7 @@ class BundleTimezoneSegmentsContractTests(unittest.TestCase):
         self.assertIn("DME", catalog)
         self.assertEqual(process[0]["step"], "load_timezone_map")
         self.assertEqual(process[0]["status"], "ok")
-        self.assertEqual(process[0]["catalog_source"], "skill-bundled-travelpayouts-airport-timezones")
+        self.assertEqual(process[0]["catalog_source"], "skill-bundled-airport-timezones")
         self.assertEqual(process[0]["overrides_count"], 1)
         self.assertGreater(process[0]["catalog_timezones_count"], 0)
 

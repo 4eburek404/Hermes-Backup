@@ -16,37 +16,12 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, unquote, urlparse
 from urllib.request import Request, urlopen
 
-import travelpayouts_airport_catalog as airport_catalog
+import timezone_catalog as airport_catalog
 from flight_calendar_common import parse_tz_overrides, secure_write_text
 
 REDWINGS_BOOKING_BASE = "https://flyredwings.com/booking/"
 REDWINGS_GRAPHQL_ENDPOINT = "https://wz.webskyx.com/graphql/query/nemo"
 
-DEFAULT_AIRPORT_CITY = {
-    "AER": "Сочи",
-    "CEK": "Челябинск",
-    "DME": "Москва",
-    "EGO": "Белгород",
-    "GOJ": "Нижний Новгород",
-    "HMA": "Ханты-Мансийск",
-    "KUF": "Самара",
-    "KZN": "Казань",
-    "LED": "Санкт-Петербург",
-    "MCX": "Махачкала",
-    "MRV": "Минеральные Воды",
-    "NOZ": "Новокузнецк",
-    "NSK": "Норильск",
-    "NUX": "Новый Уренгой",
-    "OVB": "Новосибирск",
-    "PEE": "Пермь",
-    "SGC": "Сургут",
-    "SVO": "Москва",
-    "SVX": "Екатеринбург",
-    "TJM": "Тюмень",
-    "UFA": "Уфа",
-    "VKO": "Москва",
-    "ZIA": "Москва",
-}
 
 FIND_ORDER_QUERY = """
 mutation FindOrder($params: OrderFind) {
@@ -305,11 +280,11 @@ def point_airport(point: dict[str, Any]) -> str:
     return str(code or "").strip().upper()
 
 
-def point_city(point: dict[str, Any], code: str) -> str | None:
+def point_city(point: dict[str, Any]) -> str | None:
     airport = as_dict(point.get("airport"))
     city = as_dict(airport.get("city"))
     value = first_value(city, ["name", "title"]) or first_value(airport, ["city", "cityName"]) or first_value(point, ["city", "cityName"])
-    return str(value).strip() if clean(value) else DEFAULT_AIRPORT_CITY.get(code)
+    return str(value).strip() if clean(value) else None
 
 
 def point_local(point: dict[str, Any]) -> str:
@@ -534,14 +509,14 @@ def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_u
             "flight_number": flight_number(seg),
             "departure": {
                 "airport": dep_code,
-                "city": point_city(dep, dep_code),
+                "city": point_city(dep),
                 "terminal": first_value(dep, ["terminal"]),
                 "local": dep_local,
                 "tz": tz_map[dep_code],
             },
             "arrival": {
                 "airport": arr_code,
-                "city": point_city(arr, arr_code),
+                "city": point_city(arr),
                 "terminal": first_value(arr, ["terminal"]),
                 "local": arr_local,
                 "tz": tz_map[arr_code],

@@ -16,28 +16,12 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
 
-import travelpayouts_airport_catalog as airport_catalog
+import timezone_catalog as airport_catalog
 from flight_calendar_common import parse_tz_overrides, secure_write_text
 
 UTAIR_WEB_BASE = "https://www.utair.ru/"
 UTAIR_API_BASE = "https://b.utair.ru/"
 
-DEFAULT_AIRPORT_CITY = {
-    "SVX": "Екатеринбург",
-    "KUF": "Самара",
-    "DME": "Москва",
-    "SVO": "Москва",
-    "VKO": "Москва",
-    "ZIA": "Москва",
-    "LED": "Санкт-Петербург",
-    "TJM": "Тюмень",
-    "SGC": "Сургут",
-    "HMA": "Ханты-Мансийск",
-    "UFA": "Уфа",
-    "KZN": "Казань",
-    "OVB": "Новосибирск",
-    "AER": "Сочи",
-}
 
 
 def die(message: str) -> None:
@@ -182,10 +166,10 @@ def airport_code(seg: dict[str, Any], prefix: str) -> str:
     return str(first_value(seg, keys) or "").strip().upper()
 
 
-def city_name(seg: dict[str, Any], prefix: str, code: str) -> str | None:
+def city_name(seg: dict[str, Any], prefix: str) -> str | None:
     keys = [f"{prefix}_city", f"{prefix}_city_name"]
     value = first_value(seg, keys)
-    return str(value).strip() if clean(value) else DEFAULT_AIRPORT_CITY.get(code)
+    return str(value).strip() if clean(value) else None
 
 
 def terminal_name(seg: dict[str, Any], prefix: str) -> str | None:
@@ -355,14 +339,14 @@ def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_u
                 "flight_number": flight_number(seg),
                 "departure": {
                     "airport": dep_code,
-                    "city": city_name(seg, "departure", dep_code),
+                    "city": city_name(seg, "departure"),
                     "terminal": terminal_name(seg, "departure"),
                     "local": dep_local,
                     "tz": tz_map[dep_code],
                 },
                 "arrival": {
                     "airport": arr_code,
-                    "city": city_name(seg, "arrival", arr_code),
+                    "city": city_name(seg, "arrival"),
                     "terminal": terminal_name(seg, "arrival"),
                     "local": arr_local,
                     "tz": tz_map[arr_code],

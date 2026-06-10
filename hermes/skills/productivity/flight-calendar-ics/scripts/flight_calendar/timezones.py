@@ -4,17 +4,17 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import travelpayouts_airport_catalog as airport_catalog
+import timezone_catalog as airport_catalog
 from flight_calendar.envelope import add_step
 
 
-def load_travelpayouts_airport_timezone_document(catalog_path: Path | None = None) -> dict[str, Any]:
-    """Load the bundled minimal Travelpayouts airport timezone catalog document."""
+def load_airport_timezone_document(catalog_path: Path | None = None) -> dict[str, Any]:
+    """Load the bundled airport timezone catalog document."""
     return airport_catalog.load_catalog_document(catalog_path)
 
 
-def load_travelpayouts_airport_timezones(catalog_path: Path | None = None) -> dict[str, str]:
-    """Load IATA -> IANA timezone data from the skill-bundled Travelpayouts asset."""
+def load_airport_timezones(catalog_path: Path | None = None) -> dict[str, str]:
+    """Load IATA -> IANA timezone data from the bundled airport timezone asset."""
     return airport_catalog.load_airport_timezones(catalog_path)
 
 
@@ -23,7 +23,7 @@ def build_timezone_map(
     *,
     catalog_path: Path | None = None,
 ) -> dict[str, str]:
-    """Build timezone map: bundled Travelpayouts catalog < explicit --tz overrides."""
+    """Build timezone map: bundled catalog < explicit --tz overrides."""
     return airport_catalog.build_timezone_map(overrides, catalog_path=catalog_path)
 
 
@@ -32,7 +32,7 @@ def add_timezone_map_step(process: list[dict[str, Any]], catalog_timezones: dict
         process,
         "load_timezone_map",
         defaults_count=0,
-        catalog_source="skill-bundled-travelpayouts-airport-timezones",
+        catalog_source="skill-bundled-airport-timezones",
         catalog_timezones_count=len(catalog_timezones),
         overrides_count=overrides_count,
     )
