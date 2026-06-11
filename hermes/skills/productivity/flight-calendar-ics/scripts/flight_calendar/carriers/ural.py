@@ -15,9 +15,9 @@ import subprocess
 import tempfile
 import time
 from typing import Any, NamedTuple
-from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse
-from urllib.request import Request, urlopen
+
+from flight_calendar import carrier_http
 
 
 URAL_SERVICE_BASE = "https://service.uralairlines.ru/"
@@ -37,65 +37,31 @@ def die(message: str) -> None:
 
 
 def http_text(url: str, *, timeout: int = 45, headers: dict[str, str] | None = None) -> str:
-    req = Request(url, headers={
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "*/*",
-        "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
-        **(headers or {}),
-    })
-    try:
-        with urlopen(req, timeout=timeout) as resp:
-            raw = resp.read()
-            content_type = resp.headers.get("Content-Type", "")
-            status = getattr(resp, "status", 200)
-    except HTTPError as exc:
-        raw = exc.read()
-        content_type = exc.headers.get("Content-Type", "")
-        status = exc.code
-    text = raw.decode("utf-8", errors="replace")
-    if status >= 400:
-        die(f"Ural Airlines frontend/API returned HTTP {status} ({content_type})")
-    return text
+    return carrier_http.request_text(
+        url,
+        headers={"Accept": "*/*", **(headers or {})},
+        timeout=timeout,
+        label="Ural Airlines frontend/API",
+    )
 
 
 def http_json(url: str, *, timeout: int = 45, headers: dict[str, str] | None = None) -> Any:
-    text = http_text(url, timeout=timeout, headers={"Accept": "application/json", **(headers or {})})
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as exc:
-        die(f"Ural Airlines returned non-JSON response from {urlparse(url).path}: {exc}")
+    return carrier_http.request_json(
+        url,
+        headers={"Accept": "application/json", **(headers or {})},
+        timeout=timeout,
+        label="Ural Airlines API",
+    )
 
 
 def post_json(url: str, body: dict[str, Any], *, timeout: int = 45, headers: dict[str, str] | None = None) -> Any:
-    payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
-    req = Request(
+    return carrier_http.request_json(
         url,
-        data=payload,
-        method="POST",
-        headers={
-            "User-Agent": "Mozilla/5.0",
-            "Accept": "application/json",
-            "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
-            "Content-Type": "application/json",
-            **(headers or {}),
-        },
+        json_body=body,
+        headers={"Accept": "application/json", **(headers or {})},
+        timeout=timeout,
+        label="Ural Airlines API",
     )
-    try:
-        with urlopen(req, timeout=timeout) as resp:
-            raw = resp.read()
-            status = getattr(resp, "status", 200)
-            content_type = resp.headers.get("Content-Type", "")
-    except HTTPError as exc:
-        raw = exc.read()
-        status = exc.code
-        content_type = exc.headers.get("Content-Type", "")
-    text = raw.decode("utf-8", errors="replace")
-    if status >= 400:
-        die(f"Ural Airlines API returned HTTP {status} ({content_type})")
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as exc:
-        die(f"Ural Airlines API returned non-JSON response from {urlparse(url).path}: {exc}")
 
 
 def parse_ural_source(url: str | None, pnr: str | None, last_name: str | None) -> tuple[str, str, str]:

@@ -8,12 +8,11 @@ for the agent-facing orchestrator in ``flight_calendar_ics.py``.
 """
 from __future__ import annotations
 
-import json
 import re
 from typing import Any
-from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlencode, urlparse
-from urllib.request import Request, urlopen
+
+from flight_calendar import carrier_http
 
 
 UTAIR_WEB_BASE = "https://www.utair.ru/"
@@ -30,17 +29,12 @@ def clean(value: Any) -> Any:
 
 
 def browser_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json",
-        "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
+    return carrier_http.browser_headers({
         "Origin": "https://www.utair.ru",
         "Referer": "https://www.utair.ru/order-manage",
         "Cache-Control": "no-cache",
-    }
-    if extra:
-        headers.update(extra)
-    return headers
+        **(extra or {}),
+    })
 
 
 def parse_utair_source(url: str | None, rloc: str | None, last_name: str | None) -> tuple[str, str, str]:
@@ -75,37 +69,14 @@ def parse_utair_source(url: str | None, rloc: str | None, last_name: str | None)
     return locator, surname, booking_url
 
 
-def read_json(req: Request, *, timeout: int = 45, label: str = "Utair API") -> Any:
-    try:
-        with urlopen(req, timeout=timeout) as resp:
-            raw = resp.read()
-            status = getattr(resp, "status", 200)
-            content_type = resp.headers.get("Content-Type", "")
-    except HTTPError as exc:
-        raw = exc.read()
-        status = exc.code
-        content_type = exc.headers.get("Content-Type", "")
-    except URLError as exc:
-        die(f"{label} request failed: {exc.reason}")
-
-    text = raw.decode("utf-8", errors="replace")
-    if status >= 400:
-        die(f"{label} returned HTTP {status} ({content_type})")
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as exc:
-        die(f"{label} returned non-JSON response: {exc}")
-
-
 def fetch_utair_token(timeout: int = 45) -> str:
-    payload = urlencode({"client_id": "website_client", "grant_type": "client_credentials"}).encode("utf-8")
-    req = Request(
+    data = carrier_http.request_json(
         UTAIR_API_BASE.rstrip("/") + "/oauth/token",
-        data=payload,
-        method="POST",
-        headers=browser_headers({"Content-Type": "application/x-www-form-urlencoded"}),
+        form_body={"client_id": "website_client", "grant_type": "client_credentials"},
+        headers=browser_headers(),
+        timeout=timeout,
+        label="Utair OAuth",
     )
-    data = read_json(req, timeout=timeout, label="Utair OAuth")
     if not isinstance(data, dict):
         die("Utair OAuth response is not a JSON object")
     token = data.get("access_token")
@@ -117,11 +88,12 @@ def fetch_utair_token(timeout: int = 45) -> str:
 def fetch_utair_orders(locator: str, last_name: str, *, token: str | None = None, timeout: int = 45) -> dict[str, Any]:
     bearer = token or fetch_utair_token(timeout=timeout)
     query = urlencode({"filters[locator]": locator, "filters[passenger_lastname]": last_name})
-    req = Request(
+    data = carrier_http.request_json(
         UTAIR_API_BASE.rstrip("/") + "/api/v3/orders?" + query,
         headers=browser_headers({"Authorization": f"Bearer {bearer}"}),
+        timeout=timeout,
+        label="Utair orders API",
     )
-    data = read_json(req, timeout=timeout, label="Utair orders API")
     if not isinstance(data, dict):
         die("Utair orders API response is not a JSON object")
     if not collect_orders(data):

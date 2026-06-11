@@ -11,9 +11,9 @@ from __future__ import annotations
 import json
 import re
 from typing import Any, NoReturn
-from urllib.error import HTTPError, URLError
 from urllib.parse import quote, unquote, urlparse
-from urllib.request import Request, urlopen
+
+from flight_calendar import carrier_http
 
 
 REDWINGS_BOOKING_BASE = "https://flyredwings.com/booking/"
@@ -168,41 +168,22 @@ def parse_redwings_source(url: str | None, pnr: str | None, finder_code: str | N
 
 
 def browser_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json",
-        "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
-        "Content-Type": "application/json",
+    return carrier_http.browser_headers({
         "Origin": "https://flyredwings.com",
         "Referer": REDWINGS_BOOKING_BASE,
         "Cache-Control": "no-cache",
-    }
-    if extra:
-        headers.update(extra)
-    return headers
+        **(extra or {}),
+    })
 
 
 def post_json(url: str, body: dict[str, Any], *, timeout: int = 45) -> Any:
-    payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
-    req = Request(url, data=payload, method="POST", headers=browser_headers())
-    try:
-        with urlopen(req, timeout=timeout) as resp:
-            raw = resp.read()
-            status = getattr(resp, "status", 200)
-            content_type = resp.headers.get("Content-Type", "")
-    except HTTPError as exc:
-        raw = exc.read()
-        status = exc.code
-        content_type = exc.headers.get("Content-Type", "")
-    except URLError as exc:
-        die(f"Red Wings GraphQL request failed: {exc.reason}")
-    text = raw.decode("utf-8", errors="replace")
-    if status >= 400:
-        die(f"Red Wings GraphQL returned HTTP {status} ({content_type})")
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as exc:
-        die(f"Red Wings GraphQL returned non-JSON response: {exc}")
+    return carrier_http.request_json(
+        url,
+        json_body=body,
+        headers=browser_headers(),
+        timeout=timeout,
+        label="Red Wings GraphQL",
+    )
 
 
 def fetch_redwings_order(

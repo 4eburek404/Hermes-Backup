@@ -18,7 +18,7 @@ from typing import Any, Callable
 
 from flight_calendar.carriers import aeroflot
 from flight_calendar import itinerary_contract
-from flight_calendar import ics_render
+from flight_calendar import carrier_http, ics_render
 from flight_calendar import timezone_catalog as airport_catalog
 from flight_calendar.carriers import ural
 from flight_calendar.carriers import utair
@@ -159,6 +159,7 @@ def command_doctor(_args: argparse.Namespace, process: list[dict[str, Any]]) -> 
     data = {
         "entrypoint": str(PUBLIC_ENTRYPOINT.resolve()),
         "entrypoint_kind": "single-python-executable",
+        "http_transport": carrier_http.active_transport(),
         "schema_version": SCHEMA_VERSION,
         "commands": COMMANDS,
         "json_contract": {

@@ -2,6 +2,32 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://hermes-agent.local/schemas/flight-calendar-ics-cli.v1.json",
   "title": "flight-calendar-ics CLI envelope v1",
+  "$defs": {
+    "bundle_route": {
+      "type": "string",
+      "enum": [
+        "make",
+        "aeroflot",
+        "ural",
+        "utair",
+        "redwings"
+      ]
+    },
+    "command": {
+      "type": "string",
+      "enum": [
+        "doctor",
+        "build",
+        "diagnose",
+        "maint",
+        "unknown"
+      ]
+    },
+    "file_mode": {
+      "type": "string",
+      "pattern": "^[0-7]{3,4}$"
+    }
+  },
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -18,14 +44,7 @@
       "type": "boolean"
     },
     "command": {
-      "type": "string",
-      "enum": [
-        "doctor",
-        "build",
-        "diagnose",
-        "maint",
-        "unknown"
-      ]
+      "$ref": "#/$defs/command"
     },
     "process": {
       "type": "array",
@@ -53,14 +72,7 @@
             "type": "string"
           },
           "route": {
-            "type": "string",
-            "enum": [
-              "make",
-              "aeroflot",
-              "ural",
-              "utair",
-              "redwings"
-            ]
+            "$ref": "#/$defs/bundle_route"
           },
           "confidence": {
             "type": "number",
@@ -93,8 +105,7 @@
             ]
           },
           "mode": {
-            "type": "string",
-            "pattern": "^[0-7]{3,4}$"
+            "$ref": "#/$defs/file_mode"
           },
           "overrides_count": {
             "type": "integer",
@@ -130,14 +141,7 @@
         "commands": {
           "type": "array",
           "items": {
-            "type": "string",
-            "enum": [
-              "doctor",
-              "build",
-              "diagnose",
-              "maint",
-              "unknown"
-            ]
+            "$ref": "#/$defs/command"
           }
         },
         "surface": {
@@ -537,14 +541,7 @@
           "type": "string"
         },
         "route": {
-          "type": "string",
-          "enum": [
-            "make",
-            "aeroflot",
-            "ural",
-            "utair",
-            "redwings"
-          ]
+          "$ref": "#/$defs/bundle_route"
         },
         "route_detection": {
           "type": "object",
@@ -560,14 +557,7 @@
               "const": "auto"
             },
             "route": {
-              "type": "string",
-              "enum": [
-                "make",
-                "aeroflot",
-                "ural",
-                "utair",
-                "redwings"
-              ]
+              "$ref": "#/$defs/bundle_route"
             },
             "confidence": {
               "type": "number",
@@ -609,12 +599,10 @@
               "additionalProperties": false,
               "properties": {
                 "json": {
-                  "type": "string",
-                  "pattern": "^[0-7]{3,4}$"
+                  "$ref": "#/$defs/file_mode"
                 },
                 "ics": {
-                  "type": "string",
-                  "pattern": "^[0-7]{3,4}$"
+                  "$ref": "#/$defs/file_mode"
                 }
               }
             },
@@ -786,14 +774,7 @@
               ],
               "properties": {
                 "route": {
-                  "type": "string",
-                  "enum": [
-                    "make",
-                    "aeroflot",
-                    "ural",
-                    "utair",
-                    "redwings"
-                  ]
+                  "$ref": "#/$defs/bundle_route"
                 },
                 "route_detection_mode": {
                   "type": "string",
@@ -814,12 +795,18 @@
                   "minimum": 1
                 },
                 "ics_mode": {
-                  "type": "string",
-                  "pattern": "^[0-7]{3,4}$"
+                  "$ref": "#/$defs/file_mode"
                 }
               }
             }
           }
+        },
+        "http_transport": {
+          "type": "string",
+          "enum": [
+            "urllib",
+            "curl_cffi"
+          ]
         }
       }
     },

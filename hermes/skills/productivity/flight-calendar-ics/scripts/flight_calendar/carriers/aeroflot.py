@@ -15,9 +15,9 @@ import json
 import re
 import sys
 from typing import Any, NoReturn
-from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlencode, urlparse
-from urllib.request import Request, urlopen
+
+from flight_calendar import carrier_http
 
 
 AEROFLOT_BASE = "https://www.aeroflot.ru"
@@ -81,30 +81,19 @@ def parse_pnr_source(url: str | None, locator: str | None, key: str | None) -> t
 
 def post_aeroflot_pnr_json(payload: dict[str, Any], *, timeout: int = 45, referer: str | None = None) -> dict[str, Any]:
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    req = Request(
+    status, content_type, text = carrier_http.request_raw(
         AEROFLOT_PNR_API,
-        data=body,
+        method="POST",
         headers={
-            "User-Agent": "Mozilla/5.0",
-            "Accept": "application/json",
-            "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
             "Content-Type": "application/json",
             "X-App-Identity": "0",
             "Origin": AEROFLOT_BASE,
             "Referer": referer or AEROFLOT_APP_URL,
         },
-        method="POST",
+        body=body,
+        timeout=timeout,
+        label="Aeroflot PNR API",
     )
-    try:
-        with urlopen(req, timeout=timeout) as resp:
-            raw = resp.read()
-            content_type = resp.headers.get("Content-Type", "")
-            status = getattr(resp, "status", 200)
-    except HTTPError as exc:
-        raw = exc.read()
-        content_type = exc.headers.get("Content-Type", "")
-        status = exc.code
-    text = raw.decode("utf-8", errors="replace")
     if "text/html" in content_type or text.lstrip().startswith("<!"):
         if "ngenix" in text.lower() or "проверка вашего веб-браузера" in text.lower():
             die("Aeroflot returned an Ngenix browser-check page; retry later or fetch via a browser session")

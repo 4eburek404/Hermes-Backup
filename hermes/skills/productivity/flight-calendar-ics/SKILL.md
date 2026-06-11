@@ -65,6 +65,11 @@ Carrier references are for carrier-specific fixes only: `references/carriers/aer
 
 ## Operator Notes
 
+Dependencies: `jsonschema` is required (`pip install jsonschema --break-system-packages`).
+`curl_cffi` is optional; when installed, carrier requests use a Chrome TLS fingerprint
+(helps behind anti-bot gates such as Ngenix). The CLI auto-detects it; `doctor` reports
+the active backend in `data.http_transport`. No code changes are needed either way.
+
 - `diagnose doctor`, `diagnose route-detect`, `diagnose validate`, `diagnose bundle-check`, and `diagnose privacy-check` are diagnostic surfaces.
 - `maint contracts`, `maint refs registry-check`, `maint source-runtime diff`, and `maint audit` are read-only maintenance surfaces.
 - Runtime sync into `~/.hermes/skills/...` requires explicit approval.

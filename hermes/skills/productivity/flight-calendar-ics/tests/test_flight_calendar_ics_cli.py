@@ -144,13 +144,11 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertGreaterEqual(set(schema["required"]), {"schema_version", "ok", "command", "process"})
         properties = schema["properties"]
         self.assertEqual(properties["schema_version"]["const"], "flight-calendar-ics-cli.v1")
-        self.assertEqual(
-            properties["command"]["enum"],
-            ["doctor", "build", "diagnose", "maint", "unknown"],
-        )
-        self.assertIn("build", properties["command"]["enum"])
+        self.assertEqual(properties["command"], {"$ref": "#/$defs/command"})
+        command_enum = schema["$defs"]["command"]["enum"]
+        self.assertEqual(command_enum, ["doctor", "build", "diagnose", "maint", "unknown"])
         for legacy in ["aeroflot", "ural", "utair", "redwings", "make", "validate"]:
-            self.assertNotIn(legacy, properties["command"]["enum"])
+            self.assertNotIn(legacy, command_enum)
         self.assertIn("data", properties)
         self.assertIn("error", properties)
 
