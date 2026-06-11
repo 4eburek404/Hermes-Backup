@@ -8,38 +8,9 @@ Use this reference when the user asks for all direct/nonstop flights over a boun
 - User asks availability/schedule for a direct service across multiple days.
 - User wants “all direct” rather than cheapest/best connected routing.
 
-## Read-only workflow
+## Canonical workflow
 
-1. Normalize origin/destination to exact airport/city scope and expand the date range into individual ISO dates.
-2. Prefer the narrow direct-only live diagnostic probe for each date. Use provider-policy semantics:
-   - RU-touching routes: KupiBilet (`diagnose kb-search --direct-only`).
-   - non-RU/global routes: FLI (`diagnose fli-search --direct-only`).
-
-KupiBilet example:
-
-```bash
-HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
-cd "$HERMES_HOME"/skills/productivity/flight-search/cli
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose kb-search ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --direct-only \
-  --limit 50
-```
-
-FLI example:
-
-```bash
-HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
-cd "$HERMES_HOME"/skills/productivity/flight-search/cli
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose fli-search ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --direct-only \
-  --limit 50
-```
-
-Use `--no-cache` when freshness matters or when validating the process.
-
-3. If route-level `agent_report`/renderer evidence is needed, run the canonical search request with strict direct-only route options:
+The per-date probe loop is executed by the CLI planner, not by the agent. Encode the window in the canonical request and run the Golden Path command once:
 
 ```json
 {
@@ -51,30 +22,31 @@ Use `--no-cache` when freshness matters or when validating the process.
   "provider_policy": "auto",
   "route_options": {
     "max_connections": 0,
-    "fallback_max_connections": 0
+    "fallback_max_connections": 0,
+    "date_window_end": "YYYY-MM-DD"
   },
   "output": {"agent_brief": true}
 }
 ```
 
-```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request request.json
-```
+Semantics:
 
-Do not use ordinary connected-route output as the final answer for a direct-only inventory request; it may correctly return one-stop routes for route planning but that violates the user’s direct-only scope.
+- `depart_date` is the window start; `route_options.date_window_end` is the inclusive window end (bounded; the CLI rejects windows longer than its `MAX_DATE_WINDOW_DAYS` limit).
+- The window requires strict direct-only route options and no `return_date`; the request fails fast otherwise.
+- The planner expands the window into per-date direct probe intents through the probe ledger; provider dispatch follows the normal policy (KupiBilet for RU-touching segments, FLI for non-RU/global segments under `auto`).
+- Set `evidence.no_live_cache` when freshness matters or when validating the process.
 
-4. Summarize compactly by date:
-   - dates with direct offers: flight number, carrier, local departure/arrival with `+1` when applicable, elapsed time, aircraft, price/currency if present;
-   - dates with no direct live offers;
-   - provider/source boundary and booking-screen checks.
+## Reading the result
 
-5. Do **not** add airline-site, airport-site, schedule-aggregator, or external timetable checks by default. At the current stage, direct date-window inventory is a provider-live CLI scenario: use KupiBilet for RU-touching routes and FLI for non-RU/global routes. Only add external site checks if the user explicitly asks for corroboration or debugging outside the provider-live scope.
+- Read per-date inventory from `data.agent_report.evidence.date_window_inventory.dates[]`: each entry carries `date`, `status` (`direct_offers`, `no_direct_offers`, `no_direct_offers_with_failures`, `probe_failed`, `not_probed`), `offer_count`, compact `offers[]` (carrier, flight number, local departure/arrival, price/currency), failed-probe counts, and skip reasons.
+- Per-date planned/searched/failed/not-executed probe states stay visible in `evidence.coverage_diagnostics`.
+- Summarize by date: dates with direct offers (flight, carrier, local times with `+1` when crossing midnight, price), then dates with no direct live offers, then the provider/source boundary and booking-screen checks.
 
-## Pitfalls
+For narrow debugging of a single suspicious date, the targeted `diagnose kb-search --direct-only` / `diagnose fli-search --direct-only` probes from `references/debug-playbook.md` remain available; they are debug evidence, not the canonical path.
+
+## Boundaries and pitfalls
 
 - A date-window direct inventory is not a recommendation frontier. Do not lead with connecting routes unless the user asks for alternatives.
-- Do not split the answer into schedule vs shopping/purchase layers by default. For this workflow, the operational source of truth is provider-live direct-only evidence from the CLI.
-- `search --request` without strict direct-only route options is not direct-only. Use `route_options.max_connections=0` and `route_options.fallback_max_connections=0`, or use the direct-only `diagnose kb-search` / `diagnose fli-search` probe.
-- Empty provider direct-only output means the selected live provider returned no direct offer for that date. State that boundary plainly; do not escalate to external schedule validation unless requested.
-- Keep time zones explicit enough to avoid duration mistakes: calculate elapsed time from ISO offsets; show local airport times in the user answer.
-- Raw batch JSON can be large/truncated. Reduce it to a compact per-date summary before reasoning or responding.
+- `evidence.date_window_inventory` is provider-live evidence (`boundary: provider_live_only`). Empty output for a date means the selected live provider returned no direct offer for that date; state that boundary plainly. Do not escalate to airline-site, airport-site, or schedule-aggregator checks unless the user explicitly asks for corroboration outside the provider-live scope.
+- Do not split the answer into schedule vs shopping/purchase layers by default; the operational source of truth is provider-live direct-only evidence from the CLI.
+- Keep time zones explicit enough to avoid duration mistakes: elapsed time comes from ISO offsets; show local airport times in the user answer.

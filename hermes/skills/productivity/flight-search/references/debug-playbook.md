@@ -121,7 +121,9 @@ Use these probe shapes as applicable:
 
 Negative direct/carrier/one-stop claims on Russian-origin international routes need Moscow controls unless structural constraints already prove unavailability.
 
-If compact `coverage_diagnostics.planned_controls` lists Moscow or carrier controls as `not_executed`, do not treat that as absence evidence. Run narrow live leg controls instead:
+For ru-priority routes the runtime now plans and executes these controls itself: the `moscow_gateway_control` family includes `gateway_to_destination` (MOW city-code first, deferred `SVO`/`DME`/`VKO` exact fallbacks) and the mirrored `destination_to_gateway` return legs, and `moscow_gateway_direct` is listed in `route.evidence_plan.required_controls`. Read their terminal states from `evidence.coverage_diagnostics` before assuming anything is missing.
+
+Manual leg probes are a fallback for legacy/degraded reports only. If an old compact report lists Moscow or carrier controls as `not_executed`, do not treat that as absence evidence; first rerun the canonical `search --request` (fresh runs execute the gateway controls), and only then run narrow live leg controls:
 
 - outbound date: `SVO|DME|VKO -> DEST --direct-only`;
 - return date: `DEST -> SVO|DME|VKO --direct-only`;

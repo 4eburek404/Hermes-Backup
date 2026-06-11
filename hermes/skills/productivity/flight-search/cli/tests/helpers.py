@@ -40,6 +40,7 @@ def live_assembly_args(**overrides: Any) -> Namespace:
         "min_same_airport_min": "min_same_airport_min",
         "min_cross_airport_min": "min_cross_airport_min",
         "stop_policy": "stop_policy",
+        "date_window_end": "date_window_end",
         "max_connections": "max_connections",
         "fallback_max_connections": "fallback_max_connections",
     }

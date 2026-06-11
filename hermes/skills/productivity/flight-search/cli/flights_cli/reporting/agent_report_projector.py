@@ -22,6 +22,8 @@ def project_agent_report(flat_report: dict[str, Any]) -> dict[str, Any]:
     }
     if "ru_priority_controls" in flat_report:
         evidence["ru_priority_controls"] = flat_report["ru_priority_controls"]
+    if "date_window_inventory" in flat_report:
+        evidence["date_window_inventory"] = flat_report["date_window_inventory"]
 
     frontier = {
         "status": flat_report.get("status") or {},

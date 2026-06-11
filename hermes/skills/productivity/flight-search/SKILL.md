@@ -1,6 +1,6 @@
 ---
 name: flight-search
-version: 0.10.15
+version: 0.11.0
 description: Use when finding, comparing, or diagnosing live flight route options with the bundled flights CLI; assumes one adult in economy and never books tickets.
 metadata:
   hermes:
@@ -65,7 +65,7 @@ For direct-only inventory set both `route_options.max_connections` and `route_op
 
 Start with `search --request`; use follow-ups only when the report says evidence is missing or the user asks for a narrower proof.
 
-- Direct/date-window inventory: direct-only request options first; per-date direct probes are described in `references/direct-date-window.md`.
+- Direct/date-window inventory: direct-only request options; for a bounded window set `route_options.date_window_end` and read `evidence.date_window_inventory` (`references/direct-date-window.md`).
 - Carrier or exact-airport scope: answer the requested scope first, then alternatives; required controls should appear in the report evidence plan.
 - Single PNR, through baggage, protected connection, final fare, refund/exchange, or terminal certainty: require purchase-screen, airline/GDS, seller, or explicit upstream proof; otherwise say unproven.
 - RU domestic: expect domestic-RU route mode and direct domestic visibility.

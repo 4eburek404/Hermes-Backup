@@ -109,6 +109,10 @@ def _required_controls(options: dict[str, Any], decision: FlowDecision, direct_o
     controls: list[str] = []
     if direct_only or decision.intent_class == "direct_inventory":
         controls.append("exact_airport_direct")
+    if options.get("date_window_end"):
+        controls.append("date_window_direct")
+    if decision.routing_strategy == "ru-priority":
+        controls.append("moscow_gateway_direct")
     if decision.intent_class == "carrier_or_airport_scope" or _tuple_option(options, "only_carrier") or _tuple_option(options, "aggregate_control_carrier"):
         controls.append("carrier_aggregate")
     if decision.evidence_class == "ticketing_required":

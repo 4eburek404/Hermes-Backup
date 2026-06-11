@@ -827,6 +827,9 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
         "through_fare_checks": through_fare_checks(aggregate_controls, priority_options),
         "rejected_pair_warnings": rejected_pair_warnings(data, limit=5),
     }
+    date_window_inventory = live.get("date_window_inventory")
+    if isinstance(date_window_inventory, dict):
+        report["date_window_inventory"] = date_window_inventory
     if ru_priority_controls is not None:
         report["ru_priority_controls"] = ru_priority_controls
     report["offer_graph"] = build_offer_graph(report, plan, live, data)

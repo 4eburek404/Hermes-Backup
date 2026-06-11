@@ -355,6 +355,7 @@ def coverage_controls_for_plan(
     preferred_carriers: list[str] | None = None,
     requested_controls: list[str] | None = None,
     coverage_control_limit: int | None = None,
+    depart_dates: list[Any] | None = None,
 ) -> list[dict[str, Any]]:
     controls: list[dict[str, Any]] = []
     seen: set[tuple[Any, ...]] = set()
@@ -369,9 +370,14 @@ def coverage_controls_for_plan(
     directions = [("outbound", origin_code, destination_code, depart)]
     if ret is not None:
         directions.append(("return", destination_code, origin_code, ret))
+    direct_probe_directions = [
+        ("outbound", origin_code, destination_code, date_value) for date_value in (depart_dates or [depart])
+    ]
+    if ret is not None:
+        direct_probe_directions.append(("return", destination_code, origin_code, ret))
 
     if coverage_mode in {"standard", "targeted", "full"}:
-        for direction, _origin_city, _dest_city, date_value in directions:
+        for direction, _origin_city, _dest_city, date_value in direct_probe_directions:
             source_airports = origin_airports if direction == "outbound" else destination_airports
             target_airports = destination_airports if direction == "outbound" else origin_airports
             for origin in source_airports:

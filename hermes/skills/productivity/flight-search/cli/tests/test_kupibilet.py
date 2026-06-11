@@ -401,7 +401,14 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(plan["routing_strategy"], "ru-priority")
         self.assertEqual(plan["hubs"], ["IST", "DXB"])
         self.assertEqual(plan["hub_source"], "strategy")
-        self.assertEqual(plan["metrics"]["segment_search_count"], 24)
+        gateway_specs = [
+            spec
+            for spec in plan["segments"]
+            if spec.get("leg") in {"gateway_to_destination", "destination_to_gateway"}
+        ]
+        self.assertEqual(len(gateway_specs), 8)
+        self.assertTrue(all(spec.get("route_family") == "moscow_gateway_control" for spec in gateway_specs))
+        self.assertEqual(plan["metrics"]["segment_search_count"], 24 + len(gateway_specs))
 
     def test_route_kb_command_uses_asia_profile_for_beijing(self) -> None:
         args = live_assembly_args(
@@ -417,7 +424,13 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(plan["routing_profile"], "asia-oceania")
         self.assertEqual(plan["destination_airports"], ["PEK", "PKX"])
         self.assertEqual(plan["hubs"], ["SVO", "IST", "DXB"])
-        self.assertEqual(plan["metrics"]["segment_search_count"], 42)
+        gateway_specs = [
+            spec
+            for spec in plan["segments"]
+            if spec.get("leg") in {"gateway_to_destination", "destination_to_gateway"}
+        ]
+        self.assertEqual(len(gateway_specs), 16)
+        self.assertEqual(plan["metrics"]["segment_search_count"], 42 + len(gateway_specs))
         segments = {
             (segment["direction"], segment["origin"], segment["destination"], segment["date"], segment["leg"], segment.get("route_family"))
             for segment in plan["segments"]

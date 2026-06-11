@@ -62,6 +62,7 @@ def search_request_from_live_args(args: argparse.Namespace) -> SearchRequest:
         "origin_airport": _as_tuple(getattr(args, "origin_airport", None)),
         "destination_airport": _as_tuple(getattr(args, "destination_airport", None)),
         "max_connections": getattr(args, "max_connections", None),
+        "date_window_end": getattr(args, "date_window_end", None),
         "fallback_max_connections": getattr(args, "fallback_max_connections", None),
         "max_segment_searches": _as_int(getattr(args, "max_segment_searches", 300), 300),
         "live_cache_ttl_seconds": _as_int(getattr(args, "live_cache_ttl_seconds", 0), 0),

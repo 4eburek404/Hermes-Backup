@@ -103,7 +103,7 @@ class ProviderPortDispatchTests(unittest.TestCase):
                 destination='LON',
                 depart_date='2026-07-20',
                 provider_policy='kupibilet',
-                max_segment_searches=20,
+                max_segment_searches=40,
                 aggregate_control_limit=0,
                 no_live_cache=True,
                 no_direct_route_intel=True,

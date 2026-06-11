@@ -83,6 +83,7 @@ def live_assembly_args_from_search_request(payload: dict[str, Any]) -> argparse.
         min_same_airport_min=_int_option(route, "min_same_airport_min", 120),
         min_cross_airport_min=_int_option(route, "min_cross_airport_min", 300),
         stop_policy=str(route.get("stop_policy") or "business-default"),
+        date_window_end=route.get("date_window_end"),
         max_connections=_int_option(route, "max_connections", None),
         fallback_max_connections=_int_option(route, "fallback_max_connections", None),
         include_stop_policy_diagnostics=_bool_option(output, "include_stop_policy_diagnostics", False),
