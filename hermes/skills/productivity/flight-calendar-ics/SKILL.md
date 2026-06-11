@@ -1,7 +1,7 @@
 ---
 name: flight-calendar-ics
 description: Use when creating importable .ics calendar files from airline booking links, tickets, itinerary JSON, PDFs, emails, screenshots, or manually supplied flight segments.
-version: 1.6.0
+version: 1.6.1
 author: Hermes Agent
 license: MIT
 metadata:
@@ -35,9 +35,9 @@ Normal generation is one CLI-owned `build auto` command. The CLI owns route dete
    python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json build auto --input /private/itinerary.json
    ```
 
-3. Parse the JSON envelope from stdout or `data.envelope_path`.
+3. Parse the compact handoff JSON from stdout. The full diagnostic envelope is already saved at `data.envelope_path`; do not read it on a successful happy path.
 
-4. Require the code-owned handoff: `schema_version=flight-calendar-ics-cli.v1`, `ok=true`, `command=build`, `data.agent_handoff.ready=true`, `data.agent_handoff.artifact_inspection_required=false`, and `data.verification.ok=true`.
+4. Require the code-owned handoff: `schema_version=flight-calendar-ics-cli.v1`, `ok=true`, `command=build`, `data.agent_handoff.ready=true`, `data.agent_handoff.artifact_inspection_required=false`, and `data.agent_handoff.safe_summary.verification_ok=true`.
 
 5. Return `data.agent_handoff.media` plus `data.agent_handoff.safe_summary`. Do not open generated artifacts for reporting.
 
@@ -60,6 +60,7 @@ Use `diagnose ...` only when `build auto` fails or diagnostics are explicitly re
 - `references/core/itinerary.md` — normalizing PDFs/emails/screenshots/manual segments into canonical JSON (template: `templates/aeroflot-itinerary.example.json`).
 - `references/carriers.md` — carrier-specific fixes for Aeroflot, Red Wings, Ural, and Utair; open only after a carrier build fails.
 - `references/maintenance/operations.md` — read-only `maint ...` surfaces and refactor rules.
+- `references/maintenance/evaluation.md` — cross-model and version-to-version evaluation rules, including direct CLI baselines and privacy-safe comparison fields.
 
 ## Operator Notes
 
@@ -68,7 +69,8 @@ Dependencies: `jsonschema` is required (`pip install jsonschema --break-system-p
 (helps behind anti-bot gates such as Ngenix). The CLI auto-detects it; `doctor` reports
 the active backend in `data.http_transport`. No code changes are needed either way.
 
-- `diagnose doctor`, `diagnose route-detect`, `diagnose validate`, `diagnose bundle-check`, and `diagnose privacy-check` are diagnostic surfaces.
+- `diagnose doctor`, `diagnose route-detect`, `diagnose validate`, `diagnose bundle-check`, and `diagnose privacy-check` are diagnostic surfaces. Add `--full-envelope` to a build command only when full diagnostic stdout is explicitly needed.
+- Do not introduce a new handoff schema, `output_profile`, or mode taxonomy for the happy path unless measured evidence shows the existing `flight-calendar-ics-cli.v1` handoff cannot express the contract. Prefer the simplest split: default build stdout = delivery handoff; `data.envelope_path` = full diagnostic envelope; `--full-envelope` = diagnostic stdout.
 - `maint contracts`, `maint refs registry-check`, `maint source-runtime diff`, and `maint audit` are read-only maintenance surfaces.
 - Runtime sync into `~/.hermes/skills/...` requires explicit approval.
 - If using `SKILL_DIR`, assign it on a separate shell line before invoking the command.
@@ -84,5 +86,5 @@ the active backend in `data.http_transport`. No code changes are needed either w
 
 - [ ] Source stayed private.
 - [ ] Exactly one `--json build auto ...` command ran for normal generation.
-- [ ] Envelope passed schema, success, code-owned handoff, and `data.verification.ok=true` checks.
+- [ ] Handoff stdout passed schema, success, code-owned handoff, and `data.agent_handoff.safe_summary.verification_ok=true` checks.
 - [ ] Final response copied `data.agent_handoff.media` and `data.agent_handoff.safe_summary` without private identifiers.

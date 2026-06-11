@@ -176,7 +176,7 @@ class CommandSurfaceContractTests(unittest.TestCase):
                         "segments_count": 1,
                         "verification_ok": True,
                         "vevent_count": 1,
-                        "ics_mode": "600",
+                        "ics_mode": "0600",
                     },
                 },
             },

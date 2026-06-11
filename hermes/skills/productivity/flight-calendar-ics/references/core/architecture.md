@@ -16,13 +16,13 @@ Supporting owners: `parser.py` (command namespace, dispatch), `contracts.py` (co
 
 ## Stable CLI surfaces
 
-- Production happy path: `--json build auto --url-file /private/source-url.txt` (or `--input /private/itinerary.json` for canonical JSON).
-- Explicit `build <route>` is a diagnostic surface; diagnostics live under `diagnose ...`; read-only maintenance under `maint ...`. There are no other root commands besides `doctor`.
+- Production happy path: `--json build auto --url-file /private/source-url.txt` (or `--input /private/itinerary.json` for canonical JSON). Successful build stdout is a compact delivery handoff; the full diagnostic envelope is persisted to `data.envelope_path`.
+- Explicit `build <route>` is a diagnostic surface; diagnostics live under `diagnose ...`; read-only maintenance under `maint ...`. Add `--full-envelope` only when full diagnostic stdout is explicitly needed. There are no other root commands besides `doctor`.
 - The wrapper `scripts/flight_calendar_ics.py` stays thin and must not grow business logic.
 
 ## JSON envelope v1
 
-Every `--json` response carries `schema_version=flight-calendar-ics-cli.v1`, `ok`, `command`, `process[]`, and optional `data`/`error`. For successful builds, `data.agent_handoff` is the code-owned delivery surface: agents copy `media` and `safe_summary` and never open generated artifacts to recount events or modes.
+Every `--json` response carries `schema_version=flight-calendar-ics-cli.v1`, `ok`, `command`, `process[]`, and optional `data`/`error`. For successful builds, default stdout is the compact code-owned delivery handoff: agents copy `data.agent_handoff.media` and `data.agent_handoff.safe_summary` and never open generated artifacts to recount events or modes. The full build trace/verification data remains in `data.envelope_path` and can be printed to stdout with `--full-envelope` for diagnostics.
 
 The schema uses `additionalProperties: false` with shared vocabularies in `$defs`; append fields only, updating the schema and a narrow contract test in the same slice.
 

@@ -795,7 +795,7 @@
                   "minimum": 1
                 },
                 "ics_mode": {
-                  "$ref": "#/$defs/file_mode"
+                  "const": "0600"
                 }
               }
             }

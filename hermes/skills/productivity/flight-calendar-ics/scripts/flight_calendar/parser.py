@@ -497,6 +497,11 @@ def command_redwings(args: argparse.Namespace, process: list[dict[str, Any]]) ->
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Single CLI entrypoint for the flight-calendar-ics skill.")
     parser.add_argument("--json", action="store_true", help="Emit the stable machine-readable JSON envelope")
+    parser.add_argument(
+        "--full-envelope",
+        action="store_true",
+        help="With --json build, print the full diagnostic envelope to stdout instead of the delivery handoff",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("doctor", help="Report CLI contract and available commands")
@@ -599,6 +604,30 @@ def infer_command(argv: list[str]) -> str:
     return "unknown"
 
 
+def build_handoff_stdout_envelope(full_obj: dict[str, Any]) -> dict[str, Any]:
+    """Project a successful full build envelope to the golden-path delivery handoff."""
+    data = full_obj.get("data") or {}
+    return envelope(
+        ok=True,
+        command="build",
+        process=[{"step": "build_handoff", "status": "ok"}],
+        data={
+            "agent_handoff": data["agent_handoff"],
+            "envelope_path": data["envelope_path"],
+        },
+    )
+
+
+def should_emit_handoff_stdout(args: argparse.Namespace, data: dict[str, Any]) -> bool:
+    return bool(
+        args.json
+        and args.command == "build"
+        and not getattr(args, "full_envelope", False)
+        and data.get("agent_handoff")
+        and data.get("envelope_path")
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     argv_list = list(sys.argv[1:] if argv is None else argv)
     json_mode = "--json" in argv_list
@@ -621,7 +650,7 @@ def main(argv: list[str] | None = None) -> int:
         obj = envelope(ok=True, command=args.command, process=process, data=data)
         if args.json:
             write_envelope_artifact_if_requested(data, obj)
-            emit_json(obj)
+            emit_json(build_handoff_stdout_envelope(obj) if should_emit_handoff_stdout(args, data) else obj)
         else:
             emit_human(obj)
         return exit_code

@@ -1,8 +1,10 @@
 """Contract test for WP-5: envelope schema single-source consolidation.
 
 The envelope schema must define shared vocabularies (bundle routes, commands,
-private file modes) exactly once in ``$defs`` and reference them everywhere,
-and those vocabularies must stay locked to the code-owned lists in
+private artifact file modes) exactly once in ``$defs`` and reference them for
+artifact/process fields. Public agent handoff mode is intentionally canonicalized
+as ``0600`` so prompts/evaluators never normalize ``600`` themselves.
+Those vocabularies must stay locked to the code-owned lists in
 ``flight_calendar.contracts``.
 """
 from __future__ import annotations
@@ -56,9 +58,14 @@ class EnvelopeSchemaSingleSourceContract(unittest.TestCase):
 
     def test_refs_are_actually_used(self) -> None:
         serialized = json.dumps(self.schema)
-        for name, min_uses in [("bundle_route", 4), ("command", 2), ("file_mode", 4)]:
+        for name, min_uses in [("bundle_route", 4), ("command", 2), ("file_mode", 3)]:
             uses = serialized.count(f"#/$defs/{name}")
             self.assertGreaterEqual(uses, min_uses, f"$defs/{name} must be referenced >= {min_uses}x")
+
+    def test_agent_handoff_ics_mode_is_public_canonical_0600(self) -> None:
+        ics_mode_schema = self.schema["properties"]["data"]["properties"]["agent_handoff"]["properties"]["safe_summary"]["properties"]["ics_mode"]
+
+        self.assertEqual(ics_mode_schema, {"const": "0600"})
 
 
 if __name__ == "__main__":

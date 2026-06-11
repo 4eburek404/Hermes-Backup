@@ -75,7 +75,7 @@ _AGENT_CONTRACT_TEMPLATE: dict[str, Any] = {
         },
         {
             "id": "verify",
-            "instruction": "Parse stdout or bundle/envelope.json; require schema_version, ok=true, command=build, data.agent_handoff.ready=true, data.agent_handoff.artifact_inspection_required=false, and data.verification.ok=true. Use data.agent_handoff.safe_summary for route/count/mode reporting; do not inspect generated artifacts.",
+            "instruction": "Parse stdout handoff; require schema_version, ok=true, command=build, data.agent_handoff.ready=true, data.agent_handoff.artifact_inspection_required=false, and data.agent_handoff.safe_summary.verification_ok=true. Use data.agent_handoff.safe_summary for route/count/mode reporting; do not inspect generated artifacts. Read bundle/envelope.json or rerun with --full-envelope only for diagnostics.",
         },
         {
             "id": "deliver",
@@ -130,10 +130,11 @@ _AGENT_CONTRACT_TEMPLATE: dict[str, Any] = {
             "schema_version=flight-calendar-ics-cli.v1",
             "ok=true",
             "command=build",
-            "data.segments_count>=1",
-            "data.verification.ok=true",
             "data.agent_handoff.ready=true",
             "data.agent_handoff.artifact_inspection_required=false",
+            "data.agent_handoff.safe_summary.verification_ok=true",
+            "data.agent_handoff.safe_summary.ics_mode=0600",
+            "data.envelope_path points to the full diagnostic envelope",
         ],
         "reporting_fields": [
             "data.agent_handoff.media",

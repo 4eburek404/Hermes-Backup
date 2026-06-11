@@ -28,9 +28,10 @@ def build_agent_handoff(
     raw_private_modes = verification.get("private_modes")
     private_modes: dict[str, Any] = raw_private_modes if isinstance(raw_private_modes, dict) else {}
     event_count = int(verification.get("event_count") or 0)
-    ics_mode = str(private_modes.get("ics") or "")
+    raw_ics_mode = str(private_modes.get("ics") or "")
+    ics_mode = raw_ics_mode.zfill(4) if raw_ics_mode else ""
     verification_ok = verification.get("ok") is True
-    ready = bool(segments_count >= 1 and verification_ok and event_count == segments_count and ics_mode == "600")
+    ready = bool(segments_count >= 1 and verification_ok and event_count == segments_count and ics_mode == "0600")
     if not ready:
         raise CliFailure(
             "build verification did not produce a delivery-ready agent handoff",

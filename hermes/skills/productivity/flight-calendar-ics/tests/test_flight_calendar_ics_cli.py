@@ -251,7 +251,10 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             output = output_dir / "flights.ics"
             self.assertTrue(output.exists())
             self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
-            obj = self.parse_stdout_json(result)
+            stdout_obj = self.parse_stdout_json(result)
+            self.assert_envelope(stdout_obj, ok=True, command="build")
+            self.assertEqual(stdout_obj["process"], [{"step": "build_handoff", "status": "ok"}])
+            obj = json.loads((output_dir / "envelope.json").read_text(encoding="utf-8"))
             self.assert_envelope(obj, ok=True, command="build")
             self.assertEqual(obj["data"]["segments_count"], 2)
             self.assertEqual(obj["data"]["ics_path"], str(output.resolve()))
@@ -263,7 +266,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             for private_value in ["ABC123", "Ivanov Ivan", "5552400000000", "pnrKey"]:
                 self.assertNotIn(private_value, combined_output)
 
-    def test_build_make_creates_private_bundle_and_saved_envelope(self) -> None:
+    def test_build_make_default_json_stdout_is_delivery_handoff_and_saves_full_envelope(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             output_dir = Path(td) / "bundle"
             old_umask = os.umask(0o022)
@@ -284,13 +287,9 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             obj = self.parse_stdout_json(result)
             self.assert_envelope(obj, ok=True, command="build")
-            self.assertEqual(obj["data"]["route"], "make")
-            self.assertEqual(obj["data"]["output_dir"], str(output_dir))
-            self.assertEqual(obj["data"]["json_path"], str(output_dir / "itinerary.json"))
-            self.assertEqual(obj["data"]["ics_path"], str(output_dir / "flights.ics"))
+            self.assertEqual(obj["process"], [{"step": "build_handoff", "status": "ok"}])
+            self.assertEqual(set(obj["data"]), {"agent_handoff", "envelope_path"})
             self.assertEqual(obj["data"]["envelope_path"], str(output_dir / "envelope.json"))
-            self.assertEqual(obj["data"]["verification"]["ok"], True)
-            self.assertEqual(obj["data"]["verification"]["event_count"], obj["data"]["segments_count"])
             handoff = obj["data"]["agent_handoff"]
             self.assertEqual(handoff["media"], f"MEDIA:{output_dir / 'flights.ics'}")
             self.assertFalse(handoff["artifact_inspection_required"])
@@ -299,10 +298,10 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 {
                     "route": "make",
                     "route_detection_mode": "explicit",
-                    "segments_count": obj["data"]["segments_count"],
+                    "segments_count": 2,
                     "verification_ok": True,
-                    "vevent_count": obj["data"]["segments_count"],
-                    "ics_mode": "600",
+                    "vevent_count": 2,
+                    "ics_mode": "0600",
                 },
             )
             self.assertTrue(output_dir.is_dir())
@@ -311,17 +310,54 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertTrue(artifact.exists(), artifact)
                 self.assertEqual(stat.S_IMODE(artifact.stat().st_mode), 0o600, artifact)
             saved_envelope = json.loads((output_dir / "envelope.json").read_text(encoding="utf-8"))
-            self.assertEqual(saved_envelope, obj)
+            self.assert_envelope(saved_envelope, ok=True, command="build")
+            self.assertEqual(saved_envelope["data"]["route"], "make")
+            self.assertEqual(saved_envelope["data"]["output_dir"], str(output_dir))
+            self.assertEqual(saved_envelope["data"]["json_path"], str(output_dir / "itinerary.json"))
+            self.assertEqual(saved_envelope["data"]["ics_path"], str(output_dir / "flights.ics"))
+            self.assertEqual(saved_envelope["data"]["envelope_path"], str(output_dir / "envelope.json"))
+            self.assertEqual(saved_envelope["data"]["verification"]["ok"], True)
+            self.assertEqual(saved_envelope["data"]["verification"]["event_count"], saved_envelope["data"]["segments_count"])
+            self.assertEqual(saved_envelope["data"]["agent_handoff"], handoff)
             ics_text = (output_dir / "flights.ics").read_text(encoding="utf-8")
             self.assertIn("BEGIN:VCALENDAR", ics_text)
-            self.assertEqual(ics_text.count("BEGIN:VEVENT"), obj["data"]["segments_count"])
+            self.assertEqual(ics_text.count("BEGIN:VEVENT"), saved_envelope["data"]["segments_count"])
             self.assertTrue(all(line.endswith("Z") for line in ics_text.splitlines() if line.startswith(("DTSTART:", "DTEND:"))))
-            self.assertIn("create_output_bundle", [step["step"] for step in obj["process"]])
-            self.assertIn("verify_bundle", [step["step"] for step in obj["process"]])
-            self.assertIn("write_envelope", [step["step"] for step in obj["process"]])
+            self.assertIn("create_output_bundle", [step["step"] for step in saved_envelope["process"]])
+            self.assertIn("verify_bundle", [step["step"] for step in saved_envelope["process"]])
+            self.assertIn("write_envelope", [step["step"] for step in saved_envelope["process"]])
             combined_output = result.stdout + result.stderr
             for private_value in ["ABC123", "Ivanov Ivan", "5552400000000", "pnrKey"]:
                 self.assertNotIn(private_value, combined_output)
+
+    def test_build_make_full_envelope_flag_keeps_diagnostic_stdout(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            output_dir = Path(td) / "bundle-full"
+            result = self.run_cli(
+                "--json",
+                "--full-envelope",
+                "build",
+                "make",
+                "--input",
+                str(TEMPLATE),
+                "--output-dir",
+                str(output_dir),
+                "--no-alarms",
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            obj = self.parse_stdout_json(result)
+            self.assert_envelope(obj, ok=True, command="build")
+            self.assertEqual(obj["data"]["route"], "make")
+            self.assertEqual(obj["data"]["output_dir"], str(output_dir))
+            self.assertEqual(obj["data"]["json_path"], str(output_dir / "itinerary.json"))
+            self.assertEqual(obj["data"]["ics_path"], str(output_dir / "flights.ics"))
+            self.assertEqual(obj["data"]["envelope_path"], str(output_dir / "envelope.json"))
+            self.assertEqual(obj["data"]["verification"]["ok"], True)
+            self.assertEqual(obj["data"]["agent_handoff"]["safe_summary"]["ics_mode"], "0600")
+            self.assertIn("verify_bundle", [step["step"] for step in obj["process"]])
+            saved_envelope = json.loads((output_dir / "envelope.json").read_text(encoding="utf-8"))
+            self.assertEqual(saved_envelope, obj)
 
     def test_build_route_parser_accepts_private_url_file_without_output_flags(self) -> None:
         module = self.import_cli_module()
@@ -363,20 +399,24 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             obj = self.parse_stdout_json(result)
             self.assert_envelope(obj, ok=True, command="build")
-            self.assertEqual(obj["data"]["route"], "make")
-            self.assertEqual(obj["data"]["route_detection"]["mode"], "auto")
-            self.assertEqual(obj["data"]["route_detection"]["route"], "make")
-            self.assertIn("input_kind:canonical_itinerary_json", obj["data"]["route_detection"]["evidence"])
+            self.assertEqual(obj["process"], [{"step": "build_handoff", "status": "ok"}])
+            self.assertEqual(set(obj["data"]), {"agent_handoff", "envelope_path"})
             handoff = obj["data"]["agent_handoff"]
             self.assertTrue(handoff["ready"])
             self.assertEqual(handoff["media"], f"MEDIA:{output_dir / 'flights.ics'}")
             self.assertFalse(handoff["artifact_inspection_required"])
             self.assertEqual(handoff["safe_summary"]["route"], "make")
             self.assertEqual(handoff["safe_summary"]["route_detection_mode"], "auto")
-            self.assertEqual(handoff["safe_summary"]["vevent_count"], obj["data"]["segments_count"])
-            self.assertEqual(handoff["safe_summary"]["ics_mode"], "600")
+            self.assertEqual(handoff["safe_summary"]["segments_count"], 2)
+            self.assertEqual(handoff["safe_summary"]["vevent_count"], 2)
+            self.assertEqual(handoff["safe_summary"]["ics_mode"], "0600")
+            saved_envelope = json.loads((output_dir / "envelope.json").read_text(encoding="utf-8"))
+            self.assertEqual(saved_envelope["data"]["route"], "make")
+            self.assertEqual(saved_envelope["data"]["route_detection"]["mode"], "auto")
+            self.assertEqual(saved_envelope["data"]["route_detection"]["route"], "make")
+            self.assertIn("input_kind:canonical_itinerary_json", saved_envelope["data"]["route_detection"]["evidence"])
             self.assertTrue((output_dir / "flights.ics").exists())
-            self.assertIn("infer_route", [step["step"] for step in obj["process"]])
+            self.assertIn("infer_route", [step["step"] for step in saved_envelope["process"]])
 
     def test_build_auto_infers_aeroflot_from_private_url_file_without_doctor(self) -> None:
         module = self.import_cli_module()
