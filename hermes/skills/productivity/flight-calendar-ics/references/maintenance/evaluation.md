@@ -1,5 +1,7 @@
 # Evaluation and Cross-Model Review
 
+Audience: maintainers only. This file is never part of an agent generation or failure path.
+
 This file consolidates model-evaluation, provider, and shell pitfalls for this skill.
 
 ## Evaluation default

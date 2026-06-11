@@ -1,7 +1,7 @@
 ---
 name: flight-calendar-ics
 description: Use when creating importable .ics calendar files from airline booking links, tickets, itinerary JSON, PDFs, emails, screenshots, or manually supplied flight segments.
-version: 1.5.2
+version: 1.6.0
 author: Hermes Agent
 license: MIT
 metadata:
@@ -57,11 +57,9 @@ Use `diagnose ...` only when `build auto` fails or diagnostics are explicitly re
 
 ## Expanded Troubleshooting
 
-- `references/core/source-normalization.md` — PDF/email/screenshot/manual extraction into canonical JSON.
-- `references/maintenance/operations.md` — read-only `maint ...`, source/runtime checks, cleanup, and refactor rules.
-- `references/registry.md` — current reference owner map.
-
-Carrier references are for carrier-specific fixes only: `references/carriers/aeroflot.md`, `references/carriers/ural-airlines.md`, `references/carriers/utair.md`, `references/carriers/redwings.md`.
+- `references/core/itinerary.md` — normalizing PDFs/emails/screenshots/manual segments into canonical JSON (template: `templates/aeroflot-itinerary.example.json`).
+- `references/carriers.md` — carrier-specific fixes for Aeroflot, Red Wings, Ural, and Utair; open only after a carrier build fails.
+- `references/maintenance/operations.md` — read-only `maint ...` surfaces and refactor rules.
 
 ## Operator Notes
 

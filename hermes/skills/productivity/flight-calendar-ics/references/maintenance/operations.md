@@ -42,6 +42,14 @@ Preferred slice order for this package:
 7. carrier adapters;
 8. references/SKILL cleanup.
 
+## Reference add/change rules
+
+1. Name the behavior gap before adding material; if the rule is deterministic and agent-facing, encode it in CLI `doctor`, schemas, scripts, parser/help/errors, or tests instead of prose.
+2. Choose an owner from `references/registry.md` and patch that file; do not create case-note files.
+3. One semantic owner per function; one merged `carriers.md` for all airlines. A new airline gets one section there plus a CLI route, tests, and registry/SKILL links.
+4. Do not store concrete PNRs, passenger names, tokens, access keys, ticket numbers, contacts, document/payment data, or full private booking URLs in references.
+5. After renaming/removing references, run `maint refs registry-check` and the contract tests.
+
 ## Reference cleanup rules
 
 - Distill deterministic behavior into CLI contracts, schema, parser/help/errors, diagnostics/maint reports, or tests.
