@@ -20,7 +20,7 @@ class MaintenanceCheckTests(unittest.TestCase):
                     "-m",
                     "flights_cli",
                     "--json",
-                    "maintenance",
+                    "maint",
                     "check",
                     "--runtime-path",
                     str(missing_runtime),
@@ -35,7 +35,7 @@ class MaintenanceCheckTests(unittest.TestCase):
 
         payload = json.loads(proc.stdout)
         self.assertTrue(payload["ok"])
-        self.assertEqual(payload["command"], "maintenance check")
+        self.assertEqual(payload["command"], "maint check")
         self.assertEqual(payload["issues"], [])
 
         data = payload["data"]
@@ -47,7 +47,7 @@ class MaintenanceCheckTests(unittest.TestCase):
 
         self.assertEqual(data["runtime"]["skill_path"], str(missing_runtime))
         self.assertFalse(data["runtime"]["exists"])
-        self.assertEqual(data["versions"], {"skill_md": "0.10.14", "cli": "0.10.14"})
+        self.assertEqual(data["versions"], {"skill_md": "0.11.0", "cli": "0.11.0"})
         self.assertEqual(data["source_runtime_parity"]["status"], "runtime_missing")
         self.assertEqual(data["doctor"]["status"], "ok")
         self.assertGreaterEqual(data["references"]["source_count"], 5)
@@ -63,7 +63,7 @@ class MaintenanceCheckTests(unittest.TestCase):
                     sys.executable,
                     "-m",
                     "flights_cli",
-                    "maintenance",
+                    "maint",
                     "check",
                     "--runtime-path",
                     str(missing_runtime),

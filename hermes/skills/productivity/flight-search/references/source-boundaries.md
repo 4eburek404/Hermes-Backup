@@ -34,13 +34,13 @@ Use airport codes, not city labels, when continuity matters. These airports are 
 
 For separate tickets, same-airport continuity is required by default. Cross-airport options must be rejected or explicitly labeled as ground-transfer risk.
 
-City-scope defaults:
+City-scope boundary:
 
-- Dubai: `DXB` primary; `DWC` secondary when relevant; include `SHJ` only when the user asks for Sharjah, a Sharjah-based carrier, cheapest UAE-wide options, or a provider returns it and it is labeled.
-- Moscow: `SVO`, `DME`, and `VKO` are not interchangeable. Keep continuity explicit and label any ground transfer.
-- London: airport continuity matters (`LHR`, `LGW`, `STN`, `LTN` are separate airports); provider-specific priority tiers live in `references/provider-aware-airport-priority.md`.
+- Exact airport requests stay exact unless the user allows city scope.
+- City-code requests must still display the actual airport codes returned by normalized offers.
+- Cross-airport options require explicit ground-transfer risk labels.
 
-Provider-specific airport priority and dispatch semantics live in `references/provider-aware-airport-priority.md`.
+Provider-specific airport priority, city-code expansion, and dispatch semantics live in `references/provider-aware-airport-priority.md`; do not duplicate those rules here.
 
 ## Connection Thresholds
 
@@ -116,6 +116,8 @@ For business travel, use KupiBilet to discover candidates and price signals, the
 Static catalogs are metadata only: city, airport, country/region, airline, alliance, and aircraft data. Flight options come from live provider assembly.
 
 Use catalog fields to normalize names, codes, airport geography, country/region scope, airline labels, alliance labels, and aircraft labels. Do not use catalog presence as schedule or availability evidence.
+
+Catalog-dependent CLI commands refresh missing or older-than-2-weeks static metadata before planning unless disabled. This is runtime readiness, not live availability evidence.
 
 ## Live Provider Policy and Sidecar Boundary
 

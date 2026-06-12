@@ -6,8 +6,9 @@ from typing import Any
 
 from .. import __skill_name__, __skill_version__, __version__
 from ..command_surface import (
+    CATALOG_AUTO_REFRESH_COMMANDS,
+    CATALOG_READ_COMMANDS,
     CATALOG_REFRESH_COMMANDS,
-    COMPATIBILITY_COMMANDS,
     LIVE_PROVIDER_COMMANDS,
     PRIMARY_ROUTE_COMMAND,
     TARGETED_PROBE_COMMANDS,
@@ -57,7 +58,11 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
             "max_age": args.catalog_max_age,
             "max_age_seconds": max_age_seconds,
             "timeout": args.catalog_refresh_timeout,
-            "applies_to": list(CATALOG_REFRESH_COMMANDS),
+            "applies_to": list(CATALOG_AUTO_REFRESH_COMMANDS),
+            "auto_refresh_commands": list(CATALOG_AUTO_REFRESH_COMMANDS),
+            "catalog_read_commands": list(CATALOG_READ_COMMANDS),
+            "manual_refresh_commands": list(CATALOG_REFRESH_COMMANDS),
+            "explicit_refresh_command": "maint catalog refresh",
         },
         "catalog_staleness": catalog_staleness(store.cache_dir, max_age_seconds=max_age_seconds),
         "runtime_evidence_policy": {
@@ -88,7 +93,6 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
             "docker_touched": False,
             "primary_route_command": PRIMARY_ROUTE_COMMAND,
             "targeted_probe_commands": list(TARGETED_PROBE_COMMANDS),
-            "compatibility_commands": list(COMPATIBILITY_COMMANDS),
             "live_provider_commands": list(LIVE_PROVIDER_COMMANDS),
         },
         "risk_profiles": {

@@ -8,13 +8,13 @@ from importlib import resources
 from jsonschema import Draft202012Validator
 
 from flights_cli.errors import CliError
-from flights_cli.reporting.final_answer_contract import (
+from flights_cli.reporting.user_answer import (
     USER_ANSWER_SCHEMA_PACKAGE,
     USER_ANSWER_SCHEMA_RESOURCE,
     USER_ANSWER_SCHEMA_VERSION,
-    build_user_answer_contract,
+    build_user_answer,
     load_user_answer_schema,
-    validate_user_answer_contract,
+    validate_user_answer,
 )
 from tests.test_agent_report_contract import valid_option, valid_report
 
@@ -117,9 +117,9 @@ class CatalogAnswerContractTests(unittest.TestCase):
         self.assertLessEqual(len(text.encode("utf-8")), 20000)
 
     def test_round_trip_options_render_as_numbered_catalog_contract(self) -> None:
-        answer = build_user_answer_contract(self._round_trip_report())
+        answer = build_user_answer(self._round_trip_report())
 
-        validate_user_answer_contract(answer)
+        validate_user_answer(answer)
         expected_keys = {
             "schema_version",
             "answer_mode",
@@ -150,23 +150,23 @@ class CatalogAnswerContractTests(unittest.TestCase):
         self.assertIn("25.07", answer["rendered_text"])
 
     def test_rejects_catalog_when_rendered_text_loses_numbered_items(self) -> None:
-        answer = build_user_answer_contract(self._round_trip_report())
+        answer = build_user_answer(self._round_trip_report())
         answer["rendered_text"] = "Нашёл варианты SVX→CAN без нумерованного каталога."
         answer["answer_lines"] = [answer["rendered_text"]]
 
         with self.assertRaises(CliError) as ctx:
-            validate_user_answer_contract(answer)
+            validate_user_answer(answer)
 
         messages = " ".join(error["message"] for error in ctx.exception.details["errors"])
         self.assertIn("numbered catalog", messages)
     def test_rejects_legacy_v2_user_answer_without_adapter(self) -> None:
-        legacy = build_user_answer_contract(self._round_trip_report())
+        legacy = build_user_answer(self._round_trip_report())
         legacy["schema_version"] = "flight_search_user_answer.v2"
         legacy.pop("answer_mode")
         legacy.pop("catalog")
 
         with self.assertRaises(CliError) as ctx:
-            validate_user_answer_contract(legacy)
+            validate_user_answer(legacy)
 
         self.assertEqual(ctx.exception.details["schema_version"], "flight_search_user_answer.v2")
         self.assertTrue(

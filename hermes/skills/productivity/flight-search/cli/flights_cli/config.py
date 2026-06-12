@@ -6,6 +6,8 @@ from typing import Any
 
 CACHE_DIR = Path.home() / ".hermes" / "cache" / "flight-search"
 
+MAX_DATE_WINDOW_DAYS = 14
+
 LIVE_SEARCH_CACHE_DIR = CACHE_DIR / "live_search"
 
 ROUTE_INTEL_CACHE_DIR = CACHE_DIR / "route_intel"

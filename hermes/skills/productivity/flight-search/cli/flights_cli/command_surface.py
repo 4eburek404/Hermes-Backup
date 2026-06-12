@@ -1,15 +1,11 @@
 from __future__ import annotations
 
 ROOT_COMMANDS = (
-    "doctor",
-    "maintenance",
-    "catalog",
+    "search",
+    "diagnose",
+    "maint",
     "cities",
     "airports",
-    "kb-search",
-    "kb-roundtrip",
-    "fli-search",
-    "fli-dates",
     "route",
     "metrics",
 )
@@ -19,21 +15,26 @@ ROUTE_COMMANDS = (
     "validate",
     "rank",
     "assemble",
-    "kb-assemble",
-    "live-assemble",
 )
 
-PRIMARY_ROUTE_COMMAND = "route live-assemble"
-TARGETED_PROBE_COMMANDS = ("kb-search", "kb-roundtrip", "fli-search", "fli-dates")
-COMPATIBILITY_COMMANDS = ("route kb-assemble",)
-LIVE_PROVIDER_COMMANDS = (*TARGETED_PROBE_COMMANDS, *COMPATIBILITY_COMMANDS, PRIMARY_ROUTE_COMMAND)
+PRIMARY_ROUTE_COMMAND = "search"
+TARGETED_PROBE_COMMANDS = (
+    "diagnose probe",
+    "diagnose kb-search",
+    "diagnose kb-roundtrip",
+    "diagnose fli-search",
+    "diagnose fli-dates",
+)
+LIVE_PROVIDER_COMMANDS = (PRIMARY_ROUTE_COMMAND, *TARGETED_PROBE_COMMANDS)
 
-CATALOG_REFRESH_COMMANDS = (
+CATALOG_READ_COMMANDS = (
     "cities search",
     "airports explain",
-    "fli-search",
+    "diagnose fli-search",
     "route plan",
-    "route kb-assemble",
-    "route live-assemble",
     "metrics workflow",
+    "search",
+    "diagnose plan",
 )
+CATALOG_AUTO_REFRESH_COMMANDS = CATALOG_READ_COMMANDS
+CATALOG_REFRESH_COMMANDS = ("maint catalog refresh",)

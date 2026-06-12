@@ -4,7 +4,7 @@ Use this playbook only to validate current live report behavior or narrow a deci
 
 ## When to Debug
 
-Start with `route live-assemble --agent-brief`. Debug only when the report is internally inconsistent, too sparse for the user's constraint, affected by provider failures, or surprising relative to geography, schedule logic, route family, or airport continuity.
+Start with `search --request`. Debug only when the report is internally inconsistent, too sparse for the user's constraint, affected by provider failures, or surprising relative to geography, schedule logic, route family, or airport continuity.
 
 Common triggers:
 
@@ -30,7 +30,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY'
 import flights_cli, pathlib
 print(pathlib.Path(flights_cli.__file__).resolve())
 PY
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli route live-assemble --help
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli search --help
 ```
 
 Record:
@@ -45,7 +45,7 @@ Record:
 
 Use only flags shown by live `--help`. Temp editable checkouts under `/tmp` can shadow the permanent skill CLI; do not generalize traces until executable path, imported module path, package metadata, and source checkout are known.
 
-Use `doctor` for environment readiness and degradation clues, not as flight evidence.
+Use `maint doctor` for environment readiness and degradation clues, not as flight evidence.
 
 ## JSON Extraction
 
@@ -71,21 +71,18 @@ Run the narrowest probe that answers the residual uncertainty. Label probe resul
 Main report:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json route live-assemble ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --profile PROFILE \
-  --agent-brief
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request request.json
 ```
 
 Direct and carrier controls:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json kb-search ORIGIN DEST \
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose kb-search ORIGIN DEST \
   --depart-date YYYY-MM-DD \
   --direct-only \
   --limit 20
 
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json kb-search ORIGIN DEST \
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose kb-search ORIGIN DEST \
   --depart-date YYYY-MM-DD \
   --only-carrier CARRIER \
   --limit 20
@@ -94,7 +91,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json kb-search ORIGIN DEST \
 KupiBilet one-checkout round trip:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json kb-roundtrip ORIGIN DEST \
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose kb-roundtrip ORIGIN DEST \
   --depart-date YYYY-MM-DD \
   --return-date YYYY-MM-DD \
   --only-carrier CARRIER \
@@ -105,7 +102,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json kb-roundtrip ORIGIN DEST
 FLI controls when exact-airport provider evidence is needed:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json fli-search ORIGIN DEST \
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose fli-search ORIGIN DEST \
   --depart-date YYYY-MM-DD \
   --direct-only \
   --limit 20
@@ -124,7 +121,9 @@ Use these probe shapes as applicable:
 
 Negative direct/carrier/one-stop claims on Russian-origin international routes need Moscow controls unless structural constraints already prove unavailability.
 
-If compact `coverage_diagnostics.planned_controls` lists Moscow or carrier controls as `not_executed`, do not treat that as absence evidence. Run narrow live leg controls instead:
+For ru-priority routes the runtime now plans and executes these controls itself: the `moscow_gateway_control` family includes `gateway_to_destination` (MOW city-code first, deferred `SVO`/`DME`/`VKO` exact fallbacks) and the mirrored `destination_to_gateway` return legs, and `moscow_gateway_direct` is listed in `route.evidence_plan.required_controls`. Read their terminal states from `evidence.coverage_diagnostics` before assuming anything is missing.
+
+Manual leg probes are a fallback for legacy/degraded reports only. If an old compact report lists Moscow or carrier controls as `not_executed`, do not treat that as absence evidence; first rerun the canonical `search --request` (fresh runs execute the gateway controls), and only then run narrow live leg controls:
 
 - outbound date: `SVO|DME|VKO -> DEST --direct-only`;
 - return date: `DEST -> SVO|DME|VKO --direct-only`;

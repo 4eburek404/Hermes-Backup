@@ -60,8 +60,7 @@ def live_args(**overrides: object) -> argparse.Namespace:
             "direct_route_index_ttl_seconds": 0,
             "no_direct_route_intel": True,
             "agent_report": False,
-            "agent_mode": False,
-            "agent_brief": False,
+                "agent_brief": False,
         }
     )
     values.update(overrides)

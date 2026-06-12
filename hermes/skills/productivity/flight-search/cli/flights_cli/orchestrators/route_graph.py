@@ -18,6 +18,8 @@ from ..config import (
 from ..domain.airports import airport_scope_summary, segment_code_metadata
 from ..domain.hubs import resolve_route_hubs, resolve_routing_strategy
 from ..errors import CliError
+from ..pipeline.flow_decision import market_class_for_resolved_route, routing_strategy_for_market
+from ..pipeline.search_request import search_request_from_live_args
 from ..store import Store
 
 
@@ -225,9 +227,9 @@ def resolve_route_graph_context(
     destination_airports: list[str],
 ) -> RouteGraphContext:
     raw_routing_strategy = str(getattr(args, "routing_strategy", None) or "auto").strip().lower()
-    domestic_ru = is_domestic_ru_route(store, origin, destination, origin_airports, destination_airports)
-    if raw_routing_strategy == "auto" and domestic_ru and not getattr(args, "hub", None):
-        routing_strategy = "domestic-ru"
+    market_class = market_class_for_resolved_route(store, origin, destination, origin_airports, destination_airports)
+    if raw_routing_strategy == "auto":
+        routing_strategy = routing_strategy_for_market(search_request_from_live_args(args), market_class)
     else:
         try:
             routing_strategy = resolve_routing_strategy(raw_routing_strategy, getattr(args, "hub", None))
@@ -353,6 +355,7 @@ def coverage_controls_for_plan(
     preferred_carriers: list[str] | None = None,
     requested_controls: list[str] | None = None,
     coverage_control_limit: int | None = None,
+    depart_dates: list[Any] | None = None,
 ) -> list[dict[str, Any]]:
     controls: list[dict[str, Any]] = []
     seen: set[tuple[Any, ...]] = set()
@@ -367,9 +370,14 @@ def coverage_controls_for_plan(
     directions = [("outbound", origin_code, destination_code, depart)]
     if ret is not None:
         directions.append(("return", destination_code, origin_code, ret))
+    direct_probe_directions = [
+        ("outbound", origin_code, destination_code, date_value) for date_value in (depart_dates or [depart])
+    ]
+    if ret is not None:
+        direct_probe_directions.append(("return", destination_code, origin_code, ret))
 
     if coverage_mode in {"standard", "targeted", "full"}:
-        for direction, _origin_city, _dest_city, date_value in directions:
+        for direction, _origin_city, _dest_city, date_value in direct_probe_directions:
             source_airports = origin_airports if direction == "outbound" else destination_airports
             target_airports = destination_airports if direction == "outbound" else origin_airports
             for origin in source_airports:
