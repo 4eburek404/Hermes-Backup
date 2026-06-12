@@ -6,6 +6,7 @@ from typing import Any
 
 from .. import __skill_name__, __skill_version__, __version__
 from ..command_surface import (
+    CATALOG_AUTO_REFRESH_COMMANDS,
     CATALOG_READ_COMMANDS,
     CATALOG_REFRESH_COMMANDS,
     LIVE_PROVIDER_COMMANDS,
@@ -57,8 +58,10 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
             "max_age": args.catalog_max_age,
             "max_age_seconds": max_age_seconds,
             "timeout": args.catalog_refresh_timeout,
-            "applies_to": list(CATALOG_REFRESH_COMMANDS),
-            "read_only_commands": list(CATALOG_READ_COMMANDS),
+            "applies_to": list(CATALOG_AUTO_REFRESH_COMMANDS),
+            "auto_refresh_commands": list(CATALOG_AUTO_REFRESH_COMMANDS),
+            "catalog_read_commands": list(CATALOG_READ_COMMANDS),
+            "manual_refresh_commands": list(CATALOG_REFRESH_COMMANDS),
             "explicit_refresh_command": "maint catalog refresh",
         },
         "catalog_staleness": catalog_staleness(store.cache_dir, max_age_seconds=max_age_seconds),

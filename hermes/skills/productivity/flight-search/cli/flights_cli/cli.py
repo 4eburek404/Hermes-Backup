@@ -222,7 +222,7 @@ def live_assembly_parent() -> argparse.ArgumentParser:
 
 
 def _catalog_read_defaults(**kwargs: Any) -> dict[str, Any]:
-    return {"catalog_access": "read_only", "requires_catalog": True, **kwargs}
+    return {"catalog_access": "auto_refresh", "requires_catalog": True, **kwargs}
 
 
 def _register_primary_search_commands(sub) -> None:
@@ -408,8 +408,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--catalog-max-age",
-        default=os.getenv("FLIGHTS_CATALOG_MAX_AGE", "7d"),
-        help="Refresh static catalog when older than this TTL, e.g. 12h, 7d, 2w. Default: 7d.",
+        default=os.getenv("FLIGHTS_CATALOG_MAX_AGE", "2w"),
+        help="Refresh static catalog when older than this TTL, e.g. 12h, 7d, 2w. Default: 2w.",
     )
     parser.add_argument(
         "--catalog-refresh-timeout",
@@ -437,9 +437,9 @@ def normalize_global_json(argv: list[str]) -> list[str]:
 
 
 def auto_refresh_catalog(args: argparse.Namespace, store: Store) -> dict | None:
-    # Catalog-dependent search/diagnostic commands are read-only by default.
-    # Refresh is now an explicit maintenance action (`maint catalog refresh`) to
-    # keep normal search paths free of hidden network/file-write side effects.
+    # Catalog-dependent commands need a complete local static catalog before
+    # route planning. They refresh only when files are missing/stale unless the
+    # caller disables this with `--catalog-refresh never`.
     if getattr(args, "catalog_access", None) != "auto_refresh":
         return None
     if args.catalog_refresh not in {"auto", "always", "never"}:

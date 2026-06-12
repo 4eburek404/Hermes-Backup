@@ -36,4 +36,5 @@ CATALOG_READ_COMMANDS = (
     "search",
     "diagnose plan",
 )
+CATALOG_AUTO_REFRESH_COMMANDS = CATALOG_READ_COMMANDS
 CATALOG_REFRESH_COMMANDS = ("maint catalog refresh",)

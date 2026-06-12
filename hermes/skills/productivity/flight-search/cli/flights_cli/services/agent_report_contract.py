@@ -357,6 +357,29 @@ def agent_report_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]
                 "validator": "semantic",
             }
         )
+    agent_guidance = report.get("agent_guidance") if isinstance(report.get("agent_guidance"), dict) else {}
+    not_executed_controls = diagnostics.get("not_executed_controls") if isinstance(diagnostics.get("not_executed_controls"), list) else []
+    failed_controls = diagnostics.get("failed_controls") if isinstance(diagnostics.get("failed_controls"), list) else []
+    not_supported_controls = diagnostics.get("not_supported_controls") if isinstance(diagnostics.get("not_supported_controls"), list) else []
+    provider_failures = evidence.get("provider_failures") if isinstance(evidence.get("provider_failures"), list) else []
+    guidance_execution_complete = bool(completeness.get("all_planned_controls_have_terminal_state"))
+    guidance_blocking_evidence: list[str] = []
+    if not_executed_controls:
+        guidance_blocking_evidence.append("not_executed_controls")
+    if failed_controls:
+        guidance_blocking_evidence.append("failed_controls")
+    if provider_failures:
+        guidance_blocking_evidence.append("provider_failures")
+    guidance_evidence_complete = guidance_execution_complete and not guidance_blocking_evidence
+    expected_boundaries = ["not_supported_controls"] if not_supported_controls else []
+    if agent_guidance.get("execution_complete") != guidance_execution_complete:
+        errors.append({"path": "$.agent_guidance.execution_complete", "message": "agent_guidance.execution_complete must match coverage diagnostics", "validator": "semantic"})
+    if agent_guidance.get("evidence_complete") != guidance_evidence_complete:
+        errors.append({"path": "$.agent_guidance.evidence_complete", "message": "agent_guidance.evidence_complete must reflect blocking evidence", "validator": "semantic"})
+    if agent_guidance.get("blocking_evidence") != guidance_blocking_evidence:
+        errors.append({"path": "$.agent_guidance.blocking_evidence", "message": "agent_guidance.blocking_evidence must match missing/degraded evidence buckets", "validator": "semantic"})
+    if agent_guidance.get("non_blocking_boundaries") != expected_boundaries:
+        errors.append({"path": "$.agent_guidance.non_blocking_boundaries", "message": "agent_guidance.non_blocking_boundaries must match provider capability boundaries", "validator": "semantic"})
 
     errors.extend(ru_priority_semantic_errors(report))
     errors.extend(user_answer_semantic_errors(report))

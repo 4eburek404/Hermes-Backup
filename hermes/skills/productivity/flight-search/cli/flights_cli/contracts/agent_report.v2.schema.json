@@ -4,13 +4,14 @@
   "title": "Hermes Flights CLI Agent Report v2",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "route", "evidence", "frontier", "user_answer", "diagnostics"],
+  "required": ["schema_version", "route", "evidence", "frontier", "user_answer", "agent_guidance", "diagnostics"],
   "properties": {
     "schema_version": {"const": "agent_report.v2"},
     "route": {"$ref": "#/$defs/route"},
     "evidence": {"$ref": "#/$defs/search_evidence"},
     "frontier": {"$ref": "#/$defs/offer_frontier"},
     "user_answer": {"type": "object"},
+    "agent_guidance": {"$ref": "#/$defs/agent_guidance"},
     "diagnostics": {"$ref": "#/$defs/diagnostics"}
   },
   "$defs": {
@@ -107,6 +108,46 @@
         "offer_graph": {"type": "object"},
         "recommended_options": {"type": "array"},
         "priority_options": {"type": "array"}
+      }
+    },
+    "agent_guidance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "primary_command",
+        "canonical_answer_path",
+        "answer_readiness",
+        "execution_complete",
+        "evidence_complete",
+        "blocking_evidence",
+        "non_blocking_boundaries",
+        "next_actions"
+      ],
+      "properties": {
+        "primary_command": {"const": "search --request"},
+        "canonical_answer_path": {"const": "data.agent_report.user_answer.rendered_text"},
+        "answer_readiness": {
+          "enum": ["answerable", "answerable_with_caveats", "needs_more_evidence"]
+        },
+        "execution_complete": {"type": "boolean"},
+        "evidence_complete": {"type": "boolean"},
+        "blocking_evidence": {"type": "array", "items": {"type": "string"}},
+        "non_blocking_boundaries": {"type": "array", "items": {"type": "string"}},
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["id", "reason"],
+            "properties": {
+              "id": {"type": "string"},
+              "reason": {"type": "string"},
+              "request_patch": {"type": "object"},
+              "answer_path": {"type": "string"},
+              "external_evidence_required": {"type": "boolean"}
+            }
+          }
+        }
       }
     },
     "diagnostics": {

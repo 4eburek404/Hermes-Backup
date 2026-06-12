@@ -168,7 +168,7 @@ class AgentReportBudgetTests(unittest.TestCase):
         self.assertTrue(all(option["segments"] for option in budgeted["recommended_options"]))
         self.assertEqual(budgeted["omitted_counts"]["recommended_options"], 2)
 
-    def test_budget_prioritizes_not_supported_controls_before_not_executed(self) -> None:
+    def test_budget_prioritizes_blocking_controls_before_provider_boundaries(self) -> None:
         report = valid_report()
         report["coverage_diagnostics"].update(
             {
@@ -183,8 +183,8 @@ class AgentReportBudgetTests(unittest.TestCase):
         validate_budgeted_flat_report(budgeted)
         diagnostics = budgeted["coverage_diagnostics"]
         self.assertEqual(len(diagnostics["failed_controls"]), 2)
-        self.assertEqual(len(diagnostics["not_supported_controls"]), 3)
-        self.assertEqual(diagnostics["not_executed_controls"], [])
+        self.assertEqual(len(diagnostics["not_executed_controls"]), 3)
+        self.assertEqual(diagnostics["not_supported_controls"], [])
         self.assertEqual(budgeted["omitted_counts"]["coverage_controls"], 6)
 
 

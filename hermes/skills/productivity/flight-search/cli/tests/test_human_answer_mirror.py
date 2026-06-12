@@ -281,12 +281,18 @@ class HumanAnswerRendererTests(unittest.TestCase):
             "alternatives": [],
             "evidence_status": {
                 "coverage_complete": True,
+                "execution_complete": True,
+                "evidence_complete": True,
+                "answerability": "answerable",
                 "planned_control_count": 0,
                 "terminal_control_count": 0,
                 "not_executed_control_count": 0,
+                "failed_control_count": 0,
                 "not_supported_control_count": 0,
                 "provider_failure_count": 0,
                 "through_fare_check_count": 0,
+                "blocking_evidence": [],
+                "non_blocking_boundaries": [],
             },
             "required_caveats": {
                 "source_boundaries_included": True,

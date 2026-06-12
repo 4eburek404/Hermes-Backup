@@ -6,7 +6,7 @@ Use this when reading `data.agent_report` or deciding what to show the user. The
 
 Current contracts:
 
-- `agent_report.v2` — public serialized report envelope. Required top-level layers are `route`, `evidence`, `frontier`, `user_answer`, and `diagnostics`.
+- `agent_report.v2` — public serialized report envelope. Required top-level layers are `route`, `evidence`, `frontier`, `user_answer`, `agent_guidance`, and `diagnostics`.
 - `flight_search_user_answer.v3` — canonical user-facing contract. Built by `cli/flights_cli/reporting/user_answer.py`, validated before `agent_report.user_answer` is accepted, and rendered through `user_answer.rendered_text`.
 
 Retired/projection surfaces:
@@ -29,16 +29,17 @@ Retired/proposed candidates:
 `offer_graph` — primary decision graph; in serialized `agent_report.v2` it lives at `frontier.offer_graph`.
 
 1. `frontier.offer_graph` — primary decision graph. Read `constraints`, `collection`, `evidence`, `frontier`, `missing_evidence`, and `truth_language` before deciding whether the answer is complete enough.
-2. `user_answer.rendered_text` — canonical provider-neutral Telegram/Markdown rendering of the selected frontier. Use it as renderer output, not as proof that collection was exhaustive.
-3. `frontier.recommended_options` — viable ranked options with segment details; cross-check decision-critical details.
-4. `frontier.priority_options` — controls that must stay visible even when lower-ranked: carrier-specific, direct/nonstop, exact-airport, Moscow/SVO, fastest, cheapest, or airport-quality controls.
-5. `evidence.through_fare_checks` — ticketing/protection evidence and required purchase-screen checks.
-6. `evidence.provider_failures` — degraded provider evidence; mention only when it changes confidence or next action.
-7. `evidence.source_boundaries` — source/proof limits; print only decision-useful caveats.
-8. `diagnostics.human_answer.text` — debug mirror; while present it must mirror `user_answer.rendered_text`, but it is not fallback final prose.
-9. `diagnostics.display` — deterministic itinerary fragments for evidence, not final prose.
-10. `diagnostics.answer_lines` — compact internal summary/warnings; do not copy diagnostic labels into final answers.
-11. `diagnostics.hub_viability`, `diagnostics.coverage_diagnostics`, `diagnostics.rejected_pair_warnings`, `diagnostics.stop_policy_diagnostics` — diagnostics for missing/demoted routes, not normal user output.
+2. `agent_guidance` — machine guidance for the agent: canonical command, answer path, execution/evidence completeness, blocking evidence buckets, and request patches for next actions.
+3. `user_answer.rendered_text` — canonical provider-neutral Telegram/Markdown rendering of the selected frontier. Use it as renderer output, not as proof that collection was exhaustive.
+4. `frontier.recommended_options` — viable ranked options with segment details; cross-check decision-critical details.
+5. `frontier.priority_options` — controls that must stay visible even when lower-ranked: carrier-specific, direct/nonstop, exact-airport, Moscow/SVO, fastest, cheapest, or airport-quality controls.
+6. `evidence.through_fare_checks` — ticketing/protection evidence and required purchase-screen checks.
+7. `evidence.provider_failures` — degraded provider evidence; mention only when it changes confidence or next action.
+8. `evidence.source_boundaries` — source/proof limits; print only decision-useful caveats.
+9. `diagnostics.human_answer.text` — debug mirror; while present it must mirror `user_answer.rendered_text`, but it is not fallback final prose.
+10. `diagnostics.display` — deterministic itinerary fragments for evidence, not final prose.
+11. `diagnostics.answer_lines` — compact internal summary/warnings; do not copy diagnostic labels into final answers.
+12. `diagnostics.hub_viability`, `diagnostics.coverage_diagnostics`, `diagnostics.rejected_pair_warnings`, `diagnostics.stop_policy_diagnostics` — diagnostics for missing/demoted routes, not normal user output.
 
 If a report exposes old top-level `recommended_options`, `priority_options`, `offer_graph`, `answer_lines`, `display`, `human_answer`, `coverage_diagnostics`, `provider_failures`, or `source_boundaries`, treat it as internal flat builder input or stale output. Public serialized reports must use v2 nested paths.
 

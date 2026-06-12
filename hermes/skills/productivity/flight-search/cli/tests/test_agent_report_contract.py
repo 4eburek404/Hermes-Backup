@@ -30,6 +30,7 @@ EXPECTED_TOP_LEVEL_REQUIRED = [
     "evidence",
     "frontier",
     "user_answer",
+    "agent_guidance",
     "diagnostics",
 ]
 LEGACY_TOP_LEVEL_FIELDS = {
@@ -309,9 +310,23 @@ class AgentReportContractTests(unittest.TestCase):
         self.assertNotIn("human_answer", schema["required"])
         self.assertIn("evidence", schema["properties"])
         self.assertIn("frontier", schema["properties"])
+        self.assertIn("agent_guidance", schema["properties"])
         self.assertIn("diagnostics", schema["properties"])
         self.assertIn("user_answer", schema["properties"])
         self.assertIs(schema["additionalProperties"], False)
+
+    def test_agent_guidance_projects_next_actions_for_missing_evidence(self) -> None:
+        report = valid_agent_report_v2()
+
+        guidance = report["agent_guidance"]
+        self.assertEqual(guidance["primary_command"], "search --request")
+        self.assertEqual(guidance["canonical_answer_path"], "data.agent_report.user_answer.rendered_text")
+        self.assertTrue(guidance["execution_complete"])
+        self.assertFalse(guidance["evidence_complete"])
+        self.assertEqual(guidance["answer_readiness"], "answerable_with_caveats")
+        self.assertIn("not_executed_controls", guidance["blocking_evidence"])
+        self.assertEqual(guidance["next_actions"][0]["id"], "rerun_with_larger_execution_budget")
+        self.assertEqual(guidance["next_actions"][0]["request_patch"]["evidence"]["no_live_cache"], True)
 
     def test_schema_loads_as_package_resource_and_stays_compact(self) -> None:
         text = resources.files(AGENT_REPORT_SCHEMA_PACKAGE).joinpath(AGENT_REPORT_SCHEMA_RESOURCE).read_text(encoding="utf-8")
@@ -332,7 +347,7 @@ class AgentReportContractTests(unittest.TestCase):
 
         self.assertEqual(
             set(report.keys()),
-            {"schema_version", "route", "evidence", "frontier", "user_answer", "diagnostics"},
+            {"schema_version", "route", "evidence", "frontier", "user_answer", "agent_guidance", "diagnostics"},
         )
         for legacy_key in LEGACY_TOP_LEVEL_FIELDS:
             with self.subTest(legacy_key=legacy_key):

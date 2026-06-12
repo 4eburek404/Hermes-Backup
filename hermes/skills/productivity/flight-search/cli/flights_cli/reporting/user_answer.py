@@ -499,6 +499,8 @@ def build_user_answer(agent_report: dict[str, Any], *, rendered_text: str | None
     completeness = diagnostics.get("completeness") if isinstance(diagnostics.get("completeness"), dict) else {}
     not_executed_raw = diagnostics.get("not_executed_controls")
     not_executed = not_executed_raw if isinstance(not_executed_raw, list) else []
+    failed_controls_raw = diagnostics.get("failed_controls")
+    failed_controls = failed_controls_raw if isinstance(failed_controls_raw, list) else []
     not_supported_raw = diagnostics.get("not_supported_controls")
     not_supported = not_supported_raw if isinstance(not_supported_raw, list) else []
     provider_failures = agent_report.get("provider_failures") if isinstance(agent_report.get("provider_failures"), list) else []
@@ -536,6 +538,23 @@ def build_user_answer(agent_report: dict[str, Any], *, rendered_text: str | None
         answer_text = canonical_user_answer_text(agent_report, rendered_text)
     answer_lines = rendered_answer_lines(answer_text)
     answer_text_lower = answer_text.lower()
+    execution_complete = bool(completeness.get("all_planned_controls_have_terminal_state"))
+    blocking_evidence = []
+    if not_executed:
+        blocking_evidence.append("not_executed_controls")
+    if failed_controls:
+        blocking_evidence.append("failed_controls")
+    if provider_failures:
+        blocking_evidence.append("provider_failures")
+    non_blocking_boundaries = ["not_supported_controls"] if not_supported else []
+    evidence_complete = execution_complete and not blocking_evidence
+    answerability = (
+        "answerable"
+        if evidence_complete
+        else "answerable_with_caveats"
+        if execution_complete
+        else "needs_more_evidence"
+    )
 
     return {
         "schema_version": USER_ANSWER_SCHEMA_VERSION,
@@ -559,13 +578,19 @@ def build_user_answer(agent_report: dict[str, Any], *, rendered_text: str | None
             "garbage_options_suppressed": bool(stop_diagnostics.get("garbage_options_hidden_from_answer")),
         },
         "evidence_status": {
-            "coverage_complete": bool(completeness.get("all_planned_controls_have_terminal_state")),
+            "coverage_complete": evidence_complete,
+            "execution_complete": execution_complete,
+            "evidence_complete": evidence_complete,
+            "answerability": answerability,
             "planned_control_count": int(completeness.get("planned_count") or 0),
             "terminal_control_count": int(completeness.get("terminal_count") or 0),
             "not_executed_control_count": len(not_executed),
+            "failed_control_count": len(failed_controls),
             "not_supported_control_count": len(not_supported),
             "provider_failure_count": len(provider_failures),
             "through_fare_check_count": len(through_fare_checks),
+            "blocking_evidence": blocking_evidence,
+            "non_blocking_boundaries": non_blocking_boundaries,
         },
         "required_caveats": {
             "source_boundaries_included": not bool(agent_report.get("source_boundaries")) or has_any_signal(
@@ -740,8 +765,20 @@ def user_answer_contract_semantic_errors(answer: dict[str, Any]) -> list[dict[st
                 }
             )
 
+    if evidence.get("coverage_complete") != evidence.get("evidence_complete"):
+        errors.append({"path": "$.evidence_status.coverage_complete", "message": "coverage_complete must mirror evidence_complete", "validator": "semantic"})
+    if evidence.get("evidence_complete") and not evidence.get("execution_complete"):
+        errors.append({"path": "$.evidence_status.evidence_complete", "message": "evidence_complete cannot be true unless execution_complete is true", "validator": "semantic"})
+    if evidence.get("planned_control_count") != evidence.get("terminal_control_count") and evidence.get("execution_complete"):
+        errors.append({"path": "$.evidence_status.execution_complete", "message": "execution_complete cannot be true when planned and terminal counts differ", "validator": "semantic"})
     if evidence.get("planned_control_count") != evidence.get("terminal_control_count") and evidence.get("coverage_complete"):
         errors.append({"path": "$.evidence_status.coverage_complete", "message": "coverage_complete cannot be true when planned and terminal counts differ", "validator": "semantic"})
+    if int(evidence.get("not_executed_control_count") or 0) > 0 and evidence.get("evidence_complete"):
+        errors.append({"path": "$.evidence_status.evidence_complete", "message": "evidence_complete cannot be true when controls are not_executed", "validator": "semantic"})
+    if int(evidence.get("failed_control_count") or 0) > 0 and evidence.get("evidence_complete"):
+        errors.append({"path": "$.evidence_status.evidence_complete", "message": "evidence_complete cannot be true when controls failed", "validator": "semantic"})
+    if int(evidence.get("provider_failure_count") or 0) > 0 and evidence.get("evidence_complete"):
+        errors.append({"path": "$.evidence_status.evidence_complete", "message": "evidence_complete cannot be true when provider failures exist", "validator": "semantic"})
     if int(evidence.get("not_executed_control_count") or 0) > 0 and caveats.get("coverage_incompleteness_acknowledged") is not True:
         errors.append({"path": "$.required_caveats.coverage_incompleteness_acknowledged", "message": "final answer must acknowledge incomplete coverage when controls are not_executed", "validator": "semantic"})
     if int(evidence.get("provider_failure_count") or 0) > 0 and caveats.get("provider_failures_acknowledged") is not True:

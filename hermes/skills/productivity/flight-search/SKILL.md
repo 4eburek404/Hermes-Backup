@@ -32,8 +32,9 @@ cd "$HERMES_HOME"/skills/productivity/flight-search/cli
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request /tmp/flight-search-request.json
 ```
 
-4. Read the final answer only from `data.agent_report.user_answer.rendered_text`.
-5. Read `frontier.offer_graph` first, then use structured report fields for confidence checks before replying: `route.flow_decision`, `route.evidence_plan`, `evidence.coverage_diagnostics`, `evidence.provider_failures`, `evidence.source_boundaries`, `evidence.through_fare_checks`, `frontier.recommended_options`, and `frontier.priority_options`.
+4. Let the CLI manage static catalog freshness for catalog-dependent commands: by default it refreshes missing or older-than-2-weeks metadata before planning. Treat `data.catalog_auto_refresh` as runtime metadata, not flight evidence.
+5. Read the final answer only from `data.agent_report.user_answer.rendered_text`.
+6. Read `frontier.offer_graph` first, then `agent_guidance` for readiness/next actions, then use structured report fields for confidence checks before replying: `route.flow_decision`, `route.evidence_plan`, `evidence.coverage_diagnostics`, `evidence.provider_failures`, `evidence.source_boundaries`, `evidence.through_fare_checks`, `frontier.recommended_options`, and `frontier.priority_options`.
 
 ## Request template
 

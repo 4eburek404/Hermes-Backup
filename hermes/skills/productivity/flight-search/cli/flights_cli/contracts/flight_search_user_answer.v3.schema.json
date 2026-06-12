@@ -74,16 +74,35 @@
       "additionalProperties": false,
       "required": [
         "coverage_complete",
+        "execution_complete",
+        "evidence_complete",
+        "answerability",
         "planned_control_count",
         "terminal_control_count",
         "not_executed_control_count",
+        "failed_control_count",
         "not_supported_control_count",
         "provider_failure_count",
-        "through_fare_check_count"
+        "through_fare_check_count",
+        "blocking_evidence",
+        "non_blocking_boundaries"
       ],
       "properties": {
         "coverage_complete": {
           "type": "boolean"
+        },
+        "execution_complete": {
+          "type": "boolean"
+        },
+        "evidence_complete": {
+          "type": "boolean"
+        },
+        "answerability": {
+          "enum": [
+            "answerable",
+            "answerable_with_caveats",
+            "needs_more_evidence"
+          ]
         },
         "planned_control_count": {
           "type": "integer",
@@ -94,6 +113,10 @@
           "minimum": 0
         },
         "not_executed_control_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed_control_count": {
           "type": "integer",
           "minimum": 0
         },
@@ -108,6 +131,14 @@
         "not_supported_control_count": {
           "type": "integer",
           "minimum": 0
+        },
+        "blocking_evidence": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "non_blocking_boundaries": {
+          "type": "array",
+          "items": {"type": "string"}
         }
       }
     },

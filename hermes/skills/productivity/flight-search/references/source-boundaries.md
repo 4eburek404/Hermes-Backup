@@ -117,6 +117,8 @@ Static catalogs are metadata only: city, airport, country/region, airline, allia
 
 Use catalog fields to normalize names, codes, airport geography, country/region scope, airline labels, alliance labels, and aircraft labels. Do not use catalog presence as schedule or availability evidence.
 
+Catalog-dependent CLI commands refresh missing or older-than-2-weeks static metadata before planning unless disabled. This is runtime readiness, not live availability evidence.
+
 ## Live Provider Policy and Sidecar Boundary
 
 The live provider policy chooses the current source mix for each segment. Read policy, failures, coverage diagnostics, and source limits from `data.agent_report` instead of assuming a provider path.

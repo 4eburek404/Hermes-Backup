@@ -11,7 +11,7 @@ Required first step before provider or command reasoning:
 1. classify intent;
 2. classify market;
 3. classify evidence requirement;
-4. then choose the primary command and allowed follow-up probes.
+4. then emit machine-readable agent guidance: primary command, answer path, readiness, blocking evidence, and request-patch next actions.
 
 ## Minimum Flow Classes
 
@@ -46,7 +46,7 @@ Required first step before provider or command reasoning:
 - Direct inventory/date-window requests are not route recommendations. Use direct-only per-date probes; do not add connected alternatives unless the user asks.
 - Ticketing/protection proof is not proven by route search. Require airline/GDS/OTA purchase-screen/order evidence, otherwise say unproven.
 
-## Suggested `flow_decision` Shape
+## Runtime Contract Shape
 
 ```json
 {
@@ -57,9 +57,23 @@ Required first step before provider or command reasoning:
     "evidence_class": "shopping_advisory | ticketing_required | absence_claim | diagnostic_only",
     "routing_strategy": "domestic-ru | ru-priority | global-non-ru | hub-list",
     "provider_plan": ["kupibilet", "fli"],
-    "primary_command": "search --request",
-    "allowed_followups": ["diagnose kb-roundtrip", "diagnose kb-search --direct-only", "diagnose fli-search --direct-only"],
     "limitations": []
+  },
+  "agent_guidance": {
+    "primary_command": "search --request",
+    "canonical_answer_path": "data.agent_report.user_answer.rendered_text",
+    "answer_readiness": "answerable | answerable_with_caveats | needs_more_evidence",
+    "execution_complete": true,
+    "evidence_complete": false,
+    "blocking_evidence": ["not_executed_controls"],
+    "non_blocking_boundaries": ["not_supported_controls"],
+    "next_actions": [
+      {
+        "id": "rerun_with_larger_execution_budget",
+        "reason": "not_executed_controls",
+        "request_patch": {"evidence": {"max_segment_searches": 600, "no_live_cache": true}}
+      }
+    ]
   }
 }
 ```

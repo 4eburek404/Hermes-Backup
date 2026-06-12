@@ -210,6 +210,11 @@ class FinalAnswerContractTests(unittest.TestCase):
         self.assertEqual(answer["primary_recommendation"]["max_connections_per_journey"], 0)
         self.assertEqual(answer["stop_policy_status"]["policy"], "business_default")
         self.assertEqual(answer["evidence_status"]["provider_failure_count"], 1)
+        self.assertTrue(answer["evidence_status"]["execution_complete"])
+        self.assertFalse(answer["evidence_status"]["evidence_complete"])
+        self.assertFalse(answer["evidence_status"]["coverage_complete"])
+        self.assertEqual(answer["evidence_status"]["answerability"], "answerable_with_caveats")
+        self.assertIn("provider_failures", answer["evidence_status"]["blocking_evidence"])
         self.assertTrue(answer["rendered_text"].startswith("Нашёл варианты SVX→DEL"))
         self.assertIn("часть live-проверок упала", answer["rendered_text"])
         self.assertIn("through fare", answer["rendered_text"])
@@ -536,7 +541,10 @@ class FinalAnswerContractTests(unittest.TestCase):
         validate_user_answer(answer)
         self.assertEqual(answer["evidence_status"]["not_supported_control_count"], 1)
         self.assertEqual(answer["evidence_status"]["not_executed_control_count"], 0)
+        self.assertTrue(answer["evidence_status"]["execution_complete"])
+        self.assertTrue(answer["evidence_status"]["evidence_complete"])
         self.assertTrue(answer["evidence_status"]["coverage_complete"])
+        self.assertIn("not_supported_controls", answer["evidence_status"]["non_blocking_boundaries"])
         self.assertTrue(answer["required_caveats"]["coverage_incompleteness_acknowledged"])
 
     def test_build_user_answer_does_not_fallback_to_legacy_display_or_answer_lines(self) -> None:
