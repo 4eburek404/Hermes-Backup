@@ -39,7 +39,7 @@ def build_agent_handoff(
             details={"required_disambiguation": ["inspect data.verification for failed code-owned checks"]},
         )
     route_detection_mode = str(route_detection.get("mode")) if route_detection else "explicit"
-    ics_path = str(paths["ics"].resolve())
+    ics_path = str(paths["ics"])
     return {
         "ready": True,
         "media": f"MEDIA:{ics_path}",
@@ -108,10 +108,10 @@ def run_build_command(
     bundled.update(
         {
             "route": route,
-            "output_dir": str(output_dir.resolve()),
-            "json_path": str(paths["json"].resolve()),
-            "ics_path": str(paths["ics"].resolve()),
-            "envelope_path": str(paths["envelope"].resolve()),
+            "output_dir": str(output_dir),
+            "json_path": str(paths["json"]),
+            "ics_path": str(paths["ics"]),
+            "envelope_path": str(paths["envelope"]),
             "verification": verification,
             "agent_handoff": agent_handoff,
         }

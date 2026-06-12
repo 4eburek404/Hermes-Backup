@@ -257,7 +257,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             obj = json.loads((output_dir / "envelope.json").read_text(encoding="utf-8"))
             self.assert_envelope(obj, ok=True, command="build")
             self.assertEqual(obj["data"]["segments_count"], 2)
-            self.assertEqual(obj["data"]["ics_path"], str(output.resolve()))
+            self.assertEqual(obj["data"]["ics_path"], str(output))
             self.assertEqual([s["route"] for s in obj["data"]["segments"]], ["SVO->LED", "LED->SVO"])
             steps = [step["step"] for step in obj["process"]]
             for required_step in ["load_input", "validate_itinerary_schema", "validate_itinerary_semantics", "build_calendar", "validate_ics", "write_ics"]:
