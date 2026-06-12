@@ -12,8 +12,8 @@ from jsonschema import Draft202012Validator
 
 from flights_cli.cli import main
 from flights_cli.errors import CliError
-from flights_cli.reporting.agent_report_v2 import build_agent_report_v2
-from flights_cli.reporting.final_answer_contract import build_user_answer_contract, validate_user_answer_contract
+from flights_cli.reporting.agent_report_projector import project_agent_report
+from flights_cli.reporting.user_answer import build_user_answer, validate_user_answer
 from flights_cli.services.agent_report import build_agent_report
 from flights_cli.services.agent_report_contract import (
     AGENT_REPORT_SCHEMA_PACKAGE,
@@ -30,6 +30,7 @@ EXPECTED_TOP_LEVEL_REQUIRED = [
     "evidence",
     "frontier",
     "user_answer",
+    "agent_guidance",
     "diagnostics",
 ]
 LEGACY_TOP_LEVEL_FIELDS = {
@@ -242,13 +243,13 @@ def valid_report() -> dict:
             ],
         },
     }
-    report["user_answer"] = build_user_answer_contract(report)
+    report["user_answer"] = build_user_answer(report)
     report["human_answer"]["text"] = report["user_answer"]["rendered_text"]
     return report
 
 
 def valid_agent_report_v2(report: dict | None = None) -> dict:
-    return build_agent_report_v2(report or valid_report())
+    return project_agent_report(report or valid_report())
 
 
 def validate_flat_agent_report(report: dict) -> None:
@@ -309,9 +310,23 @@ class AgentReportContractTests(unittest.TestCase):
         self.assertNotIn("human_answer", schema["required"])
         self.assertIn("evidence", schema["properties"])
         self.assertIn("frontier", schema["properties"])
+        self.assertIn("agent_guidance", schema["properties"])
         self.assertIn("diagnostics", schema["properties"])
         self.assertIn("user_answer", schema["properties"])
         self.assertIs(schema["additionalProperties"], False)
+
+    def test_agent_guidance_projects_next_actions_for_missing_evidence(self) -> None:
+        report = valid_agent_report_v2()
+
+        guidance = report["agent_guidance"]
+        self.assertEqual(guidance["primary_command"], "search --request")
+        self.assertEqual(guidance["canonical_answer_path"], "data.agent_report.user_answer.rendered_text")
+        self.assertTrue(guidance["execution_complete"])
+        self.assertFalse(guidance["evidence_complete"])
+        self.assertEqual(guidance["answer_readiness"], "answerable_with_caveats")
+        self.assertIn("not_executed_controls", guidance["blocking_evidence"])
+        self.assertEqual(guidance["next_actions"][0]["id"], "rerun_with_larger_execution_budget")
+        self.assertEqual(guidance["next_actions"][0]["request_patch"]["evidence"]["no_live_cache"], True)
 
     def test_schema_loads_as_package_resource_and_stays_compact(self) -> None:
         text = resources.files(AGENT_REPORT_SCHEMA_PACKAGE).joinpath(AGENT_REPORT_SCHEMA_RESOURCE).read_text(encoding="utf-8")
@@ -324,7 +339,7 @@ class AgentReportContractTests(unittest.TestCase):
     def test_valid_synthetic_agent_report_passes(self) -> None:
         report = valid_report()
         validate_flat_agent_report(report)
-        validate_user_answer_contract(report["user_answer"])
+        validate_user_answer(report["user_answer"])
         self.assertEqual(report["user_answer"]["rendered_text"], report["human_answer"]["text"])
 
     def test_agent_report_v2_runtime_mapping_does_not_expose_legacy_aliases(self) -> None:
@@ -332,7 +347,7 @@ class AgentReportContractTests(unittest.TestCase):
 
         self.assertEqual(
             set(report.keys()),
-            {"schema_version", "route", "evidence", "frontier", "user_answer", "diagnostics"},
+            {"schema_version", "route", "evidence", "frontier", "user_answer", "agent_guidance", "diagnostics"},
         )
         for legacy_key in LEGACY_TOP_LEVEL_FIELDS:
             with self.subTest(legacy_key=legacy_key):
@@ -550,7 +565,7 @@ class AgentReportContractTests(unittest.TestCase):
         serialized_report = json.loads(json.dumps(report, ensure_ascii=False))
         self.assertFalse(LEGACY_TOP_LEVEL_FIELDS & set(serialized_report))
         self.assertEqual(serialized_report["frontier"]["offer_graph"], graph)
-        validate_user_answer_contract(report["user_answer"])
+        validate_user_answer(report["user_answer"])
         self.assertEqual(report["user_answer"]["rendered_text"], report["diagnostics"]["human_answer"]["text"])
 
     def test_v1_accepts_optional_omitted_counts(self) -> None:

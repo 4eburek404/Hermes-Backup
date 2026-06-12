@@ -1,6 +1,6 @@
 ---
 name: flight-search
-version: 0.10.14
+version: 0.11.0
 description: Use when finding, comparing, or diagnosing live flight route options with the bundled flights CLI; assumes one adult in economy and never books tickets.
 metadata:
   hermes:
@@ -11,104 +11,107 @@ metadata:
 
 # Flight Search
 
-## Overview
+## Use when
 
-Default path: normalize request → run runtime CLI `route live-assemble --agent-brief` → read `data.agent_report` → answer from the deterministic user-answer renderer.
-
-The active public contracts are `agent_report.v2` and `flight_search_user_answer.v3`. `user_answer.rendered_text` is the canonical user-facing renderer output; `diagnostics.human_answer`, `diagnostics.display`, and `diagnostics.answer_lines` are debug/mirror projections, not fallback final-prose sources. Static catalogs only normalize metadata; cached fare helpers do not validate schedules, availability, connections, ticketing, or provider offers. This skill never books or buys tickets.
-
-## When to Use
-
-Use for live flight search/comparison, direct-service checks, hub/airport choice, carrier-specific availability, baggage/ticketing/protection risk, date-window planning, or explicit flight-search CLI/report maintenance. Also use for immediate bounded travel-mode comparisons after a flight search, such as “а поездом сколько стоит?” on the same route/dates.
-
-Do not use for purchase actions, visa/hotel/ground research, or static fare hints unless explicitly requested as non-validated advisory data. Single-PNR/protection/baggage/fare-rule claims need purchase-screen, airline/GDS, seller, or upstream proof.
-
-## Maintenance Mode Gate
-
-Default is traveler route search. Do not inspect source/runtime, raw candidates, `doctor`, schemas, or generated artifacts unless failure blocks the search or the user asks to inspect/debug/audit/modify/sync this skill, CLI, or report contract. Use `references/cli-maintenance.md` and `references/debug-playbook.md` in maintenance mode.
-
-Before adding another user-answer/final-answer/report contract, run a cleanup audit: measure `SKILL.md`/references/CLI/schema size, classify contracts as current/legacy/shadow/proposed, check generated artifacts, and prove source/runtime drift. Do not add another v1/v2/v3 layer until the ownership map is clear.
+- Live flight search or route comparison.
+- Direct/nonstop inventory for a date or bounded date window.
+- Carrier-specific or exact-airport availability.
+- Ticketing/protection/baggage risk checks; this skill never books tickets.
+- Bounded train-vs-flight comparison after a flight search.
+- Maintenance only when the user asks to inspect, debug, modify, or sync this skill, CLI, schemas, or report contract.
 
 ## Golden Path
 
-0. If the user follows up with a non-flight price comparison, especially “а поездом сколько?”, keep it bounded to cost/time comparison. For Russian rail, use `references/rail-rzd-live-pricing.md`: resolve stations, query official RZD/pass.rzd both directions by exact dates, calculate round-trip minima by class, then compare against the flight total.
-0a. If the user asks for **all direct/nonstop flights over a date window** (“все прямые”, “только прямые”, “на неделе”), treat it as direct inventory, not route recommendation. Follow `references/direct-date-window.md`: expand the range, run bounded provider-live direct-only probes per date, and do not present connected `route live-assemble` alternatives unless the user asks.
-1. Normalize exact dates, route scope, named airports, carrier, stops, baggage, timing, ticketing intent, and profile. Preserve named airports (`IST`, `SVO`, `DME`). Arrival deadline without departure date: search latest plausible departure first, then previous date. Default “morning” to before local noon. Treat “avoid Moscow” as soft ranking unless explicit hard filter.
-2. Classify market before absence claims: RU domestic, RU-touching international, global non-RU, structurally constrained, or carrier-specific.
-3. Run from runtime skill CLI:
+1. Normalize route/date/scope: exact airports vs city scope, carrier, direct-only, return date, baggage/ticketing intent, and profile (`balanced` default).
+2. Write a `flight_search_request.v1` JSON request.
+3. Run the canonical search command from the skill CLI:
 
 ```bash
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 cd "$HERMES_HOME"/skills/productivity/flight-search/cli
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json route live-assemble ORIGIN DEST   --depart-date YYYY-MM-DD   --profile PROFILE   --agent-brief
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request /tmp/flight-search-request.json
 ```
 
-Add `--return-date YYYY-MM-DD` for round trips. Add `--aggregate-control-carrier CARRIER` for carrier tasks. For KupiBilet “туда-обратно одним билетом”, use `kb-roundtrip` first. For simple domestic round trips where a direct candidate is decision-leading, run `kb-roundtrip --direct-only` as a targeted control for live bundles, baggage/hand-luggage packages, seats, and alternative direct return times. Multi-city/open-jaw has no arbitrary live command; use separate assemblies or offline `route validate`/`route rank` and label diagnostic.
+4. Let the CLI manage static catalog freshness for catalog-dependent commands: by default it refreshes missing or older-than-2-weeks metadata before planning. Treat `data.catalog_auto_refresh` as runtime metadata, not flight evidence.
+5. Read the final answer only from `data.agent_report.user_answer.rendered_text`.
+6. Read `frontier.offer_graph` first, then `agent_guidance` for readiness/next actions, then use structured report fields for confidence checks before replying: `route.flow_decision`, `route.evidence_plan`, `evidence.coverage_diagnostics`, `evidence.provider_failures`, `evidence.source_boundaries`, `evidence.through_fare_checks`, `frontier.recommended_options`, and `frontier.priority_options`.
 
-4. Read only `data.agent_report`.
-5. Read `frontier.offer_graph` first: use `constraints`, `collection`, `evidence`, `missing_evidence`, and `frontier` to decide whether evidence is complete enough. Treat first provider output as progressive evidence; run targeted/polling probes when missing direct/carrier/exact-airport/through-fare evidence can change the recommendation. Stop only on completeness limit, source exhaustion, unchanged decision frontier, or explicit time budget.
-6. If `user_answer.rendered_text` is present and valid, copy it as the final answer body without hand-rewriting, re-ranking, summarizing, or “improving” it. Cross-check `frontier.recommended_options`, `frontier.priority_options`, `evidence.through_fare_checks`, `evidence.provider_failures`, and `evidence.source_boundaries` when evidence is degraded or missing. Do not use `diagnostics.human_answer`, `diagnostics.display`, or `diagnostics.answer_lines` as fallback final prose.
+## Request template
 
-## Decision Rules
+```json
+{
+  "schema_version": "flight_search_request.v1",
+  "origin": "ORIGIN",
+  "destination": "DEST",
+  "depart_date": "YYYY-MM-DD",
+  "return_date": null,
+  "currency": "RUB",
+  "profile": "balanced",
+  "ticketing": "separate",
+  "provider_policy": "auto",
+  "route_options": {
+    "max_connections": null,
+    "fallback_max_connections": null
+  },
+  "filters": {
+    "only_carriers": []
+  },
+  "output": {"agent_brief": true}
+}
+```
 
-- Direct-service/date-window requests: follow `references/direct-date-window.md`; answer from provider-live direct inventory by date, list dates with no provider-live direct offer, and do not add external schedule checks unless explicitly requested.
-- Profiles: `business` comfort/reliability; `safe` maximum connection safety; `balanced` neutral; `cheap` only explicit price-first.
-- Rank operational frontier first: direct/one-stop, practical airports, safe connections, ticketing/protection, carrier reliability, baggage; price after practicality unless requested otherwise.
-- Ticketing evidence: airline/GDS/purchase-screen single booking > provider aggregate without virtual/self-transfer signal > provider aggregate with virtual/interline signal > summed separate segments. Never claim single PNR, baggage-through, or missed-connection protection without proof.
-- MCT is a floor, not comfort. Add buffers for terminals, passport/security, baggage, virtual/self-transfer, low-cost terminals, and disruption risk. Very long layovers (~18h+) are fallback/stopover options unless desired.
-- Terminal/gate claims require explicit dated fields for exact flights/legs. Same airport/carrier/alliance/hub/terminal-complex does not prove same terminal; if absent, say terminals are unconfirmed.
-- Negative direct/carrier claims need targeted controls unless structural constraints prove unavailability. RU-origin/RU-touching international needs Moscow controls (`SVO`/`DME`/`VKO`) before “no good one-stop”.
-- Carrier-specific or exact-airport tasks: answer that scope first; alternatives separately.
-- Suppress artifacts with `ok=false`, `risk.reject=true`, `invalid_time_order`, or negative time. Do not invent missing flight numbers/times/terminals/segments.
+For direct-only inventory set both `route_options.max_connections` and `route_options.fallback_max_connections` to `0`. For carrier scope fill `filters.only_carriers`.
 
-## User Answer Style
+## Follow-up trigger map
 
-- Start with `нашёл`, `не нашёл`, or `evidence неполное`; then recommendation and why.
-- Use traveler/dispatcher bullets; no pipe tables; avoid internal labels unless diagnostics are requested.
-- Prefer `user_answer.rendered_text` from `flight_search_user_answer.v3`; it is the deterministic renderer projection.
-- Round trips / multi-option frontiers use v3 catalog semantics: numbered compact `catalog.items[]`, contiguous numbers, price + outbound/return details, ticketing/protection/baggage risk badges/caveats, and purchase-screen verification when single PNR/baggage-through is unproven.
-- Itinerary lines show each segment’s times, differing dates, layover, elapsed time, price, and labels like `ночная`, `прилёт +1`, `длинная стыковка`, `fallback` when relevant.
-- Carrier-specific tasks keep carrier scope first; if “ищите ещё”, continue same carrier before broadening.
-- Caveats only when decision-relevant: unproven single-PNR/protection/baggage/fare rules, unconfirmed terminals, degraded provider evidence, or narrow probe needed.
+Start with `search --request`; use follow-ups only when the report says evidence is missing or the user asks for a narrower proof.
 
-## Absence and Error Handling
+- Direct/date-window inventory: direct-only request options; for a bounded window set `route_options.date_window_end` and read `evidence.date_window_inventory` (`references/direct-date-window.md`).
+- Carrier or exact-airport scope: answer the requested scope first, then alternatives; required controls should appear in the report evidence plan.
+- Single PNR, through baggage, protected connection, final fare, refund/exchange, or terminal certainty: require purchase-screen, airline/GDS, seller, or explicit upstream proof; otherwise say unproven.
+- RU domestic: expect domestic-RU route mode and direct domestic visibility.
+- RU-touching international: RU-priority/Moscow controls may be relevant; the report should record why.
+- Global non-RU: must not silently inherit RU-priority, Moscow/SVO controls, or Russian-provider assumptions; if it does, treat it as a structured limitation.
+- Train comparison after a flight search: use `references/rail-rzd-live-pricing.md` and keep the comparison bounded to price/time evidence.
+- Maintenance/debug/refactor: use `references/cli-maintenance.md` and `references/debug-playbook.md`; do not expose maintenance output as the traveler answer.
 
-- Empty provider output is not proof of absence. Classify provider/horizon uncertainty, coverage gap, constraint mismatch, runtime/provider failure, structural unavailability, or ticketing/protection uncertainty.
-- If CLI/JSON fails, report the concrete layer and run safe provenance checks. If terminal capture truncates JSON, rerun the same read-only command to `mktemp` under `/tmp`, parse tolerant JSON, read `data.agent_report`, then remove the temp file.
-- If a decision-critical option is clipped/missing, run the relevant narrow probe instead of inventing details. Route-family exception patterns live in `references/debug-playbook.md`.
+## Source-boundary caveats
 
-## Common Pitfalls
+Keep caveats compact and source-bound:
 
-1. Using cached fare helpers as route search.
-2. Treating static catalogs or `doctor` as availability evidence.
-3. Overclaiming single PNR, baggage-through, disruption protection, or same terminal.
-4. Silently widening named airports to city scope.
-5. Pasting raw `display`, diagnostics, JSON, provider boilerplate, or `answer_lines` as final answer.
-6. Hiding `priority_options` or carrier/provider aggregates behind generic cheapest/fastest output.
-7. Finalizing RU-touching international round trips from `route live-assemble` alone when baggage/PNR/through-fare evidence is weak; targeted `kb-roundtrip` and carrier-specific aggregate controls can materially change the practical recommendation.
-8. Maintenance/refactor pitfalls live in `references/cli-maintenance.md`; ordinary route search should stay traveler-facing.
+- Live provider output is shopping evidence, not booking proof; recheck before purchase.
+- Empty provider output is not structural absence unless targeted controls or structural route evidence support it.
+- Static catalogs only normalize metadata: city/airport/country/airline data; they do not prove availability or schedules.
+- Exact airports are not interchangeable; airport/provider priority policy lives in `references/provider-aware-airport-priority.md`.
+- Cache freshness, required controls, skipped/failed/not-supported controls, provider failures, and missing evidence should come from structured report fields, not prompt-only reasoning.
 
-## Verification Checklist
+## Common pitfalls
 
-- [ ] Constraints normalized and route scope preserved.
-- [ ] Runtime `route live-assemble --agent-brief` run, or provenance failure reported before fallback.
-- [ ] Answer based on `data.agent_report`; `user_answer.rendered_text` copied when present and valid; `diagnostics.human_answer`, `diagnostics.display`, and `diagnostics.answer_lines` never used as final-prose fallback.
-- [ ] `frontier.offer_graph`, `frontier.recommended_options`, `frontier.priority_options`, `evidence.through_fare_checks`, `evidence.provider_failures`, and `evidence.source_boundaries` checked when decision-relevant.
-- [ ] Required direct/carrier/exact-airport/Moscow controls or narrow probes run.
-- [ ] Ticketing/protection/baggage-through and terminal claims proven or explicitly unconfirmed.
-- [ ] Maintenance work verifies source/runtime paths, branch/HEAD/status, versions, backup, parity, tests/doctor, generated artifacts, and reference lifecycle.
-- [ ] No per-incident migration/proposal/reference file added when a durable rule belongs in an existing reference or test.
+1. Using cached fare helpers, static catalogs, or maintenance diagnostics as availability evidence.
+2. Starting with provider-specific probes instead of the canonical `search --request` path.
+3. Treating direct inventory as route recommendation and adding connected options unasked.
+4. Overclaiming single PNR, baggage-through, protection, fare rules, terminal, or final price.
+5. Silently widening named airports to city scope.
+6. Rewriting, re-ranking, or copying raw diagnostic JSON instead of delivering the canonical rendered text.
+7. Adding new audit/session/proposal Markdown files instead of moving durable behavior into CLI/report/tests or canonical references.
+
+## Verification checklist
+
+- [ ] Request scope normalized and encoded as `flight_search_request.v1`.
+- [ ] Canonical command executed or the exact failing layer reported.
+- [ ] Flow/evidence classes checked in structured report fields when decision-relevant.
+- [ ] Final user-facing text comes from `data.agent_report.user_answer.rendered_text`.
+- [ ] Ticketing/protection/baggage/terminal claims are proven or explicitly unproven.
+- [ ] Freshness, missing evidence, provider failures, and source boundaries are reflected only when they change the decision.
+- [ ] Maintenance work stays in source/runtime scope and creates no new active reference files by default.
 
 ## References
 
-Canonical active references are bounded to six core flight-search directions plus one bounded adjacent-mode note:
-
-- `references/report-contract.md` — `agent_report.v2` read order, contract registry, and user-answer renderer contract.
-- `references/source-boundaries.md` — evidence classes, absence, airport/connection boundaries, ticketing, OTA/smart-route semantics.
-- `references/provider-aware-airport-priority.md` — provider/airport dispatch and city-code policy.
-- `references/debug-playbook.md` — targeted probes and route-family exception patterns.
-- `references/direct-date-window.md` — direct/nonstop inventory across a bounded date range, including per-date probes and compact output shape.
-- `references/cli-maintenance.md` — source/runtime sync, schema/tests, provider ports, CLI-surface simplification, dead-code/duplicate cleanup, generated artifacts, and reference lifecycle.
-- `references/rail-rzd-live-pricing.md` — RZD public endpoint/RID workflow for bounded train-price comparisons after a flight search.
-
-Do not add standalone migration, incident, audit, handoff, smoke, or proposal references by default. Distill durable rules into the files above or into tests; leave raw history to session search.
+- `references/report-contract.md` — `agent_report.v2`, `flight_search_user_answer.v3`, read order, renderer contract, semantic validation.
+- `references/source-boundaries.md` — evidence classes, absence taxonomy, ticketing/protection boundaries, cache/provider limits.
+- `references/provider-aware-airport-priority.md` — SSOT for airport/provider priority and city-code dispatch.
+- `references/debug-playbook.md` — targeted probes and route-family debugging.
+- `references/direct-date-window.md` — direct/nonstop inventory over bounded date windows.
+- `references/cli-maintenance.md` — source/runtime governance, CLI/report/schema maintenance, reference lifecycle.
+- `references/rail-rzd-live-pricing.md` — official RZD read-only comparison workflow.
+- `references/flow-decision-router.md` — intent/market/evidence router and routing strategy classes.

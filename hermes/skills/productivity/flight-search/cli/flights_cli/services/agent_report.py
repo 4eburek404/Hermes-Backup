@@ -8,7 +8,7 @@ from ..reporting.agent_report_builder import (
     provider_failures,
     rejected_pair_warnings,
 )
-from ..reporting.answer_line_renderer import build_answer_lines
+from ..reporting.projections.summary_lines import build_summary_lines
 from ..reporting.coverage_projector import build_coverage_diagnostics
 from ..reporting.formatting import minutes_label, price_label, segment_line
 from ..reporting.option_projector import (
@@ -24,8 +24,9 @@ from .agent_report_contract import validate_agent_report
 
 
 def attach_agent_report(data: dict[str, Any], args: Any, store: Any | None = None) -> dict[str, Any]:
-    if bool(getattr(args, "agent_report", False)) or bool(getattr(args, "agent_mode", False)):
+    if bool(getattr(args, "agent_report", False)):
         report = build_agent_report(data, store)
         validate_agent_report(report)
         data["agent_report"] = report
+
     return data

@@ -5,12 +5,12 @@ from typing import Any
 from ..config import SPECIAL_CITY_AIRPORTS
 from ..domain.stop_metrics import offer_stop_metrics
 from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY, StopPolicy, decide_stop_policy, stop_policy_payload
-from .answer_line_renderer import build_answer_lines
+from .projections.summary_lines import build_summary_lines
 from .coverage_projector import build_coverage_diagnostics
-from .flight_display import build_flight_display
-from .agent_report_v2 import build_agent_report_v2
-from .final_answer_contract import build_user_answer_contract
-from .human_answer_renderer import build_human_answer
+from .projections.itinerary_display import build_itinerary_display
+from .agent_report_projector import AGENT_REPORT_SCHEMA_VERSION, project_agent_report
+from .user_answer import build_user_answer
+from .projections.human_answer_mirror import build_human_answer_mirror
 from .option_projector import candidate_options_from_details, priority_candidate_options, ranked_candidate_options
 from .offer_graph_projector import build_offer_graph
 from .provider_aggregate_projector import aggregate_control_summary, provider_aggregate_candidate_options
@@ -788,11 +788,13 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
         priority_options = ru_priority_priority_options + priority_options
     stop_policy_diagnostics = merge_stop_policy_diagnostics(data, raw_aggregate_controls, preferred_available)
     coverage_diagnostics = build_coverage_diagnostics(plan, live)
+    plan_flow_decision = plan.get("flow_decision") if isinstance(plan, dict) else {}
+    plan_evidence_plan = plan.get("evidence_plan") if isinstance(plan, dict) else {}
     fallback_segments = options[0].get("segments") if options else []
     fallback_origin = fallback_segments[0].get("origin") if fallback_segments else None
     fallback_destination = fallback_segments[-1].get("destination") if fallback_segments else None
     report = {
-        "schema_version": "agent_report.v2",
+        "schema_version": AGENT_REPORT_SCHEMA_VERSION,
         "route": {
             "origin": plan.get("origin") or fallback_origin,
             "destination": plan.get("destination") or fallback_destination,
@@ -802,6 +804,8 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
             "profile": data.get("profile") or plan.get("profile"),
             "routing_strategy": plan.get("routing_strategy"),
             "provider_policy": live.get("provider_policy"),
+            "flow_decision": plan_flow_decision if isinstance(plan_flow_decision, dict) else {},
+            "evidence_plan": plan_evidence_plan if isinstance(plan_evidence_plan, dict) else {},
         },
         "status": {
             "ranked_output_count": assembly.get("ranked_output_count", len(data.get("ranked") or [])),
@@ -823,16 +827,19 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
         "through_fare_checks": through_fare_checks(aggregate_controls, priority_options),
         "rejected_pair_warnings": rejected_pair_warnings(data, limit=5),
     }
+    date_window_inventory = live.get("date_window_inventory")
+    if isinstance(date_window_inventory, dict):
+        report["date_window_inventory"] = date_window_inventory
     if ru_priority_controls is not None:
         report["ru_priority_controls"] = ru_priority_controls
     report["offer_graph"] = build_offer_graph(report, plan, live, data)
-    report["display"] = build_flight_display(report, store)
-    report["answer_lines"] = build_answer_lines(report)
-    human_answer = build_human_answer(report)
-    report["user_answer"] = build_user_answer_contract(report, rendered_text=str(human_answer.get("text") or ""))
+    report["display"] = build_itinerary_display(report, store)
+    report["answer_lines"] = build_summary_lines(report)
+    human_answer = build_human_answer_mirror(report)
+    report["user_answer"] = build_user_answer(report, rendered_text=str(human_answer.get("text") or ""))
     report["human_answer"] = {
         "format_version": human_answer.get("format_version") or "flight_human_answer.v1",
         "text": report["user_answer"]["rendered_text"],
         "sections": human_answer.get("sections") if isinstance(human_answer.get("sections"), list) else [],
     }
-    return build_agent_report_v2(apply_agent_report_budget(report))
+    return project_agent_report(apply_agent_report_budget(report))

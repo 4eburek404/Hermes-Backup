@@ -2,6 +2,8 @@
 
 Use this when modifying or auditing the flight-search CLI, provider layers, route-family logic, coverage controls, report contract, skill Markdown, or source/runtime sync. Keep maintenance behind the `SKILL.md` maintenance gate; ordinary route search should stay traveler-facing.
 
+Important UX boundary: the flight-search CLI is an agent-facing implementation tool, not a user-operated product. The end user should not be expected to run commands or interpret CLI help/output; the user receives only the final rendered search result. Optimize the CLI surface for deterministic agent execution, stable machine-readable contracts, diagnostics, and maintenance—not for exposing every knob as a human-facing option.
+
 ## Workflow
 
 - Start with provenance: runtime path, source path, branch, HEAD, dirty state, version markers, and whether runtime is intentionally ahead of source.
@@ -12,6 +14,8 @@ Use this when modifying or auditing the flight-search CLI, provider layers, rout
 - Preserve `--json --agent-brief` as JSON-clean stdout.
 - Keep search behavior limited to current live provider assembly and documented targeted probes.
 - Static catalogs are metadata only; flight options come from live provider assembly.
+- Historical audit/session/proposal notes should not remain active references. Distill durable rules into this file, the other canonical references, executable report fields, or tests; leave raw history to session search.
+- Do not publish copy-paste command blocks for unimplemented/future surfaces. If a future command is worth keeping, label it as backlog prose and keep the implemented replacement path nearby.
 - If validation is interrupted, report the last completed gate and the missing gate; do not report completion.
 
 ## JSON stdout/stderr Rules
@@ -28,7 +32,7 @@ Current source edits happen under `/home/konstantin/src/Hermes-Backup/hermes/ski
 Before saying which version is current, run the compact local maintenance report when the CLI is available:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json maintenance check
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json maint check
 ```
 
 Then check separately when deeper evidence is required:
@@ -64,7 +68,7 @@ Use this gate after source docs or CLI changes and before touching runtime:
 6. Dry-run `rsync -a --delete --itemize-changes` with generated-artifact excludes; validate deletion paths are intended.
 7. Sync with excludes: `__pycache__/`, `.pytest_cache/`, `*.pyc`, and `*.egg-info`.
 8. Validate source/runtime parity with the same excludes, then run key-file checksums for marker/config files when requested.
-9. Run runtime checks after sync from runtime `cli/`: `python3 -m flights_cli --json doctor`, help/contract smoke for touched commands, and targeted offline tests when available.
+9. Run runtime checks after sync from runtime `cli/`: `python3 -m flights_cli --json maint doctor`, help/contract smoke for touched commands, and targeted offline tests when available.
 10. Clean only generated runtime artifacts created by validation and rerun parity.
 11. Do not restart the Hermes gateway unless explicitly authorized. Use a new Hermes session/reset only when cached skill text must refresh.
 
@@ -78,23 +82,49 @@ Public JSON tests should assert nested `agent_report.v2` paths such as `report["
 
 ## CLI Surface and Contract Simplification
 
-Use this when the user asks whether flags, schemas, commands, or agent/user paths are redundant, overloaded, or becoming a “свалка”. Separate three concerns before removals:
+Use this when the user asks whether flags, schemas, commands, or agent/user paths are redundant, overloaded, or becoming a “свалка”. Do not answer CLI-surface questions from the Golden Path or a sampled subset alone: first enumerate every parser leaf command with `--help`, inspect `cli.py`/`command_surface.py`, and search tests/docs for the disputed flags or aliases. Report which layer was sampled vs fully inventoried.
+
+When the user is confused by `v1/v2/v3`, `user_answer`, `user_output`, `final_answer`, `human_answer`, `display`, or `answer_lines`, first audit whether this is a real multi-version implementation or only misleading names. Current durable finding: the active public line is single-path (`agent_report.v2` → `flight_search_user_answer.v3` → `user_answer.rendered_text`); `user_output` and `flight_search_final_answer` are not active code contracts. The confusing surfaces are diagnostic/mirror projections: `flight_human_answer.v1`, `flight_display.v1`, and diagnostic `answer_lines`. Before adding new schemas, add/update a contract registry with logical names (`search_request`, `search_result`, `agent_report`, `user_answer`) and statuses (`current`, `diagnostic_projection`, `retired/rejected`, `proposed`) so agents do not reason directly in raw version labels.
+
+Prefer internal intent-name cleanup before wire-version bumps: canonical user-answer code lives in `reporting/user_answer.py`; diagnostic human-answer mirror code lives in `reporting/projections/human_answer_mirror.py`; diagnostic `answer_lines` should be named summary lines; `display` should be itinerary/display diagnostics. Do not bump `agent_report.v2` or `flight_search_user_answer.v3` merely to rename Python modules. Bump wire versions only when emitted JSON changes incompatibly.
+
+Separate three concerns before removals:
 
 1. Search/evidence semantics — provider calls, probes, coverage controls.
 2. Decision semantics — assembly, ranking, stop policy, frontier.
 3. Output semantics — JSON size, `agent_report`, `human_answer`, brief rendering.
 
+External CLI practice anchors for this decision:
+
+- `clig.dev`: human-first defaults, composable stdout/stderr/exit codes, help/examples at every level, avoid noisy debug output in normal commands.
+- Microsoft `System.CommandLine` guidance: parent commands should be grouping areas; options parameterize commands and should not become hidden actions.
+- Kubernetes plugin model: custom/advanced workflows can be separate executables on `PATH`, discoverable as subcommands, without bloating the core binary.
+- Twelve-Factor admin processes: maintenance/admin tasks should run as one-off processes shipped with the same code/config/dependencies as the app.
+- Docker `system prune` pattern: destructive maintenance is an explicit maintenance command, shows what will be removed, and requires confirmation unless `--force`.
+- Machine-readable output guidance: JSON/structured output must be stable, stdout-clean, color-free, and append-only within a version series.
+- Doctor command pattern: collect enough environment/config/provenance to triage while redacting security-sensitive details.
+
 Rules:
 
+- When the user is already confused by current structure, prioritize **structural cleanup planning before adversarial future-breakage**. A good plan first states the current canonical path, identifies misleading names, and gives a concrete merge/split/rename order. For this CLI, the current canonical cleanup order is: contract registry → `reporting/user_answer.py` owns `flight_search_user_answer.v3` → diagnostic projections live under `reporting/projections/` → `agent_report_projector.py` owns `agent_report.v2` projection without changing the wire version → typed `SearchRequest`/`FlowDecision`/`EvidencePlan` behind `search --request`.
+- For flight-search structural plans, keep one implementation binary first (`flights`) with role namespaces (`flights search`, `flights diagnose`, `flights maint`). Separate executable names such as `flights-diagnose`/`flights-maint` may be aliases later, but should not introduce separate implementation trees. Do not switch parser frameworks or delete `agent_report.v2` just to simplify the plan; retain compatibility until migration tests prove consumers moved.
+- Before approving or implementing a CLI-surface refactor plan, do an adversarial architecture pass **after** the structural cleanup order is clear: try to break it through version/name drift, multiple final-text sources, stdout/stderr error ambiguity, JSON-as-flag-zoo, misclassified `flow_decision`, provider-port bypasses, diagnostic commands becoming production answers, hidden maintenance side effects, source/runtime overwrites, `$ref` packaging failures, schema meta-validation without subprocess output validation, round-trip capability gaps, stale cache caveats, secret/log leakage, executable drift, and premature legacy removal. Label each item as observed seam, existing guardrail, refactor hazard, or current bug; do not present hazards as code facts without provenance. For each break scenario, record the concrete closing rule/test before implementation.
+- Before approving or implementing a CLI-surface refactor plan, audit the dependency order explicitly: source/runtime ownership gate → contract registry/naming cleanup → request/result schema foundation → flow decision/evidence plan → new production `flights search` entrypoint → provider/evidence boundary cleanup → diagnostics/maintenance executable split → legacy removal → skill docs update. Do not delete legacy commands/flags before replacement contracts and migration tests exist.
+- Treat `flow_decision` as a first-class contract seam, not prose: classify intent, market, evidence requirement, routing strategy, provider plan, and limitations before command/provider reasoning. A JSON request without this normalized decision layer only moves the old flag/command ambiguity into JSON.
+- For strict agent-facing JSON, decide and test error-channel semantics up front: preferred contract is stdout contains exactly one JSON result envelope for both `ok=true` and `ok=false`; stderr is logs/warnings only and never required for parsing. If errors remain stderr-only, do not claim stdout is always a complete machine contract.
+- Split static catalog freshness from live provider cache policy. Static catalogs are metadata only; catalog-dependent commands may auto-refresh missing or older-than-2-weeks metadata before planning, while live cache is evidence freshness and must be represented in the report/result.
 - Context7/CPython argparse guidance: keep `add_subparsers(required=True)` at every command level, attach leaf handlers with `set_defaults(func=...)`, and use parent parsers with `add_help=False` for shared option groups instead of copy-pasting flags.
 - Do not treat “agent mode” as one design primitive. It can conflate report attachment, output shape, and evidence budget.
 - Do not solve overload by adding a larger public taxonomy (`none/user/agent/debug/human/json`, `--format`, `--report`, `--evidence`) without a concrete consumer and contract.
+- For agent-only CLI refactors, design the production path as strict machine contract first: `flights search --request request.json --json`, with `flight_search_request.v1` validated before provider calls and a single stdout JSON result envelope validated before printing. Keep `agent_report.v2` and `flight_search_user_answer.v3` as nested active contracts; do not create another independent final-answer prose layer.
+- Keep the canonical user answer path explicit: `data.agent_report.user_answer.rendered_text`. If a result envelope exposes a derived `rendered_text` mirror, tests must prove exact equality with that canonical field.
+- Split agent-facing surfaces by operational role: production live search (`flights`), diagnostics/evidence/raw probes (`flights-diagnose`), and maintenance/source-runtime/catalog/cleanup (`flights-maint`). Provider-specific probes, raw candidates, rejected pairs, trace, coverage controls, and offline route internals belong in diagnostics, not ordinary search.
 - `--agent-report` should be a thin wrapper that attaches/validates `data.agent_report` without changing search budget.
 - `--agent-brief` should trim output only; if it implies legacy `agent_mode`, call out inherited evidence/budget side effects in audits and tests.
-- `--agent-mode` is a legacy compatibility preset, not a new design surface.
+- `--agent-mode` is a legacy compatibility preset, not a new design surface; remove it after replacement production/diagnostic contracts exist.
 - Keep ordinary user commands narrow. Hide or classify as advanced/debug the knobs for candidate pool limits, raw/ranked/rejected bodies, live-cache TTL, direct-route-intel TTL, fail-fast, day-offset fanout, coverage-control internals, and aggregate-control internals.
 - Prefer one public route-search wrapper over parallel user-facing variants. Provider-specific commands and offline `route plan/validate/rank/assemble` are diagnostics/development surfaces unless the user explicitly asks for provider-level proof.
-- If `route kb-assemble` remains, document or implement it as a compatibility alias for `route live-assemble --provider-policy kupibilet`.
+- Remove `route kb-assemble` after the replacement production search and diagnostic provider override are available; do not preserve compat aliases just because tests still reference them.
 
 ## Provider Port Rule
 
@@ -102,13 +132,18 @@ Do not remove the provider port abstraction. Complete it:
 
 - `ports/providers.py` owns `FlightProviderPort`, `ProviderCapabilities`, `ProviderProbeResult`, provider/probe/evidence/cache literals.
 - `adapters/providers/registry.py` returns concrete provider adapters, not only descriptors.
-- provider adapters own cached search calls, normalization, post-validation, summaries, source boundaries, and error mapping.
+- provider adapters own cached search calls, normalization, post-validation, summaries, source boundaries, error mapping, retry/transport policy, and provider-specific request strategy.
+- common search core owns request schema, route/evidence plan, progressive collection loop, dedupe, cache policy, probe ledger, offer graph, ranking, report/result schemas, and renderer.
+- provider policy owns mapping from route segment + request evidence policy to eligible providers using capabilities and airport/route policy.
 - `execution/probe_dispatcher.py` loops over provider adapters and translates `ProviderProbeResult` into probe ledger/outcome types.
 - aggregate controls call provider adapter `search_aggregate(...)` or receive structured `not_supported`; they must not contain provider-only algorithm branches.
+- production orchestration must not call provider-specific functions such as `fetch_kupibilet_search` directly. Keep provider-specific commands and human renderers in diagnostics or adapter-owned projections, not in the production answer path.
+- If KupiBilet round-trip remains outside the port while `kb-roundtrip` exists, document that capability boundary explicitly; otherwise model it as a typed provider-port method with tests.
 
 Pitfalls:
 
 - After moving direct calls out of `execution/`, update tests to patch adapter seams; do not re-export old symbols just to keep tests green.
+- Prefer positive seam/behavior tests over permanent string-absence tests. Temporary audits may search for forbidden provider symbols, but durable tests should prove production orchestration uses `FlightProviderPort`/`ProviderProbeResult`, preserves dedupe/fail-fast semantics, and surfaces provider boundaries in the report.
 - Avoid a registry that stores capabilities/descriptors while separate code constructs adapters elsewhere.
 - If a provider cannot support aggregate probes, return structured `not_supported` so reports explain the source boundary instead of silently skipping it.
 - Preserve dedupe and fail-fast semantics in the dispatcher adapter bridge; these are execution semantics, not provider-specific behavior.
@@ -128,7 +163,7 @@ The durable source contract lives in `references/provider-aware-airport-priority
 
 - Route-family metadata and segment-spec identity belong in shared route-graph helpers, not duplicated in docs, dry planners, or live planners.
 - Keep RU domestic, RU-touching international, global non-RU, Asia/Oceania, and structurally constrained route logic consistent across public builders.
-- Domestic-RU routing must be decided in one shared layer and propagated through `route plan`, assembly, and `route live-assemble`.
+- Domestic-RU routing must be decided in one shared layer and propagated through `route plan`, assembly, and `search --request`.
 - For domestic Russian round trips, assert the direct return segment `DEST -> ORIGIN` and absence of default international hubs unless explicitly requested.
 - Moscow/SVO controls are first-class controls when relevant, not fallback-only behavior.
 - Coverage and aggregate-control flags must compile to a common `ProbeIntent`/evidence-goal model with provider capability and terminal status.
@@ -149,7 +184,7 @@ Use this when operational logic in `SKILL.md` starts compensating for determinis
 
 Use this when improving final user-visible flight output. The current seam is `data.agent_report.user_answer` → `flight_search_user_answer.v3` → `user_answer.rendered_text` → final Telegram/Markdown answer. `diagnostics.human_answer` is a debug mirror and must not be used as fallback final prose.
 
-- Implement user-answer contract changes in `cli/flights_cli/reporting/final_answer_contract.py` and compatibility/human rendering changes in `human_answer_renderer.py` / `output.py`.
+- Implement user-answer contract changes in `cli/flights_cli/reporting/user_answer.py` and diagnostic mirror/rendering changes in `reporting/projections/human_answer_mirror.py` / `output.py`.
 - Preserve provider neutrality: renderer input is normalized report fields, not provider client objects, booking URLs, cache semantics, or provider caveat text.
 - Test negative format guarantees: no `agent report:`, `Best CLI-ranked option`, `Coverage diagnostics`, `provider_aggregate_candidate`, `provider-aggregate:`, pipe tables, or raw `probe_id` in user-facing text.
 - For connected itineraries, tests must assert per-segment flight times, reject collapsed whole-journey ranges, and cover overnight/multi-day layovers where a later segment date must be visible inline.
@@ -157,7 +192,7 @@ Use this when improving final user-visible flight output. The current seam is `d
 Focused renderer/contract suite after renderer changes:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests:. python3 -m pytest   tests/test_human_answer_renderer.py   tests/test_agent_report_contract.py   tests/test_final_answer_contract.py   tests/test_catalog_answer_contract.py   tests/test_flight_display.py   tests/test_provider_aggregate_candidates.py -q
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests:. python3 -m pytest   tests/test_human_answer_mirror.py   tests/test_agent_report_contract.py   tests/test_user_answer_contract.py   tests/test_catalog_answer_contract.py   tests/test_flight_display.py   tests/test_provider_aggregate_candidates.py -q
 ```
 
 Then run the full flight-search suite before reporting completion when behavior changed.

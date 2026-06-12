@@ -3,8 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from .option_semantics import direction_segments, option_direction, report_requested_round_trip
-from .time_utils import display_minutes_between, integer_or_none, parse_iso
+from ..option_semantics import direction_segments, option_direction, report_requested_round_trip
+from ..time_utils import display_minutes_between, integer_or_none, parse_iso
 
 HUMAN_ANSWER_FORMAT_VERSION = "flight_human_answer.v1"
 
@@ -96,6 +96,30 @@ def route_text(report: dict[str, Any]) -> str:
     origin = route.get("origin") or "???"
     destination = route.get("destination") or "???"
     return f"{origin}→{destination}"
+
+
+DEFAULT_NEGATIVE_WORDING = (
+    "текущий live/provider результат не доказывает отсутствие through fare, "
+    "прямого рейса или защищённого билета"
+)
+DEFAULT_PURCHASE_SCREEN_WORDING = "финальную цену, тариф, багаж и правила проверить на booking screen."
+
+
+def truth_language(report: dict[str, Any]) -> dict[str, Any]:
+    offer_graph_raw = report.get("offer_graph")
+    offer_graph: dict[str, Any] = offer_graph_raw if isinstance(offer_graph_raw, dict) else {}
+    value_raw = offer_graph.get("truth_language")
+    return value_raw if isinstance(value_raw, dict) else {}
+
+
+def source_boundary_truth_line(report: dict[str, Any]) -> str:
+    line = str(truth_language(report).get("negative_wording") or "").strip()
+    return line or DEFAULT_NEGATIVE_WORDING
+
+
+def purchase_screen_needed(line: str) -> bool:
+    lowered = line.lower()
+    return "booking screen" not in lowered and "purchase screen" not in lowered and "финаль" not in lowered
 
 
 def valid_option(option: Any) -> bool:
@@ -233,9 +257,10 @@ def section(title: str, lines: list[str]) -> dict[str, Any]:
 
 
 def verification_lines(report: dict[str, Any]) -> list[str]:
-    lines = [
-        "текущий live/provider результат не доказывает отсутствие through fare, прямого рейса или защищённого билета; финальную цену, тариф, багаж и правила проверить на booking screen."
-    ]
+    boundary_line = source_boundary_truth_line(report)
+    lines = [boundary_line]
+    if purchase_screen_needed(boundary_line):
+        lines.append(DEFAULT_PURCHASE_SCREEN_WORDING)
     not_executed_controls = (
         coverage_diagnostics.get("not_executed_controls")
         if isinstance((coverage_diagnostics := report.get("coverage_diagnostics")), dict)
@@ -269,7 +294,7 @@ def clean_text(text: str) -> str:
     return cleaned.strip()
 
 
-def build_human_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
+def build_human_answer_mirror(agent_report: dict[str, Any]) -> dict[str, Any]:
     is_round_trip = report_requested_round_trip(agent_report)
     recommended = reportable_options(agent_report.get("recommended_options"))
     priority = reportable_options(agent_report.get("priority_options"))

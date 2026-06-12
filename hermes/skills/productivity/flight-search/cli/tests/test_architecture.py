@@ -94,7 +94,15 @@ class ArchitectureTests(unittest.TestCase):
         contracts = PROJECT / "flights_cli" / "contracts"
         schema_names = sorted(path.name for path in contracts.glob("*.schema.json"))
 
-        self.assertEqual(schema_names, ["agent_report.v2.schema.json", "flight_search_user_answer.v3.schema.json"])
+        self.assertEqual(
+            schema_names,
+            [
+                "agent_report.v2.schema.json",
+                "flight_search_request.v1.schema.json",
+                "flight_search_result.v1.schema.json",
+                "flight_search_user_answer.v3.schema.json",
+            ],
+        )
 
     def test_module_dependency_boundaries(self) -> None:
         root = PROJECT / "flights_cli"
@@ -155,6 +163,13 @@ class ArchitectureTests(unittest.TestCase):
             for target in targets
             if source.startswith("flights_cli.providers.") and target.startswith(("flights_cli.cli", "flights_cli.commands."))
         ]
+        forbidden_orchestrator_provider_edges = [
+            (source, target)
+            for source, targets in edges.items()
+            for target in targets
+            if source.startswith("flights_cli.orchestrators.")
+            and target.startswith(("flights_cli.providers.kupibilet", "flights_cli.providers.fli_mcp"))
+        ]
         forbidden_output_edges = [
             (source, target)
             for source, targets in edges.items()
@@ -164,6 +179,7 @@ class ArchitectureTests(unittest.TestCase):
 
         self.assertEqual(cycles, [])
         self.assertEqual(forbidden_provider_edges, [])
+        self.assertEqual(forbidden_orchestrator_provider_edges, [])
         self.assertEqual(forbidden_output_edges, [])
 
 

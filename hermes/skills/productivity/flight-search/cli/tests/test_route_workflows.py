@@ -363,7 +363,7 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(assembled["data"]["ranked"][0]["price"], 35803)
         self.assertEqual(assembled["data"]["ranked"][0]["risk"]["grade"], "excellent")
 
-    def test_route_assemble_agent_mode_adds_compact_report_with_segments(self) -> None:
+    def test_route_assemble_agent_report_can_be_compact_with_segments(self) -> None:
         def offer(
             offer_id: str,
             origin: str,
@@ -414,7 +414,7 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
             },
         ]
 
-        assembled = self._assemble({"segment_results": segment_results}, "--agent-mode")
+        assembled = self._assemble({"segment_results": segment_results}, "--agent-report", "--include-candidates", "0")
         report = assembled["data"]["agent_report"]
 
         self.assertEqual(assembled["data"]["candidates"], [])
@@ -479,7 +479,7 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
 
         assembled = self._assemble(
             {"segment_results": segment_results},
-            "--agent-mode",
+            "--agent-report",
             "--max-candidates",
             "1",
             "--include-ranked-candidates",

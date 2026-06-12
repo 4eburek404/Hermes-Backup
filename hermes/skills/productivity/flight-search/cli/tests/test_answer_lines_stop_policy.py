@@ -4,7 +4,7 @@ import copy
 import unittest
 
 from flights_cli.reporting.answer_line_renderer import build_answer_lines
-from flights_cli.reporting.final_answer_contract import build_user_answer_contract, validate_user_answer_contract
+from flights_cli.reporting.user_answer import build_user_answer, validate_user_answer
 from flights_cli.services.agent_report_contract import validate_agent_report
 from tests.test_agent_report_contract import valid_option, valid_report
 from flights_cli.errors import CliError
@@ -64,10 +64,10 @@ class AnswerLinesStopPolicyTests(unittest.TestCase):
             "three_plus_reportable": False,
         }
         report["stop_policy_diagnostics"] = {"policy": "business_default", "used_two_stop_fallback": False}
-        answer = build_user_answer_contract(report)
+        answer = build_user_answer(report)
 
         with self.assertRaises(CliError):
-            validate_user_answer_contract(answer)
+            validate_user_answer(answer)
 
 
 if __name__ == "__main__":

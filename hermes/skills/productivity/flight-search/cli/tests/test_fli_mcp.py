@@ -15,6 +15,7 @@ from flights_cli.providers.fli_mcp import (
     resolve_fli_airport,
 )
 from flights_cli.store import Store
+from helpers import live_assembly_args
 
 
 def store_with_airports(test_case: unittest.TestCase) -> Store:
@@ -44,6 +45,7 @@ class FliMcpTests(unittest.TestCase):
     def test_fli_search_parser_defaults_to_self_hosted_mcp_url(self) -> None:
         args = build_parser().parse_args(
             [
+                "diagnose",
                 "fli-search",
                 "IST",
                 "LHR",
@@ -55,7 +57,7 @@ class FliMcpTests(unittest.TestCase):
             ]
         )
 
-        self.assertEqual(args.command_name, "fli-search")
+        self.assertEqual(args.command_name, "diagnose fli-search")
         self.assertEqual(args.mcp_url, "http://127.0.0.1:8000/mcp")
         self.assertTrue(args.direct_only)
         self.assertEqual(args.only_carrier, ["TK"])
@@ -88,19 +90,14 @@ class FliMcpTests(unittest.TestCase):
                     normalize_mcp_url(raw)
                 self.assertEqual(ctx.exception.error_type, "validation_error")
 
-    def test_live_assemble_parser_uses_auto_provider_policy(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "route",
-                "live-assemble",
-                "SVX",
-                "LHR",
-                "--depart-date",
-                "2026-08-15",
-            ]
-        )
+    def test_search_adapter_uses_auto_provider_policy(self) -> None:
+        args = live_assembly_args(
+                origin='SVX',
+                destination='LHR',
+                depart_date='2026-08-15',
+            )
 
-        self.assertEqual(args.command_name, "route live-assemble")
+        self.assertEqual(args.command_name, "search")
         self.assertEqual(args.provider_policy, "auto")
         self.assertEqual(args.fli_mcp_url, "http://127.0.0.1:8000/mcp")
         self.assertEqual(args.segment_limit, 30)

@@ -17,7 +17,7 @@ STATIC_CATALOG_SCHEMA_VERSION = "static-catalog-v1"
 STATIC_CATALOG_SOURCE = "public_static_catalog"
 _STATIC_CATALOG_HOST = ".".join(("api", "travel" + "payouts", "com"))
 _STATIC_CATALOG_BASE_URL = f"https://{_STATIC_CATALOG_HOST}/data"
-DEFAULT_AUTO_REFRESH_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
+DEFAULT_AUTO_REFRESH_MAX_AGE_SECONDS = 14 * 24 * 60 * 60
 TTL_RE = re.compile(r"^(?P<value>\d+)(?P<unit>[smhdw])?$")
 
 
