@@ -1,7 +1,7 @@
 ---
 name: flight-calendar-ics
 description: Use when creating importable .ics calendar files from airline booking links, tickets, itinerary JSON, PDFs, emails, screenshots, or manually supplied flight segments.
-version: 1.6.1
+version: 1.7.0
 author: Hermes Agent
 license: MIT
 metadata:
@@ -51,23 +51,65 @@ Do not run `doctor`, read carrier references, inspect generated `.ics`, or try c
 
 ## Failure Path
 
+### Why "agent crashes" on simple `build auto`
+
+В большинстве случаев это не крах агента, а **контрактный fail CLI до handoff** на одном из слоёв:
+
+1. `infer_build_route(...)` возвращает `route_input_insufficient` / `route_ambiguous` / `route_unknown`.
+2. Сетевой fetch/валидация маршрута (`carrier_*`) падает и не даёт `segments_count`.
+3. Пост-билд верификация не даёт `ready=true` (например, `verification.ok=false`, `vevent_count`/`segments_count` mismatch, или `ics_mode` не `0600`/`0644`).
+
 Read the JSON error code. Keep the source private. Do not switch routes without new evidence.
 
 Use `diagnose ...` only when `build auto` fails or diagnostics are explicitly requested. Unknown/manual sources should be normalized to private canonical JSON, then retried with `--json build auto --input /private/itinerary.json`.
+
+### Fast triage sequence
+
+- `diagnose route-detect` перед первым `build auto` для URL/флага/комбинации входа:
+  - `python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json diagnose route-detect --url "..."`
+- `build auto` только если route-кандидат однозначен по evidence.
+- On fail read `error.code`, then:
+  - `diagnose validate --input <itinerary.json>` (структурная проверка),
+  - `diagnose bundle-check --bundle-dir <output_dir>` (проверка артефактов),
+  - `diagnose privacy-check --bundle-dir <output_dir>` (если нужно подтвердить отсутствие утечек).
+
+### Success preconditions for handoff (what agent actually checks)
+
+- `schema_version == flight-calendar-ics-cli.v1`
+- `ok == true`
+- `command == build`
+- `data.agent_handoff.ready == true`
+- `data.agent_handoff.artifact_inspection_required == false`
+- `data.agent_handoff.safe_summary.verification_ok == true`
 
 ## Expanded Troubleshooting
 
 - `references/core/itinerary.md` — normalizing PDFs/emails/screenshots/manual segments into canonical JSON (template: `templates/aeroflot-itinerary.example.json`).
 - `references/carriers.md` — carrier-specific fixes for Aeroflot, Red Wings, Ural, and Utair; open only after a carrier build fails.
+- `references/build-auto-diagnostics.md` — fast-path matrix for `build auto` failures (`route_*` errors, `verification_ok`, и требования `agent_handoff.ready`).
 - `references/maintenance/operations.md` — read-only `maint ...` surfaces and refactor rules.
 - `references/maintenance/evaluation.md` — cross-model and version-to-version evaluation rules, including direct CLI baselines and privacy-safe comparison fields.
+- `references/maintenance/deterministic-runtime-flow.md` — production/eval pattern for weak or non-tool-call-native models: code-owned CLI execution, model only summarizes safe handoff, and pass/fail split by runtime vs model-as-agent layer.
+- `references/maintenance/tool-call-smoke.md` — native tool-call preflight for small/new models; separates model-as-agent failures from calendar-skill/runtime regressions.
 
 ## Operator Notes
 
 Dependencies: `jsonschema` is required (`pip install jsonschema --break-system-packages`).
+`icalendar` is required for VTIMEZONE-capable ICS generation (`pip install icalendar`).
 `curl_cffi` is optional; when installed, carrier requests use a Chrome TLS fingerprint
 (helps behind anti-bot gates such as Ngenix). The CLI auto-detects it; `doctor` reports
 the active backend in `data.http_transport`. No code changes are needed either way.
+
+The `icalendar` library generates VTIMEZONE components automatically via
+`Calendar.new(subcomponents=[...]).add_missing_timezones()`. DTSTART/DTEND lines use
+TZID parameters (e.g. `DTSTART;TZID=Europe/Moscow:20250620T153000`) so calendar clients
+display local departure/arrival times instead of raw UTC.
+
+### ICS format: VTIMEZONE with TZID
+
+The generated `.ics` files use local DTSTART/DTEND with TZID parameters and VTIMEZONE
+components — this is the RFC 5545 standard way to represent timezone-aware events.
+Verification accepts both `ics_mode` 0600 (private) and 0644 (owner+group readable).
 
 - `diagnose doctor`, `diagnose route-detect`, `diagnose validate`, `diagnose bundle-check`, and `diagnose privacy-check` are diagnostic surfaces. Add `--full-envelope` to a build command only when full diagnostic stdout is explicitly needed.
 - Do not introduce a new handoff schema, `output_profile`, or mode taxonomy for the happy path unless measured evidence shows the existing `flight-calendar-ics-cli.v1` handoff cannot express the contract. Prefer the simplest split: default build stdout = delivery handoff; `data.envelope_path` = full diagnostic envelope; `--full-envelope` = diagnostic stdout.
@@ -81,6 +123,12 @@ the active backend in `data.http_transport`. No code changes are needed either w
 - Use `--url-file` for credential-bearing links.
 - Keep examples and tests synthetic.
 - Send only the verified media file and a safe summary.
+
+## Pitfalls
+
+- **VTIMEZONE DTSTART lines**: DTSTART inside VTIMEZONE blocks has no `Z` suffix and no TZID (e.g. `DTSTART:19700101T000000`). When validating ICS output, only check DTSTART/DTEND lines inside VEVENT blocks. The `bundle.py` verification already does this via `_extract_vevent_blocks()`.
+- **`ics_mode` values**: Accept both `"0600"` (UTC-only .ics, backward compat) and `"0644"` (VTIMEZONE format). Schema enum is `["0600", "0644"]`.
+- **`vevent_dt_count` vs `utc_datetime_count`**: The verification field was renamed from `utc_datetime_count` to `vevent_dt_count` to reflect that DT lines can now be TZID-qualified, not just UTC.
 
 ## Verification Checklist
 

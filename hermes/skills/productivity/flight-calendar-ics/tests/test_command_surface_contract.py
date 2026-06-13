@@ -161,7 +161,7 @@ class CommandSurfaceContractTests(unittest.TestCase):
                 "verification": {
                     "ok": True,
                     "event_count": 1,
-                    "utc_datetime_count": 2,
+                    "vevent_dt_count": 2,
                     "placeholder_free": True,
                     "private_modes": {"json": "600", "ics": "600"},
                 },

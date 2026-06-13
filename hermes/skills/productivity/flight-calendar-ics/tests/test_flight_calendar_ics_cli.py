@@ -257,7 +257,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             obj = json.loads((output_dir / "envelope.json").read_text(encoding="utf-8"))
             self.assert_envelope(obj, ok=True, command="build")
             self.assertEqual(obj["data"]["segments_count"], 2)
-            self.assertEqual(obj["data"]["ics_path"], str(output))
+            self.assertEqual(obj["data"]["ics_path"], str(output.resolve()))
             self.assertEqual([s["route"] for s in obj["data"]["segments"]], ["SVO->LED", "LED->SVO"])
             steps = [step["step"] for step in obj["process"]]
             for required_step in ["load_input", "validate_itinerary_schema", "validate_itinerary_semantics", "build_calendar", "validate_ics", "write_ics"]:
@@ -322,7 +322,21 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             ics_text = (output_dir / "flights.ics").read_text(encoding="utf-8")
             self.assertIn("BEGIN:VCALENDAR", ics_text)
             self.assertEqual(ics_text.count("BEGIN:VEVENT"), saved_envelope["data"]["segments_count"])
-            self.assertTrue(all(line.endswith("Z") for line in ics_text.splitlines() if line.startswith(("DTSTART:", "DTEND:"))))
+            # VEVENT DTSTART/DTEND may be UTC (ending Z) or local with TZID
+            dt_lines = [line for line in ics_text.splitlines() if line.startswith(("DTSTART", "DTEND")) and ":" in line]
+            vevent_dt_lines = []
+            in_vevent = False
+            for line in ics_text.splitlines():
+                if line.strip() == "BEGIN:VEVENT":
+                    in_vevent = True
+                elif line.strip() == "END:VEVENT":
+                    in_vevent = False
+                elif in_vevent and line.startswith(("DTSTART", "DTEND")) and ":" in line:
+                    vevent_dt_lines.append(line)
+            self.assertTrue(
+                all(line.endswith("Z") or ";TZID=" in line for line in vevent_dt_lines),
+                f"All VEVENT DTSTART/DTEND must be UTC (Z) or TZID-qualified, got: {vevent_dt_lines[:5]}",
+            )
             self.assertIn("create_output_bundle", [step["step"] for step in saved_envelope["process"]])
             self.assertIn("verify_bundle", [step["step"] for step in saved_envelope["process"]])
             self.assertIn("write_envelope", [step["step"] for step in saved_envelope["process"]])
@@ -980,8 +994,9 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertEqual(timezone_step["catalog_timezones_count"], 2)
                 self.assertEqual(data["segments"][0]["route"], "KUF->SVX")
                 ics_text = output_ics.read_text(encoding="utf-8")
-                self.assertIn("DTSTART:20260601T001500Z", ics_text)
-                self.assertIn("DTEND:20260601T014500Z", ics_text)
+                # DTSTART/DTEND now use TZID format with local times
+                self.assertIn("DTSTART;TZID=", ics_text)
+                self.assertIn("DTEND;TZID=", ics_text)
         finally:
             module.aeroflot.fetch_aeroflot_pnr = original_fetch
             module.airport_catalog.load_airport_timezones = original_catalog
@@ -1205,8 +1220,9 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 ics_text = output_ics.read_text(encoding="utf-8")
                 self.assertIn("BEGIN:VCALENDAR", ics_text)
                 self.assertEqual(ics_text.count("BEGIN:VEVENT"), 1)
-                self.assertIn("DTSTART:20260602T232500Z", ics_text)
-                self.assertIn("DTEND:20260603T015500Z", ics_text)
+                # DTSTART/DTEND now use TZID format with local times
+                self.assertIn("DTSTART;TZID=", ics_text)
+                self.assertIn("DTEND;TZID=", ics_text)
                 unfolded_ics = ics_text.replace("\r\n ", "").replace("\n ", "")
                 self.assertIn("AB12CD", unfolded_ics)
                 self.assertIn("DOE JANE", unfolded_ics)
@@ -1461,8 +1477,9 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 ics_text = output_ics.read_text(encoding="utf-8")
                 self.assertIn("BEGIN:VCALENDAR", ics_text)
                 self.assertEqual(ics_text.count("BEGIN:VEVENT"), 1)
-                self.assertIn("DTSTART:20260610T025000Z", ics_text)
-                self.assertIn("DTEND:20260610T033000Z", ics_text)
+                # DTSTART/DTEND now use TZID format with local times
+                self.assertIn("DTSTART;TZID=", ics_text)
+                self.assertIn("DTEND;TZID=", ics_text)
                 unfolded_ics = ics_text.replace("\r\n ", "").replace("\n ", "")
                 self.assertIn("ZZ9ZZZ", unfolded_ics)
                 self.assertIn("DOE JANE", unfolded_ics)

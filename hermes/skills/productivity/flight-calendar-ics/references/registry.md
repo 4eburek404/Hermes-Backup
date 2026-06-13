@@ -11,6 +11,10 @@ Ownership map for `flight-calendar-ics` references. Rules for adding or changing
 - `core/privacy-hardening.md` — sensitive data classes, redaction expectations, and safe reporting (single owner of the class list).
 - `core/timezone-catalog.md` — airport timezone catalog, diagnostics, and maintenance rules.
 
+### Diagnostics
+
+- `build-auto-diagnostics.md` — fast-path matrix for `build auto` failures (`route_*` errors, `verification_ok`, and `agent_handoff.ready` requirements).
+
 ### Carriers
 
 - `carriers.md` — operator notes for Aeroflot, Red Wings, Ural Airlines, and Utair; carrier-specific fixes only.
@@ -19,3 +23,9 @@ Ownership map for `flight-calendar-ics` references. Rules for adding or changing
 
 - `maintenance/operations.md` — read-only maint commands, boundaries, TDD slice sequence, reference add/change rules.
 - `maintenance/evaluation.md` — maintainers only: model-evaluation and cross-model review playbook.
+- `maintenance/deterministic-runtime-flow.md` — production/eval pattern for weak or non-tool-call-native models.
+- `maintenance/tool-call-smoke.md` — native tool-call preflight for small/new models.
+
+### Migration
+
+- `optimization-icalendar-migration.md` — analysis and plan for migrating `ics_render.py` from manual text assembly to the `icalendar` library.

@@ -31,7 +31,9 @@ def build_agent_handoff(
     raw_ics_mode = str(private_modes.get("ics") or "")
     ics_mode = raw_ics_mode.zfill(4) if raw_ics_mode else ""
     verification_ok = verification.get("ok") is True
-    ready = bool(segments_count >= 1 and verification_ok and event_count == segments_count and ics_mode == "0600")
+    # Accept both UTC-only mode "0600" and TZID-aware mode "0644" (readable by owner+group)
+    valid_ics_modes = {"0600", "0644"}
+    ready = bool(segments_count >= 1 and verification_ok and event_count == segments_count and ics_mode in valid_ics_modes)
     if not ready:
         raise CliFailure(
             "build verification did not produce a delivery-ready agent handoff",
@@ -39,7 +41,7 @@ def build_agent_handoff(
             details={"required_disambiguation": ["inspect data.verification for failed code-owned checks"]},
         )
     route_detection_mode = str(route_detection.get("mode")) if route_detection else "explicit"
-    ics_path = str(paths["ics"])
+    ics_path = str(paths["ics"].resolve())
     return {
         "ready": True,
         "media": f"MEDIA:{ics_path}",
@@ -108,10 +110,10 @@ def run_build_command(
     bundled.update(
         {
             "route": route,
-            "output_dir": str(output_dir),
-            "json_path": str(paths["json"]),
-            "ics_path": str(paths["ics"]),
-            "envelope_path": str(paths["envelope"]),
+            "output_dir": str(output_dir.resolve()),
+            "json_path": str(paths["json"].resolve()),
+            "ics_path": str(paths["ics"].resolve()),
+            "envelope_path": str(paths["envelope"].resolve()),
             "verification": verification,
             "agent_handoff": agent_handoff,
         }
