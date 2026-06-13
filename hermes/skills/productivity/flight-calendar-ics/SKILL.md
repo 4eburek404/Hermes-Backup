@@ -128,7 +128,8 @@ Verification accepts both `ics_mode` 0600 (private) and 0644 (owner+group readab
 
 - **VTIMEZONE DTSTART lines**: DTSTART inside VTIMEZONE blocks has no `Z` suffix and no TZID (e.g. `DTSTART:19700101T000000`). When validating ICS output, only check DTSTART/DTEND lines inside VEVENT blocks. The `bundle.py` verification already does this via `_extract_vevent_blocks()`.
 - **`ics_mode` values**: Accept both `"0600"` (UTC-only .ics, backward compat) and `"0644"` (VTIMEZONE format). Schema enum is `["0600", "0644"]`.
-- **`vevent_dt_count` vs `utc_datetime_count`**: The verification field was renamed from `utc_datetime_count` to `vevent_dt_count` to reflect that DT lines can now be TZID-qualified, not just UTC.
+- **`vevent_dt_count` vs `utc_datetime_count`**: The verification field was renamed from `utc_datetime_count` to `vevent_dt_count` to reflect that DT lines can now be TZID-qualified, not just UTC. Schema and tests updated accordingly.
+- **`icalendar` migration**: `ics_render.py` was rewritten from manual text assembly (prop/ical_escape/fold_line/validate_ics_text ≈200 lines of boilerplate) to `icalendar` library API (Calendar.new, Event.new, Alarm, add_missing_timezones). The migration reference at `references/optimization-icalendar-migration.md` has the full analysis and rationale.
 
 ## Verification Checklist
 
