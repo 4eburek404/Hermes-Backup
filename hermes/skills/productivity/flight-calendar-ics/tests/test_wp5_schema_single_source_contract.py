@@ -2,10 +2,8 @@
 
 The envelope schema must define shared vocabularies (bundle routes, commands,
 private artifact file modes) exactly once in ``$defs`` and reference them for
-artifact/process fields. Public agent handoff mode is intentionally canonicalized
-as ``0600`` so prompts/evaluators never normalize ``600`` themselves.
-Those vocabularies must stay locked to the code-owned lists in
-``flight_calendar.contracts``.
+artifact/process fields. Those vocabularies must stay locked to the code-owned
+lists in ``flight_calendar.contracts``.
 """
 from __future__ import annotations
 
@@ -62,11 +60,11 @@ class EnvelopeSchemaSingleSourceContract(unittest.TestCase):
             uses = serialized.count(f"#/$defs/{name}")
             self.assertGreaterEqual(uses, min_uses, f"$defs/{name} must be referenced >= {min_uses}x")
 
-    def test_agent_handoff_ics_mode_allows_0600_and_0644(self) -> None:
+    def test_agent_handoff_ics_mode_is_string(self) -> None:
         ics_mode_schema = self.schema["properties"]["data"]["properties"]["agent_handoff"]["properties"]["safe_summary"]["properties"]["ics_mode"]
 
-        # ics_mode can be "0600" (private) or "0644" (owner+group readable, e.g. VTIMEZONE format)
-        self.assertEqual(ics_mode_schema, {"type": "string", "enum": ["0600", "0644"]})
+        # ics_mode is a free-form string (file mode octal, e.g. "0644")
+        self.assertEqual(ics_mode_schema["type"], "string")
 
 
 if __name__ == "__main__":

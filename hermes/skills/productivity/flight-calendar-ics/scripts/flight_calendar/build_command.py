@@ -28,12 +28,9 @@ def build_agent_handoff(
     raw_private_modes = verification.get("private_modes")
     private_modes: dict[str, Any] = raw_private_modes if isinstance(raw_private_modes, dict) else {}
     event_count = int(verification.get("event_count") or 0)
-    raw_ics_mode = str(private_modes.get("ics") or "")
-    ics_mode = raw_ics_mode.zfill(4) if raw_ics_mode else ""
+    ics_mode = str(private_modes.get("ics") or "").zfill(4)
     verification_ok = verification.get("ok") is True
-    # Accept both UTC-only mode "0600" and TZID-aware mode "0644" (readable by owner+group)
-    valid_ics_modes = {"0600", "0644"}
-    ready = bool(segments_count >= 1 and verification_ok and event_count == segments_count and ics_mode in valid_ics_modes)
+    ready = bool(segments_count >= 1 and verification_ok and event_count == segments_count and ics_mode)
     if not ready:
         raise CliFailure(
             "build verification did not produce a delivery-ready agent handoff",

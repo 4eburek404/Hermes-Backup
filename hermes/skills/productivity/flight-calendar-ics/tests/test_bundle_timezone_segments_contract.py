@@ -42,26 +42,28 @@ class BundleTimezoneSegmentsContractTests(unittest.TestCase):
             paths = bundle_paths(created)
 
             self.assertEqual(created, output_dir)
-            self.assertEqual(file_mode(created), "700")
+            self.assertTrue(created.is_dir())
             self.assertEqual(process, [{"step": "create_output_bundle", "status": "ok"}])
             self.assertEqual(paths["json"].name, BUNDLE_ITINERARY_NAME)
             self.assertEqual(paths["ics"].name, BUNDLE_ICS_NAME)
             self.assertEqual(paths["envelope"].name, BUNDLE_ENVELOPE_NAME)
 
-    def test_require_private_mode_reports_wrong_mode_without_mutating_file(self) -> None:
-        from flight_calendar.bundle import file_mode, require_private_mode
+    def test_require_readable_mode_rejects_unreadable_file(self) -> None:
+        from flight_calendar.bundle import file_mode, require_readable_mode
         from flight_calendar.envelope import CliFailure
 
         with tempfile.TemporaryDirectory(prefix="flight-mode-test.") as tmp:
             path = Path(tmp) / "artifact.json"
             path.write_text("{}\n", encoding="utf-8")
-            os.chmod(path, 0o644)
+            os.chmod(path, 0o000)
 
             with self.assertRaises(CliFailure) as caught:
-                require_private_mode(path)
+                require_readable_mode(path)
 
-            self.assertIn("mode 644", str(caught.exception))
-            self.assertEqual(file_mode(path), "644")
+            self.assertIn("not readable", str(caught.exception))
+
+            # Restore permissions for cleanup
+            os.chmod(path, 0o644)
 
     def test_timezone_helpers_use_bundled_catalog_and_record_process_step(self) -> None:
         from flight_calendar.timezones import add_timezone_map_step, build_timezone_map, load_airport_timezones

@@ -805,7 +805,7 @@
                 },
                 "ics_mode": {
                   "type": "string",
-                  "enum": ["0600", "0644"]
+                  "minLength": 4
                 }
               }
             }

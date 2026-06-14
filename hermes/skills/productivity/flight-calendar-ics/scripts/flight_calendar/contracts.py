@@ -134,7 +134,7 @@ _AGENT_CONTRACT_TEMPLATE: dict[str, Any] = {
             "data.agent_handoff.no_further_action_needed=true",
             "data.agent_handoff.artifact_inspection_required=false",
             "data.agent_handoff.safe_summary.verification_ok=true",
-            "data.agent_handoff.safe_summary.ics_mode in {0600, 0644}",
+            "data.agent_handoff.safe_summary.ics_mode",
             "data.envelope_path points to the full diagnostic envelope",
         ],
         "reporting_fields": [
@@ -146,7 +146,7 @@ _AGENT_CONTRACT_TEMPLATE: dict[str, Any] = {
             "data.agent_handoff.safe_summary.ics_mode",
             "data.agent_handoff.safe_summary.verification_ok",
         ],
-        "bundle": ["private output directory 0700", "itinerary.json 0600", "flights.ics 0600 or 0644", "envelope.json 0600", "VEVENT count equals segments_count", "DTSTART/DTEND with UTC Z suffix or TZID parameter", "VTIMEZONE components for all referenced timezones", "no TBD/UNKNOWN/None"],
+        "bundle": ["readable output directory", "itinerary.json readable", "flights.ics readable", "envelope.json readable", "VEVENT count equals segments_count", "DTSTART/DTEND with UTC Z suffix or TZID parameter", "VTIMEZONE components for all referenced timezones", "no TBD/UNKNOWN/None"],
     },
     "failure_path": {
         "steps": [

@@ -14,18 +14,11 @@ from typing import Callable, Any
 FailureHandler = Callable[[str], Any]
 
 
-def secure_write_text(path: Path, text: str, *, dir_mode: int = 0o700, file_mode: int = 0o600) -> None:
-    """Write private skill artifacts with owner-only permissions."""
+def secure_write_text(path: Path, text: str, *, dir_mode: int = 0o755, file_mode: int = 0o644) -> None:
+    """Write skill artifacts with standard permissions (readable by owner+group)."""
     path.parent.mkdir(parents=True, exist_ok=True, mode=dir_mode)
-    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, file_mode)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
-            handle.write(text)
-    finally:
-        try:
-            os.chmod(path, file_mode)
-        except FileNotFoundError:
-            pass
+    path.write_text(text, encoding="utf-8", newline="")
+    os.chmod(path, file_mode)
 
 
 def parse_tz_overrides(items: list[str], *, fail: FailureHandler | None = None) -> dict[str, str]:

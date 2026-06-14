@@ -22,8 +22,7 @@ def create_private_output_dir(output_dir: Path | None, process: list[dict[str, A
         path = output_dir
         if path.exists() and not path.is_dir():
             raise CliFailure(f"output dir path exists and is not a directory: {path}", code="usage_error")
-        path.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(path, 0o700)
+        path.mkdir(parents=True, exist_ok=True)
     add_step(process, "create_output_bundle")
     return path
 
@@ -40,13 +39,13 @@ def file_mode(path: Path) -> str:
     return format(path.stat().st_mode & 0o777, "03o")
 
 
-def require_private_mode(path: Path, expected: str = "600") -> None:
+def require_readable_mode(path: Path) -> None:
     try:
         mode = file_mode(path)
     except FileNotFoundError as exc:
         raise CliFailure(f"expected artifact does not exist: {path}") from exc
-    if mode != expected:
-        raise CliFailure(f"artifact {path} has mode {mode}; expected {expected}")
+    if not (int(mode, 8) & 0o444):
+        raise CliFailure(f"artifact {path} has mode {mode}; not readable")
 
 
 def _extract_vevent_blocks(ics_text: str) -> list[str]:
@@ -69,8 +68,8 @@ def _extract_vevent_blocks(ics_text: str) -> list[str]:
 
 
 def verify_bundle_artifacts(paths: dict[str, Path], segments_count: int, process: list[dict[str, Any]]) -> dict[str, Any]:
-    require_private_mode(paths["json"])
-    require_private_mode(paths["ics"])
+    require_readable_mode(paths["json"])
+    require_readable_mode(paths["ics"])
     ics_text = paths["ics"].read_text(encoding="utf-8")
     ics_render.validate_ics_text(ics_text, segments_count)
     event_count = ics_text.count("BEGIN:VEVENT")

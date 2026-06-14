@@ -99,9 +99,9 @@ def build_make_bundle(args: argparse.Namespace, paths: dict[str, Path], process:
     ics_render.validate_ics_text(ics_text, len(summaries))
     add_step(process, "validate_ics")
     secure_write_text(paths["json"], json.dumps(data, ensure_ascii=False, indent=2) + "\n")
-    add_step(process, "write_json", artifact="json", mode="0600")
+    add_step(process, "write_json", artifact="json", mode="0644")
     secure_write_text(paths["ics"], ics_text)
-    add_step(process, "write_ics", artifact="ics", mode="0600")
+    add_step(process, "write_ics", artifact="ics", mode="0644")
     return 0, {
         "segments_count": len(summaries),
         "segments": [safe_segment_summary(item) for item in summaries],
@@ -368,12 +368,12 @@ def command_aeroflot(args: argparse.Namespace, process: list[dict[str, Any]]) ->
     ics_render.validate_ics_text(ics_text, len(summaries))
     add_step(process, "validate_ics")
     secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
-    add_step(process, "write_json", artifact="json", mode="0600")
+    add_step(process, "write_json", artifact="json", mode="0644")
     ics_path = None
     if args.output_ics:
         secure_write_text(args.output_ics, ics_text)
         ics_path = str(args.output_ics)
-        add_step(process, "write_ics", artifact="ics", mode="0600")
+        add_step(process, "write_ics", artifact="ics", mode="0644")
     else:
         add_step(process, "write_ics", "skipped", reason="--output-ics not supplied")
     return 0, {
@@ -407,12 +407,12 @@ def command_ural(args: argparse.Namespace, process: list[dict[str, Any]]) -> tup
     ics_render.validate_ics_text(ics_text, len(summaries))
     add_step(process, "validate_ics")
     secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
-    add_step(process, "write_json", artifact="json", mode="0600")
+    add_step(process, "write_json", artifact="json", mode="0644")
     ics_path = None
     if args.output_ics:
         secure_write_text(args.output_ics, ics_text)
         ics_path = str(args.output_ics)
-        add_step(process, "write_ics", artifact="ics", mode="0600")
+        add_step(process, "write_ics", artifact="ics", mode="0644")
     else:
         add_step(process, "write_ics", "skipped", reason="--output-ics not supplied")
     return 0, {
@@ -443,12 +443,12 @@ def command_utair(args: argparse.Namespace, process: list[dict[str, Any]]) -> tu
     ics_render.validate_ics_text(ics_text, len(summaries))
     add_step(process, "validate_ics")
     secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
-    add_step(process, "write_json", artifact="json", mode="0600")
+    add_step(process, "write_json", artifact="json", mode="0644")
     ics_path = None
     if args.output_ics:
         secure_write_text(args.output_ics, ics_text)
         ics_path = str(args.output_ics)
-        add_step(process, "write_ics", artifact="ics", mode="0600")
+        add_step(process, "write_ics", artifact="ics", mode="0644")
     else:
         add_step(process, "write_ics", "skipped", reason="--output-ics not supplied")
     return 0, {
@@ -477,12 +477,12 @@ def command_redwings(args: argparse.Namespace, process: list[dict[str, Any]]) ->
     ics_render.validate_ics_text(ics_text, len(summaries))
     add_step(process, "validate_ics")
     secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
-    add_step(process, "write_json", artifact="json", mode="0600")
+    add_step(process, "write_json", artifact="json", mode="0644")
     ics_path = None
     if args.output_ics:
         secure_write_text(args.output_ics, ics_text)
         ics_path = str(args.output_ics)
-        add_step(process, "write_ics", artifact="ics", mode="0600")
+        add_step(process, "write_ics", artifact="ics", mode="0644")
     else:
         add_step(process, "write_ics", "skipped", reason="--output-ics not supplied")
     return 0, {
@@ -650,7 +650,7 @@ def main(argv: list[str] | None = None) -> int:
         with redirect:
             exit_code, data = run_command(args, process)
         if args.json and data.get("envelope_path"):
-            add_step(process, "write_envelope", artifact="envelope", mode="0600")
+            add_step(process, "write_envelope", artifact="envelope", mode="0644")
         add_step(process, "emit_json" if args.json else "emit_human")
         obj = envelope(ok=True, command=args.command, process=process, data=data)
         if args.json:

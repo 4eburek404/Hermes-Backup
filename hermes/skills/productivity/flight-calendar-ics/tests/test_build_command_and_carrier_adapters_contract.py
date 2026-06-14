@@ -63,7 +63,7 @@ class BuildCommandAndCarrierAdaptersContractTests(unittest.TestCase):
 
         def verifier(paths: dict[str, Path], segments_count: int, process: list[dict[str, Any]]) -> dict[str, Any]:
             calls.append({"verify_paths": paths, "segments_count": segments_count})
-            return {"ok": True, "event_count": segments_count, "private_modes": {"json": "600", "ics": "600"}}
+            return {"ok": True, "event_count": segments_count, "private_modes": {"json": "644", "ics": "644"}}
 
         with tempfile.TemporaryDirectory(prefix="flight-build-command.") as tmp:
             output_dir = Path(tmp) / "bundle"
@@ -101,7 +101,7 @@ class BuildCommandAndCarrierAdaptersContractTests(unittest.TestCase):
                     "segments_count": 1,
                     "verification_ok": True,
                     "vevent_count": 1,
-                    "ics_mode": "0600",
+                    "ics_mode": "0644",
                 },
             },
         )

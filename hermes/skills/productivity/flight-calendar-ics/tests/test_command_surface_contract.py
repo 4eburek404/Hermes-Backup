@@ -164,7 +164,7 @@ class CommandSurfaceContractTests(unittest.TestCase):
                     "event_count": 1,
                     "vevent_dt_count": 2,
                     "placeholder_free": True,
-                    "private_modes": {"json": "600", "ics": "600"},
+                    "private_modes": {"json": "644", "ics": "644"},
                 },
                 "agent_handoff": {
                     "ready": True,
@@ -178,7 +178,7 @@ class CommandSurfaceContractTests(unittest.TestCase):
                         "segments_count": 1,
                         "verification_ok": True,
                         "vevent_count": 1,
-                        "ics_mode": "0600",
+                        "ics_mode": "0644",
                     },
                 },
             },
