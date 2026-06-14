@@ -1,7 +1,7 @@
 ---
 name: flight-calendar-ics
 description: Use when creating importable .ics calendar files from airline booking links, tickets, itinerary JSON, PDFs, emails, screenshots, or manually supplied flight segments.
-version: 1.7.6
+version: 1.8.0
 author: Hermes Agent
 license: MIT
 metadata:
@@ -14,32 +14,32 @@ metadata:
 
 Create an importable `.ics` from private flight evidence through the skill-owned CLI.
 
-## Mandatory Runbook
+## Algorithm
 
-1. **Store source privately.** Put credential-bearing URLs or extracted itinerary JSON in a local file. Never print source contents or `.ics` text.
+```
+1. RUN:   python "<skill_dir>/scripts/flight_calendar_ics.py" --json build auto --url-file <private-url-file> --output-dir <output-dir>
+          —or—
+          python "<skill_dir>/scripts/flight_calendar_ics.py" --json build auto --input <private-itinerary.json> --output-dir <output-dir>
 
-2. **Run one build command:**
+2. PARSE: stdout is JSON. If ok == true:
+            → send data.agent_handoff.media to user (this is the .ics file)
+            → tell user: route, segments, dates from data.agent_handoff.safe_summary
+          If ok != true:
+            → read error.code, open references/build-auto-diagnostics.md, retry or report error.
 
-   ```bash
-   SKILL_DIR='<skill_dir returned by skill_view>'
-   python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json build auto --url-file /private/source-url.txt
-   ```
+3. DONE.  No further action needed.
+```
 
-   For canonical itinerary JSON:
+That is the entire happy path. One terminal command → one JSON → one delivery.
 
-   ```bash
-   python "$SKILL_DIR/scripts/flight_calendar_ics.py" --json build auto --input /private/itinerary.json
-   ```
+**Why `--output-dir` is mandatory:** Without it, the CLI writes .ics to a temp directory (`/tmp/flight-ics.XXXX/`). The `data.agent_handoff.media` path will point there, which works for MEDIA: delivery, but the file will not be in the directory the user or harness expects. Always pass `--output-dir`.
 
-3. **Extract from stdout.** The CLI prints a compact JSON to stdout. If `ok` is true, extract `data.agent_handoff.media` (deliverable .ics) and `data.agent_handoff.safe_summary` (route, segments_count, vevent_count, ics_mode). If `ok` is not true, read `error.code` and see `references/build-auto-diagnostics.md`.
+## Mandatory Rules
 
-4. **Return to user.** Deliver `data.agent_handoff.media` plus `data.agent_handoff.safe_summary`. Then respond to the user with the result — this completes the task.
-
-## Privacy
-
-- Never expose booking URLs, keys, locators, passenger names, ticket/document/contact/payment data, or `.ics` text.
-- Use `--url-file` for credential-bearing links.
-- Send only the verified media file and a safe summary.
+- **One command.** Run `--json build auto` exactly once. Do not run `doctor`, `diagnose`, `stat`, `ls`, `grep`, `cat`, or `test` after a successful build.
+- **No file verification.** The CLI owns verification. If `ok == true`, the .ics is correct. Do not open, stat, or read the .ics file.
+- **No manual result writing.** Do not `write_file` a result.json. The JSON on stdout is the result.
+- **Privacy.** Never expose booking URLs, keys, locators, passenger names, ticket/document/contact/payment data, or `.ics` text. Use `--url-file` for credential-bearing links.
 
 ## Pitfalls
 
@@ -47,6 +47,8 @@ Create an importable `.ics` from private flight evidence through the skill-owned
 - **`ics_mode` values**: Accept both `"0600"` and `"0644"`.
 - **ICS size with VTIMEZONE**: ~2× larger than UTC-only (e.g. 6763 vs 3228 bytes). Expected.
 - **DT fingerprint across versions**: v1.7+ uses TZID parameters instead of UTC Z-suffix. Compare semantic equivalence, not raw line equality.
+- **SKILL_DIR**: Use the path returned by `skill_view` for `<skill_dir>`. Put it on a separate shell line before the command.
+- **`--output-dir` is mandatory**: Without it, the CLI writes to a temp directory (`/tmp/flight-ics.XXXX/`). Models do not infer optional CLI arguments from prose — if an arg matters, it must appear in the command template.
 
 ## Troubleshooting References
 
@@ -56,7 +58,11 @@ Create an importable `.ics` from private flight evidence through the skill-owned
 - `references/optimization-icalendar-migration.md` — icalendar migration rationale
 - `references/maintenance/` — operations, evaluation, deterministic-runtime-flow, tool-call-smoke
 - `references/evaluation-golden-path.md` — 9-iteration model eval evidence, SKILL.md golden path synthesis
+- `scripts/flight_calendar_ics.py` — deterministic CLI (`--json build auto`)
+- `references/maintenance/evaluation-v180-convergence.md` — v1.8.0 convergence milestone: all models reach 1 tool call
+- `references/evaluation-v179-results.md` — v1.7.9 eval: 4 models × 3 runs, tool call trajectories, `--output-dir` adoption
+- `references/evaluation-v180-results.md` — v1.8.0 eval: 4 models × 1 run, all converge to 1 tool call, explicit `--output-dir`
 
 ## Operator Notes
 
-Dependencies: `jsonschema`, `icalendar`. `curl_cffi` optional. `SKILL_DIR` on a separate shell line before the command.
+Dependencies: `jsonschema`, `icalendar`. `curl_cffi` optional.

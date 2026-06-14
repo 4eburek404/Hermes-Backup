@@ -26,6 +26,30 @@ Before full eval, send a harmless one-step task with the same Hermes tool schema
 - stdout/log contains a real Hermes tool execution line, not just a printed snippet;
 - if available from provider response: `finish_reason=tool_calls` and non-empty `message.tool_calls[]`.
 
+## Metric retrieval: sessions DB, not stdout
+
+`hermes chat -Q` (quiet mode) suppresses tool-invocation detail from stdout — you cannot count tool calls by grepping stdout. The authoritative source is the Hermes sessions SQLite DB at `~/.hermes/state.db`.
+
+**Session ID** comes from stderr: `session_id: <hex_id>`. Extract with `re.search(r"session_id:\s*([a-f0-9_]+)", stderr)`.
+
+**Query session metrics** after the subprocess exits:
+
+```python
+import sqlite3
+conn = sqlite3.connect(str(Path.home() / ".hermes" / "state.db"))
+conn.row_factory = sqlite3.Row
+row = conn.execute(
+    "SELECT tool_call_count, api_call_count, message_count, model "
+    "FROM sessions WHERE id = ?", (session_id,)
+).fetchone()
+tool_calls = row["tool_call_count"]
+actual_model = row["model"]
+```
+
+**Race condition**: the DB may not have committed the session row immediately after `subprocess.run` returns. If the query returns no rows, retry after 1–2 seconds. In WAL mode the write may be in an unflushed WAL frame.
+
+**With `--ignore-user-config`**: fallback providers are disabled. If a model fails (empty content, 0 tool calls), the session stays at `tool_call_count=0` with no fallback — this is the desired strict behavior. But you must distinguish "model can't tool-call" (true failure) from "model hasn't written to DB yet" (timing).
+
 Reject/skip full prompt-only eval when the model returns only:
 
 - fenced `python`, JSON, or `tool_code` blocks;
