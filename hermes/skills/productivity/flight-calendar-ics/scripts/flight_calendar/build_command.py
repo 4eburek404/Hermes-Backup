@@ -44,6 +44,7 @@ def build_agent_handoff(
     ics_path = str(paths["ics"].resolve())
     return {
         "ready": True,
+        "no_further_action_needed": True,
         "media": f"MEDIA:{ics_path}",
         "artifact_inspection_required": False,
         "verification_source": "flight_calendar.bundle.verify_bundle_artifacts",

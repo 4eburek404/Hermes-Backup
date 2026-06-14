@@ -43,6 +43,11 @@
     "ok": {
       "type": "boolean"
     },
+    "no_further_action_needed": {
+      "type": "boolean",
+      "const": true,
+      "description": "When present and true, the CLI has completed all work. No further terminal commands, file reads, or diagnostics are needed."
+    },
     "command": {
       "$ref": "#/$defs/command"
     },
@@ -742,6 +747,7 @@
           "additionalProperties": false,
           "required": [
             "ready",
+            "no_further_action_needed",
             "media",
             "artifact_inspection_required",
             "verification_source",
@@ -749,6 +755,9 @@
           ],
           "properties": {
             "ready": {
+              "const": true
+            },
+            "no_further_action_needed": {
               "const": true
             },
             "media": {

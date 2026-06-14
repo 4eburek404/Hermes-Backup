@@ -607,15 +607,20 @@ def infer_command(argv: list[str]) -> str:
 def build_handoff_stdout_envelope(full_obj: dict[str, Any]) -> dict[str, Any]:
     """Project a successful full build envelope to the golden-path delivery handoff."""
     data = full_obj.get("data") or {}
-    return envelope(
+    handoff_data = data.get("agent_handoff") or {}
+    obj = envelope(
         ok=True,
         command="build",
         process=[{"step": "build_handoff", "status": "ok"}],
         data={
-            "agent_handoff": data["agent_handoff"],
+            "agent_handoff": handoff_data,
             "envelope_path": data["envelope_path"],
         },
     )
+    # Top-level signal: models check "ok" first — put the stop signal right next to it.
+    if handoff_data.get("no_further_action_needed") is True:
+        obj["no_further_action_needed"] = True
+    return obj
 
 
 def should_emit_handoff_stdout(args: argparse.Namespace, data: dict[str, Any]) -> bool:

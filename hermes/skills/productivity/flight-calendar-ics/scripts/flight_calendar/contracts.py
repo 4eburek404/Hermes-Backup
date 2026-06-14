@@ -75,7 +75,7 @@ _AGENT_CONTRACT_TEMPLATE: dict[str, Any] = {
         },
         {
             "id": "verify",
-            "instruction": "Parse stdout handoff; require schema_version, ok=true, command=build, data.agent_handoff.ready=true, data.agent_handoff.artifact_inspection_required=false, and data.agent_handoff.safe_summary.verification_ok=true. Use data.agent_handoff.safe_summary for route/count/mode reporting; do not inspect generated artifacts. Read bundle/envelope.json or rerun with --full-envelope only for diagnostics.",
+            "instruction": "Parse stdout handoff: ok=true, data.agent_handoff.no_further_action_needed=true, data.agent_handoff.media, data.agent_handoff.safe_summary (route, segments_count, vevent_count, ics_mode). No terminal commands, file reads, or diagnostics are needed after build auto succeeds.",
         },
         {
             "id": "deliver",
@@ -131,6 +131,7 @@ _AGENT_CONTRACT_TEMPLATE: dict[str, Any] = {
             "ok=true",
             "command=build",
             "data.agent_handoff.ready=true",
+            "data.agent_handoff.no_further_action_needed=true",
             "data.agent_handoff.artifact_inspection_required=false",
             "data.agent_handoff.safe_summary.verification_ok=true",
             "data.agent_handoff.safe_summary.ics_mode in {0600, 0644}",

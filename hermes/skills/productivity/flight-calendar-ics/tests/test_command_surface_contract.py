@@ -97,6 +97,7 @@ class CommandSurfaceContractTests(unittest.TestCase):
         self.assertIn("diagnose route-detect", agent_contract["diagnostics"]["commands"])
         self.assertIn("maint refs registry-check", agent_contract["maintenance"]["commands"])
         self.assertIn("data.agent_handoff.ready=true", agent_contract["verification"]["envelope"])
+        self.assertIn("data.agent_handoff.no_further_action_needed=true", agent_contract["verification"]["envelope"])
         self.assertIn("data.agent_handoff.artifact_inspection_required=false", agent_contract["verification"]["envelope"])
         self.assertIn("data.agent_handoff.safe_summary.vevent_count", agent_contract["verification"]["reporting_fields"])
         self.assertIn("no_generated_ics_dump", agent_contract["privacy"]["chat_summary_must_omit"])
@@ -167,6 +168,7 @@ class CommandSurfaceContractTests(unittest.TestCase):
                 },
                 "agent_handoff": {
                     "ready": True,
+                    "no_further_action_needed": True,
                     "media": "MEDIA:/tmp/flight-ics.synthetic/flights.ics",
                     "artifact_inspection_required": False,
                     "verification_source": "flight_calendar.bundle.verify_bundle_artifacts",

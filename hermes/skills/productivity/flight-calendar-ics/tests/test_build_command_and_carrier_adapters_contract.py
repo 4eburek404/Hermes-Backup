@@ -91,6 +91,7 @@ class BuildCommandAndCarrierAdaptersContractTests(unittest.TestCase):
             data["agent_handoff"],
             {
                 "ready": True,
+                "no_further_action_needed": True,
                 "media": f"MEDIA:{output_dir / 'flights.ics'}",
                 "artifact_inspection_required": False,
                 "verification_source": "flight_calendar.bundle.verify_bundle_artifacts",
