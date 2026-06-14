@@ -22,7 +22,8 @@ Create an importable `.ics` from private flight evidence through the skill-owned
           python "<skill_dir>/scripts/flight_calendar_ics.py" --json build auto --input <private-itinerary.json> --output-dir <output-dir>
 
 2. PARSE: stdout is JSON. If ok == true:
-            → send data.agent_handoff.media to user (this is the .ics file)
+            → chmod 644 the .ics file; cp it to ~/ if under /tmp
+            → hermes send --to "telegram:<chat_id>:<thread_id>" "MEDIA:<home_path>"
             → tell user: route, segments, dates from data.agent_handoff.safe_summary
           If ok != true:
             → read error.code, open references/build-auto-diagnostics.md, retry or report error.
