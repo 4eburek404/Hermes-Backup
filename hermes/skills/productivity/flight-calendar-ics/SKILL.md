@@ -40,7 +40,7 @@ That is the entire happy path. One terminal command → one JSON → one deliver
 The CLI requires two Python packages that are not part of the standard Hermes venv. If the CLI crashes with `ModuleNotFoundError`, install them before retrying:
 
 ```bash
-pip install icalendar jsonschema
+pip install icalendar jsonschema cffi
 ```
 
 ## Mandatory Rules
