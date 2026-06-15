@@ -18,20 +18,15 @@ from pathlib import Path
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 REFS = SKILL_ROOT / "references"
 CLI = SKILL_ROOT / "scripts" / "flight_calendar_ics.py"
-
 EXPECTED_TREE = {
     "registry.md",
     "carriers.md",
-    "build-auto-diagnostics.md",
-    "core/architecture.md",
     "core/itinerary.md",
     "core/privacy-hardening.md",
     "core/timezone-catalog.md",
-    "maintenance/operations.md",
+    "delivery-details.md",
     "maintenance/evaluation.md",
-    "maintenance/deterministic-runtime-flow.md",
-    "maintenance/tool-call-smoke.md",
-    "optimization-icalendar-migration.md",
+    "maintenance/operations.md",
 }
 
 # Distinctive line from the canonical sensitive-class list.

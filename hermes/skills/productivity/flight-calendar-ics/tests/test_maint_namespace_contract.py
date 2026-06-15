@@ -135,7 +135,6 @@ class MaintNamespaceContractTests(unittest.TestCase):
         self.assertEqual(data["subcommand"], "refs registry-check")
         self.assertEqual(data["write_performed"], False)
         self.assertEqual(data["ok"], True)
-        self.assertIn("core/architecture.md", data["references_seen"])
         self.assertIn("carriers.md", data["references_seen"])
         self.assertEqual(data["unregistered"], [])
         self.assertEqual(data["duplicate_owners"], [])

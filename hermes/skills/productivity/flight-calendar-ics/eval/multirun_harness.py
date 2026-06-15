@@ -15,16 +15,35 @@ Usage:
   # Specific models:
   python multirun_harness.py --models gemma4_31b gemini_3_flash_preview --n-runs 5
 
-Key design decisions:
-  - Queries ~/.hermes/state.db (sessions + messages tables) via sqlite3 ?mode=ro URI
-    with retry loop for WAL checkpoint lag. Never parses stdout for tool counts.
-  - Python stdout is line-buffered in subprocess — check filesystem artifacts
-    (run_metrics.json) for progress, not process poll output.
-  - gpt-oss:20b excluded by default (persistent empty-content failure).
-  - Version switching toggles top-level no_further_action_needed in parser.py.
+Harness operational pitfalls:
 
-See references/maintenance/evaluation.md § Multi-run model evaluations.
+  - **Sessions DB is the authoritative metric source.** Quiet mode suppresses
+    tool-invocation detail from stdout. Always query state.db for tool_call_count,
+    api_call_count, message_count, model. Session ID from stderr:
+    ``session_id: <hex_id>`` — parse with
+    ``re.search(r"session_id:\\s*([a-f0-9_]+)", proc.stderr)``.
+
+  - **WAL commit lag.** Use ``sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)``
+    with retry (5 attempts × 1s delay). Plain connect() can race with WAL
+    checkpoint; the row exists but is not yet visible to readers opened before
+    checkpoint completion. If still absent after all retries, classify as
+    DB-visibility failure (not model failure).
+
+  - **Python stdout buffering.** subprocess.run(capture_output=True) and
+    background processes do not flush print() in real time. Monitor filesystem
+    artifacts (run_metrics.json, aggregate.json) for progress, not process poll
+    output. Add ``-u`` (PYTHONUNBUFFERED=1) or sys.stdout.flush() after each
+    status line if real-time monitoring matters.
+
+  - **gpt-oss:20b exclusion.** Persistent empty-content failure (finish_reason=stop,
+    nonzero tokens, empty message.content). Excluded from all multi-run evals by
+    default. Re-evaluate only after a successful native tool-call preflight.
+
+  - **Version switching.** This harness toggles top-level no_further_action_needed
+    promotion in parser.py via string replacement. Always restore v1.7.8
+    (top-level enabled) after eval completes.
 """
+
 from __future__ import annotations
 
 import argparse

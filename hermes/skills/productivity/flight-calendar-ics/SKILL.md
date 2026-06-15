@@ -27,7 +27,7 @@ Create an importable `.ics` from private flight evidence through the skill-owned
             → tell user: route, segments, dates from data.agent_handoff.safe_summary
           If ok != true:
             → rm the --url-file (contains credentials)
-            → read error.code, open references/build-auto-diagnostics.md, retry or report error.
+            → read error.code from stdout; use diagnose route-detect or diagnose validate for retry.
 
 3. DONE.  No further action needed. One terminal command does everything
 ```
