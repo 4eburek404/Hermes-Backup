@@ -1,23 +1,27 @@
 #!/usr/bin/env python3
 """Generate RFC 5545 .ics files from structured flight itinerary JSON.
 
-The script uses only Python stdlib. It writes UTC DTSTART/DTEND values after
-converting ticket-local times with IANA TZIDs via zoneinfo.
+Uses the icalendar library for proper VTIMEZONE generation, line folding,
+and RFC 5545 compliance. Each VEVENT carries local DTSTART/DTEND with TZID
+so calendar clients show departure/arrival in the airport's local timezone.
 """
 from __future__ import annotations
 
 import datetime as dt
 import hashlib
 import json
-import re
 import sys
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from icalendar import Alarm, Calendar, Event, vDatetime, vText
+
 from flight_calendar import itinerary_contract
 
 UTC = dt.timezone.utc
+
+
 def die(message: str, code: int = 2) -> None:
     print(f"ERROR: {message}", file=sys.stderr)
     raise SystemExit(code)
@@ -31,6 +35,7 @@ def require_text(obj: dict[str, Any], key: str, context: str) -> str:
 
 
 def parse_local(value: str, tzid: str | None, context: str) -> dt.datetime:
+    """Parse a local datetime string and attach IANA timezone."""
     if itinerary_contract.is_placeholder(value):
         die(f"missing required local datetime: {context}.local")
     raw = str(value).strip()
@@ -54,42 +59,6 @@ def parse_local(value: str, tzid: str | None, context: str) -> dt.datetime:
     return parsed.replace(tzinfo=zone)
 
 
-def utc_stamp(value: dt.datetime) -> str:
-    return value.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
-
-
-def ical_escape(value: Any) -> str:
-    text = str(value)
-    text = text.replace("\\", "\\\\")
-    text = text.replace(";", "\\;")
-    text = text.replace(",", "\\,")
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
-    text = text.replace("\n", "\\n")
-    return text
-
-
-def fold_line(line: str, limit: int = 75) -> str:
-    """Fold an iCalendar content line without splitting UTF-8 characters."""
-    if len(line.encode("utf-8")) <= limit:
-        return line
-    chunks: list[str] = []
-    current = ""
-    for char in line:
-        candidate = current + char
-        if current and len(candidate.encode("utf-8")) > limit:
-            chunks.append(current)
-            current = " " + char
-        else:
-            current = candidate
-    if current:
-        chunks.append(current)
-    return "\r\n".join(chunks)
-
-
-def prop(name: str, value: Any) -> str:
-    return f"{name}:{ical_escape(value)}"
-
-
 def normalize_list(value: Any) -> list[str]:
     if value is None:
         return []
@@ -98,27 +67,6 @@ def normalize_list(value: Any) -> list[str]:
     if itinerary_contract.is_placeholder(value):
         return []
     return [str(value).strip()]
-
-
-def duration_trigger(minutes: int) -> str:
-    if minutes <= 0:
-        die(f"alarm minutes must be positive, got {minutes}")
-    return f"-PT{minutes}M"
-
-
-def parse_alarm_minutes(value: Any, *, no_alarms: bool = False) -> list[int]:
-    """Normalize VALARM offsets with clean validation errors."""
-    raw_alarms = [] if no_alarms else (value if value is not None else [1440, 180])
-    alarms: list[int] = []
-    for idx, item in enumerate(normalize_list(raw_alarms), start=1):
-        try:
-            minutes = int(item)
-        except (TypeError, ValueError):
-            die(f"invalid alarm minutes value at alarms_minutes[{idx}]: {item!r}; use positive integers")
-        if minutes <= 0:
-            die(f"alarm minutes must be positive at alarms_minutes[{idx}], got {minutes}")
-        alarms.append(minutes)
-    return alarms
 
 
 def stable_uid(flight: dict[str, Any], booking_reference: str | None) -> str:
@@ -150,6 +98,7 @@ def primary_passenger_label(passengers: list[str]) -> str:
 
 
 def format_ticket_number(value: Any) -> str:
+    import re
     raw_parts = normalize_list(value)
     formatted: list[str] = []
     for raw in raw_parts:
@@ -165,13 +114,29 @@ def format_ticket_number(value: Any) -> str:
     return ", ".join(formatted)
 
 
+def parse_alarm_minutes(value: Any, *, no_alarms: bool = False) -> list[int]:
+    """Normalize VALARM offsets with clean validation errors."""
+    raw_alarms = [] if no_alarms else (value if value is not None else [1440, 180])
+    alarms: list[int] = []
+    for idx, item in enumerate(normalize_list(raw_alarms), start=1):
+        try:
+            minutes = int(item)
+        except (TypeError, ValueError):
+            die(f"invalid alarm minutes value at alarms_minutes[{idx}]: {item!r}; use positive integers")
+        if minutes <= 0:
+            die(f"alarm minutes must be positive at alarms_minutes[{idx}], got {minutes}")
+        alarms.append(minutes)
+    return alarms
+
+
 def build_event(
     flight: dict[str, Any],
     *,
     calendar: dict[str, Any],
     now_utc: dt.datetime,
     alarms_minutes: list[int],
-) -> tuple[list[str], dict[str, Any]]:
+) -> tuple[Event, dict[str, Any]]:
+    """Build a single VEVENT as an icalendar Event object + summary dict."""
     flight_number = require_text(flight, "flight_number", "flight")
     dep = flight.get("departure") or {}
     arr = flight.get("arrival") or {}
@@ -185,12 +150,11 @@ def build_event(
     dep_dt = parse_local(require_text(dep, "local", f"flight {flight_number}.departure"), dep_tz, f"flight {flight_number}.departure")
     arr_dt = parse_local(require_text(arr, "local", f"flight {flight_number}.arrival"), arr_tz, f"flight {flight_number}.arrival")
 
-    dep_utc = dep_dt.astimezone(UTC)
-    arr_utc = arr_dt.astimezone(UTC)
-    if arr_utc <= dep_utc:
+    # Cross-timezone sanity: arrival must be after departure in UTC
+    if arr_dt.astimezone(UTC) <= dep_dt.astimezone(UTC):
         die(
             f"flight {flight_number}: arrival must be after departure after timezone conversion "
-            f"({utc_stamp(dep_dt)} -> {utc_stamp(arr_dt)})"
+            f"({dep_dt.isoformat()} -> {arr_dt.isoformat()})"
         )
 
     booking_reference = flight.get("pnr") or calendar.get("booking_reference")
@@ -205,17 +169,18 @@ def build_event(
     summary = " ".join(part for part in [passenger, title_route] if part)
     location = f"{dep_city} → {arr_city}"
 
-    desc: list[str] = []
+    # Build description
+    desc_lines: list[str] = []
     if not itinerary_contract.is_placeholder(booking_reference):
-        desc.append(f"PNR: {str(booking_reference).strip()}")
+        desc_lines.append(f"PNR: {str(booking_reference).strip()}")
     if ticket_number:
-        desc.append(f"Билет: {ticket_number}")
-    desc.append(description_route)
+        desc_lines.append(f"Билет: {ticket_number}")
+    desc_lines.append(description_route)
     if not itinerary_contract.is_placeholder(flight.get("aircraft")):
-        desc.append(f"Самолет: {str(flight.get('aircraft')).strip()}")
+        desc_lines.append(f"Самолет: {str(flight.get('aircraft')).strip()}")
     if links:
-        desc.append(f"Бронирование: {links[0]}")
-    description = "\n".join(desc)
+        desc_lines.append(f"Бронирование: {links[0]}")
+    description = "\n".join(desc_lines)
 
     raw_status = str(flight.get("status") or "confirmed").strip().lower()
     status_map = {
@@ -226,46 +191,53 @@ def build_event(
     }
     ical_status = status_map.get(raw_status, "CONFIRMED")
 
-    lines = [
-        "BEGIN:VEVENT",
-        prop("UID", stable_uid(flight, str(calendar.get("booking_reference") or ""))),
-        prop("DTSTAMP", utc_stamp(now_utc)),
-        prop("CREATED", utc_stamp(now_utc)),
-        prop("LAST-MODIFIED", utc_stamp(now_utc)),
-        prop("SUMMARY", summary),
-        prop("LOCATION", location),
-        prop("DESCRIPTION", description),
-        prop("DTSTART", utc_stamp(dep_dt)),
-        prop("DTEND", utc_stamp(arr_dt)),
-        prop("STATUS", ical_status),
-        prop("TRANSP", "OPAQUE"),
-        "CATEGORIES:Travel,Flight",
-    ]
-    if links:
-        lines.append(prop("URL", links[0]))
+    uid = stable_uid(flight, str(calendar.get("booking_reference") or ""))
 
+    # Build Event using icalendar modern API
+    event_kwargs: dict[str, Any] = {
+        "summary": summary,
+        "start": dep_dt,
+        "end": arr_dt,
+        "location": location,
+        "description": description,
+        "uid": uid,
+        "stamp": now_utc,
+        "created": now_utc,
+        "last_modified": now_utc,
+        "status": ical_status,
+        "transparency": "OPAQUE",
+        "categories": ["Travel", "Flight"],
+    }
+    if links:
+        event_kwargs["url"] = links[0]
+
+    event = Event.new(**event_kwargs)
+
+    # Add VALARM subcomponents
     for minutes in alarms_minutes:
-        lines.extend(
-            [
-                "BEGIN:VALARM",
-                prop("ACTION", "DISPLAY"),
-                prop("DESCRIPTION", f"Flight {flight_number} {dep_city}→{arr_city}"),
-                prop("TRIGGER", duration_trigger(int(minutes))),
-                "END:VALARM",
-            ]
-        )
-    lines.append("END:VEVENT")
+        alarm = Alarm()
+        alarm.add("action", "DISPLAY")
+        alarm.add("trigger", dt.timedelta(minutes=-minutes))
+        alarm.add("description", f"Flight {flight_number} {dep_city}→{arr_city}")
+        event.add_component(alarm)
 
     summary_info = {
         "flight_number": flight_number,
         "route": f"{dep_airport}->{arr_airport}",
-        "dtstart_utc": utc_stamp(dep_dt),
-        "dtend_utc": utc_stamp(arr_dt),
+        "departure_local": dep.get("local"),
+        "arrival_local": arr.get("local"),
+        "dtstart_utc": dep_dt.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ"),
+        "dtend_utc": arr_dt.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ"),
     }
-    return lines, summary_info
+    return event, summary_info
 
 
 def build_calendar(data: dict[str, Any], *, no_alarms: bool = False) -> tuple[str, list[dict[str, Any]]]:
+    """Build a complete VCALENDAR string with VTIMEZONE components.
+
+    Returns (ics_text, summaries) where ics_text is a valid RFC 5545 string
+    and summaries is a list of per-flight info dicts.
+    """
     flights = data.get("flights")
     if not isinstance(flights, list) or not flights:
         die("input JSON must contain a non-empty flights array")
@@ -277,38 +249,51 @@ def build_calendar(data: dict[str, Any], *, no_alarms: bool = False) -> tuple[st
     alarms_minutes = parse_alarm_minutes(data.get("alarms_minutes"), no_alarms=no_alarms)
 
     now_utc = dt.datetime.now(tz=UTC).replace(microsecond=0)
-    raw_lines = [
-        "BEGIN:VCALENDAR",
-        prop("PRODID", "-//Hermes Agent//Flight Calendar ICS//EN"),
-        prop("VERSION", "2.0"),
-        prop("CALSCALE", "GREGORIAN"),
-        prop("METHOD", "PUBLISH"),
-        prop("X-WR-CALNAME", calendar_name),
-        prop("X-WR-TIMEZONE", "UTC"),
-    ]
+
+    events: list[Event] = []
     summaries: list[dict[str, Any]] = []
     for flight in flights:
-        event_lines, info = build_event(
+        event, info = build_event(
             flight,
             calendar=data,
             now_utc=now_utc,
             alarms_minutes=alarms_minutes,
         )
-        raw_lines.extend(event_lines)
+        events.append(event)
         summaries.append(info)
-    raw_lines.append("END:VCALENDAR")
-    folded = "\r\n".join(fold_line(line) for line in raw_lines) + "\r\n"
-    return folded, summaries
+
+    cal = Calendar.new(
+        subcomponents=events,
+        prodid="-//Hermes Agent//Flight Calendar ICS//EN",
+    )
+    cal["x-wr-calname"] = vText(calendar_name)
+    cal["x-wr-timezone"] = vText("UTC")
+    cal["method"] = vText("PUBLISH")
+    cal["calscale"] = vText("GREGORIAN")
+
+    # Automatically add VTIMEZONE components for all TZIDs referenced in events
+    cal.add_missing_timezones()
+
+    ics_text = cal.to_ical().decode("utf-8")
+    return ics_text, summaries
 
 
 def validate_ics_text(text: str, expected_events: int) -> None:
+    """Validate generated ICS text for structural correctness."""
     if "BEGIN:VCALENDAR" not in text or "END:VCALENDAR" not in text:
         die("generated text is not a VCALENDAR")
+
+    # Parse with icalendar for deep validation
+    try:
+        cal = Calendar.from_ical(text)
+    except Exception as exc:
+        die(f"generated ICS is not valid RFC 5545: {exc}")
+
     event_count = text.count("BEGIN:VEVENT")
     if event_count != expected_events:
         die(f"VEVENT count mismatch: expected {expected_events}, got {event_count}")
-    if re.search(r"DT(?:START|END)(?:;[^:]+)?:\d{8}T\d{6}(?!Z)", text):
-        die("generated DTSTART/DTEND contains non-UTC datetime")
+
+    # Check for placeholder-like text in the output
     bad = [word for word in ("TBD", "UNKNOWN", "None", "null") if word in text]
     if bad:
         die(f"generated ICS contains placeholder-like text: {', '.join(bad)}")

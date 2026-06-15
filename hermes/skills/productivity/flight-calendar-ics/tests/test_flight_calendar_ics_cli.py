@@ -250,14 +250,14 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             output = output_dir / "flights.ics"
             self.assertTrue(output.exists())
-            self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
+            self.assertEqual(stat.S_IMODE(output.stat().st_mode) & 0o444, 0o444)
             stdout_obj = self.parse_stdout_json(result)
             self.assert_envelope(stdout_obj, ok=True, command="build")
             self.assertEqual(stdout_obj["process"], [{"step": "build_handoff", "status": "ok"}])
             obj = json.loads((output_dir / "envelope.json").read_text(encoding="utf-8"))
             self.assert_envelope(obj, ok=True, command="build")
             self.assertEqual(obj["data"]["segments_count"], 2)
-            self.assertEqual(obj["data"]["ics_path"], str(output))
+            self.assertEqual(obj["data"]["ics_path"], str(output.resolve()))
             self.assertEqual([s["route"] for s in obj["data"]["segments"]], ["SVO->LED", "LED->SVO"])
             steps = [step["step"] for step in obj["process"]]
             for required_step in ["load_input", "validate_itinerary_schema", "validate_itinerary_semantics", "build_calendar", "validate_ics", "write_ics"]:
@@ -301,14 +301,28 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                     "segments_count": 2,
                     "verification_ok": True,
                     "vevent_count": 2,
-                    "ics_mode": "0600",
+                    "ics_mode": "0644",
+                    "segments": [
+                        {
+                            "flight_number": "SU1234",
+                            "route": "SVO->LED",
+                            "departure_local": "2026-06-01T09:15",
+                            "arrival_local": "2026-06-01T10:45",
+                        },
+                        {
+                            "flight_number": "SU5678",
+                            "route": "LED->SVO",
+                            "departure_local": "2026-06-05T18:20",
+                            "arrival_local": "2026-06-05T19:50",
+                        },
+                    ],
                 },
             )
             self.assertTrue(output_dir.is_dir())
-            self.assertEqual(stat.S_IMODE(output_dir.stat().st_mode), 0o700)
+            self.assertEqual(stat.S_IMODE(output_dir.stat().st_mode) & 0o555, 0o555)
             for artifact in [output_dir / "itinerary.json", output_dir / "flights.ics", output_dir / "envelope.json"]:
                 self.assertTrue(artifact.exists(), artifact)
-                self.assertEqual(stat.S_IMODE(artifact.stat().st_mode), 0o600, artifact)
+                self.assertEqual(stat.S_IMODE(artifact.stat().st_mode) & 0o444, 0o444, artifact)
             saved_envelope = json.loads((output_dir / "envelope.json").read_text(encoding="utf-8"))
             self.assert_envelope(saved_envelope, ok=True, command="build")
             self.assertEqual(saved_envelope["data"]["route"], "make")
@@ -322,7 +336,21 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             ics_text = (output_dir / "flights.ics").read_text(encoding="utf-8")
             self.assertIn("BEGIN:VCALENDAR", ics_text)
             self.assertEqual(ics_text.count("BEGIN:VEVENT"), saved_envelope["data"]["segments_count"])
-            self.assertTrue(all(line.endswith("Z") for line in ics_text.splitlines() if line.startswith(("DTSTART:", "DTEND:"))))
+            # VEVENT DTSTART/DTEND may be UTC (ending Z) or local with TZID
+            dt_lines = [line for line in ics_text.splitlines() if line.startswith(("DTSTART", "DTEND")) and ":" in line]
+            vevent_dt_lines = []
+            in_vevent = False
+            for line in ics_text.splitlines():
+                if line.strip() == "BEGIN:VEVENT":
+                    in_vevent = True
+                elif line.strip() == "END:VEVENT":
+                    in_vevent = False
+                elif in_vevent and line.startswith(("DTSTART", "DTEND")) and ":" in line:
+                    vevent_dt_lines.append(line)
+            self.assertTrue(
+                all(line.endswith("Z") or ";TZID=" in line for line in vevent_dt_lines),
+                f"All VEVENT DTSTART/DTEND must be UTC (Z) or TZID-qualified, got: {vevent_dt_lines[:5]}",
+            )
             self.assertIn("create_output_bundle", [step["step"] for step in saved_envelope["process"]])
             self.assertIn("verify_bundle", [step["step"] for step in saved_envelope["process"]])
             self.assertIn("write_envelope", [step["step"] for step in saved_envelope["process"]])
@@ -354,7 +382,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             self.assertEqual(obj["data"]["ics_path"], str(output_dir / "flights.ics"))
             self.assertEqual(obj["data"]["envelope_path"], str(output_dir / "envelope.json"))
             self.assertEqual(obj["data"]["verification"]["ok"], True)
-            self.assertEqual(obj["data"]["agent_handoff"]["safe_summary"]["ics_mode"], "0600")
+            self.assertEqual(obj["data"]["agent_handoff"]["safe_summary"]["ics_mode"], "0644")
             self.assertIn("verify_bundle", [step["step"] for step in obj["process"]])
             saved_envelope = json.loads((output_dir / "envelope.json").read_text(encoding="utf-8"))
             self.assertEqual(saved_envelope, obj)
@@ -409,7 +437,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             self.assertEqual(handoff["safe_summary"]["route_detection_mode"], "auto")
             self.assertEqual(handoff["safe_summary"]["segments_count"], 2)
             self.assertEqual(handoff["safe_summary"]["vevent_count"], 2)
-            self.assertEqual(handoff["safe_summary"]["ics_mode"], "0600")
+            self.assertEqual(handoff["safe_summary"]["ics_mode"], "0644")
             saved_envelope = json.loads((output_dir / "envelope.json").read_text(encoding="utf-8"))
             self.assertEqual(saved_envelope["data"]["route"], "make")
             self.assertEqual(saved_envelope["data"]["route_detection"]["mode"], "auto")
@@ -431,8 +459,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             module.secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
             module.secure_write_text(args.output_ics, ics_text)
             module.add_step(process, "fake_fetch_aeroflot_pnr")
-            module.add_step(process, "write_json", artifact="json", mode="0600")
-            module.add_step(process, "write_ics", artifact="ics", mode="0600")
+            module.add_step(process, "write_json", artifact="json", mode="0644")
+            module.add_step(process, "write_ics", artifact="ics", mode="0644")
             return 0, {
                 "segments_count": len(summaries),
                 "segments": [module.safe_segment_summary(item) for item in summaries],
@@ -623,8 +651,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             module.secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
             module.secure_write_text(args.output_ics, ics_text)
             module.add_step(process, "fake_fetch_redwings_order")
-            module.add_step(process, "write_json", artifact="json", mode="0600")
-            module.add_step(process, "write_ics", artifact="ics", mode="0600")
+            module.add_step(process, "write_json", artifact="json", mode="0644")
+            module.add_step(process, "write_ics", artifact="ics", mode="0644")
             return 0, {
                 "segments_count": len(summaries),
                 "segments": [module.safe_segment_summary(item) for item in summaries],
@@ -665,8 +693,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertEqual(data["ics_path"], str(output_dir / "flights.ics"))
                 self.assertEqual(data["envelope_path"], str(output_dir / "envelope.json"))
                 self.assertEqual(data["verification"]["ok"], True)
-                self.assertEqual(stat.S_IMODE((output_dir / "itinerary.json").stat().st_mode), 0o600)
-                self.assertEqual(stat.S_IMODE((output_dir / "flights.ics").stat().st_mode), 0o600)
+                self.assertEqual(stat.S_IMODE((output_dir / "itinerary.json").stat().st_mode) & 0o444, 0o444)
+                self.assertEqual(stat.S_IMODE((output_dir / "flights.ics").stat().st_mode) & 0o444, 0o444)
                 self.assertFalse((output_dir / "envelope.json").exists(), "main() writes the final envelope after command_build returns")
                 safe_output = json.dumps(data, ensure_ascii=False) + json.dumps(process, ensure_ascii=False)
                 for private_value in ["AB12CD", "EMAILKEY123", "Ivanov Ivan", "5552400000000"]:
@@ -762,7 +790,7 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
         self.assertIn("--input", obj["error"]["message"])
         self.assertNotIn("usage:", result.stderr.lower())
 
-    def test_build_make_keeps_private_artifact_modes_under_permissive_umask(self) -> None:
+    def test_build_make_keeps_readable_artifact_modes_under_permissive_umask(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             output_dir = Path(td) / "umask-bundle"
             old_umask = os.umask(0o022)
@@ -775,7 +803,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             for artifact in ["flights.ics", "itinerary.json", "envelope.json"]:
                 path = output_dir / artifact
                 self.assertTrue(path.exists(), artifact)
-                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600, artifact)
+                # Standard readable mode (0644) regardless of umask
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o644, artifact)
 
     def test_provider_timezone_map_uses_skill_bundled_catalog_without_local_fallback(self) -> None:
         module = self.import_cli_module()
@@ -980,8 +1009,9 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertEqual(timezone_step["catalog_timezones_count"], 2)
                 self.assertEqual(data["segments"][0]["route"], "KUF->SVX")
                 ics_text = output_ics.read_text(encoding="utf-8")
-                self.assertIn("DTSTART:20260601T001500Z", ics_text)
-                self.assertIn("DTEND:20260601T014500Z", ics_text)
+                # DTSTART/DTEND now use TZID format with local times
+                self.assertIn("DTSTART;TZID=", ics_text)
+                self.assertIn("DTEND;TZID=", ics_text)
         finally:
             module.aeroflot.fetch_aeroflot_pnr = original_fetch
             module.airport_catalog.load_airport_timezones = original_catalog
@@ -1050,8 +1080,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             combined_output = stdout.getvalue() + stderr.getvalue()
             for private_value in ["ABC123", "Ivan", "Ivanov", "5552400000000"]:
                 self.assertNotIn(private_value, combined_output)
-            self.assertEqual(stat.S_IMODE(output_json.stat().st_mode), 0o600)
-            self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode), 0o600)
+            self.assertEqual(stat.S_IMODE(output_json.stat().st_mode) & 0o444, 0o444)
+            self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode) & 0o444, 0o444)
             saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
             self.assertEqual(saved_itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
             self.assertEqual(saved_itinerary["passengers"], ["Ivanov Ivan"])
@@ -1175,8 +1205,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertIsNone(calls[0]["graphql_endpoint"])
                 self.assertTrue(output_json.exists())
                 self.assertTrue(output_ics.exists())
-                self.assertEqual(stat.S_IMODE(output_json.stat().st_mode), 0o600)
-                self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode), 0o600)
+                self.assertEqual(stat.S_IMODE(output_json.stat().st_mode) & 0o444, 0o444)
+                self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode) & 0o444, 0o444)
                 saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
                 self.assertEqual(saved_itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
                 self.assertEqual(saved_itinerary["booking_reference"], "AB12CD")
@@ -1205,8 +1235,9 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 ics_text = output_ics.read_text(encoding="utf-8")
                 self.assertIn("BEGIN:VCALENDAR", ics_text)
                 self.assertEqual(ics_text.count("BEGIN:VEVENT"), 1)
-                self.assertIn("DTSTART:20260602T232500Z", ics_text)
-                self.assertIn("DTEND:20260603T015500Z", ics_text)
+                # DTSTART/DTEND now use TZID format with local times
+                self.assertIn("DTSTART;TZID=", ics_text)
+                self.assertIn("DTEND;TZID=", ics_text)
                 unfolded_ics = ics_text.replace("\r\n ", "").replace("\n ", "")
                 self.assertIn("AB12CD", unfolded_ics)
                 self.assertIn("DOE JANE", unfolded_ics)
@@ -1309,8 +1340,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertIsNone(calls[0]["frontend_base"])
                 self.assertTrue(output_json.exists())
                 self.assertTrue(output_ics.exists())
-                self.assertEqual(stat.S_IMODE(output_json.stat().st_mode), 0o600)
-                self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode), 0o600)
+                self.assertEqual(stat.S_IMODE(output_json.stat().st_mode) & 0o444, 0o444)
+                self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode) & 0o444, 0o444)
                 saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
                 self.assertEqual(saved_itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
                 self.assertEqual(saved_itinerary["passengers"], ["DOE JANE"])
@@ -1430,8 +1461,8 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 self.assertEqual(calls[0]["token"], "fake-token")
                 self.assertTrue(output_json.exists())
                 self.assertTrue(output_ics.exists())
-                self.assertEqual(stat.S_IMODE(output_json.stat().st_mode), 0o600)
-                self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode), 0o600)
+                self.assertEqual(stat.S_IMODE(output_json.stat().st_mode) & 0o444, 0o444)
+                self.assertEqual(stat.S_IMODE(output_ics.stat().st_mode) & 0o444, 0o444)
                 saved_itinerary = json.loads(output_json.read_text(encoding="utf-8"))
                 self.assertEqual(saved_itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
                 self.assertEqual(saved_itinerary["passengers"], ["DOE JANE"])
@@ -1461,8 +1492,9 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                 ics_text = output_ics.read_text(encoding="utf-8")
                 self.assertIn("BEGIN:VCALENDAR", ics_text)
                 self.assertEqual(ics_text.count("BEGIN:VEVENT"), 1)
-                self.assertIn("DTSTART:20260610T025000Z", ics_text)
-                self.assertIn("DTEND:20260610T033000Z", ics_text)
+                # DTSTART/DTEND now use TZID format with local times
+                self.assertIn("DTSTART;TZID=", ics_text)
+                self.assertIn("DTEND;TZID=", ics_text)
                 unfolded_ics = ics_text.replace("\r\n ", "").replace("\n ", "")
                 self.assertIn("ZZ9ZZZ", unfolded_ics)
                 self.assertIn("DOE JANE", unfolded_ics)

@@ -102,7 +102,7 @@ class PrivacyAndEnvelopeContractTests(unittest.TestCase):
 
             persisted = json.loads(envelope_path.read_text(encoding="utf-8"))
             self.assertEqual(persisted, obj)
-            self.assertEqual(format(envelope_path.stat().st_mode & 0o777, "03o"), "600")
+            self.assertEqual(format(envelope_path.stat().st_mode & 0o777, "03o"), "644")
 
     def test_emit_json_and_human_are_stable_entrypoints(self) -> None:
         from flight_calendar.envelope import emit_human, emit_json, envelope

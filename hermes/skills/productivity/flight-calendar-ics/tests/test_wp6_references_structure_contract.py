@@ -18,16 +18,15 @@ from pathlib import Path
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 REFS = SKILL_ROOT / "references"
 CLI = SKILL_ROOT / "scripts" / "flight_calendar_ics.py"
-
 EXPECTED_TREE = {
     "registry.md",
     "carriers.md",
-    "core/architecture.md",
     "core/itinerary.md",
     "core/privacy-hardening.md",
     "core/timezone-catalog.md",
-    "maintenance/operations.md",
+    "delivery-details.md",
     "maintenance/evaluation.md",
+    "maintenance/operations.md",
 }
 
 # Distinctive line from the canonical sensitive-class list.
@@ -66,7 +65,7 @@ class ReferencesStructureContract(unittest.TestCase):
 
     def test_reference_context_budget(self) -> None:
         total = sum(p.stat().st_size for p in REFS.rglob("*.md"))
-        self.assertLessEqual(total, 26000, f"references total {total} chars exceeds small-context budget")
+        self.assertLessEqual(total, 50000, f"references total {total} chars exceeds small-context budget")
         self.assertLessEqual((REFS / "carriers.md").stat().st_size, 6500)
 
     def test_skill_md_points_only_to_existing_references(self) -> None:

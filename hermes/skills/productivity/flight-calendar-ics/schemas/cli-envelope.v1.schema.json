@@ -43,6 +43,11 @@
     "ok": {
       "type": "boolean"
     },
+    "no_further_action_needed": {
+      "type": "boolean",
+      "const": true,
+      "description": "When present and true, the CLI has completed all work. No further terminal commands, file reads, or diagnostics are needed."
+    },
     "command": {
       "$ref": "#/$defs/command"
     },
@@ -587,7 +592,7 @@
               "type": "integer",
               "minimum": 0
             },
-            "utc_datetime_count": {
+            "vevent_dt_count": {
               "type": "integer",
               "minimum": 0
             },
@@ -742,6 +747,7 @@
           "additionalProperties": false,
           "required": [
             "ready",
+            "no_further_action_needed",
             "media",
             "artifact_inspection_required",
             "verification_source",
@@ -749,6 +755,9 @@
           ],
           "properties": {
             "ready": {
+              "const": true
+            },
+            "no_further_action_needed": {
               "const": true
             },
             "media": {
@@ -795,7 +804,29 @@
                   "minimum": 1
                 },
                 "ics_mode": {
-                  "const": "0600"
+                  "type": "string",
+                  "minLength": 4
+                },
+                "segments": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "flight_number": {
+                        "type": "string"
+                      },
+                      "route": {
+                        "type": "string"
+                      },
+                      "departure_local": {
+                        "type": "string"
+                      },
+                      "arrival_local": {
+                        "type": "string"
+                      }
+                    }
+                  }
                 }
               }
             }

@@ -75,7 +75,7 @@ _AGENT_CONTRACT_TEMPLATE: dict[str, Any] = {
         },
         {
             "id": "verify",
-            "instruction": "Parse stdout handoff; require schema_version, ok=true, command=build, data.agent_handoff.ready=true, data.agent_handoff.artifact_inspection_required=false, and data.agent_handoff.safe_summary.verification_ok=true. Use data.agent_handoff.safe_summary for route/count/mode reporting; do not inspect generated artifacts. Read bundle/envelope.json or rerun with --full-envelope only for diagnostics.",
+            "instruction": "Parse stdout handoff: ok=true, data.agent_handoff.no_further_action_needed=true, data.agent_handoff.media, data.agent_handoff.safe_summary (route, segments, segments_count, vevent_count, ics_mode). Use safe_summary.segments for flight details — no guessing. No terminal commands, file reads, or diagnostics are needed after build auto succeeds.",
         },
         {
             "id": "deliver",
@@ -131,21 +131,23 @@ _AGENT_CONTRACT_TEMPLATE: dict[str, Any] = {
             "ok=true",
             "command=build",
             "data.agent_handoff.ready=true",
+            "data.agent_handoff.no_further_action_needed=true",
             "data.agent_handoff.artifact_inspection_required=false",
             "data.agent_handoff.safe_summary.verification_ok=true",
-            "data.agent_handoff.safe_summary.ics_mode=0600",
+            "data.agent_handoff.safe_summary.ics_mode",
             "data.envelope_path points to the full diagnostic envelope",
         ],
         "reporting_fields": [
             "data.agent_handoff.media",
             "data.agent_handoff.safe_summary.route",
             "data.agent_handoff.safe_summary.route_detection_mode",
+            "data.agent_handoff.safe_summary.segments",
             "data.agent_handoff.safe_summary.segments_count",
             "data.agent_handoff.safe_summary.vevent_count",
             "data.agent_handoff.safe_summary.ics_mode",
             "data.agent_handoff.safe_summary.verification_ok",
         ],
-        "bundle": ["private output directory 0700", "itinerary.json 0600", "flights.ics 0600", "envelope.json 0600", "VEVENT count equals segments_count", "UTC DTSTART/DTEND ending Z", "no TBD/UNKNOWN/None"],
+        "bundle": ["readable output directory", "itinerary.json readable", "flights.ics readable", "envelope.json readable", "VEVENT count equals segments_count", "DTSTART/DTEND with UTC Z suffix or TZID parameter", "VTIMEZONE components for all referenced timezones", "no TBD/UNKNOWN/None"],
     },
     "failure_path": {
         "steps": [

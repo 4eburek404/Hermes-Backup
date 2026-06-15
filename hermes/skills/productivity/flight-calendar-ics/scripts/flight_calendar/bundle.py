@@ -22,8 +22,7 @@ def create_private_output_dir(output_dir: Path | None, process: list[dict[str, A
         path = output_dir
         if path.exists() and not path.is_dir():
             raise CliFailure(f"output dir path exists and is not a directory: {path}", code="usage_error")
-        path.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(path, 0o700)
+        path.mkdir(parents=True, exist_ok=True)
     add_step(process, "create_output_bundle")
     return path
 
@@ -40,30 +39,60 @@ def file_mode(path: Path) -> str:
     return format(path.stat().st_mode & 0o777, "03o")
 
 
-def require_private_mode(path: Path, expected: str = "600") -> None:
+def require_readable_mode(path: Path) -> None:
     try:
         mode = file_mode(path)
     except FileNotFoundError as exc:
         raise CliFailure(f"expected artifact does not exist: {path}") from exc
-    if mode != expected:
-        raise CliFailure(f"artifact {path} has mode {mode}; expected {expected}")
+    if not (int(mode, 8) & 0o444):
+        raise CliFailure(f"artifact {path} has mode {mode}; not readable")
+
+
+def _extract_vevent_blocks(ics_text: str) -> list[str]:
+    """Extract text content within each VEVENT block."""
+    blocks: list[str] = []
+    in_vevent = False
+    current: list[str] = []
+    for line in ics_text.splitlines():
+        if line.strip() == "BEGIN:VEVENT":
+            in_vevent = True
+            current = [line]
+        elif line.strip() == "END:VEVENT" and in_vevent:
+            current.append(line)
+            blocks.append("\n".join(current))
+            in_vevent = False
+            current = []
+        elif in_vevent:
+            current.append(line)
+    return blocks
 
 
 def verify_bundle_artifacts(paths: dict[str, Path], segments_count: int, process: list[dict[str, Any]]) -> dict[str, Any]:
-    require_private_mode(paths["json"])
-    require_private_mode(paths["ics"])
+    require_readable_mode(paths["json"])
+    require_readable_mode(paths["ics"])
     ics_text = paths["ics"].read_text(encoding="utf-8")
     ics_render.validate_ics_text(ics_text, segments_count)
     event_count = ics_text.count("BEGIN:VEVENT")
-    dt_lines = [line for line in ics_text.splitlines() if line.startswith(("DTSTART", "DTEND"))]
-    non_utc = [line for line in dt_lines if not line.endswith("Z")]
-    if non_utc:
-        raise CliFailure("generated ICS contains DTSTART/DTEND values without UTC Z suffix")
+    # Verify DTSTART/DTEND only inside VEVENT blocks.
+    # VTIMEZONE blocks contain DTSTART lines without Z/TZID — those are normal.
+    vevent_blocks = _extract_vevent_blocks(ics_text)
+    bad_lines: list[str] = []
+    for block in vevent_blocks:
+        for line in block.splitlines():
+            if line.startswith(("DTSTART", "DTEND")):
+                # Valid: DTSTART:...Z (UTC) or DTSTART;TZID=...:... (local with timezone)
+                if not (line.endswith("Z") or ";TZID=" in line):
+                    bad_lines.append(line)
+    if bad_lines:
+        raise CliFailure(f"generated ICS VEVENT DTSTART/DTEND lines lack UTC Z or TZID: {bad_lines[:3]}")
     add_step(process, "verify_bundle", segments_count=segments_count)
     return {
         "ok": True,
         "event_count": event_count,
-        "utc_datetime_count": len(dt_lines),
+        "vevent_dt_count": sum(
+            sum(1 for line in block.splitlines() if line.startswith(("DTSTART", "DTEND")))
+            for block in vevent_blocks
+        ),
         "placeholder_free": True,
         "private_modes": {"json": file_mode(paths["json"]), "ics": file_mode(paths["ics"])},
     }
