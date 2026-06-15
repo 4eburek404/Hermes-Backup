@@ -1,7 +1,7 @@
 ---
 name: flight-calendar-ics
 description: Use when creating importable .ics calendar files from airline booking links, tickets, itinerary JSON, PDFs, emails, screenshots, or manually supplied flight segments.
-version: 2.03
+version: 2.04
 author: Hermes Agent
 license: MIT
 metadata:
@@ -29,7 +29,7 @@ Create an importable `.ics` from private flight evidence through the skill-owned
             → rm the --url-file (contains credentials)
             → read error.code, open references/build-auto-diagnostics.md, retry or report error.
 
-3. DONE.  No further action needed.
+3. DONE.  No further action needed. One terminal command does everything
 ```
 
 That is the entire happy path. One terminal command → one JSON → one delivery.
