@@ -302,6 +302,24 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
                     "verification_ok": True,
                     "vevent_count": 2,
                     "ics_mode": "0644",
+                    "segments": [
+                        {
+                            "flight_number": "SU1234",
+                            "route": "SVO->LED",
+                            "departure_local": "2026-06-01T09:15",
+                            "arrival_local": "2026-06-01T10:45",
+                            "dtstart_utc": "20260601T061500Z",
+                            "dtend_utc": "20260601T074500Z",
+                        },
+                        {
+                            "flight_number": "SU5678",
+                            "route": "LED->SVO",
+                            "departure_local": "2026-06-05T18:20",
+                            "arrival_local": "2026-06-05T19:50",
+                            "dtstart_utc": "20260605T152000Z",
+                            "dtend_utc": "20260605T165000Z",
+                        },
+                    ],
                 },
             )
             self.assertTrue(output_dir.is_dir())

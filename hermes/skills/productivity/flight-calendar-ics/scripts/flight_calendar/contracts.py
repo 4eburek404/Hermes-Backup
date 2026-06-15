@@ -75,7 +75,7 @@ _AGENT_CONTRACT_TEMPLATE: dict[str, Any] = {
         },
         {
             "id": "verify",
-            "instruction": "Parse stdout handoff: ok=true, data.agent_handoff.no_further_action_needed=true, data.agent_handoff.media, data.agent_handoff.safe_summary (route, segments_count, vevent_count, ics_mode). No terminal commands, file reads, or diagnostics are needed after build auto succeeds.",
+            "instruction": "Parse stdout handoff: ok=true, data.agent_handoff.no_further_action_needed=true, data.agent_handoff.media, data.agent_handoff.safe_summary (route, segments, segments_count, vevent_count, ics_mode). Use safe_summary.segments for flight details — no guessing. No terminal commands, file reads, or diagnostics are needed after build auto succeeds.",
         },
         {
             "id": "deliver",
@@ -141,6 +141,7 @@ _AGENT_CONTRACT_TEMPLATE: dict[str, Any] = {
             "data.agent_handoff.media",
             "data.agent_handoff.safe_summary.route",
             "data.agent_handoff.safe_summary.route_detection_mode",
+            "data.agent_handoff.safe_summary.segments",
             "data.agent_handoff.safe_summary.segments_count",
             "data.agent_handoff.safe_summary.vevent_count",
             "data.agent_handoff.safe_summary.ics_mode",

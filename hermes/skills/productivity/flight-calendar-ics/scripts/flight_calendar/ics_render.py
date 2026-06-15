@@ -224,6 +224,8 @@ def build_event(
     summary_info = {
         "flight_number": flight_number,
         "route": f"{dep_airport}->{arr_airport}",
+        "departure_local": dep.get("local"),
+        "arrival_local": arr.get("local"),
         "dtstart_utc": dep_dt.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ"),
         "dtend_utc": arr_dt.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ"),
     }

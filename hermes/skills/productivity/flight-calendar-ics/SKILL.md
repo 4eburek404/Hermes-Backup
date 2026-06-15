@@ -25,6 +25,7 @@ Create an importable `.ics` from private flight evidence through the skill-owned
 2. PARSE: stdout is JSON. If ok == true:
             → send_message
             → tell user: route, segments, dates from data.agent_handoff.safe_summary
+              (safe_summary.segments has flight_number, route, departure_local, arrival_local for each segment — use these, do not guess)
           If ok != true:
             → rm the --url-file (contains credentials)
             → read error.code from stdout; use diagnose route-detect or diagnose validate for retry.

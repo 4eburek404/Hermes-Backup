@@ -23,6 +23,7 @@ def build_agent_handoff(
     paths: dict[str, Path],
     segments_count: int,
     verification: dict[str, Any],
+    segments: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Return the code-owned delivery handoff agents can copy without inspecting artifacts."""
     raw_private_modes = verification.get("private_modes")
@@ -39,20 +40,23 @@ def build_agent_handoff(
         )
     route_detection_mode = str(route_detection.get("mode")) if route_detection else "explicit"
     ics_path = str(paths["ics"].resolve())
+    safe_summary: dict[str, Any] = {
+        "route": route,
+        "route_detection_mode": route_detection_mode,
+        "segments_count": segments_count,
+        "verification_ok": verification_ok,
+        "vevent_count": event_count,
+        "ics_mode": ics_mode,
+    }
+    if segments:
+        safe_summary["segments"] = segments
     return {
         "ready": True,
         "no_further_action_needed": True,
         "media": f"MEDIA:{ics_path}",
         "artifact_inspection_required": False,
         "verification_source": "flight_calendar.bundle.verify_bundle_artifacts",
-        "safe_summary": {
-            "route": route,
-            "route_detection_mode": route_detection_mode,
-            "segments_count": segments_count,
-            "verification_ok": verification_ok,
-            "vevent_count": event_count,
-            "ics_mode": ics_mode,
-        },
+        "safe_summary": safe_summary,
     }
 
 
@@ -97,12 +101,14 @@ def run_build_command(
         exit_code, data = handler(route_args, process)
     segments_count = int(data.get("segments_count") or 0)
     verification = verifier(paths, segments_count, process)
+    segments = data.get("segments")
     agent_handoff = build_agent_handoff(
         route=route,
         route_detection=route_detection,
         paths=paths,
         segments_count=segments_count,
         verification=verification,
+        segments=segments,
     )
     bundled = dict(data)
     bundled.update(
