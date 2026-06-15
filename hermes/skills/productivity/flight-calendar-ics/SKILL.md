@@ -22,7 +22,7 @@ Create an importable `.ics` from private flight evidence through the skill-owned
           python "<skill_dir>/scripts/flight_calendar_ics.py" --json build auto --input <private-itinerary.json>
 
 2. PARSE: stdout is JSON. If ok == true:
-            → send_message(action='send', message=data.agent_handoff.media, target='telegram:<chat_id>:<thread_id>')
+            → send_message
             → tell user: route, segments, dates from data.agent_handoff.safe_summary
           If ok != true:
             → rm the --url-file (contains credentials)
