@@ -1,7 +1,7 @@
 ---
 name: flight-calendar-ics
 description: Use when creating importable .ics calendar files from airline booking links, tickets, itinerary JSON, PDFs, emails, screenshots, or manually supplied flight segments.
-version: 2.02
+version: 2.03
 author: Hermes Agent
 license: MIT
 metadata:
@@ -17,6 +17,7 @@ Create an importable `.ics` from private flight evidence through the skill-owned
 ## Algorithm
 
 ```
+! Do NOT open airline websites in a browser or use web_extract. The CLI fetches and parses booking data internally. Just run the build command — one terminal command does everything !
 1. RUN:   python "<skill_dir>/scripts/flight_calendar_ics.py" --json build auto --url-file <private-url-file>
           —or—
           python "<skill_dir>/scripts/flight_calendar_ics.py" --json build auto --input <private-itinerary.json>
