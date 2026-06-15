@@ -824,12 +824,6 @@
                       },
                       "arrival_local": {
                         "type": "string"
-                      },
-                      "dtstart_utc": {
-                        "type": "string"
-                      },
-                      "dtend_utc": {
-                        "type": "string"
                       }
                     }
                   }

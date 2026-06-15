@@ -102,8 +102,6 @@ class BundleTimezoneSegmentsContractTests(unittest.TestCase):
                 "route": "SVX->SVO",
                 "departure_local": "2026-06-08T06:00",
                 "arrival_local": "2026-06-08T08:00",
-                "dtstart_utc": "20260608T010000Z",
-                "dtend_utc": "20260608T030000Z",
             },
         )
 

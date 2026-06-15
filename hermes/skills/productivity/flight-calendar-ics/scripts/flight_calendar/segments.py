@@ -10,8 +10,6 @@ def safe_segment_summary(summary: dict[str, Any]) -> dict[str, Any]:
         "route": summary.get("route"),
         "departure_local": summary.get("departure_local"),
         "arrival_local": summary.get("arrival_local"),
-        "dtstart_utc": summary.get("dtstart_utc"),
-        "dtend_utc": summary.get("dtend_utc"),
     }
 
 
