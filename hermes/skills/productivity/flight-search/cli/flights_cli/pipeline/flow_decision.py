@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from ._shared import as_tuple, classify_market, is_direct_only, resolve_country_code
 from .search_request import SearchRequest
 
 
@@ -65,64 +66,26 @@ class FlowDecision:
         return payload
 
 
-def _as_tuple(value: Any) -> tuple[Any, ...]:
-    if value is None:
-        return ()
-    if isinstance(value, tuple):
-        return value
-    if isinstance(value, list):
-        return tuple(value)
-    return (value,)
-
-
-def _is_direct_only(request: SearchRequest) -> bool:
-    options = request.compatibility_options
-    return options.get("max_connections") == 0 and options.get("tier2_max_connections") == 0
-
-
 def _has_airport_scope(request: SearchRequest) -> bool:
     options = request.compatibility_options
-    return bool(_as_tuple(options.get("origin_airport")) or _as_tuple(options.get("destination_airport")))
+    return bool(as_tuple(options.get("origin_airport")) or as_tuple(options.get("destination_airport")))
 
 
 def _has_carrier_scope(request: SearchRequest) -> bool:
     options = request.compatibility_options
     return bool(
-        _as_tuple(options.get("aggregate_control_carrier"))
-        or _as_tuple(options.get("only_carrier"))
-        or _as_tuple(options.get("prefer_carrier"))
+        as_tuple(options.get("aggregate_control_carrier"))
+        or as_tuple(options.get("only_carrier"))
+        or as_tuple(options.get("prefer_carrier"))
     )
-
-
-def _location_country(store: Any, code: str) -> str | None:
-    normalized = str(code or "").upper()
-    try:
-        location = store.resolve_location(normalized)
-    except Exception:
-        location = None
-    if location is not None and getattr(location, "country_code", None):
-        return str(location.country_code or "").upper()
-    airport = getattr(store, "airport_by_code", {}).get(normalized)
-    if airport and airport.get("country_code"):
-        return str(airport.get("country_code") or "").upper()
-    city = getattr(store, "city_by_code", {}).get(normalized)
-    if city and city.get("country_code"):
-        return str(city.get("country_code") or "").upper()
-    return None
 
 
 def market_class_for_codes(store: Any, origin: str, destination: str) -> str:
     """Classify route market from catalog country metadata, not route-code lists."""
 
-    origin_country = _location_country(store, origin)
-    destination_country = _location_country(store, destination)
-    if origin_country == "RU" and destination_country == "RU":
-        return "ru_domestic"
-    if origin_country == "RU" or destination_country == "RU":
-        return "ru_touching_international"
-    if origin_country and destination_country:
-        return "global_non_ru"
-    return "structurally_constrained"
+    origin_country = resolve_country_code(store, origin)
+    destination_country = resolve_country_code(store, destination)
+    return classify_market(origin_country, destination_country)
 
 
 def market_class_for_resolved_route(
@@ -137,29 +100,23 @@ def market_class_for_resolved_route(
     origin_country = str(getattr(origin, "country_code", None) or "").upper() or None
     destination_country = str(getattr(destination, "country_code", None) or "").upper() or None
     if not origin_country:
-        countries = {_location_country(store, code) for code in (origin_airports or [])}
+        countries = {resolve_country_code(store, code) for code in (origin_airports or [])}
         countries.discard(None)
         if len(countries) == 1:
             origin_country = countries.pop()
     if not destination_country:
-        countries = {_location_country(store, code) for code in (destination_airports or [])}
+        countries = {resolve_country_code(store, code) for code in (destination_airports or [])}
         countries.discard(None)
         if len(countries) == 1:
             destination_country = countries.pop()
-    if origin_country == "RU" and destination_country == "RU":
-        return "ru_domestic"
-    if origin_country == "RU" or destination_country == "RU":
-        return "ru_touching_international"
-    if origin_country and destination_country:
-        return "global_non_ru"
-    return "structurally_constrained"
+    return classify_market(origin_country, destination_country)
 
 
 def _intent_for(request: SearchRequest) -> str:
     command = request.command_name.replace("_", "-")
     if command.startswith("maint"):
         return "maintenance"
-    if _is_direct_only(request):
+    if is_direct_only(request.compatibility_options):
         return "direct_inventory"
     if str(request.ticketing or "").lower() in {"single", "protected", "through", "single_pnr"}:
         return "ticketing_proof"
@@ -180,7 +137,7 @@ def _evidence_class_for(intent_class: str) -> str:
 
 def routing_strategy_for_market(request: SearchRequest, market_class: str) -> str:
     raw = str(request.compatibility_options.get("routing_strategy") or "auto").strip().lower()
-    has_manual_hubs = bool(_as_tuple(request.compatibility_options.get("hub")))
+    has_manual_hubs = bool(as_tuple(request.compatibility_options.get("hub")))
     if raw != "auto":
         return raw
     if has_manual_hubs:
