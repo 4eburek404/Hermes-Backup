@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
+import unittest
 
 from flights_cli.domain.vocabulary import Direction
 
@@ -47,11 +47,10 @@ def _collect_schema_enums(schema: dict, prefix: str = "") -> dict[str, list[str]
 # direction ↔ user_answer.v3 schema
 # ---------------------------------------------------------------------------
 
-class TestDirectionSchemaSync:
+class TestDirectionSchemaSync(unittest.TestCase):
     """Direction enum must match the ``direction`` enum in the user answer schema."""
 
-    @pytest.fixture(autouse=True)
-    def _load(self) -> None:
+    def setUp(self) -> None:
         self.schema = _load_schema("flight_search_user_answer.v3.schema.json")
 
     def test_direction_values_match_schema(self) -> None:
@@ -64,17 +63,17 @@ class TestDirectionSchemaSync:
             and set(v for v in values if v is not None) == {"outbound", "return"}
         }
         if not direction_enums:
-            pytest.skip("No 'direction' enum found in user_answer schema")
+            self.skipTest("No 'direction' enum found in user_answer schema")
         direction_values = next(iter(direction_enums.values()))
         vocab_values = [d.value for d in Direction]
-        assert sorted(vocab_values) == sorted(direction_values)
+        self.assertEqual(sorted(vocab_values), sorted(direction_values))
 
 
 # ---------------------------------------------------------------------------
 # General: all enum values are non-empty strings
 # ---------------------------------------------------------------------------
 
-class TestVocabularyWellFormed:
+class TestVocabularyWellFormed(unittest.TestCase):
     """Structural sanity checks for every StrEnum in the vocabulary."""
 
     def test_all_members_are_non_empty_strings(self) -> None:
@@ -87,8 +86,8 @@ class TestVocabularyWellFormed:
         ]
         for enum_cls in enums:
             for member in enum_cls:
-                assert isinstance(member.value, str), f"{enum_cls.__name__}.{member.name} value is not str"
-                assert len(member.value) > 0, f"{enum_cls.__name__}.{member.name} value is empty"
+                self.assertIsInstance(member.value, str, f"{enum_cls.__name__}.{member.name} value is not str")
+                self.assertGreater(len(member.value), 0, f"{enum_cls.__name__}.{member.name} value is empty")
 
     def test_no_duplicate_values_within_enum(self) -> None:
         from flights_cli.domain import vocabulary as v
@@ -100,9 +99,10 @@ class TestVocabularyWellFormed:
         ]
         for enum_cls in enums:
             values = [m.value for m in enum_cls]
-            assert len(values) == len(set(values)), (
+            self.assertEqual(
+                len(values), len(set(values)),
                 f"{enum_cls.__name__} has duplicate values: "
-                f"{[v for v in values if values.count(v) > 1]}"
+                f"{[v for v in values if values.count(v) > 1]}",
             )
 
     def test_strenum_equality_with_plain_string(self) -> None:
@@ -116,7 +116,7 @@ class TestVocabularyWellFormed:
         ]
         for enum_cls in enums:
             for member in enum_cls:
-                assert member == member.value, f"{enum_cls.__name__}.{member.name} != '{member.value}'"
+                self.assertEqual(member, member.value, f"{enum_cls.__name__}.{member.name} != '{member.value}'")
 
     def test_json_serialisation_is_string(self) -> None:
         """json.dumps must produce the plain string, not the enum repr."""
@@ -125,14 +125,14 @@ class TestVocabularyWellFormed:
 
         for member in v.Leg:
             result = json.dumps(member)
-            assert result == json.dumps(member.value), f"json.dumps({member!r}) = {result!r}"
+            self.assertEqual(result, json.dumps(member.value), f"json.dumps({member!r}) = {result!r}")
 
 
 # ---------------------------------------------------------------------------
 # Phase 4: lint — block vocabulary drift outside domain/vocabulary.py
 # ---------------------------------------------------------------------------
 
-class TestVocabularyDriftLint:
+class TestVocabularyDriftLint(unittest.TestCase):
     """Scan flights_cli/ for bare string literals that belong to vocabulary enums.
 
     If a known vocabulary value appears as a quoted string literal outside
@@ -245,7 +245,7 @@ class TestVocabularyDriftLint:
                 f"domain/vocabulary.py (threshold: {max_allowed}):\n"
             )
             detail = "\n".join(violations[:30])
-            pytest.fail(header + detail)
+            self.fail(header + detail)
         elif violations:
             # Report but don't fail yet — track progress
             import warnings
@@ -255,3 +255,7 @@ class TestVocabularyDriftLint:
                 + "\n".join(violations[:10])
             )
             warnings.warn(msg, stacklevel=1)
+
+
+if __name__ == "__main__":
+    unittest.main()
