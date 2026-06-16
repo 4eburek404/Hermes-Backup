@@ -57,7 +57,8 @@
         "stop_policy": {"type": "object"},
         "stop_policy_diagnostics": {"type": "object"},
         "ru_priority_controls": {"type": "object"},
-        "date_window_inventory": {"type": "object"}
+        "date_window_inventory": {"type": "object"},
+        "direct_flights": {"type": "array"}
       }
     },
     "coverage_diagnostics": {

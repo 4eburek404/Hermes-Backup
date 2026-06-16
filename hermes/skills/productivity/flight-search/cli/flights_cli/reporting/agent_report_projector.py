@@ -121,6 +121,7 @@ def project_agent_report(flat_report: dict[str, Any]) -> dict[str, Any]:
         "rejected_pair_warnings": flat_report.get("rejected_pair_warnings") or [],
         "stop_policy": flat_report.get("stop_policy") or {},
         "stop_policy_diagnostics": flat_report.get("stop_policy_diagnostics") or {},
+        "direct_flights": flat_report.get("direct_flights") or [],
     }
     if "ru_priority_controls" in flat_report:
         evidence["ru_priority_controls"] = flat_report["ru_priority_controls"]

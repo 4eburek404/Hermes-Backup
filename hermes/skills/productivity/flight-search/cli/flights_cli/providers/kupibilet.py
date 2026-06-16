@@ -77,6 +77,10 @@ def kupibilet_variant_currency(variant: dict[str, Any], default_currency: str) -
 def kupibilet_flight_number(flight: dict[str, Any]) -> str:
     carrier = str(flight.get("marketing_carrier") or flight.get("operating_carrier") or "").upper()
     number = str(flight.get("transport_number") or flight.get("number") or "").strip()
+    if carrier and number.upper().startswith(carrier):
+        remainder = number[len(carrier):].lstrip()
+        if remainder[:1].isdigit():
+            number = remainder
     return f"{carrier}{number}" if carrier or number else ""
 
 
