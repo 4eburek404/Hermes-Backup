@@ -5,6 +5,7 @@ from typing import Any, cast
 from ...errors import CliError
 from ...ports.providers import FlightProviderPort, ProbeType, ProviderName, ProviderProbeResult
 from ...store import Store
+from flights_cli.pipeline._shared import resolve_country_code
 from .fli_adapter import FLI_CAPABILITIES, FliProviderAdapter
 from .kupibilet_adapter import KUPIBILET_CAPABILITIES, KupibiletProviderAdapter
 
@@ -16,14 +17,7 @@ PROVIDER_REGISTRY: dict[ProviderName, FlightProviderPort] = {
 
 
 def location_country_code(store: Store, code: str) -> str | None:
-    normalized = code.upper()
-    airport = store.airport_by_code.get(normalized)
-    if airport and airport.get("country_code"):
-        return str(airport.get("country_code") or "").upper()
-    city = store.city_by_code.get(normalized)
-    if city and city.get("country_code"):
-        return str(city.get("country_code") or "").upper()
-    return None
+    return resolve_country_code(store, code)
 
 
 def airport_country_code(store: Store, code: str) -> str | None:
