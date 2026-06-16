@@ -1,2 +1,0 @@
-[console_scripts]
-flights = flights_cli.__main__:main

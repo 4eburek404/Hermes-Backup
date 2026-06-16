@@ -1,6 +1,0 @@
-Metadata-Version: 2.4
-Name: flights-cli
-Version: 0.10.17
-Summary: Provider-policy flight routing helper for Hermes live flight-search workflows
-Requires-Python: >=3.10
-Requires-Dist: jsonschema<5,>=4.22
