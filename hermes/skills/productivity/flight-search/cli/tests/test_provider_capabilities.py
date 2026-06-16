@@ -107,6 +107,33 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self.assertEqual(result.evidence_type, "not_supported")
         self.assertEqual(result.provider, "fli")
 
+    def test_provider_adapter_returns_same_instance_for_same_store(self) -> None:
+        """provider_adapter with same (name, store) returns cached instance."""
+        store = store_with_airports(self)
+        a1 = provider_adapter("kupibilet", store=store)
+        a2 = provider_adapter("kupibilet", store=store)
+        self.assertIs(a1, a2)
+
+    def test_provider_adapter_returns_different_instance_for_different_store(self) -> None:
+        """provider_adapter with different store returns different instance."""
+        store_a = store_with_airports(self)
+        store_b = store_with_airports(self)
+        a1 = provider_adapter("kupibilet", store=store_a)
+        a2 = provider_adapter("kupibilet", store=store_b)
+        self.assertIsNot(a1, a2)
+
+    def test_provider_adapter_no_store_returns_singleton(self) -> None:
+        """provider_adapter with store=None returns the registry singleton."""
+        adapter = provider_adapter("kupibilet")
+        self.assertIs(adapter, PROVIDER_REGISTRY["kupibilet"])
+
+    def test_provider_adapter_custom_fetcher_bypasses_cache(self) -> None:
+        """provider_adapter with custom fetcher returns a new instance every time."""
+        store = store_with_airports(self)
+        a1 = provider_adapter("kupibilet", store=store, kupibilet_fetcher=lambda: None)
+        a2 = provider_adapter("kupibilet", store=store, kupibilet_fetcher=lambda: None)
+        self.assertIsNot(a1, a2)
+
     def test_segment_probe_and_evidence_projection_use_shared_provider_helpers(self) -> None:
         capabilities = ProviderCapabilities(probe_types=frozenset({"segment_direct", "city_pair_direct"}))
 
