@@ -48,7 +48,7 @@ def render_human(command: str, data: Any) -> str:
             changes = "direct" if offer.get("number_of_changes") == 0 else f"{offer.get('number_of_changes')} stop(s)"
             lines.append(f"  {i}. {price_text}  {changes}  {offer.get('duration') or '?'}min")
             leg_bits = []
-            for flight in offer.get("flights", []):
+            for flight in offer.get("segments", []):
                 dep = str(flight.get("departure_at") or "")
                 arr = str(flight.get("arrival_at") or "")
                 leg_bits.append(
@@ -87,7 +87,7 @@ def render_human(command: str, data: Any) -> str:
             changes = "direct" if offer.get("number_of_changes") == 0 else f"{offer.get('number_of_changes')} stop(s)"
             lines.append(f"  {i}. {price_text}  {changes}  {offer.get('duration') or '?'}min")
             leg_bits = []
-            for flight in offer.get("flights", []):
+            for flight in offer.get("segments", []):
                 operating = flight.get("operating_carrier")
                 marketing = flight.get("marketing_carrier")
                 op_note = f" op:{operating}" if operating and marketing and operating != marketing else ""
@@ -124,7 +124,7 @@ def render_human(command: str, data: Any) -> str:
             lines.append(f"  {i}. {price_text}  {changes}  {baggage_text}")
             for journey in offer.get("journeys", []):
                 leg_bits = []
-                for flight in journey.get("flights", []):
+                for flight in journey.get("segments", []):
                     operating = flight.get("operating_carrier")
                     marketing = flight.get("marketing_carrier")
                     op_note = f" op:{operating}" if operating and marketing and operating != marketing else ""

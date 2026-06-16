@@ -596,7 +596,7 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
             "currency": "RUB",
             "number_of_changes": 1,
             "duration": 520,
-            "flights": [
+            "segments": [
                 {"origin": "SVX", "destination": "SVO", "flight_number": "SU1419"},
                 {"origin": "SVO", "destination": "DEL", "flight_number": "SU232"},
             ],
@@ -607,7 +607,7 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
             "currency": "RUB",
             "number_of_changes": 3,
             "duration": 1220,
-            "flights": [
+            "segments": [
                 {"origin": "SVX", "destination": "A", "flight_number": "A1"},
                 {"origin": "A", "destination": "B", "flight_number": "B2"},
                 {"origin": "B", "destination": "C", "flight_number": "C3"},
@@ -620,7 +620,7 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
             "currency": "RUB",
             "number_of_changes": 1,
             "duration": 420,
-            "flights": [
+            "segments": [
                 {"origin": "SVX", "destination": "IST", "flight_number": "TK1"},
                 {"origin": "SAW", "destination": "DEL", "flight_number": "TK2"},
             ],
@@ -679,7 +679,7 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
                 "currency": "RUB",
                 "number_of_changes": 1,
                 "flight_numbers": ["DP404", "SU2132"],
-                "flights": [
+                "segments": [
                     {
                         "flight_number": "DP404",
                         "marketing_carrier": "DP",

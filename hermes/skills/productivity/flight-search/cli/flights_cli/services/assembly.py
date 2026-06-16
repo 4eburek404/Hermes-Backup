@@ -6,7 +6,7 @@ from typing import Any
 from ..config import RISK_PROFILES
 from ..domain.airports import airport_group
 from ..domain.carriers import segment_carriers
-from ..domain.normalize import currency_value, price_value
+from ..domain.normalize import currency_value, is_reject_score, price_value
 from ..domain.stop_metrics import journey_connection_count
 from ..domain.stop_policy import decide_stop_policy, stop_policy_from_args, stop_policy_payload
 from ..domain.time import elapsed_minutes, minutes_between
@@ -176,17 +176,26 @@ def pair_connection_quality(
     }
 
 
-def pair_sort_key(pair: dict[str, Any]) -> tuple[int, int, int, int]:
+def pair_sort_key(pair: dict[str, Any], profile: str = "balanced") -> tuple:
+    """Sort key for itinerary pairs, respecting the profile's rank_order.
+
+    Previously hardcoded (reject, risk, price, elapsed). Now dynamic:
+    the profile's ``rank_order`` determines which dimensions dominate.
+    """
     quality = pair.get("connection_quality") or {}
     risk = quality.get("risk") or {}
     price = pair["price"] if pair.get("price") is not None else 10**12
     elapsed = elapsed_minutes(pair["segments"]) or 10**9
-    return (
-        1 if int(risk.get("score") or 0) >= 100 else 0,
-        int(risk.get("score") or 0),
-        price,
-        elapsed,
+    values = {
+        "reject": 1 if is_reject_score(int(risk.get("score") or 0)) else 0,
+        "risk": int(risk.get("score") or 0),
+        "price": price,
+        "elapsed": elapsed,
+    }
+    rank_order = RISK_PROFILES.get(profile, RISK_PROFILES["balanced"]).get(
+        "rank_order", ["reject", "risk", "price", "elapsed"]
     )
+    return tuple(values.get(dim, 0) for dim in rank_order)
 
 
 def assemble_direction(
@@ -236,7 +245,7 @@ def assemble_direction(
                         )
                         if rejection is not None:
                             rejected.append(rejection)
-    pairs.sort(key=pair_sort_key)
+    pairs.sort(key=lambda p: pair_sort_key(p, profile))
     severity_order = {"error": 0, "warn": 1, "ok": 2}
     rejected.sort(
         key=lambda item: (
@@ -733,6 +742,7 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
         max_connections=getattr(args, "max_connections", None),
         fallback_max_connections=getattr(args, "fallback_max_connections", None),
         agent_brief=getattr(args, "agent_brief", False),
+        is_domestic=getattr(args, "is_domestic", False),
     )
     policy = carrier_policy_from_args(rank_args)
     ranked = rank_candidate_list(candidates, rank_args) if candidates else {
@@ -764,6 +774,27 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
     max_ranked = max(0, int(args.max_candidates))
     ranked["ranked"] = ranked["ranked"][:max_ranked]
     ranked["count"] = len(ranked["ranked"])
+    direct_flight_summaries: list[dict[str, Any]] = []
+    for journey in outbound_direct + return_direct:
+        segments = journey.get("segments") or []
+        if not segments or len(segments) != 1:
+            continue
+        s = segments[0] if isinstance(segments[0], dict) else {}
+        direct_flight_summaries.append({
+            "direction": journey.get("direction"),
+            "flight_number": s.get("flight_number"),
+            "marketing_carrier": s.get("marketing_carrier"),
+            "operating_carrier": s.get("operating_carrier"),
+            "origin": s.get("origin"),
+            "destination": s.get("destination"),
+            "departure_at": s.get("departure_at"),
+            "arrival_at": s.get("arrival_at"),
+            "duration_min": s.get("duration_min") or s.get("duration"),
+            "aircraft": s.get("aircraft_code") or s.get("aircraft"),
+            "price": journey.get("price"),
+            "currency": journey.get("currency"),
+        })
+
     ranked["ranked_total_count"] = ranked_total_count
     ranked["assembly"] = {
         **generation_diagnostics,
@@ -772,6 +803,7 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
         "outbound_pair_count": len(outbound_pairs),
         "return_direct_count": len(return_direct),
         "return_pair_count": len(return_pairs),
+        "direct_flights": direct_flight_summaries,
         "rejected_pair_count": len(rejected_pairs),
         "rejected_pair_sample_count": min(len(rejected_pairs), args.include_rejected_pairs),
         "raw_candidate_count": raw_candidate_count,

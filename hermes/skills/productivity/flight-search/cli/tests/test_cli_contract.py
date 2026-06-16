@@ -12,7 +12,6 @@ from jsonschema import Draft202012Validator
 from flights_cli.apps import search as search_app
 from flights_cli.cli import apply_agent_brief_output, apply_agent_output_defaults, build_parser, normalize_global_json
 from flights_cli.command_surface import (
-    CATALOG_AUTO_REFRESH_COMMANDS,
     CATALOG_READ_COMMANDS,
     CATALOG_REFRESH_COMMANDS,
     LIVE_PROVIDER_COMMANDS,
@@ -163,13 +162,12 @@ class CliContractTests(unittest.TestCase):
     def test_catalog_refresh_surface_matches_registered_catalog_commands(self) -> None:
         parser = build_parser()
         self.assertEqual(set(CATALOG_READ_COMMANDS), set(COMMAND_ARGV))
-        self.assertEqual(set(CATALOG_AUTO_REFRESH_COMMANDS), set(COMMAND_ARGV))
         self.assertEqual(set(CATALOG_REFRESH_COMMANDS), set(CATALOG_REFRESH_ARGV))
         for command_name in CATALOG_READ_COMMANDS:
             with self.subTest(command_name=command_name):
                 args = parser.parse_args(COMMAND_ARGV[command_name])
                 self.assertTrue(getattr(args, "requires_catalog", False))
-                self.assertEqual(getattr(args, "catalog_access", None), "auto_refresh")
+                self.assertEqual(getattr(args, "catalog_access", None), "read_only")
         for command_name in CATALOG_REFRESH_COMMANDS:
             with self.subTest(command_name=command_name):
                 args = parser.parse_args(CATALOG_REFRESH_ARGV[command_name])
@@ -204,8 +202,8 @@ class CliContractTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["command"], "maint doctor")
         self.assertEqual(payload["issues"], [])
-        self.assertEqual(payload["data"]["cli"], {"name": "flights-cli", "version": "0.11.0"})
-        self.assertEqual(payload["data"]["skill"], {"name": "flight-search", "version": "0.11.0"})
+        self.assertEqual(payload["data"]["cli"], {"name": "flights-cli", "version": "0.10.17"})
+        self.assertEqual(payload["data"]["skill"], {"name": "flight-search", "version": "0.10.17"})
         self.assertEqual(set(payload["data"]), {
             "cache_counts",
             "cache_dir",
@@ -231,9 +229,7 @@ class CliContractTests(unittest.TestCase):
             "targeted_probe_commands": list(TARGETED_PROBE_COMMANDS),
             "live_provider_commands": list(LIVE_PROVIDER_COMMANDS),
         })
-        self.assertEqual(payload["data"]["catalog_auto_refresh_policy"]["applies_to"], list(CATALOG_AUTO_REFRESH_COMMANDS))
-        self.assertEqual(payload["data"]["catalog_auto_refresh_policy"]["max_age"], "2w")
-        self.assertEqual(payload["data"]["catalog_auto_refresh_policy"]["max_age_seconds"], 14 * 24 * 60 * 60)
+        self.assertEqual(payload["data"]["catalog_auto_refresh_policy"]["applies_to"], list(CATALOG_REFRESH_COMMANDS))
         self.assertEqual([item["code"] for item in payload["data"]["default_route_hubs"]], list(DEFAULT_ROUTE_HUBS))
         self.assertEqual(set(payload["data"]["cache_counts"]), {"airlines", "airports", "alliances", "cities", "countries", "planes"})
 
@@ -246,7 +242,7 @@ class CliContractTests(unittest.TestCase):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        self.assertIn("flights 0.11.0 (skill flight-search 0.11.0)", human_proc.stdout)
+        self.assertIn("flights 0.10.17 (skill flight-search 0.10.17)", human_proc.stdout)
         self.assertIn("primary route command: search", human_proc.stdout)
         self.assertIn("targeted probe commands: diagnose probe, diagnose kb-search, diagnose kb-roundtrip, diagnose fli-search, diagnose fli-dates", human_proc.stdout)
         self.assertIn("default hubs: IST, DXB, DOH", human_proc.stdout)

@@ -248,7 +248,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(result["unique_flight_count"], 2)
         self.assertEqual([offer["flight_numbers"][0] for offer in result["offers"]], ["SU1419", "SU6208"])
         self.assertEqual(result["offers"][0]["price"], 10844)
-        self.assertEqual(result["offers"][1]["flights"][0]["operating_carrier"], "FV")
+        self.assertEqual(result["offers"][1]["segments"][0]["operating_carrier"], "FV")
 
     def test_parse_kupibilet_ignores_bad_duration_values(self) -> None:
         raw = {
@@ -603,7 +603,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
                         "currency": "RUB",
                         "number_of_changes": 0,
                         "duration": 180,
-                        "flights": [
+                        "segments": [
                             {
                                 "flight_number": f"TK{len(calls) + 100}",
                                 "marketing_carrier": "TK",
@@ -681,7 +681,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
                         "currency": "RUB",
                         "number_of_changes": 0,
                         "duration": 180,
-                        "flights": [
+                        "segments": [
                             {
                                 "flight_number": f"TK{len(calls) + 100}",
                                 "marketing_carrier": "TK",
@@ -765,7 +765,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
                         "number_of_changes": 1,
                         "duration": 520,
                         "flight_numbers": ["SU1419", "SU232"],
-                        "flights": [
+                        "segments": [
                             {
                                 "flight_number": "SU1419",
                                 "marketing_carrier": "SU",
@@ -999,7 +999,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
                         "currency": "RUB",
                         "number_of_changes": 0,
                         "duration": 180,
-                        "flights": [
+                        "segments": [
                             {
                                 "flight_number": flight_number,
                                 "marketing_carrier": carrier,
