@@ -27,7 +27,7 @@ from ..execution.probe_intent import intent_from_control, intent_from_segment
 from ..execution.probe_ledger import ProbeExecutionLedger
 from ..execution.request_deduper import RequestDeduper
 from ..execution.synthetic_control_runner import synthesize_moscow_gateway_control_results
-from ..pipeline.search_pipeline import build_live_route_search_flow
+from ..pipeline.search_pipeline import LiveRouteSearchFlow, build_live_route_search_flow
 from ..providers.route_intel import load_or_refresh_svx_route_index, svx_direct_route_index_summary
 from ..reporting.date_window_projector import build_date_window_inventory
 from ..services.agent_report import attach_agent_report
@@ -308,14 +308,15 @@ def resolve_date_window(args: argparse.Namespace, depart: date, ret: date | None
     return [depart + timedelta(days=offset) for offset in range(window_days)]
 
 
-def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
+def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flow: LiveRouteSearchFlow | None = None) -> dict[str, Any]:
     depart = parse_iso_date(args.depart_date, "depart-date")
     ret = parse_iso_date(args.return_date, "return-date") if args.return_date else None
     currency = args.currency.upper()
     if currency not in SUPPORTED_CURRENCIES:
         raise CliError(f"currency must be one of {', '.join(sorted(SUPPORTED_CURRENCIES))}", error_type="validation_error")
     profile = normalize_profile(getattr(args, "profile", "balanced"))
-    flow = build_live_route_search_flow(args, store)
+    if flow is None:
+        flow = build_live_route_search_flow(args, store)
     direct_only = bool(flow.evidence_plan.direct_only)
     window_dates = resolve_date_window(args, depart, ret, direct_only=direct_only)
 
@@ -845,7 +846,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store) -> dic
 
 def run_live_route_assembly(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     flow = build_live_route_search_flow(args, store)
-    plan = build_live_route_segment_plan(args, store)
+    plan = build_live_route_segment_plan(args, store, flow=flow)
     max_searches = max(1, int(flow.evidence_plan.max_segment_searches))
     if plan["metrics"]["segment_search_count"] > max_searches:
         raise CliError(
