@@ -1120,7 +1120,8 @@ def run_live_route_assembly(args: argparse.Namespace, store: Store) -> dict[str,
             segment_result = outcome.segment_result
             if segment_result is None:
                 continue
-            offer_counts[search_key(spec)] = offer_counts.get(search_key(spec), 0) + len(segment_result.get("offers") or [])
+            key = search_key(spec)
+            offer_counts[key] = offer_counts.get(key, 0) + len(segment_result.get("offers") or [])
             if outcome.include_segment_result and segment_result["offers"]:
                 segment_results.append(segment_result)
 
