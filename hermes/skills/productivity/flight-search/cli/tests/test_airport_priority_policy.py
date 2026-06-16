@@ -110,7 +110,7 @@ def kupibilet_result(query_origin: str, query_destination: str, actual_origin: s
                 "duration": 120,
                 "departure_at": "2026-08-12T10:00:00+03:00",
                 "arrival_at": "2026-08-12T12:00:00+05:00",
-                "flights": [
+                "segments": [
                     {
                         "origin": actual_origin,
                         "destination": actual_destination,

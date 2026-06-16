@@ -34,13 +34,13 @@ KUPIBILET_CAPABILITIES = ProviderCapabilities(
 
 
 def _raw_offer_actual_airports(offer: dict[str, Any]) -> tuple[str, str]:
-    flights = offer.get("flights") if isinstance(offer.get("flights"), list) else []
-    if not flights:
+    segments = offer.get("segments") if isinstance(offer.get("segments"), list) else []
+    if not segments:
         origin = str(offer.get("origin") or offer.get("departure_airport") or "").upper()
         destination = str(offer.get("destination") or offer.get("arrival_airport") or "").upper()
         return origin, destination
-    first = flights[0] if isinstance(flights[0], dict) else {}
-    last = flights[-1] if isinstance(flights[-1], dict) else {}
+    first = segments[0] if isinstance(segments[0], dict) else {}
+    last = segments[-1] if isinstance(segments[-1], dict) else {}
     origin = str(first.get("origin") or first.get("departure_airport") or "").upper()
     destination = str(last.get("destination") or last.get("arrival_airport") or "").upper()
     return origin, destination
@@ -112,10 +112,10 @@ def validate_kupibilet_city_code_scope(spec: dict[str, Any], result: dict[str, A
 
 
 def aggregate_offer_summary(offer: dict[str, Any]) -> dict[str, Any]:
-    flights = [flight for flight in (offer.get("flights") or []) if isinstance(flight, dict)]
+    raw_segments = [flight for flight in (offer.get("segments") or []) if isinstance(flight, dict)]
     carriers: set[str] = set()
     segments = []
-    for flight in flights:
+    for flight in raw_segments:
         flight_number = str(flight.get("flight_number") or "")
         marketing = str(flight.get("marketing_carrier") or "").upper()
         operating = str(flight.get("operating_carrier") or "").upper()
