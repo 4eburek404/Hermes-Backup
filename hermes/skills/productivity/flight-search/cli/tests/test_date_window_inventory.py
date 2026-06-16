@@ -128,7 +128,7 @@ class DateWindowPlanTests(unittest.TestCase):
 class DateWindowInventoryProjectionTests(unittest.TestCase):
     def test_runner_projects_per_date_inventory_into_report_evidence(self) -> None:
         args = window_args()
-        with patch("flights_cli.orchestrators.live_assemble.dispatch_segment_probe", side_effect=_dispatch_by_date):
+        with patch("flights_cli.orchestrators.live_assembly_runner.dispatch_segment_probe", side_effect=_dispatch_by_date):
             result = run_live_route_assembly(args, Store())
 
         inventory = result["live_search"].get("date_window_inventory")

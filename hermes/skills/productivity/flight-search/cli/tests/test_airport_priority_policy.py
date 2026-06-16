@@ -241,7 +241,7 @@ class AirportPriorityPolicyTests(unittest.TestCase):
                 return kupibilet_result("MOW", "LHR", "SVO", "LHR")
             return empty_kupibilet_result(origin, destination, depart_date)
 
-        with patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
+        with patch("flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search", side_effect=fake_fetch):
             result = run_live_route_assembly(args, Store())
 
         self.assertIn(("MOW", "LHR"), calls)
@@ -276,7 +276,7 @@ class AirportPriorityPolicyTests(unittest.TestCase):
                 return kupibilet_result("MOW", "LGW", "SVO", "LGW")
             return empty_kupibilet_result(origin, destination, depart_date)
 
-        with patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
+        with patch("flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search", side_effect=fake_fetch):
             run_live_route_assembly(args, Store())
 
         lhr_attempts = [("MOW", "LHR"), ("SVO", "LHR"), ("DME", "LHR"), ("VKO", "LHR")]

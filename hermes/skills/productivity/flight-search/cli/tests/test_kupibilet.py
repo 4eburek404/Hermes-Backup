@@ -640,7 +640,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
                 return kb_result(origin, destination, depart_date, f"{depart}T14:00:00+03:00", f"{depart}T16:00:00+02:00")
             return kb_result(origin, destination, depart_date)
 
-        with patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
+        with patch("flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search", side_effect=fake_fetch):
             result = run_live_route_assembly(args, Store())
 
         self.assertNotIn(("SVX", "DXB"), calls)
@@ -719,8 +719,8 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             return kb_result(origin, destination, depart_date)
 
         with (
-            patch("flights_cli.orchestrators.live_assemble.load_or_refresh_svx_route_index", return_value=(route_index, {"hit": True, "ttl_seconds": 604800})),
-            patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch),
+            patch("flights_cli.orchestrators.live_assembly_runner.load_or_refresh_svx_route_index", return_value=(route_index, {"hit": True, "ttl_seconds": 604800})),
+            patch("flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search", side_effect=fake_fetch),
         ):
             result = run_live_route_assembly(args, Store())
 
@@ -801,7 +801,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
                 "offers": offers,
             }
 
-        with patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
+        with patch("flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search", side_effect=fake_fetch):
             result = run_live_route_assembly(args, Store())
 
         self.assertIn(("SVX", "DEL", False, ("SU",)), calls)
@@ -859,8 +859,8 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             }
 
         with (
-            patch("flights_cli.orchestrators.live_assemble.load_or_refresh_svx_route_index", return_value=(route_index, {"hit": True, "ttl_seconds": 604800})),
-            patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch),
+            patch("flights_cli.orchestrators.live_assembly_runner.load_or_refresh_svx_route_index", return_value=(route_index, {"hit": True, "ttl_seconds": 604800})),
+            patch("flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search", side_effect=fake_fetch),
         ):
             result = run_live_route_assembly(args, Store())
 
@@ -907,8 +907,8 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             }
 
         with (
-            patch("flights_cli.orchestrators.live_assemble.load_or_refresh_svx_route_index", return_value=(route_index, {"hit": True, "ttl_seconds": 604800})),
-            patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch),
+            patch("flights_cli.orchestrators.live_assembly_runner.load_or_refresh_svx_route_index", return_value=(route_index, {"hit": True, "ttl_seconds": 604800})),
+            patch("flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search", side_effect=fake_fetch),
         ):
             result = run_live_route_assembly(args, Store())
 

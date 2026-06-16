@@ -90,11 +90,11 @@ class LiveRoutePipelineTests(unittest.TestCase):
         }
 
         with (
-            patch("flights_cli.orchestrators.live_assemble.build_live_route_search_flow", wraps=build_live_route_search_flow) as build_flow,
+            patch("flights_cli.orchestrators.live_assembly_runner.build_live_route_search_flow", wraps=build_live_route_search_flow) as build_flow,
             patch("flights_cli.orchestrators.live_assemble.build_live_route_segment_plan", return_value=plan),
-            patch("flights_cli.orchestrators.live_assemble.empty_assembled_result", return_value={}),
-            patch("flights_cli.orchestrators.live_assemble.run_aggregate_controls", return_value=[]),
-            patch("flights_cli.orchestrators.live_assemble.hub_viability_summary", return_value=[]),
+            patch("flights_cli.orchestrators.live_assembly_runner.empty_assembled_result", return_value={}),
+            patch("flights_cli.orchestrators.live_assembly_runner.run_aggregate_controls", return_value=[]),
+            patch("flights_cli.orchestrators.live_assembly_runner.hub_viability_summary", return_value=[]),
         ):
             result = run_live_route_assembly(live_args(), Store())
 
