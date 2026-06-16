@@ -42,7 +42,7 @@ def live_assembly_args(**overrides: Any) -> Namespace:
         "stop_policy": "stop_policy",
         "date_window_end": "date_window_end",
         "max_connections": "max_connections",
-        "fallback_max_connections": "fallback_max_connections",
+        "tier2_max_connections": "tier2_max_connections",
     }
     evidence_keys = {
         "segment_limit": "segment_limit",

@@ -514,7 +514,7 @@ def build_user_answer(agent_report: dict[str, Any], *, rendered_text: str | None
     offer_graph: dict[str, Any] = offer_graph_raw if isinstance(offer_graph_raw, dict) else {}
     truth_language_raw = offer_graph.get("truth_language")
     truth_language: dict[str, Any] = truth_language_raw if isinstance(truth_language_raw, dict) else {}
-    two_stop_fallback_used = bool(stop_diagnostics.get("used_two_stop_fallback"))
+    two_stop_tier_used = bool(stop_diagnostics.get("used_two_stop_tier"))
 
     is_round_trip_request = route_requested_round_trip(route)
     catalog = build_catalog_contract(recommended, priority, is_round_trip_request=is_round_trip_request)
@@ -572,8 +572,8 @@ def build_user_answer(agent_report: dict[str, Any], *, rendered_text: str | None
         ],
         "stop_policy_status": {
             "policy": str(stop_policy.get("name") or stop_diagnostics.get("policy") or "business_default"),
-            "max_reported_connections": 2 if two_stop_fallback_used else int(stop_policy.get("preferred_max_connections") or 1),
-            "two_stop_fallback_used": two_stop_fallback_used,
+            "max_reported_connections": 2 if two_stop_tier_used else int(stop_policy.get("preferred_max_connections") or 1),
+            "two_stop_tier_used": two_stop_tier_used,
             "three_plus_suppressed_count": int(stop_diagnostics.get("three_plus_suppressed_count") or 0),
             "garbage_options_suppressed": bool(stop_diagnostics.get("garbage_options_hidden_from_answer")),
         },
@@ -792,8 +792,8 @@ def user_answer_contract_semantic_errors(answer: dict[str, Any]) -> list[dict[st
     if any(item.get("stop_tier") == "T3_THREE_PLUS" or int(item.get("max_connections_per_journey") or 0) >= 3 for item in summaries):
         errors.append({"path": "$.primary_recommendation", "message": "final answer must not report three-plus-connection options", "validator": "semantic"})
     if any(item.get("stop_tier") == "T2_TWO_STOP" or int(item.get("max_connections_per_journey") or 0) == 2 for item in summaries):
-        if stop_status.get("two_stop_fallback_used") is not True:
-            errors.append({"path": "$.alternatives", "message": "two-stop options require explicit two-stop fallback status", "validator": "semantic"})
+        if stop_status.get("two_stop_tier_used") is not True:
+            errors.append({"path": "$.alternatives", "message": "two-stop options require explicit two-stop tier status", "validator": "semantic"})
     if is_round_trip_request:
         for path, item in summary_entries:
             item_id = str(item.get("id") or "")

@@ -172,7 +172,7 @@ class AirportPriorityPolicyTests(unittest.TestCase):
             plan["airport_scope"]["destination"]["preferred_airport_tiers"],
             [
                 {"tier": 1, "airports": ["LHR"], "role": "preferred"},
-                {"tier": 2, "airports": ["LGW"], "role": "fallback"},
+                {"tier": 2, "airports": ["LGW"], "role": "deferred"},
             ],
         )
         self.assertEqual(plan["airport_scope"]["destination"]["excluded_by_default"], ["STN", "LTN"])
@@ -213,8 +213,8 @@ class AirportPriorityPolicyTests(unittest.TestCase):
             [pair for pair in pairs(outbound_from_mow) if pair[0] in {"SVO", "DME", "VKO"}],
             [("SVO", "SVX"), ("DME", "SVX"), ("VKO", "SVX")],
         )
-        self.assertTrue(all(segment.get("fallback_for_city_code_request") for segment in outbound_to_mow[1:4]))
-        self.assertTrue(all(segment.get("fallback_for_city_code_request") for segment in outbound_from_mow[1:4]))
+        self.assertTrue(all(segment.get("deferred_for_city_code_request") for segment in outbound_to_mow[1:4]))
+        self.assertTrue(all(segment.get("deferred_for_city_code_request") for segment in outbound_from_mow[1:4]))
 
     def test_kupibilet_mow_to_lon_uses_moscow_city_code_with_london_preference_without_broad_fanout(self) -> None:
         plan = build_live_route_segment_plan(live_args(origin="MOW", destination="LON"), Store())

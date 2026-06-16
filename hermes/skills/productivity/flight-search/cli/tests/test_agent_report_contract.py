@@ -290,7 +290,7 @@ def valid_ru_priority_controls() -> dict:
         "direct_destination_control": ru_priority_branch(),
         "ist_primary_hub_control": ru_priority_branch(),
         "moscow_gateway_control": ru_priority_branch(),
-        "moscow_via_ist_fallback_control": ru_priority_branch(),
+        "moscow_via_ist_secondary_control": ru_priority_branch(),
         "decision": "no_viable_ru_priority_control",
     }
 
@@ -624,7 +624,7 @@ class AgentReportContractTests(unittest.TestCase):
         report["stop_policy"] = {
             "name": "business_default",
             "preferred_max_connections": 1,
-            "fallback_max_connections": 2,
+            "tier2_max_connections": 2,
             "hard_max_connections": 2,
             "two_stop_allowed_only_if_no_preferred": True,
             "three_plus_reportable": False,
@@ -634,7 +634,7 @@ class AgentReportContractTests(unittest.TestCase):
             "preferred_candidate_count": 1,
             "two_stop_candidate_count": 0,
             "three_plus_suppressed_count": 0,
-            "used_two_stop_fallback": False,
+            "used_two_stop_tier": False,
             "garbage_options_hidden_from_answer": False,
         }
         report["recommended_options"][0]["stop_tier"] = "T0_DIRECT"

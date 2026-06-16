@@ -9,7 +9,7 @@ For Russian rail availability and prices, use official RZD/pass.rzd data as the 
 - Human/source layer: official RZD (`rzd.ru` / `ticket.rzd.ru`).
 - Agent read-only layer: `https://pass.rzd.ru/timetable/public/ru`.
 
-Do not use Яндекс/Туту/UFS/Ozon/OneTwoTrip or other aggregators as a default fallback for seats or prices. If `rzd.ru` / `pass.rzd.ru` is unavailable, say plainly: «официальная выдача РЖД сейчас недоступна, наличие мест и цены проверить не могу». Do not replace official-source failure with aggregator estimates unless the user explicitly asks for non-official advisory context.
+Do not use Яндекс/Туту/UFS/Ozon/OneTwoTrip or other aggregators as a default alternative for seats or prices. If `rzd.ru` / `pass.rzd.ru` is unavailable, say plainly: «официальная выдача РЖД сейчас недоступна, наличие мест и цены проверить не могу». Do not replace official-source failure with aggregator estimates unless the user explicitly asks for non-official advisory context.
 
 Do not infer “no trains” or “no seats” from one failed request. Treat request/network/parser failures as source/runtime failure unless the official response itself says there are no trains or seats.
 
@@ -78,7 +78,7 @@ Operational details:
 - Use browser-like headers: `Accept: application/json`, `User-Agent`, `Referer: https://ticket.rzd.ru/`.
 - Keep the same session/cookies between the initial request and RID fetch.
 - Poll only a few times with a short sleep; avoid aggressive or infinite polling.
-- For round trips, run two separate one-way queries with swapped `code0`/`code1` and the return date. Do not rely on an aggregator round-trip fallback.
+- For round trips, run two separate one-way queries with swapped `code0`/`code1` and the return date. Do not rely on an aggregator round-trip shortcut.
 
 ## Response fields to read
 

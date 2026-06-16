@@ -142,9 +142,9 @@ DEFAULT_ROUTE_HUB_NOTES = {
     "BEG": "Europe and some North America coverage, but not global.",
     "TAS": "Regional hub with partial long-haul coverage.",
     "GYD": "Regional hub with partial long-haul coverage.",
-    "PEK": "Asia, China, and Oceania-oriented fallback.",
-    "PVG": "Asia, China, and Oceania-oriented fallback.",
-    "CAN": "Asia, China, and Oceania-oriented fallback.",
+    "PEK": "Asia, China, and Oceania-oriented secondary hub.",
+    "PVG": "Asia, China, and Oceania-oriented secondary hub.",
+    "CAN": "Asia, China, and Oceania-oriented secondary hub.",
     "ADD": "Niche Africa, Middle East, India, and price hub.",
     "CAI": "Niche Africa, Middle East, India, and price hub.",
     "MCT": "Niche Africa, Middle East, India, and price hub.",
@@ -182,7 +182,7 @@ MULTI_AIRPORT_GROUPS: dict[str, dict[str, Any]] = {
 PREFERRED_AIRPORT_TIERS = {
     "LON": [
         {"tier": 1, "airports": ["LHR"], "role": "preferred"},
-        {"tier": 2, "airports": ["LGW"], "role": "fallback"},
+        {"tier": 2, "airports": ["LGW"], "role": "deferred"},
     ],
 }
 

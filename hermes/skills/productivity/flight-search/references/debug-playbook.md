@@ -121,9 +121,9 @@ Use these probe shapes as applicable:
 
 Negative direct/carrier/one-stop claims on Russian-origin international routes need Moscow controls unless structural constraints already prove unavailability.
 
-For ru-priority routes the runtime now plans and executes these controls itself: the `moscow_gateway_control` family includes `gateway_to_destination` (MOW city-code first, deferred `SVO`/`DME`/`VKO` exact fallbacks) and the mirrored `destination_to_gateway` return legs, and `moscow_gateway_direct` is listed in `route.evidence_plan.required_controls`. Read their terminal states from `evidence.coverage_diagnostics` before assuming anything is missing.
+For ru-priority routes the runtime now plans and executes these controls itself: the `moscow_gateway_control` family includes `gateway_to_destination` (MOW city-code first, deferred `SVO`/`DME`/`VKO` exact probes) and the mirrored `destination_to_gateway` return legs, and `moscow_gateway_direct` is listed in `route.evidence_plan.required_controls`. Read their terminal states from `evidence.coverage_diagnostics` before assuming anything is missing.
 
-Manual leg probes are a fallback for legacy/degraded reports only. If an old compact report lists Moscow or carrier controls as `not_executed`, do not treat that as absence evidence; first rerun the canonical `search --request` (fresh runs execute the gateway controls), and only then run narrow live leg controls:
+Manual leg probes are diagnostic probes for degraded/legacy reports only, not part of the normal search flow. If an old compact report lists Moscow or carrier controls as `not_executed`, do not treat that as absence evidence; first rerun the canonical `search --request` (fresh runs execute the gateway controls), and only then run narrow live leg controls:
 
 - outbound date: `SVO|DME|VKO -> DEST --direct-only`;
 - return date: `DEST -> SVO|DME|VKO --direct-only`;
@@ -147,7 +147,7 @@ Post-filter:
 
 - reject Moscow airports in any segment when comparing non-Moscow options: `SVO`, `DME`, `VKO`, `ZIA`, and city code `MOW` if present;
 - outbound must arrive before the stated destination-local cutoff;
-- separate one-stop from two-stop options; for business travel, a two-stop return is fallback unless no one-stop non-Moscow option exists;
+- separate one-stop from two-stop options; for business travel, a two-stop return is a last resort unless no one-stop non-Moscow option exists;
 - compute elapsed time from the ISO timestamps already in the normalized offer.
 
 Wording:
@@ -159,9 +159,9 @@ Wording:
 
 ## Execution Semantics vs Live Availability
 
-- Mocked/offline execution can prove dispatch, skip, fallback, post-validation, and report-projection semantics; it is not proof of live provider availability.
-- For fan-out or fallback bugs, inspect actual executed calls and skipped calls with reasons. Planned candidates alone do not prove the runtime executed or suppressed the right probes.
-- When the question is provider-call suppression, fallback order, airport post-validation, or compact report projection, prefer mocked/offline execution proof over broad live provider fan-out.
+- Mocked/offline execution can prove dispatch, skip, tier2, post-validation, and report-projection semantics; it is not proof of live provider availability.
+- For fan-out or dispatch bugs, inspect actual executed calls and skipped calls with reasons. Planned candidates alone do not prove the runtime executed or suppressed the right probes.
+- When the question is provider-call suppression, probe dispatch order, airport post-validation, or compact report projection, prefer mocked/offline execution proof over broad live provider fan-out.
 - Use targeted live smoke only for provider capability, credential/config readiness, or current upstream availability. Keep live probes narrow and date-current.
 
 ## Internal Fields

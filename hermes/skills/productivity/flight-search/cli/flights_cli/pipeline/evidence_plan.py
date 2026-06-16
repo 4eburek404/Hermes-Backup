@@ -94,7 +94,7 @@ def _tuple_option(options: dict[str, Any], name: str) -> tuple[Any, ...]:
 
 
 def _is_direct_only(options: dict[str, Any]) -> bool:
-    return options.get("max_connections") == 0 and options.get("fallback_max_connections") == 0
+    return options.get("max_connections") == 0 and options.get("tier2_max_connections") == 0
 
 
 def _days_until_departure(depart_date: str) -> int | None:

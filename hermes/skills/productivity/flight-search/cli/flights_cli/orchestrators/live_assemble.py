@@ -63,8 +63,8 @@ def city_code_first_segment_options(
     normalized_city = str(city_code or "").upper()
     if explicit or not provider_policy_allows_kupibilet(provider_policy):
         return [(code, {}) for code in airports]
-    fallback_airports = [str(code).upper() for code in KUPIBILET_CITY_CODE_FIRST_AIRPORTS.get(normalized_city, [])]
-    if not fallback_airports:
+    deferred_airports = [str(code).upper() for code in KUPIBILET_CITY_CODE_FIRST_AIRPORTS.get(normalized_city, [])]
+    if not deferred_airports:
         return [(code, {}) for code in airports]
 
     options: list[tuple[str, dict[str, Any]]] = [
@@ -73,7 +73,7 @@ def city_code_first_segment_options(
             {
                 "provider_request_strategy": "city_code_first",
                 "provider_city_code": normalized_city,
-                "provider_city_code_fallback_airports": fallback_airports,
+                "provider_city_code_deferred_airports": deferred_airports,
             },
         )
     ]
@@ -83,9 +83,9 @@ def city_code_first_segment_options(
             (
                 normalized_airport,
                 {
-                    "provider_request_strategy": "city_code_fallback",
+                    "provider_request_strategy": "city_code_deferred",
                     "provider_city_code": normalized_city,
-                    "fallback_for_city_code_request": True,
+                    "deferred_for_city_code_request": True,
                 },
             )
         )
@@ -98,8 +98,8 @@ def provider_city_code_side(spec: dict[str, Any], side: str) -> bool:
     if not city_code:
         return False
     code = str(spec.get(side) or "").upper()
-    fallback_airports = {str(item).upper() for item in KUPIBILET_CITY_CODE_FIRST_AIRPORTS.get(city_code, [])}
-    return code == city_code or code in fallback_airports
+    deferred_airports = {str(item).upper() for item in KUPIBILET_CITY_CODE_FIRST_AIRPORTS.get(city_code, [])}
+    return code == city_code or code in deferred_airports
 
 
 def endpoint_group_code(spec: dict[str, Any], side: str) -> str:
@@ -108,26 +108,26 @@ def endpoint_group_code(spec: dict[str, Any], side: str) -> str:
     return str(spec.get(side) or "").upper()
 
 
-def city_code_primary_keys_for_fallback(spec: dict[str, Any]) -> list[tuple[str, str, str, str]]:
-    if not spec.get("fallback_for_city_code_request"):
+def city_code_primary_keys_for_deferred_airport(spec: dict[str, Any]) -> list[tuple[str, str, str, str]]:
+    if not spec.get("deferred_for_city_code_request"):
         return []
     city_code = str(spec.get("provider_city_code") or "").upper()
-    fallback_airports = {str(item).upper() for item in KUPIBILET_CITY_CODE_FIRST_AIRPORTS.get(city_code, [])}
-    if not city_code or not fallback_airports:
+    deferred_airports = {str(item).upper() for item in KUPIBILET_CITY_CODE_FIRST_AIRPORTS.get(city_code, [])}
+    if not city_code or not deferred_airports:
         return []
     direction = str(spec.get("direction") or "")
     leg = str(spec.get("leg") or "")
     origin = str(spec.get("origin") or "").upper()
     destination = str(spec.get("destination") or "").upper()
     keys: list[tuple[str, str, str, str]] = []
-    if origin in fallback_airports:
+    if origin in deferred_airports:
         keys.append((direction, leg, city_code, destination))
-    if destination in fallback_airports:
+    if destination in deferred_airports:
         keys.append((direction, leg, origin, city_code))
     return keys
 
 
-def fallback_airport_priority_sides(spec: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+def deferred_airport_priority_sides(spec: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     sides: list[tuple[str, dict[str, Any]]] = []
     for side in ("origin", "destination"):
         metadata = spec.get(f"{side}_airport_priority")
@@ -135,17 +135,17 @@ def fallback_airport_priority_sides(spec: dict[str, Any]) -> list[tuple[str, dic
             continue
         tier = int(metadata.get("tier") or 0)
         role = str(metadata.get("role") or "").lower()
-        if tier > 1 or role == "fallback":
+        if tier > 1 or role == "deferred":
             sides.append((side, metadata))
     return sides
 
 
-def preferred_airport_keys_for_fallback(spec: dict[str, Any], plan: dict[str, Any]) -> list[tuple[str, str, str, str]]:
+def preferred_keys_for_deferred_airport(spec: dict[str, Any], plan: dict[str, Any]) -> list[tuple[str, str, str, str]]:
     keys: list[tuple[str, str, str, str]] = []
-    for priority_side, fallback_metadata in fallback_airport_priority_sides(spec):
-        city_code = str(fallback_metadata.get("city_code") or "").upper()
-        fallback_tier = int(fallback_metadata.get("tier") or 0)
-        if not city_code or fallback_tier <= 1:
+    for priority_side, deferred_metadata in deferred_airport_priority_sides(spec):
+        city_code = str(deferred_metadata.get("city_code") or "").upper()
+        deferred_tier = int(deferred_metadata.get("tier") or 0)
+        if not city_code or deferred_tier <= 1:
             continue
         other_side = "destination" if priority_side == "origin" else "origin"
         other_group = endpoint_group_code(spec, other_side)
@@ -165,7 +165,7 @@ def preferred_airport_keys_for_fallback(spec: dict[str, Any], plan: dict[str, An
                 continue
             if str(candidate_metadata.get("city_code") or "").upper() != city_code:
                 continue
-            if int(candidate_metadata.get("tier") or 0) >= fallback_tier:
+            if int(candidate_metadata.get("tier") or 0) >= deferred_tier:
                 continue
             if endpoint_group_code(candidate, other_side) != other_group:
                 continue
@@ -219,7 +219,7 @@ def direct_route_intel_context(args: argparse.Namespace, store: Store, plan: dic
             "available": False,
             "reason": "route_index_unavailable",
             "error": {"type": exc.error_type, "message": exc.message},
-            "fallback": "direct-control live searches were kept because the official route index was unavailable.",
+            "tier2": "direct-control live searches were kept because the official route index was unavailable.",
         }
     return index, svx_direct_route_index_summary(index, cache)
 
@@ -288,7 +288,7 @@ def resolve_date_window(args: argparse.Namespace, depart: date, ret: date | None
     window_end = parse_iso_date(str(window_end_raw), "date-window-end")
     if not direct_only:
         raise CliError(
-            "date_window_end requires direct-only route options: set route_options.max_connections=0 and route_options.fallback_max_connections=0",
+            "date_window_end requires direct-only route options: set route_options.max_connections=0 and route_options.tier2_max_connections=0",
             error_type="validation_error",
         )
     if ret is not None:
@@ -903,7 +903,7 @@ def run_live_route_assembly(args: argparse.Namespace, store: Store) -> dict[str,
     def skipped_by_preferred_airport_tier(spec: dict[str, Any]) -> dict[str, Any] | None:
         return skipped_by_offer_keys(
             spec,
-            keys=preferred_airport_keys_for_fallback(spec, plan),
+            keys=preferred_keys_for_deferred_airport(spec, plan),
             reason="preferred_airport_tier_has_offers",
             note="Fallback airport tier was deferred because a preferred airport tier already produced accepted offers.",
         )
@@ -911,9 +911,9 @@ def run_live_route_assembly(args: argparse.Namespace, store: Store) -> dict[str,
     def skipped_by_city_code_primary(spec: dict[str, Any]) -> dict[str, Any] | None:
         return skipped_by_offer_keys(
             spec,
-            keys=city_code_primary_keys_for_fallback(spec),
+            keys=city_code_primary_keys_for_deferred_airport(spec),
             reason="city_code_request_has_offers",
-            note="Exact airport fallback was deferred because the provider city-code request already produced accepted offers.",
+            note="Exact airport deferred probe was skipped because the provider city-code request already produced accepted offers.",
         )
 
     def skipped_by_condition(spec: dict[str, Any]) -> dict[str, Any] | None:

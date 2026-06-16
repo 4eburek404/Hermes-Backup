@@ -85,7 +85,7 @@ def live_assembly_args_from_search_request(payload: dict[str, Any]) -> argparse.
         stop_policy=str(route.get("stop_policy") or "business-default"),
         date_window_end=route.get("date_window_end"),
         max_connections=_int_option(route, "max_connections", None),
-        fallback_max_connections=_int_option(route, "fallback_max_connections", None),
+        tier2_max_connections=_int_option(route, "tier2_max_connections", None),
         include_stop_policy_diagnostics=_bool_option(output, "include_stop_policy_diagnostics", False),
         segment_limit=_int_option(evidence, "segment_limit", 30),
         timeout=_int_option(evidence, "timeout", 60),

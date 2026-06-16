@@ -40,7 +40,7 @@ Required first step before provider or command reasoning:
 
 ## Objective Routing Rules
 
-- `ru_domestic` should use `domestic-ru`: direct exact-airport controls first, Moscow-airport fallback only, no international hubs by default.
+- `ru_domestic` should use `domestic-ru`: direct exact-airport controls first, Moscow-airport controls only, no international hubs by default.
 - `ru_touching_international` may use `ru-priority`: direct controls, SVO/Moscow controls, IST/DXB/SVO/Asia hubs where profile and geography justify them.
 - `global_non_ru` must not silently inherit `ru-priority`/Moscow controls. If the current CLI defaults do this, report it as a routing limitation and either pass explicit routing/hub constraints or label results as advisory/limited.
 - Direct inventory/date-window requests are not route recommendations. Use direct-only per-date probes; do not add connected alternatives unless the user asks.

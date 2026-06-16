@@ -306,7 +306,7 @@ class HumanAnswerRendererTests(unittest.TestCase):
             "stop_policy_status": {
                 "policy": "business_default",
                 "max_reported_connections": 1,
-                "two_stop_fallback_used": False,
+                "two_stop_tier_used": False,
                 "three_plus_suppressed_count": 0,
                 "garbage_options_suppressed": False,
             },

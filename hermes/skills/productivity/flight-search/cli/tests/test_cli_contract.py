@@ -97,7 +97,7 @@ def live_search_args(**overrides: object) -> argparse.Namespace:
         "route_options": {
             "stop_policy": overrides.pop("stop_policy", "business-default"),
             "max_connections": overrides.pop("max_connections", None),
-            "fallback_max_connections": overrides.pop("fallback_max_connections", None),
+            "tier2_max_connections": overrides.pop("tier2_max_connections", None),
         },
         "output": {
             "agent_brief": overrides.pop("agent_brief", False),

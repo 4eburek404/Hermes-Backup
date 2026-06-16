@@ -50,8 +50,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request /tmp/fl
   "ticketing": "separate",
   "provider_policy": "auto",
   "route_options": {
-    "max_connections": null,
-    "fallback_max_connections": null
+    "max_connections": null
   },
   "filters": {
     "only_carriers": []
@@ -60,7 +59,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request /tmp/fl
 }
 ```
 
-For direct-only inventory set both `route_options.max_connections` and `route_options.fallback_max_connections` to `0`. For carrier scope fill `filters.only_carriers`.
+For direct-only inventory set `route_options.max_connections` to `0`. For carrier scope fill `filters.only_carriers`.
 
 ## Follow-up trigger map
 
@@ -90,10 +89,15 @@ Keep caveats compact and source-bound:
 1. Using cached fare helpers, static catalogs, or maintenance diagnostics as availability evidence.
 2. Starting with provider-specific probes instead of the canonical `search --request` path.
 3. Treating direct inventory as route recommendation and adding connected options unasked.
-4. Overclaiming single PNR, baggage-through, protection, fare rules, terminal, or final price.
+4. Overclaiming single PNR, baggage-through, protection, fare rules, or terminal.
 5. Silently widening named airports to city scope.
 6. Rewriting, re-ranking, or copying raw diagnostic JSON instead of delivering the canonical rendered text.
 7. Adding new audit/session/proposal Markdown files instead of moving durable behavior into CLI/report/tests or canonical references.
+8. Re-adding old parameter names or keeping backward-compatibility shims. When a name changes (e.g. `fallback_max_connections` → `tier2_max_connections`), change it everywhere — code, CLI flags, JSON schemas, tests, docs — in one clean pass. **No legacy aliases, no `getattr(args, "old_name", None)` fallbacks, no `"old_name": still_accepted` in JSON schema enums.** Old names are dead; keeping them alive breeds confusion. The parameter is `tier2_max_connections`; for direct-only inventory set `max_connections` to `0`.
+9. Using «fallback» in reference prose when the mechanism is a priority tier, deferred probe, or secondary tier. Use «deferred», «secondary tier», «two-stop tier», or «last-resort» instead. Moscow/SVO controls are first-class controls, not fallback-only behavior. The codebase rename is complete: all `fallback_*` identifiers are now `tier2_*`, `deferred_*`, `delegated_*`, `default_*`, or `secondary_*`.
+10. **Prose-assertion tests that break on rephrasing.** Tests must verify deterministic code, not search for exact phrases in Markdown files. If an invariant is important enough to test, encode it in Python (`config.py` constants, `ProviderName` literal, `PREFERRED_AIRPORT_TIERS`, `RU_PRIORITY_BRANCHES`, `PROVIDER_REGISTRY`, dataclass fields) and write a code-level assertion against that structure. `assertIn("some English sentence", reference_text)` breaks every time prose is rephrased or deduplicated — replace it with a structural or code-level check. CLI paths and JSON wire-format field paths (`data.agent_report.user_answer.rendered_text`) are acceptable assertion targets because they are contract strings, not prose.
+11. **Duplicating rules across reference files instead of cross-referencing.** When the same rule (airport priority, provider scope, city-code policy) appears in multiple `.md` files, keep one canonical source and replace the duplicates with a cross-reference sentence. Duplicates drift apart and create conflicting guidance.
+12. **Bulk rename checklist (order matters):** (a) `grep -rn` for the old name across `flights_cli/`, `tests/`, `contracts/`, `references/`, `SKILL.md`. (b) Rename in Python code, CLI flags, JSON schemas, and test data in one pass. (c) Update test assertions that reference doc strings — if reference prose changed, the test must match the new wording, or better: replace prose-assertion with a code-level check. (d) Remove any files created as rename maps or migration notes; they are not canonical references. (e) Run `pytest tests/ -x` to catch missed schema keys, stale test strings, or cross-reference mismatches. (f) If a test asserts content from a reference file that was deduplicated (replaced by a cross-reference), move the assertion to the canonical file or replace it with a structural/code-level check.
 
 ## Verification checklist
 

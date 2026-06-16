@@ -25,12 +25,7 @@ When a market is structurally constrained, do not phrase the answer as “the pr
 
 ## Airport and City Boundaries
 
-Use airport codes, not city labels, when continuity matters. These airports are not interchangeable:
-
-- `IST != SAW`
-- `SVO != DME != VKO`
-- `DXB != DWC != SHJ`
-- `LHR != LGW != STN != LTN`
+Use airport codes, not city labels, when continuity matters. Airports within the same city are not interchangeable for itinerary continuity; see `references/provider-aware-airport-priority.md` for the full city/airport dispatch policy and priority tiers.
 
 For separate tickets, same-airport continuity is required by default. Cross-airport options must be rejected or explicitly labeled as ground-transfer risk.
 
@@ -52,7 +47,7 @@ Use exact Minimum Connection Time evidence before generic buffers when the conne
 
 MCT is a technical/legal floor for a sellable connection and baggage transfer, not the recommended business buffer. A connection can be legal but still unattractive because of terminal size, passport/security, baggage, low-cost/remote gates, delays, or seller-side virtual/self-transfer construction.
 
-Generic fallback thresholds:
+Generic connection time thresholds:
 
 - Same airport, protected/single-ticket international connection: MCT or at least 60 min, whichever is higher; label 60-89 min as tight unless airport evidence supports it.
 - Same airport, separate/virtual/self-transfer without baggage: 120 min minimum acceptable.
@@ -60,7 +55,7 @@ Generic fallback thresholds:
 - Cross-airport or airport mismatch: 300 min default and label as ground-transfer risk.
 - Same-airport 90-119 min: label tight when ticketing/protection is not proven.
 - Ordinary overnight waits can be acceptable only if they support a deliberate airport-hotel pattern; label hotel/visa/landside-baggage implications.
-- Very long waits (~18h+) are forced stopover/fallback choices unless the user explicitly wants a stopover or every shorter option has materially worse ticketing/safety risk.
+- Very long waits (~18h+) are forced stopover/last-resort choices unless the user explicitly wants a stopover or every shorter option has materially worse ticketing/safety risk.
 
 `long_wait` and `overnight_wait` are visibility labels, not automatic rejection reasons. Keep comfort trade-offs separate from real risk: too-short buffers, cross-airport transfers, visa/self-transfer exposure, missing times, low-cost/leisure carrier risk, and unprotected ticketing.
 

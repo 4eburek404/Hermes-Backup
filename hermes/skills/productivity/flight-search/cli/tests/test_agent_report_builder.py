@@ -79,7 +79,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
             include_filtered=20,
             stop_policy="business-default",
             max_connections=None,
-            fallback_max_connections=None,
+            tier2_max_connections=None,
             agent_brief=True,
             return_date=None,
             include_candidates=0,
@@ -330,7 +330,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         self.assertFalse(control["visible"])
         self.assertIsNone(control["priority_option_id"])
 
-    def test_moscow_via_ist_fallback_is_used_only_when_mow_destination_is_unviable(self) -> None:
+    def test_moscow_via_ist_secondary_is_used_only_when_mow_destination_is_unviable(self) -> None:
         report = self._report(
             [
                 segment_result(
@@ -370,14 +370,14 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         controls = report["evidence"]["ru_priority_controls"]
         self.assertTrue(controls["moscow_gateway_control"]["checked"])
         self.assertFalse(controls["moscow_gateway_control"]["viable"])
-        self.assertTrue(controls["moscow_via_ist_fallback_control"]["checked"])
-        self.assertEqual(controls["moscow_via_ist_fallback_control"]["execution_state"], "assembled_evidence")
-        self.assertTrue(controls["moscow_via_ist_fallback_control"]["viable"])
-        option = self._control_option(report, "moscow_via_ist_fallback")
+        self.assertTrue(controls["moscow_via_ist_secondary_control"]["checked"])
+        self.assertEqual(controls["moscow_via_ist_secondary_control"]["execution_state"], "assembled_evidence")
+        self.assertTrue(controls["moscow_via_ist_secondary_control"]["viable"])
+        option = self._control_option(report, "moscow_via_ist_secondary")
         self.assertEqual([segment["origin"] for segment in option["segments"]], ["SVX", "SVO", "IST"])
         self.assertEqual([segment["destination"] for segment in option["segments"]], ["SVO", "IST", "LHR"])
 
-    def test_moscow_via_ist_fallback_is_not_priority_control_when_mow_destination_is_viable(self) -> None:
+    def test_moscow_via_ist_secondary_is_not_priority_control_when_mow_destination_is_viable(self) -> None:
         report = self._report(
             [
                 segment_result(
@@ -443,22 +443,22 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         self.assertTrue(controls["moscow_gateway_control"]["checked"])
         self.assertTrue(controls["moscow_gateway_control"]["viable"])
         self.assertTrue(controls["moscow_gateway_control"]["visible"])
-        self.assertFalse(controls["moscow_via_ist_fallback_control"]["viable"])
-        self.assertFalse(controls["moscow_via_ist_fallback_control"]["visible"])
+        self.assertFalse(controls["moscow_via_ist_secondary_control"]["viable"])
+        self.assertFalse(controls["moscow_via_ist_secondary_control"]["visible"])
         self.assertEqual(
-            controls["moscow_via_ist_fallback_control"]["execution_state"],
+            controls["moscow_via_ist_secondary_control"]["execution_state"],
             "skipped_better_options_available",
         )
-        self.assertIsNone(controls["moscow_via_ist_fallback_control"]["priority_option_id"])
+        self.assertIsNone(controls["moscow_via_ist_secondary_control"]["priority_option_id"])
         self._control_option(report, "moscow_gateway")
         fallback_priority_options = [
             item
             for item in report["frontier"]["priority_options"]
-            if item.get("control_branch") == "moscow_via_ist_fallback" and item.get("visibility_role") == "priority_control"
+            if item.get("control_branch") == "moscow_via_ist_secondary" and item.get("visibility_role") == "priority_control"
         ]
         self.assertEqual(fallback_priority_options, [])
 
-    def test_moscow_via_ist_fallback_is_skipped_when_one_stop_ist_primary_exists(self) -> None:
+    def test_moscow_via_ist_secondary_is_skipped_when_one_stop_ist_primary_exists(self) -> None:
         report = self._report(
             [
                 segment_result(
@@ -501,7 +501,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
 
         controls = report["evidence"]["ru_priority_controls"]
         self.assertTrue(controls["ist_primary_hub_control"]["viable"])
-        fallback = controls["moscow_via_ist_fallback_control"]
+        fallback = controls["moscow_via_ist_secondary_control"]
         self.assertTrue(fallback["checked"])
         self.assertEqual(fallback["execution_state"], "skipped_better_options_available")
         self.assertFalse(fallback["viable"])
@@ -511,7 +511,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         fallback_priority_options = [
             item
             for item in report["frontier"]["priority_options"]
-            if item.get("control_branch") == "moscow_via_ist_fallback" and item.get("visibility_role") == "priority_control"
+            if item.get("control_branch") == "moscow_via_ist_secondary" and item.get("visibility_role") == "priority_control"
         ]
         self.assertEqual(fallback_priority_options, [])
 
@@ -540,7 +540,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
 
         controls = report["evidence"]["ru_priority_controls"]
         self.assertFalse(controls["moscow_gateway_control"]["viable"])
-        self.assertFalse(controls["moscow_via_ist_fallback_control"]["viable"])
+        self.assertFalse(controls["moscow_via_ist_secondary_control"]["viable"])
         self.assertEqual(controls["decision"], "no_viable_ru_priority_control")
 
     def test_svx_mct_keeps_ist_primary_and_moscow_gateway_as_separate_branches(self) -> None:
@@ -606,7 +606,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         controls = report["evidence"]["ru_priority_controls"]
         self.assertTrue(controls["ist_primary_hub_control"]["viable"])
         self.assertTrue(controls["moscow_gateway_control"]["viable"])
-        self.assertFalse(controls["moscow_via_ist_fallback_control"]["viable"])
+        self.assertFalse(controls["moscow_via_ist_secondary_control"]["viable"])
         self._control_option(report, "ist_primary_hub")
         self._control_option(report, "moscow_gateway")
 

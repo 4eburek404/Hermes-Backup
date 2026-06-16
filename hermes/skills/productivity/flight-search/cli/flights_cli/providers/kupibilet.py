@@ -67,11 +67,11 @@ def kupibilet_price_amount(variant: dict[str, Any]) -> int | None:
     return price_value({"price": price})
 
 
-def kupibilet_variant_currency(variant: dict[str, Any], fallback: str) -> str:
+def kupibilet_variant_currency(variant: dict[str, Any], default_currency: str) -> str:
     price = variant.get("price")
     if isinstance(price, dict) and isinstance(price.get("currency"), str):
         return price["currency"].upper()
-    return fallback
+    return default_currency
 
 
 def kupibilet_flight_number(flight: dict[str, Any]) -> str:

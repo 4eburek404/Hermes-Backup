@@ -24,13 +24,13 @@ RU_PRIORITY_BRANCHES = {
     "direct_destination_control": "direct_destination",
     "ist_primary_hub_control": "ist_primary_hub",
     "moscow_gateway_control": "moscow_gateway",
-    "moscow_via_ist_fallback_control": "moscow_via_ist_fallback",
+    "moscow_via_ist_secondary_control": "moscow_via_ist_secondary",
 }
 RU_PRIORITY_DECISIONS = {
     "direct_destination_viable",
     "ist_primary_viable",
     "moscow_gateway_viable",
-    "moscow_via_ist_fallback_viable",
+    "moscow_via_ist_secondary_viable",
     "no_viable_ru_priority_control",
 }
 RU_PRIORITY_EXECUTION_STATES = {
@@ -271,11 +271,11 @@ def agent_report_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]
                         "validator": "semantic",
                     }
                 )
-            if (option.get("stop_tier") == "T2_TWO_STOP" or int(option.get("max_connections_per_journey") or 0) == 2) and stop_diagnostics.get("used_two_stop_fallback") is not True:
+            if (option.get("stop_tier") == "T2_TWO_STOP" or int(option.get("max_connections_per_journey") or 0) == 2) and stop_diagnostics.get("used_two_stop_tier") is not True:
                 errors.append(
                     {
                         "path": f"$.frontier.{collection_name}[{index}]",
-                        "message": "two-stop options require stop-policy fallback mode",
+                        "message": "two-stop options require stop-policy tier2 mode",
                         "validator": "semantic",
                     }
                 )

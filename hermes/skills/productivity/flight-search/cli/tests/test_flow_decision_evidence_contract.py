@@ -55,8 +55,8 @@ class FlowDecisionEvidenceContractTests(unittest.TestCase):
         self.assertIn("ru_touching_market_uses_ru_priority_controls", plan["flow_decision"]["limitations"])
 
     def test_direct_inventory_request_compiles_to_direct_only_flow_and_controls(self) -> None:
-        flow = self.flow_for(origin="SVX", destination="KUF", max_connections=0, fallback_max_connections=0, return_date=None)
-        plan = self.plan_for(origin="SVX", destination="KUF", max_connections=0, fallback_max_connections=0, return_date=None)
+        flow = self.flow_for(origin="SVX", destination="KUF", max_connections=0, tier2_max_connections=0, return_date=None)
+        plan = self.plan_for(origin="SVX", destination="KUF", max_connections=0, tier2_max_connections=0, return_date=None)
 
         self.assertEqual(flow.flow_decision.intent_class, "direct_inventory")
         self.assertEqual(flow.flow_decision.evidence_class, "absence_claim")
@@ -96,7 +96,7 @@ class FlowDecisionEvidenceContractTests(unittest.TestCase):
         self.assertNotEqual(searched.get("absence_class"), "structural_unavailability")
 
     def test_cache_freshness_policy_is_represented_for_absence_claims(self) -> None:
-        flow = self.flow_for(origin="SVX", destination="KUF", max_connections=0, fallback_max_connections=0, return_date=None)
+        flow = self.flow_for(origin="SVX", destination="KUF", max_connections=0, tier2_max_connections=0, return_date=None)
 
         self.assertFalse(flow.evidence_plan.live_cache_enabled)
         self.assertEqual(flow.evidence_plan.live_cache_ttl_seconds, 0)

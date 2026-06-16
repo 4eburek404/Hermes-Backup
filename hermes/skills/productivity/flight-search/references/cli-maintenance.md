@@ -150,14 +150,7 @@ Pitfalls:
 
 ## Provider and Airport Policy Coupling
 
-The durable source contract lives in `references/provider-aware-airport-priority.md`. Keep implementation, tests, and docs aligned with these invariants:
-
-- Active provider paths are KupiBilet and FLI; static catalogs are metadata only.
-- `IST` is exact-airport `IST` by default; `SAW` requires explicit user request.
-- London defaults to `LHR` first, with `LGW` deferred until `LHR` has no accepted/viable offers; `STN` and `LTN` are excluded by default.
-- KupiBilet handles Moscow as `MOW` city-code first; exact `SVO`/`DME`/`VKO` fallback is deferred and must not run in parallel when city-code request has accepted offers.
-- FLI is exact-airport only and must not receive city-code `LON` by default.
-- City-code results must be post-validated against actual airport scope, and reports must display actual airport codes rather than only request city codes.
+The authoritative rules live in `references/provider-aware-airport-priority.md`; do not duplicate them here. When maintaining the CLI, tests, or docs, read that file for city/airport dispatch invariants, KupiBilet MOW city-code behavior, FLI exact-airport policy, and airport interchangeability rules.
 
 ## Route-Family and Coverage-Control Rules
 
@@ -165,7 +158,7 @@ The durable source contract lives in `references/provider-aware-airport-priority
 - Keep RU domestic, RU-touching international, global non-RU, Asia/Oceania, and structurally constrained route logic consistent across public builders.
 - Domestic-RU routing must be decided in one shared layer and propagated through `route plan`, assembly, and `search --request`.
 - For domestic Russian round trips, assert the direct return segment `DEST -> ORIGIN` and absence of default international hubs unless explicitly requested.
-- Moscow/SVO controls are first-class controls when relevant, not fallback-only behavior.
+- Moscow/SVO controls are first-class controls when relevant, not deferred-only behavior.
 - Coverage and aggregate-control flags must compile to a common `ProbeIntent`/evidence-goal model with provider capability and terminal status.
 - `not_executed_controls` and `failed_controls` are missing/degraded evidence. `not_supported_controls` is a terminal provider/source capability boundary; it should be surfaced only when decision-relevant and must not make coverage incomplete by itself.
 
@@ -182,7 +175,7 @@ Use this when operational logic in `SKILL.md` starts compensating for determinis
 
 ## Human/User Answer Renderer Maintenance
 
-Use this when improving final user-visible flight output. The current seam is `data.agent_report.user_answer` → `flight_search_user_answer.v3` → `user_answer.rendered_text` → final Telegram/Markdown answer. `diagnostics.human_answer` is a debug mirror and must not be used as fallback final prose.
+Use this when improving final user-visible flight output. The current seam is `data.agent_report.user_answer` → `flight_search_user_answer.v3` → `user_answer.rendered_text` → final Telegram/Markdown answer. `diagnostics.human_answer` is a debug mirror and must not be used as an alternative final-prose source.
 
 - Implement user-answer contract changes in `cli/flights_cli/reporting/user_answer.py` and diagnostic mirror/rendering changes in `reporting/projections/human_answer_mirror.py` / `output.py`.
 - Preserve provider neutrality: renderer input is normalized report fields, not provider client objects, booking URLs, cache semantics, or provider caveat text.

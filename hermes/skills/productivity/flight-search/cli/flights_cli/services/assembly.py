@@ -290,13 +290,13 @@ def journey_stop_policy_bucket(journey: dict[str, Any], stop_policy: Any) -> str
     decision = decide_stop_policy(journey_connection_count(journey), stop_policy)
     if decision.eligible_for_preferred_generation:
         return "preferred"
-    if decision.eligible_for_fallback_generation:
-        return "fallback"
+    if decision.eligible_for_tier2_generation:
+        return "tier2"
     return "suppressed"
 
 
 def split_journeys_by_stop_policy(journeys: list[dict[str, Any]], stop_policy: Any) -> dict[str, list[dict[str, Any]]]:
-    buckets: dict[str, list[dict[str, Any]]] = {"preferred": [], "fallback": [], "suppressed": []}
+    buckets: dict[str, list[dict[str, Any]]] = {"preferred": [], "tier2": [], "suppressed": []}
     for journey in journeys:
         buckets[journey_stop_policy_bucket(journey, stop_policy)].append(journey)
     return buckets
@@ -342,21 +342,21 @@ def stop_policy_generation_diagnostics(
     outbound_buckets: dict[str, list[dict[str, Any]]],
     return_buckets: dict[str, list[dict[str, Any]]],
     generation_mode: str,
-    fallback_used: bool,
+    tier2_used: bool,
 ) -> dict[str, Any]:
     preferred_outbound_count = len(outbound_buckets["preferred"])
     preferred_return_count = len(return_buckets["preferred"])
-    fallback_outbound_count = len(outbound_buckets["fallback"])
-    fallback_return_count = len(return_buckets["fallback"])
+    tier2_outbound_count = len(outbound_buckets["tier2"])
+    tier2_return_count = len(return_buckets["tier2"])
     suppressed_outbound_count = len(outbound_buckets["suppressed"])
     suppressed_return_count = len(return_buckets["suppressed"])
     return {
         "candidate_generation_mode": generation_mode,
-        "fallback_used": fallback_used,
+        "tier2_used": tier2_used,
         "preferred_outbound_journey_count": preferred_outbound_count,
         "preferred_return_journey_count": preferred_return_count,
-        "fallback_outbound_journey_count": fallback_outbound_count,
-        "fallback_return_journey_count": fallback_return_count,
+        "tier2_outbound_journey_count": tier2_outbound_count,
+        "tier2_return_journey_count": tier2_return_count,
         "suppressed_outbound_journey_count": suppressed_outbound_count,
         "suppressed_return_journey_count": suppressed_return_count,
         "stop_policy_suppressed_journey_count": suppressed_outbound_count + suppressed_return_count,
@@ -622,17 +622,17 @@ def empty_assembled_result(args: argparse.Namespace) -> dict[str, Any]:
             "two_stop_candidate_count": 0,
             "three_plus_suppressed_count": 0,
             "two_stop_suppressed_because_preferred_exists": 0,
-            "used_two_stop_fallback": False,
+            "used_two_stop_tier": False,
             "garbage_options_hidden_from_answer": False,
         },
         "ranked": [],
         "assembly": {
             "candidate_generation_mode": "none",
-            "fallback_used": False,
+            "tier2_used": False,
             "preferred_outbound_journey_count": 0,
             "preferred_return_journey_count": 0,
-            "fallback_outbound_journey_count": 0,
-            "fallback_return_journey_count": 0,
+            "tier2_outbound_journey_count": 0,
+            "tier2_return_journey_count": 0,
             "suppressed_outbound_journey_count": 0,
             "suppressed_return_journey_count": 0,
             "stop_policy_suppressed_journey_count": 0,
@@ -705,24 +705,24 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
         require_both_directions=round_trip_requested,
     )
     generation_mode = "preferred" if candidates else "none"
-    fallback_used = False
+    tier2_used = False
     if not candidates:
-        fallback_outbound = outbound_buckets["preferred"] + outbound_buckets["fallback"]
-        fallback_return = return_buckets["preferred"] + return_buckets["fallback"]
+        tier2_outbound = outbound_buckets["preferred"] + outbound_buckets["tier2"]
+        tier2_return = return_buckets["preferred"] + return_buckets["tier2"]
         candidates, candidate_pool_truncated = generate_candidates_from_journeys(
-            fallback_outbound,
-            fallback_return,
+            tier2_outbound,
+            tier2_return,
             candidate_pool_limit,
             require_both_directions=round_trip_requested,
         )
         if candidates:
-            generation_mode = "fallback"
-            fallback_used = True
+            generation_mode = "tier2"
+            tier2_used = True
     generation_diagnostics = stop_policy_generation_diagnostics(
         outbound_buckets=outbound_buckets,
         return_buckets=return_buckets,
         generation_mode=generation_mode,
-        fallback_used=fallback_used,
+        tier2_used=tier2_used,
     )
     raw_candidate_count = len(candidates)
     candidates, duplicate_count = dedupe_candidates(candidates)
@@ -740,7 +740,7 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
         include_filtered=getattr(args, "include_filtered", 20),
         stop_policy=getattr(args, "stop_policy", "business-default"),
         max_connections=getattr(args, "max_connections", None),
-        fallback_max_connections=getattr(args, "fallback_max_connections", None),
+        tier2_max_connections=getattr(args, "tier2_max_connections", None),
         agent_brief=getattr(args, "agent_brief", False),
         is_domestic=getattr(args, "is_domestic", False),
     )
@@ -758,7 +758,7 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
             "two_stop_candidate_count": 0,
             "three_plus_suppressed_count": 0,
             "two_stop_suppressed_because_preferred_exists": 0,
-            "used_two_stop_fallback": fallback_used,
+            "used_two_stop_tier": tier2_used,
             "garbage_options_hidden_from_answer": False,
         },
         "ranked": [],

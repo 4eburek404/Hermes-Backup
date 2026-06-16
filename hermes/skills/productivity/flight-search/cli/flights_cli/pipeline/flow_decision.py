@@ -77,7 +77,7 @@ def _as_tuple(value: Any) -> tuple[Any, ...]:
 
 def _is_direct_only(request: SearchRequest) -> bool:
     options = request.compatibility_options
-    return options.get("max_connections") == 0 and options.get("fallback_max_connections") == 0
+    return options.get("max_connections") == 0 and options.get("tier2_max_connections") == 0
 
 
 def _has_airport_scope(request: SearchRequest) -> bool:
