@@ -6,6 +6,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from ..domain.vocabulary import MarketClass
+
 
 def as_tuple(value: Any) -> tuple[Any, ...]:
     """Normalise a value to a tuple: None→(), list→tuple, scalar→1-tuple."""
@@ -29,12 +31,12 @@ def classify_market(origin_country: str | None, destination_country: str | None)
     Returns one of: ru_domestic, ru_touching_international, global_non_ru, structurally_constrained.
     """
     if origin_country == "RU" and destination_country == "RU":
-        return "ru_domestic"
+        return MarketClass.RU_DOMESTIC
     if origin_country == "RU" or destination_country == "RU":
-        return "ru_touching_international"
+        return MarketClass.RU_TOUCHING_INTERNATIONAL
     if origin_country and destination_country:
-        return "global_non_ru"
-    return "structurally_constrained"
+        return MarketClass.GLOBAL_NON_RU
+    return MarketClass.STRUCTURALLY_CONSTRAINED
 
 
 def resolve_country_code(store: Any, code: str) -> str | None:
