@@ -191,6 +191,82 @@ If the recommended option has an overnight connection, test whether same-day opt
 
 A safe, business, or balanced profile can demote short, cross-airport, late-night, low-confidence, or baggage-risk options. When the user asks whether something is possible, distinguish physical possibility from operational recommendation and explain which profile or field caused the ranking.
 
+## Architecture
+
+Pipeline data flow:
+
+```
+JSON request → apps/search.py (normalize + argparse.Namespace)
+  → pipeline/search_pipeline.py (FlowDecision + EvidencePlan)
+  → orchestrators/live_assemble.py (segment plan + live assembly)
+  → execution/probe_dispatcher.py → adapters/providers/registry.py
+  → services/assembly.py (assemble_direction + direct_journeys)
+  → reporting/agent_report_builder.py (report)
+  → reporting/user_answer.py (user_answer.v3 + rendered_text)
+  → services/agent_report_contract.py (validate)
+  → output envelope
+```
+
+Critical coupling points:
+
+| Coupling | Symptom | Fix |
+|----------|---------|-----|
+| 3 sources of `routing_strategy` | Only `args.routing_strategy` drives routing; `FlowDecision.routing_strategy` is decorative | P0: make `FlowDecision` single source |
+| `provider_policy` default mismatch | `live_assemble.py:294` defaults `"kupibilet"` vs `FlowDecision`/`search_request` normalize to `"auto"` | P0: align to `"auto"` |
+| `PROVIDER_REGISTRY` singleton without DI | Direct access → TypeError (no fetcher/store) | P0: make `fetcher` mandatory or remove singleton |
+| `args: Namespace` as universal param | 20+ `getattr` reads, `prefer_carrier` mutated in-place | P0: track; P1: `SearchContext` dataclass |
+| Closures mutating shared state | `skipped_by_condition`, `priority_route_viable`, `ensure_moscow_gateway_control_synthesized` mutate `segment_results`/`searches` | P0: extract to `SegmentSkipPolicy` class |
+| Semantic validation via text search | `agent_report_contract.py` checks `"through-fare"`/`"verify"` substrings in `answer_lines` | P0: switch to structured `required_caveats` tags |
+| `validate_agent_report()` strips unknown keys | Adding field to builder but not validator → field vanishes from output | Always update both builder AND validator schema |
+
+## Kupibilet Field Mapping
+
+Raw API → normalized offer field names:
+
+| Raw API key | Normalized key | Notes |
+|---|---|---|
+| `departure` | `origin` | IATA airport code |
+| `arrival` | `destination` | IATA airport code |
+| `departure_datetime` | `departure_at` | ISO-8601 with timezone |
+| `arrival_datetime` | `arrival_at` | ISO-8601 with timezone |
+| `equipment` | `aircraft` | ICAO type code |
+| `marketing_carrier` | `marketing_carrier` | Same key |
+| `operating_carrier` | `operating_carrier` | Same key |
+| `flight_number` | `flight_number` | Same key |
+
+**Canonical offer field is `segments`** (not `flights`). All providers must output `"segments"` in normalized offers. When adding a provider, ensure the offer dict key matches what `direct_journeys()`/`pair_offers()` read. Never call `normalize_kupibilet_flight()` on already-normalized data — it expects raw API keys.
+
+**Double-prefix bug:** `kupibilet_flight_number()` constructs `f"{carrier}{number}"` but raw `number` already contains the carrier prefix (e.g. `"SU6418"` → `"SUSU6418"`). `transport_number` (numeric-only) is preferred but often absent.
+
+**Diagnosis recipe — "flights missing from results":**
+1. Offer dicts use `"segments"` key (not `"flights"`).
+2. `direct_journeys()` reads `offer.get("segments")`.
+3. `provider_offer_filter.py:offer_segments()` reads `offer.get("segments")`.
+4. `stop_metrics.py:stop_metrics_from_offer()` reads `offer.get("segments")`.
+5. Clear live_search cache after changing offer field names.
+
+**Test mock pitfall:** Never global `sed` `"flights"` → `"segments"` in test mocks. Three contexts use `"flights"` legitimately: raw Kupibilet API format (variant segments), flight-by-ID dicts, and FLI MCP responses. Update each mock individually.
+
+## Layover & Elapsed Penalty
+
+**Status:** Implemented (2026-06-16). See `validation.py`, `config.py` (`layover_tiers`/`elapsed_tiers` in `RISK_PROFILES`), `ranking.py`.
+
+IATA-calibrated long layover penalty tiers (multiplier-based, not flat cap):
+
+| Tier | Domestic | International | balanced | safe | cheap | business |
+|------|----------|---------------|----------|------|-------|----------|
+| long (×1) | 4h | 24h | 10 | 14 | 6 | 16 |
+| stopover (×2) | 8h | 48h | 24 | 32 | 18 | 36 |
+| extreme (×3) | 12h | 72h | 42 | 54 | 34 | 58 |
+| unreasonable (×4) | 16h | 96h | 68 | 80 | 58 | 84 |
+
+Excessive elapsed penalty uses `min_elapsed_min` from search results (dynamic, not static):
+- `excess_ratio = (elapsed - min_elapsed) / min_elapsed`
+- Tiers: moderate (1.3–1.6), excessive (1.7–2.2), extreme (2.5–3.5)
+- Both penalties are additive in `score_itinerary()`; `rank_candidate_list` does two-pass scoring; `pair_sort_key()` reads `rank_order` from profile config.
+
+**Known gap:** `_is_domestic_route()` uses a heuristic airport-code set and receives empty dicts from pair assembly path (which strips `origin`/`destination`/`segments` before ranking). Fix: pass `route_family` or `origin`/`destination` through from assembly. Also verify `excessive_elapsed_penalty` Pass 2 re-scoring fires correctly end-to-end — `ranked` output strips source data before penalty can use it.
+
 ## Reference Lifecycle Rule
 
 Route-specific debug notes should not become new active reference files by default. After a case is understood, distill the durable rule into this playbook, `references/report-contract.md`, `references/source-boundaries.md`, `references/provider-aware-airport-priority.md`, `references/cli-maintenance.md`, or tests; leave raw incident history to session search.
