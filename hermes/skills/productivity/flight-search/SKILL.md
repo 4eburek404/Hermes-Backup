@@ -110,7 +110,7 @@ Keep caveats compact and source-bound:
 - `references/report-contract.md` — `agent_report.v2`, `flight_search_user_answer.v3`, read order, renderer contract, semantic validation.
 - `references/source-boundaries.md` — evidence classes, absence taxonomy, ticketing/protection boundaries, cache/provider limits.
 - `references/provider-aware-airport-priority.md` — SSOT for airport/provider priority and city-code dispatch.
-- `references/debug-playbook.md` — targeted probes and route-family debugging.
+- `references/debug-playbook.md` — targeted probes, route-family debugging, architecture coupling, Kupibilet field mapping, layover/elapsed penalty.
 - `references/direct-date-window.md` — direct/nonstop inventory over bounded date windows.
 - `references/cli-maintenance.md` — source/runtime governance, CLI/report/schema maintenance, reference lifecycle.
 - `references/rail-rzd-live-pricing.md` — official RZD read-only comparison workflow.

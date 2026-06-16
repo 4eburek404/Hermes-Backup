@@ -216,7 +216,7 @@ Critical coupling points:
 | `PROVIDER_REGISTRY` singleton without DI | Direct access → TypeError (no fetcher/store) | P0: make `fetcher` mandatory or remove singleton |
 | `args: Namespace` as universal param | 20+ `getattr` reads, `prefer_carrier` mutated in-place | P0: track; P1: `SearchContext` dataclass |
 | Closures mutating shared state | `skipped_by_condition`, `priority_route_viable`, `ensure_moscow_gateway_control_synthesized` mutate `segment_results`/`searches` | P0: extract to `SegmentSkipPolicy` class |
-| Semantic validation via text search | `agent_report_contract.py` checks `"through-fare"`/`"verify"` substrings in `answer_lines` | P0: switch to structured `required_caveats` tags |
+| Semantic validation via text search | `agent_report_contract.py` checks `"through-fare"`/`"verify"` substrings in the rendered answer text | P0: switch to structured `required_caveats` tags |
 | `validate_agent_report()` strips unknown keys | Adding field to builder but not validator → field vanishes from output | Always update both builder AND validator schema |
 
 ## Kupibilet Field Mapping
