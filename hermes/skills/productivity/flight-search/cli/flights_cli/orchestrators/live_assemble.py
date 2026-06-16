@@ -823,6 +823,11 @@ class LiveAssemblyRunner:
         self.probe_ledger = ProbeExecutionLedger()
 
     def run(self) -> dict[str, Any]:
+        self._init_run()
+        self._probe_segments()
+        return self._build_live_search_block()
+
+    def _init_run(self) -> None:
         args, store = self.args, self.store
         self.flow = build_live_route_search_flow(args, store)
         self.plan = build_live_route_segment_plan(args, store, flow=self.flow)
@@ -843,6 +848,8 @@ class LiveAssemblyRunner:
         self.request_deduper = RequestDeduper()
         self.probe_ledger = ProbeExecutionLedger()
 
+    def _probe_segments(self) -> None:
+        args, store = self.args, self.store
         for spec in self.plan["segments"]:
             skipped = self._skipped_by_condition(spec)
             if skipped is not None:
@@ -873,8 +880,10 @@ class LiveAssemblyRunner:
                 self.offer_counts[key] = self.offer_counts.get(key, 0) + len(segment_result.get("offers") or [])
                 if outcome.include_segment_result and segment_result["offers"]:
                     self.segment_results.append(segment_result)
-
         self._ensure_moscow_gateway_control_synthesized()
+
+    def _build_live_search_block(self) -> dict[str, Any]:
+        args, store = self.args, self.store
         date_window_inventory = build_date_window_inventory(self.plan, self.searches, self.segment_results)
         assembled = assemble_segment_results(self.segment_results, args) if self.segment_results else empty_assembled_result(args)
         aggregate_controls = run_aggregate_controls(args, self.plan, kupibilet_fetcher=fetch_kupibilet_search, probe_ledger=self.probe_ledger)
