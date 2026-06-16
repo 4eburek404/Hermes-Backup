@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from .domain.vocabulary import RoutingStrategy
 from .errors import CliError
 from .reporting.user_answer import validate_user_answer
 
@@ -219,7 +220,7 @@ def render_human(command: str, data: Any) -> str:
         metrics = data["metrics"]
         lines = [
             f"route: {','.join(data['origin_airports'])} -> {','.join(data['destination_airports'])}",
-            f"strategy: {data.get('routing_strategy', 'hub-list')}",
+            f"strategy: {data.get('routing_strategy', RoutingStrategy.HUB_LIST)}",
             f"hubs: {', '.join(data['hubs'])} ({data.get('hub_source', 'manual')})",
             f"segment requests: {metrics['segment_request_count']}",
             "first commands:",

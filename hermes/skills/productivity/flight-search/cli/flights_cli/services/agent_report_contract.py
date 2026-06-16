@@ -7,9 +7,8 @@ from importlib import resources
 from typing import Any
 
 from jsonschema import Draft202012Validator
-
 from ..contracts.schema_errors import validation_error_detail
-
+from ..domain.vocabulary import RouteFamily
 from ..errors import CliError
 from ..reporting.agent_report_projector import AGENT_REPORT_SCHEMA_VERSION
 from ..reporting.user_answer import validate_user_answer
@@ -149,7 +148,7 @@ def ru_priority_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
         if option is None:
             errors.append({"path": f"{branch_path}.priority_option_id", "message": f"{control_key}.priority_option_id must reference priority_options", "validator": "semantic"})
             continue
-        if option.get("control_family") != "ru_priority":
+        if option.get("control_family") != RouteFamily.RU_PRIORITY:
             errors.append({"path": f"$.frontier.priority_options[{priority_option_id}].control_family", "message": "visible RU-priority option must have control_family=ru_priority", "validator": "semantic"})
         if option.get("control_branch") != branch:
             errors.append({"path": f"$.frontier.priority_options[{priority_option_id}].control_branch", "message": f"visible RU-priority option must have control_branch={branch}", "validator": "semantic"})

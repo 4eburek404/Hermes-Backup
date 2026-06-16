@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..config import SPECIAL_CITY_AIRPORTS
+from ..domain.vocabulary import Direction, Leg, RouteFamily, RoutingStrategy
 from ..domain.stop_metrics import offer_stop_metrics
 from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY, StopPolicy, decide_stop_policy, stop_policy_payload
 from .projections.summary_lines import build_summary_lines
@@ -253,10 +254,10 @@ def segment_path_signature(segments: list[dict[str, Any]]) -> tuple[tuple[str, s
 
 
 def direct_destination_leg(direction: str) -> str | None:
-    if direction == "outbound":
-        return "direct_outbound"
-    if direction == "return":
-        return "direct_return"
+    if direction == Direction.OUTBOUND:
+        return Leg.DIRECT_OUTBOUND
+    if direction == Direction.RETURN:
+        return Leg.DIRECT_RETURN
     return None
 
 
@@ -643,7 +644,7 @@ def ru_priority_control_option(option: dict[str, Any], branch: str) -> dict[str,
     control_option["id"] = f"ru-priority-{branch}:{base_id}"
     control_option["category"] = f"{branch}_control"
     control_option["reason"] = "RU-priority structural visibility control; compare as decision evidence, not as a ranking rewrite."
-    control_option["control_family"] = "ru_priority"
+    control_option["control_family"] = RouteFamily.RU_PRIORITY
     control_option["control_branch"] = branch
     control_option["visibility_role"] = "priority_control"
     return control_option
@@ -655,7 +656,7 @@ def build_ru_priority_controls(
     recommended_options: list[dict[str, Any]],
     priority_options: list[dict[str, Any]],
 ) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
-    if plan.get("routing_strategy") != "ru-priority":
+    if plan.get("routing_strategy") != RoutingStrategy.RU_PRIORITY:
         return None, []
 
     origin = str(plan.get("origin") or "").strip().upper()
@@ -669,7 +670,7 @@ def build_ru_priority_controls(
     controls: dict[str, Any] = {
         "requested": True,
         "checked": True,
-        "route_family": "ru_priority",
+        "route_family": RouteFamily.RU_PRIORITY,
         "scope": {
             "origin": origin,
             "destination": destination,

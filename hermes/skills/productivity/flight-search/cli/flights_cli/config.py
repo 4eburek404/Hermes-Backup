@@ -4,6 +4,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .domain.vocabulary import RoutingStrategy
+
 CACHE_DIR = Path.home() / ".hermes" / "cache" / "flight-search"
 
 MAX_DATE_WINDOW_DAYS = 14
@@ -66,7 +68,7 @@ DUBAI_DEFAULT_AIRPORTS = ("DXB", "DWC")
 DUBAI_EXCLUDED_BY_DEFAULT = ("SHJ",)
 
 DEFAULT_ROUTING_STRATEGY = "auto"
-ROUTING_STRATEGIES = {"auto", "hub-list", "ru-priority", "domestic-ru"}
+ROUTING_STRATEGIES = {"auto", RoutingStrategy.HUB_LIST, RoutingStrategy.RU_PRIORITY, RoutingStrategy.DOMESTIC_RU}
 
 
 PRIORITY_ROUTE_CARRIERS = ("U6", "SU", "TK")

@@ -20,6 +20,7 @@ from ..config import (
 )
 from ..domain.airports import explicit_or_resolved_airports
 from ..domain.normalize import normalize_carrier_code, normalize_profile, parse_iso_date
+from ..domain.vocabulary import Direction, Leg, MarketClass, RequiredControl, RouteFamily, RoutingStrategy
 from ..errors import CliError
 from ..execution.aggregate_control_runner import run_aggregate_controls
 from ..execution.probe_dispatcher import dispatch_segment_probe, search_key
@@ -190,7 +191,7 @@ def normalize_day_offsets(values: list[int] | None, default: list[int], field: s
 
 def plan_has_svx_direct_control(plan: dict[str, Any]) -> bool:
     for spec in plan.get("segments") or []:
-        if not isinstance(spec, dict) or spec.get("leg") not in {"direct_outbound", "direct_return"}:
+        if not isinstance(spec, dict) or spec.get("leg") not in {Leg.DIRECT_OUTBOUND, Leg.DIRECT_RETURN}:
             continue
         if str(spec.get("origin") or "").upper() == "SVX" or str(spec.get("destination") or "").upper() == "SVX":
             return True
@@ -219,7 +220,7 @@ def direct_route_intel_context(args: argparse.Namespace, store: Store, plan: dic
             "available": False,
             "reason": "route_index_unavailable",
             "error": {"type": exc.error_type, "message": exc.message},
-            "tier2": "direct-control live searches were kept because the official route index was unavailable.",
+            StopBucket.TIER2: "direct-control live searches were kept because the official route index was unavailable.",
         }
     return index, svx_direct_route_index_summary(index, cache)
 
@@ -231,10 +232,7 @@ def hub_viability_summary(plan: dict[str, Any], searches: list[dict[str, Any]]) 
             "viable": False,
             "total_offer_count": 0,
             "legs": {
-                "origin_to_hub": {"offer_count": 0, "search_count": 0, "dates": []},
-                "hub_to_destination": {"offer_count": 0, "search_count": 0, "dates": []},
-                "destination_to_hub": {"offer_count": 0, "search_count": 0, "dates": []},
-                "hub_to_origin": {"offer_count": 0, "search_count": 0, "dates": []},
+                Leg.ORIGIN_TO_HUB: {"offer_count": 0, "search_count": 0, "dates": []}, Leg.HUB_TO_DESTINATION: {"offer_count": 0, "search_count": 0, "dates": []}, Leg.DESTINATION_TO_HUB: {"offer_count": 0, "search_count": 0, "dates": []}, Leg.HUB_TO_ORIGIN: {"offer_count": 0, "search_count": 0, "dates": []},
             },
             "missing_legs": [],
         }
@@ -242,13 +240,13 @@ def hub_viability_summary(plan: dict[str, Any], searches: list[dict[str, Any]]) 
     }
     for search in searches:
         leg = search.get("leg")
-        if leg == "origin_to_hub":
+        if leg == Leg.ORIGIN_TO_HUB:
             hub = search.get("destination")
-        elif leg == "hub_to_destination":
+        elif leg == Leg.HUB_TO_DESTINATION:
             hub = search.get("origin")
-        elif leg == "destination_to_hub":
+        elif leg == Leg.DESTINATION_TO_HUB:
             hub = search.get("destination")
-        elif leg == "hub_to_origin":
+        elif leg == Leg.HUB_TO_ORIGIN:
             hub = search.get("origin")
         else:
             continue
@@ -262,9 +260,9 @@ def hub_viability_summary(plan: dict[str, Any], searches: list[dict[str, Any]]) 
             leg_summary["dates"].append(date)
         by_hub[hub]["total_offer_count"] += int(search.get("offer_count") or 0)
 
-    required_legs = ["origin_to_hub", "hub_to_destination"]
+    required_legs = [Leg.ORIGIN_TO_HUB, Leg.HUB_TO_DESTINATION]
     if plan["dates"].get("return"):
-        required_legs += ["destination_to_hub", "hub_to_origin"]
+        required_legs += [Leg.DESTINATION_TO_HUB, Leg.HUB_TO_ORIGIN]
     for item in by_hub.values():
         item["missing_legs"] = [
             leg
@@ -374,9 +372,9 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
         )
 
     route_families = route_families_for_strategy(routing_strategy, routing_profile)
-    include_generic_direct_controls = flow.flow_decision.market_class == "global_non_ru"
+    include_generic_direct_controls = flow.flow_decision.market_class == MarketClass.GLOBAL_NON_RU
     moscow_gateway_eligible = (
-        routing_strategy == "ru-priority"
+        routing_strategy == RoutingStrategy.RU_PRIORITY
         and str(origin.code or "").upper() != "MOW"
         and str(destination.code or "").upper() != "MOW"
     )
@@ -391,7 +389,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
     if direct_only:
         route_families = [
             {
-                "id": "direct_inventory",
+                "id": RouteFamily.DIRECT_INVENTORY,
                 "priority": 0,
                 "condition": "direct-only request: search exact origin/destination airport pairs and do not assemble connecting fallback routes.",
             }
@@ -400,21 +398,19 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
             for dest_code, dest_extra in destination_segment_options:
                 for origin_code, origin_extra in origin_segment_options:
                     add_live_segment(
-                        "outbound",
-                        "direct_outbound",
+                        Direction.OUTBOUND,
+                        Leg.DIRECT_OUTBOUND,
                         inventory_date,
                         origin_code,
                         dest_code,
-                        route_family="direct_inventory",
+                        route_family=RouteFamily.DIRECT_INVENTORY,
                         priority=0,
                         **{**origin_extra, **dest_extra},
                     )
-    elif routing_strategy == "ru-priority":
+    elif routing_strategy == RoutingStrategy.RU_PRIORITY:
         for dest_code, dest_extra in destination_segment_options:
             for origin_code, origin_extra in origin_segment_options:
-                add_live_segment(
-                    "outbound",
-                    "direct_outbound",
+                add_live_segment(Direction.OUTBOUND, Leg.DIRECT_OUTBOUND,
                     depart,
                     origin_code,
                     dest_code,
@@ -425,9 +421,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
                 )
         if routing_profile == "asia-oceania":
             for origin_code in origin_airports:
-                add_live_segment(
-                    "outbound",
-                    "origin_to_hub",
+                add_live_segment(Direction.OUTBOUND, Leg.ORIGIN_TO_HUB,
                     depart,
                     origin_code,
                     PRIORITY_ASIA_HUB,
@@ -439,9 +433,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
             for offset in outbound_second_offsets:
                 leg_date = depart + timedelta(days=offset)
                 for dest_code in destination_airports:
-                    add_live_segment(
-                        "outbound",
-                        "hub_to_destination",
+                    add_live_segment(Direction.OUTBOUND, Leg.HUB_TO_DESTINATION,
                         leg_date,
                         PRIORITY_ASIA_HUB,
                         dest_code,
@@ -450,9 +442,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
                         preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                     )
         for origin_code in origin_airports:
-            add_live_segment(
-                "outbound",
-                "origin_to_hub",
+            add_live_segment(Direction.OUTBOUND, Leg.ORIGIN_TO_HUB,
                 depart,
                 origin_code,
                 PRIORITY_PRIMARY_HUB,
@@ -461,8 +451,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
                 preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
             )
             if origin_code != PRIORITY_MOSCOW_GATEWAY:
-                add_live_segment(
-                    "outbound",
+                add_live_segment(Direction.OUTBOUND,
                     "origin_to_gateway",
                     depart,
                     origin_code,
@@ -471,8 +460,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
                     priority=3 if routing_profile == "asia-oceania" else 2,
                     only_carriers=["SU"],
                 )
-                add_live_segment(
-                    "outbound",
+                add_live_segment(Direction.OUTBOUND,
                     "gateway_to_hub",
                     depart,
                     PRIORITY_MOSCOW_GATEWAY,
@@ -484,9 +472,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
         for offset in outbound_second_offsets:
             leg_date = depart + timedelta(days=offset)
             for dest_code in destination_airports:
-                add_live_segment(
-                    "outbound",
-                    "hub_to_destination",
+                add_live_segment(Direction.OUTBOUND, Leg.HUB_TO_DESTINATION,
                     leg_date,
                     PRIORITY_PRIMARY_HUB,
                     dest_code,
@@ -495,9 +481,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                 )
         for origin_code in origin_airports:
-            add_live_segment(
-                "outbound",
-                "origin_to_hub",
+            add_live_segment(Direction.OUTBOUND, Leg.ORIGIN_TO_HUB,
                 depart,
                 origin_code,
                 PRIORITY_SECONDARY_HUB,
@@ -509,9 +493,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
         for offset in outbound_second_offsets:
             leg_date = depart + timedelta(days=offset)
             for dest_code in destination_airports:
-                add_live_segment(
-                    "outbound",
-                    "hub_to_destination",
+                add_live_segment(Direction.OUTBOUND, Leg.HUB_TO_DESTINATION,
                     leg_date,
                     PRIORITY_SECONDARY_HUB,
                     dest_code,
@@ -522,8 +504,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
                 )
         for gateway_code, gateway_extra in gateway_segment_options:
             for dest_code in destination_airports:
-                add_live_segment(
-                    "outbound",
+                add_live_segment(Direction.OUTBOUND,
                     "gateway_to_destination",
                     depart,
                     gateway_code,
@@ -532,34 +513,30 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
                     priority=3 if routing_profile == "asia-oceania" else 2,
                     **gateway_extra,
                 )
-    elif routing_strategy == "domestic-ru":
+    elif routing_strategy == RoutingStrategy.DOMESTIC_RU:
         for dest_code, dest_extra in destination_segment_options:
             for origin_code, origin_extra in origin_segment_options:
-                add_live_segment(
-                    "outbound",
-                    "direct_outbound",
+                add_live_segment(Direction.OUTBOUND, Leg.DIRECT_OUTBOUND,
                     depart,
                     origin_code,
                     dest_code,
-                    route_family="domestic_ru",
+                    route_family=RouteFamily.DOMESTIC_RU,
                     priority=0,
                     **{**origin_extra, **dest_extra},
                 )
         for origin_code in origin_airports:
             for hub in hubs:
-                add_live_segment("outbound", "origin_to_hub", depart, origin_code, hub, route_family="domestic_ru", priority=1)
+                add_live_segment(Direction.OUTBOUND, Leg.ORIGIN_TO_HUB, depart, origin_code, hub, route_family=RouteFamily.DOMESTIC_RU, priority=1)
         for offset in outbound_second_offsets:
             leg_date = depart + timedelta(days=offset)
             for hub in hubs:
                 for dest_code in destination_airports:
-                    add_live_segment("outbound", "hub_to_destination", leg_date, hub, dest_code, route_family="domestic_ru", priority=1)
+                    add_live_segment(Direction.OUTBOUND, Leg.HUB_TO_DESTINATION, leg_date, hub, dest_code, route_family=RouteFamily.DOMESTIC_RU, priority=1)
     else:
         if include_generic_direct_controls:
             for dest_code, dest_extra in destination_segment_options:
                 for origin_code, origin_extra in origin_segment_options:
-                    add_live_segment(
-                        "outbound",
-                        "direct_outbound",
+                    add_live_segment(Direction.OUTBOUND, Leg.DIRECT_OUTBOUND,
                         depart,
                         origin_code,
                         dest_code,
@@ -569,33 +546,29 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
                     )
         for origin_code in origin_airports:
             for hub in hubs:
-                add_live_segment("outbound", "origin_to_hub", depart, origin_code, hub, route_family="hub_list", priority=1)
+                add_live_segment(Direction.OUTBOUND, Leg.ORIGIN_TO_HUB, depart, origin_code, hub, route_family=RouteFamily.HUB_LIST, priority=1)
         for offset in outbound_second_offsets:
             leg_date = depart + timedelta(days=offset)
             for hub in hubs:
                 for dest_code in destination_airports:
-                    add_live_segment("outbound", "hub_to_destination", leg_date, hub, dest_code, route_family="hub_list", priority=1)
+                    add_live_segment(Direction.OUTBOUND, Leg.HUB_TO_DESTINATION, leg_date, hub, dest_code, route_family=RouteFamily.HUB_LIST, priority=1)
 
     if ret:
         if direct_only:
             for dest_code, dest_extra in destination_segment_options:
                 for origin_code, origin_extra in origin_segment_options:
-                    add_live_segment(
-                        "return",
-                        "direct_return",
+                    add_live_segment(Direction.RETURN, Leg.DIRECT_RETURN,
                         ret,
                         dest_code,
                         origin_code,
-                        route_family="direct_inventory",
+                        route_family=RouteFamily.DIRECT_INVENTORY,
                         priority=0,
                         **{**dest_extra, **origin_extra},
                     )
-        elif routing_strategy == "ru-priority":
+        elif routing_strategy == RoutingStrategy.RU_PRIORITY:
             for dest_code, dest_extra in destination_segment_options:
                 for origin_code, origin_extra in origin_segment_options:
-                    add_live_segment(
-                        "return",
-                        "direct_return",
+                    add_live_segment(Direction.RETURN, Leg.DIRECT_RETURN,
                         ret,
                         dest_code,
                         origin_code,
@@ -606,9 +579,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
                     )
             if routing_profile == "asia-oceania":
                 for dest_code in destination_airports:
-                    add_live_segment(
-                        "return",
-                        "destination_to_hub",
+                    add_live_segment(Direction.RETURN, Leg.DESTINATION_TO_HUB,
                         ret,
                         dest_code,
                         PRIORITY_ASIA_HUB,
@@ -619,9 +590,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
                 for offset in return_second_offsets:
                     leg_date = ret + timedelta(days=offset)
                     for origin_code in origin_airports:
-                        add_live_segment(
-                            "return",
-                            "hub_to_origin",
+                        add_live_segment(Direction.RETURN, Leg.HUB_TO_ORIGIN,
                             leg_date,
                             PRIORITY_ASIA_HUB,
                             origin_code,
@@ -631,9 +600,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
                             preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                         )
             for dest_code in destination_airports:
-                add_live_segment(
-                    "return",
-                    "destination_to_hub",
+                add_live_segment(Direction.RETURN, Leg.DESTINATION_TO_HUB,
                     ret,
                     dest_code,
                     PRIORITY_PRIMARY_HUB,
@@ -644,9 +611,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
             for offset in return_second_offsets:
                 leg_date = ret + timedelta(days=offset)
                 for origin_code in origin_airports:
-                    add_live_segment(
-                        "return",
-                        "hub_to_origin",
+                    add_live_segment(Direction.RETURN, Leg.HUB_TO_ORIGIN,
                         leg_date,
                         PRIORITY_PRIMARY_HUB,
                         origin_code,
@@ -655,8 +620,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
                         preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                     )
                     if origin_code != PRIORITY_MOSCOW_GATEWAY:
-                        add_live_segment(
-                            "return",
+                        add_live_segment(Direction.RETURN,
                             "hub_to_gateway",
                             leg_date,
                             PRIORITY_PRIMARY_HUB,
@@ -665,8 +629,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
                             priority=3 if routing_profile == "asia-oceania" else 2,
                             only_carriers=["SU"],
                         )
-                        add_live_segment(
-                            "return",
+                        add_live_segment(Direction.RETURN,
                             "gateway_to_origin",
                             leg_date,
                             PRIORITY_MOSCOW_GATEWAY,
@@ -676,9 +639,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
                             only_carriers=["SU"],
                         )
             for dest_code in destination_airports:
-                add_live_segment(
-                    "return",
-                    "destination_to_hub",
+                add_live_segment(Direction.RETURN, Leg.DESTINATION_TO_HUB,
                     ret,
                     dest_code,
                     PRIORITY_SECONDARY_HUB,
@@ -690,9 +651,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
             for offset in return_second_offsets:
                 leg_date = ret + timedelta(days=offset)
                 for origin_code in origin_airports:
-                    add_live_segment(
-                        "return",
-                        "hub_to_origin",
+                    add_live_segment(Direction.RETURN, Leg.HUB_TO_ORIGIN,
                         leg_date,
                         PRIORITY_SECONDARY_HUB,
                         origin_code,
@@ -703,8 +662,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
                     )
             for gateway_code, gateway_extra in gateway_segment_options:
                 for dest_code in destination_airports:
-                    add_live_segment(
-                        "return",
+                    add_live_segment(Direction.RETURN,
                         "destination_to_gateway",
                         ret,
                         dest_code,
@@ -713,34 +671,30 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
                         priority=3 if routing_profile == "asia-oceania" else 2,
                         **gateway_extra,
                     )
-        elif routing_strategy == "domestic-ru":
+        elif routing_strategy == RoutingStrategy.DOMESTIC_RU:
             for dest_code, dest_extra in destination_segment_options:
                 for origin_code, origin_extra in origin_segment_options:
-                    add_live_segment(
-                        "return",
-                        "direct_return",
+                    add_live_segment(Direction.RETURN, Leg.DIRECT_RETURN,
                         ret,
                         dest_code,
                         origin_code,
-                        route_family="domestic_ru",
+                        route_family=RouteFamily.DOMESTIC_RU,
                         priority=0,
                         **{**dest_extra, **origin_extra},
                     )
             for dest_code in destination_airports:
                 for hub in hubs:
-                    add_live_segment("return", "destination_to_hub", ret, dest_code, hub, route_family="domestic_ru", priority=1)
+                    add_live_segment(Direction.RETURN, Leg.DESTINATION_TO_HUB, ret, dest_code, hub, route_family=RouteFamily.DOMESTIC_RU, priority=1)
             for offset in return_second_offsets:
                 leg_date = ret + timedelta(days=offset)
                 for hub in hubs:
                     for origin_code in origin_airports:
-                        add_live_segment("return", "hub_to_origin", leg_date, hub, origin_code, route_family="domestic_ru", priority=1)
+                        add_live_segment(Direction.RETURN, Leg.HUB_TO_ORIGIN, leg_date, hub, origin_code, route_family=RouteFamily.DOMESTIC_RU, priority=1)
         else:
             if include_generic_direct_controls:
                 for dest_code, dest_extra in destination_segment_options:
                     for origin_code, origin_extra in origin_segment_options:
-                        add_live_segment(
-                            "return",
-                            "direct_return",
+                        add_live_segment(Direction.RETURN, Leg.DIRECT_RETURN,
                             ret,
                             dest_code,
                             origin_code,
@@ -750,12 +704,12 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
                         )
             for dest_code in destination_airports:
                 for hub in hubs:
-                    add_live_segment("return", "destination_to_hub", ret, dest_code, hub, route_family="hub_list", priority=1)
+                    add_live_segment(Direction.RETURN, Leg.DESTINATION_TO_HUB, ret, dest_code, hub, route_family=RouteFamily.HUB_LIST, priority=1)
             for offset in return_second_offsets:
                 leg_date = ret + timedelta(days=offset)
                 for hub in hubs:
                     for origin_code in origin_airports:
-                        add_live_segment("return", "hub_to_origin", leg_date, hub, origin_code, route_family="hub_list", priority=1)
+                        add_live_segment(Direction.RETURN, Leg.HUB_TO_ORIGIN, leg_date, hub, origin_code, route_family=RouteFamily.HUB_LIST, priority=1)
 
     assembly_warning = (
         "KupiBilet live segment assembly uses direct-only one-way searches; availability and price still require final booking-screen recheck."
@@ -766,12 +720,12 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
         assembly_warning,
         "Assembled candidates are usually separate-ticket/self-transfer unless the booking site later confirms protected through-ticketing.",
     ]
-    if routing_strategy == "ru-priority":
+    if routing_strategy == RoutingStrategy.RU_PRIORITY:
         if routing_profile == "asia-oceania":
             warnings.append("Using geo-aware ru-priority routing: direct control, SVO as an independent Asia/Oceania hub, IST fallback, DXB only if priority routes are not usable.")
         else:
             warnings.append("Using ru-priority routing: direct control, IST direct first, SVO/Moscow gateway control even when direct exists, DXB only if priority routes are not usable.")
-    elif routing_strategy == "domestic-ru":
+    elif routing_strategy == RoutingStrategy.DOMESTIC_RU:
         warnings.append("Using domestic-RU routing: direct domestic controls first, Moscow airports only as bounded fallback; international hubs are excluded by default.")
     elif hub_source == "default":
         warnings.append("Using built-in hub list; pass --hub repeatedly to narrow live segment searches.")
@@ -792,7 +746,7 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
         coverage_control_limit=route_context.coverage_limits.get("coverage_control_limit"),
     )
     if direct_only:
-        coverage_controls = [control for control in coverage_controls if control.get("type") == "exact_airport_direct"]
+        coverage_controls = [control for control in coverage_controls if control.get("type") == RequiredControl.EXACT_AIRPORT_DIRECT]
     route_graph = route_graph_from_segments(
         routing_strategy=routing_strategy,
         routing_profile=routing_profile,
@@ -854,7 +808,7 @@ def run_live_route_assembly(args: argparse.Namespace, store: Store) -> dict[str,
             error_type="validation_error",
             details={"planned": plan["metrics"]["segment_search_count"], "max_segment_searches": max_searches},
         )
-    if plan.get("routing_strategy") == "ru-priority" and not getattr(args, "prefer_carrier", None):
+    if plan.get("routing_strategy") == RoutingStrategy.RU_PRIORITY and not getattr(args, "prefer_carrier", None):
         args.prefer_carrier = list(PRIORITY_ROUTE_CARRIERS)
     only_carriers = [normalize_carrier_code(code, "only-carrier") for code in (args.only_carrier or [])]
     segment_results: list[dict[str, Any]] = []
@@ -968,7 +922,7 @@ def run_live_route_assembly(args: argparse.Namespace, store: Store) -> dict[str,
         }
 
     def skipped_by_direct_route_intel(spec: dict[str, Any]) -> dict[str, Any] | None:
-        if direct_route_index is None or spec.get("leg") not in {"direct_outbound", "direct_return"}:
+        if direct_route_index is None or spec.get("leg") not in {Leg.DIRECT_OUTBOUND, Leg.DIRECT_RETURN}:
             return None
         routes = direct_route_index.get("routes") if isinstance(direct_route_index.get("routes"), dict) else {}
         origin = str(spec.get("origin") or "").upper()
@@ -1016,19 +970,19 @@ def run_live_route_assembly(args: argparse.Namespace, store: Store) -> dict[str,
             offer_counts[key] = offer_counts.get(key, 0) + int(search.get("offer_count") or 0)
 
     def priority_route_viable(direction: str) -> bool:
-        if plan.get("routing_strategy") != "ru-priority":
+        if plan.get("routing_strategy") != RoutingStrategy.RU_PRIORITY:
             return False
         if direction in priority_route_viability:
             return priority_route_viability[direction]
         ensure_moscow_gateway_control_synthesized(direction)
-        if direction == "outbound":
-            first_leg = "origin_to_hub"
-            second_leg = "hub_to_destination"
-            direct_leg = "direct_outbound"
-        elif direction == "return":
-            first_leg = "destination_to_hub"
-            second_leg = "hub_to_origin"
-            direct_leg = "direct_return"
+        if direction == Direction.OUTBOUND:
+            first_leg = Leg.ORIGIN_TO_HUB
+            second_leg = Leg.HUB_TO_DESTINATION
+            direct_leg = Leg.DIRECT_OUTBOUND
+        elif direction == Direction.RETURN:
+            first_leg = Leg.DESTINATION_TO_HUB
+            second_leg = Leg.HUB_TO_ORIGIN
+            direct_leg = Leg.DIRECT_RETURN
         else:
             return False
         direct = direct_journeys(segment_results, direct_leg, direction, args.limit_per_pair)

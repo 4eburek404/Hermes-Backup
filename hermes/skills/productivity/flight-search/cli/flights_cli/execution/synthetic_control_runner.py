@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..config import PRIORITY_MOSCOW_GATEWAY, PRIORITY_PRIMARY_HUB
+from ..domain.vocabulary import Leg, RoutingStrategy
 from ..domain.normalize import currency_value, price_value
 
 def segment_result_matches(result: dict[str, Any], direction: str, leg: str, origin: str, destination: str) -> bool:
@@ -65,7 +66,7 @@ def synthesize_moscow_gateway_control_results(
     segment_results: list[dict[str, Any]],
     directions: set[str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    if plan.get("routing_strategy") != "ru-priority":
+    if plan.get("routing_strategy") != RoutingStrategy.RU_PRIORITY:
         return [], []
 
     synthetic_results: list[dict[str, Any]] = []
@@ -148,7 +149,7 @@ def synthesize_moscow_gateway_control_results(
         if (directions is None or "outbound" in directions) and origin != PRIORITY_MOSCOW_GATEWAY:
             synthesize(
                 direction="outbound",
-                direct_leg="origin_to_hub",
+                direct_leg=Leg.ORIGIN_TO_HUB,
                 first_leg="origin_to_gateway",
                 second_leg="gateway_to_hub",
                 origin=origin,
@@ -158,7 +159,7 @@ def synthesize_moscow_gateway_control_results(
             if PRIORITY_PRIMARY_HUB in final_destination_airports:
                 synthesize(
                     direction="outbound",
-                    direct_leg="direct_outbound",
+                    direct_leg=Leg.DIRECT_OUTBOUND,
                     first_leg="origin_to_gateway",
                     second_leg="gateway_to_hub",
                     origin=origin,
@@ -168,7 +169,7 @@ def synthesize_moscow_gateway_control_results(
         if (directions is None or "return" in directions) and plan["dates"].get("return") and origin != PRIORITY_MOSCOW_GATEWAY:
             synthesize(
                 direction="return",
-                direct_leg="hub_to_origin",
+                direct_leg=Leg.HUB_TO_ORIGIN,
                 first_leg="hub_to_gateway",
                 second_leg="gateway_to_origin",
                 origin=PRIORITY_PRIMARY_HUB,
@@ -178,7 +179,7 @@ def synthesize_moscow_gateway_control_results(
             if PRIORITY_PRIMARY_HUB in final_destination_airports:
                 synthesize(
                     direction="return",
-                    direct_leg="direct_return",
+                    direct_leg=Leg.DIRECT_RETURN,
                     first_leg="hub_to_gateway",
                     second_leg="gateway_to_origin",
                     origin=PRIORITY_PRIMARY_HUB,

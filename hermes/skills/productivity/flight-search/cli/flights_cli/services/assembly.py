@@ -10,6 +10,7 @@ from ..domain.normalize import currency_value, is_reject_score, price_value
 from ..domain.stop_metrics import journey_connection_count
 from ..domain.stop_policy import decide_stop_policy, stop_policy_from_args, stop_policy_payload
 from ..domain.time import elapsed_minutes, minutes_between
+from ..domain.vocabulary import Direction, Leg, StopBucket
 from ..errors import CliError
 from ..services.ranking import carrier_policy_from_args, carrier_policy_output, rank_candidate_list
 from ..services.validation import connection_risk_points, connection_rule
@@ -289,14 +290,14 @@ def direct_journeys(
 def journey_stop_policy_bucket(journey: dict[str, Any], stop_policy: Any) -> str:
     decision = decide_stop_policy(journey_connection_count(journey), stop_policy)
     if decision.eligible_for_preferred_generation:
-        return "preferred"
+        return StopBucket.PREFERRED
     if decision.eligible_for_tier2_generation:
-        return "tier2"
-    return "suppressed"
+        return StopBucket.TIER2
+    return StopBucket.SUPPRESSED
 
 
 def split_journeys_by_stop_policy(journeys: list[dict[str, Any]], stop_policy: Any) -> dict[str, list[dict[str, Any]]]:
-    buckets: dict[str, list[dict[str, Any]]] = {"preferred": [], "tier2": [], "suppressed": []}
+    buckets: dict[str, list[dict[str, Any]]] = {StopBucket.PREFERRED: [], StopBucket.TIER2: [], StopBucket.SUPPRESSED: []}
     for journey in journeys:
         buckets[journey_stop_policy_bucket(journey, stop_policy)].append(journey)
     return buckets
@@ -344,12 +345,12 @@ def stop_policy_generation_diagnostics(
     generation_mode: str,
     tier2_used: bool,
 ) -> dict[str, Any]:
-    preferred_outbound_count = len(outbound_buckets["preferred"])
-    preferred_return_count = len(return_buckets["preferred"])
-    tier2_outbound_count = len(outbound_buckets["tier2"])
-    tier2_return_count = len(return_buckets["tier2"])
-    suppressed_outbound_count = len(outbound_buckets["suppressed"])
-    suppressed_return_count = len(return_buckets["suppressed"])
+    preferred_outbound_count = len(outbound_buckets[StopBucket.PREFERRED])
+    preferred_return_count = len(return_buckets[StopBucket.PREFERRED])
+    tier2_outbound_count = len(outbound_buckets[StopBucket.TIER2])
+    tier2_return_count = len(return_buckets[StopBucket.TIER2])
+    suppressed_outbound_count = len(outbound_buckets[StopBucket.SUPPRESSED])
+    suppressed_return_count = len(return_buckets[StopBucket.SUPPRESSED])
     return {
         "candidate_generation_mode": generation_mode,
         "tier2_used": tier2_used,
@@ -667,9 +668,9 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
 
     outbound_pairs, outbound_rejected = assemble_direction(
         segment_results,
-        "origin_to_hub",
-        "hub_to_destination",
-        "outbound",
+        Leg.ORIGIN_TO_HUB,
+        Leg.HUB_TO_DESTINATION,
+        Direction.OUTBOUND,
         args.limit_per_pair,
         ticketing=args.ticketing,
         min_same_airport=args.min_same_airport_min,
@@ -678,17 +679,17 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
     )
     return_pairs, return_rejected = assemble_direction(
         segment_results,
-        "destination_to_hub",
-        "hub_to_origin",
-        "return",
+        Leg.DESTINATION_TO_HUB,
+        Leg.HUB_TO_ORIGIN,
+        Direction.RETURN,
         args.limit_per_pair,
         ticketing=args.ticketing,
         min_same_airport=args.min_same_airport_min,
         min_cross_airport=args.min_cross_airport_min,
         profile=args.profile,
     )
-    outbound_direct = direct_journeys(segment_results, "direct_outbound", "outbound", args.limit_per_pair)
-    return_direct = direct_journeys(segment_results, "direct_return", "return", args.limit_per_pair)
+    outbound_direct = direct_journeys(segment_results, Leg.DIRECT_OUTBOUND, Direction.OUTBOUND, args.limit_per_pair)
+    return_direct = direct_journeys(segment_results, Leg.DIRECT_RETURN, Direction.RETURN, args.limit_per_pair)
     outbound_journeys = outbound_direct + outbound_pairs
     return_journeys = return_direct + return_pairs
     rejected_pairs = outbound_rejected + return_rejected
@@ -699,16 +700,16 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
     return_buckets = split_journeys_by_stop_policy(return_journeys, stop_policy)
     round_trip_requested = bool(getattr(args, "return_date", None)) or (bool(outbound_journeys) and bool(return_journeys))
     candidates, candidate_pool_truncated = generate_candidates_from_journeys(
-        outbound_buckets["preferred"],
-        return_buckets["preferred"],
+        outbound_buckets[StopBucket.PREFERRED],
+        return_buckets[StopBucket.PREFERRED],
         candidate_pool_limit,
         require_both_directions=round_trip_requested,
     )
-    generation_mode = "preferred" if candidates else "none"
+    generation_mode = StopBucket.PREFERRED if candidates else "none"
     tier2_used = False
     if not candidates:
-        tier2_outbound = outbound_buckets["preferred"] + outbound_buckets["tier2"]
-        tier2_return = return_buckets["preferred"] + return_buckets["tier2"]
+        tier2_outbound = outbound_buckets[StopBucket.PREFERRED] + outbound_buckets[StopBucket.TIER2]
+        tier2_return = return_buckets[StopBucket.PREFERRED] + return_buckets[StopBucket.TIER2]
         candidates, candidate_pool_truncated = generate_candidates_from_journeys(
             tier2_outbound,
             tier2_return,
@@ -716,7 +717,7 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
             require_both_directions=round_trip_requested,
         )
         if candidates:
-            generation_mode = "tier2"
+            generation_mode = StopBucket.TIER2
             tier2_used = True
     generation_diagnostics = stop_policy_generation_diagnostics(
         outbound_buckets=outbound_buckets,

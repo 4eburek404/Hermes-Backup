@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..domain.vocabulary import EvidenceClass
+
 OFFER_GRAPH_ALGORITHM = "unified_offer_graph.v1"
 
 
@@ -62,7 +64,7 @@ def build_offer_graph(report: dict[str, Any], plan: dict[str, Any], live: dict[s
         "capability_boundaries": capability_boundaries,
         "truth_language": {
             "inventory_scope": "live_provider_returned_inventory",
-            "absence_claim": "bounded_live_controls_only",
+            EvidenceClass.ABSENCE_CLAIM: "bounded_live_controls_only",
             "direct_wording": "нашёл все прямые, которые вернул live-поставщик",
             "negative_wording": "не нашёл в выполненных live/probe источниках; это не доказательство отсутствия вне границ источника",
             "capability_boundary_wording": "часть проверок не поддерживается текущим provider/source; это граница источника, не доказательство отсутствия рейса",

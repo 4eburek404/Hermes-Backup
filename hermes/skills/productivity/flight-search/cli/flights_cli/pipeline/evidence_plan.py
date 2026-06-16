@@ -4,20 +4,13 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
-from ._shared import as_tuple, is_direct_only
+from ..domain.vocabulary import AbsenceReason, EvidenceClass, IntentClass, RequiredControl, RoutingStrategy
 from .flow_decision import FlowDecision
 from .search_request import SearchRequest
 
 
-ABSENCE_TAXONOMY = (
-    "provider_empty",
-    "provider_horizon_uncertainty",
-    "provider_coverage_gap",
-    "constraint_mismatch",
-    "runtime_provider_failure",
-    "structural_unavailability",
-    "ticketing_protection_uncertainty",
-)
+ABSENCE_TAXONOMY = tuple(AbsenceReason)
+
 
 @dataclass(frozen=True, slots=True)
 class EvidencePlan:
@@ -82,6 +75,21 @@ def _int_option(options: dict[str, Any], name: str, default: int) -> int:
         return default
 
 
+def _tuple_option(options: dict[str, Any], name: str) -> tuple[Any, ...]:
+    value = options.get(name)
+    if value is None:
+        return ()
+    if isinstance(value, tuple):
+        return value
+    if isinstance(value, list):
+        return tuple(value)
+    return (value,)
+
+
+def _is_direct_only(options: dict[str, Any]) -> bool:
+    return options.get("max_connections") == 0 and options.get("tier2_max_connections") == 0
+
+
 def _days_until_departure(depart_date: str) -> int | None:
     try:
         depart = date.fromisoformat(str(depart_date))
@@ -92,27 +100,27 @@ def _days_until_departure(depart_date: str) -> int | None:
 
 def _required_controls(options: dict[str, Any], decision: FlowDecision, direct_only: bool) -> tuple[str, ...]:
     controls: list[str] = []
-    if direct_only or decision.intent_class == "direct_inventory":
-        controls.append("exact_airport_direct")
+    if direct_only or decision.intent_class == IntentClass.DIRECT_INVENTORY:
+        controls.append(RequiredControl.EXACT_AIRPORT_DIRECT)
     if options.get("date_window_end"):
-        controls.append("date_window_direct")
-    if decision.routing_strategy == "ru-priority":
-        controls.append("moscow_gateway_direct")
-    if decision.intent_class == "carrier_or_airport_scope" or as_tuple(options.get("only_carrier")) or as_tuple(options.get("aggregate_control_carrier")):
-        controls.append("carrier_aggregate")
-    if decision.evidence_class == "ticketing_required":
-        controls.append("full_route_aggregate")
-    if decision.evidence_class in {"absence_claim", "ticketing_required"} and not controls:
-        controls.append("exact_airport_direct")
+        controls.append(RequiredControl.DATE_WINDOW_DIRECT)
+    if decision.routing_strategy == RoutingStrategy.RU_PRIORITY:
+        controls.append(RequiredControl.MOSCOW_GATEWAY_DIRECT)
+    if decision.intent_class == IntentClass.CARRIER_OR_AIRPORT_SCOPE or _tuple_option(options, "only_carrier") or _tuple_option(options, "aggregate_control_carrier"):
+        controls.append(RequiredControl.CARRIER_AGGREGATE)
+    if decision.evidence_class == EvidenceClass.TICKETING_REQUIRED:
+        controls.append(RequiredControl.FULL_ROUTE_AGGREGATE)
+    if decision.evidence_class in {EvidenceClass.ABSENCE_CLAIM, EvidenceClass.TICKETING_REQUIRED} and not controls:
+        controls.append(RequiredControl.EXACT_AIRPORT_DIRECT)
     return tuple(dict.fromkeys(controls))
 
 
 def _freshness_policy(request: SearchRequest, decision: FlowDecision, options: dict[str, Any]) -> dict[str, Any]:
     reasons: list[str] = []
     days_until = _days_until_departure(request.depart_date)
-    if decision.evidence_class == "absence_claim":
+    if decision.evidence_class == EvidenceClass.ABSENCE_CLAIM:
         reasons.append("absence_claim_requires_live_freshness")
-    if decision.evidence_class == "ticketing_required":
+    if decision.evidence_class == EvidenceClass.TICKETING_REQUIRED:
         reasons.append("ticketing_required_requires_live_freshness")
     if bool(options.get("no_live_cache", False)):
         reasons.append("request_disabled_live_cache")
@@ -128,9 +136,9 @@ def _freshness_policy(request: SearchRequest, decision: FlowDecision, options: d
 
 
 def _missing_evidence(decision: FlowDecision) -> tuple[str, ...]:
-    if decision.evidence_class == "ticketing_required":
+    if decision.evidence_class == EvidenceClass.TICKETING_REQUIRED:
         return ("single_pnr_or_protection_proof", "baggage_through_proof")
-    if decision.evidence_class == "absence_claim":
+    if decision.evidence_class == EvidenceClass.ABSENCE_CLAIM:
         return ("targeted_live_controls_until_executed",)
     return ()
 
@@ -138,7 +146,7 @@ def _missing_evidence(decision: FlowDecision) -> tuple[str, ...]:
 def plan_evidence(request: SearchRequest, decision: FlowDecision) -> EvidencePlan:
     options = dict(request.compatibility_options)
     direct_route_ttl = _int_option(options, "direct_route_index_ttl_seconds", 0)
-    direct_only = is_direct_only(options)
+    direct_only = _is_direct_only(options)
     freshness_policy = _freshness_policy(request, decision, options)
     cache_enabled = not bool(options.get("no_live_cache", False))
     cache_ttl = _int_option(options, "live_cache_ttl_seconds", 0)
@@ -154,9 +162,9 @@ def plan_evidence(request: SearchRequest, decision: FlowDecision) -> EvidencePla
         direct_route_intel_enabled=not bool(options.get("no_direct_route_intel", False)) and direct_route_ttl > 0,
         direct_route_index_ttl_seconds=direct_route_ttl,
         aggregate_control_limit=_int_option(options, "aggregate_control_limit", 0),
-        aggregate_control_carriers=as_tuple(options.get("aggregate_control_carrier")),
+        aggregate_control_carriers=_tuple_option(options, "aggregate_control_carrier"),
         coverage_mode=str(options.get("coverage_mode") or "targeted"),
-        coverage_controls=as_tuple(options.get("coverage_control")),
+        coverage_controls=_tuple_option(options, "coverage_control"),
         coverage_control_limit=_int_option(options, "coverage_control_limit", 0),
         include_segment_results=_int_option(options, "include_segment_results", 0),
         evidence_class=decision.evidence_class,

@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any
 
+from ..domain.vocabulary import Leg
+
 _COMPACT_OFFER_FIELDS = (
     "carrier",
     "flight_number",
@@ -71,7 +73,7 @@ def build_date_window_inventory(
 
     summaries_by_date: dict[str, list[dict[str, Any]]] = {date_text: [] for date_text in window}
     for item in segment_searches or []:
-        if not isinstance(item, dict) or item.get("leg") != "direct_outbound":
+        if not isinstance(item, dict) or item.get("leg") != Leg.DIRECT_OUTBOUND:
             continue
         date_text = str(item.get("date") or "")
         if date_text in summaries_by_date:
@@ -79,7 +81,7 @@ def build_date_window_inventory(
 
     offers_by_date: dict[str, list[dict[str, Any]]] = {date_text: [] for date_text in window}
     for result in segment_results or []:
-        if not isinstance(result, dict) or result.get("leg") != "direct_outbound":
+        if not isinstance(result, dict) or result.get("leg") != Leg.DIRECT_OUTBOUND:
             continue
         date_text = str(result.get("date") or "")
         if date_text not in offers_by_date:
