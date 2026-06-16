@@ -798,315 +798,331 @@ def build_live_route_segment_plan(args: argparse.Namespace, store: Store, *, flo
     }
 
 
-def run_live_route_assembly(args: argparse.Namespace, store: Store) -> dict[str, Any]:
-    flow = build_live_route_search_flow(args, store)
-    plan = build_live_route_segment_plan(args, store, flow=flow)
-    max_searches = max(1, int(flow.evidence_plan.max_segment_searches))
-    if plan["metrics"]["segment_search_count"] > max_searches:
-        raise CliError(
-            f"planned {plan['metrics']['segment_search_count']} segment searches exceeds --max-segment-searches {max_searches}",
-            error_type="validation_error",
-            details={"planned": plan["metrics"]["segment_search_count"], "max_segment_searches": max_searches},
-        )
-    if plan.get("routing_strategy") == RoutingStrategy.RU_PRIORITY and not getattr(args, "prefer_carrier", None):
-        args.prefer_carrier = list(PRIORITY_ROUTE_CARRIERS)
-    only_carriers = [normalize_carrier_code(code, "only-carrier") for code in (args.only_carrier or [])]
-    segment_results: list[dict[str, Any]] = []
-    searches: list[dict[str, Any]] = []
-    failures: list[dict[str, Any]] = []
-    offer_counts: dict[tuple[str, str, str, str], int] = {}
-    synthetic_moscow_control_done: set[str] = set()
-    priority_route_viability: dict[str, bool] = {}
-    cache_ttl_seconds = int(flow.evidence_plan.live_cache_ttl_seconds)
-    use_live_cache = bool(flow.evidence_plan.live_cache_enabled)
-    provider_policy = flow.evidence_plan.provider_policy
-    direct_route_index, direct_route_intel = direct_route_intel_context(args, store, plan)
-    request_deduper = RequestDeduper()
-    probe_ledger = ProbeExecutionLedger()
+class LiveAssemblyRunner:
+    """Stateful orchestrator for live route assembly.
 
-    def skipped_by_offer_keys(
-        spec: dict[str, Any],
-        *,
-        keys: list[tuple[str, str, str, str]],
-        reason: str,
-        note: str,
-    ) -> dict[str, Any] | None:
-        matched = [
-            {
-                "direction": key[0],
-                "leg": key[1],
-                "origin": key[2],
-                "destination": key[3],
-                "offer_count": offer_counts[key],
-            }
-            for key in keys
-            if int(offer_counts.get(key, 0)) > 0
-        ]
-        if not matched:
-            return None
-        return {
-            **spec,
-            "status": "skipped",
-            "reason": reason,
-            "offer_count": 0,
-            "skipped_because": {
-                "matched_offer_counts": matched,
-                "note": note,
-            },
-        }
+    Created once per search; ``run()`` executes the full probe-assemble
+    pipeline and returns the assembled result dict.
+    """
 
-    def skipped_by_preferred_airport_tier(spec: dict[str, Any]) -> dict[str, Any] | None:
-        return skipped_by_offer_keys(
-            spec,
-            keys=preferred_keys_for_deferred_airport(spec, plan),
-            reason="preferred_airport_tier_has_offers",
-            note="Fallback airport tier was deferred because a preferred airport tier already produced accepted offers.",
-        )
+    def __init__(self, args: argparse.Namespace, store: Store) -> None:
+        self.args = args
+        self.store = store
 
-    def skipped_by_city_code_primary(spec: dict[str, Any]) -> dict[str, Any] | None:
-        return skipped_by_offer_keys(
-            spec,
-            keys=city_code_primary_keys_for_deferred_airport(spec),
-            reason="city_code_request_has_offers",
-            note="Exact airport deferred probe was skipped because the provider city-code request already produced accepted offers.",
-        )
+    def run(self) -> dict[str, Any]:
+        args, store = self.args, self.store
+        flow = build_live_route_search_flow(args, store)
+        plan = build_live_route_segment_plan(args, store, flow=flow)
+        max_searches = max(1, int(flow.evidence_plan.max_segment_searches))
+        if plan["metrics"]["segment_search_count"] > max_searches:
+            raise CliError(
+                f"planned {plan['metrics']['segment_search_count']} segment searches exceeds --max-segment-searches {max_searches}",
+                error_type="validation_error",
+                details={"planned": plan["metrics"]["segment_search_count"], "max_segment_searches": max_searches},
+            )
+        if plan.get("routing_strategy") == RoutingStrategy.RU_PRIORITY and not getattr(args, "prefer_carrier", None):
+            args.prefer_carrier = list(PRIORITY_ROUTE_CARRIERS)
+        only_carriers = [normalize_carrier_code(code, "only-carrier") for code in (args.only_carrier or [])]
+        segment_results: list[dict[str, Any]] = []
+        searches: list[dict[str, Any]] = []
+        failures: list[dict[str, Any]] = []
+        offer_counts: dict[tuple[str, str, str, str], int] = {}
+        synthetic_moscow_control_done: set[str] = set()
+        priority_route_viability: dict[str, bool] = {}
+        cache_ttl_seconds = int(flow.evidence_plan.live_cache_ttl_seconds)
+        use_live_cache = bool(flow.evidence_plan.live_cache_enabled)
+        provider_policy = flow.evidence_plan.provider_policy
+        direct_route_index, direct_route_intel = direct_route_intel_context(args, store, plan)
+        request_deduper = RequestDeduper()
+        probe_ledger = ProbeExecutionLedger()
 
-    def skipped_by_condition(spec: dict[str, Any]) -> dict[str, Any] | None:
-        direct_skip = skipped_by_direct_route_intel(spec)
-        if direct_skip is not None:
-            return direct_skip
-        preferred_skip = skipped_by_preferred_airport_tier(spec)
-        if preferred_skip is not None:
-            return preferred_skip
-        city_code_skip = skipped_by_city_code_primary(spec)
-        if city_code_skip is not None:
-            return city_code_skip
-        condition = spec.get("skip_if_offer_exists")
-        if not isinstance(condition, dict):
-            priority_direction = spec.get("skip_if_priority_route_viable")
-            if not priority_direction:
-                return None
-            direction = str(priority_direction)
-            if not priority_route_viable(direction):
+        def skipped_by_offer_keys(
+            spec: dict[str, Any],
+            *,
+            keys: list[tuple[str, str, str, str]],
+            reason: str,
+            note: str,
+        ) -> dict[str, Any] | None:
+            matched = [
+                {
+                    "direction": key[0],
+                    "leg": key[1],
+                    "origin": key[2],
+                    "destination": key[3],
+                    "offer_count": offer_counts[key],
+                }
+                for key in keys
+                if int(offer_counts.get(key, 0)) > 0
+            ]
+            if not matched:
                 return None
             return {
                 **spec,
                 "status": "skipped",
-                "reason": "priority_route_viable",
+                "reason": reason,
                 "offer_count": 0,
                 "skipped_because": {
-                    "direction": direction,
-                    "note": "DXB skipped because direct/SVO/IST priority routing already produced a non-error journey.",
+                    "matched_offer_counts": matched,
+                    "note": note,
                 },
             }
-        key = (
-            str(condition.get("direction") or ""),
-            str(condition.get("leg") or ""),
-            str(condition.get("origin") or "").upper(),
-            str(condition.get("destination") or "").upper(),
-        )
-        if int(offer_counts.get(key, 0)) <= 0:
-            return None
-        return {
-            **spec,
-            "status": "skipped",
-            "reason": "direct_probe_has_offers",
-            "offer_count": 0,
-            "skipped_because": {
-                "direction": key[0],
-                "leg": key[1],
-                "origin": key[2],
-                "destination": key[3],
-                "offer_count": offer_counts[key],
-            },
-        }
 
-    def skipped_by_direct_route_intel(spec: dict[str, Any]) -> dict[str, Any] | None:
-        if direct_route_index is None or spec.get("leg") not in {Leg.DIRECT_OUTBOUND, Leg.DIRECT_RETURN}:
-            return None
-        routes = direct_route_index.get("routes") if isinstance(direct_route_index.get("routes"), dict) else {}
-        origin = str(spec.get("origin") or "").upper()
-        destination = str(spec.get("destination") or "").upper()
-        if origin == "SVX":
-            route_set = {str(code).upper() for code in (routes.get("outbound") or [])}
-            checked_airport = destination
-        elif destination == "SVX":
-            route_set = {str(code).upper() for code in (routes.get("return") or [])}
-            checked_airport = origin
-        else:
-            return None
-        if checked_airport in route_set:
-            return None
-        return {
-            **spec,
-            "status": "skipped",
-            "reason": "direct_route_schedule_negative",
-            "offer_count": 0,
-            "skipped_because": {
-                "checked_airport": checked_airport,
-                "airport": "SVX",
-                "source": direct_route_index.get("source"),
-                "fetched_at": direct_route_index.get("fetched_at"),
-                "note": "Official SVX seasonal schedule has no direct route for this exact airport pair; hub routing is still checked.",
-            },
-        }
-
-    def ensure_moscow_gateway_control_synthesized(direction: str | None = None) -> None:
-        directions = {"outbound", "return"} if direction is None else {direction}
-        pending = directions - synthetic_moscow_control_done
-        if not pending:
-            return
-        synthetic_moscow_control_done.update(pending)
-        synthetic_results, synthetic_searches = synthesize_moscow_gateway_control_results(plan, segment_results, directions=pending)
-        segment_results.extend(synthetic_results)
-        searches.extend(synthetic_searches)
-        for search in synthetic_searches:
-            key = (
-                str(search.get("direction") or ""),
-                str(search.get("leg") or ""),
-                str(search.get("origin") or "").upper(),
-                str(search.get("destination") or "").upper(),
+        def skipped_by_preferred_airport_tier(spec: dict[str, Any]) -> dict[str, Any] | None:
+            return skipped_by_offer_keys(
+                spec,
+                keys=preferred_keys_for_deferred_airport(spec, plan),
+                reason="preferred_airport_tier_has_offers",
+                note="Fallback airport tier was deferred because a preferred airport tier already produced accepted offers.",
             )
-            offer_counts[key] = offer_counts.get(key, 0) + int(search.get("offer_count") or 0)
 
-    def priority_route_viable(direction: str) -> bool:
-        if plan.get("routing_strategy") != RoutingStrategy.RU_PRIORITY:
-            return False
-        if direction in priority_route_viability:
-            return priority_route_viability[direction]
-        ensure_moscow_gateway_control_synthesized(direction)
-        if direction == Direction.OUTBOUND:
-            first_leg = Leg.ORIGIN_TO_HUB
-            second_leg = Leg.HUB_TO_DESTINATION
-            direct_leg = Leg.DIRECT_OUTBOUND
-        elif direction == Direction.RETURN:
-            first_leg = Leg.DESTINATION_TO_HUB
-            second_leg = Leg.HUB_TO_ORIGIN
-            direct_leg = Leg.DIRECT_RETURN
-        else:
-            return False
-        direct = direct_journeys(segment_results, direct_leg, direction, args.limit_per_pair)
-        if direct:
-            priority_route_viability[direction] = True
-            return True
-        pairs, _ = assemble_direction(
-            segment_results,
-            first_leg,
-            second_leg,
-            direction,
-            args.limit_per_pair,
-            ticketing=args.ticketing,
-            min_same_airport=args.min_same_airport_min,
-            min_cross_airport=args.min_cross_airport_min,
-            profile=args.profile,
-        )
-        viable = False
-        for pair in pairs:
-            offers = [offer for offer in (pair.get("offers") or []) if isinstance(offer, dict)]
-            if len(offers) < 2:
-                continue
-            hub = str(offers[0].get("arrival_airport") or offers[0].get("destination") or "").upper()
-            next_origin = str(offers[1].get("departure_airport") or offers[1].get("origin") or "").upper()
-            if hub != next_origin or hub == PRIORITY_SECONDARY_HUB:
-                continue
-            if (pair.get("connection_quality") or {}).get("severity") != "error":
-                viable = True
-                break
-        priority_route_viability[direction] = viable
-        return viable
+        def skipped_by_city_code_primary(spec: dict[str, Any]) -> dict[str, Any] | None:
+            return skipped_by_offer_keys(
+                spec,
+                keys=city_code_primary_keys_for_deferred_airport(spec),
+                reason="city_code_request_has_offers",
+                note="Exact airport deferred probe was skipped because the provider city-code request already produced accepted offers.",
+            )
 
-    def record_segment_probe_summary(
-        spec: dict[str, Any],
-        summary: dict[str, Any],
-        *,
-        provider_result: Any | None = None,
-    ) -> None:
-        intent_spec = {**spec, "only_carriers": spec.get("only_carriers") or only_carriers}
-        intent = intent_from_segment(intent_spec, provider=summary.get("provider"), probe_id=summary.get("probe_id"))
-        status = summary.get("status")
-        if status == "deduped":
-            probe_ledger.record_deduped(intent, original_probe_id=summary.get("original_probe_id"))
-            return
-        probe_ledger.plan_intents([intent])
-        if provider_result is not None:
-            probe_ledger.record_provider_result(intent, provider_result)
-            return
-        if status == "skipped":
-            probe_ledger.record_skipped(intent, reason=summary.get("reason"))
-            return
-        if status == "error":
-            probe_ledger.record_failed(intent, provider=summary.get("provider"), error=summary.get("error"))
-            return
-        if status == "not_supported":
-            probe_ledger.record_not_supported(intent, provider=summary.get("provider"), reason=summary.get("reason"))
-            return
-        probe_ledger.record_searched(
-            intent,
-            status=status or "ok",
-            provider=summary.get("provider"),
-            offer_count=summary.get("offer_count", 0),
-            cache_status=summary.get("cache_status"),
-        )
+        def skipped_by_condition(spec: dict[str, Any]) -> dict[str, Any] | None:
+            direct_skip = skipped_by_direct_route_intel(spec)
+            if direct_skip is not None:
+                return direct_skip
+            preferred_skip = skipped_by_preferred_airport_tier(spec)
+            if preferred_skip is not None:
+                return preferred_skip
+            city_code_skip = skipped_by_city_code_primary(spec)
+            if city_code_skip is not None:
+                return city_code_skip
+            condition = spec.get("skip_if_offer_exists")
+            if not isinstance(condition, dict):
+                priority_direction = spec.get("skip_if_priority_route_viable")
+                if not priority_direction:
+                    return None
+                direction = str(priority_direction)
+                if not priority_route_viable(direction):
+                    return None
+                return {
+                    **spec,
+                    "status": "skipped",
+                    "reason": "priority_route_viable",
+                    "offer_count": 0,
+                    "skipped_because": {
+                        "direction": direction,
+                        "note": "DXB skipped because direct/SVO/IST priority routing already produced a non-error journey.",
+                    },
+                }
+            key = (
+                str(condition.get("direction") or ""),
+                str(condition.get("leg") or ""),
+                str(condition.get("origin") or "").upper(),
+                str(condition.get("destination") or "").upper(),
+            )
+            if int(offer_counts.get(key, 0)) <= 0:
+                return None
+            return {
+                **spec,
+                "status": "skipped",
+                "reason": "direct_probe_has_offers",
+                "offer_count": 0,
+                "skipped_because": {
+                    "direction": key[0],
+                    "leg": key[1],
+                    "origin": key[2],
+                    "destination": key[3],
+                    "offer_count": offer_counts[key],
+                },
+            }
 
-    for spec in plan["segments"]:
-        skipped = skipped_by_condition(spec)
-        if skipped is not None:
-            searches.append(skipped)
-            record_segment_probe_summary(spec, skipped)
-            continue
-        for outcome in dispatch_segment_probe(
-            spec=spec,
-            plan=plan,
-            args=args,
-            store=store,
-            only_carriers=only_carriers,
-            cache_ttl_seconds=cache_ttl_seconds,
-            use_live_cache=use_live_cache,
-            provider_policy=provider_policy,
-            kupibilet_fetcher=fetch_kupibilet_search,
-            request_deduper=request_deduper,
-        ):
-            searches.append(outcome.summary)
-            record_segment_probe_summary(spec, outcome.summary, provider_result=outcome.provider_result)
-            if outcome.failure is not None:
-                failures.append(outcome.failure)
-                continue
-            segment_result = outcome.segment_result
-            if segment_result is None:
-                continue
-            key = search_key(spec)
-            offer_counts[key] = offer_counts.get(key, 0) + len(segment_result.get("offers") or [])
-            if outcome.include_segment_result and segment_result["offers"]:
-                segment_results.append(segment_result)
+        def skipped_by_direct_route_intel(spec: dict[str, Any]) -> dict[str, Any] | None:
+            if direct_route_index is None or spec.get("leg") not in {Leg.DIRECT_OUTBOUND, Leg.DIRECT_RETURN}:
+                return None
+            routes = direct_route_index.get("routes") if isinstance(direct_route_index.get("routes"), dict) else {}
+            origin = str(spec.get("origin") or "").upper()
+            destination = str(spec.get("destination") or "").upper()
+            if origin == "SVX":
+                route_set = {str(code).upper() for code in (routes.get("outbound") or [])}
+                checked_airport = destination
+            elif destination == "SVX":
+                route_set = {str(code).upper() for code in (routes.get("return") or [])}
+                checked_airport = origin
+            else:
+                return None
+            if checked_airport in route_set:
+                return None
+            return {
+                **spec,
+                "status": "skipped",
+                "reason": "direct_route_schedule_negative",
+                "offer_count": 0,
+                "skipped_because": {
+                    "checked_airport": checked_airport,
+                    "airport": "SVX",
+                    "source": direct_route_index.get("source"),
+                    "fetched_at": direct_route_index.get("fetched_at"),
+                    "note": "Official SVX seasonal schedule has no direct route for this exact airport pair; hub routing is still checked.",
+                },
+            }
 
-    ensure_moscow_gateway_control_synthesized()
-    date_window_inventory = build_date_window_inventory(plan, searches, segment_results)
-    assembled = assemble_segment_results(segment_results, args) if segment_results else empty_assembled_result(args)
-    aggregate_controls = run_aggregate_controls(args, plan, kupibilet_fetcher=fetch_kupibilet_search, probe_ledger=probe_ledger)
-    for control in plan.get("coverage_controls") or []:
-        if isinstance(control, dict) and control.get("type") == "city_pair_direct":
-            probe_ledger.plan_intents([intent_from_control(control, provider=provider_policy)])
-    probe_ledger.finalize_unexecuted()
-    source_label = "Kupibilet frontend_search direct-only segment assembly"
-    note = "Live aggregate source; recheck price/seat availability and whether segments can be ticketed together before purchase."
-    if provider_policy != "kupibilet":
-        source_label = "Provider-policy live segment assembly"
-        note = "Kupibilet is used for Russia-touching segments; FLI MCP is used for non-Russia segments under auto policy. Recheck price/seat availability before purchase."
-    assembled["live_search"] = {
-        "source": source_label,
-        "provider_policy": provider_policy,
-        "note": note,
-        "plan": {key: value for key, value in plan.items() if key != "segments"},
-        "segment_searches": searches,
-        "hub_viability": hub_viability_summary(plan, searches),
-        "aggregate_controls": aggregate_controls,
-        "probe_ledger": probe_ledger.to_coverage_diagnostics(plan),
-        "direct_route_intelligence": direct_route_intel,
-        "failure_count": len(failures),
-        "failures": failures,
-        "included_segment_result_count": min(len(segment_results), args.include_segment_results),
-    }
-    if date_window_inventory is not None:
-        assembled["live_search"]["date_window_inventory"] = date_window_inventory
-    assembled["segment_results"] = segment_results[: args.include_segment_results]
-    return attach_agent_report(assembled, args, store)
+        def ensure_moscow_gateway_control_synthesized(direction: str | None = None) -> None:
+            directions = {"outbound", "return"} if direction is None else {direction}
+            pending = directions - synthetic_moscow_control_done
+            if not pending:
+                return
+            synthetic_moscow_control_done.update(pending)
+            synthetic_results, synthetic_searches = synthesize_moscow_gateway_control_results(plan, segment_results, directions=pending)
+            segment_results.extend(synthetic_results)
+            searches.extend(synthetic_searches)
+            for search in synthetic_searches:
+                key = (
+                    str(search.get("direction") or ""),
+                    str(search.get("leg") or ""),
+                    str(search.get("origin") or "").upper(),
+                    str(search.get("destination") or "").upper(),
+                )
+                offer_counts[key] = offer_counts.get(key, 0) + int(search.get("offer_count") or 0)
+
+        def priority_route_viable(direction: str) -> bool:
+            if plan.get("routing_strategy") != RoutingStrategy.RU_PRIORITY:
+                return False
+            if direction in priority_route_viability:
+                return priority_route_viability[direction]
+            ensure_moscow_gateway_control_synthesized(direction)
+            if direction == Direction.OUTBOUND:
+                first_leg = Leg.ORIGIN_TO_HUB
+                second_leg = Leg.HUB_TO_DESTINATION
+                direct_leg = Leg.DIRECT_OUTBOUND
+            elif direction == Direction.RETURN:
+                first_leg = Leg.DESTINATION_TO_HUB
+                second_leg = Leg.HUB_TO_ORIGIN
+                direct_leg = Leg.DIRECT_RETURN
+            else:
+                return False
+            direct = direct_journeys(segment_results, direct_leg, direction, args.limit_per_pair)
+            if direct:
+                priority_route_viability[direction] = True
+                return True
+            pairs, _ = assemble_direction(
+                segment_results,
+                first_leg,
+                second_leg,
+                direction,
+                args.limit_per_pair,
+                ticketing=args.ticketing,
+                min_same_airport=args.min_same_airport_min,
+                min_cross_airport=args.min_cross_airport_min,
+                profile=args.profile,
+            )
+            viable = False
+            for pair in pairs:
+                offers = [offer for offer in (pair.get("offers") or []) if isinstance(offer, dict)]
+                if len(offers) < 2:
+                    continue
+                hub = str(offers[0].get("arrival_airport") or offers[0].get("destination") or "").upper()
+                next_origin = str(offers[1].get("departure_airport") or offers[1].get("origin") or "").upper()
+                if hub != next_origin or hub == PRIORITY_SECONDARY_HUB:
+                    continue
+                if (pair.get("connection_quality") or {}).get("severity") != "error":
+                    viable = True
+                    break
+            priority_route_viability[direction] = viable
+            return viable
+
+        def record_segment_probe_summary(
+            spec: dict[str, Any],
+            summary: dict[str, Any],
+            *,
+            provider_result: Any | None = None,
+        ) -> None:
+            intent_spec = {**spec, "only_carriers": spec.get("only_carriers") or only_carriers}
+            intent = intent_from_segment(intent_spec, provider=summary.get("provider"), probe_id=summary.get("probe_id"))
+            status = summary.get("status")
+            if status == "deduped":
+                probe_ledger.record_deduped(intent, original_probe_id=summary.get("original_probe_id"))
+                return
+            probe_ledger.plan_intents([intent])
+            if provider_result is not None:
+                probe_ledger.record_provider_result(intent, provider_result)
+                return
+            if status == "skipped":
+                probe_ledger.record_skipped(intent, reason=summary.get("reason"))
+                return
+            if status == "error":
+                probe_ledger.record_failed(intent, provider=summary.get("provider"), error=summary.get("error"))
+                return
+            if status == "not_supported":
+                probe_ledger.record_not_supported(intent, provider=summary.get("provider"), reason=summary.get("reason"))
+                return
+            probe_ledger.record_searched(
+                intent,
+                status=status or "ok",
+                provider=summary.get("provider"),
+                offer_count=summary.get("offer_count", 0),
+                cache_status=summary.get("cache_status"),
+            )
+
+        for spec in plan["segments"]:
+            skipped = skipped_by_condition(spec)
+            if skipped is not None:
+                searches.append(skipped)
+                record_segment_probe_summary(spec, skipped)
+                continue
+            for outcome in dispatch_segment_probe(
+                spec=spec,
+                plan=plan,
+                args=args,
+                store=store,
+                only_carriers=only_carriers,
+                cache_ttl_seconds=cache_ttl_seconds,
+                use_live_cache=use_live_cache,
+                provider_policy=provider_policy,
+                kupibilet_fetcher=fetch_kupibilet_search,
+                request_deduper=request_deduper,
+            ):
+                searches.append(outcome.summary)
+                record_segment_probe_summary(spec, outcome.summary, provider_result=outcome.provider_result)
+                if outcome.failure is not None:
+                    failures.append(outcome.failure)
+                    continue
+                segment_result = outcome.segment_result
+                if segment_result is None:
+                    continue
+                key = search_key(spec)
+                offer_counts[key] = offer_counts.get(key, 0) + len(segment_result.get("offers") or [])
+                if outcome.include_segment_result and segment_result["offers"]:
+                    segment_results.append(segment_result)
+
+        ensure_moscow_gateway_control_synthesized()
+        date_window_inventory = build_date_window_inventory(plan, searches, segment_results)
+        assembled = assemble_segment_results(segment_results, args) if segment_results else empty_assembled_result(args)
+        aggregate_controls = run_aggregate_controls(args, plan, kupibilet_fetcher=fetch_kupibilet_search, probe_ledger=probe_ledger)
+        for control in plan.get("coverage_controls") or []:
+            if isinstance(control, dict) and control.get("type") == "city_pair_direct":
+                probe_ledger.plan_intents([intent_from_control(control, provider=provider_policy)])
+        probe_ledger.finalize_unexecuted()
+        source_label = "Kupibilet frontend_search direct-only segment assembly"
+        note = "Live aggregate source; recheck price/seat availability and whether segments can be ticketed together before purchase."
+        if provider_policy != "kupibilet":
+            source_label = "Provider-policy live segment assembly"
+            note = "Kupibilet is used for Russia-touching segments; FLI MCP is used for non-Russia segments under auto policy. Recheck price/seat availability before purchase."
+        assembled["live_search"] = {
+            "source": source_label,
+            "provider_policy": provider_policy,
+            "note": note,
+            "plan": {key: value for key, value in plan.items() if key != "segments"},
+            "segment_searches": searches,
+            "hub_viability": hub_viability_summary(plan, searches),
+            "aggregate_controls": aggregate_controls,
+            "probe_ledger": probe_ledger.to_coverage_diagnostics(plan),
+            "direct_route_intelligence": direct_route_intel,
+            "failure_count": len(failures),
+            "failures": failures,
+            "included_segment_result_count": min(len(segment_results), args.include_segment_results),
+        }
+        if date_window_inventory is not None:
+            assembled["live_search"]["date_window_inventory"] = date_window_inventory
+        assembled["segment_results"] = segment_results[: args.include_segment_results]
+        return attach_agent_report(assembled, args, store)
+
+
+def run_live_route_assembly(args: argparse.Namespace, store: Store) -> dict[str, Any]:
+    return LiveAssemblyRunner(args, store).run()
