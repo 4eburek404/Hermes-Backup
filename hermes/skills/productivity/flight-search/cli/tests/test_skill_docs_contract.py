@@ -15,6 +15,7 @@ CANONICAL_REFERENCES = {
     "cli-maintenance.md",
     "rail-rzd-live-pricing.md",
     "flow-decision-router.md",
+    "pipeline-reference.md",
 }
 REMOVED_COMMAND_PATTERNS = (
     r"\broute\s+live-assemble\b",
