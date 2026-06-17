@@ -10,8 +10,23 @@ from jsonschema import Draft202012Validator
 from ..contracts.schema_errors import validation_error_detail
 from ..domain.vocabulary import RouteFamily
 from ..errors import CliError
-from ..reporting.agent_report_projector import AGENT_REPORT_SCHEMA_VERSION
+
+from ..reporting.agent_report_projector import AGENT_REPORT_SCHEMA_VERSION  # re-exported for test_agent_report_contract
 from ..reporting.user_answer import validate_user_answer
+
+__all__ = [
+    "AGENT_REPORT_SCHEMA_PACKAGE",
+    "AGENT_REPORT_SCHEMA_RESOURCE",
+    "AGENT_REPORT_SCHEMA_VERSION",
+    "DETAILED_FLIGHT_NUMBER_RE",
+    "DISPLAY_DATE_RE",
+    "TIME_RANGE_RE",
+    "AIRPORT_TIME_ROUTE_RE",
+    "RU_PRIORITY_BRANCHES",
+    "RU_PRIORITY_DECISIONS",
+    "load_agent_report_schema",
+    "validate_agent_report",
+]
 
 AGENT_REPORT_SCHEMA_RESOURCE = "agent_report.v2.schema.json"
 AGENT_REPORT_SCHEMA_PACKAGE = "flights_cli.contracts"

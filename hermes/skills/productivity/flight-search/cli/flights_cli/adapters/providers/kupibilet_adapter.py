@@ -11,7 +11,6 @@ from ...domain.stop_metrics import offer_stop_metrics
 from ...ports.providers import CacheStatus, ProviderCapabilities, ProviderName, ProviderProbeResult
 from ...providers.kupibilet import (
     cached_kupibilet_search,
-    fetch_kupibilet_search,
     kupibilet_result_to_segment_result,
     kupibilet_segment_search_summary,
 )
