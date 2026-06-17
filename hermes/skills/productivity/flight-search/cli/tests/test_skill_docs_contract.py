@@ -16,6 +16,7 @@ CANONICAL_REFERENCES = {
     "rail-rzd-live-pricing.md",
     "flow-decision-router.md",
     "pipeline-reference.md",
+    "direct-priority-filter.md",
 }
 REMOVED_COMMAND_PATTERNS = (
     r"\broute\s+live-assemble\b",

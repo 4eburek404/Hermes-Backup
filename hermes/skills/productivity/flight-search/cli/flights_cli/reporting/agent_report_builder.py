@@ -6,6 +6,7 @@ from ..config import SPECIAL_CITY_AIRPORTS
 from ..domain.vocabulary import Direction, Leg, RouteFamily, RoutingStrategy
 from ..domain.stop_metrics import offer_stop_metrics
 from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY, StopPolicy, decide_stop_policy, stop_policy_payload
+from ..services.assembly import ALL_DIRECT_CATALOG_CAP
 from .projections.summary_lines import build_summary_lines
 from .coverage_projector import build_coverage_diagnostics
 from .projections.itinerary_display import build_itinerary_display
@@ -18,6 +19,8 @@ from .provider_aggregate_projector import aggregate_control_summary, provider_ag
 from .report_budget import apply_agent_report_budget
 from .source_boundary_projector import source_boundaries
 from .through_fare_analyzer import through_fare_checks
+
+CATALOG_LIMIT_DEFAULT = 5
 
 
 def stop_policy_from_report_data(data: dict[str, Any]) -> StopPolicy:
@@ -769,9 +772,14 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
     live = data.get("live_search") if isinstance(data.get("live_search"), dict) else {}
     plan = live.get("plan") if isinstance(live.get("plan"), dict) else {}
     assembly = data.get("assembly") if isinstance(data.get("assembly"), dict) else {}
+    all_direct = bool(assembly.get("all_direct_inventory"))
     raw_aggregate_controls = [aggregate_control_summary(item) for item in live.get("aggregate_controls") or [] if isinstance(item, dict)]
     stop_policy = stop_policy_from_report_data(data)
-    options = ranked_candidate_options(data, limit=5)
+    ranked_candidates = data.get("ranked_candidates") if isinstance(data.get("ranked_candidates"), list) else []
+    catalog_limit = min(len(ranked_candidates), ALL_DIRECT_CATALOG_CAP) if all_direct else CATALOG_LIMIT_DEFAULT
+    ranked_total_count = int(assembly.get("ranked_total_count") or len(ranked_candidates))
+    direct_omitted = max(0, ranked_total_count - ALL_DIRECT_CATALOG_CAP) if all_direct else 0
+    options = ranked_candidate_options(data, limit=catalog_limit)
     priority_options = priority_candidate_options(data, limit=5)
     preferred_available = has_preferred_option(options + priority_options) or aggregate_has_preferred_offer(raw_aggregate_controls, stop_policy)
     aggregate_controls = filter_aggregate_controls_for_stop_policy(raw_aggregate_controls, stop_policy, preferred_available)
@@ -814,6 +822,9 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
             "candidate_count": assembly.get("candidate_count"),
             "candidate_pool_truncated": assembly.get("candidate_pool_truncated"),
             "failure_count": live.get("failure_count", 0),
+            "direct_priority_applied": assembly.get("direct_priority_applied", False),
+            "all_direct_inventory": assembly.get("all_direct_inventory", False),
+            "direct_omitted": direct_omitted,
         },
         "source_boundaries": source_boundaries(),
         "hub_viability": hub_viability_summaries(live),
@@ -835,7 +846,8 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
     if ru_priority_controls is not None:
         report["ru_priority_controls"] = ru_priority_controls
     report["offer_graph"] = build_offer_graph(report, plan, live, data)
-    report["display"] = build_itinerary_display(report, store)
+    display_limit = min(len(options), ALL_DIRECT_CATALOG_CAP) if all_direct else CATALOG_LIMIT_DEFAULT
+    report["display"] = build_itinerary_display(report, store, limit=max(display_limit, CATALOG_LIMIT_DEFAULT))
     report["answer_lines"] = build_summary_lines(report)
     human_answer = build_human_answer_mirror(report)
     report["user_answer"] = build_user_answer(report, rendered_text=str(human_answer.get("text") or ""))

@@ -23,27 +23,16 @@ def serialized_report_size(report: dict[str, Any]) -> int:
     return len(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True).encode("utf-8"))
 
 
-def _all_options_direct(options: list[Any]) -> bool:
-    """True when every option explicitly has max_connections_per_journey == 0."""
-    if not options:
-        return False
-    return all(
-        isinstance(o, dict)
-        and o.get("max_connections_per_journey") is not None
-        and int(o.get("max_connections_per_journey")) == 0
-        for o in options
-    )
-
-
 def apply_agent_report_budget(report: dict[str, Any], budget: AgentReportBudget | None = None) -> dict[str, Any]:
     budget = budget or AgentReportBudget()
     trimmed = copy.deepcopy(report)
     omitted: dict[str, int] = {}
 
     # When all recommended options are direct flights, keep them all — do not
-    # truncate.  The user asked for direct inventory and every direct flight matters.
-    recommended = report.get("recommended_options")
-    skip_recommended_trim = _all_options_direct(recommended) if isinstance(recommended, list) else False
+    # truncate.  The source-of-truth flag is computed in assemble_direction and
+    # propagated through report["status"]["all_direct_inventory"].
+    all_direct = bool((report.get("status") or {}).get("all_direct_inventory"))
+    skip_recommended_trim = all_direct
 
     if not skip_recommended_trim:
         _trim_top_level_list(trimmed, "recommended_options", budget.max_recommended_options, omitted)

@@ -420,22 +420,12 @@ def infer_answer_mode(*, is_round_trip_request: bool, options: list[dict[str, An
     return "recommendation"
 
 
-def _all_direct_options(options: list[Any]) -> bool:
-    """True when every option explicitly has max_connections_per_journey == 0."""
-    if not options:
-        return False
-    return all(
-        isinstance(o, dict)
-        and o.get("max_connections_per_journey") is not None
-        and int(o.get("max_connections_per_journey")) == 0
-        for o in options
-    )
-
-
-def build_catalog_contract(recommended: list[Any], priority: list[Any], *, is_round_trip_request: bool) -> dict[str, Any]:
-    # When all recommended options are direct flights, expand the catalog limit
+def build_catalog_contract(recommended: list[Any], priority: list[Any], *, is_round_trip_request: bool, all_direct_inventory: bool = False) -> dict[str, Any]:
+    # When the entire displayed set is direct flights, expand the catalog limit
     # so that every direct flight appears in the user-facing answer.
-    catalog_limit = len(recommended) if _all_direct_options(recommended) else 10
+    # The flag is computed in assemble_direction and propagated through
+    # report["status"]["all_direct_inventory"].
+    catalog_limit = len(recommended) if all_direct_inventory else 10
     options = catalog_options(recommended, priority, limit=catalog_limit)
     return {
         "presentation": {"style": "numbered_compact", "language": "ru", "max_items": 10},
@@ -456,11 +446,14 @@ def render_catalog_item(item: dict[str, Any]) -> str:
     return " — ".join(parts)
 
 
-def render_catalog_answer(route: dict[str, Any], catalog: dict[str, Any], *, caveat_context: dict[str, Any]) -> str:
+def render_catalog_answer(route: dict[str, Any], catalog: dict[str, Any], *, caveat_context: dict[str, Any], direct_omitted: int = 0) -> str:
     origin = route.get("origin") or "???"
     destination = route.get("destination") or "???"
     lines = [f"Нашёл варианты {origin}→{destination}."]
     lines.extend(str(item.get("render_line") or "") for item in catalog.get("items") or [] if isinstance(item, dict))
+    if direct_omitted > 0:
+        word = "рейс" if direct_omitted == 1 else "рейса" if 2 <= direct_omitted <= 4 else "рейсов"
+        lines.append(f"и ещё {direct_omitted} прямых {word}")
     negative_wording = str(caveat_context.get("negative_wording") or "").strip()
     checks: list[str] = [
         "Проверить перед покупкой: single PNR/багаж/through fare не доказаны; финальную цену, тариф, багаж и правила проверить на booking screen.",
@@ -532,13 +525,15 @@ def build_user_answer(agent_report: dict[str, Any], *, rendered_text: str | None
     two_stop_tier_used = bool(stop_diagnostics.get("used_two_stop_tier"))
 
     is_round_trip_request = route_requested_round_trip(route)
-    catalog = build_catalog_contract(recommended, priority, is_round_trip_request=is_round_trip_request)
+    all_direct_inventory = bool((agent_report.get("status") or {}).get("all_direct_inventory"))
+    catalog = build_catalog_contract(recommended, priority, is_round_trip_request=is_round_trip_request, all_direct_inventory=all_direct_inventory)
     answer_mode = infer_answer_mode(is_round_trip_request=is_round_trip_request, options=catalog.get("items") or [])
     route_contract = {
         "origin": route.get("origin"),
         "destination": route.get("destination"),
         "dates": route.get("dates") if isinstance(route.get("dates"), dict) else {},
     }
+    direct_omitted = int((agent_report.get("status") or {}).get("direct_omitted") or 0)
     if answer_mode == "catalog":
         answer_text = render_catalog_answer(
             route_contract,
@@ -548,6 +543,7 @@ def build_user_answer(agent_report: dict[str, Any], *, rendered_text: str | None
                 "provider_failures": provider_failures,
                 "negative_wording": truth_language.get("negative_wording"),
             },
+            direct_omitted=direct_omitted,
         )
     else:
         answer_text = canonical_user_answer_text(agent_report, rendered_text)

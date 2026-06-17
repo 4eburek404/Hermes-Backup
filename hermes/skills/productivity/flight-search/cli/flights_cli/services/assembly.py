@@ -15,6 +15,10 @@ from ..errors import CliError
 from ..services.ranking import carrier_policy_from_args, carrier_policy_output, rank_candidate_list
 from ..services.validation import connection_risk_points, connection_rule
 
+ALL_DIRECT_CATALOG_CAP = 20
+"""Maximum number of options to surface when all are direct flights.
+Prevents unbounded output while ensuring every direct flight is shown."""
+
 def collect_segment_results(payload: Any) -> list[dict[str, Any]]:
     if isinstance(payload, list):
         results: list[dict[str, Any]] = []
@@ -698,6 +702,15 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
     suppressed_one_stop_return_count = len(return_pairs) if return_direct else 0
     outbound_journeys = outbound_direct if outbound_direct else outbound_pairs
     return_journeys = return_direct if return_direct else return_pairs
+    # all_direct_inventory: True when the entire displayed set is direct flights.
+    # Computed from post-filter journeys so it reflects what the user actually sees,
+    # not the raw pair counts which may be non-zero even when suppressed.
+    outbound_is_direct = bool(outbound_direct) or not outbound_journeys
+    return_is_direct = bool(return_direct) or not return_journeys
+    all_direct_inventory = (
+        (bool(outbound_direct) or bool(return_direct))
+        and outbound_is_direct and return_is_direct
+    )
     rejected_pairs = outbound_rejected + return_rejected
 
     candidate_pool_limit = max(max(1, int(args.max_candidates)), int(getattr(args, "candidate_pool_limit", 5000)))
@@ -824,14 +837,19 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
         "max_candidates": args.max_candidates,
         "stop_policy_diagnostics": ranked.get("stop_policy_diagnostics") or {},
         "direct_priority_applied": direct_priority_applied,
+        "all_direct_inventory": all_direct_inventory,
         "suppressed_one_stop_outbound_count": suppressed_one_stop_outbound_count,
         "suppressed_one_stop_return_count": suppressed_one_stop_return_count,
     }
     ranked["candidates"] = candidates[: args.include_candidates]
+    # When the entire displayed set is direct flights, expand the catalog limit
+    # so every direct option reaches the report layer (capped at ALL_DIRECT_CATALOG_CAP).
+    default_ranked_limit = int(getattr(args, "include_ranked_candidates", 5))
+    ranked_limit = min(len(full_ranked_items), ALL_DIRECT_CATALOG_CAP) if all_direct_inventory else default_ranked_limit
     ranked["ranked_candidates"] = ranked_candidate_details(
         full_ranked_items,
         candidates,
-        int(getattr(args, "include_ranked_candidates", 5)),
+        ranked_limit,
         required_items=recommendation_detail_items(ranked["recommendations"], full_ranked_items),
     )
     ranked["rejected_pairs"] = rejected_pairs[: args.include_rejected_pairs]
