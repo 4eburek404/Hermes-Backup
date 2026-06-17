@@ -234,28 +234,182 @@ class RoutePlanBuilder:
         )
 
     def build(self) -> dict[str, Any]:
+        self._build_outbound()
+        if self.ret:
+            self._build_return()
+        return self._build_result()
+
+    def _build_outbound(self) -> None:
         if self.direct_only:
-            self.route_families = [
-                {
-                    "id": RouteFamily.DIRECT_INVENTORY,
-                    "priority": 0,
-                    "condition": "direct-only request: search exact origin/destination airport pairs and do not assemble connecting fallback routes.",
-                }
-            ]
-            for inventory_date in (self.window_dates or [self.depart]):
-                for dest_code, dest_extra in self.destination_segment_options:
-                    for origin_code, origin_extra in self.origin_segment_options:
-                        self._add_segment(
-                            Direction.OUTBOUND,
-                            Leg.DIRECT_OUTBOUND,
-                            inventory_date,
-                            origin_code,
-                            dest_code,
-                            route_family=RouteFamily.DIRECT_INVENTORY,
-                            priority=0,
-                            **{**origin_extra, **dest_extra},
-                        )
+            self._build_outbound_direct_only()
         elif self.routing_strategy == RoutingStrategy.RU_PRIORITY:
+            self._build_outbound_ru_priority()
+        elif self.routing_strategy == RoutingStrategy.DOMESTIC_RU:
+            self._build_outbound_domestic_ru()
+        else:
+            self._build_outbound_hub_list()
+
+    def _build_return(self) -> None:
+        if self.direct_only:
+            self._build_return_direct_only()
+        elif self.routing_strategy == RoutingStrategy.RU_PRIORITY:
+            self._build_return_ru_priority()
+        elif self.routing_strategy == RoutingStrategy.DOMESTIC_RU:
+            self._build_return_domestic_ru()
+        else:
+            self._build_return_hub_list()
+
+    def _build_outbound_direct_only(self) -> None:
+        self.route_families = [
+            {
+                "id": RouteFamily.DIRECT_INVENTORY,
+                "priority": 0,
+                "condition": "direct-only request: search exact origin/destination airport pairs and do not assemble connecting fallback routes.",
+            }
+        ]
+        for inventory_date in (self.window_dates or [self.depart]):
+            for dest_code, dest_extra in self.destination_segment_options:
+                for origin_code, origin_extra in self.origin_segment_options:
+                    self._add_segment(
+                        Direction.OUTBOUND,
+                        Leg.DIRECT_OUTBOUND,
+                        inventory_date,
+                        origin_code,
+                        dest_code,
+                        route_family=RouteFamily.DIRECT_INVENTORY,
+                        priority=0,
+                        **{**origin_extra, **dest_extra},
+                    )
+
+    def _build_outbound_ru_priority(self) -> None:
+        for dest_code, dest_extra in self.destination_segment_options:
+            for origin_code, origin_extra in self.origin_segment_options:
+                self._add_segment(Direction.OUTBOUND, Leg.DIRECT_OUTBOUND,
+                    self.depart,
+                    origin_code,
+                    dest_code,
+                    route_family="direct_control",
+                    priority=0,
+                    preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                    **{**origin_extra, **dest_extra},
+                )
+        if self.routing_profile == "asia-oceania":
+            for origin_code in self.origin_airports:
+                self._add_segment(Direction.OUTBOUND, Leg.ORIGIN_TO_HUB,
+                    self.depart,
+                    origin_code,
+                    PRIORITY_ASIA_HUB,
+                    route_family="svo_asia",
+                    priority=1,
+                    only_carriers=["SU"],
+                    preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                )
+            for offset in self.outbound_second_offsets:
+                leg_date = self.depart + timedelta(days=offset)
+                for dest_code in self.destination_airports:
+                    self._add_segment(Direction.OUTBOUND, Leg.HUB_TO_DESTINATION,
+                        leg_date,
+                        PRIORITY_ASIA_HUB,
+                        dest_code,
+                        route_family="svo_asia",
+                        priority=1,
+                        preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                    )
+        for origin_code in self.origin_airports:
+            self._add_segment(Direction.OUTBOUND, Leg.ORIGIN_TO_HUB,
+                self.depart,
+                origin_code,
+                PRIORITY_PRIMARY_HUB,
+                route_family="ist_direct",
+                priority=2 if self.routing_profile == "asia-oceania" else 1,
+                preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+            )
+            if origin_code != PRIORITY_MOSCOW_GATEWAY:
+                self._add_segment(Direction.OUTBOUND,
+                    "origin_to_gateway",
+                    self.depart,
+                    origin_code,
+                    PRIORITY_MOSCOW_GATEWAY,
+                    route_family="moscow_gateway_control",
+                    priority=3 if self.routing_profile == "asia-oceania" else 2,
+                    only_carriers=["SU"],
+                )
+                self._add_segment(Direction.OUTBOUND,
+                    "gateway_to_hub",
+                    self.depart,
+                    PRIORITY_MOSCOW_GATEWAY,
+                    PRIORITY_PRIMARY_HUB,
+                    route_family="moscow_gateway_control",
+                    priority=3 if self.routing_profile == "asia-oceania" else 2,
+                    only_carriers=["SU"],
+                )
+        for offset in self.outbound_second_offsets:
+            leg_date = self.depart + timedelta(days=offset)
+            for dest_code in self.destination_airports:
+                self._add_segment(Direction.OUTBOUND, Leg.HUB_TO_DESTINATION,
+                    leg_date,
+                    PRIORITY_PRIMARY_HUB,
+                    dest_code,
+                    route_family="ist_shared_destination",
+                    priority=2 if self.routing_profile == "asia-oceania" else 1,
+                    preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                )
+        for origin_code in self.origin_airports:
+            self._add_segment(Direction.OUTBOUND, Leg.ORIGIN_TO_HUB,
+                self.depart,
+                origin_code,
+                PRIORITY_SECONDARY_HUB,
+                route_family="dxb_direct",
+                priority=4 if self.routing_profile == "asia-oceania" else 3,
+                preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                skip_if_priority_route_viable="outbound",
+            )
+        for offset in self.outbound_second_offsets:
+            leg_date = self.depart + timedelta(days=offset)
+            for dest_code in self.destination_airports:
+                self._add_segment(Direction.OUTBOUND, Leg.HUB_TO_DESTINATION,
+                    leg_date,
+                    PRIORITY_SECONDARY_HUB,
+                    dest_code,
+                    route_family="dxb_direct",
+                    priority=4 if self.routing_profile == "asia-oceania" else 3,
+                    preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                    skip_if_priority_route_viable="outbound",
+                )
+        for gateway_code, gateway_extra in self._gateway_segment_options:
+            for dest_code in self.destination_airports:
+                self._add_segment(Direction.OUTBOUND,
+                    "gateway_to_destination",
+                    self.depart,
+                    gateway_code,
+                    dest_code,
+                    route_family="moscow_gateway_control",
+                    priority=3 if self.routing_profile == "asia-oceania" else 2,
+                    **gateway_extra,
+                )
+
+    def _build_outbound_domestic_ru(self) -> None:
+        for dest_code, dest_extra in self.destination_segment_options:
+            for origin_code, origin_extra in self.origin_segment_options:
+                self._add_segment(Direction.OUTBOUND, Leg.DIRECT_OUTBOUND,
+                    self.depart,
+                    origin_code,
+                    dest_code,
+                    route_family=RouteFamily.DOMESTIC_RU,
+                    priority=0,
+                    **{**origin_extra, **dest_extra},
+                )
+        for origin_code in self.origin_airports:
+            for hub in self.hubs:
+                self._add_segment(Direction.OUTBOUND, Leg.ORIGIN_TO_HUB, self.depart, origin_code, hub, route_family=RouteFamily.DOMESTIC_RU, priority=1)
+        for offset in self.outbound_second_offsets:
+            leg_date = self.depart + timedelta(days=offset)
+            for hub in self.hubs:
+                for dest_code in self.destination_airports:
+                    self._add_segment(Direction.OUTBOUND, Leg.HUB_TO_DESTINATION, leg_date, hub, dest_code, route_family=RouteFamily.DOMESTIC_RU, priority=1)
+
+    def _build_outbound_hub_list(self) -> None:
+        if self._include_generic_direct_controls:
             for dest_code, dest_extra in self.destination_segment_options:
                 for origin_code, origin_extra in self.origin_segment_options:
                     self._add_segment(Direction.OUTBOUND, Leg.DIRECT_OUTBOUND,
@@ -264,301 +418,178 @@ class RoutePlanBuilder:
                         dest_code,
                         route_family="direct_control",
                         priority=0,
-                        preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                         **{**origin_extra, **dest_extra},
                     )
-            if self.routing_profile == "asia-oceania":
+        for origin_code in self.origin_airports:
+            for hub in self.hubs:
+                self._add_segment(Direction.OUTBOUND, Leg.ORIGIN_TO_HUB, self.depart, origin_code, hub, route_family=RouteFamily.HUB_LIST, priority=1)
+        for offset in self.outbound_second_offsets:
+            leg_date = self.depart + timedelta(days=offset)
+            for hub in self.hubs:
+                for dest_code in self.destination_airports:
+                    self._add_segment(Direction.OUTBOUND, Leg.HUB_TO_DESTINATION, leg_date, hub, dest_code, route_family=RouteFamily.HUB_LIST, priority=1)
+
+    def _build_return_direct_only(self) -> None:
+        for dest_code, dest_extra in self.destination_segment_options:
+            for origin_code, origin_extra in self.origin_segment_options:
+                self._add_segment(Direction.RETURN, Leg.DIRECT_RETURN,
+                    self.ret,
+                    dest_code,
+                    origin_code,
+                    route_family=RouteFamily.DIRECT_INVENTORY,
+                    priority=0,
+                    **{**dest_extra, **origin_extra},
+                )
+
+    def _build_return_ru_priority(self) -> None:
+        for dest_code, dest_extra in self.destination_segment_options:
+            for origin_code, origin_extra in self.origin_segment_options:
+                self._add_segment(Direction.RETURN, Leg.DIRECT_RETURN,
+                    self.ret,
+                    dest_code,
+                    origin_code,
+                    route_family="direct_control",
+                    priority=0,
+                    preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                    **{**dest_extra, **origin_extra},
+                )
+        if self.routing_profile == "asia-oceania":
+            for dest_code in self.destination_airports:
+                self._add_segment(Direction.RETURN, Leg.DESTINATION_TO_HUB,
+                    self.ret,
+                    dest_code,
+                    PRIORITY_ASIA_HUB,
+                    route_family="svo_asia",
+                    priority=1,
+                    preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                )
+            for offset in self.return_second_offsets:
+                leg_date = self.ret + timedelta(days=offset)
                 for origin_code in self.origin_airports:
-                    self._add_segment(Direction.OUTBOUND, Leg.ORIGIN_TO_HUB,
-                        self.depart,
-                        origin_code,
+                    self._add_segment(Direction.RETURN, Leg.HUB_TO_ORIGIN,
+                        leg_date,
                         PRIORITY_ASIA_HUB,
+                        origin_code,
                         route_family="svo_asia",
                         priority=1,
                         only_carriers=["SU"],
                         preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                     )
-                for offset in self.outbound_second_offsets:
-                    leg_date = self.depart + timedelta(days=offset)
-                    for dest_code in self.destination_airports:
-                        self._add_segment(Direction.OUTBOUND, Leg.HUB_TO_DESTINATION,
-                            leg_date,
-                            PRIORITY_ASIA_HUB,
-                            dest_code,
-                            route_family="svo_asia",
-                            priority=1,
-                            preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
-                        )
+        for dest_code in self.destination_airports:
+            self._add_segment(Direction.RETURN, Leg.DESTINATION_TO_HUB,
+                self.ret,
+                dest_code,
+                PRIORITY_PRIMARY_HUB,
+                route_family="ist_direct",
+                priority=2 if self.routing_profile == "asia-oceania" else 1,
+                preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+            )
+        for offset in self.return_second_offsets:
+            leg_date = self.ret + timedelta(days=offset)
             for origin_code in self.origin_airports:
-                self._add_segment(Direction.OUTBOUND, Leg.ORIGIN_TO_HUB,
-                    self.depart,
-                    origin_code,
+                self._add_segment(Direction.RETURN, Leg.HUB_TO_ORIGIN,
+                    leg_date,
                     PRIORITY_PRIMARY_HUB,
+                    origin_code,
                     route_family="ist_direct",
                     priority=2 if self.routing_profile == "asia-oceania" else 1,
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                 )
                 if origin_code != PRIORITY_MOSCOW_GATEWAY:
-                    self._add_segment(Direction.OUTBOUND,
-                        "origin_to_gateway",
-                        self.depart,
-                        origin_code,
-                        PRIORITY_MOSCOW_GATEWAY,
-                        route_family="moscow_gateway_control",
-                        priority=3 if self.routing_profile == "asia-oceania" else 2,
-                        only_carriers=["SU"],
-                    )
-                    self._add_segment(Direction.OUTBOUND,
-                        "gateway_to_hub",
-                        self.depart,
-                        PRIORITY_MOSCOW_GATEWAY,
-                        PRIORITY_PRIMARY_HUB,
-                        route_family="moscow_gateway_control",
-                        priority=3 if self.routing_profile == "asia-oceania" else 2,
-                        only_carriers=["SU"],
-                    )
-            for offset in self.outbound_second_offsets:
-                leg_date = self.depart + timedelta(days=offset)
-                for dest_code in self.destination_airports:
-                    self._add_segment(Direction.OUTBOUND, Leg.HUB_TO_DESTINATION,
+                    self._add_segment(Direction.RETURN,
+                        "hub_to_gateway",
                         leg_date,
                         PRIORITY_PRIMARY_HUB,
-                        dest_code,
-                        route_family="ist_shared_destination",
-                        priority=2 if self.routing_profile == "asia-oceania" else 1,
-                        preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                        PRIORITY_MOSCOW_GATEWAY,
+                        route_family="moscow_gateway_control",
+                        priority=3 if self.routing_profile == "asia-oceania" else 2,
+                        only_carriers=["SU"],
                     )
+                    self._add_segment(Direction.RETURN,
+                        "gateway_to_origin",
+                        leg_date,
+                        PRIORITY_MOSCOW_GATEWAY,
+                        origin_code,
+                        route_family="moscow_gateway_control",
+                        priority=3 if self.routing_profile == "asia-oceania" else 2,
+                        only_carriers=["SU"],
+                    )
+        for dest_code in self.destination_airports:
+            self._add_segment(Direction.RETURN, Leg.DESTINATION_TO_HUB,
+                self.ret,
+                dest_code,
+                PRIORITY_SECONDARY_HUB,
+                route_family="dxb_direct",
+                priority=4 if self.routing_profile == "asia-oceania" else 3,
+                preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                skip_if_priority_route_viable="return",
+            )
+        for offset in self.return_second_offsets:
+            leg_date = self.ret + timedelta(days=offset)
             for origin_code in self.origin_airports:
-                self._add_segment(Direction.OUTBOUND, Leg.ORIGIN_TO_HUB,
-                    self.depart,
-                    origin_code,
+                self._add_segment(Direction.RETURN, Leg.HUB_TO_ORIGIN,
+                    leg_date,
                     PRIORITY_SECONDARY_HUB,
+                    origin_code,
                     route_family="dxb_direct",
                     priority=4 if self.routing_profile == "asia-oceania" else 3,
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
-                    skip_if_priority_route_viable="outbound",
+                    skip_if_priority_route_viable="return",
                 )
-            for offset in self.outbound_second_offsets:
-                leg_date = self.depart + timedelta(days=offset)
-                for dest_code in self.destination_airports:
-                    self._add_segment(Direction.OUTBOUND, Leg.HUB_TO_DESTINATION,
-                        leg_date,
-                        PRIORITY_SECONDARY_HUB,
-                        dest_code,
-                        route_family="dxb_direct",
-                        priority=4 if self.routing_profile == "asia-oceania" else 3,
-                        preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
-                        skip_if_priority_route_viable="outbound",
-                    )
-            for gateway_code, gateway_extra in self._gateway_segment_options:
-                for dest_code in self.destination_airports:
-                    self._add_segment(Direction.OUTBOUND,
-                        "gateway_to_destination",
-                        self.depart,
-                        gateway_code,
-                        dest_code,
-                        route_family="moscow_gateway_control",
-                        priority=3 if self.routing_profile == "asia-oceania" else 2,
-                        **gateway_extra,
-                    )
-        elif self.routing_strategy == RoutingStrategy.DOMESTIC_RU:
+        for gateway_code, gateway_extra in self._gateway_segment_options:
+            for dest_code in self.destination_airports:
+                self._add_segment(Direction.RETURN,
+                    "destination_to_gateway",
+                    self.ret,
+                    dest_code,
+                    gateway_code,
+                    route_family="moscow_gateway_control",
+                    priority=3 if self.routing_profile == "asia-oceania" else 2,
+                    **gateway_extra,
+                )
+
+    def _build_return_domestic_ru(self) -> None:
+        for dest_code, dest_extra in self.destination_segment_options:
+            for origin_code, origin_extra in self.origin_segment_options:
+                self._add_segment(Direction.RETURN, Leg.DIRECT_RETURN,
+                    self.ret,
+                    dest_code,
+                    origin_code,
+                    route_family=RouteFamily.DOMESTIC_RU,
+                    priority=0,
+                    **{**dest_extra, **origin_extra},
+                )
+        for dest_code in self.destination_airports:
+            for hub in self.hubs:
+                self._add_segment(Direction.RETURN, Leg.DESTINATION_TO_HUB, self.ret, dest_code, hub, route_family=RouteFamily.DOMESTIC_RU, priority=1)
+        for offset in self.return_second_offsets:
+            leg_date = self.ret + timedelta(days=offset)
+            for hub in self.hubs:
+                for origin_code in self.origin_airports:
+                    self._add_segment(Direction.RETURN, Leg.HUB_TO_ORIGIN, leg_date, hub, origin_code, route_family=RouteFamily.DOMESTIC_RU, priority=1)
+
+    def _build_return_hub_list(self) -> None:
+        if self._include_generic_direct_controls:
             for dest_code, dest_extra in self.destination_segment_options:
                 for origin_code, origin_extra in self.origin_segment_options:
-                    self._add_segment(Direction.OUTBOUND, Leg.DIRECT_OUTBOUND,
-                        self.depart,
+                    self._add_segment(Direction.RETURN, Leg.DIRECT_RETURN,
+                        self.ret,
+                        dest_code,
                         origin_code,
-                        dest_code,
-                        route_family=RouteFamily.DOMESTIC_RU,
+                        route_family="direct_control",
                         priority=0,
-                        **{**origin_extra, **dest_extra},
+                        **{**dest_extra, **origin_extra},
                     )
-            for origin_code in self.origin_airports:
-                for hub in self.hubs:
-                    self._add_segment(Direction.OUTBOUND, Leg.ORIGIN_TO_HUB, self.depart, origin_code, hub, route_family=RouteFamily.DOMESTIC_RU, priority=1)
-            for offset in self.outbound_second_offsets:
-                leg_date = self.depart + timedelta(days=offset)
-                for hub in self.hubs:
-                    for dest_code in self.destination_airports:
-                        self._add_segment(Direction.OUTBOUND, Leg.HUB_TO_DESTINATION, leg_date, hub, dest_code, route_family=RouteFamily.DOMESTIC_RU, priority=1)
-        else:
-            if self._include_generic_direct_controls:
-                for dest_code, dest_extra in self.destination_segment_options:
-                    for origin_code, origin_extra in self.origin_segment_options:
-                        self._add_segment(Direction.OUTBOUND, Leg.DIRECT_OUTBOUND,
-                            self.depart,
-                            origin_code,
-                            dest_code,
-                            route_family="direct_control",
-                            priority=0,
-                            **{**origin_extra, **dest_extra},
-                        )
-            for origin_code in self.origin_airports:
-                for hub in self.hubs:
-                    self._add_segment(Direction.OUTBOUND, Leg.ORIGIN_TO_HUB, self.depart, origin_code, hub, route_family=RouteFamily.HUB_LIST, priority=1)
-            for offset in self.outbound_second_offsets:
-                leg_date = self.depart + timedelta(days=offset)
-                for hub in self.hubs:
-                    for dest_code in self.destination_airports:
-                        self._add_segment(Direction.OUTBOUND, Leg.HUB_TO_DESTINATION, leg_date, hub, dest_code, route_family=RouteFamily.HUB_LIST, priority=1)
+        for dest_code in self.destination_airports:
+            for hub in self.hubs:
+                self._add_segment(Direction.RETURN, Leg.DESTINATION_TO_HUB, self.ret, dest_code, hub, route_family=RouteFamily.HUB_LIST, priority=1)
+        for offset in self.return_second_offsets:
+            leg_date = self.ret + timedelta(days=offset)
+            for hub in self.hubs:
+                for origin_code in self.origin_airports:
+                    self._add_segment(Direction.RETURN, Leg.HUB_TO_ORIGIN, leg_date, hub, origin_code, route_family=RouteFamily.HUB_LIST, priority=1)
 
-        if self.ret:
-            if self.direct_only:
-                for dest_code, dest_extra in self.destination_segment_options:
-                    for origin_code, origin_extra in self.origin_segment_options:
-                        self._add_segment(Direction.RETURN, Leg.DIRECT_RETURN,
-                            self.ret,
-                            dest_code,
-                            origin_code,
-                            route_family=RouteFamily.DIRECT_INVENTORY,
-                            priority=0,
-                            **{**dest_extra, **origin_extra},
-                        )
-            elif self.routing_strategy == RoutingStrategy.RU_PRIORITY:
-                for dest_code, dest_extra in self.destination_segment_options:
-                    for origin_code, origin_extra in self.origin_segment_options:
-                        self._add_segment(Direction.RETURN, Leg.DIRECT_RETURN,
-                            self.ret,
-                            dest_code,
-                            origin_code,
-                            route_family="direct_control",
-                            priority=0,
-                            preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
-                            **{**dest_extra, **origin_extra},
-                        )
-                if self.routing_profile == "asia-oceania":
-                    for dest_code in self.destination_airports:
-                        self._add_segment(Direction.RETURN, Leg.DESTINATION_TO_HUB,
-                            self.ret,
-                            dest_code,
-                            PRIORITY_ASIA_HUB,
-                            route_family="svo_asia",
-                            priority=1,
-                            preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
-                        )
-                    for offset in self.return_second_offsets:
-                        leg_date = self.ret + timedelta(days=offset)
-                        for origin_code in self.origin_airports:
-                            self._add_segment(Direction.RETURN, Leg.HUB_TO_ORIGIN,
-                                leg_date,
-                                PRIORITY_ASIA_HUB,
-                                origin_code,
-                                route_family="svo_asia",
-                                priority=1,
-                                only_carriers=["SU"],
-                                preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
-                            )
-                for dest_code in self.destination_airports:
-                    self._add_segment(Direction.RETURN, Leg.DESTINATION_TO_HUB,
-                        self.ret,
-                        dest_code,
-                        PRIORITY_PRIMARY_HUB,
-                        route_family="ist_direct",
-                        priority=2 if self.routing_profile == "asia-oceania" else 1,
-                        preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
-                    )
-                for offset in self.return_second_offsets:
-                    leg_date = self.ret + timedelta(days=offset)
-                    for origin_code in self.origin_airports:
-                        self._add_segment(Direction.RETURN, Leg.HUB_TO_ORIGIN,
-                            leg_date,
-                            PRIORITY_PRIMARY_HUB,
-                            origin_code,
-                            route_family="ist_direct",
-                            priority=2 if self.routing_profile == "asia-oceania" else 1,
-                            preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
-                        )
-                        if origin_code != PRIORITY_MOSCOW_GATEWAY:
-                            self._add_segment(Direction.RETURN,
-                                "hub_to_gateway",
-                                leg_date,
-                                PRIORITY_PRIMARY_HUB,
-                                PRIORITY_MOSCOW_GATEWAY,
-                                route_family="moscow_gateway_control",
-                                priority=3 if self.routing_profile == "asia-oceania" else 2,
-                                only_carriers=["SU"],
-                            )
-                            self._add_segment(Direction.RETURN,
-                                "gateway_to_origin",
-                                leg_date,
-                                PRIORITY_MOSCOW_GATEWAY,
-                                origin_code,
-                                route_family="moscow_gateway_control",
-                                priority=3 if self.routing_profile == "asia-oceania" else 2,
-                                only_carriers=["SU"],
-                            )
-                for dest_code in self.destination_airports:
-                    self._add_segment(Direction.RETURN, Leg.DESTINATION_TO_HUB,
-                        self.ret,
-                        dest_code,
-                        PRIORITY_SECONDARY_HUB,
-                        route_family="dxb_direct",
-                        priority=4 if self.routing_profile == "asia-oceania" else 3,
-                        preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
-                        skip_if_priority_route_viable="return",
-                    )
-                for offset in self.return_second_offsets:
-                    leg_date = self.ret + timedelta(days=offset)
-                    for origin_code in self.origin_airports:
-                        self._add_segment(Direction.RETURN, Leg.HUB_TO_ORIGIN,
-                            leg_date,
-                            PRIORITY_SECONDARY_HUB,
-                            origin_code,
-                            route_family="dxb_direct",
-                            priority=4 if self.routing_profile == "asia-oceania" else 3,
-                            preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
-                            skip_if_priority_route_viable="return",
-                        )
-                for gateway_code, gateway_extra in self._gateway_segment_options:
-                    for dest_code in self.destination_airports:
-                        self._add_segment(Direction.RETURN,
-                            "destination_to_gateway",
-                            self.ret,
-                            dest_code,
-                            gateway_code,
-                            route_family="moscow_gateway_control",
-                            priority=3 if self.routing_profile == "asia-oceania" else 2,
-                            **gateway_extra,
-                        )
-            elif self.routing_strategy == RoutingStrategy.DOMESTIC_RU:
-                for dest_code, dest_extra in self.destination_segment_options:
-                    for origin_code, origin_extra in self.origin_segment_options:
-                        self._add_segment(Direction.RETURN, Leg.DIRECT_RETURN,
-                            self.ret,
-                            dest_code,
-                            origin_code,
-                            route_family=RouteFamily.DOMESTIC_RU,
-                            priority=0,
-                            **{**dest_extra, **origin_extra},
-                        )
-                for dest_code in self.destination_airports:
-                    for hub in self.hubs:
-                        self._add_segment(Direction.RETURN, Leg.DESTINATION_TO_HUB, self.ret, dest_code, hub, route_family=RouteFamily.DOMESTIC_RU, priority=1)
-                for offset in self.return_second_offsets:
-                    leg_date = self.ret + timedelta(days=offset)
-                    for hub in self.hubs:
-                        for origin_code in self.origin_airports:
-                            self._add_segment(Direction.RETURN, Leg.HUB_TO_ORIGIN, leg_date, hub, origin_code, route_family=RouteFamily.DOMESTIC_RU, priority=1)
-            else:
-                if self._include_generic_direct_controls:
-                    for dest_code, dest_extra in self.destination_segment_options:
-                        for origin_code, origin_extra in self.origin_segment_options:
-                            self._add_segment(Direction.RETURN, Leg.DIRECT_RETURN,
-                                self.ret,
-                                dest_code,
-                                origin_code,
-                                route_family="direct_control",
-                                priority=0,
-                                **{**dest_extra, **origin_extra},
-                            )
-                for dest_code in self.destination_airports:
-                    for hub in self.hubs:
-                        self._add_segment(Direction.RETURN, Leg.DESTINATION_TO_HUB, self.ret, dest_code, hub, route_family=RouteFamily.HUB_LIST, priority=1)
-                for offset in self.return_second_offsets:
-                    leg_date = self.ret + timedelta(days=offset)
-                    for hub in self.hubs:
-                        for origin_code in self.origin_airports:
-                            self._add_segment(Direction.RETURN, Leg.HUB_TO_ORIGIN, leg_date, hub, origin_code, route_family=RouteFamily.HUB_LIST, priority=1)
-
+    def _build_result(self) -> dict[str, Any]:
         assembly_warning = (
             "KupiBilet live segment assembly uses direct-only one-way searches; availability and price still require final booking-screen recheck."
             if self.provider_policy.strip().lower() == "kupibilet"
