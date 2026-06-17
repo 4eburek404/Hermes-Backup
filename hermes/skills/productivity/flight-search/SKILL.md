@@ -1,6 +1,6 @@
 ---
 name: flight-search
-version: 0.11.0
+version: 0.5.0
 description: Use when finding, comparing, or diagnosing live flight route options with the bundled flights CLI; assumes one adult in economy and never books tickets.
 metadata:
   hermes:
