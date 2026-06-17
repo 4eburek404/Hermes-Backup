@@ -23,12 +23,30 @@ def serialized_report_size(report: dict[str, Any]) -> int:
     return len(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True).encode("utf-8"))
 
 
+def _all_options_direct(options: list[Any]) -> bool:
+    """True when every option explicitly has max_connections_per_journey == 0."""
+    if not options:
+        return False
+    return all(
+        isinstance(o, dict)
+        and o.get("max_connections_per_journey") is not None
+        and int(o.get("max_connections_per_journey")) == 0
+        for o in options
+    )
+
+
 def apply_agent_report_budget(report: dict[str, Any], budget: AgentReportBudget | None = None) -> dict[str, Any]:
     budget = budget or AgentReportBudget()
     trimmed = copy.deepcopy(report)
     omitted: dict[str, int] = {}
 
-    _trim_top_level_list(trimmed, "recommended_options", budget.max_recommended_options, omitted)
+    # When all recommended options are direct flights, keep them all — do not
+    # truncate.  The user asked for direct inventory and every direct flight matters.
+    recommended = report.get("recommended_options")
+    skip_recommended_trim = _all_options_direct(recommended) if isinstance(recommended, list) else False
+
+    if not skip_recommended_trim:
+        _trim_top_level_list(trimmed, "recommended_options", budget.max_recommended_options, omitted)
     _trim_top_level_list(trimmed, "priority_options", budget.max_priority_options, omitted)
     _trim_top_level_list(trimmed, "segment_searches", budget.max_segment_searches, omitted)
     _trim_top_level_list(trimmed, "provider_failures", budget.max_provider_failures, omitted)

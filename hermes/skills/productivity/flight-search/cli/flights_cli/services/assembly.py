@@ -690,8 +690,14 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
     )
     outbound_direct = direct_journeys(segment_results, Leg.DIRECT_OUTBOUND, Direction.OUTBOUND, args.limit_per_pair)
     return_direct = direct_journeys(segment_results, Leg.DIRECT_RETURN, Direction.RETURN, args.limit_per_pair)
-    outbound_journeys = outbound_direct + outbound_pairs
-    return_journeys = return_direct + return_pairs
+    # Direct-priority filter: when direct journeys exist for a direction, suppress one-stop
+    # pairs for that direction. Each direction is filtered independently so that a
+    # round-trip with direct outbound but no direct return still uses one-stop return.
+    direct_priority_applied = bool(outbound_direct) or bool(return_direct)
+    suppressed_one_stop_outbound_count = len(outbound_pairs) if outbound_direct else 0
+    suppressed_one_stop_return_count = len(return_pairs) if return_direct else 0
+    outbound_journeys = outbound_direct if outbound_direct else outbound_pairs
+    return_journeys = return_direct if return_direct else return_pairs
     rejected_pairs = outbound_rejected + return_rejected
 
     candidate_pool_limit = max(max(1, int(args.max_candidates)), int(getattr(args, "candidate_pool_limit", 5000)))
@@ -817,6 +823,9 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
         "limit_per_pair": args.limit_per_pair,
         "max_candidates": args.max_candidates,
         "stop_policy_diagnostics": ranked.get("stop_policy_diagnostics") or {},
+        "direct_priority_applied": direct_priority_applied,
+        "suppressed_one_stop_outbound_count": suppressed_one_stop_outbound_count,
+        "suppressed_one_stop_return_count": suppressed_one_stop_return_count,
     }
     ranked["candidates"] = candidates[: args.include_candidates]
     ranked["ranked_candidates"] = ranked_candidate_details(

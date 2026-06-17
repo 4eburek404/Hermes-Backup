@@ -420,8 +420,23 @@ def infer_answer_mode(*, is_round_trip_request: bool, options: list[dict[str, An
     return "recommendation"
 
 
+def _all_direct_options(options: list[Any]) -> bool:
+    """True when every option explicitly has max_connections_per_journey == 0."""
+    if not options:
+        return False
+    return all(
+        isinstance(o, dict)
+        and o.get("max_connections_per_journey") is not None
+        and int(o.get("max_connections_per_journey")) == 0
+        for o in options
+    )
+
+
 def build_catalog_contract(recommended: list[Any], priority: list[Any], *, is_round_trip_request: bool) -> dict[str, Any]:
-    options = catalog_options(recommended, priority, limit=10)
+    # When all recommended options are direct flights, expand the catalog limit
+    # so that every direct flight appears in the user-facing answer.
+    catalog_limit = len(recommended) if _all_direct_options(recommended) else 10
+    options = catalog_options(recommended, priority, limit=catalog_limit)
     return {
         "presentation": {"style": "numbered_compact", "language": "ru", "max_items": 10},
         "items": [catalog_item(option, number=index, is_round_trip_request=is_round_trip_request) for index, option in enumerate(options, start=1)],
