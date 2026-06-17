@@ -241,9 +241,6 @@ class LiveAssemblyRunner:
         self.offer_counts: dict[tuple[str, str, str, str], int] = {}
         self.synthetic_moscow_control_done: set[str] = set()
         self.priority_route_viability: dict[str, bool] = {}
-        # --- collaborators ---
-        self.request_deduper = RequestDeduper()
-        self.probe_ledger = ProbeExecutionLedger()
 
     def run(self) -> dict[str, Any]:
         self._init_run()
