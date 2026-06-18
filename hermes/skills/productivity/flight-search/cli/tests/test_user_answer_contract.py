@@ -13,6 +13,7 @@ from flights_cli.reporting.user_answer import (
     USER_ANSWER_SCHEMA_PACKAGE,
     USER_ANSWER_SCHEMA_RESOURCE,
     USER_ANSWER_SCHEMA_VERSION,
+    aircraft_display_label,
     build_user_answer,
     load_user_answer_schema,
     validate_user_answer,
@@ -217,11 +218,75 @@ class FinalAnswerContractTests(unittest.TestCase):
         self.assertIn("provider_failures", answer["evidence_status"]["blocking_evidence"])
         self.assertTrue(answer["rendered_text"].startswith("Нашёл варианты SVX→DEL"))
         self.assertIn("часть live-проверок упала", answer["rendered_text"])
-        self.assertIn("through fare", answer["rendered_text"])
+        self.assertIn("Единый тариф", answer["rendered_text"])
         self.assertIn("не доказывает", answer["rendered_text"])
         self.assertEqual(answer["answer_lines"], [line for line in answer["rendered_text"].splitlines() if line.strip()])
         self.assertTrue(answer["required_caveats"]["provider_failures_acknowledged"])
         self.assertTrue(answer["required_caveats"]["through_fare_verification_required"])
+
+    def test_catalog_rendered_text_uses_traveler_line_format_without_raw_badges(self) -> None:
+        report = valid_report()
+        report["route"] = {"origin": "SVX", "destination": "LED", "dates": {"depart_date": "2026-08-06"}}
+        direct = copy.deepcopy(valid_option())
+        direct.update(
+            {
+                "id": "assembled-1:SVX-LED",
+                "price": {"amount": 10179, "currency": "RUB"},
+                "price_text": "10 179 RUB",
+                "max_connections_per_journey": 0,
+                "segments": [
+                    {
+                        "direction": "outbound",
+                        "flight_number": "DP516",
+                        "carrier": "DP",
+                        "origin": "SVX",
+                        "destination": "LED",
+                        "departure_at": "2026-08-06T05:40:00+05:00",
+                        "arrival_at": "2026-08-06T06:30:00+03:00",
+                        "aircraft_code": "73H",
+                        "duration_min": 170,
+                    }
+                ],
+            }
+        )
+        second = copy.deepcopy(direct)
+        second["id"] = "assembled-2:SVX-LED"
+        second["rank"] = 2
+        second["price"] = {"amount": 10404, "currency": "RUB"}
+        second["price_text"] = "10 404 RUB"
+        second["segments"][0]["flight_number"] = "5N502"
+        second["segments"][0]["departure_at"] = "2026-08-06T07:15:00+05:00"
+        second["segments"][0]["arrival_at"] = "2026-08-06T08:05:00+03:00"
+        report["recommended_options"] = [direct, second]
+        report["priority_options"] = []
+        report["status"] = {"all_direct_inventory": True, "direct_omitted": 0}
+        report["offer_graph"]["truth_language"]["negative_wording"] = (
+            "не нашёл в выполненных live/probe источниках; "
+            "это не доказательство отсутствия вне границ источника"
+        )
+
+        with patch(
+            "flights_cli.reporting.user_answer.airport_city_label",
+            side_effect=lambda code: {"SVX": "Екатеринбург", "LED": "Санкт-Петербург"}.get(code, code),
+            create=True,
+        ):
+            answer = build_user_answer(report)
+
+        validate_user_answer(answer)
+        self.assertIn("1. DP516 Екатеринбург-Санкт-Петербург 0540 0630 - B737 - 10 179 руб", answer["rendered_text"])
+        self.assertIn("2. 5N502 Екатеринбург-Санкт-Петербург 0715 0805 - B737 - 10 404 руб", answer["rendered_text"])
+        self.assertNotIn("риски:", answer["rendered_text"])
+        self.assertNotIn("single_pnr_unproven", answer["rendered_text"])
+        self.assertNotIn("baggage_unknown", answer["rendered_text"])
+        self.assertNotIn("single PNR", answer["rendered_text"])
+        self.assertNotIn("through fare", answer["rendered_text"])
+        self.assertNotIn("не нашёл в выполненных", answer["rendered_text"])
+        self.assertIn("Перед оплатой", answer["rendered_text"])
+
+    def test_aircraft_display_label_normalizes_common_equipment_codes(self) -> None:
+        self.assertEqual(aircraft_display_label("73H"), "B737")
+        self.assertEqual(aircraft_display_label("319"), "A319")
+        self.assertEqual(aircraft_display_label("A32A"), "A320")
 
     def test_renderer_uses_report_truth_language_for_absence_scope(self) -> None:
         report = valid_report()

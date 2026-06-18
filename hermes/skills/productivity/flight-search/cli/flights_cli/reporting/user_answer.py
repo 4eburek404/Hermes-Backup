@@ -291,7 +291,7 @@ def direction_contract(option: dict[str, Any], direction: str) -> dict[str, Any]
         "segments": catalog_segments,
         "layovers": direction_layovers(catalog_segments),
         "elapsed_min": direction_elapsed(option, direction, catalog_segments),
-        "render_line": render_direction_for_catalog(catalog_segments, direction),
+        "render_line": render_direction_for_catalog(segments, direction),
     }
 
 
@@ -317,16 +317,76 @@ def catalog_display_time(value: Any) -> str:
     return value.split("T", 1)[1][:5]
 
 
+def catalog_display_time_compact(value: Any) -> str:
+    rendered = catalog_display_time(value)
+    return rendered.replace(":", "") if re.fullmatch(r"\d{2}:\d{2}", rendered) else rendered
+
+
+@lru_cache(maxsize=512)
+def airport_city_label(code: str | None) -> str:
+    normalized = str(code or "").strip().upper()
+    if not normalized:
+        return "???"
+    try:
+        from ..store import Store
+
+        store = Store()
+        airport = store.airport_by_code.get(normalized)
+        city_code = str(airport.get("city_code") or "").upper() if airport else normalized
+        city_name = store.city_name(city_code)
+        if city_name:
+            return city_name
+    except Exception:
+        return normalized
+    return normalized
+
+
+@lru_cache(maxsize=512)
+def aircraft_display_label(code: str | None) -> str | None:
+    raw = str(code or "").strip().upper()
+    if not raw:
+        return None
+    if raw == "737" or raw.startswith("73") or raw.startswith("7M"):
+        return "B737"
+    if raw in {"318", "319", "320", "321"}:
+        return f"A{raw}"
+    if raw in {"32A", "32B", "32N", "32Q"} or raw.startswith("A32"):
+        return "A320"
+    if raw.startswith("32") and len(raw) >= 3:
+        return f"A{raw[:3]}"
+    if raw.startswith("33") and len(raw) >= 3:
+        return f"A{raw[:3]}"
+    if raw.startswith("35") and len(raw) >= 3:
+        return f"A{raw[:3]}"
+    return raw
+
+
+def catalog_price_for_traveler_line(price: dict[str, Any]) -> str:
+    display = str(price.get("display") or "цена н/д").strip()
+    display = re.sub(r"\bRUB\b", "руб", display, flags=re.IGNORECASE).replace("₽", "руб")
+    return re.sub(r"\s+", " ", display).strip()
+
+
+def render_catalog_segment_for_traveler(segment: dict[str, Any]) -> str:
+    number = segment.get("flight_number") or segment.get("carrier") or "рейс"
+    origin = airport_city_label(segment.get("origin"))
+    destination = airport_city_label(segment.get("destination"))
+    departure = catalog_display_time_compact(segment.get("departure_at"))
+    arrival = catalog_display_time_compact(segment.get("arrival_at"))
+    line = f"{number} {origin}-{destination} {departure} {arrival}"
+    aircraft = aircraft_display_label(segment.get("aircraft_code"))
+    if aircraft:
+        line = f"{line} - {aircraft}"
+    return line
+
+
 def render_direction_for_catalog(segments: list[dict[str, Any]], direction: str) -> str | None:
     if not segments:
         return None
+    flights = [render_catalog_segment_for_traveler(segment) for segment in segments]
+    if len(segments) == 1:
+        return flights[0]
     date = catalog_display_date(segments[0].get("departure_at"))
-    flights = []
-    for segment in segments:
-        number = segment.get("flight_number") or segment.get("carrier") or "рейс"
-        origin = segment.get("origin") or "???"
-        destination = segment.get("destination") or "???"
-        flights.append(f"{number} {origin}-{destination} {catalog_display_time(segment.get('departure_at'))}-{catalog_display_time(segment.get('arrival_at'))}")
     label = "туда" if direction == "outbound" else "обратно"
     return f"{date} {label}: " + " -> ".join(flights)
 
@@ -434,32 +494,38 @@ def build_catalog_contract(recommended: list[Any], priority: list[Any], *, is_ro
 
 
 def render_catalog_item(item: dict[str, Any]) -> str:
-    parts = [f"{item.get('number')}. {item['total_price']['display']}"]
+    body: list[str] = []
     outbound = item.get("directions", {}).get("outbound") if isinstance(item.get("directions"), dict) else None
     inbound = item.get("directions", {}).get("return") if isinstance(item.get("directions"), dict) else None
     if isinstance(outbound, dict) and outbound.get("render_line"):
-        parts.append(str(outbound["render_line"]))
+        body.append(str(outbound["render_line"]))
     if isinstance(inbound, dict) and inbound.get("render_line"):
-        parts.append(str(inbound["render_line"]))
-    if item.get("badges"):
-        parts.append("риски: " + ", ".join(str(value) for value in item["badges"][:4]))
-    return " — ".join(parts)
+        body.append(str(inbound["render_line"]))
+    price = catalog_price_for_traveler_line(item["total_price"] if isinstance(item.get("total_price"), dict) else {})
+    body.append(price)
+    return f"{item.get('number')}. " + " - ".join(part for part in body if part)
 
 
 def render_catalog_answer(route: dict[str, Any], catalog: dict[str, Any], *, caveat_context: dict[str, Any], direct_omitted: int = 0) -> str:
     origin = route.get("origin") or "???"
     destination = route.get("destination") or "???"
     lines = [f"Нашёл варианты {origin}→{destination}."]
-    lines.extend(str(item.get("render_line") or "") for item in catalog.get("items") or [] if isinstance(item, dict))
+    rendered_items = [
+        str(item.get("render_line") or "")
+        for item in catalog.get("items") or []
+        if isinstance(item, dict) and item.get("render_line")
+    ]
+    lines.extend(rendered_items)
+    has_rendered_options = bool(rendered_items)
     if direct_omitted > 0:
         word = "рейс" if direct_omitted == 1 else "рейса" if 2 <= direct_omitted <= 4 else "рейсов"
         lines.append(f"и ещё {direct_omitted} прямых {word}")
     negative_wording = str(caveat_context.get("negative_wording") or "").strip()
     checks: list[str] = [
-        "Проверить перед покупкой: single PNR/багаж/through fare не доказаны; финальную цену, тариф, багаж и правила проверить на booking screen.",
-        "Текущий live/provider результат не доказывает отсутствие through fare, прямого рейса или защищённого билета.",
+        "Перед оплатой проверить багаж, финальный тариф и правила обмена/возврата.",
+        "Единый тариф/сквозной багаж не подтверждены; текущий результат поставщика не доказывает наличие или отсутствие защищённого билета.",
     ]
-    if negative_wording and negative_wording not in checks:
+    if negative_wording and not has_rendered_options and negative_wording not in checks:
         checks.append(negative_wording)
     if caveat_context.get("not_executed"):
         checks.append("Coverage неполное: не все live-проверки выполнены.")
