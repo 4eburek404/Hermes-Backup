@@ -273,8 +273,8 @@ class FinalAnswerContractTests(unittest.TestCase):
             answer = build_user_answer(report)
 
         validate_user_answer(answer)
-        self.assertIn("1. DP516 Екатеринбург-Санкт-Петербург 0540 0630 - B737 - 10 179 руб", answer["rendered_text"])
-        self.assertIn("2. 5N502 Екатеринбург-Санкт-Петербург 0715 0805 - B737 - 10 404 руб", answer["rendered_text"])
+        self.assertIn("1. 10 179 руб | туда: DP516 SVX→LED 06.08 05:40–06:30 B737", answer["rendered_text"])
+        self.assertIn("2. 10 404 руб | туда: 5N502 SVX→LED 06.08 07:15–08:05 B737", answer["rendered_text"])
         self.assertNotIn("риски:", answer["rendered_text"])
         self.assertNotIn("single_pnr_unproven", answer["rendered_text"])
         self.assertNotIn("baggage_unknown", answer["rendered_text"])

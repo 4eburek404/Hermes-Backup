@@ -322,6 +322,21 @@ def catalog_display_time_compact(value: Any) -> str:
     return rendered.replace(":", "") if re.fullmatch(r"\d{2}:\d{2}", rendered) else rendered
 
 
+def catalog_route_code(code: Any) -> str:
+    normalized = str(code or "").strip().upper()
+    return normalized or "???"
+
+
+def catalog_time_window(departure_at: Any, arrival_at: Any) -> str:
+    departure_date = catalog_display_date(departure_at)
+    arrival_date = catalog_display_date(arrival_at)
+    departure_time = catalog_display_time(departure_at)
+    arrival_time = catalog_display_time(arrival_at)
+    if arrival_date != departure_date:
+        return f"{departure_date} {departure_time}–{arrival_date} {arrival_time}"
+    return f"{departure_date} {departure_time}–{arrival_time}"
+
+
 @lru_cache(maxsize=512)
 def airport_city_label(code: str | None) -> str:
     normalized = str(code or "").strip().upper()
@@ -369,14 +384,13 @@ def catalog_price_for_traveler_line(price: dict[str, Any]) -> str:
 
 def render_catalog_segment_for_traveler(segment: dict[str, Any]) -> str:
     number = segment.get("flight_number") or segment.get("carrier") or "рейс"
-    origin = airport_city_label(segment.get("origin"))
-    destination = airport_city_label(segment.get("destination"))
-    departure = catalog_display_time_compact(segment.get("departure_at"))
-    arrival = catalog_display_time_compact(segment.get("arrival_at"))
-    line = f"{number} {origin}-{destination} {departure} {arrival}"
+    origin = catalog_route_code(segment.get("origin"))
+    destination = catalog_route_code(segment.get("destination"))
+    time_window = catalog_time_window(segment.get("departure_at"), segment.get("arrival_at"))
+    line = f"{number} {origin}→{destination} {time_window}"
     aircraft = aircraft_display_label(segment.get("aircraft_code"))
     if aircraft:
-        line = f"{line} - {aircraft}"
+        line = f"{line} {aircraft}"
     return line
 
 
@@ -384,11 +398,8 @@ def render_direction_for_catalog(segments: list[dict[str, Any]], direction: str)
     if not segments:
         return None
     flights = [render_catalog_segment_for_traveler(segment) for segment in segments]
-    if len(segments) == 1:
-        return flights[0]
-    date = catalog_display_date(segments[0].get("departure_at"))
     label = "туда" if direction == "outbound" else "обратно"
-    return f"{date} {label}: " + " -> ".join(flights)
+    return f"{label}: " + " -> ".join(flights)
 
 
 def risk_badges(option: dict[str, Any], *, ticketing_model: str, baggage: dict[str, str], protection: dict[str, Any]) -> list[str]:
@@ -494,16 +505,15 @@ def build_catalog_contract(recommended: list[Any], priority: list[Any], *, is_ro
 
 
 def render_catalog_item(item: dict[str, Any]) -> str:
-    body: list[str] = []
+    price = catalog_price_for_traveler_line(item["total_price"] if isinstance(item.get("total_price"), dict) else {})
+    body: list[str] = [price]
     outbound = item.get("directions", {}).get("outbound") if isinstance(item.get("directions"), dict) else None
     inbound = item.get("directions", {}).get("return") if isinstance(item.get("directions"), dict) else None
     if isinstance(outbound, dict) and outbound.get("render_line"):
         body.append(str(outbound["render_line"]))
     if isinstance(inbound, dict) and inbound.get("render_line"):
         body.append(str(inbound["render_line"]))
-    price = catalog_price_for_traveler_line(item["total_price"] if isinstance(item.get("total_price"), dict) else {})
-    body.append(price)
-    return f"{item.get('number')}. " + " - ".join(part for part in body if part)
+    return f"{item.get('number')}. " + " | ".join(part for part in body if part)
 
 
 def render_catalog_answer(route: dict[str, Any], catalog: dict[str, Any], *, caveat_context: dict[str, Any], direct_omitted: int = 0) -> str:
