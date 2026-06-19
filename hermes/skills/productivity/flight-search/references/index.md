@@ -1,35 +1,42 @@
-# Reference index
+# Reference Index and Ownership Map
 
-Routing hub for everything outside the flight-search happy path. Loaded on demand. Not in the runtime hot path.
+This file is the canonical map for `flight-search` support references. `SKILL.md` links here for anything outside the happy path. Keep this index small and keep each referenced file single-purpose.
 
-## Runtime follow-ups → reference
+## Operating rule
 
-Enter only when the report flags missing evidence or the user asks for a narrower proof.
+- Start with the Golden Path in `SKILL.md`: run `python3 -m flights_cli --json search --request ...` and answer from `data.agent_report.user_answer.rendered_text`.
+- Load a reference only when the current task crosses its trigger below.
+- Do not create incident, audit, proposal, smoke, or handoff Markdown in `references/`. Distill durable behavior into the owner file below, CLI code/schema/tests, or session history.
+- When two files seem to own the same rule, update this index first, then move the rule into the listed owner and replace duplicates with cross-references.
 
-| When | Read | Notes |
-|---|---|---|
-| Direct / nonstop over a bounded date window | `direct-date-window.md` | Set `route_options.date_window_end`; read `evidence.date_window_inventory`. |
-| Carrier or exact-airport scope | `provider-aware-airport-priority.md` | Answer the requested scope first, then alternatives; required controls appear in the report evidence plan. |
-| PNR / through-baggage / protection / final fare / refund / exchange / terminal proof | `source-boundaries.md` | Require purchase-screen, airline/GDS, seller, or explicit upstream proof; otherwise unproven. |
-| Market controls — RU-domestic, RU-touching, global non-RU | `flow-decision-router.md` | Global non-RU must not silently inherit RU-priority, Moscow/SVO controls, or Russian-provider assumptions; if it does, it is a structured limitation. |
-| Train vs flight comparison after a search | `rail-rzd-live-pricing.md` | Official RZD read-only; bound to price/time evidence. |
-| Short / missing direct set | `direct-priority-filter.md` | Truncation vs provider absence; `all_direct_inventory` flag, caps, round-trip per-direction. |
-| Report read order / renderer contract | `report-contract.md` | `agent_report.v2`, `flight_search_user_answer.v3`, semantic validation. |
+## Canonical references
 
-## Maintenance rules → SSOT file
+| File | Owns | Load when | Non-goals |
+|---|---|---|---|
+| `report-contract.md` | How to read `data.agent_report`; `agent_report.v2`; `flight_search_user_answer.v3`; canonical answer path; renderer guarantees. | You need to decide what to show the traveler, inspect report fields, or maintain report/user-answer schema/renderer behavior. | Provider dispatch, source/proof taxonomy, route-pipeline internals. |
+| `source-boundaries.md` | Evidence classes, absence taxonomy, airport/city boundaries, connection/MCT policy, ticketing/protection proof, static-catalog limits, KupiBilet/sidecar boundaries. | You need to phrase confidence/absence/ticketing claims or decide whether a caveat is decision-useful. | Route planning mechanics and provider-specific airport priority. |
+| `provider-aware-airport-priority.md` | Provider/airport dispatch rules for multi-airport cities: KupiBilet city-code-first, FLI exact-airport policy, Moscow/London/Dubai/IST priorities, RU-priority visibility fields. | The task involves city vs airport scope, exact-airport proof, carrier/airport controls, or provider dispatch maintenance. | General source-boundary wording and pipeline stage descriptions. |
+| `pipeline-reference.md` | Current data flow from `flight_search_request.v1` to `flight_search_result.v1`; flow decision, evidence plan, segment planning, provider dispatch, direct-priority/all-direct mechanics, reporting projection, data artifacts. | You need to debug or maintain how the CLI makes route decisions, how direct/connected options are assembled, or how fields move between stages. | Targeted live-probe recipes and traveler-facing caveat wording. |
+| `debug-playbook.md` | Bounded diagnostic workflow: runtime provenance, JSON extraction, targeted provider probes, Moscow/direct/carrier controls, diagnostic split patterns. | The Golden Path report is inconsistent, sparse, degraded, or surprising, and a narrow probe could change the answer. | Normal route search; do not expose debug output as the traveler answer. |
+| `direct-date-window.md` | Direct/nonstop inventory over a bounded date range using `route_options.max_connections=0`, `tier2_max_connections=0`, and `date_window_end`. | The user asks for all direct/nonstop flights across a range of dates. | Route recommendation or connected alternatives unless the user asks. |
+| `rail-rzd-live-pricing.md` | Bounded official RZD read-only train-price comparison after a flight search. | The user asks whether train tickets are cheaper or wants rail prices for the same route/date. | Full rail-booking workflow or non-official aggregator estimates. |
+| `cli-maintenance.md` | Source/runtime governance, CLI JSON stdout/stderr rules, contract/schema lifecycle, provider-port maintenance, renderer tests, generated artifacts, reference lifecycle. | The task is inspect/debug/refactor/sync/version/test work on the skill or CLI. | Traveler-facing route search and provider-live evidence. |
 
-Load only for an inspect/debug/modify/sync task. Never expose maintenance output as the traveler answer.
+## Routing examples
 
-| Topic | File |
+| Situation | Read |
 |---|---|
-| Parameter renames, no legacy aliases (`fallback_max_connections` → `tier2_max_connections`); direct-only is `max_connections=0` | `cli-maintenance.md` |
-| Terminology: «deferred» / «secondary tier» / «two-stop tier» / «last-resort», never «fallback» for priority tiers | `cli-maintenance.md` |
-| No new audit/session/proposal Markdown; move durable behavior into CLI/report/tests; reference lifecycle | `cli-maintenance.md` |
-| Tests verify deterministic code/contract strings, not prose phrases (no `assertIn("sentence", reference_text)`) | `cli-maintenance.md` |
-| Bulk-rename checklist (`grep -rn` → rename code/flags/schemas/tests → fix assertions → drop migration notes → `pytest -x`) | `cli-maintenance.md` |
-| One canonical source per rule; replace cross-file duplicates with a cross-reference | `cli-maintenance.md` |
-| Direct-vs-connected mixing: assembly-level suppression, budget caps/bypass, round-trip per-direction — root causes | `debug-playbook.md` |
-| `is not None` guard on `max_connections_per_journey` (fixtures without the key must not read as direct) | `debug-playbook.md` |
-| Candidate-generation caps (`--max-candidates`); all-direct catalog expansion: single `all_direct_inventory` flag, `ALL_DIRECT_CATALOG_CAP`, three truncation layers | `direct-priority-filter.md` |
+| Report answer/read order, final answer source, renderer/schema change | `report-contract.md` |
+| Single PNR, baggage-through, refund/exchange/fare-rule proof | `source-boundaries.md` |
+| Empty provider output, absence language, structural vs provider/horizon uncertainty | `source-boundaries.md` |
+| Exact airport vs city scope, KupiBilet `MOW`, FLI exact airport, London/Dubai/IST defaults | `provider-aware-airport-priority.md` |
+| Global non-RU must not inherit RU/Moscow controls; market/intent/evidence classification | `pipeline-reference.md` |
+| Short/missing direct set, direct suppresses connected, `all_direct_inventory`, output caps | `pipeline-reference.md` first; `debug-playbook.md` only if a narrow live control is needed |
+| Direct/nonstop options across several dates | `direct-date-window.md` |
+| Provider failure, suspected horizon/coverage gap, targeted carrier/direct probe | `debug-playbook.md` |
+| Train-vs-flight price/time comparison | `rail-rzd-live-pricing.md` |
+| Source/runtime parity, branch/publish/sync, generated artifacts, schema/test updates | `cli-maintenance.md` |
 
-When a topic spans files, treat the file above as SSOT and cross-reference the others rather than duplicating.
+## Reference lifecycle
+
+A reference remains canonical only if it owns a stable function in the table above. Historical fixes such as direct-priority incidents, flow-decision design notes, route examples, or provider bug reports should live in the owner file as compact rules/tests, not as separate active Markdown.

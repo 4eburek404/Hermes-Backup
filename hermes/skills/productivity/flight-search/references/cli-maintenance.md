@@ -27,7 +27,7 @@ Important UX boundary: the flight-search CLI is an agent-facing implementation t
 
 ## Source, Runtime, and Mirror Validation
 
-Current source edits happen under `/home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-search`. Runtime state lives under `$HERMES_HOME/skills/productivity/flight-search` (usually `$HOME/.hermes/skills/productivity/flight-search`) and is a separate deployment/sync surface. The active Hermes release path may intentionally exclude this runtime/user skill. The legacy distribution mirror `cli/skill-clis/flights` must not be recreated.
+Current source edits happen under `/home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-search`. Runtime state lives under `$HERMES_HOME/skills/productivity/flight-search` (usually `$HOME/.hermes/skills/productivity/flight-search`) and is a separate deployment/sync surface. The active Hermes release path may intentionally exclude this runtime/user skill. Do not recreate the retired distribution mirror formerly known as `skill-clis/flights`.
 
 Before saying which version is current, run the compact local maintenance report when the CLI is available:
 
@@ -236,15 +236,17 @@ Generated artifacts must be intentionally cleaned or reported. Prefer `PYTHONDON
 
 ## Markdown Reference Governance
 
-Canonical active references are bounded to six logical directions, plus bounded adjacent rail comparison:
+Canonical active references are the index plus eight owner files:
 
+0. `references/index.md` — canonical reference owner map and routing hub from `SKILL.md`.
 1. `references/report-contract.md` — how to read `agent_report`, contract lifecycle, and renderer contract.
 2. `references/source-boundaries.md` — evidence classes, absence, airports, connections, ticketing, OTA/smart-route semantics.
 3. `references/provider-aware-airport-priority.md` — provider/airport dispatch and city-code policy.
-4. `references/debug-playbook.md` — targeted probes and route-family exception patterns.
-5. `references/direct-date-window.md` — direct/nonstop inventory over a bounded date range; per-date direct-only probes and compact availability output.
-6. `references/cli-maintenance.md` — source/runtime, schema/tests, provider ports, CLI-surface simplification, generated artifacts, dead-code/duplicate cleanup, and this reference lifecycle.
-7. `references/rail-rzd-live-pricing.md` — bounded train-price comparison after a flight search.
+4. `references/pipeline-reference.md` — current data flow, flow decision, evidence plan, direct-priority/all-direct mechanics, reporting projection, and data artifacts.
+5. `references/debug-playbook.md` — targeted probes and bounded exception/debug patterns.
+6. `references/direct-date-window.md` — direct/nonstop inventory over a bounded date range.
+7. `references/rail-rzd-live-pricing.md` — bounded official-RZD train-price comparison after a flight search.
+8. `references/cli-maintenance.md` — source/runtime, schema/tests, provider ports, CLI-surface simplification, generated artifacts, dead-code/duplicate cleanup, and this reference lifecycle.
 
 Do not add a new active reference for every incident, smoke run, audit, handoff, route example, migration note, or implementation report. First extract durable rules into the appropriate canonical reference or test; leave raw history to session search. Add another active reference only when a new stable direction cannot be expressed in the canonical files.
 
@@ -252,6 +254,6 @@ Before final reporting after Markdown consolidation:
 
 - Confirm the canonical Markdown set explicitly.
 - Confirm no new incident, runbook, audit, handoff, smoke, or implementation-report Markdown was added.
-- Link from `SKILL.md` only to canonical references.
+- Link from `SKILL.md` to `references/index.md` for reference routing; direct links to specific references are allowed only for hot-path invariants.
 - Keep provider/airport policy in `references/provider-aware-airport-priority.md`; cross-reference it instead of duplicating provider-specific rules across docs.
-- Verify noncanonical runtime-only Markdown files are gone and source/runtime Markdown parity holds after sync.
+- Verify noncanonical runtime-only Markdown files are gone and source/runtime Markdown parity holds after sync when runtime sync is in scope.

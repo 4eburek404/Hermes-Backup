@@ -98,11 +98,9 @@ Distinguish:
 
 Smart routes can be cheaper but may require new check-in, baggage reclaim/recheck, passport/visa formalities, and independent fare rules. Present smart routes as risk-bearing, not as protected connections, unless purchase-screen terms prove the protection.
 
-Decision-critical public terms from the last researched help-page snapshot:
+Decision-critical public help-page facts must be treated as current-source evidence, not durable guarantees. The currently verified smart-route help page says smart routes are split tickets in one KupiBilet order; if a flight is cancelled or delayed due to the airline and the passenger contacts KupiBilet instead of self-buying/exchanging elsewhere, KupiBilet may cover the missed part of the route. It also says passengers may need to re-check in, reclaim/recheck baggage, hold transit documents/visas, and accept separate refund/exchange conditions per ticket.
 
-- Trip Guarantee: can cover cancellation, 5h+ delay for a ticket with one booking reference, and broken smart-route connection due to delay; passenger must contact KupiBilet quickly and no later than 2h after original departure time.
-- KupiBilet refund add-on: may return 90% when cancelled at least 48h before departure; exact terms/eligible payout form require checkout/help-page verification.
-- Baggage after purchase, online check-in, priority support, meals, refunds, exchanges, and bonuses are add-ons/terms to verify on current checkout before quoting as firm.
+Do not quote exact delay thresholds, refund percentages, deadlines, add-on terms, or payout rules from memory. Verify current checkout/help-page wording before presenting those as firm.
 
 For business travel, use KupiBilet to discover candidates and price signals, then verify booking-screen/GDS/airline evidence for PNR, baggage, protection, terminals, and fare rules.
 

@@ -42,8 +42,8 @@ Apply to every reply. Full evidence/absence taxonomy: `references/source-boundar
 3. Metadata never proves availability — static catalogs, cached fare helpers, maintenance diagnostics, and `data.catalog_auto_refresh` describe metadata only.
 4. Named airports are not city scope. If you broaden ORIGIN/DEST, say so and why.
 5. Take freshness, controls, provider failures, and missing evidence from report fields, not your own reasoning. Never re-rank, rewrite, or paste raw diagnostic JSON.
-6. Short direct set? When direct exists the report shows all direct and suppresses connected (per-direction on round-trips). If fewer than expected, run `diagnose kb-search ORIGIN DEST --direct-only --limit 20` before blaming the provider — truncation is usually in the display pipeline. Mechanism: `references/direct-priority-filter.md`.
+6. Short direct set? When direct exists the report shows all direct and suppresses connected (per-direction on round-trips). If fewer than expected, run `diagnose kb-search ORIGIN DEST --direct-only --limit 20` before blaming the provider — truncation is usually in the display pipeline. Current mechanism and debug route are mapped in `references/index.md`.
 
 ## Beyond the happy path
 
-When the happy path is not enough — missing evidence, narrower proof (date-window, carrier/exact-airport, PNR/baggage), market controls (RU-domestic, RU-touching, global non-RU), train comparison, or any maintenance/debug/refactor — `references/index.md` routes you to the right file. Never expose maintenance output as the traveler answer.
+When the happy path is not enough — missing evidence, narrower proof (date-window, carrier/exact-airport, PNR/baggage), market controls (RU-domestic, RU-touching, global non-RU), train comparison, or any maintenance/debug/refactor — `references/index.md` is the canonical reference owner map and routes you to the right file. Never expose maintenance output as the traveler answer.
