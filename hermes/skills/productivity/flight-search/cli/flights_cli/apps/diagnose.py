@@ -6,6 +6,7 @@ from typing import Any
 from ..domain.vocabulary import Leg
 from ..adapters.providers.registry import provider_adapter
 from ..orchestrators.live_assemble import build_live_route_segment_plan
+from ..pipeline.specs import probe_specs_from_segments, segment_specs_from_plan
 from ..reporting.projections.human_answer_mirror import build_human_answer_mirror
 from ..reporting.user_answer import build_user_answer
 from ..store import Store
@@ -22,10 +23,15 @@ def _agent_report_from_document(payload: dict[str, Any]) -> dict[str, Any]:
 def command_diagnose_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     request = normalize_search_request(read_json_document(args.request))
     live_assembly_options = live_assembly_options_from_search_request(request)
+    plan = build_live_route_segment_plan(live_assembly_options, store)
+    segments = segment_specs_from_plan(plan)
+    probe_specs = probe_specs_from_segments(segments, live_assembly_options)
     return {
         "schema_version": "flight_search_plan_diagnostic.v1",
         "request": request,
-        "plan": build_live_route_segment_plan(live_assembly_options, store),
+        "segments": [segment.as_dict() for segment in segments],
+        "probe_specs": [probe.as_dict() for probe in probe_specs],
+        "plan": plan,
     }
 
 

@@ -387,7 +387,16 @@ class CliContractTests(unittest.TestCase):
         payload = json.loads(proc.stdout)
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["command"], "diagnose plan")
+        self.assertEqual(payload["data"]["schema_version"], "flight_search_plan_diagnostic.v1")
         data = payload["data"]["plan"]
+        self.assertEqual(len(payload["data"]["segments"]), len(data["segments"]))
+        self.assertEqual(len(payload["data"]["probe_specs"]), len(data["segments"]))
+        first_probe = payload["data"]["probe_specs"][0]
+        self.assertEqual(first_probe["probe_type"], "segment_direct")
+        self.assertEqual(first_probe["provider_policy"], "auto")
+        self.assertEqual(first_probe["currency"], "RUB")
+        self.assertEqual(first_probe["filters"], {"only_carriers": [], "exclude_carriers": [], "prefer_carriers": [], "avoid_carriers": []})
+        self.assertNotIn("command", first_probe)
         self.assertEqual(data["hubs"], ["IST", "DXB"])
         self.assertEqual(data["destination_airports"], ["LHR", "LGW"])
         self.assertEqual(data["airport_scope"]["destination"]["excluded_by_default"], ["STN", "LTN"])
