@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import ast
+import json
 import re
 import tomllib
 import unittest
 
 from flights_cli import __skill_version__, __version__
+from flights_cli.command_surface import PRIMARY_ROUTE_COMMAND, ROUTE_COMMANDS, TARGETED_PROBE_COMMANDS
 from flights_cli.config import (
     CITY_AIRPORTS_EXCLUDED_BY_DEFAULT,
     KUPIBILET_CITY_CODE_FIRST_AIRPORTS,
@@ -14,14 +16,21 @@ from flights_cli.config import (
 )
 from flights_cli.ports.providers import ProviderName
 from flights_cli.adapters.providers.registry import PROVIDER_REGISTRY
+from flights_cli.contracts.registry import current_contract
 
 from helpers import PROJECT
 
 
 class ArchitectureTests(unittest.TestCase):
+    def version_manifest(self) -> dict:
+        return json.loads((PROJECT.parent / "version_manifest.json").read_text(encoding="utf-8"))
+
     def test_pyproject_version_matches_runtime_version(self) -> None:
         data = tomllib.loads((PROJECT / "pyproject.toml").read_text())
         self.assertEqual(data["project"]["version"], __version__)
+        manifest = self.version_manifest()
+        self.assertEqual(data["project"]["name"], manifest["cli"]["package"])
+        self.assertEqual(data["project"]["version"], manifest["cli"]["version"])
 
     def test_skill_version_matches_runtime_version(self) -> None:
         skill = PROJECT.parent / "SKILL.md"
@@ -29,6 +38,22 @@ class ArchitectureTests(unittest.TestCase):
         match = re.search(r"^version: (.+)$", text, re.MULTILINE)
         self.assertIsNotNone(match)
         self.assertEqual(match.group(1), __skill_version__)
+        manifest = self.version_manifest()
+        self.assertEqual(manifest["skill"], {"name": "flight-search", "version": __skill_version__})
+
+    def test_version_manifest_matches_contract_registry_and_command_surface(self) -> None:
+        manifest = self.version_manifest()
+        self.assertEqual(manifest["contracts"]["agent_report"], current_contract("agent_report")["schema_version"])
+        self.assertEqual(manifest["contracts"]["user_answer"], current_contract("user_answer")["schema_version"])
+        self.assertEqual(manifest["contracts"]["flight_search_request"], current_contract("search_request")["schema_version"])
+        self.assertEqual(manifest["contracts"]["flight_search_result"], current_contract("search_result")["schema_version"])
+        self.assertEqual(manifest["command_surface"]["golden_path"], f"{PRIMARY_ROUTE_COMMAND} --request")
+        self.assertEqual(
+            sorted(manifest["command_surface"]["diagnostic_commands"]),
+            sorted(["diagnose plan", "diagnose render", *TARGETED_PROBE_COMMANDS, *(f"route {name}" for name in ROUTE_COMMANDS)]),
+        )
+        self.assertIn("route live-assemble", manifest["command_surface"]["removed_commands"])
+        self.assertIn("route plan", manifest["command_surface"]["removed_commands"])
 
     def test_skill_markdown_formatting_is_sane(self) -> None:
         skill = PROJECT.parent / "SKILL.md"

@@ -162,6 +162,7 @@ def render_human(command: str, data: Any) -> str:
         git = source.get("git") or {}
         versions = data["versions"]
         parity = data["source_runtime_parity"]
+        version_manifest = data["version_manifest"]
         references = data["references"]
         artifacts = data["generated_artifacts"]
         return "\n".join(
@@ -172,6 +173,7 @@ def render_human(command: str, data: Any) -> str:
                 f"branch: {git.get('branch') or 'unknown'} dirty={git.get('dirty')}",
                 f"HEAD: {git.get('head') or 'unknown'}",
                 f"versions: skill={versions.get('skill_md') or 'unknown'} cli={versions.get('cli') or 'unknown'}",
+                f"manifest: {'ok' if version_manifest['exists'] and not version_manifest['mismatches'] else 'mismatch'}",
                 f"parity: {parity['status']}",
                 f"doctor: {data['doctor']['status']}",
                 f"references: source={references['source_count']} runtime={references['runtime_count']}",

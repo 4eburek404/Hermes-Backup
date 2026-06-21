@@ -11,6 +11,7 @@ from typing import Any
 from .. import __version__
 from ..commands.basic import command_doctor
 from ..store import Store
+from ..version_manifest import load_version_manifest, manifest_mismatches, manifest_path
 
 _GENERATED_DIR_NAMES = {"__pycache__", ".pytest_cache"}
 _GENERATED_SUFFIXES = (".pyc", ".pyo")
@@ -177,6 +178,8 @@ def build_maintenance_report(args: argparse.Namespace, store: Store) -> dict[str
     runtime_path = Path(args.runtime_path).expanduser() if getattr(args, "runtime_path", None) else _default_runtime_skill_path()
     source_generated = _generated_artifacts(source_path)
     runtime_generated = _generated_artifacts(runtime_path)
+    source_manifest = load_version_manifest(source_path)
+    source_manifest_path = manifest_path(source_path)
     return {
         "source": {
             "skill_path": str(source_path),
@@ -190,6 +193,12 @@ def build_maintenance_report(args: argparse.Namespace, store: Store) -> dict[str
         "versions": {
             "skill_md": _read_skill_version(source_path),
             "cli": __version__,
+        },
+        "version_manifest": {
+            "path": str(source_manifest_path),
+            "exists": source_manifest_path.exists(),
+            "data": source_manifest,
+            "mismatches": manifest_mismatches(source_manifest),
         },
         "source_runtime_parity": _source_runtime_parity(source_path, runtime_path),
         "doctor": _doctor_status(args, store),

@@ -18,6 +18,7 @@ from ..domain.airports import explain_airport
 from ..providers.route_intel import svx_route_index_path
 from ..providers.static_catalog import active_catalog_manifest, catalog_staleness, download_static_catalog, parse_ttl_seconds
 from ..store import Store, city_to_output
+from ..version_manifest import load_version_manifest, manifest_mismatches, manifest_path, source_skill_path
 
 def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     cache_files = {}
@@ -37,10 +38,17 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
         cache_files[name] = {"exists": path.exists(), "path": str(path)}
     route_index_path = svx_route_index_path(store.cache_dir / "route_intel")
     max_age_seconds = parse_ttl_seconds(args.catalog_max_age)
+    skill_path = source_skill_path()
+    manifest = load_version_manifest(skill_path)
     return {
         "version": __version__,
         "cli": {"name": "flights-cli", "version": __version__},
         "skill": {"name": __skill_name__, "version": __skill_version__},
+        "version_manifest": {
+            "path": str(manifest_path(skill_path)),
+            "exists": bool(manifest),
+            "mismatches": manifest_mismatches(manifest),
+        },
         "python": sys.executable,
         "offline_first": True,
         "cache_dir": str(store.cache_dir),
