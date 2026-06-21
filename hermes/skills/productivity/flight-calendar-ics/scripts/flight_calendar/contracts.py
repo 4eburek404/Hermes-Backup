@@ -147,7 +147,7 @@ _AGENT_CONTRACT_TEMPLATE: dict[str, Any] = {
             "data.agent_handoff.safe_summary.ics_mode",
             "data.agent_handoff.safe_summary.verification_ok",
         ],
-        "bundle": ["readable output directory", "itinerary.json readable", "flights.ics readable", "envelope.json readable", "VEVENT count equals segments_count", "DTSTART/DTEND with UTC Z suffix or TZID parameter", "VTIMEZONE components for all referenced timezones", "no TBD/UNKNOWN/None"],
+        "bundle": ["readable output directory", "itinerary.json readable", "flights.ics readable", "envelope.json readable", "VEVENT count equals segments_count", "VEVENT DTSTART/DTEND are absolute UTC Z timestamps", "no VTIMEZONE components required for flight events", "no TBD/UNKNOWN/None"],
     },
     "failure_path": {
         "steps": [

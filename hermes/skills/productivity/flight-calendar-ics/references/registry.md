@@ -16,7 +16,7 @@ Ownership map for `flight-calendar-ics` references. Rules for adding or changing
 - `carriers.md` — operator notes for Aeroflot, Red Wings, Ural Airlines, and Utair; carrier-specific fixes only.
 
 ### Delivery
-- `delivery-details.md` — send_message MEDIA: pitfalls for .ics delivery, platform quirks, target format.
+- `delivery-details.md` — Hermes delivery plugin plus send_message MEDIA: fallback pitfalls for .ics delivery, platform quirks, target format.
 
 ### Maintenance
 - `maintenance/operations.md` — read-only maint commands, boundaries, TDD slice sequence, reference add/change rules.

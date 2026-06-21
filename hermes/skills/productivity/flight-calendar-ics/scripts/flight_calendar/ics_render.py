@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Generate RFC 5545 .ics files from structured flight itinerary JSON.
 
-Uses the icalendar library for proper VTIMEZONE generation, line folding,
-and RFC 5545 compliance. Each VEVENT carries local DTSTART/DTEND with TZID
-so calendar clients show departure/arrival in the airport's local timezone.
+Uses the icalendar library for RFC 5545 serialization and line folding.
+Each VEVENT carries absolute UTC DTSTART/DTEND values. Human-facing event
+text still uses the airport-local times from the source itinerary.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from icalendar import Alarm, Calendar, Event, vDatetime, vText
+from icalendar import Alarm, Calendar, Event, vText
 
 from flight_calendar import itinerary_contract
 
@@ -192,12 +192,14 @@ def build_event(
     ical_status = status_map.get(raw_status, "CONFIRMED")
 
     uid = stable_uid(flight, str(calendar.get("booking_reference") or ""))
+    dep_dt_utc = dep_dt.astimezone(UTC)
+    arr_dt_utc = arr_dt.astimezone(UTC)
 
     # Build Event using icalendar modern API
     event_kwargs: dict[str, Any] = {
         "summary": summary,
-        "start": dep_dt,
-        "end": arr_dt,
+        "start": dep_dt_utc,
+        "end": arr_dt_utc,
         "location": location,
         "description": description,
         "uid": uid,
@@ -226,14 +228,14 @@ def build_event(
         "route": f"{dep_airport}->{arr_airport}",
         "departure_local": dep.get("local"),
         "arrival_local": arr.get("local"),
-        "dtstart_utc": dep_dt.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ"),
-        "dtend_utc": arr_dt.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ"),
+        "dtstart_utc": dep_dt_utc.strftime("%Y%m%dT%H%M%SZ"),
+        "dtend_utc": arr_dt_utc.strftime("%Y%m%dT%H%M%SZ"),
     }
     return event, summary_info
 
 
 def build_calendar(data: dict[str, Any], *, no_alarms: bool = False) -> tuple[str, list[dict[str, Any]]]:
-    """Build a complete VCALENDAR string with VTIMEZONE components.
+    """Build a complete VCALENDAR string with UTC VEVENT timestamps.
 
     Returns (ics_text, summaries) where ics_text is a valid RFC 5545 string
     and summaries is a list of per-flight info dicts.
@@ -267,12 +269,8 @@ def build_calendar(data: dict[str, Any], *, no_alarms: bool = False) -> tuple[st
         prodid="-//Hermes Agent//Flight Calendar ICS//EN",
     )
     cal["x-wr-calname"] = vText(calendar_name)
-    cal["x-wr-timezone"] = vText("UTC")
     cal["method"] = vText("PUBLISH")
     cal["calscale"] = vText("GREGORIAN")
-
-    # Automatically add VTIMEZONE components for all TZIDs referenced in events
-    cal.add_missing_timezones()
 
     ics_text = cal.to_ical().decode("utf-8")
     return ics_text, summaries

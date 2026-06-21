@@ -86,13 +86,13 @@ class BuildCommandAndCarrierAdaptersContractTests(unittest.TestCase):
         self.assertEqual(data["route"], "redwings")
         self.assertEqual(data["route_detection"]["evidence"], ["host:flyredwings.com"])
         self.assertEqual(data["verification"]["ok"], True)
-        self.assertEqual(data["envelope_path"], str(output_dir / "envelope.json"))
+        self.assertEqual(data["envelope_path"], str((output_dir / "envelope.json").resolve()))
         self.assertEqual(
             data["agent_handoff"],
             {
                 "ready": True,
                 "no_further_action_needed": True,
-                "media": f"MEDIA:{output_dir / 'flights.ics'}",
+                "media": f"MEDIA:{(output_dir / 'flights.ics').resolve()}",
                 "artifact_inspection_required": False,
                 "verification_source": "flight_calendar.bundle.verify_bundle_artifacts",
                 "safe_summary": {

@@ -73,18 +73,18 @@ def verify_bundle_artifacts(paths: dict[str, Path], segments_count: int, process
     ics_text = paths["ics"].read_text(encoding="utf-8")
     ics_render.validate_ics_text(ics_text, segments_count)
     event_count = ics_text.count("BEGIN:VEVENT")
-    # Verify DTSTART/DTEND only inside VEVENT blocks.
-    # VTIMEZONE blocks contain DTSTART lines without Z/TZID — those are normal.
+    # Verify DTSTART/DTEND only inside VEVENT blocks. Flight events must use
+    # absolute UTC timestamps; floating or TZID-qualified local times are not
+    # allowed because clients disagree on how to resolve them.
     vevent_blocks = _extract_vevent_blocks(ics_text)
     bad_lines: list[str] = []
     for block in vevent_blocks:
         for line in block.splitlines():
             if line.startswith(("DTSTART", "DTEND")):
-                # Valid: DTSTART:...Z (UTC) or DTSTART;TZID=...:... (local with timezone)
-                if not (line.endswith("Z") or ";TZID=" in line):
+                if not (line.startswith(("DTSTART:", "DTEND:")) and line.endswith("Z")):
                     bad_lines.append(line)
     if bad_lines:
-        raise CliFailure(f"generated ICS VEVENT DTSTART/DTEND lines lack UTC Z or TZID: {bad_lines[:3]}")
+        raise CliFailure(f"generated ICS VEVENT DTSTART/DTEND lines must be absolute UTC Z timestamps: {bad_lines[:3]}")
     add_step(process, "verify_bundle", segments_count=segments_count)
     return {
         "ok": True,

@@ -65,6 +65,47 @@ class BundleTimezoneSegmentsContractTests(unittest.TestCase):
             # Restore permissions for cleanup
             os.chmod(path, 0o644)
 
+    def test_bundle_verifier_rejects_non_utc_event_datetimes(self) -> None:
+        from flight_calendar.bundle import verify_bundle_artifacts
+        from flight_calendar.envelope import CliFailure
+
+        calendar_template = (
+            "BEGIN:VCALENDAR\r\n"
+            "VERSION:2.0\r\n"
+            "PRODID:-//test//EN\r\n"
+            "BEGIN:VEVENT\r\n"
+            "UID:test-1@example.invalid\r\n"
+            "DTSTAMP:20260601T000000Z\r\n"
+            "SUMMARY:Test flight\r\n"
+            "{dtstart}\r\n"
+            "{dtend}\r\n"
+            "END:VEVENT\r\n"
+            "END:VCALENDAR\r\n"
+        )
+        cases = [
+            (
+                "TZID",
+                "DTSTART;TZID=Europe/Moscow:20260601T091500",
+                "DTEND;TZID=Europe/Moscow:20260601T104500",
+            ),
+            (
+                "floating",
+                "DTSTART:20260601T091500",
+                "DTEND:20260601T104500",
+            ),
+        ]
+        for label, dtstart, dtend in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory(prefix="flight-bundle-utc.") as tmp:
+                root = Path(tmp)
+                paths = {"json": root / "itinerary.json", "ics": root / "flights.ics"}
+                paths["json"].write_text("{}\n", encoding="utf-8")
+                paths["ics"].write_text(calendar_template.format(dtstart=dtstart, dtend=dtend), encoding="utf-8")
+
+                with self.assertRaises(CliFailure) as caught:
+                    verify_bundle_artifacts(paths, segments_count=1, process=[])
+
+                self.assertIn("absolute UTC Z timestamps", str(caught.exception))
+
     def test_timezone_helpers_use_bundled_catalog_and_record_process_step(self) -> None:
         from flight_calendar.timezones import add_timezone_map_step, build_timezone_map, load_airport_timezones
 

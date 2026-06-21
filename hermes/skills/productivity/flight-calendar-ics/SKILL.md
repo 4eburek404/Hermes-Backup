@@ -23,9 +23,10 @@ Create an importable `.ics` from private flight evidence through the skill-owned
           python "<skill_dir>/scripts/flight_calendar_ics.py" --json build auto --input <private-itinerary.json>
 
 2. PARSE: stdout is JSON. If ok == true:
-            → send_message
+            → deliver data.agent_handoff.media as an attachment if the runtime has not already delivered it
             → tell user: route, segments, dates from data.agent_handoff.safe_summary
               (safe_summary.segments has flight_number, route, departure_local, arrival_local for each segment — use these, do not guess)
+            → do not read, edit, redact, refold, or reserialize the generated .ics
           If ok != true:
             → rm the --url-file (contains credentials)
             → read error.code from stdout; use diagnose route-detect or diagnose validate for retry.
@@ -46,3 +47,5 @@ pip install icalendar jsonschema cffi
 ## Mandatory Rules
 
 - **One command.** Run `--json build auto` exactly once. Do not run `doctor`, `diagnose`, `stat`, `ls`, `grep`, `cat`, or `test` after a successful build.
+- **Final artifact.** The generated `.ics` is the private deliverable and intentionally contains the user's own booking data needed for calendar import (for example passenger name, PNR, ticket number, and booking link when present). Never redact, sanitize, re-fold, reserialize, or rewrite it after a successful build.
+- **Safe reporting only.** Privacy redaction applies to chat/stdout/error reporting, not to the `.ics` attachment. Use only `data.agent_handoff.safe_summary` for the text reply.
