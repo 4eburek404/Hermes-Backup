@@ -124,7 +124,7 @@ Rules:
 - `--agent-mode` is a legacy compatibility preset, not a new design surface; remove it after replacement production/diagnostic contracts exist.
 - Keep ordinary user commands narrow. Hide or classify as advanced/debug the knobs for candidate pool limits, raw/ranked/rejected bodies, live-cache TTL, direct-route-intel TTL, fail-fast, day-offset fanout, coverage-control internals, and aggregate-control internals.
 - Prefer one public route-search wrapper over parallel user-facing variants. Provider-specific commands, `diagnose plan --request`, and offline `route validate/rank/assemble` are diagnostics/development surfaces unless the user explicitly asks for provider-level proof.
-- Remove `route kb-assemble` after the replacement production search and diagnostic provider override are available; do not preserve compat aliases just because tests still reference them.
+- Do not preserve compatibility aliases just because older tests referenced them; production search and diagnostic provider override surfaces are already separate.
 
 ## Provider Port Rule
 

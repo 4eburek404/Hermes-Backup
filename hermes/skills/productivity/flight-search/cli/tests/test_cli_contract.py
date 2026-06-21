@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import subprocess
 import sys
@@ -73,13 +75,30 @@ COMMAND_ARGV = {
 
 TARGETED_PROBE_ARGV = {
     "diagnose probe": ["diagnose", "probe", "--provider", "kupibilet", "--request", "probe.json"],
+    "diagnose render": ["diagnose", "render", "--input", "agent_report.json"],
     "diagnose kb-search": ["diagnose", "kb-search", "SVX", "MOW", "--depart-date", "2026-07-19"],
     "diagnose kb-roundtrip": ["diagnose", "kb-roundtrip", "SVX", "BJS", "--depart-date", "2026-08-01", "--return-date", "2026-08-08"],
     "diagnose fli-dates": ["diagnose", "fli-dates", "IST", "LHR", "--from-date", "2026-07-20", "--to-date", "2026-07-22"],
 }
 
+DEV_ROUTE_ARGV = {
+    "route assemble": ["route", "assemble", "--input", "segment-results.json"],
+    "route rank": ["route", "rank", "--input", "candidates.json"],
+    "route validate": ["route", "validate", "--input", "itinerary.json"],
+}
+
 CATALOG_REFRESH_ARGV = {
     "maint catalog refresh": ["maint", "catalog", "refresh", "--dry-run"],
+}
+
+REMOVED_COMMAND_ARGV = {
+    "route live-assemble": ["route", "live-assemble", "SVX", "LON", "--depart-date", "2026-07-20"],
+    "route kb-assemble": ["route", "kb-assemble", "SVX", "LON", "--depart-date", "2026-07-20"],
+    "route plan": ["route", "plan", "SVX", "LON", "--depart-date", "2026-07-20"],
+    "kb-search": ["kb-search", "SVX", "MOW", "--depart-date", "2026-07-19"],
+    "kb-roundtrip": ["kb-roundtrip", "SVX", "BJS", "--depart-date", "2026-08-01", "--return-date", "2026-08-08"],
+    "fli-search": ["fli-search", "IST", "LHR", "--depart-date", "2026-07-20"],
+    "fli-dates": ["fli-dates", "IST", "LHR", "--from-date", "2026-07-20", "--to-date", "2026-07-22"],
 }
 
 
@@ -158,6 +177,48 @@ class CliContractTests(unittest.TestCase):
                 args = parser.parse_args(argv)
                 self.assertEqual(args.command_name, command_name)
                 self.assertTrue(callable(args.func))
+        for command_name, argv in DEV_ROUTE_ARGV.items():
+            with self.subTest(command_name=command_name):
+                args = parser.parse_args(argv)
+                self.assertEqual(args.command_name, command_name)
+                self.assertTrue(callable(args.func))
+
+    def test_removed_legacy_commands_are_not_registered(self) -> None:
+        parser = build_parser()
+
+        for command_name, argv in REMOVED_COMMAND_ARGV.items():
+            with self.subTest(command_name=command_name):
+                with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                    parser.parse_args(argv)
+
+    def test_docs_smoke_commands_parse(self) -> None:
+        parser = build_parser()
+        docs_argv = {
+            "search --request": ["--json", "search", "--request", "/tmp/flight-search-request.json"],
+            "diagnose plan --request": ["--json", "diagnose", "plan", "--request", "/tmp/flight-search-request.json"],
+            "maint doctor": ["--json", "maint", "doctor"],
+            "maint check": ["--json", "maint", "check"],
+            "cities search": ["--json", "cities", "search", "Yekaterinburg"],
+            "airports explain": ["--json", "airports", "explain", "SVX", "MOW"],
+            "route assemble": ["--json", "route", "assemble", "--input", "segment-results.json"],
+            "route rank": ["--json", "route", "rank", "--input", "candidates.json"],
+            "route validate": ["--json", "route", "validate", "--input", "itinerary.json"],
+        }
+
+        for label, argv in docs_argv.items():
+            with self.subTest(label=label):
+                self.assertTrue(callable(parser.parse_args(argv).func))
+
+    def test_docs_name_current_golden_path_and_diagnostic_plan(self) -> None:
+        skill_text = (PROJECT.parent / "SKILL.md").read_text(encoding="utf-8")
+        readme_text = (PROJECT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("python3 -m flights_cli --json search --request", skill_text)
+        self.assertIn("python3 -m flights_cli --json search --request", readme_text)
+        self.assertIn("python3 -m flights_cli --json diagnose plan --request", readme_text)
+        self.assertNotIn("route live-assemble", skill_text)
+        self.assertNotIn("route live-assemble", readme_text)
+        self.assertNotIn("route plan", skill_text)
+        self.assertNotIn("route plan", readme_text)
 
     def test_catalog_refresh_surface_matches_registered_catalog_commands(self) -> None:
         parser = build_parser()

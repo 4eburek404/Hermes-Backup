@@ -174,6 +174,12 @@ Default connection thresholds are maintained in `references/source-boundaries.md
 
 Use targeted probes only after the main assembled report leaves a specific uncertainty.
 
+Dry plan diagnostic:
+
+```bash
+python3 -m flights_cli --json diagnose plan --request /tmp/flight-search-request.json
+```
+
 Direct or carrier probe:
 
 ```bash
