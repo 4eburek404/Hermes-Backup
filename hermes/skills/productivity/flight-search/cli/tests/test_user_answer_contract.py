@@ -224,6 +224,34 @@ class FinalAnswerContractTests(unittest.TestCase):
         self.assertTrue(answer["required_caveats"]["provider_failures_acknowledged"])
         self.assertTrue(answer["required_caveats"]["through_fare_verification_required"])
 
+    def test_rejects_metadata_only_direct_absence_claim(self) -> None:
+        answer = build_user_answer(report_with_required_caveats())
+        answer["evidence_status"]["non_blocking_boundaries"] = ["metadata_only"]
+        answer["rendered_text"] = "Нет прямых рейсов SVX→LED."
+        answer["answer_lines"] = [answer["rendered_text"]]
+
+        with self.assertRaises(CliError) as ctx:
+            validate_user_answer(answer)
+
+        self.assertTrue(any("metadata-only output" in error["message"] for error in ctx.exception.details["errors"]))
+
+    def test_rejects_metadata_only_direct_presence_claim(self) -> None:
+        answer = build_user_answer(report_with_required_caveats())
+        answer["evidence_status"]["non_blocking_boundaries"] = ["catalog_metadata"]
+        answer["rendered_text"] = "Есть прямой рейс SVX→LED."
+        answer["answer_lines"] = [answer["rendered_text"]]
+
+        with self.assertRaises(CliError) as ctx:
+            validate_user_answer(answer)
+
+        self.assertTrue(any("metadata-only output" in error["message"] for error in ctx.exception.details["errors"]))
+
+    def test_allows_metadata_boundary_without_availability_claim(self) -> None:
+        answer = build_user_answer(report_with_required_caveats())
+        answer["evidence_status"]["non_blocking_boundaries"] = ["catalog_metadata"]
+
+        validate_user_answer(answer)
+
     def test_catalog_rendered_text_uses_traveler_line_format_without_raw_badges(self) -> None:
         report = valid_report()
         report["route"] = {"origin": "SVX", "destination": "LED", "dates": {"depart_date": "2026-08-06"}}

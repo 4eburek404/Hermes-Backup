@@ -780,6 +780,21 @@ def has_combined_pair_time_fields(item: dict[str, Any]) -> bool:
     return any(item.get(key) is not None for key in ("itinerary_elapsed_min", "flight_time_min", "layover_total_min"))
 
 
+def has_metadata_availability_claim(text: str) -> bool:
+    normalized = re.sub(r"\s+", " ", text.lower())
+    patterns = (
+        r"\bno\s+(?:direct\s+)?flights?\b",
+        r"\bno\s+availability\b",
+        r"\bnot\s+available\b",
+        r"\bdirect\s+flights?\s+(?:exist|operate|available|are available)\b",
+        r"\bнет\s+(?:прямых\s+)?рейсов\b",
+        r"\bпрямых\s+нет\b",
+        r"\bне\s+наш[её]л\s+(?:прямых\s+)?рейсов\b",
+        r"\bесть\s+прям",
+    )
+    return any(re.search(pattern, normalized) for pattern in patterns)
+
+
 def summary_entries_for_answer(answer: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     summary_entries: list[tuple[str, dict[str, Any]]] = []
     primary = answer.get("primary_recommendation")
@@ -874,6 +889,20 @@ def validate_evidence_semantics(evidence: dict[str, Any]) -> list[dict[str, Any]
     if int(evidence.get("provider_failure_count") or 0) > 0 and evidence.get("evidence_complete"):
         errors.append({"path": "$.evidence_status.evidence_complete", "message": "evidence_complete cannot be true when provider failures exist", "validator": "semantic"})
     return errors
+
+
+def validate_metadata_availability_boundary(evidence: dict[str, Any], rendered_text: str) -> list[dict[str, Any]]:
+    boundaries = [str(item).lower() for item in evidence.get("non_blocking_boundaries") or []]
+    metadata_only = any("metadata" in item or "catalog" in item for item in boundaries)
+    if metadata_only and has_metadata_availability_claim(rendered_text):
+        return [
+            {
+                "path": "$.rendered_text",
+                "message": "metadata-only output must not make direct availability or absence claims",
+                "validator": "semantic",
+            }
+        ]
+    return []
 
 
 def validate_required_caveats(evidence: dict[str, Any], caveats: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1042,12 +1071,15 @@ def user_answer_contract_semantic_errors(answer: dict[str, Any]) -> list[dict[st
     errors.extend(validate_catalog_semantics(answer, is_round_trip_request=is_round_trip_request))
     errors.extend(validate_provider_aggregate_semantics(summary_entries))
     errors.extend(validate_evidence_semantics(evidence))
+    errors.extend(validate_metadata_availability_boundary(evidence, str(answer.get("rendered_text") or "")))
     errors.extend(validate_required_caveats(evidence, caveats))
     errors.extend(validate_stop_policy_semantics(summaries, stop_status))
     if is_round_trip_request:
         errors.extend(validate_round_trip_semantics(summary_entries))
         errors.extend(validate_two_one_way_pair_semantics(summary_entries))
     return errors
+
+
 def validate_user_answer(answer: dict[str, Any]) -> None:
     errors = sorted(user_answer_validator().iter_errors(answer), key=lambda item: list(item.absolute_path))
     details = [validation_error_detail(error) for error in errors]

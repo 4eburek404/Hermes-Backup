@@ -31,6 +31,7 @@ class UserAnswerModuleTests(unittest.TestCase):
         validator_names = [
             "validate_catalog_semantics",
             "validate_evidence_semantics",
+            "validate_metadata_availability_boundary",
             "validate_required_caveats",
             "validate_provider_aggregate_semantics",
             "validate_round_trip_semantics",
