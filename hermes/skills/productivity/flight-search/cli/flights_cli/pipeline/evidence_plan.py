@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Any
+from typing import Any, Callable
 
 from ..domain.vocabulary import AbsenceReason, EvidenceClass, IntentClass, RequiredControl, RoutingStrategy
 from .flow_decision import FlowDecision
@@ -10,6 +10,14 @@ from .search_request import SearchRequest
 
 
 ABSENCE_TAXONOMY = tuple(AbsenceReason)
+
+
+class Clock:
+    def today(self) -> date:
+        return date.today()
+
+
+SYSTEM_CLOCK = Clock()
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,12 +98,12 @@ def _is_direct_only(options: dict[str, Any]) -> bool:
     return options.get("max_connections") == 0 and options.get("tier2_max_connections") == 0
 
 
-def _days_until_departure(depart_date: str) -> int | None:
+def _days_until_departure(depart_date: str, *, today: date) -> int | None:
     try:
         depart = date.fromisoformat(str(depart_date))
     except ValueError:
         return None
-    return (depart - date.today()).days
+    return (depart - today).days
 
 
 def _required_controls(options: dict[str, Any], decision: FlowDecision, direct_only: bool) -> tuple[str, ...]:
@@ -120,9 +128,16 @@ def _required_controls(options: dict[str, Any], decision: FlowDecision, direct_o
     return tuple(dict.fromkeys(controls))
 
 
-def _freshness_policy(request: SearchRequest, decision: FlowDecision, options: dict[str, Any]) -> dict[str, Any]:
+def _freshness_policy(
+    request: SearchRequest,
+    decision: FlowDecision,
+    options: dict[str, Any],
+    *,
+    today_provider: Callable[[], date] | None = None,
+) -> dict[str, Any]:
     reasons: list[str] = []
-    days_until = _days_until_departure(request.depart_date)
+    today = today_provider() if today_provider is not None else SYSTEM_CLOCK.today()
+    days_until = _days_until_departure(request.depart_date, today=today)
     if decision.evidence_class == EvidenceClass.ABSENCE_CLAIM:
         reasons.append("absence_claim_requires_live_freshness")
     if decision.evidence_class == EvidenceClass.TICKETING_REQUIRED:
@@ -135,6 +150,8 @@ def _freshness_policy(request: SearchRequest, decision: FlowDecision, options: d
     return {
         "requires_fresh_live": requires_fresh_live,
         "reasons": reasons,
+        "today": today.isoformat(),
+        "depart_date": request.depart_date,
         "days_until_departure": days_until,
         "cache_ttl_seconds": 0 if requires_fresh_live else _int_option(options, "live_cache_ttl_seconds", 0),
     }
@@ -148,11 +165,16 @@ def _missing_evidence(decision: FlowDecision) -> tuple[str, ...]:
     return ()
 
 
-def plan_evidence(request: SearchRequest, decision: FlowDecision) -> EvidencePlan:
+def plan_evidence(
+    request: SearchRequest,
+    decision: FlowDecision,
+    *,
+    today_provider: Callable[[], date] | None = None,
+) -> EvidencePlan:
     options = dict(request.compatibility_options)
     direct_route_ttl = _int_option(options, "direct_route_index_ttl_seconds", 0)
     direct_only = _is_direct_only(options)
-    freshness_policy = _freshness_policy(request, decision, options)
+    freshness_policy = _freshness_policy(request, decision, options, today_provider=today_provider)
     cache_enabled = not bool(options.get("no_live_cache", False))
     cache_ttl = _int_option(options, "live_cache_ttl_seconds", 0)
     if freshness_policy["requires_fresh_live"]:

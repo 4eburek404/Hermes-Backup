@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 import unittest
 
 from flights_cli.execution.probe_ledger import ProbeExecutionLedger
@@ -16,6 +17,10 @@ class FlowDecisionEvidenceContractTests(unittest.TestCase):
     def flow_for(self, **overrides: object):
         args = live_assembly_args(**overrides)
         return build_live_route_search_flow(args)
+
+    def flow_for_today(self, today: date, **overrides: object):
+        args = live_assembly_args(**overrides)
+        return build_live_route_search_flow(args, today_provider=lambda: today)
 
     def plan_for(self, **overrides: object) -> dict:
         args = live_assembly_args(**overrides)
@@ -132,6 +137,22 @@ class FlowDecisionEvidenceContractTests(unittest.TestCase):
         self.assertTrue(flow.evidence_plan.freshness_policy["requires_fresh_live"])
         self.assertIn("absence_claim_requires_live_freshness", flow.evidence_plan.freshness_policy["reasons"])
         self.assertIn("provider_empty", flow.evidence_plan.absence_taxonomy)
+
+    def test_freshness_policy_uses_injected_today_provider(self) -> None:
+        flow = self.flow_for_today(
+            date(2026, 8, 10),
+            origin="BER",
+            destination="MAD",
+            depart_date="2026-08-12",
+            return_date=None,
+        )
+
+        freshness = flow.evidence_plan.freshness_policy
+        self.assertEqual(freshness["today"], "2026-08-10")
+        self.assertEqual(freshness["depart_date"], "2026-08-12")
+        self.assertEqual(freshness["days_until_departure"], 2)
+        self.assertTrue(freshness["requires_fresh_live"])
+        self.assertIn("near_departure_requires_live_freshness", freshness["reasons"])
 
 
 if __name__ == "__main__":
