@@ -12,6 +12,7 @@ from typing import Any
 
 from flights_cli.domain.vocabulary import Direction, Leg, RoutingStrategy
 from flights_cli.orchestrators.live_assembly_runner import (
+    LiveAssemblyState,
     LiveAssemblyRunner,
     city_code_primary_keys_for_deferred_airport,
     deferred_airport_priority_sides,
@@ -85,13 +86,19 @@ def _runner(
     runner.options = argparse_args_to_options(runner.args)
     runner.store = Store()
     runner._plan_builder = lambda *a, **kw: {}  # unused in predicates
-    runner.flow = build_live_route_search_flow(runner.options, runner.store)
-    runner.plan = plan or {
-        "routing_strategy": RoutingStrategy.RU_PRIORITY,
-        "segments": [],
-        "hubs": ["IST"],
-        "dates": {"depart": "2026-08-01", "return": "2026-08-15"},
-    }
+    flow = build_live_route_search_flow(runner.options, runner.store)
+    runner.state = LiveAssemblyState(
+        flow=flow,
+        plan=plan or {
+            "routing_strategy": RoutingStrategy.RU_PRIORITY,
+            "segments": [],
+            "hubs": ["IST"],
+            "dates": {"depart": "2026-08-01", "return": "2026-08-15"},
+        },
+        offer_counts=offer_counts or {},
+        synthetic_controls_done=synthetic_moscow_control_done or set(),
+        priority_route_viability=priority_route_viability or {},
+    )
     runner.max_searches = 200
     runner.only_carriers = []
     runner.cache_ttl_seconds = 0
@@ -99,14 +106,7 @@ def _runner(
     runner.provider_policy = "kupibilet"
     runner.direct_route_index = direct_route_index
     runner.direct_route_intel = {}
-    runner.segment_results: list[dict[str, Any]] = []
-    runner.searches: list[dict[str, Any]] = []
-    runner.failures: list[dict[str, Any]] = []
-    runner.offer_counts = offer_counts or {}
-    runner.synthetic_moscow_control_done = synthetic_moscow_control_done or set()
-    runner.priority_route_viability = priority_route_viability or {}
     runner.request_deduper = None  # type: ignore[assignment]
-    runner.probe_ledger = None  # type: ignore[assignment]
     return runner
 
 
@@ -297,6 +297,26 @@ class TestDirectRouteIntelSkipAllowed(unittest.TestCase):
 
         self.assertFalse(allowed)
         self.assertEqual(reason, "targeted_controls_required")
+
+
+# ---------------------------------------------------------------------------
+# LiveAssemblyState
+# ---------------------------------------------------------------------------
+
+class TestLiveAssemblyState(unittest.TestCase):
+    def test_can_be_created_without_cli_args(self) -> None:
+        args = _args()
+        options = argparse_args_to_options(args)
+        flow = build_live_route_search_flow(options, Store())
+
+        state = LiveAssemblyState(flow=flow, plan={"segments": []})
+
+        self.assertEqual(state.plan, {"segments": []})
+        self.assertEqual(state.segment_results, [])
+        self.assertEqual(state.searches, [])
+        self.assertEqual(state.failures, [])
+        state.offer_counts[("outbound", "direct_outbound", "SVX", "BKK")] = 1
+        self.assertEqual(state.offer_counts[("outbound", "direct_outbound", "SVX", "BKK")], 1)
 
 
 # ---------------------------------------------------------------------------

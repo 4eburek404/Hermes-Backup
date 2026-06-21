@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass, field
 from typing import Any
 
 from ..config import (
@@ -238,6 +239,21 @@ def hub_viability_summary(plan: dict[str, Any], searches: list[dict[str, Any]]) 
 # LiveAssemblyRunner
 # ---------------------------------------------------------------------------
 
+@dataclass(slots=True)
+class LiveAssemblyState:
+    """Mutable state for one live route-assembly run."""
+
+    flow: LiveRouteSearchFlow
+    plan: dict[str, Any]
+    segment_results: list[dict[str, Any]] = field(default_factory=list)
+    searches: list[dict[str, Any]] = field(default_factory=list)
+    failures: list[dict[str, Any]] = field(default_factory=list)
+    offer_counts: dict[tuple[str, str, str, str], int] = field(default_factory=dict)
+    probe_ledger: ProbeExecutionLedger = field(default_factory=ProbeExecutionLedger)
+    synthetic_controls_done: set[str] = field(default_factory=set)
+    priority_route_viability: dict[str, bool] = field(default_factory=dict)
+
+
 class LiveAssemblyRunner:
     """Stateful orchestrator for live route assembly.
 
@@ -259,8 +275,7 @@ class LiveAssemblyRunner:
         # live_assemble to avoid a circular import.
         self._plan_builder = plan_builder
         # --- config (read-only after init) ---
-        self.flow: LiveRouteSearchFlow
-        self.plan: dict[str, Any]
+        self.state: LiveAssemblyState | None = None
         self.max_searches: int = 0
         self.only_carriers: list[str] = []
         self.cache_ttl_seconds: int = 0
@@ -268,13 +283,75 @@ class LiveAssemblyRunner:
         self.provider_policy: str = ""
         self.direct_route_index: dict[str, Any] | None = None
         self.direct_route_intel: dict[str, Any] = {}
-        # --- accumulators (mutated during run) ---
-        self.segment_results: list[dict[str, Any]] = []
-        self.searches: list[dict[str, Any]] = []
-        self.failures: list[dict[str, Any]] = []
-        self.offer_counts: dict[tuple[str, str, str, str], int] = {}
-        self.synthetic_moscow_control_done: set[str] = set()
-        self.priority_route_viability: dict[str, bool] = {}
+
+    def _require_state(self) -> LiveAssemblyState:
+        if self.state is None:
+            raise RuntimeError("live assembly state is not initialized")
+        return self.state
+
+    @property
+    def flow(self) -> LiveRouteSearchFlow:
+        return self._require_state().flow
+
+    @property
+    def plan(self) -> dict[str, Any]:
+        return self._require_state().plan
+
+    @property
+    def segment_results(self) -> list[dict[str, Any]]:
+        return self._require_state().segment_results
+
+    @segment_results.setter
+    def segment_results(self, value: list[dict[str, Any]]) -> None:
+        self._require_state().segment_results = value
+
+    @property
+    def searches(self) -> list[dict[str, Any]]:
+        return self._require_state().searches
+
+    @searches.setter
+    def searches(self, value: list[dict[str, Any]]) -> None:
+        self._require_state().searches = value
+
+    @property
+    def failures(self) -> list[dict[str, Any]]:
+        return self._require_state().failures
+
+    @failures.setter
+    def failures(self, value: list[dict[str, Any]]) -> None:
+        self._require_state().failures = value
+
+    @property
+    def offer_counts(self) -> dict[tuple[str, str, str, str], int]:
+        return self._require_state().offer_counts
+
+    @offer_counts.setter
+    def offer_counts(self, value: dict[tuple[str, str, str, str], int]) -> None:
+        self._require_state().offer_counts = value
+
+    @property
+    def probe_ledger(self) -> ProbeExecutionLedger:
+        return self._require_state().probe_ledger
+
+    @probe_ledger.setter
+    def probe_ledger(self, value: ProbeExecutionLedger) -> None:
+        self._require_state().probe_ledger = value
+
+    @property
+    def synthetic_moscow_control_done(self) -> set[str]:
+        return self._require_state().synthetic_controls_done
+
+    @synthetic_moscow_control_done.setter
+    def synthetic_moscow_control_done(self, value: set[str]) -> None:
+        self._require_state().synthetic_controls_done = value
+
+    @property
+    def priority_route_viability(self) -> dict[str, bool]:
+        return self._require_state().priority_route_viability
+
+    @priority_route_viability.setter
+    def priority_route_viability(self, value: dict[str, bool]) -> None:
+        self._require_state().priority_route_viability = value
 
     def run(self) -> dict[str, Any]:
         self._init_run()
@@ -283,10 +360,11 @@ class LiveAssemblyRunner:
 
     def _init_run(self) -> None:
         args, store = self.args, self.store
-        self.flow = build_live_route_search_flow(self.options, store)
+        flow = build_live_route_search_flow(self.options, store)
         # Use injected plan_builder or fall back to build_live_route_segment_plan.
         build_plan = self._plan_builder
-        self.plan = build_plan(self.options, store, flow=self.flow)
+        plan = build_plan(self.options, store, flow=flow)
+        self.state = LiveAssemblyState(flow=flow, plan=plan)
         self.max_searches = max(1, int(self.flow.evidence_plan.max_segment_searches))
         if self.plan["metrics"]["segment_search_count"] > self.max_searches:
             raise CliError(
