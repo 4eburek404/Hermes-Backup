@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
 
 from ..config import (
     KUPIBILET_CITY_CODE_FIRST_AIRPORTS,
@@ -36,6 +36,17 @@ from ..store import Store
 # Production keeps this as None so provider calls are resolved through the
 # provider-port registry in ``execution.*``.
 fetch_kupibilet_search: Any | None = None
+
+
+class RoutePlanBuilderFn(Protocol):
+    def __call__(
+        self,
+        options: LiveAssemblyOptions,
+        store: Store,
+        *,
+        flow: LiveRouteSearchFlow | None = None,
+    ) -> dict[str, Any]:
+        ...
 
 
 # ---------------------------------------------------------------------------
@@ -654,7 +665,7 @@ class LiveAssemblyRunner:
         options: LiveAssemblyOptions,
         store: Store,
         *,
-        plan_builder: Any,
+        plan_builder: RoutePlanBuilderFn,
     ) -> None:
         self.options = options
         self.store = store

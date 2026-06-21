@@ -234,6 +234,28 @@ class ArchitectureTests(unittest.TestCase):
                 self.assertEqual(annotation, "LiveAssemblyOptions")
         self.assertNotIn("argparse_args_to_options", live_route_assembly.read_text(encoding="utf-8"))
 
+    def test_live_assembly_plan_builder_injection_is_typed(self) -> None:
+        root = PROJECT / "flights_cli"
+        runner = root / "orchestrators" / "live_assembly_runner.py"
+        text = runner.read_text(encoding="utf-8")
+        self.assertNotIn("plan_builder: Any", text)
+        self.assertIn("class RoutePlanBuilderFn(Protocol):", text)
+
+        tree = ast.parse(text)
+        classes = {node.name: node for node in tree.body if isinstance(node, ast.ClassDef)}
+        runner_class = classes["LiveAssemblyRunner"]
+        init_func = next(
+            node
+            for node in runner_class.body
+            if isinstance(node, ast.FunctionDef) and node.name == "__init__"
+        )
+        annotations = {
+            arg.arg: ast.unparse(arg.annotation)
+            for arg in init_func.args.args + init_func.args.kwonlyargs
+            if arg.annotation is not None
+        }
+        self.assertEqual(annotations["plan_builder"], "RoutePlanBuilderFn")
+
 
 if __name__ == "__main__":
     unittest.main()
