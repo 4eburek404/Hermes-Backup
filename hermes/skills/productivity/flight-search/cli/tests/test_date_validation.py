@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from datetime import date
+from pathlib import Path
 
 from flights_cli.domain.normalize import parse_iso_date
 from flights_cli.errors import CliError
@@ -29,26 +31,33 @@ class DateValidationTests(unittest.TestCase):
         self.assertEqual(parse_iso_date("2026-09-17", "depart-date", today=today), date(2026, 9, 17))
 
     def test_json_cli_returns_validation_error_for_past_departure_date(self) -> None:
-        proc = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "flights_cli",
-                "--json",
-                "route",
-                "plan",
-                "SVX",
-                "LON",
-                "--depart-date",
-                "2000-09-17",
-            ],
-            cwd=PROJECT,
-            env=TEST_ENV,
-            check=False,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        request = {
+            "schema_version": "flight_search_request.v1",
+            "origin": "SVX",
+            "destination": "LON",
+            "depart_date": "2000-09-17",
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            request_path = Path(tmp_dir) / "flight-search-request.json"
+            request_path.write_text(json.dumps(request), encoding="utf-8")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "flights_cli",
+                    "--json",
+                    "diagnose",
+                    "plan",
+                    "--request",
+                    str(request_path),
+                ],
+                cwd=PROJECT,
+                env=TEST_ENV,
+                check=False,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
 
         self.assertNotEqual(proc.returncode, 0)
         self.assertEqual(proc.stdout, "")

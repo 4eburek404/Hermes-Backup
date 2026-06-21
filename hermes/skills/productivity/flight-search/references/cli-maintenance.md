@@ -138,7 +138,7 @@ Do not remove the provider port abstraction. Complete it:
 - `execution/probe_dispatcher.py` loops over provider adapters and translates `ProviderProbeResult` into probe ledger/outcome types.
 - aggregate controls call provider adapter `search_aggregate(...)` or receive structured `not_supported`; they must not contain provider-only algorithm branches.
 - production orchestration must not call provider-specific functions such as `fetch_kupibilet_search` directly. Keep provider-specific commands and human renderers in diagnostics or adapter-owned projections, not in the production answer path.
-- If KupiBilet round-trip remains outside the port while `kb-roundtrip` exists, document that capability boundary explicitly; otherwise model it as a typed provider-port method with tests.
+- If KupiBilet round-trip remains outside the port while `diagnose kb-roundtrip` exists, document that capability boundary explicitly; otherwise model it as a typed provider-port method with tests.
 
 Pitfalls:
 

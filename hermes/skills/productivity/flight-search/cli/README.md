@@ -228,6 +228,7 @@ The CLI supports offline assembly/ranking for normalized segment-result JSON:
 ```bash
 python3 -m flights_cli --json route assemble --profile balanced --input segment-results.json
 python3 -m flights_cli --json route rank --profile balanced --input candidates.json
+python3 -m flights_cli --json route validate --input itinerary.json
 ```
 
 Use these for maintenance, fixtures, and controlled diagnostics. They are not the default answer path for live user requests.

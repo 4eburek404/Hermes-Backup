@@ -177,7 +177,7 @@ def direct_route_intel_skip_allowed(
     if options is not None and (options.route.origin_airports or options.route.destination_airports):
         return False, "hard_airport_scope"
     if options is not None and str(options.ticketing or "").lower() == "single":
-        return False, "ticketing_proof"
+        return False, IntentClass.TICKETING_PROOF
     if options is not None and options.evidence.coverage_controls:
         return False, "targeted_controls_required"
     if flow.flow_decision.intent_class != IntentClass.ROUTE_RECOMMENDATION:

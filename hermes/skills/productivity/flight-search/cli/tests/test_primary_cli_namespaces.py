@@ -96,7 +96,11 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
         args = parser.parse_args(["--catalog-refresh", "never", "search", "--request", "request.json"])
         self.assertEqual(getattr(args, "catalog_access", None), "auto_refresh")
         with patch("flights_cli.cli.refresh_static_catalog_if_needed") as refresh:
-            self.assertEqual(auto_refresh_catalog(args, Store()), {"enabled": False, "reason": "disabled"})
+            result = auto_refresh_catalog(args, Store())
+            self.assertEqual(result["enabled"], False)
+            self.assertEqual(result["reason"], "disabled")
+            self.assertEqual(result["evidence_scope"]["kind"], "static_metadata")
+            self.assertFalse(result["evidence_scope"]["availability_evidence"])
             refresh.assert_not_called()
 
     def test_search_request_and_result_contract_resources_validate_minimal_payloads(self) -> None:
