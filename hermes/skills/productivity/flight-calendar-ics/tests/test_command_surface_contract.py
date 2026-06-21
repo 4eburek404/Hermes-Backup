@@ -9,67 +9,18 @@ from __future__ import annotations
 
 import importlib
 import json
-import os
-import subprocess
-import sys
 import unittest
-from pathlib import Path
 
+from helpers import CliRunnerMixin, JsonEnvelopeAssertionsMixin, ScriptPathMixin
 
-ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS = ROOT / "scripts"
-CLI = SCRIPTS / "flight_calendar_ics.py"
-SCHEMA = ROOT / "schemas" / "cli-envelope.v1.schema.json"
 REMOVED_ROOT_COMMANDS = {"validate", "make", "aeroflot", "ural", "utair", "redwings"}
 
 
-class CommandSurfaceContractTests(unittest.TestCase):
+class CommandSurfaceContractTests(CliRunnerMixin, JsonEnvelopeAssertionsMixin, ScriptPathMixin, unittest.TestCase):
     maxDiff = None
 
     def import_contracts(self):
-        old_path = list(sys.path)
-        script_dir = str(SCRIPTS.resolve())
-        if script_dir not in sys.path:
-            sys.path.insert(0, script_dir)
-        try:
-            return importlib.import_module("flight_calendar.contracts")
-        finally:
-            sys.path[:] = old_path
-
-    def run_cli(self, *args: str) -> subprocess.CompletedProcess[str]:
-        env = os.environ.copy()
-        env["PYTHONDONTWRITEBYTECODE"] = "1"
-        return subprocess.run(
-            [sys.executable, str(CLI), *args],
-            cwd=ROOT,
-            env=env,
-            text=True,
-            capture_output=True,
-            timeout=20,
-        )
-
-    def parse_stdout_json(self, result: subprocess.CompletedProcess[str]) -> dict:
-        try:
-            obj = json.loads(result.stdout)
-        except json.JSONDecodeError as exc:  # pragma: no cover - assertion helper
-            self.fail(
-                f"stdout is not valid JSON: {exc}\n"
-                f"exit={result.returncode}\nstdout={result.stdout!r}\nstderr={result.stderr!r}"
-            )
-        self.assertIsInstance(obj, dict)
-        return obj
-
-    def assert_matches_cli_schema(self, obj: dict) -> None:
-        from jsonschema import Draft202012Validator
-
-        schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
-        Draft202012Validator.check_schema(schema)
-        validator = Draft202012Validator(schema)
-        errors = sorted(validator.iter_errors(obj), key=lambda error: list(error.path))
-        self.assertEqual(
-            [],
-            [f"{'/'.join(map(str, error.absolute_path))}: {error.message}" for error in errors],
-        )
+        return importlib.import_module("flight_calendar.contracts")
 
     def test_contract_registry_lists_current_wire_contracts(self) -> None:
         contracts = self.import_contracts()

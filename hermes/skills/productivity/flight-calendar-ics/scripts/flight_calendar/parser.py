@@ -154,6 +154,43 @@ def build_and_validate(input_path: Path, *, no_alarms: bool, process: list[dict[
     return ics_text, summaries
 
 
+def load_cli_timezone_map(args: argparse.Namespace, process: list[dict[str, Any]]) -> dict[str, str]:
+    timezone_overrides = parse_cli_tz_overrides(args.tz)
+    airport_catalog_timezones = load_airport_timezones()
+    tz_map = build_timezone_map(timezone_overrides)
+    add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
+    return tz_map
+
+
+def finish_carrier_build(
+    args: argparse.Namespace,
+    process: list[dict[str, Any]],
+    itinerary: dict[str, Any],
+) -> tuple[int, dict[str, Any]]:
+    add_step(process, "convert_to_itinerary", segments_count=len(itinerary.get("flights", [])))
+    itinerary = validate_itinerary_contract(itinerary, process)
+    ics_text, summaries = ics_render.build_calendar(itinerary, no_alarms=args.no_alarms)
+    add_step(process, "build_calendar", segments_count=len(summaries))
+    ics_render.validate_ics_text(ics_text, len(summaries))
+    add_step(process, "validate_ics")
+    secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
+    add_step(process, "write_json", artifact="json", mode="0644")
+    ics_path = None
+    if args.output_ics:
+        secure_write_text(args.output_ics, ics_text)
+        ics_path = str(args.output_ics)
+        add_step(process, "write_ics", artifact="ics", mode="0644")
+    else:
+        add_step(process, "write_ics", "skipped", reason="--output-ics not supplied")
+    return 0, {
+        "segments_count": len(summaries),
+        "segments": itinerary_flight_segments(itinerary),
+        "json_path": str(args.output_json),
+        "ics_path": ics_path,
+        "write_performed": True,
+    }
+
+
 def command_doctor(_args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
     add_step(process, "load_input", "skipped", reason="doctor has no itinerary input")
     data = {
@@ -354,44 +391,17 @@ def command_aeroflot(args: argparse.Namespace, process: list[dict[str, Any]]) ->
         args.first_name,
     )
     add_step(process, "parse_pnr_source")
-    timezone_overrides = parse_cli_tz_overrides(args.tz)
-    airport_catalog_timezones = load_airport_timezones()
-    tz_map = build_timezone_map(timezone_overrides)
-    add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
+    tz_map = load_cli_timezone_map(args, process)
     data = aeroflot.fetch_aeroflot_pnr(locator, key)
     add_step(process, "fetch_aeroflot_pnr")
     itinerary = aeroflot.convert_to_itinerary(data, tz_map, booking_url=booking_url)
-    add_step(process, "convert_to_itinerary", segments_count=len(itinerary.get("flights", [])))
-    itinerary = validate_itinerary_contract(itinerary, process)
-    ics_text, summaries = ics_render.build_calendar(itinerary, no_alarms=args.no_alarms)
-    add_step(process, "build_calendar", segments_count=len(summaries))
-    ics_render.validate_ics_text(ics_text, len(summaries))
-    add_step(process, "validate_ics")
-    secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
-    add_step(process, "write_json", artifact="json", mode="0644")
-    ics_path = None
-    if args.output_ics:
-        secure_write_text(args.output_ics, ics_text)
-        ics_path = str(args.output_ics)
-        add_step(process, "write_ics", artifact="ics", mode="0644")
-    else:
-        add_step(process, "write_ics", "skipped", reason="--output-ics not supplied")
-    return 0, {
-        "segments_count": len(summaries),
-        "segments": itinerary_flight_segments(itinerary),
-        "json_path": str(args.output_json),
-        "ics_path": ics_path,
-        "write_performed": True,
-    }
+    return finish_carrier_build(args, process, itinerary)
 
 
 def command_ural(args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
     locator, last_name, booking_url = ural.parse_ural_source(args.url, args.pnr, args.last_name)
     add_step(process, "parse_pnr_source")
-    timezone_overrides = parse_cli_tz_overrides(args.tz)
-    airport_catalog_timezones = load_airport_timezones()
-    tz_map = build_timezone_map(timezone_overrides)
-    add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
+    tz_map = load_cli_timezone_map(args, process)
     reservation = ural.fetch_ural_reservation(
         locator,
         last_name,
@@ -400,98 +410,29 @@ def command_ural(args: argparse.Namespace, process: list[dict[str, Any]]) -> tup
     )
     add_step(process, "fetch_ural_reservation")
     itinerary = ural.convert_to_itinerary(reservation, tz_map, booking_url=booking_url)
-    add_step(process, "convert_to_itinerary", segments_count=len(itinerary.get("flights", [])))
-    itinerary = validate_itinerary_contract(itinerary, process)
-    ics_text, summaries = ics_render.build_calendar(itinerary, no_alarms=args.no_alarms)
-    add_step(process, "build_calendar", segments_count=len(summaries))
-    ics_render.validate_ics_text(ics_text, len(summaries))
-    add_step(process, "validate_ics")
-    secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
-    add_step(process, "write_json", artifact="json", mode="0644")
-    ics_path = None
-    if args.output_ics:
-        secure_write_text(args.output_ics, ics_text)
-        ics_path = str(args.output_ics)
-        add_step(process, "write_ics", artifact="ics", mode="0644")
-    else:
-        add_step(process, "write_ics", "skipped", reason="--output-ics not supplied")
-    return 0, {
-        "segments_count": len(summaries),
-        "segments": itinerary_flight_segments(itinerary),
-        "json_path": str(args.output_json),
-        "ics_path": ics_path,
-        "write_performed": True,
-    }
+    return finish_carrier_build(args, process, itinerary)
 
 
 def command_utair(args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
     locator, last_name, booking_url = utair.parse_utair_source(args.url, args.rloc, args.last_name)
     add_step(process, "parse_pnr_source")
-    timezone_overrides = parse_cli_tz_overrides(args.tz)
-    airport_catalog_timezones = load_airport_timezones()
-    tz_map = build_timezone_map(timezone_overrides)
-    add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
+    tz_map = load_cli_timezone_map(args, process)
     token = utair.fetch_utair_token()
     add_step(process, "fetch_utair_token")
     orders = utair.fetch_utair_orders(locator, last_name, token=token)
     add_step(process, "fetch_utair_orders")
     itinerary = utair.convert_to_itinerary(orders, tz_map, booking_url=booking_url)
-    add_step(process, "convert_to_itinerary", segments_count=len(itinerary.get("flights", [])))
-    itinerary = validate_itinerary_contract(itinerary, process)
-    ics_text, summaries = ics_render.build_calendar(itinerary, no_alarms=args.no_alarms)
-    add_step(process, "build_calendar", segments_count=len(summaries))
-    ics_render.validate_ics_text(ics_text, len(summaries))
-    add_step(process, "validate_ics")
-    secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
-    add_step(process, "write_json", artifact="json", mode="0644")
-    ics_path = None
-    if args.output_ics:
-        secure_write_text(args.output_ics, ics_text)
-        ics_path = str(args.output_ics)
-        add_step(process, "write_ics", artifact="ics", mode="0644")
-    else:
-        add_step(process, "write_ics", "skipped", reason="--output-ics not supplied")
-    return 0, {
-        "segments_count": len(summaries),
-        "segments": itinerary_flight_segments(itinerary),
-        "json_path": str(args.output_json),
-        "ics_path": ics_path,
-        "write_performed": True,
-    }
+    return finish_carrier_build(args, process, itinerary)
 
 
 def command_redwings(args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
     locator, finder_code, booking_url = redwings.parse_redwings_source(args.url, args.pnr, args.access_code)
     add_step(process, "parse_redwings_source")
-    timezone_overrides = parse_cli_tz_overrides(args.tz)
-    airport_catalog_timezones = load_airport_timezones()
-    tz_map = build_timezone_map(timezone_overrides)
-    add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
+    tz_map = load_cli_timezone_map(args, process)
     order = redwings.fetch_redwings_order(locator, finder_code, graphql_endpoint=args.graphql_endpoint)
     add_step(process, "fetch_redwings_order")
     itinerary = redwings.convert_to_itinerary(order, tz_map, booking_url=booking_url)
-    add_step(process, "convert_to_itinerary", segments_count=len(itinerary.get("flights", [])))
-    itinerary = validate_itinerary_contract(itinerary, process)
-    ics_text, summaries = ics_render.build_calendar(itinerary, no_alarms=args.no_alarms)
-    add_step(process, "build_calendar", segments_count=len(summaries))
-    ics_render.validate_ics_text(ics_text, len(summaries))
-    add_step(process, "validate_ics")
-    secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
-    add_step(process, "write_json", artifact="json", mode="0644")
-    ics_path = None
-    if args.output_ics:
-        secure_write_text(args.output_ics, ics_text)
-        ics_path = str(args.output_ics)
-        add_step(process, "write_ics", artifact="ics", mode="0644")
-    else:
-        add_step(process, "write_ics", "skipped", reason="--output-ics not supplied")
-    return 0, {
-        "segments_count": len(summaries),
-        "segments": itinerary_flight_segments(itinerary),
-        "json_path": str(args.output_json),
-        "ics_path": ics_path,
-        "write_performed": True,
-    }
+    return finish_carrier_build(args, process, itinerary)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -720,4 +661,3 @@ def main(argv: list[str] | None = None) -> int:
         )
         emit_json(obj) if active_json else emit_human(obj)
         return 1
-

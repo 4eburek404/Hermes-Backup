@@ -10,21 +10,16 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
-import sys
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from icalendar import Alarm, Calendar, Event, vText
 
+from flight_calendar.common import die
 from flight_calendar import itinerary_contract
 
 UTC = dt.timezone.utc
-
-
-def die(message: str, code: int = 2) -> None:
-    print(f"ERROR: {message}", file=sys.stderr)
-    raise SystemExit(code)
 
 
 def require_text(obj: dict[str, Any], key: str, context: str) -> str:
@@ -283,7 +278,7 @@ def validate_ics_text(text: str, expected_events: int) -> None:
 
     # Parse with icalendar for deep validation
     try:
-        cal = Calendar.from_ical(text)
+        Calendar.from_ical(text)
     except Exception as exc:
         die(f"generated ICS is not valid RFC 5545: {exc}")
 

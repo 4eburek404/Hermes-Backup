@@ -5,42 +5,15 @@ from __future__ import annotations
 import contextlib
 import io
 import json
-import os
-import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-
-ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS = ROOT / "scripts"
-CLI = SCRIPTS / "flight_calendar_ics.py"
+from helpers import CliRunnerMixin, ScriptPathMixin
 
 
-class PrivacyAndEnvelopeContractTests(unittest.TestCase):
+class PrivacyAndEnvelopeContractTests(CliRunnerMixin, ScriptPathMixin, unittest.TestCase):
     maxDiff = None
-
-    def setUp(self) -> None:
-        self._old_path = list(sys.path)
-        script_dir = str(SCRIPTS.resolve())
-        if script_dir not in sys.path:
-            sys.path.insert(0, script_dir)
-
-    def tearDown(self) -> None:
-        sys.path[:] = self._old_path
-
-    def run_cli(self, *args: str) -> subprocess.CompletedProcess[str]:
-        env = os.environ.copy()
-        env["PYTHONDONTWRITEBYTECODE"] = "1"
-        return subprocess.run(
-            [sys.executable, str(CLI), *args],
-            cwd=ROOT,
-            env=env,
-            text=True,
-            capture_output=True,
-            timeout=20,
-        )
 
     def test_redact_replaces_private_url_query_values(self) -> None:
         from flight_calendar.privacy import redact

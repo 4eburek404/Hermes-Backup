@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 import argparse
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-
-ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS = ROOT / "scripts"
+from helpers import ScriptPathMixin
 
 
 def build_args(**overrides: object) -> argparse.Namespace:
@@ -30,17 +27,8 @@ def build_args(**overrides: object) -> argparse.Namespace:
     return argparse.Namespace(**defaults)
 
 
-class RouteDetectionContractTests(unittest.TestCase):
+class RouteDetectionContractTests(ScriptPathMixin, unittest.TestCase):
     maxDiff = None
-
-    def setUp(self) -> None:
-        self._old_path = list(sys.path)
-        script_dir = str(SCRIPTS.resolve())
-        if script_dir not in sys.path:
-            sys.path.insert(0, script_dir)
-
-    def tearDown(self) -> None:
-        sys.path[:] = self._old_path
 
     def test_canonical_itinerary_input_routes_to_make(self) -> None:
         from flight_calendar.route_detection import infer_build_route

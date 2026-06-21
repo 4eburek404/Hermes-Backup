@@ -13,11 +13,11 @@ from __future__ import annotations
 
 import json
 import re
-import sys
-from typing import Any, NoReturn
+from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
 
 from flight_calendar import carrier_http
+from flight_calendar.common import die
 
 
 AEROFLOT_BASE = "https://www.aeroflot.ru"
@@ -25,10 +25,6 @@ AEROFLOT_APP_URL = AEROFLOT_BASE + "/sb/pnr/app/ru-ru"
 AEROFLOT_SEARCH_URL = AEROFLOT_APP_URL + "#/search"
 AEROFLOT_PNR_API = AEROFLOT_BASE + "/se/api/app/pnr/view/v3"
 AMBIGUOUS_PNR_ERROR_TYPES = {"PassengerAmbiguous", "SabrePNRAmbiguousException"}
-
-def die(message: str, code: int = 2) -> NoReturn:
-    print(f"ERROR: {message}", file=sys.stderr)
-    raise SystemExit(code)
 
 
 def pnr_query_params_from_url(booking_url: str) -> dict[str, list[str]]:

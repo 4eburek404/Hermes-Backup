@@ -3,26 +3,12 @@
 from __future__ import annotations
 
 import importlib.util
-import sys
 import unittest
-from pathlib import Path
+
+from helpers import CLI, ScriptPathMixin
 
 
-ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS = ROOT / "scripts"
-CLI = SCRIPTS / "flight_calendar_ics.py"
-
-
-class EntrypointWrapperContractTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self._old_path = list(sys.path)
-        script_dir = str(SCRIPTS.resolve())
-        if script_dir not in sys.path:
-            sys.path.insert(0, script_dir)
-
-    def tearDown(self) -> None:
-        sys.path[:] = self._old_path
-
+class EntrypointWrapperContractTests(ScriptPathMixin, unittest.TestCase):
     def import_cli_module(self):
         spec = importlib.util.spec_from_file_location("flight_calendar_ics_wrapper_contract", CLI)
         self.assertIsNotNone(spec)

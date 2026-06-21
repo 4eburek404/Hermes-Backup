@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import argparse
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
 
-
-ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS = ROOT / "scripts"
+from helpers import ScriptPathMixin
 
 
 def base_build_args(**overrides: object) -> argparse.Namespace:
@@ -37,17 +34,8 @@ def base_build_args(**overrides: object) -> argparse.Namespace:
     return argparse.Namespace(**defaults)
 
 
-class BuildCommandAndCarrierAdaptersContractTests(unittest.TestCase):
+class BuildCommandAndCarrierAdaptersContractTests(ScriptPathMixin, unittest.TestCase):
     maxDiff = None
-
-    def setUp(self) -> None:
-        self._old_path = list(sys.path)
-        script_dir = str(SCRIPTS.resolve())
-        if script_dir not in sys.path:
-            sys.path.insert(0, script_dir)
-
-    def tearDown(self) -> None:
-        sys.path[:] = self._old_path
 
     def test_run_build_command_dispatches_auto_route_with_injected_carrier_handlers(self) -> None:
         from flight_calendar.build_command import run_build_command

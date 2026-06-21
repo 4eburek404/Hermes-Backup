@@ -3,27 +3,15 @@
 from __future__ import annotations
 
 import os
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-
-ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS = ROOT / "scripts"
+from helpers import ScriptPathMixin
 
 
-class BundleTimezoneSegmentsContractTests(unittest.TestCase):
+class BundleTimezoneSegmentsContractTests(ScriptPathMixin, unittest.TestCase):
     maxDiff = None
-
-    def setUp(self) -> None:
-        self._old_path = list(sys.path)
-        script_dir = str(SCRIPTS.resolve())
-        if script_dir not in sys.path:
-            sys.path.insert(0, script_dir)
-
-    def tearDown(self) -> None:
-        sys.path[:] = self._old_path
 
     def test_bundle_helpers_create_private_dir_and_canonical_paths(self) -> None:
         from flight_calendar.bundle import (
@@ -32,7 +20,6 @@ class BundleTimezoneSegmentsContractTests(unittest.TestCase):
             BUNDLE_ITINERARY_NAME,
             bundle_paths,
             create_private_output_dir,
-            file_mode,
         )
 
         process: list[dict[str, object]] = []
@@ -49,7 +36,7 @@ class BundleTimezoneSegmentsContractTests(unittest.TestCase):
             self.assertEqual(paths["envelope"].name, BUNDLE_ENVELOPE_NAME)
 
     def test_require_readable_mode_rejects_unreadable_file(self) -> None:
-        from flight_calendar.bundle import file_mode, require_readable_mode
+        from flight_calendar.bundle import require_readable_mode
         from flight_calendar.envelope import CliFailure
 
         with tempfile.TemporaryDirectory(prefix="flight-mode-test.") as tmp:

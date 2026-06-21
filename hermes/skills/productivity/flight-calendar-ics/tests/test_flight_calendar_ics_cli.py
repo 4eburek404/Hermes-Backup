@@ -14,7 +14,6 @@ import argparse
 import json
 import os
 import stat
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -22,28 +21,14 @@ from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 
+from helpers import CLI, ROOT, SCHEMA, CliRunnerMixin, JsonEnvelopeAssertionsMixin
 
-ROOT = Path(__file__).resolve().parents[1]
-CLI = ROOT / "scripts" / "flight_calendar_ics.py"
 TEMPLATE = ROOT / "templates" / "aeroflot-itinerary.example.json"
-SCHEMA = ROOT / "schemas" / "cli-envelope.v1.schema.json"
 ITINERARY_SCHEMA = ROOT / "schemas" / "itinerary.v1.schema.json"
 
 
-class FlightCalendarIcsCliContractTests(unittest.TestCase):
+class FlightCalendarIcsCliContractTests(CliRunnerMixin, JsonEnvelopeAssertionsMixin, unittest.TestCase):
     maxDiff = None
-
-    def run_cli(self, *args: str) -> subprocess.CompletedProcess[str]:
-        env = os.environ.copy()
-        env["PYTHONDONTWRITEBYTECODE"] = "1"
-        return subprocess.run(
-            [sys.executable, str(CLI), *args],
-            cwd=ROOT,
-            env=env,
-            text=True,
-            capture_output=True,
-            timeout=20,
-        )
 
     def import_cli_module(self):
         script_dir = str((ROOT / "scripts").resolve())
@@ -69,29 +54,6 @@ class FlightCalendarIcsCliContractTests(unittest.TestCase):
             return importlib.import_module(f"flight_calendar.carriers.{name}")
         finally:
             sys.path[:] = old_path
-
-    def parse_stdout_json(self, result: subprocess.CompletedProcess[str]) -> dict:
-        try:
-            obj = json.loads(result.stdout)
-        except json.JSONDecodeError as exc:  # pragma: no cover - assertion helper
-            self.fail(
-                f"stdout is not valid JSON: {exc}\n"
-                f"exit={result.returncode}\nstdout={result.stdout!r}\nstderr={result.stderr!r}"
-            )
-        self.assertIsInstance(obj, dict)
-        return obj
-
-    def assert_matches_cli_schema(self, obj: dict) -> None:
-        from jsonschema import Draft202012Validator
-
-        schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
-        Draft202012Validator.check_schema(schema)
-        validator = Draft202012Validator(schema)
-        errors = sorted(validator.iter_errors(obj), key=lambda error: list(error.path))
-        self.assertEqual(
-            [],
-            [f"{'/'.join(map(str, error.absolute_path))}: {error.message}" for error in errors],
-        )
 
     def assert_envelope(self, obj: dict, *, ok: bool, command: str) -> None:
         self.assert_matches_cli_schema(obj)

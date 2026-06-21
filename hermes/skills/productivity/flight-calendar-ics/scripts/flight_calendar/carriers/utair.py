@@ -13,16 +13,11 @@ from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
 
 from flight_calendar import carrier_http
+from flight_calendar.common import die
 
 
 UTAIR_WEB_BASE = "https://www.utair.ru/"
 UTAIR_API_BASE = "https://b.utair.ru/"
-
-
-
-def die(message: str) -> None:
-    raise ValueError(message)
-
 
 def clean(value: Any) -> Any:
     return None if value in (None, "", []) else value
