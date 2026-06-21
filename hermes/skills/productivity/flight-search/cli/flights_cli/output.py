@@ -216,25 +216,30 @@ def render_human(command: str, data: Any) -> str:
             for note in airport.get("notes") or []:
                 lines.append(f"  - {note}")
         return "\n".join(lines)
-    if command == "route plan":
-        metrics = data["metrics"]
+    if command == "diagnose plan":
+        plan = data["plan"] if isinstance(data.get("plan"), dict) else data
+        metrics = plan["metrics"]
         lines = [
-            f"route: {','.join(data['origin_airports'])} -> {','.join(data['destination_airports'])}",
-            f"strategy: {data.get('routing_strategy', RoutingStrategy.HUB_LIST)}",
-            f"hubs: {', '.join(data['hubs'])} ({data.get('hub_source', 'manual')})",
-            f"segment requests: {metrics['segment_request_count']}",
-            "first commands:",
+            f"route: {','.join(plan['origin_airports'])} -> {','.join(plan['destination_airports'])}",
+            f"strategy: {plan.get('routing_strategy', RoutingStrategy.HUB_LIST)}",
+            f"hubs: {', '.join(plan['hubs'])} ({plan.get('hub_source', 'manual')})",
+            f"segment requests: {metrics.get('segment_request_count', metrics.get('segment_search_count', 0))}",
+            "first segments:",
         ]
         refresh = data.get("catalog_auto_refresh")
         if refresh:
             lines.insert(2, f"catalog refresh: {'updated' if refresh.get('refreshed') else refresh.get('reason')}")
-        for segment in data["segments"][:8]:
-            lines.append(f"  {segment['command']}")
-        if len(data["segments"]) > 8:
-            lines.append(f"  ... {len(data['segments']) - 8} more")
-        if data["warnings"]:
+        for segment in plan["segments"][:8]:
+            command = segment.get("command")
+            if command:
+                lines.append(f"  {command}")
+            else:
+                lines.append(f"  {segment['origin']} -> {segment['destination']} {segment['date']}")
+        if len(plan["segments"]) > 8:
+            lines.append(f"  ... {len(plan['segments']) - 8} more")
+        if plan["warnings"]:
             lines.append("warnings:")
-            lines.extend(f"  - {warning}" for warning in data["warnings"])
+            lines.extend(f"  - {warning}" for warning in plan["warnings"])
         return "\n".join(lines)
     if command == "route validate":
         lines = [

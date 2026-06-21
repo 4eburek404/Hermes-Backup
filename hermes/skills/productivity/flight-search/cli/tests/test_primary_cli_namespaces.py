@@ -69,7 +69,6 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
             "cities search": ["cities", "search", "London"],
             "airports explain": ["airports", "explain", "LHR"],
             "diagnose fli-search": ["diagnose", "fli-search", "IST", "LHR", "--depart-date", "2026-07-20"],
-            "route plan": ["route", "plan", "SVX", "LON", "--depart-date", "2026-07-20"],
             "metrics workflow": ["metrics", "workflow", "SVX", "LON", "--depart-date", "2026-07-20"],
             "search": ["search", "--request", "request.json"],
             "diagnose plan": ["diagnose", "plan", "--request", "request.json"],

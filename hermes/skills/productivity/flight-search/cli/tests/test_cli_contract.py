@@ -4,6 +4,7 @@ import argparse
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -65,7 +66,6 @@ COMMAND_ARGV = {
     "cities search": ["cities", "search", "Yekaterinburg"],
     "airports explain": ["airports", "explain", "SVX"],
     "diagnose fli-search": ["diagnose", "fli-search", "IST", "LHR", "--depart-date", "2026-07-20"],
-    "route plan": ["route", "plan", "SVX", "LON", "--depart-date", "2026-07-20"],
     "metrics workflow": ["metrics", "workflow", "SVX", "LON", "--depart-date", "2026-07-20"],
     "search": ["search", "--request", "request.json"],
     "diagnose plan": ["diagnose", "plan", "--request", "request.json"],
@@ -129,7 +129,6 @@ class CliContractTests(unittest.TestCase):
     def test_route_commands_default_same_airport_minimum_is_120(self) -> None:
         parser = build_parser()
         cases = [
-            ["route", "plan", "SVX", "LON", "--depart-date", "2026-07-20"],
             ["route", "validate"],
             ["route", "rank"],
             ["route", "assemble"],
@@ -293,48 +292,51 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(policy.name, "debug_all")
         self.assertFalse(policy.suppress_three_plus)
 
-    def test_json_route_plan_envelope_and_repeatable_hubs(self) -> None:
-        proc = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "flights_cli",
-                "--json",
-                "route",
-                "plan",
-                "SVX",
-                "LON",
-                "--depart-date",
-                "2026-07-20",
-                "--hub",
-                "IST",
-                "--hub",
-                "DXB",
-            ],
-            cwd=PROJECT,
-            env=TEST_ENV,
-            check=True,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+    def test_json_diagnose_plan_envelope_and_repeatable_hubs(self) -> None:
+        request = {
+            "schema_version": "flight_search_request.v1",
+            "origin": "SVX",
+            "destination": "LON",
+            "depart_date": "2026-07-20",
+            "route_options": {"hubs": ["IST", "DXB"], "routing_strategy": "hub-list"},
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            request_path = Path(tmp_dir) / "flight-search-request.json"
+            request_path.write_text(json.dumps(request), encoding="utf-8")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "flights_cli",
+                    "--json",
+                    "diagnose",
+                    "plan",
+                    "--request",
+                    str(request_path),
+                ],
+                cwd=PROJECT,
+                env=TEST_ENV,
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
         payload = json.loads(proc.stdout)
         self.assertTrue(payload["ok"])
-        self.assertEqual(payload["command"], "route plan")
-        data = payload["data"]
+        self.assertEqual(payload["command"], "diagnose plan")
+        data = payload["data"]["plan"]
         self.assertEqual(data["hubs"], ["IST", "DXB"])
         self.assertEqual(data["destination_airports"], ["LHR", "LGW"])
         self.assertEqual(data["airport_scope"]["destination"]["excluded_by_default"], ["STN", "LTN"])
-        self.assertEqual(data["metrics"]["segment_request_count"], 6)
-        self.assertEqual(data["metrics"]["with_cli"]["generated_segment_commands"], 6)
-        self.assertEqual(data["metrics"]["with_cli"]["route_plan_commands"], 1)
-        self.assertEqual(data["metrics"]["with_cli"]["route_validate_command_after_results"], 1)
-        self.assertEqual(data["metrics"]["without_cli"]["segment_queries_to_prepare"], 6)
+        self.assertEqual(data["metrics"]["segment_search_count"], 10)
+        self.assertEqual(data["segments"][0]["route_family"], "hub_list")
+        self.assertEqual(data["segments"][0]["origin"], "SVX")
+        self.assertEqual(data["segments"][0]["destination"], "IST")
         self.assertIn("warnings", data)
 
     def test_normalize_global_json_accepts_trailing_json(self) -> None:
-        argv = ["flights", "route", "plan", "SVX", "LON", "--json"]
-        self.assertEqual(normalize_global_json(argv), ["flights", "--json", "route", "plan", "SVX", "LON"])
+        argv = ["flights", "diagnose", "plan", "--request", "request.json", "--json"]
+        self.assertEqual(normalize_global_json(argv), ["flights", "--json", "diagnose", "plan", "--request", "request.json"])
 
 
 if __name__ == "__main__":

@@ -218,12 +218,12 @@ Then:
 These are maintenance/diagnostic surfaces, not normal traveler answers:
 
 - `search --request` — primary production search.
-- `diagnose plan` — segment plan only, no provider calls.
+- `diagnose plan --request` — segment plan only, no provider calls.
 - `diagnose probe` — one provider probe from JSON.
 - `diagnose render` — render diagnostics from an existing report.
 - `diagnose kb-search` / `diagnose kb-roundtrip` — narrow KupiBilet controls.
 - `diagnose fli-search` / `diagnose fli-dates` — narrow FLI controls.
-- `route plan|validate|rank|assemble` — offline/development stages.
+- `route validate|rank|assemble` — offline/development stages.
 - `maint check`, `maint doctor`, `maint catalog manifest|refresh` — readiness, source/runtime, static catalog maintenance.
 
 Do not use provider-specific diagnostics as the primary search path unless `search --request` is degraded and a narrower proof is needed.

@@ -24,7 +24,6 @@ from .commands.providers import (
 )
 from .commands.route import (
     command_route_assemble,
-    command_route_plan,
     command_route_rank,
     command_route_validate,
 )
@@ -362,9 +361,6 @@ def _add_fli_dates_flags(parser: argparse.ArgumentParser) -> None:
 def _register_route_commands(sub) -> None:
     route = sub.add_parser("route", help="Route planning and validation commands.")
     route_sub = route.add_subparsers(dest="route_command", required=True)
-
-    route_plan = route_sub.add_parser("plan", parents=[route_query_parent()], help="Build segment query plan through hubs without API calls.")
-    route_plan.set_defaults(func=command_route_plan, command_name="route plan", **_catalog_read_defaults())
 
     route_validate = route_sub.add_parser("validate", parents=[connection_policy_parent()], help="Validate airport compatibility and connection windows from JSON.")
     route_validate.add_argument("--input", default="-", help="Input JSON file, or - for stdin.")

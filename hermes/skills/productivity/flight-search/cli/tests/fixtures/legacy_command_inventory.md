@@ -11,7 +11,7 @@ surface tests own the expected absence checks.
 - `diagnose probe`, `diagnose render`, `diagnose kb-search`,
   `diagnose kb-roundtrip`, `diagnose fli-search`, and `diagnose fli-dates` are
   registered under `diagnose`.
-- `route plan` is still registered in `flights_cli/cli.py`.
+- The legacy manual planning route was registered in `flights_cli/cli.py`.
 - `route validate`, `route rank`, and `route assemble` are still registered.
 - Top-level `kb-search`, `kb-roundtrip`, `fli-search`, and `fli-dates` are not
   registered.
@@ -19,7 +19,7 @@ surface tests own the expected absence checks.
 
 ## Command handlers
 
-- `command_route_plan()` remains in `flights_cli/commands/route.py`.
+- The legacy manual planning command handler remains in `flights_cli/commands/route.py`.
 - The legacy live-assemble route handler was present when this inventory was captured.
 - `command_route_kb_assemble()` is absent.
 - `run_live_route_assembly()` remains imported by the search app.
@@ -29,14 +29,14 @@ surface tests own the expected absence checks.
 - `SKILL.md` names `search --request` as the Golden Path.
 - `SKILL.md`, `README.md`, and active references still mention diagnostic
   provider probes such as `diagnose kb-search` and `diagnose fli-search`.
-- Active references still describe `route plan` as an offline/development
-  surface.
+- Active references still describe the legacy manual planning route as an
+  offline/development surface.
 
 ## Tests
 
-- `tests/test_cli_contract.py` currently includes `route plan` in parser and
+- `tests/test_cli_contract.py` currently includes the legacy manual planner in parser and
   catalog-refresh coverage.
-- `tests/test_primary_cli_namespaces.py` currently includes `route plan` in
+- `tests/test_primary_cli_namespaces.py` currently includes the legacy manual planner in
   parser coverage.
 - Provider diagnostic tests cover the `diagnose ...` probe commands.
 

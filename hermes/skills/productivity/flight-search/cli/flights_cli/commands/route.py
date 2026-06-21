@@ -6,16 +6,11 @@ from typing import Any
 
 from ..errors import CliError
 from ..io import read_input_text, read_json_file
-from ..orchestrators.route_plan import build_route_plan
 from ..services.agent_report import attach_agent_report
 from ..services.assembly import assemble_segment_results, collect_segment_results
 from ..services.ranking import extract_candidate_list, rank_candidate_list
 from ..services.validation import validate_itinerary
 from ..store import Store
-
-
-def command_route_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
-    return build_route_plan(args, store)
 
 
 def command_route_validate(args: argparse.Namespace, store: Store) -> dict[str, Any]:

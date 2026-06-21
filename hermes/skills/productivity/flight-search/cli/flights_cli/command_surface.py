@@ -11,7 +11,6 @@ ROOT_COMMANDS = (
 )
 
 ROUTE_COMMANDS = (
-    "plan",
     "validate",
     "rank",
     "assemble",
@@ -31,7 +30,6 @@ CATALOG_READ_COMMANDS = (
     "cities search",
     "airports explain",
     "diagnose fli-search",
-    "route plan",
     "metrics workflow",
     "search",
     "diagnose plan",

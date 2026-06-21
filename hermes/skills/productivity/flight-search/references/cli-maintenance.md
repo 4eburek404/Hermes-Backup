@@ -123,7 +123,7 @@ Rules:
 - `--agent-brief` should trim output only; if it implies legacy `agent_mode`, call out inherited evidence/budget side effects in audits and tests.
 - `--agent-mode` is a legacy compatibility preset, not a new design surface; remove it after replacement production/diagnostic contracts exist.
 - Keep ordinary user commands narrow. Hide or classify as advanced/debug the knobs for candidate pool limits, raw/ranked/rejected bodies, live-cache TTL, direct-route-intel TTL, fail-fast, day-offset fanout, coverage-control internals, and aggregate-control internals.
-- Prefer one public route-search wrapper over parallel user-facing variants. Provider-specific commands and offline `route plan/validate/rank/assemble` are diagnostics/development surfaces unless the user explicitly asks for provider-level proof.
+- Prefer one public route-search wrapper over parallel user-facing variants. Provider-specific commands, `diagnose plan --request`, and offline `route validate/rank/assemble` are diagnostics/development surfaces unless the user explicitly asks for provider-level proof.
 - Remove `route kb-assemble` after the replacement production search and diagnostic provider override are available; do not preserve compat aliases just because tests still reference them.
 
 ## Provider Port Rule
@@ -156,7 +156,7 @@ The authoritative rules live in `references/provider-aware-airport-priority.md`;
 
 - Route-family metadata and segment-spec identity belong in shared route-graph helpers, not duplicated in docs, dry planners, or live planners.
 - Keep RU domestic, RU-touching international, global non-RU, Asia/Oceania, and structurally constrained route logic consistent across public builders.
-- Domestic-RU routing must be decided in one shared layer and propagated through `route plan`, assembly, and `search --request`.
+- Domestic-RU routing must be decided in one shared layer and propagated through `diagnose plan --request`, assembly, and `search --request`.
 - For domestic Russian round trips, assert the direct return segment `DEST -> ORIGIN` and absence of default international hubs unless explicitly requested.
 - Moscow/SVO controls are first-class controls when relevant, not deferred-only behavior.
 - Coverage and aggregate-control flags must compile to a common `ProbeIntent`/evidence-goal model with provider capability and terminal status.
