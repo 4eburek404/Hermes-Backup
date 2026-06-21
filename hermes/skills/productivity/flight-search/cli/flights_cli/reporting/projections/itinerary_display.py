@@ -281,7 +281,3 @@ def sanitize_summary_only_display(report: dict[str, Any]) -> None:
         return
     display["options"] = sanitized_options
     display["text"] = "\n\n".join(str(option.get("text") or "") for option in sanitized_options if isinstance(option, dict))
-
-
-# Legacy compatibility name.
-build_flight_display = build_itinerary_display

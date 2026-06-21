@@ -18,7 +18,7 @@ class DiagnosticProjectionModuleTests(unittest.TestCase):
         display = build_itinerary_display(report)
         summary_lines = build_summary_lines(report)
 
-        self.assertEqual(DIAGNOSTIC_PROJECTIONS["human_answer_mirror"]["status"], "diagnostic_projection")
+        self.assertEqual(DIAGNOSTIC_PROJECTIONS["human_answer_mirror"]["status"], "diagnostic_mirror_only")
         self.assertIn("text", human_answer)
         self.assertEqual(display["format_version"], "flight_display.v1")
         self.assertIsInstance(summary_lines, list)
@@ -31,16 +31,11 @@ class DiagnosticProjectionModuleTests(unittest.TestCase):
         self.assertIn("data.agent_report.diagnostics.answer_lines", projection_paths)
         self.assertNotIn("data.agent_report.user_answer.rendered_text", projection_paths)
 
-    def test_legacy_projection_module_aliases_delegate_to_new_names(self) -> None:
-        from flights_cli.reporting.answer_line_renderer import build_answer_lines
-        from flights_cli.reporting.flight_display import build_flight_display
-        from flights_cli.reporting.projections.human_answer_mirror import build_human_answer_mirror
-
-        report = valid_report()
-
-        self.assertEqual(build_answer_lines(report), build_summary_lines(report))
-        self.assertEqual(build_flight_display(report), build_itinerary_display(report))
-        self.assertEqual(build_human_answer_mirror(report), build_human_answer_mirror(report))
+    def test_legacy_projection_module_aliases_are_removed(self) -> None:
+        with self.assertRaises(ModuleNotFoundError):
+            __import__("flights_cli.reporting.answer_line_renderer")
+        with self.assertRaises(ModuleNotFoundError):
+            __import__("flights_cli.reporting.flight_display")
 
 
 if __name__ == "__main__":

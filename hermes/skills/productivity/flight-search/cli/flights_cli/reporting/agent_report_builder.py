@@ -849,11 +849,6 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
     display_limit = min(len(options), ALL_DIRECT_CATALOG_CAP) if all_direct else CATALOG_LIMIT_DEFAULT
     report["display"] = build_itinerary_display(report, store, limit=max(display_limit, CATALOG_LIMIT_DEFAULT))
     report["answer_lines"] = build_summary_lines(report)
-    human_answer = build_human_answer_mirror(report)
-    report["user_answer"] = build_user_answer(report, rendered_text=str(human_answer.get("text") or ""))
-    report["human_answer"] = {
-        "format_version": human_answer.get("format_version") or "flight_human_answer.v1",
-        "text": report["user_answer"]["rendered_text"],
-        "sections": human_answer.get("sections") if isinstance(human_answer.get("sections"), list) else [],
-    }
+    report["user_answer"] = build_user_answer(report)
+    report["human_answer"] = build_human_answer_mirror(report)
     return project_agent_report(apply_agent_report_budget(report))

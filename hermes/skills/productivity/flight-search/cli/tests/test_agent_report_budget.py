@@ -4,7 +4,7 @@ import copy
 import json
 import unittest
 
-from flights_cli.reporting.flight_display import build_flight_display
+from flights_cli.reporting.projections.itinerary_display import build_itinerary_display
 from flights_cli.reporting.agent_report_projector import project_agent_report
 from flights_cli.reporting.report_budget import AgentReportBudget, apply_agent_report_budget, serialized_report_size
 from flights_cli.services.agent_report_contract import validate_agent_report
@@ -77,7 +77,7 @@ class AgentReportBudgetTests(unittest.TestCase):
             },
         ]
         report["recommended_options"] = [full_option, summary_option]
-        report["display"] = build_flight_display(report)
+        report["display"] = build_itinerary_display(report)
         self.assertIn("U6123", report["display"]["text"])
         self.assertIn("пересадка IST", report["display"]["text"])
 

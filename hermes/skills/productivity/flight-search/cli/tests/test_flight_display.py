@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from flights_cli.reporting.flight_display import build_flight_display
+from flights_cli.reporting.projections.itinerary_display import build_itinerary_display
 from flights_cli.store import Store
 from tests.test_agent_report_contract import valid_report
 
@@ -63,7 +63,7 @@ class FlightDisplayTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            display = build_flight_display(report, Store(cache))
+            display = build_itinerary_display(report, Store(cache))
 
         text = display["text"]
         self.assertIn("всего 9:30", text)
@@ -94,7 +94,7 @@ class FlightDisplayTests(unittest.TestCase):
             },
         ]
 
-        display = build_flight_display(report)
+        display = build_itinerary_display(report)
 
         self.assertIn("всего туда 2:30; обратно 2:25", display["text"])
         self.assertIn("туда: всего 2:30, пересадок 0", display["text"])

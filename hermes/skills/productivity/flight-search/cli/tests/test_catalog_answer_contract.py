@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 import unittest
 from importlib import resources
+from unittest.mock import patch
 
 from jsonschema import Draft202012Validator
 
@@ -42,6 +44,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
                 "destination": "SVO",
                 "departure_at": "2026-07-14T06:00:00+05:00",
                 "arrival_at": "2026-07-14T06:45:00+03:00",
+                "aircraft_code": "32A",
                 "duration_min": 165,
             },
             {
@@ -52,6 +55,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
                 "destination": "CAN",
                 "departure_at": "2026-07-14T19:10:00+03:00",
                 "arrival_at": "2026-07-15T09:35:00+08:00",
+                "aircraft_code": "333",
                 "duration_min": 565,
             },
             {
@@ -62,6 +66,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
                 "destination": "SVO",
                 "departure_at": "2026-07-25T11:20:00+08:00",
                 "arrival_at": "2026-07-25T16:05:00+03:00",
+                "aircraft_code": "333",
                 "duration_min": 585,
             },
             {
@@ -72,6 +77,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
                 "destination": "SVX",
                 "departure_at": "2026-07-25T20:10:00+03:00",
                 "arrival_at": "2026-07-26T00:35:00+05:00",
+                "aircraft_code": "73H",
                 "duration_min": 145,
             },
         ]
@@ -117,7 +123,16 @@ class CatalogAnswerContractTests(unittest.TestCase):
         self.assertLessEqual(len(text.encode("utf-8")), 20000)
 
     def test_round_trip_options_render_as_numbered_catalog_contract(self) -> None:
-        answer = build_user_answer(self._round_trip_report())
+        with patch(
+            "flights_cli.reporting.user_answer.airport_city_label",
+            side_effect=lambda code: {
+                "SVX": "Екатеринбург",
+                "SVO": "Москва",
+                "CAN": "Гуанчжоу",
+            }.get(code, code),
+            create=True,
+        ):
+            answer = build_user_answer(self._round_trip_report())
 
         validate_user_answer(answer)
         expected_keys = {
@@ -136,13 +151,14 @@ class CatalogAnswerContractTests(unittest.TestCase):
         self.assertEqual(set(answer), expected_keys)
         self.assertEqual(answer["schema_version"], "flight_search_user_answer.v3")
         self.assertEqual(answer["answer_mode"], "catalog")
-        self.assertEqual(answer["catalog"]["presentation"], {"style": "numbered_compact", "language": "ru", "max_items": 10})
+        self.assertEqual(answer["catalog"]["presentation"], {"style": "numbered_inline_itinerary_v1", "language": "ru", "max_items": 10})
         self.assertEqual([item["number"] for item in answer["catalog"]["items"]], [1, 2])
         self.assertEqual(answer["catalog"]["items"][0]["option_id"], "assembled-primary")
         self.assertTrue(answer["catalog"]["items"][0]["covers_requested_trip"])
         self.assertEqual(answer["catalog"]["items"][0]["journey_scope"], "round_trip")
         self.assertEqual(answer["catalog"]["items"][0]["directions"]["outbound"]["segments"][0]["flight_number"], "SU100")
         self.assertEqual(answer["catalog"]["items"][0]["directions"]["return"]["segments"][0]["flight_number"], "SU221")
+        self.assertEqual(answer["catalog"]["items"][0]["agent_display"]["style"], "inline_number_itinerary_with_aircraft_duration_v1")
         self.assertIn("single_pnr_unproven", answer["catalog"]["items"][0]["badges"])
         self.assertIn("1.", answer["rendered_text"])
         self.assertIn("2.", answer["rendered_text"])
@@ -150,10 +166,14 @@ class CatalogAnswerContractTests(unittest.TestCase):
         self.assertIn("25.07", answer["rendered_text"])
         self.assertEqual(
             answer["catalog"]["items"][0]["render_line"],
-            "1. 92 248 руб | туда: SU100 SVX→SVO 14.07 06:00–06:45 -> "
-            "SU220 SVO→CAN 14.07 19:10–15.07 09:35 | обратно: "
-            "SU221 CAN→SVO 25.07 11:20–16:05 -> SU1406 SVO→SVX 25.07 20:10–26.07 00:35",
+            "1. SU100 14.07 Екатеринбург - Москва 06:00 06:45 A320 в пути 2:45\n"
+            "    SU220 14.07 Москва - Гуанчжоу 19:10 09:35 (15.07) A333 в пути 9:25\n"
+            "    SU221 25.07 Гуанчжоу - Москва 11:20 16:05 A333 в пути 9:45\n"
+            "    SU1406 25.07 Москва - Екатеринбург 20:10 00:35 (26.07) B737 в пути 2:25\n"
+            "    92 248 рублей",
         )
+        self.assertEqual(answer["catalog"]["items"][0]["agent_display"]["text"], answer["catalog"]["items"][0]["render_line"])
+        self.assertNotIn("1.\n", answer["catalog"]["items"][0]["agent_display"]["text"])
 
     def test_rejects_catalog_when_rendered_text_loses_numbered_items(self) -> None:
         answer = build_user_answer(self._round_trip_report())
@@ -165,6 +185,54 @@ class CatalogAnswerContractTests(unittest.TestCase):
 
         messages = " ".join(error["message"] for error in ctx.exception.details["errors"])
         self.assertIn("numbered catalog", messages)
+
+    def test_rejects_catalog_when_agent_display_drifts_from_render_line(self) -> None:
+        answer = build_user_answer(self._round_trip_report())
+        answer["catalog"]["items"][0]["agent_display"]["lines"] = ["1. BROKEN", "    92 248 рублей"]
+
+        with self.assertRaises(CliError) as ctx:
+            validate_user_answer(answer)
+
+        messages = " ".join(error["message"] for error in ctx.exception.details["errors"])
+        self.assertIn("agent_display.lines", messages)
+
+    def test_rejects_catalog_when_agent_display_segment_loses_aircraft_duration(self) -> None:
+        answer = build_user_answer(self._round_trip_report())
+        original_line = answer["catalog"]["items"][0]["agent_display"]["lines"][0]
+        broken_line = re.sub(r" (?:[A-Z0-9][A-Z0-9-]*|борт н/д) в пути (?:\d+:\d{2}|н/д)$", "", original_line)
+        answer["catalog"]["items"][0]["agent_display"]["lines"][0] = broken_line
+        answer["catalog"]["items"][0]["agent_display"]["text"] = "\n".join(
+            answer["catalog"]["items"][0]["agent_display"]["lines"]
+        )
+        answer["catalog"]["items"][0]["render_line"] = answer["catalog"]["items"][0]["agent_display"]["text"]
+        answer["rendered_text"] = answer["rendered_text"].replace(original_line, broken_line)
+
+        with self.assertRaises(CliError) as ctx:
+            validate_user_answer(answer)
+
+        messages = " ".join(error["message"] for error in ctx.exception.details["errors"])
+        self.assertIn("aircraft", messages)
+
+    def test_rejects_catalog_when_agent_display_uses_standalone_number_line(self) -> None:
+        answer = build_user_answer(self._round_trip_report())
+        first_line = answer["catalog"]["items"][0]["agent_display"]["lines"][0]
+        answer["catalog"]["items"][0]["agent_display"]["lines"] = [
+            "1.",
+            first_line.removeprefix("1. "),
+            *answer["catalog"]["items"][0]["agent_display"]["lines"][1:],
+        ]
+        answer["catalog"]["items"][0]["agent_display"]["text"] = "\n".join(
+            answer["catalog"]["items"][0]["agent_display"]["lines"]
+        )
+        answer["catalog"]["items"][0]["render_line"] = answer["catalog"]["items"][0]["agent_display"]["text"]
+        answer["rendered_text"] = answer["rendered_text"].replace(first_line, "1.\n" + first_line.removeprefix("1. "))
+
+        with self.assertRaises(CliError) as ctx:
+            validate_user_answer(answer)
+
+        messages = " ".join(error["message"] for error in ctx.exception.details["errors"])
+        self.assertIn("standalone", messages)
+
     def test_rejects_legacy_v2_user_answer_without_adapter(self) -> None:
         legacy = build_user_answer(self._round_trip_report())
         legacy["schema_version"] = "flight_search_user_answer.v2"

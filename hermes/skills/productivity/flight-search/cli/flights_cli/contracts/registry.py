@@ -34,7 +34,7 @@ _DIAGNOSTIC_PROJECTIONS: dict[str, dict[str, str]] = {
         "wire_version": "flight_human_answer.v1",
         "path": "data.agent_report.diagnostics.human_answer",
         "must_equal": "data.agent_report.user_answer.rendered_text",
-        "status": "diagnostic_projection",
+        "status": "diagnostic_mirror_only",
     },
     "itinerary_display": {
         "wire_version": "flight_display.v1",

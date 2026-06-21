@@ -188,8 +188,9 @@ Diagnosis for “direct flights missing from display” lives in `debug-playbook
 - `status`: counts, direct-priority flags, all-direct flag, omissions;
 - evidence fields: source boundaries, segment searches, provider failures, aggregate controls, coverage diagnostics, stop policy, through-fare checks, rejected pair warnings, direct flights;
 - frontier inputs: `recommended_options`, `priority_options`, `offer_graph`;
-- diagnostics: display fragments, answer lines, human-answer mirror;
-- `user_answer`: canonical `flight_search_user_answer.v3` with `rendered_text`.
+- diagnostics before canonical rendering: display fragments and answer lines;
+- `user_answer`: canonical `flight_search_user_answer.v3` with `rendered_text`;
+- diagnostics after canonical rendering: `human_answer` mirror copied from `user_answer.rendered_text`.
 
 Then:
 
@@ -197,7 +198,7 @@ Then:
 2. `project_agent_report` converts flat report to nested `agent_report.v2`: `route / evidence / frontier / user_answer / agent_guidance / diagnostics`.
 3. `services/agent_report.py::attach_agent_report` validates nested report against schema and semantic rules. Schema failures are `CliError(contract_error)`, not silent field drops.
 
-`diagnostics.human_answer.text` must mirror `user_answer.rendered_text` while it exists, but it is not an alternative final-prose source.
+`diagnostics.human_answer.text` is mirror-only diagnostic output: it must mirror `user_answer.rendered_text` while it exists and must not render or fallback independently.
 
 ## 11. Data artifact map
 

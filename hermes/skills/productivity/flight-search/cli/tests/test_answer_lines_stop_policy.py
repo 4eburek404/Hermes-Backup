@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import unittest
 
-from flights_cli.reporting.answer_line_renderer import build_answer_lines
+from flights_cli.reporting.projections.summary_lines import build_summary_lines
 from flights_cli.reporting.user_answer import build_user_answer, validate_user_answer
 from flights_cli.services.agent_report_contract import validate_agent_report
 from tests.test_agent_report_contract import valid_option, valid_report
@@ -28,7 +28,7 @@ class AnswerLinesStopPolicyTests(unittest.TestCase):
             "two_stop_suppressed_because_preferred_exists": 2,
             "garbage_options_hidden_from_answer": True,
         }
-        report["answer_lines"] = build_answer_lines(report)
+        report["answer_lines"] = build_summary_lines(report)
         text = "\n".join(report["answer_lines"])
 
         self.assertIn("three_plus_suppressed=7", text)

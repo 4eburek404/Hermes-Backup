@@ -62,10 +62,11 @@ def command_diagnose_render(args: argparse.Namespace, store: Store) -> dict[str,
     del store
     payload = read_json_document(args.input)
     report = _agent_report_from_document(payload)
-    human_answer = build_human_answer_mirror(report)
     user_answer = report.get("user_answer") if isinstance(report.get("user_answer"), dict) else None
     if user_answer is None:
-        user_answer = build_user_answer(report, rendered_text=str(human_answer.get("text") or ""))
+        user_answer = build_user_answer(report)
+    mirror_report = {**report, "user_answer": user_answer}
+    human_answer = build_human_answer_mirror(mirror_report)
     return {
         "schema_version": "flight_search_render_diagnostic.v1",
         "agent_report_schema_version": report.get("schema_version"),

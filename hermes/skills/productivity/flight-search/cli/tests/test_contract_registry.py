@@ -42,7 +42,7 @@ class ContractRegistryTest(unittest.TestCase):
     def test_human_answer_mirror_is_diagnostic_not_canonical(self) -> None:
         projection = DIAGNOSTIC_PROJECTIONS["human_answer_mirror"]
         self.assertEqual(projection["path"], "data.agent_report.diagnostics.human_answer")
-        self.assertEqual(projection["status"], "diagnostic_projection")
+        self.assertEqual(projection["status"], "diagnostic_mirror_only")
         self.assertEqual(projection["must_equal"], "data.agent_report.user_answer.rendered_text")
         self.assertNotEqual(projection["path"], current_contract("user_answer")["canonical_text_path"])
 

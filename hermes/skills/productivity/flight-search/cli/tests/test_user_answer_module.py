@@ -6,7 +6,6 @@ from flights_cli.contracts.registry import current_contract
 from flights_cli.reporting import user_answer
 from flights_cli.reporting.user_answer import (
     build_user_answer,
-    canonical_user_answer_text,
     validate_user_answer,
 )
 from tests.test_user_answer_contract import report_with_required_caveats
@@ -21,10 +20,6 @@ class UserAnswerModuleTests(unittest.TestCase):
         user_answer.validate_user_answer(answer)
         self.assertEqual(answer, build_user_answer(report))
         self.assertEqual(answer["schema_version"], current_contract("user_answer")["schema_version"])
-        self.assertEqual(
-            user_answer.canonical_user_answer_text(report),
-            canonical_user_answer_text(report),
-        )
         validate_user_answer(answer)
 
     def test_user_answer_semantic_validators_are_split_by_concern(self) -> None:

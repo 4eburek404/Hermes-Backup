@@ -169,7 +169,3 @@ def build_summary_lines(report: dict[str, Any]) -> list[str]:
 
     lines.append("Do not treat cached or segment-search absence as proof that a through fare, direct flight, or protected ticket does not exist.")
     return lines
-
-
-# Legacy compatibility name.
-build_answer_lines = build_summary_lines

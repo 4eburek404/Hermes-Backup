@@ -301,8 +301,19 @@ class FinalAnswerContractTests(unittest.TestCase):
             answer = build_user_answer(report)
 
         validate_user_answer(answer)
-        self.assertIn("1. 10 179 руб | туда: DP516 SVX→LED 06.08 05:40–06:30 B737", answer["rendered_text"])
-        self.assertIn("2. 10 404 руб | туда: 5N502 SVX→LED 06.08 07:15–08:05 B737", answer["rendered_text"])
+        self.assertEqual(answer["catalog"]["presentation"]["max_items"], 2)
+        self.assertEqual(answer["catalog"]["items"][0]["agent_display"]["style"], "inline_number_itinerary_with_aircraft_duration_v1")
+        self.assertIn(
+            "1. DP516 06.08 Екатеринбург - Санкт-Петербург 05:40 06:30 B737 в пути 2:50\n    10 179 рублей",
+            answer["rendered_text"],
+        )
+        self.assertIn(
+            "2. 5N502 06.08 Екатеринбург - Санкт-Петербург 07:15 08:05 B737 в пути 2:50\n    10 404 рублей",
+            answer["rendered_text"],
+        )
+        self.assertNotIn("1.\n", answer["rendered_text"])
+        self.assertNotIn("\n\n2.", answer["rendered_text"])
+        self.assertNotIn(" | туда:", answer["rendered_text"])
         self.assertNotIn("риски:", answer["rendered_text"])
         self.assertNotIn("single_pnr_unproven", answer["rendered_text"])
         self.assertNotIn("baggage_unknown", answer["rendered_text"])
@@ -623,13 +634,7 @@ class FinalAnswerContractTests(unittest.TestCase):
             "all_planned_controls_have_terminal_state": True,
         }
 
-        answer = build_user_answer(
-            report,
-            rendered_text=(
-                "Нашёл варианты SVX→DEL. Текущий provider/source не поддерживает часть проверок; "
-                "это граница источника, не доказательство отсутствия. Финальную цену проверить на booking screen."
-            ),
-        )
+        answer = build_user_answer(report)
 
         validate_user_answer(answer)
         self.assertEqual(answer["evidence_status"]["not_supported_control_count"], 1)
@@ -647,8 +652,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         report["display"]["text"] = "STALE DISPLAY"
         report["answer_lines"] = ["STALE ANSWER LINE"]
 
-        with patch("flights_cli.reporting.user_answer.build_human_answer_mirror", return_value={"text": ""}):
-            answer = build_user_answer(report)
+        answer = build_user_answer(report)
 
         self.assertNotEqual(answer["rendered_text"], "STALE DISPLAY")
         self.assertNotIn("STALE ANSWER LINE", answer["rendered_text"])
