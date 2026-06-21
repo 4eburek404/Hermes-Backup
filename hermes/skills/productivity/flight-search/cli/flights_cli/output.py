@@ -58,7 +58,7 @@ def render_human(command: str, data: Any) -> str:
             if leg_bits:
                 lines.append("     " + " | ".join(leg_bits))
         return "\n".join(lines)
-    if command in {"diagnose fli-dates", "fli-dates"}:
+    if command == "diagnose fli-dates":
         lines = [
             f"FLI MCP date search: {data['origin']} → {data['destination']}",
             f"Range: {data.get('from_date')} — {data.get('to_date')}",
@@ -100,7 +100,7 @@ def render_human(command: str, data: Any) -> str:
             if leg_bits:
                 lines.append("     " + " | ".join(leg_bits))
         return "\n".join(lines)
-    if command in {"diagnose kb-roundtrip", "kb-roundtrip"}:
+    if command == "diagnose kb-roundtrip":
         lines = [
             f"Kupibilet live round-trip search: {data['origin']} ↔ {data['destination']}",
             f"Dates: {data['depart_date']} → {data['return_date']}",
@@ -277,13 +277,4 @@ def render_human(command: str, data: Any) -> str:
                 f"{item['rank']}. {item['id']} risk={item['risk']['score']}:{item['risk']['grade']} price={item['price']} elapsed={item['elapsed_min']}"
             )
         return "\n".join(lines)
-    if command == "metrics workflow":
-        metrics = data["metrics"]
-        return "\n".join(
-            [
-                f"without cli: {json.dumps(metrics['without_cli'], ensure_ascii=False, sort_keys=True)}",
-                f"with cli: {json.dumps(metrics['with_cli'], ensure_ascii=False, sort_keys=True)}",
-                f"segment requests: {metrics['segment_request_count']}",
-            ]
-        )
     return json.dumps(data, ensure_ascii=False, indent=2)

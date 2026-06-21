@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 from dataclasses import dataclass
 from typing import Any
 
@@ -12,6 +11,7 @@ from ..config import (
     DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR,
     DEFAULT_ROUTING_STRATEGY,
     FLI_MCP_DEFAULT_URL,
+    PRIORITY_ROUTE_CARRIERS,
 )
 
 
@@ -90,61 +90,13 @@ class LiveAssemblyOptions:
     ticketing: str
     currency: str
 
-    def to_argparse_namespace(self) -> argparse.Namespace:
-        return argparse.Namespace(
-            command_name=self.command_name,
-            origin=self.route.origin,
-            destination=self.route.destination,
-            depart_date=self.route.depart_date,
-            return_date=self.route.return_date,
-            hub=list(self.route.hubs) or None,
-            routing_strategy=self.route.routing_strategy,
-            origin_airport=list(self.route.origin_airports) or None,
-            destination_airport=list(self.route.destination_airports) or None,
-            max_airports_per_city=self.route.max_airports_per_city,
-            currency=self.currency,
-            coverage_mode=self.evidence.coverage_mode,
-            coverage_control=list(self.evidence.coverage_controls) or None,
-            coverage_control_limit=self.evidence.coverage_control_limit,
-            ticketing=self.ticketing,
-            profile=self.profile,
-            min_same_airport_min=self.route.min_same_airport_min,
-            min_cross_airport_min=self.route.min_cross_airport_min,
-            stop_policy=self.route.stop_policy,
-            date_window_end=self.route.date_window_end,
-            max_connections=self.route.max_connections,
-            tier2_max_connections=self.route.tier2_max_connections,
-            include_stop_policy_diagnostics=self.output.include_stop_policy_diagnostics,
-            segment_limit=self.evidence.segment_limit,
-            timeout=self.evidence.timeout,
-            outbound_second_leg_day_offset=list(self.evidence.outbound_second_leg_day_offsets) or None,
-            return_second_leg_day_offset=list(self.evidence.return_second_leg_day_offsets) or None,
-            limit_per_pair=self.output.limit_per_pair,
-            candidate_pool_limit=self.output.candidate_pool_limit,
-            max_candidates=self.output.max_candidates,
-            max_reasons=self.output.max_reasons,
-            include_candidates=self.output.include_candidates,
-            include_ranked_candidates=self.output.include_ranked_candidates,
-            include_rejected_pairs=self.output.include_rejected_pairs,
-            include_segment_results=self.output.include_segment_results,
-            aggregate_control_limit=self.evidence.aggregate_control_limit,
-            aggregate_control_carrier=list(self.evidence.aggregate_control_carriers) or None,
-            max_segment_searches=self.evidence.max_segment_searches,
-            fail_fast=self.evidence.fail_fast,
-            live_cache_ttl_seconds=self.evidence.live_cache_ttl_seconds,
-            no_live_cache=self.evidence.no_live_cache,
-            direct_route_index_ttl_seconds=self.evidence.direct_route_index_ttl_seconds,
-            no_direct_route_intel=self.evidence.no_direct_route_intel,
-            agent_report=self.output.agent_report,
-            agent_brief=self.output.agent_brief,
-            only_carrier=list(self.filters.only_carriers) or None,
-            exclude_carrier=list(self.filters.exclude_carriers) or None,
-            prefer_carrier=list(self.filters.prefer_carriers) or None,
-            avoid_carrier=list(self.filters.avoid_carriers) or None,
-            include_filtered=self.output.include_filtered,
-            provider_policy=self.evidence.provider_policy,
-            fli_mcp_url=self.evidence.fli_mcp_url,
-        )
+    def effective_prefer_carriers(self, routing_strategy: str | None = None) -> tuple[str, ...]:
+        carriers = list(self.filters.prefer_carriers)
+        if str(routing_strategy or self.route.routing_strategy or "").lower() == "ru-priority":
+            for carrier in PRIORITY_ROUTE_CARRIERS:
+                if carrier not in carriers:
+                    carriers.append(carrier)
+        return tuple(carriers)
 
 
 def _as_tuple(value: object) -> tuple[Any, ...]:
@@ -252,7 +204,7 @@ def search_request_to_options(payload: dict[str, Any]) -> LiveAssemblyOptions:
     )
 
 
-def argparse_args_to_options(args: argparse.Namespace) -> LiveAssemblyOptions:
+def argparse_args_to_options(args: Any) -> LiveAssemblyOptions:
     payload = {
         "origin": getattr(args, "origin", ""),
         "destination": getattr(args, "destination", ""),

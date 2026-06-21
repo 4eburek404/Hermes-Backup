@@ -3,7 +3,8 @@ from __future__ import annotations
 import argparse
 import unittest
 
-from flights_cli.apps.search import live_assembly_args_from_search_request
+from flights_cli.apps.search import live_assembly_options_from_search_request
+from flights_cli.orchestrators.live_assembly_runner import live_assembly_args_view
 from flights_cli.pipeline.options import argparse_args_to_options, search_request_to_options
 
 
@@ -71,19 +72,32 @@ REQUEST = {
 
 
 class LiveAssemblyOptionsTests(unittest.TestCase):
-    def test_search_request_to_options_matches_legacy_namespace_adapter(self) -> None:
+    def test_search_request_to_options_matches_boundary_args_view(self) -> None:
         options = search_request_to_options(REQUEST)
-        namespace = options.to_argparse_namespace()
-        legacy = live_assembly_args_from_search_request(REQUEST)
+        view = live_assembly_args_view(options)
 
-        for field in vars(namespace):
+        expected = {
+            "origin": "SVX",
+            "destination": "LON",
+            "depart_date": "2026-07-20",
+            "return_date": "2026-07-27",
+            "hub": ["IST", "DXB"],
+            "ticketing": "single",
+            "profile": "safe",
+            "only_carrier": ["SU"],
+            "prefer_carrier": ["TK"],
+            "aggregate_control_carrier": ["SU", "TK"],
+            "agent_report": True,
+        }
+        for field, value in expected.items():
             with self.subTest(field=field):
-                self.assertEqual(getattr(namespace, field), getattr(legacy, field))
+                self.assertEqual(getattr(view, field), value)
 
-    def test_argparse_args_to_options_round_trips_live_assembly_namespace(self) -> None:
-        legacy = live_assembly_args_from_search_request(REQUEST)
+    def test_argparse_args_to_options_round_trips_boundary_args_view(self) -> None:
+        options = live_assembly_options_from_search_request(REQUEST)
+        args_view = live_assembly_args_view(options)
 
-        self.assertEqual(argparse_args_to_options(legacy), search_request_to_options(REQUEST))
+        self.assertEqual(argparse_args_to_options(args_view), search_request_to_options(REQUEST))
 
     def test_search_request_defaults_are_explicit_in_typed_options(self) -> None:
         options = search_request_to_options(

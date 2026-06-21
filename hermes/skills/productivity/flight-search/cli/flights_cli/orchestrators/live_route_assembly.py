@@ -9,14 +9,9 @@ from ..store import Store
 from .live_assembly_runner import LiveAssemblyRunner
 from .route_plan_builder import RoutePlanBuilder
 
-# Re-export surface — these names are imported by tests and apps that
-# originally used live_assemble before the extraction. New code should
-# import from the real source modules directly.
 __all__ = [
-    # Public API
     "build_live_route_segment_plan",
     "run_live_route_assembly",
-    # Re-exported for backward compatibility (test_kupibilet imports this)
     "synthesize_moscow_gateway_control_results",
 ]
 

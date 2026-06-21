@@ -159,7 +159,7 @@ def _freshness_policy(
 
 def _missing_evidence(decision: FlowDecision) -> tuple[str, ...]:
     if decision.evidence_class == EvidenceClass.TICKETING_REQUIRED:
-        return ("single_pnr_or_protection_proof", "baggage_through_proof")
+        return ("ticketing_contract_proof", "checked_baggage_transfer_proof")
     if decision.evidence_class == EvidenceClass.ABSENCE_CLAIM:
         return ("targeted_live_controls_until_executed",)
     return ()

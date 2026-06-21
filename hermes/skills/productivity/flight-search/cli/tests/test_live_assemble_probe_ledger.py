@@ -4,7 +4,7 @@ import argparse
 import unittest
 from unittest.mock import patch
 
-from flights_cli.orchestrators.live_assemble import run_live_route_assembly
+from flights_cli.orchestrators.live_route_assembly import run_live_route_assembly
 from flights_cli.store import Store
 
 
@@ -57,7 +57,7 @@ class LiveAssembleProbeLedgerTests(unittest.TestCase):
         }
 
         with (
-            patch("flights_cli.orchestrators.live_assemble.build_live_route_segment_plan", return_value=plan),
+            patch("flights_cli.orchestrators.live_route_assembly.build_live_route_segment_plan", return_value=plan),
             patch("flights_cli.orchestrators.live_assembly_runner.empty_assembled_result", return_value={}),
             patch("flights_cli.execution.aggregate_control_runner.run_aggregate_controls", return_value=[]),
             patch("flights_cli.orchestrators.live_assembly_runner.hub_viability_summary", return_value=[]),

@@ -7,7 +7,6 @@ ROOT_COMMANDS = (
     "cities",
     "airports",
     "route",
-    "metrics",
 )
 
 ROUTE_COMMANDS = (
@@ -30,7 +29,6 @@ CATALOG_READ_COMMANDS = (
     "cities search",
     "airports explain",
     "diagnose fli-search",
-    "metrics workflow",
     "search",
     "diagnose plan",
 )

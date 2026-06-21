@@ -5,7 +5,7 @@ from typing import Any
 
 from ..config import DEFAULT_CURRENCY
 from ..contracts.registry import current_contract
-from ..orchestrators.live_assemble import run_live_route_assembly
+from ..orchestrators.live_route_assembly import run_live_route_assembly
 from ..pipeline.options import LiveAssemblyOptions, search_request_to_options
 from ..store import Store
 from .common import read_json_document, validate_contract_payload
@@ -30,10 +30,6 @@ def live_assembly_options_from_search_request(payload: dict[str, Any]) -> LiveAs
     request = normalize_search_request(payload)
     validate_contract_payload("search_request", request, error_type="validation_error")
     return search_request_to_options(request)
-
-
-def live_assembly_args_from_search_request(payload: dict[str, Any]) -> argparse.Namespace:
-    return live_assembly_options_from_search_request(payload).to_argparse_namespace()
 
 
 def build_search_result(request: dict[str, Any], route_result: dict[str, Any]) -> dict[str, Any]:

@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from flights_cli.cli import build_parser
 from flights_cli.config import DEFAULT_ROUTE_HUBS
-from flights_cli.orchestrators.live_assemble import (
+from flights_cli.orchestrators.live_route_assembly import (
     build_live_route_segment_plan,
     run_live_route_assembly,
     synthesize_moscow_gateway_control_results,

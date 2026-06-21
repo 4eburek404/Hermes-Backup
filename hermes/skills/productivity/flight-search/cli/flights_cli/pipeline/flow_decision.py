@@ -162,7 +162,7 @@ def _intent_for(request: SearchRequest) -> str:
         return IntentClass.MAINTENANCE
     if _is_direct_only(request):
         return IntentClass.DIRECT_INVENTORY
-    if str(request.ticketing or "").lower() in {"single", "protected", "through", "single_pnr"}:
+    if str(request.ticketing or "").lower() == "single":
         return IntentClass.TICKETING_PROOF
     if _has_carrier_scope(request) or _has_airport_scope(request):
         return IntentClass.CARRIER_OR_AIRPORT_SCOPE

@@ -8,7 +8,7 @@ from unittest.mock import patch
 from flights_cli.adapters.providers.registry import providers_for_segment
 from flights_cli.domain.airports import explicit_or_resolved_airports, segment_code_metadata
 from flights_cli.execution.probe_dispatcher import dispatch_segment_probe
-from flights_cli.orchestrators.live_assemble import build_live_route_segment_plan, run_live_route_assembly
+from flights_cli.orchestrators.live_route_assembly import build_live_route_segment_plan, run_live_route_assembly
 from flights_cli.store import Store
 
 

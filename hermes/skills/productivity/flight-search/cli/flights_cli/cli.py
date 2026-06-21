@@ -16,7 +16,6 @@ from .apps.diagnose import command_diagnose_plan, command_diagnose_probe, comman
 from .apps.maint import command_maint_catalog_manifest, command_maint_catalog_refresh, command_maint_doctor
 from .apps.search import command_search
 from .commands.maintenance import command_maintenance_check
-from .commands.metrics import command_metrics_workflow
 from .commands.providers import (
     command_fli_dates,
     command_fli_search,
@@ -31,7 +30,6 @@ from .commands.route import (
 from .config import (
     DEFAULT_COVERAGE_CONTROL_LIMIT,
     DEFAULT_CURRENCY,
-    DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS,
     FLI_MCP_DEFAULT_URL,
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
     DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR,
@@ -149,44 +147,6 @@ def add_assembly_output_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--include-rejected-pairs", type=int, default=20)
 
 
-def add_live_assembly_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--segment-limit", type=int, default=30, help="Max direct offers kept per live segment search.")
-    parser.add_argument("--timeout", type=int, default=60, help="HTTP timeout seconds per live segment search.")
-    parser.add_argument(
-        "--outbound-second-leg-day-offset",
-        action="append",
-        type=int,
-        help="Day offset(s) for hub→destination searches after depart date. Repeatable. Default: 0 and 1.",
-    )
-    parser.add_argument(
-        "--return-second-leg-day-offset",
-        action="append",
-        type=int,
-        help="Day offset(s) for hub→origin searches after return date. Repeatable. Default: 0, 1, and 2.",
-    )
-    add_assembly_output_flags(parser)
-    parser.add_argument("--include-segment-results", type=int, default=0, help="Include first N normalized segment-result blocks in JSON output.")
-    parser.add_argument(
-        "--aggregate-control-limit",
-        type=int,
-        default=0,
-        help="Run non-direct Kupibilet full-route aggregate controls and keep N cheap offers after provider-offer filtering. 0 disables.",
-    )
-    parser.add_argument(
-        "--aggregate-control-carrier",
-        action="append",
-        help="Also run a full-route aggregate control where every leg matches this carrier, e.g. SU for Aeroflot. Repeatable.",
-    )
-    parser.add_argument("--max-segment-searches", type=int, default=300, help="Safety cap for live segment requests.")
-    parser.add_argument("--fail-fast", action="store_true", help="Abort on the first live segment-search error instead of keeping partial results.")
-    parser.add_argument("--live-cache-ttl-seconds", type=int, default=DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, help="Short-lived live-search cache TTL seconds. Use 0 to disable.")
-    parser.add_argument("--no-live-cache", action="store_true", help="Bypass live-search cache.")
-    parser.add_argument("--direct-route-index-ttl-seconds", type=int, default=DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS, help="Official SVX seasonal direct-route index TTL seconds. Use 0 to disable route-intel fetching.")
-    parser.add_argument("--no-direct-route-intel", action="store_true", help="Do not skip direct-control probes using the official SVX route index.")
-    add_agent_output_flags(parser)
-    add_carrier_selection_flags(parser)
-
-
 def _parent(add_flags) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(add_help=False)
     add_flags(parser)
@@ -215,10 +175,6 @@ def agent_output_parent() -> argparse.ArgumentParser:
 
 def assembly_output_parent() -> argparse.ArgumentParser:
     return _parent(add_assembly_output_flags)
-
-
-def live_assembly_parent() -> argparse.ArgumentParser:
-    return _parent(add_live_assembly_flags)
 
 
 def _catalog_read_defaults(**kwargs: Any) -> dict[str, Any]:
@@ -384,13 +340,6 @@ def _register_route_commands(sub) -> None:
     route_assemble.add_argument("--input", action="append", help="Parsed result JSON. Repeatable; omit for stdin.")
     route_assemble.set_defaults(func=command_route_assemble, command_name="route assemble")
 
-def _register_metrics_commands(sub) -> None:
-    metrics = sub.add_parser("metrics", help="Workflow metrics commands.")
-    metrics_sub = metrics.add_subparsers(dest="metrics_command", required=True)
-    metrics_workflow = metrics_sub.add_parser("workflow", parents=[route_query_parent()], help="Compare manual planning operations with CLI planning.")
-    metrics_workflow.set_defaults(func=command_metrics_workflow, command_name="metrics workflow", **_catalog_read_defaults())
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="flights",
@@ -422,7 +371,6 @@ def build_parser() -> argparse.ArgumentParser:
     _register_maint_commands(sub)
     _register_metadata_commands(sub)
     _register_route_commands(sub)
-    _register_metrics_commands(sub)
 
     return parser
 
@@ -435,7 +383,7 @@ def normalize_global_json(argv: list[str]) -> list[str]:
 
 def auto_refresh_catalog(args: argparse.Namespace, store: Store) -> dict | None:
     # Catalog-dependent commands need a complete local static catalog before
-    # route planning. They refresh only when files are missing/stale unless the
+    # routing commands. They refresh only when files are missing/stale unless the
     # caller disables this with `--catalog-refresh never`.
     if getattr(args, "catalog_access", None) != "auto_refresh":
         return None

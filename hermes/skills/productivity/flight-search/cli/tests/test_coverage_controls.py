@@ -8,8 +8,7 @@ from pathlib import Path
 
 from flights_cli.apps.diagnose import command_diagnose_plan
 from flights_cli.cli import build_parser
-from flights_cli.orchestrators.live_assemble import build_live_route_segment_plan
-from flights_cli.orchestrators.route_plan import build_route_plan
+from flights_cli.orchestrators.live_route_assembly import build_live_route_segment_plan
 from flights_cli.reporting.coverage_projector import build_coverage_diagnostics
 from flights_cli.store import Store
 
@@ -73,7 +72,7 @@ def live_args(**overrides: object) -> argparse.Namespace:
 
 class CoverageControlsTests(unittest.TestCase):
     def test_dubai_city_scope_is_dxb_primary_dwc_secondary_without_shj(self) -> None:
-        result = build_route_plan(route_args(destination="Dubai", return_date=None), Store())
+        result = build_live_route_segment_plan(live_args(destination="Dubai", return_date=None), Store())
 
         self.assertEqual(result["destination_airports"], ["DXB", "DWC"])
         self.assertNotIn("SHJ", result["destination_airports"])
@@ -82,13 +81,13 @@ class CoverageControlsTests(unittest.TestCase):
         self.assertIn("DWC", result["route_graph"]["nodes"])
 
     def test_explicit_dxb_stays_exact_airport_not_city_scope(self) -> None:
-        result = build_route_plan(route_args(destination="DXB", return_date=None), Store())
+        result = build_live_route_segment_plan(live_args(destination="DXB", return_date=None), Store())
 
         self.assertEqual(result["destination_airports"], ["DXB"])
         self.assertEqual(result["airport_scope"]["destination"]["scope"], "explicit_or_single_airport")
 
     def test_auto_routing_uses_domestic_ru_strategy_without_international_hubs(self) -> None:
-        result = build_route_plan(route_args(destination="KUF"), Store())
+        result = build_live_route_segment_plan(live_args(destination="KUF"), Store())
 
         self.assertEqual(result["routing_strategy"], "domestic-ru")
         self.assertEqual(result["hub_source"], "domestic-ru")
@@ -99,7 +98,7 @@ class CoverageControlsTests(unittest.TestCase):
         self.assertIn("domestic_ru", {family["id"] for family in result["route_families"]})
 
     def test_domestic_ru_round_trip_route_plan_aligns_return_segments_and_controls(self) -> None:
-        result = build_route_plan(route_args(destination="KUF", return_date="2026-08-19"), Store())
+        result = build_live_route_segment_plan(live_args(destination="KUF", return_date="2026-08-19"), Store())
 
         return_segments = [segment for segment in result["segments"] if segment["direction"] == "return"]
         direct_return_segments = [segment for segment in return_segments if segment["leg"] == "direct_return"]
@@ -127,7 +126,7 @@ class CoverageControlsTests(unittest.TestCase):
         )
 
     def test_route_plan_exposes_route_graph_and_targeted_coverage_controls(self) -> None:
-        result = build_route_plan(route_args(destination="CDG", return_date="2026-08-19"), Store())
+        result = build_live_route_segment_plan(live_args(destination="CDG", return_date="2026-08-19"), Store())
 
         self.assertEqual(result["coverage_mode"], "targeted")
         self.assertIn("route_graph", result)

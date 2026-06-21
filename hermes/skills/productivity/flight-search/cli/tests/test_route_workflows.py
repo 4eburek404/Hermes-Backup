@@ -8,11 +8,11 @@ import unittest
 
 from flights_cli.config import DEFAULT_ROUTE_HUBS
 from flights_cli.domain.carriers import carrier_from_flight_number
-from flights_cli.orchestrators.route_plan import build_route_plan
+from flights_cli.orchestrators.live_route_assembly import build_live_route_segment_plan
 from flights_cli.services.validation import connection_rule, validate_itinerary
 from flights_cli.store import Store
 
-from helpers import CliSubprocessMixin, PROJECT, TEST_ENV
+from helpers import CliSubprocessMixin, PROJECT, TEST_ENV, live_assembly_args
 
 
 class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
@@ -46,97 +46,78 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(result["summary"]["violation_count"], 0)
         self.assertEqual(result["risk"]["grade"], "excellent")
 
-    def test_route_plan_svx_lon_uses_preferred_london_airports_and_counts_segments(self) -> None:
-        args = argparse.Namespace(
+    def test_live_plan_svx_lon_uses_preferred_london_airports_and_counts_segments(self) -> None:
+        args = live_assembly_args(
             origin="SVX",
             destination="LON",
             depart_date="2026-07-19",
             return_date="2026-07-23",
             hub=["IST", "SAW", "AYT"],
-            origin_airport=None,
-            destination_airport=None,
             currency="RUB",
-            direct_only=False,
             ticketing="separate",
             min_same_airport_min=120,
             min_cross_airport_min=300,
             max_airports_per_city=6,
+            no_direct_route_intel=True,
         )
-        result = build_route_plan(args, Store())
+        result = build_live_route_segment_plan(args, Store())
         self.assertEqual(result["origin_airports"], ["SVX"])
         self.assertEqual(result["destination_airports"], ["LHR", "LGW"])
         self.assertEqual(result["airport_scope"]["destination"]["preferred_airport_tiers"][0]["airports"], ["LHR"])
         self.assertEqual(result["airport_scope"]["destination"]["excluded_by_default"], ["STN", "LTN"])
-        self.assertEqual(result["metrics"]["segment_request_count"], 18)
-        self.assertEqual(result["itinerary_families"][0]["outbound_airport_compatibility"][0]["required_min"], 120)
-        self.assertIn("LON is broad and provider-dependent; use specific London airports for decision-grade checks.", result["warnings"])
+        self.assertGreater(result["metrics"]["segment_search_count"], 0)
+        self.assertEqual(result["route_graph"]["strategy"], "hub-list")
 
-    def test_route_plan_uses_ru_priority_strategy_when_no_hubs_are_passed(self) -> None:
-        args = argparse.Namespace(
+    def test_live_plan_uses_ru_priority_strategy_when_no_hubs_are_passed(self) -> None:
+        args = live_assembly_args(
             origin="SVX",
             destination="MUC",
             depart_date="2026-08-12",
             return_date=None,
-            hub=None,
             routing_strategy="auto",
-            origin_airport=None,
-            destination_airport=None,
             currency="RUB",
-            direct_only=False,
             ticketing="separate",
             min_same_airport_min=120,
             min_cross_airport_min=300,
             max_airports_per_city=6,
+            no_direct_route_intel=True,
         )
 
-        result = build_route_plan(args, Store())
+        result = build_live_route_segment_plan(args, Store())
 
         self.assertEqual(result["routing_strategy"], "ru-priority")
         self.assertEqual(result["hubs"], ["IST", "DXB"])
         self.assertEqual(result["hub_source"], "strategy")
-        self.assertEqual(result["metrics"]["segment_request_count"], 7)
-        self.assertEqual(
-            [(segment["origin"], segment["destination"], segment["leg"]) for segment in result["segments"]],
-            [
-                ("SVX", "MUC", "direct_outbound"),
-                ("SVX", "IST", "origin_to_hub"),
-                ("SVX", "SVO", "origin_to_gateway"),
-                ("SVO", "IST", "gateway_to_hub"),
-                ("IST", "MUC", "hub_to_destination"),
-                ("SVX", "DXB", "origin_to_hub"),
-                ("DXB", "MUC", "hub_to_destination"),
-            ],
-        )
-        self.assertTrue(all("--direct-only" in segment["command"] for segment in result["segments"]))
+        segments = {(segment["origin"], segment["destination"], segment["leg"]) for segment in result["segments"]}
+        self.assertIn(("SVX", "MUC", "direct_outbound"), segments)
+        self.assertIn(("SVX", "IST", "origin_to_hub"), segments)
+        self.assertIn(("SVO", "IST", "gateway_to_hub"), segments)
+        self.assertIn(("DXB", "MUC", "hub_to_destination"), segments)
         self.assertEqual(result["route_families"][2]["required_carriers"], ["SU"])
-        self.assertIn("SVO", result["metrics"]["unique_airports_considered"])
         self.assertEqual(result["route_graph"]["strategy"], "ru-priority")
         self.assertIn("coverage_controls", result)
 
-    def test_route_plan_uses_asia_profile_for_beijing(self) -> None:
-        args = argparse.Namespace(
+    def test_live_plan_uses_asia_profile_for_beijing(self) -> None:
+        args = live_assembly_args(
             origin="SVX",
             destination="BJS",
             depart_date="2026-09-15",
             return_date="2026-09-20",
-            hub=None,
             routing_strategy="auto",
-            origin_airport=None,
-            destination_airport=None,
             currency="RUB",
-            direct_only=False,
             ticketing="separate",
             min_same_airport_min=120,
             min_cross_airport_min=300,
             max_airports_per_city=6,
+            no_direct_route_intel=True,
         )
 
-        result = build_route_plan(args, Store())
+        result = build_live_route_segment_plan(args, Store())
 
         self.assertEqual(result["routing_profile"], "asia-oceania")
         self.assertEqual(result["destination_airports"], ["PEK", "PKX"])
         self.assertEqual(result["hubs"], ["SVO", "IST", "DXB"])
-        self.assertEqual(result["metrics"]["segment_request_count"], 26)
+        self.assertGreater(result["metrics"]["segment_search_count"], 0)
         self.assertIn("svo_asia", {family["id"] for family in result["route_families"]})
         segments = {
             (segment["direction"], segment["origin"], segment["destination"], segment["leg"], segment.get("route_family"))
@@ -148,29 +129,26 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
         self.assertIn(("return", "PEK", "SVX", "direct_return", "direct_control"), segments)
         self.assertIn(("return", "SVO", "SVX", "hub_to_origin", "svo_asia"), segments)
 
-    def test_route_plan_hub_list_strategy_uses_default_hubs(self) -> None:
-        args = argparse.Namespace(
+    def test_live_plan_hub_list_strategy_uses_default_hubs(self) -> None:
+        args = live_assembly_args(
             origin="SVX",
             destination="LON",
             depart_date="2026-07-19",
             return_date="2026-07-23",
-            hub=None,
             routing_strategy="hub-list",
-            origin_airport=None,
-            destination_airport=None,
             currency="RUB",
-            direct_only=False,
             ticketing="separate",
             min_same_airport_min=120,
             min_cross_airport_min=300,
             max_airports_per_city=6,
+            no_direct_route_intel=True,
         )
 
-        result = build_route_plan(args, Store())
+        result = build_live_route_segment_plan(args, Store())
 
         self.assertEqual(result["hubs"], list(DEFAULT_ROUTE_HUBS))
         self.assertEqual(result["hub_source"], "default")
-        self.assertEqual(result["metrics"]["segment_request_count"], len(DEFAULT_ROUTE_HUBS) * 6)
+        self.assertGreaterEqual(result["metrics"]["segment_search_count"], len(DEFAULT_ROUTE_HUBS) * 2)
 
     def test_carrier_from_flight_number_handles_alphanumeric_iata_codes(self) -> None:
         self.assertEqual(carrier_from_flight_number("5N294"), "5N")

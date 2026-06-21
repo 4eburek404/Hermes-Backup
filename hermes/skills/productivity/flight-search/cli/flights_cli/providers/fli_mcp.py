@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import __version__
-from ..config import DEFAULT_CURRENCY, DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, FLI_MCP_DEFAULT_URL, SUPPORTED_CURRENCIES
+from ..config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, FLI_MCP_DEFAULT_URL, SUPPORTED_CURRENCIES
 from ..domain.carriers import carrier_from_flight_number
 from ..domain.normalize import normalize_carrier_code, normalize_iata, parse_iso_date, price_value
 from ..domain.provider_offer_filter import filter_provider_offers

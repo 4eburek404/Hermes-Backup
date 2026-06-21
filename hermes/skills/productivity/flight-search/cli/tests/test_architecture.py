@@ -54,8 +54,7 @@ class ArchitectureTests(unittest.TestCase):
             sorted(manifest["command_surface"]["diagnostic_commands"]),
             sorted(["diagnose plan", "diagnose render", *TARGETED_PROBE_COMMANDS, *(f"route {name}" for name in ROUTE_COMMANDS)]),
         )
-        self.assertIn("route live-assemble", manifest["command_surface"]["removed_commands"])
-        self.assertIn("route plan", manifest["command_surface"]["removed_commands"])
+        self.assertNotIn("removed_commands", manifest["command_surface"])
 
     def test_skill_markdown_formatting_is_sane(self) -> None:
         skill = PROJECT.parent / "SKILL.md"

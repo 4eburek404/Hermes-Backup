@@ -28,7 +28,7 @@ class SearchRequest:
 
 
 def _route_mode(command_name: str) -> str:
-    return "live_assemble"
+    return "search_live"
 
 
 def search_request_from_options(options: LiveAssemblyOptions) -> SearchRequest:

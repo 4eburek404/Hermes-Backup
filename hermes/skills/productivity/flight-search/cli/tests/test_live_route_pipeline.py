@@ -4,7 +4,7 @@ import argparse
 import unittest
 from unittest.mock import patch
 
-from flights_cli.orchestrators.live_assemble import run_live_route_assembly
+from flights_cli.orchestrators.live_route_assembly import run_live_route_assembly
 from flights_cli.pipeline.search_pipeline import build_live_route_search_flow
 from flights_cli.store import Store
 from helpers import live_assembly_args
@@ -41,7 +41,7 @@ def live_args(**overrides: object) -> argparse.Namespace:
 
 
 class LiveRoutePipelineTests(unittest.TestCase):
-    def test_live_assemble_args_adapt_to_typed_search_flow(self) -> None:
+    def test_live_route_args_adapt_to_typed_search_flow(self) -> None:
         args = live_assembly_args(
             origin="SVX",
             destination="CDG",
@@ -91,7 +91,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
 
         with (
             patch("flights_cli.orchestrators.live_assembly_runner.build_live_route_search_flow", wraps=build_live_route_search_flow) as build_flow,
-            patch("flights_cli.orchestrators.live_assemble.build_live_route_segment_plan", return_value=plan),
+            patch("flights_cli.orchestrators.live_route_assembly.build_live_route_segment_plan", return_value=plan),
             patch("flights_cli.orchestrators.live_assembly_runner.empty_assembled_result", return_value={}),
             patch("flights_cli.orchestrators.live_assembly_runner.run_aggregate_controls", return_value=[]),
             patch("flights_cli.orchestrators.live_assembly_runner.hub_viability_summary", return_value=[]),

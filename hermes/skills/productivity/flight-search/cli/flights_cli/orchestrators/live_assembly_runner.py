@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import argparse
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any
 
 from ..config import (
-    DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS,
     KUPIBILET_CITY_CODE_FIRST_AIRPORTS,
-    PRIORITY_ROUTE_CARRIERS,
     PRIORITY_SECONDARY_HUB,
 )
 from ..domain.normalize import normalize_carrier_code
@@ -35,8 +33,66 @@ from ..store import Store
 fetch_kupibilet_search: Any | None = None
 
 
+def live_assembly_args_view(options: LiveAssemblyOptions, *, routing_strategy: str | None = None) -> SimpleNamespace:
+    return SimpleNamespace(
+        command_name=options.command_name,
+        origin=options.route.origin,
+        destination=options.route.destination,
+        depart_date=options.route.depart_date,
+        return_date=options.route.return_date,
+        hub=list(options.route.hubs) or None,
+        routing_strategy=options.route.routing_strategy,
+        origin_airport=list(options.route.origin_airports) or None,
+        destination_airport=list(options.route.destination_airports) or None,
+        max_airports_per_city=options.route.max_airports_per_city,
+        currency=options.currency,
+        coverage_mode=options.evidence.coverage_mode,
+        coverage_control=list(options.evidence.coverage_controls) or None,
+        coverage_control_limit=options.evidence.coverage_control_limit,
+        ticketing=options.ticketing,
+        profile=options.profile,
+        min_same_airport_min=options.route.min_same_airport_min,
+        min_cross_airport_min=options.route.min_cross_airport_min,
+        stop_policy=options.route.stop_policy,
+        date_window_end=options.route.date_window_end,
+        max_connections=options.route.max_connections,
+        tier2_max_connections=options.route.tier2_max_connections,
+        include_stop_policy_diagnostics=options.output.include_stop_policy_diagnostics,
+        segment_limit=options.evidence.segment_limit,
+        timeout=options.evidence.timeout,
+        outbound_second_leg_day_offset=list(options.evidence.outbound_second_leg_day_offsets) or None,
+        return_second_leg_day_offset=list(options.evidence.return_second_leg_day_offsets) or None,
+        limit_per_pair=options.output.limit_per_pair,
+        candidate_pool_limit=options.output.candidate_pool_limit,
+        max_candidates=options.output.max_candidates,
+        max_reasons=options.output.max_reasons,
+        include_candidates=options.output.include_candidates,
+        include_ranked_candidates=options.output.include_ranked_candidates,
+        include_rejected_pairs=options.output.include_rejected_pairs,
+        include_segment_results=options.output.include_segment_results,
+        aggregate_control_limit=options.evidence.aggregate_control_limit,
+        aggregate_control_carrier=list(options.evidence.aggregate_control_carriers) or None,
+        max_segment_searches=options.evidence.max_segment_searches,
+        fail_fast=options.evidence.fail_fast,
+        live_cache_ttl_seconds=options.evidence.live_cache_ttl_seconds,
+        no_live_cache=options.evidence.no_live_cache,
+        direct_route_index_ttl_seconds=options.evidence.direct_route_index_ttl_seconds,
+        no_direct_route_intel=options.evidence.no_direct_route_intel,
+        agent_report=options.output.agent_report,
+        agent_brief=options.output.agent_brief,
+        only_carrier=list(options.filters.only_carriers) or None,
+        exclude_carrier=list(options.filters.exclude_carriers) or None,
+        prefer_carrier=list(options.effective_prefer_carriers(routing_strategy)) or None,
+        avoid_carrier=list(options.filters.avoid_carriers) or None,
+        include_filtered=options.output.include_filtered,
+        provider_policy=options.evidence.provider_policy,
+        fli_mcp_url=options.evidence.fli_mcp_url,
+        is_domestic=str(routing_strategy or "").lower() == RoutingStrategy.DOMESTIC_RU,
+    )
+
+
 # ---------------------------------------------------------------------------
-# Helper functions (moved from live_assemble to break the circular import)
+# Helper functions kept here to avoid a circular import.
 # ---------------------------------------------------------------------------
 
 def provider_city_code_side(spec: dict[str, Any], side: str) -> bool:
@@ -128,10 +184,10 @@ def plan_has_svx_direct_control(plan: dict[str, Any]) -> bool:
     return False
 
 
-def direct_route_intel_context(args: argparse.Namespace, store: Store, plan: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any]]:
-    if bool(getattr(args, "no_direct_route_intel", False)):
+def direct_route_intel_context(options: LiveAssemblyOptions, store: Store, plan: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    if options.evidence.no_direct_route_intel:
         return None, {"enabled": False, "available": False, "reason": "disabled_by_flag"}
-    ttl_seconds = int(getattr(args, "direct_route_index_ttl_seconds", DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS))
+    ttl_seconds = int(options.evidence.direct_route_index_ttl_seconds)
     if ttl_seconds <= 0:
         return None, {"enabled": False, "available": False, "reason": "disabled_by_ttl"}
     if not plan_has_svx_direct_control(plan):
@@ -140,7 +196,7 @@ def direct_route_intel_context(args: argparse.Namespace, store: Store, plan: dic
         known_airports = set(store.airport_by_code)
         index, cache = load_or_refresh_svx_route_index(
             ttl_seconds=ttl_seconds,
-            timeout=int(getattr(args, "timeout", 20)),
+            timeout=int(options.evidence.timeout),
             known_airports=known_airports or None,
             cache_dir=store.cache_dir / "route_intel",
         )
@@ -277,8 +333,8 @@ class SyntheticControlService:
 
 
 class PriorityRouteEvaluator:
-    def __init__(self, args: argparse.Namespace, synthetic_controls: SyntheticControlService) -> None:
-        self.args = args
+    def __init__(self, options: LiveAssemblyOptions, synthetic_controls: SyntheticControlService) -> None:
+        self.options = options
         self.synthetic_controls = synthetic_controls
 
     def is_viable(self, state: LiveAssemblyState, direction: str) -> bool:
@@ -297,7 +353,7 @@ class PriorityRouteEvaluator:
             direct_leg = Leg.DIRECT_RETURN
         else:
             return False
-        direct = direct_journeys(state.segment_results, direct_leg, direction, self.args.limit_per_pair)
+        direct = direct_journeys(state.segment_results, direct_leg, direction, self.options.output.limit_per_pair)
         if direct:
             state.priority_route_viability[direction] = True
             return True
@@ -306,11 +362,11 @@ class PriorityRouteEvaluator:
             first_leg,
             second_leg,
             direction,
-            self.args.limit_per_pair,
-            ticketing=self.args.ticketing,
-            min_same_airport=self.args.min_same_airport_min,
-            min_cross_airport=self.args.min_cross_airport_min,
-            profile=self.args.profile,
+            self.options.output.limit_per_pair,
+            ticketing=self.options.ticketing,
+            min_same_airport=self.options.route.min_same_airport_min,
+            min_cross_airport=self.options.route.min_cross_airport_min,
+            profile=self.options.profile,
         )
         viable = False
         for pair in pairs:
@@ -538,7 +594,7 @@ class SegmentProbeExecutor:
     def __init__(
         self,
         *,
-        args: argparse.Namespace,
+        options: LiveAssemblyOptions,
         store: Store,
         only_carriers: list[str],
         cache_ttl_seconds: int,
@@ -548,7 +604,7 @@ class SegmentProbeExecutor:
         skip_policy: SkipPolicy,
         accumulator: ProbeResultAccumulator,
     ) -> None:
-        self.args = args
+        self.options = options
         self.store = store
         self.only_carriers = only_carriers
         self.cache_ttl_seconds = cache_ttl_seconds
@@ -559,6 +615,7 @@ class SegmentProbeExecutor:
         self.accumulator = accumulator
 
     def run(self, state: LiveAssemblyState) -> None:
+        args_view = live_assembly_args_view(self.options, routing_strategy=state.plan.get("routing_strategy"))
         for spec in state.plan["segments"]:
             skipped = self.skip_policy.skipped_by_condition(state, spec)
             if skipped is not None:
@@ -567,7 +624,7 @@ class SegmentProbeExecutor:
             for outcome in dispatch_segment_probe(
                 spec=spec,
                 plan=state.plan,
-                args=self.args,
+                args=args_view,
                 store=self.store,
                 only_carriers=self.only_carriers,
                 cache_ttl_seconds=self.cache_ttl_seconds,
@@ -580,16 +637,17 @@ class SegmentProbeExecutor:
 
 
 class LiveSearchResultBuilder:
-    def __init__(self, *, args: argparse.Namespace, store: Store, provider_policy: str) -> None:
-        self.args = args
+    def __init__(self, *, options: LiveAssemblyOptions, store: Store, provider_policy: str) -> None:
+        self.options = options
         self.store = store
         self.provider_policy = provider_policy
 
     def build(self, state: LiveAssemblyState, direct_route_intel: dict[str, Any]) -> dict[str, Any]:
+        args_view = live_assembly_args_view(self.options, routing_strategy=state.plan.get("routing_strategy"))
         date_window_inventory = build_date_window_inventory(state.plan, state.searches, state.segment_results)
-        assembled = assemble_segment_results(state.segment_results, self.args) if state.segment_results else empty_assembled_result(self.args)
+        assembled = assemble_segment_results(state.segment_results, args_view) if state.segment_results else empty_assembled_result(args_view)
         aggregate_controls = run_aggregate_controls(
-            self.args,
+            args_view,
             state.plan,
             kupibilet_fetcher=fetch_kupibilet_search,
             probe_ledger=state.probe_ledger,
@@ -615,12 +673,12 @@ class LiveSearchResultBuilder:
             "direct_route_intelligence": direct_route_intel,
             "failure_count": len(state.failures),
             "failures": state.failures,
-            "included_segment_result_count": min(len(state.segment_results), self.args.include_segment_results),
+            "included_segment_result_count": min(len(state.segment_results), args_view.include_segment_results),
         }
         if date_window_inventory is not None:
             assembled["live_search"]["date_window_inventory"] = date_window_inventory
-        assembled["segment_results"] = state.segment_results[: self.args.include_segment_results]
-        return attach_agent_report(assembled, self.args, self.store)
+        assembled["segment_results"] = state.segment_results[: args_view.include_segment_results]
+        return attach_agent_report(assembled, args_view, self.store)
 
 
 class LiveAssemblyRunner:
@@ -638,10 +696,8 @@ class LiveAssemblyRunner:
         plan_builder: Any,
     ) -> None:
         self.options: LiveAssemblyOptions = args if isinstance(args, LiveAssemblyOptions) else argparse_args_to_options(args)
-        self.args = args.to_argparse_namespace() if isinstance(args, LiveAssemblyOptions) else args
         self.store = store
-        # Injected dependency — defaults to build_live_route_segment_plan from
-        # live_assemble to avoid a circular import.
+        # Injected dependency avoids a circular import with the public wrapper.
         self._plan_builder = plan_builder
         # --- config (read-only after init) ---
         self.state: LiveAssemblyState | None = None
@@ -733,7 +789,7 @@ class LiveAssemblyRunner:
         if getattr(self, "synthetic_controls", None) is None:
             self.synthetic_controls = SyntheticControlService()
         if getattr(self, "priority_route_evaluator", None) is None:
-            self.priority_route_evaluator = PriorityRouteEvaluator(self.args, self.synthetic_controls)
+            self.priority_route_evaluator = PriorityRouteEvaluator(self.options, self.synthetic_controls)
         if getattr(self, "skip_policy", None) is None:
             self.skip_policy = SkipPolicy(
                 options=self.options,
@@ -748,7 +804,7 @@ class LiveAssemblyRunner:
             self.request_deduper = RequestDeduper()
         if getattr(self, "probe_executor", None) is None:
             self.probe_executor = SegmentProbeExecutor(
-                args=self.args,
+                options=self.options,
                 store=self.store,
                 only_carriers=getattr(self, "only_carriers", []),
                 cache_ttl_seconds=getattr(self, "cache_ttl_seconds", 0),
@@ -760,7 +816,7 @@ class LiveAssemblyRunner:
             )
         if getattr(self, "result_builder", None) is None:
             self.result_builder = LiveSearchResultBuilder(
-                args=self.args,
+                options=self.options,
                 store=self.store,
                 provider_policy=getattr(self, "provider_policy", ""),
             )
@@ -774,7 +830,7 @@ class LiveAssemblyRunner:
         return self.result_builder.build(state, self.direct_route_intel)
 
     def initialize_state(self) -> LiveAssemblyState:
-        args, store = self.args, self.store
+        store = self.store
         flow = build_live_route_search_flow(self.options, store)
         # Use injected plan_builder or fall back to build_live_route_segment_plan.
         build_plan = self._plan_builder
@@ -787,16 +843,14 @@ class LiveAssemblyRunner:
                 error_type="validation_error",
                 details={"planned": self.plan["metrics"]["segment_search_count"], "max_segment_searches": self.max_searches},
             )
-        if self.plan.get("routing_strategy") == RoutingStrategy.RU_PRIORITY and not getattr(args, "prefer_carrier", None):
-            args.prefer_carrier = list(PRIORITY_ROUTE_CARRIERS)
-        self.only_carriers = [normalize_carrier_code(code, "only-carrier") for code in (args.only_carrier or [])]
+        self.only_carriers = [normalize_carrier_code(code, "only-carrier") for code in self.options.filters.only_carriers]
         self.cache_ttl_seconds = int(self.flow.evidence_plan.live_cache_ttl_seconds)
         self.use_live_cache = bool(self.flow.evidence_plan.live_cache_enabled)
         self.provider_policy = self.flow.evidence_plan.provider_policy
-        self.direct_route_index, self.direct_route_intel = direct_route_intel_context(args, store, self.plan)
+        self.direct_route_index, self.direct_route_intel = direct_route_intel_context(self.options, store, self.plan)
         self.request_deduper = RequestDeduper()
         self.synthetic_controls = SyntheticControlService()
-        self.priority_route_evaluator = PriorityRouteEvaluator(args, self.synthetic_controls)
+        self.priority_route_evaluator = PriorityRouteEvaluator(self.options, self.synthetic_controls)
         self.skip_policy = SkipPolicy(
             options=self.options,
             direct_route_index=self.direct_route_index,
@@ -804,7 +858,7 @@ class LiveAssemblyRunner:
         )
         self.probe_accumulator = ProbeResultAccumulator(self.only_carriers)
         self.probe_executor = SegmentProbeExecutor(
-            args=args,
+            options=self.options,
             store=store,
             only_carriers=self.only_carriers,
             cache_ttl_seconds=self.cache_ttl_seconds,
@@ -814,7 +868,7 @@ class LiveAssemblyRunner:
             skip_policy=self.skip_policy,
             accumulator=self.probe_accumulator,
         )
-        self.result_builder = LiveSearchResultBuilder(args=args, store=store, provider_policy=self.provider_policy)
+        self.result_builder = LiveSearchResultBuilder(options=self.options, store=store, provider_policy=self.provider_policy)
         return self.state
 
     def _init_run(self) -> None:

@@ -27,15 +27,6 @@
       "route assemble",
       "route rank",
       "route validate"
-    ],
-    "removed_commands": [
-      "route live-assemble",
-      "route kb-assemble",
-      "route plan",
-      "kb-search",
-      "kb-roundtrip",
-      "fli-search",
-      "fli-dates"
     ]
   }
 }

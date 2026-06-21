@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from argparse import Namespace
 from pathlib import Path
 from typing import Any
 
@@ -12,10 +11,11 @@ PROJECT = Path(__file__).resolve().parents[1]
 TEST_ENV = {"PYTHONPATH": str(PROJECT), "FLIGHTS_CATALOG_REFRESH": "never", "PYTHONDONTWRITEBYTECODE": "1"}
 
 
-def live_assembly_args(**overrides: Any) -> Namespace:
+def live_assembly_args(**overrides: Any) -> Any:
     """Build internal live-assembly args through the canonical search request adapter."""
 
-    from flights_cli.apps.search import live_assembly_args_from_search_request
+    from flights_cli.apps.search import live_assembly_options_from_search_request
+    from flights_cli.orchestrators.live_assembly_runner import live_assembly_args_view
 
     def as_list(value: Any) -> list[Any]:
         if value is None:
@@ -131,7 +131,7 @@ def live_assembly_args(**overrides: Any) -> Namespace:
     if filters:
         request["filters"] = filters
 
-    args = live_assembly_args_from_search_request(request)
+    args = live_assembly_args_view(live_assembly_options_from_search_request(request))
     for key, value in values.items():
         setattr(args, key, value)
     return args

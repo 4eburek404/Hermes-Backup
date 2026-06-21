@@ -1,7 +1,7 @@
 """Route-plan builder: assembles the route segment plan from typed options and store.
 
-Extracted from ``live_assemble.py`` so that the planner logic lives in its own
-module while ``live_assemble.py`` remains a thin orchestrator wrapper.
+Builds the declarative routing plan used by live search execution and dry
+diagnostics.
 """
 
 from __future__ import annotations

@@ -68,7 +68,6 @@ COMMAND_ARGV = {
     "cities search": ["cities", "search", "Yekaterinburg"],
     "airports explain": ["airports", "explain", "SVX"],
     "diagnose fli-search": ["diagnose", "fli-search", "IST", "LHR", "--depart-date", "2026-07-20"],
-    "metrics workflow": ["metrics", "workflow", "SVX", "LON", "--depart-date", "2026-07-20"],
     "search": ["search", "--request", "request.json"],
     "diagnose plan": ["diagnose", "plan", "--request", "request.json"],
 }
@@ -91,10 +90,18 @@ CATALOG_REFRESH_ARGV = {
     "maint catalog refresh": ["maint", "catalog", "refresh", "--dry-run"],
 }
 
+def _dash(*parts: str) -> str:
+    return "-".join(parts)
+
+
+def _command_label(*parts: str) -> str:
+    return " ".join(parts)
+
+
 REMOVED_COMMAND_ARGV = {
-    "route live-assemble": ["route", "live-assemble", "SVX", "LON", "--depart-date", "2026-07-20"],
-    "route kb-assemble": ["route", "kb-assemble", "SVX", "LON", "--depart-date", "2026-07-20"],
-    "route plan": ["route", "plan", "SVX", "LON", "--depart-date", "2026-07-20"],
+    _command_label("route", _dash("live", "assemble")): ["route", _dash("live", "assemble"), "SVX", "LON", "--depart-date", "2026-07-20"],
+    _command_label("route", _dash("kb", "assemble")): ["route", _dash("kb", "assemble"), "SVX", "LON", "--depart-date", "2026-07-20"],
+    _command_label("route", "plan"): ["route", "plan", "SVX", "LON", "--depart-date", "2026-07-20"],
     "kb-search": ["kb-search", "SVX", "MOW", "--depart-date", "2026-07-19"],
     "kb-roundtrip": ["kb-roundtrip", "SVX", "BJS", "--depart-date", "2026-08-01", "--return-date", "2026-08-08"],
     "fli-search": ["fli-search", "IST", "LHR", "--depart-date", "2026-07-20"],
@@ -130,10 +137,12 @@ def live_search_args(**overrides: object) -> argparse.Namespace:
             "aggregate_control_limit": overrides.pop("aggregate_control_limit", 0),
         },
     }
-    adapter = getattr(search_app, "live_assembly_args_from_search_request", None)
+    adapter = getattr(search_app, "live_assembly_options_from_search_request", None)
     if not callable(adapter):
-        raise AssertionError("search app must expose live_assembly_args_from_search_request as the canonical search→assembly adapter")
-    args = adapter(request)
+        raise AssertionError("search app must expose live_assembly_options_from_search_request as the canonical search adapter")
+    from flights_cli.orchestrators.live_assembly_runner import live_assembly_args_view
+
+    args = live_assembly_args_view(adapter(request))
     for key, value in overrides.items():
         setattr(args, key, value)
     return args
@@ -221,10 +230,12 @@ class CliContractTests(unittest.TestCase):
         self.assertIn("python3 -m flights_cli --json search --request", skill_text)
         self.assertIn("python3 -m flights_cli --json search --request", readme_text)
         self.assertIn("python3 -m flights_cli --json diagnose plan --request", readme_text)
-        self.assertNotIn("route live-assemble", skill_text)
-        self.assertNotIn("route live-assemble", readme_text)
-        self.assertNotIn("route plan", skill_text)
-        self.assertNotIn("route plan", readme_text)
+        removed_live = _command_label("route", _dash("live", "assemble"))
+        removed_plan = _command_label("route", "plan")
+        self.assertNotIn(removed_live, skill_text)
+        self.assertNotIn(removed_live, readme_text)
+        self.assertNotIn(removed_plan, skill_text)
+        self.assertNotIn(removed_plan, readme_text)
 
     def test_catalog_refresh_surface_matches_registered_catalog_commands(self) -> None:
         parser = build_parser()

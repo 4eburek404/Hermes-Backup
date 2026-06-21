@@ -1,6 +1,6 @@
 # Provider-aware Airport Priority
 
-Use this source reference when maintaining route planning, provider dispatch, or report semantics for multi-airport city codes. Keep dated notes and temporary implementation context out of active prompt docs.
+Use this source reference when maintaining routing, provider dispatch, or report semantics for multi-airport city codes. Keep dated notes and temporary implementation context out of active prompt docs.
 
 ## Active provider scope
 

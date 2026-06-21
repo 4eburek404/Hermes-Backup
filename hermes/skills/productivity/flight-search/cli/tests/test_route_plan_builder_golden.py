@@ -12,7 +12,7 @@ import hashlib
 import json
 import unittest
 
-from flights_cli.orchestrators.live_assemble import build_live_route_segment_plan
+from flights_cli.orchestrators.live_route_assembly import build_live_route_segment_plan
 from flights_cli.store import Store
 from helpers import live_assembly_args
 

@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from flights_cli.execution.probe_dispatcher import SegmentProbeOutcome
-from flights_cli.orchestrators.live_assemble import build_live_route_segment_plan, run_live_route_assembly
+from flights_cli.orchestrators.live_route_assembly import build_live_route_segment_plan, run_live_route_assembly
 from flights_cli.pipeline.search_pipeline import build_live_route_search_flow
 from flights_cli.store import Store
 from helpers import live_assembly_args

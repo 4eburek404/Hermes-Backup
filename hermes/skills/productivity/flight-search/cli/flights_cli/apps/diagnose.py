@@ -6,7 +6,7 @@ from typing import Any
 from ..commands.basic import metadata_evidence_scope
 from ..domain.vocabulary import Leg
 from ..adapters.providers.registry import provider_adapter
-from ..orchestrators.live_assemble import build_live_route_segment_plan
+from ..orchestrators.live_route_assembly import build_live_route_segment_plan
 from ..pipeline.specs import probe_specs_from_segments, segment_specs_from_plan
 from ..reporting.projections.human_answer_mirror import build_human_answer_mirror
 from ..reporting.user_answer import build_user_answer
@@ -30,7 +30,7 @@ def command_diagnose_plan(args: argparse.Namespace, store: Store) -> dict[str, A
     return {
         "schema_version": "flight_search_plan_diagnostic.v1",
         "request": request,
-        "evidence_scope": metadata_evidence_scope("route planning metadata"),
+        "evidence_scope": metadata_evidence_scope("routing metadata"),
         "segments": [segment.as_dict() for segment in segments],
         "probe_specs": [probe.as_dict() for probe in probe_specs],
         "plan": plan,

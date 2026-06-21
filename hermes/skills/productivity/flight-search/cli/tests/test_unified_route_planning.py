@@ -8,7 +8,7 @@ from pathlib import Path
 
 from flights_cli.apps.diagnose import command_diagnose_plan
 from flights_cli.apps.search import live_assembly_options_from_search_request, normalize_search_request
-from flights_cli.orchestrators.live_assemble import build_live_route_segment_plan
+from flights_cli.orchestrators.live_route_assembly import build_live_route_segment_plan
 from flights_cli.store import Store
 
 

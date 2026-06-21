@@ -11,7 +11,6 @@ from typing import Any
 
 from ..config import (
     CARRIER_RE,
-    DEFAULT_CURRENCY,
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
     KUPIBILET_FRONTEND_SEARCH_URL,
     KUPIBILET_HEADERS,
