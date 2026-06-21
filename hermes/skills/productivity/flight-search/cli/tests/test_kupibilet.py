@@ -282,6 +282,47 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(result["offer_count"], 1)
         self.assertIsNone(result["offers"][0]["duration"])
 
+    def test_parse_kupibilet_orders_provider_cap_by_business_duration_before_price(self) -> None:
+        raw = {
+            "variants": [
+                {"id": "slow-cheap", "price": {"amount": "8000", "currency": "RUB"}, "segments": [{"flights": ["slow"]}]},
+                {"id": "fast-expensive", "price": {"amount": "12000", "currency": "RUB"}, "segments": [{"flights": ["fast"]}]},
+            ],
+            "flights": {
+                "slow": {
+                    "marketing_carrier": "SU",
+                    "transport_number": "100",
+                    "departure": "SVX",
+                    "arrival": "SVO",
+                    "departure_datetime": "2026-07-19T05:00:00+05:00",
+                    "arrival_datetime": "2026-07-19T06:30:00+03:00",
+                    "duration": 210,
+                    "transport_kind": "airplane",
+                },
+                "fast": {
+                    "marketing_carrier": "SU",
+                    "transport_number": "200",
+                    "departure": "SVX",
+                    "arrival": "SVO",
+                    "departure_datetime": "2026-07-19T07:00:00+05:00",
+                    "arrival_datetime": "2026-07-19T07:35:00+03:00",
+                    "duration": 155,
+                    "transport_kind": "airplane",
+                },
+            },
+        }
+
+        result = parse_kupibilet_frontend_search(
+            raw,
+            origin="SVX",
+            destination="MOW",
+            depart_date="2026-07-19",
+            currency="RUB",
+            limit=1,
+        )
+
+        self.assertEqual([offer["id"] for offer in result["offers"]], ["fast-expensive"])
+
     def test_parse_kupibilet_filters_three_stop_and_airport_change_before_limit(self) -> None:
         raw = {
             "variants": [

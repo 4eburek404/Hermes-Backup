@@ -25,7 +25,7 @@ MINIMAL_SEARCH_REQUEST = {
     "depart_date": "2026-07-20",
     "return_date": "2026-07-25",
     "currency": "RUB",
-    "profile": "balanced",
+    "profile": "business",
     "ticketing": "separate",
     "provider_policy": "auto",
 }

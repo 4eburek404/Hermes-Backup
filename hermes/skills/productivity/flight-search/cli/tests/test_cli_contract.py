@@ -118,7 +118,7 @@ def live_search_args(**overrides: object) -> argparse.Namespace:
         "depart_date": overrides.pop("depart_date", "2026-06-01"),
         "return_date": overrides.pop("return_date", None),
         "currency": overrides.pop("currency", "RUB"),
-        "profile": overrides.pop("profile", "balanced"),
+        "profile": overrides.pop("profile", "business"),
         "ticketing": overrides.pop("ticketing", "separate"),
         "provider_policy": overrides.pop("provider_policy", "kupibilet"),
         "route_options": {
@@ -301,7 +301,7 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(args.provider_policy, "kupibilet")
         self.assertEqual(args.limit_per_pair, 10)
         self.assertEqual(args.stop_policy, "business-default")
-        self.assertEqual(args.profile, "balanced")
+        self.assertEqual(args.profile, "business")
 
     def test_subprocess_test_env_disables_bytecode_writes(self) -> None:
         self.assertEqual(TEST_ENV["PYTHONDONTWRITEBYTECODE"], "1")
@@ -323,8 +323,8 @@ class CliContractTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["command"], "maint doctor")
         self.assertEqual(payload["issues"], [])
-        self.assertEqual(payload["data"]["cli"], {"name": "flights-cli", "version": "0.5.2"})
-        self.assertEqual(payload["data"]["skill"], {"name": "flight-search", "version": "0.8.2"})
+        self.assertEqual(payload["data"]["cli"], {"name": "flights-cli", "version": "0.5.3"})
+        self.assertEqual(payload["data"]["skill"], {"name": "flight-search", "version": "0.8.3"})
         self.assertEqual(set(payload["data"]), {
             "cache_counts",
             "cache_dir",
@@ -367,7 +367,7 @@ class CliContractTests(unittest.TestCase):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        self.assertIn("flights 0.5.2 (skill flight-search 0.8.2)", human_proc.stdout)
+        self.assertIn("flights 0.5.3 (skill flight-search 0.8.3)", human_proc.stdout)
         self.assertIn("primary route command: search", human_proc.stdout)
         self.assertIn("targeted probe commands: diagnose probe, diagnose kb-search, diagnose kb-roundtrip, diagnose fli-search, diagnose fli-dates", human_proc.stdout)
         self.assertIn("default hubs: IST, DXB, DOH", human_proc.stdout)

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from ..config import LEISURE_HUBS, LOW_COST_CARRIERS, RISK_PROFILES
+from ..config import DEFAULT_PROFILE, LEISURE_HUBS, LOW_COST_CARRIERS, RISK_PROFILES
 from ..domain.airports import airport_group
 from ..domain.carriers import segment_carriers
 from ..domain.normalize import clamp_score, is_reject_score, normalize_iata, normalize_profile, normalize_transfer, normalize_transfers, price_value, risk_grade
@@ -16,7 +16,7 @@ class ItineraryValidationOptions:
     ticketing: str = "separate"
     min_same_airport_min: int = 120
     min_cross_airport_min: int = 300
-    profile: str = "balanced"
+    profile: str = DEFAULT_PROFILE
 
 
 def validation_options_from_args(args: Any) -> ItineraryValidationOptions:
@@ -24,7 +24,7 @@ def validation_options_from_args(args: Any) -> ItineraryValidationOptions:
         ticketing=str(getattr(args, "ticketing", "separate") or "separate"),
         min_same_airport_min=int(getattr(args, "min_same_airport_min", 120)),
         min_cross_airport_min=int(getattr(args, "min_cross_airport_min", 300)),
-        profile=str(getattr(args, "profile", "balanced") or "balanced"),
+        profile=str(getattr(args, "profile", DEFAULT_PROFILE) or DEFAULT_PROFILE),
     )
 
 
@@ -348,7 +348,7 @@ def rank_key(profile: str, score: int, price: int | None, elapsed: int | None) -
 
 def validate_itinerary(data: dict[str, Any], options: ItineraryValidationOptions) -> dict[str, Any]:
     ticketing = str(data.get("ticketing") or options.ticketing or "separate")
-    profile = normalize_profile(str(data.get("profile") or options.profile or "balanced"))
+    profile = normalize_profile(str(data.get("profile") or options.profile or DEFAULT_PROFILE))
     normalized_segments, journeys = normalize_input_segments(data)
 
     connections: list[dict[str, Any]] = []

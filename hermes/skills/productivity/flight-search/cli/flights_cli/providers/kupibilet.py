@@ -18,6 +18,7 @@ from ..config import (
 )
 from ..domain.carriers import carrier_from_flight_number
 from ..domain.normalize import normalize_carrier_code, normalize_iata, parse_iso_date, price_value
+from ..domain.offer_order import provider_offer_business_key
 from ..domain.provider_offer_filter import filter_provider_offers
 from ..errors import CliError
 from .live_cache import live_cache_key, read_live_cache, write_live_cache
@@ -228,14 +229,7 @@ def parse_kupibilet_frontend_search(
             deduped[key] = offer
 
     filtered_offers, filter_stats = filter_provider_offers(list(deduped.values()))
-    offers = sorted(
-        filtered_offers,
-        key=lambda item: (
-            item.get("price") if item.get("price") is not None else 10**12,
-            item.get("departure_at") or "",
-            "-".join(item.get("flight_numbers") or []),
-        ),
-    )[: max(0, limit)]
+    offers = sorted(filtered_offers, key=provider_offer_business_key)[: max(0, limit)]
     return {
         "origin": origin,
         "destination": destination,
@@ -363,14 +357,7 @@ def parse_kupibilet_roundtrip_search(
         offers.append(offer)
 
     raw_offer_count = len(offers)
-    offers = sorted(
-        offers,
-        key=lambda item: (
-            item.get("price") if item.get("price") is not None else 10**12,
-            item.get("departure_at") or "",
-            item.get("id") or "",
-        ),
-    )[: max(0, limit)]
+    offers = sorted(offers, key=provider_offer_business_key)[: max(0, limit)]
     return {
         "origin": origin,
         "destination": destination,

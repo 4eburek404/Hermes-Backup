@@ -84,6 +84,11 @@ def option_elapsed_minutes(option: dict[str, Any]) -> int:
     return elapsed_text if elapsed_text is not None else 10**9
 
 
+def option_rank(option: dict[str, Any]) -> int:
+    rank = integer_or_none(option.get("rank"))
+    return rank if rank is not None else 10**6
+
+
 def option_covers_requested_trip(option: dict[str, Any], *, is_round_trip_request: bool) -> bool:
     explicit = option.get("covers_requested_trip")
     if isinstance(explicit, bool):
@@ -96,14 +101,14 @@ def option_covers_requested_trip(option: dict[str, Any], *, is_round_trip_reques
     return option_direction(option) is None or not is_round_trip_request
 
 
-def catalog_order_key(option: dict[str, Any], *, is_round_trip_request: bool = False) -> tuple[int, int, int, int | float, int, int]:
+def catalog_order_key(option: dict[str, Any], *, is_round_trip_request: bool = False) -> tuple[int, int, int, int, int, int | float]:
     return (
         0 if option_is_user_visible(option) else 1,
         0 if option_covers_requested_trip(option, is_round_trip_request=is_round_trip_request) else 1,
         option_max_connections_per_journey(option),
-        option_price_amount(option),
+        option_rank(option),
         option_elapsed_minutes(option),
-        integer_or_none(option.get("rank")) or 10**6,
+        option_price_amount(option),
     )
 
 

@@ -12,7 +12,7 @@
     "depart_date": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
     "return_date": {"type": ["string", "null"], "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
     "currency": {"type": "string", "default": "RUB"},
-    "profile": {"type": "string", "default": "balanced"},
+    "profile": {"type": "string", "const": "business", "default": "business"},
     "ticketing": {"type": "string", "enum": ["separate", "single"], "default": "separate"},
     "provider_policy": {"type": "string", "enum": ["auto", "kupibilet", "fli", "both"], "default": "auto"},
     "route_options": {

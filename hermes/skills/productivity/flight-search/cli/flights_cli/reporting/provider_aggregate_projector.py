@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from ..domain.offer_order import provider_offer_business_key
 from ..domain.stop_metrics import offer_stop_metrics
 from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY, StopPolicy, decide_stop_policy
 from .formatting import price_label
@@ -20,13 +21,7 @@ def aggregate_offer_with_stop_metrics(offer: dict[str, Any]) -> dict[str, Any]:
 def aggregate_control_summary(control: dict[str, Any]) -> dict[str, Any]:
     top_offers = control.get("top_offers") if isinstance(control.get("top_offers"), list) else []
     projected_offers = [aggregate_offer_with_stop_metrics(offer) for offer in top_offers if isinstance(offer, dict)]
-    projected_offers.sort(
-        key=lambda offer: (
-            int(offer.get("connection_count") or 0),
-            int(offer.get("airport_mismatch_count") or 0),
-            offer.get("price") if offer.get("price") is not None else 10**12,
-        )
-    )
+    projected_offers.sort(key=provider_offer_business_key)
     return {
         "direction": control.get("direction"),
         "origin": control.get("origin"),

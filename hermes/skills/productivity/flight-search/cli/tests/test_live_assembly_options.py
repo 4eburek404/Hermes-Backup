@@ -4,6 +4,7 @@ import argparse
 import unittest
 
 from flights_cli.apps.search import live_assembly_options_from_search_request
+from flights_cli.errors import CliError
 from flights_cli.pipeline.options import argparse_args_to_options, search_request_to_options
 
 
@@ -14,7 +15,7 @@ REQUEST = {
     "depart_date": "2026-07-20",
     "return_date": "2026-07-27",
     "currency": "rub",
-    "profile": "safe",
+    "profile": "business",
     "ticketing": "single",
     "provider_policy": "both",
     "route_options": {
@@ -81,7 +82,7 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
             "return_date": "2026-07-27",
             "hubs": ("IST", "DXB"),
             "ticketing": "single",
-            "profile": "safe",
+            "profile": "business",
             "only_carriers": ("SU",),
             "prefer_carriers": ("TK",),
             "aggregate_control_carriers": ("SU", "TK"),
@@ -102,6 +103,10 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
     def test_search_app_adapter_matches_typed_request_adapter(self) -> None:
         self.assertEqual(live_assembly_options_from_search_request(REQUEST), search_request_to_options(REQUEST))
 
+    def test_search_app_rejects_non_business_profile(self) -> None:
+        with self.assertRaises(CliError):
+            live_assembly_options_from_search_request({**REQUEST, "profile": "safe"})
+
     def test_search_request_defaults_are_explicit_in_typed_options(self) -> None:
         options = search_request_to_options(
             {
@@ -116,7 +121,7 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.route.origin, "SVX")
         self.assertEqual(options.route.destination, "LON")
         self.assertEqual(options.currency, "RUB")
-        self.assertEqual(options.profile, "balanced")
+        self.assertEqual(options.profile, "business")
         self.assertEqual(options.ticketing, "separate")
         self.assertEqual(options.evidence.provider_policy, "auto")
         self.assertTrue(options.output.agent_report)

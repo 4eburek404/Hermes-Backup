@@ -30,6 +30,7 @@ from .commands.route import (
 from .config import (
     DEFAULT_COVERAGE_CONTROL_LIMIT,
     DEFAULT_CURRENCY,
+    DEFAULT_PROFILE,
     FLI_MCP_DEFAULT_URL,
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
     DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR,
@@ -83,7 +84,7 @@ def add_route_scope_flags(parser: argparse.ArgumentParser) -> None:
 
 def add_connection_policy_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--ticketing", choices=["separate", "single"], default="separate")
-    parser.add_argument("--profile", choices=sorted(RISK_PROFILES), default="balanced", help="Risk/ranking profile.")
+    parser.add_argument("--profile", choices=sorted(RISK_PROFILES), default=DEFAULT_PROFILE, help="Risk/ranking profile.")
     parser.add_argument("--min-same-airport-min", type=int, default=120)
     parser.add_argument("--min-cross-airport-min", type=int, default=300)
 

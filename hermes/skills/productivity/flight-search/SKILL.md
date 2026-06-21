@@ -1,6 +1,6 @@
 ---
 name: flight-search
-version: 0.8.2
+version: 0.8.3
 description: Use when finding, comparing, or diagnosing live flight route options with the bundled flights CLI; assumes one adult in economy and never books tickets.
 metadata:
   hermes:
@@ -15,7 +15,7 @@ Find, compare, or diagnose live flights via the bundled CLI. One adult, economy.
 
 ## Run
 
-1. Normalize route/date/scope: exact airports vs city, carrier, direct-only, return date, ticketing intent, profile (`balanced` default).
+1. Normalize route/date/scope: exact airports vs city, carrier, direct-only, return date, ticketing intent, profile (`business` default).
 2. Write a `flight_search_request.v1` (template below; full schema in `cli/`).
 3. Run the canonical path — do not provider-probe first:
 
@@ -28,7 +28,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request /tmp/fl
 4. Answer only from `data.agent_report.user_answer.rendered_text`. Read order, fields, renderer contract: `references/report-contract.md`.
 
 ```json
-{"schema_version":"flight_search_request.v1","origin":"ORIGIN","destination":"DEST","depart_date":"YYYY-MM-DD","profile":"balanced"}
+{"schema_version":"flight_search_request.v1","origin":"ORIGIN","destination":"DEST","depart_date":"YYYY-MM-DD","profile":"business"}
 ```
 
 Direct-only: add `"route_options":{"max_connections":0}`. Date window: add request-only `"route_options":{"max_connections":0,"tier2_max_connections":0,"date_window_end":"YYYY-MM-DD"}` and omit `return_date`; there is no `--date-window-end` flag. Carrier scope: `"filters":{"only_carriers":[...]}`. Return: `"return_date":"YYYY-MM-DD"`. Currency, ticketing, provider_policy, and agent_brief default in the CLI.

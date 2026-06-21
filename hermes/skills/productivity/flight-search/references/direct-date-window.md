@@ -18,7 +18,7 @@ The per-date probe loop is executed by the CLI planner, not by the agent. Encode
   "origin": "ORIGIN",
   "destination": "DEST",
   "depart_date": "YYYY-MM-DD",
-  "profile": "balanced",
+  "profile": "business",
   "provider_policy": "auto",
   "route_options": {
     "max_connections": 0,

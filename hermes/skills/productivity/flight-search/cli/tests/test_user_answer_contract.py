@@ -9,6 +9,7 @@ from unittest.mock import patch
 from jsonschema import Draft202012Validator
 
 from flights_cli.errors import CliError
+from flights_cli.reporting.catalog_order import ordered_user_options
 from flights_cli.reporting.user_answer import (
     USER_ANSWER_SCHEMA_PACKAGE,
     USER_ANSWER_SCHEMA_RESOURCE,
@@ -425,6 +426,35 @@ class FinalAnswerContractTests(unittest.TestCase):
         self.assertEqual(answer["rendered_text"].count("SU1419"), 1)
         self.assertNotIn("SU1471", answer["rendered_text"])
         self.assertNotIn("SU2170", answer["rendered_text"])
+
+    def test_catalog_uses_business_rank_before_price_for_same_stop_count(self) -> None:
+        base = copy.deepcopy(valid_option())
+        base["ok"] = True
+        base["risk"] = {"score": 0, "grade": "excellent", "reject": False, "top_reasons": []}
+        base["max_connections_per_journey"] = 1
+
+        long_wait_cheap = copy.deepcopy(base)
+        long_wait_cheap.update(
+            {
+                "id": "cheap-long-wait",
+                "rank": 42,
+                "price": {"amount": 29678, "currency": "RUB"},
+                "elapsed_min": 1080,
+            }
+        )
+        short_expensive = copy.deepcopy(base)
+        short_expensive.update(
+            {
+                "id": "short-business-ranked",
+                "rank": 7,
+                "price": {"amount": 36000, "currency": "RUB"},
+                "elapsed_min": 510,
+            }
+        )
+
+        ordered = ordered_user_options([long_wait_cheap, short_expensive], [], limit=2)
+
+        self.assertEqual([option["id"] for option in ordered], ["short-business-ranked", "cheap-long-wait"])
 
     def test_aircraft_display_label_normalizes_common_equipment_codes(self) -> None:
         self.assertEqual(aircraft_display_label("73H"), "B737")

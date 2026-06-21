@@ -89,7 +89,7 @@ cat > /tmp/flight-search-request.json <<'JSON'
   "destination": "DEST",
   "depart_date": "YYYY-MM-DD",
   "currency": "RUB",
-  "profile": "balanced",
+  "profile": "business",
   "ticketing": "separate",
   "provider_policy": "auto",
   "output": {"agent_brief": true}
@@ -113,7 +113,7 @@ Read only `data.agent_report` for the user answer. Primary serialized paths:
 Common request fields:
 
 - `return_date: "YYYY-MM-DD"`
-- `profile: "balanced"|"business"|"cheap"|"safe"`
+- `profile: "business"` is the only production search profile; omit it to use the default
 - `provider_policy: "auto"|"kupibilet"|"fli"|"both"`
 - `route_options.stop_policy: "business-default"|"strict-direct-one-stop"|"allow-two-stop-fallback"|"debug-all"`
 - `route_options.date_window_end: "YYYY-MM-DD"` for bounded one-way direct-only inventory; request-only, no CLI flag
@@ -121,18 +121,9 @@ Common request fields:
 - `route_options.coverage_mode: "standard"|"targeted"|"full"`
 - `evidence.no_live_cache: true` for a fresh live probe when appropriate
 
-## Risk Profiles
+## Ranking Profile
 
-Profiles change ranking, not hard safety/proof rules.
-
-| Profile | Use when |
-|---|---|
-| `business` | comfort, predictable same-airport travel, shorter elapsed time, and work-travel reliability matter |
-| `safe` | connection quality and operational safety matter more than price |
-| `balanced` | neutral trade-off between risk, price, and elapsed time |
-| `cheap` | the user explicitly asks for cheapest or price-first options |
-
-Unsafe transfers can still be rejected under any profile.
+Production search uses one ranking profile: `business`. It prioritizes visible non-rejected options, requested-trip coverage, fewer connections, lower operational risk, shorter elapsed time, then price. Unsafe transfers can still be rejected.
 
 ## Stop Policy and Reportability
 
@@ -226,8 +217,8 @@ These probes are narrower evidence than the assembled report. Label the scope wh
 The CLI supports offline assembly/ranking for normalized segment-result JSON:
 
 ```bash
-python3 -m flights_cli --json route assemble --profile balanced --input segment-results.json
-python3 -m flights_cli --json route rank --profile balanced --input candidates.json
+python3 -m flights_cli --json route assemble --input segment-results.json
+python3 -m flights_cli --json route rank --input candidates.json
 python3 -m flights_cli --json route validate --input itinerary.json
 ```
 

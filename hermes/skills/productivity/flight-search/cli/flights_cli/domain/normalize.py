@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from ..config import CARRIER_RE, IATA_RE, RISK_PROFILES
+from ..config import CARRIER_RE, DEFAULT_PROFILE, IATA_RE, RISK_PROFILES
 from ..errors import CliError
 
 def normalize_iata(value: str, field: str = "IATA") -> str:
@@ -56,7 +56,7 @@ def clamp_score(value: int | float) -> int:
 
 
 def normalize_profile(value: str | None) -> str:
-    profile = (value or "balanced").strip().lower()
+    profile = (value or DEFAULT_PROFILE).strip().lower()
     if profile not in RISK_PROFILES:
         raise CliError(
             f"profile must be one of {', '.join(sorted(RISK_PROFILES))}, got {value!r}",

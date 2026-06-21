@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from ..config import RISK_PROFILES
+from ..config import DEFAULT_PROFILE, RISK_PROFILES
 from ..domain.airports import airport_group
 from ..domain.carriers import segment_carriers
 from ..domain.normalize import currency_value, is_reject_score, price_value
@@ -88,7 +88,7 @@ def assembly_options_from_live_options(options: LiveAssemblyOptions, *, routing_
 def assembly_options_from_args(args: Any) -> AssemblyOptions:
     return AssemblyOptions(
         ticketing=str(getattr(args, "ticketing", "separate") or "separate"),
-        profile=str(getattr(args, "profile", "balanced") or "balanced"),
+        profile=str(getattr(args, "profile", DEFAULT_PROFILE) or DEFAULT_PROFILE),
         min_same_airport_min=int(getattr(args, "min_same_airport_min", 120)),
         min_cross_airport_min=int(getattr(args, "min_cross_airport_min", 300)),
         limit_per_pair=int(getattr(args, "limit_per_pair", 20)),
@@ -269,12 +269,8 @@ def pair_connection_quality(
     }
 
 
-def pair_sort_key(pair: dict[str, Any], profile: str = "balanced") -> tuple:
-    """Sort key for itinerary pairs, respecting the profile's rank_order.
-
-    Previously hardcoded (reject, risk, price, elapsed). Now dynamic:
-    the profile's ``rank_order`` determines which dimensions dominate.
-    """
+def pair_sort_key(pair: dict[str, Any], profile: str = DEFAULT_PROFILE) -> tuple:
+    """Sort key for itinerary pairs, respecting the profile's rank_order."""
     quality = pair.get("connection_quality") or {}
     risk = quality.get("risk") or {}
     price = pair["price"] if pair.get("price") is not None else 10**12
@@ -285,8 +281,8 @@ def pair_sort_key(pair: dict[str, Any], profile: str = "balanced") -> tuple:
         "price": price,
         "elapsed": elapsed,
     }
-    rank_order = RISK_PROFILES.get(profile, RISK_PROFILES["balanced"]).get(
-        "rank_order", ["reject", "risk", "price", "elapsed"]
+    rank_order = RISK_PROFILES.get(profile, RISK_PROFILES[DEFAULT_PROFILE]).get(
+        "rank_order", RISK_PROFILES[DEFAULT_PROFILE]["rank_order"]
     )
     return tuple(values.get(dim, 0) for dim in rank_order)
 
@@ -355,11 +351,14 @@ def direct_journeys(
     leg: str,
     direction: str,
     limit_per_result: int,
+    *,
+    profile: str,
 ) -> list[dict[str, Any]]:
     journeys: list[dict[str, Any]] = []
     direct_results = [result for result in segment_results if result.get("direction") == direction and result.get("leg") == leg]
+    direct_limit = max(0, max(int(limit_per_result), ALL_DIRECT_CATALOG_CAP))
     for result in direct_results:
-        for offer in list(result.get("offers") or [])[:limit_per_result]:
+        for offer in list(result.get("offers") or [])[:direct_limit]:
             if not isinstance(offer, dict):
                 continue
             segments = [segment for segment in (offer.get("segments") or []) if isinstance(segment, dict)]
@@ -376,7 +375,7 @@ def direct_journeys(
                     "source_leg": leg,
                 }
             )
-    journeys.sort(key=pair_sort_key)
+    journeys.sort(key=lambda item: pair_sort_key(item, profile))
     return journeys
 
 
@@ -789,8 +788,20 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], options: Ass
         min_cross_airport=options.min_cross_airport_min,
         profile=options.profile,
     )
-    outbound_direct_search = direct_journeys(segment_results, Leg.DIRECT_OUTBOUND, Direction.OUTBOUND, options.limit_per_pair)
-    return_direct_search = direct_journeys(segment_results, Leg.DIRECT_RETURN, Direction.RETURN, options.limit_per_pair)
+    outbound_direct_search = direct_journeys(
+        segment_results,
+        Leg.DIRECT_OUTBOUND,
+        Direction.OUTBOUND,
+        options.limit_per_pair,
+        profile=options.profile,
+    )
+    return_direct_search = direct_journeys(
+        segment_results,
+        Leg.DIRECT_RETURN,
+        Direction.RETURN,
+        options.limit_per_pair,
+        profile=options.profile,
+    )
     outbound_direct = nonstop_journeys(outbound_direct_search)
     return_direct = nonstop_journeys(return_direct_search)
     # Direct-search provider calls can return connected itineraries. Treat only

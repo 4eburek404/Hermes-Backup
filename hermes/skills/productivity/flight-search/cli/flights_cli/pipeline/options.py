@@ -8,6 +8,7 @@ from ..config import (
     DEFAULT_CURRENCY,
     DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS,
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
+    DEFAULT_PROFILE,
     DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR,
     DEFAULT_ROUTING_STRATEGY,
     FLI_MCP_DEFAULT_URL,
@@ -198,7 +199,7 @@ def search_request_to_options(payload: dict[str, Any]) -> LiveAssemblyOptions:
             max_reasons=int(output.get("max_reasons") or 5),
             include_stop_policy_diagnostics=_bool_option(output, "include_stop_policy_diagnostics", False),
         ),
-        profile=str(payload.get("profile") or "balanced"),
+        profile=str(payload.get("profile") or DEFAULT_PROFILE),
         ticketing=str(payload.get("ticketing") or "separate"),
         currency=str(payload.get("currency") or DEFAULT_CURRENCY).upper(),
     )
@@ -211,7 +212,7 @@ def argparse_args_to_options(args: Any) -> LiveAssemblyOptions:
         "depart_date": getattr(args, "depart_date", ""),
         "return_date": getattr(args, "return_date", None),
         "currency": getattr(args, "currency", DEFAULT_CURRENCY),
-        "profile": getattr(args, "profile", "balanced"),
+        "profile": getattr(args, "profile", DEFAULT_PROFILE),
         "ticketing": getattr(args, "ticketing", "separate"),
         "provider_policy": getattr(args, "provider_policy", "auto"),
         "route_options": {

@@ -17,6 +17,7 @@ from .. import __version__
 from ..config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, FLI_MCP_DEFAULT_URL, SUPPORTED_CURRENCIES
 from ..domain.carriers import carrier_from_flight_number
 from ..domain.normalize import normalize_carrier_code, normalize_iata, parse_iso_date, price_value
+from ..domain.offer_order import provider_offer_business_key
 from ..domain.provider_offer_filter import filter_provider_offers
 from ..errors import CliError
 from ..store import Store
@@ -440,14 +441,7 @@ def parse_fli_flight_search(
             deduped[key] = offer
 
     filtered_offers, filter_stats = filter_provider_offers(list(deduped.values()))
-    offers = sorted(
-        filtered_offers,
-        key=lambda item: (
-            item.get("price") if item.get("price") is not None else 10**12,
-            item.get("departure_at") or "",
-            "-".join(item.get("flight_numbers") or []),
-        ),
-    )[: max(0, limit)]
+    offers = sorted(filtered_offers, key=provider_offer_business_key)[: max(0, limit)]
     return {
         "origin": origin,
         "destination": destination,

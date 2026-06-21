@@ -93,7 +93,7 @@ def live_assembly_args(**overrides: Any) -> Any:
         "destination": values.pop("destination", "CDG"),
         "depart_date": values.pop("depart_date", "2026-08-15"),
         "currency": values.pop("currency", "RUB"),
-        "profile": values.pop("profile", "balanced"),
+        "profile": values.pop("profile", "business"),
         "ticketing": values.pop("ticketing", "separate"),
         "provider_policy": values.pop("provider_policy", "auto"),
     }

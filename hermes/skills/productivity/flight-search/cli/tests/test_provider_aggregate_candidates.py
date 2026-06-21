@@ -589,6 +589,17 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
         self.assertEqual(report["evidence"]["aggregate_controls"][0]["top_offers"][0]["id"], "frontier")
         self.assertEqual(report["frontier"]["priority_options"][0]["id"], "provider-aggregate:outbound:frontier")
 
+    def test_provider_aggregate_frontier_prefers_shorter_duration_before_price(self) -> None:
+        payload = report_payload()
+        slow_cheap = {**aggregate_offer(), "id": "slow-cheap", "price": 26000, "change_count": 1, "duration": 1040}
+        short_expensive = {**aggregate_offer(), "id": "short-expensive", "price": 42000, "change_count": 1, "duration": 520}
+        payload["live_search"]["aggregate_controls"][0]["top_offers"] = [slow_cheap, short_expensive]
+
+        report = build_agent_report(payload)
+
+        self.assertEqual(report["evidence"]["aggregate_controls"][0]["top_offers"][0]["id"], "short-expensive")
+        self.assertEqual(report["frontier"]["priority_options"][0]["id"], "provider-aggregate:outbound:short-expensive")
+
     def test_provider_aggregate_execution_cuts_three_stop_before_model_payload(self) -> None:
         one_stop = {
             "id": "one-stop",

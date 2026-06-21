@@ -47,7 +47,7 @@ def _args(**overrides: Any) -> argparse.Namespace:
         depart_date="2026-08-01",
         return_date="2026-08-15",
         currency="RUB",
-        profile="balanced",
+        profile="business",
         ticketing="separate",
         include_segment_results=20,
         limit_per_pair=5,

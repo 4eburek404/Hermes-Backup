@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from ..config import RISK_PROFILES
+from ..config import DEFAULT_PROFILE, RISK_PROFILES
 from ..domain.carriers import itinerary_carriers, segment_carriers
 from ..domain.normalize import clamp_score, currency_value, is_reject_score, normalize_carrier_codes, normalize_profile, risk_grade
 from ..domain.stop_policy import (
@@ -27,7 +27,7 @@ class CarrierPolicyOptions:
 
 @dataclass(frozen=True, slots=True)
 class RankingOptions:
-    profile: str = "balanced"
+    profile: str = DEFAULT_PROFILE
     ticketing: str = "separate"
     min_same_airport_min: int = 120
     min_cross_airport_min: int = 300
@@ -72,7 +72,7 @@ def carrier_policy_options_from_args(args: Any) -> CarrierPolicyOptions:
 
 def ranking_options_from_args(args: Any) -> RankingOptions:
     return RankingOptions(
-        profile=str(getattr(args, "profile", "balanced") or "balanced"),
+        profile=str(getattr(args, "profile", DEFAULT_PROFILE) or DEFAULT_PROFILE),
         ticketing=str(getattr(args, "ticketing", "separate") or "separate"),
         min_same_airport_min=int(getattr(args, "min_same_airport_min", 120)),
         min_cross_airport_min=int(getattr(args, "min_cross_airport_min", 300)),

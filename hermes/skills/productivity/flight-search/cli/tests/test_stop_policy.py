@@ -38,7 +38,7 @@ def candidate(identifier: str, airports: list[str], price: int) -> dict:
 
 def rank_args(**overrides: object) -> argparse.Namespace:
     values = {
-        "profile": "balanced",
+        "profile": "business",
         "ticketing": "single",
         "min_same_airport_min": 60,
         "min_cross_airport_min": 60,

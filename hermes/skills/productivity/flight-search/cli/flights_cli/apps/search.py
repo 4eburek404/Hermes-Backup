@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from typing import Any
 
-from ..config import DEFAULT_CURRENCY
+from ..config import DEFAULT_CURRENCY, DEFAULT_PROFILE
 from ..contracts.registry import current_contract
 from ..orchestrators.live_route_assembly import run_live_route_assembly
 from ..pipeline.options import LiveAssemblyOptions, search_request_to_options
@@ -20,7 +20,7 @@ def normalize_search_request(payload: dict[str, Any]) -> dict[str, Any]:
     normalized["origin"] = str(normalized.get("origin") or "").upper()
     normalized["destination"] = str(normalized.get("destination") or "").upper()
     normalized["currency"] = str(normalized.get("currency") or DEFAULT_CURRENCY).upper()
-    normalized["profile"] = str(normalized.get("profile") or "balanced")
+    normalized["profile"] = str(normalized.get("profile") or DEFAULT_PROFILE)
     normalized["ticketing"] = str(normalized.get("ticketing") or "separate")
     normalized["provider_policy"] = str(normalized.get("provider_policy") or "auto").lower()
     return normalized

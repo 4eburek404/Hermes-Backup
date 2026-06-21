@@ -311,7 +311,13 @@ class PriorityRouteEvaluator:
             direct_leg = Leg.DIRECT_RETURN
         else:
             return False
-        direct = direct_journeys(state.segment_results, direct_leg, direction, self.options.output.limit_per_pair)
+        direct = direct_journeys(
+            state.segment_results,
+            direct_leg,
+            direction,
+            self.options.output.limit_per_pair,
+            profile=self.options.profile,
+        )
         if direct:
             state.priority_route_viability[direction] = True
             return True
