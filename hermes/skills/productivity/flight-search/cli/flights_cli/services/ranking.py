@@ -3,7 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from ..config import DEFAULT_PROFILE, RISK_PROFILES
+from ..config import (
+    BUSINESS_EXCESSIVE_CONNECTION_WAIT_MIN,
+    BUSINESS_LATE_ARRIVAL_HOUR,
+    BUSINESS_LATE_TO_MORNING_MAX_WAIT_MIN,
+    BUSINESS_MORNING_DEPARTURE_END_HOUR,
+    DEFAULT_PROFILE,
+    RISK_PROFILES,
+)
 from ..domain.carriers import itinerary_carriers, segment_carriers
 from ..domain.normalize import clamp_score, currency_value, is_reject_score, normalize_carrier_codes, normalize_profile, risk_grade
 from ..domain.stop_policy import (
@@ -14,6 +21,7 @@ from ..domain.stop_policy import (
     stop_policy_options_from_args,
     stop_policy_payload,
 )
+from ..domain.time import airport_hour
 from ..services.validation import ItineraryValidationOptions, rank_key, validate_itinerary
 from ..errors import CliError
 
@@ -228,6 +236,54 @@ def validation_reject_filter(candidate_id: str, validation: dict[str, Any], risk
     }
 
 
+def excessive_connection_wait_filter(validation: dict[str, Any], *, profile: str) -> dict[str, Any] | None:
+    if profile != DEFAULT_PROFILE:
+        return None
+
+    segments_by_index = {
+        segment.get("index"): segment
+        for segment in validation.get("segments") or []
+        if isinstance(segment, dict)
+    }
+    for connection in validation.get("connections") or []:
+        if not isinstance(connection, dict):
+            continue
+        actual = connection.get("actual_min")
+        if not isinstance(actual, int) or actual < BUSINESS_EXCESSIVE_CONNECTION_WAIT_MIN:
+            continue
+        indexes = connection.get("between_segments")
+        if not isinstance(indexes, list) or len(indexes) != 2:
+            continue
+        previous_segment = segments_by_index.get(indexes[0])
+        next_segment = segments_by_index.get(indexes[1])
+        if not isinstance(previous_segment, dict) or not isinstance(next_segment, dict):
+            continue
+
+        arrival_hour = airport_hour(str(previous_segment.get("arrival_at") or ""))
+        departure_hour = airport_hour(str(next_segment.get("departure_at") or ""))
+        late_arrival_to_morning_departure = (
+            arrival_hour is not None
+            and departure_hour is not None
+            and arrival_hour >= BUSINESS_LATE_ARRIVAL_HOUR
+            and 5 <= departure_hour < BUSINESS_MORNING_DEPARTURE_END_HOUR
+            and actual <= BUSINESS_LATE_TO_MORNING_MAX_WAIT_MIN
+        )
+        if late_arrival_to_morning_departure:
+            continue
+        return {
+            "reason": "excessive_connection_wait",
+            "message": (
+                f"Business output suppresses {actual // 60}h{actual % 60:02d} connection waits "
+                "when a normal same-stop-or-better alternative exists."
+            ),
+            "actual_min": actual,
+            "arrival_hour": arrival_hour,
+            "departure_hour": departure_hour,
+            "between_segments": indexes,
+        }
+    return None
+
+
 def rank_candidate_list(candidates: list[dict[str, Any]], options: RankingOptions) -> dict[str, Any]:
     profile = normalize_profile(options.profile)
     policy = carrier_policy_from_options(options.carrier_policy)
@@ -273,10 +329,12 @@ def rank_candidate_list(candidates: list[dict[str, Any]], options: RankingOption
         for item in evaluated
     )
     allowed_max_connections = reportable_max_connections(stop_policy, preferred_available)
+    rankable: list[dict[str, Any]] = []
     ranked: list[dict[str, Any]] = []
     stop_filtered_count = 0
     suppressed_three_plus_count = 0
     suppressed_two_stop_count = 0
+    suppressed_excessive_wait_count = 0
     preferred_candidate_count = 0
     two_stop_candidate_count = 0
     for item in evaluated:
@@ -313,27 +371,51 @@ def rank_candidate_list(candidates: list[dict[str, Any]], options: RankingOption
             if len(filtered) < include_filtered:
                 filtered.append(validation_reject_filter(item["candidate_id"], validation, risk))
             continue
-        ranked.append(
+        rankable.append(
             {
-                "id": item["candidate_id"],
-                "ok": validation["ok"],
-                "price": risk["price"],
-                "currency": currency_value(item["candidate"]),
-                "elapsed_min": risk["elapsed_min"],
-                "carriers": carrier_filter["carriers"],
-                "journeys": validation.get("journeys"),
-                "risk": {
-                    "profile": risk["profile"],
-                    "score": risk["score"],
-                    "grade": risk["grade"],
-                    "reject": risk["reject"],
-                    "rank_key": risk["rank_key"],
-                    "top_reasons": risk["components"][: options.max_reasons],
+                "max_connections": max_connections,
+                "wait_filter": excessive_connection_wait_filter(validation, profile=profile),
+                "ranked": {
+                    "id": item["candidate_id"],
+                    "ok": validation["ok"],
+                    "price": risk["price"],
+                    "currency": currency_value(item["candidate"]),
+                    "elapsed_min": risk["elapsed_min"],
+                    "carriers": carrier_filter["carriers"],
+                    "journeys": validation.get("journeys"),
+                    "risk": {
+                        "profile": risk["profile"],
+                        "score": risk["score"],
+                        "grade": risk["grade"],
+                        "reject": risk["reject"],
+                        "rank_key": risk["rank_key"],
+                        "top_reasons": risk["components"][: options.max_reasons],
+                    },
+                    "validation_summary": validation["summary"],
+                    "connections": validation["connections"],
                 },
-                "validation_summary": validation["summary"],
-                "connections": validation["connections"],
             }
         )
+
+    normal_connection_counts = [
+        int(item["max_connections"])
+        for item in rankable
+        if item.get("wait_filter") is None
+    ]
+    for item in rankable:
+        wait_filter = item.get("wait_filter") if isinstance(item.get("wait_filter"), dict) else None
+        if wait_filter is not None and any(count <= int(item["max_connections"]) for count in normal_connection_counts):
+            suppressed_excessive_wait_count += 1
+            if len(filtered) < include_filtered:
+                filtered.append(
+                    {
+                        "id": item["ranked"]["id"],
+                        **wait_filter,
+                        "max_connections_per_journey": item["max_connections"],
+                    }
+                )
+            continue
+        ranked.append(item["ranked"])
 
     ranked.sort(key=lambda item: item["risk"]["rank_key"])
     for position, item in enumerate(ranked, 1):
@@ -365,6 +447,7 @@ def rank_candidate_list(candidates: list[dict[str, Any]], options: RankingOption
             "suppressed_three_plus_count": suppressed_three_plus_count,
             "two_stop_suppressed_because_preferred_exists": suppressed_two_stop_count,
             "suppressed_two_stop_because_preferred_exists": suppressed_two_stop_count,
+            "excessive_wait_suppressed_count": suppressed_excessive_wait_count,
             "stop_policy_filtered_count": stop_filtered_count,
             "garbage_options_hidden_from_answer": suppressed_three_plus_count > 0,
             "allowed_max_connections": allowed_max_connections,

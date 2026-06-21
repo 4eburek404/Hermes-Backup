@@ -123,7 +123,7 @@ Common request fields:
 
 ## Ranking Profile
 
-Production search uses one ranking profile: `business`. It prioritizes visible non-rejected options, requested-trip coverage, fewer connections, lower operational risk, shorter elapsed time, then price. Unsafe transfers can still be rejected.
+Production search uses one ranking profile: `business`. It prioritizes visible non-rejected options, requested-trip coverage, fewer connections, lower operational risk, shorter elapsed time, then price. If a normal same-stop-or-better alternative exists, business output suppresses excessive daytime connection waits; late arrival plus a next-morning departure remains reportable as fallback. Unsafe transfers can still be rejected.
 
 ## Stop Policy and Reportability
 

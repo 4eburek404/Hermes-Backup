@@ -36,6 +36,30 @@ def candidate(identifier: str, airports: list[str], price: int) -> dict:
     }
 
 
+def one_stop_candidate(
+    identifier: str,
+    *,
+    first_arrival: str,
+    second_departure: str,
+    price: int = 30000,
+) -> dict:
+    return {
+        "id": identifier,
+        "price": price,
+        "currency": "RUB",
+        "ticketing": "single",
+        "journeys": [
+            {
+                "direction": "outbound",
+                "segments": [
+                    segment("SVX", "IST", "2026-08-06T07:20:00+05:00", first_arrival, "U6773"),
+                    segment("IST", "FRA", second_departure, "2026-08-07T05:55:00+02:00", "TK1224"),
+                ],
+            }
+        ],
+    }
+
+
 def rank_args(**overrides: object) -> argparse.Namespace:
     values = {
         "profile": "business",
@@ -117,6 +141,70 @@ class StopPolicyTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in result["ranked"]], ["direct"])
         self.assertEqual(result["carrier_policy"]["filtered"][0]["id"], "invalid-svo-backwards")
         self.assertEqual(result["carrier_policy"]["filtered"][0]["reason"], "invalid_time_order")
+
+    def test_business_suppresses_daytime_excessive_wait_when_normal_same_stop_exists(self) -> None:
+        result = rank_candidate_list(
+            [
+                one_stop_candidate(
+                    "normal-connection",
+                    first_arrival="2026-08-06T10:50:00+03:00",
+                    second_departure="2026-08-06T13:55:00+03:00",
+                    price=58658,
+                ),
+                one_stop_candidate(
+                    "daytime-overnight-wait",
+                    first_arrival="2026-08-06T10:50:00+03:00",
+                    second_departure="2026-08-07T03:40:00+03:00",
+                    price=60144,
+                ),
+            ],
+            ranking_options_from_args(rank_args()),
+        )
+
+        self.assertEqual([item["id"] for item in result["ranked"]], ["normal-connection"])
+        self.assertEqual(result["stop_policy_diagnostics"]["excessive_wait_suppressed_count"], 1)
+        self.assertEqual(result["carrier_policy"]["filtered"][-1]["id"], "daytime-overnight-wait")
+        self.assertEqual(result["carrier_policy"]["filtered"][-1]["reason"], "excessive_connection_wait")
+
+    def test_business_keeps_excessive_wait_when_it_is_the_only_reportable_path(self) -> None:
+        result = rank_candidate_list(
+            [
+                one_stop_candidate(
+                    "only-overnight-wait",
+                    first_arrival="2026-08-06T10:50:00+03:00",
+                    second_departure="2026-08-07T03:40:00+03:00",
+                )
+            ],
+            ranking_options_from_args(rank_args()),
+        )
+
+        self.assertEqual([item["id"] for item in result["ranked"]], ["only-overnight-wait"])
+        self.assertEqual(result["stop_policy_diagnostics"]["excessive_wait_suppressed_count"], 0)
+
+    def test_business_keeps_late_arrival_to_morning_departure(self) -> None:
+        result = rank_candidate_list(
+            [
+                one_stop_candidate(
+                    "late-arrival-morning-departure",
+                    first_arrival="2026-08-06T21:30:00+03:00",
+                    second_departure="2026-08-07T10:00:00+03:00",
+                    price=40000,
+                ),
+                one_stop_candidate(
+                    "normal-connection",
+                    first_arrival="2026-08-06T10:50:00+03:00",
+                    second_departure="2026-08-06T13:55:00+03:00",
+                    price=50000,
+                ),
+            ],
+            ranking_options_from_args(rank_args()),
+        )
+
+        self.assertEqual(
+            {item["id"] for item in result["ranked"]},
+            {"late-arrival-morning-departure", "normal-connection"},
+        )
+        self.assertEqual(result["stop_policy_diagnostics"]["excessive_wait_suppressed_count"], 0)
 
 
 if __name__ == "__main__":

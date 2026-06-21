@@ -1,11 +1,11 @@
 {
   "skill": {
     "name": "flight-search",
-    "version": "0.8.3"
+    "version": "0.8.4"
   },
   "cli": {
     "package": "flights-cli",
-    "version": "0.5.3"
+    "version": "0.5.4"
   },
   "contracts": {
     "flight_search_request": "flight_search_request.v1",
