@@ -16,12 +16,15 @@ from flights_cli.orchestrators.live_assembly_runner import (
     city_code_primary_keys_for_deferred_airport,
     deferred_airport_priority_sides,
     direct_route_intel_context,
+    direct_route_intel_skip_allowed,
     endpoint_group_code,
     hub_viability_summary,
     plan_has_svx_direct_control,
     preferred_keys_for_deferred_airport,
     provider_city_code_side,
 )
+from flights_cli.pipeline.options import argparse_args_to_options
+from flights_cli.pipeline.search_pipeline import build_live_route_search_flow
 from flights_cli.store import Store
 
 
@@ -47,7 +50,9 @@ def _args(**overrides: Any) -> argparse.Namespace:
         max_airports_per_city=4,
         provider_policy="kupibilet",
         only_carrier=None,
+        exclude_carrier=None,
         prefer_carrier=None,
+        avoid_carrier=None,
         no_direct_route_intel=False,
         direct_route_index_ttl_seconds=0,
         timeout=20,
@@ -77,9 +82,10 @@ def _runner(
     """
     runner = object.__new__(LiveAssemblyRunner)
     runner.args = _args()
+    runner.options = argparse_args_to_options(runner.args)
     runner.store = Store()
     runner._plan_builder = lambda *a, **kw: {}  # unused in predicates
-    runner.flow = None  # type: ignore[assignment]
+    runner.flow = build_live_route_search_flow(runner.options, runner.store)
     runner.plan = plan or {
         "routing_strategy": RoutingStrategy.RU_PRIORITY,
         "segments": [],
@@ -232,6 +238,65 @@ class TestPlanHasSvxDirectControl(unittest.TestCase):
     def test_returns_false_when_empty_segments(self) -> None:
         self.assertFalse(plan_has_svx_direct_control({"segments": []}))
         self.assertFalse(plan_has_svx_direct_control({}))
+
+
+# ---------------------------------------------------------------------------
+# direct_route_intel_skip_allowed
+# ---------------------------------------------------------------------------
+
+class TestDirectRouteIntelSkipAllowed(unittest.TestCase):
+    def _policy(self, **overrides: Any) -> tuple[bool, str | None]:
+        args = _args(**overrides)
+        options = argparse_args_to_options(args)
+        flow = build_live_route_search_flow(options, Store())
+        return direct_route_intel_skip_allowed(flow, options)
+
+    def test_standard_advisory_allows_skip(self) -> None:
+        allowed, reason = self._policy()
+
+        self.assertTrue(allowed)
+        self.assertIsNone(reason)
+
+    def test_direct_only_forbids_skip(self) -> None:
+        allowed, reason = self._policy(return_date=None, max_connections=0, tier2_max_connections=0)
+
+        self.assertFalse(allowed)
+        self.assertEqual(reason, "direct_only")
+
+    def test_date_window_direct_inventory_forbids_skip(self) -> None:
+        allowed, reason = self._policy(
+            return_date=None,
+            max_connections=0,
+            tier2_max_connections=0,
+            date_window_end="2026-08-20",
+        )
+
+        self.assertFalse(allowed)
+        self.assertEqual(reason, "date_window_direct_inventory")
+
+    def test_hard_carrier_scope_forbids_skip(self) -> None:
+        allowed, reason = self._policy(only_carrier=["SU"])
+
+        self.assertFalse(allowed)
+        self.assertEqual(reason, "hard_carrier_scope")
+
+    def test_ticketing_single_forbids_skip(self) -> None:
+        allowed, reason = self._policy(ticketing="single")
+
+        self.assertFalse(allowed)
+        self.assertEqual(reason, "ticketing_proof")
+
+    def test_exact_airport_absence_scope_forbids_skip(self) -> None:
+        allowed, reason = self._policy(origin_airport=["SVX"], destination_airport=["BKK"])
+
+        self.assertFalse(allowed)
+        self.assertEqual(reason, "hard_airport_scope")
+
+    def test_targeted_coverage_control_forbids_skip(self) -> None:
+        allowed, reason = self._policy(coverage_control=["exact_airport_direct"])
+
+        self.assertFalse(allowed)
+        self.assertEqual(reason, "targeted_controls_required")
 
 
 # ---------------------------------------------------------------------------

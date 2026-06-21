@@ -10,7 +10,7 @@ from ..config import (
     PRIORITY_SECONDARY_HUB,
 )
 from ..domain.normalize import normalize_carrier_code
-from ..domain.vocabulary import Direction, Leg, RoutingStrategy, StopBucket
+from ..domain.vocabulary import Direction, EvidenceClass, IntentClass, Leg, RoutingStrategy, StopBucket
 from ..errors import CliError
 from ..execution.aggregate_control_runner import run_aggregate_controls
 from ..execution.probe_dispatcher import dispatch_segment_probe, search_key
@@ -152,6 +152,38 @@ def direct_route_intel_context(args: argparse.Namespace, store: Store, plan: dic
             StopBucket.TIER2: "direct-control live searches were kept because the official route index was unavailable.",
         }
     return index, svx_direct_route_index_summary(index, cache)
+
+
+def direct_route_intel_skip_allowed(
+    flow: LiveRouteSearchFlow | None,
+    options: LiveAssemblyOptions | None,
+) -> tuple[bool, str | None]:
+    """Return whether the official route index may skip live direct probes.
+
+    The SVX route index is advisory route intelligence. It can prune obvious
+    fallback direct probes, but it must not replace live evidence when the
+    request asks for proof of absence, ticketing, or hard-scoped controls.
+    """
+
+    if flow is None:
+        return False, "flow_unavailable"
+    if options is not None and options.route.date_window_end:
+        return False, "date_window_direct_inventory"
+    if flow.evidence_plan.direct_only:
+        return False, "direct_only"
+    if options is not None and (options.filters.only_carriers or options.filters.exclude_carriers):
+        return False, "hard_carrier_scope"
+    if options is not None and (options.route.origin_airports or options.route.destination_airports):
+        return False, "hard_airport_scope"
+    if options is not None and str(options.ticketing or "").lower() == "single":
+        return False, "ticketing_proof"
+    if options is not None and options.evidence.coverage_controls:
+        return False, "targeted_controls_required"
+    if flow.flow_decision.intent_class != IntentClass.ROUTE_RECOMMENDATION:
+        return False, "non_advisory_intent"
+    if flow.flow_decision.evidence_class != EvidenceClass.SHOPPING_ADVISORY:
+        return False, "non_advisory_evidence"
+    return True, None
 
 
 def hub_viability_summary(plan: dict[str, Any], searches: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -441,6 +473,9 @@ class LiveAssemblyRunner:
 
     def _skipped_by_direct_route_intel(self, spec: dict[str, Any]) -> dict[str, Any] | None:
         if self.direct_route_index is None or spec.get("leg") not in {Leg.DIRECT_OUTBOUND, Leg.DIRECT_RETURN}:
+            return None
+        skip_allowed, _ = direct_route_intel_skip_allowed(getattr(self, "flow", None), getattr(self, "options", None))
+        if not skip_allowed:
             return None
         direct_route_index = self.direct_route_index
         routes = direct_route_index.get("routes") if isinstance(direct_route_index.get("routes"), dict) else {}
