@@ -16,6 +16,32 @@ Create an importable `.ics` from private flight evidence through the skill-owned
 
 ## Algorithm
 
+### Delivery stdout contract
+
+Terminal tool-call stdout is the plugin-delivery trigger surface. On the golden path,
+stdout must be exactly the JSON emitted by:
+
+```bash
+python "<skill_dir>/scripts/flight_calendar_ics.py" --json build auto --url-file <private-url-file>
+```
+
+Do not redirect, capture, pipe, tee, parse, summarize, or replace this stdout.
+Specifically forbidden forms include:
+
+- `> "$JSON_OUT"`
+- `| jq`
+- `| tee`
+- `JSON="$(python ...)"`
+- a second python command that prints `ok=`, `media=`, or `summary=`
+- `cat "$JSON_OUT"`
+- `echo "ok=True"`
+- `echo "media=..."`
+
+After a successful build, do not run another command to inspect or summarize the
+result. Read JSON directly from the terminal tool result. Default `--json build`
+stdout is already privacy-safe handoff JSON containing `data.agent_handoff.media`
+and `safe_summary`; full diagnostics stay private at `data.envelope_path`.
+
 ```
 ! Do NOT open airline websites in a browser or use web_extract. The CLI fetches and parses booking data internally. Just run the build command — one terminal command does everything !
 1. RUN:   python "<skill_dir>/scripts/flight_calendar_ics.py" --json build auto --url-file <private-url-file>
