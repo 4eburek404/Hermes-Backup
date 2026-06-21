@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..execution.synthetic_control_runner import synthesize_moscow_gateway_control_results
-from ..pipeline.options import LiveAssemblyOptions, argparse_args_to_options
+from ..pipeline.options import LiveAssemblyOptions
 from ..pipeline.search_pipeline import LiveRouteSearchFlow
 from ..store import Store
 from .live_assembly_runner import LiveAssemblyRunner
@@ -16,15 +16,9 @@ __all__ = [
 ]
 
 
-def _as_options(source: LiveAssemblyOptions | Any) -> LiveAssemblyOptions:
-    if isinstance(source, LiveAssemblyOptions):
-        return source
-    return argparse_args_to_options(source)
+def build_live_route_segment_plan(options: LiveAssemblyOptions, store: Store, *, flow: LiveRouteSearchFlow | None = None) -> dict[str, Any]:
+    return RoutePlanBuilder(options, store, flow=flow).build()
 
 
-def build_live_route_segment_plan(source: LiveAssemblyOptions | Any, store: Store, *, flow: LiveRouteSearchFlow | None = None) -> dict[str, Any]:
-    return RoutePlanBuilder(_as_options(source), store, flow=flow).build()
-
-
-def run_live_route_assembly(args: Any, store: Store) -> dict[str, Any]:
-    return LiveAssemblyRunner(args, store, plan_builder=build_live_route_segment_plan).run()
+def run_live_route_assembly(options: LiveAssemblyOptions, store: Store) -> dict[str, Any]:
+    return LiveAssemblyRunner(options, store, plan_builder=build_live_route_segment_plan).run()

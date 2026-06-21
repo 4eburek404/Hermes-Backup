@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from types import SimpleNamespace
 from typing import Any
 
 from ..config import (
@@ -11,18 +10,24 @@ from ..config import (
 from ..domain.normalize import normalize_carrier_code
 from ..domain.vocabulary import Direction, EvidenceClass, IntentClass, Leg, RoutingStrategy, StopBucket
 from ..errors import CliError
-from ..execution.aggregate_control_runner import run_aggregate_controls
-from ..execution.probe_dispatcher import dispatch_segment_probe, search_key
+from ..execution.aggregate_control_runner import AggregateControlOptions, run_aggregate_controls
+from ..execution.probe_dispatcher import SegmentProbeOptions, dispatch_segment_probe, search_key
 from ..execution.probe_intent import intent_from_control, intent_from_segment
 from ..execution.probe_ledger import ProbeExecutionLedger
 from ..execution.request_deduper import RequestDeduper
 from ..execution.synthetic_control_runner import synthesize_moscow_gateway_control_results
-from ..pipeline.options import LiveAssemblyOptions, argparse_args_to_options
+from ..pipeline.options import LiveAssemblyOptions
 from ..pipeline.search_pipeline import LiveRouteSearchFlow, build_live_route_search_flow
 from ..providers.route_intel import load_or_refresh_svx_route_index, svx_direct_route_index_summary
 from ..reporting.date_window_projector import build_date_window_inventory
-from ..services.agent_report import attach_agent_report
-from ..services.assembly import assemble_direction, assemble_segment_results, direct_journeys, empty_assembled_result
+from ..services.agent_report import AgentReportOptions, attach_agent_report
+from ..services.assembly import (
+    assemble_direction,
+    assemble_segment_results,
+    assembly_options_from_live_options,
+    direct_journeys,
+    empty_assembled_result,
+)
 from ..store import Store
 
 
@@ -31,64 +36,6 @@ from ..store import Store
 # Production keeps this as None so provider calls are resolved through the
 # provider-port registry in ``execution.*``.
 fetch_kupibilet_search: Any | None = None
-
-
-def live_assembly_args_view(options: LiveAssemblyOptions, *, routing_strategy: str | None = None) -> SimpleNamespace:
-    return SimpleNamespace(
-        command_name=options.command_name,
-        origin=options.route.origin,
-        destination=options.route.destination,
-        depart_date=options.route.depart_date,
-        return_date=options.route.return_date,
-        hub=list(options.route.hubs) or None,
-        routing_strategy=options.route.routing_strategy,
-        origin_airport=list(options.route.origin_airports) or None,
-        destination_airport=list(options.route.destination_airports) or None,
-        max_airports_per_city=options.route.max_airports_per_city,
-        currency=options.currency,
-        coverage_mode=options.evidence.coverage_mode,
-        coverage_control=list(options.evidence.coverage_controls) or None,
-        coverage_control_limit=options.evidence.coverage_control_limit,
-        ticketing=options.ticketing,
-        profile=options.profile,
-        min_same_airport_min=options.route.min_same_airport_min,
-        min_cross_airport_min=options.route.min_cross_airport_min,
-        stop_policy=options.route.stop_policy,
-        date_window_end=options.route.date_window_end,
-        max_connections=options.route.max_connections,
-        tier2_max_connections=options.route.tier2_max_connections,
-        include_stop_policy_diagnostics=options.output.include_stop_policy_diagnostics,
-        segment_limit=options.evidence.segment_limit,
-        timeout=options.evidence.timeout,
-        outbound_second_leg_day_offset=list(options.evidence.outbound_second_leg_day_offsets) or None,
-        return_second_leg_day_offset=list(options.evidence.return_second_leg_day_offsets) or None,
-        limit_per_pair=options.output.limit_per_pair,
-        candidate_pool_limit=options.output.candidate_pool_limit,
-        max_candidates=options.output.max_candidates,
-        max_reasons=options.output.max_reasons,
-        include_candidates=options.output.include_candidates,
-        include_ranked_candidates=options.output.include_ranked_candidates,
-        include_rejected_pairs=options.output.include_rejected_pairs,
-        include_segment_results=options.output.include_segment_results,
-        aggregate_control_limit=options.evidence.aggregate_control_limit,
-        aggregate_control_carrier=list(options.evidence.aggregate_control_carriers) or None,
-        max_segment_searches=options.evidence.max_segment_searches,
-        fail_fast=options.evidence.fail_fast,
-        live_cache_ttl_seconds=options.evidence.live_cache_ttl_seconds,
-        no_live_cache=options.evidence.no_live_cache,
-        direct_route_index_ttl_seconds=options.evidence.direct_route_index_ttl_seconds,
-        no_direct_route_intel=options.evidence.no_direct_route_intel,
-        agent_report=options.output.agent_report,
-        agent_brief=options.output.agent_brief,
-        only_carrier=list(options.filters.only_carriers) or None,
-        exclude_carrier=list(options.filters.exclude_carriers) or None,
-        prefer_carrier=list(options.effective_prefer_carriers(routing_strategy)) or None,
-        avoid_carrier=list(options.filters.avoid_carriers) or None,
-        include_filtered=options.output.include_filtered,
-        provider_policy=options.evidence.provider_policy,
-        fli_mcp_url=options.evidence.fli_mcp_url,
-        is_domestic=str(routing_strategy or "").lower() == RoutingStrategy.DOMESTIC_RU,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -613,9 +560,14 @@ class SegmentProbeExecutor:
         self.request_deduper = request_deduper
         self.skip_policy = skip_policy
         self.accumulator = accumulator
+        self.probe_options = SegmentProbeOptions(
+            segment_limit=options.evidence.segment_limit,
+            timeout=options.evidence.timeout,
+            fli_mcp_url=options.evidence.fli_mcp_url,
+            fail_fast=options.evidence.fail_fast,
+        )
 
     def run(self, state: LiveAssemblyState) -> None:
-        args_view = live_assembly_args_view(self.options, routing_strategy=state.plan.get("routing_strategy"))
         for spec in state.plan["segments"]:
             skipped = self.skip_policy.skipped_by_condition(state, spec)
             if skipped is not None:
@@ -624,7 +576,7 @@ class SegmentProbeExecutor:
             for outcome in dispatch_segment_probe(
                 spec=spec,
                 plan=state.plan,
-                args=args_view,
+                options=self.probe_options,
                 store=self.store,
                 only_carriers=self.only_carriers,
                 cache_ttl_seconds=self.cache_ttl_seconds,
@@ -643,11 +595,20 @@ class LiveSearchResultBuilder:
         self.provider_policy = provider_policy
 
     def build(self, state: LiveAssemblyState, direct_route_intel: dict[str, Any]) -> dict[str, Any]:
-        args_view = live_assembly_args_view(self.options, routing_strategy=state.plan.get("routing_strategy"))
+        routing_strategy = state.plan.get("routing_strategy")
+        assembly_options = assembly_options_from_live_options(self.options, routing_strategy=routing_strategy)
         date_window_inventory = build_date_window_inventory(state.plan, state.searches, state.segment_results)
-        assembled = assemble_segment_results(state.segment_results, args_view) if state.segment_results else empty_assembled_result(args_view)
+        assembled = assemble_segment_results(state.segment_results, assembly_options) if state.segment_results else empty_assembled_result(assembly_options)
         aggregate_controls = run_aggregate_controls(
-            args_view,
+            AggregateControlOptions(
+                provider_policy=self.provider_policy,
+                aggregate_control_limit=self.options.evidence.aggregate_control_limit,
+                only_carriers=self.options.filters.only_carriers,
+                aggregate_control_carriers=self.options.evidence.aggregate_control_carriers,
+                live_cache_ttl_seconds=self.options.evidence.live_cache_ttl_seconds,
+                no_live_cache=self.options.evidence.no_live_cache,
+                timeout=self.options.evidence.timeout,
+            ),
             state.plan,
             kupibilet_fetcher=fetch_kupibilet_search,
             probe_ledger=state.probe_ledger,
@@ -673,12 +634,12 @@ class LiveSearchResultBuilder:
             "direct_route_intelligence": direct_route_intel,
             "failure_count": len(state.failures),
             "failures": state.failures,
-            "included_segment_result_count": min(len(state.segment_results), args_view.include_segment_results),
+            "included_segment_result_count": min(len(state.segment_results), self.options.output.include_segment_results),
         }
         if date_window_inventory is not None:
             assembled["live_search"]["date_window_inventory"] = date_window_inventory
-        assembled["segment_results"] = state.segment_results[: args_view.include_segment_results]
-        return attach_agent_report(assembled, args_view, self.store)
+        assembled["segment_results"] = state.segment_results[: self.options.output.include_segment_results]
+        return attach_agent_report(assembled, AgentReportOptions(agent_report=self.options.output.agent_report), self.store)
 
 
 class LiveAssemblyRunner:
@@ -690,12 +651,12 @@ class LiveAssemblyRunner:
 
     def __init__(
         self,
-        args: Any,
+        options: LiveAssemblyOptions,
         store: Store,
         *,
         plan_builder: Any,
     ) -> None:
-        self.options: LiveAssemblyOptions = args if isinstance(args, LiveAssemblyOptions) else argparse_args_to_options(args)
+        self.options = options
         self.store = store
         # Injected dependency avoids a circular import with the public wrapper.
         self._plan_builder = plan_builder

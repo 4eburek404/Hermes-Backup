@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import unittest
 from unittest.mock import patch
 
@@ -10,34 +9,28 @@ from flights_cli.store import Store
 from helpers import live_assembly_args
 
 
-def live_args(**overrides: object) -> argparse.Namespace:
-    values = {
+def live_args(**overrides: object):
+    defaults = {
         "origin": "SVX",
         "destination": "CDG",
         "depart_date": "2026-08-16",
         "return_date": None,
-        "currency": "RUB",
         "profile": "business",
-        "ticketing": "separate",
         "provider_policy": "auto",
         "max_segment_searches": 10,
-        "only_carrier": [],
-        "prefer_carrier": [],
         "live_cache_ttl_seconds": 0,
         "no_live_cache": True,
         "direct_route_index_ttl_seconds": 0,
         "no_direct_route_intel": True,
         "include_segment_results": 0,
         "aggregate_control_limit": 0,
-        "aggregate_control_carrier": None,
         "coverage_mode": "targeted",
-        "coverage_control": None,
         "coverage_control_limit": 12,
         "agent_report": False,
         "agent_brief": False,
     }
-    values.update(overrides)
-    return argparse.Namespace(**values)
+    defaults.update(overrides)
+    return live_assembly_args(**defaults)
 
 
 class LiveRoutePipelineTests(unittest.TestCase):

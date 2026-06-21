@@ -1,14 +1,51 @@
 from __future__ import annotations
 
-import argparse
+from dataclasses import dataclass
 from typing import Any
 
 from ..config import RISK_PROFILES
 from ..domain.carriers import itinerary_carriers, segment_carriers
 from ..domain.normalize import clamp_score, currency_value, is_reject_score, normalize_carrier_codes, normalize_profile, risk_grade
-from ..domain.stop_policy import decide_stop_policy, reportable_max_connections, stop_policy_from_args, stop_policy_payload
-from ..services.validation import rank_key, validate_itinerary
+from ..domain.stop_policy import (
+    StopPolicyOptions,
+    decide_stop_policy,
+    reportable_max_connections,
+    stop_policy_from_options,
+    stop_policy_options_from_args,
+    stop_policy_payload,
+)
+from ..services.validation import ItineraryValidationOptions, rank_key, validate_itinerary
 from ..errors import CliError
+
+@dataclass(frozen=True, slots=True)
+class CarrierPolicyOptions:
+    only_carriers: tuple[str, ...] = ()
+    exclude_carriers: tuple[str, ...] = ()
+    prefer_carriers: tuple[str, ...] = ()
+    avoid_carriers: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class RankingOptions:
+    profile: str = "balanced"
+    ticketing: str = "separate"
+    min_same_airport_min: int = 120
+    min_cross_airport_min: int = 300
+    max_reasons: int = 5
+    include_filtered: int = 20
+    carrier_policy: CarrierPolicyOptions = CarrierPolicyOptions()
+    stop_policy: StopPolicyOptions = StopPolicyOptions()
+
+
+def _str_tuple(value: Any) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, tuple):
+        return tuple(str(item) for item in value if str(item))
+    if isinstance(value, list):
+        return tuple(str(item) for item in value if str(item))
+    return (str(value),) if str(value) else ()
+
 
 def extract_candidate_list(data: Any) -> list[dict[str, Any]]:
     if isinstance(data, list):
@@ -24,13 +61,39 @@ def extract_candidate_list(data: Any) -> list[dict[str, Any]]:
     return candidates
 
 
-def carrier_policy_from_args(args: argparse.Namespace) -> dict[str, set[str]]:
+def carrier_policy_options_from_args(args: Any) -> CarrierPolicyOptions:
+    return CarrierPolicyOptions(
+        only_carriers=_str_tuple(getattr(args, "only_carrier", None)),
+        exclude_carriers=_str_tuple(getattr(args, "exclude_carrier", None)),
+        prefer_carriers=_str_tuple(getattr(args, "prefer_carrier", None)),
+        avoid_carriers=_str_tuple(getattr(args, "avoid_carrier", None)),
+    )
+
+
+def ranking_options_from_args(args: Any) -> RankingOptions:
+    return RankingOptions(
+        profile=str(getattr(args, "profile", "balanced") or "balanced"),
+        ticketing=str(getattr(args, "ticketing", "separate") or "separate"),
+        min_same_airport_min=int(getattr(args, "min_same_airport_min", 120)),
+        min_cross_airport_min=int(getattr(args, "min_cross_airport_min", 300)),
+        max_reasons=int(getattr(args, "max_reasons", 5)),
+        include_filtered=int(getattr(args, "include_filtered", 20)),
+        carrier_policy=carrier_policy_options_from_args(args),
+        stop_policy=stop_policy_options_from_args(args),
+    )
+
+
+def carrier_policy_from_options(options: CarrierPolicyOptions) -> dict[str, set[str]]:
     return {
-        "only": normalize_carrier_codes(getattr(args, "only_carrier", None), "only-carrier"),
-        "exclude": normalize_carrier_codes(getattr(args, "exclude_carrier", None), "exclude-carrier"),
-        "prefer": normalize_carrier_codes(getattr(args, "prefer_carrier", None), "prefer-carrier"),
-        "avoid": normalize_carrier_codes(getattr(args, "avoid_carrier", None), "avoid-carrier"),
+        "only": normalize_carrier_codes(options.only_carriers, "only-carrier"),
+        "exclude": normalize_carrier_codes(options.exclude_carriers, "exclude-carrier"),
+        "prefer": normalize_carrier_codes(options.prefer_carriers, "prefer-carrier"),
+        "avoid": normalize_carrier_codes(options.avoid_carriers, "avoid-carrier"),
     }
+
+
+def carrier_policy_from_args(args: Any) -> dict[str, set[str]]:
+    return carrier_policy_from_options(carrier_policy_options_from_args(args))
 
 
 def carrier_policy_output(policy: dict[str, set[str]]) -> dict[str, list[str]]:
@@ -142,21 +205,21 @@ def apply_carrier_preferences(risk: dict[str, Any], segments: list[dict[str, Any
     return adjusted
 
 
-def rank_candidate_list(candidates: list[dict[str, Any]], args: argparse.Namespace) -> dict[str, Any]:
-    profile = normalize_profile(args.profile)
-    policy = carrier_policy_from_args(args)
-    stop_policy = stop_policy_from_args(args)
+def rank_candidate_list(candidates: list[dict[str, Any]], options: RankingOptions) -> dict[str, Any]:
+    profile = normalize_profile(options.profile)
+    policy = carrier_policy_from_options(options.carrier_policy)
+    stop_policy = stop_policy_from_options(options.stop_policy)
     evaluated: list[dict[str, Any]] = []
     filtered: list[dict[str, Any]] = []
-    include_filtered = max(0, int(getattr(args, "include_filtered", 20)))
+    include_filtered = max(0, int(options.include_filtered))
     for index, candidate in enumerate(candidates):
-        candidate_args = argparse.Namespace(
-            ticketing=str(candidate.get("ticketing") or args.ticketing),
-            min_same_airport_min=args.min_same_airport_min,
-            min_cross_airport_min=args.min_cross_airport_min,
+        validation_options = ItineraryValidationOptions(
+            ticketing=str(candidate.get("ticketing") or options.ticketing),
+            min_same_airport_min=options.min_same_airport_min,
+            min_cross_airport_min=options.min_cross_airport_min,
             profile=profile,
         )
-        validation = validate_itinerary(candidate, candidate_args)
+        validation = validate_itinerary(candidate, validation_options)
         carrier_filter = carrier_filter_result(validation["segments"], policy)
         candidate_id = candidate.get("id") or candidate.get("name") or f"candidate-{index + 1}"
         if not carrier_filter["ok"]:
@@ -238,7 +301,7 @@ def rank_candidate_list(candidates: list[dict[str, Any]], args: argparse.Namespa
                     "grade": risk["grade"],
                     "reject": risk["reject"],
                     "rank_key": risk["rank_key"],
-                    "top_reasons": risk["components"][: args.max_reasons],
+                    "top_reasons": risk["components"][: options.max_reasons],
                 },
                 "validation_summary": validation["summary"],
                 "connections": validation["connections"],

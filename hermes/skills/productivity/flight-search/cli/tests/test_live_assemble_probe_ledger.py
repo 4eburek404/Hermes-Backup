@@ -1,18 +1,20 @@
 from __future__ import annotations
 
-import argparse
 import unittest
 from unittest.mock import patch
 
 from flights_cli.orchestrators.live_route_assembly import run_live_route_assembly
 from flights_cli.store import Store
+from helpers import live_assembly_args
 
 
-def live_args(**overrides: object) -> argparse.Namespace:
-    values = {
+def live_args(**overrides: object):
+    defaults = {
+        "origin": "SVX",
+        "destination": "CDG",
+        "depart_date": "2026-08-16",
+        "return_date": None,
         "max_segment_searches": 10,
-        "only_carrier": [],
-        "prefer_carrier": [],
         "provider_policy": "kupibilet",
         "live_cache_ttl_seconds": 0,
         "no_live_cache": True,
@@ -23,8 +25,8 @@ def live_args(**overrides: object) -> argparse.Namespace:
         "agent_report": False,
         "agent_brief": False,
     }
-    values.update(overrides)
-    return argparse.Namespace(**values)
+    defaults.update(overrides)
+    return live_assembly_args(**defaults)
 
 
 class LiveAssembleProbeLedgerTests(unittest.TestCase):

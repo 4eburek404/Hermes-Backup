@@ -110,6 +110,7 @@ REMOVED_COMMAND_ARGV = {
 
 
 def live_search_args(**overrides: object) -> argparse.Namespace:
+    agent_report = bool(overrides.pop("agent_report", True))
     request = {
         "schema_version": "flight_search_request.v1",
         "origin": overrides.pop("origin", "SVX"),
@@ -140,9 +141,25 @@ def live_search_args(**overrides: object) -> argparse.Namespace:
     adapter = getattr(search_app, "live_assembly_options_from_search_request", None)
     if not callable(adapter):
         raise AssertionError("search app must expose live_assembly_options_from_search_request as the canonical search adapter")
-    from flights_cli.orchestrators.live_assembly_runner import live_assembly_args_view
-
-    args = live_assembly_args_view(adapter(request))
+    options = adapter(request)
+    args = argparse.Namespace(
+        command_name=options.command_name,
+        provider_policy=options.evidence.provider_policy,
+        aggregate_control_limit=options.evidence.aggregate_control_limit,
+        ticketing=options.ticketing,
+        profile=options.profile,
+        stop_policy=options.route.stop_policy,
+        max_connections=options.route.max_connections,
+        tier2_max_connections=options.route.tier2_max_connections,
+        limit_per_pair=options.output.limit_per_pair,
+        max_candidates=options.output.max_candidates,
+        include_candidates=options.output.include_candidates,
+        include_ranked_candidates=options.output.include_ranked_candidates,
+        include_rejected_pairs=options.output.include_rejected_pairs,
+        include_segment_results=options.output.include_segment_results,
+        agent_brief=options.output.agent_brief,
+        agent_report=agent_report,
+    )
     for key, value in overrides.items():
         setattr(args, key, value)
     return args

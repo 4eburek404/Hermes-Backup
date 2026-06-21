@@ -207,6 +207,33 @@ class ArchitectureTests(unittest.TestCase):
         self.assertEqual(forbidden_orchestrator_provider_edges, [])
         self.assertEqual(forbidden_output_edges, [])
 
+    def test_live_assembly_core_has_no_args_like_adapter(self) -> None:
+        root = PROJECT / "flights_cli"
+        runner = root / "orchestrators" / "live_assembly_runner.py"
+        probe_dispatcher = root / "execution" / "probe_dispatcher.py"
+        aggregate_runner = root / "execution" / "aggregate_control_runner.py"
+        assembly = root / "services" / "assembly.py"
+        live_route_assembly = root / "orchestrators" / "live_route_assembly.py"
+
+        runner_text = runner.read_text(encoding="utf-8")
+        self.assertNotIn("SimpleNamespace", runner_text)
+        self.assertNotIn("live_assembly_args_view", runner_text)
+
+        for path in (probe_dispatcher, aggregate_runner, assembly):
+            with self.subTest(path=path.name):
+                text = path.read_text(encoding="utf-8")
+                self.assertNotIn("import argparse", text)
+                self.assertNotIn("argparse.Namespace", text)
+
+        tree = ast.parse(live_route_assembly.read_text(encoding="utf-8"))
+        functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+        for name in ("build_live_route_segment_plan", "run_live_route_assembly"):
+            with self.subTest(function=name):
+                first_arg = functions[name].args.args[0]
+                annotation = ast.unparse(first_arg.annotation)
+                self.assertEqual(annotation, "LiveAssemblyOptions")
+        self.assertNotIn("argparse_args_to_options", live_route_assembly.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

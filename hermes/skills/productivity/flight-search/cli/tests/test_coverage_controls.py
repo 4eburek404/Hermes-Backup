@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import json
 import tempfile
 import unittest
@@ -11,10 +10,11 @@ from flights_cli.cli import build_parser
 from flights_cli.orchestrators.live_route_assembly import build_live_route_segment_plan
 from flights_cli.reporting.coverage_projector import build_coverage_diagnostics
 from flights_cli.store import Store
+from helpers import live_assembly_args
 
 
-def route_args(**overrides: object) -> argparse.Namespace:
-    values = {
+def live_args(**overrides: object):
+    defaults = {
         "origin": "SVX",
         "destination": "MUC",
         "depart_date": "2026-08-12",
@@ -24,7 +24,6 @@ def route_args(**overrides: object) -> argparse.Namespace:
         "origin_airport": None,
         "destination_airport": None,
         "currency": "RUB",
-        "direct_only": False,
         "ticketing": "separate",
         "profile": "business",
         "min_same_airport_min": 120,
@@ -33,41 +32,30 @@ def route_args(**overrides: object) -> argparse.Namespace:
         "coverage_mode": "targeted",
         "coverage_control": None,
         "coverage_control_limit": 12,
+        "outbound_second_leg_day_offset": None,
+        "return_second_leg_day_offset": None,
+        "segment_limit": 30,
+        "timeout": 60,
+        "limit_per_pair": 10,
+        "candidate_pool_limit": 5000,
+        "max_candidates": 50,
+        "max_reasons": 5,
+        "include_candidates": 5,
+        "include_ranked_candidates": 5,
+        "include_rejected_pairs": 20,
+        "include_segment_results": 0,
+        "aggregate_control_limit": 0,
+        "max_segment_searches": 300,
+        "fail_fast": False,
+        "live_cache_ttl_seconds": 0,
+        "no_live_cache": True,
+        "direct_route_index_ttl_seconds": 0,
+        "no_direct_route_intel": True,
+        "agent_report": False,
+        "agent_brief": False,
     }
-    values.update(overrides)
-    return argparse.Namespace(**values)
-
-
-def live_args(**overrides: object) -> argparse.Namespace:
-    values = vars(route_args()).copy()
-    values.update(
-        {
-            "outbound_second_leg_day_offset": None,
-            "return_second_leg_day_offset": None,
-            "segment_limit": 30,
-            "timeout": 60,
-            "limit_per_pair": 10,
-            "candidate_pool_limit": 5000,
-            "max_candidates": 50,
-            "max_reasons": 5,
-            "include_candidates": 5,
-            "include_ranked_candidates": 5,
-            "include_rejected_pairs": 20,
-            "include_segment_results": 0,
-            "aggregate_control_limit": 0,
-            "aggregate_control_carrier": None,
-            "max_segment_searches": 300,
-            "fail_fast": False,
-            "live_cache_ttl_seconds": 0,
-            "no_live_cache": True,
-            "direct_route_index_ttl_seconds": 0,
-            "no_direct_route_intel": True,
-            "agent_report": False,
-                "agent_brief": False,
-        }
-    )
-    values.update(overrides)
-    return argparse.Namespace(**values)
+    defaults.update(overrides)
+    return live_assembly_args(**defaults)
 
 
 class CoverageControlsTests(unittest.TestCase):

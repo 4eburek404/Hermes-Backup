@@ -14,6 +14,12 @@ class StopPolicy:
     allow_two_stop_tier: bool = True
     suppress_three_plus: bool = True
 
+@dataclass(frozen=True, slots=True)
+class StopPolicyOptions:
+    stop_policy: str = "business-default"
+    max_connections: int | None = None
+    tier2_max_connections: int | None = None
+
 @dataclass(frozen=True)
 class StopPolicyDecision:
     stop_tier: StopTier
@@ -64,11 +70,11 @@ STOP_POLICY_ALIASES = {
     "debug_all": DEBUG_ALL_STOP_POLICY,
 }
 
-def stop_policy_from_args(args: Any) -> StopPolicy:
-    raw_name = str(getattr(args, "stop_policy", "") or "business-default")
+def stop_policy_from_options(options: StopPolicyOptions) -> StopPolicy:
+    raw_name = str(options.stop_policy or "business-default")
     base = STOP_POLICY_ALIASES.get(raw_name, BUSINESS_DEFAULT_STOP_POLICY)
-    max_connections = getattr(args, "max_connections", None)
-    tier2_max_connections = getattr(args, "tier2_max_connections", None)
+    max_connections = options.max_connections
+    tier2_max_connections = options.tier2_max_connections
     if max_connections is None and tier2_max_connections is None:
         return base
     preferred = base.preferred_max_connections if max_connections is None else int(max_connections)
@@ -82,6 +88,16 @@ def stop_policy_from_args(args: Any) -> StopPolicy:
         allow_two_stop_tier=base.allow_two_stop_tier and tier2 > preferred,
         suppress_three_plus=base.suppress_three_plus,
     )
+
+def stop_policy_options_from_args(args: Any) -> StopPolicyOptions:
+    return StopPolicyOptions(
+        stop_policy=str(getattr(args, "stop_policy", "") or "business-default"),
+        max_connections=getattr(args, "max_connections", None),
+        tier2_max_connections=getattr(args, "tier2_max_connections", None),
+    )
+
+def stop_policy_from_args(args: Any) -> StopPolicy:
+    return stop_policy_from_options(stop_policy_options_from_args(args))
 
 def stop_policy_payload(policy: StopPolicy) -> dict[str, Any]:
     return {

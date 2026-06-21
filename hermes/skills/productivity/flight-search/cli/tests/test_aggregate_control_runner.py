@@ -1,28 +1,27 @@
 from __future__ import annotations
 
-import argparse
 import unittest
 from dataclasses import dataclass
 from typing import Any
 from unittest.mock import patch
 
-from flights_cli.execution.aggregate_control_runner import run_aggregate_controls
+from flights_cli.execution.aggregate_control_runner import AggregateControlOptions, run_aggregate_controls
 from flights_cli.execution.probe_ledger import ProbeExecutionLedger
 from flights_cli.ports.providers import ProviderProbeResult
 
 
-def args(**overrides: object) -> argparse.Namespace:
+def aggregate_options(**overrides: object) -> AggregateControlOptions:
     values = {
         "aggregate_control_limit": 3,
-        "aggregate_control_carrier": None,
-        "only_carrier": [],
+        "aggregate_control_carriers": (),
+        "only_carriers": (),
         "provider_policy": "fli",
         "live_cache_ttl_seconds": 0,
         "no_live_cache": True,
         "timeout": 10,
     }
     values.update(overrides)
-    return argparse.Namespace(**values)
+    return AggregateControlOptions(**values)
 
 
 @dataclass
@@ -54,7 +53,7 @@ class AggregateControlRunnerTests(unittest.TestCase):
         ledger = ProbeExecutionLedger()
 
         with patch("flights_cli.execution.aggregate_control_runner.provider_adapter", return_value=FakeAdapter()):
-            controls = run_aggregate_controls(args(), plan, probe_ledger=ledger)
+            controls = run_aggregate_controls(aggregate_options(), plan, probe_ledger=ledger)
 
         diagnostics = ledger.to_coverage_diagnostics({"coverage_mode": "targeted", "coverage_limits": {}})
         self.assertEqual(len(controls), 1)

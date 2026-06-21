@@ -95,12 +95,12 @@ class FliMcpTests(unittest.TestCase):
                 origin='SVX',
                 destination='LHR',
                 depart_date='2026-08-15',
-            )
+        )
 
         self.assertEqual(args.command_name, "search")
-        self.assertEqual(args.provider_policy, "auto")
-        self.assertEqual(args.fli_mcp_url, "http://127.0.0.1:8000/mcp")
-        self.assertEqual(args.segment_limit, 30)
+        self.assertEqual(args.evidence.provider_policy, "auto")
+        self.assertEqual(args.evidence.fli_mcp_url, "http://127.0.0.1:8000/mcp")
+        self.assertEqual(args.evidence.segment_limit, 30)
 
     def test_parse_fli_flight_search_normalizes_segment_result(self) -> None:
         raw = {

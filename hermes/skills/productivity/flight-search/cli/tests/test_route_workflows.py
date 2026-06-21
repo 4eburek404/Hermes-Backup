@@ -9,7 +9,7 @@ import unittest
 from flights_cli.config import DEFAULT_ROUTE_HUBS
 from flights_cli.domain.carriers import carrier_from_flight_number
 from flights_cli.orchestrators.live_route_assembly import build_live_route_segment_plan
-from flights_cli.services.validation import connection_rule, validate_itinerary
+from flights_cli.services.validation import connection_rule, validate_itinerary, validation_options_from_args
 from flights_cli.store import Store
 
 from helpers import CliSubprocessMixin, PROJECT, TEST_ENV, live_assembly_args
@@ -41,7 +41,7 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
             ],
         }
         args = argparse.Namespace(ticketing="separate", min_same_airport_min=180, min_cross_airport_min=300, profile="safe")
-        result = validate_itinerary(data, args)
+        result = validate_itinerary(data, validation_options_from_args(args))
         self.assertTrue(result["ok"])
         self.assertEqual(result["summary"]["violation_count"], 0)
         self.assertEqual(result["risk"]["grade"], "excellent")
@@ -858,7 +858,7 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
         self.assertTrue(offer["segments"][0]["transfer_after"]["night_transfer"])
 
         args = argparse.Namespace(ticketing="separate", min_same_airport_min=180, min_cross_airport_min=300, profile="safe")
-        validation = validate_itinerary({"price": offer["price"], "segments": offer["segments"]}, args)
+        validation = validate_itinerary({"price": offer["price"], "segments": offer["segments"]}, validation_options_from_args(args))
         codes = {component["code"] for component in validation["risk"]["components"]}
         self.assertIn("api_night_transfer", codes)
         self.assertIn("long_internal_transfer", codes)

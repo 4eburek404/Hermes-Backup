@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 from dataclasses import dataclass
 from typing import Any
 
@@ -22,6 +21,14 @@ class SegmentProbeOutcome:
     provider_result: ProviderProbeResult | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class SegmentProbeOptions:
+    segment_limit: int
+    timeout: int
+    fli_mcp_url: str
+    fail_fast: bool
+
+
 def search_key(spec: dict[str, Any]) -> tuple[str, str, str, str]:
     return (
         str(spec.get("direction") or ""),
@@ -40,7 +47,7 @@ def segment_query(
     *,
     spec: dict[str, Any],
     plan: dict[str, Any],
-    args: argparse.Namespace,
+    options: SegmentProbeOptions,
     only_carriers: list[str],
     cache_ttl_seconds: int,
     use_live_cache: bool,
@@ -58,12 +65,12 @@ def segment_query(
         "currency": str(plan["currency"]).upper(),
         "only_carriers": only_carriers,
         "direct_only": True,
-        "limit": int(getattr(args, "segment_limit", 30)),
-        "timeout": int(getattr(args, "timeout", 60)),
+        "limit": int(options.segment_limit),
+        "timeout": int(options.timeout),
         "cache_ttl_seconds": cache_ttl_seconds,
         "use_cache": use_live_cache,
         "provider_policy": provider_policy,
-        "mcp_url": getattr(args, "fli_mcp_url", None),
+        "mcp_url": options.fli_mcp_url,
     }
 
 
@@ -87,7 +94,7 @@ def dispatch_segment_probe(
     *,
     spec: dict[str, Any],
     plan: dict[str, Any],
-    args: argparse.Namespace,
+    options: SegmentProbeOptions,
     store: Store,
     only_carriers: list[str],
     cache_ttl_seconds: int,
@@ -114,9 +121,9 @@ def dispatch_segment_probe(
             provider=provider,
             plan=plan,
             only_carriers=spec_only_carriers,
-            limit=getattr(args, "segment_limit", 30),
+            limit=options.segment_limit,
             provider_policy=provider_policy,
-            mcp_url=getattr(args, "fli_mcp_url", None),
+            mcp_url=options.fli_mcp_url,
         ) if request_deduper is not None else DeduperClaim(key=(), probe_id="")
         if claim.is_duplicate:
             original = claim.original
@@ -144,7 +151,7 @@ def dispatch_segment_probe(
                 segment_query(
                     spec=spec,
                     plan=plan,
-                    args=args,
+                    options=options,
                     only_carriers=spec_only_carriers,
                     cache_ttl_seconds=cache_ttl_seconds,
                     use_live_cache=use_live_cache,
@@ -167,7 +174,7 @@ def dispatch_segment_probe(
                 "cache_status": "unknown",
                 "error": error_payload_from_cli_error(exc),
             }
-            if args.fail_fast:
+            if options.fail_fast:
                 raise
             outcome = SegmentProbeOutcome(summary=failure, failure=failure)
             if request_deduper is not None:

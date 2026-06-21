@@ -6,7 +6,7 @@ from typing import Any
 
 from flights_cli.reporting.agent_report_builder import build_agent_report
 from flights_cli.services.agent_report_contract import validate_agent_report
-from flights_cli.services.assembly import assemble_segment_results, empty_assembled_result
+from flights_cli.services.assembly import assemble_segment_results, assembly_options_from_args, empty_assembled_result
 
 
 LON_AIRPORTS = ["LHR", "LGW", "STN", "LTN"]
@@ -97,8 +97,8 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         destination_airports: list[str] | None = None,
         routing_strategy: str = "ru-priority",
     ) -> dict[str, Any]:
-        args = self._args()
-        data = assemble_segment_results(segment_results, args) if segment_results else empty_assembled_result(args)
+        options = assembly_options_from_args(self._args())
+        data = assemble_segment_results(segment_results, options) if segment_results else empty_assembled_result(options)
         data["live_search"] = {
             "source": "fixture",
             "provider_policy": "kupibilet",

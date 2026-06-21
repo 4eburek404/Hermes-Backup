@@ -1,19 +1,19 @@
 from __future__ import annotations
 
-import argparse
 import unittest
 from datetime import date
 from unittest.mock import patch
 
 from flights_cli.adapters.providers.registry import providers_for_segment
 from flights_cli.domain.airports import explicit_or_resolved_airports, segment_code_metadata
-from flights_cli.execution.probe_dispatcher import dispatch_segment_probe
+from flights_cli.execution.probe_dispatcher import SegmentProbeOptions, dispatch_segment_probe
 from flights_cli.orchestrators.live_route_assembly import build_live_route_segment_plan, run_live_route_assembly
 from flights_cli.store import Store
+from helpers import live_assembly_args
 
 
-def live_args(**overrides: object) -> argparse.Namespace:
-    values = {
+def live_args(**overrides: object):
+    defaults = {
         "origin": "IST",
         "destination": "LON",
         "depart_date": "2026-08-12",
@@ -23,7 +23,6 @@ def live_args(**overrides: object) -> argparse.Namespace:
         "origin_airport": None,
         "destination_airport": None,
         "currency": "RUB",
-        "direct_only": False,
         "only_carrier": [],
         "exclude_carrier": [],
         "prefer_carrier": [],
@@ -59,13 +58,12 @@ def live_args(**overrides: object) -> argparse.Namespace:
         "agent_report": False,
         "agent_brief": False,
         "provider_policy": "auto",
-        "fli_mcp_url": None,
     }
-    values.update(overrides)
-    return argparse.Namespace(**values)
+    defaults.update(overrides)
+    return live_assembly_args(**defaults)
 
 
-def dispatcher_args(**overrides: object) -> argparse.Namespace:
+def dispatcher_options(**overrides: object) -> SegmentProbeOptions:
     values = {
         "segment_limit": 10,
         "timeout": 10,
@@ -73,7 +71,7 @@ def dispatcher_args(**overrides: object) -> argparse.Namespace:
         "fail_fast": False,
     }
     values.update(overrides)
-    return argparse.Namespace(**values)
+    return SegmentProbeOptions(**values)
 
 
 def direct_segments(plan: dict[str, object], *, direction: str = "outbound") -> list[dict[str, object]]:
@@ -297,7 +295,7 @@ class AirportPriorityPolicyTests(unittest.TestCase):
             outcomes = dispatch_segment_probe(
                 spec=spec,
                 plan={"currency": "RUB"},
-                args=dispatcher_args(),
+                options=dispatcher_options(),
                 store=Store(),
                 only_carriers=[],
                 cache_ttl_seconds=0,
@@ -318,7 +316,7 @@ class AirportPriorityPolicyTests(unittest.TestCase):
             outcomes = dispatch_segment_probe(
                 spec=spec,
                 plan={"currency": "RUB"},
-                args=dispatcher_args(),
+                options=dispatcher_options(),
                 store=Store(),
                 only_carriers=[],
                 cache_ttl_seconds=0,
@@ -342,7 +340,7 @@ class AirportPriorityPolicyTests(unittest.TestCase):
             outcomes = dispatch_segment_probe(
                 spec=spec,
                 plan={"currency": "RUB"},
-                args=dispatcher_args(),
+                options=dispatcher_options(),
                 store=Store(),
                 only_carriers=[],
                 cache_ttl_seconds=0,

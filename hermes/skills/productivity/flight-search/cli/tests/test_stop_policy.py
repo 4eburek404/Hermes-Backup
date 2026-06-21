@@ -4,7 +4,7 @@ import argparse
 import unittest
 
 from flights_cli.domain.stop_metrics import candidate_stop_metrics, stop_tier
-from flights_cli.services.ranking import rank_candidate_list
+from flights_cli.services.ranking import rank_candidate_list, ranking_options_from_args
 
 
 def segment(origin: str, destination: str, dep: str, arr: str, flight: str) -> dict:
@@ -71,7 +71,7 @@ class StopPolicyTests(unittest.TestCase):
                 candidate("one-stop", ["SVX", "IST", "AMS"], 25000),
                 candidate("two-stop", ["SVX", "IST", "BEG", "AMS"], 10000),
             ],
-            rank_args(),
+            ranking_options_from_args(rank_args()),
         )
 
         self.assertEqual({item["id"] for item in result["ranked"]}, {"one-stop", "direct"})
@@ -79,14 +79,14 @@ class StopPolicyTests(unittest.TestCase):
         self.assertFalse(result["stop_policy_diagnostics"]["used_two_stop_tier"])
 
     def test_no_preferred_allows_two_stop_fallback(self) -> None:
-        result = rank_candidate_list([candidate("two-stop", ["SVX", "IST", "BEG", "AMS"], 10000)], rank_args())
+        result = rank_candidate_list([candidate("two-stop", ["SVX", "IST", "BEG", "AMS"], 10000)], ranking_options_from_args(rank_args()))
 
         self.assertEqual([item["id"] for item in result["ranked"]], ["two-stop"])
         self.assertTrue(result["stop_policy_diagnostics"]["used_two_stop_tier"])
         self.assertEqual(result["ranked"][0]["validation_summary"]["stop_tier"], "T2_TWO_STOP")
 
     def test_three_plus_always_rejected_in_normal_policy(self) -> None:
-        result = rank_candidate_list([candidate("garbage", ["SVX", "EVN", "MXP", "LIN", "AMS"], 1000)], rank_args())
+        result = rank_candidate_list([candidate("garbage", ["SVX", "EVN", "MXP", "LIN", "AMS"], 1000)], ranking_options_from_args(rank_args()))
 
         self.assertEqual(result["ranked"], [])
         self.assertEqual(result["stop_policy_diagnostics"]["three_plus_suppressed_count"], 1)

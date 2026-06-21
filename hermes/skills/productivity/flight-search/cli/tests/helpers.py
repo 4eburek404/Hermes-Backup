@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -12,10 +13,9 @@ TEST_ENV = {"PYTHONPATH": str(PROJECT), "FLIGHTS_CATALOG_REFRESH": "never", "PYT
 
 
 def live_assembly_args(**overrides: Any) -> Any:
-    """Build internal live-assembly args through the canonical search request adapter."""
+    """Build typed live-assembly options through the canonical search request adapter."""
 
     from flights_cli.apps.search import live_assembly_options_from_search_request
-    from flights_cli.orchestrators.live_assembly_runner import live_assembly_args_view
 
     def as_list(value: Any) -> list[Any]:
         if value is None:
@@ -86,6 +86,7 @@ def live_assembly_args(**overrides: Any) -> Any:
     }
 
     values = dict(overrides)
+    agent_report_override = values.pop("agent_report", None)
     request: dict[str, Any] = {
         "schema_version": "flight_search_request.v1",
         "origin": values.pop("origin", "SVX"),
@@ -131,10 +132,13 @@ def live_assembly_args(**overrides: Any) -> Any:
     if filters:
         request["filters"] = filters
 
-    args = live_assembly_args_view(live_assembly_options_from_search_request(request))
-    for key, value in values.items():
-        setattr(args, key, value)
-    return args
+    if values:
+        unknown = ", ".join(sorted(values))
+        raise AssertionError(f"unsupported live_assembly_args overrides: {unknown}")
+    options = live_assembly_options_from_search_request(request)
+    if agent_report_override is not None:
+        options = replace(options, output=replace(options.output, agent_report=bool(agent_report_override)))
+    return options
 
 
 class CliSubprocessMixin:

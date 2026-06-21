@@ -8,7 +8,7 @@ from unittest.mock import patch
 import flights_cli.execution.aggregate_control_runner as aggregate_control_runner
 import flights_cli.execution.probe_dispatcher as probe_dispatcher
 from flights_cli.cli import build_parser
-from flights_cli.execution.aggregate_control_runner import run_aggregate_controls
+from flights_cli.execution.aggregate_control_runner import AggregateControlOptions, run_aggregate_controls
 from flights_cli.orchestrators.live_route_assembly import run_live_route_assembly
 from flights_cli.ports.providers import ProviderCapabilities, ProviderProbeResult
 from flights_cli.store import Store
@@ -117,10 +117,10 @@ class ProviderPortDispatchTests(unittest.TestCase):
         self.assertEqual(result["live_search"]["segment_searches"][0]["provider"], "kupibilet")
 
     def test_aggregate_controls_execute_through_provider_port(self) -> None:
-        args = argparse.Namespace(
+        options = AggregateControlOptions(
             aggregate_control_limit=3,
-            only_carrier=["SU"],
-            aggregate_control_carrier=None,
+            only_carriers=("SU",),
+            aggregate_control_carriers=(),
             live_cache_ttl_seconds=0,
             no_live_cache=True,
             timeout=10,
@@ -135,7 +135,7 @@ class ProviderPortDispatchTests(unittest.TestCase):
         adapter = FakeAggregateAdapter()
 
         with patch("flights_cli.execution.aggregate_control_runner.provider_adapter", return_value=adapter, create=True):
-            controls = run_aggregate_controls(args, plan)
+            controls = run_aggregate_controls(options, plan)
 
         self.assertEqual(len(controls), 1)
         self.assertEqual(controls[0]["provider"], "kupibilet")

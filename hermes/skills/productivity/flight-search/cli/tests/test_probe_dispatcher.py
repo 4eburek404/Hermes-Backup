@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-import argparse
 import unittest
 from datetime import date
 from unittest.mock import patch
 
 from flights_cli.errors import CliError
-from flights_cli.execution.probe_dispatcher import dispatch_segment_probe, search_key
+from flights_cli.execution.probe_dispatcher import SegmentProbeOptions, dispatch_segment_probe, search_key
 from flights_cli.execution.request_deduper import RequestDeduper
 from flights_cli.ports.providers import ProviderCapabilities, ProviderProbeResult
 from flights_cli.store import Store
 
 
-def dispatcher_args(**overrides: object) -> argparse.Namespace:
+def dispatcher_options(**overrides: object) -> SegmentProbeOptions:
     values = {
         "segment_limit": 3,
         "timeout": 10,
@@ -20,7 +19,7 @@ def dispatcher_args(**overrides: object) -> argparse.Namespace:
         "fail_fast": False,
     }
     values.update(overrides)
-    return argparse.Namespace(**values)
+    return SegmentProbeOptions(**values)
 
 
 class FakeProviderAdapter:
@@ -83,7 +82,7 @@ class ProbeDispatcherTests(unittest.TestCase):
             outcomes = dispatch_segment_probe(
                 spec=spec,
                 plan=plan,
-                args=dispatcher_args(),
+                options=dispatcher_options(),
                 store=Store(),
                 only_carriers=["SU"],
                 cache_ttl_seconds=30,
@@ -112,7 +111,7 @@ class ProbeDispatcherTests(unittest.TestCase):
             outcomes = dispatch_segment_probe(
                 spec=spec,
                 plan={"currency": "RUB"},
-                args=dispatcher_args(),
+                options=dispatcher_options(),
                 store=Store(),
                 only_carriers=["SU"],
                 cache_ttl_seconds=0,
@@ -137,7 +136,7 @@ class ProbeDispatcherTests(unittest.TestCase):
             outcomes = dispatch_segment_probe(
                 spec=spec,
                 plan=plan,
-                args=dispatcher_args(),
+                options=dispatcher_options(),
                 store=Store(),
                 only_carriers=[],
                 cache_ttl_seconds=0,
@@ -162,7 +161,7 @@ class ProbeDispatcherTests(unittest.TestCase):
                 dispatch_segment_probe(
                     spec=spec,
                     plan=plan,
-                    args=dispatcher_args(fail_fast=True),
+                    options=dispatcher_options(fail_fast=True),
                     store=Store(),
                     only_carriers=[],
                     cache_ttl_seconds=0,
@@ -183,7 +182,7 @@ class ProbeDispatcherTests(unittest.TestCase):
             first = dispatch_segment_probe(
                 spec=spec,
                 plan=plan,
-                args=dispatcher_args(),
+                options=dispatcher_options(),
                 store=Store(),
                 only_carriers=["SU"],
                 cache_ttl_seconds=30,
@@ -194,7 +193,7 @@ class ProbeDispatcherTests(unittest.TestCase):
             second = dispatch_segment_probe(
                 spec=spec,
                 plan=plan,
-                args=dispatcher_args(),
+                options=dispatcher_options(),
                 store=Store(),
                 only_carriers=["SU"],
                 cache_ttl_seconds=30,

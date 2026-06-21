@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import argparse
+from dataclasses import dataclass
 from typing import Any
 
 from ..config import RISK_PROFILES
@@ -8,16 +8,104 @@ from ..domain.airports import airport_group
 from ..domain.carriers import segment_carriers
 from ..domain.normalize import currency_value, is_reject_score, price_value
 from ..domain.stop_metrics import journey_connection_count
-from ..domain.stop_policy import decide_stop_policy, stop_policy_from_args, stop_policy_payload
+from ..domain.stop_policy import (
+    StopPolicyOptions,
+    decide_stop_policy,
+    stop_policy_from_options,
+    stop_policy_options_from_args,
+    stop_policy_payload,
+)
 from ..domain.time import elapsed_minutes, minutes_between
-from ..domain.vocabulary import Direction, Leg, StopBucket
+from ..domain.vocabulary import Direction, Leg, RoutingStrategy, StopBucket
 from ..errors import CliError
-from ..services.ranking import carrier_policy_from_args, carrier_policy_output, rank_candidate_list
+from ..pipeline.options import LiveAssemblyOptions
+from ..services.ranking import (
+    CarrierPolicyOptions,
+    RankingOptions,
+    carrier_policy_from_options,
+    carrier_policy_options_from_args,
+    carrier_policy_output,
+    rank_candidate_list,
+)
 from ..services.validation import connection_risk_points, connection_rule
 
 ALL_DIRECT_CATALOG_CAP = 20
 """Maximum number of options to surface when all are direct flights.
 Prevents unbounded output while ensuring every direct flight is shown."""
+
+@dataclass(frozen=True, slots=True)
+class AssemblyOptions:
+    ticketing: str
+    profile: str
+    min_same_airport_min: int
+    min_cross_airport_min: int
+    limit_per_pair: int
+    candidate_pool_limit: int
+    max_candidates: int
+    max_reasons: int
+    include_candidates: int
+    include_ranked_candidates: int
+    include_rejected_pairs: int
+    include_filtered: int
+    stop_policy: StopPolicyOptions
+    return_date: str | None
+    agent_brief: bool
+    is_domestic: bool
+    carrier_policy: CarrierPolicyOptions
+
+
+def assembly_options_from_live_options(options: LiveAssemblyOptions, *, routing_strategy: str | None = None) -> AssemblyOptions:
+    return AssemblyOptions(
+        ticketing=options.ticketing,
+        profile=options.profile,
+        min_same_airport_min=options.route.min_same_airport_min,
+        min_cross_airport_min=options.route.min_cross_airport_min,
+        limit_per_pair=options.output.limit_per_pair,
+        candidate_pool_limit=options.output.candidate_pool_limit,
+        max_candidates=options.output.max_candidates,
+        max_reasons=options.output.max_reasons,
+        include_candidates=options.output.include_candidates,
+        include_ranked_candidates=options.output.include_ranked_candidates,
+        include_rejected_pairs=options.output.include_rejected_pairs,
+        include_filtered=options.output.include_filtered,
+        stop_policy=StopPolicyOptions(
+            stop_policy=options.route.stop_policy,
+            max_connections=options.route.max_connections,
+            tier2_max_connections=options.route.tier2_max_connections,
+        ),
+        return_date=options.route.return_date,
+        agent_brief=options.output.agent_brief,
+        is_domestic=str(routing_strategy or options.route.routing_strategy or "").lower() == RoutingStrategy.DOMESTIC_RU,
+        carrier_policy=CarrierPolicyOptions(
+            only_carriers=options.filters.only_carriers,
+            exclude_carriers=options.filters.exclude_carriers,
+            prefer_carriers=options.effective_prefer_carriers(routing_strategy),
+            avoid_carriers=options.filters.avoid_carriers,
+        ),
+    )
+
+
+def assembly_options_from_args(args: Any) -> AssemblyOptions:
+    return AssemblyOptions(
+        ticketing=str(getattr(args, "ticketing", "separate") or "separate"),
+        profile=str(getattr(args, "profile", "balanced") or "balanced"),
+        min_same_airport_min=int(getattr(args, "min_same_airport_min", 120)),
+        min_cross_airport_min=int(getattr(args, "min_cross_airport_min", 300)),
+        limit_per_pair=int(getattr(args, "limit_per_pair", 20)),
+        candidate_pool_limit=int(getattr(args, "candidate_pool_limit", 5000)),
+        max_candidates=int(getattr(args, "max_candidates", 50)),
+        max_reasons=int(getattr(args, "max_reasons", 5)),
+        include_candidates=int(getattr(args, "include_candidates", 5)),
+        include_ranked_candidates=int(getattr(args, "include_ranked_candidates", 5)),
+        include_rejected_pairs=int(getattr(args, "include_rejected_pairs", 20)),
+        include_filtered=int(getattr(args, "include_filtered", 20)),
+        stop_policy=stop_policy_options_from_args(args),
+        return_date=getattr(args, "return_date", None),
+        agent_brief=bool(getattr(args, "agent_brief", False)),
+        is_domestic=bool(getattr(args, "is_domestic", False)),
+        carrier_policy=carrier_policy_options_from_args(args),
+    )
+
 
 def collect_segment_results(payload: Any) -> list[dict[str, Any]]:
     if isinstance(payload, list):
@@ -611,13 +699,13 @@ def recommendation_detail_items(recommendations: dict[str, Any], ranked_items: l
     return details
 
 
-def empty_assembled_result(args: argparse.Namespace) -> dict[str, Any]:
-    policy = carrier_policy_from_args(args)
-    stop_policy = stop_policy_from_args(args)
+def empty_assembled_result(options: AssemblyOptions) -> dict[str, Any]:
+    policy = carrier_policy_from_options(options.carrier_policy)
+    stop_policy = stop_policy_from_options(options.stop_policy)
     return {
-        "profile": args.profile,
-        "profile_description": RISK_PROFILES[args.profile]["description"],
-        "rank_order": RISK_PROFILES[args.profile]["rank_order"],
+        "profile": options.profile,
+        "profile_description": RISK_PROFILES[options.profile]["description"],
+        "rank_order": RISK_PROFILES[options.profile]["rank_order"],
         "count": 0,
         "carrier_policy": {**carrier_policy_output(policy), "filtered_count": 0, "filtered": []},
         "stop_policy": stop_policy_payload(stop_policy),
@@ -653,10 +741,10 @@ def empty_assembled_result(args: argparse.Namespace) -> dict[str, Any]:
             "candidate_count": 0,
             "ranked_total_count": 0,
             "ranked_output_count": 0,
-            "candidate_pool_limit": args.candidate_pool_limit,
+            "candidate_pool_limit": options.candidate_pool_limit,
             "candidate_pool_truncated": False,
-            "limit_per_pair": args.limit_per_pair,
-            "max_candidates": args.max_candidates,
+            "limit_per_pair": options.limit_per_pair,
+            "max_candidates": options.max_candidates,
         },
         "candidates": [],
         "ranked_candidates": [],
@@ -666,7 +754,7 @@ def empty_assembled_result(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def assemble_segment_results(segment_results: list[dict[str, Any]], args: argparse.Namespace) -> dict[str, Any]:
+def assemble_segment_results(segment_results: list[dict[str, Any]], options: AssemblyOptions) -> dict[str, Any]:
     if not segment_results:
         raise CliError("no normalized segment results found; provide live-search or assembly segment results", error_type="validation_error")
 
@@ -675,25 +763,25 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
         Leg.ORIGIN_TO_HUB,
         Leg.HUB_TO_DESTINATION,
         Direction.OUTBOUND,
-        args.limit_per_pair,
-        ticketing=args.ticketing,
-        min_same_airport=args.min_same_airport_min,
-        min_cross_airport=args.min_cross_airport_min,
-        profile=args.profile,
+        options.limit_per_pair,
+        ticketing=options.ticketing,
+        min_same_airport=options.min_same_airport_min,
+        min_cross_airport=options.min_cross_airport_min,
+        profile=options.profile,
     )
     return_pairs, return_rejected = assemble_direction(
         segment_results,
         Leg.DESTINATION_TO_HUB,
         Leg.HUB_TO_ORIGIN,
         Direction.RETURN,
-        args.limit_per_pair,
-        ticketing=args.ticketing,
-        min_same_airport=args.min_same_airport_min,
-        min_cross_airport=args.min_cross_airport_min,
-        profile=args.profile,
+        options.limit_per_pair,
+        ticketing=options.ticketing,
+        min_same_airport=options.min_same_airport_min,
+        min_cross_airport=options.min_cross_airport_min,
+        profile=options.profile,
     )
-    outbound_direct = direct_journeys(segment_results, Leg.DIRECT_OUTBOUND, Direction.OUTBOUND, args.limit_per_pair)
-    return_direct = direct_journeys(segment_results, Leg.DIRECT_RETURN, Direction.RETURN, args.limit_per_pair)
+    outbound_direct = direct_journeys(segment_results, Leg.DIRECT_OUTBOUND, Direction.OUTBOUND, options.limit_per_pair)
+    return_direct = direct_journeys(segment_results, Leg.DIRECT_RETURN, Direction.RETURN, options.limit_per_pair)
     # Direct-priority filter: when direct journeys exist for a direction, suppress one-stop
     # pairs for that direction. Each direction is filtered independently so that a
     # round-trip with direct outbound but no direct return still uses one-stop return.
@@ -713,11 +801,11 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
     )
     rejected_pairs = outbound_rejected + return_rejected
 
-    candidate_pool_limit = max(max(1, int(args.max_candidates)), int(getattr(args, "candidate_pool_limit", 5000)))
-    stop_policy = stop_policy_from_args(args)
+    candidate_pool_limit = max(max(1, int(options.max_candidates)), int(options.candidate_pool_limit))
+    stop_policy = stop_policy_from_options(options.stop_policy)
     outbound_buckets = split_journeys_by_stop_policy(outbound_journeys, stop_policy)
     return_buckets = split_journeys_by_stop_policy(return_journeys, stop_policy)
-    round_trip_requested = bool(getattr(args, "return_date", None)) or (bool(outbound_journeys) and bool(return_journeys))
+    round_trip_requested = bool(options.return_date) or (bool(outbound_journeys) and bool(return_journeys))
     candidates, candidate_pool_truncated = generate_candidates_from_journeys(
         outbound_buckets[StopBucket.PREFERRED],
         return_buckets[StopBucket.PREFERRED],
@@ -747,28 +835,21 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
     raw_candidate_count = len(candidates)
     candidates, duplicate_count = dedupe_candidates(candidates)
 
-    rank_args = argparse.Namespace(
-        profile=args.profile,
-        ticketing=args.ticketing,
-        min_same_airport_min=args.min_same_airport_min,
-        min_cross_airport_min=args.min_cross_airport_min,
-        max_reasons=args.max_reasons,
-        only_carrier=getattr(args, "only_carrier", None),
-        exclude_carrier=getattr(args, "exclude_carrier", None),
-        prefer_carrier=getattr(args, "prefer_carrier", None),
-        avoid_carrier=getattr(args, "avoid_carrier", None),
-        include_filtered=getattr(args, "include_filtered", 20),
-        stop_policy=getattr(args, "stop_policy", "business-default"),
-        max_connections=getattr(args, "max_connections", None),
-        tier2_max_connections=getattr(args, "tier2_max_connections", None),
-        agent_brief=getattr(args, "agent_brief", False),
-        is_domestic=getattr(args, "is_domestic", False),
+    ranking_options = RankingOptions(
+        profile=options.profile,
+        ticketing=options.ticketing,
+        min_same_airport_min=options.min_same_airport_min,
+        min_cross_airport_min=options.min_cross_airport_min,
+        max_reasons=options.max_reasons,
+        include_filtered=options.include_filtered,
+        carrier_policy=options.carrier_policy,
+        stop_policy=options.stop_policy,
     )
-    policy = carrier_policy_from_args(rank_args)
-    ranked = rank_candidate_list(candidates, rank_args) if candidates else {
-        "profile": args.profile,
-        "profile_description": RISK_PROFILES[args.profile]["description"],
-        "rank_order": RISK_PROFILES[args.profile]["rank_order"],
+    policy = carrier_policy_from_options(options.carrier_policy)
+    ranked = rank_candidate_list(candidates, ranking_options) if candidates else {
+        "profile": options.profile,
+        "profile_description": RISK_PROFILES[options.profile]["description"],
+        "rank_order": RISK_PROFILES[options.profile]["rank_order"],
         "count": 0,
         "carrier_policy": {**carrier_policy_output(policy), "filtered_count": 0, "filtered": []},
         "stop_policy": stop_policy_payload(stop_policy),
@@ -791,7 +872,7 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
     full_ranked_items = list(ranked["ranked"])
     ranked["recommendations"] = recommendation_summary(full_ranked_items)
     ranked["frontier_candidates"] = frontier_representative_details(full_ranked_items, candidates)
-    max_ranked = max(0, int(args.max_candidates))
+    max_ranked = max(0, int(options.max_candidates))
     ranked["ranked"] = ranked["ranked"][:max_ranked]
     ranked["count"] = len(ranked["ranked"])
     direct_flight_summaries: list[dict[str, Any]] = []
@@ -825,7 +906,7 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
         "return_pair_count": len(return_pairs),
         "direct_flights": direct_flight_summaries,
         "rejected_pair_count": len(rejected_pairs),
-        "rejected_pair_sample_count": min(len(rejected_pairs), args.include_rejected_pairs),
+        "rejected_pair_sample_count": min(len(rejected_pairs), options.include_rejected_pairs),
         "raw_candidate_count": raw_candidate_count,
         "candidate_duplicate_count": duplicate_count,
         "candidate_count": len(candidates),
@@ -833,18 +914,18 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
         "ranked_output_count": len(ranked["ranked"]),
         "candidate_pool_limit": candidate_pool_limit,
         "candidate_pool_truncated": candidate_pool_truncated,
-        "limit_per_pair": args.limit_per_pair,
-        "max_candidates": args.max_candidates,
+        "limit_per_pair": options.limit_per_pair,
+        "max_candidates": options.max_candidates,
         "stop_policy_diagnostics": ranked.get("stop_policy_diagnostics") or {},
         "direct_priority_applied": direct_priority_applied,
         "all_direct_inventory": all_direct_inventory,
         "suppressed_one_stop_outbound_count": suppressed_one_stop_outbound_count,
         "suppressed_one_stop_return_count": suppressed_one_stop_return_count,
     }
-    ranked["candidates"] = candidates[: args.include_candidates]
+    ranked["candidates"] = candidates[: options.include_candidates]
     # When the entire displayed set is direct flights, expand the catalog limit
     # so every direct option reaches the report layer (capped at ALL_DIRECT_CATALOG_CAP).
-    default_ranked_limit = int(getattr(args, "include_ranked_candidates", 5))
+    default_ranked_limit = int(options.include_ranked_candidates)
     ranked_limit = min(len(full_ranked_items), ALL_DIRECT_CATALOG_CAP) if all_direct_inventory else default_ranked_limit
     ranked["ranked_candidates"] = ranked_candidate_details(
         full_ranked_items,
@@ -852,5 +933,5 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
         ranked_limit,
         required_items=recommendation_detail_items(ranked["recommendations"], full_ranked_items),
     )
-    ranked["rejected_pairs"] = rejected_pairs[: args.include_rejected_pairs]
+    ranked["rejected_pairs"] = rejected_pairs[: options.include_rejected_pairs]
     return ranked

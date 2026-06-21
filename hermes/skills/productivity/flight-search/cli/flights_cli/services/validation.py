@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import argparse
+from dataclasses import dataclass
 from typing import Any
 
 from ..config import LEISURE_HUBS, LOW_COST_CARRIERS, RISK_PROFILES
@@ -10,6 +10,23 @@ from ..domain.normalize import clamp_score, is_reject_score, normalize_iata, nor
 from ..domain.stop_metrics import stop_metrics_from_normalized
 from ..domain.time import is_night_time, minutes_between, parse_iso_datetime, validation_elapsed_minutes
 from ..errors import CliError
+
+@dataclass(frozen=True, slots=True)
+class ItineraryValidationOptions:
+    ticketing: str = "separate"
+    min_same_airport_min: int = 120
+    min_cross_airport_min: int = 300
+    profile: str = "balanced"
+
+
+def validation_options_from_args(args: Any) -> ItineraryValidationOptions:
+    return ItineraryValidationOptions(
+        ticketing=str(getattr(args, "ticketing", "separate") or "separate"),
+        min_same_airport_min=int(getattr(args, "min_same_airport_min", 120)),
+        min_cross_airport_min=int(getattr(args, "min_cross_airport_min", 300)),
+        profile=str(getattr(args, "profile", "balanced") or "balanced"),
+    )
+
 
 def connection_rule(
     arrival_airport: str,
@@ -329,9 +346,9 @@ def rank_key(profile: str, score: int, price: int | None, elapsed: int | None) -
     return [values[name] for name in RISK_PROFILES[profile]["rank_order"]]
 
 
-def validate_itinerary(data: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
-    ticketing = str(data.get("ticketing") or args.ticketing or "separate")
-    profile = normalize_profile(str(data.get("profile") or getattr(args, "profile", "balanced")))
+def validate_itinerary(data: dict[str, Any], options: ItineraryValidationOptions) -> dict[str, Any]:
+    ticketing = str(data.get("ticketing") or options.ticketing or "separate")
+    profile = normalize_profile(str(data.get("profile") or options.profile or "balanced"))
     normalized_segments, journeys = normalize_input_segments(data)
 
     connections: list[dict[str, Any]] = []
@@ -345,8 +362,8 @@ def validate_itinerary(data: dict[str, Any], args: argparse.Namespace) -> dict[s
                 prev["destination"],
                 nxt["origin"],
                 ticketing,
-                args.min_same_airport_min,
-                args.min_cross_airport_min,
+                options.min_same_airport_min,
+                options.min_cross_airport_min,
                 actual,
             )
             rule["journey_index"] = journey["index"]

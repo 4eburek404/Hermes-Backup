@@ -4,7 +4,6 @@ import argparse
 import unittest
 
 from flights_cli.apps.search import live_assembly_options_from_search_request
-from flights_cli.orchestrators.live_assembly_runner import live_assembly_args_view
 from flights_cli.pipeline.options import argparse_args_to_options, search_request_to_options
 
 
@@ -72,32 +71,36 @@ REQUEST = {
 
 
 class LiveAssemblyOptionsTests(unittest.TestCase):
-    def test_search_request_to_options_matches_boundary_args_view(self) -> None:
+    def test_search_request_to_options_maps_request_fields(self) -> None:
         options = search_request_to_options(REQUEST)
-        view = live_assembly_args_view(options)
 
         expected = {
             "origin": "SVX",
             "destination": "LON",
             "depart_date": "2026-07-20",
             "return_date": "2026-07-27",
-            "hub": ["IST", "DXB"],
+            "hubs": ("IST", "DXB"),
             "ticketing": "single",
             "profile": "safe",
-            "only_carrier": ["SU"],
-            "prefer_carrier": ["TK"],
-            "aggregate_control_carrier": ["SU", "TK"],
+            "only_carriers": ("SU",),
+            "prefer_carriers": ("TK",),
+            "aggregate_control_carriers": ("SU", "TK"),
             "agent_report": True,
         }
-        for field, value in expected.items():
-            with self.subTest(field=field):
-                self.assertEqual(getattr(view, field), value)
+        self.assertEqual(options.route.origin, expected["origin"])
+        self.assertEqual(options.route.destination, expected["destination"])
+        self.assertEqual(options.route.depart_date, expected["depart_date"])
+        self.assertEqual(options.route.return_date, expected["return_date"])
+        self.assertEqual(options.route.hubs, expected["hubs"])
+        self.assertEqual(options.ticketing, expected["ticketing"])
+        self.assertEqual(options.profile, expected["profile"])
+        self.assertEqual(options.filters.only_carriers, expected["only_carriers"])
+        self.assertEqual(options.filters.prefer_carriers, expected["prefer_carriers"])
+        self.assertEqual(options.evidence.aggregate_control_carriers, expected["aggregate_control_carriers"])
+        self.assertEqual(options.output.agent_report, expected["agent_report"])
 
-    def test_argparse_args_to_options_round_trips_boundary_args_view(self) -> None:
-        options = live_assembly_options_from_search_request(REQUEST)
-        args_view = live_assembly_args_view(options)
-
-        self.assertEqual(argparse_args_to_options(args_view), search_request_to_options(REQUEST))
+    def test_search_app_adapter_matches_typed_request_adapter(self) -> None:
+        self.assertEqual(live_assembly_options_from_search_request(REQUEST), search_request_to_options(REQUEST))
 
     def test_search_request_defaults_are_explicit_in_typed_options(self) -> None:
         options = search_request_to_options(
