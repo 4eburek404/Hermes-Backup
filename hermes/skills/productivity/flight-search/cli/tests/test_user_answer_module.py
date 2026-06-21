@@ -27,6 +27,20 @@ class UserAnswerModuleTests(unittest.TestCase):
         )
         validate_user_answer(answer)
 
+    def test_user_answer_semantic_validators_are_split_by_concern(self) -> None:
+        validator_names = [
+            "validate_catalog_semantics",
+            "validate_evidence_semantics",
+            "validate_required_caveats",
+            "validate_provider_aggregate_semantics",
+            "validate_round_trip_semantics",
+            "validate_two_one_way_pair_semantics",
+            "validate_stop_policy_semantics",
+        ]
+
+        for name in validator_names:
+            self.assertTrue(callable(getattr(user_answer, name)))
+
 
 if __name__ == "__main__":
     unittest.main()

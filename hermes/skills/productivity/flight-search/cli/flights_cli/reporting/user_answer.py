@@ -780,13 +780,7 @@ def has_combined_pair_time_fields(item: dict[str, Any]) -> bool:
     return any(item.get(key) is not None for key in ("itinerary_elapsed_min", "flight_time_min", "layover_total_min"))
 
 
-def user_answer_contract_semantic_errors(answer: dict[str, Any]) -> list[dict[str, Any]]:
-    errors: list[dict[str, Any]] = []
-    evidence = answer.get("evidence_status") if isinstance(answer.get("evidence_status"), dict) else {}
-    caveats = answer.get("required_caveats") if isinstance(answer.get("required_caveats"), dict) else {}
-    stop_status = answer.get("stop_policy_status") if isinstance(answer.get("stop_policy_status"), dict) else {}
-    route = answer.get("route") if isinstance(answer.get("route"), dict) else {}
-    is_round_trip_request = route_requested_round_trip(route)
+def summary_entries_for_answer(answer: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     summary_entries: list[tuple[str, dict[str, Any]]] = []
     primary = answer.get("primary_recommendation")
     if isinstance(primary, dict):
@@ -794,33 +788,42 @@ def user_answer_contract_semantic_errors(answer: dict[str, Any]) -> list[dict[st
     for index, item in enumerate(answer.get("alternatives") or []):
         if isinstance(item, dict):
             summary_entries.append((f"$.alternatives[{index}]", item))
-    summaries = [item for _, item in summary_entries]
+    return summary_entries
 
+
+def validate_catalog_semantics(answer: dict[str, Any], *, is_round_trip_request: bool) -> list[dict[str, Any]]:
+    errors: list[dict[str, Any]] = []
     answer_mode = answer.get("answer_mode")
     catalog = answer.get("catalog") if isinstance(answer.get("catalog"), dict) else {}
     catalog_items = [item for item in catalog.get("items") or [] if isinstance(item, dict)]
     rendered_text = str(answer.get("rendered_text") or "")
-    if answer_mode == "catalog":
-        expected_numbers = list(range(1, len(catalog_items) + 1))
-        actual_numbers = [int(item.get("number") or 0) for item in catalog_items]
-        if not catalog_items:
-            errors.append({"path": "$.catalog.items", "message": "catalog mode requires at least one catalog item", "validator": "semantic"})
-        if actual_numbers != expected_numbers:
-            errors.append({"path": "$.catalog.items", "message": "catalog item numbering must be contiguous starting at 1", "validator": "semantic"})
-        for number in expected_numbers:
-            if len(re.findall(rf"(?m)^\s*{number}\.", rendered_text)) != 1:
-                errors.append({"path": "$.rendered_text", "message": "rendered_text must contain one numbered catalog line for each catalog item", "validator": "semantic"})
-                break
-        for index, item in enumerate(catalog_items):
-            path = f"$.catalog.items[{index}]"
-            directions = item.get("directions") if isinstance(item.get("directions"), dict) else {}
-            if is_round_trip_request and item.get("covers_requested_trip") is True:
-                if not isinstance(directions.get("outbound"), dict) or not isinstance(directions.get("return"), dict):
-                    errors.append({"path": f"{path}.directions", "message": "round-trip catalog items that cover the request must include outbound and return directions", "validator": "semantic"})
-            if item.get("ticketing_model") != "single_ticket_proven":
-                protection = item.get("protection") if isinstance(item.get("protection"), dict) else {}
-                if protection.get("purchase_screen_verification_required") is not True:
-                    errors.append({"path": f"{path}.protection.purchase_screen_verification_required", "message": "unproven ticketing models must require purchase-screen verification", "validator": "semantic"})
+    if answer_mode != "catalog":
+        return errors
+    expected_numbers = list(range(1, len(catalog_items) + 1))
+    actual_numbers = [int(item.get("number") or 0) for item in catalog_items]
+    if not catalog_items:
+        errors.append({"path": "$.catalog.items", "message": "catalog mode requires at least one catalog item", "validator": "semantic"})
+    if actual_numbers != expected_numbers:
+        errors.append({"path": "$.catalog.items", "message": "catalog item numbering must be contiguous starting at 1", "validator": "semantic"})
+    for number in expected_numbers:
+        if len(re.findall(rf"(?m)^\s*{number}\.", rendered_text)) != 1:
+            errors.append({"path": "$.rendered_text", "message": "rendered_text must contain one numbered catalog line for each catalog item", "validator": "semantic"})
+            break
+    for index, item in enumerate(catalog_items):
+        path = f"$.catalog.items[{index}]"
+        directions = item.get("directions") if isinstance(item.get("directions"), dict) else {}
+        if is_round_trip_request and item.get("covers_requested_trip") is True:
+            if not isinstance(directions.get("outbound"), dict) or not isinstance(directions.get("return"), dict):
+                errors.append({"path": f"{path}.directions", "message": "round-trip catalog items that cover the request must include outbound and return directions", "validator": "semantic"})
+        if item.get("ticketing_model") != "single_ticket_proven":
+            protection = item.get("protection") if isinstance(item.get("protection"), dict) else {}
+            if protection.get("purchase_screen_verification_required") is not True:
+                errors.append({"path": f"{path}.protection.purchase_screen_verification_required", "message": "unproven ticketing models must require purchase-screen verification", "validator": "semantic"})
+    return errors
+
+
+def validate_provider_aggregate_semantics(summary_entries: list[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]:
+    errors: list[dict[str, Any]] = []
     for path, item in summary_entries:
         provider_aggregate = is_provider_aggregate_option(item)
         if not provider_aggregate:
@@ -851,7 +854,11 @@ def user_answer_contract_semantic_errors(answer: dict[str, Any]) -> list[dict[st
                     "validator": "semantic",
                 }
             )
+    return errors
 
+
+def validate_evidence_semantics(evidence: dict[str, Any]) -> list[dict[str, Any]]:
+    errors: list[dict[str, Any]] = []
     if evidence.get("coverage_complete") != evidence.get("evidence_complete"):
         errors.append({"path": "$.evidence_status.coverage_complete", "message": "coverage_complete must mirror evidence_complete", "validator": "semantic"})
     if evidence.get("evidence_complete") and not evidence.get("execution_complete"):
@@ -866,6 +873,11 @@ def user_answer_contract_semantic_errors(answer: dict[str, Any]) -> list[dict[st
         errors.append({"path": "$.evidence_status.evidence_complete", "message": "evidence_complete cannot be true when controls failed", "validator": "semantic"})
     if int(evidence.get("provider_failure_count") or 0) > 0 and evidence.get("evidence_complete"):
         errors.append({"path": "$.evidence_status.evidence_complete", "message": "evidence_complete cannot be true when provider failures exist", "validator": "semantic"})
+    return errors
+
+
+def validate_required_caveats(evidence: dict[str, Any], caveats: dict[str, Any]) -> list[dict[str, Any]]:
+    errors: list[dict[str, Any]] = []
     if int(evidence.get("not_executed_control_count") or 0) > 0 and caveats.get("coverage_incompleteness_acknowledged") is not True:
         errors.append({"path": "$.required_caveats.coverage_incompleteness_acknowledged", "message": "final answer must acknowledge incomplete coverage when controls are not_executed", "validator": "semantic"})
     if int(evidence.get("provider_failure_count") or 0) > 0 and caveats.get("provider_failures_acknowledged") is not True:
@@ -876,126 +888,165 @@ def user_answer_contract_semantic_errors(answer: dict[str, Any]) -> list[dict[st
         errors.append({"path": "$.required_caveats.source_boundaries_included", "message": "final answer must include source-boundary caveats", "validator": "semantic"})
     if caveats.get("purchase_screen_verification_required") is not True:
         errors.append({"path": "$.required_caveats.purchase_screen_verification_required", "message": "final answer must require booking or purchase-screen verification", "validator": "semantic"})
+    return errors
+
+
+def validate_stop_policy_semantics(summaries: list[dict[str, Any]], stop_status: dict[str, Any]) -> list[dict[str, Any]]:
+    errors: list[dict[str, Any]] = []
     if any(item.get("stop_tier") == "T3_THREE_PLUS" or int(item.get("max_connections_per_journey") or 0) >= 3 for item in summaries):
         errors.append({"path": "$.primary_recommendation", "message": "final answer must not report three-plus-connection options", "validator": "semantic"})
     if any(item.get("stop_tier") == "T2_TWO_STOP" or int(item.get("max_connections_per_journey") or 0) == 2 for item in summaries):
         if stop_status.get("two_stop_tier_used") is not True:
             errors.append({"path": "$.alternatives", "message": "two-stop options require explicit two-stop tier status", "validator": "semantic"})
+    return errors
+
+
+def validate_round_trip_semantics(summary_entries: list[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]:
+    errors: list[dict[str, Any]] = []
+    for path, item in summary_entries:
+        item_id = str(item.get("id") or "")
+        scope = item.get("journey_scope")
+        direction = option_direction(item)
+        text = summary_label_text(item)
+        provider_aggregate = is_provider_aggregate_option(item)
+        if provider_aggregate and direction in ("outbound", "return"):
+            expected_scope = "return_only" if direction == "return" else "outbound_only"
+            expected_label = "one-way return" if direction == "return" else "one-way outbound"
+            if scope != expected_scope:
+                errors.append(
+                    {
+                        "path": f"{path}.journey_scope",
+                        "message": f"round-trip {direction} provider aggregate alternative must use journey_scope={expected_scope}, not {scope!r}",
+                        "validator": "semantic",
+                    }
+                )
+            if item.get("covers_requested_trip") is not False:
+                errors.append(
+                    {
+                        "path": f"{path}.covers_requested_trip",
+                        "message": f"round-trip {direction} provider aggregate alternative must set covers_requested_trip=false",
+                        "validator": "semantic",
+                    }
+                )
+            if item.get("directional_only") is not True:
+                errors.append(
+                    {
+                        "path": f"{path}.directional_only",
+                        "message": f"round-trip {direction} provider aggregate alternative must set directional_only=true",
+                        "validator": "semantic",
+                    }
+                )
+            if expected_label not in text:
+                errors.append(
+                    {
+                        "path": f"{path}.user_facing_label",
+                        "message": f"round-trip {direction} provider aggregate alternative must include an explicit {expected_label} label",
+                        "validator": "semantic",
+                    }
+                )
+            if item_id.startswith("provider-aggregate:") and scope == "round_trip":
+                errors.append(
+                    {
+                        "path": f"{path}.journey_scope",
+                        "message": f"provider aggregate {direction} one-way offer cannot be labeled as journey_scope=round_trip",
+                        "validator": "semantic",
+                    }
+                )
+    return errors
+
+
+def validate_two_one_way_pair_semantics(summary_entries: list[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]:
+    errors: list[dict[str, Any]] = []
+    for path, item in summary_entries:
+        scope = item.get("journey_scope")
+        text = summary_label_text(item)
+        if scope != "two_one_way_pair" and item.get("composed_of_directional_offers") is not True:
+            continue
+        if scope != "two_one_way_pair":
+            errors.append(
+                {
+                    "path": f"{path}.journey_scope",
+                    "message": "two separate one-way offers pair must use journey_scope=two_one_way_pair",
+                    "validator": "semantic",
+                }
+            )
+        if item.get("covers_requested_trip") is not True:
+            errors.append(
+                {
+                    "path": f"{path}.covers_requested_trip",
+                    "message": "two separate one-way offers pair must set covers_requested_trip=true",
+                    "validator": "semantic",
+                }
+            )
+        if item.get("direction") is not None:
+            errors.append(
+                {
+                    "path": f"{path}.direction",
+                    "message": "two separate one-way offers pair must set direction=null",
+                    "validator": "semantic",
+                }
+            )
+        if item.get("directional_only") is not False:
+            errors.append(
+                {
+                    "path": f"{path}.directional_only",
+                    "message": "two separate one-way offers pair must set directional_only=false",
+                    "validator": "semantic",
+                }
+            )
+        if item.get("composed_of_directional_offers") is not True:
+            errors.append(
+                {
+                    "path": f"{path}.composed_of_directional_offers",
+                    "message": "two separate one-way offers pair must set composed_of_directional_offers=true",
+                    "validator": "semantic",
+                }
+            )
+        if item.get("ticketing_model") != "separate_one_way_offers":
+            errors.append(
+                {
+                    "path": f"{path}.ticketing_model",
+                    "message": "two separate one-way offers pair must set ticketing_model=separate_one_way_offers",
+                    "validator": "semantic",
+                }
+            )
+        if not has_two_one_way_phrase(text):
+            errors.append(
+                {
+                    "path": f"{path}.disclaimer",
+                    "message": "two_one_way_pair alternatives must label/disclaim that they are two separate one-way offers",
+                    "validator": "semantic",
+                }
+            )
+        if has_unproven_ticketing_claim(text):
+            errors.append(
+                {
+                    "path": f"{path}.disclaimer",
+                    "message": "two_one_way_pair must not claim single PNR, protected round-trip, baggage-through, or through fare without proof",
+                    "validator": "semantic",
+                }
+            )
+    return errors
+
+
+def user_answer_contract_semantic_errors(answer: dict[str, Any]) -> list[dict[str, Any]]:
+    evidence = answer.get("evidence_status") if isinstance(answer.get("evidence_status"), dict) else {}
+    caveats = answer.get("required_caveats") if isinstance(answer.get("required_caveats"), dict) else {}
+    stop_status = answer.get("stop_policy_status") if isinstance(answer.get("stop_policy_status"), dict) else {}
+    route = answer.get("route") if isinstance(answer.get("route"), dict) else {}
+    is_round_trip_request = route_requested_round_trip(route)
+    summary_entries = summary_entries_for_answer(answer)
+    summaries = [item for _, item in summary_entries]
+
+    errors: list[dict[str, Any]] = []
+    errors.extend(validate_catalog_semantics(answer, is_round_trip_request=is_round_trip_request))
+    errors.extend(validate_provider_aggregate_semantics(summary_entries))
+    errors.extend(validate_evidence_semantics(evidence))
+    errors.extend(validate_required_caveats(evidence, caveats))
+    errors.extend(validate_stop_policy_semantics(summaries, stop_status))
     if is_round_trip_request:
-        for path, item in summary_entries:
-            item_id = str(item.get("id") or "")
-            scope = item.get("journey_scope")
-            direction = option_direction(item)
-            text = summary_label_text(item)
-            provider_aggregate = is_provider_aggregate_option(item)
-            if provider_aggregate and direction in ("outbound", "return"):
-                expected_scope = "return_only" if direction == "return" else "outbound_only"
-                expected_label = "one-way return" if direction == "return" else "one-way outbound"
-                if scope != expected_scope:
-                    errors.append(
-                        {
-                            "path": f"{path}.journey_scope",
-                            "message": f"round-trip {direction} provider aggregate alternative must use journey_scope={expected_scope}, not {scope!r}",
-                            "validator": "semantic",
-                        }
-                    )
-                if item.get("covers_requested_trip") is not False:
-                    errors.append(
-                        {
-                            "path": f"{path}.covers_requested_trip",
-                            "message": f"round-trip {direction} provider aggregate alternative must set covers_requested_trip=false",
-                            "validator": "semantic",
-                        }
-                    )
-                if item.get("directional_only") is not True:
-                    errors.append(
-                        {
-                            "path": f"{path}.directional_only",
-                            "message": f"round-trip {direction} provider aggregate alternative must set directional_only=true",
-                            "validator": "semantic",
-                        }
-                    )
-                if expected_label not in text:
-                    errors.append(
-                        {
-                            "path": f"{path}.user_facing_label",
-                            "message": f"round-trip {direction} provider aggregate alternative must include an explicit {expected_label} label",
-                            "validator": "semantic",
-                        }
-                    )
-                if item_id.startswith("provider-aggregate:") and scope == "round_trip":
-                    errors.append(
-                        {
-                            "path": f"{path}.journey_scope",
-                            "message": f"provider aggregate {direction} one-way offer cannot be labeled as journey_scope=round_trip",
-                            "validator": "semantic",
-                        }
-                    )
-            if scope == "two_one_way_pair" or item.get("composed_of_directional_offers") is True:
-                if scope != "two_one_way_pair":
-                    errors.append(
-                        {
-                            "path": f"{path}.journey_scope",
-                            "message": "two separate one-way offers pair must use journey_scope=two_one_way_pair",
-                            "validator": "semantic",
-                        }
-                    )
-                if item.get("covers_requested_trip") is not True:
-                    errors.append(
-                        {
-                            "path": f"{path}.covers_requested_trip",
-                            "message": "two separate one-way offers pair must set covers_requested_trip=true",
-                            "validator": "semantic",
-                        }
-                    )
-                if item.get("direction") is not None:
-                    errors.append(
-                        {
-                            "path": f"{path}.direction",
-                            "message": "two separate one-way offers pair must set direction=null",
-                            "validator": "semantic",
-                        }
-                    )
-                if item.get("directional_only") is not False:
-                    errors.append(
-                        {
-                            "path": f"{path}.directional_only",
-                            "message": "two separate one-way offers pair must set directional_only=false",
-                            "validator": "semantic",
-                        }
-                    )
-                if item.get("composed_of_directional_offers") is not True:
-                    errors.append(
-                        {
-                            "path": f"{path}.composed_of_directional_offers",
-                            "message": "two separate one-way offers pair must set composed_of_directional_offers=true",
-                            "validator": "semantic",
-                        }
-                    )
-                if item.get("ticketing_model") != "separate_one_way_offers":
-                    errors.append(
-                        {
-                            "path": f"{path}.ticketing_model",
-                            "message": "two separate one-way offers pair must set ticketing_model=separate_one_way_offers",
-                            "validator": "semantic",
-                        }
-                    )
-                if not has_two_one_way_phrase(text):
-                    errors.append(
-                        {
-                            "path": f"{path}.disclaimer",
-                            "message": "two_one_way_pair alternatives must label/disclaim that they are two separate one-way offers",
-                            "validator": "semantic",
-                        }
-                    )
-                if has_unproven_ticketing_claim(text):
-                    errors.append(
-                        {
-                            "path": f"{path}.disclaimer",
-                            "message": "two_one_way_pair must not claim single PNR, protected round-trip, baggage-through, or through fare without proof",
-                            "validator": "semantic",
-                        }
-                    )
+        errors.extend(validate_round_trip_semantics(summary_entries))
+        errors.extend(validate_two_one_way_pair_semantics(summary_entries))
     return errors
 def validate_user_answer(answer: dict[str, Any]) -> None:
     errors = sorted(user_answer_validator().iter_errors(answer), key=lambda item: list(item.absolute_path))
