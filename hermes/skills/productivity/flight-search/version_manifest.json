@@ -14,6 +14,7 @@
     "user_answer": "flight_search_user_answer.v3"
   },
   "command_surface": {
+    "version": "command_surface.v1",
     "golden_path": "search --request",
     "diagnostic_commands": [
       "diagnose plan",

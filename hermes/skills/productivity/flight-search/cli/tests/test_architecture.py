@@ -8,6 +8,7 @@ import unittest
 
 from flights_cli import __skill_version__, __version__
 from flights_cli.command_surface import PRIMARY_ROUTE_COMMAND, ROUTE_COMMANDS, TARGETED_PROBE_COMMANDS
+from flights_cli.version_manifest import COMMAND_SURFACE_VERSION
 from flights_cli.config import (
     CITY_AIRPORTS_EXCLUDED_BY_DEFAULT,
     KUPIBILET_CITY_CODE_FIRST_AIRPORTS,
@@ -47,6 +48,7 @@ class ArchitectureTests(unittest.TestCase):
         self.assertEqual(manifest["contracts"]["user_answer"], current_contract("user_answer")["schema_version"])
         self.assertEqual(manifest["contracts"]["flight_search_request"], current_contract("search_request")["schema_version"])
         self.assertEqual(manifest["contracts"]["flight_search_result"], current_contract("search_result")["schema_version"])
+        self.assertEqual(manifest["command_surface"]["version"], COMMAND_SURFACE_VERSION)
         self.assertEqual(manifest["command_surface"]["golden_path"], f"{PRIMARY_ROUTE_COMMAND} --request")
         self.assertEqual(
             sorted(manifest["command_surface"]["diagnostic_commands"]),

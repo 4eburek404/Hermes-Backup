@@ -11,7 +11,7 @@ from typing import Any
 from .. import __version__
 from ..commands.basic import command_doctor
 from ..store import Store
-from ..version_manifest import load_version_manifest, manifest_mismatches, manifest_path
+from ..version_manifest import expected_command_surface, load_version_manifest, manifest_mismatches, manifest_path
 
 _GENERATED_DIR_NAMES = {"__pycache__", ".pytest_cache"}
 _GENERATED_SUFFIXES = (".pyc", ".pyo")
@@ -173,6 +173,50 @@ def _doctor_status(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     }
 
 
+def _branch_workflow_summary(
+    *,
+    source_path: Path,
+    runtime_path: Path,
+    source_git: dict[str, Any],
+    manifest: dict[str, Any],
+    manifest_mismatch_keys: list[str],
+    parity: dict[str, Any],
+) -> dict[str, Any]:
+    skill_manifest = manifest.get("skill") if isinstance(manifest.get("skill"), dict) else {}
+    cli_manifest = manifest.get("cli") if isinstance(manifest.get("cli"), dict) else {}
+    command_surface = manifest.get("command_surface") if isinstance(manifest.get("command_surface"), dict) else {}
+    parity_status = str(parity.get("status") or "unknown")
+    runtime_claims_allowed = parity_status in {"same_path", "equal"} and not manifest_mismatch_keys
+    return {
+        "development_branch": "refactor_flights-search",
+        "source": {
+            "path": str(source_path),
+            "branch": source_git.get("branch"),
+            "head": source_git.get("head"),
+            "dirty": source_git.get("dirty"),
+        },
+        "runtime": {
+            "path": str(runtime_path),
+            "exists": runtime_path.exists(),
+        },
+        "manifest": {
+            "skill_version": skill_manifest.get("version"),
+            "cli_version": cli_manifest.get("version"),
+            "command_surface_version": command_surface.get("version"),
+            "mismatches": manifest_mismatch_keys,
+        },
+        "command_surface": {
+            **expected_command_surface(),
+            "removed_commands": list(command_surface.get("removed_commands") or []),
+        },
+        "parity": {
+            "status": parity_status,
+            "runtime_claims_allowed": runtime_claims_allowed,
+            "claim_basis": "runtime_matches_source" if runtime_claims_allowed else "source_only_not_runtime_proven",
+        },
+    }
+
+
 def build_maintenance_report(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     source_path = _source_skill_path()
     runtime_path = Path(args.runtime_path).expanduser() if getattr(args, "runtime_path", None) else _default_runtime_skill_path()
@@ -180,11 +224,14 @@ def build_maintenance_report(args: argparse.Namespace, store: Store) -> dict[str
     runtime_generated = _generated_artifacts(runtime_path)
     source_manifest = load_version_manifest(source_path)
     source_manifest_path = manifest_path(source_path)
+    source_git = _git_info(source_path)
+    mismatches = manifest_mismatches(source_manifest)
+    parity = _source_runtime_parity(source_path, runtime_path)
     return {
         "source": {
             "skill_path": str(source_path),
             "exists": source_path.exists(),
-            "git": _git_info(source_path),
+            "git": source_git,
         },
         "runtime": {
             "skill_path": str(runtime_path),
@@ -198,9 +245,17 @@ def build_maintenance_report(args: argparse.Namespace, store: Store) -> dict[str
             "path": str(source_manifest_path),
             "exists": source_manifest_path.exists(),
             "data": source_manifest,
-            "mismatches": manifest_mismatches(source_manifest),
+            "mismatches": mismatches,
         },
-        "source_runtime_parity": _source_runtime_parity(source_path, runtime_path),
+        "source_runtime_parity": parity,
+        "branch_workflow": _branch_workflow_summary(
+            source_path=source_path,
+            runtime_path=runtime_path,
+            source_git=source_git,
+            manifest=source_manifest,
+            manifest_mismatch_keys=mismatches,
+            parity=parity,
+        ),
         "doctor": _doctor_status(args, store),
         "references": {
             "source_count": _reference_count(source_path),

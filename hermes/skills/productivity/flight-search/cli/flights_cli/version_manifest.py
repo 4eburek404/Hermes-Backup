@@ -13,6 +13,7 @@ from .command_surface import (
 from .contracts.registry import current_contract
 
 MANIFEST_FILENAME = "version_manifest.json"
+COMMAND_SURFACE_VERSION = "command_surface.v1"
 
 
 def source_skill_path() -> Path:
@@ -33,6 +34,7 @@ def load_version_manifest(skill_path: Path | None = None) -> dict[str, Any]:
 
 def expected_command_surface() -> dict[str, Any]:
     return {
+        "version": COMMAND_SURFACE_VERSION,
         "golden_path": f"{PRIMARY_ROUTE_COMMAND} --request",
         "diagnostic_commands": [
             "diagnose plan",
@@ -73,6 +75,8 @@ def manifest_mismatches(manifest: dict[str, Any]) -> list[str]:
             mismatches.append(f"contracts.{name}")
 
     expected_surface = expected_command_surface()
+    if command_surface.get("version") != expected_surface["version"]:
+        mismatches.append("command_surface.version")
     if command_surface.get("golden_path") != expected_surface["golden_path"]:
         mismatches.append("command_surface.golden_path")
     if sorted(command_surface.get("diagnostic_commands") or []) != sorted(expected_surface["diagnostic_commands"]):
