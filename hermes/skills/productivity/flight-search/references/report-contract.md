@@ -118,11 +118,16 @@ Negative guarantees for `user_answer.rendered_text`, legacy `human_answer.text`,
 - no raw `probe_id`, ranks, coverage structs, or pipe tables;
 - no collapsed multi-leg journey that hides each segment's departure and arrival time.
 
-Connected itineraries should show per-segment times, for example:
+Connected itineraries must show every segment as its own line and put the layover line between adjacent segments in the same direction:
 
-`SU1437 18:10–18:55 -> SU1844 20:35–21:55 | 01 авг | SVO 1ч40 | всего 5ч45`
+```text
+1. SU1401 23.07 Екатеринбург - Москва 13:10 13:50 A320 в пути 2:40
+    пересадка 3:25,
+    MU2076 23.07 Москва - Пекин 17:15 05:30 (24.07) A333 в пути 7:15
+    46 909 рублей
+```
 
-Do not collapse that into only first departure and final arrival for a multi-leg journey. If a later segment departs on a different date, show that date inline.
+Do not collapse that into only first departure and final arrival for a multi-leg journey. If a later segment arrives on a different date, show that date inline after the arrival time.
 
 ## User Answer Contract v3
 
@@ -137,8 +142,10 @@ Required v3 fields:
 - User-visible catalog order is deterministic: viable non-rejected full-trip options first, then lower `max_connections_per_journey` (nonstop/direct before one-stop), then price, itinerary elapsed time, and source rank. `ok=false` or `risk.reject=true` options are diagnostics only and must not appear in `catalog.items[]`.
 - `catalog.items[*].agent_display`: schema-backed agent output block with `style="inline_number_itinerary_with_aircraft_duration_v1"`, `lines[]`, and `text`. For full-detail options, the block is:
   `N. FLIGHT DD.MM Origin city - Destination city HH:MM HH:MM (arrival DD.MM when different) AIRCRAFT в пути H:MM`
+  `    пересадка H:MM,`
   `    FLIGHT DD.MM Origin city - Destination city HH:MM HH:MM (arrival DD.MM when different) AIRCRAFT в пути H:MM`
   `    price рублей`
+  The layover line appears only between adjacent segments inside the same outbound or return direction; it is not printed after the direction or between outbound and return directions.
 - Derived summary fields remain present for validation and machine readers: `primary_recommendation`, `alternatives`, `evidence_status`, `required_caveats`, `stop_policy_status`, `rendered_text`, `answer_lines`.
 
 Semantic validation must reject: empty catalog mode, non-contiguous numbering, rendered text that loses numbered catalog items, `agent_display`/`render_line` drift, standalone number lines, segment lines without aircraft/duration, missing indentation on continuation/price lines, round-trip catalog items without outbound+return directions, unproven ticketing models that do not require purchase-screen verification.

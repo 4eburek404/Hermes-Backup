@@ -422,7 +422,13 @@ class FinalAnswerContractTests(unittest.TestCase):
             "1. U6773 06.08 Екатеринбург - Стамбул 07:20 10:50 A319 в пути 5:30\n    33 342 рублей",
             answer["rendered_text"],
         )
-        self.assertIn("2. SU1419 06.08 Екатеринбург - Москва", answer["rendered_text"])
+        self.assertIn(
+            "2. SU1419 06.08 Екатеринбург - Москва 00:40 01:10 A320 в пути 2:30\n"
+            "    пересадка 6:10,\n"
+            "    SU2172 06.08 Москва - Стамбул 07:20 12:20 A320 в пути 5:00\n"
+            "    29 678 рублей",
+            answer["rendered_text"],
+        )
         self.assertEqual(answer["rendered_text"].count("SU1419"), 1)
         self.assertNotIn("SU1471", answer["rendered_text"])
         self.assertNotIn("SU2170", answer["rendered_text"])

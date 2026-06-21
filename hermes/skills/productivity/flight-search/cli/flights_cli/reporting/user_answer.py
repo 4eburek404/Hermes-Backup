@@ -400,6 +400,14 @@ def segment_duration_display(segment: dict[str, Any]) -> str:
     return f"{hours}:{minutes:02d}"
 
 
+def minutes_display(value: Any) -> str:
+    minutes = int_or_none(value)
+    if minutes is None:
+        return "н/д"
+    hours, mins = divmod(max(0, minutes), 60)
+    return f"{hours}:{mins:02d}"
+
+
 def catalog_price_for_traveler_line(price: dict[str, Any]) -> str:
     display = str(price.get("display") or "цена н/д").strip()
     display = re.sub(r"\bRUB\b", "руб", display, flags=re.IGNORECASE).replace("₽", "руб")
@@ -455,19 +463,33 @@ def render_agent_display_segment(segment: dict[str, Any]) -> str:
     )
 
 
+def render_agent_display_layover(layover: dict[str, Any]) -> str:
+    return f"пересадка {minutes_display(layover.get('duration_min'))},"
+
+
+def agent_display_body_lines_for_direction(detail: dict[str, Any]) -> list[str]:
+    body_lines: list[str] = []
+    segments = [segment for segment in (detail.get("segments") or []) if isinstance(segment, dict)]
+    layovers = [layover for layover in (detail.get("layovers") or []) if isinstance(layover, dict)]
+    for index, segment in enumerate(segments):
+        body_lines.append(render_agent_display_segment(segment))
+        if index < len(segments) - 1:
+            layover = layovers[index] if index < len(layovers) else {}
+            body_lines.append(render_agent_display_layover(layover))
+    return body_lines
+
+
 def agent_display_lines_for_item(item: dict[str, Any]) -> list[str]:
-    segment_lines: list[str] = []
+    body_lines: list[str] = []
     directions = item.get("directions") if isinstance(item.get("directions"), dict) else {}
     for key in ("outbound", "return"):
         detail = directions.get(key)
         if not isinstance(detail, dict):
             continue
-        for segment in detail.get("segments") or []:
-            if isinstance(segment, dict):
-                segment_lines.append(render_agent_display_segment(segment))
+        body_lines.extend(agent_display_body_lines_for_direction(detail))
     price_line = catalog_price_for_agent_display(item["total_price"] if isinstance(item.get("total_price"), dict) else {})
-    if segment_lines:
-        first, *rest = segment_lines
+    if body_lines:
+        first, *rest = body_lines
         return [
             f"{item.get('number')}. {first}",
             *(f"    {line}" for line in rest),
@@ -656,6 +678,10 @@ def catalog_segment_count(item: dict[str, Any]) -> int:
 
 def has_agent_display_segment_suffix(line: str) -> bool:
     return bool(re.search(r"(?:\b[A-Z0-9][A-Z0-9-]*|борт н/д) в пути (?:\d+:\d{2}|н/д)$", line))
+
+
+def is_agent_display_layover_line(line: str) -> bool:
+    return bool(re.fullmatch(r"пересадка (?:\d+:\d{2}|н/д),", str(line).strip()))
 
 
 def render_no_viable_answer(route: dict[str, Any], *, caveat_context: dict[str, Any]) -> str:
@@ -949,6 +975,9 @@ def validate_catalog_semantics(answer: dict[str, Any], *, is_round_trip_request:
             errors.append({"path": f"{path}.render_line", "message": "catalog render_line must mirror agent_display.text", "validator": "semantic"})
         if agent_lines != agent_text.splitlines():
             errors.append({"path": f"{path}.agent_display.lines", "message": "agent_display.lines must be the deterministic split of agent_display.text", "validator": "semantic"})
+        expected_agent_lines = agent_display_lines_for_item(item)
+        if agent_lines and agent_lines != expected_agent_lines:
+            errors.append({"path": f"{path}.agent_display.lines", "message": "agent_display.lines must match deterministic structured segment/layover/price rendering", "validator": "semantic"})
         number_prefix = f"{item.get('number')}. "
         if agent_lines and not str(agent_lines[0]).startswith(number_prefix):
             errors.append({"path": f"{path}.agent_display.lines[0]", "message": "agent_display first line must start with item number and first segment", "validator": "semantic"})
@@ -957,30 +986,38 @@ def validate_catalog_semantics(answer: dict[str, Any], *, is_round_trip_request:
         if re.search(r"(?m)^\d+\.\s*\n", agent_text):
             errors.append({"path": f"{path}.agent_display.text", "message": "agent_display must not insert a line break after the item number", "validator": "semantic"})
         segment_line_count = catalog_segment_count(item)
-        segment_lines = []
-        if segment_line_count > 0 and agent_lines:
-            segment_lines = [str(agent_lines[0])[len(number_prefix) :], *[str(line)[4:] if str(line).startswith("    ") else str(line) for line in agent_lines[1:segment_line_count]]]
-            for line_index, line in enumerate(agent_lines[1:segment_line_count], start=1):
-                if not str(line).startswith("    "):
+        segment_lines: list[tuple[int, str]] = []
+        if agent_lines:
+            price_line_index = len(agent_lines) - 1
+            if price_line_index >= 1 and not str(agent_lines[price_line_index]).startswith("    "):
+                errors.append({"path": f"{path}.agent_display.lines[{price_line_index}]", "message": "agent_display price line must be indented", "validator": "semantic"})
+            for line_index, line in enumerate(agent_lines[:price_line_index]):
+                raw = str(line)
+                if line_index == 0:
+                    content = raw[len(number_prefix) :] if raw.startswith(number_prefix) else raw
+                else:
+                    if not raw.startswith("    "):
+                        errors.append({
+                            "path": f"{path}.agent_display.lines[{line_index}]",
+                            "message": "agent_display continuation lines must be indented",
+                            "validator": "semantic",
+                        })
+                        break
+                    content = raw[4:]
+                if is_agent_display_layover_line(content):
+                    continue
+                segment_lines.append((line_index, content))
+        if segment_line_count > 0:
+            if len(segment_lines) != segment_line_count:
+                errors.append({"path": f"{path}.agent_display.lines", "message": "agent_display must contain one segment line per catalog segment", "validator": "semantic"})
+            for line_index, line in segment_lines:
+                if not has_agent_display_segment_suffix(str(line)):
                     errors.append({
                         "path": f"{path}.agent_display.lines[{line_index}]",
-                        "message": "agent_display continuation segment lines must be indented",
+                        "message": "agent_display segment lines must end with aircraft and 'в пути H:MM'",
                         "validator": "semantic",
                     })
                     break
-            price_line_index = segment_line_count
-        else:
-            price_line_index = 1
-        if len(agent_lines) > price_line_index and not str(agent_lines[price_line_index]).startswith("    "):
-            errors.append({"path": f"{path}.agent_display.lines[{price_line_index}]", "message": "agent_display price line must be indented", "validator": "semantic"})
-        for line_index, line in enumerate(segment_lines):
-            if not has_agent_display_segment_suffix(str(line)):
-                errors.append({
-                    "path": f"{path}.agent_display.lines[{line_index}]",
-                    "message": "agent_display segment lines must end with aircraft and 'в пути H:MM'",
-                    "validator": "semantic",
-                })
-                break
         if agent_text and agent_text not in rendered_text:
             errors.append({"path": "$.rendered_text", "message": "rendered_text must include each catalog agent_display block verbatim", "validator": "semantic"})
         if is_round_trip_request and item.get("covers_requested_trip") is True:

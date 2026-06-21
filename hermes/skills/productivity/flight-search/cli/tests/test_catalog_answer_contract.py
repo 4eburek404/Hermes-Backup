@@ -167,8 +167,10 @@ class CatalogAnswerContractTests(unittest.TestCase):
         self.assertEqual(
             answer["catalog"]["items"][0]["render_line"],
             "1. SU100 14.07 Екатеринбург - Москва 06:00 06:45 A320 в пути 2:45\n"
+            "    пересадка 12:25,\n"
             "    SU220 14.07 Москва - Гуанчжоу 19:10 09:35 (15.07) A333 в пути 9:25\n"
             "    SU221 25.07 Гуанчжоу - Москва 11:20 16:05 A333 в пути 9:45\n"
+            "    пересадка 4:05,\n"
             "    SU1406 25.07 Москва - Екатеринбург 20:10 00:35 (26.07) B737 в пути 2:25\n"
             "    92 248 рублей",
         )
@@ -212,6 +214,29 @@ class CatalogAnswerContractTests(unittest.TestCase):
 
         messages = " ".join(error["message"] for error in ctx.exception.details["errors"])
         self.assertIn("aircraft", messages)
+
+    def test_rejects_catalog_when_layover_is_not_between_adjacent_segments(self) -> None:
+        answer = build_user_answer(self._round_trip_report())
+        item = answer["catalog"]["items"][0]
+        original_block = item["render_line"]
+        original_lines = item["agent_display"]["lines"]
+        bad_lines = [
+            original_lines[0],
+            original_lines[2],
+            original_lines[1],
+            *original_lines[3:],
+        ]
+        item["agent_display"]["lines"] = bad_lines
+        item["agent_display"]["text"] = "\n".join(bad_lines)
+        item["render_line"] = item["agent_display"]["text"]
+        answer["rendered_text"] = answer["rendered_text"].replace(original_block, item["render_line"])
+        answer["answer_lines"] = answer["rendered_text"].splitlines()
+
+        with self.assertRaises(CliError) as ctx:
+            validate_user_answer(answer)
+
+        messages = " ".join(error["message"] for error in ctx.exception.details["errors"])
+        self.assertIn("segment/layover/price", messages)
 
     def test_rejects_catalog_when_agent_display_uses_standalone_number_line(self) -> None:
         answer = build_user_answer(self._round_trip_report())
