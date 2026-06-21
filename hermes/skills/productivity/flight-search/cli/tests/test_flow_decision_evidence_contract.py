@@ -76,6 +76,35 @@ class FlowDecisionEvidenceContractTests(unittest.TestCase):
         self.assertIn("carrier_aggregate", flow.evidence_plan.required_controls)
         self.assertIn("carrier_scope_requires_targeted_controls", flow.flow_decision.limitations)
 
+    def test_exclude_carrier_is_hard_scope_and_required_control(self) -> None:
+        flow = self.flow_for(origin="BER", destination="MAD", exclude_carrier=["XX"], return_date=None)
+
+        self.assertEqual(flow.flow_decision.intent_class, "carrier_or_airport_scope")
+        self.assertEqual(flow.flow_decision.evidence_class, "absence_claim")
+        self.assertIn("carrier_aggregate", flow.evidence_plan.required_controls)
+
+    def test_prefer_carrier_is_soft_ranking_preference_not_absence_scope(self) -> None:
+        flow = self.flow_for(origin="BER", destination="MAD", prefer_carrier=["LH"], return_date=None)
+
+        self.assertEqual(flow.flow_decision.intent_class, "route_recommendation")
+        self.assertEqual(flow.flow_decision.evidence_class, "shopping_advisory")
+        self.assertNotIn("carrier_aggregate", flow.evidence_plan.required_controls)
+        self.assertNotIn("absence_claim_requires_live_freshness", flow.evidence_plan.freshness_policy["reasons"])
+
+    def test_avoid_carrier_is_soft_ranking_preference_not_absence_scope(self) -> None:
+        flow = self.flow_for(origin="BER", destination="MAD", avoid_carrier=["FR"], return_date=None)
+
+        self.assertEqual(flow.flow_decision.intent_class, "route_recommendation")
+        self.assertEqual(flow.flow_decision.evidence_class, "shopping_advisory")
+        self.assertNotIn("carrier_aggregate", flow.evidence_plan.required_controls)
+
+    def test_mixed_hard_and_soft_carrier_filters_keep_hard_evidence_scope(self) -> None:
+        flow = self.flow_for(origin="BER", destination="MAD", only_carrier=["LH"], prefer_carrier=["IB"], return_date=None)
+
+        self.assertEqual(flow.flow_decision.intent_class, "carrier_or_airport_scope")
+        self.assertEqual(flow.flow_decision.evidence_class, "absence_claim")
+        self.assertIn("carrier_aggregate", flow.evidence_plan.required_controls)
+
     def test_empty_provider_output_is_provider_empty_not_structural_absence(self) -> None:
         ledger = ProbeExecutionLedger()
         control = {

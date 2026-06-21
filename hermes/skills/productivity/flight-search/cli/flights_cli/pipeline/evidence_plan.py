@@ -106,7 +106,12 @@ def _required_controls(options: dict[str, Any], decision: FlowDecision, direct_o
         controls.append(RequiredControl.DATE_WINDOW_DIRECT)
     if decision.routing_strategy == RoutingStrategy.RU_PRIORITY:
         controls.append(RequiredControl.MOSCOW_GATEWAY_DIRECT)
-    if decision.intent_class == IntentClass.CARRIER_OR_AIRPORT_SCOPE or _tuple_option(options, "only_carrier") or _tuple_option(options, "aggregate_control_carrier"):
+    if (
+        decision.intent_class == IntentClass.CARRIER_OR_AIRPORT_SCOPE
+        or _tuple_option(options, "only_carrier")
+        or _tuple_option(options, "exclude_carrier")
+        or _tuple_option(options, "aggregate_control_carrier")
+    ):
         controls.append(RequiredControl.CARRIER_AGGREGATE)
     if decision.evidence_class == EvidenceClass.TICKETING_REQUIRED:
         controls.append(RequiredControl.FULL_ROUTE_AGGREGATE)

@@ -91,7 +91,7 @@ def _has_carrier_scope(request: SearchRequest) -> bool:
     return bool(
         _as_tuple(options.get("aggregate_control_carrier"))
         or _as_tuple(options.get("only_carrier"))
-        or _as_tuple(options.get("prefer_carrier"))
+        or _as_tuple(options.get("exclude_carrier"))
     )
 
 
