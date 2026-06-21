@@ -19,6 +19,7 @@ from flights_cli.providers.kupibilet import (
     build_kupibilet_roundtrip_payload,
     cached_kupibilet_search,
     decode_http_body,
+    kupibilet_flight_number,
     kupibilet_result_to_segment_result,
     parse_kupibilet_frontend_search,
     parse_kupibilet_roundtrip_search,
@@ -248,7 +249,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(result["unique_flight_count"], 2)
         self.assertEqual([offer["flight_numbers"][0] for offer in result["offers"]], ["SU1419", "SU6208"])
         self.assertEqual(result["offers"][0]["price"], 10844)
-        self.assertEqual(result["offers"][1]["flights"][0]["operating_carrier"], "FV")
+        self.assertEqual(result["offers"][1]["segments"][0]["operating_carrier"], "FV")
 
     def test_parse_kupibilet_ignores_bad_duration_values(self) -> None:
         raw = {
@@ -603,7 +604,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
                         "currency": "RUB",
                         "number_of_changes": 0,
                         "duration": 180,
-                        "flights": [
+                        "segments": [
                             {
                                 "flight_number": f"TK{len(calls) + 100}",
                                 "marketing_carrier": "TK",
@@ -639,7 +640,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
                 return kb_result(origin, destination, depart_date, f"{depart}T14:00:00+03:00", f"{depart}T16:00:00+02:00")
             return kb_result(origin, destination, depart_date)
 
-        with patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
+        with patch("flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search", side_effect=fake_fetch):
             result = run_live_route_assembly(args, Store())
 
         self.assertNotIn(("SVX", "DXB"), calls)
@@ -681,7 +682,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
                         "currency": "RUB",
                         "number_of_changes": 0,
                         "duration": 180,
-                        "flights": [
+                        "segments": [
                             {
                                 "flight_number": f"TK{len(calls) + 100}",
                                 "marketing_carrier": "TK",
@@ -718,8 +719,8 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             return kb_result(origin, destination, depart_date)
 
         with (
-            patch("flights_cli.orchestrators.live_assemble.load_or_refresh_svx_route_index", return_value=(route_index, {"hit": True, "ttl_seconds": 604800})),
-            patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch),
+            patch("flights_cli.orchestrators.live_assembly_runner.load_or_refresh_svx_route_index", return_value=(route_index, {"hit": True, "ttl_seconds": 604800})),
+            patch("flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search", side_effect=fake_fetch),
         ):
             result = run_live_route_assembly(args, Store())
 
@@ -765,7 +766,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
                         "number_of_changes": 1,
                         "duration": 520,
                         "flight_numbers": ["SU1419", "SU232"],
-                        "flights": [
+                        "segments": [
                             {
                                 "flight_number": "SU1419",
                                 "marketing_carrier": "SU",
@@ -800,7 +801,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
                 "offers": offers,
             }
 
-        with patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
+        with patch("flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search", side_effect=fake_fetch):
             result = run_live_route_assembly(args, Store())
 
         self.assertIn(("SVX", "DEL", False, ("SU",)), calls)
@@ -858,8 +859,8 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             }
 
         with (
-            patch("flights_cli.orchestrators.live_assemble.load_or_refresh_svx_route_index", return_value=(route_index, {"hit": True, "ttl_seconds": 604800})),
-            patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch),
+            patch("flights_cli.orchestrators.live_assembly_runner.load_or_refresh_svx_route_index", return_value=(route_index, {"hit": True, "ttl_seconds": 604800})),
+            patch("flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search", side_effect=fake_fetch),
         ):
             result = run_live_route_assembly(args, Store())
 
@@ -906,8 +907,8 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             }
 
         with (
-            patch("flights_cli.orchestrators.live_assemble.load_or_refresh_svx_route_index", return_value=(route_index, {"hit": True, "ttl_seconds": 604800})),
-            patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch),
+            patch("flights_cli.orchestrators.live_assembly_runner.load_or_refresh_svx_route_index", return_value=(route_index, {"hit": True, "ttl_seconds": 604800})),
+            patch("flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search", side_effect=fake_fetch),
         ):
             result = run_live_route_assembly(args, Store())
 
@@ -999,7 +1000,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
                         "currency": "RUB",
                         "number_of_changes": 0,
                         "duration": 180,
-                        "flights": [
+                        "segments": [
                             {
                                 "flight_number": flight_number,
                                 "marketing_carrier": carrier,
@@ -1042,6 +1043,44 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         assembled = self._assemble({"segment_results": segment_results}, "--include-candidates", "10")
         self.assertEqual(assembled["data"]["assembly"]["candidate_count"], 1)
         self.assertEqual(assembled["data"]["ranked"][0]["price"], 90704)
+
+
+class KupibiletFlightNumberTests(unittest.TestCase):
+    def test_number_with_embedded_carrier_is_not_doubled(self) -> None:
+        # Regression: raw number already carries the carrier prefix ("SU6418").
+        # Must yield "SU6418", not "SUSU6418".
+        self.assertEqual(
+            kupibilet_flight_number({"marketing_carrier": "SU", "transport_number": "SU6418"}),
+            "SU6418",
+        )
+
+    def test_bare_numeric_number_is_prefixed_once(self) -> None:
+        self.assertEqual(
+            kupibilet_flight_number({"marketing_carrier": "SU", "transport_number": "6418"}),
+            "SU6418",
+        )
+
+    def test_two_char_alnum_carrier_with_embedded_prefix(self) -> None:
+        # S7 carrier, number "S72534" -> "S72534" (the "2" after S7 is a digit).
+        self.assertEqual(
+            kupibilet_flight_number({"marketing_carrier": "S7", "transport_number": "S72534"}),
+            "S72534",
+        )
+
+    def test_operating_carrier_fallback_and_lowercase_number(self) -> None:
+        self.assertEqual(
+            kupibilet_flight_number({"operating_carrier": "su", "number": "su6418"}),
+            "SU6418",
+        )
+
+    def test_number_without_carrier_is_left_intact(self) -> None:
+        self.assertEqual(
+            kupibilet_flight_number({"transport_number": "SU6418"}),
+            "SU6418",
+        )
+
+    def test_empty_flight_yields_empty_string(self) -> None:
+        self.assertEqual(kupibilet_flight_number({}), "")
 
 
 if __name__ == "__main__":

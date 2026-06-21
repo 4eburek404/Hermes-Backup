@@ -4,6 +4,8 @@ import argparse
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
+from ._shared import as_tuple
+
 
 @dataclass(frozen=True, slots=True)
 class SearchRequest:
@@ -24,16 +26,6 @@ class SearchRequest:
     ticketing: str
     provider_policy: str
     compatibility_options: Mapping[str, Any] = field(default_factory=dict)
-
-
-def _as_tuple(value: object) -> tuple[Any, ...]:
-    if value is None:
-        return ()
-    if isinstance(value, tuple):
-        return value
-    if isinstance(value, list):
-        return tuple(value)
-    return (value,)
 
 
 def _as_int(value: object, default: int) -> int:
@@ -58,12 +50,12 @@ def search_request_from_live_args(args: argparse.Namespace) -> SearchRequest:
     ).strip().lower()
     compatibility_options: dict[str, Any] = {
         "routing_strategy": str(getattr(args, "routing_strategy", "auto") or "auto"),
-        "hub": _as_tuple(getattr(args, "hub", None)),
-        "origin_airport": _as_tuple(getattr(args, "origin_airport", None)),
-        "destination_airport": _as_tuple(getattr(args, "destination_airport", None)),
+        "hub": as_tuple(getattr(args, "hub", None)),
+        "origin_airport": as_tuple(getattr(args, "origin_airport", None)),
+        "destination_airport": as_tuple(getattr(args, "destination_airport", None)),
         "max_connections": getattr(args, "max_connections", None),
         "date_window_end": getattr(args, "date_window_end", None),
-        "fallback_max_connections": getattr(args, "fallback_max_connections", None),
+        "tier2_max_connections": getattr(args, "tier2_max_connections", None),
         "max_segment_searches": _as_int(getattr(args, "max_segment_searches", 300), 300),
         "live_cache_ttl_seconds": _as_int(getattr(args, "live_cache_ttl_seconds", 0), 0),
         "no_live_cache": bool(getattr(args, "no_live_cache", False)),
@@ -71,12 +63,12 @@ def search_request_from_live_args(args: argparse.Namespace) -> SearchRequest:
         "no_direct_route_intel": bool(getattr(args, "no_direct_route_intel", False)),
         "include_segment_results": _as_int(getattr(args, "include_segment_results", 0), 0),
         "aggregate_control_limit": _as_int(getattr(args, "aggregate_control_limit", 0), 0),
-        "aggregate_control_carrier": _as_tuple(getattr(args, "aggregate_control_carrier", None)),
+        "aggregate_control_carrier": as_tuple(getattr(args, "aggregate_control_carrier", None)),
         "coverage_mode": str(getattr(args, "coverage_mode", "targeted") or "targeted"),
-        "coverage_control": _as_tuple(getattr(args, "coverage_control", None)),
+        "coverage_control": as_tuple(getattr(args, "coverage_control", None)),
         "coverage_control_limit": _as_int(getattr(args, "coverage_control_limit", 0), 0),
-        "only_carrier": _as_tuple(getattr(args, "only_carrier", None)),
-        "prefer_carrier": _as_tuple(getattr(args, "prefer_carrier", None)),
+        "only_carrier": as_tuple(getattr(args, "only_carrier", None)),
+        "prefer_carrier": as_tuple(getattr(args, "prefer_carrier", None)),
     }
     return SearchRequest(
         command_name=command_name,

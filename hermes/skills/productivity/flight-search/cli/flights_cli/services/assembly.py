@@ -6,13 +6,18 @@ from typing import Any
 from ..config import RISK_PROFILES
 from ..domain.airports import airport_group
 from ..domain.carriers import segment_carriers
-from ..domain.normalize import currency_value, price_value
+from ..domain.normalize import currency_value, is_reject_score, price_value
 from ..domain.stop_metrics import journey_connection_count
 from ..domain.stop_policy import decide_stop_policy, stop_policy_from_args, stop_policy_payload
 from ..domain.time import elapsed_minutes, minutes_between
+from ..domain.vocabulary import Direction, Leg, StopBucket
 from ..errors import CliError
 from ..services.ranking import carrier_policy_from_args, carrier_policy_output, rank_candidate_list
 from ..services.validation import connection_risk_points, connection_rule
+
+ALL_DIRECT_CATALOG_CAP = 20
+"""Maximum number of options to surface when all are direct flights.
+Prevents unbounded output while ensuring every direct flight is shown."""
 
 def collect_segment_results(payload: Any) -> list[dict[str, Any]]:
     if isinstance(payload, list):
@@ -176,17 +181,26 @@ def pair_connection_quality(
     }
 
 
-def pair_sort_key(pair: dict[str, Any]) -> tuple[int, int, int, int]:
+def pair_sort_key(pair: dict[str, Any], profile: str = "balanced") -> tuple:
+    """Sort key for itinerary pairs, respecting the profile's rank_order.
+
+    Previously hardcoded (reject, risk, price, elapsed). Now dynamic:
+    the profile's ``rank_order`` determines which dimensions dominate.
+    """
     quality = pair.get("connection_quality") or {}
     risk = quality.get("risk") or {}
     price = pair["price"] if pair.get("price") is not None else 10**12
     elapsed = elapsed_minutes(pair["segments"]) or 10**9
-    return (
-        1 if int(risk.get("score") or 0) >= 100 else 0,
-        int(risk.get("score") or 0),
-        price,
-        elapsed,
+    values = {
+        "reject": 1 if is_reject_score(int(risk.get("score") or 0)) else 0,
+        "risk": int(risk.get("score") or 0),
+        "price": price,
+        "elapsed": elapsed,
+    }
+    rank_order = RISK_PROFILES.get(profile, RISK_PROFILES["balanced"]).get(
+        "rank_order", ["reject", "risk", "price", "elapsed"]
     )
+    return tuple(values.get(dim, 0) for dim in rank_order)
 
 
 def assemble_direction(
@@ -236,7 +250,7 @@ def assemble_direction(
                         )
                         if rejection is not None:
                             rejected.append(rejection)
-    pairs.sort(key=pair_sort_key)
+    pairs.sort(key=lambda p: pair_sort_key(p, profile))
     severity_order = {"error": 0, "warn": 1, "ok": 2}
     rejected.sort(
         key=lambda item: (
@@ -280,14 +294,14 @@ def direct_journeys(
 def journey_stop_policy_bucket(journey: dict[str, Any], stop_policy: Any) -> str:
     decision = decide_stop_policy(journey_connection_count(journey), stop_policy)
     if decision.eligible_for_preferred_generation:
-        return "preferred"
-    if decision.eligible_for_fallback_generation:
-        return "fallback"
-    return "suppressed"
+        return StopBucket.PREFERRED
+    if decision.eligible_for_tier2_generation:
+        return StopBucket.TIER2
+    return StopBucket.SUPPRESSED
 
 
 def split_journeys_by_stop_policy(journeys: list[dict[str, Any]], stop_policy: Any) -> dict[str, list[dict[str, Any]]]:
-    buckets: dict[str, list[dict[str, Any]]] = {"preferred": [], "fallback": [], "suppressed": []}
+    buckets: dict[str, list[dict[str, Any]]] = {StopBucket.PREFERRED: [], StopBucket.TIER2: [], StopBucket.SUPPRESSED: []}
     for journey in journeys:
         buckets[journey_stop_policy_bucket(journey, stop_policy)].append(journey)
     return buckets
@@ -333,21 +347,21 @@ def stop_policy_generation_diagnostics(
     outbound_buckets: dict[str, list[dict[str, Any]]],
     return_buckets: dict[str, list[dict[str, Any]]],
     generation_mode: str,
-    fallback_used: bool,
+    tier2_used: bool,
 ) -> dict[str, Any]:
-    preferred_outbound_count = len(outbound_buckets["preferred"])
-    preferred_return_count = len(return_buckets["preferred"])
-    fallback_outbound_count = len(outbound_buckets["fallback"])
-    fallback_return_count = len(return_buckets["fallback"])
-    suppressed_outbound_count = len(outbound_buckets["suppressed"])
-    suppressed_return_count = len(return_buckets["suppressed"])
+    preferred_outbound_count = len(outbound_buckets[StopBucket.PREFERRED])
+    preferred_return_count = len(return_buckets[StopBucket.PREFERRED])
+    tier2_outbound_count = len(outbound_buckets[StopBucket.TIER2])
+    tier2_return_count = len(return_buckets[StopBucket.TIER2])
+    suppressed_outbound_count = len(outbound_buckets[StopBucket.SUPPRESSED])
+    suppressed_return_count = len(return_buckets[StopBucket.SUPPRESSED])
     return {
         "candidate_generation_mode": generation_mode,
-        "fallback_used": fallback_used,
+        "tier2_used": tier2_used,
         "preferred_outbound_journey_count": preferred_outbound_count,
         "preferred_return_journey_count": preferred_return_count,
-        "fallback_outbound_journey_count": fallback_outbound_count,
-        "fallback_return_journey_count": fallback_return_count,
+        "tier2_outbound_journey_count": tier2_outbound_count,
+        "tier2_return_journey_count": tier2_return_count,
         "suppressed_outbound_journey_count": suppressed_outbound_count,
         "suppressed_return_journey_count": suppressed_return_count,
         "stop_policy_suppressed_journey_count": suppressed_outbound_count + suppressed_return_count,
@@ -613,17 +627,17 @@ def empty_assembled_result(args: argparse.Namespace) -> dict[str, Any]:
             "two_stop_candidate_count": 0,
             "three_plus_suppressed_count": 0,
             "two_stop_suppressed_because_preferred_exists": 0,
-            "used_two_stop_fallback": False,
+            "used_two_stop_tier": False,
             "garbage_options_hidden_from_answer": False,
         },
         "ranked": [],
         "assembly": {
             "candidate_generation_mode": "none",
-            "fallback_used": False,
+            "tier2_used": False,
             "preferred_outbound_journey_count": 0,
             "preferred_return_journey_count": 0,
-            "fallback_outbound_journey_count": 0,
-            "fallback_return_journey_count": 0,
+            "tier2_outbound_journey_count": 0,
+            "tier2_return_journey_count": 0,
             "suppressed_outbound_journey_count": 0,
             "suppressed_return_journey_count": 0,
             "stop_policy_suppressed_journey_count": 0,
@@ -658,9 +672,9 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
 
     outbound_pairs, outbound_rejected = assemble_direction(
         segment_results,
-        "origin_to_hub",
-        "hub_to_destination",
-        "outbound",
+        Leg.ORIGIN_TO_HUB,
+        Leg.HUB_TO_DESTINATION,
+        Direction.OUTBOUND,
         args.limit_per_pair,
         ticketing=args.ticketing,
         min_same_airport=args.min_same_airport_min,
@@ -669,19 +683,34 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
     )
     return_pairs, return_rejected = assemble_direction(
         segment_results,
-        "destination_to_hub",
-        "hub_to_origin",
-        "return",
+        Leg.DESTINATION_TO_HUB,
+        Leg.HUB_TO_ORIGIN,
+        Direction.RETURN,
         args.limit_per_pair,
         ticketing=args.ticketing,
         min_same_airport=args.min_same_airport_min,
         min_cross_airport=args.min_cross_airport_min,
         profile=args.profile,
     )
-    outbound_direct = direct_journeys(segment_results, "direct_outbound", "outbound", args.limit_per_pair)
-    return_direct = direct_journeys(segment_results, "direct_return", "return", args.limit_per_pair)
-    outbound_journeys = outbound_direct + outbound_pairs
-    return_journeys = return_direct + return_pairs
+    outbound_direct = direct_journeys(segment_results, Leg.DIRECT_OUTBOUND, Direction.OUTBOUND, args.limit_per_pair)
+    return_direct = direct_journeys(segment_results, Leg.DIRECT_RETURN, Direction.RETURN, args.limit_per_pair)
+    # Direct-priority filter: when direct journeys exist for a direction, suppress one-stop
+    # pairs for that direction. Each direction is filtered independently so that a
+    # round-trip with direct outbound but no direct return still uses one-stop return.
+    direct_priority_applied = bool(outbound_direct) or bool(return_direct)
+    suppressed_one_stop_outbound_count = len(outbound_pairs) if outbound_direct else 0
+    suppressed_one_stop_return_count = len(return_pairs) if return_direct else 0
+    outbound_journeys = outbound_direct if outbound_direct else outbound_pairs
+    return_journeys = return_direct if return_direct else return_pairs
+    # all_direct_inventory: True when the entire displayed set is direct flights.
+    # Computed from post-filter journeys so it reflects what the user actually sees,
+    # not the raw pair counts which may be non-zero even when suppressed.
+    outbound_is_direct = bool(outbound_direct) or not outbound_journeys
+    return_is_direct = bool(return_direct) or not return_journeys
+    all_direct_inventory = (
+        (bool(outbound_direct) or bool(return_direct))
+        and outbound_is_direct and return_is_direct
+    )
     rejected_pairs = outbound_rejected + return_rejected
 
     candidate_pool_limit = max(max(1, int(args.max_candidates)), int(getattr(args, "candidate_pool_limit", 5000)))
@@ -690,30 +719,30 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
     return_buckets = split_journeys_by_stop_policy(return_journeys, stop_policy)
     round_trip_requested = bool(getattr(args, "return_date", None)) or (bool(outbound_journeys) and bool(return_journeys))
     candidates, candidate_pool_truncated = generate_candidates_from_journeys(
-        outbound_buckets["preferred"],
-        return_buckets["preferred"],
+        outbound_buckets[StopBucket.PREFERRED],
+        return_buckets[StopBucket.PREFERRED],
         candidate_pool_limit,
         require_both_directions=round_trip_requested,
     )
-    generation_mode = "preferred" if candidates else "none"
-    fallback_used = False
+    generation_mode = StopBucket.PREFERRED if candidates else "none"
+    tier2_used = False
     if not candidates:
-        fallback_outbound = outbound_buckets["preferred"] + outbound_buckets["fallback"]
-        fallback_return = return_buckets["preferred"] + return_buckets["fallback"]
+        tier2_outbound = outbound_buckets[StopBucket.PREFERRED] + outbound_buckets[StopBucket.TIER2]
+        tier2_return = return_buckets[StopBucket.PREFERRED] + return_buckets[StopBucket.TIER2]
         candidates, candidate_pool_truncated = generate_candidates_from_journeys(
-            fallback_outbound,
-            fallback_return,
+            tier2_outbound,
+            tier2_return,
             candidate_pool_limit,
             require_both_directions=round_trip_requested,
         )
         if candidates:
-            generation_mode = "fallback"
-            fallback_used = True
+            generation_mode = StopBucket.TIER2
+            tier2_used = True
     generation_diagnostics = stop_policy_generation_diagnostics(
         outbound_buckets=outbound_buckets,
         return_buckets=return_buckets,
         generation_mode=generation_mode,
-        fallback_used=fallback_used,
+        tier2_used=tier2_used,
     )
     raw_candidate_count = len(candidates)
     candidates, duplicate_count = dedupe_candidates(candidates)
@@ -731,8 +760,9 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
         include_filtered=getattr(args, "include_filtered", 20),
         stop_policy=getattr(args, "stop_policy", "business-default"),
         max_connections=getattr(args, "max_connections", None),
-        fallback_max_connections=getattr(args, "fallback_max_connections", None),
+        tier2_max_connections=getattr(args, "tier2_max_connections", None),
         agent_brief=getattr(args, "agent_brief", False),
+        is_domestic=getattr(args, "is_domestic", False),
     )
     policy = carrier_policy_from_args(rank_args)
     ranked = rank_candidate_list(candidates, rank_args) if candidates else {
@@ -748,7 +778,7 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
             "two_stop_candidate_count": 0,
             "three_plus_suppressed_count": 0,
             "two_stop_suppressed_because_preferred_exists": 0,
-            "used_two_stop_fallback": fallback_used,
+            "used_two_stop_tier": tier2_used,
             "garbage_options_hidden_from_answer": False,
         },
         "ranked": [],
@@ -764,6 +794,27 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
     max_ranked = max(0, int(args.max_candidates))
     ranked["ranked"] = ranked["ranked"][:max_ranked]
     ranked["count"] = len(ranked["ranked"])
+    direct_flight_summaries: list[dict[str, Any]] = []
+    for journey in outbound_direct + return_direct:
+        segments = journey.get("segments") or []
+        if not segments or len(segments) != 1:
+            continue
+        s = segments[0] if isinstance(segments[0], dict) else {}
+        direct_flight_summaries.append({
+            "direction": journey.get("direction"),
+            "flight_number": s.get("flight_number"),
+            "marketing_carrier": s.get("marketing_carrier"),
+            "operating_carrier": s.get("operating_carrier"),
+            "origin": s.get("origin"),
+            "destination": s.get("destination"),
+            "departure_at": s.get("departure_at"),
+            "arrival_at": s.get("arrival_at"),
+            "duration_min": s.get("duration_min") or s.get("duration"),
+            "aircraft": s.get("aircraft_code") or s.get("aircraft"),
+            "price": journey.get("price"),
+            "currency": journey.get("currency"),
+        })
+
     ranked["ranked_total_count"] = ranked_total_count
     ranked["assembly"] = {
         **generation_diagnostics,
@@ -772,6 +823,7 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
         "outbound_pair_count": len(outbound_pairs),
         "return_direct_count": len(return_direct),
         "return_pair_count": len(return_pairs),
+        "direct_flights": direct_flight_summaries,
         "rejected_pair_count": len(rejected_pairs),
         "rejected_pair_sample_count": min(len(rejected_pairs), args.include_rejected_pairs),
         "raw_candidate_count": raw_candidate_count,
@@ -784,12 +836,20 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], args: argpar
         "limit_per_pair": args.limit_per_pair,
         "max_candidates": args.max_candidates,
         "stop_policy_diagnostics": ranked.get("stop_policy_diagnostics") or {},
+        "direct_priority_applied": direct_priority_applied,
+        "all_direct_inventory": all_direct_inventory,
+        "suppressed_one_stop_outbound_count": suppressed_one_stop_outbound_count,
+        "suppressed_one_stop_return_count": suppressed_one_stop_return_count,
     }
     ranked["candidates"] = candidates[: args.include_candidates]
+    # When the entire displayed set is direct flights, expand the catalog limit
+    # so every direct option reaches the report layer (capped at ALL_DIRECT_CATALOG_CAP).
+    default_ranked_limit = int(getattr(args, "include_ranked_candidates", 5))
+    ranked_limit = min(len(full_ranked_items), ALL_DIRECT_CATALOG_CAP) if all_direct_inventory else default_ranked_limit
     ranked["ranked_candidates"] = ranked_candidate_details(
         full_ranked_items,
         candidates,
-        int(getattr(args, "include_ranked_candidates", 5)),
+        ranked_limit,
         required_items=recommendation_detail_items(ranked["recommendations"], full_ranked_items),
     )
     ranked["rejected_pairs"] = rejected_pairs[: args.include_rejected_pairs]

@@ -16,14 +16,14 @@ class AnswerLinesStopPolicyTests(unittest.TestCase):
         report["stop_policy"] = {
             "name": "business_default",
             "preferred_max_connections": 1,
-            "fallback_max_connections": 2,
+            "tier2_max_connections": 2,
             "hard_max_connections": 2,
             "two_stop_allowed_only_if_no_preferred": True,
             "three_plus_reportable": False,
         }
         report["stop_policy_diagnostics"] = {
             "policy": "business_default",
-            "used_two_stop_fallback": False,
+            "used_two_stop_tier": False,
             "three_plus_suppressed_count": 7,
             "two_stop_suppressed_because_preferred_exists": 2,
             "garbage_options_hidden_from_answer": True,
@@ -58,12 +58,12 @@ class AnswerLinesStopPolicyTests(unittest.TestCase):
         report["stop_policy"] = {
             "name": "business_default",
             "preferred_max_connections": 1,
-            "fallback_max_connections": 2,
+            "tier2_max_connections": 2,
             "hard_max_connections": 2,
             "two_stop_allowed_only_if_no_preferred": True,
             "three_plus_reportable": False,
         }
-        report["stop_policy_diagnostics"] = {"policy": "business_default", "used_two_stop_fallback": False}
+        report["stop_policy_diagnostics"] = {"policy": "business_default", "used_two_stop_tier": False}
         answer = build_user_answer(report)
 
         with self.assertRaises(CliError):

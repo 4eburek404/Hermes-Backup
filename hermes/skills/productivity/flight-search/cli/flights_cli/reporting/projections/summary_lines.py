@@ -154,14 +154,14 @@ def build_summary_lines(report: dict[str, Any]) -> list[str]:
     stop_diagnostics = report.get("stop_policy_diagnostics") if isinstance(report.get("stop_policy_diagnostics"), dict) else {}
     if stop_diagnostics:
         max_reported = report.get("stop_policy", {}).get("preferred_max_connections") if isinstance(report.get("stop_policy"), dict) else 1
-        if stop_diagnostics.get("used_two_stop_fallback"):
+        if stop_diagnostics.get("used_two_stop_tier"):
             max_reported = 2
         lines.append(
             "Stop policy: "
             f"reported max connections per journey={max_reported}; "
-            f"two_stop_fallback_used={bool(stop_diagnostics.get('used_two_stop_fallback'))}; "
+            f"two_stop_tier_used={bool(stop_diagnostics.get('used_two_stop_tier'))}; "
             f"candidate_generation_mode={stop_diagnostics.get('candidate_generation_mode') or 'unknown'}; "
-            f"generation_fallback_used={bool(stop_diagnostics.get('fallback_used'))}; "
+            f"generation_tier2_used={bool(stop_diagnostics.get('tier2_used'))}; "
             f"three_plus_suppressed={int(stop_diagnostics.get('three_plus_suppressed_count') or 0)}."
         )
         if int(stop_diagnostics.get("two_stop_suppressed_because_preferred_exists") or 0) > 0:

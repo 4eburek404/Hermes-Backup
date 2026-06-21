@@ -106,7 +106,7 @@ class MoscowGatewayPlanTests(unittest.TestCase):
 class MoscowGatewayLedgerTests(unittest.TestCase):
     def test_gateway_controls_reach_terminal_ledger_state(self) -> None:
         args = ru_touching_args()
-        with patch("flights_cli.orchestrators.live_assemble.dispatch_segment_probe", side_effect=_empty_ok_dispatch):
+        with patch("flights_cli.orchestrators.live_assembly_runner.dispatch_segment_probe", side_effect=_empty_ok_dispatch):
             result = run_live_route_assembly(args, Store())
 
         diagnostics = result["live_search"]["probe_ledger"]

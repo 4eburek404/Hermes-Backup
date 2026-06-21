@@ -1,6 +1,6 @@
 # Flight Report Contract
 
-Use this when reading `data.agent_report` or deciding what to show the user. The report is the evidence layer; `frontier.offer_graph` is the primary decision graph; `user_answer.rendered_text` is canonical renderer output; `diagnostics.human_answer.text` is a debug mirror, not a fallback final-prose source. Raw CLI internals are debug-only.
+Use this when reading `data.agent_report` or deciding what to show the user. The report is the evidence layer; `frontier.offer_graph` is the primary decision graph; `user_answer.rendered_text` is canonical renderer output; `diagnostics.human_answer.text` is a debug mirror, not an alternative final-prose source. Raw CLI internals are debug-only.
 
 ## Active Contract Registry
 
@@ -12,7 +12,7 @@ Current contracts:
 Retired/projection surfaces:
 
 - `flight_search_user_answer.v2` is rejected; there is no v2→v3 runtime adapter.
-- `diagnostics.human_answer`, `diagnostics.display`, and `diagnostics.answer_lines` are debug/mirror projections. They are not canonical final-prose sources and are not fallback inputs.
+- `diagnostics.human_answer`, `diagnostics.display`, and `diagnostics.answer_lines` are debug/mirror projections. They are not canonical final-prose sources and are not alternative inputs.
 - In-process legacy alias views are removed; serialized JSON and internal consumers should use nested v2 paths.
 
 Shadow subcontracts:
@@ -36,7 +36,7 @@ Retired/proposed candidates:
 6. `evidence.through_fare_checks` — ticketing/protection evidence and required purchase-screen checks.
 7. `evidence.provider_failures` — degraded provider evidence; mention only when it changes confidence or next action.
 8. `evidence.source_boundaries` — source/proof limits; print only decision-useful caveats.
-9. `diagnostics.human_answer.text` — debug mirror; while present it must mirror `user_answer.rendered_text`, but it is not fallback final prose.
+9. `diagnostics.human_answer.text` — debug mirror; while present it must mirror `user_answer.rendered_text`, but it is not alternative final prose.
 10. `diagnostics.display` — deterministic itinerary fragments for evidence, not final prose.
 11. `diagnostics.answer_lines` — compact internal summary/warnings; do not copy diagnostic labels into final answers.
 12. `diagnostics.hub_viability`, `diagnostics.coverage_diagnostics`, `diagnostics.rejected_pair_warnings`, `diagnostics.stop_policy_diagnostics` — diagnostics for missing/demoted routes, not normal user output.
@@ -82,7 +82,7 @@ Always surface materially different controls:
 
 Explain lower ranking with concrete trade-offs: price, elapsed time, arrival time, airport quality, connection quality, ticketing/protection, baggage, or source confidence.
 
-Stop-policy diagnostics describe how assembly generated the candidate pool. Treat two-stop options as reportable only when fallback is explicitly active or the report marks them reportable. Do not infer fallback mode from missing compact options or aggregate controls alone.
+Stop-policy diagnostics describe how assembly generated the candidate pool. Treat two-stop options as reportable only when the two-stop tier is explicitly active or the report marks them reportable. Do not infer two-stop tier mode from missing compact options or aggregate controls alone.
 
 ## Route-Specific Controls
 

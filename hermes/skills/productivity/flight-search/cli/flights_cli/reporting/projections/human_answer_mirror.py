@@ -294,6 +294,39 @@ def clean_text(text: str) -> str:
     return cleaned.strip()
 
 
+def direct_flight_lines(report: dict[str, Any]) -> dict[str, list[str]]:
+    """Extract all direct flights from agent_report.direct_flights, showing every flight."""
+    direct_flights = report.get("direct_flights") if isinstance(report.get("direct_flights"), list) else []
+    # Fallback to assembly.direct_flights if available
+    if not direct_flights:
+        assembly = report.get("assembly") if isinstance(report.get("assembly"), dict) else {}
+        direct_flights = assembly.get("direct_flights") if isinstance(assembly.get("direct_flights"), list) else []
+    result: dict[str, list[str]] = {"outbound": [], "return": []}
+    seen_keys: set[str] = set()
+    for flight in direct_flights:
+        if not isinstance(flight, dict):
+            continue
+        direction = str(flight.get("direction") or "")
+        if direction not in ("outbound", "return"):
+            continue
+        fn = str(flight.get("flight_number") or "?")
+        dep = human_time(flight.get("departure_at"))
+        arr = human_time(flight.get("arrival_at"))
+        origin = str(flight.get("origin") or "?")
+        dest = str(flight.get("destination") or "?")
+        key = f"{fn}{dep}{arr}"
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        price = human_price(flight)
+        line = f"{fn} {origin}→{dest} {dep}–{arr} {price}"
+        result[direction].append(line)
+    # Sort by departure time
+    for direction in ("outbound", "return"):
+        result[direction].sort()
+    return result
+
+
 def build_human_answer_mirror(agent_report: dict[str, Any]) -> dict[str, Any]:
     is_round_trip = report_requested_round_trip(agent_report)
     recommended = reportable_options(agent_report.get("recommended_options"))
@@ -317,6 +350,12 @@ def build_human_answer_mirror(agent_report: dict[str, Any]) -> dict[str, Any]:
         sections.append(section("Альтернативы туда", outbound_alternatives))
     if return_alternatives:
         sections.append(section("Альтернативы обратно", return_alternatives))
+
+    direct = direct_flight_lines(agent_report)
+    if direct.get("outbound"):
+        sections.append(section("Все прямые туда", direct["outbound"]))
+    if direct.get("return"):
+        sections.append(section("Все прямые обратно", direct["return"]))
 
     checks = verification_lines(agent_report)
     if checks:

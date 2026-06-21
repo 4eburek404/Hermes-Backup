@@ -20,7 +20,7 @@ def window_args(**overrides: object):
         "origin_airports": ["SVX"],
         "destination_airports": ["LED"],
         "max_connections": 0,
-        "fallback_max_connections": 0,
+        "tier2_max_connections": 0,
         "no_live_cache": True,
         "no_direct_route_intel": True,
         "coverage_mode": "targeted",
@@ -105,7 +105,7 @@ class DateWindowPlanTests(unittest.TestCase):
 
     def test_window_requires_direct_only_route_options(self) -> None:
         with self.assertRaises(CliError):
-            build_live_route_segment_plan(window_args(max_connections=None, fallback_max_connections=None), Store())
+            build_live_route_segment_plan(window_args(max_connections=None, tier2_max_connections=None), Store())
 
     def test_window_rejects_return_date(self) -> None:
         with self.assertRaises(CliError):
@@ -128,7 +128,7 @@ class DateWindowPlanTests(unittest.TestCase):
 class DateWindowInventoryProjectionTests(unittest.TestCase):
     def test_runner_projects_per_date_inventory_into_report_evidence(self) -> None:
         args = window_args()
-        with patch("flights_cli.orchestrators.live_assemble.dispatch_segment_probe", side_effect=_dispatch_by_date):
+        with patch("flights_cli.orchestrators.live_assembly_runner.dispatch_segment_probe", side_effect=_dispatch_by_date):
             result = run_live_route_assembly(args, Store())
 
         inventory = result["live_search"].get("date_window_inventory")

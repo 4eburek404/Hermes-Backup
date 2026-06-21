@@ -6,7 +6,7 @@ MAX_MODEL_CONNECTIONS = 2
 
 
 def offer_segments(offer: dict[str, Any]) -> list[dict[str, Any]]:
-    segments = offer.get("flights") if isinstance(offer.get("flights"), list) else offer.get("segments")
+    segments = offer.get("segments")
     return [segment for segment in (segments or []) if isinstance(segment, dict)]
 
 

@@ -4,6 +4,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .domain.vocabulary import RoutingStrategy
+
 CACHE_DIR = Path.home() / ".hermes" / "cache" / "flight-search"
 
 MAX_DATE_WINDOW_DAYS = 14
@@ -66,7 +68,7 @@ DUBAI_DEFAULT_AIRPORTS = ("DXB", "DWC")
 DUBAI_EXCLUDED_BY_DEFAULT = ("SHJ",)
 
 DEFAULT_ROUTING_STRATEGY = "auto"
-ROUTING_STRATEGIES = {"auto", "hub-list", "ru-priority", "domestic-ru"}
+ROUTING_STRATEGIES = {"auto", RoutingStrategy.HUB_LIST, RoutingStrategy.RU_PRIORITY, RoutingStrategy.DOMESTIC_RU}
 
 
 PRIORITY_ROUTE_CARRIERS = ("U6", "SU", "TK")
@@ -142,9 +144,9 @@ DEFAULT_ROUTE_HUB_NOTES = {
     "BEG": "Europe and some North America coverage, but not global.",
     "TAS": "Regional hub with partial long-haul coverage.",
     "GYD": "Regional hub with partial long-haul coverage.",
-    "PEK": "Asia, China, and Oceania-oriented fallback.",
-    "PVG": "Asia, China, and Oceania-oriented fallback.",
-    "CAN": "Asia, China, and Oceania-oriented fallback.",
+    "PEK": "Asia, China, and Oceania-oriented secondary hub.",
+    "PVG": "Asia, China, and Oceania-oriented secondary hub.",
+    "CAN": "Asia, China, and Oceania-oriented secondary hub.",
     "ADD": "Niche Africa, Middle East, India, and price hub.",
     "CAI": "Niche Africa, Middle East, India, and price hub.",
     "MCT": "Niche Africa, Middle East, India, and price hub.",
@@ -182,7 +184,7 @@ MULTI_AIRPORT_GROUPS: dict[str, dict[str, Any]] = {
 PREFERRED_AIRPORT_TIERS = {
     "LON": [
         {"tier": 1, "airports": ["LHR"], "role": "preferred"},
-        {"tier": 2, "airports": ["LGW"], "role": "fallback"},
+        {"tier": 2, "airports": ["LGW"], "role": "deferred"},
     ],
 }
 

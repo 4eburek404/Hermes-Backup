@@ -67,7 +67,7 @@ def segment_query(
     }
 
 
-def outcome_summary_from_provider_result(result: ProviderProbeResult, *, fallback_probe_id: str | None = None) -> dict[str, Any]:
+def outcome_summary_from_provider_result(result: ProviderProbeResult, *, delegated_probe_id: str | None = None) -> dict[str, Any]:
     summary = dict(result.result_summary)
     summary.setdefault("provider", result.provider)
     if result.execution_state == "not_supported":
@@ -78,7 +78,7 @@ def outcome_summary_from_provider_result(result: ProviderProbeResult, *, fallbac
         summary.setdefault("offer_count", 0)
     else:
         summary.setdefault("status", "ok")
-    summary["probe_id"] = result.probe_id or fallback_probe_id or None
+    summary["probe_id"] = result.probe_id or delegated_probe_id or None
     summary["cache_status"] = result.cache_status
     return summary
 
@@ -152,7 +152,7 @@ def dispatch_segment_probe(
                     probe_id=claim.probe_id,
                 )
             )
-            summary = outcome_summary_from_provider_result(result, fallback_probe_id=claim.probe_id)
+            summary = outcome_summary_from_provider_result(result, delegated_probe_id=claim.probe_id)
             segment_result = result.normalized_result or {
                 "direction": spec.get("direction"),
                 "leg": spec.get("leg"),

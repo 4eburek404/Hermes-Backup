@@ -17,6 +17,7 @@ from ..config import (
 )
 from ..domain.airports import airport_scope_summary, segment_code_metadata
 from ..domain.hubs import resolve_route_hubs, resolve_routing_strategy
+from ..domain.vocabulary import RequiredControl, RouteFamily, RoutingStrategy
 from ..errors import CliError
 from ..pipeline.flow_decision import market_class_for_resolved_route, routing_strategy_for_market
 from ..pipeline.search_request import search_request_from_live_args
@@ -43,7 +44,7 @@ def geo_routing_profile(destination: Any, destination_airports: list[str]) -> st
 
 
 def route_families_for_strategy(routing_strategy: str, routing_profile: str) -> list[dict[str, Any]]:
-    if routing_strategy == "ru-priority":
+    if routing_strategy == RoutingStrategy.RU_PRIORITY:
         families = [
             {
                 "id": "direct_control",
@@ -88,10 +89,10 @@ def route_families_for_strategy(routing_strategy: str, routing_profile: str) -> 
             },
         ]
         return families
-    if routing_strategy == "domestic-ru":
+    if routing_strategy == RoutingStrategy.DOMESTIC_RU:
         return [
             {
-                "id": "domestic_ru",
+                "id": RouteFamily.DOMESTIC_RU,
                 "priority": 0,
                 "condition": "Russian domestic route: exact-airport direct controls first; Moscow-airport fallback only, no international hubs by default.",
                 "preferred_carriers": [],
@@ -238,16 +239,16 @@ def resolve_route_graph_context(
 
     hubs, hub_source = resolve_route_hubs(getattr(args, "hub", None))
     routing_profile = geo_routing_profile(destination, destination_airports)
-    if routing_strategy == "ru-priority":
+    if routing_strategy == RoutingStrategy.RU_PRIORITY:
         hubs = [PRIORITY_PRIMARY_HUB, PRIORITY_SECONDARY_HUB]
         if routing_profile == "asia-oceania":
             hubs = [PRIORITY_ASIA_HUB, PRIORITY_PRIMARY_HUB, PRIORITY_SECONDARY_HUB]
         hub_source = "strategy"
-    elif routing_strategy == "domestic-ru":
+    elif routing_strategy == RoutingStrategy.DOMESTIC_RU:
         hubs = [hub for hub in DOMESTIC_RU_HUBS if hub not in set(origin_airports) | set(destination_airports)]
         if not hubs:
             hubs = [PRIORITY_MOSCOW_GATEWAY]
-        hub_source = "domestic-ru"
+        hub_source = RoutingStrategy.DOMESTIC_RU
 
     return RouteGraphContext(
         routing_strategy=routing_strategy,
@@ -384,7 +385,7 @@ def coverage_controls_for_plan(
                 for destination in target_airports:
                     add(
                         {
-                            "type": "exact_airport_direct",
+                            "type": RequiredControl.EXACT_AIRPORT_DIRECT,
                             "direction": direction,
                             "origin": origin,
                             "destination": destination,
@@ -397,7 +398,7 @@ def coverage_controls_for_plan(
         for direction, route_origin, route_destination, date_value in directions:
             add(
                 {
-                    "type": "full_route_aggregate",
+                    "type": RequiredControl.FULL_ROUTE_AGGREGATE,
                     "direction": direction,
                     "origin": route_origin,
                     "destination": route_destination,
@@ -408,7 +409,7 @@ def coverage_controls_for_plan(
             for carrier in _prioritized_carriers(preferred_carriers, requested_controls):
                 add(
                     {
-                        "type": "carrier_aggregate",
+                        "type": RequiredControl.CARRIER_AGGREGATE,
                         "direction": direction,
                         "origin": route_origin,
                         "destination": route_destination,

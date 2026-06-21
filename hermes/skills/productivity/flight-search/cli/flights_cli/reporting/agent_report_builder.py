@@ -3,8 +3,10 @@ from __future__ import annotations
 from typing import Any
 
 from ..config import SPECIAL_CITY_AIRPORTS
+from ..domain.vocabulary import Direction, Leg, RouteFamily, RoutingStrategy
 from ..domain.stop_metrics import offer_stop_metrics
 from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY, StopPolicy, decide_stop_policy, stop_policy_payload
+from ..services.assembly import ALL_DIRECT_CATALOG_CAP
 from .projections.summary_lines import build_summary_lines
 from .coverage_projector import build_coverage_diagnostics
 from .projections.itinerary_display import build_itinerary_display
@@ -18,6 +20,8 @@ from .report_budget import apply_agent_report_budget
 from .source_boundary_projector import source_boundaries
 from .through_fare_analyzer import through_fare_checks
 
+CATALOG_LIMIT_DEFAULT = 5
+
 
 def stop_policy_from_report_data(data: dict[str, Any]) -> StopPolicy:
     payload = data.get("stop_policy") if isinstance(data.get("stop_policy"), dict) else {}
@@ -28,9 +32,9 @@ def stop_policy_from_report_data(data: dict[str, Any]) -> StopPolicy:
     return StopPolicy(
         name=str(payload.get("name") or BUSINESS_DEFAULT_STOP_POLICY.name),
         preferred_max_connections=int(payload.get("preferred_max_connections") or 1),
-        fallback_max_connections=int(payload.get("fallback_max_connections") or 2),
+        tier2_max_connections=int(payload.get("tier2_max_connections") or 2),
         hard_max_connections=int(payload.get("hard_max_connections") or 2),
-        allow_two_stop_fallback=bool(payload.get("two_stop_allowed_only_if_no_preferred", True)),
+        allow_two_stop_tier=bool(payload.get("two_stop_allowed_only_if_no_preferred", True)),
         suppress_three_plus=not bool(payload.get("three_plus_reportable", False)),
     )
 
@@ -105,7 +109,7 @@ def merge_stop_policy_diagnostics(data: dict[str, Any], aggregate_controls: list
     diagnostics.setdefault("two_stop_candidate_count", 0)
     diagnostics.setdefault("three_plus_suppressed_count", 0)
     diagnostics.setdefault("two_stop_suppressed_because_preferred_exists", 0)
-    diagnostics.setdefault("used_two_stop_fallback", False)
+    diagnostics.setdefault("used_two_stop_tier", False)
     diagnostics["three_plus_suppressed_count"] = int(diagnostics.get("three_plus_suppressed_count") or 0) + aggregate_counts["aggregate_three_plus_suppressed_count"]
     diagnostics["two_stop_suppressed_because_preferred_exists"] = int(diagnostics.get("two_stop_suppressed_because_preferred_exists") or 0) + aggregate_counts["aggregate_two_stop_suppressed_because_preferred_exists"]
     diagnostics["garbage_options_hidden_from_answer"] = int(diagnostics.get("three_plus_suppressed_count") or 0) > 0
@@ -197,8 +201,8 @@ def hub_viability_summaries(live: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-def normalize_airport_values(values: Any, fallback: list[str] | None = None) -> list[str]:
-    source = values if isinstance(values, list) else (fallback or [])
+def normalize_airport_values(values: Any, default_value: list[str] | None = None) -> list[str]:
+    source = values if isinstance(values, list) else (default_value or [])
     normalized: list[str] = []
     for value in source:
         code = str(value or "").strip().upper()
@@ -253,10 +257,10 @@ def segment_path_signature(segments: list[dict[str, Any]]) -> tuple[tuple[str, s
 
 
 def direct_destination_leg(direction: str) -> str | None:
-    if direction == "outbound":
-        return "direct_outbound"
-    if direction == "return":
-        return "direct_return"
+    if direction == Direction.OUTBOUND:
+        return Leg.DIRECT_OUTBOUND
+    if direction == Direction.RETURN:
+        return Leg.DIRECT_RETURN
     return None
 
 
@@ -363,7 +367,7 @@ def option_matches_branch(
         outbound_ok = matches_two_leg_path(outbound, origin_airports, hub_airports, destination_airports)
     elif branch == "moscow_gateway":
         outbound_ok = matches_two_leg_path(outbound, origin_airports, moscow_airports, destination_airports)
-    elif branch == "moscow_via_ist_fallback":
+    elif branch == "moscow_via_ist_secondary":
         outbound_ok = matches_moscow_via_ist_path(outbound, origin_airports, moscow_airports, hub_airports, destination_airports)
     else:
         return False
@@ -499,7 +503,7 @@ def branch_required_edges(
     elif branch == "moscow_gateway":
         outbound = [("outbound", origin_airports, moscow_airports), ("outbound", moscow_airports, destination_airports)]
         inbound = [("return", destination_airports, moscow_airports), ("return", moscow_airports, origin_airports)]
-    elif branch == "moscow_via_ist_fallback":
+    elif branch == "moscow_via_ist_secondary":
         outbound = [
             ("outbound", origin_airports, moscow_airports),
             ("outbound", moscow_airports, hub_airports),
@@ -571,12 +575,12 @@ def option_max_connections_per_journey(option: dict[str, Any]) -> int | None:
     return max(counts) if counts else None
 
 
-def has_lower_stop_viable_option(source_options: list[dict[str, Any]], fallback_connections: int) -> bool:
+def has_lower_stop_viable_option(source_options: list[dict[str, Any]], tier2_connections: int) -> bool:
     for option in source_options:
         if not isinstance(option, dict) or option.get("ok") is not True:
             continue
         connections = option_max_connections_per_journey(option)
-        if connections is not None and connections < fallback_connections:
+        if connections is not None and connections < tier2_connections:
             return True
     return False
 
@@ -643,7 +647,7 @@ def ru_priority_control_option(option: dict[str, Any], branch: str) -> dict[str,
     control_option["id"] = f"ru-priority-{branch}:{base_id}"
     control_option["category"] = f"{branch}_control"
     control_option["reason"] = "RU-priority structural visibility control; compare as decision evidence, not as a ranking rewrite."
-    control_option["control_family"] = "ru_priority"
+    control_option["control_family"] = RouteFamily.RU_PRIORITY
     control_option["control_branch"] = branch
     control_option["visibility_role"] = "priority_control"
     return control_option
@@ -655,7 +659,7 @@ def build_ru_priority_controls(
     recommended_options: list[dict[str, Any]],
     priority_options: list[dict[str, Any]],
 ) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
-    if plan.get("routing_strategy") != "ru-priority":
+    if plan.get("routing_strategy") != RoutingStrategy.RU_PRIORITY:
         return None, []
 
     origin = str(plan.get("origin") or "").strip().upper()
@@ -669,7 +673,7 @@ def build_ru_priority_controls(
     controls: dict[str, Any] = {
         "requested": True,
         "checked": True,
-        "route_family": "ru_priority",
+        "route_family": RouteFamily.RU_PRIORITY,
         "scope": {
             "origin": origin,
             "destination": destination,
@@ -681,7 +685,7 @@ def build_ru_priority_controls(
         "direct_destination_control": branch_control_template(),
         "ist_primary_hub_control": branch_control_template(),
         "moscow_gateway_control": branch_control_template(),
-        "moscow_via_ist_fallback_control": branch_control_template(),
+        "moscow_via_ist_secondary_control": branch_control_template(),
         "decision": "no_viable_ru_priority_control",
     }
     source_options = ru_priority_source_options(data, recommended_options, priority_options)
@@ -691,17 +695,17 @@ def build_ru_priority_controls(
         "direct_destination_control": "direct_destination",
         "ist_primary_hub_control": "ist_primary_hub",
         "moscow_gateway_control": "moscow_gateway",
-        "moscow_via_ist_fallback_control": "moscow_via_ist_fallback",
+        "moscow_via_ist_secondary_control": "moscow_via_ist_secondary",
     }
     origin_set = set(origin_airports) | ({origin} if origin else set())
     destination_set = set(destination_airports) | ({destination} if destination else set())
     moscow_set = set(moscow_airports) | {"MOW"}
     hub_set = set(hub_airports) | ({primary_hub} if primary_hub else set())
     include_return = plan_requests_round_trip(plan)
-    fallback_skipped_by_lower_stop = has_lower_stop_viable_option(source_options, fallback_connections=2)
+    tier2_skipped_by_lower_stop = has_lower_stop_viable_option(source_options, tier2_connections=2)
 
     for control_key, branch in branch_map.items():
-        if branch == "moscow_via_ist_fallback" and fallback_skipped_by_lower_stop:
+        if branch == "moscow_via_ist_secondary" and tier2_skipped_by_lower_stop:
             controls[control_key] = {
                 **branch_control_template(),
                 "execution_state": "skipped_better_options_available",
@@ -756,7 +760,7 @@ def build_ru_priority_controls(
         ("direct_destination_viable", "direct_destination_control"),
         ("ist_primary_viable", "ist_primary_hub_control"),
         ("moscow_gateway_viable", "moscow_gateway_control"),
-        ("moscow_via_ist_fallback_viable", "moscow_via_ist_fallback_control"),
+        ("moscow_via_ist_secondary_viable", "moscow_via_ist_secondary_control"),
     ):
         if controls[control_key]["viable"] is True:
             controls["decision"] = decision
@@ -768,9 +772,14 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
     live = data.get("live_search") if isinstance(data.get("live_search"), dict) else {}
     plan = live.get("plan") if isinstance(live.get("plan"), dict) else {}
     assembly = data.get("assembly") if isinstance(data.get("assembly"), dict) else {}
+    all_direct = bool(assembly.get("all_direct_inventory"))
     raw_aggregate_controls = [aggregate_control_summary(item) for item in live.get("aggregate_controls") or [] if isinstance(item, dict)]
     stop_policy = stop_policy_from_report_data(data)
-    options = ranked_candidate_options(data, limit=5)
+    ranked_candidates = data.get("ranked_candidates") if isinstance(data.get("ranked_candidates"), list) else []
+    catalog_limit = min(len(ranked_candidates), ALL_DIRECT_CATALOG_CAP) if all_direct else CATALOG_LIMIT_DEFAULT
+    ranked_total_count = int(assembly.get("ranked_total_count") or len(ranked_candidates))
+    direct_omitted = max(0, ranked_total_count - ALL_DIRECT_CATALOG_CAP) if all_direct else 0
+    options = ranked_candidate_options(data, limit=catalog_limit)
     priority_options = priority_candidate_options(data, limit=5)
     preferred_available = has_preferred_option(options + priority_options) or aggregate_has_preferred_offer(raw_aggregate_controls, stop_policy)
     aggregate_controls = filter_aggregate_controls_for_stop_policy(raw_aggregate_controls, stop_policy, preferred_available)
@@ -790,14 +799,14 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
     coverage_diagnostics = build_coverage_diagnostics(plan, live)
     plan_flow_decision = plan.get("flow_decision") if isinstance(plan, dict) else {}
     plan_evidence_plan = plan.get("evidence_plan") if isinstance(plan, dict) else {}
-    fallback_segments = options[0].get("segments") if options else []
-    fallback_origin = fallback_segments[0].get("origin") if fallback_segments else None
-    fallback_destination = fallback_segments[-1].get("destination") if fallback_segments else None
+    tier2_segments = options[0].get("segments") if options else []
+    tier2_origin = tier2_segments[0].get("origin") if tier2_segments else None
+    tier2_destination = tier2_segments[-1].get("destination") if tier2_segments else None
     report = {
         "schema_version": AGENT_REPORT_SCHEMA_VERSION,
         "route": {
-            "origin": plan.get("origin") or fallback_origin,
-            "destination": plan.get("destination") or fallback_destination,
+            "origin": plan.get("origin") or tier2_origin,
+            "destination": plan.get("destination") or tier2_destination,
             "origin_airports": plan.get("origin_airports") or [],
             "destination_airports": plan.get("destination_airports") or [],
             "dates": plan.get("dates") or {},
@@ -813,6 +822,9 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
             "candidate_count": assembly.get("candidate_count"),
             "candidate_pool_truncated": assembly.get("candidate_pool_truncated"),
             "failure_count": live.get("failure_count", 0),
+            "direct_priority_applied": assembly.get("direct_priority_applied", False),
+            "all_direct_inventory": assembly.get("all_direct_inventory", False),
+            "direct_omitted": direct_omitted,
         },
         "source_boundaries": source_boundaries(),
         "hub_viability": hub_viability_summaries(live),
@@ -826,6 +838,7 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
         "stop_policy_diagnostics": stop_policy_diagnostics,
         "through_fare_checks": through_fare_checks(aggregate_controls, priority_options),
         "rejected_pair_warnings": rejected_pair_warnings(data, limit=5),
+        "direct_flights": assembly.get("direct_flights", []),
     }
     date_window_inventory = live.get("date_window_inventory")
     if isinstance(date_window_inventory, dict):
@@ -833,7 +846,8 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
     if ru_priority_controls is not None:
         report["ru_priority_controls"] = ru_priority_controls
     report["offer_graph"] = build_offer_graph(report, plan, live, data)
-    report["display"] = build_itinerary_display(report, store)
+    display_limit = min(len(options), ALL_DIRECT_CATALOG_CAP) if all_direct else CATALOG_LIMIT_DEFAULT
+    report["display"] = build_itinerary_display(report, store, limit=max(display_limit, CATALOG_LIMIT_DEFAULT))
     report["answer_lines"] = build_summary_lines(report)
     human_answer = build_human_answer_mirror(report)
     report["user_answer"] = build_user_answer(report, rendered_text=str(human_answer.get("text") or ""))

@@ -22,7 +22,7 @@ The per-date probe loop is executed by the CLI planner, not by the agent. Encode
   "provider_policy": "auto",
   "route_options": {
     "max_connections": 0,
-    "fallback_max_connections": 0,
+    "tier2_max_connections": 0,
     "date_window_end": "YYYY-MM-DD"
   },
   "output": {"agent_brief": true}

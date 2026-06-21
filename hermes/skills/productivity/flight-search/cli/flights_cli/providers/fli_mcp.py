@@ -431,7 +431,7 @@ def parse_fli_flight_search(
             "flight_numbers": [item["flight_number"] for item in normalized_flights if item.get("flight_number")],
             "marketing_carriers": sorted({item["marketing_carrier"] for item in normalized_flights if item.get("marketing_carrier")}),
             "operating_carriers": sorted({item["operating_carrier"] for item in normalized_flights if item.get("operating_carrier")}),
-            "flights": normalized_flights,
+            "segments": normalized_flights,
         }
         previous = deduped.get(key)
         previous_price = previous.get("price") if previous else None
@@ -591,7 +591,7 @@ def fli_offer_to_segment_offer(
     currency: str,
     index: int,
 ) -> dict[str, Any] | None:
-    raw_flights = offer.get("flights")
+    raw_flights = offer.get("segments")
     if not isinstance(raw_flights, list) or not raw_flights:
         return None
     segments = []

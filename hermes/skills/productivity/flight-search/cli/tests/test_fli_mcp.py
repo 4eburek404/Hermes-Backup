@@ -279,8 +279,8 @@ class FliMcpTests(unittest.TestCase):
         offer = result["offers"][0]
         self.assertEqual(offer["origin"], "IST")
         self.assertEqual(offer["destination"], "BCN")
-        self.assertEqual(offer["flights"][0]["origin"], "IST")
-        self.assertEqual(offer["flights"][0]["destination"], "BCN")
+        self.assertEqual(offer["segments"][0]["origin"], "IST")
+        self.assertEqual(offer["segments"][0]["destination"], "BCN")
 
     def test_parse_fli_flight_search_maps_real_fli_airport_names(self) -> None:
         raw = {
@@ -320,8 +320,8 @@ class FliMcpTests(unittest.TestCase):
         offer = result["offers"][0]
         self.assertEqual(offer["origin"], "IST")
         self.assertEqual(offer["destination"], "CDG")
-        self.assertEqual(offer["flights"][0]["origin"], "IST")
-        self.assertEqual(offer["flights"][0]["destination"], "CDG")
+        self.assertEqual(offer["segments"][0]["origin"], "IST")
+        self.assertEqual(offer["segments"][0]["destination"], "CDG")
 
     def test_decode_mcp_event_stream_extracts_jsonrpc_result(self) -> None:
         payload = b'event: message\ndata: {"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"success":true,"flights":[]}}}\n\n'

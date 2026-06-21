@@ -52,6 +52,7 @@ videos/
 *.swp
 .DS_Store
 __pycache__/
+*.egg-info/
 .pytest_cache/
 .mypy_cache/
 
@@ -70,6 +71,6 @@ cli/**/venv/
 cli/**/node_modules/
 cli/**/dist/
 cli/**/build/
-cli/**/*.egg-info/
+
 cli/**/*.pyc
 cli/**/*.pyo

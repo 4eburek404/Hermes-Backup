@@ -8,11 +8,15 @@ from ...store import Store
 from .fli_adapter import FLI_CAPABILITIES, FliProviderAdapter
 from .kupibilet_adapter import KUPIBILET_CAPABILITIES, KupibiletProviderAdapter
 
-
 PROVIDER_REGISTRY: dict[ProviderName, FlightProviderPort] = {
     "kupibilet": KupibiletProviderAdapter(),
     "fli": FliProviderAdapter(),
 }
+
+# Cache keyed by (name, id(store)). Grows to at most 2×N where N is the number of
+# distinct Store instances (typically 1 per CLI invocation). Custom fetcher calls
+# bypass this cache entirely.
+_adapter_cache: dict[tuple[str, int | None], FlightProviderPort] = {}
 
 
 def location_country_code(store: Store, code: str) -> str | None:
@@ -38,19 +42,33 @@ def is_ru_touching_segment(spec: dict[str, Any], store: Store) -> bool:
 
 def provider_adapter(name: str, *, store: Store | None = None, kupibilet_fetcher: Any | None = None, fli_fetcher: Any | None = None) -> FlightProviderPort:
     normalized = name.strip().lower()
+    # Custom fetcher = bespoke instance, never cached
+    if kupibilet_fetcher is not None or fli_fetcher is not None:
+        if normalized == "kupibilet":
+            return KupibiletProviderAdapter(store=store, fetcher=kupibilet_fetcher)
+        if normalized == "fli":
+            return FliProviderAdapter(store=store, fetcher=fli_fetcher)
+        raise CliError(f"unsupported provider {name!r}", error_type="validation_error")
+    # Cache lookup
+    cache_key = (normalized, id(store) if store is not None else None)
+    cached = _adapter_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    # Construct and cache
     if normalized == "kupibilet":
-        if store is None and kupibilet_fetcher is None:
-            return PROVIDER_REGISTRY["kupibilet"]
-        kwargs: dict[str, Any] = {"store": store}
-        if kupibilet_fetcher is not None:
-            kwargs["fetcher"] = kupibilet_fetcher
-        return KupibiletProviderAdapter(**kwargs)
-    if normalized == "fli":
-        if store is None and fli_fetcher is None:
-            return PROVIDER_REGISTRY["fli"]
-        return FliProviderAdapter(store=store, fetcher=fli_fetcher)
-    raise CliError(f"unsupported provider {name!r}", error_type="validation_error")
-
+        if store is None:
+            result = PROVIDER_REGISTRY["kupibilet"]
+        else:
+            result = KupibiletProviderAdapter(store=store)
+    elif normalized == "fli":
+        if store is None:
+            result = PROVIDER_REGISTRY["fli"]
+        else:
+            result = FliProviderAdapter(store=store)
+    else:
+        raise CliError(f"unsupported provider {name!r}", error_type="validation_error")
+    _adapter_cache[cache_key] = result
+    return result
 
 
 def providers_for_segment(spec: dict[str, Any], store: Store, policy: str) -> list[ProviderName]:
@@ -65,7 +83,6 @@ def providers_for_segment(spec: dict[str, Any], store: Store, policy: str) -> li
         return ["kupibilet"]
     return ["fli"]
 
-
 def provider_adapters_for_segment(
     spec: dict[str, Any],
     store: Store,
@@ -78,7 +95,6 @@ def provider_adapters_for_segment(
         provider_adapter(name, store=store, kupibilet_fetcher=kupibilet_fetcher, fli_fetcher=fli_fetcher)
         for name in providers_for_segment(spec, store, policy)
     ]
-
 
 def not_supported_probe_result(
     *,
@@ -100,7 +116,6 @@ def not_supported_probe_result(
         source_boundary={"warning": "provider capability does not support this probe type"},
         errors=[{"type": "not_supported", "message": reason}],
     )
-
 
 __all__ = [
     "FLI_CAPABILITIES",

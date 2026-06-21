@@ -27,7 +27,7 @@ Important UX boundary: the flight-search CLI is an agent-facing implementation t
 
 ## Source, Runtime, and Mirror Validation
 
-Current source edits happen under `/home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-search`. Runtime state lives under `$HERMES_HOME/skills/productivity/flight-search` (usually `$HOME/.hermes/skills/productivity/flight-search`) and is a separate deployment/sync surface. The active Hermes release path may intentionally exclude this runtime/user skill. The legacy distribution mirror `cli/skill-clis/flights` must not be recreated.
+Current source edits happen under `/home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-search`. Runtime state lives under `$HERMES_HOME/skills/productivity/flight-search` (usually `$HOME/.hermes/skills/productivity/flight-search`) and is a separate deployment/sync surface. The active Hermes release path may intentionally exclude this runtime/user skill. Do not recreate the retired distribution mirror formerly known as `skill-clis/flights`.
 
 Before saying which version is current, run the compact local maintenance report when the CLI is available:
 
@@ -150,14 +150,7 @@ Pitfalls:
 
 ## Provider and Airport Policy Coupling
 
-The durable source contract lives in `references/provider-aware-airport-priority.md`. Keep implementation, tests, and docs aligned with these invariants:
-
-- Active provider paths are KupiBilet and FLI; static catalogs are metadata only.
-- `IST` is exact-airport `IST` by default; `SAW` requires explicit user request.
-- London defaults to `LHR` first, with `LGW` deferred until `LHR` has no accepted/viable offers; `STN` and `LTN` are excluded by default.
-- KupiBilet handles Moscow as `MOW` city-code first; exact `SVO`/`DME`/`VKO` fallback is deferred and must not run in parallel when city-code request has accepted offers.
-- FLI is exact-airport only and must not receive city-code `LON` by default.
-- City-code results must be post-validated against actual airport scope, and reports must display actual airport codes rather than only request city codes.
+The authoritative rules live in `references/provider-aware-airport-priority.md`; do not duplicate them here. When maintaining the CLI, tests, or docs, read that file for city/airport dispatch invariants, KupiBilet MOW city-code behavior, FLI exact-airport policy, and airport interchangeability rules.
 
 ## Route-Family and Coverage-Control Rules
 
@@ -165,7 +158,7 @@ The durable source contract lives in `references/provider-aware-airport-priority
 - Keep RU domestic, RU-touching international, global non-RU, Asia/Oceania, and structurally constrained route logic consistent across public builders.
 - Domestic-RU routing must be decided in one shared layer and propagated through `route plan`, assembly, and `search --request`.
 - For domestic Russian round trips, assert the direct return segment `DEST -> ORIGIN` and absence of default international hubs unless explicitly requested.
-- Moscow/SVO controls are first-class controls when relevant, not fallback-only behavior.
+- Moscow/SVO controls are first-class controls when relevant, not deferred-only behavior.
 - Coverage and aggregate-control flags must compile to a common `ProbeIntent`/evidence-goal model with provider capability and terminal status.
 - `not_executed_controls` and `failed_controls` are missing/degraded evidence. `not_supported_controls` is a terminal provider/source capability boundary; it should be surfaced only when decision-relevant and must not make coverage incomplete by itself.
 
@@ -182,11 +175,13 @@ Use this when operational logic in `SKILL.md` starts compensating for determinis
 
 ## Human/User Answer Renderer Maintenance
 
-Use this when improving final user-visible flight output. The current seam is `data.agent_report.user_answer` → `flight_search_user_answer.v3` → `user_answer.rendered_text` → final Telegram/Markdown answer. `diagnostics.human_answer` is a debug mirror and must not be used as fallback final prose.
+Use this when improving final user-visible flight output. The current seam is `data.agent_report.user_answer` → `flight_search_user_answer.v3` → `user_answer.rendered_text` → final Telegram/Markdown answer. `diagnostics.human_answer` is a debug mirror and must not be used as an alternative final-prose source.
 
 - Implement user-answer contract changes in `cli/flights_cli/reporting/user_answer.py` and diagnostic mirror/rendering changes in `reporting/projections/human_answer_mirror.py` / `output.py`.
 - Preserve provider neutrality: renderer input is normalized report fields, not provider client objects, booking URLs, cache semantics, or provider caveat text.
-- Test negative format guarantees: no `agent report:`, `Best CLI-ranked option`, `Coverage diagnostics`, `provider_aggregate_candidate`, `provider-aggregate:`, pipe tables, or raw `probe_id` in user-facing text.
+- Test negative format guarantees: no `agent report:`, `Best CLI-ranked option`, `Coverage diagnostics`, `provider_aggregate_candidate`, `provider-aggregate:`, pipe tables, raw `probe_id`, raw risk badges (`single_pnr_unproven`, `baggage_unknown`), or English caveats (`single PNR`, `through fare`, `booking screen`) in user-facing text.
+- For every positive catalog answer, use one deterministic line shape for both one-way and round-trip results: `N. PRICE | туда: FLIGHT ORIGIN→DEST DD.MM HH:MM–HH:MM AIRCRAFT | обратно: FLIGHT ORIGIN→DEST DD.MM HH:MM–HH:MM AIRCRAFT` (omit the return part for one-way). Keep price first for scanability, use airport codes rather than city-name prose, include the direction label even for one-way, and show arrival date inline when it differs from departure (for example `DP515 LED→SVX 14.08 23:35–15.08 04:25 B737`). Normalize common equipment codes (`73H`/`73*` → `B737`, `319` → `A319`, `A32*` → `A320`).
+- Do not append absence/negative-evidence wording such as “не нашёл в выполненных live/probe источниках…” to a positive answer that already lists viable options. Reserve `truth_language.negative_wording` for no-viable-options / absence-scope answers; positive catalogs should keep only actionable purchase checks and source-boundary caveats that affect booking.
 - For connected itineraries, tests must assert per-segment flight times, reject collapsed whole-journey ranges, and cover overnight/multi-day layovers where a later segment date must be visible inline.
 
 Focused renderer/contract suite after renderer changes:
@@ -241,15 +236,17 @@ Generated artifacts must be intentionally cleaned or reported. Prefer `PYTHONDON
 
 ## Markdown Reference Governance
 
-Canonical active references are bounded to six logical directions, plus bounded adjacent rail comparison:
+Canonical active references are the index plus eight owner files:
 
+0. `references/index.md` — canonical reference owner map and routing hub from `SKILL.md`.
 1. `references/report-contract.md` — how to read `agent_report`, contract lifecycle, and renderer contract.
 2. `references/source-boundaries.md` — evidence classes, absence, airports, connections, ticketing, OTA/smart-route semantics.
 3. `references/provider-aware-airport-priority.md` — provider/airport dispatch and city-code policy.
-4. `references/debug-playbook.md` — targeted probes and route-family exception patterns.
-5. `references/direct-date-window.md` — direct/nonstop inventory over a bounded date range; per-date direct-only probes and compact availability output.
-6. `references/cli-maintenance.md` — source/runtime, schema/tests, provider ports, CLI-surface simplification, generated artifacts, dead-code/duplicate cleanup, and this reference lifecycle.
-7. `references/rail-rzd-live-pricing.md` — bounded train-price comparison after a flight search.
+4. `references/pipeline-reference.md` — current data flow, flow decision, evidence plan, direct-priority/all-direct mechanics, reporting projection, and data artifacts.
+5. `references/debug-playbook.md` — targeted probes and bounded exception/debug patterns.
+6. `references/direct-date-window.md` — direct/nonstop inventory over a bounded date range.
+7. `references/rail-rzd-live-pricing.md` — bounded official-RZD train-price comparison after a flight search.
+8. `references/cli-maintenance.md` — source/runtime, schema/tests, provider ports, CLI-surface simplification, generated artifacts, dead-code/duplicate cleanup, and this reference lifecycle.
 
 Do not add a new active reference for every incident, smoke run, audit, handoff, route example, migration note, or implementation report. First extract durable rules into the appropriate canonical reference or test; leave raw history to session search. Add another active reference only when a new stable direction cannot be expressed in the canonical files.
 
@@ -257,6 +254,6 @@ Before final reporting after Markdown consolidation:
 
 - Confirm the canonical Markdown set explicitly.
 - Confirm no new incident, runbook, audit, handoff, smoke, or implementation-report Markdown was added.
-- Link from `SKILL.md` only to canonical references.
+- Link from `SKILL.md` to `references/index.md` for reference routing; direct links to specific references are allowed only for hot-path invariants.
 - Keep provider/airport policy in `references/provider-aware-airport-priority.md`; cross-reference it instead of duplicating provider-specific rules across docs.
-- Verify noncanonical runtime-only Markdown files are gone and source/runtime Markdown parity holds after sync.
+- Verify noncanonical runtime-only Markdown files are gone and source/runtime Markdown parity holds after sync when runtime sync is in scope.

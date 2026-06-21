@@ -217,14 +217,14 @@ def option_price_text(option: dict[str, Any]) -> str:
     return str(option.get("price_text") or price_label(amount, currency))
 
 
-def option_route_label(option: dict[str, Any], fallback: str) -> str:
+def option_route_label(option: dict[str, Any], default_label: str) -> str:
     segments = [segment for segment in option.get("segments") or [] if isinstance(segment, dict)]
     if segments:
         first = segments[0]
         last = segments[-1]
         if first.get("origin") and last.get("destination"):
             return f"{first.get('origin')}→{last.get('destination')}"
-    return fallback
+    return default_label
 
 
 def option_time_fields(option: dict[str, Any]) -> dict[str, int | None]:

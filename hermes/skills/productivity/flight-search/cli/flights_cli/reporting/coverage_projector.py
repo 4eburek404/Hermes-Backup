@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..domain.vocabulary import RequiredControl
 from ..execution.probe_ledger import ProbeExecutionLedger, control_identity
 
 
@@ -92,7 +93,7 @@ def build_coverage_diagnostics(plan: dict[str, Any], live: dict[str, Any]) -> di
             continue
         key = control_identity(
             {
-                "type": "exact_airport_direct",
+                "type": RequiredControl.EXACT_AIRPORT_DIRECT,
                 "direction": item.get("direction"),
                 "origin": item.get("origin"),
                 "destination": item.get("destination"),
@@ -118,7 +119,7 @@ def build_coverage_diagnostics(plan: dict[str, Any], live: dict[str, Any]) -> di
             for carrier in carriers:
                 key = control_identity(
                     {
-                        "type": "carrier_aggregate",
+                        "type": RequiredControl.CARRIER_AGGREGATE,
                         "direction": item.get("direction"),
                         "origin": item.get("origin"),
                         "destination": item.get("destination"),
@@ -141,7 +142,7 @@ def build_coverage_diagnostics(plan: dict[str, Any], live: dict[str, Any]) -> di
         else:
             key = control_identity(
                 {
-                    "type": "full_route_aggregate",
+                    "type": RequiredControl.FULL_ROUTE_AGGREGATE,
                     "direction": item.get("direction"),
                     "origin": item.get("origin"),
                     "destination": item.get("destination"),

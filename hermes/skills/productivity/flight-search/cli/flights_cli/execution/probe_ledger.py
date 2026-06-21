@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from ..domain.vocabulary import AbsenceReason, ProbeStatus
 from ..ports.providers import ProviderProbeResult
 from .probe_intent import ProbeIntent
 
@@ -77,7 +78,7 @@ class ProbeExecutionLedger:
         self._searched.append(
             self._diagnostic(
                 item,
-                execution_state="searched",
+                execution_state=ProbeStatus.SEARCHED,
                 status=status,
                 provider=provider,
                 offer_count=offer_count,
@@ -93,7 +94,7 @@ class ProbeExecutionLedger:
             return
         if key in self._planned:
             self._terminal_keys.add(key)
-        self._skipped.append(self._diagnostic(item, execution_state="skipped", status="skipped", reason=reason))
+        self._skipped.append(self._diagnostic(item, execution_state=ProbeStatus.SKIPPED, status=ProbeStatus.SKIPPED, reason=reason))
 
     def record_failed(self, control: ControlInput, provider: Any, error: Any) -> None:
         item = _control_dict(control)
@@ -105,8 +106,8 @@ class ProbeExecutionLedger:
         self._failed.append(
             self._diagnostic(
                 item,
-                execution_state="failed",
-                status="failed",
+                execution_state=ProbeStatus.FAILED,
+                status=ProbeStatus.FAILED,
                 provider=provider,
                 offer_count=0,
                 error=error,
@@ -123,8 +124,8 @@ class ProbeExecutionLedger:
         self._not_supported.append(
             self._diagnostic(
                 item,
-                execution_state="not_supported",
-                status="not_supported",
+                execution_state=ProbeStatus.NOT_SUPPORTED,
+                status=ProbeStatus.NOT_SUPPORTED,
                 provider=provider,
                 offer_count=0,
                 reason=reason,
@@ -132,7 +133,7 @@ class ProbeExecutionLedger:
         )
 
     def record_provider_result(self, control: ControlInput, result: ProviderProbeResult) -> None:
-        if result.execution_state == "not_supported":
+        if result.execution_state == ProbeStatus.NOT_SUPPORTED:
             reason = None
             if result.result_summary:
                 reason = result.result_summary.get("reason")
@@ -140,7 +141,7 @@ class ProbeExecutionLedger:
                 reason = result.errors[0].get("message")
             self.record_not_supported(control, provider=result.provider, reason=reason)
             return
-        if result.execution_state == "failed":
+        if result.execution_state == ProbeStatus.FAILED:
             self.record_failed(control, provider=result.provider, error=result.errors[0] if result.errors else None)
             return
         summary = result.result_summary if isinstance(result.result_summary, dict) else {}
@@ -157,8 +158,8 @@ class ProbeExecutionLedger:
         self._deduped.append(
             self._diagnostic(
                 item,
-                execution_state="deduped",
-                status="deduped",
+                execution_state=ProbeStatus.DEDUPED,
+                status=ProbeStatus.DEDUPED,
                 original_probe_id=original_probe_id,
             )
         )
@@ -170,7 +171,7 @@ class ProbeExecutionLedger:
             control = self._planned[key]
             self._terminal_keys.add(key)
             self._not_executed.append(
-                self._diagnostic(control, execution_state="not_executed", status="not_executed", reason=reason)
+                self._diagnostic(control, execution_state=ProbeStatus.NOT_EXECUTED, status=ProbeStatus.NOT_EXECUTED, reason=reason)
             )
 
     def to_coverage_diagnostics(self, plan: dict[str, Any]) -> dict[str, Any]:
@@ -179,7 +180,7 @@ class ProbeExecutionLedger:
         return {
             "coverage_mode": plan.get("coverage_mode") or "standard",
             "negative_evidence_type": "bounded_live_controls_only",
-            "planned_controls": [self._diagnostic(self._planned[key], execution_state="planned") for key in self._planned_order],
+            "planned_controls": [self._diagnostic(self._planned[key], execution_state=ProbeStatus.PLANNED) for key in self._planned_order],
             "searched_controls": self._searched,
             "skipped_controls": self._skipped,
             "failed_controls": self._failed,
@@ -234,20 +235,20 @@ class ProbeExecutionLedger:
             count = int(offer_count) if offer_count is not None else None
         except (TypeError, ValueError):
             count = None
-        if execution_state == "searched" and count == 0:
+        if execution_state == ProbeStatus.SEARCHED and count == 0:
             if "carrier" in negative_evidence:
-                return "provider_empty", "provider_empty_not_carrier_absence"
+                return AbsenceReason.PROVIDER_EMPTY, "provider_empty_not_carrier_absence"
             if "aggregate" in negative_evidence:
-                return "provider_empty", "provider_empty_not_route_absence"
-            return "provider_empty", "provider_empty_not_structural_absence"
-        if execution_state == "searched" and count is not None and count > 0:
+                return AbsenceReason.PROVIDER_EMPTY, "provider_empty_not_route_absence"
+            return AbsenceReason.PROVIDER_EMPTY, "provider_empty_not_structural_absence"
+        if execution_state == ProbeStatus.SEARCHED and count is not None and count > 0:
             return "provider_positive", None
-        if execution_state == "failed":
-            return "runtime_provider_failure", "runtime_provider_failure"
-        if execution_state == "not_supported":
-            return "provider_coverage_gap", "provider_coverage_gap"
-        if execution_state == "skipped":
-            return "constraint_mismatch", "constraint_mismatch"
-        if execution_state == "not_executed":
+        if execution_state == ProbeStatus.FAILED:
+            return AbsenceReason.RUNTIME_PROVIDER_FAILURE, AbsenceReason.RUNTIME_PROVIDER_FAILURE
+        if execution_state == ProbeStatus.NOT_SUPPORTED:
+            return AbsenceReason.PROVIDER_COVERAGE_GAP, AbsenceReason.PROVIDER_COVERAGE_GAP
+        if execution_state == ProbeStatus.SKIPPED:
+            return AbsenceReason.CONSTRAINT_MISMATCH, AbsenceReason.CONSTRAINT_MISMATCH
+        if execution_state == ProbeStatus.NOT_EXECUTED:
             return "missing_evidence", "not_executed"
         return None, None

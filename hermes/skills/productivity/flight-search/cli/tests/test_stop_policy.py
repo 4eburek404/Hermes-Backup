@@ -50,7 +50,7 @@ def rank_args(**overrides: object) -> argparse.Namespace:
         "include_filtered": 20,
         "stop_policy": "business-default",
         "max_connections": None,
-        "fallback_max_connections": None,
+        "tier2_max_connections": None,
     }
     values.update(overrides)
     return argparse.Namespace(**values)
@@ -76,13 +76,13 @@ class StopPolicyTests(unittest.TestCase):
 
         self.assertEqual({item["id"] for item in result["ranked"]}, {"one-stop", "direct"})
         self.assertEqual(result["stop_policy_diagnostics"]["two_stop_suppressed_because_preferred_exists"], 1)
-        self.assertFalse(result["stop_policy_diagnostics"]["used_two_stop_fallback"])
+        self.assertFalse(result["stop_policy_diagnostics"]["used_two_stop_tier"])
 
     def test_no_preferred_allows_two_stop_fallback(self) -> None:
         result = rank_candidate_list([candidate("two-stop", ["SVX", "IST", "BEG", "AMS"], 10000)], rank_args())
 
         self.assertEqual([item["id"] for item in result["ranked"]], ["two-stop"])
-        self.assertTrue(result["stop_policy_diagnostics"]["used_two_stop_fallback"])
+        self.assertTrue(result["stop_policy_diagnostics"]["used_two_stop_tier"])
         self.assertEqual(result["ranked"][0]["validation_summary"]["stop_tier"], "T2_TWO_STOP")
 
     def test_three_plus_always_rejected_in_normal_policy(self) -> None:

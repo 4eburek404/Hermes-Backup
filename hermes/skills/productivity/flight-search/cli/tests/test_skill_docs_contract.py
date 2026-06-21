@@ -7,14 +7,15 @@ import unittest
 
 SKILL_ROOT = Path(__file__).resolve().parents[2]
 CANONICAL_REFERENCES = {
+    "index.md",
     "report-contract.md",
     "source-boundaries.md",
     "provider-aware-airport-priority.md",
+    "pipeline-reference.md",
     "debug-playbook.md",
     "direct-date-window.md",
-    "cli-maintenance.md",
     "rail-rzd-live-pricing.md",
-    "flow-decision-router.md",
+    "cli-maintenance.md",
 }
 REMOVED_COMMAND_PATTERNS = (
     r"\broute\s+live-assemble\b",

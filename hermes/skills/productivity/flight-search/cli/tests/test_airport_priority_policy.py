@@ -110,7 +110,7 @@ def kupibilet_result(query_origin: str, query_destination: str, actual_origin: s
                 "duration": 120,
                 "departure_at": "2026-08-12T10:00:00+03:00",
                 "arrival_at": "2026-08-12T12:00:00+05:00",
-                "flights": [
+                "segments": [
                     {
                         "origin": actual_origin,
                         "destination": actual_destination,
@@ -172,7 +172,7 @@ class AirportPriorityPolicyTests(unittest.TestCase):
             plan["airport_scope"]["destination"]["preferred_airport_tiers"],
             [
                 {"tier": 1, "airports": ["LHR"], "role": "preferred"},
-                {"tier": 2, "airports": ["LGW"], "role": "fallback"},
+                {"tier": 2, "airports": ["LGW"], "role": "deferred"},
             ],
         )
         self.assertEqual(plan["airport_scope"]["destination"]["excluded_by_default"], ["STN", "LTN"])
@@ -213,8 +213,8 @@ class AirportPriorityPolicyTests(unittest.TestCase):
             [pair for pair in pairs(outbound_from_mow) if pair[0] in {"SVO", "DME", "VKO"}],
             [("SVO", "SVX"), ("DME", "SVX"), ("VKO", "SVX")],
         )
-        self.assertTrue(all(segment.get("fallback_for_city_code_request") for segment in outbound_to_mow[1:4]))
-        self.assertTrue(all(segment.get("fallback_for_city_code_request") for segment in outbound_from_mow[1:4]))
+        self.assertTrue(all(segment.get("deferred_for_city_code_request") for segment in outbound_to_mow[1:4]))
+        self.assertTrue(all(segment.get("deferred_for_city_code_request") for segment in outbound_from_mow[1:4]))
 
     def test_kupibilet_mow_to_lon_uses_moscow_city_code_with_london_preference_without_broad_fanout(self) -> None:
         plan = build_live_route_segment_plan(live_args(origin="MOW", destination="LON"), Store())
@@ -241,7 +241,7 @@ class AirportPriorityPolicyTests(unittest.TestCase):
                 return kupibilet_result("MOW", "LHR", "SVO", "LHR")
             return empty_kupibilet_result(origin, destination, depart_date)
 
-        with patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
+        with patch("flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search", side_effect=fake_fetch):
             result = run_live_route_assembly(args, Store())
 
         self.assertIn(("MOW", "LHR"), calls)
@@ -276,7 +276,7 @@ class AirportPriorityPolicyTests(unittest.TestCase):
                 return kupibilet_result("MOW", "LGW", "SVO", "LGW")
             return empty_kupibilet_result(origin, destination, depart_date)
 
-        with patch("flights_cli.orchestrators.live_assemble.fetch_kupibilet_search", side_effect=fake_fetch):
+        with patch("flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search", side_effect=fake_fetch):
             run_live_route_assembly(args, Store())
 
         lhr_attempts = [("MOW", "LHR"), ("SVO", "LHR"), ("DME", "LHR"), ("VKO", "LHR")]

@@ -63,7 +63,4 @@ def offer_stop_metrics(offer: dict[str, Any]) -> dict[str, Any]:
     segments = offer.get("segments")
     if isinstance(segments, list):
         return stop_metrics_from_connection_counts([max(0, len(segments) - 1)])
-    flights = offer.get("flights")
-    if isinstance(flights, list):
-        return stop_metrics_from_connection_counts([max(0, len(flights) - 1)])
     return stop_metrics_from_connection_counts([0])

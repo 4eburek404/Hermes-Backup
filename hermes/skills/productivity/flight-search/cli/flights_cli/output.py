@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from .domain.vocabulary import RoutingStrategy
 from .errors import CliError
 from .reporting.user_answer import validate_user_answer
 
@@ -48,7 +49,7 @@ def render_human(command: str, data: Any) -> str:
             changes = "direct" if offer.get("number_of_changes") == 0 else f"{offer.get('number_of_changes')} stop(s)"
             lines.append(f"  {i}. {price_text}  {changes}  {offer.get('duration') or '?'}min")
             leg_bits = []
-            for flight in offer.get("flights", []):
+            for flight in offer.get("segments", []):
                 dep = str(flight.get("departure_at") or "")
                 arr = str(flight.get("arrival_at") or "")
                 leg_bits.append(
@@ -87,7 +88,7 @@ def render_human(command: str, data: Any) -> str:
             changes = "direct" if offer.get("number_of_changes") == 0 else f"{offer.get('number_of_changes')} stop(s)"
             lines.append(f"  {i}. {price_text}  {changes}  {offer.get('duration') or '?'}min")
             leg_bits = []
-            for flight in offer.get("flights", []):
+            for flight in offer.get("segments", []):
                 operating = flight.get("operating_carrier")
                 marketing = flight.get("marketing_carrier")
                 op_note = f" op:{operating}" if operating and marketing and operating != marketing else ""
@@ -124,7 +125,7 @@ def render_human(command: str, data: Any) -> str:
             lines.append(f"  {i}. {price_text}  {changes}  {baggage_text}")
             for journey in offer.get("journeys", []):
                 leg_bits = []
-                for flight in journey.get("flights", []):
+                for flight in journey.get("segments", []):
                     operating = flight.get("operating_carrier")
                     marketing = flight.get("marketing_carrier")
                     op_note = f" op:{operating}" if operating and marketing and operating != marketing else ""
@@ -219,7 +220,7 @@ def render_human(command: str, data: Any) -> str:
         metrics = data["metrics"]
         lines = [
             f"route: {','.join(data['origin_airports'])} -> {','.join(data['destination_airports'])}",
-            f"strategy: {data.get('routing_strategy', 'hub-list')}",
+            f"strategy: {data.get('routing_strategy', RoutingStrategy.HUB_LIST)}",
             f"hubs: {', '.join(data['hubs'])} ({data.get('hub_source', 'manual')})",
             f"segment requests: {metrics['segment_request_count']}",
             "first commands:",

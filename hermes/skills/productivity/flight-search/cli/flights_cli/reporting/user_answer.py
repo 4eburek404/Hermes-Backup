@@ -291,7 +291,7 @@ def direction_contract(option: dict[str, Any], direction: str) -> dict[str, Any]
         "segments": catalog_segments,
         "layovers": direction_layovers(catalog_segments),
         "elapsed_min": direction_elapsed(option, direction, catalog_segments),
-        "render_line": render_direction_for_catalog(catalog_segments, direction),
+        "render_line": render_direction_for_catalog(segments, direction),
     }
 
 
@@ -317,18 +317,89 @@ def catalog_display_time(value: Any) -> str:
     return value.split("T", 1)[1][:5]
 
 
+def catalog_display_time_compact(value: Any) -> str:
+    rendered = catalog_display_time(value)
+    return rendered.replace(":", "") if re.fullmatch(r"\d{2}:\d{2}", rendered) else rendered
+
+
+def catalog_route_code(code: Any) -> str:
+    normalized = str(code or "").strip().upper()
+    return normalized or "???"
+
+
+def catalog_time_window(departure_at: Any, arrival_at: Any) -> str:
+    departure_date = catalog_display_date(departure_at)
+    arrival_date = catalog_display_date(arrival_at)
+    departure_time = catalog_display_time(departure_at)
+    arrival_time = catalog_display_time(arrival_at)
+    if arrival_date != departure_date:
+        return f"{departure_date} {departure_time}–{arrival_date} {arrival_time}"
+    return f"{departure_date} {departure_time}–{arrival_time}"
+
+
+@lru_cache(maxsize=512)
+def airport_city_label(code: str | None) -> str:
+    normalized = str(code or "").strip().upper()
+    if not normalized:
+        return "???"
+    try:
+        from ..store import Store
+
+        store = Store()
+        airport = store.airport_by_code.get(normalized)
+        city_code = str(airport.get("city_code") or "").upper() if airport else normalized
+        city_name = store.city_name(city_code)
+        if city_name:
+            return city_name
+    except Exception:
+        return normalized
+    return normalized
+
+
+@lru_cache(maxsize=512)
+def aircraft_display_label(code: str | None) -> str | None:
+    raw = str(code or "").strip().upper()
+    if not raw:
+        return None
+    if raw == "737" or raw.startswith("73") or raw.startswith("7M"):
+        return "B737"
+    if raw in {"318", "319", "320", "321"}:
+        return f"A{raw}"
+    if raw in {"32A", "32B", "32N", "32Q"} or raw.startswith("A32"):
+        return "A320"
+    if raw.startswith("32") and len(raw) >= 3:
+        return f"A{raw[:3]}"
+    if raw.startswith("33") and len(raw) >= 3:
+        return f"A{raw[:3]}"
+    if raw.startswith("35") and len(raw) >= 3:
+        return f"A{raw[:3]}"
+    return raw
+
+
+def catalog_price_for_traveler_line(price: dict[str, Any]) -> str:
+    display = str(price.get("display") or "цена н/д").strip()
+    display = re.sub(r"\bRUB\b", "руб", display, flags=re.IGNORECASE).replace("₽", "руб")
+    return re.sub(r"\s+", " ", display).strip()
+
+
+def render_catalog_segment_for_traveler(segment: dict[str, Any]) -> str:
+    number = segment.get("flight_number") or segment.get("carrier") or "рейс"
+    origin = catalog_route_code(segment.get("origin"))
+    destination = catalog_route_code(segment.get("destination"))
+    time_window = catalog_time_window(segment.get("departure_at"), segment.get("arrival_at"))
+    line = f"{number} {origin}→{destination} {time_window}"
+    aircraft = aircraft_display_label(segment.get("aircraft_code"))
+    if aircraft:
+        line = f"{line} {aircraft}"
+    return line
+
+
 def render_direction_for_catalog(segments: list[dict[str, Any]], direction: str) -> str | None:
     if not segments:
         return None
-    date = catalog_display_date(segments[0].get("departure_at"))
-    flights = []
-    for segment in segments:
-        number = segment.get("flight_number") or segment.get("carrier") or "рейс"
-        origin = segment.get("origin") or "???"
-        destination = segment.get("destination") or "???"
-        flights.append(f"{number} {origin}-{destination} {catalog_display_time(segment.get('departure_at'))}-{catalog_display_time(segment.get('arrival_at'))}")
+    flights = [render_catalog_segment_for_traveler(segment) for segment in segments]
     label = "туда" if direction == "outbound" else "обратно"
-    return f"{date} {label}: " + " -> ".join(flights)
+    return f"{label}: " + " -> ".join(flights)
 
 
 def risk_badges(option: dict[str, Any], *, ticketing_model: str, baggage: dict[str, str], protection: dict[str, Any]) -> list[str]:
@@ -420,8 +491,13 @@ def infer_answer_mode(*, is_round_trip_request: bool, options: list[dict[str, An
     return "recommendation"
 
 
-def build_catalog_contract(recommended: list[Any], priority: list[Any], *, is_round_trip_request: bool) -> dict[str, Any]:
-    options = catalog_options(recommended, priority, limit=10)
+def build_catalog_contract(recommended: list[Any], priority: list[Any], *, is_round_trip_request: bool, all_direct_inventory: bool = False) -> dict[str, Any]:
+    # When the entire displayed set is direct flights, expand the catalog limit
+    # so that every direct flight appears in the user-facing answer.
+    # The flag is computed in assemble_direction and propagated through
+    # report["status"]["all_direct_inventory"].
+    catalog_limit = len(recommended) if all_direct_inventory else 10
+    options = catalog_options(recommended, priority, limit=catalog_limit)
     return {
         "presentation": {"style": "numbered_compact", "language": "ru", "max_items": 10},
         "items": [catalog_item(option, number=index, is_round_trip_request=is_round_trip_request) for index, option in enumerate(options, start=1)],
@@ -429,29 +505,37 @@ def build_catalog_contract(recommended: list[Any], priority: list[Any], *, is_ro
 
 
 def render_catalog_item(item: dict[str, Any]) -> str:
-    parts = [f"{item.get('number')}. {item['total_price']['display']}"]
+    price = catalog_price_for_traveler_line(item["total_price"] if isinstance(item.get("total_price"), dict) else {})
+    body: list[str] = [price]
     outbound = item.get("directions", {}).get("outbound") if isinstance(item.get("directions"), dict) else None
     inbound = item.get("directions", {}).get("return") if isinstance(item.get("directions"), dict) else None
     if isinstance(outbound, dict) and outbound.get("render_line"):
-        parts.append(str(outbound["render_line"]))
+        body.append(str(outbound["render_line"]))
     if isinstance(inbound, dict) and inbound.get("render_line"):
-        parts.append(str(inbound["render_line"]))
-    if item.get("badges"):
-        parts.append("риски: " + ", ".join(str(value) for value in item["badges"][:4]))
-    return " — ".join(parts)
+        body.append(str(inbound["render_line"]))
+    return f"{item.get('number')}. " + " | ".join(part for part in body if part)
 
 
-def render_catalog_answer(route: dict[str, Any], catalog: dict[str, Any], *, caveat_context: dict[str, Any]) -> str:
+def render_catalog_answer(route: dict[str, Any], catalog: dict[str, Any], *, caveat_context: dict[str, Any], direct_omitted: int = 0) -> str:
     origin = route.get("origin") or "???"
     destination = route.get("destination") or "???"
     lines = [f"Нашёл варианты {origin}→{destination}."]
-    lines.extend(str(item.get("render_line") or "") for item in catalog.get("items") or [] if isinstance(item, dict))
+    rendered_items = [
+        str(item.get("render_line") or "")
+        for item in catalog.get("items") or []
+        if isinstance(item, dict) and item.get("render_line")
+    ]
+    lines.extend(rendered_items)
+    has_rendered_options = bool(rendered_items)
+    if direct_omitted > 0:
+        word = "рейс" if direct_omitted == 1 else "рейса" if 2 <= direct_omitted <= 4 else "рейсов"
+        lines.append(f"и ещё {direct_omitted} прямых {word}")
     negative_wording = str(caveat_context.get("negative_wording") or "").strip()
     checks: list[str] = [
-        "Проверить перед покупкой: single PNR/багаж/through fare не доказаны; финальную цену, тариф, багаж и правила проверить на booking screen.",
-        "Текущий live/provider результат не доказывает отсутствие through fare, прямого рейса или защищённого билета.",
+        "Перед оплатой проверить багаж, финальный тариф и правила обмена/возврата.",
+        "Единый тариф/сквозной багаж не подтверждены; текущий результат поставщика не доказывает наличие или отсутствие защищённого билета.",
     ]
-    if negative_wording and negative_wording not in checks:
+    if negative_wording and not has_rendered_options and negative_wording not in checks:
         checks.append(negative_wording)
     if caveat_context.get("not_executed"):
         checks.append("Coverage неполное: не все live-проверки выполнены.")
@@ -514,16 +598,18 @@ def build_user_answer(agent_report: dict[str, Any], *, rendered_text: str | None
     offer_graph: dict[str, Any] = offer_graph_raw if isinstance(offer_graph_raw, dict) else {}
     truth_language_raw = offer_graph.get("truth_language")
     truth_language: dict[str, Any] = truth_language_raw if isinstance(truth_language_raw, dict) else {}
-    two_stop_fallback_used = bool(stop_diagnostics.get("used_two_stop_fallback"))
+    two_stop_tier_used = bool(stop_diagnostics.get("used_two_stop_tier"))
 
     is_round_trip_request = route_requested_round_trip(route)
-    catalog = build_catalog_contract(recommended, priority, is_round_trip_request=is_round_trip_request)
+    all_direct_inventory = bool((agent_report.get("status") or {}).get("all_direct_inventory"))
+    catalog = build_catalog_contract(recommended, priority, is_round_trip_request=is_round_trip_request, all_direct_inventory=all_direct_inventory)
     answer_mode = infer_answer_mode(is_round_trip_request=is_round_trip_request, options=catalog.get("items") or [])
     route_contract = {
         "origin": route.get("origin"),
         "destination": route.get("destination"),
         "dates": route.get("dates") if isinstance(route.get("dates"), dict) else {},
     }
+    direct_omitted = int((agent_report.get("status") or {}).get("direct_omitted") or 0)
     if answer_mode == "catalog":
         answer_text = render_catalog_answer(
             route_contract,
@@ -533,6 +619,7 @@ def build_user_answer(agent_report: dict[str, Any], *, rendered_text: str | None
                 "provider_failures": provider_failures,
                 "negative_wording": truth_language.get("negative_wording"),
             },
+            direct_omitted=direct_omitted,
         )
     else:
         answer_text = canonical_user_answer_text(agent_report, rendered_text)
@@ -572,8 +659,8 @@ def build_user_answer(agent_report: dict[str, Any], *, rendered_text: str | None
         ],
         "stop_policy_status": {
             "policy": str(stop_policy.get("name") or stop_diagnostics.get("policy") or "business_default"),
-            "max_reported_connections": 2 if two_stop_fallback_used else int(stop_policy.get("preferred_max_connections") or 1),
-            "two_stop_fallback_used": two_stop_fallback_used,
+            "max_reported_connections": 2 if two_stop_tier_used else int(stop_policy.get("preferred_max_connections") or 1),
+            "two_stop_tier_used": two_stop_tier_used,
             "three_plus_suppressed_count": int(stop_diagnostics.get("three_plus_suppressed_count") or 0),
             "garbage_options_suppressed": bool(stop_diagnostics.get("garbage_options_hidden_from_answer")),
         },
@@ -792,8 +879,8 @@ def user_answer_contract_semantic_errors(answer: dict[str, Any]) -> list[dict[st
     if any(item.get("stop_tier") == "T3_THREE_PLUS" or int(item.get("max_connections_per_journey") or 0) >= 3 for item in summaries):
         errors.append({"path": "$.primary_recommendation", "message": "final answer must not report three-plus-connection options", "validator": "semantic"})
     if any(item.get("stop_tier") == "T2_TWO_STOP" or int(item.get("max_connections_per_journey") or 0) == 2 for item in summaries):
-        if stop_status.get("two_stop_fallback_used") is not True:
-            errors.append({"path": "$.alternatives", "message": "two-stop options require explicit two-stop fallback status", "validator": "semantic"})
+        if stop_status.get("two_stop_tier_used") is not True:
+            errors.append({"path": "$.alternatives", "message": "two-stop options require explicit two-stop tier status", "validator": "semantic"})
     if is_round_trip_request:
         for path, item in summary_entries:
             item_id = str(item.get("id") or "")

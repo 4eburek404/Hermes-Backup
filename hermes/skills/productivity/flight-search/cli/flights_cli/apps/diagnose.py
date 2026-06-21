@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from typing import Any
 
+from ..domain.vocabulary import Leg
 from ..adapters.providers.registry import provider_adapter
 from ..orchestrators.live_assemble import build_live_route_segment_plan
 from ..reporting.projections.human_answer_mirror import build_human_answer_mirror
@@ -34,7 +35,7 @@ def command_diagnose_probe(args: argparse.Namespace, store: Store) -> dict[str, 
     query.setdefault("currency", request.get("currency") or "RUB")
     query.setdefault("probe_id", request.get("probe_id") or f"diagnose-{args.provider}")
     query.setdefault("direction", request.get("direction") or "outbound")
-    query.setdefault("leg", request.get("leg") or "direct_outbound")
+    query.setdefault("leg", request.get("leg") or Leg.DIRECT_OUTBOUND)
     adapter = provider_adapter(args.provider, store=store)
     probe_type = str(request.get("probe_type") or query.get("probe_type") or "segment_direct")
     if probe_type in {"full_route_aggregate", "carrier_aggregate"}:

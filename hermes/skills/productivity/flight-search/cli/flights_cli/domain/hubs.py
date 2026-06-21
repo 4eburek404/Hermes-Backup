@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ..config import DEFAULT_ROUTE_HUBS, DEFAULT_ROUTING_STRATEGY, ROUTING_STRATEGIES
 from .normalize import normalize_iata
+from .vocabulary import RoutingStrategy
 
 
 def resolve_route_hubs(values: list[str] | None) -> tuple[list[str], str]:
@@ -17,5 +18,5 @@ def resolve_routing_strategy(value: str | None, hub_values: list[str] | None) ->
         available = ", ".join(sorted(ROUTING_STRATEGIES))
         raise ValueError(f"routing strategy must be one of {available}")
     if raw == "auto":
-        return "hub-list" if hub_values else "ru-priority"
+        return RoutingStrategy.HUB_LIST if hub_values else RoutingStrategy.RU_PRIORITY
     return raw

@@ -148,6 +148,12 @@ class CatalogAnswerContractTests(unittest.TestCase):
         self.assertIn("2.", answer["rendered_text"])
         self.assertIn("14.07", answer["rendered_text"])
         self.assertIn("25.07", answer["rendered_text"])
+        self.assertEqual(
+            answer["catalog"]["items"][0]["render_line"],
+            "1. 92 248 руб | туда: SU100 SVX→SVO 14.07 06:00–06:45 -> "
+            "SU220 SVO→CAN 14.07 19:10–15.07 09:35 | обратно: "
+            "SU221 CAN→SVO 25.07 11:20–16:05 -> SU1406 SVO→SVX 25.07 20:10–26.07 00:35",
+        )
 
     def test_rejects_catalog_when_rendered_text_loses_numbered_items(self) -> None:
         answer = build_user_answer(self._round_trip_report())

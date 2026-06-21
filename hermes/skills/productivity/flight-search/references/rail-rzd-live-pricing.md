@@ -9,7 +9,7 @@ For Russian rail availability and prices, use official RZD/pass.rzd data as the 
 - Human/source layer: official RZD (`rzd.ru` / `ticket.rzd.ru`).
 - Agent read-only layer: `https://pass.rzd.ru/timetable/public/ru`.
 
-Do not use Яндекс/Туту/UFS/Ozon/OneTwoTrip or other aggregators as a default fallback for seats or prices. If `rzd.ru` / `pass.rzd.ru` is unavailable, say plainly: «официальная выдача РЖД сейчас недоступна, наличие мест и цены проверить не могу». Do not replace official-source failure with aggregator estimates unless the user explicitly asks for non-official advisory context.
+Do not use Яндекс/Туту/UFS/Ozon/OneTwoTrip or other aggregators as a default alternative for seats or prices. If `rzd.ru` / `pass.rzd.ru` is unavailable, say plainly: «официальная выдача РЖД сейчас недоступна, наличие мест и цены проверить не могу». Do not replace official-source failure with aggregator estimates unless the user explicitly asks for non-official advisory context.
 
 Do not infer “no trains” or “no seats” from one failed request. Treat request/network/parser failures as source/runtime failure unless the official response itself says there are no trains or seats.
 
@@ -76,9 +76,10 @@ Operational details:
 - `checkSeats=1` requests availability/seat buckets.
 - `dt0` format is `DD.MM.YYYY`.
 - Use browser-like headers: `Accept: application/json`, `User-Agent`, `Referer: https://ticket.rzd.ru/`.
+- Keep default TLS verification enabled. If an environment-specific certificate failure occurs, report it as a runtime/network issue instead of silently disabling verification.
 - Keep the same session/cookies between the initial request and RID fetch.
 - Poll only a few times with a short sleep; avoid aggressive or infinite polling.
-- For round trips, run two separate one-way queries with swapped `code0`/`code1` and the return date. Do not rely on an aggregator round-trip fallback.
+- For round trips, run two separate one-way queries with swapped `code0`/`code1` and the return date. Do not rely on an aggregator round-trip shortcut.
 
 ## Response fields to read
 
@@ -116,8 +117,7 @@ For Russian rail comparison answers:
 ## Python probe skeleton
 
 ```python
-import requests, time, urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+import requests, time
 
 def rzd_routes(code0, code1, dt0):
     session = requests.Session()
@@ -136,10 +136,12 @@ def rzd_routes(code0, code1, dt0):
         'code1': code1,
         'dt0': dt0,
     }
-    for _ in range(8):
-        data = session.post(url, data=params, headers=headers, timeout=30, verify=False).json()
+    data = None
+    for _ in range(4):
+        data = session.post(url, data=params, headers=headers, timeout=30).json()
         if data.get('result') in ('RID', 'REQUEST_ID'):
-            params = {'layer_id': 5827, 'rid': data.get('RID') or data.get('rid')}
+            rid = data.get('RID') or data.get('rid')
+            params = {'layer_id': 5827, 'rid': rid}
             time.sleep(2)
             continue
         return data

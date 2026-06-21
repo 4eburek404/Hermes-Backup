@@ -67,16 +67,20 @@ def kupibilet_price_amount(variant: dict[str, Any]) -> int | None:
     return price_value({"price": price})
 
 
-def kupibilet_variant_currency(variant: dict[str, Any], fallback: str) -> str:
+def kupibilet_variant_currency(variant: dict[str, Any], default_currency: str) -> str:
     price = variant.get("price")
     if isinstance(price, dict) and isinstance(price.get("currency"), str):
         return price["currency"].upper()
-    return fallback
+    return default_currency
 
 
 def kupibilet_flight_number(flight: dict[str, Any]) -> str:
     carrier = str(flight.get("marketing_carrier") or flight.get("operating_carrier") or "").upper()
     number = str(flight.get("transport_number") or flight.get("number") or "").strip()
+    if carrier and number.upper().startswith(carrier):
+        remainder = number[len(carrier):].lstrip()
+        if remainder[:1].isdigit():
+            number = remainder
     return f"{carrier}{number}" if carrier or number else ""
 
 
@@ -216,7 +220,7 @@ def parse_kupibilet_frontend_search(
             "flight_numbers": [flight["flight_number"] for flight in normalized_flights],
             "marketing_carriers": sorted({flight["marketing_carrier"] for flight in normalized_flights if flight["marketing_carrier"]}),
             "operating_carriers": sorted({flight["operating_carrier"] for flight in normalized_flights if flight["operating_carrier"]}),
-            "flights": normalized_flights,
+            "segments": normalized_flights,
         }
         previous = deduped.get(key)
         previous_price = previous.get("price") if previous else None
@@ -319,7 +323,7 @@ def parse_kupibilet_roundtrip_search(
                     "flight_numbers": [flight["flight_number"] for flight in normalized_flights],
                     "marketing_carriers": sorted({flight["marketing_carrier"] for flight in normalized_flights if flight["marketing_carrier"]}),
                     "operating_carriers": sorted({flight["operating_carrier"] for flight in normalized_flights if flight["operating_carrier"]}),
-                    "flights": normalized_flights,
+                    "segments": normalized_flights,
                 }
             )
             flat_normalized_flights.extend(normalized_flights)
@@ -354,7 +358,7 @@ def parse_kupibilet_roundtrip_search(
             "hand_luggage": variant.get("hand_luggage") if isinstance(variant.get("hand_luggage"), dict) else None,
             "seats_left": variant.get("seats_left"),
             "journeys": journeys,
-            "flights": flat_normalized_flights,
+            "segments": flat_normalized_flights,
         }
         offers.append(offer)
 
@@ -517,7 +521,7 @@ def kupibilet_offer_to_segment_offer(
     currency: str,
     index: int,
 ) -> dict[str, Any] | None:
-    raw_flights = offer.get("flights")
+    raw_flights = offer.get("segments")
     if not isinstance(raw_flights, list) or not raw_flights:
         return None
     segments = []
@@ -657,6 +661,8 @@ def cached_kupibilet_search(
         cached = read_live_cache(key, ttl_seconds=int(cache_ttl_seconds))
         if cached is not None:
             return cached
+    if fetcher is None:
+        fetcher = fetch_kupibilet_search
     result = fetcher(
         origin,
         destination,
@@ -703,6 +709,8 @@ def cached_kupibilet_roundtrip_search(
         cached = read_live_cache(key, ttl_seconds=int(cache_ttl_seconds))
         if cached is not None:
             return cached
+    if fetcher is None:
+        fetcher = fetch_kupibilet_roundtrip_search
     result = fetcher(
         origin,
         destination,

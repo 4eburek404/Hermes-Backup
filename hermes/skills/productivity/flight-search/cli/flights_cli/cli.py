@@ -99,12 +99,12 @@ def add_common_route_flags(parser: argparse.ArgumentParser) -> None:
 def add_stop_policy_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--stop-policy",
-        choices=["business-default", "strict-direct-one-stop", "allow-two-stop-fallback", "debug-all"],
+        choices=["business-default", "strict-direct-one-stop", "allow-two-stop-tier", "debug-all"],
         default="business-default",
-        help="Stop policy: prefer direct/one-stop; allow two-stop only as fallback by default; 3+ is suppressed in normal output.",
+        help="Stop policy: prefer direct/one-stop; allow two-stop only as tier 2 by default; 3+ is suppressed in normal output.",
     )
     parser.add_argument("--max-connections", type=int, default=None, help="Preferred max connections per journey. Default 1.")
-    parser.add_argument("--fallback-max-connections", type=int, default=None, help="Fallback max connections per journey. Default 2.")
+    parser.add_argument("--tier2-max-connections", type=int, default=None, help="Tier 2 max connections per journey. Default 2.")
     parser.add_argument("--include-stop-policy-diagnostics", action="store_true", help="Keep stop-policy diagnostics in agent_report.")
 
 
