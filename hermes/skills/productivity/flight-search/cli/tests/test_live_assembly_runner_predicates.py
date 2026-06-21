@@ -14,6 +14,12 @@ from flights_cli.domain.vocabulary import Direction, Leg, RoutingStrategy
 from flights_cli.orchestrators.live_assembly_runner import (
     LiveAssemblyState,
     LiveAssemblyRunner,
+    LiveSearchResultBuilder,
+    PriorityRouteEvaluator,
+    ProbeResultAccumulator,
+    SegmentProbeExecutor,
+    SkipPolicy,
+    SyntheticControlService,
     city_code_primary_keys_for_deferred_airport,
     deferred_airport_priority_sides,
     direct_route_intel_context,
@@ -317,6 +323,20 @@ class TestLiveAssemblyState(unittest.TestCase):
         self.assertEqual(state.failures, [])
         state.offer_counts[("outbound", "direct_outbound", "SVX", "BKK")] = 1
         self.assertEqual(state.offer_counts[("outbound", "direct_outbound", "SVX", "BKK")], 1)
+
+
+class TestLiveAssemblyServices(unittest.TestCase):
+    def test_runner_wires_focused_services(self) -> None:
+        runner = _runner()
+
+        runner._ensure_services()
+
+        self.assertIsInstance(runner.synthetic_controls, SyntheticControlService)
+        self.assertIsInstance(runner.priority_route_evaluator, PriorityRouteEvaluator)
+        self.assertIsInstance(runner.skip_policy, SkipPolicy)
+        self.assertIsInstance(runner.probe_accumulator, ProbeResultAccumulator)
+        self.assertIsInstance(runner.probe_executor, SegmentProbeExecutor)
+        self.assertIsInstance(runner.result_builder, LiveSearchResultBuilder)
 
 
 # ---------------------------------------------------------------------------
