@@ -3,7 +3,7 @@
 Locks the privacy and reliability contract of ``flight_calendar.carrier_http``:
 error messages never contain URLs or credentials, transient failures are
 retried with backoff, HTTP 4xx is never retried, carriers no longer hand-roll
-urlopen plumbing, and doctor reports the active transport.
+urlopen plumbing, and doctor reports the required curl_cffi transport.
 """
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
-from urllib.error import URLError
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = SKILL_ROOT / "scripts"
@@ -46,8 +45,41 @@ class CarrierHttpTransportContract(unittest.TestCase):
     def test_public_api_and_transport_detection(self) -> None:
         for name in ["request_raw", "request_text", "request_json", "browser_headers", "active_transport", "TransportError"]:
             self.assertTrue(hasattr(self.http, name), name)
-        self.assertIn(self.http.active_transport(), {"urllib", "curl_cffi"})
+        self.assertEqual(self.http.active_transport(), "curl_cffi")
         self.assertTrue(issubclass(self.http.TransportError, ValueError))
+
+    def test_missing_curl_cffi_fails_fast_with_install_hint(self) -> None:
+        env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+        script = """
+import importlib.abc
+import sys
+
+class BlockCurlCffi(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == "curl_cffi" or fullname.startswith("curl_cffi."):
+            raise ImportError("blocked for contract test")
+        return None
+
+sys.meta_path.insert(0, BlockCurlCffi())
+sys.path.insert(0, "scripts")
+try:
+    import flight_calendar.carrier_http
+except ImportError as exc:
+    print(str(exc))
+    raise SystemExit(0)
+raise SystemExit("carrier_http imported without curl_cffi")
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=SKILL_ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            timeout=20,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("requires curl_cffi", result.stdout)
+        self.assertIn("python -m pip install curl_cffi", result.stdout)
 
     def test_transient_network_errors_are_retried_with_backoff(self) -> None:
         attempts, naps = [], []
@@ -55,7 +87,7 @@ class CarrierHttpTransportContract(unittest.TestCase):
         def flaky(url, *, method, headers, body, timeout):
             attempts.append(1)
             if len(attempts) < 3:
-                raise URLError("temporary failure")
+                raise OSError("temporary failure")
             return 200, "application/json", '{"ok": true}'
 
         self.http._fetch_once = flaky
@@ -98,7 +130,7 @@ class CarrierHttpTransportContract(unittest.TestCase):
 
     def test_persistent_network_failure_message_is_redaction_safe(self) -> None:
         def down(url, *, method, headers, body, timeout):
-            raise URLError("no route to host")
+            raise OSError("no route to host")
 
         self.http._fetch_once = down
         with self.assertRaises(self.http.TransportError) as ctx:
@@ -121,6 +153,12 @@ class CarrierHttpTransportContract(unittest.TestCase):
 
 
 class CarriersUseSharedTransportContract(unittest.TestCase):
+    def test_shared_transport_has_no_urllib_http_fallback(self) -> None:
+        source = (SCRIPTS / "flight_calendar" / "carrier_http.py").read_text(encoding="utf-8")
+        self.assertNotIn("urlopen", source)
+        self.assertNotIn("urllib.request", source)
+        self.assertNotIn('return "urllib"', source)
+
     def test_carriers_do_not_hand_roll_urlopen(self) -> None:
         offenders = []
         for path in sorted(CARRIERS.glob("*.py")):
@@ -137,7 +175,7 @@ class CarriersUseSharedTransportContract(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         data = json.loads(result.stdout)["data"]
-        self.assertIn(data.get("http_transport"), {"urllib", "curl_cffi"})
+        self.assertEqual(data.get("http_transport"), "curl_cffi")
 
 
 if __name__ == "__main__":

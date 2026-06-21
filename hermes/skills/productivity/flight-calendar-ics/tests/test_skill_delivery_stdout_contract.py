@@ -12,16 +12,16 @@ class SkillDeliveryStdoutContractTests(unittest.TestCase):
         text = (ROOT / "SKILL.md").read_text(encoding="utf-8")
 
         for needle in (
-            "plugin-delivery trigger surface",
-            "exactly the JSON emitted",
-            "Do not redirect",
+            "Stdout is the runtime delivery trigger",
+            "Leave it exactly as the CLI prints it",
+            "Never redirect",
             "capture",
             "pipe",
             "tee",
             "summarize",
-            'echo "ok=True"',
-            "data.agent_handoff.media",
-            "safe_summary",
+            "`echo ok=...`",
+            "After a successful build, run no more commands",
+            "surfaced safe summary",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, text)
@@ -30,11 +30,9 @@ class SkillDeliveryStdoutContractTests(unittest.TestCase):
         text = (ROOT / "SKILL.md").read_text(encoding="utf-8")
 
         for needle in (
-            "same Python interpreter used to run",
-            "Do not use bare `pip`",
-            "python -m pip install icalendar jsonschema cffi",
-            "tool runtime launches skills through its own venv",
-            "Do not install into system/Homebrew Python",
+            "same Python interpreter used for the CLI",
+            "python -m pip install icalendar jsonschema curl_cffi",
+            "Use `python -m pip`, not bare `pip`",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, text)

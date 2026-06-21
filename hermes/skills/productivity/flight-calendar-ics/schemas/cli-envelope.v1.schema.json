@@ -835,7 +835,6 @@
         "http_transport": {
           "type": "string",
           "enum": [
-            "urllib",
             "curl_cffi"
           ]
         }

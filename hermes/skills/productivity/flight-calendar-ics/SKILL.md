@@ -71,7 +71,7 @@ Never paste booking URLs, PNRs, access keys, passenger names, ticket numbers, ra
 If the CLI fails with `ModuleNotFoundError`, install dependencies into the same Python interpreter used for the CLI:
 
 ```bash
-python -m pip install icalendar jsonschema cffi
+python -m pip install icalendar jsonschema curl_cffi
 ```
 
 Use `python -m pip`, not bare `pip`.
