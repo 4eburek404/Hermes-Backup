@@ -10,7 +10,7 @@ from ..reporting.projections.human_answer_mirror import build_human_answer_mirro
 from ..reporting.user_answer import build_user_answer
 from ..store import Store
 from .common import read_json_document
-from .search import live_assembly_args_from_search_request, normalize_search_request
+from .search import live_assembly_options_from_search_request, normalize_search_request
 
 
 def _agent_report_from_document(payload: dict[str, Any]) -> dict[str, Any]:
@@ -21,7 +21,7 @@ def _agent_report_from_document(payload: dict[str, Any]) -> dict[str, Any]:
 
 def command_diagnose_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     request = normalize_search_request(read_json_document(args.request))
-    live_assembly_args = live_assembly_args_from_search_request(request)
+    live_assembly_args = live_assembly_options_from_search_request(request).to_argparse_namespace()
     return {
         "schema_version": "flight_search_plan_diagnostic.v1",
         "request": request,
