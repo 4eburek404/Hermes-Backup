@@ -205,6 +205,29 @@ def apply_carrier_preferences(risk: dict[str, Any], segments: list[dict[str, Any
     return adjusted
 
 
+def validation_reject_filter(candidate_id: str, validation: dict[str, Any], risk: dict[str, Any]) -> dict[str, Any]:
+    violations = validation.get("violations") if isinstance(validation.get("violations"), list) else []
+    first_violation = next((item for item in violations if isinstance(item, dict)), {})
+    components = risk.get("components") if isinstance(risk.get("components"), list) else []
+    first_component = next((item for item in components if isinstance(item, dict)), {})
+    reason = str(first_violation.get("status") or first_component.get("code") or "validation_reject")
+    message = str(
+        first_violation.get("message")
+        or first_component.get("message")
+        or "Candidate rejected by itinerary validation."
+    )
+    return {
+        "id": candidate_id,
+        "reason": reason,
+        "message": message,
+        "risk_score": risk.get("score"),
+        "risk_grade": risk.get("grade"),
+        "risk_reject": bool(risk.get("reject")),
+        "validation_ok": bool(validation.get("ok")),
+        "validation_summary": validation.get("summary") or {},
+    }
+
+
 def rank_candidate_list(candidates: list[dict[str, Any]], options: RankingOptions) -> dict[str, Any]:
     profile = normalize_profile(options.profile)
     policy = carrier_policy_from_options(options.carrier_policy)
@@ -286,6 +309,10 @@ def rank_candidate_list(candidates: list[dict[str, Any]], options: RankingOption
             continue
         carrier_filter = item["carrier_filter"]
         risk = apply_carrier_preferences(validation["risk"], validation["segments"], policy)
+        if validation.get("ok") is not True or risk.get("reject") is True:
+            if len(filtered) < include_filtered:
+                filtered.append(validation_reject_filter(item["candidate_id"], validation, risk))
+            continue
         ranked.append(
             {
                 "id": item["candidate_id"],

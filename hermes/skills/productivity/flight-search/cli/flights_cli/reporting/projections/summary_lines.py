@@ -9,7 +9,7 @@ def build_summary_lines(report: dict[str, Any]) -> list[str]:
     lines: list[str] = []
     options = report.get("recommended_options") or []
     if options:
-        best = options[0]
+        best = min(options, key=lambda item: int(item.get("rank") or 10**6))
         risk = best.get("risk") or {}
         lines.append(
             "Best CLI-ranked option: "

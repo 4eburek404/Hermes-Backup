@@ -92,6 +92,32 @@ class StopPolicyTests(unittest.TestCase):
         self.assertEqual(result["stop_policy_diagnostics"]["three_plus_suppressed_count"], 1)
         self.assertEqual(result["carrier_policy"]["filtered"][0]["stop_tier"], "T3_THREE_PLUS")
 
+    def test_invalid_time_order_is_diagnostics_only_not_ranked(self) -> None:
+        invalid = {
+            "id": "invalid-svo-backwards",
+            "price": 29678,
+            "currency": "RUB",
+            "ticketing": "single",
+            "journeys": [
+                {
+                    "direction": "outbound",
+                    "segments": [
+                        segment("SVX", "SVO", "2026-08-06T05:10:00+05:00", "2026-08-06T05:45:00+03:00", "SU1471"),
+                        segment("SVO", "IST", "2026-08-06T01:00:00+03:00", "2026-08-06T06:00:00+03:00", "SU2170"),
+                    ],
+                }
+            ],
+        }
+
+        result = rank_candidate_list(
+            [invalid, candidate("direct", ["SVX", "IST"], 33342)],
+            ranking_options_from_args(rank_args()),
+        )
+
+        self.assertEqual([item["id"] for item in result["ranked"]], ["direct"])
+        self.assertEqual(result["carrier_policy"]["filtered"][0]["id"], "invalid-svo-backwards")
+        self.assertEqual(result["carrier_policy"]["filtered"][0]["reason"], "invalid_time_order")
+
 
 if __name__ == "__main__":
     unittest.main()

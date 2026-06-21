@@ -322,6 +322,110 @@ class FinalAnswerContractTests(unittest.TestCase):
         self.assertNotIn("не нашёл в выполненных", answer["rendered_text"])
         self.assertIn("Перед оплатой", answer["rendered_text"])
 
+    def test_catalog_orders_viable_direct_before_cheaper_connections_and_drops_rejects(self) -> None:
+        report = valid_report()
+        report["route"] = {"origin": "SVX", "destination": "IST", "dates": {"depart_date": "2026-08-06"}}
+        base = copy.deepcopy(valid_option())
+        base["ok"] = True
+        base["risk"] = {"score": 0, "grade": "excellent", "reject": False, "top_reasons": []}
+        base["ticketing_model"] = "separate_segments"
+
+        connected = copy.deepcopy(base)
+        connected.update(
+            {
+                "id": "assembled-cheap-svo",
+                "rank": 1,
+                "price": {"amount": 29678, "currency": "RUB"},
+                "price_text": "29 678 RUB",
+                "elapsed_min": 820,
+                "max_connections_per_journey": 1,
+                "segments": [
+                    {
+                        "direction": "outbound",
+                        "flight_number": "SU1419",
+                        "carrier": "SU",
+                        "marketing_carrier": "SU",
+                        "operating_carrier": "SU",
+                        "origin": "SVX",
+                        "destination": "SVO",
+                        "departure_at": "2026-08-06T00:40:00+05:00",
+                        "arrival_at": "2026-08-06T01:10:00+03:00",
+                        "aircraft_code": "320",
+                        "duration_min": 150,
+                    },
+                    {
+                        "direction": "outbound",
+                        "flight_number": "SU2172",
+                        "carrier": "SU",
+                        "marketing_carrier": "SU",
+                        "operating_carrier": "SU",
+                        "origin": "SVO",
+                        "destination": "IST",
+                        "departure_at": "2026-08-06T07:20:00+03:00",
+                        "arrival_at": "2026-08-06T12:20:00+03:00",
+                        "aircraft_code": "320",
+                        "duration_min": 300,
+                    },
+                ],
+            }
+        )
+        direct = copy.deepcopy(base)
+        direct.update(
+            {
+                "id": "assembled-direct-ist",
+                "rank": 8,
+                "price": {"amount": 33342, "currency": "RUB"},
+                "price_text": "33 342 RUB",
+                "elapsed_min": 330,
+                "max_connections_per_journey": 0,
+                "segments": [
+                    {
+                        "direction": "outbound",
+                        "flight_number": "U6773",
+                        "carrier": "U6",
+                        "marketing_carrier": "U6",
+                        "operating_carrier": "U6",
+                        "origin": "SVX",
+                        "destination": "IST",
+                        "departure_at": "2026-08-06T07:20:00+05:00",
+                        "arrival_at": "2026-08-06T10:50:00+03:00",
+                        "aircraft_code": "319",
+                        "duration_min": 330,
+                    }
+                ],
+            }
+        )
+        invalid = copy.deepcopy(connected)
+        invalid["id"] = "assembled-invalid-svo"
+        invalid["ok"] = False
+        invalid["risk"] = {"score": 100, "grade": "reject", "reject": True, "top_reasons": [{"code": "invalid_time_order"}]}
+        invalid["segments"][0]["flight_number"] = "SU1471"
+        invalid["segments"][1]["flight_number"] = "SU2170"
+        invalid["segments"][1]["departure_at"] = "2026-08-06T01:00:00+03:00"
+        alias = copy.deepcopy(connected)
+        alias["id"] = "ru-priority-moscow_gateway:assembled-cheap-svo"
+        alias["category"] = "moscow_gateway_control"
+        report["recommended_options"] = [connected, direct, invalid]
+        report["priority_options"] = [alias]
+        report["status"] = {"all_direct_inventory": False, "direct_omitted": 0}
+
+        with patch(
+            "flights_cli.reporting.user_answer.airport_city_label",
+            side_effect=lambda code: {"SVX": "Екатеринбург", "SVO": "Москва", "IST": "Стамбул"}.get(code, code),
+            create=True,
+        ):
+            answer = build_user_answer(report)
+
+        validate_user_answer(answer)
+        self.assertIn(
+            "1. U6773 06.08 Екатеринбург - Стамбул 07:20 10:50 A319 в пути 5:30\n    33 342 рублей",
+            answer["rendered_text"],
+        )
+        self.assertIn("2. SU1419 06.08 Екатеринбург - Москва", answer["rendered_text"])
+        self.assertEqual(answer["rendered_text"].count("SU1419"), 1)
+        self.assertNotIn("SU1471", answer["rendered_text"])
+        self.assertNotIn("SU2170", answer["rendered_text"])
+
     def test_aircraft_display_label_normalizes_common_equipment_codes(self) -> None:
         self.assertEqual(aircraft_display_label("73H"), "B737")
         self.assertEqual(aircraft_display_label("319"), "A319")

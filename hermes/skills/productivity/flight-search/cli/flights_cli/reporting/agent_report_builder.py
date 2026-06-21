@@ -14,6 +14,7 @@ from .agent_report_projector import AGENT_REPORT_SCHEMA_VERSION, project_agent_r
 from .user_answer import build_user_answer
 from .projections.human_answer_mirror import build_human_answer_mirror
 from .option_projector import candidate_options_from_details, priority_candidate_options, ranked_candidate_options
+from .catalog_order import catalog_order_key, option_is_user_visible
 from .offer_graph_projector import build_offer_graph
 from .provider_aggregate_projector import aggregate_control_summary, provider_aggregate_candidate_options
 from .report_budget import apply_agent_report_budget
@@ -575,6 +576,11 @@ def option_max_connections_per_journey(option: dict[str, Any]) -> int | None:
     return max(counts) if counts else None
 
 
+def order_frontier_options(options: list[dict[str, Any]], *, is_round_trip_request: bool) -> list[dict[str, Any]]:
+    visible = [option for option in options if isinstance(option, dict) and option_is_user_visible(option)]
+    return sorted(visible, key=lambda option: catalog_order_key(option, is_round_trip_request=is_round_trip_request))
+
+
 def has_lower_stop_viable_option(source_options: list[dict[str, Any]], tier2_connections: int) -> bool:
     for option in source_options:
         if not isinstance(option, dict) or option.get("ok") is not True:
@@ -779,8 +785,9 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
     catalog_limit = min(len(ranked_candidates), ALL_DIRECT_CATALOG_CAP) if all_direct else CATALOG_LIMIT_DEFAULT
     ranked_total_count = int(assembly.get("ranked_total_count") or len(ranked_candidates))
     direct_omitted = max(0, ranked_total_count - ALL_DIRECT_CATALOG_CAP) if all_direct else 0
-    options = ranked_candidate_options(data, limit=catalog_limit)
-    priority_options = priority_candidate_options(data, limit=5)
+    requested_round_trip = plan_requests_round_trip(plan)
+    options = order_frontier_options(ranked_candidate_options(data, limit=catalog_limit), is_round_trip_request=requested_round_trip)
+    priority_options = order_frontier_options(priority_candidate_options(data, limit=5), is_round_trip_request=requested_round_trip)
     preferred_available = has_preferred_option(options + priority_options) or aggregate_has_preferred_offer(raw_aggregate_controls, stop_policy)
     aggregate_controls = filter_aggregate_controls_for_stop_policy(raw_aggregate_controls, stop_policy, preferred_available)
     aggregate_priority_options = provider_aggregate_candidate_options(
@@ -788,7 +795,7 @@ def build_agent_report(data: dict[str, Any], store: Any | None = None) -> dict[s
         limit=5,
         stop_policy=stop_policy,
         preferred_available=has_preferred_option(options + priority_options),
-        requested_round_trip=plan_requests_round_trip(plan),
+        requested_round_trip=requested_round_trip,
     )
     if aggregate_priority_options:
         priority_options.extend(aggregate_priority_options)

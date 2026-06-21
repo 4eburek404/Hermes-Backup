@@ -134,6 +134,7 @@ Required v3 fields:
 - `answer_mode`: `recommendation`, `catalog`, or `no_viable_options`. The builder infers mode from route/frontier; do not add public “catalog mode” flags.
 - `catalog.presentation`: deterministic compact numbered Russian output metadata with `style="numbered_inline_itinerary_v1"`.
 - `catalog.items[]`: one item per user-visible frontier option. Numbers must be contiguous from 1. Each item carries `option_id`, `covers_requested_trip`, `journey_scope`, `ticketing_model`, `total_price`, `directions.outbound/return`, `baggage`, `protection`, `badges`, `caveats`, `agent_display`, and `render_line`.
+- User-visible catalog order is deterministic: viable non-rejected full-trip options first, then lower `max_connections_per_journey` (nonstop/direct before one-stop), then price, itinerary elapsed time, and source rank. `ok=false` or `risk.reject=true` options are diagnostics only and must not appear in `catalog.items[]`.
 - `catalog.items[*].agent_display`: schema-backed agent output block with `style="inline_number_itinerary_with_aircraft_duration_v1"`, `lines[]`, and `text`. For full-detail options, the block is:
   `N. FLIGHT DD.MM Origin city - Destination city HH:MM HH:MM (arrival DD.MM when different) AIRCRAFT в пути H:MM`
   `    FLIGHT DD.MM Origin city - Destination city HH:MM HH:MM (arrival DD.MM when different) AIRCRAFT в пути H:MM`

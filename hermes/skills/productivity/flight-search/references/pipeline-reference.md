@@ -168,7 +168,7 @@ Strict direct-only request intent is `max_connections == 0` and `tier2_max_conne
 
 ## 9. All-direct output propagation
 
-`all_direct_inventory` prevents direct flights from being hidden by output caps.
+`all_direct_inventory` prevents direct flights from being hidden by output caps. A provider result from a `direct_outbound`/`direct_return` query is direct inventory only when the actual offer journey has one segment; connected offers returned by a direct-route provider query remain one-stop options.
 
 Current propagation:
 

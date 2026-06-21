@@ -12,6 +12,7 @@ from ..contracts.registry import current_contract
 from ..contracts.schema_errors import validation_error_detail
 
 from ..errors import CliError
+from .catalog_order import ordered_user_options
 from .option_semantics import direction_segments, option_direction, route_requested_round_trip
 from .time_utils import display_minutes_between as minutes_between_iso, integer_or_none as int_or_none
 
@@ -550,21 +551,19 @@ def catalog_item(option: dict[str, Any], *, number: int, is_round_trip_request: 
     return item
 
 
-def catalog_options(recommended: list[Any], priority: list[Any], *, limit: int = 10) -> list[dict[str, Any]]:
-    selected: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for option in [*(recommended or []), *priority_options_for_user_contract(priority or [], limit=limit)]:
-        if not isinstance(option, dict):
-            continue
-        option_id = str(option.get("id") or "")
-        key = option_id or str(id(option))
-        if key in seen:
-            continue
-        seen.add(key)
-        selected.append(option)
-        if len(selected) >= limit:
-            break
-    return selected
+def catalog_options(
+    recommended: list[Any],
+    priority: list[Any],
+    *,
+    limit: int = 10,
+    is_round_trip_request: bool = False,
+) -> list[dict[str, Any]]:
+    return ordered_user_options(
+        recommended or [],
+        priority_options_for_user_contract(priority or [], limit=limit),
+        limit=limit,
+        is_round_trip_request=is_round_trip_request,
+    )
 
 
 def infer_answer_mode(*, is_round_trip_request: bool, options: list[dict[str, Any]]) -> str:
@@ -579,7 +578,7 @@ def build_catalog_contract(recommended: list[Any], priority: list[Any], *, is_ro
     # The flag is computed in assemble_direction and propagated through
     # report["status"]["all_direct_inventory"].
     catalog_limit = len(recommended) if all_direct_inventory else 10
-    options = catalog_options(recommended, priority, limit=catalog_limit)
+    options = catalog_options(recommended, priority, limit=catalog_limit, is_round_trip_request=is_round_trip_request)
     return {
         "presentation": {"style": "numbered_inline_itinerary_v1", "language": "ru", "max_items": catalog_limit},
         "items": [catalog_item(option, number=index, is_round_trip_request=is_round_trip_request) for index, option in enumerate(options, start=1)],

@@ -654,6 +654,74 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
         journeys = assembled["data"]["ranked_candidates"][0]["candidate"]["journeys"]
         self.assertEqual([len(journey["segments"]) for journey in journeys], [2, 1])
 
+    def test_direct_leg_connected_offer_does_not_mark_inventory_all_direct(self) -> None:
+        direct_offer = {
+            "id": "svx-ist-direct",
+            "origin": "SVX",
+            "destination": "IST",
+            "departure_airport": "SVX",
+            "arrival_airport": "IST",
+            "departure_at": "2026-08-06T07:20:00+05:00",
+            "arrival_at": "2026-08-06T10:50:00+03:00",
+            "price": 33342,
+            "currency": "RUB",
+            "segments": [
+                {
+                    "origin": "SVX",
+                    "destination": "IST",
+                    "departure_at": "2026-08-06T07:20:00+05:00",
+                    "arrival_at": "2026-08-06T10:50:00+03:00",
+                    "flight_number": "U6773",
+                    "carrier": "U6",
+                }
+            ],
+        }
+        connected_offer = {
+            "id": "svx-svo-ist",
+            "origin": "SVX",
+            "destination": "IST",
+            "departure_airport": "SVX",
+            "arrival_airport": "IST",
+            "departure_at": "2026-08-06T00:40:00+05:00",
+            "arrival_at": "2026-08-06T12:20:00+03:00",
+            "price": 29678,
+            "currency": "RUB",
+            "segments": [
+                {
+                    "origin": "SVX",
+                    "destination": "SVO",
+                    "departure_at": "2026-08-06T00:40:00+05:00",
+                    "arrival_at": "2026-08-06T01:10:00+03:00",
+                    "flight_number": "SU1419",
+                    "carrier": "SU",
+                },
+                {
+                    "origin": "SVO",
+                    "destination": "IST",
+                    "departure_at": "2026-08-06T07:20:00+03:00",
+                    "arrival_at": "2026-08-06T12:20:00+03:00",
+                    "flight_number": "SU2172",
+                    "carrier": "SU",
+                },
+            ],
+        }
+        segment_results = [
+            {
+                "direction": "outbound",
+                "leg": "direct_outbound",
+                "query": {"origin": "SVX", "destination": "IST", "date": "2026-08-06", "currency": "RUB"},
+                "offers": [connected_offer, direct_offer],
+            }
+        ]
+
+        assembled = self._assemble({"segment_results": segment_results}, "--agent-report", "--include-ranked-candidates", "5")
+        report = assembled["data"]["agent_report"]
+
+        self.assertEqual(assembled["data"]["assembly"]["outbound_direct_count"], 1)
+        self.assertFalse(assembled["data"]["assembly"]["all_direct_inventory"])
+        self.assertEqual(assembled["data"]["assembly"]["direct_flights"][0]["flight_number"], "U6773")
+        self.assertEqual(report["frontier"]["recommended_options"][0]["segments"][0]["flight_number"], "U6773")
+
     def test_route_assemble_default_depth_preserves_frontier_relevant_option(self) -> None:
         """Single-axis sorted segment lists must not hide the 6th-by-price frontier option."""
 
@@ -1002,7 +1070,7 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(assembled["data"]["rejected_pairs"][0]["airport_group"], "Istanbul")
         self.assertTrue(assembled["data"]["rejected_pairs"][0]["same_multi_airport_system"])
 
-    def test_route_assemble_keeps_too_short_same_airport_pair_as_invalid_candidate(self) -> None:
+    def test_route_assemble_filters_too_short_same_airport_pair_from_ranked(self) -> None:
         segment_results = [
             {
                 "direction": "outbound",
@@ -1064,8 +1132,9 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
 
         self.assertEqual(assembled["data"]["assembly"]["candidate_count"], 1)
         self.assertEqual(assembled["data"]["assembly"]["rejected_pair_count"], 0)
-        self.assertFalse(assembled["data"]["ranked"][0]["ok"])
-        self.assertEqual(assembled["data"]["ranked"][0]["connections"][0]["status"], "too_short")
+        self.assertEqual(assembled["data"]["ranked"], [])
+        self.assertEqual(assembled["data"]["ranked_total_count"], 0)
+        self.assertEqual(assembled["data"]["carrier_policy"]["filtered"][0]["reason"], "too_short")
 
 
 if __name__ == "__main__":

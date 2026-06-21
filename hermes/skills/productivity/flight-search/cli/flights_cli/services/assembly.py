@@ -372,11 +372,20 @@ def direct_journeys(
                     "offers": [offer_summary(offer)],
                     "price": offer_price(offer),
                     "currency": offer_currency(offer),
-                    "direct": True,
+                    "direct": journey_connection_count({"segments": segments}) == 0,
+                    "source_leg": leg,
                 }
             )
     journeys.sort(key=pair_sort_key)
     return journeys
+
+
+def nonstop_journeys(journeys: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [journey for journey in journeys if journey_connection_count(journey) == 0]
+
+
+def journeys_are_all_nonstop(journeys: list[dict[str, Any]]) -> bool:
+    return all(journey_connection_count(journey) == 0 for journey in journeys)
 
 
 def journey_stop_policy_bucket(journey: dict[str, Any], stop_policy: Any) -> str:
@@ -780,21 +789,20 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], options: Ass
         min_cross_airport=options.min_cross_airport_min,
         profile=options.profile,
     )
-    outbound_direct = direct_journeys(segment_results, Leg.DIRECT_OUTBOUND, Direction.OUTBOUND, options.limit_per_pair)
-    return_direct = direct_journeys(segment_results, Leg.DIRECT_RETURN, Direction.RETURN, options.limit_per_pair)
-    # Direct-priority filter: when direct journeys exist for a direction, suppress one-stop
-    # pairs for that direction. Each direction is filtered independently so that a
-    # round-trip with direct outbound but no direct return still uses one-stop return.
+    outbound_direct_search = direct_journeys(segment_results, Leg.DIRECT_OUTBOUND, Direction.OUTBOUND, options.limit_per_pair)
+    return_direct_search = direct_journeys(segment_results, Leg.DIRECT_RETURN, Direction.RETURN, options.limit_per_pair)
+    outbound_direct = nonstop_journeys(outbound_direct_search)
+    return_direct = nonstop_journeys(return_direct_search)
+    # Direct-search provider calls can return connected itineraries. Treat only
+    # single-segment journeys as actual nonstop/direct inventory.
     direct_priority_applied = bool(outbound_direct) or bool(return_direct)
     suppressed_one_stop_outbound_count = len(outbound_pairs) if outbound_direct else 0
     suppressed_one_stop_return_count = len(return_pairs) if return_direct else 0
-    outbound_journeys = outbound_direct if outbound_direct else outbound_pairs
-    return_journeys = return_direct if return_direct else return_pairs
-    # all_direct_inventory: True when the entire displayed set is direct flights.
-    # Computed from post-filter journeys so it reflects what the user actually sees,
-    # not the raw pair counts which may be non-zero even when suppressed.
-    outbound_is_direct = bool(outbound_direct) or not outbound_journeys
-    return_is_direct = bool(return_direct) or not return_journeys
+    outbound_journeys = outbound_direct_search if outbound_direct_search else outbound_pairs
+    return_journeys = return_direct_search if return_direct_search else return_pairs
+    # all_direct_inventory: True only when every displayed journey is actual nonstop.
+    outbound_is_direct = journeys_are_all_nonstop(outbound_journeys) if outbound_journeys else True
+    return_is_direct = journeys_are_all_nonstop(return_journeys) if return_journeys else True
     all_direct_inventory = (
         (bool(outbound_direct) or bool(return_direct))
         and outbound_is_direct and return_is_direct
