@@ -26,6 +26,19 @@ class SkillDeliveryStdoutContractTests(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, text)
 
+    def test_skill_mentions_dependency_interpreter_contract(self) -> None:
+        text = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+
+        for needle in (
+            "same Python interpreter used to run",
+            "Do not use bare `pip`",
+            "python -m pip install icalendar jsonschema cffi",
+            "tool runtime launches skills through its own venv",
+            "Do not install into system/Homebrew Python",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, text)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -64,11 +64,21 @@ That is the entire happy path. One terminal command → one JSON → one deliver
 
 ## Dependencies
 
-The CLI requires Python packages that are not part of the standard Hermes venv. If the CLI crashes with `ModuleNotFoundError`, install them before retrying:
+The CLI requires Python packages that may be missing from the interpreter that
+runs Hermes skills/tools. Before the first build, or after `ModuleNotFoundError`,
+agents must install dependencies into the same Python interpreter used to run
+`scripts/flight_calendar_ics.py`.
+
+Do not use bare `pip`; it may target a different Python. Use the exact `python`
+command or absolute Python executable that will run the skill CLI:
 
 ```bash
-pip install icalendar jsonschema cffi
+python -m pip install icalendar jsonschema cffi
 ```
+
+If Hermes Desktop or another tool runtime launches skills through its own venv,
+run that venv's Python with `-m pip`. Do not install into system/Homebrew Python
+unless that is the interpreter used for the skill command.
 
 ## Mandatory Rules
 
