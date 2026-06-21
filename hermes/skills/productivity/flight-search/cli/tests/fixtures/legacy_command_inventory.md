@@ -20,7 +20,7 @@ surface tests own the expected absence checks.
 ## Command handlers
 
 - `command_route_plan()` remains in `flights_cli/commands/route.py`.
-- `command_route_live_assemble()` remains in `flights_cli/commands/route.py`.
+- The legacy live-assemble route handler was present when this inventory was captured.
 - `command_route_kb_assemble()` is absent.
 - `run_live_route_assembly()` remains imported by the search app.
 
