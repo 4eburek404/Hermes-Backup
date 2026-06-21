@@ -21,11 +21,11 @@ def _agent_report_from_document(payload: dict[str, Any]) -> dict[str, Any]:
 
 def command_diagnose_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     request = normalize_search_request(read_json_document(args.request))
-    live_assembly_args = live_assembly_options_from_search_request(request).to_argparse_namespace()
+    live_assembly_options = live_assembly_options_from_search_request(request)
     return {
         "schema_version": "flight_search_plan_diagnostic.v1",
         "request": request,
-        "plan": build_live_route_segment_plan(live_assembly_args, store),
+        "plan": build_live_route_segment_plan(live_assembly_options, store),
     }
 
 

@@ -14,6 +14,7 @@ from jsonschema import Draft202012Validator
 from flights_cli.cli import auto_refresh_catalog, build_parser
 from flights_cli.command_surface import CATALOG_AUTO_REFRESH_COMMANDS, CATALOG_READ_COMMANDS, CATALOG_REFRESH_COMMANDS, PRIMARY_ROUTE_COMMAND
 from flights_cli.contracts.registry import current_contract
+from flights_cli.pipeline.options import LiveAssemblyOptions
 from flights_cli.store import Store
 
 
@@ -128,11 +129,11 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
             args = argparse.Namespace(request=str(request_path), command_name="search")
             captured: dict[str, object] = {}
 
-            def fake_run(live_assembly_args: argparse.Namespace, store: Store) -> dict[str, object]:
-                captured["origin"] = live_assembly_args.origin
-                captured["destination"] = live_assembly_args.destination
-                captured["command_name"] = live_assembly_args.command_name
-                captured["agent_brief"] = live_assembly_args.agent_brief
+            def fake_run(live_assembly_options: LiveAssemblyOptions, store: Store) -> dict[str, object]:
+                captured["origin"] = live_assembly_options.route.origin
+                captured["destination"] = live_assembly_options.route.destination
+                captured["command_name"] = live_assembly_options.command_name
+                captured["agent_brief"] = live_assembly_options.output.agent_brief
                 return {"agent_report": {"schema_version": "agent_report.v2"}, "assembly": True}
 
             with patch("flights_cli.apps.search.run_live_route_assembly", side_effect=fake_run):

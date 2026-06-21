@@ -4,7 +4,7 @@ from ._shared import as_tuple, classify_market, is_direct_only, resolve_country_
 from .evidence_plan import EvidencePlan, plan_evidence
 from .flow_decision import FlowDecision, decide_flow
 from .search_pipeline import LiveRouteSearchFlow, build_live_route_search_flow
-from .search_request import SearchRequest, search_request_from_live_args
+from .search_request import SearchRequest, search_request_from_options
 
 __all__ = [
     "EvidencePlan",
@@ -18,5 +18,5 @@ __all__ = [
     "is_direct_only",
     "plan_evidence",
     "resolve_country_code",
-    "search_request_from_live_args",
+    "search_request_from_options",
 ]

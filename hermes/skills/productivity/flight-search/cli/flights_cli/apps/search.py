@@ -51,5 +51,5 @@ def build_search_result(request: dict[str, Any], route_result: dict[str, Any]) -
 def command_search(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     request = normalize_search_request(read_json_document(args.request))
     live_assembly_options = live_assembly_options_from_search_request(request)
-    route_result = run_live_route_assembly(live_assembly_options.to_argparse_namespace(), store)
+    route_result = run_live_route_assembly(live_assembly_options, store)
     return build_search_result(request, route_result)

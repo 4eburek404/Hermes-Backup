@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 from dataclasses import dataclass
 from typing import Any
 
@@ -19,8 +18,9 @@ from ..domain.airports import airport_scope_summary, segment_code_metadata
 from ..domain.hubs import resolve_route_hubs, resolve_routing_strategy
 from ..domain.vocabulary import RequiredControl, RouteFamily, RoutingStrategy
 from ..errors import CliError
+from ..pipeline.options import LiveAssemblyOptions, argparse_args_to_options
 from ..pipeline.flow_decision import market_class_for_resolved_route, routing_strategy_for_market
-from ..pipeline.search_request import search_request_from_live_args
+from ..pipeline.search_request import search_request_from_options
 from ..store import Store
 
 
@@ -187,15 +187,38 @@ def is_domestic_ru_route(store: Store, origin: Any, destination: Any, origin_air
     return all_airports_in_country(store, origin_airports, "RU") and all_airports_in_country(store, destination_airports, "RU")
 
 
-def coverage_mode_from_args(args: argparse.Namespace) -> str:
-    raw = str(getattr(args, "coverage_mode", "targeted") or "targeted").strip().lower()
+def _is_options(source: Any) -> bool:
+    return isinstance(source, LiveAssemblyOptions)
+
+
+def _as_options(source: LiveAssemblyOptions | Any) -> LiveAssemblyOptions:
+    if isinstance(source, LiveAssemblyOptions):
+        return source
+    return argparse_args_to_options(source)
+
+
+def _hubs(source: LiveAssemblyOptions | Any) -> tuple[str, ...] | Any:
+    return source.route.hubs if _is_options(source) else getattr(source, "hub", None)
+
+
+def _origin_airports(source: LiveAssemblyOptions | Any) -> tuple[str, ...] | Any:
+    return source.route.origin_airports if _is_options(source) else getattr(source, "origin_airport", None)
+
+
+def _destination_airports(source: LiveAssemblyOptions | Any) -> tuple[str, ...] | Any:
+    return source.route.destination_airports if _is_options(source) else getattr(source, "destination_airport", None)
+
+
+def coverage_mode_from_args(args: LiveAssemblyOptions | Any) -> str:
+    raw_value = args.evidence.coverage_mode if _is_options(args) else getattr(args, "coverage_mode", "targeted")
+    raw = str(raw_value or "targeted").strip().lower()
     if raw not in {"standard", "targeted", "full"}:
         raise CliError("coverage mode must be one of standard, targeted, full", error_type="validation_error")
     return raw
 
 
-def coverage_control_limit_from_args(args: argparse.Namespace) -> int:
-    raw = getattr(args, "coverage_control_limit", DEFAULT_COVERAGE_CONTROL_LIMIT)
+def coverage_control_limit_from_args(args: LiveAssemblyOptions | Any) -> int:
+    raw = args.evidence.coverage_control_limit if _is_options(args) else getattr(args, "coverage_control_limit", DEFAULT_COVERAGE_CONTROL_LIMIT)
     try:
         value = int(raw)
     except (TypeError, ValueError) as exc:
@@ -205,14 +228,16 @@ def coverage_control_limit_from_args(args: argparse.Namespace) -> int:
     return value
 
 
-def requested_coverage_controls_from_args(args: argparse.Namespace) -> list[str]:
-    return [str(item).strip() for item in (getattr(args, "coverage_control", None) or []) if str(item).strip()]
+def requested_coverage_controls_from_args(args: LiveAssemblyOptions | Any) -> list[str]:
+    raw_controls = args.evidence.coverage_controls if _is_options(args) else getattr(args, "coverage_control", None)
+    return [str(item).strip() for item in (raw_controls or []) if str(item).strip()]
 
 
-def coverage_limits(args: argparse.Namespace) -> dict[str, Any]:
+def coverage_limits(args: LiveAssemblyOptions | Any) -> dict[str, Any]:
+    max_segment_searches = args.evidence.max_segment_searches if _is_options(args) else getattr(args, "max_segment_searches", None)
     return {
         "live_fanout": "bounded_by_max_segment_searches",
-        "max_segment_searches": getattr(args, "max_segment_searches", None),
+        "max_segment_searches": max_segment_searches,
         "coverage_control_limit": coverage_control_limit_from_args(args),
         "requested_controls": requested_coverage_controls_from_args(args),
         "cache_phase": "out_of_scope",
@@ -220,24 +245,25 @@ def coverage_limits(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def resolve_route_graph_context(
-    args: argparse.Namespace,
+    args: LiveAssemblyOptions | Any,
     store: Store,
     origin: Any,
     destination: Any,
     origin_airports: list[str],
     destination_airports: list[str],
 ) -> RouteGraphContext:
-    raw_routing_strategy = str(getattr(args, "routing_strategy", None) or "auto").strip().lower()
+    options = _as_options(args)
+    raw_routing_strategy = str(options.route.routing_strategy or "auto").strip().lower()
     market_class = market_class_for_resolved_route(store, origin, destination, origin_airports, destination_airports)
     if raw_routing_strategy == "auto":
-        routing_strategy = routing_strategy_for_market(search_request_from_live_args(args), market_class)
+        routing_strategy = routing_strategy_for_market(search_request_from_options(options), market_class)
     else:
         try:
-            routing_strategy = resolve_routing_strategy(raw_routing_strategy, getattr(args, "hub", None))
+            routing_strategy = resolve_routing_strategy(raw_routing_strategy, _hubs(args))
         except ValueError as exc:
             raise CliError(str(exc), error_type="validation_error") from exc
 
-    hubs, hub_source = resolve_route_hubs(getattr(args, "hub", None))
+    hubs, hub_source = resolve_route_hubs(_hubs(args))
     routing_profile = geo_routing_profile(destination, destination_airports)
     if routing_strategy == RoutingStrategy.RU_PRIORITY:
         hubs = [PRIORITY_PRIMARY_HUB, PRIORITY_SECONDARY_HUB]
@@ -256,8 +282,8 @@ def resolve_route_graph_context(
         hubs=hubs,
         hub_source=hub_source,
         airport_scope={
-            "origin": airport_scope_summary(origin, origin_airports, getattr(args, "origin_airport", None), role="origin"),
-            "destination": airport_scope_summary(destination, destination_airports, getattr(args, "destination_airport", None), role="destination"),
+            "origin": airport_scope_summary(origin, origin_airports, _origin_airports(args), role="origin"),
+            "destination": airport_scope_summary(destination, destination_airports, _destination_airports(args), role="destination"),
         },
         coverage_mode=coverage_mode_from_args(args),
         coverage_limits=coverage_limits(args),

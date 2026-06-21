@@ -18,6 +18,7 @@ from ..execution.probe_intent import intent_from_control, intent_from_segment
 from ..execution.probe_ledger import ProbeExecutionLedger
 from ..execution.request_deduper import RequestDeduper
 from ..execution.synthetic_control_runner import synthesize_moscow_gateway_control_results
+from ..pipeline.options import LiveAssemblyOptions, argparse_args_to_options
 from ..pipeline.search_pipeline import LiveRouteSearchFlow, build_live_route_search_flow
 from ..providers.route_intel import load_or_refresh_svx_route_index, svx_direct_route_index_summary
 from ..reporting.date_window_projector import build_date_window_inventory
@@ -214,12 +215,13 @@ class LiveAssemblyRunner:
 
     def __init__(
         self,
-        args: argparse.Namespace,
+        args: Any,
         store: Store,
         *,
         plan_builder: Any,
     ) -> None:
-        self.args = args
+        self.options: LiveAssemblyOptions = args if isinstance(args, LiveAssemblyOptions) else argparse_args_to_options(args)
+        self.args = args.to_argparse_namespace() if isinstance(args, LiveAssemblyOptions) else args
         self.store = store
         # Injected dependency — defaults to build_live_route_segment_plan from
         # live_assemble to avoid a circular import.
@@ -249,10 +251,10 @@ class LiveAssemblyRunner:
 
     def _init_run(self) -> None:
         args, store = self.args, self.store
-        self.flow = build_live_route_search_flow(args, store)
+        self.flow = build_live_route_search_flow(self.options, store)
         # Use injected plan_builder or fall back to build_live_route_segment_plan.
         build_plan = self._plan_builder
-        self.plan = build_plan(args, store, flow=self.flow)
+        self.plan = build_plan(self.options, store, flow=self.flow)
         self.max_searches = max(1, int(self.flow.evidence_plan.max_segment_searches))
         if self.plan["metrics"]["segment_search_count"] > self.max_searches:
             raise CliError(
