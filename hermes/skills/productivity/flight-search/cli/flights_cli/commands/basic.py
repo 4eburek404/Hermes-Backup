@@ -20,6 +20,18 @@ from ..providers.static_catalog import active_catalog_manifest, catalog_stalenes
 from ..store import Store, city_to_output
 from ..version_manifest import load_version_manifest, manifest_mismatches, manifest_path, source_skill_path
 
+
+def metadata_evidence_scope(source: str) -> dict[str, Any]:
+    return {
+        "source": source,
+        "kind": "static_metadata",
+        "availability_evidence": False,
+        "availability_claims_allowed": False,
+        "live_provider_evidence_required": True,
+        "note": "Static catalog metadata can explain labels and routing scope, but cannot prove flight availability or absence.",
+    }
+
+
 def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     cache_files = {}
     for name in [
@@ -118,21 +130,27 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
 def command_cities_search(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     return {
         "query": args.query,
+        "evidence_scope": metadata_evidence_scope("cities static catalog"),
         "cities": [city_to_output(store, city) for city in store.search_cities(args.query, args.limit)],
     }
 
 
 def command_airports_explain(args: argparse.Namespace, store: Store) -> dict[str, Any]:
-    return {"airports": [explain_airport(store, code) for code in args.code]}
+    return {
+        "evidence_scope": metadata_evidence_scope("airports static catalog"),
+        "airports": [explain_airport(store, code) for code in args.code],
+    }
 
 
 def command_catalog_update(args: argparse.Namespace, store: Store) -> dict[str, Any]:
-    return download_static_catalog(
+    result = download_static_catalog(
         store.cache_dir,
         names=args.only,
         timeout=args.timeout,
         dry_run=args.dry_run,
     )
+    result["evidence_scope"] = metadata_evidence_scope("maint catalog refresh")
+    return result
 
 
 def command_catalog_manifest(args: argparse.Namespace, store: Store) -> dict[str, Any]:
@@ -140,6 +158,7 @@ def command_catalog_manifest(args: argparse.Namespace, store: Store) -> dict[str
     manifest = active_catalog_manifest(store.load_manifest())
     return {
         "cache_dir": str(store.cache_dir),
+        "evidence_scope": metadata_evidence_scope("maint catalog manifest"),
         "manifest": manifest,
         "cache_counts": store.cache_counts(),
         "catalog_staleness": catalog_staleness(store.cache_dir, max_age_seconds=max_age_seconds),

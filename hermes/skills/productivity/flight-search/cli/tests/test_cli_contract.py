@@ -140,6 +140,12 @@ def live_search_args(**overrides: object) -> argparse.Namespace:
 
 
 class CliContractTests(unittest.TestCase):
+    def assert_metadata_only_evidence_scope(self, scope: dict) -> None:
+        self.assertEqual(scope["kind"], "static_metadata")
+        self.assertFalse(scope["availability_evidence"])
+        self.assertFalse(scope["availability_claims_allowed"])
+        self.assertTrue(scope["live_provider_evidence_required"])
+
     def test_default_live_search_cache_ttl_is_30_minutes(self) -> None:
         from flights_cli.config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
 
@@ -234,6 +240,31 @@ class CliContractTests(unittest.TestCase):
             with self.subTest(command_name=command_name):
                 args = parser.parse_args(CATALOG_REFRESH_ARGV[command_name])
                 self.assertEqual(getattr(args, "catalog_access", None), "refresh_explicit")
+
+    def test_metadata_commands_report_metadata_only_evidence_scope(self) -> None:
+        commands = {
+            "cities search": ["--json", "cities", "search", "Yekaterinburg"],
+            "airports explain": ["--json", "airports", "explain", "SVX", "MOW"],
+            "maint catalog manifest": ["--json", "maint", "catalog", "manifest"],
+            "maint catalog refresh": ["--json", "maint", "catalog", "refresh", "--dry-run"],
+        }
+
+        for command_name, argv in commands.items():
+            with self.subTest(command_name=command_name):
+                proc = subprocess.run(
+                    [sys.executable, "-m", "flights_cli", *argv],
+                    cwd=PROJECT,
+                    env=TEST_ENV,
+                    check=True,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                payload = json.loads(proc.stdout)
+                self.assertTrue(payload["ok"])
+                self.assert_metadata_only_evidence_scope(payload["data"]["evidence_scope"])
+                if "catalog_auto_refresh" in payload["data"]:
+                    self.assert_metadata_only_evidence_scope(payload["data"]["catalog_auto_refresh"]["evidence_scope"])
 
     def test_search_request_accepts_explicit_kupibilet_provider_policy(self) -> None:
         args = live_search_args(destination="LON", depart_date="2026-07-20", provider_policy="kupibilet")
@@ -388,6 +419,7 @@ class CliContractTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["command"], "diagnose plan")
         self.assertEqual(payload["data"]["schema_version"], "flight_search_plan_diagnostic.v1")
+        self.assert_metadata_only_evidence_scope(payload["data"]["evidence_scope"])
         data = payload["data"]["plan"]
         self.assertEqual(len(payload["data"]["segments"]), len(data["segments"]))
         self.assertEqual(len(payload["data"]["probe_specs"]), len(data["segments"]))

@@ -200,6 +200,13 @@ def user_answer_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
     return errors
 
 
+def has_metadata_availability_boundary(source_boundaries: list[Any]) -> bool:
+    text = " ".join(str(item).lower() for item in source_boundaries)
+    has_metadata_scope = "metadata" in text and ("static" in text or "catalog" in text)
+    has_availability_boundary = "availability" in text or "absence" in text
+    return has_metadata_scope and has_availability_boundary
+
+
 def agent_report_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
     evidence = evidence_section(report)
     frontier = frontier_section(report)
@@ -209,8 +216,17 @@ def agent_report_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]
 
     if not diagnostics_payload.get("answer_lines"):
         errors.append({"path": "$.diagnostics.answer_lines", "message": "diagnostics.answer_lines must not be empty", "validator": "semantic"})
-    if not evidence.get("source_boundaries"):
+    source_boundaries = evidence.get("source_boundaries") if isinstance(evidence.get("source_boundaries"), list) else []
+    if not source_boundaries:
         errors.append({"path": "$.evidence.source_boundaries", "message": "evidence.source_boundaries must not be empty", "validator": "semantic"})
+    elif not has_metadata_availability_boundary(source_boundaries):
+        errors.append(
+            {
+                "path": "$.evidence.source_boundaries",
+                "message": "evidence.source_boundaries must state that static catalog metadata is not flight availability or absence evidence",
+                "validator": "semantic",
+            }
+        )
 
     recommended = frontier.get("recommended_options") or []
     if recommended and not (recommended[0].get("segments") if isinstance(recommended[0], dict) else None):

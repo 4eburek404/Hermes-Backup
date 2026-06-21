@@ -162,7 +162,8 @@ def valid_report() -> dict:
             "failure_count": 0,
         },
         "source_boundaries": [
-            "Segment assembly prices direct one-way legs and does not construct GDS, airline through-fares, or guaranteed single-PNR fares."
+            "Segment assembly prices direct one-way legs and does not construct GDS, airline through-fares, or guaranteed single-PNR fares.",
+            "Static city, airport, route, carrier, and aircraft catalogs are metadata only and cannot prove flight availability or absence.",
         ],
         "hub_viability": [],
         "segment_searches": [],
@@ -341,6 +342,19 @@ class AgentReportContractTests(unittest.TestCase):
         validate_flat_agent_report(report)
         validate_user_answer(report["user_answer"])
         self.assertEqual(report["user_answer"]["rendered_text"], report["human_answer"]["text"])
+
+    def test_source_boundaries_require_metadata_availability_distinction(self) -> None:
+        report = valid_report()
+        report["source_boundaries"] = [
+            "Segment assembly prices direct one-way legs and does not construct GDS, airline through-fares, or guaranteed single-PNR fares."
+        ]
+        report["user_answer"] = build_user_answer(report)
+        report["human_answer"]["text"] = report["user_answer"]["rendered_text"]
+
+        with self.assertRaises(CliError) as ctx:
+            validate_flat_agent_report(report)
+
+        self.assertTrue(any("static catalog metadata" in error["message"] for error in ctx.exception.details["errors"]))
 
     def test_agent_report_v2_runtime_mapping_does_not_expose_legacy_aliases(self) -> None:
         report = valid_agent_report_v2()

@@ -131,6 +131,7 @@ class StaticCatalogLayerTests(unittest.TestCase):
             "kupibilet.py",
             "live_cache.py",
             "route_intel.py",
+            "segment_normalization.py",
             "static_catalog.py",
         }
         modules = {path.name for path in provider_dir.glob("*.py")}

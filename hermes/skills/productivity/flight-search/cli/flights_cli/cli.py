@@ -10,6 +10,7 @@ from . import __version__
 from .commands.basic import (
     command_airports_explain,
     command_cities_search,
+    metadata_evidence_scope,
 )
 from .apps.diagnose import command_diagnose_plan, command_diagnose_probe, command_diagnose_render
 from .apps.maint import command_maint_catalog_manifest, command_maint_catalog_refresh, command_maint_doctor
@@ -441,14 +442,16 @@ def auto_refresh_catalog(args: argparse.Namespace, store: Store) -> dict | None:
     if args.catalog_refresh not in {"auto", "always", "never"}:
         raise CliError("catalog refresh policy must be one of auto, always, never", error_type="validation_error")
     if args.catalog_refresh == "never":
-        return {"enabled": False, "reason": "disabled"}
+        return {"enabled": False, "reason": "disabled", "evidence_scope": metadata_evidence_scope("catalog auto refresh")}
     max_age = 0 if args.catalog_refresh == "always" else parse_ttl_seconds(args.catalog_max_age)
-    return refresh_static_catalog_if_needed(
+    result = refresh_static_catalog_if_needed(
         store.cache_dir,
         max_age_seconds=max_age if args.catalog_refresh != "always" else DEFAULT_AUTO_REFRESH_MAX_AGE_SECONDS,
         timeout=args.catalog_refresh_timeout,
         force=args.catalog_refresh == "always",
     )
+    result["evidence_scope"] = metadata_evidence_scope("catalog auto refresh")
+    return result
 
 
 def apply_agent_output_defaults(args: argparse.Namespace) -> None:
