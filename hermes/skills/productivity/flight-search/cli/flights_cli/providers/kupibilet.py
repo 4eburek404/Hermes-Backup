@@ -22,6 +22,7 @@ from ..domain.normalize import normalize_carrier_code, normalize_iata, parse_iso
 from ..domain.provider_offer_filter import filter_provider_offers
 from ..errors import CliError
 from .live_cache import live_cache_key, read_live_cache, write_live_cache
+from .segment_normalization import provider_offer_to_segment_offer, provider_result_to_segment_result
 
 def build_kupibilet_payload(origin: str, destination: str, depart_date: str, currency: str) -> dict[str, Any]:
     return {
@@ -521,103 +522,30 @@ def kupibilet_offer_to_segment_offer(
     currency: str,
     index: int,
 ) -> dict[str, Any] | None:
-    raw_flights = offer.get("segments")
-    if not isinstance(raw_flights, list) or not raw_flights:
-        return None
-    segments = []
-    for flight in raw_flights:
-        if not isinstance(flight, dict):
-            continue
-        origin = str(flight.get("origin") or "").upper()
-        destination = str(flight.get("destination") or "").upper()
-        if not origin or not destination:
-            continue
-        flight_number = str(flight.get("flight_number") or "")
-        operating = str(flight.get("operating_carrier") or "").upper()
-        marketing = str(flight.get("marketing_carrier") or "").upper()
-        carrier = operating or marketing or carrier_from_flight_number(flight_number)
-        segments.append(
-            {
-                "origin": origin,
-                "destination": destination,
-                "departure_at": str(flight.get("departure_at") or ""),
-                "arrival_at": str(flight.get("arrival_at") or ""),
-                "carrier": carrier,
-                "flight_number": flight_number or None,
-                "marketing_carrier": marketing or None,
-                "operating_carrier": operating or None,
-                "aircraft_code": flight.get("aircraft"),
-                "duration_min": flight.get("duration"),
-            }
-        )
-    if not segments:
-        return None
-    price = price_value({"price": offer.get("price")})
-    currency_value_result = offer.get("currency") if isinstance(offer.get("currency"), str) else currency
-    offer_id = f"kb:{direction}:{leg}:{query_origin}-{query_destination}:{query_date}:{offer.get('id') or index}"
-    return {
-        "id": offer_id,
-        "direction": direction,
-        "leg": leg,
-        "query_origin": query_origin,
-        "query_destination": query_destination,
-        "query_date": query_date,
-        "origin": segments[0]["origin"],
-        "destination": segments[-1]["destination"],
-        "departure_airport": segments[0]["origin"],
-        "arrival_airport": segments[-1]["destination"],
-        "departure_at": segments[0]["departure_at"],
-        "arrival_at": segments[-1]["arrival_at"],
-        "price": price,
-        "currency": currency_value_result,
-        "carrier": segments[0].get("carrier"),
-        "main_airline": segments[0].get("carrier"),
-        "changes": offer.get("number_of_changes"),
-        "duration_min": offer.get("duration"),
-        "source": "Kupibilet frontend_search direct-only",
-        "segments": segments,
-        "transfers": [],
-        "internal_connection_count": max(0, len(segments) - 1),
-    }
+    return provider_offer_to_segment_offer(
+        offer,
+        provider_prefix="kb",
+        source_label="Kupibilet frontend_search direct-only",
+        direction=direction,
+        leg=leg,
+        query_origin=query_origin,
+        query_destination=query_destination,
+        query_date=query_date,
+        currency=currency,
+        index=index,
+    )
 
 
 def kupibilet_result_to_segment_result(result: dict[str, Any], *, direction: str, leg: str) -> dict[str, Any]:
-    query_origin = str(result.get("origin") or "").upper()
-    query_destination = str(result.get("destination") or "").upper()
-    query_date = str(result.get("depart_date") or "")
-    currency = str(result.get("currency") or DEFAULT_CURRENCY).upper()
-    offers = []
-    parse_errors = 0
-    for index, offer in enumerate(result.get("offers") or []):
-        if not isinstance(offer, dict):
-            parse_errors += 1
-            continue
-        normalized = kupibilet_offer_to_segment_offer(
-            offer,
-            direction=direction,
-            leg=leg,
-            query_origin=query_origin,
-            query_destination=query_destination,
-            query_date=query_date,
-            currency=currency,
-            index=index,
-        )
-        if normalized is None:
-            parse_errors += 1
-            continue
-        offers.append(normalized)
-    return {
-        "direction": direction,
-        "leg": leg,
-        "query": {"origin": query_origin, "destination": query_destination, "date": query_date, "currency": currency},
-        "source_key": "kupibilet_frontend_search",
-        "source": result.get("source"),
-        "source_url": result.get("source_url"),
-        "raw_count": result.get("raw_variant_count"),
-        "unique_flight_count": result.get("unique_flight_count"),
-        "parse_errors": parse_errors,
-        "offers": offers,
-    }
+    return provider_result_to_segment_result(
+        result,
+        direction=direction,
+        leg=leg,
+        source_key="kupibilet_frontend_search",
+        source_label="Kupibilet frontend_search direct-only",
+        provider_prefix="kb",
+        raw_count_key="raw_variant_count",
+    )
 
 
 def kupibilet_segment_search_summary(spec: dict[str, Any], result: dict[str, Any], segment_result: dict[str, Any]) -> dict[str, Any]:
