@@ -116,6 +116,7 @@ Common request fields:
 - `profile: "balanced"|"business"|"cheap"|"safe"`
 - `provider_policy: "auto"|"kupibilet"|"fli"|"both"`
 - `route_options.stop_policy: "business-default"|"strict-direct-one-stop"|"allow-two-stop-fallback"|"debug-all"`
+- `route_options.date_window_end: "YYYY-MM-DD"` for bounded one-way direct-only inventory; request-only, no CLI flag
 - `evidence.aggregate_control_carriers: ["CODE"]`
 - `route_options.coverage_mode: "standard"|"targeted"|"full"`
 - `evidence.no_live_cache: true` for a fresh live probe when appropriate

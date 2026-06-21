@@ -31,7 +31,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request /tmp/fl
 {"schema_version":"flight_search_request.v1","origin":"ORIGIN","destination":"DEST","depart_date":"YYYY-MM-DD","profile":"balanced"}
 ```
 
-Direct-only: add `"route_options":{"max_connections":0}`. Carrier scope: `"filters":{"only_carriers":[...]}`. Return: `"return_date":"YYYY-MM-DD"`. Currency, ticketing, provider_policy, and agent_brief default in the CLI.
+Direct-only: add `"route_options":{"max_connections":0}`. Date window: add request-only `"route_options":{"max_connections":0,"tier2_max_connections":0,"date_window_end":"YYYY-MM-DD"}` and omit `return_date`; there is no `--date-window-end` flag. Carrier scope: `"filters":{"only_carriers":[...]}`. Return: `"return_date":"YYYY-MM-DD"`. Currency, ticketing, provider_policy, and agent_brief default in the CLI.
 
 ## Invariants
 
