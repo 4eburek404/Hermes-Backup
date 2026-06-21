@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
+from flights_cli.apps.diagnose import command_diagnose_plan
 from flights_cli.cli import build_parser
 from flights_cli.orchestrators.live_assemble import build_live_route_segment_plan
 from flights_cli.orchestrators.route_plan import build_route_plan
@@ -142,29 +146,34 @@ class CoverageControlsTests(unittest.TestCase):
         self.assertEqual(result["route_graph"]["strategy"], result["routing_strategy"])
         self.assertGreaterEqual(len(result["route_graph"]["edges"]), len(result["segments"]))
         self.assertIn("coverage_controls", result)
-    def test_parser_accepts_documented_coverage_control_flags_and_reports_limit(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "route",
-                "plan",
-                "SVX",
-                "CDG",
-                "--depart-date",
-                "2026-08-16",
-                "--return-date",
-                "2026-08-19",
-                "--coverage-mode",
-                "targeted",
-                "--coverage-control",
-                "carrier_aggregate:SU",
-                "--coverage-control-limit",
-                "4",
-            ]
-        )
+    def test_diagnose_plan_request_preserves_coverage_controls_and_limit(self) -> None:
+        request = {
+            "schema_version": "flight_search_request.v1",
+            "origin": "SVX",
+            "destination": "CDG",
+            "depart_date": "2026-08-16",
+            "return_date": "2026-08-19",
+            "currency": "RUB",
+            "profile": "business",
+            "ticketing": "single",
+            "provider_policy": "auto",
+            "route_options": {
+                "coverage_mode": "targeted",
+                "coverage_controls": ["carrier_aggregate:SU"],
+                "coverage_control_limit": 4,
+            },
+            "evidence": {
+                "direct_route_index_ttl_seconds": 0,
+                "no_direct_route_intel": True,
+            },
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            request_path = Path(tmp_dir) / "request.json"
+            request_path.write_text(json.dumps(request), encoding="utf-8")
+            args = build_parser().parse_args(["diagnose", "plan", "--request", str(request_path)])
 
-        result = build_route_plan(args, Store())
+            result = command_diagnose_plan(args, Store())["plan"]
 
-        self.assertEqual(args.coverage_control, ["carrier_aggregate:SU"])
         self.assertEqual(result["coverage_limits"]["coverage_control_limit"], 4)
         self.assertEqual(result["coverage_limits"]["requested_controls"], ["carrier_aggregate:SU"])
         self.assertLessEqual(len(result["coverage_controls"]), 4)
