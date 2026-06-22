@@ -187,6 +187,72 @@ class CatalogAnswerContractTests(unittest.TestCase):
         self.assertEqual(answer["catalog"]["items"][0]["agent_display"]["text"], answer["catalog"]["items"][0]["render_line"])
         self.assertNotIn("1.\n", answer["catalog"]["items"][0]["agent_display"]["text"])
 
+    def test_city_scope_endpoint_renders_actual_multi_airport_and_terminal(self) -> None:
+        report = valid_report()
+        report["route"] = {
+            **report["route"],
+            "origin": "MOW",
+            "destination": "MCT",
+            "dates": {"depart_date": "2026-09-05", "return_date": "2026-09-08"},
+        }
+        option = copy.deepcopy(valid_option())
+        option.update(
+            {
+                "id": "assembled-svo-mct",
+                "category": "assembled_round_trip_control",
+                "price": {"amount": 44001, "currency": "RUB"},
+                "price_text": "44 001 RUB",
+                "journey_scope": "round_trip",
+                "covers_requested_trip": True,
+                "ticketing_model": "separate_segments",
+                "segments": [
+                    {
+                        "direction": "outbound",
+                        "flight_number": "WY184",
+                        "carrier": "WY",
+                        "origin": "SVO",
+                        "destination": "MCT",
+                        "departure_terminal": "C",
+                        "departure_at": "2026-09-05T22:05:00+03:00",
+                        "arrival_at": "2026-09-06T05:25:00+04:00",
+                        "aircraft_code": "7M8",
+                        "duration_min": 380,
+                    },
+                    {
+                        "direction": "return",
+                        "flight_number": "WY183",
+                        "carrier": "WY",
+                        "origin": "MCT",
+                        "destination": "SVO",
+                        "arrival_terminal": "C",
+                        "departure_at": "2026-09-08T15:55:00+04:00",
+                        "arrival_at": "2026-09-08T21:05:00+03:00",
+                        "aircraft_code": "7M8",
+                        "duration_min": 370,
+                    },
+                ],
+            }
+        )
+        report["recommended_options"] = [option]
+        report["priority_options"] = []
+
+        with patch(
+            "flights_cli.reporting.user_answer.airport_city_label",
+            side_effect=lambda code: {"MCT": "Маскат"}.get(code, code),
+            create=True,
+        ), patch(
+            "flights_cli.reporting.user_answer.airport_name_label",
+            side_effect=lambda code: {"SVO": "Шереметьево"}.get(code, code),
+            create=True,
+        ):
+            answer = build_user_answer(report)
+
+        validate_user_answer(answer)
+        self.assertIn("WY184 05.09 Шереметьево(C) - Маскат", answer["rendered_text"])
+        self.assertIn("WY183 08.09 Маскат - Шереметьево(C)", answer["rendered_text"])
+        self.assertNotIn("Москва - Маскат", answer["rendered_text"])
+        self.assertNotIn("Маскат - Москва", answer["rendered_text"])
+
     def test_rejects_catalog_when_rendered_text_loses_numbered_items(self) -> None:
         answer = build_user_answer(self._round_trip_report())
         answer["rendered_text"] = "Нашёл варианты SVX→CAN без нумерованного каталога."

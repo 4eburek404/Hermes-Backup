@@ -418,20 +418,20 @@ class FinalAnswerContractTests(unittest.TestCase):
             create=True,
         ), patch(
             "flights_cli.reporting.user_answer.airport_name_label",
-            side_effect=lambda code: {"SVO": "Шереметьево"}.get(code, code),
+            side_effect=lambda code: {"SVO": "Шереметьево", "IST": "Стамбул IST"}.get(code, code),
             create=True,
         ):
             answer = build_user_answer(report)
 
         validate_user_answer(answer)
         self.assertIn(
-            "1. U6773 06.08 Екатеринбург - Стамбул 07:20 10:50 A319 в пути 5:30\n    33 342 рублей",
+            "1. U6773 06.08 Екатеринбург - Стамбул IST 07:20 10:50 A319 в пути 5:30\n    33 342 рублей",
             answer["rendered_text"],
         )
         self.assertIn(
             "2. SU1419 06.08 Екатеринбург - Шереметьево(B) 00:40 01:10 A320 в пути 2:30\n"
             "    пересадка 6:10,\n"
-            "    SU2172 06.08 Шереметьево(C) - Стамбул 07:20 12:20 A320 в пути 5:00\n"
+            "    SU2172 06.08 Шереметьево(C) - Стамбул IST 07:20 12:20 A320 в пути 5:00\n"
             "    29 678 рублей",
             answer["rendered_text"],
         )

@@ -401,6 +401,33 @@ def clean_airport_name_label(name: str, code: str, store: Any) -> str:
     return re.sub(r"[()]", "", cleaned).strip() or code.upper()
 
 
+@lru_cache(maxsize=512)
+def is_multi_airport_city_airport(code: str | None) -> bool:
+    normalized = str(code or "").strip().upper()
+    if not normalized:
+        return False
+    try:
+        from ..store import Store
+
+        store = Store()
+        airport = store.airport_by_code.get(normalized)
+        if not isinstance(airport, dict):
+            return False
+        city_code = str(airport.get("city_code") or "").upper()
+        if not city_code:
+            return False
+        flightable_airports = [
+            item
+            for item in store.airports_by_city.get(city_code, [])
+            if str(item.get("code") or "").upper()
+            and item.get("flightable") is not False
+            and str(item.get("iata_type") or "").lower() == "airport"
+        ]
+        return len(flightable_airports) > 1
+    except Exception:
+        return False
+
+
 def terminal_label(value: Any) -> str | None:
     terminal = str(value or "").strip().upper()
     return terminal or None
@@ -533,8 +560,8 @@ def agent_display_body_lines_for_direction(detail: dict[str, Any]) -> list[str]:
         body_lines.append(
             render_agent_display_segment(
                 segment,
-                show_origin_airport=index > 0,
-                show_destination_airport=index < len(segments) - 1,
+                show_origin_airport=index > 0 or is_multi_airport_city_airport(segment.get("origin")),
+                show_destination_airport=index < len(segments) - 1 or is_multi_airport_city_airport(segment.get("destination")),
             )
         )
         if index < len(segments) - 1:

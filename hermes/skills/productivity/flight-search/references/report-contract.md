@@ -127,7 +127,7 @@ Connected itineraries must show every segment as its own line and put the layove
     46 909 рублей
 ```
 
-Do not collapse that into only first departure and final arrival for a multi-leg journey. If a later segment arrives on a different date, show that date inline after the arrival time. Initial/final endpoints may stay city-level, but internal connection endpoints must show the actual airport name and terminal when provider data includes one.
+Do not collapse that into only first departure and final arrival for a multi-leg journey. If a later segment arrives on a different date, show that date inline after the arrival time. Endpoints in a multi-airport city must show the actual airport name and terminal when provider data includes one, even when they are the initial origin or final destination.
 
 ## User Answer Contract v3
 
@@ -145,7 +145,7 @@ Required v3 fields:
   `    пересадка H:MM,`
   `    FLIGHT DD.MM Origin city - Destination city HH:MM HH:MM (arrival DD.MM when different) AIRCRAFT в пути H:MM`
   `    price рублей`
-  The layover line appears only between adjacent segments inside the same outbound or return direction; it is not printed after the direction or between outbound and return directions. Internal connection endpoints must use actual airport labels, not only city labels; append the provider terminal as `(B)`, `(C)`, `(2)`, etc. when present.
+  The layover line appears only between adjacent segments inside the same outbound or return direction; it is not printed after the direction or between outbound and return directions. Connection endpoints and any endpoint in a multi-airport city must use actual airport labels, not only city labels; append the provider terminal as `(B)`, `(C)`, `(2)`, etc. when present.
 - Derived summary fields remain present for validation and machine readers: `primary_recommendation`, `alternatives`, `evidence_status`, `required_caveats`, `stop_policy_status`, `rendered_text`, `answer_lines`.
 
 Semantic validation must reject: empty catalog mode, non-contiguous numbering, rendered text that loses numbered catalog items, `agent_display`/`render_line` drift, standalone number lines, segment lines without aircraft/duration, missing indentation on continuation/price lines, round-trip catalog items without outbound+return directions, unproven ticketing models that do not require purchase-screen verification.
