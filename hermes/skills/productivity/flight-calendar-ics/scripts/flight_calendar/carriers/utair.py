@@ -136,11 +136,6 @@ def city_name(seg: dict[str, Any], prefix: str) -> str | None:
     return str(value).strip() if clean(value) else None
 
 
-def terminal_name(seg: dict[str, Any], prefix: str) -> str | None:
-    value = first_value(seg, [f"{prefix}_terminal", f"{prefix}_terminal_code"])
-    return str(value).strip() if clean(value) else None
-
-
 def segment_local(seg: dict[str, Any], prefix: str) -> str:
     keys = [
         f"{prefix}_local_iso",
@@ -194,28 +189,6 @@ def ticket_numbers(order: dict[str, Any]) -> list[str]:
     return sorted(dict.fromkeys(numbers))
 
 
-def offer_by_segment(order: dict[str, Any]) -> dict[str, str]:
-    out: dict[str, str] = {}
-    for offer in order.get("offers") or []:
-        if not isinstance(offer, dict):
-            continue
-        segment_id = clean(first_value(offer, ["segment_id", "segmentId", "segment_number", "segmentNumber"]))
-        if not segment_id:
-            continue
-        brand = clean(first_value(offer, ["brand_name", "brandName", "name", "title", "fare_name", "fareName"]))
-        code = clean(first_value(offer, ["brand_code", "brandCode", "code", "fare_code", "fareCode"]))
-        if brand and code:
-            text = f"{brand} ({code})"
-        elif brand:
-            text = str(brand)
-        elif code:
-            text = str(code)
-        else:
-            continue
-        out[str(segment_id)] = text
-    return out
-
-
 def status_text(seg: dict[str, Any], order: dict[str, Any]) -> str:
     raw = first_value(seg, ["status", "status_code", "statusCode", "status_visual", "statusVisual"]) or order.get("status")
     if not clean(raw):
@@ -226,39 +199,14 @@ def status_text(seg: dict[str, Any], order: dict[str, Any]) -> str:
     return text
 
 
-def explicit_baggage(order: dict[str, Any], seg: dict[str, Any]) -> str | None:
-    direct = first_value(seg, ["baggage", "baggage_info", "baggageInfo", "luggage", "luggage_info"])
-    if clean(direct):
-        return str(direct).strip()
-    segment_id = str(first_value(seg, ["segment_id", "segmentId"]) or "")
-    values: list[str] = []
-    for service in order.get("services") or []:
-        if not isinstance(service, dict):
-            continue
-        service_segment_id = str(first_value(service, ["segment_id", "segmentId"]) or "")
-        if service_segment_id and segment_id and service_segment_id != segment_id:
-            continue
-        haystack = " ".join(str(v) for v in service.values() if isinstance(v, (str, int, float))).upper()
-        if any(word in haystack for word in ("BAG", "BAGGAGE", "LUGGAGE", "БАГАЖ")):
-            label = first_value(service, ["name", "title", "service_name", "serviceName", "code"])
-            values.append(str(label or "baggage").strip())
-    if values:
-        return ", ".join(sorted(dict.fromkeys(values)))
-    return None
-
-
-def segment_id(seg: dict[str, Any]) -> str:
-    value = first_value(seg, ["segment_id", "segmentId", "id", "number"])
-    return str(value) if clean(value) else ""
-
-
 def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_url: str | None = None) -> dict[str, Any]:
     if not isinstance(data, dict):
         die("Utair orders API response is not a JSON object")
 
     flights: list[dict[str, Any]] = []
     passengers: list[str] = []
-    booking_reference: str | None = None
+    all_tickets: list[str] = []
+    pnr: str | None = None
     missing_tz: set[str] = set()
 
     orders = collect_orders(data)
@@ -266,14 +214,16 @@ def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_u
         die("no Utair orders found")
 
     for order in orders:
-        if booking_reference is None:
+        if pnr is None:
             ref = first_value(order, ["rloc", "locator", "pnr", "booking_reference", "bookingReference"])
-            booking_reference = str(ref).strip() if clean(ref) else None
+            pnr = str(ref).strip() if clean(ref) else None
         for name in passenger_names(order):
             if name not in passengers:
                 passengers.append(name)
         tickets = ticket_numbers(order)
-        fare_map = offer_by_segment(order)
+        for ticket in tickets:
+            if ticket not in all_tickets:
+                all_tickets.append(ticket)
         segments = order.get("segments") or order.get("flights") or []
         if not isinstance(segments, list):
             continue
@@ -292,43 +242,31 @@ def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_u
             if not dep_code or not arr_code or not dep_local or not arr_local:
                 die("Utair segment is missing route or local time fields")
 
-            sid = segment_id(seg)
-            notes: list[str] = []
-            baggage = explicit_baggage(order, seg)
-            if not baggage:
-                notes.append("Багаж в данных бронирования не указан")
-
-            flight: dict[str, Any] = {
-                "carrier": "Utair",
-                "flight_number": flight_number(seg),
-                "departure": {
-                    "airport": dep_code,
-                    "city": city_name(seg, "departure"),
-                    "terminal": terminal_name(seg, "departure"),
-                    "local": dep_local,
-                    "tz": tz_map[dep_code],
-                },
-                "arrival": {
-                    "airport": arr_code,
-                    "city": city_name(seg, "arrival"),
-                    "terminal": terminal_name(seg, "arrival"),
-                    "local": arr_local,
-                    "tz": tz_map[arr_code],
-                },
-                "pnr": booking_reference,
-                "ticket_number": ", ".join(tickets) if tickets else None,
-                "status": status_text(seg, order),
-                "fare": fare_map.get(sid),
-                "notes": "; ".join(notes),
+            departure: dict[str, Any] = {
+                "airport": dep_code,
+                "local": dep_local,
+                "tz": tz_map[dep_code],
             }
-            if baggage:
-                flight["baggage"] = baggage
+            dep_city = city_name(seg, "departure")
+            if dep_city:
+                departure["city"] = dep_city
+            arrival: dict[str, Any] = {
+                "airport": arr_code,
+                "local": arr_local,
+                "tz": tz_map[arr_code],
+            }
+            arr_city = city_name(seg, "arrival")
+            if arr_city:
+                arrival["city"] = arr_city
+            flight: dict[str, Any] = {
+                "flight_number": flight_number(seg),
+                "departure": departure,
+                "arrival": arrival,
+                "status": status_text(seg, order),
+            }
             aircraft = first_value(seg, ["aircraft", "aircraft_name", "aircraftName"])
             if clean(aircraft):
                 flight["aircraft"] = str(aircraft).strip()
-            cabin = first_value(seg, ["cabin", "class", "class_of_service", "classOfService"])
-            if clean(cabin):
-                flight["cabin"] = str(cabin).strip()
             flights.append(flight)
 
     if missing_tz:
@@ -337,13 +275,16 @@ def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_u
     if not flights:
         die("no flight segments found in Utair response")
 
-    return {
+    itinerary: dict[str, Any] = {
         "schema_version": "flight-calendar-ics-itinerary.v1",
-        "calendar_name": "Utair flights",
-        "booking_reference": booking_reference,
-        "links": [booking_url] if booking_url else [],
-        "passengers": passengers,
-        "alarms_minutes": [1440, 180],
-        "notes": "Сформировано из данных страницы управления бронированием Utair.",
         "flights": flights,
     }
+    if pnr:
+        itinerary["pnr"] = pnr
+    if passengers:
+        itinerary["passengers"] = passengers
+    if all_tickets:
+        itinerary["ticket_number"] = ", ".join(all_tickets)
+    if booking_url:
+        itinerary["booking_url"] = booking_url
+    return itinerary

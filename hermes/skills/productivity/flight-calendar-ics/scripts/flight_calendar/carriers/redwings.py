@@ -8,7 +8,6 @@ mapped into the provider-agnostic itinerary schema.
 """
 from __future__ import annotations
 
-import json
 import re
 from typing import Any
 from urllib.parse import quote, unquote, urlparse
@@ -34,8 +33,6 @@ mutation FindOrder($params: OrderFind) {
       id
       segmentGroups {
         groupId
-        fareFamily { id title }
-        fareGroup { id name description }
         segments {
           id
           flightNumber
@@ -48,13 +45,11 @@ mutation FindOrder($params: OrderFind) {
           departure {
             date
             time
-            terminal
             airport { iata city { name } }
           }
           arrival {
             date
             time
-            terminal
             airport { iata city { name } }
           }
         }
@@ -68,8 +63,8 @@ mutation FindOrder($params: OrderFind) {
           operatingAirline { name iata }
           marketingAirline { name iata }
           aircraft { id name }
-          departure { date time terminal airport { iata city { name } } }
-          arrival { date time terminal airport { iata city { name } } }
+          departure { date time airport { iata city { name } } }
+          arrival { date time airport { iata city { name } } }
         }
       }
     }
@@ -77,42 +72,7 @@ mutation FindOrder($params: OrderFind) {
       id
       type
       values { type name value }
-      tickets {
-        number
-        issueDate
-        coupons { segment { id } status type }
-      }
-      services {
-        seats {
-          row
-          letter
-          segment { id }
-          seat { number }
-        }
-        brandIncludedServices {
-          services {
-            serviceId
-            count
-            segmentIds
-            service { id type name description gdsType }
-          }
-        }
-        gdsServices {
-          services {
-            serviceId
-            count
-            segmentIds
-            confirmedCount
-            products { id status statusCode emdNumber }
-          }
-        }
-      }
-      preselectedServices {
-        seats {
-          segment { id }
-          seat { number row letter }
-        }
-      }
+      tickets { number }
     }
   }
 }
@@ -328,12 +288,7 @@ def passenger_names(order: dict[str, Any]) -> list[str]:
     return names
 
 
-def segment_id(segment: dict[str, Any]) -> str:
-    value = first_value(segment, ["id", "segmentId", "segment_id"])
-    return str(value).strip() if clean(value) else ""
-
-
-def ticket_numbers_for_segment(order: dict[str, Any], sid: str) -> list[str]:
+def ticket_numbers(order: dict[str, Any]) -> list[str]:
     numbers: list[str] = []
     for traveller in order.get("travellers") or []:
         if not isinstance(traveller, dict):
@@ -341,96 +296,9 @@ def ticket_numbers_for_segment(order: dict[str, Any], sid: str) -> list[str]:
         for ticket in traveller.get("tickets") or []:
             ticket_obj = as_dict(ticket)
             number = first_value(ticket_obj, ["number", "ticketNumber", "ticket_number", "ticket"])
-            if not clean(number):
-                continue
-            coupons = ticket_obj.get("coupons") or []
-            if sid and coupons:
-                matched = False
-                for coupon in coupons:
-                    coupon_obj = as_dict(coupon)
-                    coupon_sid = segment_id(as_dict(coupon_obj.get("segment"))) or str(first_value(coupon_obj, ["segmentId", "segment_id"]) or "")
-                    if coupon_sid == sid:
-                        matched = True
-                        break
-                if not matched:
-                    continue
-            numbers.append(str(number).strip())
+            if clean(number):
+                numbers.append(str(number).strip())
     return sorted(dict.fromkeys(numbers))
-
-
-def seat_label(item: dict[str, Any]) -> str | None:
-    direct = first_value(item, ["number", "seatNumber", "seat_number"])
-    if clean(direct):
-        return str(direct).strip()
-    seat = as_dict(item.get("seat"))
-    direct = first_value(seat, ["number", "seatNumber", "seat_number"])
-    if clean(direct):
-        return str(direct).strip()
-    row = first_value(item, ["row"]) or first_value(seat, ["row"])
-    letter = first_value(item, ["letter"]) or first_value(seat, ["letter"])
-    if clean(row) and clean(letter):
-        return f"{row}{letter}"
-    return None
-
-
-def seats_for_segment(order: dict[str, Any], sid: str) -> list[str]:
-    seats: list[str] = []
-    for traveller in order.get("travellers") or []:
-        if not isinstance(traveller, dict):
-            continue
-        containers = [as_dict(traveller.get("services")), as_dict(traveller.get("preselectedServices"))]
-        for container in containers:
-            for seat in container.get("seats") or []:
-                seat_obj = as_dict(seat)
-                seat_sid = segment_id(as_dict(seat_obj.get("segment"))) or str(first_value(seat_obj, ["segmentId", "segment_id"]) or "")
-                if sid and seat_sid and seat_sid != sid:
-                    continue
-                label = seat_label(seat_obj)
-                if label:
-                    seats.append(label)
-    return sorted(dict.fromkeys(seats))
-
-
-def service_segment_ids(item: dict[str, Any]) -> list[str]:
-    raw = item.get("segmentIds") or item.get("segment_ids") or item.get("segments") or []
-    if isinstance(raw, list):
-        return [str(as_dict(x).get("id") if isinstance(x, dict) else x).strip() for x in raw if clean(x)]
-    if clean(raw):
-        return [str(raw).strip()]
-    return []
-
-
-def service_label(item: dict[str, Any]) -> str | None:
-    service = as_dict(item.get("service"))
-    value = first_value(service, ["name", "title", "description", "type", "gdsType"])
-    if not clean(value):
-        value = first_value(item, ["name", "title", "description", "type", "gdsType"])
-    return str(value).strip() if clean(value) else None
-
-
-def baggage_for_segment(order: dict[str, Any], sid: str) -> list[str]:
-    values: list[str] = []
-    for traveller in order.get("travellers") or []:
-        if not isinstance(traveller, dict):
-            continue
-        services = as_dict(traveller.get("services"))
-        buckets = [
-            as_dict(services.get("brandIncludedServices")).get("services") or [],
-            as_dict(services.get("gdsServices")).get("services") or [],
-        ]
-        for bucket in buckets:
-            for item in bucket:
-                item_obj = as_dict(item)
-                segment_ids = service_segment_ids(item_obj)
-                if sid and segment_ids and sid not in segment_ids:
-                    continue
-                label = service_label(item_obj)
-                if not label:
-                    continue
-                haystack = json.dumps(item_obj, ensure_ascii=False).upper()
-                if any(word in haystack for word in ("BAG", "BAGGAGE", "LUGGAGE", "БАГАЖ")):
-                    values.append(label)
-    return sorted(dict.fromkeys(values))
 
 
 def status_text(segment: dict[str, Any], order: dict[str, Any]) -> str:
@@ -445,25 +313,18 @@ def status_text(segment: dict[str, Any], order: dict[str, Any]) -> str:
     return " / ".join(parts)
 
 
-def fare_text(group: dict[str, Any]) -> str | None:
-    family = as_dict(group.get("fareFamily"))
-    fare_group = as_dict(group.get("fareGroup"))
-    value = first_value(family, ["title", "name", "id"]) or first_value(fare_group, ["name", "title", "id"])
-    return str(value).strip() if clean(value) else None
-
-
 def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_url: str | None = None) -> dict[str, Any]:
     order = find_order(data)
     if not order:
         die("no Red Wings order found")
     assert order is not None
 
-    booking_reference = str(first_value(order, ["locator", "pnr", "bookingReference"]) or "").strip() or None
+    pnr = str(first_value(order, ["locator", "pnr", "bookingReference"]) or "").strip() or None
     passengers = passenger_names(order)
     flights: list[dict[str, Any]] = []
     missing_tz: set[str] = set()
 
-    for seg, group in collect_segments(order):
+    for seg, _group in collect_segments(order):
         dep = as_dict(seg.get("departure"))
         arr = as_dict(seg.get("arrival"))
         dep_code = point_airport(dep)
@@ -478,38 +339,28 @@ def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_u
         if not dep_code or not arr_code or not dep_local or not arr_local:
             die("Red Wings segment is missing route or local time fields")
 
-        sid = segment_id(seg)
-        flight: dict[str, Any] = {
-            "carrier": first_value(airline(seg, "marketingAirline"), ["name"]) or first_value(airline(seg, "operatingAirline"), ["name"]) or "Red Wings",
-            "flight_number": flight_number(seg),
-            "departure": {
-                "airport": dep_code,
-                "city": point_city(dep),
-                "terminal": first_value(dep, ["terminal"]),
-                "local": dep_local,
-                "tz": tz_map[dep_code],
-            },
-            "arrival": {
-                "airport": arr_code,
-                "city": point_city(arr),
-                "terminal": first_value(arr, ["terminal"]),
-                "local": arr_local,
-                "tz": tz_map[arr_code],
-            },
-            "pnr": booking_reference,
-            "passengers": passengers,
-            "status": status_text(seg, order),
-            "fare": fare_text(group),
+        departure: dict[str, Any] = {
+            "airport": dep_code,
+            "local": dep_local,
+            "tz": tz_map[dep_code],
         }
-        tickets = ticket_numbers_for_segment(order, sid)
-        if tickets:
-            flight["ticket_number"] = ", ".join(tickets)
-        seats = seats_for_segment(order, sid)
-        if seats:
-            flight["seat"] = ", ".join(seats)
-        baggage = baggage_for_segment(order, sid)
-        if baggage:
-            flight["baggage"] = ", ".join(baggage)
+        dep_city = point_city(dep)
+        if dep_city:
+            departure["city"] = dep_city
+        arrival: dict[str, Any] = {
+            "airport": arr_code,
+            "local": arr_local,
+            "tz": tz_map[arr_code],
+        }
+        arr_city = point_city(arr)
+        if arr_city:
+            arrival["city"] = arr_city
+        flight: dict[str, Any] = {
+            "flight_number": flight_number(seg),
+            "departure": departure,
+            "arrival": arrival,
+            "status": status_text(seg, order),
+        }
         aircraft = as_dict(seg.get("aircraft"))
         aircraft_name = first_value(aircraft, ["name", "title"])
         if clean(aircraft_name):
@@ -522,13 +373,17 @@ def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_u
     if not flights:
         die("no flight segments found in Red Wings response")
 
-    return {
+    itinerary: dict[str, Any] = {
         "schema_version": "flight-calendar-ics-itinerary.v1",
-        "calendar_name": "Red Wings flights",
-        "booking_reference": booking_reference,
-        "links": [booking_url] if booking_url else [],
-        "passengers": passengers,
-        "alarms_minutes": [1440, 180],
-        "notes": "Сформировано из данных страницы управления бронированием Red Wings.",
         "flights": flights,
     }
+    tickets = ticket_numbers(order)
+    if pnr:
+        itinerary["pnr"] = pnr
+    if passengers:
+        itinerary["passengers"] = passengers
+    if tickets:
+        itinerary["ticket_number"] = ", ".join(tickets)
+    if booking_url:
+        itinerary["booking_url"] = booking_url
+    return itinerary

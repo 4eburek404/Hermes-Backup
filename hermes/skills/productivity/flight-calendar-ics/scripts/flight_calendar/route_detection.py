@@ -1,4 +1,4 @@
-"""Route inference helpers for ``flight_calendar_ics.py build auto``."""
+"""Internal route inference helpers for booking URLs."""
 from __future__ import annotations
 
 import argparse
@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
-from flight_calendar.envelope import CliFailure
+from flight_calendar.errors import CliFailure
 
 
 def read_private_text(path: Path) -> str:
@@ -20,8 +20,8 @@ def read_private_text(path: Path) -> str:
 def first_url_from_args(args: argparse.Namespace) -> str | None:
     url = getattr(args, "url", None)
     url_file = getattr(args, "url_file", None)
-    if url and url_file:
-        raise CliFailure("use either --url or --url-file, not both", code="usage_error")
+    if url:
+        raise CliFailure("--url is not supported; use --url-file", code="usage_error")
     if url_file:
         text = read_private_text(url_file)
         if not text:
@@ -195,7 +195,7 @@ def _route_input_insufficient(route: str, message: str | None = None) -> CliFail
     return CliFailure(
         message or default_message,
         code="route_input_insufficient",
-        details={"route": route, "required_disambiguation": ["provide route-specific URL/arguments", "or use explicit build <route> for diagnostics"]},
+        details={"route": route, "required_disambiguation": ["provide a carrier booking URL via --url-file"]},
     )
 
 
@@ -304,5 +304,5 @@ def infer_build_route(args: argparse.Namespace) -> dict[str, Any]:
     raise CliFailure(
         "could not infer carrier route from safe source fingerprint",
         code="route_unknown",
-        details={"required_disambiguation": ["provide build <route> explicitly", "or provide route-specific URL/arguments"]},
+        details={"required_disambiguation": ["provide a supported carrier booking URL via --url-file"]},
     )

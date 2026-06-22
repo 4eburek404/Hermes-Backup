@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Canonical itinerary JSON Schema contract for flight-calendar-ics.
-
-This module is intentionally provider-agnostic: carrier/API/PDF-specific fields
-belong in adapters, while this contract validates the normalized itinerary that
-is ready for ICS generation.
-"""
+"""Minimal itinerary JSON Schema contract for flight-calendar-ics."""
 from __future__ import annotations
 
 import copy
@@ -50,17 +45,10 @@ def _validator() -> Any:
 
 
 def normalize_legacy_itinerary(data: dict[str, Any]) -> dict[str, Any]:
-    """Return a canonical-compatible copy of old itinerary JSON input.
-
-    Older templates predated the explicit input-schema version. Keep those files
-    usable by adding the version in memory, but do not remove unknown fields: the
-    schema gate must still reject non-canonical payloads and typos.
-    """
+    """Return a defensive copy without accepting legacy aliases or defaults."""
     if not isinstance(data, dict):
         raise ValueError("input JSON root must be an object")
-    normalized = copy.deepcopy(data)
-    normalized.setdefault("schema_version", SCHEMA_VERSION)
-    return normalized
+    return copy.deepcopy(data)
 
 
 def _format_path(parts: Iterable[Any]) -> str:

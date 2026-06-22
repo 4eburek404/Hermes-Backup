@@ -1,42 +1,25 @@
-"""Shared HTTP transport for flight-calendar-ics carrier adapters.
+"""Shared curl_cffi HTTP transport for carrier adapters.
 
-Privacy contract: messages raised from this module never contain URLs, hosts,
-query parameters, or request/response bodies — booking URLs carry credentials
-(PNR keys, locators, surnames). Errors carry only the caller-supplied label,
-the HTTP status, the content type, and the exception class name.
-
-Transport: ``curl_cffi`` is required. Requests are sent with a Chrome TLS/HTTP2
-fingerprint (``impersonate``), which carrier anti-bot gates (e.g. Ngenix in
-front of Aeroflot) may require. ``active_transport()`` reports the selected
-backend and doctor surfaces it as ``data.http_transport``.
-
-Reliability: transient failures (network errors, timeouts) and HTTP >= 500 are
-retried up to ``MAX_ATTEMPTS`` with growing backoff. HTTP 4xx is never
-retried. ``request_raw`` never raises on HTTP status so callers can sniff
-anti-bot interstitial bodies (they arrive as HTML with 403/503).
+Booking URLs carry private credentials, so transport errors mention only the
+caller-provided label, status/content type, and exception class.
 """
 from __future__ import annotations
 
 import json
 import time
 from typing import Any, Callable
+from urllib.parse import urlencode
 
-try:
-    from curl_cffi import requests as _impersonate
-except ImportError as exc:  # pragma: no cover - depends on environment
-    raise ImportError(
-        "flight-calendar-ics requires curl_cffi for carrier HTTP transport. "
-        "Install it into the Python interpreter used to run scripts/flight_calendar_ics.py: "
-        "python -m pip install curl_cffi"
-    ) from exc
+from curl_cffi import requests as _requests
+
 
 MAX_ATTEMPTS = 3
 BACKOFF_SECONDS = (0.5, 2.0)
 IMPERSONATE_TARGET = "chrome"
 _NETWORK_ERRORS: tuple[type[BaseException], ...] = (
+    getattr(_requests, "RequestsError", OSError),
     TimeoutError,
     OSError,
-    getattr(_impersonate, "RequestsError", OSError),
 )
 
 
@@ -59,16 +42,8 @@ def browser_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
     return headers
 
 
-def _fetch_once(
-    url: str,
-    *,
-    method: str,
-    headers: dict[str, str],
-    body: bytes | dict[str, str] | None,
-    timeout: int,
-) -> tuple[int, str, str]:
-    """Single attempt -> (status, content_type, text). HTTP errors are data, not exceptions."""
-    response = _impersonate.request(
+def _fetch_once(url: str, *, method: str, headers: dict[str, str], body: bytes | None, timeout: int) -> tuple[int, str, str]:
+    response = _requests.request(
         method,
         url,
         headers=headers,
@@ -84,17 +59,13 @@ def request_raw(
     *,
     method: str = "GET",
     headers: dict[str, str] | None = None,
-    body: bytes | dict[str, str] | None = None,
+    body: bytes | None = None,
     timeout: int = 45,
     label: str = "HTTP request",
     sleep: Callable[[float], None] = time.sleep,
 ) -> tuple[int, str, str]:
-    """Fetch with network-error and 5xx retries; never raises on HTTP status.
-
-    Returns the final ``(status, content_type, text)`` so callers can inspect
-    error bodies (anti-bot interstitials, carrier error JSON).
-    """
-    request_headers = browser_headers(headers) if headers is not None else browser_headers()
+    """Fetch with network-error and 5xx retries; never raises on HTTP status."""
+    request_headers = browser_headers(headers)
     last_result: tuple[int, str, str] | None = None
     last_failure = f"{label} failed"
     for attempt in range(1, MAX_ATTEMPTS + 1):
@@ -120,7 +91,7 @@ def request_text(
     *,
     method: str = "GET",
     headers: dict[str, str] | None = None,
-    body: bytes | dict[str, str] | None = None,
+    body: bytes | None = None,
     timeout: int = 45,
     label: str = "HTTP request",
     sleep: Callable[[float], None] = time.sleep,
@@ -145,17 +116,17 @@ def request_json(
     sleep: Callable[[float], None] = time.sleep,
 ) -> Any:
     request_headers = dict(headers or {})
-    body: bytes | dict[str, str] | None = None
+    body: bytes | None = None
     if json_body is not None:
         request_headers.setdefault("Content-Type", "application/json")
         body = json.dumps(json_body, ensure_ascii=False).encode("utf-8")
         method = "POST" if method == "GET" else method
     elif form_body is not None:
         request_headers.setdefault("Content-Type", "application/x-www-form-urlencoded")
-        body = form_body
+        body = urlencode(form_body).encode("utf-8")
         method = "POST" if method == "GET" else method
     text = request_text(url, method=method, headers=request_headers, body=body, timeout=timeout, label=label, sleep=sleep)
     try:
         return json.loads(text)
-    except json.JSONDecodeError:
-        raise TransportError(f"{label} returned a non-JSON response")
+    except json.JSONDecodeError as exc:
+        raise TransportError(f"{label} returned a non-JSON response") from exc
