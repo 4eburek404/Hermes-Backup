@@ -166,7 +166,7 @@ class StopPolicyTests(unittest.TestCase):
         self.assertEqual(result["carrier_policy"]["filtered"][-1]["id"], "daytime-overnight-wait")
         self.assertEqual(result["carrier_policy"]["filtered"][-1]["reason"], "excessive_connection_wait")
 
-    def test_business_keeps_excessive_wait_when_it_is_the_only_reportable_path(self) -> None:
+    def test_business_suppresses_excessive_wait_even_when_it_is_the_only_reportable_path(self) -> None:
         result = rank_candidate_list(
             [
                 one_stop_candidate(
@@ -178,8 +178,10 @@ class StopPolicyTests(unittest.TestCase):
             ranking_options_from_args(rank_args()),
         )
 
-        self.assertEqual([item["id"] for item in result["ranked"]], ["only-overnight-wait"])
-        self.assertEqual(result["stop_policy_diagnostics"]["excessive_wait_suppressed_count"], 0)
+        self.assertEqual(result["ranked"], [])
+        self.assertEqual(result["stop_policy_diagnostics"]["excessive_wait_suppressed_count"], 1)
+        self.assertEqual(result["carrier_policy"]["filtered"][-1]["id"], "only-overnight-wait")
+        self.assertEqual(result["carrier_policy"]["filtered"][-1]["reason"], "excessive_connection_wait")
 
     def test_business_keeps_late_arrival_to_morning_departure(self) -> None:
         result = rank_candidate_list(

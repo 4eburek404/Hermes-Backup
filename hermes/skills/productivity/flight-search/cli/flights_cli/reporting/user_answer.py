@@ -378,13 +378,27 @@ def airport_name_label(code: str | None) -> str:
         store = Store()
         for airport in store.load_json("airports_ru.json"):
             if str(airport.get("code") or "").upper() == normalized and airport.get("name"):
-                return str(airport["name"])
+                return clean_airport_name_label(str(airport["name"]), normalized, store)
         airport = store.airport_by_code.get(normalized)
         if airport and airport.get("name"):
-            return str(airport["name"])
+            return clean_airport_name_label(str(airport["name"]), normalized, store)
     except Exception:
         return normalized
     return airport_city_label(normalized)
+
+
+def clean_airport_name_label(name: str, code: str, store: Any) -> str:
+    cleaned = re.sub(r"\s+", " ", str(name or "").strip())
+    if not cleaned:
+        return code
+    if "(" not in cleaned and ")" not in cleaned:
+        return cleaned
+    airport = store.airport_by_code.get(code.upper()) if hasattr(store, "airport_by_code") else None
+    city_code = str(airport.get("city_code") or code).upper() if isinstance(airport, dict) else code.upper()
+    city_name = store.city_name(city_code) if hasattr(store, "city_name") else None
+    if city_name:
+        return f"{city_name} {code.upper()}"
+    return re.sub(r"[()]", "", cleaned).strip() or code.upper()
 
 
 def terminal_label(value: Any) -> str | None:

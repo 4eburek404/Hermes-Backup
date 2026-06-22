@@ -274,7 +274,7 @@ def excessive_connection_wait_filter(validation: dict[str, Any], *, profile: str
             "reason": "excessive_connection_wait",
             "message": (
                 f"Business output suppresses {actual // 60}h{actual % 60:02d} connection waits "
-                "when a normal same-stop-or-better alternative exists."
+                "unless it is a late-arrival to morning-departure overnight transfer."
             ),
             "actual_min": actual,
             "arrival_hour": arrival_hour,
@@ -397,14 +397,9 @@ def rank_candidate_list(candidates: list[dict[str, Any]], options: RankingOption
             }
         )
 
-    normal_connection_counts = [
-        int(item["max_connections"])
-        for item in rankable
-        if item.get("wait_filter") is None
-    ]
     for item in rankable:
         wait_filter = item.get("wait_filter") if isinstance(item.get("wait_filter"), dict) else None
-        if wait_filter is not None and any(count <= int(item["max_connections"]) for count in normal_connection_counts):
+        if wait_filter is not None:
             suppressed_excessive_wait_count += 1
             if len(filtered) < include_filtered:
                 filtered.append(

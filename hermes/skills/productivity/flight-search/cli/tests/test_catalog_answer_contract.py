@@ -248,6 +248,32 @@ class CatalogAnswerContractTests(unittest.TestCase):
         messages = " ".join(error["message"] for error in ctx.exception.details["errors"])
         self.assertIn("segment/layover/price", messages)
 
+    def test_airport_label_removes_non_terminal_parentheses(self) -> None:
+        option = self._round_trip_option("assembled-primary", price=92248)
+        option["segments"][0]["destination"] = "IST"
+        option["segments"][0]["arrival_terminal"] = None
+        option["segments"][1]["origin"] = "IST"
+        option["segments"][1]["departure_terminal"] = None
+        report = self._round_trip_report()
+        report["recommended_options"] = [option]
+        report["priority_options"] = []
+
+        with patch(
+            "flights_cli.reporting.user_answer.airport_city_label",
+            side_effect=lambda code: {
+                "SVX": "Екатеринбург",
+                "IST": "Стамбул",
+                "CAN": "Гуанчжоу",
+            }.get(code, code),
+            create=True,
+        ):
+            answer = build_user_answer(report)
+
+        validate_user_answer(answer)
+        self.assertIn("Екатеринбург - Стамбул IST", answer["rendered_text"])
+        self.assertIn("Стамбул IST - Гуанчжоу", answer["rendered_text"])
+        self.assertNotIn("Новый (Стамбул)", answer["rendered_text"])
+
     def test_rejects_catalog_when_agent_display_uses_standalone_number_line(self) -> None:
         answer = build_user_answer(self._round_trip_report())
         first_line = answer["catalog"]["items"][0]["agent_display"]["lines"][0]
