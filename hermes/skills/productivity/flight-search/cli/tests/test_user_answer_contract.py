@@ -349,6 +349,7 @@ class FinalAnswerContractTests(unittest.TestCase):
                         "operating_carrier": "SU",
                         "origin": "SVX",
                         "destination": "SVO",
+                        "arrival_terminal": "B",
                         "departure_at": "2026-08-06T00:40:00+05:00",
                         "arrival_at": "2026-08-06T01:10:00+03:00",
                         "aircraft_code": "320",
@@ -362,6 +363,7 @@ class FinalAnswerContractTests(unittest.TestCase):
                         "operating_carrier": "SU",
                         "origin": "SVO",
                         "destination": "IST",
+                        "departure_terminal": "C",
                         "departure_at": "2026-08-06T07:20:00+03:00",
                         "arrival_at": "2026-08-06T12:20:00+03:00",
                         "aircraft_code": "320",
@@ -414,6 +416,10 @@ class FinalAnswerContractTests(unittest.TestCase):
             "flights_cli.reporting.user_answer.airport_city_label",
             side_effect=lambda code: {"SVX": "Екатеринбург", "SVO": "Москва", "IST": "Стамбул"}.get(code, code),
             create=True,
+        ), patch(
+            "flights_cli.reporting.user_answer.airport_name_label",
+            side_effect=lambda code: {"SVO": "Шереметьево"}.get(code, code),
+            create=True,
         ):
             answer = build_user_answer(report)
 
@@ -423,9 +429,9 @@ class FinalAnswerContractTests(unittest.TestCase):
             answer["rendered_text"],
         )
         self.assertIn(
-            "2. SU1419 06.08 Екатеринбург - Москва 00:40 01:10 A320 в пути 2:30\n"
+            "2. SU1419 06.08 Екатеринбург - Шереметьево(B) 00:40 01:10 A320 в пути 2:30\n"
             "    пересадка 6:10,\n"
-            "    SU2172 06.08 Москва - Стамбул 07:20 12:20 A320 в пути 5:00\n"
+            "    SU2172 06.08 Шереметьево(C) - Стамбул 07:20 12:20 A320 в пути 5:00\n"
             "    29 678 рублей",
             answer["rendered_text"],
         )

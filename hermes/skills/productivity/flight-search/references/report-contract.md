@@ -121,13 +121,13 @@ Negative guarantees for `user_answer.rendered_text`, legacy `human_answer.text`,
 Connected itineraries must show every segment as its own line and put the layover line between adjacent segments in the same direction:
 
 ```text
-1. SU1401 23.07 Екатеринбург - Москва 13:10 13:50 A320 в пути 2:40
+1. SU1401 23.07 Екатеринбург - Шереметьево(B) 13:10 13:50 A320 в пути 2:40
     пересадка 3:25,
-    MU2076 23.07 Москва - Пекин 17:15 05:30 (24.07) A333 в пути 7:15
+    MU2076 23.07 Шереметьево(C) - Пекин 17:15 05:30 (24.07) A333 в пути 7:15
     46 909 рублей
 ```
 
-Do not collapse that into only first departure and final arrival for a multi-leg journey. If a later segment arrives on a different date, show that date inline after the arrival time.
+Do not collapse that into only first departure and final arrival for a multi-leg journey. If a later segment arrives on a different date, show that date inline after the arrival time. Initial/final endpoints may stay city-level, but internal connection endpoints must show the actual airport name and terminal when provider data includes one.
 
 ## User Answer Contract v3
 
@@ -145,7 +145,7 @@ Required v3 fields:
   `    пересадка H:MM,`
   `    FLIGHT DD.MM Origin city - Destination city HH:MM HH:MM (arrival DD.MM when different) AIRCRAFT в пути H:MM`
   `    price рублей`
-  The layover line appears only between adjacent segments inside the same outbound or return direction; it is not printed after the direction or between outbound and return directions.
+  The layover line appears only between adjacent segments inside the same outbound or return direction; it is not printed after the direction or between outbound and return directions. Internal connection endpoints must use actual airport labels, not only city labels; append the provider terminal as `(B)`, `(C)`, `(2)`, etc. when present.
 - Derived summary fields remain present for validation and machine readers: `primary_recommendation`, `alternatives`, `evidence_status`, `required_caveats`, `stop_policy_status`, `rendered_text`, `answer_lines`.
 
 Semantic validation must reject: empty catalog mode, non-contiguous numbering, rendered text that loses numbered catalog items, `agent_display`/`render_line` drift, standalone number lines, segment lines without aircraft/duration, missing indentation on continuation/price lines, round-trip catalog items without outbound+return directions, unproven ticketing models that do not require purchase-screen verification.

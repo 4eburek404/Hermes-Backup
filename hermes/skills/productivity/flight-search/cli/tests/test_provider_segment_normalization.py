@@ -28,11 +28,13 @@ def provider_result(*, source: str, raw_count_key: str) -> dict:
                         "flight_number": "SU100",
                         "marketing_carrier": "SU",
                         "operating_carrier": "SU",
-                        "origin": "SVX",
-                        "destination": "IST",
-                        "departure_at": "2026-08-15T08:00:00+05:00",
-                        "arrival_at": "2026-08-15T10:30:00+03:00",
-                        "aircraft": "320",
+                "origin": "SVX",
+                "destination": "IST",
+                "departure_terminal": "A",
+                "arrival_terminal": "I",
+                "departure_at": "2026-08-15T08:00:00+05:00",
+                "arrival_at": "2026-08-15T10:30:00+03:00",
+                "aircraft": "320",
                         "duration": 180,
                     }
                 ],
@@ -50,6 +52,8 @@ class ProviderSegmentNormalizationTests(unittest.TestCase):
                 "flight_number": "TK1987",
                 "origin": "IST",
                 "destination": "LHR",
+                "departure_terminal": "C",
+                "arrival_terminal": "2",
                 "departure_at": "2026-08-15T10:20:00+03:00",
                 "arrival_at": "2026-08-15T12:30:00+01:00",
             }
@@ -57,6 +61,8 @@ class ProviderSegmentNormalizationTests(unittest.TestCase):
 
         self.assertEqual(normalized["origin"], "IST")
         self.assertEqual(normalized["destination"], "LHR")
+        self.assertEqual(normalized["departure_terminal"], "C")
+        self.assertEqual(normalized["arrival_terminal"], "2")
         self.assertEqual(normalized["carrier"], "TK")
         self.assertEqual(normalized["flight_number"], "TK1987")
 

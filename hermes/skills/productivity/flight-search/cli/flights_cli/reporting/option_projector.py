@@ -14,6 +14,8 @@ def segment_summary(segment: dict[str, Any], direction: str | None = None) -> di
         "operating_carrier": segment.get("operating_carrier"),
         "origin": segment.get("origin"),
         "destination": segment.get("destination"),
+        "departure_terminal": segment.get("departure_terminal"),
+        "arrival_terminal": segment.get("arrival_terminal"),
         "departure_at": segment.get("departure_at"),
         "arrival_at": segment.get("arrival_at"),
         "aircraft_code": segment.get("aircraft_code") or segment.get("aircraft"),

@@ -129,6 +129,8 @@ def aggregate_offer_summary(offer: dict[str, Any]) -> dict[str, Any]:
                 "operating_carrier": operating or None,
                 "origin": flight.get("origin"),
                 "destination": flight.get("destination"),
+                "departure_terminal": flight.get("departure_terminal"),
+                "arrival_terminal": flight.get("arrival_terminal"),
                 "departure_at": flight.get("departure_at"),
                 "arrival_at": flight.get("arrival_at"),
             }

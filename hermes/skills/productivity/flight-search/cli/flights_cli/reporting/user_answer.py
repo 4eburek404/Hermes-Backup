@@ -246,6 +246,8 @@ def catalog_segment(segment: dict[str, Any]) -> dict[str, Any]:
         "carrier": str(segment.get("carrier") or segment.get("marketing_carrier") or "") or None,
         "origin": str(segment.get("origin") or "") or None,
         "destination": str(segment.get("destination") or "") or None,
+        "departure_terminal": str(segment.get("departure_terminal") or "").strip() or None,
+        "arrival_terminal": str(segment.get("arrival_terminal") or "").strip() or None,
         "departure_at": str(segment.get("departure_at") or "") or None,
         "arrival_at": str(segment.get("arrival_at") or "") or None,
         "aircraft_code": str(segment.get("aircraft_code") or segment.get("aircraft") or "") or None,
@@ -366,6 +368,43 @@ def airport_city_label(code: str | None) -> str:
 
 
 @lru_cache(maxsize=512)
+def airport_name_label(code: str | None) -> str:
+    normalized = str(code or "").strip().upper()
+    if not normalized:
+        return "???"
+    try:
+        from ..store import Store
+
+        store = Store()
+        for airport in store.load_json("airports_ru.json"):
+            if str(airport.get("code") or "").upper() == normalized and airport.get("name"):
+                return str(airport["name"])
+        airport = store.airport_by_code.get(normalized)
+        if airport and airport.get("name"):
+            return str(airport["name"])
+    except Exception:
+        return normalized
+    return airport_city_label(normalized)
+
+
+def terminal_label(value: Any) -> str | None:
+    terminal = str(value or "").strip().upper()
+    return terminal or None
+
+
+def agent_endpoint_label(segment: dict[str, Any], endpoint: str, *, show_airport: bool) -> str:
+    if endpoint == "origin":
+        code = segment.get("origin")
+        terminal = segment.get("departure_terminal")
+    else:
+        code = segment.get("destination")
+        terminal = segment.get("arrival_terminal")
+    label = airport_name_label(code) if show_airport else airport_city_label(code)
+    rendered_terminal = terminal_label(terminal) if show_airport else None
+    return f"{label}({rendered_terminal})" if rendered_terminal else label
+
+
+@lru_cache(maxsize=512)
 def aircraft_display_label(code: str | None) -> str | None:
     raw = str(code or "").strip().upper()
     if not raw:
@@ -448,12 +487,17 @@ def render_direction_for_catalog(segments: list[dict[str, Any]], direction: str)
     return f"{label}: " + " -> ".join(flights)
 
 
-def render_agent_display_segment(segment: dict[str, Any]) -> str:
+def render_agent_display_segment(
+    segment: dict[str, Any],
+    *,
+    show_origin_airport: bool = False,
+    show_destination_airport: bool = False,
+) -> str:
     number = segment.get("flight_number") or segment.get("carrier") or "рейс"
     departure_at = segment.get("departure_at")
     arrival_at = segment.get("arrival_at")
-    origin = airport_city_label(segment.get("origin"))
-    destination = airport_city_label(segment.get("destination"))
+    origin = agent_endpoint_label(segment, "origin", show_airport=show_origin_airport)
+    destination = agent_endpoint_label(segment, "destination", show_airport=show_destination_airport)
     aircraft = aircraft_display_label(segment.get("aircraft_code")) or "борт н/д"
     duration = segment_duration_display(segment)
     return (
@@ -472,7 +516,13 @@ def agent_display_body_lines_for_direction(detail: dict[str, Any]) -> list[str]:
     segments = [segment for segment in (detail.get("segments") or []) if isinstance(segment, dict)]
     layovers = [layover for layover in (detail.get("layovers") or []) if isinstance(layover, dict)]
     for index, segment in enumerate(segments):
-        body_lines.append(render_agent_display_segment(segment))
+        body_lines.append(
+            render_agent_display_segment(
+                segment,
+                show_origin_airport=index > 0,
+                show_destination_airport=index < len(segments) - 1,
+            )
+        )
         if index < len(segments) - 1:
             layover = layovers[index] if index < len(layovers) else {}
             body_lines.append(render_agent_display_layover(layover))

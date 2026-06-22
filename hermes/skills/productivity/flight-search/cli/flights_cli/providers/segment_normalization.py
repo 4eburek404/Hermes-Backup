@@ -19,6 +19,8 @@ def normalize_segment_flight(flight: dict[str, Any]) -> dict[str, Any] | None:
     return {
         "origin": origin,
         "destination": destination,
+        "departure_terminal": str(flight.get("departure_terminal") or "").strip() or None,
+        "arrival_terminal": str(flight.get("arrival_terminal") or "").strip() or None,
         "departure_at": str(flight.get("departure_at") or ""),
         "arrival_at": str(flight.get("arrival_at") or ""),
         "carrier": carrier,

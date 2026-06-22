@@ -42,6 +42,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
                 "carrier": "SU",
                 "origin": "SVX",
                 "destination": "SVO",
+                "arrival_terminal": "B",
                 "departure_at": "2026-07-14T06:00:00+05:00",
                 "arrival_at": "2026-07-14T06:45:00+03:00",
                 "aircraft_code": "32A",
@@ -53,6 +54,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
                 "carrier": "SU",
                 "origin": "SVO",
                 "destination": "CAN",
+                "departure_terminal": "C",
                 "departure_at": "2026-07-14T19:10:00+03:00",
                 "arrival_at": "2026-07-15T09:35:00+08:00",
                 "aircraft_code": "333",
@@ -64,6 +66,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
                 "carrier": "SU",
                 "origin": "CAN",
                 "destination": "SVO",
+                "arrival_terminal": "C",
                 "departure_at": "2026-07-25T11:20:00+08:00",
                 "arrival_at": "2026-07-25T16:05:00+03:00",
                 "aircraft_code": "333",
@@ -75,6 +78,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
                 "carrier": "SU",
                 "origin": "SVO",
                 "destination": "SVX",
+                "departure_terminal": "B",
                 "departure_at": "2026-07-25T20:10:00+03:00",
                 "arrival_at": "2026-07-26T00:35:00+05:00",
                 "aircraft_code": "73H",
@@ -131,6 +135,12 @@ class CatalogAnswerContractTests(unittest.TestCase):
                 "CAN": "Гуанчжоу",
             }.get(code, code),
             create=True,
+        ), patch(
+            "flights_cli.reporting.user_answer.airport_name_label",
+            side_effect=lambda code: {
+                "SVO": "Шереметьево",
+            }.get(code, code),
+            create=True,
         ):
             answer = build_user_answer(self._round_trip_report())
 
@@ -166,12 +176,12 @@ class CatalogAnswerContractTests(unittest.TestCase):
         self.assertIn("25.07", answer["rendered_text"])
         self.assertEqual(
             answer["catalog"]["items"][0]["render_line"],
-            "1. SU100 14.07 Екатеринбург - Москва 06:00 06:45 A320 в пути 2:45\n"
+            "1. SU100 14.07 Екатеринбург - Шереметьево(B) 06:00 06:45 A320 в пути 2:45\n"
             "    пересадка 12:25,\n"
-            "    SU220 14.07 Москва - Гуанчжоу 19:10 09:35 (15.07) A333 в пути 9:25\n"
-            "    SU221 25.07 Гуанчжоу - Москва 11:20 16:05 A333 в пути 9:45\n"
+            "    SU220 14.07 Шереметьево(C) - Гуанчжоу 19:10 09:35 (15.07) A333 в пути 9:25\n"
+            "    SU221 25.07 Гуанчжоу - Шереметьево(C) 11:20 16:05 A333 в пути 9:45\n"
             "    пересадка 4:05,\n"
-            "    SU1406 25.07 Москва - Екатеринбург 20:10 00:35 (26.07) B737 в пути 2:25\n"
+            "    SU1406 25.07 Шереметьево(B) - Екатеринбург 20:10 00:35 (26.07) B737 в пути 2:25\n"
             "    92 248 рублей",
         )
         self.assertEqual(answer["catalog"]["items"][0]["agent_display"]["text"], answer["catalog"]["items"][0]["render_line"])

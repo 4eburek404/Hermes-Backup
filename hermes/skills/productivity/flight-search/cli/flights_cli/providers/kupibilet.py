@@ -124,6 +124,8 @@ def normalize_kupibilet_flight(raw: dict[str, Any]) -> dict[str, Any]:
         "operating_carrier": str(raw.get("operating_carrier") or "").upper(),
         "origin": str(raw.get("departure") or "").upper(),
         "destination": str(raw.get("arrival") or "").upper(),
+        "departure_terminal": str(raw.get("departure_terminal") or "").strip() or None,
+        "arrival_terminal": str(raw.get("arrival_terminal") or "").strip() or None,
         "departure_at": str(raw.get("departure_datetime") or ""),
         "arrival_at": str(raw.get("arrival_datetime") or ""),
         "aircraft": raw.get("equipment"),

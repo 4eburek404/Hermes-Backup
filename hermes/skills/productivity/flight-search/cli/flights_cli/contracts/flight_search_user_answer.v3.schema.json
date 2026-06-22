@@ -735,6 +735,18 @@
             "null"
           ]
         },
+        "departure_terminal": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "arrival_terminal": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "departure_at": {
           "type": [
             "string",
