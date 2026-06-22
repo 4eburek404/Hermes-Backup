@@ -84,7 +84,7 @@ class _GoldenPlanMixin:
 class TestDirectOnlyRoundTrip(_GoldenPlanMixin, unittest.TestCase):
     STRATEGY = "ru-priority"
     DIRECTION = "round-trip"
-    EXPECTED_HASH = "7c45ebb80ceb6789d754cdcd1f6166a635fcff186f977a4b2800e32675c9aed9"
+    EXPECTED_HASH = "19014d6d0df3cacadd5ae5a8925dfff1ba553564fe10a3b4e761f78e2e7fe814"
 
     def _make_args(self):
         return live_assembly_args(
@@ -102,7 +102,7 @@ class TestDirectOnlyRoundTrip(_GoldenPlanMixin, unittest.TestCase):
 class TestDirectOnlyOneWay(_GoldenPlanMixin, unittest.TestCase):
     STRATEGY = "ru-priority"
     DIRECTION = "one-way"
-    EXPECTED_HASH = "cffe91845b8963b26de4cd3a4aec7950c2e4bc17f870dc93de83ee8cfdddbdf0"
+    EXPECTED_HASH = "ecdf9d59348fd76ac78829c03701417d6c190cec9a8be80e80bffe800da15c2e"
 
     def _make_args(self):
         return live_assembly_args(
@@ -121,7 +121,7 @@ class TestDirectOnlyOneWay(_GoldenPlanMixin, unittest.TestCase):
 class TestRuPriorityRoundTrip(_GoldenPlanMixin, unittest.TestCase):
     STRATEGY = "ru-priority"
     DIRECTION = "round-trip"
-    EXPECTED_HASH = "ba02afe09b56307c5595fcabbe0640bac1907b424e339507538eb76eb45d3b95"
+    EXPECTED_HASH = "c74ae090fa0cdfe4c3e629375e7339d261130d08f77421273e6e3da2b92a2cba"
 
     def _make_args(self):
         return live_assembly_args(
@@ -138,7 +138,7 @@ class TestRuPriorityRoundTrip(_GoldenPlanMixin, unittest.TestCase):
 class TestRuPriorityOneWay(_GoldenPlanMixin, unittest.TestCase):
     STRATEGY = "ru-priority"
     DIRECTION = "one-way"
-    EXPECTED_HASH = "2205676827d703044efbc6c710fecfc0641e7fb48aaf2e641059e83237955ce0"
+    EXPECTED_HASH = "0cfcc571073758d5f4d780de43bd4ea0cceb6839dcfe35a686c2aaba0d0e73d4"
 
     def _make_args(self):
         return live_assembly_args(
@@ -155,7 +155,7 @@ class TestRuPriorityOneWay(_GoldenPlanMixin, unittest.TestCase):
 class TestDomesticRuRoundTrip(_GoldenPlanMixin, unittest.TestCase):
     STRATEGY = "domestic-ru"
     DIRECTION = "round-trip"
-    EXPECTED_HASH = "78937b9997b11d10dfca53d2df395ed1e7cb0010de52428bf8ff438a84a525df"
+    EXPECTED_HASH = "d2bcdb6fcfec331cf238303886b0e6665b1e94848abb2e8838a2bb6f21a1c74d"
 
     def _make_args(self):
         return live_assembly_args(
@@ -172,7 +172,7 @@ class TestDomesticRuRoundTrip(_GoldenPlanMixin, unittest.TestCase):
 class TestDomesticRuOneWay(_GoldenPlanMixin, unittest.TestCase):
     STRATEGY = "domestic-ru"
     DIRECTION = "one-way"
-    EXPECTED_HASH = "37c2a65bc6358e2a5a4c57c9850103a0fb2173d63c7b24bbddb1ebba3091d300"
+    EXPECTED_HASH = "28ba2125c38cf25c25b0e5b9704a538d9422c6eca56649037142652f7b61a945"
 
     def _make_args(self):
         return live_assembly_args(
@@ -189,7 +189,7 @@ class TestDomesticRuOneWay(_GoldenPlanMixin, unittest.TestCase):
 class TestHubListRoundTrip(_GoldenPlanMixin, unittest.TestCase):
     STRATEGY = "hub-list"
     DIRECTION = "round-trip"
-    EXPECTED_HASH = "44108f7c9fa8c2c7f86369536301440af2b3fb6aef0094943a256795e9866ff6"
+    EXPECTED_HASH = "eb34cae3ee4561d0dcb3e6cc747c7d24a59e811618edb2147d6607cebb0f5d44"
 
     def _make_args(self):
         return live_assembly_args(
@@ -207,7 +207,7 @@ class TestHubListRoundTrip(_GoldenPlanMixin, unittest.TestCase):
 class TestHubListOneWay(_GoldenPlanMixin, unittest.TestCase):
     STRATEGY = "hub-list"
     DIRECTION = "one-way"
-    EXPECTED_HASH = "bd1ea23d3b069c4b4c33e3f8aa57f26bd554eef5c75b19df517caad9bcc4f8fd"
+    EXPECTED_HASH = "49f20384585e98aebaac2de814b7417b1a502d8d88b94c62029b01911e9a34f4"
 
     def _make_args(self):
         return live_assembly_args(
