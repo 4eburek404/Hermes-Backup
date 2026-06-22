@@ -8,7 +8,7 @@ Common to all carriers: store credential-bearing URLs in a private file and pass
 
 - A `#/search` URL is not a direct booking link; direct links require a `pnr_key`. The adapter obtains it itself from PNR + surname (name lookup), so locator and surname from a ticket/PDF/email are sufficient evidence — do not re-ask the user for values already visible in the source.
 - If the surname lookup is ambiguous, the adapter retries once with the first name; supply it when available.
-- An "Ngenix browser check" error means Aeroflot's anti-bot gate blocked the request: retry later, or fetch the booking through a real browser session and normalize manually. Installing the optional `curl_cffi` transport (see SKILL.md Operator Notes) raises the odds of passing the gate.
+- An "Ngenix browser check" error means Aeroflot's anti-bot gate blocked the request: retry later, or fetch the booking through a real browser session and normalize manually. The adapter requires `curl_cffi` transport; if it is missing, install it into the same Python interpreter used to run the skill CLI.
 - Treat `pnr_key` as a booking credential. Writing the direct booking URL inside the private `.ics` is intended behavior; exposing it anywhere else is not.
 
 ## Red Wings

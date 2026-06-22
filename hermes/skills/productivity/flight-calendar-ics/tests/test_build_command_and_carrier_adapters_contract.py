@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import argparse
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
 
-
-ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS = ROOT / "scripts"
+from helpers import ScriptPathMixin
 
 
 def base_build_args(**overrides: object) -> argparse.Namespace:
@@ -37,17 +34,8 @@ def base_build_args(**overrides: object) -> argparse.Namespace:
     return argparse.Namespace(**defaults)
 
 
-class BuildCommandAndCarrierAdaptersContractTests(unittest.TestCase):
+class BuildCommandAndCarrierAdaptersContractTests(ScriptPathMixin, unittest.TestCase):
     maxDiff = None
-
-    def setUp(self) -> None:
-        self._old_path = list(sys.path)
-        script_dir = str(SCRIPTS.resolve())
-        if script_dir not in sys.path:
-            sys.path.insert(0, script_dir)
-
-    def tearDown(self) -> None:
-        sys.path[:] = self._old_path
 
     def test_run_build_command_dispatches_auto_route_with_injected_carrier_handlers(self) -> None:
         from flight_calendar.build_command import run_build_command
@@ -86,13 +74,13 @@ class BuildCommandAndCarrierAdaptersContractTests(unittest.TestCase):
         self.assertEqual(data["route"], "redwings")
         self.assertEqual(data["route_detection"]["evidence"], ["host:flyredwings.com"])
         self.assertEqual(data["verification"]["ok"], True)
-        self.assertEqual(data["envelope_path"], str(output_dir / "envelope.json"))
+        self.assertEqual(data["envelope_path"], str((output_dir / "envelope.json").resolve()))
         self.assertEqual(
             data["agent_handoff"],
             {
                 "ready": True,
                 "no_further_action_needed": True,
-                "media": f"MEDIA:{output_dir / 'flights.ics'}",
+                "media": f"MEDIA:{(output_dir / 'flights.ics').resolve()}",
                 "artifact_inspection_required": False,
                 "verification_source": "flight_calendar.bundle.verify_bundle_artifacts",
                 "safe_summary": {

@@ -154,6 +154,43 @@ def build_and_validate(input_path: Path, *, no_alarms: bool, process: list[dict[
     return ics_text, summaries
 
 
+def load_cli_timezone_map(args: argparse.Namespace, process: list[dict[str, Any]]) -> dict[str, str]:
+    timezone_overrides = parse_cli_tz_overrides(args.tz)
+    airport_catalog_timezones = load_airport_timezones()
+    tz_map = build_timezone_map(timezone_overrides)
+    add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
+    return tz_map
+
+
+def finish_carrier_build(
+    args: argparse.Namespace,
+    process: list[dict[str, Any]],
+    itinerary: dict[str, Any],
+) -> tuple[int, dict[str, Any]]:
+    add_step(process, "convert_to_itinerary", segments_count=len(itinerary.get("flights", [])))
+    itinerary = validate_itinerary_contract(itinerary, process)
+    ics_text, summaries = ics_render.build_calendar(itinerary, no_alarms=args.no_alarms)
+    add_step(process, "build_calendar", segments_count=len(summaries))
+    ics_render.validate_ics_text(ics_text, len(summaries))
+    add_step(process, "validate_ics")
+    secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
+    add_step(process, "write_json", artifact="json", mode="0644")
+    ics_path = None
+    if args.output_ics:
+        secure_write_text(args.output_ics, ics_text)
+        ics_path = str(args.output_ics)
+        add_step(process, "write_ics", artifact="ics", mode="0644")
+    else:
+        add_step(process, "write_ics", "skipped", reason="--output-ics not supplied")
+    return 0, {
+        "segments_count": len(summaries),
+        "segments": itinerary_flight_segments(itinerary),
+        "json_path": str(args.output_json),
+        "ics_path": ics_path,
+        "write_performed": True,
+    }
+
+
 def command_doctor(_args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
     add_step(process, "load_input", "skipped", reason="doctor has no itinerary input")
     data = {
@@ -354,44 +391,17 @@ def command_aeroflot(args: argparse.Namespace, process: list[dict[str, Any]]) ->
         args.first_name,
     )
     add_step(process, "parse_pnr_source")
-    timezone_overrides = parse_cli_tz_overrides(args.tz)
-    airport_catalog_timezones = load_airport_timezones()
-    tz_map = build_timezone_map(timezone_overrides)
-    add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
+    tz_map = load_cli_timezone_map(args, process)
     data = aeroflot.fetch_aeroflot_pnr(locator, key)
     add_step(process, "fetch_aeroflot_pnr")
     itinerary = aeroflot.convert_to_itinerary(data, tz_map, booking_url=booking_url)
-    add_step(process, "convert_to_itinerary", segments_count=len(itinerary.get("flights", [])))
-    itinerary = validate_itinerary_contract(itinerary, process)
-    ics_text, summaries = ics_render.build_calendar(itinerary, no_alarms=args.no_alarms)
-    add_step(process, "build_calendar", segments_count=len(summaries))
-    ics_render.validate_ics_text(ics_text, len(summaries))
-    add_step(process, "validate_ics")
-    secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
-    add_step(process, "write_json", artifact="json", mode="0644")
-    ics_path = None
-    if args.output_ics:
-        secure_write_text(args.output_ics, ics_text)
-        ics_path = str(args.output_ics)
-        add_step(process, "write_ics", artifact="ics", mode="0644")
-    else:
-        add_step(process, "write_ics", "skipped", reason="--output-ics not supplied")
-    return 0, {
-        "segments_count": len(summaries),
-        "segments": itinerary_flight_segments(itinerary),
-        "json_path": str(args.output_json),
-        "ics_path": ics_path,
-        "write_performed": True,
-    }
+    return finish_carrier_build(args, process, itinerary)
 
 
 def command_ural(args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
     locator, last_name, booking_url = ural.parse_ural_source(args.url, args.pnr, args.last_name)
     add_step(process, "parse_pnr_source")
-    timezone_overrides = parse_cli_tz_overrides(args.tz)
-    airport_catalog_timezones = load_airport_timezones()
-    tz_map = build_timezone_map(timezone_overrides)
-    add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
+    tz_map = load_cli_timezone_map(args, process)
     reservation = ural.fetch_ural_reservation(
         locator,
         last_name,
@@ -400,155 +410,99 @@ def command_ural(args: argparse.Namespace, process: list[dict[str, Any]]) -> tup
     )
     add_step(process, "fetch_ural_reservation")
     itinerary = ural.convert_to_itinerary(reservation, tz_map, booking_url=booking_url)
-    add_step(process, "convert_to_itinerary", segments_count=len(itinerary.get("flights", [])))
-    itinerary = validate_itinerary_contract(itinerary, process)
-    ics_text, summaries = ics_render.build_calendar(itinerary, no_alarms=args.no_alarms)
-    add_step(process, "build_calendar", segments_count=len(summaries))
-    ics_render.validate_ics_text(ics_text, len(summaries))
-    add_step(process, "validate_ics")
-    secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
-    add_step(process, "write_json", artifact="json", mode="0644")
-    ics_path = None
-    if args.output_ics:
-        secure_write_text(args.output_ics, ics_text)
-        ics_path = str(args.output_ics)
-        add_step(process, "write_ics", artifact="ics", mode="0644")
-    else:
-        add_step(process, "write_ics", "skipped", reason="--output-ics not supplied")
-    return 0, {
-        "segments_count": len(summaries),
-        "segments": itinerary_flight_segments(itinerary),
-        "json_path": str(args.output_json),
-        "ics_path": ics_path,
-        "write_performed": True,
-    }
+    return finish_carrier_build(args, process, itinerary)
 
 
 def command_utair(args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
     locator, last_name, booking_url = utair.parse_utair_source(args.url, args.rloc, args.last_name)
     add_step(process, "parse_pnr_source")
-    timezone_overrides = parse_cli_tz_overrides(args.tz)
-    airport_catalog_timezones = load_airport_timezones()
-    tz_map = build_timezone_map(timezone_overrides)
-    add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
+    tz_map = load_cli_timezone_map(args, process)
     token = utair.fetch_utair_token()
     add_step(process, "fetch_utair_token")
     orders = utair.fetch_utair_orders(locator, last_name, token=token)
     add_step(process, "fetch_utair_orders")
     itinerary = utair.convert_to_itinerary(orders, tz_map, booking_url=booking_url)
-    add_step(process, "convert_to_itinerary", segments_count=len(itinerary.get("flights", [])))
-    itinerary = validate_itinerary_contract(itinerary, process)
-    ics_text, summaries = ics_render.build_calendar(itinerary, no_alarms=args.no_alarms)
-    add_step(process, "build_calendar", segments_count=len(summaries))
-    ics_render.validate_ics_text(ics_text, len(summaries))
-    add_step(process, "validate_ics")
-    secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
-    add_step(process, "write_json", artifact="json", mode="0644")
-    ics_path = None
-    if args.output_ics:
-        secure_write_text(args.output_ics, ics_text)
-        ics_path = str(args.output_ics)
-        add_step(process, "write_ics", artifact="ics", mode="0644")
-    else:
-        add_step(process, "write_ics", "skipped", reason="--output-ics not supplied")
-    return 0, {
-        "segments_count": len(summaries),
-        "segments": itinerary_flight_segments(itinerary),
-        "json_path": str(args.output_json),
-        "ics_path": ics_path,
-        "write_performed": True,
-    }
+    return finish_carrier_build(args, process, itinerary)
 
 
 def command_redwings(args: argparse.Namespace, process: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
     locator, finder_code, booking_url = redwings.parse_redwings_source(args.url, args.pnr, args.access_code)
     add_step(process, "parse_redwings_source")
-    timezone_overrides = parse_cli_tz_overrides(args.tz)
-    airport_catalog_timezones = load_airport_timezones()
-    tz_map = build_timezone_map(timezone_overrides)
-    add_timezone_map_step(process, airport_catalog_timezones, len(args.tz))
+    tz_map = load_cli_timezone_map(args, process)
     order = redwings.fetch_redwings_order(locator, finder_code, graphql_endpoint=args.graphql_endpoint)
     add_step(process, "fetch_redwings_order")
     itinerary = redwings.convert_to_itinerary(order, tz_map, booking_url=booking_url)
-    add_step(process, "convert_to_itinerary", segments_count=len(itinerary.get("flights", [])))
-    itinerary = validate_itinerary_contract(itinerary, process)
-    ics_text, summaries = ics_render.build_calendar(itinerary, no_alarms=args.no_alarms)
-    add_step(process, "build_calendar", segments_count=len(summaries))
-    ics_render.validate_ics_text(ics_text, len(summaries))
-    add_step(process, "validate_ics")
-    secure_write_text(args.output_json, json.dumps(itinerary, ensure_ascii=False, indent=2) + "\n")
-    add_step(process, "write_json", artifact="json", mode="0644")
-    ics_path = None
-    if args.output_ics:
-        secure_write_text(args.output_ics, ics_text)
-        ics_path = str(args.output_ics)
-        add_step(process, "write_ics", artifact="ics", mode="0644")
-    else:
-        add_step(process, "write_ics", "skipped", reason="--output-ics not supplied")
-    return 0, {
-        "segments_count": len(summaries),
-        "segments": itinerary_flight_segments(itinerary),
-        "json_path": str(args.output_json),
-        "ics_path": ics_path,
-        "write_performed": True,
-    }
+    return finish_carrier_build(args, process, itinerary)
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Single CLI entrypoint for the flight-calendar-ics skill.")
+def add_global_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--json", action="store_true", help="Emit the stable machine-readable JSON envelope")
     parser.add_argument(
         "--full-envelope",
         action="store_true",
         help="With --json build, print the full diagnostic envelope to stdout instead of the delivery handoff",
     )
-    sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("doctor", help="Report CLI contract and available commands")
 
-    def add_source_detection_args(cmd: argparse.ArgumentParser) -> None:
-        cmd.add_argument("--input", "-i", type=Path, help="Canonical itinerary JSON")
-        cmd.add_argument("--url", help="Carrier booking URL; prefer --url-file for private inputs")
-        cmd.add_argument("--url-file", type=Path, help="Private file containing the carrier booking URL")
-        cmd.add_argument("--pnr-locator", help="Aeroflot booking locator")
-        cmd.add_argument("--pnr-key", help="Aeroflot PNR key")
-        cmd.add_argument("--pnr", help="Carrier booking locator for Ural/Red Wings")
-        cmd.add_argument("--rloc", help="Utair booking locator")
-        cmd.add_argument("--last-name", help="Passenger surname for lookup routes")
-        cmd.add_argument("--first-name", help="Passenger first name fallback for Aeroflot")
-        cmd.add_argument("--access-key", dest="access_code", help="Red Wings access key")
+def add_root_doctor_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    subparsers.add_parser("doctor", help="Report CLI contract and available commands")
 
-    diagnose = sub.add_parser("diagnose", help="Diagnostic commands for CLI contracts and source triage")
+
+def add_diagnose_source_detection_args(cmd: argparse.ArgumentParser) -> None:
+    cmd.add_argument("--input", "-i", type=Path, help="Canonical itinerary JSON")
+    cmd.add_argument("--url", help="Carrier booking URL; prefer --url-file for private inputs")
+    cmd.add_argument("--url-file", type=Path, help="Private file containing the carrier booking URL")
+    cmd.add_argument("--pnr-locator", help="Aeroflot booking locator")
+    cmd.add_argument("--pnr-key", help="Aeroflot PNR key")
+    cmd.add_argument("--pnr", help="Carrier booking locator for Ural/Red Wings")
+    cmd.add_argument("--rloc", help="Utair booking locator")
+    cmd.add_argument("--last-name", help="Passenger surname for lookup routes")
+    cmd.add_argument("--first-name", help="Passenger first name fallback for Aeroflot")
+    cmd.add_argument("--access-key", dest="access_code", help="Red Wings access key")
+
+
+def add_diagnose_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    diagnose = subparsers.add_parser("diagnose", help="Diagnostic commands for CLI contracts and source triage")
     diagnose_sub = diagnose.add_subparsers(dest="subcommand", required=True)
     diagnose_sub.add_parser("doctor", help="Report diagnostic CLI contract without reading or writing itinerary artifacts")
     diagnose_validate = diagnose_sub.add_parser("validate", help="Validate canonical itinerary JSON without writing .ics")
     diagnose_validate.add_argument("--input", "-i", required=True, type=Path, help="Path to itinerary JSON")
     diagnose_validate.add_argument("--no-alarms", action="store_true", help="Do not add VALARM reminders while validating")
     diagnose_route = diagnose_sub.add_parser("route-detect", help="Explain build auto route inference using redacted evidence")
-    add_source_detection_args(diagnose_route)
+    add_diagnose_source_detection_args(diagnose_route)
     diagnose_bundle = diagnose_sub.add_parser("bundle-check", help="Verify existing private bundle metadata without dumping contents")
     diagnose_bundle.add_argument("--bundle-dir", required=True, type=Path, help="Existing private bundle directory")
     diagnose_privacy = diagnose_sub.add_parser("privacy-check", help="Scan bundle for redaction sentinel violations without printing contents")
     diagnose_privacy.add_argument("--bundle-dir", required=True, type=Path, help="Existing private bundle directory")
     diagnose_carrier = diagnose_sub.add_parser("carrier-probe", help="Report safe carrier probe metadata without being a delivery path")
     diagnose_carrier.add_argument("carrier", choices=["aeroflot", "ural", "utair", "redwings"], help="Carrier namespace to probe")
-    add_source_detection_args(diagnose_carrier)
+    add_diagnose_source_detection_args(diagnose_carrier)
     diagnose_timezone = diagnose_sub.add_parser("timezone", help="Timezone catalog diagnostics")
     diagnose_timezone_sub = diagnose_timezone.add_subparsers(dest="action", required=True)
     diagnose_timezone_sub.add_parser("inspect", help="Report bundled timezone catalog metadata")
 
-    maint = sub.add_parser("maint", help="Read-only maintenance diagnostics for contracts and source/runtime drift")
+
+def add_source_runtime_dir_args(cmd: argparse.ArgumentParser) -> None:
+    cmd.add_argument("--source-dir", type=Path, default=SKILL_ROOT, help="Source skill directory to scan")
+    cmd.add_argument(
+        "--runtime-dir",
+        type=Path,
+        default=Path.home() / ".hermes" / "skills" / "productivity" / "flight-calendar-ics",
+        help="Runtime skill directory to scan",
+    )
+
+
+def add_maint_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    maint = subparsers.add_parser("maint", help="Read-only maintenance diagnostics for contracts and source/runtime drift")
     maint_sub = maint.add_subparsers(dest="subcommand", required=True)
     maint_sub.add_parser("doctor", help="Report maintenance command-surface contract checks without writes")
     maint_sub.add_parser("contracts", help="Report command-surface contract checks without writes")
     source_runtime = maint_sub.add_parser("source-runtime", help="Source/runtime manifest reports")
     source_runtime_sub = source_runtime.add_subparsers(dest="action", required=True)
     source_runtime_diff = source_runtime_sub.add_parser("diff", help="Compare source and runtime skill trees without syncing or writing")
-    source_runtime_diff.add_argument("--source-dir", type=Path, default=SKILL_ROOT, help="Source skill directory to scan")
-    source_runtime_diff.add_argument("--runtime-dir", type=Path, default=Path.home() / ".hermes" / "skills" / "productivity" / "flight-calendar-ics", help="Runtime skill directory to scan")
+    add_source_runtime_dir_args(source_runtime_diff)
     sync = maint_sub.add_parser("source-runtime-sync", help="Compatibility alias for read-only source/runtime diff")
-    sync.add_argument("--source-dir", type=Path, default=SKILL_ROOT, help="Source skill directory to scan")
-    sync.add_argument("--runtime-dir", type=Path, default=Path.home() / ".hermes" / "skills" / "productivity" / "flight-calendar-ics", help="Runtime skill directory to scan")
+    add_source_runtime_dir_args(sync)
     refs = maint_sub.add_parser("refs", help="Reference registry checks")
     refs_sub = refs.add_subparsers(dest="action", required=True)
     refs_sub.add_parser("registry-check", help="Verify references/registry.md owns every reference")
@@ -556,31 +510,45 @@ def build_parser() -> argparse.ArgumentParser:
     clean.add_argument("--dry-run", action="store_true", help="Required: report only, delete nothing")
     clean.add_argument("--target-dir", type=Path, default=SKILL_ROOT, help="Directory to scan for generated artifacts")
     audit = maint_sub.add_parser("audit", help="Aggregate read-only maintenance reports")
-    audit.add_argument("--source-dir", type=Path, default=SKILL_ROOT, help="Source skill directory to scan")
-    audit.add_argument("--runtime-dir", type=Path, default=Path.home() / ".hermes" / "skills" / "productivity" / "flight-calendar-ics", help="Runtime skill directory to scan")
+    add_source_runtime_dir_args(audit)
     audit.add_argument("--target-dir", type=Path, default=SKILL_ROOT, help="Directory to scan for generated artifacts")
     timezone_catalog = maint_sub.add_parser("timezone-catalog", help="Timezone catalog maintenance reports")
     timezone_catalog_sub = timezone_catalog.add_subparsers(dest="action", required=True)
     timezone_catalog_sub.add_parser("inspect", help="Report bundled timezone catalog metadata")
 
-    build = sub.add_parser("build", help="Create a private bundle: itinerary.json, flights.ics, envelope.json")
+
+def add_build_source_args(cmd: argparse.ArgumentParser) -> None:
+    cmd.add_argument("--input", "-i", type=Path, help="Canonical itinerary JSON for build make")
+    cmd.add_argument("--url", help="Carrier booking URL; prefer --url-file for private inputs")
+    cmd.add_argument("--url-file", type=Path, help="Private file containing the carrier booking URL")
+    cmd.add_argument("--pnr-locator", help="Aeroflot booking locator, if not using --url/--url-file")
+    cmd.add_argument("--pnr-key", help="Aeroflot PNR key, if not using --url/--url-file")
+    cmd.add_argument("--pnr", help="Carrier booking locator for Ural/Red Wings, if not using --url/--url-file")
+    cmd.add_argument("--rloc", help="Utair booking locator, if not using --url/--url-file")
+    cmd.add_argument("--last-name", help="Passenger surname for lookup routes")
+    cmd.add_argument("--first-name", help="Passenger first name fallback for Aeroflot ambiguous surname lookup")
+    cmd.add_argument("--access-key", dest="access_code", help="Red Wings access key, if not using --url/--url-file")
+    cmd.add_argument("--tz", action="append", default=[], help="Timezone override CODE=Area/City; repeatable")
+
+
+def add_build_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    build = subparsers.add_parser("build", help="Create a private bundle: itinerary.json, flights.ics, envelope.json")
     build.add_argument("route", choices=BUILD_ROUTE_CHOICES, help="Source route to build from; use auto to let the CLI infer from input/source fingerprint")
     build.add_argument("--output-dir", type=Path, help="Optional bundle directory; defaults to a private /tmp/flight-ics.* directory")
-    build.add_argument("--input", "-i", type=Path, help="Canonical itinerary JSON for build make")
-    build.add_argument("--url", help="Carrier booking URL; prefer --url-file for private inputs")
-    build.add_argument("--url-file", type=Path, help="Private file containing the carrier booking URL")
-    build.add_argument("--pnr-locator", help="Aeroflot booking locator, if not using --url/--url-file")
-    build.add_argument("--pnr-key", help="Aeroflot PNR key, if not using --url/--url-file")
-    build.add_argument("--pnr", help="Carrier booking locator for Ural/Red Wings, if not using --url/--url-file")
-    build.add_argument("--rloc", help="Utair booking locator, if not using --url/--url-file")
-    build.add_argument("--last-name", help="Passenger surname for lookup routes")
-    build.add_argument("--first-name", help="Passenger first name fallback for Aeroflot ambiguous surname lookup")
-    build.add_argument("--access-key", dest="access_code", help="Red Wings access key, if not using --url/--url-file")
-    build.add_argument("--tz", action="append", default=[], help="Timezone override CODE=Area/City; repeatable")
+    add_build_source_args(build)
     build.add_argument("--no-alarms", action="store_true", help="Do not add VALARM reminders")
     build.add_argument("--frontend-base", help="Override Ural frontend base URL for diagnostics/tests")
     build.add_argument("--graphql-endpoint", help="Override Websky GraphQL endpoint for diagnostics/tests")
 
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Single CLI entrypoint for the flight-calendar-ics skill.")
+    add_global_args(parser)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    add_root_doctor_parser(subparsers)
+    add_diagnose_parser(subparsers)
+    add_maint_parser(subparsers)
+    add_build_parser(subparsers)
     return parser
 
 
@@ -720,4 +688,3 @@ def main(argv: list[str] | None = None) -> int:
         )
         emit_json(obj) if active_json else emit_human(obj)
         return 1
-

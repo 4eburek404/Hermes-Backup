@@ -18,22 +18,17 @@ from typing import Any, NamedTuple
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 
 from flight_calendar import carrier_http
+from flight_calendar.common import die
 
 
 URAL_SERVICE_BASE = "https://service.uralairlines.ru/"
 DEFAULT_ENV_PATH = "/<version>/env/env.json"
-
-
 
 class FrontendAssets(NamedTuple):
     base_url: str
     env_url: str
     helper_js_url: str
     app_js_url: str
-
-
-def die(message: str) -> None:
-    raise ValueError(message)
 
 
 def http_text(url: str, *, timeout: int = 45, headers: dict[str, str] | None = None) -> str:

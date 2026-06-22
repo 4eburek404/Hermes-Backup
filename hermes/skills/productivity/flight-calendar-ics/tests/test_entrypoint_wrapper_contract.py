@@ -3,26 +3,43 @@
 from __future__ import annotations
 
 import importlib.util
-import sys
 import unittest
-from pathlib import Path
+
+from helpers import CLI, ScriptPathMixin
+
+COMMAND_SURFACE_ARGV = {
+    "build auto": "--json build auto --input templates/aeroflot-itinerary.example.json",
+    "diagnose doctor": "--json diagnose doctor",
+    "diagnose validate": "--json diagnose validate --input templates/aeroflot-itinerary.example.json",
+    "diagnose route-detect": "--json diagnose route-detect --input templates/aeroflot-itinerary.example.json",
+    "diagnose bundle-check": "--json diagnose bundle-check --bundle-dir .",
+    "diagnose privacy-check": "--json diagnose privacy-check --bundle-dir .",
+    "diagnose carrier-probe": "--json diagnose carrier-probe aeroflot --url https://example.invalid/booking",
+    "diagnose timezone inspect": "--json diagnose timezone inspect",
+    "build make": "--json build make --input templates/aeroflot-itinerary.example.json",
+    "build aeroflot": "--json build aeroflot --pnr-locator ABC123 --last-name TEST",
+    "build ural": "--json build ural --pnr ABC123 --last-name TEST",
+    "build utair": "--json build utair --rloc ABC123 --last-name TEST",
+    "build redwings": "--json build redwings --access-key SECRET",
+    "maint doctor": "--json maint doctor",
+    "maint contracts": "--json maint contracts",
+    "maint source-runtime diff": "--json maint source-runtime diff",
+    "maint source-runtime-sync": "--json maint source-runtime-sync",
+    "maint refs registry-check": "--json maint refs registry-check",
+    "maint clean --dry-run": "--json maint clean --dry-run",
+    "maint audit": "--json maint audit",
+    "maint timezone-catalog inspect": "--json maint timezone-catalog inspect",
+}
+
+ACTION_COMMANDS = {
+    "diagnose timezone inspect",
+    "maint source-runtime diff",
+    "maint refs registry-check",
+    "maint timezone-catalog inspect",
+}
 
 
-ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS = ROOT / "scripts"
-CLI = SCRIPTS / "flight_calendar_ics.py"
-
-
-class EntrypointWrapperContractTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self._old_path = list(sys.path)
-        script_dir = str(SCRIPTS.resolve())
-        if script_dir not in sys.path:
-            sys.path.insert(0, script_dir)
-
-    def tearDown(self) -> None:
-        sys.path[:] = self._old_path
-
+class EntrypointWrapperContractTests(ScriptPathMixin, unittest.TestCase):
     def import_cli_module(self):
         spec = importlib.util.spec_from_file_location("flight_calendar_ics_wrapper_contract", CLI)
         self.assertIsNotNone(spec)
@@ -45,37 +62,26 @@ class EntrypointWrapperContractTests(unittest.TestCase):
         self.assertLessEqual(len(wrapper_lines), 80)
 
     def test_parser_surfaces_cover_contract_registry_commands(self) -> None:
-        from flight_calendar.contracts import build_command_registry
+        from flight_calendar.contracts import COMMAND_SURFACES, build_command_registry
         from flight_calendar.parser import build_parser
 
         parser = build_parser()
-        samples = {
-            "production": ["--json build auto --input templates/aeroflot-itinerary.example.json"],
-            "diagnostic": [
-                "--json diagnose doctor",
-                "--json diagnose validate --input templates/aeroflot-itinerary.example.json",
-                "--json diagnose route-detect --input templates/aeroflot-itinerary.example.json",
-                "--json diagnose timezone inspect",
-            ],
-            "maintenance": [
-                "--json maint doctor",
-                "--json maint contracts",
-                "--json maint source-runtime diff",
-                "--json maint source-runtime-sync",
-                "--json maint refs registry-check",
-                "--json maint clean --dry-run",
-                "--json maint audit",
-                "--json maint timezone-catalog inspect",
-            ],
-        }
         registry = build_command_registry()
 
-        for surface, commands in samples.items():
+        for surface, commands in COMMAND_SURFACES.items():
             self.assertTrue(registry[surface], f"registry surface {surface} should not be empty")
             for command in commands:
                 with self.subTest(surface=surface, command=command):
-                    args = parser.parse_args(command.split())
+                    args = parser.parse_args(COMMAND_SURFACE_ARGV[command].split())
+                    namespace = vars(args)
+                    self.assertNotIn("func", namespace)
                     self.assertIsNotNone(args.command)
+                    if args.command == "build":
+                        self.assertIn("route", namespace)
+                    if args.command in {"diagnose", "maint"}:
+                        self.assertIn("subcommand", namespace)
+                    if command in ACTION_COMMANDS:
+                        self.assertIn("action", namespace)
 
 
 if __name__ == "__main__":

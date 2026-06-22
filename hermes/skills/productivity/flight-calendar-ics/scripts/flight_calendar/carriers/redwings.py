@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, NoReturn
+from typing import Any
 from urllib.parse import quote, unquote, urlparse
 
 from flight_calendar import carrier_http
+from flight_calendar.common import die
 
 
 REDWINGS_BOOKING_BASE = "https://flyredwings.com/booking/"
@@ -116,10 +117,6 @@ mutation FindOrder($params: OrderFind) {
   }
 }
 """.strip()
-
-
-def die(message: str) -> NoReturn:
-    raise ValueError(message)
 
 
 def clean(value: Any) -> bool:

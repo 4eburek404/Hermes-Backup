@@ -9,9 +9,14 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Callable, Any
+from typing import Any, Callable, NoReturn
 
 FailureHandler = Callable[[str], Any]
+
+
+def die(message: str, code: int = 2) -> NoReturn:
+    """Raise a validation-style error through the shared CLI envelope path."""
+    raise ValueError(message)
 
 
 def secure_write_text(path: Path, text: str, *, dir_mode: int = 0o755, file_mode: int = 0o644) -> None:

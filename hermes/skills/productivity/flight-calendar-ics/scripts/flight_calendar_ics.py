@@ -2,12 +2,22 @@
 """Public executable wrapper for the flight-calendar-ics CLI.
 
 Command parsing and behavior live in ``flight_calendar.parser``; this wrapper
-only re-exports that surface and forwards execution.
+exposes the public CLI hooks and forwards execution.
 """
 from __future__ import annotations
 
-from flight_calendar.parser import *  # noqa: F401,F403 - public re-export surface
-from flight_calendar.parser import main
+from typing import Any
+
+from flight_calendar import parser as _parser
+
+build_parser = _parser.build_parser
+main = _parser.main
+
+__all__ = ["build_parser", "main"]
+
+
+def __getattr__(name: str) -> Any:
+    return getattr(_parser, name)
 
 if __name__ == "__main__":
     raise SystemExit(main())

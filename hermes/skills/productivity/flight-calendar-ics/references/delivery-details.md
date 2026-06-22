@@ -2,7 +2,9 @@
 
 ## How delivery works
 
-The `send_message` tool sends `MEDIA:<path>` as a native file attachment through the in-process gateway.
+The `flight-calendar-ics-delivery` Hermes plugin owns the automatic happy-path delivery: it observes `agent_handoff.ready=true`, sends `MEDIA:<path>` as a native file attachment, transforms the tool result to a delivered confirmation, and blocks later `.ics` read/edit attempts.
+
+Manual `send_message` remains a fallback when that plugin is not installed or not enabled. The `send_message` tool sends `MEDIA:<path>` as a native file attachment through the in-process gateway.
 
 ## Known pitfalls
 

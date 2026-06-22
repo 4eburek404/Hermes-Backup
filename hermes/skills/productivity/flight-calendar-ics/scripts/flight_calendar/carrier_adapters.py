@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Any
 
 from flight_calendar.envelope import CliFailure
 from flight_calendar.route_detection import first_url_from_args
@@ -56,6 +55,3 @@ def build_route_args(args: argparse.Namespace, paths: dict[str, Path]) -> argpar
             graphql_endpoint=args.graphql_endpoint,
         )
     raise CliFailure(f"unknown build route: {args.route}", code="usage_error")
-
-
-CarrierHandler = Any
