@@ -1,51 +1,46 @@
 ---
 name: flight-calendar-ics
-description: Use when creating a compact importable .ics calendar file from a supported airline booking URL or a minimal itinerary JSON.
-version: 3.00
-author: Hermes Agent
-license: MIT
-metadata:
-  hermes:
-    tags: [travel, flights, calendar, ics, itinerary]
-    related_skills: [ocr-and-documents, google-workspace]
+description: Use when creating a compact importable .ics calendar file from a supported airline booking URL or a minimal flight itinerary JSON.
+version: 3.01
 ---
 
 # Flight Calendar ICS
 
-Create one short `.ics` file for flight calendar import.
+## Goal
+Create one importable `.ics` file for flight calendar import.
 
-## Commands
+## Steps
+1. Put the source in a private file: booking URL in a text file, or itinerary data in minimal JSON.
+2. For a booking URL, run:
+   `python "<skill_dir>/scripts/flight_calendar_ics.py" --json build --url-file <private-url-file>`
+3. For itinerary JSON, run:
+   `python "<skill_dir>/scripts/flight_calendar_ics.py" --json build --input <private-itinerary.json>`
+4. If the result has `ok: true`, return the `media` value and a short success reply.
 
-Booking URL path:
+## Input
+- Required: exactly one source, either `--url-file` or `--input`.
+- Optional: `--output <path>`, `--no-alarms`, `--tz CODE=Area/City` with `--url-file` only.
+- For manual JSON, use `templates/itinerary.example.json`.
 
-```bash
-python "<skill_dir>/scripts/flight_calendar_ics.py" --json build --url-file <private-url-file>
-```
+## Output
+- The `.ics` artifact from the CLI `media` value.
+- Short user-facing reply, for example: `Готово: прикрепил .ics для импорта в календарь.`
 
-Manual itinerary path:
+## Check
+- CLI output is JSON with `ok: true`.
+- CLI output includes `media`.
+- Do not paste booking URLs, PNRs, passenger names, ticket numbers, raw JSON, private paths, or `.ics` contents into chat.
 
-```bash
-python "<skill_dir>/scripts/flight_calendar_ics.py" --json build --input <private-itinerary.json>
-```
-
-Optional flags:
-
-```text
---output      output .ics path
---no-alarms   disable reminders
---tz          CODE=Area/City override, only with --url-file
-```
-
-Use `templates/itinerary.example.json` for manual JSON. Keep the itinerary minimal:
-root `schema_version`, optional `pnr`, `passengers`, `ticket_number`, `booking_url`, and `flights[]`; each flight has `flight_number`, `departure`, `arrival`, optional `aircraft`, optional `status`; each endpoint has `airport`, optional `city`, `local`, `tz`.
-
-## Rules
-
-- URL evidence goes through `--url-file`; do not put private booking URLs directly on argv.
-- Run one `--json build` command.
-- If stdout has `ok: true`, send the `media` value to the user and stop. Do not open, read, validate, inspect, or rebuild the generated `.ics`.
-- If stdout has `ok: false`, answer with the short error message and ask for corrected input only if needed.
+## Stop
+- Stop if the source is missing required flight data.
+- Stop after success; do not open, inspect, validate, rewrite, or rebuild the generated `.ics`.
 
 ## References
+- `templates/itinerary.example.json` — open when converting tickets, PDFs, emails, screenshots, or manual segments to canonical itinerary JSON.
+- `references/carriers.md` — open when checking supported booking URL routes, carrier notes, or transport dependencies.
 
-- `references/carriers.md` — open only when a carrier build fails or source evidence is ambiguous.
+## Dependencies
+If the CLI fails with ModuleNotFoundError, install dependencies into the same Python interpreter used for the CLI:
+
+python -m pip install icalendar jsonschema curl_cffi
+Use python -m pip, not bare pip.
