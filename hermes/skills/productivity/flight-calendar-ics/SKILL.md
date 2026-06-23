@@ -45,3 +45,7 @@ root `schema_version`, optional `pnr`, `passengers`, `ticket_number`, `booking_u
 - Run one `--json build` command.
 - If stdout has `ok: true`, send the `media` value to the user and stop. Do not open, read, validate, inspect, or rebuild the generated `.ics`.
 - If stdout has `ok: false`, answer with the short error message and ask for corrected input only if needed.
+
+## References
+
+- `references/carriers.md` — open only when a carrier build fails or source evidence is ambiguous.

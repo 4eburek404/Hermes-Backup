@@ -229,8 +229,20 @@ class CompactContractTests(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertEqual(payload, {"ok": False, "error": {"code": "usage_error", "message": "--tz is only supported with --url-file"}})
 
-    def test_references_and_legacy_modules_are_removed(self) -> None:
-        self.assertFalse((ROOT / "references").exists())
+    def test_only_compact_carrier_reference_remains(self) -> None:
+        references = ROOT / "references"
+        carriers = references / "carriers.md"
+        self.assertTrue(carriers.exists())
+        self.assertEqual(
+            sorted(path.relative_to(references).as_posix() for path in references.rglob("*") if path.is_file()),
+            ["carriers.md"],
+        )
+        text = carriers.read_text(encoding="utf-8")
+        self.assertIn("--json build", text)
+        self.assertNotIn("--json build auto", text)
+        self.assertNotIn("core/", text)
+
+    def test_legacy_modules_are_removed(self) -> None:
         for name in ["bundle.py", "maintenance.py", "privacy.py", "contracts.py", "build_command.py", "carrier_adapters.py", "segments.py"]:
             self.assertFalse((SCRIPTS / "flight_calendar" / name).exists(), name)
 
