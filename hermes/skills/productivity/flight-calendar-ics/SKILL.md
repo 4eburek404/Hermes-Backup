@@ -7,7 +7,7 @@ version: 3.01
 # Flight Calendar ICS
 
 ## Goal
-Create one importable `.ics` file for flight calendar import.
+Create one importable `.ics` file for flight calendar import using cli
 
 ## Steps
 1. Put the source in a private file: booking URL in a text file, or itinerary data in minimal JSON.
