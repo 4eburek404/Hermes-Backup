@@ -1,7 +1,0 @@
-§ DO-NOT-EDIT: MEMORY.md, USER.md, SOUL.md — без явного разрешения; сначала diff. Без /restart|/reset при незавершённых writes (файлы, fact_store, cron, config); сначала завершить+verify, потом спросить. Внешний краш — исключение.
-§ MEMORY = always-on guardrails + указатели, не база фактов. Gate перед записью: «нужно на КАЖДОМ ходу?» Да → MEMORY/USER/SOUL; нет → fact_store (atomic facts), skills (процедуры), docs/ (canonical context), session_search (raw history). Promotion из fact_store → pointer только после 5+ независимых обращений.
-§ Routing cues: USER=профиль/стиль; SOUL=конституция поведения; docs=infrastructure/runbooks/user-context/plans; skills=исполняемые workflows; fact_store=entity recall+trust. Holographic trigger: если релевантны пользователь/среда/прошлые решения → probe/search/reason; после использования → fact_feedback; add → search first; stale → update/remove; аудит → skill holographic-memory-hygiene.
-§
-Secret-handling guardrail: Konstantin forbids deleting/removing/commenting out secrets or tokens in env/auth/config files without explicit approval; hide/disable providers through non-secret config/code instead.
-§
-Hermes doc verification note: secret-policy blocking of grep/check output on policy docs can be a false positive from secret-related terminology; keep secret_policy unchanged and verify terms with yes/no checks that do not print matching lines.
