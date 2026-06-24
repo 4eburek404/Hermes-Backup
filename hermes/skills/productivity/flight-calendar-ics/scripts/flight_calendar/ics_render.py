@@ -12,7 +12,6 @@ import json
 import sys
 from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from icalendar import Alarm, Calendar, Event, vText
 
@@ -35,28 +34,16 @@ def require_text(obj: dict[str, Any], key: str, context: str) -> str:
 
 
 def parse_local(value: str, tzid: str | None, context: str) -> dt.datetime:
-    """Parse a local datetime string and attach IANA timezone."""
-    if itinerary_contract.is_placeholder(value):
-        die(f"missing required local datetime: {context}.local")
-    raw = str(value).strip()
-    normalized = raw.replace(" ", "T", 1)
-    if normalized.endswith("Z"):
-        normalized = normalized[:-1] + "+00:00"
-    try:
-        parsed = dt.datetime.fromisoformat(normalized)
-    except ValueError:
-        die(f"invalid datetime for {context}.local: {raw!r}; use YYYY-MM-DDTHH:MM")
+    """Delegate to the contract's canonical datetime parser.
 
-    if parsed.tzinfo is not None:
-        return parsed
-
-    if itinerary_contract.is_placeholder(tzid):
-        die(f"missing required timezone: {context}.tz (IANA TZID, e.g. Europe/Moscow)")
+    Converts ``ValueError`` from the contract helper into ``die()``
+    so that renderer-level errors surface as CLI failures with the
+    same messaging users already see.
+    """
     try:
-        zone = ZoneInfo(str(tzid).strip())
-    except ZoneInfoNotFoundError:
-        die(f"unknown timezone for {context}.tz: {tzid!r}")
-    return parsed.replace(tzinfo=zone)
+        return itinerary_contract.parse_local_datetime(value, tzid, context)
+    except ValueError as exc:
+        die(str(exc))
 
 
 def normalize_list(value: Any) -> list[str]:
@@ -151,11 +138,12 @@ def build_event(
     arr_dt = parse_local(require_text(arr, "local", f"flight {flight_number}.arrival"), arr_tz, f"flight {flight_number}.arrival")
 
     # Cross-timezone sanity: arrival must be after departure in UTC
-    if arr_dt.astimezone(UTC) <= dep_dt.astimezone(UTC):
-        die(
-            f"flight {flight_number}: arrival must be after departure after timezone conversion "
-            f"({dep_dt.isoformat()} -> {arr_dt.isoformat()})"
+    try:
+        itinerary_contract.ensure_arrival_after_departure(
+            dep_dt, arr_dt, f"flight {flight_number}"
         )
+    except ValueError as exc:
+        die(str(exc))
 
     pnr = calendar.get("pnr")
     passengers = normalize_list(calendar.get("passengers"))

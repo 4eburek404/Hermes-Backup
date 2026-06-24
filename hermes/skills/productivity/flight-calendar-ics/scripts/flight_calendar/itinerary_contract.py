@@ -110,7 +110,17 @@ def validate_itinerary_schema(data: dict[str, Any]) -> None:
         raise ValueError(f"itinerary schema validation failed: {summary}")
 
 
-def _parse_local(value: Any, tzid: Any, path: str) -> dt.datetime:
+def parse_local_datetime(value: Any, tzid: Any, path: str) -> dt.datetime:
+    """Parse a local datetime string and attach an IANA timezone.
+
+    This is the single canonical implementation used by both the contract
+    validator and the ICS renderer.  It expects a *naive* local datetime
+    (``YYYY-MM-DDTHH:MM[:SS]``) and a valid IANA timezone identifier.
+    The JSON Schema already rejects values with ``Z`` or an explicit
+    offset; if a caller bypasses schema validation and passes such a
+    value, ``fromisoformat`` will parse it and return an aware datetime
+    unchanged — but that does *not* expand the public contract.
+    """
     if is_placeholder(value):
         raise ValueError(f"{path}.local is required")
     if is_placeholder(tzid):
@@ -127,6 +137,20 @@ def _parse_local(value: Any, tzid: Any, path: str) -> dt.datetime:
     except ZoneInfoNotFoundError as exc:
         raise ValueError(f"{path}.tz is not a known IANA timezone") from exc
     return parsed.replace(tzinfo=zone)
+
+
+def ensure_arrival_after_departure(
+    dep_dt: dt.datetime, arr_dt: dt.datetime, path: str
+) -> None:
+    """Verify that arrival is strictly after departure in UTC.
+
+    Both datetimes are converted to UTC before comparison so that
+    cross-timezone flights are evaluated correctly.
+    """
+    if arr_dt.astimezone(UTC) <= dep_dt.astimezone(UTC):
+        raise ValueError(
+            f"{path}: arrival must be after departure after timezone conversion"
+        )
 
 
 def validate_itinerary_semantics(data: dict[str, Any]) -> None:
@@ -147,7 +171,6 @@ def validate_itinerary_semantics(data: dict[str, Any]) -> None:
             if is_placeholder(endpoint.get("tz")):
                 raise ValueError(f"{endpoint_path}.tz is required")
 
-        dep_dt = _parse_local(dep.get("local"), dep.get("tz"), f"{flight_path}.departure")
-        arr_dt = _parse_local(arr.get("local"), arr.get("tz"), f"{flight_path}.arrival")
-        if arr_dt.astimezone(UTC) <= dep_dt.astimezone(UTC):
-            raise ValueError(f"{flight_path}: arrival must be after departure after timezone conversion")
+        dep_dt = parse_local_datetime(dep.get("local"), dep.get("tz"), f"{flight_path}.departure")
+        arr_dt = parse_local_datetime(arr.get("local"), arr.get("tz"), f"{flight_path}.arrival")
+        ensure_arrival_after_departure(dep_dt, arr_dt, flight_path)
