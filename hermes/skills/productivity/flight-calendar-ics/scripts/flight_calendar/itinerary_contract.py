@@ -117,9 +117,9 @@ def parse_local_datetime(value: Any, tzid: Any, path: str) -> dt.datetime:
     validator and the ICS renderer.  It expects a *naive* local datetime
     (``YYYY-MM-DDTHH:MM[:SS]``) and a valid IANA timezone identifier.
     The JSON Schema already rejects values with ``Z`` or an explicit
-    offset; if a caller bypasses schema validation and passes such a
-    value, ``fromisoformat`` will parse it and return an aware datetime
-    unchanged — but that does *not* expand the public contract.
+    offset; this helper enforces the same invariant independently so
+    that direct callers bypassing schema validation cannot sneak in
+    an aware datetime that would silently ignore the ``tz`` field.
     """
     if is_placeholder(value):
         raise ValueError(f"{path}.local is required")
@@ -131,7 +131,7 @@ def parse_local_datetime(value: Any, tzid: Any, path: str) -> dt.datetime:
     except ValueError as exc:
         raise ValueError(f"{path}.local must be an ISO local datetime") from exc
     if parsed.tzinfo is not None:
-        return parsed
+        raise ValueError(f"{path}.local must be a local datetime without timezone offset")
     try:
         zone = ZoneInfo(str(tzid).strip())
     except ZoneInfoNotFoundError as exc:

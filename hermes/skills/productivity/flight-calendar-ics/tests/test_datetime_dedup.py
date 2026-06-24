@@ -165,5 +165,49 @@ class ZOffsetSchemaRejectionTests(unittest.TestCase):
         itinerary_contract.validate_itinerary_schema(itinerary)
 
 
+class ParseLocalDatetimeRejectsAwareTests(unittest.TestCase):
+    """The canonical helper must reject Z/offset independently of JSON Schema."""
+
+    maxDiff = None
+
+    def test_parse_local_datetime_rejects_z_suffix(self) -> None:
+        from flight_calendar import itinerary_contract
+
+        with self.assertRaisesRegex(ValueError, "without timezone offset"):
+            itinerary_contract.parse_local_datetime(
+                "2026-06-01T09:15Z",
+                "Europe/Moscow",
+                "flights[0].departure",
+            )
+
+    def test_parse_local_datetime_rejects_explicit_offset(self) -> None:
+        from flight_calendar import itinerary_contract
+
+        with self.assertRaisesRegex(ValueError, "without timezone offset"):
+            itinerary_contract.parse_local_datetime(
+                "2026-06-01T09:15+03:00",
+                "Europe/Moscow",
+                "flights[0].departure",
+            )
+
+    def test_build_calendar_rejects_z_suffix_without_schema(self) -> None:
+        """Direct build_calendar() call must reject Z even without schema validation."""
+        from flight_calendar import ics_render
+
+        itinerary = _valid_itinerary()
+        itinerary["flights"][0]["departure"]["local"] = "2026-06-01T09:15Z"
+        with self.assertRaises(SystemExit):
+            ics_render.build_calendar(itinerary, no_alarms=True)
+
+    def test_build_calendar_rejects_offset_without_schema(self) -> None:
+        """Direct build_calendar() call must reject +offset even without schema validation."""
+        from flight_calendar import ics_render
+
+        itinerary = _valid_itinerary()
+        itinerary["flights"][0]["arrival"]["local"] = "2026-06-01T13:45+05:00"
+        with self.assertRaises(SystemExit):
+            ics_render.build_calendar(itinerary, no_alarms=True)
+
+
 if __name__ == "__main__":
     unittest.main()
