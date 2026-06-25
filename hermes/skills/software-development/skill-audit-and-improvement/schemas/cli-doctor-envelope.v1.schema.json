@@ -18,15 +18,8 @@
       "type": "string"
     },
     "data": {
-      "type": [
-        "object",
-        "array",
-        "string",
-        "number",
-        "boolean",
-        "null"
-      ],
-      "description": "Any JSON type is accepted in Step 2B; object is preferred for forward compatibility."
+      "type": "object",
+      "description": "Doctor data payload. Use an object for forward-compatible advisory checks."
     },
     "issues": {
       "type": "array",

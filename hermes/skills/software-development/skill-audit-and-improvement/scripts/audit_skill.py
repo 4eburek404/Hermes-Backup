@@ -594,6 +594,22 @@ def scan_unsafe_secret_scan_commands(paths: Iterable[Path], root: Path, severity
     return findings
 
 
+def is_placeholder_markdown_target(target: str) -> bool:
+    normalized = target.strip().strip('"').strip("'").strip()
+    lower = normalized.lower()
+    if not normalized:
+        return True
+    if normalized.startswith("<") and normalized.endswith(">"):
+        return True
+    if "<" in normalized or ">" in normalized:
+        return True
+    if lower in {"todo", "tbd", "placeholder", "replace-me", "replace_with_real_url", "replace-with-real-url", "replace-with-url", "url", "example", "..."}:
+        return True
+    if lower.startswith(("todo-", "todo_", "placeholder-", "placeholder_", "replace-", "replace_")):
+        return True
+    return False
+
+
 def scan_markdown_links(paths: Iterable[Path], root: Path) -> List[Dict[str, Any]]:
     findings: List[Dict[str, Any]] = []
     for path in paths:
@@ -606,7 +622,7 @@ def scan_markdown_links(paths: Iterable[Path], root: Path) -> List[Dict[str, Any
                 if not target or target.startswith(("http://", "https://", "mailto:", "#")):
                     continue
                 target_no_fragment = target.split("#", 1)[0]
-                if not target_no_fragment:
+                if not target_no_fragment or is_placeholder_markdown_target(target_no_fragment):
                     continue
                 candidate = (path.parent / target_no_fragment).resolve()
                 if not candidate.exists():
