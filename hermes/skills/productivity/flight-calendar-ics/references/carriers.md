@@ -2,7 +2,7 @@
 
 Open this file only when a carrier `build` fails or the source evidence is ambiguous. The normal path stays one command: `--json build` with either `--url-file` or `--input`. Endpoints, payloads, headers, retries, and response mapping are code-owned by `flight_calendar/carriers/` and `flight_calendar/carrier_http.py`.
 
-Common to all carriers: store credential-bearing URLs in a private file and pass `--url-file`; manage-booking pages are JavaScript SPAs, so never scrape page HTML for itinerary data; if no live lookup is possible, normalize visible flight facts into minimal itinerary JSON using `templates/itinerary.example.json` and state any limitation (for example, a missing reopen link). The compact public CLI accepts only `--url-file` or `--input`; do not use carrier-specific argv.
+Common to all carriers: store credential-bearing URLs in a private file and pass `--url-file`; manage-booking pages are JavaScript SPAs, so never scrape page HTML for itinerary data; if no live lookup is possible, normalize visible flight facts into minimal itinerary JSON using `templates/itinerary.example.json` and state any limitation (for example, a missing reopen link). The compact public CLI accepts only `--url-file` or `--input`; do not use carrier-specific argv. A `route_unknown` error means the source fingerprint was not recognized; it does not prove the carrier is unsupported.
 
 ## Aeroflot
 
@@ -28,5 +28,6 @@ Common to all carriers: store credential-bearing URLs in a private file and pass
 ## Utair
 
 - Evidence is `rloc` (locator) plus `last_name` from the order-manage URL; Cyrillic surnames and URL-encoding are handled, `utm_*` parameters are ignored. In the compact public CLI, pass the full URL through `--url-file` or use minimal itinerary JSON with `--input`.
+- Utair mail redirect links like `click.mail.utair.io/...` must resolve to `utair.ru/order-manage?...`; the CLI handles known Utair redirects automatically. If redirect resolution fails, provide the direct Utair `order-manage` URL.
 - A smoke run with a fake locator/surname is a safe reachability check: token success plus a redacted "no orders found" confirms the flow without real booking data.
 - Baggage is included only when explicit in booking data; it is never inferred from the fare brand.

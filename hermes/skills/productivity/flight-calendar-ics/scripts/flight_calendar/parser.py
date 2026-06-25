@@ -15,6 +15,7 @@ from flight_calendar import ics_render, itinerary_contract, timezone_catalog
 from flight_calendar.carriers import aeroflot, redwings, ural, utair
 from flight_calendar.common import parse_tz_overrides, secure_write_text
 from flight_calendar.errors import CliFailure
+from flight_calendar.redirect_resolution import resolve_known_booking_redirect
 from flight_calendar.route_detection import first_url_from_args, infer_build_route
 
 
@@ -88,10 +89,11 @@ def _source_args_for_url_file(url_file: Path) -> argparse.Namespace:
 
 def _build_itinerary_from_url_file(url_file: Path, tz_items: list[str]) -> dict[str, Any]:
     source_args = _source_args_for_url_file(url_file)
-    route = str(infer_build_route(source_args)["route"])
-    booking_url = first_url_from_args(source_args)
-    if not booking_url:
+    raw_url = first_url_from_args(source_args)
+    if not raw_url:
         raise CliFailure("url file is empty", code="usage_error")
+    booking_url = resolve_known_booking_redirect(raw_url)
+    route = str(infer_build_route(source_args, url_override=booking_url)["route"])
 
     tz_map = build_timezone_map(parse_cli_tz_overrides(tz_items))
     if route == "aeroflot":

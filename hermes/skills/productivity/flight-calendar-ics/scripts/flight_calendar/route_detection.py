@@ -247,11 +247,11 @@ def _global_url_route_evidence(fingerprints: list[dict[str, Any]]) -> dict[str, 
     return candidates
 
 
-def infer_build_route(args: argparse.Namespace) -> dict[str, Any]:
+def infer_build_route(args: argparse.Namespace, *, url_override: str | None = None) -> dict[str, Any]:
     if getattr(args, "input", None) is not None:
         return _detection("make", 1.0, ["input_kind:canonical_itinerary_json"])
 
-    url = first_url_from_args(args)
+    url = url_override if url_override is not None else first_url_from_args(args)
     fingerprints = _url_fingerprints(url) if url else []
     known_host_evidence: dict[str, list[str]] = {}
     known_complete: dict[str, list[str]] = {}

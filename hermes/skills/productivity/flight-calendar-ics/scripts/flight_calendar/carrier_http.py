@@ -54,6 +54,46 @@ def _fetch_once(url: str, *, method: str, headers: dict[str, str], body: bytes |
     return response.status_code, response.headers.get("Content-Type", ""), response.text
 
 
+def _response_final_url(response: Any) -> str:
+    for attr in ("url", "redirect_url"):
+        value = getattr(response, attr, None)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def resolve_redirect_url(
+    url: str,
+    *,
+    timeout: int = 30,
+    label: str = "redirect resolution",
+    max_redirects: int = 6,
+) -> str:
+    """Resolve HTTP redirects with curl_cffi and return the final URL.
+
+    The input URL may contain credentials; failures intentionally mention only
+    the caller-provided label and exception/status class, never the URL.
+    """
+    request_headers = browser_headers({"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"})
+    try:
+        response = _requests.request(
+            "GET",
+            url,
+            headers=request_headers,
+            timeout=timeout,
+            impersonate=IMPERSONATE_TARGET,
+            allow_redirects=True,
+            max_redirects=max_redirects,
+        )
+    except _NETWORK_ERRORS as exc:
+        raise TransportError(f"{label} failed: network error ({type(exc).__name__})") from exc
+
+    final_url = _response_final_url(response)
+    if not final_url:
+        raise TransportError(f"{label} failed: no final URL")
+    return final_url
+
+
 def request_raw(
     url: str,
     *,
