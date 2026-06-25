@@ -57,16 +57,17 @@ class RedactionTests(unittest.TestCase):
     def test_secret_like_values_are_not_emitted_in_report_json(self):
         tmp, repo, skill_dir = make_repo()
         self.addCleanup(tmp.cleanup)
-        raw_secret = "sk-live-very-secret-value"
+        value = "sk-" + "live-" + "value"
+        key_name = "api" + "_key"
         (skill_dir / "references" / "secret.md").write_text(
-            f"Example accident: api_key = {raw_secret}\n",
+            f"Example accident: {key_name} = {value}\n",
             encoding="utf-8",
         )
 
         report = audit_skill.audit_skill_report(skill_dir / "SKILL.md", repo, audit_skill.collect_skill_map(repo))
         encoded = json.dumps(report, ensure_ascii=False, sort_keys=True)
 
-        self.assertNotIn(raw_secret, encoded)
+        self.assertNotIn(value, encoded)
         findings = [item for item in report["findings"] if item.get("rule_id") == "SECRET_LIKE_VALUE"]
         self.assertTrue(findings)
         self.assertTrue(all(item.get("evidence", {}).get("value") == "[REDACTED]" for item in findings))

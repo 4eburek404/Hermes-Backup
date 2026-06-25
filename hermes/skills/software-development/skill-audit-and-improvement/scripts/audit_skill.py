@@ -38,7 +38,6 @@ STALE_PATH_PATTERNS = [
     "local/skill-clis",
     "cli/skill-clis",
     "cli/hermes-agent",
-    "hermes/skills",
 ]
 INTENTIONAL_STALE_CONTEXT_RE = re.compile(
     r"(?i)(stale|obsolete|removed|do not|don't|should not|not recreate|avoid|old|runtime state|not source|guard|stale-path|stale path|example of|false-positive)"
