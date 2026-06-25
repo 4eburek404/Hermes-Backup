@@ -1,6 +1,6 @@
 ---
 name: test-driven-development
-description: Use when changing Python behavior with test-first workflow: RED, GREEN, REFACTOR, VERIFY.
+description: "Use when changing Python behavior with test-first workflow: RED, GREEN, REFACTOR, VERIFY."
 version: 2.0.0
 author: Hermes Agent
 license: MIT
