@@ -26,21 +26,27 @@ description: Use when testing advisory CLI execution.
 
 # {name}
 
-## Overview
-Fixture skill.
+## Goal
+Fixture skill for advisory CLI execution.
 
-## When to Use
-- Tests.
-
-Do not use for production.
-
+## Steps
+- Run local fixture CLI checks.
 {body_extra}
 
-## Common Pitfalls
-1. None.
+## Input
+Fixture repository.
 
-## Verification Checklist
-- [ ] Checked.
+## Output
+Audit report.
+
+## Check
+Assert CLI contract status and command evidence.
+
+## Stop
+Stop after report assertions.
+
+## References
+- Local fixture files.
 """
     (skill_dir / "SKILL.md").write_text(files.pop("SKILL.md", default_skill), encoding="utf-8")
     for rel, content in files.items():

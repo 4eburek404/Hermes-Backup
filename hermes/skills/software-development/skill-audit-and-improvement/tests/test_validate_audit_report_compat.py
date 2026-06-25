@@ -1,4 +1,6 @@
+import contextlib
 import importlib.util
+import io
 import json
 import tempfile
 import unittest
@@ -12,6 +14,44 @@ spec.loader.exec_module(validate_audit_report)
 
 
 class ValidateAuditReportCompatibilityTests(unittest.TestCase):
+    def base_report(self) -> dict:
+        return {
+            "schema_version": "1.0.0",
+            "tool": {"name": "audit_skill", "version": "0.3.0"},
+            "repo": {"root": None, "dirty": None, "changed_files": [], "staged_files": [], "untracked_files": []},
+            "target": {"mode": "single", "skill": "example", "path": "skills/example/SKILL.md"},
+            "summary": {"blockers": 0, "warnings": 0, "recommendations": 0, "info": 0},
+            "findings": [],
+            "checks": [],
+            "evidence_manifest": [],
+        }
+
+    def test_missing_tool_version_is_invalid(self):
+        report = self.base_report()
+        report["tool"].pop("version")
+
+        self.assertEqual(validate_audit_report.manual_validate(report), "tool.version must be a non-empty string")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "missing_version_report.json"
+            path.write_text(json.dumps(report), encoding="utf-8")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                self.assertEqual(validate_audit_report.main(["validate_audit_report.py", str(path)]), 1)
+            self.assertIn("version", stderr.getvalue())
+
+    def test_empty_tool_version_is_invalid(self):
+        report = self.base_report()
+        report["tool"]["version"] = ""
+
+        self.assertEqual(validate_audit_report.manual_validate(report), "tool.version must be a non-empty string")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "empty_version_report.json"
+            path.write_text(json.dumps(report), encoding="utf-8")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                self.assertEqual(validate_audit_report.main(["validate_audit_report.py", str(path)]), 1)
+            self.assertIn("version", stderr.getvalue())
+
     def test_old_report_finding_without_evidence_remains_valid(self):
         report = {
             "schema_version": "1.0.0",

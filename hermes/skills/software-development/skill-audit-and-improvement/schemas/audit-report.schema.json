@@ -28,7 +28,8 @@
           "const": "audit_skill"
         },
         "version": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "additionalProperties": true
@@ -44,6 +45,12 @@
       ],
       "properties": {
         "root": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "skills_root": {
           "type": [
             "string",
             "null"
