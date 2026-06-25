@@ -20,17 +20,18 @@ Audit and improve Hermes skills safely and reproducibly. Keep `SKILL.md` compact
 2. Verify source state before editing. Check branch, HEAD, status, and target diff; do not rely on memory or runtime state alone.
 3. Read the target `SKILL.md`, its support files, and 1-3 nearby peer skills before proposing changes.
 4. Run the read-only audit helper when a repo source tree is available:
-   `python3 skills/software-development/skill-audit-and-improvement/scripts/audit_skill.py --skill <skill-name> --json`
-5. Choose the smallest durable layer:
+   `python3 hermes/skills/software-development/skill-audit-and-improvement/scripts/audit_skill.py --skill <skill-name> --json`
+5. Follow `references/audit-workflow.md` for provenance, source/runtime checks, scoped cleanup, verification, and final report evidence.
+6. Choose the smallest durable layer:
    - short operational path or trigger -> `SKILL.md`;
    - long method, case detail, history, or research -> `references/`;
    - reusable report or worksheet -> `templates/`;
    - deterministic redaction, inventory, or pass/fail check -> `scripts/`;
    - stable machine-readable contract -> `schemas/`.
-6. For semantic/deep audits, use `references/skill-quality-model-v2.md` or `templates/deep-skill-audit.md`; name the behavior delta and mistake prevented.
-7. For CLI, JSON, schema, golden-path, or bypass-surface questions, use `references/audit-protocol-contract.md` and the existing scripts/schemas before inventing a new contract.
-8. Edit only the scoped files, then validate. If validation exposes a small related-skill defect, fix it only when it is clearly in scope and low risk.
-9. Report with `templates/audit-report.md`: changed files, why, verification, behavior delta when relevant, remaining risk, rollback/commit state.
+7. For semantic/deep audits, use `references/skill-quality-model.md` and replay only the relevant cases from `references/scenarios.md`; name the behavior delta and mistake prevented.
+8. For CLI, JSON, schema, doctor-envelope, report-contract, golden-path, or bypass-surface questions, use `references/cli-schema-contracts.md` and the existing scripts/schemas before inventing a new contract.
+9. Edit only the scoped files, then validate. If validation exposes a small related-skill defect, fix it only when it is clearly in scope and low risk.
+10. Report with `templates/audit-report.md`: changed files, why, verification, behavior delta when relevant, remaining risk, rollback/commit state.
 
 ## Input
 - Target skill name or path.
@@ -64,10 +65,10 @@ Audit and improve Hermes skills safely and reproducibly. Keep `SKILL.md` compact
 - Do not claim `done`, `committed`, `pushed`, or `ready` unless that exact state was verified.
 
 ## References
-- `references/skill-quality-model-v2.md` — use for semantic quality, behavior delta, scenario replay, progressive disclosure, and mistake-prevention analysis.
-- `references/deep-skill-audit-method.md` — use when the audit needs a compact method for deep behavioral review.
-- `references/deep-audit-scenarios.md` — use for replaying recurring audit failure modes.
-- `references/audit-protocol-contract.md` — use for CLI/schema/JSON report contracts, golden path contracts, bypass surfaces, and protocol rationale.
+- `references/audit-workflow.md` — use for branch/source provenance, scoped cleanup, source/runtime sync, verification, and reporting.
+- `references/skill-quality-model.md` — use for semantic quality, behavior delta, scenario replay, progressive disclosure, and mistake-prevention analysis.
+- `references/cli-schema-contracts.md` — use for CLI/schema/JSON report contracts, doctor envelope, advisory execution, schema-output mappings, and protocol rationale.
+- `references/scenarios.md` — use for replaying recurring audit failure modes.
 - `templates/audit-report.md` — use for final audit/improvement reports.
 - `templates/deep-skill-audit.md` — use as a worksheet for high-impact or user-corrected skills.
 - `scripts/audit_skill.py` — read-only deterministic audit helper.
