@@ -5,6 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 AUDIT_SCRIPT = ROOT / "scripts" / "audit_skill.py"
+SKILL_MD = ROOT / "SKILL.md"
 
 spec = importlib.util.spec_from_file_location("audit_skill", AUDIT_SCRIPT)
 assert spec is not None
@@ -115,6 +116,18 @@ class AuditSkillSectionCanonTests(unittest.TestCase):
         self.assertNotIn("exec(", source)
         self.assertNotIn("_REQUIRED_SECTIONS_BLOCK_RE", source)
         self.assertNotIn("CANONICAL_REQUIRED_SECTIONS", source)
+
+    def test_skill_runbook_uses_hermes_skills_layout_for_audit_helper(self):
+        text = SKILL_MD.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "python3 hermes/skills/software-development/skill-audit-and-improvement/scripts/audit_skill.py --skill <skill-name> --json",
+            text,
+        )
+        self.assertNotIn(
+            "python3 skills/software-development/skill-audit-and-improvement/scripts/audit_skill.py --skill <skill-name> --json",
+            text,
+        )
 
 
 if __name__ == "__main__":
