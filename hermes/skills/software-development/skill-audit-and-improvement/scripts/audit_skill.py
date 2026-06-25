@@ -7,6 +7,7 @@ here; migrate skills to the canonical compact structure instead.
 """
 from __future__ import annotations
 
+import re
 import types
 from pathlib import Path
 from typing import List, Optional
@@ -22,13 +23,10 @@ CANONICAL_REQUIRED_SECTIONS = [
 ]
 TOOL_VERSION = "0.2.1"
 _IMPL_SOURCE = Path(__file__).with_name("_audit_skill_impl.pydata")
-_LEGACY_REQUIRED_SECTIONS_BLOCK = '''REQUIRED_SECTIONS = [
-    "## Overview",
-    "## When to Use",
-    "## Common Pitfalls",
-    "## Verification Checklist",
-]
-'''
+_REQUIRED_SECTIONS_BLOCK_RE = re.compile(
+    r'REQUIRED_SECTIONS = \[\n(?:    "## [^"\n]+",\n)+\]\n',
+    re.MULTILINE,
+)
 _CANONICAL_REQUIRED_SECTIONS_BLOCK = '''REQUIRED_SECTIONS = [
     "## Goal",
     "## Steps",
@@ -43,9 +41,9 @@ _CANONICAL_REQUIRED_SECTIONS_BLOCK = '''REQUIRED_SECTIONS = [
 
 def _load_impl() -> types.ModuleType:
     source = _IMPL_SOURCE.read_text(encoding="utf-8")
-    if _LEGACY_REQUIRED_SECTIONS_BLOCK not in source:
+    source, replacements = _REQUIRED_SECTIONS_BLOCK_RE.subn(_CANONICAL_REQUIRED_SECTIONS_BLOCK, source, count=1)
+    if replacements != 1:
         raise RuntimeError("audit_skill implementation contract changed; canonical section patch was not applied")
-    source = source.replace(_LEGACY_REQUIRED_SECTIONS_BLOCK, _CANONICAL_REQUIRED_SECTIONS_BLOCK, 1)
     module = types.ModuleType("_audit_skill_impl")
     module.__file__ = str(_IMPL_SOURCE)
     module.__package__ = ""
