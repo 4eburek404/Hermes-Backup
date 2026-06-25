@@ -28,7 +28,8 @@
           "const": "audit_skill"
         },
         "version": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "additionalProperties": true

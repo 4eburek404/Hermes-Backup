@@ -80,12 +80,11 @@ class AuditSkillSectionCanonTests(unittest.TestCase):
     def report_for(self, repo: Path, skill_path: Path) -> dict:
         return audit_skill.audit_skill_report(skill_path, repo, audit_skill.collect_skill_map(repo))
 
+    def missing_section_findings(self, report: dict) -> list[dict]:
+        return [item for item in report["findings"] if item.get("rule_id") == "MISSING_SECTION"]
+
     def missing_sections(self, report: dict) -> list[str]:
-        return [
-            item["message"].split(": ", 1)[1]
-            for item in report["findings"]
-            if item.get("rule_id") == "MISSING_SECTION"
-        ]
+        return [item["message"].split(": ", 1)[1] for item in self.missing_section_findings(report)]
 
     def test_compact_skill_canonical_sections_pass_section_audit(self):
         tmp, repo = make_repo()
@@ -104,6 +103,9 @@ class AuditSkillSectionCanonTests(unittest.TestCase):
         report = self.report_for(repo, skill_path)
 
         self.assertCountEqual(self.missing_sections(report), CANONICAL_SECTIONS)
+        self.assertFalse(report["ok"])
+        self.assertEqual(report["summary"]["blockers"], len(CANONICAL_SECTIONS))
+        self.assertTrue(all(item.get("severity") == "blocker" for item in self.missing_section_findings(report)))
 
     def test_public_entrypoint_is_normal_python_source(self):
         source = AUDIT_SCRIPT.read_text(encoding="utf-8")

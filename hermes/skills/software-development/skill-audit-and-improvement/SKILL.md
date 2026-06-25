@@ -52,7 +52,8 @@ Audit and improve Hermes skills safely and reproducibly. Keep `SKILL.md` compact
 - Run before committing when a repo source tree is available:
   `git diff --check`
   `python3 hermes/skills/software-development/skill-audit-and-improvement/scripts/audit_skill.py --skill <skill-name> --json`
-- If `audit_skill.py`, schemas, or report-contract fields changed, validate emitted JSON with `scripts/validate_audit_report.py`.
+- If `audit_skill.py`, schemas, or report-contract fields changed, validate emitted JSON from the repo root:
+  `python3 hermes/skills/software-development/skill-audit-and-improvement/scripts/validate_audit_report.py /tmp/audit_report.json`
 - If scripts or CLIs changed, run syntax/tests without leaving generated artifacts (`PYTHONDONTWRITEBYTECODE=1` or equivalent cleanup).
 - If the change claims a golden path, anti-path, or fail-closed behavior, verify positive path, negative path, bypass surfaces, and read-back/mutation proof.
 

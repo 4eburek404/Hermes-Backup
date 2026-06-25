@@ -2568,7 +2568,7 @@ def audit_skill_report(
             findings.append(
                 make_finding(
                     "MISSING_SECTION",
-                    "warning",
+                    "blocker",
                     "trigger_clarity",
                     f"recommended section missing: {section}",
                     skill_path,

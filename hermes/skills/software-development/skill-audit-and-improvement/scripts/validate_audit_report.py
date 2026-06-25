@@ -18,6 +18,8 @@ def manual_validate(report: Dict[str, Any]) -> Optional[str]:
         return "schema_version must be 1.0.0"
     if report.get("tool", {}).get("name") != "audit_skill":
         return "tool.name must be audit_skill"
+    if not isinstance(report.get("tool", {}).get("version"), str) or not report.get("tool", {}).get("version"):
+        return "tool.version must be a non-empty string"
     repo = report.get("repo")
     if not isinstance(repo, dict):
         return "repo must be an object"
