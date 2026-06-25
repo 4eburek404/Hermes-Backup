@@ -197,8 +197,8 @@ class CarrierHttpRedirectContractTests(unittest.TestCase):
 
         class FakeResponse:
             status_code = 200
-            url = DIRECT_UTAIR_URL
-            redirect_url = ""
+            url = RAW_CLICK_URL
+            redirect_url = DIRECT_UTAIR_URL
 
             @property
             def text(self) -> str:  # pragma: no cover - must not be read
@@ -207,7 +207,7 @@ class CarrierHttpRedirectContractTests(unittest.TestCase):
         def fake_request(method: str, url: str, **kwargs: object) -> FakeResponse:
             self.assertEqual(method, "GET")
             self.assertEqual(url, RAW_CLICK_URL)
-            self.assertTrue(kwargs.get("allow_redirects"))
+            self.assertEqual(kwargs.get("allow_redirects"), "safe")
             self.assertGreaterEqual(int(kwargs.get("max_redirects", 0)), 3)
             self.assertEqual(kwargs.get("impersonate"), carrier_http.IMPERSONATE_TARGET)
             self.assertIn("User-Agent", kwargs.get("headers", {}))

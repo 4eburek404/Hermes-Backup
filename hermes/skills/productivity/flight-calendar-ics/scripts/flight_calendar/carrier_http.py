@@ -55,7 +55,7 @@ def _fetch_once(url: str, *, method: str, headers: dict[str, str], body: bytes |
 
 
 def _response_final_url(response: Any) -> str:
-    for attr in ("url", "redirect_url"):
+    for attr in ("redirect_url", "url"):
         value = getattr(response, attr, None)
         if isinstance(value, str) and value.strip():
             return value.strip()
@@ -82,7 +82,7 @@ def resolve_redirect_url(
             headers=request_headers,
             timeout=timeout,
             impersonate=IMPERSONATE_TARGET,
-            allow_redirects=True,
+            allow_redirects="safe",
             max_redirects=max_redirects,
         )
     except _NETWORK_ERRORS as exc:
