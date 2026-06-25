@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import time
 from typing import Any, Callable
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
 
 from curl_cffi import requests as _requests
 
@@ -54,26 +54,23 @@ def _fetch_once(url: str, *, method: str, headers: dict[str, str], body: bytes |
     return response.status_code, response.headers.get("Content-Type", ""), response.text
 
 
-def _response_final_url(response: Any) -> str:
-    for attr in ("redirect_url", "url"):
-        value = getattr(response, attr, None)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return ""
-
-
 def resolve_redirect_url(
     url: str,
     *,
     timeout: int = 30,
     label: str = "redirect resolution",
-    max_redirects: int = 6,
+    max_redirects: int = 0,
 ) -> str:
-    """Resolve HTTP redirects with curl_cffi and return the final URL.
+    """Read a single redirect Location with curl_cffi and return its URL.
 
     The input URL may contain credentials; failures intentionally mention only
     the caller-provided label and exception/status class, never the URL.
+
+    ``max_redirects`` remains in the signature for compatibility only. This
+    resolver must not follow redirects automatically; it always requests the
+    wrapper URL with ``allow_redirects=False`` and ``max_redirects=0``.
     """
+    _ = max_redirects
     request_headers = browser_headers({"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"})
     try:
         response = _requests.request(
@@ -82,16 +79,21 @@ def resolve_redirect_url(
             headers=request_headers,
             timeout=timeout,
             impersonate=IMPERSONATE_TARGET,
-            allow_redirects="safe",
-            max_redirects=max_redirects,
+            allow_redirects=False,
+            max_redirects=0,
         )
     except _NETWORK_ERRORS as exc:
         raise TransportError(f"{label} failed: network error ({type(exc).__name__})") from exc
 
-    final_url = _response_final_url(response)
-    if not final_url:
-        raise TransportError(f"{label} failed: no final URL")
-    return final_url
+    status_code = int(getattr(response, "status_code", 0) or 0)
+    if status_code not in {301, 302, 303, 307, 308}:
+        raise TransportError(f"{label} failed: non-redirect HTTP {status_code}")
+
+    headers = getattr(response, "headers", {}) or {}
+    location = headers.get("Location") or headers.get("location")
+    if not isinstance(location, str) or not location.strip():
+        raise TransportError(f"{label} failed: missing redirect Location")
+    return urljoin(url, location.strip())
 
 
 def request_raw(

@@ -19,7 +19,9 @@ def _hostname(url: str) -> str:
 
 
 def _is_utair_carrier_host(url: str) -> bool:
-    return _host_matches(_hostname(url), UTAIR_CARRIER_HOST)
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    return parsed.scheme.lower() == "https" and _host_matches(host, UTAIR_CARRIER_HOST)
 
 
 def resolve_known_booking_redirect(raw_url: str) -> str:
