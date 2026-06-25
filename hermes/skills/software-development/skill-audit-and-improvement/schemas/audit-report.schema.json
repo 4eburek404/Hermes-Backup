@@ -49,6 +49,12 @@
             "null"
           ]
         },
+        "skills_root": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "branch": {
           "type": [
             "string",
