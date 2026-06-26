@@ -57,6 +57,8 @@ def _safe_host_evidence(host: str) -> str | None:
         return "host:flyredwings.com"
     if _host_matches(host, "webskyx.com"):
         return "host:webskyx.com"
+    if _host_matches(host, "s7.ru"):
+        return "host:myb.s7.ru" if host == "myb.s7.ru" else "host:s7.ru"
     return None
 
 
@@ -121,6 +123,8 @@ def _known_host_route(host: str) -> str | None:
         return "utair"
     if _host_matches(host, "flyredwings.com") or _host_matches(host, "webskyx.com"):
         return "redwings"
+    if _host_matches(host, "s7.ru"):
+        return "s7"
     return None
 
 
@@ -158,6 +162,14 @@ def _utair_field_evidence(field_names: list[str], *, host_bound: bool) -> list[s
     return []
 
 
+def _s7_field_evidence(field_names: list[str]) -> list[str]:
+    if _field_present(field_names, {"bookingId", "booking_id"}) and _field_present(
+        field_names, {"passengerId", "passenger_id"}
+    ):
+        return _field_evidence(field_names, {"bookingId", "booking_id", "passengerId", "passenger_id"})
+    return []
+
+
 def _route_url_credential_evidence(route: str, field_names: list[str], fragment: str, *, host_bound: bool) -> list[str]:
     if route == "aeroflot":
         return _aeroflot_field_evidence(field_names)
@@ -167,6 +179,8 @@ def _route_url_credential_evidence(route: str, field_names: list[str], fragment:
         return _utair_field_evidence(field_names, host_bound=host_bound)
     if route == "redwings" and _redwings_find_fragment(fragment):
         return ["fragment_route:redwings_find"]
+    if route == "s7":
+        return _s7_field_evidence(field_names)
     return []
 
 
@@ -244,6 +258,9 @@ def _global_url_route_evidence(fingerprints: list[dict[str, Any]]) -> dict[str, 
         utair_evidence = _utair_field_evidence(field_names, host_bound=False)
         if utair_evidence:
             _merge_evidence(candidates, "utair", utair_evidence)
+        s7_evidence = _s7_field_evidence(field_names)
+        if s7_evidence:
+            _merge_evidence(candidates, "s7", s7_evidence)
     return candidates
 
 

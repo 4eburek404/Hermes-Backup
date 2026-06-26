@@ -25,6 +25,13 @@ Common to all carriers: store credential-bearing URLs in a private file and pass
 - Node.js is required at runtime: the adapter executes the carrier's frontend API-key helper in a sandboxed Node VM. Generated API keys and session keys are credentials.
 - Do not hand the adapter local `.env`/`env.json` copies; the normal path reads live frontend config.
 
+## S7 Airlines
+
+- Evidence is a direct `https://myb.s7.ru/myb/manage-order?...` URL carrying both `bookingId` and `passengerId`; both query values are private booking credentials and must stay in `--url-file` or inside the generated `.ics` only.
+- S7's entrypoint returns an auto-submit HTML form first; the adapter follows that form with the same session and extracts the embedded `__r_airs_data` payload from the resulting page. Do not scrape arbitrary visible labels when this payload exists.
+- The S7 payload usually includes IANA timezones per segment; `--tz CODE=Area/City` remains a fallback if a segment lacks timezone data.
+- Ticket number can be absent from S7 manage-order data; this is acceptable because the compact itinerary contract makes it optional.
+
 ## Utair
 
 - Evidence is `rloc` (locator) plus `last_name` from the order-manage URL; Cyrillic surnames and URL-encoding are handled, `utm_*` parameters are ignored. In the compact public CLI, pass the full URL through `--url-file` or use minimal itinerary JSON with `--input`.

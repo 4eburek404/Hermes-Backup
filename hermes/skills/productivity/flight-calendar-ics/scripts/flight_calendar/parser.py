@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from flight_calendar import ics_render, itinerary_contract, timezone_catalog
-from flight_calendar.carriers import aeroflot, redwings, ural, utair
+from flight_calendar.carriers import aeroflot, redwings, s7, ural, utair
 from flight_calendar.common import parse_tz_overrides, secure_write_text
 from flight_calendar.errors import CliFailure
 from flight_calendar.redirect_resolution import resolve_known_booking_redirect
@@ -118,6 +118,13 @@ def _build_itinerary_from_url_file(url_file: Path, tz_items: list[str]) -> dict[
         locator, access_code, normalized_url = redwings.parse_redwings_source(booking_url, None, None)
         itinerary = redwings.convert_to_itinerary(
             redwings.fetch_redwings_order(locator, access_code),
+            tz_map,
+            booking_url=normalized_url,
+        )
+    elif route == "s7":
+        _booking_id, _passenger_id, normalized_url = s7.parse_s7_source(booking_url, None, None)
+        itinerary = s7.convert_to_itinerary(
+            s7.fetch_s7_order(normalized_url),
             tz_map,
             booking_url=normalized_url,
         )

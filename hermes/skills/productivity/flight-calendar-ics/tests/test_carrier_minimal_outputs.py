@@ -237,6 +237,57 @@ class CarrierMinimalOutputTests(unittest.TestCase):
         self.assertNotIn("terminal", redwings.FIND_ORDER_QUERY)
         self.assertNotIn("coupons", redwings.FIND_ORDER_QUERY)
 
+    def test_s7_converter_emits_minimal_itinerary(self) -> None:
+        from flight_calendar.carriers import s7
+
+        data = [
+            {
+                "air": {
+                    "pnr": "ABC123",
+                    "status": "CONFIRMED",
+                    "passengers": [
+                        {
+                            "name": {
+                                "lastName": "ORLOV",
+                                "firstName": "KONSTANTIN",
+                                "fullName": "ORLOV KONSTANTIN",
+                            },
+                            "ticketNumber": "4212400000000",
+                            "document": {"number": "must not leak"},
+                        }
+                    ],
+                    "routes": [
+                        {
+                            "segments": [
+                                {
+                                    "departureDate": "2026-06-01T09:15:00",
+                                    "arrivalDate": "2026-06-01T13:45:00",
+                                    "departureTimeZone": "Europe/Moscow",
+                                    "arrivalTimeZone": "Asia/Yekaterinburg",
+                                    "departureAirport": {"code": "DME", "cityName": "Москва", "terminal": "T2"},
+                                    "arrivalAirport": {"code": "SVX", "cityName": "Екатеринбург", "terminal": "A"},
+                                    "marketingAirline": {"code": "S7", "displayCode": "S7", "flightNumber": "1234"},
+                                    "operatingAirline": {"code": "S7", "displayCode": "S7", "flightNumber": "1234"},
+                                    "aircraft": {"name": "Airbus A320"},
+                                    "status": "CONFIRMED",
+                                    "supplierStatus": "HK",
+                                }
+                            ]
+                        }
+                    ],
+                }
+            }
+        ]
+
+        itinerary = s7.convert_to_itinerary(data, {}, booking_url="https://carrier.example/s7")
+
+        self.assert_minimal_itinerary(itinerary)
+        self.assertEqual(itinerary["pnr"], "ABC123")
+        self.assertEqual(itinerary["passengers"], ["ORLOV KONSTANTIN"])
+        self.assertEqual(itinerary["ticket_number"], "4212400000000")
+        serialized = json.dumps(itinerary, ensure_ascii=False)
+        self.assertNotIn("must not leak", serialized)
+
 
 if __name__ == "__main__":
     unittest.main()

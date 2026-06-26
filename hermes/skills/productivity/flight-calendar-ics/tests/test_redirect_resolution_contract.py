@@ -18,6 +18,8 @@ sys.path.insert(0, str(SCRIPTS))
 
 RAW_CLICK_URL = "https://click.mail.utair.io/private-token?x=secret"
 DIRECT_UTAIR_URL = "https://www.utair.ru/order-manage?rloc=ABC123&last_name=IVANOV"
+DIRECT_S7_URL = "https://myb.s7.ru/myb/manage-order?bookingId=ABC123&passengerId=ivanov"
+NORMALIZED_S7_URL = "https://myb.s7.ru/myb/manage-order?bookingId=ABC123&passengerId=IVANOV"
 PRIVATE_RESOLVED_URL = "https://evil.example/order-manage?rloc=ABC123&last_name=IVANOV"
 HTTP_UTAIR_URL = "http://www.utair.ru/order-manage?rloc=ABC123&last_name=IVANOV"
 REDACTED_TOKENS = (
@@ -104,6 +106,47 @@ class RedirectResolutionContractTests(unittest.TestCase):
         resolver.assert_called_once_with(RAW_CLICK_URL)
         self.assertEqual(observed["route_url"], DIRECT_UTAIR_URL)
         self.assertEqual(observed["adapter_url"], DIRECT_UTAIR_URL)
+
+    def test_parser_dispatches_s7_url_to_s7_adapter_without_network(self) -> None:
+        from flight_calendar import parser
+
+        observed: dict[str, object] = {}
+        fetched_payload = [{"air": {"routes": []}}]
+
+        def fake_parse(url: str | None, booking_id: str | None, passenger_id: str | None) -> tuple[str, str, str]:
+            observed["adapter_url"] = url
+            observed["booking_id"] = booking_id
+            observed["passenger_id"] = passenger_id
+            return "ABC123", "ivanov", NORMALIZED_S7_URL
+
+        def fake_fetch(url: str) -> list[dict[str, object]]:
+            observed["fetch_url"] = url
+            return fetched_payload
+
+        def fake_convert(data: object, tz_map: dict[str, str], booking_url: str | None = None) -> dict[str, object]:
+            observed["convert_data"] = data
+            observed["convert_tz_map"] = tz_map
+            observed["convert_booking_url"] = booking_url
+            return minimal_itinerary(booking_url=NORMALIZED_S7_URL)
+
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
+            handle.write(DIRECT_S7_URL)
+            handle.flush()
+            with mock.patch.object(parser, "infer_build_route", return_value={"route": "s7", "confidence": 1.0, "evidence": []}), \
+                mock.patch.object(parser.s7, "parse_s7_source", side_effect=fake_parse), \
+                mock.patch.object(parser.s7, "fetch_s7_order", side_effect=fake_fetch), \
+                mock.patch.object(parser.s7, "convert_to_itinerary", side_effect=fake_convert), \
+                mock.patch.object(parser, "validate_itinerary_contract", side_effect=lambda value: value):
+                result = parser._build_itinerary_from_url_file(Path(handle.name), ["DME=Europe/Moscow"])
+
+        self.assertEqual(observed["adapter_url"], DIRECT_S7_URL)
+        self.assertIsNone(observed["booking_id"])
+        self.assertIsNone(observed["passenger_id"])
+        self.assertEqual(observed["fetch_url"], NORMALIZED_S7_URL)
+        self.assertIs(observed["convert_data"], fetched_payload)
+        self.assertEqual(observed["convert_tz_map"]["DME"], "Europe/Moscow")
+        self.assertEqual(observed["convert_booking_url"], NORMALIZED_S7_URL)
+        self.assertEqual(result["booking_url"], NORMALIZED_S7_URL)
 
     def test_direct_utair_url_is_returned_without_http_resolution(self) -> None:
         from flight_calendar.redirect_resolution import resolve_known_booking_redirect

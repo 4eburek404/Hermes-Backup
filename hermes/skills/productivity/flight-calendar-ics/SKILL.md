@@ -1,7 +1,7 @@
 ---
 name: flight-calendar-ics
 description: Use when creating a compact importable .ics calendar file from a supported airline booking URL or a minimal flight itinerary JSON.
-version: 3.01
+version: 3.02
 ---
 
 # Flight Calendar ICS
@@ -29,6 +29,7 @@ Create one importable `.ics` file for flight calendar import using cli
 ## Check
 - CLI output is JSON with `ok: true`.
 - CLI output includes `media`.
+- For live carrier smoke tests, wrap the run so stdout/stderr are summarized into redacted fields only (`ok`, `segments_count`, `media`, sanitized error code/message) and explicitly check that private query keys or credential-bearing URL fragments did not print.
 - Do not paste booking URLs, PNRs, passenger names, ticket numbers, raw JSON, private paths, or `.ics` contents into chat.
 
 ## Stop
