@@ -6,6 +6,7 @@ configuration needed for Reservation lookup is loaded from the current frontend
 (`/<version>/env/env.json`) at runtime; no local `.env` or cached private config
 file is required for the normal flow.
 """
+
 from __future__ import annotations
 
 import json
@@ -24,6 +25,7 @@ from flight_calendar.common import die
 URAL_SERVICE_BASE = "https://service.uralairlines.ru/"
 DEFAULT_ENV_PATH = "/<version>/env/env.json"
 
+
 class FrontendAssets(NamedTuple):
     base_url: str
     env_url: str
@@ -31,7 +33,9 @@ class FrontendAssets(NamedTuple):
     app_js_url: str
 
 
-def http_text(url: str, *, timeout: int = 45, headers: dict[str, str] | None = None) -> str:
+def http_text(
+    url: str, *, timeout: int = 45, headers: dict[str, str] | None = None
+) -> str:
     return carrier_http.request_text(
         url,
         headers={"Accept": "*/*", **(headers or {})},
@@ -40,7 +44,9 @@ def http_text(url: str, *, timeout: int = 45, headers: dict[str, str] | None = N
     )
 
 
-def http_json(url: str, *, timeout: int = 45, headers: dict[str, str] | None = None) -> Any:
+def http_json(
+    url: str, *, timeout: int = 45, headers: dict[str, str] | None = None
+) -> Any:
     return carrier_http.request_json(
         url,
         headers={"Accept": "application/json", **(headers or {})},
@@ -49,7 +55,13 @@ def http_json(url: str, *, timeout: int = 45, headers: dict[str, str] | None = N
     )
 
 
-def post_json(url: str, body: dict[str, Any], *, timeout: int = 45, headers: dict[str, str] | None = None) -> Any:
+def post_json(
+    url: str,
+    body: dict[str, Any],
+    *,
+    timeout: int = 45,
+    headers: dict[str, str] | None = None,
+) -> Any:
     return carrier_http.request_json(
         url,
         json_body=body,
@@ -59,7 +71,9 @@ def post_json(url: str, body: dict[str, Any], *, timeout: int = 45, headers: dic
     )
 
 
-def parse_ural_source(url: str | None, pnr: str | None, last_name: str | None) -> tuple[str, str, str]:
+def parse_ural_source(
+    url: str | None, pnr: str | None, last_name: str | None
+) -> tuple[str, str, str]:
     booking_url = url.strip() if url else None
     if booking_url:
         parsed = urlparse(booking_url)
@@ -69,8 +83,18 @@ def parse_ural_source(url: str | None, pnr: str | None, last_name: str | None) -
             booking_url = redirect_target
             parsed = urlparse(booking_url)
             qs = parse_qs(parsed.query)
-        pnr = pnr or (qs.get("pnr") or qs.get("pnrNumber") or qs.get("pnrnumber") or [None])[0]
-        last_name = last_name or (qs.get("lastName") or qs.get("lastname") or qs.get("surname") or [None])[0]
+        pnr = (
+            pnr
+            or (qs.get("pnr") or qs.get("pnrNumber") or qs.get("pnrnumber") or [None])[
+                0
+            ]
+        )
+        last_name = (
+            last_name
+            or (
+                qs.get("lastName") or qs.get("lastname") or qs.get("surname") or [None]
+            )[0]
+        )
     if not pnr or not last_name:
         die("provide --url containing pnr/lastName or both --pnr and --last-name")
     locator = pnr.strip().upper()
@@ -80,17 +104,26 @@ def parse_ural_source(url: str | None, pnr: str | None, last_name: str | None) -
     if not re.fullmatch(r"[A-ZА-ЯЁ' -]{2,80}", surname, flags=re.IGNORECASE):
         die("Ural Airlines last name format looks invalid")
     if not booking_url:
-        booking_url = URAL_SERVICE_BASE + "?" + urlencode({"pnr": locator, "lastName": surname})
+        booking_url = (
+            URAL_SERVICE_BASE + "?" + urlencode({"pnr": locator, "lastName": surname})
+        )
     return locator, surname, booking_url
 
 
-def discover_frontend_assets(frontend_base: str | None = None, *, timeout: int = 45) -> FrontendAssets:
+def discover_frontend_assets(
+    frontend_base: str | None = None, *, timeout: int = 45
+) -> FrontendAssets:
     base = (frontend_base or URAL_SERVICE_BASE).rstrip("/") + "/"
     html = http_text(base, timeout=timeout, headers={"Accept": "text/html"})
     asset_paths = re.findall(r"(?:src|href)=[\"']?([^\"'\s>]+)", html)
 
-    app_path = next((p for p in asset_paths if re.search(r"/js/app\.[^/]+\.js(?:\?.*)?$", p)), None)
-    helper_path = next((p for p in asset_paths if re.search(r"/\d+/[0-9a-f]{32}\.js(?:\?.*)?$", p)), None)
+    app_path = next(
+        (p for p in asset_paths if re.search(r"/js/app\.[^/]+\.js(?:\?.*)?$", p)), None
+    )
+    helper_path = next(
+        (p for p in asset_paths if re.search(r"/\d+/[0-9a-f]{32}\.js(?:\?.*)?$", p)),
+        None,
+    )
 
     version = None
     for path in asset_paths:
@@ -114,7 +147,9 @@ def discover_frontend_assets(frontend_base: str | None = None, *, timeout: int =
 
 
 def parse_api_key_methods(app_js: str) -> list[str]:
-    methods = re.findall(r'window\["([0-9a-f]{32})"\]\(t,e\.getters,u\.default\)', app_js)
+    methods = re.findall(
+        r'window\["([0-9a-f]{32})"\]\(t,e\.getters,u\.default\)', app_js
+    )
     if not methods:
         die("could not find Ural Airlines API-key helper calls in frontend bundle")
     # Keep order from the axios interceptor: the first helper may be a no-op, the second sets X-Api-Key.
@@ -127,7 +162,10 @@ def parse_api_key_methods(app_js: str) -> list[str]:
 
 def compute_timestamp_diff(api_url: str, *, timeout: int = 45) -> int:
     try:
-        server_seconds = http_json(urljoin(api_url.rstrip("/") + "/", "settings/CurrentDateUtc"), timeout=timeout)
+        server_seconds = http_json(
+            urljoin(api_url.rstrip("/") + "/", "settings/CurrentDateUtc"),
+            timeout=timeout,
+        )
         return int(float(server_seconds) * 1000 - time.time() * 1000)
     except Exception:
         # The header generator only needs a numeric timestampDiff. Zero is safer than letting
@@ -135,13 +173,15 @@ def compute_timestamp_diff(api_url: str, *, timeout: int = 45) -> int:
         return 0
 
 
-def generate_api_key_header(helper_js: str, env: dict[str, Any], methods: list[str]) -> str:
+def generate_api_key_header(
+    helper_js: str, env: dict[str, Any], methods: list[str]
+) -> str:
     fd, helper_path = tempfile.mkstemp(prefix="ural-api-helper-", suffix=".js")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(helper_js)
         os.chmod(helper_path, 0o600)
-        node_program = r'''
+        node_program = r"""
 const fs = require('fs');
 const vm = require('vm');
 const payload = JSON.parse(fs.readFileSync(0, 'utf8'));
@@ -172,8 +212,11 @@ const value = cfg.headers.common['X-Api-Key'];
 if (!value) throw new Error('X-Api-Key was not generated');
 if (String(value).includes('undefined')) throw new Error('X-Api-Key contains undefined');
 process.stdout.write(String(value));
-'''
-        payload = json.dumps({"helperPath": helper_path, "env": env, "methods": methods}, ensure_ascii=False)
+"""
+        payload = json.dumps(
+            {"helperPath": helper_path, "env": env, "methods": methods},
+            ensure_ascii=False,
+        )
         try:
             result = subprocess.run(
                 ["node", "-e", node_program],
@@ -183,9 +226,15 @@ process.stdout.write(String(value));
                 timeout=15,
             )
         except FileNotFoundError:
-            die("Node.js is required to execute the current Ural Airlines frontend API-key helper")
+            die(
+                "Node.js is required to execute the current Ural Airlines frontend API-key helper"
+            )
         if result.returncode != 0:
-            message = (result.stderr or result.stdout or "unknown Node.js error").strip().splitlines()[-1]
+            message = (
+                (result.stderr or result.stdout or "unknown Node.js error")
+                .strip()
+                .splitlines()[-1]
+            )
             die(f"Ural Airlines API-key helper failed: {message}")
         value = result.stdout.strip()
         if not value or "undefined" in value:
@@ -198,7 +247,9 @@ process.stdout.write(String(value));
             pass
 
 
-def api_headers(api_key_header: str, *, session_key: str | None = None) -> dict[str, str]:
+def api_headers(
+    api_key_header: str, *, session_key: str | None = None
+) -> dict[str, str]:
     headers = {
         "User-Agent": "Mozilla/5.0",
         "Accept": "application/json",
@@ -242,15 +293,25 @@ def fetch_ural_reservation(
     helper_js = http_text(assets.helper_js_url, timeout=timeout)
     api_key_header = generate_api_key_header(helper_js, env, methods)
 
-    session = post_json(api_url + "Session", {}, timeout=timeout, headers=api_headers(api_key_header))
+    session = post_json(
+        api_url + "Session", {}, timeout=timeout, headers=api_headers(api_key_header)
+    )
     session_key = None
     if isinstance(session, dict):
-        session_key = session.get("sessionKey") or ((session.get("data") or {}).get("sessionKey") if isinstance(session.get("data"), dict) else None)
+        session_key = session.get("sessionKey") or (
+            (session.get("data") or {}).get("sessionKey")
+            if isinstance(session.get("data"), dict)
+            else None
+        )
     if not session_key:
         die("Ural Airlines Session response has no sessionKey")
 
     query = urlencode({"pnrNumber": locator, "lastName": last_name})
-    reservation = http_json(api_url + "Reservation?" + query, timeout=timeout, headers=api_headers(api_key_header, session_key=session_key))
+    reservation = http_json(
+        api_url + "Reservation?" + query,
+        timeout=timeout,
+        headers=api_headers(api_key_header, session_key=session_key),
+    )
     if not isinstance(reservation, dict):
         die("Ural Airlines Reservation response is not a JSON object")
     if reservation.get("success") is False:
@@ -282,7 +343,9 @@ def passenger_names(data: dict[str, Any]) -> list[str]:
 def ticket_numbers(data: dict[str, Any]) -> list[str]:
     numbers: list[str] = []
     for ticket in data.get("tickets") or []:
-        number = clean(ticket.get("number")) if isinstance(ticket, dict) else clean(ticket)
+        number = (
+            clean(ticket.get("number")) if isinstance(ticket, dict) else clean(ticket)
+        )
         if number:
             numbers.append(str(number))
     return sorted(dict.fromkeys(numbers))
@@ -297,10 +360,18 @@ def status_text(statuses: Any) -> str | None:
     return "confirmed"
 
 
-def convert_to_itinerary(data_or_response: dict[str, Any], tz_map: dict[str, str], booking_url: str | None = None) -> dict[str, Any]:
+def convert_to_itinerary(
+    data_or_response: dict[str, Any],
+    tz_map: dict[str, str],
+    booking_url: str | None = None,
+) -> dict[str, Any]:
     if data_or_response.get("success") is False:
         die("Ural Airlines Reservation API returned success=false")
-    data = data_or_response.get("data") if isinstance(data_or_response.get("data"), dict) else data_or_response
+    data = (
+        data_or_response.get("data")
+        if isinstance(data_or_response.get("data"), dict)
+        else data_or_response
+    )
     if not isinstance(data, dict):
         die("Ural Airlines Reservation response has no data object")
 
@@ -323,7 +394,9 @@ def convert_to_itinerary(data_or_response: dict[str, Any], tz_map: dict[str, str
             if missing_tz:
                 continue
 
-            marketing = str(seg.get("marketingCarrier") or seg.get("operatingCarrier") or "U6").upper()
+            marketing = str(
+                seg.get("marketingCarrier") or seg.get("operatingCarrier") or "U6"
+            ).upper()
             raw_flight_number = str(seg.get("flightNumber") or "").strip()
             flight_number = f"{marketing} {raw_flight_number}".strip()
             flight: dict[str, Any] = {

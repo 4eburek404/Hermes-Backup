@@ -32,6 +32,17 @@ Create one importable `.ics` file for flight calendar import using cli
 - For live carrier smoke tests, wrap the run so stdout/stderr are summarized into redacted fields only (`ok`, `segments_count`, `media`, sanitized error code/message) and explicitly check that private query keys or credential-bearing URL fragments did not print.
 - Do not paste booking URLs, PNRs, passenger names, ticket numbers, raw JSON, private paths, or `.ics` contents into chat.
 
+## Code-quality / maintenance checks
+When modifying this skill's Python code or tests, do not treat `ruff check` as "all linters" by itself. Run and report all three checks explicitly:
+
+```bash
+uvx ruff check .
+uvx ruff format --check .
+python -m pytest tests -q
+```
+
+If `ruff check` reports dead code such as `F401` unused imports or `F841` unused assignments, remove it without asking for separate approval. If `ruff format --check` fails, expect a potentially large formatter-only diff; ask before applying broad formatting unless the user already requested all lint/format gates to pass.
+
 ## Stop
 - Stop if the source is missing required flight data.
 - Stop after success; do not open, inspect, validate, rewrite, or rebuild the generated `.ics`.

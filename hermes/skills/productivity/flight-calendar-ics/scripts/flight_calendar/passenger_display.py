@@ -1,4 +1,5 @@
 """Passenger display normalization for calendar summaries."""
+
 from __future__ import annotations
 
 import re
@@ -74,4 +75,6 @@ def display_passenger_name(value: str) -> str:
     if not text:
         return ""
     parts = re.split(r"([ '\-]+)", text)
-    return "".join(_transliterate_word(part) if re.search(r"\w", part) else part for part in parts).strip()
+    return "".join(
+        _transliterate_word(part) if re.search(r"\w", part) else part for part in parts
+    ).strip()

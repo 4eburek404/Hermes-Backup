@@ -9,6 +9,7 @@ numbers, or full source URLs. It always writes the Aeroflot booking URL into the
 requested JSON/ICS output so imported calendar events retain a direct booking
 link on any device.
 """
+
 from __future__ import annotations
 
 import json
@@ -57,17 +58,27 @@ def normalize_pnr_key(key: str | None) -> str:
 
 
 def build_aeroflot_booking_url(locator: str, key: str) -> str:
-    return AEROFLOT_APP_URL + "#/pnr?" + urlencode({"pnr_key": key, "pnr_locator": locator})
+    return (
+        AEROFLOT_APP_URL
+        + "#/pnr?"
+        + urlencode({"pnr_key": key, "pnr_locator": locator})
+    )
 
 
-def parse_pnr_source(url: str | None, locator: str | None, key: str | None) -> tuple[str, str, str]:
+def parse_pnr_source(
+    url: str | None, locator: str | None, key: str | None
+) -> tuple[str, str, str]:
     booking_url = url.strip() if url else None
     if booking_url:
         qs = pnr_query_params_from_url(booking_url)
-        locator = locator or (qs.get("pnrLocator") or qs.get("pnr_locator") or [None])[0]
+        locator = (
+            locator or (qs.get("pnrLocator") or qs.get("pnr_locator") or [None])[0]
+        )
         key = key or (qs.get("pnrKey") or qs.get("pnr_key") or [None])[0]
     if not locator or not key:
-        die("provide --url containing pnrKey/pnrLocator or both --pnr-locator and --pnr-key")
+        die(
+            "provide --url containing pnrKey/pnrLocator or both --pnr-locator and --pnr-key"
+        )
     locator = normalize_locator(locator)
     key = normalize_pnr_key(key)
     if not booking_url:
@@ -75,7 +86,9 @@ def parse_pnr_source(url: str | None, locator: str | None, key: str | None) -> t
     return locator, key, booking_url
 
 
-def post_aeroflot_pnr_json(payload: dict[str, Any], *, timeout: int = 45, referer: str | None = None) -> dict[str, Any]:
+def post_aeroflot_pnr_json(
+    payload: dict[str, Any], *, timeout: int = 45, referer: str | None = None
+) -> dict[str, Any]:
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     status, content_type, text = carrier_http.request_raw(
         AEROFLOT_PNR_API,
@@ -92,7 +105,9 @@ def post_aeroflot_pnr_json(payload: dict[str, Any], *, timeout: int = 45, refere
     )
     if "text/html" in content_type or text.lstrip().startswith("<!"):
         if "ngenix" in text.lower() or "проверка вашего веб-браузера" in text.lower():
-            die("Aeroflot returned an Ngenix browser-check page; retry later or fetch via a browser session")
+            die(
+                "Aeroflot returned an Ngenix browser-check page; retry later or fetch via a browser session"
+            )
         die(f"Aeroflot returned HTML instead of JSON (HTTP {status})")
     try:
         obj = json.loads(text)
@@ -185,7 +200,7 @@ def fetch_aeroflot_pnr(locator: str, key: str, *, timeout: int = 45) -> dict[str
 
 def first_ticket_number(data: dict[str, Any]) -> str | None:
     for pax in data.get("passengers") or []:
-        for ticket in ((pax.get("ticketing_documents") or {}).get("tickets") or []):
+        for ticket in (pax.get("ticketing_documents") or {}).get("tickets") or []:
             number = ticket.get("number")
             if number:
                 return str(number)
@@ -195,7 +210,9 @@ def first_ticket_number(data: dict[str, Any]) -> str | None:
 def passenger_names(data: dict[str, Any]) -> list[str]:
     names: list[str] = []
     for pax in data.get("passengers") or []:
-        name = " ".join(str(x) for x in [pax.get("last_name"), pax.get("first_name")] if x)
+        name = " ".join(
+            str(x) for x in [pax.get("last_name"), pax.get("first_name")] if x
+        )
         if name:
             names.append(name)
     return names
@@ -205,7 +222,9 @@ def clean(value: Any) -> Any:
     return None if value in (None, "", []) else value
 
 
-def _endpoint(location: dict[str, Any], *, airport: str, local: Any, tz: str) -> dict[str, Any]:
+def _endpoint(
+    location: dict[str, Any], *, airport: str, local: Any, tz: str
+) -> dict[str, Any]:
     endpoint: dict[str, Any] = {
         "airport": airport,
         "local": str(local or "").replace(" ", "T"),
@@ -217,7 +236,9 @@ def _endpoint(location: dict[str, Any], *, airport: str, local: Any, tz: str) ->
     return endpoint
 
 
-def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_url: str | None = None) -> dict[str, Any]:
+def convert_to_itinerary(
+    data: dict[str, Any], tz_map: dict[str, str], booking_url: str | None = None
+) -> dict[str, Any]:
     ticket_number = first_ticket_number(data)
     flights: list[dict[str, Any]] = []
     missing_tz: set[str] = set()
@@ -238,9 +259,18 @@ def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_u
             flight_number = f"{airline_code}{seg.get('flight_number')}"
             flight: dict[str, Any] = {
                 "flight_number": flight_number,
-                "departure": _endpoint(dep, airport=dep_code, local=seg.get("departure"), tz=tz_map[dep_code]),
-                "arrival": _endpoint(arr, airport=arr_code, local=seg.get("arrival"), tz=tz_map[arr_code]),
-                "status": "confirmed" if seg.get("status_code") == "HK" else (seg.get("status_name") or "confirmed"),
+                "departure": _endpoint(
+                    dep,
+                    airport=dep_code,
+                    local=seg.get("departure"),
+                    tz=tz_map[dep_code],
+                ),
+                "arrival": _endpoint(
+                    arr, airport=arr_code, local=seg.get("arrival"), tz=tz_map[arr_code]
+                ),
+                "status": "confirmed"
+                if seg.get("status_code") == "HK"
+                else (seg.get("status_name") or "confirmed"),
             }
             aircraft = clean(seg.get("aircraft_type_name"))
             if aircraft:
