@@ -33,6 +33,7 @@ ALL_DIRECT_CATALOG_CAP = 20
 """Maximum number of options to surface when all are direct flights.
 Prevents unbounded output while ensuring every direct flight is shown."""
 
+
 @dataclass(frozen=True, slots=True)
 class AssemblyOptions:
     ticketing: str
@@ -54,7 +55,9 @@ class AssemblyOptions:
     carrier_policy: CarrierPolicyOptions
 
 
-def assembly_options_from_live_options(options: LiveAssemblyOptions, *, routing_strategy: str | None = None) -> AssemblyOptions:
+def assembly_options_from_live_options(
+    options: LiveAssemblyOptions, *, routing_strategy: str | None = None
+) -> AssemblyOptions:
     return AssemblyOptions(
         ticketing=options.ticketing,
         profile=options.profile,
@@ -75,7 +78,10 @@ def assembly_options_from_live_options(options: LiveAssemblyOptions, *, routing_
         ),
         return_date=options.route.return_date,
         agent_brief=options.output.agent_brief,
-        is_domestic=str(routing_strategy or options.route.routing_strategy or "").lower() == RoutingStrategy.DOMESTIC_RU,
+        is_domestic=str(
+            routing_strategy or options.route.routing_strategy or ""
+        ).lower()
+        == RoutingStrategy.DOMESTIC_RU,
         carrier_policy=CarrierPolicyOptions(
             only_carriers=options.filters.only_carriers,
             exclude_carriers=options.filters.exclude_carriers,
@@ -123,7 +129,9 @@ def collect_segment_results(payload: Any) -> list[dict[str, Any]]:
         return collect_segment_results(payload["segment_results"])
     if isinstance(payload.get("results"), list):
         return collect_segment_results(payload["results"])
-    if isinstance(payload.get("offers"), list) and (isinstance(payload.get("query"), dict) or payload.get("leg")):
+    if isinstance(payload.get("offers"), list) and (
+        isinstance(payload.get("query"), dict) or payload.get("leg")
+    ):
         return [payload]
     return []
 
@@ -172,29 +180,60 @@ def rejected_pair(
     min_cross_airport: int,
     profile: str,
 ) -> dict[str, Any] | None:
-    first_arrival = str(first.get("arrival_airport") or first.get("destination") or "").upper()
-    second_departure = str(second.get("departure_airport") or second.get("origin") or "").upper()
+    first_arrival = str(
+        first.get("arrival_airport") or first.get("destination") or ""
+    ).upper()
+    second_departure = str(
+        second.get("departure_airport") or second.get("origin") or ""
+    ).upper()
     if not first_arrival or not second_departure or first_arrival == second_departure:
         return None
 
-    actual = minutes_between(str(first.get("arrival_at") or ""), str(second.get("departure_at") or ""))
-    rule = connection_rule(first_arrival, second_departure, ticketing, min_same_airport, min_cross_airport, actual)
+    actual = minutes_between(
+        str(first.get("arrival_at") or ""), str(second.get("departure_at") or "")
+    )
+    rule = connection_rule(
+        first_arrival,
+        second_departure,
+        ticketing,
+        min_same_airport,
+        min_cross_airport,
+        actual,
+    )
     arrival_group = airport_group(first_arrival)
     departure_group = airport_group(second_departure)
-    same_group = bool(arrival_group and departure_group and arrival_group["key"] == departure_group["key"])
-    airport_pair_status = "ground_transfer_required" if same_group else "airport_mismatch"
-    first_segments = [seg for seg in (first.get("segments") or []) if isinstance(seg, dict)]
-    second_segments = [seg for seg in (second.get("segments") or []) if isinstance(seg, dict)]
-    prev_segment = first_segments[-1] if first_segments else {
-        "origin": first.get("origin"),
-        "destination": first_arrival,
-        "arrival_at": first.get("arrival_at"),
-    }
-    next_segment = second_segments[0] if second_segments else {
-        "origin": second_departure,
-        "destination": second.get("destination"),
-        "departure_at": second.get("departure_at"),
-    }
+    same_group = bool(
+        arrival_group
+        and departure_group
+        and arrival_group["key"] == departure_group["key"]
+    )
+    airport_pair_status = (
+        "ground_transfer_required" if same_group else "airport_mismatch"
+    )
+    first_segments = [
+        seg for seg in (first.get("segments") or []) if isinstance(seg, dict)
+    ]
+    second_segments = [
+        seg for seg in (second.get("segments") or []) if isinstance(seg, dict)
+    ]
+    prev_segment = (
+        first_segments[-1]
+        if first_segments
+        else {
+            "origin": first.get("origin"),
+            "destination": first_arrival,
+            "arrival_at": first.get("arrival_at"),
+        }
+    )
+    next_segment = (
+        second_segments[0]
+        if second_segments
+        else {
+            "origin": second_departure,
+            "destination": second.get("destination"),
+            "departure_at": second.get("departure_at"),
+        }
+    )
     risk = connection_risk_points(rule, prev_segment, next_segment, profile)
     return {
         "direction": direction,
@@ -204,7 +243,9 @@ def rejected_pair(
         "arrival_airport": first_arrival,
         "departure_airport": second_departure,
         "same_multi_airport_system": rule["same_multi_airport_system"],
-        "airport_group": arrival_group["label"] if same_group and arrival_group else None,
+        "airport_group": arrival_group["label"]
+        if same_group and arrival_group
+        else None,
         "actual_min": actual,
         "required_min": rule["required_min"],
         "risk": risk,
@@ -216,7 +257,9 @@ def rejected_pair(
     }
 
 
-def pair_offers(first: dict[str, Any], second: dict[str, Any], direction: str) -> dict[str, Any] | None:
+def pair_offers(
+    first: dict[str, Any], second: dict[str, Any], direction: str
+) -> dict[str, Any] | None:
     if first.get("arrival_airport") != second.get("departure_airport"):
         return None
     segments = list(first.get("segments") or []) + list(second.get("segments") or [])
@@ -243,22 +286,47 @@ def pair_connection_quality(
     min_cross_airport: int,
     profile: str,
 ) -> dict[str, Any]:
-    first_arrival = str(first.get("arrival_airport") or first.get("destination") or "").upper()
-    second_departure = str(second.get("departure_airport") or second.get("origin") or "").upper()
-    actual = minutes_between(str(first.get("arrival_at") or ""), str(second.get("departure_at") or ""))
-    rule = connection_rule(first_arrival, second_departure, ticketing, min_same_airport, min_cross_airport, actual)
-    first_segments = [seg for seg in (first.get("segments") or []) if isinstance(seg, dict)]
-    second_segments = [seg for seg in (second.get("segments") or []) if isinstance(seg, dict)]
-    prev_segment = first_segments[-1] if first_segments else {
-        "origin": first.get("origin"),
-        "destination": first_arrival,
-        "arrival_at": first.get("arrival_at"),
-    }
-    next_segment = second_segments[0] if second_segments else {
-        "origin": second_departure,
-        "destination": second.get("destination"),
-        "departure_at": second.get("departure_at"),
-    }
+    first_arrival = str(
+        first.get("arrival_airport") or first.get("destination") or ""
+    ).upper()
+    second_departure = str(
+        second.get("departure_airport") or second.get("origin") or ""
+    ).upper()
+    actual = minutes_between(
+        str(first.get("arrival_at") or ""), str(second.get("departure_at") or "")
+    )
+    rule = connection_rule(
+        first_arrival,
+        second_departure,
+        ticketing,
+        min_same_airport,
+        min_cross_airport,
+        actual,
+    )
+    first_segments = [
+        seg for seg in (first.get("segments") or []) if isinstance(seg, dict)
+    ]
+    second_segments = [
+        seg for seg in (second.get("segments") or []) if isinstance(seg, dict)
+    ]
+    prev_segment = (
+        first_segments[-1]
+        if first_segments
+        else {
+            "origin": first.get("origin"),
+            "destination": first_arrival,
+            "arrival_at": first.get("arrival_at"),
+        }
+    )
+    next_segment = (
+        second_segments[0]
+        if second_segments
+        else {
+            "origin": second_departure,
+            "destination": second.get("destination"),
+            "departure_at": second.get("departure_at"),
+        }
+    )
     risk = connection_risk_points(rule, prev_segment, next_segment, profile)
     return {
         "status": rule["status"],
@@ -299,8 +367,16 @@ def assemble_direction(
     min_cross_airport: int,
     profile: str,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    first_results = [result for result in segment_results if result.get("direction") == direction and result.get("leg") == first_leg]
-    second_results = [result for result in segment_results if result.get("direction") == direction and result.get("leg") == second_leg]
+    first_results = [
+        result
+        for result in segment_results
+        if result.get("direction") == direction and result.get("leg") == first_leg
+    ]
+    second_results = [
+        result
+        for result in segment_results
+        if result.get("direction") == direction and result.get("leg") == second_leg
+    ]
     pairs = []
     rejected = []
     for first_result in first_results:
@@ -308,7 +384,9 @@ def assemble_direction(
             if not isinstance(first_offer, dict):
                 continue
             for second_result in second_results:
-                for second_offer in list(second_result.get("offers") or [])[:limit_per_pair]:
+                for second_offer in list(second_result.get("offers") or [])[
+                    :limit_per_pair
+                ]:
                     if not isinstance(second_offer, dict):
                         continue
                     pair = pair_offers(first_offer, second_offer, direction)
@@ -355,13 +433,21 @@ def direct_journeys(
     profile: str,
 ) -> list[dict[str, Any]]:
     journeys: list[dict[str, Any]] = []
-    direct_results = [result for result in segment_results if result.get("direction") == direction and result.get("leg") == leg]
+    direct_results = [
+        result
+        for result in segment_results
+        if result.get("direction") == direction and result.get("leg") == leg
+    ]
     direct_limit = max(0, max(int(limit_per_result), ALL_DIRECT_CATALOG_CAP))
     for result in direct_results:
         for offer in list(result.get("offers") or [])[:direct_limit]:
             if not isinstance(offer, dict):
                 continue
-            segments = [segment for segment in (offer.get("segments") or []) if isinstance(segment, dict)]
+            segments = [
+                segment
+                for segment in (offer.get("segments") or [])
+                if isinstance(segment, dict)
+            ]
             if not segments:
                 continue
             journeys.append(
@@ -396,8 +482,14 @@ def journey_stop_policy_bucket(journey: dict[str, Any], stop_policy: Any) -> str
     return StopBucket.SUPPRESSED
 
 
-def split_journeys_by_stop_policy(journeys: list[dict[str, Any]], stop_policy: Any) -> dict[str, list[dict[str, Any]]]:
-    buckets: dict[str, list[dict[str, Any]]] = {StopBucket.PREFERRED: [], StopBucket.TIER2: [], StopBucket.SUPPRESSED: []}
+def split_journeys_by_stop_policy(
+    journeys: list[dict[str, Any]], stop_policy: Any
+) -> dict[str, list[dict[str, Any]]]:
+    buckets: dict[str, list[dict[str, Any]]] = {
+        StopBucket.PREFERRED: [],
+        StopBucket.TIER2: [],
+        StopBucket.SUPPRESSED: [],
+    }
     for journey in journeys:
         buckets[journey_stop_policy_bucket(journey, stop_policy)].append(journey)
     return buckets
@@ -417,7 +509,9 @@ def generate_candidates_from_journeys(
     if outbound_journeys and return_journeys:
         for outbound in outbound_journeys:
             for inbound in return_journeys:
-                candidates.append(candidate_from_pairs(outbound, inbound, len(candidates) + 1))
+                candidates.append(
+                    candidate_from_pairs(outbound, inbound, len(candidates) + 1)
+                )
                 if len(candidates) >= candidate_pool_limit:
                     candidate_pool_truncated = True
                     break
@@ -431,7 +525,9 @@ def generate_candidates_from_journeys(
                 break
         if not candidate_pool_truncated:
             for inbound in return_journeys:
-                candidates.append(candidate_from_pairs(None, inbound, len(candidates) + 1))
+                candidates.append(
+                    candidate_from_pairs(None, inbound, len(candidates) + 1)
+                )
                 if len(candidates) >= candidate_pool_limit:
                     candidate_pool_truncated = True
                     break
@@ -460,11 +556,14 @@ def stop_policy_generation_diagnostics(
         "tier2_return_journey_count": tier2_return_count,
         "suppressed_outbound_journey_count": suppressed_outbound_count,
         "suppressed_return_journey_count": suppressed_return_count,
-        "stop_policy_suppressed_journey_count": suppressed_outbound_count + suppressed_return_count,
+        "stop_policy_suppressed_journey_count": suppressed_outbound_count
+        + suppressed_return_count,
     }
 
 
-def candidate_from_pairs(outbound: dict[str, Any] | None, inbound: dict[str, Any] | None, index: int) -> dict[str, Any]:
+def candidate_from_pairs(
+    outbound: dict[str, Any] | None, inbound: dict[str, Any] | None, index: int
+) -> dict[str, Any]:
     journeys = []
     offers = []
     price_parts = []
@@ -487,7 +586,9 @@ def candidate_from_pairs(outbound: dict[str, Any] | None, inbound: dict[str, Any
     }
 
 
-def candidate_signature(candidate: dict[str, Any]) -> tuple[tuple[str, str, str, str, str, str], ...]:
+def candidate_signature(
+    candidate: dict[str, Any],
+) -> tuple[tuple[str, str, str, str, str, str], ...]:
     parts: list[tuple[str, str, str, str, str, str]] = []
     for journey in candidate.get("journeys") or []:
         if not isinstance(journey, dict):
@@ -509,7 +610,9 @@ def candidate_signature(candidate: dict[str, Any]) -> tuple[tuple[str, str, str,
     return tuple(parts)
 
 
-def dedupe_candidates(candidates: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
+def dedupe_candidates(
+    candidates: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], int]:
     seen: set[tuple[tuple[str, str, str, str, str, str], ...]] = set()
     deduped: list[dict[str, Any]] = []
     duplicates = 0
@@ -523,7 +626,9 @@ def dedupe_candidates(candidates: list[dict[str, Any]]) -> tuple[list[dict[str, 
         first = (candidate.get("journeys") or [{}])[0].get("segments", [{}])[0]
         last = (candidate.get("journeys") or [{}])[-1].get("segments", [{}])[-1]
         normalized = dict(candidate)
-        normalized["id"] = f"assembled-{len(deduped) + 1}:{first.get('origin')}-{last.get('destination')}"
+        normalized["id"] = (
+            f"assembled-{len(deduped) + 1}:{first.get('origin')}-{last.get('destination')}"
+        )
         deduped.append(normalized)
     return deduped, duplicates
 
@@ -538,7 +643,9 @@ def ranked_candidate_details(
     details = []
     seen_ids: set[str] = set()
 
-    def add_detail(item: dict[str, Any], category: str | None = None, reason: str | None = None) -> None:
+    def add_detail(
+        item: dict[str, Any], category: str | None = None, reason: str | None = None
+    ) -> None:
         candidate_id = str(item.get("id"))
         if candidate_id in seen_ids:
             return
@@ -578,9 +685,16 @@ def has_connection_airport(candidate: dict[str, Any], airport: str) -> bool:
     for journey in candidate.get("journeys") or []:
         if not isinstance(journey, dict):
             continue
-        segments = [segment for segment in (journey.get("segments") or []) if isinstance(segment, dict)]
+        segments = [
+            segment
+            for segment in (journey.get("segments") or [])
+            if isinstance(segment, dict)
+        ]
         for prev, nxt in zip(segments, segments[1:]):
-            if str(prev.get("destination") or "").upper() == target and str(nxt.get("origin") or "").upper() == target:
+            if (
+                str(prev.get("destination") or "").upper() == target
+                and str(nxt.get("origin") or "").upper() == target
+            ):
                 return True
     return False
 
@@ -588,7 +702,9 @@ def has_connection_airport(candidate: dict[str, Any], airport: str) -> bool:
 def every_segment_matches_carrier(candidate: dict[str, Any], carrier: str) -> bool:
     target = carrier.upper()
     segments = candidate_segments(candidate)
-    return bool(segments) and all(target in segment_carriers(segment) for segment in segments)
+    return bool(segments) and all(
+        target in segment_carriers(segment) for segment in segments
+    )
 
 
 def common_segment_carriers(candidate: dict[str, Any]) -> set[str]:
@@ -616,7 +732,10 @@ def frontier_representative_details(
         (
             "all_su_svo",
             "Best acceptable all-SU itinerary through SVO. Surface it even when elapsed time or price ranks it below mixed-carrier options.",
-            lambda candidate, item: every_segment_matches_carrier(candidate, "SU") and has_connection_airport(candidate, "SVO"),
+            lambda candidate, item: (
+                every_segment_matches_carrier(candidate, "SU")
+                and has_connection_airport(candidate, "SVO")
+            ),
         ),
         (
             "moscow_gateway_control",
@@ -631,7 +750,10 @@ def frontier_representative_details(
         (
             "single_carrier",
             "Best acceptable same-carrier multi-leg itinerary. Verify whether it can be sold as a protected single PNR.",
-            lambda candidate, item: len(candidate_segments(candidate)) > 1 and bool(common_segment_carriers(candidate)),
+            lambda candidate, item: (
+                len(candidate_segments(candidate)) > 1
+                and bool(common_segment_carriers(candidate))
+            ),
         ),
     ]
 
@@ -679,8 +801,18 @@ def recommendation_item(item: dict[str, Any] | None) -> dict[str, Any] | None:
 def recommendation_summary(ranked_items: list[dict[str, Any]]) -> dict[str, Any]:
     ok_items = [item for item in ranked_items if item.get("ok") is True]
     source = ok_items or ranked_items
-    cheapest = min(source, key=lambda item: item["price"] if item.get("price") is not None else 10**12, default=None)
-    fastest = min(source, key=lambda item: item["elapsed_min"] if item.get("elapsed_min") is not None else 10**12, default=None)
+    cheapest = min(
+        source,
+        key=lambda item: item["price"] if item.get("price") is not None else 10**12,
+        default=None,
+    )
+    fastest = min(
+        source,
+        key=lambda item: (
+            item["elapsed_min"] if item.get("elapsed_min") is not None else 10**12
+        ),
+        default=None,
+    )
     return {
         "best_ranked": recommendation_item(ranked_items[0] if ranked_items else None),
         "cheapest_acceptable": recommendation_item(cheapest),
@@ -688,7 +820,9 @@ def recommendation_summary(ranked_items: list[dict[str, Any]]) -> dict[str, Any]
     }
 
 
-def recommendation_detail_items(recommendations: dict[str, Any], ranked_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def recommendation_detail_items(
+    recommendations: dict[str, Any], ranked_items: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     by_id = {str(item.get("id")): item for item in ranked_items}
     details: list[dict[str, Any]] = []
     reasons = {
@@ -703,7 +837,9 @@ def recommendation_detail_items(recommendations: dict[str, Any], ranked_items: l
         ranked = by_id.get(str(recommendation.get("id")))
         if ranked is None:
             continue
-        details.append({"category": category, "reason": reasons[category], "ranked": ranked})
+        details.append(
+            {"category": category, "reason": reasons[category], "ranked": ranked}
+        )
     return details
 
 
@@ -715,7 +851,11 @@ def empty_assembled_result(options: AssemblyOptions) -> dict[str, Any]:
         "profile_description": RISK_PROFILES[options.profile]["description"],
         "rank_order": RISK_PROFILES[options.profile]["rank_order"],
         "count": 0,
-        "carrier_policy": {**carrier_policy_output(policy), "filtered_count": 0, "filtered": []},
+        "carrier_policy": {
+            **carrier_policy_output(policy),
+            "filtered_count": 0,
+            "filtered": [],
+        },
         "stop_policy": stop_policy_payload(stop_policy),
         "stop_policy_diagnostics": {
             "policy": stop_policy.name,
@@ -757,14 +897,23 @@ def empty_assembled_result(options: AssemblyOptions) -> dict[str, Any]:
         "candidates": [],
         "ranked_candidates": [],
         "frontier_candidates": [],
-        "recommendations": {"best_ranked": None, "cheapest_acceptable": None, "fastest_acceptable": None},
+        "recommendations": {
+            "best_ranked": None,
+            "cheapest_acceptable": None,
+            "fastest_acceptable": None,
+        },
         "rejected_pairs": [],
     }
 
 
-def assemble_segment_results(segment_results: list[dict[str, Any]], options: AssemblyOptions) -> dict[str, Any]:
+def assemble_segment_results(
+    segment_results: list[dict[str, Any]], options: AssemblyOptions
+) -> dict[str, Any]:
     if not segment_results:
-        raise CliError("no normalized segment results found; provide live-search or assembly segment results", error_type="validation_error")
+        raise CliError(
+            "no normalized segment results found; provide live-search or assembly segment results",
+            error_type="validation_error",
+        )
 
     outbound_pairs, outbound_rejected = assemble_direction(
         segment_results,
@@ -809,22 +958,33 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], options: Ass
     direct_priority_applied = bool(outbound_direct) or bool(return_direct)
     suppressed_one_stop_outbound_count = len(outbound_pairs) if outbound_direct else 0
     suppressed_one_stop_return_count = len(return_pairs) if return_direct else 0
-    outbound_journeys = outbound_direct_search if outbound_direct_search else outbound_pairs
+    outbound_journeys = (
+        outbound_direct_search if outbound_direct_search else outbound_pairs
+    )
     return_journeys = return_direct_search if return_direct_search else return_pairs
     # all_direct_inventory: True only when every displayed journey is actual nonstop.
-    outbound_is_direct = journeys_are_all_nonstop(outbound_journeys) if outbound_journeys else True
-    return_is_direct = journeys_are_all_nonstop(return_journeys) if return_journeys else True
+    outbound_is_direct = (
+        journeys_are_all_nonstop(outbound_journeys) if outbound_journeys else True
+    )
+    return_is_direct = (
+        journeys_are_all_nonstop(return_journeys) if return_journeys else True
+    )
     all_direct_inventory = (
         (bool(outbound_direct) or bool(return_direct))
-        and outbound_is_direct and return_is_direct
+        and outbound_is_direct
+        and return_is_direct
     )
     rejected_pairs = outbound_rejected + return_rejected
 
-    candidate_pool_limit = max(max(1, int(options.max_candidates)), int(options.candidate_pool_limit))
+    candidate_pool_limit = max(
+        max(1, int(options.max_candidates)), int(options.candidate_pool_limit)
+    )
     stop_policy = stop_policy_from_options(options.stop_policy)
     outbound_buckets = split_journeys_by_stop_policy(outbound_journeys, stop_policy)
     return_buckets = split_journeys_by_stop_policy(return_journeys, stop_policy)
-    round_trip_requested = bool(options.return_date) or (bool(outbound_journeys) and bool(return_journeys))
+    round_trip_requested = bool(options.return_date) or (
+        bool(outbound_journeys) and bool(return_journeys)
+    )
     candidates, candidate_pool_truncated = generate_candidates_from_journeys(
         outbound_buckets[StopBucket.PREFERRED],
         return_buckets[StopBucket.PREFERRED],
@@ -834,8 +994,12 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], options: Ass
     generation_mode = StopBucket.PREFERRED if candidates else "none"
     tier2_used = False
     if not candidates:
-        tier2_outbound = outbound_buckets[StopBucket.PREFERRED] + outbound_buckets[StopBucket.TIER2]
-        tier2_return = return_buckets[StopBucket.PREFERRED] + return_buckets[StopBucket.TIER2]
+        tier2_outbound = (
+            outbound_buckets[StopBucket.PREFERRED] + outbound_buckets[StopBucket.TIER2]
+        )
+        tier2_return = (
+            return_buckets[StopBucket.PREFERRED] + return_buckets[StopBucket.TIER2]
+        )
         candidates, candidate_pool_truncated = generate_candidates_from_journeys(
             tier2_outbound,
             tier2_return,
@@ -865,24 +1029,32 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], options: Ass
         stop_policy=options.stop_policy,
     )
     policy = carrier_policy_from_options(options.carrier_policy)
-    ranked = rank_candidate_list(candidates, ranking_options) if candidates else {
-        "profile": options.profile,
-        "profile_description": RISK_PROFILES[options.profile]["description"],
-        "rank_order": RISK_PROFILES[options.profile]["rank_order"],
-        "count": 0,
-        "carrier_policy": {**carrier_policy_output(policy), "filtered_count": 0, "filtered": []},
-        "stop_policy": stop_policy_payload(stop_policy),
-        "stop_policy_diagnostics": {
-            "policy": stop_policy.name,
-            "preferred_candidate_count": 0,
-            "two_stop_candidate_count": 0,
-            "three_plus_suppressed_count": 0,
-            "two_stop_suppressed_because_preferred_exists": 0,
-            "used_two_stop_tier": tier2_used,
-            "garbage_options_hidden_from_answer": False,
-        },
-        "ranked": [],
-    }
+    ranked = (
+        rank_candidate_list(candidates, ranking_options)
+        if candidates
+        else {
+            "profile": options.profile,
+            "profile_description": RISK_PROFILES[options.profile]["description"],
+            "rank_order": RISK_PROFILES[options.profile]["rank_order"],
+            "count": 0,
+            "carrier_policy": {
+                **carrier_policy_output(policy),
+                "filtered_count": 0,
+                "filtered": [],
+            },
+            "stop_policy": stop_policy_payload(stop_policy),
+            "stop_policy_diagnostics": {
+                "policy": stop_policy.name,
+                "preferred_candidate_count": 0,
+                "two_stop_candidate_count": 0,
+                "three_plus_suppressed_count": 0,
+                "two_stop_suppressed_because_preferred_exists": 0,
+                "used_two_stop_tier": tier2_used,
+                "garbage_options_hidden_from_answer": False,
+            },
+            "ranked": [],
+        }
+    )
     ranked["stop_policy_diagnostics"] = {
         **(ranked.get("stop_policy_diagnostics") or {}),
         **generation_diagnostics,
@@ -890,7 +1062,9 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], options: Ass
     ranked_total_count = len(ranked["ranked"])
     full_ranked_items = list(ranked["ranked"])
     ranked["recommendations"] = recommendation_summary(full_ranked_items)
-    ranked["frontier_candidates"] = frontier_representative_details(full_ranked_items, candidates)
+    ranked["frontier_candidates"] = frontier_representative_details(
+        full_ranked_items, candidates
+    )
     max_ranked = max(0, int(options.max_candidates))
     ranked["ranked"] = ranked["ranked"][:max_ranked]
     ranked["count"] = len(ranked["ranked"])
@@ -900,20 +1074,22 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], options: Ass
         if not segments or len(segments) != 1:
             continue
         s = segments[0] if isinstance(segments[0], dict) else {}
-        direct_flight_summaries.append({
-            "direction": journey.get("direction"),
-            "flight_number": s.get("flight_number"),
-            "marketing_carrier": s.get("marketing_carrier"),
-            "operating_carrier": s.get("operating_carrier"),
-            "origin": s.get("origin"),
-            "destination": s.get("destination"),
-            "departure_at": s.get("departure_at"),
-            "arrival_at": s.get("arrival_at"),
-            "duration_min": s.get("duration_min") or s.get("duration"),
-            "aircraft": s.get("aircraft_code") or s.get("aircraft"),
-            "price": journey.get("price"),
-            "currency": journey.get("currency"),
-        })
+        direct_flight_summaries.append(
+            {
+                "direction": journey.get("direction"),
+                "flight_number": s.get("flight_number"),
+                "marketing_carrier": s.get("marketing_carrier"),
+                "operating_carrier": s.get("operating_carrier"),
+                "origin": s.get("origin"),
+                "destination": s.get("destination"),
+                "departure_at": s.get("departure_at"),
+                "arrival_at": s.get("arrival_at"),
+                "duration_min": s.get("duration_min") or s.get("duration"),
+                "aircraft": s.get("aircraft_code") or s.get("aircraft"),
+                "price": journey.get("price"),
+                "currency": journey.get("currency"),
+            }
+        )
 
     ranked["ranked_total_count"] = ranked_total_count
     ranked["assembly"] = {
@@ -925,7 +1101,9 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], options: Ass
         "return_pair_count": len(return_pairs),
         "direct_flights": direct_flight_summaries,
         "rejected_pair_count": len(rejected_pairs),
-        "rejected_pair_sample_count": min(len(rejected_pairs), options.include_rejected_pairs),
+        "rejected_pair_sample_count": min(
+            len(rejected_pairs), options.include_rejected_pairs
+        ),
         "raw_candidate_count": raw_candidate_count,
         "candidate_duplicate_count": duplicate_count,
         "candidate_count": len(candidates),
@@ -945,12 +1123,18 @@ def assemble_segment_results(segment_results: list[dict[str, Any]], options: Ass
     # When the entire displayed set is direct flights, expand the catalog limit
     # so every direct option reaches the report layer (capped at ALL_DIRECT_CATALOG_CAP).
     default_ranked_limit = int(options.include_ranked_candidates)
-    ranked_limit = min(len(full_ranked_items), ALL_DIRECT_CATALOG_CAP) if all_direct_inventory else default_ranked_limit
+    ranked_limit = (
+        min(len(full_ranked_items), ALL_DIRECT_CATALOG_CAP)
+        if all_direct_inventory
+        else default_ranked_limit
+    )
     ranked["ranked_candidates"] = ranked_candidate_details(
         full_ranked_items,
         candidates,
         ranked_limit,
-        required_items=recommendation_detail_items(ranked["recommendations"], full_ranked_items),
+        required_items=recommendation_detail_items(
+            ranked["recommendations"], full_ranked_items
+        ),
     )
     ranked["rejected_pairs"] = rejected_pairs[: options.include_rejected_pairs]
     return ranked

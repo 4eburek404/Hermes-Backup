@@ -5,7 +5,10 @@ from dataclasses import dataclass
 from typing import Any
 from unittest.mock import patch
 
-from flights_cli.execution.aggregate_control_runner import AggregateControlOptions, run_aggregate_controls
+from flights_cli.execution.aggregate_control_runner import (
+    AggregateControlOptions,
+    run_aggregate_controls,
+)
 from flights_cli.execution.probe_ledger import ProbeExecutionLedger
 from flights_cli.ports.providers import ProviderProbeResult
 
@@ -38,7 +41,9 @@ class FakeAdapter:
             cache_status="unknown",
             evidence_type="not_supported",
             result_summary={"reason": "aggregate_probe_not_supported"},
-            errors=[{"type": "not_supported", "message": "aggregate_probe_not_supported"}],
+            errors=[
+                {"type": "not_supported", "message": "aggregate_probe_not_supported"}
+            ],
         )
 
 
@@ -52,17 +57,32 @@ class AggregateControlRunnerTests(unittest.TestCase):
         }
         ledger = ProbeExecutionLedger()
 
-        with patch("flights_cli.execution.aggregate_control_runner.provider_adapter", return_value=FakeAdapter()):
-            controls = run_aggregate_controls(aggregate_options(), plan, probe_ledger=ledger)
+        with patch(
+            "flights_cli.execution.aggregate_control_runner.provider_adapter",
+            return_value=FakeAdapter(),
+        ):
+            controls = run_aggregate_controls(
+                aggregate_options(), plan, probe_ledger=ledger
+            )
 
-        diagnostics = ledger.to_coverage_diagnostics({"coverage_mode": "targeted", "coverage_limits": {}})
+        diagnostics = ledger.to_coverage_diagnostics(
+            {"coverage_mode": "targeted", "coverage_limits": {}}
+        )
         self.assertEqual(len(controls), 1)
         self.assertEqual(controls[0]["status"], "not_supported")
         self.assertEqual(controls[0]["provider"], "fli")
-        self.assertEqual([item["type"] for item in diagnostics["not_supported_controls"]], ["full_route_aggregate"])
+        self.assertEqual(
+            [item["type"] for item in diagnostics["not_supported_controls"]],
+            ["full_route_aggregate"],
+        )
         self.assertEqual(diagnostics["not_executed_controls"], [])
-        self.assertEqual(diagnostics["completeness"]["planned_count"], diagnostics["completeness"]["terminal_count"])
-        self.assertTrue(diagnostics["completeness"]["all_planned_controls_have_terminal_state"])
+        self.assertEqual(
+            diagnostics["completeness"]["planned_count"],
+            diagnostics["completeness"]["terminal_count"],
+        )
+        self.assertTrue(
+            diagnostics["completeness"]["all_planned_controls_have_terminal_state"]
+        )
 
 
 if __name__ == "__main__":

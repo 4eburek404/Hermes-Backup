@@ -28,13 +28,13 @@ def provider_result(*, source: str, raw_count_key: str) -> dict:
                         "flight_number": "SU100",
                         "marketing_carrier": "SU",
                         "operating_carrier": "SU",
-                "origin": "SVX",
-                "destination": "IST",
-                "departure_terminal": "A",
-                "arrival_terminal": "I",
-                "departure_at": "2026-08-15T08:00:00+05:00",
-                "arrival_at": "2026-08-15T10:30:00+03:00",
-                "aircraft": "320",
+                        "origin": "SVX",
+                        "destination": "IST",
+                        "departure_terminal": "A",
+                        "arrival_terminal": "I",
+                        "departure_at": "2026-08-15T08:00:00+05:00",
+                        "arrival_at": "2026-08-15T10:30:00+03:00",
+                        "aircraft": "320",
                         "duration": 180,
                     }
                 ],
@@ -104,7 +104,10 @@ class ProviderSegmentNormalizationTests(unittest.TestCase):
         }
         self.assertEqual(set(kupibilet["offers"][0]), shared_offer_keys)
         self.assertEqual(set(fli["offers"][0]), shared_offer_keys)
-        self.assertEqual(kupibilet["offers"][0]["segments"][0].keys(), fli["offers"][0]["segments"][0].keys())
+        self.assertEqual(
+            kupibilet["offers"][0]["segments"][0].keys(),
+            fli["offers"][0]["segments"][0].keys(),
+        )
         self.assertEqual(kupibilet["source_key"], "kupibilet_frontend_search")
         self.assertEqual(fli["source_key"], "fli_mcp_search_flights")
 

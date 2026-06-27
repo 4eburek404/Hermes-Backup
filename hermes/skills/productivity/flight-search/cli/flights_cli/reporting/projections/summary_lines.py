@@ -15,7 +15,9 @@ def build_summary_lines(report: dict[str, Any]) -> list[str]:
             "Best CLI-ranked option: "
             f"{best.get('price_text')} risk={risk.get('grade')}/{risk.get('score')} elapsed={best.get('elapsed') or 'n/a'}."
         )
-        segment_lines = [segment_line(segment) for segment in best.get("segments") or []]
+        segment_lines = [
+            segment_line(segment) for segment in best.get("segments") or []
+        ]
         if segment_lines:
             lines.append("Segments: " + " | ".join(segment_lines[:8]))
         connection_tradeoffs = []
@@ -28,14 +30,24 @@ def build_summary_lines(report: dict[str, Any]) -> list[str]:
             for connection, tradeoff in connection_tradeoffs[:3]:
                 code = str(tradeoff.get("code") or "connection_wait").replace("_", " ")
                 wait = minutes_label(tradeoff.get("actual_min")) or "n/a"
-                airport = connection.get("arrival_airport") or connection.get("departure_airport") or "connection"
+                airport = (
+                    connection.get("arrival_airport")
+                    or connection.get("departure_airport")
+                    or "connection"
+                )
                 labels.append(f"{code} {wait} at {airport}")
-            lines.append("Connection trade-off: " + "; ".join(labels) + "; visible trade-off, not automatic demotion.")
+            lines.append(
+                "Connection trade-off: "
+                + "; ".join(labels)
+                + "; visible trade-off, not automatic demotion."
+            )
         for category, label in (
             ("cheapest_acceptable", "Cheapest acceptable"),
             ("fastest_acceptable", "Fastest acceptable"),
         ):
-            option = next((item for item in options if item.get("category") == category), None)
+            option = next(
+                (item for item in options if item.get("category") == category), None
+            )
             if not option or option.get("id") == best.get("id"):
                 continue
             option_risk = option.get("risk") or {}
@@ -53,8 +65,11 @@ def build_summary_lines(report: dict[str, Any]) -> list[str]:
         if control.get("status") != "ok" or int(control.get("offer_count") or 0) <= 0:
             continue
         reportable_offers = [
-            offer for offer in control.get("top_offers") or []
-            if isinstance(offer, dict) and offer.get("stop_tier") != "T3_THREE_PLUS" and offer.get("reportable_by_stop_policy") is not False
+            offer
+            for offer in control.get("top_offers") or []
+            if isinstance(offer, dict)
+            and offer.get("stop_tier") != "T3_THREE_PLUS"
+            and offer.get("reportable_by_stop_policy") is not False
         ]
         if reportable_offers:
             usable = dict(control)
@@ -64,7 +79,9 @@ def build_summary_lines(report: dict[str, Any]) -> list[str]:
         control = usable_controls[0]
         offer = (control.get("top_offers") or [{}])[0]
         direction = str(control.get("direction") or "outbound")
-        direction_label = "return one-way" if direction == "return" else "outbound one-way"
+        direction_label = (
+            "return one-way" if direction == "return" else "outbound one-way"
+        )
         lines.append(
             f"Aggregate control found ({direction_label}): "
             f"{price_label(offer.get('price'), offer.get('currency'))} "
@@ -96,14 +113,28 @@ def build_summary_lines(report: dict[str, Any]) -> list[str]:
 
     priority_options = report.get("priority_options") or []
     if priority_options:
-        moscow = next((item for item in priority_options if item.get("category") == "moscow_gateway_control"), None)
+        moscow = next(
+            (
+                item
+                for item in priority_options
+                if item.get("category") == "moscow_gateway_control"
+            ),
+            None,
+        )
         if moscow:
             lines.append(
                 "Moscow gateway control: "
                 f"rank={moscow.get('rank')} {moscow.get('price_text')} "
                 f"elapsed={moscow.get('elapsed') or 'n/a'}; compare against direct/best, do not hide solely because another option ranks higher."
             )
-        pair = next((item for item in priority_options if item.get("journey_scope") == "two_one_way_pair"), None)
+        pair = next(
+            (
+                item
+                for item in priority_options
+                if item.get("journey_scope") == "two_one_way_pair"
+            ),
+            None,
+        )
         priority = next(
             (
                 item
@@ -113,10 +144,14 @@ def build_summary_lines(report: dict[str, Any]) -> list[str]:
             None,
         )
         if priority:
-            if priority.get("category") == "provider_aggregate_candidate" and priority.get("user_facing_label"):
+            if priority.get(
+                "category"
+            ) == "provider_aggregate_candidate" and priority.get("user_facing_label"):
                 lines.append(f"Priority control: {priority.get('user_facing_label')}")
                 if priority.get("disclaimer"):
-                    lines.append(f"Provider aggregate caveat: {priority.get('disclaimer')}")
+                    lines.append(
+                        f"Provider aggregate caveat: {priority.get('disclaimer')}"
+                    )
             else:
                 lines.append(
                     "Priority control: "
@@ -124,10 +159,19 @@ def build_summary_lines(report: dict[str, Any]) -> list[str]:
                     f"{priority.get('price_text')} elapsed={priority.get('elapsed') or 'n/a'}."
                 )
         if pair:
-            pair_label = str(pair.get("user_facing_label") or "Two separate one-way aggregate offers are available.")
+            pair_label = str(
+                pair.get("user_facing_label")
+                or "Two separate one-way aggregate offers are available."
+            )
             if pair_label.startswith("Two separate one-way offers"):
-                pair_label = pair_label.replace("Two separate one-way offers", "Two separate one-way aggregate offers", 1)
-            lines.append(f"Priority control: {pair_label} Not a proven single-PNR/protected round trip.")
+                pair_label = pair_label.replace(
+                    "Two separate one-way offers",
+                    "Two separate one-way aggregate offers",
+                    1,
+                )
+            lines.append(
+                f"Priority control: {pair_label} Not a proven single-PNR/protected round trip."
+            )
 
     checks = report.get("through_fare_checks") or []
     if checks:
@@ -149,11 +193,21 @@ def build_summary_lines(report: dict[str, Any]) -> list[str]:
             "negative evidence is bounded live controls only."
         )
         if not_executed_count:
-            lines.append("Coverage is incomplete: planned controls without terminal live evidence are not_executed, not no-flight evidence.")
+            lines.append(
+                "Coverage is incomplete: planned controls without terminal live evidence are not_executed, not no-flight evidence."
+            )
 
-    stop_diagnostics = report.get("stop_policy_diagnostics") if isinstance(report.get("stop_policy_diagnostics"), dict) else {}
+    stop_diagnostics = (
+        report.get("stop_policy_diagnostics")
+        if isinstance(report.get("stop_policy_diagnostics"), dict)
+        else {}
+    )
     if stop_diagnostics:
-        max_reported = report.get("stop_policy", {}).get("preferred_max_connections") if isinstance(report.get("stop_policy"), dict) else 1
+        max_reported = (
+            report.get("stop_policy", {}).get("preferred_max_connections")
+            if isinstance(report.get("stop_policy"), dict)
+            else 1
+        )
         if stop_diagnostics.get("used_two_stop_tier"):
             max_reported = 2
         lines.append(
@@ -164,8 +218,18 @@ def build_summary_lines(report: dict[str, Any]) -> list[str]:
             f"generation_tier2_used={bool(stop_diagnostics.get('tier2_used'))}; "
             f"three_plus_suppressed={int(stop_diagnostics.get('three_plus_suppressed_count') or 0)}."
         )
-        if int(stop_diagnostics.get("two_stop_suppressed_because_preferred_exists") or 0) > 0:
-            lines.append("Two-stop candidates are hidden because direct/one-stop options exist.")
+        if (
+            int(
+                stop_diagnostics.get("two_stop_suppressed_because_preferred_exists")
+                or 0
+            )
+            > 0
+        ):
+            lines.append(
+                "Two-stop candidates are hidden because direct/one-stop options exist."
+            )
 
-    lines.append("Do not treat cached or segment-search absence as proof that a through fare, direct flight, or protected ticket does not exist.")
+    lines.append(
+        "Do not treat cached or segment-search absence as proof that a through fare, direct flight, or protected ticket does not exist."
+    )
     return lines

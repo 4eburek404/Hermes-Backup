@@ -14,15 +14,27 @@ from pathlib import Path
 from typing import Any
 
 from .. import __version__
-from ..config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, FLI_MCP_DEFAULT_URL, SUPPORTED_CURRENCIES
+from ..config import (
+    DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
+    FLI_MCP_DEFAULT_URL,
+    SUPPORTED_CURRENCIES,
+)
 from ..domain.carriers import carrier_from_flight_number
-from ..domain.normalize import normalize_carrier_code, normalize_iata, parse_iso_date, price_value
+from ..domain.normalize import (
+    normalize_carrier_code,
+    normalize_iata,
+    parse_iso_date,
+    price_value,
+)
 from ..domain.offer_order import provider_offer_business_key
 from ..domain.provider_offer_filter import filter_provider_offers
 from ..errors import CliError
 from ..store import Store
 from .live_cache import live_cache_key, read_live_cache, write_live_cache
-from .segment_normalization import provider_offer_to_segment_offer, provider_result_to_segment_result
+from .segment_normalization import (
+    provider_offer_to_segment_offer,
+    provider_result_to_segment_result,
+)
 
 MCP_PROTOCOL_VERSION = "2025-03-26"
 FLI_NORMALIZER_VERSION = "airport-name-v2"
@@ -56,15 +68,27 @@ def normalize_mcp_url(value: str | None) -> str:
     except ValueError as exc:
         raise CliError("FLI MCP URL is invalid", error_type="validation_error") from exc
     if parsed.scheme not in {"http", "https"}:
-        raise CliError("FLI MCP URL must use https, or http for loopback hosts", error_type="validation_error")
+        raise CliError(
+            "FLI MCP URL must use https, or http for loopback hosts",
+            error_type="validation_error",
+        )
     if not parsed.netloc or not hostname:
         raise CliError("FLI MCP URL must include a host", error_type="validation_error")
     if "@" in parsed.netloc:
-        raise CliError("FLI MCP URL must not include embedded credentials", error_type="validation_error")
+        raise CliError(
+            "FLI MCP URL must not include embedded credentials",
+            error_type="validation_error",
+        )
     if parsed.username or parsed.password:
-        raise CliError("FLI MCP URL must not include embedded credentials", error_type="validation_error")
+        raise CliError(
+            "FLI MCP URL must not include embedded credentials",
+            error_type="validation_error",
+        )
     if parsed.scheme == "http" and not is_loopback_mcp_host(hostname):
-        raise CliError("FLI MCP URL may use cleartext http only for loopback hosts", error_type="validation_error")
+        raise CliError(
+            "FLI MCP URL may use cleartext http only for loopback hosts",
+            error_type="validation_error",
+        )
     return url
 
 
@@ -88,7 +112,9 @@ def decode_mcp_response(raw: bytes, content_type: str | None) -> dict[str, Any]:
             if isinstance(item, dict):
                 events.append(item)
         if not events:
-            raise CliError("FLI MCP returned an empty event stream", error_type="upstream_error")
+            raise CliError(
+                "FLI MCP returned an empty event stream", error_type="upstream_error"
+            )
         for item in reversed(events):
             if "result" in item or "error" in item:
                 return item
@@ -96,9 +122,13 @@ def decode_mcp_response(raw: bytes, content_type: str | None) -> dict[str, Any]:
     try:
         data = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise CliError(f"FLI MCP returned invalid JSON: {exc}", error_type="upstream_error") from exc
+        raise CliError(
+            f"FLI MCP returned invalid JSON: {exc}", error_type="upstream_error"
+        ) from exc
     if not isinstance(data, dict):
-        raise CliError("FLI MCP response must be a JSON object", error_type="upstream_error")
+        raise CliError(
+            "FLI MCP response must be a JSON object", error_type="upstream_error"
+        )
     return data
 
 
@@ -126,30 +156,46 @@ def mcp_http_post(
         with urllib.request.urlopen(request, timeout=timeout) as response:
             raw = response.read()
             content_type = response.headers.get("Content-Type")
-            next_session_id = response.headers.get("Mcp-Session-Id") or response.headers.get("mcp-session-id") or session_id
+            next_session_id = (
+                response.headers.get("Mcp-Session-Id")
+                or response.headers.get("mcp-session-id")
+                or session_id
+            )
             return decode_mcp_response(raw, content_type), next_session_id
     except urllib.error.HTTPError as exc:
         body_text = exc.read().decode("utf-8", errors="replace")[:1000]
         raise CliError(
             f"FLI MCP HTTP {exc.code}: {body_text}",
             error_type="upstream_error",
-            details={"http_status": exc.code, "retry_after": exc.headers.get("Retry-After")},
+            details={
+                "http_status": exc.code,
+                "retry_after": exc.headers.get("Retry-After"),
+            },
         ) from exc
     except (urllib.error.URLError, TimeoutError) as exc:
-        raise CliError(f"FLI MCP request failed: {type(exc).__name__}: {exc}", error_type="upstream_error") from exc
+        raise CliError(
+            f"FLI MCP request failed: {type(exc).__name__}: {exc}",
+            error_type="upstream_error",
+        ) from exc
 
 
 def ensure_jsonrpc_ok(response: dict[str, Any], context: str) -> dict[str, Any]:
     error = response.get("error")
     if isinstance(error, dict):
-        message = error.get("message") or json.dumps(error, ensure_ascii=False, sort_keys=True)
-        raise CliError(f"FLI MCP {context} failed: {message}", error_type="upstream_error")
+        message = error.get("message") or json.dumps(
+            error, ensure_ascii=False, sort_keys=True
+        )
+        raise CliError(
+            f"FLI MCP {context} failed: {message}", error_type="upstream_error"
+        )
     result = response.get("result")
     if isinstance(result, dict):
         return result
     if result is None:
         return {}
-    raise CliError(f"FLI MCP {context} returned an unsupported result", error_type="upstream_error")
+    raise CliError(
+        f"FLI MCP {context} returned an unsupported result", error_type="upstream_error"
+    )
 
 
 def extract_tool_payload(result: dict[str, Any]) -> dict[str, Any]:
@@ -158,7 +204,10 @@ def extract_tool_payload(result: dict[str, Any]) -> dict[str, Any]:
         for item in result.get("content") or []:
             if isinstance(item, dict) and item.get("text"):
                 messages.append(str(item["text"]))
-        raise CliError("FLI MCP tool error: " + ("; ".join(messages) or "unknown error"), error_type="upstream_error")
+        raise CliError(
+            "FLI MCP tool error: " + ("; ".join(messages) or "unknown error"),
+            error_type="upstream_error",
+        )
     structured = result.get("structuredContent")
     if isinstance(structured, dict):
         if isinstance(structured.get("result"), dict):
@@ -176,7 +225,10 @@ def extract_tool_payload(result: dict[str, Any]) -> dict[str, Any]:
             continue
         if isinstance(parsed, dict):
             return parsed
-    raise CliError("FLI MCP tool response did not include a JSON payload", error_type="upstream_error")
+    raise CliError(
+        "FLI MCP tool response did not include a JSON payload",
+        error_type="upstream_error",
+    )
 
 
 def call_fli_mcp_tool(
@@ -200,7 +252,11 @@ def call_fli_mcp_tool(
     init_response, session_id = mcp_http_post(url, init_payload, timeout=timeout)
     ensure_jsonrpc_ok(init_response, "initialize")
 
-    initialized_payload = {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}
+    initialized_payload = {
+        "jsonrpc": "2.0",
+        "method": "notifications/initialized",
+        "params": {},
+    }
     mcp_http_post(url, initialized_payload, timeout=timeout, session_id=session_id)
 
     call_payload = {
@@ -209,8 +265,12 @@ def call_fli_mcp_tool(
         "method": "tools/call",
         "params": {"name": tool_name, "arguments": arguments},
     }
-    call_response, _ = mcp_http_post(url, call_payload, timeout=timeout, session_id=session_id)
-    return extract_tool_payload(ensure_jsonrpc_ok(call_response, f"tools/call {tool_name}"))
+    call_response, _ = mcp_http_post(
+        url, call_payload, timeout=timeout, session_id=session_id
+    )
+    return extract_tool_payload(
+        ensure_jsonrpc_ok(call_response, f"tools/call {tool_name}")
+    )
 
 
 def enum_code(value: Any, *, size: int | None = None) -> str:
@@ -267,11 +327,15 @@ def airport_name_index(cache_dir: str) -> dict[tuple[str, ...], str]:
             key = airport_name_key(name)
             if key:
                 candidates.setdefault(key, set()).add(code)
-    exact = {key: next(iter(codes)) for key, codes in candidates.items() if len(codes) == 1}
+    exact = {
+        key: next(iter(codes)) for key, codes in candidates.items() if len(codes) == 1
+    }
     return exact
 
 
-def resolve_fli_airport(value: Any, *, store: Store, field: str, preferred_code: str | None = None) -> str:
+def resolve_fli_airport(
+    value: Any, *, store: Store, field: str, preferred_code: str | None = None
+) -> str:
     text = str(value or "").strip()
     if not text:
         raise CliError(f"FLI {field} is empty", error_type="upstream_error")
@@ -303,7 +367,10 @@ def resolve_fli_airport(value: Any, *, store: Store, field: str, preferred_code:
             f"FLI {field} airport name {text!r} is ambiguous: {', '.join(unique_matches)}",
             error_type="upstream_error",
         )
-    raise CliError(f"FLI {field} airport name {text!r} was not found in the airport catalog", error_type="upstream_error")
+    raise CliError(
+        f"FLI {field} airport name {text!r} was not found in the airport catalog",
+        error_type="upstream_error",
+    )
 
 
 def parse_duration_minutes(value: Any) -> int | None:
@@ -348,7 +415,11 @@ def normalize_fli_leg(
     )
     airline_code = enum_code(leg.get("airline_code") or leg.get("airline"), size=2)
     flight_number = str(leg.get("flight_number") or "").strip().replace(" ", "")
-    if airline_code and flight_number and not flight_number.upper().startswith(airline_code):
+    if (
+        airline_code
+        and flight_number
+        and not flight_number.upper().startswith(airline_code)
+    ):
         flight_number = f"{airline_code}{flight_number}"
     carrier = airline_code or carrier_from_flight_number(flight_number)
     return {
@@ -383,10 +454,16 @@ def parse_fli_flight_search(
     store: Store | None = None,
 ) -> dict[str, Any]:
     if raw.get("success") is False:
-        raise CliError(f"FLI MCP search failed: {raw.get('error') or 'unknown error'}", error_type="upstream_error")
+        raise CliError(
+            f"FLI MCP search failed: {raw.get('error') or 'unknown error'}",
+            error_type="upstream_error",
+        )
     raw_flights = raw.get("flights")
     if not isinstance(raw_flights, list):
-        raise CliError("FLI MCP response does not contain a flights list", error_type="upstream_error")
+        raise CliError(
+            "FLI MCP response does not contain a flights list",
+            error_type="upstream_error",
+        )
     deduped: dict[tuple[str, ...], dict[str, Any]] = {}
     skipped: dict[str, int] = {}
     airport_store = store or Store()
@@ -405,14 +482,19 @@ def parse_fli_flight_search(
                     leg,
                     store=airport_store,
                     expected_origin=origin if leg_index == 0 else None,
-                    expected_destination=destination if leg_index == len(legs) - 1 else None,
+                    expected_destination=destination
+                    if leg_index == len(legs) - 1
+                    else None,
                 )
                 if normalized is not None:
                     normalized_flights.append(normalized)
         if not normalized_flights:
             skipped["bad_legs"] = skipped.get("bad_legs", 0) + 1
             continue
-        if normalized_flights[0]["origin"] != origin or normalized_flights[-1]["destination"] != destination:
+        if (
+            normalized_flights[0]["origin"] != origin
+            or normalized_flights[-1]["destination"] != destination
+        ):
             raise CliError(
                 "FLI normalized route does not match query: "
                 f"{normalized_flights[0]['origin']}-{normalized_flights[-1]['destination']} returned for {origin}-{destination}",
@@ -425,19 +507,38 @@ def parse_fli_flight_search(
             "price": amount,
             "currency": str(flight.get("currency") or currency).upper(),
             "number_of_changes": max(0, len(normalized_flights) - 1),
-            "duration": sum(item["duration"] or 0 for item in normalized_flights) or None,
+            "duration": sum(item["duration"] or 0 for item in normalized_flights)
+            or None,
             "departure_at": normalized_flights[0]["departure_at"],
             "arrival_at": normalized_flights[-1]["arrival_at"],
             "origin": normalized_flights[0]["origin"],
             "destination": normalized_flights[-1]["destination"],
-            "flight_numbers": [item["flight_number"] for item in normalized_flights if item.get("flight_number")],
-            "marketing_carriers": sorted({item["marketing_carrier"] for item in normalized_flights if item.get("marketing_carrier")}),
-            "operating_carriers": sorted({item["operating_carrier"] for item in normalized_flights if item.get("operating_carrier")}),
+            "flight_numbers": [
+                item["flight_number"]
+                for item in normalized_flights
+                if item.get("flight_number")
+            ],
+            "marketing_carriers": sorted(
+                {
+                    item["marketing_carrier"]
+                    for item in normalized_flights
+                    if item.get("marketing_carrier")
+                }
+            ),
+            "operating_carriers": sorted(
+                {
+                    item["operating_carrier"]
+                    for item in normalized_flights
+                    if item.get("operating_carrier")
+                }
+            ),
             "segments": normalized_flights,
         }
         previous = deduped.get(key)
         previous_price = previous.get("price") if previous else None
-        if previous is None or (amount is not None and (previous_price is None or amount < previous_price)):
+        if previous is None or (
+            amount is not None and (previous_price is None or amount < previous_price)
+        ):
             deduped[key] = offer
 
     filtered_offers, filter_stats = filter_provider_offers(list(deduped.values()))
@@ -479,7 +580,9 @@ def fetch_fli_mcp_search(
     store: Store | None = None,
 ) -> dict[str, Any]:
     effective_max_stops = "NON_STOP" if direct_only else max_stops
-    airlines = sorted({normalize_carrier_code(code, "only-carrier") for code in (only_carriers or [])})
+    airlines = sorted(
+        {normalize_carrier_code(code, "only-carrier") for code in (only_carriers or [])}
+    )
     arguments: dict[str, Any] = {
         "origin": origin,
         "destination": destination,
@@ -491,7 +594,9 @@ def fetch_fli_mcp_search(
         "passengers": passengers,
         "show_all_results": True,
     }
-    raw = call_fli_mcp_tool("search_flights", arguments, mcp_url=mcp_url, timeout=timeout)
+    raw = call_fli_mcp_tool(
+        "search_flights", arguments, mcp_url=mcp_url, timeout=timeout
+    )
     return parse_fli_flight_search(
         raw,
         origin=origin,
@@ -600,7 +705,9 @@ def fli_offer_to_segment_offer(
     )
 
 
-def fli_result_to_segment_result(result: dict[str, Any], *, direction: str, leg: str) -> dict[str, Any]:
+def fli_result_to_segment_result(
+    result: dict[str, Any], *, direction: str, leg: str
+) -> dict[str, Any]:
     return provider_result_to_segment_result(
         result,
         direction=direction,
@@ -612,7 +719,9 @@ def fli_result_to_segment_result(result: dict[str, Any], *, direction: str, leg:
     )
 
 
-def fli_segment_search_summary(spec: dict[str, Any], result: dict[str, Any], segment_result: dict[str, Any]) -> dict[str, Any]:
+def fli_segment_search_summary(
+    spec: dict[str, Any], result: dict[str, Any], segment_result: dict[str, Any]
+) -> dict[str, Any]:
     return {
         **spec,
         "provider": "fli",
@@ -625,14 +734,22 @@ def fli_segment_search_summary(spec: dict[str, Any], result: dict[str, Any], seg
     }
 
 
-def run_fli_search(args: argparse.Namespace, store: Store | None = None) -> dict[str, Any]:
+def run_fli_search(
+    args: argparse.Namespace, store: Store | None = None
+) -> dict[str, Any]:
     origin = normalize_iata(args.origin, "origin")
     destination = normalize_iata(args.destination, "destination")
     depart = parse_iso_date(args.depart_date, "depart-date")
     currency = args.currency.upper()
     if currency not in SUPPORTED_CURRENCIES:
-        raise CliError(f"currency must be one of {', '.join(sorted(SUPPORTED_CURRENCIES))}", error_type="validation_error")
-    only_carriers = [normalize_carrier_code(code, "only-carrier") for code in (args.only_carrier or [])]
+        raise CliError(
+            f"currency must be one of {', '.join(sorted(SUPPORTED_CURRENCIES))}",
+            error_type="validation_error",
+        )
+    only_carriers = [
+        normalize_carrier_code(code, "only-carrier")
+        for code in (args.only_carrier or [])
+    ]
     return cached_fli_mcp_search(
         origin,
         destination,
@@ -659,8 +776,13 @@ def run_fli_dates(args: argparse.Namespace) -> dict[str, Any]:
     start = parse_iso_date(args.from_date, "from-date")
     end = parse_iso_date(args.to_date, "to-date")
     if end < start:
-        raise CliError("to-date must be on or after from-date", error_type="validation_error")
-    only_carriers = [normalize_carrier_code(code, "only-carrier") for code in (args.only_carrier or [])]
+        raise CliError(
+            "to-date must be on or after from-date", error_type="validation_error"
+        )
+    only_carriers = [
+        normalize_carrier_code(code, "only-carrier")
+        for code in (args.only_carrier or [])
+    ]
     raw = call_fli_mcp_tool(
         "search_dates",
         {
@@ -680,7 +802,10 @@ def run_fli_dates(args: argparse.Namespace) -> dict[str, Any]:
         timeout=args.timeout,
     )
     if raw.get("success") is False:
-        raise CliError(f"FLI MCP date search failed: {raw.get('error') or 'unknown error'}", error_type="upstream_error")
+        raise CliError(
+            f"FLI MCP date search failed: {raw.get('error') or 'unknown error'}",
+            error_type="upstream_error",
+        )
     dates = raw.get("dates") if isinstance(raw.get("dates"), list) else []
     return {
         "origin": origin,

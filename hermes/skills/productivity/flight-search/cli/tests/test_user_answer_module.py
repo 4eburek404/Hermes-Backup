@@ -19,7 +19,9 @@ class UserAnswerModuleTests(unittest.TestCase):
 
         user_answer.validate_user_answer(answer)
         self.assertEqual(answer, build_user_answer(report))
-        self.assertEqual(answer["schema_version"], current_contract("user_answer")["schema_version"])
+        self.assertEqual(
+            answer["schema_version"], current_contract("user_answer")["schema_version"]
+        )
         validate_user_answer(answer)
 
     def test_user_answer_semantic_validators_are_split_by_concern(self) -> None:

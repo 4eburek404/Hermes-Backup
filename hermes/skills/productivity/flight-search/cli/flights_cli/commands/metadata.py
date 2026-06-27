@@ -22,7 +22,10 @@ def command_cities_search(args: argparse.Namespace, store: Store) -> dict[str, A
     return {
         "query": args.query,
         "evidence_scope": metadata_evidence_scope("cities static catalog"),
-        "cities": [city_to_output(store, city) for city in store.search_cities(args.query, args.limit)],
+        "cities": [
+            city_to_output(store, city)
+            for city in store.search_cities(args.query, args.limit)
+        ],
     }
 
 

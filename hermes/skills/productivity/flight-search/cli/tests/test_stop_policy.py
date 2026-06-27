@@ -26,7 +26,15 @@ def candidate(identifier: str, airports: list[str], price: int) -> dict:
     for index, (origin, destination) in enumerate(zip(airports, airports[1:]), 1):
         dep_hour = 6 + index * 3
         arr_hour = dep_hour + 1
-        segments.append(segment(origin, destination, f"{base_day}T{dep_hour:02d}:00:00+00:00", f"{base_day}T{arr_hour:02d}:00:00+00:00", f"SU{100 + index}"))
+        segments.append(
+            segment(
+                origin,
+                destination,
+                f"{base_day}T{dep_hour:02d}:00:00+00:00",
+                f"{base_day}T{arr_hour:02d}:00:00+00:00",
+                f"SU{100 + index}",
+            )
+        )
     return {
         "id": identifier,
         "price": price,
@@ -52,8 +60,20 @@ def one_stop_candidate(
             {
                 "direction": "outbound",
                 "segments": [
-                    segment("SVX", "IST", "2026-08-06T07:20:00+05:00", first_arrival, "U6773"),
-                    segment("IST", "FRA", second_departure, "2026-08-07T05:55:00+02:00", "TK1224"),
+                    segment(
+                        "SVX",
+                        "IST",
+                        "2026-08-06T07:20:00+05:00",
+                        first_arrival,
+                        "U6773",
+                    ),
+                    segment(
+                        "IST",
+                        "FRA",
+                        second_departure,
+                        "2026-08-07T05:55:00+02:00",
+                        "TK1224",
+                    ),
                 ],
             }
         ],
@@ -86,7 +106,12 @@ class StopPolicyTests(unittest.TestCase):
         self.assertEqual(stop_tier(1), "T1_ONE_STOP")
         self.assertEqual(stop_tier(2), "T2_TWO_STOP")
         self.assertEqual(stop_tier(3), "T3_THREE_PLUS")
-        self.assertEqual(candidate_stop_metrics(candidate("three", ["SVX", "EVN", "MXP", "LIN", "AMS"], 1))["stop_tier"], "T3_THREE_PLUS")
+        self.assertEqual(
+            candidate_stop_metrics(
+                candidate("three", ["SVX", "EVN", "MXP", "LIN", "AMS"], 1)
+            )["stop_tier"],
+            "T3_THREE_PLUS",
+        )
 
     def test_direct_and_one_stop_exist_suppresses_two_stop(self) -> None:
         result = rank_candidate_list(
@@ -98,23 +123,42 @@ class StopPolicyTests(unittest.TestCase):
             ranking_options_from_args(rank_args()),
         )
 
-        self.assertEqual({item["id"] for item in result["ranked"]}, {"one-stop", "direct"})
-        self.assertEqual(result["stop_policy_diagnostics"]["two_stop_suppressed_because_preferred_exists"], 1)
+        self.assertEqual(
+            {item["id"] for item in result["ranked"]}, {"one-stop", "direct"}
+        )
+        self.assertEqual(
+            result["stop_policy_diagnostics"][
+                "two_stop_suppressed_because_preferred_exists"
+            ],
+            1,
+        )
         self.assertFalse(result["stop_policy_diagnostics"]["used_two_stop_tier"])
 
     def test_no_preferred_allows_two_stop_fallback(self) -> None:
-        result = rank_candidate_list([candidate("two-stop", ["SVX", "IST", "BEG", "AMS"], 10000)], ranking_options_from_args(rank_args()))
+        result = rank_candidate_list(
+            [candidate("two-stop", ["SVX", "IST", "BEG", "AMS"], 10000)],
+            ranking_options_from_args(rank_args()),
+        )
 
         self.assertEqual([item["id"] for item in result["ranked"]], ["two-stop"])
         self.assertTrue(result["stop_policy_diagnostics"]["used_two_stop_tier"])
-        self.assertEqual(result["ranked"][0]["validation_summary"]["stop_tier"], "T2_TWO_STOP")
+        self.assertEqual(
+            result["ranked"][0]["validation_summary"]["stop_tier"], "T2_TWO_STOP"
+        )
 
     def test_three_plus_always_rejected_in_normal_policy(self) -> None:
-        result = rank_candidate_list([candidate("garbage", ["SVX", "EVN", "MXP", "LIN", "AMS"], 1000)], ranking_options_from_args(rank_args()))
+        result = rank_candidate_list(
+            [candidate("garbage", ["SVX", "EVN", "MXP", "LIN", "AMS"], 1000)],
+            ranking_options_from_args(rank_args()),
+        )
 
         self.assertEqual(result["ranked"], [])
-        self.assertEqual(result["stop_policy_diagnostics"]["three_plus_suppressed_count"], 1)
-        self.assertEqual(result["carrier_policy"]["filtered"][0]["stop_tier"], "T3_THREE_PLUS")
+        self.assertEqual(
+            result["stop_policy_diagnostics"]["three_plus_suppressed_count"], 1
+        )
+        self.assertEqual(
+            result["carrier_policy"]["filtered"][0]["stop_tier"], "T3_THREE_PLUS"
+        )
 
     def test_invalid_time_order_is_diagnostics_only_not_ranked(self) -> None:
         invalid = {
@@ -126,8 +170,20 @@ class StopPolicyTests(unittest.TestCase):
                 {
                     "direction": "outbound",
                     "segments": [
-                        segment("SVX", "SVO", "2026-08-06T05:10:00+05:00", "2026-08-06T05:45:00+03:00", "SU1471"),
-                        segment("SVO", "IST", "2026-08-06T01:00:00+03:00", "2026-08-06T06:00:00+03:00", "SU2170"),
+                        segment(
+                            "SVX",
+                            "SVO",
+                            "2026-08-06T05:10:00+05:00",
+                            "2026-08-06T05:45:00+03:00",
+                            "SU1471",
+                        ),
+                        segment(
+                            "SVO",
+                            "IST",
+                            "2026-08-06T01:00:00+03:00",
+                            "2026-08-06T06:00:00+03:00",
+                            "SU2170",
+                        ),
                     ],
                 }
             ],
@@ -139,10 +195,16 @@ class StopPolicyTests(unittest.TestCase):
         )
 
         self.assertEqual([item["id"] for item in result["ranked"]], ["direct"])
-        self.assertEqual(result["carrier_policy"]["filtered"][0]["id"], "invalid-svo-backwards")
-        self.assertEqual(result["carrier_policy"]["filtered"][0]["reason"], "invalid_time_order")
+        self.assertEqual(
+            result["carrier_policy"]["filtered"][0]["id"], "invalid-svo-backwards"
+        )
+        self.assertEqual(
+            result["carrier_policy"]["filtered"][0]["reason"], "invalid_time_order"
+        )
 
-    def test_business_suppresses_daytime_excessive_wait_when_normal_same_stop_exists(self) -> None:
+    def test_business_suppresses_daytime_excessive_wait_when_normal_same_stop_exists(
+        self,
+    ) -> None:
         result = rank_candidate_list(
             [
                 one_stop_candidate(
@@ -161,12 +223,23 @@ class StopPolicyTests(unittest.TestCase):
             ranking_options_from_args(rank_args()),
         )
 
-        self.assertEqual([item["id"] for item in result["ranked"]], ["normal-connection"])
-        self.assertEqual(result["stop_policy_diagnostics"]["excessive_wait_suppressed_count"], 1)
-        self.assertEqual(result["carrier_policy"]["filtered"][-1]["id"], "daytime-overnight-wait")
-        self.assertEqual(result["carrier_policy"]["filtered"][-1]["reason"], "excessive_connection_wait")
+        self.assertEqual(
+            [item["id"] for item in result["ranked"]], ["normal-connection"]
+        )
+        self.assertEqual(
+            result["stop_policy_diagnostics"]["excessive_wait_suppressed_count"], 1
+        )
+        self.assertEqual(
+            result["carrier_policy"]["filtered"][-1]["id"], "daytime-overnight-wait"
+        )
+        self.assertEqual(
+            result["carrier_policy"]["filtered"][-1]["reason"],
+            "excessive_connection_wait",
+        )
 
-    def test_business_suppresses_excessive_wait_even_when_it_is_the_only_reportable_path(self) -> None:
+    def test_business_suppresses_excessive_wait_even_when_it_is_the_only_reportable_path(
+        self,
+    ) -> None:
         result = rank_candidate_list(
             [
                 one_stop_candidate(
@@ -179,9 +252,16 @@ class StopPolicyTests(unittest.TestCase):
         )
 
         self.assertEqual(result["ranked"], [])
-        self.assertEqual(result["stop_policy_diagnostics"]["excessive_wait_suppressed_count"], 1)
-        self.assertEqual(result["carrier_policy"]["filtered"][-1]["id"], "only-overnight-wait")
-        self.assertEqual(result["carrier_policy"]["filtered"][-1]["reason"], "excessive_connection_wait")
+        self.assertEqual(
+            result["stop_policy_diagnostics"]["excessive_wait_suppressed_count"], 1
+        )
+        self.assertEqual(
+            result["carrier_policy"]["filtered"][-1]["id"], "only-overnight-wait"
+        )
+        self.assertEqual(
+            result["carrier_policy"]["filtered"][-1]["reason"],
+            "excessive_connection_wait",
+        )
 
     def test_business_keeps_late_arrival_to_morning_departure(self) -> None:
         result = rank_candidate_list(
@@ -206,7 +286,9 @@ class StopPolicyTests(unittest.TestCase):
             {item["id"] for item in result["ranked"]},
             {"late-arrival-morning-departure", "normal-connection"},
         )
-        self.assertEqual(result["stop_policy_diagnostics"]["excessive_wait_suppressed_count"], 0)
+        self.assertEqual(
+            result["stop_policy_diagnostics"]["excessive_wait_suppressed_count"], 0
+        )
 
 
 if __name__ == "__main__":

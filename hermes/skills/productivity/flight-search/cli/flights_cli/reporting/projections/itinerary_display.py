@@ -47,7 +47,6 @@ def display_duration(minutes: Any) -> str:
 
 
 class PlaceLookup:
-
     def __init__(self, store: Any | None = None):
         self.store = store
         self.airports = self._load_by_code("airports_ru.json")
@@ -60,7 +59,11 @@ class PlaceLookup:
             items = self.store.load_json(filename)
         except Exception:
             return {}
-        return {str(item.get("code") or "").upper(): item for item in items if item.get("code")}
+        return {
+            str(item.get("code") or "").upper(): item
+            for item in items
+            if item.get("code")
+        }
 
     def place_name(self, code: Any) -> str:
         normalized = str(code or "").upper()
@@ -88,11 +91,15 @@ def segment_duration(segment: dict[str, Any]) -> int | None:
             return int(float(segment[key]))
         except (TypeError, ValueError):
             continue
-    return display_minutes_between(segment.get("departure_at"), segment.get("arrival_at"))
+    return display_minutes_between(
+        segment.get("departure_at"), segment.get("arrival_at")
+    )
 
 
 def render_segment_line(segment: dict[str, Any], places: PlaceLookup) -> str:
-    flight = str(segment.get("flight_number") or segment.get("carrier") or "flight").replace(" ", "")
+    flight = str(
+        segment.get("flight_number") or segment.get("carrier") or "flight"
+    ).replace(" ", "")
     origin = places.place_name(segment.get("origin"))
     destination = places.place_name(segment.get("destination"))
     aircraft = str(segment.get("aircraft_code") or segment.get("aircraft") or "н/д")
@@ -104,9 +111,13 @@ def render_segment_line(segment: dict[str, Any], places: PlaceLookup) -> str:
     )
 
 
-def render_connection_line(previous: dict[str, Any], next_segment: dict[str, Any], places: PlaceLookup) -> str:
+def render_connection_line(
+    previous: dict[str, Any], next_segment: dict[str, Any], places: PlaceLookup
+) -> str:
     airport = previous.get("destination") or next_segment.get("origin")
-    duration = display_minutes_between(previous.get("arrival_at"), next_segment.get("departure_at"))
+    duration = display_minutes_between(
+        previous.get("arrival_at"), next_segment.get("departure_at")
+    )
     return f"пересадка {places.place_name(airport)} {display_duration(duration)}"
 
 
@@ -119,13 +130,20 @@ def direction_label(direction: Any) -> str:
     return "маршрут"
 
 
-def segment_groups(segments: list[dict[str, Any]]) -> list[tuple[str, list[dict[str, Any]]]]:
+def segment_groups(
+    segments: list[dict[str, Any]],
+) -> list[tuple[str, list[dict[str, Any]]]]:
     groups: list[tuple[str, list[dict[str, Any]]]] = []
     current_direction: str | None = None
     current_segments: list[dict[str, Any]] = []
     for segment in segments:
         direction = str(segment.get("direction") or "")
-        if current_segments and direction and current_direction and direction != current_direction:
+        if (
+            current_segments
+            and direction
+            and current_direction
+            and direction != current_direction
+        ):
             groups.append((current_direction, current_segments))
             current_segments = []
         current_direction = direction or current_direction or ""
@@ -138,10 +156,14 @@ def segment_groups(segments: list[dict[str, Any]]) -> list[tuple[str, list[dict[
 def group_elapsed(segments: list[dict[str, Any]]) -> int | None:
     if not segments:
         return None
-    return display_minutes_between(segments[0].get("departure_at"), segments[-1].get("arrival_at"))
+    return display_minutes_between(
+        segments[0].get("departure_at"), segments[-1].get("arrival_at")
+    )
 
 
-def render_group_lines(segments: list[dict[str, Any]], places: PlaceLookup) -> list[str]:
+def render_group_lines(
+    segments: list[dict[str, Any]], places: PlaceLookup
+) -> list[str]:
     lines: list[str] = []
     for index, segment in enumerate(segments):
         if index:
@@ -203,10 +225,14 @@ def summary_only_option_display(option: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def option_display(option: dict[str, Any], places: PlaceLookup) -> dict[str, Any] | None:
+def option_display(
+    option: dict[str, Any], places: PlaceLookup
+) -> dict[str, Any] | None:
     if option.get("detail_status") == "summary_only":
         return summary_only_option_display(option)
-    segments = [segment for segment in option.get("segments") or [] if isinstance(segment, dict)]
+    segments = [
+        segment for segment in option.get("segments") or [] if isinstance(segment, dict)
+    ]
     if not segments:
         return None
     groups = segment_groups(segments)
@@ -220,7 +246,9 @@ def option_display(option: dict[str, Any], places: PlaceLookup) -> dict[str, Any
         connection_count += connections
         label = direction_label(direction)
         elapsed_label = display_duration(elapsed)
-        elapsed_parts.append(f"{label} {elapsed_label}" if multiple_groups else elapsed_label)
+        elapsed_parts.append(
+            f"{label} {elapsed_label}" if multiple_groups else elapsed_label
+        )
         if multiple_groups:
             lines.append(f"{label}: всего {elapsed_label}, пересадок {connections}")
         lines.extend(render_group_lines(group_segments, places))
@@ -238,10 +266,14 @@ def option_display(option: dict[str, Any], places: PlaceLookup) -> dict[str, Any
     }
 
 
-def build_itinerary_display(report: dict[str, Any], store: Any | None = None, *, limit: int = 5) -> dict[str, Any]:
+def build_itinerary_display(
+    report: dict[str, Any], store: Any | None = None, *, limit: int = 5
+) -> dict[str, Any]:
     places = PlaceLookup(store)
     candidates = []
-    for option in (report.get("recommended_options") or []) + (report.get("priority_options") or []):
+    for option in (report.get("recommended_options") or []) + (
+        report.get("priority_options") or []
+    ):
         if isinstance(option, dict):
             rendered = option_display(option, places)
             if rendered is not None:
@@ -264,7 +296,8 @@ def sanitize_summary_only_display(report: dict[str, Any]) -> None:
         return
     summary_options = {
         option.get("id"): option
-        for option in (report.get("recommended_options") or []) + (report.get("priority_options") or [])
+        for option in (report.get("recommended_options") or [])
+        + (report.get("priority_options") or [])
         if isinstance(option, dict) and option.get("detail_status") == "summary_only"
     }
     if not summary_options:
@@ -272,12 +305,21 @@ def sanitize_summary_only_display(report: dict[str, Any]) -> None:
     changed = False
     sanitized_options: list[Any] = []
     for display_option in display_options:
-        if isinstance(display_option, dict) and display_option.get("id") in summary_options:
-            sanitized_options.append(summary_only_option_display(summary_options[display_option.get("id")]))
+        if (
+            isinstance(display_option, dict)
+            and display_option.get("id") in summary_options
+        ):
+            sanitized_options.append(
+                summary_only_option_display(summary_options[display_option.get("id")])
+            )
             changed = True
         else:
             sanitized_options.append(display_option)
     if not changed:
         return
     display["options"] = sanitized_options
-    display["text"] = "\n\n".join(str(option.get("text") or "") for option in sanitized_options if isinstance(option, dict))
+    display["text"] = "\n\n".join(
+        str(option.get("text") or "")
+        for option in sanitized_options
+        if isinstance(option, dict)
+    )

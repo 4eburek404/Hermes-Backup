@@ -63,7 +63,10 @@ class AnswerLinesStopPolicyTests(unittest.TestCase):
             "two_stop_allowed_only_if_no_preferred": True,
             "three_plus_reportable": False,
         }
-        report["stop_policy_diagnostics"] = {"policy": "business_default", "used_two_stop_tier": False}
+        report["stop_policy_diagnostics"] = {
+            "policy": "business_default",
+            "used_two_stop_tier": False,
+        }
         answer = build_user_answer(report)
 
         with self.assertRaises(CliError):

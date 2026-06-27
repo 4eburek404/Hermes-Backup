@@ -56,7 +56,9 @@ class ProbeExecutionLedger:
                 continue
             self._planned[key] = item
             self._planned_order.append(key)
-            self._probe_ids[key] = str(item.get("probe_id") or f"probe-{len(self._planned_order):03d}")
+            self._probe_ids[key] = str(
+                item.get("probe_id") or f"probe-{len(self._planned_order):03d}"
+            )
 
     def plan_intents(self, intents: list[ProbeIntent]) -> None:
         self.plan_controls(list(intents))
@@ -94,7 +96,14 @@ class ProbeExecutionLedger:
             return
         if key in self._planned:
             self._terminal_keys.add(key)
-        self._skipped.append(self._diagnostic(item, execution_state=ProbeStatus.SKIPPED, status=ProbeStatus.SKIPPED, reason=reason))
+        self._skipped.append(
+            self._diagnostic(
+                item,
+                execution_state=ProbeStatus.SKIPPED,
+                status=ProbeStatus.SKIPPED,
+                reason=reason,
+            )
+        )
 
     def record_failed(self, control: ControlInput, provider: Any, error: Any) -> None:
         item = _control_dict(control)
@@ -114,7 +123,9 @@ class ProbeExecutionLedger:
             )
         )
 
-    def record_not_supported(self, control: ControlInput, provider: Any, reason: Any) -> None:
+    def record_not_supported(
+        self, control: ControlInput, provider: Any, reason: Any
+    ) -> None:
         item = _control_dict(control)
         key = control_identity(item)
         if key in self._terminal_keys:
@@ -132,7 +143,9 @@ class ProbeExecutionLedger:
             )
         )
 
-    def record_provider_result(self, control: ControlInput, result: ProviderProbeResult) -> None:
+    def record_provider_result(
+        self, control: ControlInput, result: ProviderProbeResult
+    ) -> None:
         if result.execution_state == ProbeStatus.NOT_SUPPORTED:
             reason = None
             if result.result_summary:
@@ -142,9 +155,15 @@ class ProbeExecutionLedger:
             self.record_not_supported(control, provider=result.provider, reason=reason)
             return
         if result.execution_state == ProbeStatus.FAILED:
-            self.record_failed(control, provider=result.provider, error=result.errors[0] if result.errors else None)
+            self.record_failed(
+                control,
+                provider=result.provider,
+                error=result.errors[0] if result.errors else None,
+            )
             return
-        summary = result.result_summary if isinstance(result.result_summary, dict) else {}
+        summary = (
+            result.result_summary if isinstance(result.result_summary, dict) else {}
+        )
         self.record_searched(
             control,
             status=summary.get("status") or result.execution_state,
@@ -153,7 +172,9 @@ class ProbeExecutionLedger:
             cache_status=result.cache_status,
         )
 
-    def record_deduped(self, control: ControlInput, original_probe_id: Any = None) -> None:
+    def record_deduped(
+        self, control: ControlInput, original_probe_id: Any = None
+    ) -> None:
         item = _control_dict(control)
         self._deduped.append(
             self._diagnostic(
@@ -164,14 +185,21 @@ class ProbeExecutionLedger:
             )
         )
 
-    def finalize_unexecuted(self, reason: str = "not_reached_by_current_live_execution") -> None:
+    def finalize_unexecuted(
+        self, reason: str = "not_reached_by_current_live_execution"
+    ) -> None:
         for key in self._planned_order:
             if key in self._terminal_keys:
                 continue
             control = self._planned[key]
             self._terminal_keys.add(key)
             self._not_executed.append(
-                self._diagnostic(control, execution_state=ProbeStatus.NOT_EXECUTED, status=ProbeStatus.NOT_EXECUTED, reason=reason)
+                self._diagnostic(
+                    control,
+                    execution_state=ProbeStatus.NOT_EXECUTED,
+                    status=ProbeStatus.NOT_EXECUTED,
+                    reason=reason,
+                )
             )
 
     def to_coverage_diagnostics(self, plan: dict[str, Any]) -> dict[str, Any]:
@@ -180,7 +208,12 @@ class ProbeExecutionLedger:
         return {
             "coverage_mode": plan.get("coverage_mode") or "standard",
             "negative_evidence_type": "bounded_live_controls_only",
-            "planned_controls": [self._diagnostic(self._planned[key], execution_state=ProbeStatus.PLANNED) for key in self._planned_order],
+            "planned_controls": [
+                self._diagnostic(
+                    self._planned[key], execution_state=ProbeStatus.PLANNED
+                )
+                for key in self._planned_order
+            ],
             "searched_controls": self._searched,
             "skipped_controls": self._skipped,
             "failed_controls": self._failed,
@@ -196,7 +229,8 @@ class ProbeExecutionLedger:
             "completeness": {
                 "planned_count": planned_count,
                 "terminal_count": terminal_count,
-                "all_planned_controls_have_terminal_state": planned_count == terminal_count,
+                "all_planned_controls_have_terminal_state": planned_count
+                == terminal_count,
             },
         }
 
@@ -205,7 +239,9 @@ class ProbeExecutionLedger:
         key = control_identity(item_control)
         execution_state = extra.get("execution_state")
         offer_count = extra.get("offer_count")
-        evidence_type, absence_class = self._evidence_classification(item_control, execution_state, offer_count)
+        evidence_type, absence_class = self._evidence_classification(
+            item_control, execution_state, offer_count
+        )
         item = {
             "type": item_control.get("type") or item_control.get("probe_type"),
             "direction": item_control.get("direction"),
@@ -229,7 +265,9 @@ class ProbeExecutionLedger:
         return {name: value for name, value in item.items() if value is not None}
 
     @staticmethod
-    def _evidence_classification(control: dict[str, Any], execution_state: Any, offer_count: Any) -> tuple[str | None, str | None]:
+    def _evidence_classification(
+        control: dict[str, Any], execution_state: Any, offer_count: Any
+    ) -> tuple[str | None, str | None]:
         negative_evidence = str(control.get("negative_evidence") or "")
         try:
             count = int(offer_count) if offer_count is not None else None
@@ -237,16 +275,25 @@ class ProbeExecutionLedger:
             count = None
         if execution_state == ProbeStatus.SEARCHED and count == 0:
             if "carrier" in negative_evidence:
-                return AbsenceReason.PROVIDER_EMPTY, "provider_empty_not_carrier_absence"
+                return (
+                    AbsenceReason.PROVIDER_EMPTY,
+                    "provider_empty_not_carrier_absence",
+                )
             if "aggregate" in negative_evidence:
                 return AbsenceReason.PROVIDER_EMPTY, "provider_empty_not_route_absence"
             return AbsenceReason.PROVIDER_EMPTY, "provider_empty_not_structural_absence"
         if execution_state == ProbeStatus.SEARCHED and count is not None and count > 0:
             return "provider_positive", None
         if execution_state == ProbeStatus.FAILED:
-            return AbsenceReason.RUNTIME_PROVIDER_FAILURE, AbsenceReason.RUNTIME_PROVIDER_FAILURE
+            return (
+                AbsenceReason.RUNTIME_PROVIDER_FAILURE,
+                AbsenceReason.RUNTIME_PROVIDER_FAILURE,
+            )
         if execution_state == ProbeStatus.NOT_SUPPORTED:
-            return AbsenceReason.PROVIDER_COVERAGE_GAP, AbsenceReason.PROVIDER_COVERAGE_GAP
+            return (
+                AbsenceReason.PROVIDER_COVERAGE_GAP,
+                AbsenceReason.PROVIDER_COVERAGE_GAP,
+            )
         if execution_state == ProbeStatus.SKIPPED:
             return AbsenceReason.CONSTRAINT_MISMATCH, AbsenceReason.CONSTRAINT_MISMATCH
         if execution_state == ProbeStatus.NOT_EXECUTED:

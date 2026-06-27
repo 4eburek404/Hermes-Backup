@@ -6,9 +6,17 @@ from typing import Any
 from ...config import KUPIBILET_CITY_CODE_FIRST_AIRPORTS
 from ...domain.carriers import carrier_from_flight_number
 from ...domain.normalize import parse_iso_date
-from ...domain.provider_offer_filter import MAX_MODEL_CONNECTIONS, filter_provider_offers
+from ...domain.provider_offer_filter import (
+    MAX_MODEL_CONNECTIONS,
+    filter_provider_offers,
+)
 from ...domain.stop_metrics import offer_stop_metrics
-from ...ports.providers import CacheStatus, ProviderCapabilities, ProviderName, ProviderProbeResult
+from ...ports.providers import (
+    CacheStatus,
+    ProviderCapabilities,
+    ProviderName,
+    ProviderProbeResult,
+)
 from ...providers.kupibilet import (
     cached_kupibilet_search,
     kupibilet_result_to_segment_result,
@@ -28,20 +36,34 @@ KUPIBILET_CAPABILITIES = ProviderCapabilities(
     supports_full_route_aggregate=True,
     supports_round_trip=False,
     supports_cache=True,
-    probe_types=frozenset({"segment_direct", "segment_hub_leg", "full_route_aggregate", "carrier_aggregate", "city_pair_direct"}),
+    probe_types=frozenset(
+        {
+            "segment_direct",
+            "segment_hub_leg",
+            "full_route_aggregate",
+            "carrier_aggregate",
+            "city_pair_direct",
+        }
+    ),
 )
 
 
 def _raw_offer_actual_airports(offer: dict[str, Any]) -> tuple[str, str]:
     segments = offer.get("segments") if isinstance(offer.get("segments"), list) else []
     if not segments:
-        origin = str(offer.get("origin") or offer.get("departure_airport") or "").upper()
-        destination = str(offer.get("destination") or offer.get("arrival_airport") or "").upper()
+        origin = str(
+            offer.get("origin") or offer.get("departure_airport") or ""
+        ).upper()
+        destination = str(
+            offer.get("destination") or offer.get("arrival_airport") or ""
+        ).upper()
         return origin, destination
     first = segments[0] if isinstance(segments[0], dict) else {}
     last = segments[-1] if isinstance(segments[-1], dict) else {}
     origin = str(first.get("origin") or first.get("departure_airport") or "").upper()
-    destination = str(last.get("destination") or last.get("arrival_airport") or "").upper()
+    destination = str(
+        last.get("destination") or last.get("arrival_airport") or ""
+    ).upper()
     return origin, destination
 
 
@@ -61,16 +83,26 @@ def _city_code_offer_rejection_reason(
     return None
 
 
-def validate_kupibilet_city_code_scope(spec: dict[str, Any], result: dict[str, Any], segment_result: dict[str, Any]) -> dict[str, Any] | None:
+def validate_kupibilet_city_code_scope(
+    spec: dict[str, Any], result: dict[str, Any], segment_result: dict[str, Any]
+) -> dict[str, Any] | None:
     query_origin = str(spec.get("origin") or "").upper()
     query_destination = str(spec.get("destination") or "").upper()
-    origin_scope = {str(code).upper() for code in KUPIBILET_CITY_CODE_FIRST_AIRPORTS.get(query_origin, [])}
-    destination_scope = {str(code).upper() for code in KUPIBILET_CITY_CODE_FIRST_AIRPORTS.get(query_destination, [])}
+    origin_scope = {
+        str(code).upper()
+        for code in KUPIBILET_CITY_CODE_FIRST_AIRPORTS.get(query_origin, [])
+    }
+    destination_scope = {
+        str(code).upper()
+        for code in KUPIBILET_CITY_CODE_FIRST_AIRPORTS.get(query_destination, [])
+    }
     if not origin_scope and not destination_scope:
         return None
 
     rejected_reasons: Counter[str] = Counter()
-    raw_offers = [offer for offer in (result.get("offers") or []) if isinstance(offer, dict)]
+    raw_offers = [
+        offer for offer in (result.get("offers") or []) if isinstance(offer, dict)
+    ]
     for raw_offer in raw_offers:
         actual_origin, actual_destination = _raw_offer_actual_airports(raw_offer)
         reason = _city_code_offer_rejection_reason(
@@ -86,8 +118,12 @@ def validate_kupibilet_city_code_scope(spec: dict[str, Any], result: dict[str, A
     for offer in segment_result.get("offers") or []:
         if not isinstance(offer, dict):
             continue
-        actual_origin = str(offer.get("departure_airport") or offer.get("origin") or "").upper()
-        actual_destination = str(offer.get("arrival_airport") or offer.get("destination") or "").upper()
+        actual_origin = str(
+            offer.get("departure_airport") or offer.get("origin") or ""
+        ).upper()
+        actual_destination = str(
+            offer.get("arrival_airport") or offer.get("destination") or ""
+        ).upper()
         reason = _city_code_offer_rejection_reason(
             actual_origin=actual_origin,
             actual_destination=actual_destination,
@@ -111,7 +147,9 @@ def validate_kupibilet_city_code_scope(spec: dict[str, Any], result: dict[str, A
 
 
 def aggregate_offer_summary(offer: dict[str, Any]) -> dict[str, Any]:
-    raw_segments = [flight for flight in (offer.get("segments") or []) if isinstance(flight, dict)]
+    raw_segments = [
+        flight for flight in (offer.get("segments") or []) if isinstance(flight, dict)
+    ]
     carriers: set[str] = set()
     segments = []
     for flight in raw_segments:
@@ -139,7 +177,11 @@ def aggregate_offer_summary(offer: dict[str, Any]) -> dict[str, Any]:
     for previous, current in zip(segments, segments[1:]):
         previous_arrival = str(previous.get("destination") or "").upper()
         current_departure = str(current.get("origin") or "").upper()
-        if previous_arrival and current_departure and previous_arrival != current_departure:
+        if (
+            previous_arrival
+            and current_departure
+            and previous_arrival != current_departure
+        ):
             airport_mismatches.append(
                 {
                     "arrival_airport": previous_arrival,
@@ -155,9 +197,15 @@ def aggregate_offer_summary(offer: dict[str, Any]) -> dict[str, Any]:
         "change_count": offer.get("number_of_changes"),
         "connection_count": stop_metrics["max_connections_per_journey"],
         "stop_tier": stop_metrics["stop_tier"],
-        "reportable_by_stop_policy": stop_metrics["max_connections_per_journey"] <= MAX_MODEL_CONNECTIONS,
+        "reportable_by_stop_policy": stop_metrics["max_connections_per_journey"]
+        <= MAX_MODEL_CONNECTIONS,
         "duration_min": offer.get("duration"),
-        "flight_numbers": offer.get("flight_numbers") or [segment.get("flight_number") for segment in segments if segment.get("flight_number")],
+        "flight_numbers": offer.get("flight_numbers")
+        or [
+            segment.get("flight_number")
+            for segment in segments
+            if segment.get("flight_number")
+        ],
         "carriers": sorted(carriers),
         "segments": segments,
         "airport_mismatch_count": len(airport_mismatches),
@@ -175,7 +223,9 @@ def kupibilet_aggregate_control_summary(
     carriers: list[str],
     result: dict[str, Any],
 ) -> dict[str, Any]:
-    offers = [offer for offer in (result.get("offers") or []) if isinstance(offer, dict)]
+    offers = [
+        offer for offer in (result.get("offers") or []) if isinstance(offer, dict)
+    ]
     filtered_offers, filter_stats = filter_provider_offers(offers)
     return {
         "direction": direction,
@@ -187,10 +237,16 @@ def kupibilet_aggregate_control_summary(
         "source": result.get("source"),
         "filters": {"direct_only": False, "only_carriers": carriers},
         "offer_count": len(filtered_offers),
-        "raw_offer_count": result.get("raw_offer_count", filter_stats["raw_offer_count"]),
-        "suppressed_three_plus_count": int(result.get("suppressed_three_plus_count") or 0)
+        "raw_offer_count": result.get(
+            "raw_offer_count", filter_stats["raw_offer_count"]
+        ),
+        "suppressed_three_plus_count": int(
+            result.get("suppressed_three_plus_count") or 0
+        )
         + filter_stats["suppressed_three_plus_count"],
-        "suppressed_airport_change_count": int(result.get("suppressed_airport_change_count") or 0)
+        "suppressed_airport_change_count": int(
+            result.get("suppressed_airport_change_count") or 0
+        )
         + filter_stats["suppressed_airport_change_count"],
         "raw_variant_count": result.get("raw_variant_count"),
         "unique_flight_count": result.get("unique_flight_count"),
@@ -204,7 +260,9 @@ class KupibiletProviderAdapter:
     name: ProviderName = "kupibilet"
     capabilities = KUPIBILET_CAPABILITIES
 
-    def __init__(self, *, store: Store | None = None, fetcher: Any | None = None) -> None:
+    def __init__(
+        self, *, store: Store | None = None, fetcher: Any | None = None
+    ) -> None:
         self.store = store
         self.fetcher = fetcher
 
@@ -235,12 +293,22 @@ class KupibiletProviderAdapter:
             "destination": destination,
             "date": depart_date_text,
         }
-        segment_result = kupibilet_result_to_segment_result(result, direction=direction, leg=leg)
-        city_code_validation = validate_kupibilet_city_code_scope(spec, result, segment_result)
-        summary = {**kupibilet_segment_search_summary(spec, result, segment_result), "provider": "kupibilet"}
+        segment_result = kupibilet_result_to_segment_result(
+            result, direction=direction, leg=leg
+        )
+        city_code_validation = validate_kupibilet_city_code_scope(
+            spec, result, segment_result
+        )
+        summary = {
+            **kupibilet_segment_search_summary(spec, result, segment_result),
+            "provider": "kupibilet",
+        }
         if city_code_validation is not None:
             summary["city_code_validation"] = city_code_validation
-            if city_code_validation["rejected_offer_count"] and not city_code_validation["accepted_offer_count"]:
+            if (
+                city_code_validation["rejected_offer_count"]
+                and not city_code_validation["accepted_offer_count"]
+            ):
                 summary["status"] = "invalid"
                 summary["reason"] = "city_code_scope_validation_failed"
         cache_status: CacheStatus = cache_status_from_result(result)  # type: ignore[assignment]
@@ -259,7 +327,9 @@ class KupibiletProviderAdapter:
             },
             execution_state="searched",
             cache_status=cache_status,
-            evidence_type=evidence_type_for_offer_count(offer_count=offer_count, cache_status=cache_status),
+            evidence_type=evidence_type_for_offer_count(
+                offer_count=offer_count, cache_status=cache_status
+            ),
             result_summary=summary,
             normalized_offers=list(segment_result.get("offers") or []),
             normalized_result=segment_result,
@@ -315,7 +385,9 @@ class KupibiletProviderAdapter:
             },
             execution_state="searched",
             cache_status=cache_status,
-            evidence_type=evidence_type_for_offer_count(offer_count=offer_count, cache_status=cache_status),
+            evidence_type=evidence_type_for_offer_count(
+                offer_count=offer_count, cache_status=cache_status
+            ),
             result_summary=summary,
             normalized_offers=list(summary.get("top_offers") or []),
             normalized_result={"top_offers": list(summary.get("top_offers") or [])},

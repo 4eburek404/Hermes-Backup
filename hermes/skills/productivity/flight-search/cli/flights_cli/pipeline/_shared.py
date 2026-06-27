@@ -22,7 +22,10 @@ def as_tuple(value: Any) -> tuple[Any, ...]:
 
 def is_direct_only(options: Mapping[str, Any]) -> bool:
     """True when the user explicitly requested direct flights only."""
-    return options.get("max_connections") == 0 and options.get("tier2_max_connections") == 0
+    return (
+        options.get("max_connections") == 0
+        and options.get("tier2_max_connections") == 0
+    )
 
 
 def classify_market(origin_country: str | None, destination_country: str | None) -> str:

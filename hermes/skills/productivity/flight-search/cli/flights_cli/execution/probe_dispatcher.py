@@ -74,7 +74,9 @@ def segment_query(
     }
 
 
-def outcome_summary_from_provider_result(result: ProviderProbeResult, *, delegated_probe_id: str | None = None) -> dict[str, Any]:
+def outcome_summary_from_provider_result(
+    result: ProviderProbeResult, *, delegated_probe_id: str | None = None
+) -> dict[str, Any]:
     summary = dict(result.result_summary)
     summary.setdefault("provider", result.provider)
     if result.execution_state == "not_supported":
@@ -116,15 +118,19 @@ def dispatch_segment_probe(
     )
     for adapter in selected_adapters:
         provider = adapter.name
-        claim = request_deduper.claim_segment_probe(
-            spec=spec,
-            provider=provider,
-            plan=plan,
-            only_carriers=spec_only_carriers,
-            limit=options.segment_limit,
-            provider_policy=provider_policy,
-            mcp_url=options.fli_mcp_url,
-        ) if request_deduper is not None else DeduperClaim(key=(), probe_id="")
+        claim = (
+            request_deduper.claim_segment_probe(
+                spec=spec,
+                provider=provider,
+                plan=plan,
+                only_carriers=spec_only_carriers,
+                limit=options.segment_limit,
+                provider_policy=provider_policy,
+                mcp_url=options.fli_mcp_url,
+            )
+            if request_deduper is not None
+            else DeduperClaim(key=(), probe_id="")
+        )
         if claim.is_duplicate:
             original = claim.original
             if isinstance(original, SegmentProbeOutcome):
@@ -159,7 +165,9 @@ def dispatch_segment_probe(
                     probe_id=claim.probe_id,
                 )
             )
-            summary = outcome_summary_from_provider_result(result, delegated_probe_id=claim.probe_id)
+            summary = outcome_summary_from_provider_result(
+                result, delegated_probe_id=claim.probe_id
+            )
             segment_result = result.normalized_result or {
                 "direction": spec.get("direction"),
                 "leg": spec.get("leg"),
@@ -181,7 +189,9 @@ def dispatch_segment_probe(
                 request_deduper.record(claim, outcome)
             outcomes.append(outcome)
             continue
-        outcome = SegmentProbeOutcome(summary=summary, segment_result=segment_result, provider_result=result)
+        outcome = SegmentProbeOutcome(
+            summary=summary, segment_result=segment_result, provider_result=result
+        )
         if request_deduper is not None:
             request_deduper.record(claim, outcome)
         outcomes.append(outcome)

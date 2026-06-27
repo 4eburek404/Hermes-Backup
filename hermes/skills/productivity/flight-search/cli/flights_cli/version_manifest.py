@@ -46,8 +46,14 @@ def manifest_mismatches(manifest: dict[str, Any]) -> list[str]:
 
     skill = manifest.get("skill") if isinstance(manifest.get("skill"), dict) else {}
     cli = manifest.get("cli") if isinstance(manifest.get("cli"), dict) else {}
-    contracts = manifest.get("contracts") if isinstance(manifest.get("contracts"), dict) else {}
-    command_surface = manifest.get("command_surface") if isinstance(manifest.get("command_surface"), dict) else {}
+    contracts = (
+        manifest.get("contracts") if isinstance(manifest.get("contracts"), dict) else {}
+    )
+    command_surface = (
+        manifest.get("command_surface")
+        if isinstance(manifest.get("command_surface"), dict)
+        else {}
+    )
 
     if skill.get("name") != __skill_name__:
         mismatches.append("skill.name")
@@ -73,6 +79,8 @@ def manifest_mismatches(manifest: dict[str, Any]) -> list[str]:
         mismatches.append("command_surface.version")
     if command_surface.get("canonical_path") != expected_surface["canonical_path"]:
         mismatches.append("command_surface.canonical_path")
-    if sorted(command_surface.get("diagnostic_commands") or []) != sorted(expected_surface["diagnostic_commands"]):
+    if sorted(command_surface.get("diagnostic_commands") or []) != sorted(
+        expected_surface["diagnostic_commands"]
+    ):
         mismatches.append("command_surface.diagnostic_commands")
     return mismatches

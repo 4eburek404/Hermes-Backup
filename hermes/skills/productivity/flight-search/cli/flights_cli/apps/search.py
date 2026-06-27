@@ -17,27 +17,37 @@ SEARCH_RESULT_SCHEMA_VERSION = _SEARCH_RESULT_CONTRACT["schema_version"]
 
 def normalize_search_request(payload: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(payload)
-    normalized.setdefault("schema_version", current_contract("search_request")["schema_version"])
+    normalized.setdefault(
+        "schema_version", current_contract("search_request")["schema_version"]
+    )
     normalized["origin"] = str(normalized.get("origin") or "").upper()
     normalized["destination"] = str(normalized.get("destination") or "").upper()
     normalized["currency"] = str(normalized.get("currency") or DEFAULT_CURRENCY).upper()
     normalized["profile"] = str(normalized.get("profile") or DEFAULT_PROFILE)
     normalized["ticketing"] = str(normalized.get("ticketing") or "separate")
-    normalized["provider_policy"] = str(normalized.get("provider_policy") or "auto").lower()
+    normalized["provider_policy"] = str(
+        normalized.get("provider_policy") or "auto"
+    ).lower()
     return normalized
 
 
-def live_assembly_options_from_search_request(payload: dict[str, Any]) -> LiveAssemblyOptions:
+def live_assembly_options_from_search_request(
+    payload: dict[str, Any],
+) -> LiveAssemblyOptions:
     validate_contract_payload("search_request", payload, error_type="validation_error")
     return search_request_to_options(payload)
 
 
-def build_search_result(request: dict[str, Any], route_result: dict[str, Any]) -> dict[str, Any]:
+def build_search_result(
+    request: dict[str, Any], route_result: dict[str, Any]
+) -> dict[str, Any]:
     result = {
         "schema_version": SEARCH_RESULT_SCHEMA_VERSION,
         "wire_version": SEARCH_RESULT_SCHEMA_VERSION,
         "request": request,
-        "agent_report": route_result.get("agent_report") if isinstance(route_result.get("agent_report"), dict) else None,
+        "agent_report": route_result.get("agent_report")
+        if isinstance(route_result.get("agent_report"), dict)
+        else None,
         "route_result": route_result,
     }
     validate_contract_payload("search_result", result)

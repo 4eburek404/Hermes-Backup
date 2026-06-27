@@ -4,7 +4,9 @@ import unittest
 
 from flights_cli.errors import CliError
 from flights_cli.output import render_agent_report_human
-from flights_cli.reporting.projections.human_answer_mirror import build_human_answer_mirror
+from flights_cli.reporting.projections.human_answer_mirror import (
+    build_human_answer_mirror,
+)
 from flights_cli.reporting.user_answer import validate_user_answer
 from flights_cli.services.agent_report import build_agent_report
 from flights_cli.services.agent_report_contract import validate_agent_report
@@ -36,7 +38,9 @@ class HumanAnswerMirrorTests(unittest.TestCase):
         self.assertEqual(mirror["text"], "")
         self.assertEqual(mirror["sections"], [])
 
-    def test_agent_report_attaches_canonical_user_answer_and_cli_human_render_uses_it(self) -> None:
+    def test_agent_report_attaches_canonical_user_answer_and_cli_human_render_uses_it(
+        self,
+    ) -> None:
         report = build_agent_report(report_payload())
 
         validate_agent_report(report)
@@ -46,7 +50,9 @@ class HumanAnswerMirrorTests(unittest.TestCase):
         self.assertNotIn("agent report:", render_agent_report_human(report))
         self.assertEqual(render_agent_report_human(report), text)
 
-    def test_cli_human_render_prefers_canonical_v3_user_answer_over_legacy_projections(self) -> None:
+    def test_cli_human_render_prefers_canonical_v3_user_answer_over_legacy_projections(
+        self,
+    ) -> None:
         report = valid_report()
         canonical_text = report["user_answer"]["rendered_text"]
         report["human_answer"]["text"] = "STALE HUMAN ANSWER"
@@ -56,7 +62,9 @@ class HumanAnswerMirrorTests(unittest.TestCase):
         self.assertEqual(render_agent_report_human(report), canonical_text)
         self.assertNotEqual(render_agent_report_human(report), "STALE HUMAN ANSWER")
 
-    def test_cli_human_render_rejects_invalid_user_answer_instead_of_diagnostics_fallback(self) -> None:
+    def test_cli_human_render_rejects_invalid_user_answer_instead_of_diagnostics_fallback(
+        self,
+    ) -> None:
         report = valid_report()
         report["user_answer"] = {"schema_version": "flight_search_user_answer.v3"}
         report["human_answer"]["text"] = "STALE HUMAN ANSWER"

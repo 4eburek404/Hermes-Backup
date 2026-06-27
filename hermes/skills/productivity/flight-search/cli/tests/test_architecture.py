@@ -7,7 +7,11 @@ import tomllib
 import unittest
 
 from flights_cli import __skill_version__, __version__
-from flights_cli.command_surface import COMMAND_SURFACE_VERSION, DIAGNOSTIC_COMMANDS, PRIMARY_ROUTE_COMMAND
+from flights_cli.command_surface import (
+    COMMAND_SURFACE_VERSION,
+    DIAGNOSTIC_COMMANDS,
+    PRIMARY_ROUTE_COMMAND,
+)
 from flights_cli.config import (
     CITY_AIRPORTS_EXCLUDED_BY_DEFAULT,
     KUPIBILET_CITY_CODE_FIRST_AIRPORTS,
@@ -23,7 +27,9 @@ from helpers import PROJECT
 
 class ArchitectureTests(unittest.TestCase):
     def version_manifest(self) -> dict:
-        return json.loads((PROJECT.parent / "version_manifest.json").read_text(encoding="utf-8"))
+        return json.loads(
+            (PROJECT.parent / "version_manifest.json").read_text(encoding="utf-8")
+        )
 
     def test_pyproject_version_matches_runtime_version(self) -> None:
         data = tomllib.loads((PROJECT / "pyproject.toml").read_text())
@@ -39,16 +45,37 @@ class ArchitectureTests(unittest.TestCase):
         self.assertIsNotNone(match)
         self.assertEqual(match.group(1), __skill_version__)
         manifest = self.version_manifest()
-        self.assertEqual(manifest["skill"], {"name": "flight-search", "version": __skill_version__})
+        self.assertEqual(
+            manifest["skill"], {"name": "flight-search", "version": __skill_version__}
+        )
 
-    def test_version_manifest_matches_contract_registry_and_command_surface(self) -> None:
+    def test_version_manifest_matches_contract_registry_and_command_surface(
+        self,
+    ) -> None:
         manifest = self.version_manifest()
-        self.assertEqual(manifest["contracts"]["agent_report"], current_contract("agent_report")["schema_version"])
-        self.assertEqual(manifest["contracts"]["user_answer"], current_contract("user_answer")["schema_version"])
-        self.assertEqual(manifest["contracts"]["flight_search_request"], current_contract("search_request")["schema_version"])
-        self.assertEqual(manifest["contracts"]["flight_search_result"], current_contract("search_result")["schema_version"])
-        self.assertEqual(manifest["command_surface"]["version"], COMMAND_SURFACE_VERSION)
-        self.assertEqual(manifest["command_surface"]["canonical_path"], f"{PRIMARY_ROUTE_COMMAND} --request")
+        self.assertEqual(
+            manifest["contracts"]["agent_report"],
+            current_contract("agent_report")["schema_version"],
+        )
+        self.assertEqual(
+            manifest["contracts"]["user_answer"],
+            current_contract("user_answer")["schema_version"],
+        )
+        self.assertEqual(
+            manifest["contracts"]["flight_search_request"],
+            current_contract("search_request")["schema_version"],
+        )
+        self.assertEqual(
+            manifest["contracts"]["flight_search_result"],
+            current_contract("search_result")["schema_version"],
+        )
+        self.assertEqual(
+            manifest["command_surface"]["version"], COMMAND_SURFACE_VERSION
+        )
+        self.assertEqual(
+            manifest["command_surface"]["canonical_path"],
+            f"{PRIMARY_ROUTE_COMMAND} --request",
+        )
         self.assertEqual(
             sorted(manifest["command_surface"]["diagnostic_commands"]),
             sorted(DIAGNOSTIC_COMMANDS),
@@ -82,7 +109,9 @@ class ArchitectureTests(unittest.TestCase):
         self.assertEqual(lon_tiers[1]["tier"], 2)
         self.assertEqual(lon_tiers[1]["airports"], ["LGW"])
         self.assertEqual(lon_tiers[1]["role"], "deferred")
-        self.assertEqual(sorted(CITY_AIRPORTS_EXCLUDED_BY_DEFAULT["LON"]), ["LTN", "STN"])
+        self.assertEqual(
+            sorted(CITY_AIRPORTS_EXCLUDED_BY_DEFAULT["LON"]), ["LTN", "STN"]
+        )
 
     def test_kupibilet_mow_city_code_first_and_exact_deferred(self) -> None:
         # KupiBilet uses MOW city-code first; SVO/DME/VKO are deferred probes.
@@ -112,7 +141,9 @@ class ArchitectureTests(unittest.TestCase):
         from flights_cli.services.agent_report_contract import RU_PRIORITY_BRANCHES
 
         self.assertIn("direct_destination_control", RU_PRIORITY_BRANCHES)
-        self.assertEqual(RU_PRIORITY_BRANCHES["direct_destination_control"], "direct_destination")
+        self.assertEqual(
+            RU_PRIORITY_BRANCHES["direct_destination_control"], "direct_destination"
+        )
 
     def test_only_active_contract_schemas_are_packaged(self) -> None:
         contracts = PROJECT / "flights_cli" / "contracts"
@@ -130,7 +161,10 @@ class ArchitectureTests(unittest.TestCase):
 
     def test_module_dependency_boundaries(self) -> None:
         root = PROJECT / "flights_cli"
-        modules = {".".join(path.relative_to(PROJECT).with_suffix("").parts): path for path in root.rglob("*.py")}
+        modules = {
+            ".".join(path.relative_to(PROJECT).with_suffix("").parts): path
+            for path in root.rglob("*.py")
+        }
         edges: dict[str, set[str]] = {module: set() for module in modules}
 
         def resolve_target(target: str) -> str | None:
@@ -147,7 +181,7 @@ class ArchitectureTests(unittest.TestCase):
                 target_name = None
                 if isinstance(node, ast.ImportFrom) and node.module:
                     if node.level:
-                        base = module.split(".")[:-node.level]
+                        base = module.split(".")[: -node.level]
                         target_name = ".".join(base + [node.module])
                     else:
                         target_name = node.module
@@ -174,7 +208,7 @@ class ArchitectureTests(unittest.TestCase):
                 if target not in visited:
                     visit(target)
                 elif target in visiting:
-                    cycles.append(visiting[visiting.index(target):] + [target])
+                    cycles.append(visiting[visiting.index(target) :] + [target])
             visiting.pop()
 
         for module in modules:
@@ -185,20 +219,30 @@ class ArchitectureTests(unittest.TestCase):
             (source, target)
             for source, targets in edges.items()
             for target in targets
-            if source.startswith("flights_cli.providers.") and target.startswith(("flights_cli.cli", "flights_cli.commands."))
+            if source.startswith("flights_cli.providers.")
+            and target.startswith(("flights_cli.cli", "flights_cli.commands."))
         ]
         forbidden_orchestrator_provider_edges = [
             (source, target)
             for source, targets in edges.items()
             for target in targets
             if source.startswith("flights_cli.orchestrators.")
-            and target.startswith(("flights_cli.providers.kupibilet", "flights_cli.providers.fli_mcp"))
+            and target.startswith(
+                ("flights_cli.providers.kupibilet", "flights_cli.providers.fli_mcp")
+            )
         ]
         forbidden_output_edges = [
             (source, target)
             for source, targets in edges.items()
             for target in targets
-            if source == "flights_cli.output" and target.startswith(("flights_cli.providers.", "flights_cli.orchestrators.", "flights_cli.commands."))
+            if source == "flights_cli.output"
+            and target.startswith(
+                (
+                    "flights_cli.providers.",
+                    "flights_cli.orchestrators.",
+                    "flights_cli.commands.",
+                )
+            )
         ]
 
         self.assertEqual(cycles, [])
@@ -225,13 +269,17 @@ class ArchitectureTests(unittest.TestCase):
                 self.assertNotIn("argparse.Namespace", text)
 
         tree = ast.parse(live_route_assembly.read_text(encoding="utf-8"))
-        functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+        functions = {
+            node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)
+        }
         for name in ("build_live_route_segment_plan", "run_live_route_assembly"):
             with self.subTest(function=name):
                 first_arg = functions[name].args.args[0]
                 annotation = ast.unparse(first_arg.annotation)
                 self.assertEqual(annotation, "LiveAssemblyOptions")
-        self.assertNotIn("argparse_args_to_options", live_route_assembly.read_text(encoding="utf-8"))
+        self.assertNotIn(
+            "argparse_args_to_options", live_route_assembly.read_text(encoding="utf-8")
+        )
 
     def test_live_assembly_plan_builder_injection_is_typed(self) -> None:
         root = PROJECT / "flights_cli"
@@ -241,7 +289,9 @@ class ArchitectureTests(unittest.TestCase):
         self.assertIn("class RoutePlanBuilderFn(Protocol):", text)
 
         tree = ast.parse(text)
-        classes = {node.name: node for node in tree.body if isinstance(node, ast.ClassDef)}
+        classes = {
+            node.name: node for node in tree.body if isinstance(node, ast.ClassDef)
+        }
         runner_class = classes["LiveAssemblyRunner"]
         init_func = next(
             node

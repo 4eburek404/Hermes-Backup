@@ -11,7 +11,12 @@ import unittest
 from pathlib import Path
 
 from flights_cli.apps import search as search_app
-from flights_cli.cli import apply_agent_brief_output, apply_agent_output_defaults, build_parser, normalize_global_json
+from flights_cli.cli import (
+    apply_agent_brief_output,
+    apply_agent_output_defaults,
+    build_parser,
+    normalize_global_json,
+)
 from flights_cli.command_surface import (
     CATALOG_AUTO_REFRESH_COMMANDS,
     CATALOG_READ_COMMANDS,
@@ -26,6 +31,7 @@ from flights_cli.domain.stop_policy import stop_policy_from_args
 
 from helpers import PROJECT, TEST_ENV, parser_leaf_defaults
 
+
 def _dash(*parts: str) -> str:
     return "-".join(parts)
 
@@ -35,13 +41,50 @@ def _command_label(*parts: str) -> str:
 
 
 REMOVED_COMMAND_CASES = {
-    _command_label("route", _dash("live", "assemble")): ["route", _dash("live", "assemble"), "SVX", "LON", "--depart-date", "2026-07-20"],
-    _command_label("route", _dash("kb", "assemble")): ["route", _dash("kb", "assemble"), "SVX", "LON", "--depart-date", "2026-07-20"],
-    _command_label("route", "plan"): ["route", "plan", "SVX", "LON", "--depart-date", "2026-07-20"],
+    _command_label("route", _dash("live", "assemble")): [
+        "route",
+        _dash("live", "assemble"),
+        "SVX",
+        "LON",
+        "--depart-date",
+        "2026-07-20",
+    ],
+    _command_label("route", _dash("kb", "assemble")): [
+        "route",
+        _dash("kb", "assemble"),
+        "SVX",
+        "LON",
+        "--depart-date",
+        "2026-07-20",
+    ],
+    _command_label("route", "plan"): [
+        "route",
+        "plan",
+        "SVX",
+        "LON",
+        "--depart-date",
+        "2026-07-20",
+    ],
     "kb-search": ["kb-search", "SVX", "MOW", "--depart-date", "2026-07-19"],
-    "kb-roundtrip": ["kb-roundtrip", "SVX", "BJS", "--depart-date", "2026-08-01", "--return-date", "2026-08-08"],
+    "kb-roundtrip": [
+        "kb-roundtrip",
+        "SVX",
+        "BJS",
+        "--depart-date",
+        "2026-08-01",
+        "--return-date",
+        "2026-08-08",
+    ],
     "fli-search": ["fli-search", "IST", "LHR", "--depart-date", "2026-07-20"],
-    "fli-dates": ["fli-dates", "IST", "LHR", "--from-date", "2026-07-20", "--to-date", "2026-07-22"],
+    "fli-dates": [
+        "fli-dates",
+        "IST",
+        "LHR",
+        "--from-date",
+        "2026-07-20",
+        "--to-date",
+        "2026-07-22",
+    ],
 }
 
 
@@ -76,7 +119,9 @@ def live_search_args(**overrides: object) -> argparse.Namespace:
     }
     adapter = getattr(search_app, "live_assembly_options_from_search_request", None)
     if not callable(adapter):
-        raise AssertionError("search app must expose live_assembly_options_from_search_request as the canonical search adapter")
+        raise AssertionError(
+            "search app must expose live_assembly_options_from_search_request as the canonical search adapter"
+        )
     options = adapter(request)
     args = argparse.Namespace(
         command_name=options.command_name,
@@ -148,21 +193,47 @@ class CliContractTests(unittest.TestCase):
 
         for command_name, argv in REMOVED_COMMAND_CASES.items():
             with self.subTest(command_name=command_name):
-                with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                with (
+                    contextlib.redirect_stderr(io.StringIO()),
+                    self.assertRaises(SystemExit),
+                ):
                     parser.parse_args(argv)
 
     def test_docs_smoke_commands_parse(self) -> None:
         parser = build_parser()
         docs_argv = {
-            "search --request": ["--json", "search", "--request", "/tmp/flight-search-request.json"],
-            "diagnose plan --request": ["--json", "diagnose", "plan", "--request", "/tmp/flight-search-request.json"],
+            "search --request": [
+                "--json",
+                "search",
+                "--request",
+                "/tmp/flight-search-request.json",
+            ],
+            "diagnose plan --request": [
+                "--json",
+                "diagnose",
+                "plan",
+                "--request",
+                "/tmp/flight-search-request.json",
+            ],
             "maint doctor": ["--json", "maint", "doctor"],
             "maint check": ["--json", "maint", "check"],
             "cities search": ["--json", "cities", "search", "Yekaterinburg"],
             "airports explain": ["--json", "airports", "explain", "SVX", "MOW"],
-            "route assemble": ["--json", "route", "assemble", "--input", "segment-results.json"],
+            "route assemble": [
+                "--json",
+                "route",
+                "assemble",
+                "--input",
+                "segment-results.json",
+            ],
             "route rank": ["--json", "route", "rank", "--input", "candidates.json"],
-            "route validate": ["--json", "route", "validate", "--input", "itinerary.json"],
+            "route validate": [
+                "--json",
+                "route",
+                "validate",
+                "--input",
+                "itinerary.json",
+            ],
         }
 
         for label, argv in docs_argv.items():
@@ -174,7 +245,9 @@ class CliContractTests(unittest.TestCase):
         readme_text = (PROJECT / "README.md").read_text(encoding="utf-8")
         self.assertIn("python3 -m flights_cli --json search --request", skill_text)
         self.assertIn("python3 -m flights_cli --json search --request", readme_text)
-        self.assertIn("python3 -m flights_cli --json diagnose plan --request", readme_text)
+        self.assertIn(
+            "python3 -m flights_cli --json diagnose plan --request", readme_text
+        )
         removed_live = _command_label("route", _dash("live", "assemble"))
         removed_plan = _command_label("route", "plan")
         self.assertNotIn(removed_live, skill_text)
@@ -192,14 +265,22 @@ class CliContractTests(unittest.TestCase):
                 self.assertEqual(defaults.get("catalog_access"), "auto_refresh")
         for command_name in CATALOG_REFRESH_COMMANDS:
             with self.subTest(command_name=command_name):
-                self.assertEqual(leaves[command_name].get("catalog_access"), "refresh_explicit")
+                self.assertEqual(
+                    leaves[command_name].get("catalog_access"), "refresh_explicit"
+                )
 
     def test_metadata_commands_report_metadata_only_evidence_scope(self) -> None:
         commands = {
             "cities search": ["--json", "cities", "search", "Yekaterinburg"],
             "airports explain": ["--json", "airports", "explain", "SVX", "MOW"],
             "maint catalog manifest": ["--json", "maint", "catalog", "manifest"],
-            "maint catalog refresh": ["--json", "maint", "catalog", "refresh", "--dry-run"],
+            "maint catalog refresh": [
+                "--json",
+                "maint",
+                "catalog",
+                "refresh",
+                "--dry-run",
+            ],
         }
 
         for command_name, argv in commands.items():
@@ -215,12 +296,18 @@ class CliContractTests(unittest.TestCase):
                 )
                 payload = json.loads(proc.stdout)
                 self.assertTrue(payload["ok"])
-                self.assert_metadata_only_evidence_scope(payload["data"]["evidence_scope"])
+                self.assert_metadata_only_evidence_scope(
+                    payload["data"]["evidence_scope"]
+                )
                 if "catalog_auto_refresh" in payload["data"]:
-                    self.assert_metadata_only_evidence_scope(payload["data"]["catalog_auto_refresh"]["evidence_scope"])
+                    self.assert_metadata_only_evidence_scope(
+                        payload["data"]["catalog_auto_refresh"]["evidence_scope"]
+                    )
 
     def test_search_request_accepts_explicit_kupibilet_provider_policy(self) -> None:
-        args = live_search_args(destination="LON", depart_date="2026-07-20", provider_policy="kupibilet")
+        args = live_search_args(
+            destination="LON", depart_date="2026-07-20", provider_policy="kupibilet"
+        )
 
         self.assertEqual(args.command_name, "search")
         self.assertEqual(args.provider_policy, "kupibilet")
@@ -245,40 +332,64 @@ class CliContractTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["command"], "maint doctor")
         self.assertEqual(payload["issues"], [])
-        self.assertEqual(payload["data"]["cli"], {"name": "flights-cli", "version": "0.5.8"})
-        self.assertEqual(payload["data"]["skill"], {"name": "flight-search", "version": "0.8.8"})
-        self.assertEqual(set(payload["data"]), {
-            "cache_counts",
-            "cache_dir",
-            "cache_dir_exists",
-            "cache_files",
-            "catalog_auto_refresh_policy",
-            "catalog_staleness",
-            "cli",
-            "default_route_hubs",
-            "offline_first",
-            "python",
-            "risk_profiles",
-            "route_intel_cache",
-            "runtime_evidence_policy",
-            "safety",
-            "skill",
-            "version",
-            "version_manifest",
-        })
+        self.assertEqual(
+            payload["data"]["cli"], {"name": "flights-cli", "version": "0.5.8"}
+        )
+        self.assertEqual(
+            payload["data"]["skill"], {"name": "flight-search", "version": "0.8.8"}
+        )
+        self.assertEqual(
+            set(payload["data"]),
+            {
+                "cache_counts",
+                "cache_dir",
+                "cache_dir_exists",
+                "cache_files",
+                "catalog_auto_refresh_policy",
+                "catalog_staleness",
+                "cli",
+                "default_route_hubs",
+                "offline_first",
+                "python",
+                "risk_profiles",
+                "route_intel_cache",
+                "runtime_evidence_policy",
+                "safety",
+                "skill",
+                "version",
+                "version_manifest",
+            },
+        )
         self.assertEqual(payload["data"]["version_manifest"]["mismatches"], [])
-        self.assertEqual(payload["data"]["safety"], {
-            "booking_or_purchase": False,
-            "docker_touched": False,
-            "primary_route_command": PRIMARY_ROUTE_COMMAND,
-            "targeted_probe_commands": list(TARGETED_PROBE_COMMANDS),
-            "live_provider_commands": list(LIVE_PROVIDER_COMMANDS),
-        })
-        self.assertEqual(payload["data"]["catalog_auto_refresh_policy"]["applies_to"], list(CATALOG_AUTO_REFRESH_COMMANDS))
-        self.assertEqual(payload["data"]["catalog_auto_refresh_policy"]["max_age"], "2w")
-        self.assertEqual(payload["data"]["catalog_auto_refresh_policy"]["max_age_seconds"], 14 * 24 * 60 * 60)
-        self.assertEqual([item["code"] for item in payload["data"]["default_route_hubs"]], list(DEFAULT_ROUTE_HUBS))
-        self.assertEqual(set(payload["data"]["cache_counts"]), {"airlines", "airports", "alliances", "cities", "countries", "planes"})
+        self.assertEqual(
+            payload["data"]["safety"],
+            {
+                "booking_or_purchase": False,
+                "docker_touched": False,
+                "primary_route_command": PRIMARY_ROUTE_COMMAND,
+                "targeted_probe_commands": list(TARGETED_PROBE_COMMANDS),
+                "live_provider_commands": list(LIVE_PROVIDER_COMMANDS),
+            },
+        )
+        self.assertEqual(
+            payload["data"]["catalog_auto_refresh_policy"]["applies_to"],
+            list(CATALOG_AUTO_REFRESH_COMMANDS),
+        )
+        self.assertEqual(
+            payload["data"]["catalog_auto_refresh_policy"]["max_age"], "2w"
+        )
+        self.assertEqual(
+            payload["data"]["catalog_auto_refresh_policy"]["max_age_seconds"],
+            14 * 24 * 60 * 60,
+        )
+        self.assertEqual(
+            [item["code"] for item in payload["data"]["default_route_hubs"]],
+            list(DEFAULT_ROUTE_HUBS),
+        )
+        self.assertEqual(
+            set(payload["data"]["cache_counts"]),
+            {"airlines", "airports", "alliances", "cities", "countries", "planes"},
+        )
 
         human_proc = subprocess.run(
             [sys.executable, "-m", "flights_cli", "maint", "doctor"],
@@ -291,9 +402,13 @@ class CliContractTests(unittest.TestCase):
         )
         self.assertEqual(human_proc.stderr, "")
         self.assertFalse(human_proc.stdout.lstrip().startswith("{"))
-        self.assertLessEqual(len([line for line in human_proc.stdout.splitlines() if line.strip()]), 12)
+        self.assertLessEqual(
+            len([line for line in human_proc.stdout.splitlines() if line.strip()]), 12
+        )
 
-    def test_invalid_catalog_refresh_env_is_json_validation_error_for_all_commands(self) -> None:
+    def test_invalid_catalog_refresh_env_is_json_validation_error_for_all_commands(
+        self,
+    ) -> None:
         env = {**TEST_ENV, "FLIGHTS_CATALOG_REFRESH": "bad"}
         for argv in (
             ["--json", "maint", "doctor"],
@@ -314,7 +429,9 @@ class CliContractTests(unittest.TestCase):
                 self.assertFalse(payload["ok"])
                 self.assertEqual(payload["error"]["type"], "validation_error")
 
-    def test_agent_report_is_report_attachment_without_output_or_evidence_side_effects(self) -> None:
+    def test_agent_report_is_report_attachment_without_output_or_evidence_side_effects(
+        self,
+    ) -> None:
         args = live_search_args(agent_report=True)
 
         apply_agent_output_defaults(args)
@@ -388,7 +505,9 @@ class CliContractTests(unittest.TestCase):
         payload = json.loads(proc.stdout)
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["command"], "diagnose plan")
-        self.assertEqual(payload["data"]["schema_version"], "flight_search_plan_diagnostic.v1")
+        self.assertEqual(
+            payload["data"]["schema_version"], "flight_search_plan_diagnostic.v1"
+        )
         self.assert_metadata_only_evidence_scope(payload["data"]["evidence_scope"])
         data = payload["data"]["plan"]
         self.assertEqual(len(payload["data"]["segments"]), len(data["segments"]))
@@ -397,11 +516,21 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(first_probe["probe_type"], "segment_direct")
         self.assertEqual(first_probe["provider_policy"], "auto")
         self.assertEqual(first_probe["currency"], "RUB")
-        self.assertEqual(first_probe["filters"], {"only_carriers": [], "exclude_carriers": [], "prefer_carriers": [], "avoid_carriers": []})
+        self.assertEqual(
+            first_probe["filters"],
+            {
+                "only_carriers": [],
+                "exclude_carriers": [],
+                "prefer_carriers": [],
+                "avoid_carriers": [],
+            },
+        )
         self.assertNotIn("command", first_probe)
         self.assertEqual(data["hubs"], ["IST", "DXB"])
         self.assertEqual(data["destination_airports"], ["LHR", "LGW"])
-        self.assertEqual(data["airport_scope"]["destination"]["excluded_by_default"], ["STN", "LTN"])
+        self.assertEqual(
+            data["airport_scope"]["destination"]["excluded_by_default"], ["STN", "LTN"]
+        )
         self.assertEqual(data["metrics"]["segment_search_count"], 10)
         self.assertEqual(data["segments"][0]["route_family"], "hub_list")
         self.assertEqual(data["segments"][0]["origin"], "SVX")
@@ -410,7 +539,10 @@ class CliContractTests(unittest.TestCase):
 
     def test_normalize_global_json_accepts_trailing_json(self) -> None:
         argv = ["flights", "diagnose", "plan", "--request", "request.json", "--json"]
-        self.assertEqual(normalize_global_json(argv), ["flights", "--json", "diagnose", "plan", "--request", "request.json"])
+        self.assertEqual(
+            normalize_global_json(argv),
+            ["flights", "--json", "diagnose", "plan", "--request", "request.json"],
+        )
 
 
 if __name__ == "__main__":

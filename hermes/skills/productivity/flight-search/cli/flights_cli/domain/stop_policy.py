@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 StopTier = Literal["T0_DIRECT", "T1_ONE_STOP", "T2_TWO_STOP", "T3_THREE_PLUS"]
 
+
 @dataclass(frozen=True)
 class StopPolicy:
     name: str
@@ -14,11 +15,13 @@ class StopPolicy:
     allow_two_stop_tier: bool = True
     suppress_three_plus: bool = True
 
+
 @dataclass(frozen=True, slots=True)
 class StopPolicyOptions:
     stop_policy: str = "business-default"
     max_connections: int | None = None
     tier2_max_connections: int | None = None
+
 
 @dataclass(frozen=True)
 class StopPolicyDecision:
@@ -42,6 +45,7 @@ class StopPolicyDecision:
             "suppressed": self.suppressed,
             "reason": self.reason,
         }
+
 
 BUSINESS_DEFAULT_STOP_POLICY = StopPolicy(name="business_default")
 STRICT_DIRECT_ONE_STOP_POLICY = StopPolicy(
@@ -70,6 +74,7 @@ STOP_POLICY_ALIASES = {
     "debug_all": DEBUG_ALL_STOP_POLICY,
 }
 
+
 def stop_policy_from_options(options: StopPolicyOptions) -> StopPolicy:
     raw_name = str(options.stop_policy or "business-default")
     base = STOP_POLICY_ALIASES.get(raw_name, BUSINESS_DEFAULT_STOP_POLICY)
@@ -77,8 +82,16 @@ def stop_policy_from_options(options: StopPolicyOptions) -> StopPolicy:
     tier2_max_connections = options.tier2_max_connections
     if max_connections is None and tier2_max_connections is None:
         return base
-    preferred = base.preferred_max_connections if max_connections is None else int(max_connections)
-    tier2 = base.tier2_max_connections if tier2_max_connections is None else int(tier2_max_connections)
+    preferred = (
+        base.preferred_max_connections
+        if max_connections is None
+        else int(max_connections)
+    )
+    tier2 = (
+        base.tier2_max_connections
+        if tier2_max_connections is None
+        else int(tier2_max_connections)
+    )
     hard = min(base.hard_max_connections, tier2) if base.suppress_three_plus else tier2
     return StopPolicy(
         name=base.name,
@@ -89,6 +102,7 @@ def stop_policy_from_options(options: StopPolicyOptions) -> StopPolicy:
         suppress_three_plus=base.suppress_three_plus,
     )
 
+
 def stop_policy_options_from_args(args: Any) -> StopPolicyOptions:
     return StopPolicyOptions(
         stop_policy=str(getattr(args, "stop_policy", "") or "business-default"),
@@ -96,8 +110,10 @@ def stop_policy_options_from_args(args: Any) -> StopPolicyOptions:
         tier2_max_connections=getattr(args, "tier2_max_connections", None),
     )
 
+
 def stop_policy_from_args(args: Any) -> StopPolicy:
     return stop_policy_from_options(stop_policy_options_from_args(args))
+
 
 def stop_policy_payload(policy: StopPolicy) -> dict[str, Any]:
     return {
@@ -109,12 +125,14 @@ def stop_policy_payload(policy: StopPolicy) -> dict[str, Any]:
         "three_plus_reportable": not policy.suppress_three_plus,
     }
 
+
 def reportable_max_connections(policy: StopPolicy, preferred_available: bool) -> int:
     if preferred_available:
         return policy.preferred_max_connections
     if policy.allow_two_stop_tier:
         return policy.tier2_max_connections
     return policy.preferred_max_connections
+
 
 def stop_tier_from_count(connection_count: int) -> StopTier:
     count = max(0, int(connection_count))
@@ -126,10 +144,20 @@ def stop_tier_from_count(connection_count: int) -> StopTier:
         return "T2_TWO_STOP"
     return "T3_THREE_PLUS"
 
+
 def max_connections_from_metrics(metrics: dict[str, Any] | int) -> int:
     if isinstance(metrics, int):
         return max(0, metrics)
-    return max(0, int(metrics.get("max_connections_per_journey") or metrics.get("connection_count") or metrics.get("change_count") or 0))
+    return max(
+        0,
+        int(
+            metrics.get("max_connections_per_journey")
+            or metrics.get("connection_count")
+            or metrics.get("change_count")
+            or 0
+        ),
+    )
+
 
 def decide_stop_policy(
     metrics: dict[str, Any] | int,
@@ -149,14 +177,18 @@ def decide_stop_policy(
         suppressed = True
         reason = "hard_max_connections_exceeded"
 
-    eligible_preferred = not suppressed and max_connections <= policy.preferred_max_connections
+    eligible_preferred = (
+        not suppressed and max_connections <= policy.preferred_max_connections
+    )
     eligible_tier2 = not suppressed and max_connections <= policy.tier2_max_connections
     if not policy.allow_two_stop_tier and not eligible_preferred:
         eligible_tier2 = False
 
     requires_tier2_mode = not eligible_preferred
     reportable = eligible_preferred or (
-        eligible_tier2 and requires_tier2_mode and (tier2_mode or not preferred_available)
+        eligible_tier2
+        and requires_tier2_mode
+        and (tier2_mode or not preferred_available)
     )
 
     if not suppressed:

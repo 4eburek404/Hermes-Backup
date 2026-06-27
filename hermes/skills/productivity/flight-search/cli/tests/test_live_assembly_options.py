@@ -96,11 +96,17 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.profile, expected["profile"])
         self.assertEqual(options.filters.only_carriers, expected["only_carriers"])
         self.assertEqual(options.filters.prefer_carriers, expected["prefer_carriers"])
-        self.assertEqual(options.evidence.aggregate_control_carriers, expected["aggregate_control_carriers"])
+        self.assertEqual(
+            options.evidence.aggregate_control_carriers,
+            expected["aggregate_control_carriers"],
+        )
         self.assertEqual(options.output.agent_report, expected["agent_report"])
 
     def test_search_app_adapter_matches_typed_request_adapter(self) -> None:
-        self.assertEqual(live_assembly_options_from_search_request(REQUEST), search_request_to_options(REQUEST))
+        self.assertEqual(
+            live_assembly_options_from_search_request(REQUEST),
+            search_request_to_options(REQUEST),
+        )
 
     def test_search_app_rejects_non_business_profile(self) -> None:
         with self.assertRaises(CliError):
@@ -172,6 +178,7 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.output.include_filtered, 0)
         self.assertEqual(options.output.max_candidates, 0)
         self.assertEqual(options.output.max_reasons, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

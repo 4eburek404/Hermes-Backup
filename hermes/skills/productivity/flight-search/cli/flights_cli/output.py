@@ -7,6 +7,7 @@ from .domain.vocabulary import RoutingStrategy
 from .errors import CliError
 from .reporting.user_answer import validate_user_answer
 
+
 def output_envelope(command: str, data: Any) -> dict[str, Any]:
     return {"ok": True, "command": command, "data": data, "issues": []}
 
@@ -24,7 +25,9 @@ def emit_json(data: Any) -> None:
 
 def render_agent_report_human(report: dict[str, Any]) -> str:
     raw_user_answer = report.get("user_answer")
-    user_answer: dict[str, Any] = raw_user_answer if isinstance(raw_user_answer, dict) else {}
+    user_answer: dict[str, Any] = (
+        raw_user_answer if isinstance(raw_user_answer, dict) else {}
+    )
     validate_user_answer(user_answer)
     return str(user_answer["rendered_text"])
 
@@ -45,9 +48,19 @@ def render_human(command: str, data: Any) -> str:
             lines.append("(no matching offers found)")
         for i, offer in enumerate(data.get("offers", []), 1):
             price = offer.get("price")
-            price_text = f"{price:,.0f} {offer.get('currency', data.get('currency', ''))}" if price is not None else "price n/a"
-            changes = "direct" if offer.get("number_of_changes") == 0 else f"{offer.get('number_of_changes')} stop(s)"
-            lines.append(f"  {i}. {price_text}  {changes}  {offer.get('duration') or '?'}min")
+            price_text = (
+                f"{price:,.0f} {offer.get('currency', data.get('currency', ''))}"
+                if price is not None
+                else "price n/a"
+            )
+            changes = (
+                "direct"
+                if offer.get("number_of_changes") == 0
+                else f"{offer.get('number_of_changes')} stop(s)"
+            )
+            lines.append(
+                f"  {i}. {price_text}  {changes}  {offer.get('duration') or '?'}min"
+            )
             leg_bits = []
             for flight in offer.get("segments", []):
                 dep = str(flight.get("departure_at") or "")
@@ -67,7 +80,9 @@ def render_human(command: str, data: Any) -> str:
             "",
         ]
         for item in data.get("dates", []):
-            lines.append(f"{item.get('date')}  {item.get('price')} {item.get('currency') or ''}")
+            lines.append(
+                f"{item.get('date')}  {item.get('price')} {item.get('currency') or ''}"
+            )
         if not data.get("dates"):
             lines.append("(no priced dates found)")
         return "\n".join(lines)
@@ -84,14 +99,28 @@ def render_human(command: str, data: Any) -> str:
             lines.append("(no matching offers found)")
         for i, offer in enumerate(data.get("offers", []), 1):
             price = offer.get("price")
-            price_text = f"{price:,.0f} {offer.get('currency', data.get('currency', ''))}" if price is not None else "price n/a"
-            changes = "direct" if offer.get("number_of_changes") == 0 else f"{offer.get('number_of_changes')} stop(s)"
-            lines.append(f"  {i}. {price_text}  {changes}  {offer.get('duration') or '?'}min")
+            price_text = (
+                f"{price:,.0f} {offer.get('currency', data.get('currency', ''))}"
+                if price is not None
+                else "price n/a"
+            )
+            changes = (
+                "direct"
+                if offer.get("number_of_changes") == 0
+                else f"{offer.get('number_of_changes')} stop(s)"
+            )
+            lines.append(
+                f"  {i}. {price_text}  {changes}  {offer.get('duration') or '?'}min"
+            )
             leg_bits = []
             for flight in offer.get("segments", []):
                 operating = flight.get("operating_carrier")
                 marketing = flight.get("marketing_carrier")
-                op_note = f" op:{operating}" if operating and marketing and operating != marketing else ""
+                op_note = (
+                    f" op:{operating}"
+                    if operating and marketing and operating != marketing
+                    else ""
+                )
                 dep = str(flight.get("departure_at") or "")
                 arr = str(flight.get("arrival_at") or "")
                 leg_bits.append(
@@ -113,29 +142,50 @@ def render_human(command: str, data: Any) -> str:
             lines.append("(no matching round-trip offers found)")
         for i, offer in enumerate(data.get("offers", []), 1):
             price = offer.get("price")
-            price_text = f"{price:,.0f} {offer.get('currency', data.get('currency', ''))}" if price is not None else "price n/a"
-            changes = "direct/direct" if all((journey.get("number_of_changes") or 0) == 0 for journey in offer.get("journeys", [])) else f"{offer.get('number_of_changes')} total stop(s)"
-            baggage = offer.get("baggage") if isinstance(offer.get("baggage"), dict) else {}
+            price_text = (
+                f"{price:,.0f} {offer.get('currency', data.get('currency', ''))}"
+                if price is not None
+                else "price n/a"
+            )
+            changes = (
+                "direct/direct"
+                if all(
+                    (journey.get("number_of_changes") or 0) == 0
+                    for journey in offer.get("journeys", [])
+                )
+                else f"{offer.get('number_of_changes')} total stop(s)"
+            )
+            baggage = (
+                offer.get("baggage") if isinstance(offer.get("baggage"), dict) else {}
+            )
             baggage_bits = []
             if baggage.get("count") is not None:
                 baggage_bits.append(f"{baggage.get('count')}pc")
             if baggage.get("weight") is not None:
                 baggage_bits.append(f"{baggage.get('weight')}kg")
-            baggage_text = "bag " + "/".join(baggage_bits) if baggage_bits else "bag n/a"
+            baggage_text = (
+                "bag " + "/".join(baggage_bits) if baggage_bits else "bag n/a"
+            )
             lines.append(f"  {i}. {price_text}  {changes}  {baggage_text}")
             for journey in offer.get("journeys", []):
                 leg_bits = []
                 for flight in journey.get("segments", []):
                     operating = flight.get("operating_carrier")
                     marketing = flight.get("marketing_carrier")
-                    op_note = f" op:{operating}" if operating and marketing and operating != marketing else ""
+                    op_note = (
+                        f" op:{operating}"
+                        if operating and marketing and operating != marketing
+                        else ""
+                    )
                     dep = str(flight.get("departure_at") or "")
                     arr = str(flight.get("arrival_at") or "")
                     leg_bits.append(
                         f"{flight.get('flight_number')} {flight.get('origin')}{dep[11:16]}→{flight.get('destination')}{arr[11:16]}{op_note}"
                     )
                 if leg_bits:
-                    lines.append(f"     {journey.get('direction')}: " + " | ".join(leg_bits))
+                    lines.append(
+                        f"     {journey.get('direction')}: " + " | ".join(leg_bits)
+                    )
         return "\n".join(lines)
     if command == "maint doctor":
         counts = data["cache_counts"]
@@ -163,7 +213,9 @@ def render_human(command: str, data: Any) -> str:
         versions = data["versions"]
         parity = data["source_runtime_parity"]
         workflow = data.get("branch_workflow") or {}
-        workflow_parity = workflow.get("parity") if isinstance(workflow.get("parity"), dict) else {}
+        workflow_parity = (
+            workflow.get("parity") if isinstance(workflow.get("parity"), dict) else {}
+        )
         version_manifest = data["version_manifest"]
         references = data["references"]
         artifacts = data["generated_artifacts"]
@@ -184,13 +236,21 @@ def render_human(command: str, data: Any) -> str:
         )
     if command == "maint catalog refresh":
         if data.get("dry_run"):
-            lines = [f"catalog dry-run: {len(data.get('planned') or [])} files", f"cache: {data['cache_dir']}"]
+            lines = [
+                f"catalog dry-run: {len(data.get('planned') or [])} files",
+                f"cache: {data['cache_dir']}",
+            ]
             for item in data.get("planned") or []:
                 lines.append(f"  {item['name']}: {item['filename']}")
             return "\n".join(lines)
-        lines = [f"catalog updated: {data.get('updated_count', 0)} files", f"cache: {data['cache_dir']}"]
+        lines = [
+            f"catalog updated: {data.get('updated_count', 0)} files",
+            f"cache: {data['cache_dir']}",
+        ]
         for item in data.get("updated") or []:
-            lines.append(f"  {item['name']}: count={item['count']} sha256={str(item['sha256'])[:12]}")
+            lines.append(
+                f"  {item['name']}: count={item['count']} sha256={str(item['sha256'])[:12]}"
+            )
         return "\n".join(lines)
     if command == "maint catalog manifest":
         entries = (data.get("manifest") or {}).get("entries") or {}
@@ -202,21 +262,29 @@ def render_human(command: str, data: Any) -> str:
         ]
         for name in sorted(entries):
             entry = entries[name]
-            lines.append(f"  {name}: count={entry.get('count')} downloaded_at={entry.get('downloaded_at')}")
+            lines.append(
+                f"  {name}: count={entry.get('count')} downloaded_at={entry.get('downloaded_at')}"
+            )
         return "\n".join(lines)
     if command == "cities search":
         lines = [f"cities for {data['query']!r}: {len(data['cities'])}"]
         refresh = data.get("catalog_auto_refresh")
         if refresh:
-            lines.append(f"catalog refresh: {'updated' if refresh.get('refreshed') else refresh.get('reason')}")
+            lines.append(
+                f"catalog refresh: {'updated' if refresh.get('refreshed') else refresh.get('reason')}"
+            )
         for city in data["cities"]:
             airports = ",".join(city.get("airports") or [])
-            lines.append(f"{city['code']}\t{city.get('name') or ''}\t{city.get('country_code') or ''}\t{airports}")
+            lines.append(
+                f"{city['code']}\t{city.get('name') or ''}\t{city.get('country_code') or ''}\t{airports}"
+            )
         return "\n".join(lines)
     if command == "airports explain":
         lines = []
         for airport in data["airports"]:
-            lines.append(f"{airport['code']}: {airport.get('city_name') or airport.get('name') or 'unknown'}")
+            lines.append(
+                f"{airport['code']}: {airport.get('city_name') or airport.get('name') or 'unknown'}"
+            )
             for note in airport.get("notes") or []:
                 lines.append(f"  - {note}")
         return "\n".join(lines)
@@ -232,13 +300,18 @@ def render_human(command: str, data: Any) -> str:
         ]
         refresh = data.get("catalog_auto_refresh")
         if refresh:
-            lines.insert(2, f"catalog refresh: {'updated' if refresh.get('refreshed') else refresh.get('reason')}")
+            lines.insert(
+                2,
+                f"catalog refresh: {'updated' if refresh.get('refreshed') else refresh.get('reason')}",
+            )
         for segment in plan["segments"][:8]:
             command = segment.get("command")
             if command:
                 lines.append(f"  {command}")
             else:
-                lines.append(f"  {segment['origin']} -> {segment['destination']} {segment['date']}")
+                lines.append(
+                    f"  {segment['origin']} -> {segment['destination']} {segment['date']}"
+                )
         if len(plan["segments"]) > 8:
             lines.append(f"  ... {len(plan['segments']) - 8} more")
         if plan["warnings"]:
@@ -252,7 +325,9 @@ def render_human(command: str, data: Any) -> str:
             f"segments: {data['summary']['segment_count']}, connections: {data['summary']['connection_count']}, violations: {data['summary']['violation_count']}",
         ]
         for violation in data["violations"]:
-            lines.append(f"violation: {violation['arrival_airport']} -> {violation['departure_airport']}: {violation['status']}")
+            lines.append(
+                f"violation: {violation['arrival_airport']} -> {violation['departure_airport']}: {violation['status']}"
+            )
             for note in violation.get("notes") or []:
                 lines.append(f"  - {note}")
         return "\n".join(lines)
@@ -263,7 +338,9 @@ def render_human(command: str, data: Any) -> str:
                 f"{item['rank']}. {item['id']} risk={item['risk']['score']}:{item['risk']['grade']} price={item['price']} elapsed={item['elapsed_min']}"
             )
             for reason in item["risk"]["top_reasons"][:3]:
-                lines.append(f"  - +{reason['points']} {reason['code']}: {reason['message']}")
+                lines.append(
+                    f"  - +{reason['points']} {reason['code']}: {reason['message']}"
+                )
         return "\n".join(lines)
     if command == "route assemble":
         assembly = data["assembly"]

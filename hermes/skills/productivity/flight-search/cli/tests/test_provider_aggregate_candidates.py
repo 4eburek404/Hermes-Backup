@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import unittest
 
-from flights_cli.adapters.providers.kupibilet_adapter import aggregate_offer_summary, kupibilet_aggregate_control_summary
+from flights_cli.adapters.providers.kupibilet_adapter import (
+    aggregate_offer_summary,
+    kupibilet_aggregate_control_summary,
+)
 from flights_cli.services.agent_report import build_agent_report
 from flights_cli.services.agent_report_contract import validate_agent_report
 
@@ -56,7 +59,10 @@ def assembled_round_trip_detail() -> dict:
             "elapsed_min": 1200,
             "carriers": ["SU"],
             "risk": {"score": 1, "grade": "good", "reject": False, "top_reasons": []},
-            "validation_summary": {"stop_tier": "T0_DIRECT", "max_connections_per_journey": 0},
+            "validation_summary": {
+                "stop_tier": "T0_DIRECT",
+                "max_connections_per_journey": 0,
+            },
             "connections": [],
         },
         "candidate": {
@@ -169,7 +175,13 @@ def report_payload() -> dict:
                 "routing_strategy": "ru-priority",
                 "coverage_mode": "targeted",
                 "coverage_controls": [
-                    {"type": "full_route_aggregate", "direction": "outbound", "origin": "SVX", "destination": "DEL", "date": "2026-06-01"}
+                    {
+                        "type": "full_route_aggregate",
+                        "direction": "outbound",
+                        "origin": "SVX",
+                        "destination": "DEL",
+                        "date": "2026-06-01",
+                    }
                 ],
             },
             "hub_viability": [],
@@ -196,17 +208,24 @@ def report_payload() -> dict:
 
 
 class ProviderAggregateCandidateTests(unittest.TestCase):
-    def test_provider_aggregate_offer_is_labeled_candidate_not_protected_fare(self) -> None:
+    def test_provider_aggregate_offer_is_labeled_candidate_not_protected_fare(
+        self,
+    ) -> None:
         report = build_agent_report(report_payload())
         validate_agent_report(report)
 
         aggregate = next(
-            item for item in report["frontier"]["priority_options"] if item.get("category") == "provider_aggregate_candidate"
+            item
+            for item in report["frontier"]["priority_options"]
+            if item.get("category") == "provider_aggregate_candidate"
         )
         self.assertEqual(aggregate["id"], "provider-aggregate:outbound:agg-su-del")
         self.assertEqual(aggregate["detail_status"], "full")
         self.assertEqual(aggregate["price"], {"amount": 42000, "currency": "RUB"})
-        self.assertEqual([segment["flight_number"] for segment in aggregate["segments"]], ["SU1419", "SU232"])
+        self.assertEqual(
+            [segment["flight_number"] for segment in aggregate["segments"]],
+            ["SU1419", "SU232"],
+        )
         self.assertEqual(aggregate["journey_scope"], "one_way")
         self.assertEqual(aggregate["direction"], "outbound")
         self.assertTrue(aggregate["covers_requested_trip"])
@@ -225,11 +244,19 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
         aggregate_frontier = frontier_by_id["provider-aggregate:outbound:agg-su-del"]
         self.assertEqual(aggregate_frontier["source"], "priority_options")
         self.assertEqual(aggregate_frontier["role"], "provider_aggregate_candidate")
-        self.assertEqual(aggregate_frontier["evidence_status"], "provider_aggregate_unverified_ticketing")
+        self.assertEqual(
+            aggregate_frontier["evidence_status"],
+            "provider_aggregate_unverified_ticketing",
+        )
         self.assertEqual(graph["collection"]["mode"], "progressive")
-        self.assertEqual(graph["truth_language"]["inventory_scope"], "live_provider_returned_inventory")
+        self.assertEqual(
+            graph["truth_language"]["inventory_scope"],
+            "live_provider_returned_inventory",
+        )
 
-    def test_offer_graph_surfaces_not_supported_as_capability_boundary_not_missing_evidence(self) -> None:
+    def test_offer_graph_surfaces_not_supported_as_capability_boundary_not_missing_evidence(
+        self,
+    ) -> None:
         payload = report_payload()
         payload["live_search"]["probe_ledger"] = {
             "coverage_mode": "targeted",
@@ -277,10 +304,17 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
         self.assertEqual(graph["evidence"]["not_supported_control_count"], 1)
         self.assertEqual(graph["evidence"]["missing_evidence_count"], 0)
         self.assertEqual(graph["missing_evidence"], [])
-        self.assertEqual(graph["capability_boundaries"][0]["reason"], "provider_capability_not_supported")
-        self.assertEqual(graph["collection"]["stop_reason"], "bounded_terminal_controls")
+        self.assertEqual(
+            graph["capability_boundaries"][0]["reason"],
+            "provider_capability_not_supported",
+        )
+        self.assertEqual(
+            graph["collection"]["stop_reason"], "bounded_terminal_controls"
+        )
 
-    def test_provider_aggregate_times_include_layover_from_segment_timestamps(self) -> None:
+    def test_provider_aggregate_times_include_layover_from_segment_timestamps(
+        self,
+    ) -> None:
         payload = report_payload()
         payload["live_search"]["aggregate_controls"][0]["top_offers"] = [
             {
@@ -311,7 +345,11 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
         report = build_agent_report(payload)
         validate_agent_report(report)
 
-        aggregate = next(item for item in report["frontier"]["priority_options"] if item.get("id") == "provider-aggregate:outbound:with-layover")
+        aggregate = next(
+            item
+            for item in report["frontier"]["priority_options"]
+            if item.get("id") == "provider-aggregate:outbound:with-layover"
+        )
         self.assertEqual(aggregate["flight_time_min"], 300)
         self.assertEqual(aggregate["layover_total_min"], 360)
         self.assertEqual(aggregate["itinerary_elapsed_min"], 660)
@@ -350,13 +388,19 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
         report = build_agent_report(payload)
         validate_agent_report(report)
 
-        aggregate = next(item for item in report["frontier"]["priority_options"] if item.get("id") == "provider-aggregate:outbound:overnight-layover")
+        aggregate = next(
+            item
+            for item in report["frontier"]["priority_options"]
+            if item.get("id") == "provider-aggregate:outbound:overnight-layover"
+        )
         self.assertEqual(aggregate["flight_time_min"], 360)
         self.assertEqual(aggregate["layover_total_min"], 540)
         self.assertEqual(aggregate["itinerary_elapsed_min"], 900)
         self.assertNotIn("duration", aggregate["user_facing_label"].lower())
 
-    def test_provider_aggregate_missing_timestamps_falls_back_to_flight_time_only(self) -> None:
+    def test_provider_aggregate_missing_timestamps_falls_back_to_flight_time_only(
+        self,
+    ) -> None:
         payload = report_payload()
         payload["live_search"]["aggregate_controls"][0]["top_offers"] = [
             {
@@ -364,8 +408,18 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
                 "id": "flight-time-only",
                 "duration_min": 545,
                 "segments": [
-                    {"flight_number": "A1", "carrier": "A", "origin": "SVX", "destination": "IST"},
-                    {"flight_number": "A2", "carrier": "A", "origin": "IST", "destination": "LON"},
+                    {
+                        "flight_number": "A1",
+                        "carrier": "A",
+                        "origin": "SVX",
+                        "destination": "IST",
+                    },
+                    {
+                        "flight_number": "A2",
+                        "carrier": "A",
+                        "origin": "IST",
+                        "destination": "LON",
+                    },
                 ],
             }
         ]
@@ -373,14 +427,27 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
         report = build_agent_report(payload)
         validate_agent_report(report)
 
-        aggregate = next(item for item in report["frontier"]["priority_options"] if item.get("id") == "provider-aggregate:outbound:flight-time-only")
+        aggregate = next(
+            item
+            for item in report["frontier"]["priority_options"]
+            if item.get("id") == "provider-aggregate:outbound:flight-time-only"
+        )
         self.assertEqual(aggregate["flight_time_min"], 545)
         self.assertIsNone(aggregate["itinerary_elapsed_min"])
         self.assertIsNone(aggregate["layover_total_min"])
-        for forbidden in ("Travel time", "duration", "elapsed", "total time", "nonstop", "direct"):
+        for forbidden in (
+            "Travel time",
+            "duration",
+            "elapsed",
+            "total time",
+            "nonstop",
+            "direct",
+        ):
             self.assertNotIn(forbidden.lower(), aggregate["user_facing_label"].lower())
 
-    def test_provider_aggregate_single_segment_time_has_zero_layover_without_noise(self) -> None:
+    def test_provider_aggregate_single_segment_time_has_zero_layover_without_noise(
+        self,
+    ) -> None:
         payload = report_payload()
         payload["live_search"]["aggregate_controls"][0]["top_offers"] = [
             {
@@ -404,14 +471,23 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
         report = build_agent_report(payload)
         validate_agent_report(report)
 
-        aggregate = next(item for item in report["frontier"]["priority_options"] if item.get("id") == "provider-aggregate:outbound:single-segment")
+        aggregate = next(
+            item
+            for item in report["frontier"]["priority_options"]
+            if item.get("id") == "provider-aggregate:outbound:single-segment"
+        )
         self.assertEqual(aggregate["flight_time_min"], 240)
         self.assertEqual(aggregate["layover_total_min"], 0)
         self.assertEqual(aggregate["itinerary_elapsed_min"], 240)
 
-    def test_round_trip_provider_aggregate_controls_are_marked_directional_only(self) -> None:
+    def test_round_trip_provider_aggregate_controls_are_marked_directional_only(
+        self,
+    ) -> None:
         payload = report_payload()
-        payload["live_search"]["plan"]["dates"] = {"depart": "2026-07-19", "return": "2026-07-24"}
+        payload["live_search"]["plan"]["dates"] = {
+            "depart": "2026-07-19",
+            "return": "2026-07-24",
+        }
         return_offer = {
             **aggregate_offer(),
             "id": "agg-return",
@@ -471,23 +547,50 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
         self.assertFalse(inbound["covers_requested_trip"])
         self.assertTrue(inbound["directional_only"])
 
-    def test_round_trip_directional_aggregate_controls_create_one_two_one_way_pair(self) -> None:
+    def test_round_trip_directional_aggregate_controls_create_one_two_one_way_pair(
+        self,
+    ) -> None:
         payload = report_payload()
         payload["ranked_candidates"] = [assembled_round_trip_detail()]
-        payload["live_search"]["plan"]["dates"] = {"depart": "2026-07-19", "return": "2026-07-24"}
+        payload["live_search"]["plan"]["dates"] = {
+            "depart": "2026-07-19",
+            "return": "2026-07-24",
+        }
         payload["live_search"]["aggregate_controls"][0]["top_offers"] = [
-            {**aggregate_offer(), "id": "agg-outbound", "price": 21000, "currency": "RUB"}
+            {
+                **aggregate_offer(),
+                "id": "agg-outbound",
+                "price": 21000,
+                "currency": "RUB",
+            }
         ]
-        add_return_aggregate_control(payload, return_aggregate_offer(price=43000, currency="RUB"))
+        add_return_aggregate_control(
+            payload, return_aggregate_offer(price=43000, currency="RUB")
+        )
 
         report = build_agent_report(payload)
         validate_agent_report(report)
 
-        self.assertEqual(report["frontier"]["recommended_options"][0]["id"], "assembled-round-trip:SVX-DEL")
-        provider_options = [item for item in report["frontier"]["priority_options"] if item.get("category") == "provider_aggregate_candidate"]
-        outbound = next(item for item in provider_options if item.get("direction") == "outbound")
-        inbound = next(item for item in provider_options if item.get("direction") == "return")
-        pairs = [item for item in provider_options if item.get("journey_scope") == "two_one_way_pair"]
+        self.assertEqual(
+            report["frontier"]["recommended_options"][0]["id"],
+            "assembled-round-trip:SVX-DEL",
+        )
+        provider_options = [
+            item
+            for item in report["frontier"]["priority_options"]
+            if item.get("category") == "provider_aggregate_candidate"
+        ]
+        outbound = next(
+            item for item in provider_options if item.get("direction") == "outbound"
+        )
+        inbound = next(
+            item for item in provider_options if item.get("direction") == "return"
+        )
+        pairs = [
+            item
+            for item in provider_options
+            if item.get("journey_scope") == "two_one_way_pair"
+        ]
         self.assertEqual(len(pairs), 1)
         pair = pairs[0]
 
@@ -507,11 +610,19 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
         self.assertNotIn("layover_total_min", pair)
         self.assertEqual(
             pair["outbound_time"],
-            {"itinerary_elapsed_min": 740, "flight_time_min": 510, "layover_total_min": 230},
+            {
+                "itinerary_elapsed_min": 740,
+                "flight_time_min": 510,
+                "layover_total_min": 230,
+            },
         )
         self.assertEqual(
             pair["return_time"],
-            {"itinerary_elapsed_min": 750, "flight_time_min": 570, "layover_total_min": 180},
+            {
+                "itinerary_elapsed_min": 750,
+                "flight_time_min": 570,
+                "layover_total_min": 180,
+            },
         )
         self.assertNotIn("total journey time", pair["user_facing_label"].lower())
         combined = f"{pair['user_facing_label']} {pair['price_text']}".lower()
@@ -521,23 +632,39 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
 
     def test_two_one_way_pair_does_not_sum_different_currencies(self) -> None:
         payload = report_payload()
-        payload["live_search"]["plan"]["dates"] = {"depart": "2026-07-19", "return": "2026-07-24"}
+        payload["live_search"]["plan"]["dates"] = {
+            "depart": "2026-07-19",
+            "return": "2026-07-24",
+        }
         payload["live_search"]["aggregate_controls"][0]["top_offers"] = [
-            {**aggregate_offer(), "id": "agg-outbound", "price": 21000, "currency": "RUB"}
+            {
+                **aggregate_offer(),
+                "id": "agg-outbound",
+                "price": 21000,
+                "currency": "RUB",
+            }
         ]
-        add_return_aggregate_control(payload, return_aggregate_offer(price=430, currency="EUR"))
+        add_return_aggregate_control(
+            payload, return_aggregate_offer(price=430, currency="EUR")
+        )
 
         report = build_agent_report(payload)
         validate_agent_report(report)
 
-        pair = next(item for item in report["frontier"]["priority_options"] if item.get("journey_scope") == "two_one_way_pair")
+        pair = next(
+            item
+            for item in report["frontier"]["priority_options"]
+            if item.get("journey_scope") == "two_one_way_pair"
+        )
         self.assertEqual(pair["price"], {"amount": None, "currency": None})
         combined = f"{pair['user_facing_label']} {pair['price_text']}".lower()
         self.assertNotIn("sum of displayed one-way prices", combined)
         self.assertNotIn("total fare", combined)
         self.assertNotIn("round-trip fare", combined)
 
-    def test_provider_aggregate_frontier_prefers_fewer_stops_over_cheapest_garbage(self) -> None:
+    def test_provider_aggregate_frontier_prefers_fewer_stops_over_cheapest_garbage(
+        self,
+    ) -> None:
         payload = report_payload()
         cheap_garbage = {
             **aggregate_offer(),
@@ -552,26 +679,65 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
                 {"origin": "C", "destination": "DEL", "flight_number": "D4"},
             ],
         }
-        frontier = {**aggregate_offer(), "id": "frontier", "price": 42000, "change_count": 1}
-        payload["live_search"]["aggregate_controls"][0]["top_offers"] = [cheap_garbage, frontier]
+        frontier = {
+            **aggregate_offer(),
+            "id": "frontier",
+            "price": 42000,
+            "change_count": 1,
+        }
+        payload["live_search"]["aggregate_controls"][0]["top_offers"] = [
+            cheap_garbage,
+            frontier,
+        ]
 
         report = build_agent_report(payload)
 
-        self.assertEqual(report["evidence"]["aggregate_controls"][0]["top_offers"][0]["id"], "frontier")
-        self.assertEqual(report["frontier"]["priority_options"][0]["id"], "provider-aggregate:outbound:frontier")
+        self.assertEqual(
+            report["evidence"]["aggregate_controls"][0]["top_offers"][0]["id"],
+            "frontier",
+        )
+        self.assertEqual(
+            report["frontier"]["priority_options"][0]["id"],
+            "provider-aggregate:outbound:frontier",
+        )
 
-    def test_provider_aggregate_frontier_prefers_shorter_duration_before_price(self) -> None:
+    def test_provider_aggregate_frontier_prefers_shorter_duration_before_price(
+        self,
+    ) -> None:
         payload = report_payload()
-        slow_cheap = {**aggregate_offer(), "id": "slow-cheap", "price": 26000, "change_count": 1, "duration": 1040}
-        short_expensive = {**aggregate_offer(), "id": "short-expensive", "price": 42000, "change_count": 1, "duration": 520}
-        payload["live_search"]["aggregate_controls"][0]["top_offers"] = [slow_cheap, short_expensive]
+        slow_cheap = {
+            **aggregate_offer(),
+            "id": "slow-cheap",
+            "price": 26000,
+            "change_count": 1,
+            "duration": 1040,
+        }
+        short_expensive = {
+            **aggregate_offer(),
+            "id": "short-expensive",
+            "price": 42000,
+            "change_count": 1,
+            "duration": 520,
+        }
+        payload["live_search"]["aggregate_controls"][0]["top_offers"] = [
+            slow_cheap,
+            short_expensive,
+        ]
 
         report = build_agent_report(payload)
 
-        self.assertEqual(report["evidence"]["aggregate_controls"][0]["top_offers"][0]["id"], "short-expensive")
-        self.assertEqual(report["frontier"]["priority_options"][0]["id"], "provider-aggregate:outbound:short-expensive")
+        self.assertEqual(
+            report["evidence"]["aggregate_controls"][0]["top_offers"][0]["id"],
+            "short-expensive",
+        )
+        self.assertEqual(
+            report["frontier"]["priority_options"][0]["id"],
+            "provider-aggregate:outbound:short-expensive",
+        )
 
-    def test_provider_aggregate_execution_cuts_three_stop_before_model_payload(self) -> None:
+    def test_provider_aggregate_execution_cuts_three_stop_before_model_payload(
+        self,
+    ) -> None:
         one_stop = {
             "id": "one-stop",
             "price": 42000,
@@ -628,9 +794,13 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
         self.assertEqual(summary["suppressed_three_plus_count"], 1)
         self.assertEqual(summary["suppressed_airport_change_count"], 1)
         self.assertEqual([offer["id"] for offer in summary["top_offers"]], ["one-stop"])
-        self.assertTrue(all(int(offer["connection_count"]) <= 2 for offer in summary["top_offers"]))
+        self.assertTrue(
+            all(int(offer["connection_count"]) <= 2 for offer in summary["top_offers"])
+        )
 
-    def test_provider_aggregate_report_keeps_only_suppressed_three_stop_count(self) -> None:
+    def test_provider_aggregate_report_keeps_only_suppressed_three_stop_count(
+        self,
+    ) -> None:
         payload = report_payload()
         control = payload["live_search"]["aggregate_controls"][0]
         control["offer_count"] = 1
@@ -642,9 +812,23 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
         report = build_agent_report(payload)
         validate_agent_report(report)
 
-        self.assertEqual(report["evidence"]["aggregate_controls"][0]["suppressed_three_plus_count"], 1)
-        self.assertEqual(report["evidence"]["stop_policy_diagnostics"]["three_plus_suppressed_count"], 1)
-        self.assertEqual([offer["id"] for offer in report["evidence"]["aggregate_controls"][0]["top_offers"]], ["agg-su-del"])
+        self.assertEqual(
+            report["evidence"]["aggregate_controls"][0]["suppressed_three_plus_count"],
+            1,
+        )
+        self.assertEqual(
+            report["evidence"]["stop_policy_diagnostics"][
+                "three_plus_suppressed_count"
+            ],
+            1,
+        )
+        self.assertEqual(
+            [
+                offer["id"]
+                for offer in report["evidence"]["aggregate_controls"][0]["top_offers"]
+            ],
+            ["agg-su-del"],
+        )
         self.assertTrue(
             all(
                 int(offer.get("connection_count") or 0) <= 2

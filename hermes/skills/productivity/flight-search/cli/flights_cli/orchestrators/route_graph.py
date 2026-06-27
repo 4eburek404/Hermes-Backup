@@ -18,7 +18,10 @@ from ..domain.hubs import resolve_route_hubs, resolve_routing_strategy
 from ..domain.vocabulary import RequiredControl, RouteFamily, RoutingStrategy
 from ..errors import CliError
 from ..pipeline.options import LiveAssemblyOptions
-from ..pipeline.flow_decision import market_class_for_resolved_route, routing_strategy_for_market
+from ..pipeline.flow_decision import (
+    market_class_for_resolved_route,
+    routing_strategy_for_market,
+)
 from ..pipeline.search_request import search_request_from_options
 from ..store import Store
 
@@ -35,14 +38,19 @@ class RouteGraphContext:
 
 
 def geo_routing_profile(destination: Any, destination_airports: list[str]) -> str:
-    codes = {str(destination.code or "").upper(), *(code.upper() for code in destination_airports)}
+    codes = {
+        str(destination.code or "").upper(),
+        *(code.upper() for code in destination_airports),
+    }
     country = str(destination.country_code or "").upper()
     if country in ASIA_OCEANIA_COUNTRIES or codes & ASIA_DESTINATION_CODES:
         return "asia-oceania"
     return "default"
 
 
-def route_families_for_strategy(routing_strategy: str, routing_profile: str) -> list[dict[str, Any]]:
+def route_families_for_strategy(
+    routing_strategy: str, routing_profile: str
+) -> list[dict[str, Any]]:
     if routing_strategy == RoutingStrategy.RU_PRIORITY:
         families = [
             {
@@ -100,7 +108,9 @@ def route_families_for_strategy(routing_strategy: str, routing_profile: str) -> 
     return []
 
 
-def complete_route_families(base_families: list[dict[str, Any]], segment_family_ids: list[str]) -> list[dict[str, Any]]:
+def complete_route_families(
+    base_families: list[dict[str, Any]], segment_family_ids: list[str]
+) -> list[dict[str, Any]]:
     """Return route family metadata that covers every family used by segments."""
 
     completed = [dict(family) for family in base_families]
@@ -133,7 +143,9 @@ def route_segment_spec(
         "leg": leg,
         "origin": origin_code,
         "destination": dest_code,
-        "date": dep_date.isoformat() if hasattr(dep_date, "isoformat") else str(dep_date),
+        "date": dep_date.isoformat()
+        if hasattr(dep_date, "isoformat")
+        else str(dep_date),
         **extra,
     }
 
@@ -198,19 +210,30 @@ def all_airports_in_country(store: Store, airports: list[str], country: str) -> 
     return all(airport_country(store, code) == target for code in airports)
 
 
-def is_domestic_ru_route(store: Store, origin: Any, destination: Any, origin_airports: list[str], destination_airports: list[str]) -> bool:
+def is_domestic_ru_route(
+    store: Store,
+    origin: Any,
+    destination: Any,
+    origin_airports: list[str],
+    destination_airports: list[str],
+) -> bool:
     origin_country = str(origin.country_code or "").upper() or None
     destination_country = str(destination.country_code or "").upper() or None
     if origin_country == "RU" and destination_country == "RU":
         return True
-    return all_airports_in_country(store, origin_airports, "RU") and all_airports_in_country(store, destination_airports, "RU")
+    return all_airports_in_country(
+        store, origin_airports, "RU"
+    ) and all_airports_in_country(store, destination_airports, "RU")
 
 
 def coverage_mode_from_options(options: LiveAssemblyOptions) -> str:
     raw_value = options.evidence.coverage_mode
     raw = str(raw_value or "targeted").strip().lower()
     if raw not in {"standard", "targeted", "full"}:
-        raise CliError("coverage mode must be one of standard, targeted, full", error_type="validation_error")
+        raise CliError(
+            "coverage mode must be one of standard, targeted, full",
+            error_type="validation_error",
+        )
     return raw
 
 
@@ -219,9 +242,13 @@ def coverage_control_limit_from_options(options: LiveAssemblyOptions) -> int:
     try:
         value = int(raw)
     except (TypeError, ValueError) as exc:
-        raise CliError("coverage-control-limit must be an integer", error_type="validation_error") from exc
+        raise CliError(
+            "coverage-control-limit must be an integer", error_type="validation_error"
+        ) from exc
     if value < 0:
-        raise CliError("coverage-control-limit must be non-negative", error_type="validation_error")
+        raise CliError(
+            "coverage-control-limit must be non-negative", error_type="validation_error"
+        )
     return value
 
 
@@ -249,12 +276,18 @@ def resolve_route_graph_context(
     destination_airports: list[str],
 ) -> RouteGraphContext:
     raw_routing_strategy = str(options.route.routing_strategy or "auto").strip().lower()
-    market_class = market_class_for_resolved_route(store, origin, destination, origin_airports, destination_airports)
+    market_class = market_class_for_resolved_route(
+        store, origin, destination, origin_airports, destination_airports
+    )
     if raw_routing_strategy == "auto":
-        routing_strategy = routing_strategy_for_market(search_request_from_options(options), market_class)
+        routing_strategy = routing_strategy_for_market(
+            search_request_from_options(options), market_class
+        )
     else:
         try:
-            routing_strategy = resolve_routing_strategy(raw_routing_strategy, options.route.hubs)
+            routing_strategy = resolve_routing_strategy(
+                raw_routing_strategy, options.route.hubs
+            )
         except ValueError as exc:
             raise CliError(str(exc), error_type="validation_error") from exc
 
@@ -266,7 +299,11 @@ def resolve_route_graph_context(
             hubs = [PRIORITY_ASIA_HUB, PRIORITY_PRIMARY_HUB, PRIORITY_SECONDARY_HUB]
         hub_source = "strategy"
     elif routing_strategy == RoutingStrategy.DOMESTIC_RU:
-        hubs = [hub for hub in DOMESTIC_RU_HUBS if hub not in set(origin_airports) | set(destination_airports)]
+        hubs = [
+            hub
+            for hub in DOMESTIC_RU_HUBS
+            if hub not in set(origin_airports) | set(destination_airports)
+        ]
         if not hubs:
             hubs = [PRIORITY_MOSCOW_GATEWAY]
         hub_source = RoutingStrategy.DOMESTIC_RU
@@ -277,8 +314,15 @@ def resolve_route_graph_context(
         hubs=hubs,
         hub_source=hub_source,
         airport_scope={
-            "origin": airport_scope_summary(origin, origin_airports, options.route.origin_airports, role="origin"),
-            "destination": airport_scope_summary(destination, destination_airports, options.route.destination_airports, role="destination"),
+            "origin": airport_scope_summary(
+                origin, origin_airports, options.route.origin_airports, role="origin"
+            ),
+            "destination": airport_scope_summary(
+                destination,
+                destination_airports,
+                options.route.destination_airports,
+                role="destination",
+            ),
         },
         coverage_mode=coverage_mode_from_options(options),
         coverage_limits=coverage_limits_from_options(options),
@@ -298,8 +342,16 @@ def route_graph_from_segments(
         set(origin_airports)
         | set(destination_airports)
         | set(hubs)
-        | {str(segment.get("origin") or "").upper() for segment in segments if segment.get("origin")}
-        | {str(segment.get("destination") or "").upper() for segment in segments if segment.get("destination")}
+        | {
+            str(segment.get("origin") or "").upper()
+            for segment in segments
+            if segment.get("origin")
+        }
+        | {
+            str(segment.get("destination") or "").upper()
+            for segment in segments
+            if segment.get("destination")
+        }
     )
     edges = []
     for index, segment in enumerate(segments, 1):
@@ -322,7 +374,13 @@ def route_graph_from_segments(
         "nodes": nodes,
         "hubs": hubs,
         "edges": edges,
-        "families": sorted({str(segment.get("route_family")) for segment in segments if segment.get("route_family")}),
+        "families": sorted(
+            {
+                str(segment.get("route_family"))
+                for segment in segments
+                if segment.get("route_family")
+            }
+        ),
     }
 
 
@@ -356,9 +414,13 @@ def _requested_carriers(requested_controls: list[str] | None) -> list[str]:
     return carriers
 
 
-def _prioritized_carriers(preferred_carriers: list[str] | None, requested_controls: list[str] | None) -> list[str]:
+def _prioritized_carriers(
+    preferred_carriers: list[str] | None, requested_controls: list[str] | None
+) -> list[str]:
     carriers: list[str] = []
-    for code in _requested_carriers(requested_controls) + list(preferred_carriers or PRIORITY_ROUTE_CARRIERS):
+    for code in _requested_carriers(requested_controls) + list(
+        preferred_carriers or PRIORITY_ROUTE_CARRIERS
+    ):
         normalized = str(code).strip().upper()
         if normalized and normalized not in carriers:
             carriers.append(normalized)
@@ -393,15 +455,20 @@ def coverage_controls_for_plan(
     if ret is not None:
         directions.append(("return", destination_code, origin_code, ret))
     direct_probe_directions = [
-        ("outbound", origin_code, destination_code, date_value) for date_value in (depart_dates or [depart])
+        ("outbound", origin_code, destination_code, date_value)
+        for date_value in (depart_dates or [depart])
     ]
     if ret is not None:
         direct_probe_directions.append(("return", destination_code, origin_code, ret))
 
     if coverage_mode in {"standard", "targeted", "full"}:
         for direction, _origin_city, _dest_city, date_value in direct_probe_directions:
-            source_airports = origin_airports if direction == "outbound" else destination_airports
-            target_airports = destination_airports if direction == "outbound" else origin_airports
+            source_airports = (
+                origin_airports if direction == "outbound" else destination_airports
+            )
+            target_airports = (
+                destination_airports if direction == "outbound" else origin_airports
+            )
             for origin in source_airports:
                 for destination in target_airports:
                     add(
@@ -410,7 +477,9 @@ def coverage_controls_for_plan(
                             "direction": direction,
                             "origin": origin,
                             "destination": destination,
-                            "date": date_value.isoformat() if hasattr(date_value, "isoformat") else str(date_value),
+                            "date": date_value.isoformat()
+                            if hasattr(date_value, "isoformat")
+                            else str(date_value),
                             "negative_evidence": "provider_empty_only_not_route_absence",
                         }
                     )
@@ -423,18 +492,24 @@ def coverage_controls_for_plan(
                     "direction": direction,
                     "origin": route_origin,
                     "destination": route_destination,
-                    "date": date_value.isoformat() if hasattr(date_value, "isoformat") else str(date_value),
+                    "date": date_value.isoformat()
+                    if hasattr(date_value, "isoformat")
+                    else str(date_value),
                     "negative_evidence": "aggregate_empty_only_not_route_absence",
                 }
             )
-            for carrier in _prioritized_carriers(preferred_carriers, requested_controls):
+            for carrier in _prioritized_carriers(
+                preferred_carriers, requested_controls
+            ):
                 add(
                     {
                         "type": RequiredControl.CARRIER_AGGREGATE,
                         "direction": direction,
                         "origin": route_origin,
                         "destination": route_destination,
-                        "date": date_value.isoformat() if hasattr(date_value, "isoformat") else str(date_value),
+                        "date": date_value.isoformat()
+                        if hasattr(date_value, "isoformat")
+                        else str(date_value),
                         "carrier": str(carrier).upper(),
                         "negative_evidence": "carrier_probe_empty_only_not_carrier_absence",
                     }
@@ -448,7 +523,9 @@ def coverage_controls_for_plan(
                     "direction": direction,
                     "origin": route_origin,
                     "destination": route_destination,
-                    "date": date_value.isoformat() if hasattr(date_value, "isoformat") else str(date_value),
+                    "date": date_value.isoformat()
+                    if hasattr(date_value, "isoformat")
+                    else str(date_value),
                     "negative_evidence": "city_code_empty_only_not_route_absence",
                 }
             )

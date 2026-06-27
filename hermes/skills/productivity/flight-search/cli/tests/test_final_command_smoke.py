@@ -21,12 +21,46 @@ def _snake(*parts: str) -> str:
 
 
 REMOVED_COMMANDS = {
-    _command_label("route", "plan"): ["--json", "route", "plan", "SVX", "LON", "--depart-date", "2026-07-20"],
-    _command_label("route", _dash("live", "assemble")): ["--json", "route", _dash("live", "assemble"), "SVX", "LON", "--depart-date", "2026-07-20"],
+    _command_label("route", "plan"): [
+        "--json",
+        "route",
+        "plan",
+        "SVX",
+        "LON",
+        "--depart-date",
+        "2026-07-20",
+    ],
+    _command_label("route", _dash("live", "assemble")): [
+        "--json",
+        "route",
+        _dash("live", "assemble"),
+        "SVX",
+        "LON",
+        "--depart-date",
+        "2026-07-20",
+    ],
     "kb-search": ["--json", "kb-search", "SVX", "MOW", "--depart-date", "2026-07-19"],
-    "kb-roundtrip": ["--json", "kb-roundtrip", "SVX", "BJS", "--depart-date", "2026-08-01", "--return-date", "2026-08-08"],
+    "kb-roundtrip": [
+        "--json",
+        "kb-roundtrip",
+        "SVX",
+        "BJS",
+        "--depart-date",
+        "2026-08-01",
+        "--return-date",
+        "2026-08-08",
+    ],
     "fli-search": ["--json", "fli-search", "IST", "LHR", "--depart-date", "2026-07-20"],
-    "fli-dates": ["--json", "fli-dates", "IST", "LHR", "--from-date", "2026-07-20", "--to-date", "2026-07-22"],
+    "fli-dates": [
+        "--json",
+        "fli-dates",
+        "IST",
+        "LHR",
+        "--from-date",
+        "2026-07-20",
+        "--to-date",
+        "2026-07-22",
+    ],
 }
 
 
@@ -45,15 +79,27 @@ class FinalCommandSmokeTests(unittest.TestCase):
 
         parser = build_parser()
         for label, argv in REMOVED_COMMANDS.items():
-            with self.subTest(label=label), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            with (
+                self.subTest(label=label),
+                contextlib.redirect_stderr(io.StringIO()),
+                self.assertRaises(SystemExit),
+            ):
                 parser.parse_args(argv)
 
     def test_active_docs_do_not_reference_removed_command_forms(self) -> None:
         text = docs_text()
         forbidden_patterns = {
             _command_label("route", "plan"): r"\b" + "route" + r"\s+" + "plan" + r"\b",
-            _command_label("route", _dash("live", "assemble")): r"\b" + "route" + r"\s+" + _dash("live", "assemble") + r"\b",
-            _command_label("route", _dash("kb", "assemble")): r"\b" + "route" + r"\s+" + _dash("kb", "assemble") + r"\b",
+            _command_label("route", _dash("live", "assemble")): r"\b"
+            + "route"
+            + r"\s+"
+            + _dash("live", "assemble")
+            + r"\b",
+            _command_label("route", _dash("kb", "assemble")): r"\b"
+            + "route"
+            + r"\s+"
+            + _dash("kb", "assemble")
+            + r"\b",
             "top-level kb-search": r"(?<!diagnose\s)\bkb-search\b",
             "top-level kb-roundtrip": r"(?<!diagnose\s)\bkb-roundtrip\b",
             "top-level fli-search": r"(?<!diagnose\s)\bfli-search\b",

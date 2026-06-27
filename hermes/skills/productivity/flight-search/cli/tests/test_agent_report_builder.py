@@ -6,14 +6,20 @@ from typing import Any
 
 from flights_cli.reporting.agent_report_builder import build_agent_report
 from flights_cli.services.agent_report_contract import validate_agent_report
-from flights_cli.services.assembly import assemble_segment_results, assembly_options_from_args, empty_assembled_result
+from flights_cli.services.assembly import (
+    assemble_segment_results,
+    assembly_options_from_args,
+    empty_assembled_result,
+)
 
 
 LON_AIRPORTS = ["LHR", "LGW", "STN", "LTN"]
 MOW_AIRPORTS = ["SVO", "DME", "VKO"]
 
 
-def segment(origin: str, destination: str, depart: str, arrive: str, flight: str, carrier: str) -> dict[str, Any]:
+def segment(
+    origin: str, destination: str, depart: str, arrive: str, flight: str, carrier: str
+) -> dict[str, Any]:
     return {
         "origin": origin,
         "destination": destination,
@@ -42,7 +48,13 @@ def offer(offer_id: str, price: int, segments: list[dict[str, Any]]) -> dict[str
     }
 
 
-def segment_result(direction: str, leg: str, origin: str, destination: str, offers: list[dict[str, Any]]) -> dict[str, Any]:
+def segment_result(
+    direction: str,
+    leg: str,
+    origin: str,
+    destination: str,
+    offers: list[dict[str, Any]],
+) -> dict[str, Any]:
     return {
         "direction": direction,
         "leg": leg,
@@ -53,7 +65,12 @@ def segment_result(direction: str, leg: str, origin: str, destination: str, offe
         "status": "ok",
         "offer_count": len(offers),
         "cache_status": "fixture",
-        "query": {"origin": origin, "destination": destination, "date": "2026-07-19", "currency": "RUB"},
+        "query": {
+            "origin": origin,
+            "destination": destination,
+            "date": "2026-07-19",
+            "currency": "RUB",
+        },
         "source_key": "fixture",
         "raw_count": len(offers),
         "parse_errors": 0,
@@ -98,7 +115,11 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         routing_strategy: str = "ru-priority",
     ) -> dict[str, Any]:
         options = assembly_options_from_args(self._args())
-        data = assemble_segment_results(segment_results, options) if segment_results else empty_assembled_result(options)
+        data = (
+            assemble_segment_results(segment_results, options)
+            if segment_results
+            else empty_assembled_result(options)
+        )
         data["live_search"] = {
             "source": "fixture",
             "provider_policy": "kupibilet",
@@ -128,7 +149,11 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         control = report["evidence"]["ru_priority_controls"][f"{branch}_control"]
         self.assertTrue(control["visible"], branch)
         self.assertIsInstance(control["priority_option_id"], str)
-        option = next(item for item in report["frontier"]["priority_options"] if item["id"] == control["priority_option_id"])
+        option = next(
+            item
+            for item in report["frontier"]["priority_options"]
+            if item["id"] == control["priority_option_id"]
+        )
         self.assertEqual(option.get("control_family"), "ru_priority")
         self.assertEqual(option.get("control_branch"), branch)
         self.assertEqual(option.get("visibility_role"), "priority_control")
@@ -199,7 +224,9 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         self.assertEqual(searches[1]["only_carriers"], ["SU"])
         self.assertEqual(searches[1]["preferred_carriers"], [])
 
-    def test_direct_destination_branch_is_viable_visible_and_not_mixed_with_hubs(self) -> None:
+    def test_direct_destination_branch_is_viable_visible_and_not_mixed_with_hubs(
+        self,
+    ) -> None:
         report = self._report(
             [
                 segment_result(
@@ -211,7 +238,16 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                         offer(
                             "svx-lhr-direct",
                             31000,
-                            [segment("SVX", "LHR", "2026-07-19T07:00:00+05:00", "2026-07-19T09:30:00+01:00", "U6305", "U6")],
+                            [
+                                segment(
+                                    "SVX",
+                                    "LHR",
+                                    "2026-07-19T07:00:00+05:00",
+                                    "2026-07-19T09:30:00+01:00",
+                                    "U6305",
+                                    "U6",
+                                )
+                            ],
                         )
                     ],
                 )
@@ -226,9 +262,13 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         self.assertFalse(controls["moscow_gateway_control"]["viable"])
         option = self._control_option(report, "direct_destination")
         self.assertEqual([segment["origin"] for segment in option["segments"]], ["SVX"])
-        self.assertEqual([segment["destination"] for segment in option["segments"]], ["LHR"])
+        self.assertEqual(
+            [segment["destination"] for segment in option["segments"]], ["LHR"]
+        )
 
-    def test_direct_destination_branch_accepts_connecting_itinerary_from_direct_search(self) -> None:
+    def test_direct_destination_branch_accepts_connecting_itinerary_from_direct_search(
+        self,
+    ) -> None:
         report = self._report(
             [
                 segment_result(
@@ -241,8 +281,22 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                             "svx-lhr-via-ist-direct-search",
                             36000,
                             [
-                                segment("SVX", "IST", "2026-07-19T07:00:00+05:00", "2026-07-19T09:00:00+03:00", "U6301", "U6"),
-                                segment("IST", "LHR", "2026-07-19T14:00:00+03:00", "2026-07-19T16:00:00+01:00", "TK1985", "TK"),
+                                segment(
+                                    "SVX",
+                                    "IST",
+                                    "2026-07-19T07:00:00+05:00",
+                                    "2026-07-19T09:00:00+03:00",
+                                    "U6301",
+                                    "U6",
+                                ),
+                                segment(
+                                    "IST",
+                                    "LHR",
+                                    "2026-07-19T14:00:00+03:00",
+                                    "2026-07-19T16:00:00+01:00",
+                                    "TK1985",
+                                    "TK",
+                                ),
                             ],
                         )
                     ],
@@ -262,8 +316,12 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         self.assertFalse(controls["ist_primary_hub_control"]["viable"])
         self.assertFalse(controls["moscow_gateway_control"]["viable"])
         option = self._control_option(report, "direct_destination")
-        self.assertEqual([segment["origin"] for segment in option["segments"]], ["SVX", "IST"])
-        self.assertEqual([segment["destination"] for segment in option["segments"]], ["IST", "LHR"])
+        self.assertEqual(
+            [segment["origin"] for segment in option["segments"]], ["SVX", "IST"]
+        )
+        self.assertEqual(
+            [segment["destination"] for segment in option["segments"]], ["IST", "LHR"]
+        )
 
     def test_ist_primary_branch_is_viable_visible_and_not_moscow_gateway(self) -> None:
         report = self._report(
@@ -277,7 +335,16 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                         offer(
                             "svx-ist",
                             25000,
-                            [segment("SVX", "IST", "2026-07-19T07:00:00+05:00", "2026-07-19T09:00:00+03:00", "U6301", "U6")],
+                            [
+                                segment(
+                                    "SVX",
+                                    "IST",
+                                    "2026-07-19T07:00:00+05:00",
+                                    "2026-07-19T09:00:00+03:00",
+                                    "U6301",
+                                    "U6",
+                                )
+                            ],
                         )
                     ],
                 ),
@@ -290,7 +357,16 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                         offer(
                             "ist-lhr",
                             18000,
-                            [segment("IST", "LHR", "2026-07-19T14:00:00+03:00", "2026-07-19T16:00:00+01:00", "TK1985", "TK")],
+                            [
+                                segment(
+                                    "IST",
+                                    "LHR",
+                                    "2026-07-19T14:00:00+03:00",
+                                    "2026-07-19T16:00:00+01:00",
+                                    "TK1985",
+                                    "TK",
+                                )
+                            ],
                         )
                     ],
                 ),
@@ -301,7 +377,9 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         controls = report["evidence"]["ru_priority_controls"]
         self.assertTrue(controls["requested"])
         self.assertTrue(controls["checked"])
-        self.assertEqual(set(controls["scope"]["destination_airports"]), set(LON_AIRPORTS))
+        self.assertEqual(
+            set(controls["scope"]["destination_airports"]), set(LON_AIRPORTS)
+        )
         self.assertEqual(set(controls["scope"]["moscow_airports"]), set(MOW_AIRPORTS))
         self.assertTrue(controls["ist_primary_hub_control"]["checked"])
         self.assertTrue(controls["ist_primary_hub_control"]["viable"])
@@ -322,7 +400,16 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                         offer(
                             "svx-svo",
                             12000,
-                            [segment("SVX", "SVO", "2026-07-19T06:00:00+05:00", "2026-07-19T06:40:00+03:00", "SU1401", "SU")],
+                            [
+                                segment(
+                                    "SVX",
+                                    "SVO",
+                                    "2026-07-19T06:00:00+05:00",
+                                    "2026-07-19T06:40:00+03:00",
+                                    "SU1401",
+                                    "SU",
+                                )
+                            ],
                         )
                     ],
                 ),
@@ -335,7 +422,16 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                         offer(
                             "svo-lhr",
                             22000,
-                            [segment("SVO", "LHR", "2026-07-19T11:00:00+03:00", "2026-07-19T13:00:00+01:00", "SU2578", "SU")],
+                            [
+                                segment(
+                                    "SVO",
+                                    "LHR",
+                                    "2026-07-19T11:00:00+03:00",
+                                    "2026-07-19T13:00:00+01:00",
+                                    "SU2578",
+                                    "SU",
+                                )
+                            ],
                         )
                     ],
                 ),
@@ -345,12 +441,18 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
 
         controls = report["evidence"]["ru_priority_controls"]
         self.assertTrue(controls["moscow_gateway_control"]["checked"])
-        self.assertEqual(controls["moscow_gateway_control"]["execution_state"], "executed")
+        self.assertEqual(
+            controls["moscow_gateway_control"]["execution_state"], "executed"
+        )
         self.assertTrue(controls["moscow_gateway_control"]["viable"])
         self.assertEqual(set(controls["scope"]["moscow_airports"]), set(MOW_AIRPORTS))
         option = self._control_option(report, "moscow_gateway")
-        self.assertEqual([segment["origin"] for segment in option["segments"]], ["SVX", "SVO"])
-        self.assertEqual([segment["destination"] for segment in option["segments"]], ["SVO", "LHR"])
+        self.assertEqual(
+            [segment["origin"] for segment in option["segments"]], ["SVX", "SVO"]
+        )
+        self.assertEqual(
+            [segment["destination"] for segment in option["segments"]], ["SVO", "LHR"]
+        )
 
     def test_moscow_gateway_partial_prefix_evidence_is_not_fully_executed(self) -> None:
         report = self._report(
@@ -364,7 +466,16 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                         offer(
                             "svx-svo",
                             12000,
-                            [segment("SVX", "SVO", "2026-07-19T06:00:00+05:00", "2026-07-19T06:40:00+03:00", "SU1401", "SU")],
+                            [
+                                segment(
+                                    "SVX",
+                                    "SVO",
+                                    "2026-07-19T06:00:00+05:00",
+                                    "2026-07-19T06:40:00+03:00",
+                                    "SU1401",
+                                    "SU",
+                                )
+                            ],
                         )
                     ],
                 )
@@ -395,7 +506,9 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         self.assertFalse(control["visible"])
         self.assertIsNone(control["priority_option_id"])
 
-    def test_moscow_via_ist_secondary_is_used_only_when_mow_destination_is_unviable(self) -> None:
+    def test_moscow_via_ist_secondary_is_used_only_when_mow_destination_is_unviable(
+        self,
+    ) -> None:
         report = self._report(
             [
                 segment_result(
@@ -408,8 +521,22 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                             "svx-svo-ist",
                             26000,
                             [
-                                segment("SVX", "SVO", "2026-07-19T06:00:00+05:00", "2026-07-19T06:40:00+03:00", "SU1401", "SU"),
-                                segment("SVO", "IST", "2026-07-19T10:30:00+03:00", "2026-07-19T14:35:00+03:00", "SU2136", "SU"),
+                                segment(
+                                    "SVX",
+                                    "SVO",
+                                    "2026-07-19T06:00:00+05:00",
+                                    "2026-07-19T06:40:00+03:00",
+                                    "SU1401",
+                                    "SU",
+                                ),
+                                segment(
+                                    "SVO",
+                                    "IST",
+                                    "2026-07-19T10:30:00+03:00",
+                                    "2026-07-19T14:35:00+03:00",
+                                    "SU2136",
+                                    "SU",
+                                ),
                             ],
                         )
                     ],
@@ -424,7 +551,16 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                         offer(
                             "ist-lhr",
                             18000,
-                            [segment("IST", "LHR", "2026-07-19T20:00:00+03:00", "2026-07-19T22:00:00+01:00", "TK1987", "TK")],
+                            [
+                                segment(
+                                    "IST",
+                                    "LHR",
+                                    "2026-07-19T20:00:00+03:00",
+                                    "2026-07-19T22:00:00+01:00",
+                                    "TK1987",
+                                    "TK",
+                                )
+                            ],
                         )
                     ],
                 ),
@@ -436,13 +572,23 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         self.assertTrue(controls["moscow_gateway_control"]["checked"])
         self.assertFalse(controls["moscow_gateway_control"]["viable"])
         self.assertTrue(controls["moscow_via_ist_secondary_control"]["checked"])
-        self.assertEqual(controls["moscow_via_ist_secondary_control"]["execution_state"], "assembled_evidence")
+        self.assertEqual(
+            controls["moscow_via_ist_secondary_control"]["execution_state"],
+            "assembled_evidence",
+        )
         self.assertTrue(controls["moscow_via_ist_secondary_control"]["viable"])
         option = self._control_option(report, "moscow_via_ist_secondary")
-        self.assertEqual([segment["origin"] for segment in option["segments"]], ["SVX", "SVO", "IST"])
-        self.assertEqual([segment["destination"] for segment in option["segments"]], ["SVO", "IST", "LHR"])
+        self.assertEqual(
+            [segment["origin"] for segment in option["segments"]], ["SVX", "SVO", "IST"]
+        )
+        self.assertEqual(
+            [segment["destination"] for segment in option["segments"]],
+            ["SVO", "IST", "LHR"],
+        )
 
-    def test_moscow_via_ist_secondary_is_not_priority_control_when_mow_destination_is_viable(self) -> None:
+    def test_moscow_via_ist_secondary_is_not_priority_control_when_mow_destination_is_viable(
+        self,
+    ) -> None:
         report = self._report(
             [
                 segment_result(
@@ -454,7 +600,16 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                         offer(
                             "svx-svo",
                             12000,
-                            [segment("SVX", "SVO", "2026-07-19T06:00:00+05:00", "2026-07-19T06:40:00+03:00", "SU1401", "SU")],
+                            [
+                                segment(
+                                    "SVX",
+                                    "SVO",
+                                    "2026-07-19T06:00:00+05:00",
+                                    "2026-07-19T06:40:00+03:00",
+                                    "SU1401",
+                                    "SU",
+                                )
+                            ],
                         )
                     ],
                 ),
@@ -467,7 +622,16 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                         offer(
                             "svo-lhr",
                             22000,
-                            [segment("SVO", "LHR", "2026-07-19T11:00:00+03:00", "2026-07-19T13:00:00+01:00", "SU2578", "SU")],
+                            [
+                                segment(
+                                    "SVO",
+                                    "LHR",
+                                    "2026-07-19T11:00:00+03:00",
+                                    "2026-07-19T13:00:00+01:00",
+                                    "SU2578",
+                                    "SU",
+                                )
+                            ],
                         )
                     ],
                 ),
@@ -481,8 +645,22 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                             "svx-svo-ist",
                             26000,
                             [
-                                segment("SVX", "SVO", "2026-07-19T06:00:00+05:00", "2026-07-19T06:40:00+03:00", "SU1401", "SU"),
-                                segment("SVO", "IST", "2026-07-19T10:30:00+03:00", "2026-07-19T14:35:00+03:00", "SU2136", "SU"),
+                                segment(
+                                    "SVX",
+                                    "SVO",
+                                    "2026-07-19T06:00:00+05:00",
+                                    "2026-07-19T06:40:00+03:00",
+                                    "SU1401",
+                                    "SU",
+                                ),
+                                segment(
+                                    "SVO",
+                                    "IST",
+                                    "2026-07-19T10:30:00+03:00",
+                                    "2026-07-19T14:35:00+03:00",
+                                    "SU2136",
+                                    "SU",
+                                ),
                             ],
                         )
                     ],
@@ -496,7 +674,16 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                         offer(
                             "ist-lhr",
                             18000,
-                            [segment("IST", "LHR", "2026-07-19T20:00:00+03:00", "2026-07-19T22:00:00+01:00", "TK1987", "TK")],
+                            [
+                                segment(
+                                    "IST",
+                                    "LHR",
+                                    "2026-07-19T20:00:00+03:00",
+                                    "2026-07-19T22:00:00+01:00",
+                                    "TK1987",
+                                    "TK",
+                                )
+                            ],
                         )
                     ],
                 ),
@@ -514,16 +701,21 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
             controls["moscow_via_ist_secondary_control"]["execution_state"],
             "skipped_better_options_available",
         )
-        self.assertIsNone(controls["moscow_via_ist_secondary_control"]["priority_option_id"])
+        self.assertIsNone(
+            controls["moscow_via_ist_secondary_control"]["priority_option_id"]
+        )
         self._control_option(report, "moscow_gateway")
         fallback_priority_options = [
             item
             for item in report["frontier"]["priority_options"]
-            if item.get("control_branch") == "moscow_via_ist_secondary" and item.get("visibility_role") == "priority_control"
+            if item.get("control_branch") == "moscow_via_ist_secondary"
+            and item.get("visibility_role") == "priority_control"
         ]
         self.assertEqual(fallback_priority_options, [])
 
-    def test_moscow_via_ist_secondary_is_skipped_when_one_stop_ist_primary_exists(self) -> None:
+    def test_moscow_via_ist_secondary_is_skipped_when_one_stop_ist_primary_exists(
+        self,
+    ) -> None:
         report = self._report(
             [
                 segment_result(
@@ -535,14 +727,37 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                         offer(
                             "svx-ist",
                             25000,
-                            [segment("SVX", "IST", "2026-07-19T07:00:00+05:00", "2026-07-19T09:00:00+03:00", "U6301", "U6")],
+                            [
+                                segment(
+                                    "SVX",
+                                    "IST",
+                                    "2026-07-19T07:00:00+05:00",
+                                    "2026-07-19T09:00:00+03:00",
+                                    "U6301",
+                                    "U6",
+                                )
+                            ],
                         ),
                         offer(
                             "svx-svo-ist",
                             26000,
                             [
-                                segment("SVX", "SVO", "2026-07-19T06:00:00+05:00", "2026-07-19T06:40:00+03:00", "SU1401", "SU"),
-                                segment("SVO", "IST", "2026-07-19T10:30:00+03:00", "2026-07-19T14:35:00+03:00", "SU2136", "SU"),
+                                segment(
+                                    "SVX",
+                                    "SVO",
+                                    "2026-07-19T06:00:00+05:00",
+                                    "2026-07-19T06:40:00+03:00",
+                                    "SU1401",
+                                    "SU",
+                                ),
+                                segment(
+                                    "SVO",
+                                    "IST",
+                                    "2026-07-19T10:30:00+03:00",
+                                    "2026-07-19T14:35:00+03:00",
+                                    "SU2136",
+                                    "SU",
+                                ),
                             ],
                         ),
                     ],
@@ -556,7 +771,16 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                         offer(
                             "ist-lhr",
                             18000,
-                            [segment("IST", "LHR", "2026-07-19T20:00:00+03:00", "2026-07-19T22:00:00+01:00", "TK1987", "TK")],
+                            [
+                                segment(
+                                    "IST",
+                                    "LHR",
+                                    "2026-07-19T20:00:00+03:00",
+                                    "2026-07-19T22:00:00+01:00",
+                                    "TK1987",
+                                    "TK",
+                                )
+                            ],
                         )
                     ],
                 ),
@@ -568,7 +792,9 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         self.assertTrue(controls["ist_primary_hub_control"]["viable"])
         fallback = controls["moscow_via_ist_secondary_control"]
         self.assertTrue(fallback["checked"])
-        self.assertEqual(fallback["execution_state"], "skipped_better_options_available")
+        self.assertEqual(
+            fallback["execution_state"], "skipped_better_options_available"
+        )
         self.assertFalse(fallback["viable"])
         self.assertFalse(fallback["visible"])
         self.assertIsNone(fallback["priority_option_id"])
@@ -576,11 +802,14 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         fallback_priority_options = [
             item
             for item in report["frontier"]["priority_options"]
-            if item.get("control_branch") == "moscow_via_ist_secondary" and item.get("visibility_role") == "priority_control"
+            if item.get("control_branch") == "moscow_via_ist_secondary"
+            and item.get("visibility_role") == "priority_control"
         ]
         self.assertEqual(fallback_priority_options, [])
 
-    def test_incomplete_svx_svo_ist_prefix_does_not_satisfy_moscow_control_to_london(self) -> None:
+    def test_incomplete_svx_svo_ist_prefix_does_not_satisfy_moscow_control_to_london(
+        self,
+    ) -> None:
         report = self._report(
             [
                 segment_result(
@@ -593,8 +822,22 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                             "svx-svo-ist",
                             26000,
                             [
-                                segment("SVX", "SVO", "2026-07-19T06:00:00+05:00", "2026-07-19T06:40:00+03:00", "SU1401", "SU"),
-                                segment("SVO", "IST", "2026-07-19T10:30:00+03:00", "2026-07-19T14:35:00+03:00", "SU2136", "SU"),
+                                segment(
+                                    "SVX",
+                                    "SVO",
+                                    "2026-07-19T06:00:00+05:00",
+                                    "2026-07-19T06:40:00+03:00",
+                                    "SU1401",
+                                    "SU",
+                                ),
+                                segment(
+                                    "SVO",
+                                    "IST",
+                                    "2026-07-19T10:30:00+03:00",
+                                    "2026-07-19T14:35:00+03:00",
+                                    "SU2136",
+                                    "SU",
+                                ),
                             ],
                         )
                     ],
@@ -608,7 +851,9 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         self.assertFalse(controls["moscow_via_ist_secondary_control"]["viable"])
         self.assertEqual(controls["decision"], "no_viable_ru_priority_control")
 
-    def test_svx_mct_keeps_ist_primary_and_moscow_gateway_as_separate_branches(self) -> None:
+    def test_svx_mct_keeps_ist_primary_and_moscow_gateway_as_separate_branches(
+        self,
+    ) -> None:
         report = self._report(
             [
                 segment_result(
@@ -620,7 +865,16 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                         offer(
                             "svx-ist",
                             23000,
-                            [segment("SVX", "IST", "2026-07-19T07:00:00+05:00", "2026-07-19T09:00:00+03:00", "U6301", "U6")],
+                            [
+                                segment(
+                                    "SVX",
+                                    "IST",
+                                    "2026-07-19T07:00:00+05:00",
+                                    "2026-07-19T09:00:00+03:00",
+                                    "U6301",
+                                    "U6",
+                                )
+                            ],
                         )
                     ],
                 ),
@@ -633,7 +887,16 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                         offer(
                             "ist-mct",
                             16000,
-                            [segment("IST", "MCT", "2026-07-19T14:00:00+03:00", "2026-07-19T20:00:00+04:00", "TK774", "TK")],
+                            [
+                                segment(
+                                    "IST",
+                                    "MCT",
+                                    "2026-07-19T14:00:00+03:00",
+                                    "2026-07-19T20:00:00+04:00",
+                                    "TK774",
+                                    "TK",
+                                )
+                            ],
                         )
                     ],
                 ),
@@ -646,7 +909,16 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                         offer(
                             "svx-dme",
                             11000,
-                            [segment("SVX", "DME", "2026-07-19T06:00:00+05:00", "2026-07-19T06:40:00+03:00", "U6261", "U6")],
+                            [
+                                segment(
+                                    "SVX",
+                                    "DME",
+                                    "2026-07-19T06:00:00+05:00",
+                                    "2026-07-19T06:40:00+03:00",
+                                    "U6261",
+                                    "U6",
+                                )
+                            ],
                         )
                     ],
                 ),
@@ -659,7 +931,16 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                         offer(
                             "dme-mct",
                             21000,
-                            [segment("DME", "MCT", "2026-07-19T11:00:00+03:00", "2026-07-19T17:00:00+04:00", "WY184", "WY")],
+                            [
+                                segment(
+                                    "DME",
+                                    "MCT",
+                                    "2026-07-19T11:00:00+03:00",
+                                    "2026-07-19T17:00:00+04:00",
+                                    "WY184",
+                                    "WY",
+                                )
+                            ],
                         )
                     ],
                 ),
@@ -687,7 +968,16 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
                         offer(
                             "ist-lhr-direct",
                             18000,
-                            [segment("IST", "LHR", "2026-07-19T14:00:00+03:00", "2026-07-19T16:00:00+01:00", "TK1985", "TK")],
+                            [
+                                segment(
+                                    "IST",
+                                    "LHR",
+                                    "2026-07-19T14:00:00+03:00",
+                                    "2026-07-19T16:00:00+01:00",
+                                    "TK1985",
+                                    "TK",
+                                )
+                            ],
                         )
                     ],
                 )
@@ -700,7 +990,12 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         )
 
         self.assertNotIn("ru_priority_controls", report)
-        self.assertFalse(any(item.get("control_family") == "ru_priority" for item in report["frontier"]["priority_options"]))
+        self.assertFalse(
+            any(
+                item.get("control_family") == "ru_priority"
+                for item in report["frontier"]["priority_options"]
+            )
+        )
 
 
 if __name__ == "__main__":

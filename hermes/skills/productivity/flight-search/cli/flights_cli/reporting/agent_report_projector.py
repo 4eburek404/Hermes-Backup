@@ -12,14 +12,26 @@ def _list_value(value: Any) -> list[Any]:
 
 
 def _coverage_status(flat_report: dict[str, Any]) -> dict[str, Any]:
-    diagnostics = flat_report.get("coverage_diagnostics") if isinstance(flat_report.get("coverage_diagnostics"), dict) else {}
-    completeness = diagnostics.get("completeness") if isinstance(diagnostics.get("completeness"), dict) else {}
+    diagnostics = (
+        flat_report.get("coverage_diagnostics")
+        if isinstance(flat_report.get("coverage_diagnostics"), dict)
+        else {}
+    )
+    completeness = (
+        diagnostics.get("completeness")
+        if isinstance(diagnostics.get("completeness"), dict)
+        else {}
+    )
     not_executed = _list_value(diagnostics.get("not_executed_controls"))
     failed_controls = _list_value(diagnostics.get("failed_controls"))
     provider_failures = _list_value(flat_report.get("provider_failures"))
     not_supported = _list_value(diagnostics.get("not_supported_controls"))
-    execution_complete = bool(completeness.get("all_planned_controls_have_terminal_state"))
-    evidence_complete = execution_complete and not (not_executed or failed_controls or provider_failures)
+    execution_complete = bool(
+        completeness.get("all_planned_controls_have_terminal_state")
+    )
+    evidence_complete = execution_complete and not (
+        not_executed or failed_controls or provider_failures
+    )
     blocking_evidence: list[str] = []
     if not_executed:
         blocking_evidence.append("not_executed_controls")
@@ -44,10 +56,22 @@ def _answer_readiness(status: dict[str, Any]) -> str:
     return "needs_more_evidence"
 
 
-def _next_actions(flat_report: dict[str, Any], status: dict[str, Any]) -> list[dict[str, Any]]:
-    diagnostics = flat_report.get("coverage_diagnostics") if isinstance(flat_report.get("coverage_diagnostics"), dict) else {}
-    route = flat_report.get("route") if isinstance(flat_report.get("route"), dict) else {}
-    evidence_plan = route.get("evidence_plan") if isinstance(route.get("evidence_plan"), dict) else {}
+def _next_actions(
+    flat_report: dict[str, Any], status: dict[str, Any]
+) -> list[dict[str, Any]]:
+    diagnostics = (
+        flat_report.get("coverage_diagnostics")
+        if isinstance(flat_report.get("coverage_diagnostics"), dict)
+        else {}
+    )
+    route = (
+        flat_report.get("route") if isinstance(flat_report.get("route"), dict) else {}
+    )
+    evidence_plan = (
+        route.get("evidence_plan")
+        if isinstance(route.get("evidence_plan"), dict)
+        else {}
+    )
     not_executed = _list_value(diagnostics.get("not_executed_controls"))
     failed_controls = _list_value(diagnostics.get("failed_controls"))
     provider_failures = _list_value(flat_report.get("provider_failures"))
@@ -62,7 +86,9 @@ def _next_actions(flat_report: dict[str, Any], status: dict[str, Any]) -> list[d
                 "reason": "not_executed_controls",
                 "request_patch": {
                     "evidence": {
-                        "max_segment_searches": max(current_limit * 2, current_limit + len(not_executed)),
+                        "max_segment_searches": max(
+                            current_limit * 2, current_limit + len(not_executed)
+                        ),
                         "no_live_cache": True,
                     }
                 },
@@ -148,6 +174,7 @@ def project_agent_report(flat_report: dict[str, Any]) -> dict[str, Any]:
         "evidence": evidence,
         "frontier": frontier,
         "user_answer": flat_report.get("user_answer") or {},
-        "agent_guidance": flat_report.get("agent_guidance") or build_agent_guidance(flat_report),
+        "agent_guidance": flat_report.get("agent_guidance")
+        or build_agent_guidance(flat_report),
         "diagnostics": diagnostics,
     }

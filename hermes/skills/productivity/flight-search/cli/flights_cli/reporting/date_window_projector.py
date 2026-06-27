@@ -34,18 +34,35 @@ def _window_dates(plan: dict[str, Any]) -> list[str]:
         return []
     if window_end < depart:
         return []
-    return [(depart + timedelta(days=offset)).isoformat() for offset in range((window_end - depart).days + 1)]
+    return [
+        (depart + timedelta(days=offset)).isoformat()
+        for offset in range((window_end - depart).days + 1)
+    ]
 
 
 def _compact_offer(offer: dict[str, Any]) -> dict[str, Any]:
-    return {field: offer[field] for field in _COMPACT_OFFER_FIELDS if offer.get(field) is not None}
+    return {
+        field: offer[field]
+        for field in _COMPACT_OFFER_FIELDS
+        if offer.get(field) is not None
+    }
 
 
-def _date_status(*, offer_count: int, ok_probe_count: int, failed_probe_count: int, skipped_probe_count: int) -> str:
+def _date_status(
+    *,
+    offer_count: int,
+    ok_probe_count: int,
+    failed_probe_count: int,
+    skipped_probe_count: int,
+) -> str:
     if offer_count > 0:
         return "direct_offers"
     if ok_probe_count > 0:
-        return "no_direct_offers_with_failures" if failed_probe_count > 0 else "no_direct_offers"
+        return (
+            "no_direct_offers_with_failures"
+            if failed_probe_count > 0
+            else "no_direct_offers"
+        )
     if failed_probe_count > 0:
         return "probe_failed"
     if skipped_probe_count > 0:
@@ -71,7 +88,9 @@ def build_date_window_inventory(
     if not window:
         return None
 
-    summaries_by_date: dict[str, list[dict[str, Any]]] = {date_text: [] for date_text in window}
+    summaries_by_date: dict[str, list[dict[str, Any]]] = {
+        date_text: [] for date_text in window
+    }
     for item in segment_searches or []:
         if not isinstance(item, dict) or item.get("leg") != Leg.DIRECT_OUTBOUND:
             continue
@@ -79,7 +98,9 @@ def build_date_window_inventory(
         if date_text in summaries_by_date:
             summaries_by_date[date_text].append(item)
 
-    offers_by_date: dict[str, list[dict[str, Any]]] = {date_text: [] for date_text in window}
+    offers_by_date: dict[str, list[dict[str, Any]]] = {
+        date_text: [] for date_text in window
+    }
     for result in segment_results or []:
         if not isinstance(result, dict) or result.get("leg") != Leg.DIRECT_OUTBOUND:
             continue
@@ -94,9 +115,16 @@ def build_date_window_inventory(
     for date_text in window:
         summaries = summaries_by_date[date_text]
         ok_probes = [item for item in summaries if str(item.get("status")) == "ok"]
-        failed_probes = [item for item in summaries if str(item.get("status")) in {"error", "failed"}]
-        skipped_probes = [item for item in summaries if str(item.get("status")) == "skipped"]
-        offers = sorted(offers_by_date[date_text], key=lambda offer: str(offer.get("departure_at") or ""))
+        failed_probes = [
+            item for item in summaries if str(item.get("status")) in {"error", "failed"}
+        ]
+        skipped_probes = [
+            item for item in summaries if str(item.get("status")) == "skipped"
+        ]
+        offers = sorted(
+            offers_by_date[date_text],
+            key=lambda offer: str(offer.get("departure_at") or ""),
+        )
         omitted = max(0, len(offers) - max_offers_per_date)
         entry: dict[str, Any] = {
             "date": date_text,
@@ -114,7 +142,13 @@ def build_date_window_inventory(
         if omitted:
             entry["omitted_offer_count"] = omitted
         if skipped_probes:
-            entry["skip_reasons"] = sorted({str(item.get("reason")) for item in skipped_probes if item.get("reason")})
+            entry["skip_reasons"] = sorted(
+                {
+                    str(item.get("reason"))
+                    for item in skipped_probes
+                    if item.get("reason")
+                }
+            )
         entries.append(entry)
 
     return {

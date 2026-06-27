@@ -92,9 +92,9 @@ class FliMcpTests(unittest.TestCase):
 
     def test_search_adapter_uses_auto_provider_policy(self) -> None:
         args = live_assembly_args(
-                origin='SVX',
-                destination='LHR',
-                depart_date='2026-08-15',
+            origin="SVX",
+            destination="LHR",
+            depart_date="2026-08-15",
         )
 
         self.assertEqual(args.command_name, "search")
@@ -135,7 +135,9 @@ class FliMcpTests(unittest.TestCase):
             mcp_url="http://127.0.0.1:8000/mcp",
             store=store_with_airports(self),
         )
-        segment = fli_result_to_segment_result(result, direction="outbound", leg="hub_to_destination")
+        segment = fli_result_to_segment_result(
+            result, direction="outbound", leg="hub_to_destination"
+        )
 
         self.assertEqual(result["offer_count"], 1)
         self.assertEqual(result["offers"][0]["flight_numbers"], ["TK1987"])
@@ -143,7 +145,9 @@ class FliMcpTests(unittest.TestCase):
         self.assertEqual(segment["source_key"], "fli_mcp_search_flights")
         self.assertEqual(segment["offers"][0]["segments"][0]["carrier"], "TK")
 
-    def test_parse_fli_flight_search_filters_three_stop_and_airport_change_before_limit(self) -> None:
+    def test_parse_fli_flight_search_filters_three_stop_and_airport_change_before_limit(
+        self,
+    ) -> None:
         def leg(origin: str, destination: str, number: str) -> dict:
             return {
                 "departure_airport": origin,
@@ -165,10 +169,26 @@ class FliMcpTests(unittest.TestCase):
                     "price": 1000,
                     "currency": "RUB",
                     "legs": [
-                        leg("Istanbul Airport", "Charles de Gaulle International Airport", "1"),
-                        leg("Charles de Gaulle International Airport", "Amsterdam Airport Schiphol", "2"),
-                        leg("Amsterdam Airport Schiphol", "Dubai International Airport", "3"),
-                        leg("Dubai International Airport", "London Heathrow Airport", "4"),
+                        leg(
+                            "Istanbul Airport",
+                            "Charles de Gaulle International Airport",
+                            "1",
+                        ),
+                        leg(
+                            "Charles de Gaulle International Airport",
+                            "Amsterdam Airport Schiphol",
+                            "2",
+                        ),
+                        leg(
+                            "Amsterdam Airport Schiphol",
+                            "Dubai International Airport",
+                            "3",
+                        ),
+                        leg(
+                            "Dubai International Airport",
+                            "London Heathrow Airport",
+                            "4",
+                        ),
                     ],
                 },
                 {
@@ -176,8 +196,14 @@ class FliMcpTests(unittest.TestCase):
                     "price": 2000,
                     "currency": "RUB",
                     "legs": [
-                        leg("Istanbul Airport", "Charles de Gaulle International Airport", "5"),
-                        leg("Amsterdam Airport Schiphol", "London Heathrow Airport", "6"),
+                        leg(
+                            "Istanbul Airport",
+                            "Charles de Gaulle International Airport",
+                            "5",
+                        ),
+                        leg(
+                            "Amsterdam Airport Schiphol", "London Heathrow Airport", "6"
+                        ),
                     ],
                 },
                 {
@@ -185,8 +211,16 @@ class FliMcpTests(unittest.TestCase):
                     "price": 5000,
                     "currency": "RUB",
                     "legs": [
-                        leg("Istanbul Airport", "Charles de Gaulle International Airport", "7"),
-                        leg("Charles de Gaulle International Airport", "London Heathrow Airport", "8"),
+                        leg(
+                            "Istanbul Airport",
+                            "Charles de Gaulle International Airport",
+                            "7",
+                        ),
+                        leg(
+                            "Charles de Gaulle International Airport",
+                            "London Heathrow Airport",
+                            "8",
+                        ),
                     ],
                 },
             ],
@@ -222,13 +256,19 @@ class FliMcpTests(unittest.TestCase):
 
         for name, code in cases.items():
             with self.subTest(name=name):
-                self.assertEqual(resolve_fli_airport(name, store=store, field="airport"), code)
+                self.assertEqual(
+                    resolve_fli_airport(name, store=store, field="airport"), code
+                )
 
-    def test_resolve_fli_airport_prefers_query_code_for_ambiguous_fli_name(self) -> None:
+    def test_resolve_fli_airport_prefers_query_code_for_ambiguous_fli_name(
+        self,
+    ) -> None:
         store = store_with_airports(self)
 
         with self.assertRaises(CliError):
-            resolve_fli_airport("Barcelona International Airport", store=store, field="arrival_airport")
+            resolve_fli_airport(
+                "Barcelona International Airport", store=store, field="arrival_airport"
+            )
 
         self.assertEqual(
             resolve_fli_airport(
@@ -240,7 +280,9 @@ class FliMcpTests(unittest.TestCase):
             "BCN",
         )
 
-    def test_parse_fli_flight_search_uses_query_destination_for_ambiguous_final_airport(self) -> None:
+    def test_parse_fli_flight_search_uses_query_destination_for_ambiguous_final_airport(
+        self,
+    ) -> None:
         raw = {
             "success": True,
             "count": 1,
@@ -329,7 +371,9 @@ class FliMcpTests(unittest.TestCase):
 
         self.assertEqual(decoded["result"]["structuredContent"]["flights"], [])
 
-    def test_provider_policy_uses_kupibilet_for_ru_touching_and_fli_for_global(self) -> None:
+    def test_provider_policy_uses_kupibilet_for_ru_touching_and_fli_for_global(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             cache = Path(tmp_dir)
             (cache / "airports_en.json").write_text(
@@ -344,9 +388,24 @@ class FliMcpTests(unittest.TestCase):
             )
             store = Store(cache)
 
-            self.assertEqual(providers_for_segment({"origin": "SVX", "destination": "IST"}, store, "auto"), ["kupibilet"])
-            self.assertEqual(providers_for_segment({"origin": "IST", "destination": "LHR"}, store, "auto"), ["fli"])
-            self.assertEqual(providers_for_segment({"origin": "IST", "destination": "LHR"}, store, "both"), ["kupibilet", "fli"])
+            self.assertEqual(
+                providers_for_segment(
+                    {"origin": "SVX", "destination": "IST"}, store, "auto"
+                ),
+                ["kupibilet"],
+            )
+            self.assertEqual(
+                providers_for_segment(
+                    {"origin": "IST", "destination": "LHR"}, store, "auto"
+                ),
+                ["fli"],
+            )
+            self.assertEqual(
+                providers_for_segment(
+                    {"origin": "IST", "destination": "LHR"}, store, "both"
+                ),
+                ["kupibilet", "fli"],
+            )
 
 
 if __name__ == "__main__":

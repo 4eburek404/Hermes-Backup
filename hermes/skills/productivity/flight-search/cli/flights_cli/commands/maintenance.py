@@ -11,7 +11,12 @@ from typing import Any
 from .. import __version__
 from ..commands.maint import command_maint_doctor
 from ..store import Store
-from ..version_manifest import expected_command_surface, load_version_manifest, manifest_mismatches, manifest_path
+from ..version_manifest import (
+    expected_command_surface,
+    load_version_manifest,
+    manifest_mismatches,
+    manifest_path,
+)
 
 _GENERATED_DIR_NAMES = {"__pycache__", ".pytest_cache"}
 _GENERATED_SUFFIXES = (".pyc", ".pyo")
@@ -24,7 +29,9 @@ def _source_skill_path() -> Path:
 
 
 def _default_runtime_skill_path() -> Path:
-    hermes_home = Path(os.getenv("HERMES_HOME", str(Path.home() / ".hermes"))).expanduser()
+    hermes_home = Path(
+        os.getenv("HERMES_HOME", str(Path.home() / ".hermes"))
+    ).expanduser()
     return hermes_home / _SKILL_RELATIVE_PATH
 
 
@@ -54,10 +61,18 @@ def _git_output(args: list[str], cwd: Path) -> str | None:
 def _git_info(skill_path: Path) -> dict[str, Any]:
     repo_root = _git_output(["rev-parse", "--show-toplevel"], skill_path)
     if not repo_root:
-        return {"status": "not_git", "repo_root": None, "branch": None, "head": None, "dirty": None}
+        return {
+            "status": "not_git",
+            "repo_root": None,
+            "branch": None,
+            "head": None,
+            "dirty": None,
+        }
     branch = _git_output(["branch", "--show-current"], skill_path) or None
     head = _git_output(["rev-parse", "--short=12", "HEAD"], skill_path) or None
-    porcelain = _git_output(["status", "--porcelain=v1", "--untracked-files=all"], skill_path)
+    porcelain = _git_output(
+        ["status", "--porcelain=v1", "--untracked-files=all"], skill_path
+    )
     return {
         "status": "ok",
         "repo_root": repo_root,
@@ -83,7 +98,9 @@ def _generated_artifacts(root: Path, *, sample_limit: int = 20) -> dict[str, Any
     sample: list[str] = []
     for current, dirnames, filenames in os.walk(root):
         current_path = Path(current)
-        generated_dirs = [name for name in list(dirnames) if _is_generated_path(current_path / name)]
+        generated_dirs = [
+            name for name in list(dirnames) if _is_generated_path(current_path / name)
+        ]
         for name in sorted(generated_dirs):
             count += 1
             if len(sample) < sample_limit:
@@ -112,7 +129,9 @@ def _manifest(root: Path) -> dict[str, str]:
         return result
     for current, dirnames, filenames in os.walk(root):
         current_path = Path(current)
-        dirnames[:] = [name for name in dirnames if not _is_generated_path(current_path / name)]
+        dirnames[:] = [
+            name for name in dirnames if not _is_generated_path(current_path / name)
+        ]
         for name in filenames:
             path = current_path / name
             if _is_generated_path(path):
@@ -146,7 +165,11 @@ def _source_runtime_parity(source_path: Path, runtime_path: Path) -> dict[str, A
     runtime_manifest = _manifest(runtime_path)
     source_keys = set(source_manifest)
     runtime_keys = set(runtime_manifest)
-    changed = {key for key in source_keys & runtime_keys if source_manifest[key] != runtime_manifest[key]}
+    changed = {
+        key
+        for key in source_keys & runtime_keys
+        if source_manifest[key] != runtime_manifest[key]
+    }
     source_only = source_keys - runtime_keys
     runtime_only = runtime_keys - source_keys
     equal = not changed and not source_only and not runtime_only
@@ -182,11 +205,19 @@ def _branch_workflow_summary(
     manifest_mismatch_keys: list[str],
     parity: dict[str, Any],
 ) -> dict[str, Any]:
-    skill_manifest = manifest.get("skill") if isinstance(manifest.get("skill"), dict) else {}
+    skill_manifest = (
+        manifest.get("skill") if isinstance(manifest.get("skill"), dict) else {}
+    )
     cli_manifest = manifest.get("cli") if isinstance(manifest.get("cli"), dict) else {}
-    command_surface = manifest.get("command_surface") if isinstance(manifest.get("command_surface"), dict) else {}
+    command_surface = (
+        manifest.get("command_surface")
+        if isinstance(manifest.get("command_surface"), dict)
+        else {}
+    )
     parity_status = str(parity.get("status") or "unknown")
-    runtime_claims_allowed = parity_status in {"same_path", "equal"} and not manifest_mismatch_keys
+    runtime_claims_allowed = (
+        parity_status in {"same_path", "equal"} and not manifest_mismatch_keys
+    )
     return {
         "development_branch": "refactor_flights-search",
         "source": {
@@ -212,14 +243,20 @@ def _branch_workflow_summary(
         "parity": {
             "status": parity_status,
             "runtime_claims_allowed": runtime_claims_allowed,
-            "claim_basis": "runtime_matches_source" if runtime_claims_allowed else "source_only_not_runtime_proven",
+            "claim_basis": "runtime_matches_source"
+            if runtime_claims_allowed
+            else "source_only_not_runtime_proven",
         },
     }
 
 
 def build_maintenance_report(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     source_path = _source_skill_path()
-    runtime_path = Path(args.runtime_path).expanduser() if getattr(args, "runtime_path", None) else _default_runtime_skill_path()
+    runtime_path = (
+        Path(args.runtime_path).expanduser()
+        if getattr(args, "runtime_path", None)
+        else _default_runtime_skill_path()
+    )
     source_generated = _generated_artifacts(source_path)
     runtime_generated = _generated_artifacts(runtime_path)
     source_manifest = load_version_manifest(source_path)

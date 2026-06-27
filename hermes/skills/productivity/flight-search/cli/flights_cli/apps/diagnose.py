@@ -17,7 +17,9 @@ from .search import live_assembly_options_from_search_request, normalize_search_
 
 def _agent_report_from_document(payload: dict[str, Any]) -> dict[str, Any]:
     data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
-    report = data.get("agent_report") if isinstance(data.get("agent_report"), dict) else data
+    report = (
+        data.get("agent_report") if isinstance(data.get("agent_report"), dict) else data
+    )
     return report if isinstance(report, dict) else {}
 
 
@@ -39,13 +41,19 @@ def command_diagnose_plan(args: argparse.Namespace, store: Store) -> dict[str, A
 
 def command_diagnose_probe(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     request = read_json_object(args.request)
-    query = request.get("query") if isinstance(request.get("query"), dict) else dict(request)
+    query = (
+        request.get("query")
+        if isinstance(request.get("query"), dict)
+        else dict(request)
+    )
     query.setdefault("currency", request.get("currency") or "RUB")
     query.setdefault("probe_id", request.get("probe_id") or f"diagnose-{args.provider}")
     query.setdefault("direction", request.get("direction") or "outbound")
     query.setdefault("leg", request.get("leg") or Leg.DIRECT_OUTBOUND)
     adapter = provider_adapter(args.provider, store=store)
-    probe_type = str(request.get("probe_type") or query.get("probe_type") or "segment_direct")
+    probe_type = str(
+        request.get("probe_type") or query.get("probe_type") or "segment_direct"
+    )
     if probe_type in {"full_route_aggregate", "carrier_aggregate"}:
         result = adapter.search_aggregate(query)
     else:
@@ -62,7 +70,11 @@ def command_diagnose_render(args: argparse.Namespace, store: Store) -> dict[str,
     del store
     payload = read_json_object(args.input)
     report = _agent_report_from_document(payload)
-    user_answer = report.get("user_answer") if isinstance(report.get("user_answer"), dict) else None
+    user_answer = (
+        report.get("user_answer")
+        if isinstance(report.get("user_answer"), dict)
+        else None
+    )
     if user_answer is None:
         user_answer = build_user_answer(report)
     mirror_report = {**report, "user_answer": user_answer}

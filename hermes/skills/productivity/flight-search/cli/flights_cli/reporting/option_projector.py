@@ -5,11 +5,15 @@ from typing import Any
 from .formatting import minutes_label, price_label
 
 
-def segment_summary(segment: dict[str, Any], direction: str | None = None) -> dict[str, Any]:
+def segment_summary(
+    segment: dict[str, Any], direction: str | None = None
+) -> dict[str, Any]:
     return {
         "direction": direction,
         "flight_number": segment.get("flight_number"),
-        "carrier": segment.get("carrier") or segment.get("operating_carrier") or segment.get("marketing_carrier"),
+        "carrier": segment.get("carrier")
+        or segment.get("operating_carrier")
+        or segment.get("marketing_carrier"),
         "marketing_carrier": segment.get("marketing_carrier"),
         "operating_carrier": segment.get("operating_carrier"),
         "origin": segment.get("origin"),
@@ -44,13 +48,17 @@ def connection_summary(connection: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def candidate_options_from_details(details: list[Any], limit: int = 5) -> list[dict[str, Any]]:
+def candidate_options_from_details(
+    details: list[Any], limit: int = 5
+) -> list[dict[str, Any]]:
     options: list[dict[str, Any]] = []
     for detail in details[: max(0, limit)]:
         if not isinstance(detail, dict):
             continue
         ranked = detail.get("ranked") if isinstance(detail.get("ranked"), dict) else {}
-        candidate = detail.get("candidate") if isinstance(detail.get("candidate"), dict) else {}
+        candidate = (
+            detail.get("candidate") if isinstance(detail.get("candidate"), dict) else {}
+        )
         segments = []
         for journey in candidate.get("journeys") or []:
             if not isinstance(journey, dict):
@@ -60,7 +68,11 @@ def candidate_options_from_details(details: list[Any], limit: int = 5) -> list[d
                 if isinstance(segment, dict):
                     segments.append(segment_summary(segment, direction))
         risk = ranked.get("risk") if isinstance(ranked.get("risk"), dict) else {}
-        validation_summary = ranked.get("validation_summary") if isinstance(ranked.get("validation_summary"), dict) else {}
+        validation_summary = (
+            ranked.get("validation_summary")
+            if isinstance(ranked.get("validation_summary"), dict)
+            else {}
+        )
         detail_status = "full" if segments else "missing"
         options.append(
             {
@@ -70,7 +82,10 @@ def candidate_options_from_details(details: list[Any], limit: int = 5) -> list[d
                 "reason": detail.get("reason"),
                 "detail_status": detail.get("detail_status") or detail_status,
                 "ok": ranked.get("ok"),
-                "price": {"amount": ranked.get("price"), "currency": ranked.get("currency")},
+                "price": {
+                    "amount": ranked.get("price"),
+                    "currency": ranked.get("currency"),
+                },
                 "price_text": price_label(ranked.get("price"), ranked.get("currency")),
                 "elapsed_min": ranked.get("elapsed_min"),
                 "elapsed": minutes_label(ranked.get("elapsed_min")),
@@ -83,8 +98,14 @@ def candidate_options_from_details(details: list[Any], limit: int = 5) -> list[d
                 },
                 "validation_summary": ranked.get("validation_summary"),
                 "stop_tier": validation_summary.get("stop_tier"),
-                "max_connections_per_journey": validation_summary.get("max_connections_per_journey"),
-                "connections": [connection_summary(item) for item in ranked.get("connections") or [] if isinstance(item, dict)],
+                "max_connections_per_journey": validation_summary.get(
+                    "max_connections_per_journey"
+                ),
+                "connections": [
+                    connection_summary(item)
+                    for item in ranked.get("connections") or []
+                    if isinstance(item, dict)
+                ],
                 "segments": segments,
                 "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage.",
             }
@@ -92,11 +113,23 @@ def candidate_options_from_details(details: list[Any], limit: int = 5) -> list[d
     return options
 
 
-def ranked_candidate_options(data: dict[str, Any], limit: int = 5) -> list[dict[str, Any]]:
-    details = data.get("ranked_candidates") if isinstance(data.get("ranked_candidates"), list) else []
+def ranked_candidate_options(
+    data: dict[str, Any], limit: int = 5
+) -> list[dict[str, Any]]:
+    details = (
+        data.get("ranked_candidates")
+        if isinstance(data.get("ranked_candidates"), list)
+        else []
+    )
     return candidate_options_from_details(details, limit=limit)
 
 
-def priority_candidate_options(data: dict[str, Any], limit: int = 5) -> list[dict[str, Any]]:
-    details = data.get("frontier_candidates") if isinstance(data.get("frontier_candidates"), list) else []
+def priority_candidate_options(
+    data: dict[str, Any], limit: int = 5
+) -> list[dict[str, Any]]:
+    details = (
+        data.get("frontier_candidates")
+        if isinstance(data.get("frontier_candidates"), list)
+        else []
+    )
     return candidate_options_from_details(details, limit=limit)

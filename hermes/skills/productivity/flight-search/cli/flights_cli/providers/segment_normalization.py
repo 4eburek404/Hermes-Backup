@@ -19,7 +19,8 @@ def normalize_segment_flight(flight: dict[str, Any]) -> dict[str, Any] | None:
     return {
         "origin": origin,
         "destination": destination,
-        "departure_terminal": str(flight.get("departure_terminal") or "").strip() or None,
+        "departure_terminal": str(flight.get("departure_terminal") or "").strip()
+        or None,
         "arrival_terminal": str(flight.get("arrival_terminal") or "").strip() or None,
         "departure_at": str(flight.get("departure_at") or ""),
         "arrival_at": str(flight.get("arrival_at") or ""),
@@ -58,7 +59,9 @@ def provider_offer_to_segment_offer(
     if not segments:
         return None
     offer_id = f"{provider_prefix}:{direction}:{leg}:{query_origin}-{query_destination}:{query_date}:{offer.get('id') or index}"
-    currency_value = offer.get("currency") if isinstance(offer.get("currency"), str) else currency
+    currency_value = (
+        offer.get("currency") if isinstance(offer.get("currency"), str) else currency
+    )
     return {
         "id": offer_id,
         "direction": direction,
@@ -124,7 +127,12 @@ def provider_result_to_segment_result(
     return {
         "direction": direction,
         "leg": leg,
-        "query": {"origin": query_origin, "destination": query_destination, "date": query_date, "currency": currency},
+        "query": {
+            "origin": query_origin,
+            "destination": query_destination,
+            "date": query_date,
+            "currency": currency,
+        },
         "source_key": source_key,
         "source": result.get("source"),
         "source_url": result.get("source_url"),

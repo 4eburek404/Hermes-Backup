@@ -108,7 +108,11 @@ def valid_offer_graph() -> dict:
         },
         "collection": {
             "mode": "progressive",
-            "phases": ["primary_segment_search", "targeted_controls", "frontier_projection"],
+            "phases": [
+                "primary_segment_search",
+                "targeted_controls",
+                "frontier_projection",
+            ],
             "stop_reason": "bounded_terminal_controls",
         },
         "evidence": {
@@ -238,7 +242,9 @@ def valid_report() -> dict:
                     "price_text": "10 000 RUB",
                     "total_elapsed": "6:10",
                     "connection_count": 0,
-                    "lines": ["SU232 01JUN SVO - DEL 21:20 - 06:00 борт 333 в полете 5:10"],
+                    "lines": [
+                        "SU232 01JUN SVO - DEL 21:20 - 06:00 борт 333 в полете 5:10"
+                    ],
                     "text": "10 000 RUB | всего 6:10 | пересадок 0\nSU232 01JUN SVO - DEL 21:20 - 06:00 борт 333 в полете 5:10",
                 }
             ],
@@ -247,8 +253,18 @@ def valid_report() -> dict:
             "format_version": "flight_human_answer.v1",
             "text": "Нашёл варианты SVX→DEL.\n\n**Лучшая пара / рекомендация**\n- SU232 21:20–06:00 +1 | 01 июн | без пересадки | всего 5ч10 | 10 000 ₽\n\n**Проверить перед покупкой**\n- single PNR/багаж не доказаны — проверить на booking screen.",
             "sections": [
-                {"title": "Лучшая пара / рекомендация", "lines": ["SU232 21:20–06:00 +1 | 01 июн | без пересадки | всего 5ч10 | 10 000 ₽"]},
-                {"title": "Проверить перед покупкой", "lines": ["single PNR/багаж не доказаны — проверить на booking screen."]},
+                {
+                    "title": "Лучшая пара / рекомендация",
+                    "lines": [
+                        "SU232 21:20–06:00 +1 | 01 июн | без пересадки | всего 5ч10 | 10 000 ₽"
+                    ],
+                },
+                {
+                    "title": "Проверить перед покупкой",
+                    "lines": [
+                        "single PNR/багаж не доказаны — проверить на booking screen."
+                    ],
+                },
             ],
         },
     }
@@ -309,10 +325,14 @@ class AgentReportContractTests(unittest.TestCase):
         schema = load_agent_report_schema()
 
         Draft202012Validator.check_schema(schema)
-        self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
+        self.assertEqual(
+            schema["$schema"], "https://json-schema.org/draft/2020-12/schema"
+        )
         self.assertEqual(schema["$id"], "urn:hermes:flights-cli:agent-report:v2")
         self.assertEqual(schema["title"], "Hermes Flights CLI Agent Report v2")
-        self.assertEqual(schema["properties"]["schema_version"]["const"], AGENT_REPORT_SCHEMA_VERSION)
+        self.assertEqual(
+            schema["properties"]["schema_version"]["const"], AGENT_REPORT_SCHEMA_VERSION
+        )
         self.assertEqual(schema["required"], EXPECTED_TOP_LEVEL_REQUIRED)
         self.assertNotIn("display", schema["required"])
         self.assertNotIn("answer_lines", schema["required"])
@@ -329,16 +349,28 @@ class AgentReportContractTests(unittest.TestCase):
 
         guidance = report["agent_guidance"]
         self.assertEqual(guidance["primary_command"], "search --request")
-        self.assertEqual(guidance["canonical_answer_path"], "data.agent_report.user_answer.rendered_text")
+        self.assertEqual(
+            guidance["canonical_answer_path"],
+            "data.agent_report.user_answer.rendered_text",
+        )
         self.assertTrue(guidance["execution_complete"])
         self.assertFalse(guidance["evidence_complete"])
         self.assertEqual(guidance["answer_readiness"], "answerable_with_caveats")
         self.assertIn("not_executed_controls", guidance["blocking_evidence"])
-        self.assertEqual(guidance["next_actions"][0]["id"], "rerun_with_larger_execution_budget")
-        self.assertEqual(guidance["next_actions"][0]["request_patch"]["evidence"]["no_live_cache"], True)
+        self.assertEqual(
+            guidance["next_actions"][0]["id"], "rerun_with_larger_execution_budget"
+        )
+        self.assertEqual(
+            guidance["next_actions"][0]["request_patch"]["evidence"]["no_live_cache"],
+            True,
+        )
 
     def test_schema_loads_as_package_resource_and_stays_compact(self) -> None:
-        text = resources.files(AGENT_REPORT_SCHEMA_PACKAGE).joinpath(AGENT_REPORT_SCHEMA_RESOURCE).read_text(encoding="utf-8")
+        text = (
+            resources.files(AGENT_REPORT_SCHEMA_PACKAGE)
+            .joinpath(AGENT_REPORT_SCHEMA_RESOURCE)
+            .read_text(encoding="utf-8")
+        )
         parsed = json.loads(text)
 
         self.assertEqual(parsed["$id"], "urn:hermes:flights-cli:agent-report:v2")
@@ -349,7 +381,9 @@ class AgentReportContractTests(unittest.TestCase):
         report = valid_report()
         validate_flat_agent_report(report)
         validate_user_answer(report["user_answer"])
-        self.assertEqual(report["user_answer"]["rendered_text"], report["human_answer"]["text"])
+        self.assertEqual(
+            report["user_answer"]["rendered_text"], report["human_answer"]["text"]
+        )
 
     def test_source_boundaries_require_metadata_availability_distinction(self) -> None:
         report = valid_report()
@@ -362,14 +396,26 @@ class AgentReportContractTests(unittest.TestCase):
         with self.assertRaises(CliError) as ctx:
             validate_flat_agent_report(report)
 
-        self.assertIn("$.evidence.source_boundaries", semantic_error_paths(ctx.exception))
+        self.assertIn(
+            "$.evidence.source_boundaries", semantic_error_paths(ctx.exception)
+        )
 
-    def test_agent_report_v2_runtime_mapping_does_not_expose_legacy_aliases(self) -> None:
+    def test_agent_report_v2_runtime_mapping_does_not_expose_legacy_aliases(
+        self,
+    ) -> None:
         report = valid_agent_report_v2()
 
         self.assertEqual(
             set(report.keys()),
-            {"schema_version", "route", "evidence", "frontier", "user_answer", "agent_guidance", "diagnostics"},
+            {
+                "schema_version",
+                "route",
+                "evidence",
+                "frontier",
+                "user_answer",
+                "agent_guidance",
+                "diagnostics",
+            },
         )
         for legacy_key in LEGACY_TOP_LEVEL_FIELDS:
             with self.subTest(legacy_key=legacy_key):
@@ -378,7 +424,9 @@ class AgentReportContractTests(unittest.TestCase):
                 with self.assertRaises(KeyError):
                     _ = report[legacy_key]
 
-    def test_schema_accepts_ru_priority_controls_for_ru_touching_international_route(self) -> None:
+    def test_schema_accepts_ru_priority_controls_for_ru_touching_international_route(
+        self,
+    ) -> None:
         report = valid_report()
         report["route"]["destination"] = "LON"
         report["route"]["destination_airports"] = ["LHR", "LGW", "STN", "LTN"]
@@ -387,7 +435,9 @@ class AgentReportContractTests(unittest.TestCase):
 
         validate_flat_agent_report(report)
 
-    def test_ru_priority_branch_without_execution_state_fails_semantic_validation(self) -> None:
+    def test_ru_priority_branch_without_execution_state_fails_semantic_validation(
+        self,
+    ) -> None:
         report = valid_report()
         report["ru_priority_controls"] = valid_ru_priority_controls()
         del report["ru_priority_controls"]["moscow_gateway_control"]["execution_state"]
@@ -400,7 +450,9 @@ class AgentReportContractTests(unittest.TestCase):
             semantic_error_paths(ctx.exception),
         )
 
-    def test_ru_priority_visible_true_with_viable_false_fails_semantic_validation(self) -> None:
+    def test_ru_priority_visible_true_with_viable_false_fails_semantic_validation(
+        self,
+    ) -> None:
         report = valid_report()
         option = copy.deepcopy(valid_option())
         option["id"] = "priority-direct"
@@ -409,12 +461,14 @@ class AgentReportContractTests(unittest.TestCase):
         option["visibility_role"] = "priority_control"
         report["priority_options"] = [option]
         report["ru_priority_controls"] = valid_ru_priority_controls()
-        report["ru_priority_controls"]["direct_destination_control"] = ru_priority_branch(
-            execution_state="executed_no_viable_result",
-            viable=False,
-            visible=True,
-            priority_option_id="priority-direct",
-            evidence_option_ids=["priority-direct"],
+        report["ru_priority_controls"]["direct_destination_control"] = (
+            ru_priority_branch(
+                execution_state="executed_no_viable_result",
+                viable=False,
+                visible=True,
+                priority_option_id="priority-direct",
+                evidence_option_ids=["priority-direct"],
+            )
         )
 
         with self.assertRaises(CliError) as ctx:
@@ -480,12 +534,16 @@ class AgentReportContractTests(unittest.TestCase):
                 "text": "12 000 RUB | всего 6:00 | пересадок 1\nSVX→IST U6 123 10:00–13:00\nпересадка IST 2:00\nIST→LHR TK1985 15:00–17:00",
             }
         )
-        report["display"]["text"] = "\n\n".join(option["text"] for option in report["display"]["options"])
+        report["display"]["text"] = "\n\n".join(
+            option["text"] for option in report["display"]["options"]
+        )
 
         with self.assertRaises(CliError) as ctx:
             validate_flat_agent_report(report)
 
-        self.assertIn("$.diagnostics.display.options[1]", semantic_error_paths(ctx.exception))
+        self.assertIn(
+            "$.diagnostics.display.options[1]", semantic_error_paths(ctx.exception)
+        )
 
     def test_canonical_coverage_diagnostics_requires_terminal_fields(self) -> None:
         report = valid_report()
@@ -494,7 +552,13 @@ class AgentReportContractTests(unittest.TestCase):
 
     def test_canonical_coverage_diagnostics_rejects_old_minimal_shape(self) -> None:
         report = valid_report()
-        for key in ("planned_controls", "failed_controls", "not_executed_controls", "deduped_controls", "completeness"):
+        for key in (
+            "planned_controls",
+            "failed_controls",
+            "not_executed_controls",
+            "deduped_controls",
+            "completeness",
+        ):
             del report["coverage_diagnostics"][key]
 
         with self.assertRaises(CliError) as ctx:
@@ -504,7 +568,9 @@ class AgentReportContractTests(unittest.TestCase):
         self.assertIn("$.evidence.coverage_diagnostics.planned_controls", paths)
         self.assertIn("$.evidence.coverage_diagnostics.completeness", paths)
 
-    def test_canonical_coverage_diagnostics_rejects_incomplete_terminal_semantics(self) -> None:
+    def test_canonical_coverage_diagnostics_rejects_incomplete_terminal_semantics(
+        self,
+    ) -> None:
         report = valid_report()
         report["coverage_diagnostics"]["completeness"] = {
             "planned_count": 2,
@@ -515,7 +581,12 @@ class AgentReportContractTests(unittest.TestCase):
         with self.assertRaises(CliError) as ctx:
             validate_flat_agent_report(report)
 
-        self.assertTrue(any(error["validator"] == "semantic" for error in ctx.exception.details["errors"]))
+        self.assertTrue(
+            any(
+                error["validator"] == "semantic"
+                for error in ctx.exception.details["errors"]
+            )
+        )
 
     def test_build_agent_report_always_projects_unified_offer_graph(self) -> None:
         report = build_agent_report(
@@ -563,12 +634,20 @@ class AgentReportContractTests(unittest.TestCase):
         graph = report["frontier"]["offer_graph"]
         self.assertEqual(graph["algorithm"], "unified_offer_graph.v1")
         self.assertEqual(graph["collection"]["mode"], "progressive")
-        self.assertEqual(graph["truth_language"]["inventory_scope"], "live_provider_returned_inventory")
-        self.assertEqual(graph["truth_language"]["absence_claim"], "bounded_live_controls_only")
+        self.assertEqual(
+            graph["truth_language"]["inventory_scope"],
+            "live_provider_returned_inventory",
+        )
+        self.assertEqual(
+            graph["truth_language"]["absence_claim"], "bounded_live_controls_only"
+        )
         self.assertEqual(graph["evidence"]["planned_control_count"], 1)
         self.assertEqual(graph["evidence"]["terminal_control_count"], 1)
         self.assertEqual(graph["evidence"]["missing_evidence_count"], 1)
-        self.assertEqual(graph["missing_evidence"][0]["reason"], "not_reached_by_current_live_execution")
+        self.assertEqual(
+            graph["missing_evidence"][0]["reason"],
+            "not_reached_by_current_live_execution",
+        )
         self.assertEqual(report["schema_version"], "agent_report.v2")
         self.assertIn("evidence", report)
         self.assertIn("frontier", report)
@@ -577,7 +656,10 @@ class AgentReportContractTests(unittest.TestCase):
         self.assertFalse(LEGACY_TOP_LEVEL_FIELDS & set(serialized_report))
         self.assertEqual(serialized_report["frontier"]["offer_graph"], graph)
         validate_user_answer(report["user_answer"])
-        self.assertEqual(report["user_answer"]["rendered_text"], report["diagnostics"]["human_answer"]["text"])
+        self.assertEqual(
+            report["user_answer"]["rendered_text"],
+            report["diagnostics"]["human_answer"]["text"],
+        )
 
     def test_v1_accepts_optional_omitted_counts(self) -> None:
         report = valid_report()
@@ -626,7 +708,9 @@ class AgentReportContractTests(unittest.TestCase):
                 },
             }
         ]
-        report["answer_lines"].append("Provider failure: 1 probe failed; see provider_failures for details.")
+        report["answer_lines"].append(
+            "Provider failure: 1 probe failed; see provider_failures for details."
+        )
 
         validate_flat_agent_report(report)
 
@@ -656,7 +740,12 @@ class AgentReportContractTests(unittest.TestCase):
     def test_structured_risk_reasons_are_allowed(self) -> None:
         report = valid_report()
         report["recommended_options"][0]["risk"]["top_reasons"] = [
-            {"scope": "carrier", "code": "preferred_carrier_match", "points": 0, "message": "Uses preferred carrier."}
+            {
+                "scope": "carrier",
+                "code": "preferred_carrier_match",
+                "points": 0,
+                "message": "Uses preferred carrier.",
+            }
         ]
         report["recommended_options"][0]["connections"] = [
             {
@@ -697,7 +786,8 @@ class AgentReportContractTests(unittest.TestCase):
         self.assertTrue(
             any(
                 error["validator"] == "semantic"
-                and error["path"] == "$.evidence.coverage_diagnostics.not_supported_controls"
+                and error["path"]
+                == "$.evidence.coverage_diagnostics.not_supported_controls"
                 for error in ctx.exception.details["errors"]
             )
         )
@@ -711,9 +801,16 @@ class AgentReportContractTests(unittest.TestCase):
             schema["$defs"]["search_evidence"]["properties"]["coverage_diagnostics"],
             {"$ref": "#/$defs/coverage_diagnostics"},
         )
-        not_supported_schema = coverage_schema["properties"]["not_supported_controls"]["items"]
-        self.assertEqual(not_supported_schema["properties"]["execution_state"], {"const": "not_supported"})
-        self.assertEqual(not_supported_schema["properties"]["status"], {"const": "not_supported"})
+        not_supported_schema = coverage_schema["properties"]["not_supported_controls"][
+            "items"
+        ]
+        self.assertEqual(
+            not_supported_schema["properties"]["execution_state"],
+            {"const": "not_supported"},
+        )
+        self.assertEqual(
+            not_supported_schema["properties"]["status"], {"const": "not_supported"}
+        )
 
     def test_coverage_diagnostics_rejects_non_list_control_bucket(self) -> None:
         report = valid_report()
@@ -722,7 +819,10 @@ class AgentReportContractTests(unittest.TestCase):
         with self.assertRaises(CliError) as ctx:
             validate_flat_agent_report(report)
 
-        self.assertIn("$.evidence.coverage_diagnostics.not_supported_controls", semantic_error_paths(ctx.exception))
+        self.assertIn(
+            "$.evidence.coverage_diagnostics.not_supported_controls",
+            semantic_error_paths(ctx.exception),
+        )
 
     def test_not_supported_controls_require_not_supported_terminal_state(self) -> None:
         report = valid_report()
@@ -756,7 +856,9 @@ class AgentReportContractTests(unittest.TestCase):
             validate_flat_agent_report(report)
 
         self.assertEqual(ctx.exception.error_type, "contract_error")
-        self.assertIn("$.evidence.source_boundaries", semantic_error_paths(ctx.exception))
+        self.assertIn(
+            "$.evidence.source_boundaries", semantic_error_paths(ctx.exception)
+        )
 
     def test_wrong_schema_version_fails(self) -> None:
         report = valid_agent_report_v2()
@@ -776,7 +878,12 @@ class AgentReportContractTests(unittest.TestCase):
             validate_agent_report(report)
 
         self.assertEqual(ctx.exception.error_type, "contract_error")
-        self.assertTrue(any(error["validator"] == "additionalProperties" for error in ctx.exception.details["errors"]))
+        self.assertTrue(
+            any(
+                error["validator"] == "additionalProperties"
+                for error in ctx.exception.details["errors"]
+            )
+        )
 
     def test_priority_options_do_not_require_answer_line_keywords(self) -> None:
         report = valid_report()
@@ -788,7 +895,9 @@ class AgentReportContractTests(unittest.TestCase):
 
         validate_flat_agent_report(report)
 
-    def test_through_fare_checks_are_structured_evidence_not_answer_line_keywords(self) -> None:
+    def test_through_fare_checks_are_structured_evidence_not_answer_line_keywords(
+        self,
+    ) -> None:
         report = valid_report()
         report["through_fare_checks"] = [
             {
@@ -797,14 +906,20 @@ class AgentReportContractTests(unittest.TestCase):
                 "date": "2026-06-01",
                 "carrier": "SU",
                 "reason": "Same-carrier priority option can be better priced or protected as an airline/GDS through fare.",
-                "verify_with": ["airline website", "GDS/Sirena/Amadeus-capable seller", "booking screen fare rules"],
+                "verify_with": [
+                    "airline website",
+                    "GDS/Sirena/Amadeus-capable seller",
+                    "booking screen fare rules",
+                ],
             }
         ]
         report["answer_lines"] = ["Best CLI-ranked option: 10 000 RUB."]
 
         validate_flat_agent_report(report)
 
-    def test_provider_failures_are_structured_evidence_not_answer_line_keywords(self) -> None:
+    def test_provider_failures_are_structured_evidence_not_answer_line_keywords(
+        self,
+    ) -> None:
         report = valid_report()
         report["provider_failures"] = [
             {
@@ -814,7 +929,10 @@ class AgentReportContractTests(unittest.TestCase):
                 "destination": "FRA",
                 "date": "2026-08-14",
                 "provider": "fli",
-                "error": {"type": "upstream_error", "message": "FLI MCP request failed: connection refused"},
+                "error": {
+                    "type": "upstream_error",
+                    "message": "FLI MCP request failed: connection refused",
+                },
             }
         ]
         report["answer_lines"] = ["Best CLI-ranked option: 10 000 RUB."]
@@ -855,7 +973,12 @@ class AgentReportContractTests(unittest.TestCase):
                 {
                     "direction": "outbound",
                     "leg": "origin_to_hub",
-                    "query": {"origin": "SVX", "destination": "SVO", "date": "2026-06-01", "currency": "RUB"},
+                    "query": {
+                        "origin": "SVX",
+                        "destination": "SVO",
+                        "date": "2026-06-01",
+                        "currency": "RUB",
+                    },
                     "offers": [
                         {
                             "id": "svx-svo",
@@ -883,7 +1006,12 @@ class AgentReportContractTests(unittest.TestCase):
                 {
                     "direction": "outbound",
                     "leg": "hub_to_destination",
-                    "query": {"origin": "SVO", "destination": "DEL", "date": "2026-06-01", "currency": "RUB"},
+                    "query": {
+                        "origin": "SVO",
+                        "destination": "DEL",
+                        "date": "2026-06-01",
+                        "currency": "RUB",
+                    },
                     "offers": [
                         {
                             "id": "svo-del",
@@ -913,14 +1041,23 @@ class AgentReportContractTests(unittest.TestCase):
         forced_error = CliError(
             "agent_report failed contract validation",
             error_type="contract_error",
-            details={"schema_version": AGENT_REPORT_SCHEMA_VERSION, "errors": [{"path": "$", "message": "forced"}]},
+            details={
+                "schema_version": AGENT_REPORT_SCHEMA_VERSION,
+                "errors": [{"path": "$", "message": "forced"}],
+            },
         )
 
         stdout = io.StringIO()
         stderr = io.StringIO()
-        with patch("sys.stdin", io.StringIO(json.dumps(payload))), patch(
-            "flights_cli.services.agent_report.validate_agent_report", side_effect=forced_error
-        ), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps(payload))),
+            patch(
+                "flights_cli.services.agent_report.validate_agent_report",
+                side_effect=forced_error,
+            ),
+            contextlib.redirect_stdout(stdout),
+            contextlib.redirect_stderr(stderr),
+        ):
             code = main(
                 [
                     "flights",
@@ -933,14 +1070,17 @@ class AgentReportContractTests(unittest.TestCase):
                     "--input",
                     "-",
                 ]
-        )
+            )
 
         self.assertEqual(code, 1)
         self.assertEqual(stderr.getvalue(), "")
         error_payload = json.loads(stdout.getvalue())
         self.assertFalse(error_payload["ok"])
         self.assertEqual(error_payload["error"]["type"], "contract_error")
-        self.assertEqual(error_payload["error"]["details"]["schema_version"], AGENT_REPORT_SCHEMA_VERSION)
+        self.assertEqual(
+            error_payload["error"]["details"]["schema_version"],
+            AGENT_REPORT_SCHEMA_VERSION,
+        )
 
 
 if __name__ == "__main__":

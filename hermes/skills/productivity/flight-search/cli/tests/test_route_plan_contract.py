@@ -9,7 +9,14 @@ from flights_cli.store import Store
 from helpers import live_assembly_args
 
 
-REQUIRED_SEGMENT_FIELDS = {"direction", "leg", "origin", "destination", "date", "route_family"}
+REQUIRED_SEGMENT_FIELDS = {
+    "direction",
+    "leg",
+    "origin",
+    "destination",
+    "date",
+    "route_family",
+}
 
 
 def value(item: Any) -> str:
@@ -32,18 +39,24 @@ def route_family_ids(plan: dict[str, Any]) -> set[str]:
 
 
 def segment_family_ids(plan: dict[str, Any]) -> set[str]:
-    return {value(segment.get("route_family")) for segment in plan.get("segments") or []}
+    return {
+        value(segment.get("route_family")) for segment in plan.get("segments") or []
+    }
 
 
 def coverage_control_types(plan: dict[str, Any]) -> set[str]:
-    return {value(control.get("type")) for control in plan.get("coverage_controls") or []}
+    return {
+        value(control.get("type")) for control in plan.get("coverage_controls") or []
+    }
 
 
 class RoutePlanContractTests(unittest.TestCase):
     def build_plan(self, **overrides: Any) -> dict[str, Any]:
         return build_live_route_segment_plan(live_assembly_args(**overrides), Store())
 
-    def assert_valid_route_plan(self, plan: dict[str, Any], *, round_trip: bool) -> None:
+    def assert_valid_route_plan(
+        self, plan: dict[str, Any], *, round_trip: bool
+    ) -> None:
         segments = plan.get("segments") or []
         self.assertGreater(len(segments), 0)
         self.assertEqual(plan["metrics"]["segment_search_count"], len(segments))
@@ -108,7 +121,14 @@ class RoutePlanContractTests(unittest.TestCase):
                     "strategy": "ru-priority",
                     "direct_only": True,
                     "segment_families": {"direct_inventory"},
-                    "dates": {"2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20"},
+                    "dates": {
+                        "2026-08-15",
+                        "2026-08-16",
+                        "2026-08-17",
+                        "2026-08-18",
+                        "2026-08-19",
+                        "2026-08-20",
+                    },
                     "coverage_types": {"exact_airport_direct"},
                 },
             },
@@ -134,7 +154,11 @@ class RoutePlanContractTests(unittest.TestCase):
                         "moscow_gateway_control",
                         "dxb_direct",
                     },
-                    "coverage_types": {"exact_airport_direct", "full_route_aggregate", "carrier_aggregate"},
+                    "coverage_types": {
+                        "exact_airport_direct",
+                        "full_route_aggregate",
+                        "carrier_aggregate",
+                    },
                 },
             },
             {
@@ -154,7 +178,11 @@ class RoutePlanContractTests(unittest.TestCase):
                     "direct_only": False,
                     "segment_families": {"domestic_ru"},
                     "excluded_hubs": {"IST", "DXB"},
-                    "coverage_types": {"exact_airport_direct", "full_route_aggregate", "carrier_aggregate"},
+                    "coverage_types": {
+                        "exact_airport_direct",
+                        "full_route_aggregate",
+                        "carrier_aggregate",
+                    },
                 },
             },
             {
@@ -174,7 +202,11 @@ class RoutePlanContractTests(unittest.TestCase):
                     "strategy": "hub-list",
                     "hubs": ["IST"],
                     "required_families": {"hub_list"},
-                    "coverage_types": {"exact_airport_direct", "full_route_aggregate", "carrier_aggregate"},
+                    "coverage_types": {
+                        "exact_airport_direct",
+                        "full_route_aggregate",
+                        "carrier_aggregate",
+                    },
                 },
             },
             {
@@ -203,25 +235,37 @@ class RoutePlanContractTests(unittest.TestCase):
             with self.subTest(scenario["name"]):
                 plan = self.build_plan(**scenario["overrides"])
                 expected = scenario["expect"]
-                self.assert_valid_route_plan(plan, round_trip=bool(scenario["round_trip"]))
+                self.assert_valid_route_plan(
+                    plan, round_trip=bool(scenario["round_trip"])
+                )
                 self.assertEqual(plan["routing_strategy"], expected["strategy"])
                 if "direct_only" in expected:
                     self.assertEqual(plan["direct_only"], expected["direct_only"])
                 if "hubs" in expected:
                     self.assertEqual(plan["hubs"], expected["hubs"])
                 if "segment_families" in expected:
-                    self.assertEqual(segment_family_ids(plan), expected["segment_families"])
+                    self.assertEqual(
+                        segment_family_ids(plan), expected["segment_families"]
+                    )
                 if "required_families" in expected:
-                    self.assertTrue(expected["required_families"].issubset(segment_family_ids(plan)))
+                    self.assertTrue(
+                        expected["required_families"].issubset(segment_family_ids(plan))
+                    )
                 if "excluded_families" in expected:
-                    self.assertFalse(expected["excluded_families"] & segment_family_ids(plan))
+                    self.assertFalse(
+                        expected["excluded_families"] & segment_family_ids(plan)
+                    )
                 if "excluded_hubs" in expected:
-                    self.assertFalse(expected["excluded_hubs"] & set(plan.get("hubs") or []))
+                    self.assertFalse(
+                        expected["excluded_hubs"] & set(plan.get("hubs") or [])
+                    )
                 if "dates" in expected:
                     dates = {segment["date"] for segment in plan["segments"]}
                     self.assertEqual(dates, expected["dates"])
                 if "coverage_types" in expected:
-                    self.assertEqual(coverage_control_types(plan), expected["coverage_types"])
+                    self.assertEqual(
+                        coverage_control_types(plan), expected["coverage_types"]
+                    )
 
 
 if __name__ == "__main__":

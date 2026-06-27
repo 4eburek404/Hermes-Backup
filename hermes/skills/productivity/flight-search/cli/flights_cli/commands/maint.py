@@ -13,11 +13,26 @@ from ..command_surface import (
     PRIMARY_ROUTE_COMMAND,
     TARGETED_PROBE_COMMANDS,
 )
-from ..config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, DEFAULT_ROUTE_HUB_NOTES, DEFAULT_ROUTE_HUBS, RISK_PROFILES
+from ..config import (
+    DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
+    DEFAULT_ROUTE_HUB_NOTES,
+    DEFAULT_ROUTE_HUBS,
+    RISK_PROFILES,
+)
 from ..providers.route_intel import svx_route_index_path
-from ..providers.static_catalog import active_catalog_manifest, catalog_staleness, download_static_catalog, parse_ttl_seconds
+from ..providers.static_catalog import (
+    active_catalog_manifest,
+    catalog_staleness,
+    download_static_catalog,
+    parse_ttl_seconds,
+)
 from ..store import Store
-from ..version_manifest import load_version_manifest, manifest_mismatches, manifest_path, source_skill_path
+from ..version_manifest import (
+    load_version_manifest,
+    manifest_mismatches,
+    manifest_path,
+    source_skill_path,
+)
 from .metadata import metadata_evidence_scope
 
 
@@ -73,10 +88,18 @@ def command_maint_doctor(args: argparse.Namespace, store: Store) -> dict[str, An
             "manual_refresh_commands": list(CATALOG_REFRESH_COMMANDS),
             "explicit_refresh_command": "maint catalog refresh",
         },
-        "catalog_staleness": catalog_staleness(store.cache_dir, max_age_seconds=max_age_seconds),
+        "catalog_staleness": catalog_staleness(
+            store.cache_dir, max_age_seconds=max_age_seconds
+        ),
         "runtime_evidence_policy": {
             "live_cache": {
-                "status_values": ["live", "cache_hit", "stale_cache_used", "disabled", "unknown"],
+                "status_values": [
+                    "live",
+                    "cache_hit",
+                    "stale_cache_used",
+                    "disabled",
+                    "unknown",
+                ],
                 "default_ttl_seconds": DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
             },
             "request_deduplication": {
@@ -89,7 +112,14 @@ def command_maint_doctor(args: argparse.Namespace, store: Store) -> dict[str, An
             },
             "failure_classification": {
                 "preserves_original_error_type": True,
-                "classes": ["rate_limited", "timeout", "provider_unavailable", "blocked_response", "parse_error", "upstream_error"],
+                "classes": [
+                    "rate_limited",
+                    "timeout",
+                    "provider_unavailable",
+                    "blocked_response",
+                    "parse_error",
+                    "upstream_error",
+                ],
             },
             "live_network_checks_in_doctor": False,
         },
@@ -116,7 +146,9 @@ def command_maint_doctor(args: argparse.Namespace, store: Store) -> dict[str, An
     }
 
 
-def command_maint_catalog_refresh(args: argparse.Namespace, store: Store) -> dict[str, Any]:
+def command_maint_catalog_refresh(
+    args: argparse.Namespace, store: Store
+) -> dict[str, Any]:
     result = download_static_catalog(
         store.cache_dir,
         names=args.only,
@@ -127,7 +159,9 @@ def command_maint_catalog_refresh(args: argparse.Namespace, store: Store) -> dic
     return result
 
 
-def command_maint_catalog_manifest(args: argparse.Namespace, store: Store) -> dict[str, Any]:
+def command_maint_catalog_manifest(
+    args: argparse.Namespace, store: Store
+) -> dict[str, Any]:
     max_age_seconds = parse_ttl_seconds(args.catalog_max_age)
     manifest = active_catalog_manifest(store.load_manifest())
     return {
@@ -135,5 +169,7 @@ def command_maint_catalog_manifest(args: argparse.Namespace, store: Store) -> di
         "evidence_scope": metadata_evidence_scope("maint catalog manifest"),
         "manifest": manifest,
         "cache_counts": store.cache_counts(),
-        "catalog_staleness": catalog_staleness(store.cache_dir, max_age_seconds=max_age_seconds),
+        "catalog_staleness": catalog_staleness(
+            store.cache_dir, max_age_seconds=max_age_seconds
+        ),
     }

@@ -29,14 +29,24 @@ def journey_connection_count(journey: dict[str, Any]) -> int:
 def candidate_stop_metrics(candidate: dict[str, Any]) -> dict[str, Any]:
     journeys = candidate.get("journeys")
     if isinstance(journeys, list) and journeys:
-        per_journey = [journey_connection_count(journey) for journey in journeys if isinstance(journey, dict)]
+        per_journey = [
+            journey_connection_count(journey)
+            for journey in journeys
+            if isinstance(journey, dict)
+        ]
     else:
-        segments = candidate.get("segments") if isinstance(candidate.get("segments"), list) else []
+        segments = (
+            candidate.get("segments")
+            if isinstance(candidate.get("segments"), list)
+            else []
+        )
         per_journey = [max(0, len(segments) - 1)] if segments else [0]
     return stop_metrics_from_connection_counts(per_journey)
 
 
-def stop_metrics_from_normalized(journeys: list[dict[str, Any]], segments: list[dict[str, Any]]) -> dict[str, Any]:
+def stop_metrics_from_normalized(
+    journeys: list[dict[str, Any]], segments: list[dict[str, Any]]
+) -> dict[str, Any]:
     if journeys:
         per_journey = [journey_connection_count(journey) for journey in journeys]
     else:
@@ -57,9 +67,13 @@ def stop_metrics_from_connection_counts(per_journey: list[int]) -> dict[str, Any
 
 def offer_stop_metrics(offer: dict[str, Any]) -> dict[str, Any]:
     if offer.get("change_count") is not None:
-        return stop_metrics_from_connection_counts([int(offer.get("change_count") or 0)])
+        return stop_metrics_from_connection_counts(
+            [int(offer.get("change_count") or 0)]
+        )
     if offer.get("number_of_changes") is not None:
-        return stop_metrics_from_connection_counts([int(offer.get("number_of_changes") or 0)])
+        return stop_metrics_from_connection_counts(
+            [int(offer.get("number_of_changes") or 0)]
+        )
     segments = offer.get("segments")
     if isinstance(segments, list):
         return stop_metrics_from_connection_counts([max(0, len(segments) - 1)])

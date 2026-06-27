@@ -6,17 +6,24 @@ from typing import Any
 from ..config import CARRIER_RE, DEFAULT_PROFILE, IATA_RE, RISK_PROFILES
 from ..errors import CliError
 
+
 def normalize_iata(value: str, field: str = "IATA") -> str:
     code = value.strip().upper()
     if not IATA_RE.match(code):
-        raise CliError(f"{field} must be a 3-letter IATA code, got {value!r}", error_type="validation_error")
+        raise CliError(
+            f"{field} must be a 3-letter IATA code, got {value!r}",
+            error_type="validation_error",
+        )
     return code
 
 
 def normalize_carrier_code(value: str, field: str = "carrier") -> str:
     code = str(value or "").strip().upper()
     if not CARRIER_RE.match(code):
-        raise CliError(f"{field} must be a 2-3 character airline code, got {value!r}", error_type="validation_error")
+        raise CliError(
+            f"{field} must be a 2-3 character airline code, got {value!r}",
+            error_type="validation_error",
+        )
     return code
 
 
@@ -39,7 +46,9 @@ def parse_iso_date(value: str, field: str, *, today: date | None = None) -> date
     try:
         parsed = date.fromisoformat(value)
     except ValueError as exc:
-        raise CliError(f"{field} must be YYYY-MM-DD, got {value!r}", error_type="validation_error") from exc
+        raise CliError(
+            f"{field} must be YYYY-MM-DD, got {value!r}", error_type="validation_error"
+        ) from exc
 
     current_date = today or date.today()
     if parsed < current_date:

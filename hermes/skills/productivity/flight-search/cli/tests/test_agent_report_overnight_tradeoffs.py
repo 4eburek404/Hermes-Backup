@@ -44,7 +44,12 @@ class AgentReportOvernightTradeoffTests(CliSubprocessMixin, unittest.TestCase):
                 {
                     "direction": "outbound",
                     "leg": "origin_to_hub",
-                    "query": {"origin": "TLS", "destination": "IST", "date": "2026-06-18", "currency": "RUB"},
+                    "query": {
+                        "origin": "TLS",
+                        "destination": "IST",
+                        "date": "2026-06-18",
+                        "currency": "RUB",
+                    },
                     "offers": [
                         leg_offer(
                             "tls-ist-evening",
@@ -60,7 +65,12 @@ class AgentReportOvernightTradeoffTests(CliSubprocessMixin, unittest.TestCase):
                 {
                     "direction": "outbound",
                     "leg": "hub_to_destination",
-                    "query": {"origin": "IST", "destination": "SVX", "date": "2026-06-19", "currency": "RUB"},
+                    "query": {
+                        "origin": "IST",
+                        "destination": "SVX",
+                        "date": "2026-06-19",
+                        "currency": "RUB",
+                    },
                     "offers": [
                         leg_offer(
                             "ist-svx-next-day",

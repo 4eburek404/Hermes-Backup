@@ -14,7 +14,9 @@ from helpers import PROJECT, TEST_ENV
 
 
 class DateValidationTests(unittest.TestCase):
-    def test_parse_iso_date_rejects_past_dates_with_future_occurrence_hint(self) -> None:
+    def test_parse_iso_date_rejects_past_dates_with_future_occurrence_hint(
+        self,
+    ) -> None:
         with self.assertRaises(CliError) as ctx:
             parse_iso_date("2025-09-17", "depart-date", today=date(2026, 5, 10))
 
@@ -33,8 +35,12 @@ class DateValidationTests(unittest.TestCase):
     def test_parse_iso_date_allows_today_and_future_dates(self) -> None:
         today = date(2026, 5, 10)
 
-        self.assertEqual(parse_iso_date("2026-05-10", "depart-date", today=today), today)
-        self.assertEqual(parse_iso_date("2026-09-17", "depart-date", today=today), date(2026, 9, 17))
+        self.assertEqual(
+            parse_iso_date("2026-05-10", "depart-date", today=today), today
+        )
+        self.assertEqual(
+            parse_iso_date("2026-09-17", "depart-date", today=today), date(2026, 9, 17)
+        )
 
     def test_json_cli_returns_validation_error_for_past_departure_date(self) -> None:
         request = {

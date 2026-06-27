@@ -105,7 +105,11 @@ def segment_specs_from_plan(plan: dict[str, Any]) -> list[SegmentSpec]:
     for segment in plan.get("segments") or []:
         if not isinstance(segment, dict):
             continue
-        metadata = {key: value for key, value in segment.items() if key not in _SEGMENT_CORE_KEYS and key != "command"}
+        metadata = {
+            key: value
+            for key, value in segment.items()
+            if key not in _SEGMENT_CORE_KEYS and key != "command"
+        }
         specs.append(
             SegmentSpec(
                 direction=str(segment.get("direction") or ""),
@@ -123,13 +127,17 @@ def segment_specs_from_plan(plan: dict[str, Any]) -> list[SegmentSpec]:
     return specs
 
 
-def probe_specs_from_segments(segments: list[SegmentSpec], options: LiveAssemblyOptions) -> list[ProbeSpec]:
+def probe_specs_from_segments(
+    segments: list[SegmentSpec], options: LiveAssemblyOptions
+) -> list[ProbeSpec]:
     specs: list[ProbeSpec] = []
     for segment in segments:
         filters = FilterOptions(
             only_carriers=_unique(options.filters.only_carriers, segment.only_carriers),
             exclude_carriers=options.filters.exclude_carriers,
-            prefer_carriers=_unique(options.filters.prefer_carriers, segment.preferred_carriers),
+            prefer_carriers=_unique(
+                options.filters.prefer_carriers, segment.preferred_carriers
+            ),
             avoid_carriers=options.filters.avoid_carriers,
         )
         specs.append(

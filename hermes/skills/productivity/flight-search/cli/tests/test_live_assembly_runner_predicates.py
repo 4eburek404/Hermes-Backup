@@ -4,6 +4,7 @@ These tests exercise pure logic with minimal fake state: no network and no
 argparse parser.  Predicate tests call the focused service objects directly
 instead of relying on LiveAssemblyRunner private compatibility wrappers.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -36,6 +37,7 @@ from flights_cli.store import Store
 # ---------------------------------------------------------------------------
 # Helpers to build minimal runner / args / spec
 # ---------------------------------------------------------------------------
+
 
 def _args(**overrides: Any) -> argparse.Namespace:
     """Build a minimal Namespace with defaults that skip-predicates read."""
@@ -84,7 +86,9 @@ def _options_from_args(args: argparse.Namespace):
             "ticketing": args.ticketing,
             "provider_policy": args.provider_policy,
             "route_options": {
-                "routing_strategy": getattr(args, "routing_strategy", RoutingStrategy.RU_PRIORITY),
+                "routing_strategy": getattr(
+                    args, "routing_strategy", RoutingStrategy.RU_PRIORITY
+                ),
                 "hubs": getattr(args, "hub", None),
                 "origin_airports": getattr(args, "origin_airport", None),
                 "destination_airports": getattr(args, "destination_airport", None),
@@ -155,7 +159,8 @@ def _state(
     flow = build_live_route_search_flow(options, store)
     state = LiveAssemblyState(
         flow=flow,
-        plan=plan or {
+        plan=plan
+        or {
             "routing_strategy": RoutingStrategy.RU_PRIORITY,
             "segments": [],
             "hubs": ["IST"],
@@ -193,6 +198,7 @@ def _skip_policy(
 # provider_city_code_side
 # ---------------------------------------------------------------------------
 
+
 class TestProviderCityCodeSide(unittest.TestCase):
     def test_returns_true_when_code_matches_city(self) -> None:
         spec = {"provider_city_code": "MOW", "origin": "MOW", "destination": "IST"}
@@ -216,6 +222,7 @@ class TestProviderCityCodeSide(unittest.TestCase):
 # endpoint_group_code
 # ---------------------------------------------------------------------------
 
+
 class TestEndpointGroupCode(unittest.TestCase):
     def test_returns_city_code_when_provider_side(self) -> None:
         spec = {"provider_city_code": "MOW", "origin": "SVO", "destination": "IST"}
@@ -230,9 +237,15 @@ class TestEndpointGroupCode(unittest.TestCase):
 # city_code_primary_keys_for_deferred_airport
 # ---------------------------------------------------------------------------
 
+
 class TestCityCodePrimaryKeysForDeferredAirport(unittest.TestCase):
     def test_returns_empty_when_not_deferred(self) -> None:
-        spec = {"direction": "outbound", "leg": "origin_to_hub", "origin": "SVO", "destination": "IST"}
+        spec = {
+            "direction": "outbound",
+            "leg": "origin_to_hub",
+            "origin": "SVO",
+            "destination": "IST",
+        }
         self.assertEqual(city_code_primary_keys_for_deferred_airport(spec), [])
 
     def test_returns_keys_for_deferred_origin(self) -> None:
@@ -264,6 +277,7 @@ class TestCityCodePrimaryKeysForDeferredAirport(unittest.TestCase):
 # deferred_airport_priority_sides
 # ---------------------------------------------------------------------------
 
+
 class TestDeferredAirportPrioritySides(unittest.TestCase):
     def test_returns_empty_when_no_priority_metadata(self) -> None:
         spec = {"origin": "SVO", "destination": "IST"}
@@ -272,7 +286,11 @@ class TestDeferredAirportPrioritySides(unittest.TestCase):
     def test_returns_deferred_side_with_tier_above_1(self) -> None:
         spec = {
             "origin": "SVO",
-            "origin_airport_priority": {"tier": 2, "role": "deferred", "city_code": "MOW"},
+            "origin_airport_priority": {
+                "tier": 2,
+                "role": "deferred",
+                "city_code": "MOW",
+            },
             "destination": "IST",
         }
         sides = deferred_airport_priority_sides(spec)
@@ -283,7 +301,11 @@ class TestDeferredAirportPrioritySides(unittest.TestCase):
     def test_includes_deferred_role_even_at_tier_1(self) -> None:
         spec = {
             "origin": "SVO",
-            "origin_airport_priority": {"tier": 1, "role": "deferred", "city_code": "MOW"},
+            "origin_airport_priority": {
+                "tier": 1,
+                "role": "deferred",
+                "city_code": "MOW",
+            },
         }
         sides = deferred_airport_priority_sides(spec)
         self.assertEqual(len(sides), 1)
@@ -292,7 +314,11 @@ class TestDeferredAirportPrioritySides(unittest.TestCase):
     def test_skips_tier_0_non_deferred(self) -> None:
         spec = {
             "origin": "SVO",
-            "origin_airport_priority": {"tier": 0, "role": "primary", "city_code": "MOW"},
+            "origin_airport_priority": {
+                "tier": 0,
+                "role": "primary",
+                "city_code": "MOW",
+            },
         }
         self.assertEqual(deferred_airport_priority_sides(spec), [])
 
@@ -301,17 +327,30 @@ class TestDeferredAirportPrioritySides(unittest.TestCase):
 # plan_has_svx_direct_control
 # ---------------------------------------------------------------------------
 
+
 class TestPlanHasSvxDirectControl(unittest.TestCase):
     def test_returns_true_when_svx_outbound(self) -> None:
-        plan = {"segments": [{"leg": Leg.DIRECT_OUTBOUND, "origin": "SVX", "destination": "BKK"}]}
+        plan = {
+            "segments": [
+                {"leg": Leg.DIRECT_OUTBOUND, "origin": "SVX", "destination": "BKK"}
+            ]
+        }
         self.assertTrue(plan_has_svx_direct_control(plan))
 
     def test_returns_true_when_svx_return(self) -> None:
-        plan = {"segments": [{"leg": Leg.DIRECT_RETURN, "origin": "BKK", "destination": "SVX"}]}
+        plan = {
+            "segments": [
+                {"leg": Leg.DIRECT_RETURN, "origin": "BKK", "destination": "SVX"}
+            ]
+        }
         self.assertTrue(plan_has_svx_direct_control(plan))
 
     def test_returns_false_when_no_svx(self) -> None:
-        plan = {"segments": [{"leg": Leg.DIRECT_OUTBOUND, "origin": "MOW", "destination": "BKK"}]}
+        plan = {
+            "segments": [
+                {"leg": Leg.DIRECT_OUTBOUND, "origin": "MOW", "destination": "BKK"}
+            ]
+        }
         self.assertFalse(plan_has_svx_direct_control(plan))
 
     def test_returns_false_when_empty_segments(self) -> None:
@@ -322,6 +361,7 @@ class TestPlanHasSvxDirectControl(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # direct_route_intel_skip_allowed
 # ---------------------------------------------------------------------------
+
 
 class TestDirectRouteIntelSkipAllowed(unittest.TestCase):
     def _policy(self, **overrides: Any) -> tuple[bool, str | None]:
@@ -337,7 +377,9 @@ class TestDirectRouteIntelSkipAllowed(unittest.TestCase):
         self.assertIsNone(reason)
 
     def test_direct_only_forbids_skip(self) -> None:
-        allowed, reason = self._policy(return_date=None, max_connections=0, tier2_max_connections=0)
+        allowed, reason = self._policy(
+            return_date=None, max_connections=0, tier2_max_connections=0
+        )
 
         self.assertFalse(allowed)
         self.assertEqual(reason, "direct_only")
@@ -366,7 +408,9 @@ class TestDirectRouteIntelSkipAllowed(unittest.TestCase):
         self.assertEqual(reason, "ticketing_proof")
 
     def test_exact_airport_absence_scope_forbids_skip(self) -> None:
-        allowed, reason = self._policy(origin_airport=["SVX"], destination_airport=["BKK"])
+        allowed, reason = self._policy(
+            origin_airport=["SVX"], destination_airport=["BKK"]
+        )
 
         self.assertFalse(allowed)
         self.assertEqual(reason, "hard_airport_scope")
@@ -382,6 +426,7 @@ class TestDirectRouteIntelSkipAllowed(unittest.TestCase):
 # LiveAssemblyState
 # ---------------------------------------------------------------------------
 
+
 class TestLiveAssemblyState(unittest.TestCase):
     def test_can_be_created_without_cli_args(self) -> None:
         args = _args()
@@ -395,7 +440,9 @@ class TestLiveAssemblyState(unittest.TestCase):
         self.assertEqual(state.searches, [])
         self.assertEqual(state.failures, [])
         state.offer_counts[("outbound", "direct_outbound", "SVX", "BKK")] = 1
-        self.assertEqual(state.offer_counts[("outbound", "direct_outbound", "SVX", "BKK")], 1)
+        self.assertEqual(
+            state.offer_counts[("outbound", "direct_outbound", "SVX", "BKK")], 1
+        )
 
 
 class TestLiveAssemblyServices(unittest.TestCase):
@@ -408,7 +455,9 @@ class TestLiveAssemblyServices(unittest.TestCase):
             "dates": {"depart": "2026-08-01", "return": "2026-08-15"},
             "metrics": {"segment_search_count": 0},
         }
-        runner = LiveAssemblyRunner(options, Store(), plan_builder=lambda *a, **kw: plan)
+        runner = LiveAssemblyRunner(
+            options, Store(), plan_builder=lambda *a, **kw: plan
+        )
 
         state = runner.initialize_state()
 
@@ -425,6 +474,7 @@ class TestLiveAssemblyServices(unittest.TestCase):
 # SkipPolicy.skipped_by_direct_route_intel
 # ---------------------------------------------------------------------------
 
+
 class TestSkippedByDirectRouteIntel(unittest.TestCase):
     def test_returns_none_when_no_direct_route_index(self) -> None:
         state, policy = _skip_policy(direct_route_index=None)
@@ -437,11 +487,13 @@ class TestSkippedByDirectRouteIntel(unittest.TestCase):
         self.assertIsNone(policy.skipped_by_direct_route_intel(state, spec))
 
     def test_skips_when_airport_not_in_route_set(self) -> None:
-        state, policy = _skip_policy(direct_route_index={
-            "routes": {"outbound": ["BKK", "IST"], "return": ["SVX"]},
-            "source": "svx-route-index",
-            "fetched_at": "2026-01-01",
-        })
+        state, policy = _skip_policy(
+            direct_route_index={
+                "routes": {"outbound": ["BKK", "IST"], "return": ["SVX"]},
+                "source": "svx-route-index",
+                "fetched_at": "2026-01-01",
+            }
+        )
         spec = {"leg": Leg.DIRECT_OUTBOUND, "origin": "SVX", "destination": "HKT"}
         result = policy.skipped_by_direct_route_intel(state, spec)
         self.assertIsNotNone(result)
@@ -449,14 +501,18 @@ class TestSkippedByDirectRouteIntel(unittest.TestCase):
         self.assertEqual(result["skipped_because"]["checked_airport"], "HKT")
 
     def test_does_not_skip_when_airport_in_route_set(self) -> None:
-        state, policy = _skip_policy(direct_route_index={
-            "routes": {"outbound": ["BKK", "IST"], "return": ["SVX"]},
-        })
+        state, policy = _skip_policy(
+            direct_route_index={
+                "routes": {"outbound": ["BKK", "IST"], "return": ["SVX"]},
+            }
+        )
         spec = {"leg": Leg.DIRECT_OUTBOUND, "origin": "SVX", "destination": "BKK"}
         self.assertIsNone(policy.skipped_by_direct_route_intel(state, spec))
 
     def test_returns_none_when_neither_endpoint_is_svx(self) -> None:
-        state, policy = _skip_policy(direct_route_index={"routes": {"outbound": ["BKK"]}})
+        state, policy = _skip_policy(
+            direct_route_index={"routes": {"outbound": ["BKK"]}}
+        )
         spec = {"leg": Leg.DIRECT_OUTBOUND, "origin": "MOW", "destination": "BKK"}
         self.assertIsNone(policy.skipped_by_direct_route_intel(state, spec))
 
@@ -465,6 +521,7 @@ class TestSkippedByDirectRouteIntel(unittest.TestCase):
 # SkipPolicy.skipped_by_condition
 # ---------------------------------------------------------------------------
 
+
 class TestSkippedByCondition(unittest.TestCase):
     def test_returns_none_when_no_conditions_and_no_priority(self) -> None:
         state, policy = _skip_policy()
@@ -472,7 +529,9 @@ class TestSkippedByCondition(unittest.TestCase):
         self.assertIsNone(policy.skipped_by_condition(state, spec))
 
     def test_skips_by_skip_if_offer_exists(self) -> None:
-        state, policy = _skip_policy(offer_counts={("outbound", "direct_outbound", "SVX", "BKK"): 3})
+        state, policy = _skip_policy(
+            offer_counts={("outbound", "direct_outbound", "SVX", "BKK"): 3}
+        )
         spec = {
             "direction": "outbound",
             "leg": "direct_outbound",
@@ -491,7 +550,9 @@ class TestSkippedByCondition(unittest.TestCase):
         self.assertEqual(result["skipped_because"]["offer_count"], 3)
 
     def test_does_not_skip_when_offer_count_zero(self) -> None:
-        state, policy = _skip_policy(offer_counts={("outbound", "direct_outbound", "SVX", "BKK"): 0})
+        state, policy = _skip_policy(
+            offer_counts={("outbound", "direct_outbound", "SVX", "BKK"): 0}
+        )
         spec = {
             "direction": "outbound",
             "skip_if_offer_exists": {
@@ -520,9 +581,12 @@ class TestSkippedByCondition(unittest.TestCase):
 # SkipPolicy.skipped_by_offer_keys
 # ---------------------------------------------------------------------------
 
+
 class TestSkippedByOfferKeys(unittest.TestCase):
     def test_returns_none_when_no_matches(self) -> None:
-        state, policy = _skip_policy(offer_counts={("outbound", "direct_outbound", "SVX", "BKK"): 0})
+        state, policy = _skip_policy(
+            offer_counts={("outbound", "direct_outbound", "SVX", "BKK"): 0}
+        )
         result = policy.skipped_by_offer_keys(
             state,
             {"direction": "outbound"},
@@ -533,7 +597,9 @@ class TestSkippedByOfferKeys(unittest.TestCase):
         self.assertIsNone(result)
 
     def test_returns_skip_dict_when_matches(self) -> None:
-        state, policy = _skip_policy(offer_counts={("outbound", "direct_outbound", "SVX", "BKK"): 5})
+        state, policy = _skip_policy(
+            offer_counts={("outbound", "direct_outbound", "SVX", "BKK"): 5}
+        )
         result = policy.skipped_by_offer_keys(
             state,
             {"direction": "outbound", "leg": "direct_outbound"},
@@ -544,16 +610,21 @@ class TestSkippedByOfferKeys(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result["status"], "skipped")
         self.assertEqual(result["reason"], "test_reason")
-        self.assertEqual(result["skipped_because"]["matched_offer_counts"][0]["offer_count"], 5)
+        self.assertEqual(
+            result["skipped_because"]["matched_offer_counts"][0]["offer_count"], 5
+        )
 
 
 # ---------------------------------------------------------------------------
 # SkipPolicy.skipped_by_city_code_primary
 # ---------------------------------------------------------------------------
 
+
 class TestSkippedByCityCodePrimary(unittest.TestCase):
     def test_returns_skip_when_city_code_primary_has_offers(self) -> None:
-        state, policy = _skip_policy(offer_counts={("outbound", "origin_to_hub", "MOW", "IST"): 2})
+        state, policy = _skip_policy(
+            offer_counts={("outbound", "origin_to_hub", "MOW", "IST"): 2}
+        )
         spec = {
             "deferred_for_city_code_request": True,
             "provider_city_code": "MOW",
@@ -571,23 +642,44 @@ class TestSkippedByCityCodePrimary(unittest.TestCase):
 # PriorityRouteEvaluator.is_viable
 # ---------------------------------------------------------------------------
 
+
 class TestPriorityRouteViable(unittest.TestCase):
     def test_returns_false_when_not_ru_priority(self) -> None:
-        state, options = _state(plan={"routing_strategy": RoutingStrategy.HUB_LIST, "segments": [], "hubs": [], "dates": {}})
-        self.assertFalse(PriorityRouteEvaluator(options, SyntheticControlService()).is_viable(state, "outbound"))
+        state, options = _state(
+            plan={
+                "routing_strategy": RoutingStrategy.HUB_LIST,
+                "segments": [],
+                "hubs": [],
+                "dates": {},
+            }
+        )
+        self.assertFalse(
+            PriorityRouteEvaluator(options, SyntheticControlService()).is_viable(
+                state, "outbound"
+            )
+        )
 
     def test_returns_cached_viability(self) -> None:
         state, options = _state(priority_route_viability={"outbound": True})
-        self.assertTrue(PriorityRouteEvaluator(options, SyntheticControlService()).is_viable(state, "outbound"))
+        self.assertTrue(
+            PriorityRouteEvaluator(options, SyntheticControlService()).is_viable(
+                state, "outbound"
+            )
+        )
 
     def test_returns_false_for_unknown_direction(self) -> None:
         state, options = _state()
-        self.assertFalse(PriorityRouteEvaluator(options, SyntheticControlService()).is_viable(state, "sideways"))
+        self.assertFalse(
+            PriorityRouteEvaluator(options, SyntheticControlService()).is_viable(
+                state, "sideways"
+            )
+        )
 
 
 # ---------------------------------------------------------------------------
 # SyntheticControlService.apply_pending
 # ---------------------------------------------------------------------------
+
 
 class TestEnsureMoscowGatewayControlSynthesized(unittest.TestCase):
     def test_does_nothing_when_already_done(self) -> None:
@@ -606,9 +698,13 @@ class TestEnsureMoscowGatewayControlSynthesized(unittest.TestCase):
         state.offer_counts = {}
         # Patch synthesize to return empty results
         import flights_cli.orchestrators.live_assembly_runner as runner_mod
+
         original = runner_mod.synthesize_moscow_gateway_control_results
         try:
-            runner_mod.synthesize_moscow_gateway_control_results = lambda *a, **kw: ([], [])
+            runner_mod.synthesize_moscow_gateway_control_results = lambda *a, **kw: (
+                [],
+                [],
+            )
             SyntheticControlService().apply_pending(state, "outbound")
             self.assertIn("outbound", state.synthetic_controls_done)
         finally:
@@ -618,6 +714,7 @@ class TestEnsureMoscowGatewayControlSynthesized(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # SkipPolicy.skipped_by_preferred_airport_tier
 # ---------------------------------------------------------------------------
+
 
 class TestSkippedByPreferredAirportTier(unittest.TestCase):
     def test_returns_none_when_no_preferred_offers(self) -> None:
@@ -638,6 +735,7 @@ class TestSkippedByPreferredAirportTier(unittest.TestCase):
 # hub_viability_summary (standalone helper)
 # ---------------------------------------------------------------------------
 
+
 class TestHubViabilitySummary(unittest.TestCase):
     def test_marks_hub_viable_when_all_required_legs_have_offers(self) -> None:
         plan = {
@@ -645,10 +743,30 @@ class TestHubViabilitySummary(unittest.TestCase):
             "dates": {"depart": "2026-08-01", "return": "2026-08-15"},
         }
         searches = [
-            {"leg": Leg.ORIGIN_TO_HUB, "destination": "IST", "offer_count": 1, "date": "2026-08-01"},
-            {"leg": Leg.HUB_TO_DESTINATION, "origin": "IST", "offer_count": 2, "date": "2026-08-01"},
-            {"leg": Leg.DESTINATION_TO_HUB, "destination": "IST", "offer_count": 1, "date": "2026-08-15"},
-            {"leg": Leg.HUB_TO_ORIGIN, "origin": "IST", "offer_count": 3, "date": "2026-08-15"},
+            {
+                "leg": Leg.ORIGIN_TO_HUB,
+                "destination": "IST",
+                "offer_count": 1,
+                "date": "2026-08-01",
+            },
+            {
+                "leg": Leg.HUB_TO_DESTINATION,
+                "origin": "IST",
+                "offer_count": 2,
+                "date": "2026-08-01",
+            },
+            {
+                "leg": Leg.DESTINATION_TO_HUB,
+                "destination": "IST",
+                "offer_count": 1,
+                "date": "2026-08-15",
+            },
+            {
+                "leg": Leg.HUB_TO_ORIGIN,
+                "origin": "IST",
+                "offer_count": 3,
+                "date": "2026-08-15",
+            },
         ]
         result = hub_viability_summary(plan, searches)
         self.assertEqual(len(result), 1)
@@ -662,7 +780,12 @@ class TestHubViabilitySummary(unittest.TestCase):
             "dates": {"depart": "2026-08-01", "return": "2026-08-15"},
         }
         searches = [
-            {"leg": Leg.ORIGIN_TO_HUB, "destination": "IST", "offer_count": 1, "date": "2026-08-01"},
+            {
+                "leg": Leg.ORIGIN_TO_HUB,
+                "destination": "IST",
+                "offer_count": 1,
+                "date": "2026-08-01",
+            },
         ]
         result = hub_viability_summary(plan, searches)
         self.assertFalse(result[0]["viable"])

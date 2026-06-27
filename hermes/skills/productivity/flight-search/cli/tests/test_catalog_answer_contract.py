@@ -103,19 +103,31 @@ class CatalogAnswerContractTests(unittest.TestCase):
             "destination": "CAN",
             "dates": {"depart_date": "2026-07-14", "return_date": "2026-07-25"},
         }
-        report["recommended_options"] = [self._round_trip_option("assembled-primary", price=92248)]
-        report["priority_options"] = [self._round_trip_option("assembled-alt", price=90142)]
+        report["recommended_options"] = [
+            self._round_trip_option("assembled-primary", price=92248)
+        ]
+        report["priority_options"] = [
+            self._round_trip_option("assembled-alt", price=90142)
+        ]
         return report
 
     def test_v3_schema_declares_catalog_contract(self) -> None:
         schema = load_user_answer_schema()
-        text = resources.files(USER_ANSWER_SCHEMA_PACKAGE).joinpath(USER_ANSWER_SCHEMA_RESOURCE).read_text(encoding="utf-8")
+        text = (
+            resources.files(USER_ANSWER_SCHEMA_PACKAGE)
+            .joinpath(USER_ANSWER_SCHEMA_RESOURCE)
+            .read_text(encoding="utf-8")
+        )
         parsed = json.loads(text)
 
         Draft202012Validator.check_schema(schema)
         self.assertEqual(USER_ANSWER_SCHEMA_VERSION, "flight_search_user_answer.v3")
-        self.assertEqual(USER_ANSWER_SCHEMA_RESOURCE, "flight_search_user_answer.v3.schema.json")
-        self.assertEqual(parsed["$id"], "urn:hermes:flights-cli:flight-search-user-answer:v3")
+        self.assertEqual(
+            USER_ANSWER_SCHEMA_RESOURCE, "flight_search_user_answer.v3.schema.json"
+        )
+        self.assertEqual(
+            parsed["$id"], "urn:hermes:flights-cli:flight-search-user-answer:v3"
+        )
         expected_keys = {
             "schema_version",
             "answer_mode",
@@ -131,24 +143,29 @@ class CatalogAnswerContractTests(unittest.TestCase):
         }
         self.assertEqual(set(schema["required"]), expected_keys)
         self.assertEqual(set(schema["properties"]), expected_keys)
-        self.assertEqual(schema["properties"]["schema_version"]["const"], USER_ANSWER_SCHEMA_VERSION)
+        self.assertEqual(
+            schema["properties"]["schema_version"]["const"], USER_ANSWER_SCHEMA_VERSION
+        )
         self.assertLessEqual(len(text.encode("utf-8")), 20000)
 
     def test_round_trip_options_render_as_numbered_catalog_contract(self) -> None:
-        with patch(
-            "flights_cli.reporting.user_answer.airport_city_label",
-            side_effect=lambda code: {
-                "SVX": "Екатеринбург",
-                "SVO": "Москва",
-                "CAN": "Гуанчжоу",
-            }.get(code, code),
-            create=True,
-        ), patch(
-            "flights_cli.reporting.user_answer.airport_name_label",
-            side_effect=lambda code: {
-                "SVO": "Шереметьево",
-            }.get(code, code),
-            create=True,
+        with (
+            patch(
+                "flights_cli.reporting.user_answer.airport_city_label",
+                side_effect=lambda code: {
+                    "SVX": "Екатеринбург",
+                    "SVO": "Москва",
+                    "CAN": "Гуанчжоу",
+                }.get(code, code),
+                create=True,
+            ),
+            patch(
+                "flights_cli.reporting.user_answer.airport_name_label",
+                side_effect=lambda code: {
+                    "SVO": "Шереметьево",
+                }.get(code, code),
+                create=True,
+            ),
         ):
             answer = build_user_answer(self._round_trip_report())
 
@@ -169,27 +186,66 @@ class CatalogAnswerContractTests(unittest.TestCase):
         self.assertEqual(set(answer), expected_keys)
         self.assertEqual(answer["schema_version"], "flight_search_user_answer.v3")
         self.assertEqual(answer["answer_mode"], "catalog")
-        self.assertEqual(answer["catalog"]["presentation"], {"style": "numbered_inline_itinerary_v1", "language": "ru", "max_items": 10})
-        self.assertEqual([item["number"] for item in answer["catalog"]["items"]], [1, 2])
-        self.assertEqual(answer["catalog"]["items"][0]["option_id"], "assembled-primary")
+        self.assertEqual(
+            answer["catalog"]["presentation"],
+            {
+                "style": "numbered_inline_itinerary_v1",
+                "language": "ru",
+                "max_items": 10,
+            },
+        )
+        self.assertEqual(
+            [item["number"] for item in answer["catalog"]["items"]], [1, 2]
+        )
+        self.assertEqual(
+            answer["catalog"]["items"][0]["option_id"], "assembled-primary"
+        )
         self.assertTrue(answer["catalog"]["items"][0]["covers_requested_trip"])
         self.assertEqual(answer["catalog"]["items"][0]["journey_scope"], "round_trip")
-        self.assertEqual(answer["catalog"]["items"][0]["directions"]["outbound"]["segments"][0]["flight_number"], "SU100")
-        self.assertEqual(answer["catalog"]["items"][0]["directions"]["return"]["segments"][0]["flight_number"], "SU221")
-        self.assertEqual(answer["catalog"]["items"][0]["agent_display"]["style"], "inline_number_itinerary_with_aircraft_duration_v1")
-        self.assertIn("single_pnr_unproven", answer["catalog"]["items"][0]["badges"])
-        self.assertEqual(answer["catalog"]["items"][0]["agent_display"]["text"], answer["catalog"]["items"][0]["render_line"])
         self.assertEqual(
-            [segment["flight_number"] for segment in answer["catalog"]["items"][0]["directions"]["outbound"]["segments"]],
+            answer["catalog"]["items"][0]["directions"]["outbound"]["segments"][0][
+                "flight_number"
+            ],
+            "SU100",
+        )
+        self.assertEqual(
+            answer["catalog"]["items"][0]["directions"]["return"]["segments"][0][
+                "flight_number"
+            ],
+            "SU221",
+        )
+        self.assertEqual(
+            answer["catalog"]["items"][0]["agent_display"]["style"],
+            "inline_number_itinerary_with_aircraft_duration_v1",
+        )
+        self.assertIn("single_pnr_unproven", answer["catalog"]["items"][0]["badges"])
+        self.assertEqual(
+            answer["catalog"]["items"][0]["agent_display"]["text"],
+            answer["catalog"]["items"][0]["render_line"],
+        )
+        self.assertEqual(
+            [
+                segment["flight_number"]
+                for segment in answer["catalog"]["items"][0]["directions"]["outbound"][
+                    "segments"
+                ]
+            ],
             ["SU100", "SU220"],
         )
         self.assertEqual(
-            [segment["flight_number"] for segment in answer["catalog"]["items"][0]["directions"]["return"]["segments"]],
+            [
+                segment["flight_number"]
+                for segment in answer["catalog"]["items"][0]["directions"]["return"][
+                    "segments"
+                ]
+            ],
             ["SU221", "SU1406"],
         )
         self.assertNotIn("1.\n", answer["catalog"]["items"][0]["agent_display"]["text"])
 
-    def test_city_scope_endpoint_renders_actual_multi_airport_and_terminal(self) -> None:
+    def test_city_scope_endpoint_renders_actual_multi_airport_and_terminal(
+        self,
+    ) -> None:
         report = valid_report()
         report["route"] = {
             **report["route"],
@@ -238,14 +294,17 @@ class CatalogAnswerContractTests(unittest.TestCase):
         report["recommended_options"] = [option]
         report["priority_options"] = []
 
-        with patch(
-            "flights_cli.reporting.user_answer.airport_city_label",
-            side_effect=lambda code: {"MCT": "Маскат"}.get(code, code),
-            create=True,
-        ), patch(
-            "flights_cli.reporting.user_answer.airport_name_label",
-            side_effect=lambda code: {"SVO": "Шереметьево"}.get(code, code),
-            create=True,
+        with (
+            patch(
+                "flights_cli.reporting.user_answer.airport_city_label",
+                side_effect=lambda code: {"MCT": "Маскат"}.get(code, code),
+                create=True,
+            ),
+            patch(
+                "flights_cli.reporting.user_answer.airport_name_label",
+                side_effect=lambda code: {"SVO": "Шереметьево"}.get(code, code),
+                create=True,
+            ),
         ):
             answer = build_user_answer(report)
 
@@ -253,8 +312,24 @@ class CatalogAnswerContractTests(unittest.TestCase):
         item = answer["catalog"]["items"][0]
         outbound = item["directions"]["outbound"]["segments"][0]
         returned = item["directions"]["return"]["segments"][0]
-        self.assertEqual((outbound["flight_number"], outbound["origin"], outbound["destination"], outbound["departure_terminal"]), ("WY184", "SVO", "MCT", "C"))
-        self.assertEqual((returned["flight_number"], returned["origin"], returned["destination"], returned["arrival_terminal"]), ("WY183", "MCT", "SVO", "C"))
+        self.assertEqual(
+            (
+                outbound["flight_number"],
+                outbound["origin"],
+                outbound["destination"],
+                outbound["departure_terminal"],
+            ),
+            ("WY184", "SVO", "MCT", "C"),
+        )
+        self.assertEqual(
+            (
+                returned["flight_number"],
+                returned["origin"],
+                returned["destination"],
+                returned["arrival_terminal"],
+            ),
+            ("WY183", "MCT", "SVO", "C"),
+        )
 
     def test_rejects_catalog_when_rendered_text_loses_numbered_items(self) -> None:
         answer = build_user_answer(self._round_trip_report())
@@ -268,30 +343,51 @@ class CatalogAnswerContractTests(unittest.TestCase):
 
     def test_rejects_catalog_when_agent_display_drifts_from_render_line(self) -> None:
         answer = build_user_answer(self._round_trip_report())
-        answer["catalog"]["items"][0]["agent_display"]["lines"] = ["1. BROKEN", "    92 248 рублей"]
+        answer["catalog"]["items"][0]["agent_display"]["lines"] = [
+            "1. BROKEN",
+            "    92 248 рублей",
+        ]
 
         with self.assertRaises(CliError) as ctx:
             validate_user_answer(answer)
 
-        self.assertIn("$.catalog.items[0].agent_display.lines", semantic_error_paths(ctx.exception))
+        self.assertIn(
+            "$.catalog.items[0].agent_display.lines",
+            semantic_error_paths(ctx.exception),
+        )
 
-    def test_rejects_catalog_when_agent_display_segment_loses_aircraft_duration(self) -> None:
+    def test_rejects_catalog_when_agent_display_segment_loses_aircraft_duration(
+        self,
+    ) -> None:
         answer = build_user_answer(self._round_trip_report())
         original_line = answer["catalog"]["items"][0]["agent_display"]["lines"][0]
-        broken_line = re.sub(r" (?:[A-Z0-9][A-Z0-9-]*|борт н/д) в пути (?:\d+:\d{2}|н/д)$", "", original_line)
+        broken_line = re.sub(
+            r" (?:[A-Z0-9][A-Z0-9-]*|борт н/д) в пути (?:\d+:\d{2}|н/д)$",
+            "",
+            original_line,
+        )
         answer["catalog"]["items"][0]["agent_display"]["lines"][0] = broken_line
         answer["catalog"]["items"][0]["agent_display"]["text"] = "\n".join(
             answer["catalog"]["items"][0]["agent_display"]["lines"]
         )
-        answer["catalog"]["items"][0]["render_line"] = answer["catalog"]["items"][0]["agent_display"]["text"]
-        answer["rendered_text"] = answer["rendered_text"].replace(original_line, broken_line)
+        answer["catalog"]["items"][0]["render_line"] = answer["catalog"]["items"][0][
+            "agent_display"
+        ]["text"]
+        answer["rendered_text"] = answer["rendered_text"].replace(
+            original_line, broken_line
+        )
 
         with self.assertRaises(CliError) as ctx:
             validate_user_answer(answer)
 
-        self.assertIn("$.catalog.items[0].agent_display.lines[0]", semantic_error_paths(ctx.exception))
+        self.assertIn(
+            "$.catalog.items[0].agent_display.lines[0]",
+            semantic_error_paths(ctx.exception),
+        )
 
-    def test_rejects_catalog_when_layover_is_not_between_adjacent_segments(self) -> None:
+    def test_rejects_catalog_when_layover_is_not_between_adjacent_segments(
+        self,
+    ) -> None:
         answer = build_user_answer(self._round_trip_report())
         item = answer["catalog"]["items"][0]
         original_block = item["render_line"]
@@ -305,13 +401,18 @@ class CatalogAnswerContractTests(unittest.TestCase):
         item["agent_display"]["lines"] = bad_lines
         item["agent_display"]["text"] = "\n".join(bad_lines)
         item["render_line"] = item["agent_display"]["text"]
-        answer["rendered_text"] = answer["rendered_text"].replace(original_block, item["render_line"])
+        answer["rendered_text"] = answer["rendered_text"].replace(
+            original_block, item["render_line"]
+        )
         answer["answer_lines"] = answer["rendered_text"].splitlines()
 
         with self.assertRaises(CliError) as ctx:
             validate_user_answer(answer)
 
-        self.assertIn("$.catalog.items[0].agent_display.lines", semantic_error_paths(ctx.exception))
+        self.assertIn(
+            "$.catalog.items[0].agent_display.lines",
+            semantic_error_paths(ctx.exception),
+        )
 
     def test_airport_label_removes_non_terminal_parentheses(self) -> None:
         option = self._round_trip_option("assembled-primary", price=92248)
@@ -336,11 +437,15 @@ class CatalogAnswerContractTests(unittest.TestCase):
 
         validate_user_answer(answer)
         item = answer["catalog"]["items"][0]
-        self.assertEqual(item["directions"]["outbound"]["segments"][0]["destination"], "IST")
+        self.assertEqual(
+            item["directions"]["outbound"]["segments"][0]["destination"], "IST"
+        )
         self.assertEqual(item["directions"]["outbound"]["segments"][1]["origin"], "IST")
         self.assertNotIn("Новый (Стамбул)", answer["rendered_text"])
 
-    def test_rejects_catalog_when_agent_display_uses_standalone_number_line(self) -> None:
+    def test_rejects_catalog_when_agent_display_uses_standalone_number_line(
+        self,
+    ) -> None:
         answer = build_user_answer(self._round_trip_report())
         first_line = answer["catalog"]["items"][0]["agent_display"]["lines"][0]
         answer["catalog"]["items"][0]["agent_display"]["lines"] = [
@@ -351,13 +456,20 @@ class CatalogAnswerContractTests(unittest.TestCase):
         answer["catalog"]["items"][0]["agent_display"]["text"] = "\n".join(
             answer["catalog"]["items"][0]["agent_display"]["lines"]
         )
-        answer["catalog"]["items"][0]["render_line"] = answer["catalog"]["items"][0]["agent_display"]["text"]
-        answer["rendered_text"] = answer["rendered_text"].replace(first_line, "1.\n" + first_line.removeprefix("1. "))
+        answer["catalog"]["items"][0]["render_line"] = answer["catalog"]["items"][0][
+            "agent_display"
+        ]["text"]
+        answer["rendered_text"] = answer["rendered_text"].replace(
+            first_line, "1.\n" + first_line.removeprefix("1. ")
+        )
 
         with self.assertRaises(CliError) as ctx:
             validate_user_answer(answer)
 
-        self.assertIn("$.catalog.items[0].agent_display.lines[0]", semantic_error_paths(ctx.exception))
+        self.assertIn(
+            "$.catalog.items[0].agent_display.lines[0]",
+            semantic_error_paths(ctx.exception),
+        )
 
     def test_rejects_legacy_v2_user_answer_without_adapter(self) -> None:
         legacy = build_user_answer(self._round_trip_report())
@@ -368,7 +480,9 @@ class CatalogAnswerContractTests(unittest.TestCase):
         with self.assertRaises(CliError) as ctx:
             validate_user_answer(legacy)
 
-        self.assertEqual(ctx.exception.details["schema_version"], "flight_search_user_answer.v2")
+        self.assertEqual(
+            ctx.exception.details["schema_version"], "flight_search_user_answer.v2"
+        )
         self.assertTrue(
             any(
                 error["path"] == "$.schema_version" and error["validator"] == "const"

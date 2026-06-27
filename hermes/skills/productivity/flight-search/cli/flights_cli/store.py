@@ -9,6 +9,7 @@ from typing import Any
 from .config import CACHE_DIR, IATA_RE, SPECIAL_CITY_AIRPORTS
 from .errors import CliError
 
+
 @dataclass(slots=True)
 class Location:
     input: str
@@ -145,7 +146,9 @@ class Store:
                     code = str(airline or "").upper()
                     if code:
                         grouped[code].append(name)
-            self._alliances_by_airline = {code: sorted(names) for code, names in grouped.items()}
+            self._alliances_by_airline = {
+                code: sorted(names) for code, names in grouped.items()
+            }
         return self._alliances_by_airline
 
     @property
@@ -204,7 +207,9 @@ class Store:
             names = [str(city.get("name") or "").lower()]
             translations = city.get("name_translations")
             if isinstance(translations, dict):
-                names.extend(str(value).lower() for value in translations.values() if value)
+                names.extend(
+                    str(value).lower() for value in translations.values() if value
+                )
 
             matched = False
             for name in names:
@@ -237,7 +242,12 @@ class Store:
 
         seen: set[str] = set()
         results: list[dict[str, Any]] = []
-        for city in ranked(exact_code) + ranked(exact_name) + ranked(starts_with) + ranked(contains):
+        for city in (
+            ranked(exact_code)
+            + ranked(exact_name)
+            + ranked(starts_with)
+            + ranked(contains)
+        ):
             code = str(city.get("code") or "").upper()
             if code and code not in seen:
                 seen.add(code)
@@ -292,7 +302,9 @@ class Store:
                     country_code=str(airport.get("country_code") or "") or None,
                     airports=[code],
                 )
-            return Location(input=raw, code=code, kind="iata", name=None, airports=[code])
+            return Location(
+                input=raw, code=code, kind="iata", name=None, airports=[code]
+            )
 
         matches = self.search_cities(raw, limit=6)
         flightable = [city for city in matches if city.get("has_flightable_airport")]
@@ -343,7 +355,8 @@ class Store:
         flightable = [
             airport
             for airport in airports
-            if airport.get("flightable", True) and str(airport.get("code") or "").isalpha()
+            if airport.get("flightable", True)
+            and str(airport.get("code") or "").isalpha()
         ]
         return sorted(flightable, key=lambda item: str(item.get("code") or ""))
 
@@ -353,7 +366,11 @@ def city_to_output(store: Store, city: dict[str, Any]) -> dict[str, Any]:
     airports = [a["code"] for a in store.flightable_airports_for_city(code)]
     if code in SPECIAL_CITY_AIRPORTS:
         airports = SPECIAL_CITY_AIRPORTS[code]
-    translations = city.get("name_translations") if isinstance(city.get("name_translations"), dict) else {}
+    translations = (
+        city.get("name_translations")
+        if isinstance(city.get("name_translations"), dict)
+        else {}
+    )
     return {
         "code": code,
         "name": city.get("name"),

@@ -40,7 +40,9 @@ class ProbeIntent:
             "filters": dict(self.filters or {}),
         }
         item.update(dict(self.metadata or {}))
-        return {key: value for key, value in item.items() if value not in (None, {}, [])}
+        return {
+            key: value for key, value in item.items() if value not in (None, {}, [])
+        }
 
 
 def probe_type_from_segment(spec: Mapping[str, Any]) -> str:
@@ -48,8 +50,12 @@ def probe_type_from_segment(spec: Mapping[str, Any]) -> str:
     return "segment_direct" if "direct" in leg else "segment_hub_leg"
 
 
-def intent_from_control(control: Mapping[str, Any], *, provider: Any = None, probe_id: Any = None) -> ProbeIntent:
-    filters = control.get("filters") if isinstance(control.get("filters"), Mapping) else None
+def intent_from_control(
+    control: Mapping[str, Any], *, provider: Any = None, probe_id: Any = None
+) -> ProbeIntent:
+    filters = (
+        control.get("filters") if isinstance(control.get("filters"), Mapping) else None
+    )
     metadata = {
         key: value
         for key, value in dict(control).items()
@@ -85,8 +91,12 @@ def intent_from_control(control: Mapping[str, Any], *, provider: Any = None, pro
     )
 
 
-def intent_from_segment(spec: Mapping[str, Any], *, provider: Any = None, probe_id: Any = None) -> ProbeIntent:
-    only_carriers = [str(code).upper() for code in (spec.get("only_carriers") or []) if code]
+def intent_from_segment(
+    spec: Mapping[str, Any], *, provider: Any = None, probe_id: Any = None
+) -> ProbeIntent:
+    only_carriers = [
+        str(code).upper() for code in (spec.get("only_carriers") or []) if code
+    ]
     carrier = only_carriers[0] if len(only_carriers) == 1 else None
     return ProbeIntent(
         probe_type=probe_type_from_segment(spec),
@@ -119,11 +129,22 @@ def intent_from_segment(spec: Mapping[str, Any], *, provider: Any = None, probe_
     )
 
 
-def intent_from_aggregate_query(query: Mapping[str, Any], *, provider: Any = None) -> ProbeIntent:
-    carriers = [str(code).upper() for code in (query.get("only_carriers") or []) if code]
-    carrier = carriers[0] if len(carriers) == 1 else (",".join(carriers) if carriers else None)
+def intent_from_aggregate_query(
+    query: Mapping[str, Any], *, provider: Any = None
+) -> ProbeIntent:
+    carriers = [
+        str(code).upper() for code in (query.get("only_carriers") or []) if code
+    ]
+    carrier = (
+        carriers[0]
+        if len(carriers) == 1
+        else (",".join(carriers) if carriers else None)
+    )
     return ProbeIntent(
-        probe_type=str(query.get("probe_type") or ("carrier_aggregate" if carriers else "full_route_aggregate")),
+        probe_type=str(
+            query.get("probe_type")
+            or ("carrier_aggregate" if carriers else "full_route_aggregate")
+        ),
         direction=str(query.get("direction") or ""),
         origin=str(query.get("origin") or "").upper(),
         destination=str(query.get("destination") or "").upper(),
@@ -131,5 +152,8 @@ def intent_from_aggregate_query(query: Mapping[str, Any], *, provider: Any = Non
         provider=str(provider or query.get("provider") or "") or None,
         carrier=carrier,
         probe_id=str(query.get("probe_id") or "") or None,
-        filters={"direct_only": bool(query.get("direct_only", False)), "only_carriers": carriers},
+        filters={
+            "direct_only": bool(query.get("direct_only", False)),
+            "only_carriers": carriers,
+        },
     )

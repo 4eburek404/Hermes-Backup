@@ -1,4 +1,5 @@
 """Lint gate: pyflakes must pass with zero warnings on flights_cli/."""
+
 from __future__ import annotations
 
 import subprocess

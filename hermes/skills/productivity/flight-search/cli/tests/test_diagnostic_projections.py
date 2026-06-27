@@ -3,7 +3,9 @@ from __future__ import annotations
 import unittest
 
 from flights_cli.contracts.registry import DIAGNOSTIC_PROJECTIONS
-from flights_cli.reporting.projections.human_answer_mirror import build_human_answer_mirror
+from flights_cli.reporting.projections.human_answer_mirror import (
+    build_human_answer_mirror,
+)
 from flights_cli.reporting.projections.itinerary_display import build_itinerary_display
 from flights_cli.reporting.projections.summary_lines import build_summary_lines
 from tests.test_user_answer_contract import report_with_required_caveats
@@ -17,7 +19,10 @@ class DiagnosticProjectionModuleTests(unittest.TestCase):
         display = build_itinerary_display(report)
         summary_lines = build_summary_lines(report)
 
-        self.assertEqual(DIAGNOSTIC_PROJECTIONS["human_answer_mirror"]["status"], "diagnostic_mirror_only")
+        self.assertEqual(
+            DIAGNOSTIC_PROJECTIONS["human_answer_mirror"]["status"],
+            "diagnostic_mirror_only",
+        )
         self.assertIn("text", human_answer)
         self.assertEqual(display["format_version"], "flight_display.v1")
         self.assertIsInstance(summary_lines, list)
@@ -28,7 +33,9 @@ class DiagnosticProjectionModuleTests(unittest.TestCase):
         self.assertIn("data.agent_report.diagnostics.human_answer", projection_paths)
         self.assertIn("data.agent_report.diagnostics.display", projection_paths)
         self.assertIn("data.agent_report.diagnostics.answer_lines", projection_paths)
-        self.assertNotIn("data.agent_report.user_answer.rendered_text", projection_paths)
+        self.assertNotIn(
+            "data.agent_report.user_answer.rendered_text", projection_paths
+        )
 
     def test_legacy_projection_module_aliases_are_removed(self) -> None:
         with self.assertRaises(ModuleNotFoundError):

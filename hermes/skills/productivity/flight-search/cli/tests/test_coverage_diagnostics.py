@@ -30,9 +30,28 @@ def base_payload() -> dict:
                 "routing_strategy": "ru-priority",
                 "coverage_mode": "targeted",
                 "coverage_controls": [
-                    {"type": "exact_airport_direct", "direction": "outbound", "origin": "SVX", "destination": "CDG", "date": "2026-08-16"},
-                    {"type": "full_route_aggregate", "direction": "outbound", "origin": "SVX", "destination": "CDG", "date": "2026-08-16"},
-                    {"type": "carrier_aggregate", "direction": "outbound", "origin": "SVX", "destination": "CDG", "date": "2026-08-16", "carrier": "SU"},
+                    {
+                        "type": "exact_airport_direct",
+                        "direction": "outbound",
+                        "origin": "SVX",
+                        "destination": "CDG",
+                        "date": "2026-08-16",
+                    },
+                    {
+                        "type": "full_route_aggregate",
+                        "direction": "outbound",
+                        "origin": "SVX",
+                        "destination": "CDG",
+                        "date": "2026-08-16",
+                    },
+                    {
+                        "type": "carrier_aggregate",
+                        "direction": "outbound",
+                        "origin": "SVX",
+                        "destination": "CDG",
+                        "date": "2026-08-16",
+                        "carrier": "SU",
+                    },
                 ],
             },
             "hub_viability": [],
@@ -88,7 +107,14 @@ class CoverageDiagnosticsTests(unittest.TestCase):
             "coverage_mode": "targeted",
             "coverage_limits": {},
             "coverage_controls": [
-                {"type": "carrier_aggregate", "direction": "outbound", "origin": "SVX", "destination": "CDG", "date": "2026-08-16", "carrier": "SU"}
+                {
+                    "type": "carrier_aggregate",
+                    "direction": "outbound",
+                    "origin": "SVX",
+                    "destination": "CDG",
+                    "date": "2026-08-16",
+                    "carrier": "SU",
+                }
             ],
         }
         live = {
@@ -115,7 +141,9 @@ class CoverageDiagnosticsTests(unittest.TestCase):
         self.assertEqual(diagnostics["planned_controls"], [])
         self.assertEqual(diagnostics["not_executed_controls"], [])
         self.assertEqual(diagnostics["completeness"]["planned_count"], 0)
-        self.assertTrue(diagnostics["completeness"]["all_planned_controls_have_terminal_state"])
+        self.assertTrue(
+            diagnostics["completeness"]["all_planned_controls_have_terminal_state"]
+        )
 
     def test_agent_report_has_machine_readable_coverage_diagnostics(self) -> None:
         report = build_agent_report(base_payload())
@@ -123,19 +151,34 @@ class CoverageDiagnosticsTests(unittest.TestCase):
 
         diagnostics = report["evidence"]["coverage_diagnostics"]
         self.assertEqual(diagnostics["coverage_mode"], "targeted")
-        self.assertEqual(diagnostics["negative_evidence_type"], "bounded_live_controls_only")
-        self.assertIn("segment_absence_is_not_route_absence", diagnostics["coverage_warnings"])
+        self.assertEqual(
+            diagnostics["negative_evidence_type"], "bounded_live_controls_only"
+        )
+        self.assertIn(
+            "segment_absence_is_not_route_absence", diagnostics["coverage_warnings"]
+        )
         searched_types = {item["type"] for item in diagnostics["searched_controls"]}
         self.assertIn("exact_airport_direct", searched_types)
         self.assertIn("full_route_aggregate", searched_types)
-        searched_direct = [item for item in diagnostics["searched_controls"] if item["type"] == "exact_airport_direct"][0]
+        searched_direct = [
+            item
+            for item in diagnostics["searched_controls"]
+            if item["type"] == "exact_airport_direct"
+        ][0]
         self.assertEqual(searched_direct["cache_status"], "live")
         skipped = diagnostics["skipped_controls"]
         self.assertEqual(skipped[0]["reason"], "priority_route_viable")
-        not_executed_types = {item["type"] for item in diagnostics["not_executed_controls"]}
+        not_executed_types = {
+            item["type"] for item in diagnostics["not_executed_controls"]
+        }
         self.assertIn("carrier_aggregate", not_executed_types)
-        self.assertEqual(diagnostics["completeness"]["planned_count"], diagnostics["completeness"]["terminal_count"])
-        self.assertTrue(diagnostics["completeness"]["all_planned_controls_have_terminal_state"])
+        self.assertEqual(
+            diagnostics["completeness"]["planned_count"],
+            diagnostics["completeness"]["terminal_count"],
+        )
+        self.assertTrue(
+            diagnostics["completeness"]["all_planned_controls_have_terminal_state"]
+        )
 
     def test_answer_lines_do_not_dump_coverage_control_lists(self) -> None:
         report = build_agent_report(base_payload())
@@ -143,7 +186,9 @@ class CoverageDiagnosticsTests(unittest.TestCase):
         diagnostics = report["evidence"]["coverage_diagnostics"]
 
         self.assertEqual(len(diagnostics["not_executed_controls"]), 1)
-        self.assertTrue(diagnostics["completeness"]["all_planned_controls_have_terminal_state"])
+        self.assertTrue(
+            diagnostics["completeness"]["all_planned_controls_have_terminal_state"]
+        )
         self.assertNotIn("searched_controls", joined)
         self.assertNotIn("skipped_controls", joined)
 

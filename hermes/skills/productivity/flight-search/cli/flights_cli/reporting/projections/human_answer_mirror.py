@@ -13,7 +13,11 @@ def build_human_answer_mirror(agent_report: dict[str, Any]) -> dict[str, Any]:
     its own; it only mirrors ``user_answer.rendered_text`` for diagnostic readers.
     """
 
-    user_answer = agent_report.get("user_answer") if isinstance(agent_report.get("user_answer"), dict) else {}
+    user_answer = (
+        agent_report.get("user_answer")
+        if isinstance(agent_report.get("user_answer"), dict)
+        else {}
+    )
     return {
         "format_version": HUMAN_ANSWER_FORMAT_VERSION,
         "text": str(user_answer.get("rendered_text") or ""),

@@ -31,7 +31,15 @@ def _aggregate_provider_name(options: AggregateControlOptions) -> str:
     return "kupibilet"
 
 
-def _control_from_not_supported(result: ProviderProbeResult, *, direction: str, origin: str, destination: str, date_text: str, carriers: list[str]) -> dict[str, Any]:
+def _control_from_not_supported(
+    result: ProviderProbeResult,
+    *,
+    direction: str,
+    origin: str,
+    destination: str,
+    date_text: str,
+    carriers: list[str],
+) -> dict[str, Any]:
     return {
         "direction": direction,
         "origin": origin,
@@ -45,7 +53,9 @@ def _control_from_not_supported(result: ProviderProbeResult, *, direction: str, 
         "suppressed_three_plus_count": 0,
         "suppressed_airport_change_count": 0,
         "cache_status": result.cache_status,
-        "error": result.errors[0] if result.errors else {"type": "not_supported", "message": result.result_summary.get("reason")},
+        "error": result.errors[0]
+        if result.errors
+        else {"type": "not_supported", "message": result.result_summary.get("reason")},
     }
 
 
@@ -60,7 +70,9 @@ def run_aggregate_controls(
         return []
 
     carrier_sets: list[list[str]] = []
-    base_carriers = [normalize_carrier_code(code, "only-carrier") for code in options.only_carriers]
+    base_carriers = [
+        normalize_carrier_code(code, "only-carrier") for code in options.only_carriers
+    ]
     explicit_control_carriers = [
         [normalize_carrier_code(code, "aggregate-control-carrier")]
         for code in options.aggregate_control_carriers
@@ -74,20 +86,36 @@ def run_aggregate_controls(
             carrier_sets.append(carriers)
 
     queries = [
-        ("outbound", str(plan["origin"]).upper(), str(plan["destination"]).upper(), str(plan["dates"]["depart"])),
+        (
+            "outbound",
+            str(plan["origin"]).upper(),
+            str(plan["destination"]).upper(),
+            str(plan["dates"]["depart"]),
+        ),
     ]
     if plan["dates"].get("return"):
-        queries.append(("return", str(plan["destination"]).upper(), str(plan["origin"]).upper(), str(plan["dates"]["return"])))
+        queries.append(
+            (
+                "return",
+                str(plan["destination"]).upper(),
+                str(plan["origin"]).upper(),
+                str(plan["dates"]["return"]),
+            )
+        )
 
     controls: list[dict[str, Any]] = []
     cache_ttl_seconds = int(options.live_cache_ttl_seconds)
     use_live_cache = not bool(options.no_live_cache)
-    adapter = provider_adapter(_aggregate_provider_name(options), kupibilet_fetcher=kupibilet_fetcher)
+    adapter = provider_adapter(
+        _aggregate_provider_name(options), kupibilet_fetcher=kupibilet_fetcher
+    )
     for direction, origin, destination, date_text in queries:
         for carriers in carrier_sets:
             query = {
                 "probe_id": f"aggregate:{adapter.name}:{direction}:{origin}-{destination}:{date_text}:{','.join(carriers) or 'all'}",
-                "probe_type": "carrier_aggregate" if carriers else "full_route_aggregate",
+                "probe_type": "carrier_aggregate"
+                if carriers
+                else "full_route_aggregate",
                 "direction": direction,
                 "origin": origin,
                 "destination": destination,
@@ -108,7 +136,9 @@ def run_aggregate_controls(
             except CliError as exc:
                 error = error_payload_from_cli_error(exc)
                 if probe_ledger is not None:
-                    probe_ledger.record_failed(intent, provider=adapter.name, error=error)
+                    probe_ledger.record_failed(
+                        intent, provider=adapter.name, error=error
+                    )
                 controls.append(
                     {
                         "direction": direction,

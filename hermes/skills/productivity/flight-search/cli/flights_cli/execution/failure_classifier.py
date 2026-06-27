@@ -7,7 +7,9 @@ from typing import Any
 from ..errors import CliError
 
 
-def parse_retry_after_seconds(value: Any, *, now: datetime | None = None) -> tuple[int | None, str | None]:
+def parse_retry_after_seconds(
+    value: Any, *, now: datetime | None = None
+) -> tuple[int | None, str | None]:
     if value is None:
         return None, None
     text = str(value).strip()
@@ -25,15 +27,24 @@ def parse_retry_after_seconds(value: Any, *, now: datetime | None = None) -> tup
     return max(0, int((parsed - base).total_seconds())), None
 
 
-def classify_failure(error_type: Any, message: Any, *, details: Any = None) -> dict[str, Any]:
+def classify_failure(
+    error_type: Any, message: Any, *, details: Any = None
+) -> dict[str, Any]:
     original_type = str(error_type or "error")
     text = str(message or "")
     lower = text.lower()
     detail_map = details if isinstance(details, dict) else {}
     retry_after = detail_map.get("retry_after") or detail_map.get("Retry-After")
-    retry_after_seconds, retry_after_parse_error = parse_retry_after_seconds(retry_after)
+    retry_after_seconds, retry_after_parse_error = parse_retry_after_seconds(
+        retry_after
+    )
 
-    if original_type == "rate_limited" or "http 429" in lower or " 429" in lower or "too many requests" in lower:
+    if (
+        original_type == "rate_limited"
+        or "http 429" in lower
+        or " 429" in lower
+        or "too many requests" in lower
+    ):
         classification = "rate_limited"
         retryable = True
     elif original_type == "timeout" or "timeout" in lower or "timed out" in lower:
@@ -53,10 +64,29 @@ def classify_failure(error_type: Any, message: Any, *, details: Any = None) -> d
     ):
         classification = "provider_unavailable"
         retryable = True
-    elif any(token in lower for token in ("captcha", "cloudflare", "access denied", "forbidden", "bot", "blocked")):
+    elif any(
+        token in lower
+        for token in (
+            "captcha",
+            "cloudflare",
+            "access denied",
+            "forbidden",
+            "bot",
+            "blocked",
+        )
+    ):
         classification = "blocked_response"
         retryable = False
-    elif any(token in lower for token in ("invalid json", "jsondecodeerror", "does not contain", "parse", "parser")):
+    elif any(
+        token in lower
+        for token in (
+            "invalid json",
+            "jsondecodeerror",
+            "does not contain",
+            "parse",
+            "parser",
+        )
+    ):
         classification = "parse_error"
         retryable = False
     elif original_type in {"upstream_error", "error"}:

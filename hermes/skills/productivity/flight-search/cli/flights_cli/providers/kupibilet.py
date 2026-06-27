@@ -17,14 +17,25 @@ from ..config import (
     SUPPORTED_CURRENCIES,
 )
 from ..domain.carriers import carrier_from_flight_number
-from ..domain.normalize import normalize_carrier_code, normalize_iata, parse_iso_date, price_value
+from ..domain.normalize import (
+    normalize_carrier_code,
+    normalize_iata,
+    parse_iso_date,
+    price_value,
+)
 from ..domain.offer_order import provider_offer_business_key
 from ..domain.provider_offer_filter import filter_provider_offers
 from ..errors import CliError
 from .live_cache import live_cache_key, read_live_cache, write_live_cache
-from .segment_normalization import provider_offer_to_segment_offer, provider_result_to_segment_result
+from .segment_normalization import (
+    provider_offer_to_segment_offer,
+    provider_result_to_segment_result,
+)
 
-def build_kupibilet_payload(origin: str, destination: str, depart_date: str, currency: str) -> dict[str, Any]:
+
+def build_kupibilet_payload(
+    origin: str, destination: str, depart_date: str, currency: str
+) -> dict[str, Any]:
     return {
         "trips": [{"departure": origin, "arrival": destination, "date": depart_date}],
         "travelers": {"adult": 1, "child": 0, "infant": 0},
@@ -76,10 +87,12 @@ def kupibilet_variant_currency(variant: dict[str, Any], default_currency: str) -
 
 
 def kupibilet_flight_number(flight: dict[str, Any]) -> str:
-    carrier = str(flight.get("marketing_carrier") or flight.get("operating_carrier") or "").upper()
+    carrier = str(
+        flight.get("marketing_carrier") or flight.get("operating_carrier") or ""
+    ).upper()
     number = str(flight.get("transport_number") or flight.get("number") or "").strip()
     if carrier and number.upper().startswith(carrier):
-        remainder = number[len(carrier):].lstrip()
+        remainder = number[len(carrier) :].lstrip()
         if remainder[:1].isdigit():
             number = remainder
     return f"{carrier}{number}" if carrier or number else ""
@@ -172,9 +185,14 @@ def parse_kupibilet_frontend_search(
     variants = raw.get("variants") if isinstance(raw, dict) else None
     flights_by_id = raw.get("flights") if isinstance(raw, dict) else None
     if not isinstance(variants, list) or not isinstance(flights_by_id, dict):
-        raise CliError("Kupibilet response does not contain variants/flights maps", error_type="upstream_error")
+        raise CliError(
+            "Kupibilet response does not contain variants/flights maps",
+            error_type="upstream_error",
+        )
 
-    carrier_filter = {code.strip().upper() for code in (only_carriers or []) if code.strip()}
+    carrier_filter = {
+        code.strip().upper() for code in (only_carriers or []) if code.strip()
+    }
     deduped: dict[tuple[str, ...], dict[str, Any]] = {}
     skipped = defaultdict(int)
 
@@ -200,11 +218,15 @@ def parse_kupibilet_frontend_search(
         if direct_only and len(raw_flights) != 1:
             skipped["not_direct"] += 1
             continue
-        if carrier_filter and not all(kupibilet_flight_carriers(flight) & carrier_filter for flight in raw_flights):
+        if carrier_filter and not all(
+            kupibilet_flight_carriers(flight) & carrier_filter for flight in raw_flights
+        ):
             skipped["carrier"] += 1
             continue
 
-        normalized_flights = [normalize_kupibilet_flight(flight) for flight in raw_flights]
+        normalized_flights = [
+            normalize_kupibilet_flight(flight) for flight in raw_flights
+        ]
         key = kupibilet_offer_key(normalized_flights)
         if not key:
             skipped["empty_key"] += 1
@@ -220,14 +242,30 @@ def parse_kupibilet_frontend_search(
             "arrival_at": normalized_flights[-1]["arrival_at"],
             "origin": normalized_flights[0]["origin"],
             "destination": normalized_flights[-1]["destination"],
-            "flight_numbers": [flight["flight_number"] for flight in normalized_flights],
-            "marketing_carriers": sorted({flight["marketing_carrier"] for flight in normalized_flights if flight["marketing_carrier"]}),
-            "operating_carriers": sorted({flight["operating_carrier"] for flight in normalized_flights if flight["operating_carrier"]}),
+            "flight_numbers": [
+                flight["flight_number"] for flight in normalized_flights
+            ],
+            "marketing_carriers": sorted(
+                {
+                    flight["marketing_carrier"]
+                    for flight in normalized_flights
+                    if flight["marketing_carrier"]
+                }
+            ),
+            "operating_carriers": sorted(
+                {
+                    flight["operating_carrier"]
+                    for flight in normalized_flights
+                    if flight["operating_carrier"]
+                }
+            ),
             "segments": normalized_flights,
         }
         previous = deduped.get(key)
         previous_price = previous.get("price") if previous else None
-        if previous is None or (amount is not None and (previous_price is None or amount < previous_price)):
+        if previous is None or (
+            amount is not None and (previous_price is None or amount < previous_price)
+        ):
             deduped[key] = offer
 
     filtered_offers, filter_stats = filter_provider_offers(list(deduped.values()))
@@ -240,7 +278,11 @@ def parse_kupibilet_frontend_search(
         "source": "Kupibilet frontend_search (live aggregate)",
         "source_url": KUPIBILET_FRONTEND_SEARCH_URL,
         "note": "Live aggregate source, not official aeroflot.ru; recheck final fare and seat availability before ticketing.",
-        "filters": {"only_carriers": sorted(carrier_filter), "direct_only": direct_only, "dedupe": "flight_numbers+times"},
+        "filters": {
+            "only_carriers": sorted(carrier_filter),
+            "direct_only": direct_only,
+            "dedupe": "flight_numbers+times",
+        },
         "raw_variant_count": len(variants),
         "skipped": dict(skipped),
         "offer_count": len(offers),
@@ -265,9 +307,14 @@ def parse_kupibilet_roundtrip_search(
     variants = raw.get("variants") if isinstance(raw, dict) else None
     flights_by_id = raw.get("flights") if isinstance(raw, dict) else None
     if not isinstance(variants, list) or not isinstance(flights_by_id, dict):
-        raise CliError("Kupibilet response does not contain variants/flights maps", error_type="upstream_error")
+        raise CliError(
+            "Kupibilet response does not contain variants/flights maps",
+            error_type="upstream_error",
+        )
 
-    carrier_filter = {code.strip().upper() for code in (only_carriers or []) if code.strip()}
+    carrier_filter = {
+        code.strip().upper() for code in (only_carriers or []) if code.strip()
+    }
     directions = ["outbound", "return"]
     skipped = defaultdict(int)
     offers: list[dict[str, Any]] = []
@@ -296,29 +343,52 @@ def parse_kupibilet_roundtrip_search(
             if len(raw_flights) != len(flight_ids):
                 skip_reason = "missing_flight_details"
                 break
-            if any(flight.get("transport_kind") != "airplane" for flight in raw_flights):
+            if any(
+                flight.get("transport_kind") != "airplane" for flight in raw_flights
+            ):
                 skip_reason = "non_airplane"
                 break
             if direct_only and len(raw_flights) != 1:
                 skip_reason = "not_direct"
                 break
-            if carrier_filter and not all(kupibilet_flight_carriers(flight) & carrier_filter for flight in raw_flights):
+            if carrier_filter and not all(
+                kupibilet_flight_carriers(flight) & carrier_filter
+                for flight in raw_flights
+            ):
                 skip_reason = "carrier"
                 break
 
-            normalized_flights = [normalize_kupibilet_flight(flight) for flight in raw_flights]
+            normalized_flights = [
+                normalize_kupibilet_flight(flight) for flight in raw_flights
+            ]
             journeys.append(
                 {
-                    "direction": directions[journey_index] if journey_index < len(directions) else f"trip_{journey_index + 1}",
+                    "direction": directions[journey_index]
+                    if journey_index < len(directions)
+                    else f"trip_{journey_index + 1}",
                     "origin": normalized_flights[0]["origin"],
                     "destination": normalized_flights[-1]["destination"],
                     "departure_at": normalized_flights[0]["departure_at"],
                     "arrival_at": normalized_flights[-1]["arrival_at"],
                     "number_of_changes": max(0, len(normalized_flights) - 1),
                     "duration": kupibilet_total_duration(raw_flights),
-                    "flight_numbers": [flight["flight_number"] for flight in normalized_flights],
-                    "marketing_carriers": sorted({flight["marketing_carrier"] for flight in normalized_flights if flight["marketing_carrier"]}),
-                    "operating_carriers": sorted({flight["operating_carrier"] for flight in normalized_flights if flight["operating_carrier"]}),
+                    "flight_numbers": [
+                        flight["flight_number"] for flight in normalized_flights
+                    ],
+                    "marketing_carriers": sorted(
+                        {
+                            flight["marketing_carrier"]
+                            for flight in normalized_flights
+                            if flight["marketing_carrier"]
+                        }
+                    ),
+                    "operating_carriers": sorted(
+                        {
+                            flight["operating_carrier"]
+                            for flight in normalized_flights
+                            if flight["operating_carrier"]
+                        }
+                    ),
                     "segments": normalized_flights,
                 }
             )
@@ -333,12 +403,18 @@ def parse_kupibilet_roundtrip_search(
 
         amount = kupibilet_price_amount(variant)
         journey_durations = [journey.get("duration") for journey in journeys]
-        duration = sum(int(value) for value in journey_durations if value is not None) if all(value is not None for value in journey_durations) else None
+        duration = (
+            sum(int(value) for value in journey_durations if value is not None)
+            if all(value is not None for value in journey_durations)
+            else None
+        )
         offer = {
             "id": str(variant.get("id") or f"kupibilet:roundtrip:{index}"),
             "price": amount,
             "currency": kupibilet_variant_currency(variant, currency),
-            "number_of_changes": sum(int(journey.get("number_of_changes") or 0) for journey in journeys),
+            "number_of_changes": sum(
+                int(journey.get("number_of_changes") or 0) for journey in journeys
+            ),
             "duration": duration,
             "departure_at": journeys[0]["departure_at"],
             "arrival_at": journeys[1]["arrival_at"],
@@ -346,12 +422,32 @@ def parse_kupibilet_roundtrip_search(
             "destination": journeys[0]["destination"],
             "return_origin": journeys[1]["origin"],
             "return_destination": journeys[1]["destination"],
-            "flight_numbers": [flight["flight_number"] for flight in flat_normalized_flights],
-            "flight_numbers_by_journey": [journey["flight_numbers"] for journey in journeys],
-            "marketing_carriers": sorted({flight["marketing_carrier"] for flight in flat_normalized_flights if flight["marketing_carrier"]}),
-            "operating_carriers": sorted({flight["operating_carrier"] for flight in flat_normalized_flights if flight["operating_carrier"]}),
-            "baggage": variant.get("baggage") if isinstance(variant.get("baggage"), dict) else None,
-            "hand_luggage": variant.get("hand_luggage") if isinstance(variant.get("hand_luggage"), dict) else None,
+            "flight_numbers": [
+                flight["flight_number"] for flight in flat_normalized_flights
+            ],
+            "flight_numbers_by_journey": [
+                journey["flight_numbers"] for journey in journeys
+            ],
+            "marketing_carriers": sorted(
+                {
+                    flight["marketing_carrier"]
+                    for flight in flat_normalized_flights
+                    if flight["marketing_carrier"]
+                }
+            ),
+            "operating_carriers": sorted(
+                {
+                    flight["operating_carrier"]
+                    for flight in flat_normalized_flights
+                    if flight["operating_carrier"]
+                }
+            ),
+            "baggage": variant.get("baggage")
+            if isinstance(variant.get("baggage"), dict)
+            else None,
+            "hand_luggage": variant.get("hand_luggage")
+            if isinstance(variant.get("hand_luggage"), dict)
+            else None,
             "seats_left": variant.get("seats_left"),
             "journeys": journeys,
             "segments": flat_normalized_flights,
@@ -397,7 +493,9 @@ def fetch_kupibilet_search(
     timeout: int = 60,
 ) -> dict[str, Any]:
     """Run one Kupibilet frontend_search request and normalize/dedupe offers."""
-    payload = build_kupibilet_payload(origin, destination, depart_date.isoformat(), currency)
+    payload = build_kupibilet_payload(
+        origin, destination, depart_date.isoformat(), currency
+    )
     body = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(
         KUPIBILET_FRONTEND_SEARCH_URL,
@@ -416,10 +514,16 @@ def fetch_kupibilet_search(
         raise CliError(
             f"Kupibilet HTTP {exc.code}: {body_text}",
             error_type="upstream_error",
-            details={"http_status": exc.code, "retry_after": exc.headers.get("Retry-After")},
+            details={
+                "http_status": exc.code,
+                "retry_after": exc.headers.get("Retry-After"),
+            },
         ) from exc
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        raise CliError(f"Kupibilet request failed: {type(exc).__name__}: {exc}", error_type="upstream_error") from exc
+        raise CliError(
+            f"Kupibilet request failed: {type(exc).__name__}: {exc}",
+            error_type="upstream_error",
+        ) from exc
 
     result = parse_kupibilet_frontend_search(
         data,
@@ -436,7 +540,11 @@ def fetch_kupibilet_search(
         "method": "POST",
         "endpoint": KUPIBILET_FRONTEND_SEARCH_URL,
         "body": payload,
-        "headers": {"Content-Type": "application/json", "Origin": "https://www.kupibilet.ru", "Referer": "https://www.kupibilet.ru/"},
+        "headers": {
+            "Content-Type": "application/json",
+            "Origin": "https://www.kupibilet.ru",
+            "Referer": "https://www.kupibilet.ru/",
+        },
     }
     return result
 
@@ -454,7 +562,9 @@ def fetch_kupibilet_roundtrip_search(
     timeout: int = 60,
 ) -> dict[str, Any]:
     """Run one Kupibilet frontend_search request with two trips and keep fare/baggage variants."""
-    payload = build_kupibilet_roundtrip_payload(origin, destination, depart_date.isoformat(), return_date.isoformat(), currency)
+    payload = build_kupibilet_roundtrip_payload(
+        origin, destination, depart_date.isoformat(), return_date.isoformat(), currency
+    )
     body = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(
         KUPIBILET_FRONTEND_SEARCH_URL,
@@ -473,10 +583,16 @@ def fetch_kupibilet_roundtrip_search(
         raise CliError(
             f"Kupibilet HTTP {exc.code}: {body_text}",
             error_type="upstream_error",
-            details={"http_status": exc.code, "retry_after": exc.headers.get("Retry-After")},
+            details={
+                "http_status": exc.code,
+                "retry_after": exc.headers.get("Retry-After"),
+            },
         ) from exc
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        raise CliError(f"Kupibilet round-trip request failed: {type(exc).__name__}: {exc}", error_type="upstream_error") from exc
+        raise CliError(
+            f"Kupibilet round-trip request failed: {type(exc).__name__}: {exc}",
+            error_type="upstream_error",
+        ) from exc
 
     result = parse_kupibilet_roundtrip_search(
         data,
@@ -494,7 +610,11 @@ def fetch_kupibilet_roundtrip_search(
         "method": "POST",
         "endpoint": KUPIBILET_FRONTEND_SEARCH_URL,
         "body": payload,
-        "headers": {"Content-Type": "application/json", "Origin": "https://www.kupibilet.ru", "Referer": "https://www.kupibilet.ru/"},
+        "headers": {
+            "Content-Type": "application/json",
+            "Origin": "https://www.kupibilet.ru",
+            "Referer": "https://www.kupibilet.ru/",
+        },
     }
     return result
 
@@ -524,7 +644,9 @@ def kupibilet_offer_to_segment_offer(
     )
 
 
-def kupibilet_result_to_segment_result(result: dict[str, Any], *, direction: str, leg: str) -> dict[str, Any]:
+def kupibilet_result_to_segment_result(
+    result: dict[str, Any], *, direction: str, leg: str
+) -> dict[str, Any]:
     return provider_result_to_segment_result(
         result,
         direction=direction,
@@ -536,7 +658,9 @@ def kupibilet_result_to_segment_result(result: dict[str, Any], *, direction: str
     )
 
 
-def kupibilet_segment_search_summary(spec: dict[str, Any], result: dict[str, Any], segment_result: dict[str, Any]) -> dict[str, Any]:
+def kupibilet_segment_search_summary(
+    spec: dict[str, Any], result: dict[str, Any], segment_result: dict[str, Any]
+) -> dict[str, Any]:
     return {
         **spec,
         "status": "ok",
@@ -651,8 +775,14 @@ def run_kb_search(args: argparse.Namespace) -> dict[str, Any]:
     depart = parse_iso_date(args.depart_date, "depart-date")
     currency = args.currency.upper()
     if currency not in SUPPORTED_CURRENCIES:
-        raise CliError(f"currency must be one of {', '.join(sorted(SUPPORTED_CURRENCIES))}", error_type="validation_error")
-    only_carriers = [normalize_carrier_code(code, "only-carrier") for code in (args.only_carrier or [])]
+        raise CliError(
+            f"currency must be one of {', '.join(sorted(SUPPORTED_CURRENCIES))}",
+            error_type="validation_error",
+        )
+    only_carriers = [
+        normalize_carrier_code(code, "only-carrier")
+        for code in (args.only_carrier or [])
+    ]
     return cached_kupibilet_search(
         origin,
         destination,
@@ -662,7 +792,9 @@ def run_kb_search(args: argparse.Namespace) -> dict[str, Any]:
         direct_only=args.direct_only,
         limit=args.limit,
         timeout=args.timeout,
-        cache_ttl_seconds=int(getattr(args, "cache_ttl_seconds", DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS)),
+        cache_ttl_seconds=int(
+            getattr(args, "cache_ttl_seconds", DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS)
+        ),
         use_cache=not bool(getattr(args, "no_cache", False)),
     )
 
@@ -674,11 +806,19 @@ def run_kb_roundtrip(args: argparse.Namespace) -> dict[str, Any]:
     depart = parse_iso_date(args.depart_date, "depart-date")
     return_date = parse_iso_date(args.return_date, "return-date")
     if return_date < depart:
-        raise CliError("return-date must be on or after depart-date", error_type="validation_error")
+        raise CliError(
+            "return-date must be on or after depart-date", error_type="validation_error"
+        )
     currency = args.currency.upper()
     if currency not in SUPPORTED_CURRENCIES:
-        raise CliError(f"currency must be one of {', '.join(sorted(SUPPORTED_CURRENCIES))}", error_type="validation_error")
-    only_carriers = [normalize_carrier_code(code, "only-carrier") for code in (args.only_carrier or [])]
+        raise CliError(
+            f"currency must be one of {', '.join(sorted(SUPPORTED_CURRENCIES))}",
+            error_type="validation_error",
+        )
+    only_carriers = [
+        normalize_carrier_code(code, "only-carrier")
+        for code in (args.only_carrier or [])
+    ]
     return cached_kupibilet_roundtrip_search(
         origin,
         destination,
@@ -689,6 +829,8 @@ def run_kb_roundtrip(args: argparse.Namespace) -> dict[str, Any]:
         direct_only=args.direct_only,
         limit=args.limit,
         timeout=args.timeout,
-        cache_ttl_seconds=int(getattr(args, "cache_ttl_seconds", DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS)),
+        cache_ttl_seconds=int(
+            getattr(args, "cache_ttl_seconds", DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS)
+        ),
         use_cache=not bool(getattr(args, "no_cache", False)),
     )

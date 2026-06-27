@@ -31,7 +31,9 @@ def live_args(**overrides: object):
 
 
 class LiveAssembleProbeLedgerTests(unittest.TestCase):
-    def test_city_pair_controls_are_planned_and_finalized_by_runtime_ledger(self) -> None:
+    def test_city_pair_controls_are_planned_and_finalized_by_runtime_ledger(
+        self,
+    ) -> None:
         plan = {
             "origin": "SVX",
             "destination": "CDG",
@@ -60,18 +62,39 @@ class LiveAssembleProbeLedgerTests(unittest.TestCase):
         }
 
         with (
-            patch("flights_cli.orchestrators.live_route_assembly.build_live_route_segment_plan", return_value=plan),
-            patch("flights_cli.orchestrators.live_assembly_runner.empty_assembled_result", return_value={}),
-            patch("flights_cli.execution.aggregate_control_runner.run_aggregate_controls", return_value=[]),
-            patch("flights_cli.orchestrators.live_assembly_runner.hub_viability_summary", return_value=[]),
+            patch(
+                "flights_cli.orchestrators.live_route_assembly.build_live_route_segment_plan",
+                return_value=plan,
+            ),
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.empty_assembled_result",
+                return_value={},
+            ),
+            patch(
+                "flights_cli.execution.aggregate_control_runner.run_aggregate_controls",
+                return_value=[],
+            ),
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.hub_viability_summary",
+                return_value=[],
+            ),
         ):
             result = run_live_route_assembly(live_args(), Store())
 
         ledger = result["live_search"]["probe_ledger"]
-        self.assertEqual([item["type"] for item in ledger["planned_controls"]], ["city_pair_direct"])
-        self.assertEqual([item["type"] for item in ledger["not_executed_controls"]], ["city_pair_direct"])
-        self.assertEqual(ledger["not_executed_controls"][0]["execution_state"], "not_executed")
-        self.assertTrue(ledger["completeness"]["all_planned_controls_have_terminal_state"])
+        self.assertEqual(
+            [item["type"] for item in ledger["planned_controls"]], ["city_pair_direct"]
+        )
+        self.assertEqual(
+            [item["type"] for item in ledger["not_executed_controls"]],
+            ["city_pair_direct"],
+        )
+        self.assertEqual(
+            ledger["not_executed_controls"][0]["execution_state"], "not_executed"
+        )
+        self.assertTrue(
+            ledger["completeness"]["all_planned_controls_have_terminal_state"]
+        )
 
     def test_successful_segment_search_keeps_plan_metadata(self) -> None:
         plan = {
@@ -102,14 +125,31 @@ class LiveAssembleProbeLedgerTests(unittest.TestCase):
             "coverage_controls": [],
             "metrics": {"segment_search_count": 1},
         }
-        outcome = SegmentProbeOutcome(summary={"status": "ok", "provider": "kupibilet", "offer_count": 1})
+        outcome = SegmentProbeOutcome(
+            summary={"status": "ok", "provider": "kupibilet", "offer_count": 1}
+        )
 
         with (
-            patch("flights_cli.orchestrators.live_route_assembly.build_live_route_segment_plan", return_value=plan),
-            patch("flights_cli.orchestrators.live_assembly_runner.dispatch_segment_probe", return_value=[outcome]),
-            patch("flights_cli.orchestrators.live_assembly_runner.empty_assembled_result", return_value={}),
-            patch("flights_cli.execution.aggregate_control_runner.run_aggregate_controls", return_value=[]),
-            patch("flights_cli.orchestrators.live_assembly_runner.hub_viability_summary", return_value=[]),
+            patch(
+                "flights_cli.orchestrators.live_route_assembly.build_live_route_segment_plan",
+                return_value=plan,
+            ),
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.dispatch_segment_probe",
+                return_value=[outcome],
+            ),
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.empty_assembled_result",
+                return_value={},
+            ),
+            patch(
+                "flights_cli.execution.aggregate_control_runner.run_aggregate_controls",
+                return_value=[],
+            ),
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.hub_viability_summary",
+                return_value=[],
+            ),
         ):
             result = run_live_route_assembly(live_args(), Store())
 

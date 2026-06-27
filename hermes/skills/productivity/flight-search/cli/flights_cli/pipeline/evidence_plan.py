@@ -4,7 +4,13 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any, Callable
 
-from ..domain.vocabulary import AbsenceReason, EvidenceClass, IntentClass, RequiredControl, RoutingStrategy
+from ..domain.vocabulary import (
+    AbsenceReason,
+    EvidenceClass,
+    IntentClass,
+    RequiredControl,
+    RoutingStrategy,
+)
 from .flow_decision import FlowDecision
 from .search_request import SearchRequest
 
@@ -88,7 +94,9 @@ def _days_until_departure(depart_date: str, *, today: date) -> int | None:
     return (depart - today).days
 
 
-def _required_controls(request: SearchRequest, decision: FlowDecision, direct_only: bool) -> tuple[str, ...]:
+def _required_controls(
+    request: SearchRequest, decision: FlowDecision, direct_only: bool
+) -> tuple[str, ...]:
     controls: list[str] = []
     if direct_only or decision.intent_class == IntentClass.DIRECT_INVENTORY:
         controls.append(RequiredControl.EXACT_AIRPORT_DIRECT)
@@ -105,7 +113,11 @@ def _required_controls(request: SearchRequest, decision: FlowDecision, direct_on
         controls.append(RequiredControl.CARRIER_AGGREGATE)
     if decision.evidence_class == EvidenceClass.TICKETING_REQUIRED:
         controls.append(RequiredControl.FULL_ROUTE_AGGREGATE)
-    if decision.evidence_class in {EvidenceClass.ABSENCE_CLAIM, EvidenceClass.TICKETING_REQUIRED} and not controls:
+    if (
+        decision.evidence_class
+        in {EvidenceClass.ABSENCE_CLAIM, EvidenceClass.TICKETING_REQUIRED}
+        and not controls
+    ):
         controls.append(RequiredControl.EXACT_AIRPORT_DIRECT)
     return tuple(dict.fromkeys(controls))
 
@@ -134,7 +146,9 @@ def _freshness_policy(
         "today": today.isoformat(),
         "depart_date": request.depart_date,
         "days_until_departure": days_until,
-        "cache_ttl_seconds": 0 if requires_fresh_live else request.live_cache_ttl_seconds,
+        "cache_ttl_seconds": 0
+        if requires_fresh_live
+        else request.live_cache_ttl_seconds,
     }
 
 
@@ -154,7 +168,9 @@ def plan_evidence(
 ) -> EvidencePlan:
     direct_route_ttl = request.direct_route_index_ttl_seconds
     direct_only = _is_direct_only(request)
-    freshness_policy = _freshness_policy(request, decision, today_provider=today_provider)
+    freshness_policy = _freshness_policy(
+        request, decision, today_provider=today_provider
+    )
     cache_enabled = not request.no_live_cache
     cache_ttl = request.live_cache_ttl_seconds
     if freshness_policy["requires_fresh_live"]:
@@ -166,7 +182,8 @@ def plan_evidence(
         max_segment_searches=request.max_segment_searches,
         live_cache_enabled=cache_enabled,
         live_cache_ttl_seconds=cache_ttl,
-        direct_route_intel_enabled=not request.no_direct_route_intel and direct_route_ttl > 0,
+        direct_route_intel_enabled=not request.no_direct_route_intel
+        and direct_route_ttl > 0,
         direct_route_index_ttl_seconds=direct_route_ttl,
         aggregate_control_limit=request.aggregate_control_limit,
         aggregate_control_carriers=request.aggregate_control_carriers,
