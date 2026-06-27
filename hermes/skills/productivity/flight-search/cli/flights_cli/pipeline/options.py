@@ -118,7 +118,14 @@ def _int_tuple(value: object) -> tuple[int, ...]:
     return tuple(int(item) for item in _as_tuple(value))
 
 
-def _int_option(container: dict[str, Any], name: str, default: int | None) -> int | None:
+def _int_option(container: dict[str, Any], name: str, default: int) -> int:
+    value = container.get(name)
+    if value is None:
+        return default
+    return int(value)
+
+
+def _optional_int_option(container: dict[str, Any], name: str, default: int | None = None) -> int | None:
     value = container.get(name)
     if value is None:
         return default
@@ -152,13 +159,13 @@ def search_request_to_options(payload: dict[str, Any]) -> LiveAssemblyOptions:
             hubs=_str_tuple(route.get("hubs")),
             origin_airports=_str_tuple(route.get("origin_airports")),
             destination_airports=_str_tuple(route.get("destination_airports")),
-            max_airports_per_city=int(route.get("max_airports_per_city") or 6),
-            max_connections=_int_option(route, "max_connections", None),
-            tier2_max_connections=_int_option(route, "tier2_max_connections", None),
+            max_airports_per_city=_int_option(route, "max_airports_per_city", 6),
+            max_connections=_optional_int_option(route, "max_connections"),
+            tier2_max_connections=_optional_int_option(route, "tier2_max_connections"),
             date_window_end=str(route.get("date_window_end")) if route.get("date_window_end") else None,
             stop_policy=str(route.get("stop_policy") or "business-default"),
-            min_same_airport_min=int(route.get("min_same_airport_min") or 120),
-            min_cross_airport_min=int(route.get("min_cross_airport_min") or 300),
+            min_same_airport_min=_int_option(route, "min_same_airport_min", 120),
+            min_cross_airport_min=_int_option(route, "min_cross_airport_min", 300),
         ),
         filters=FilterOptions(
             only_carriers=_str_tuple(filters.get("only_carriers")),
@@ -170,16 +177,16 @@ def search_request_to_options(payload: dict[str, Any]) -> LiveAssemblyOptions:
             provider_policy=str(payload.get("provider_policy") or "auto").lower(),
             coverage_mode=str(route.get("coverage_mode") or "targeted"),
             coverage_controls=_str_tuple(route.get("coverage_controls")),
-            coverage_control_limit=int(route.get("coverage_control_limit") or DEFAULT_COVERAGE_CONTROL_LIMIT),
-            aggregate_control_limit=int(evidence.get("aggregate_control_limit") or 0),
+            coverage_control_limit=_int_option(route, "coverage_control_limit", DEFAULT_COVERAGE_CONTROL_LIMIT),
+            aggregate_control_limit=_int_option(evidence, "aggregate_control_limit", 0),
             aggregate_control_carriers=_str_tuple(evidence.get("aggregate_control_carriers")),
-            max_segment_searches=int(evidence.get("max_segment_searches") or 300),
-            live_cache_ttl_seconds=int(evidence.get("live_cache_ttl_seconds") or DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS),
+            max_segment_searches=_int_option(evidence, "max_segment_searches", 300),
+            live_cache_ttl_seconds=_int_option(evidence, "live_cache_ttl_seconds", DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS),
             no_live_cache=_bool_option(evidence, "no_live_cache", False),
-            direct_route_index_ttl_seconds=int(evidence.get("direct_route_index_ttl_seconds") or DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS),
+            direct_route_index_ttl_seconds=_int_option(evidence, "direct_route_index_ttl_seconds", DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS),
             no_direct_route_intel=_bool_option(evidence, "no_direct_route_intel", False),
-            segment_limit=int(evidence.get("segment_limit") or 30),
-            timeout=int(evidence.get("timeout") or 60),
+            segment_limit=_int_option(evidence, "segment_limit", 30),
+            timeout=_int_option(evidence, "timeout", 60),
             outbound_second_leg_day_offsets=_int_tuple(evidence.get("outbound_second_leg_day_offsets")),
             return_second_leg_day_offsets=_int_tuple(evidence.get("return_second_leg_day_offsets")),
             fail_fast=_bool_option(evidence, "fail_fast", False),
@@ -188,15 +195,15 @@ def search_request_to_options(payload: dict[str, Any]) -> LiveAssemblyOptions:
         output=OutputOptions(
             agent_report=True,
             agent_brief=_bool_option(output, "agent_brief", True),
-            include_segment_results=int(output.get("include_segment_results") or 0),
-            include_candidates=int(output.get("include_candidates") or 5),
-            include_ranked_candidates=int(output.get("include_ranked_candidates") or 5),
-            include_rejected_pairs=int(output.get("include_rejected_pairs") or 20),
-            include_filtered=int(output.get("include_filtered") or 20),
-            limit_per_pair=int(output.get("limit_per_pair") or DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR),
-            candidate_pool_limit=int(output.get("candidate_pool_limit") or 5000),
-            max_candidates=int(output.get("max_candidates") or 50),
-            max_reasons=int(output.get("max_reasons") or 5),
+            include_segment_results=_int_option(output, "include_segment_results", 0),
+            include_candidates=_int_option(output, "include_candidates", 5),
+            include_ranked_candidates=_int_option(output, "include_ranked_candidates", 5),
+            include_rejected_pairs=_int_option(output, "include_rejected_pairs", 20),
+            include_filtered=_int_option(output, "include_filtered", 20),
+            limit_per_pair=_int_option(output, "limit_per_pair", DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR),
+            candidate_pool_limit=_int_option(output, "candidate_pool_limit", 5000),
+            max_candidates=_int_option(output, "max_candidates", 50),
+            max_reasons=_int_option(output, "max_reasons", 5),
             include_stop_policy_diagnostics=_bool_option(output, "include_stop_policy_diagnostics", False),
         ),
         profile=str(payload.get("profile") or DEFAULT_PROFILE),

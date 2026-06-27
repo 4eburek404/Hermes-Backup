@@ -1,8 +1,8 @@
-"""Unit tests for LiveAssemblyRunner skip-predicate methods and helper functions.
+"""Unit tests for live assembly skip policy services and helper functions.
 
-These tests exercise the pure-logic predicate methods with minimal fake state —
-no network, no Store, no argparse.  Each test constructs a LiveAssemblyRunner
-with just enough init state to call the method under test.
+These tests exercise pure logic with minimal fake state: no network and no
+argparse parser.  Predicate tests call the focused service objects directly
+instead of relying on LiveAssemblyRunner private compatibility wrappers.
 """
 from __future__ import annotations
 
@@ -143,26 +143,19 @@ def _options_from_args(args: argparse.Namespace):
     )
 
 
-def _runner(
+def _state(
     *,
     offer_counts: dict | None = None,
     plan: dict | None = None,
-    direct_route_index: dict | None = None,
     priority_route_viability: dict | None = None,
     synthetic_moscow_control_done: set | None = None,
-) -> LiveAssemblyRunner:
-    """Build a LiveAssemblyRunner with just enough state for skip-predicate tests.
+) -> tuple[LiveAssemblyState, Any]:
+    """Build minimal runtime state for skip-policy tests."""
 
-    We bypass ``__init__`` by setting attributes directly so we don't need a
-    real Store or flow.
-    """
-    runner = object.__new__(LiveAssemblyRunner)
-    runner.args = _args()
-    runner.options = _options_from_args(runner.args)
-    runner.store = Store()
-    runner._plan_builder = lambda *a, **kw: {}  # unused in predicates
-    flow = build_live_route_search_flow(runner.options, runner.store)
-    runner.state = LiveAssemblyState(
+    options = _options_from_args(_args())
+    store = Store()
+    flow = build_live_route_search_flow(options, store)
+    state = LiveAssemblyState(
         flow=flow,
         plan=plan or {
             "routing_strategy": RoutingStrategy.RU_PRIORITY,
@@ -174,15 +167,28 @@ def _runner(
         synthetic_controls_done=synthetic_moscow_control_done or set(),
         priority_route_viability=priority_route_viability or {},
     )
-    runner.max_searches = 200
-    runner.only_carriers = []
-    runner.cache_ttl_seconds = 0
-    runner.use_live_cache = False
-    runner.provider_policy = "kupibilet"
-    runner.direct_route_index = direct_route_index
-    runner.direct_route_intel = {}
-    runner.request_deduper = None  # type: ignore[assignment]
-    return runner
+    return state, options
+
+
+def _skip_policy(
+    *,
+    offer_counts: dict | None = None,
+    plan: dict | None = None,
+    direct_route_index: dict | None = None,
+    priority_route_viability: dict | None = None,
+) -> tuple[LiveAssemblyState, SkipPolicy]:
+    state, options = _state(
+        offer_counts=offer_counts,
+        plan=plan,
+        priority_route_viability=priority_route_viability,
+    )
+    synthetic_controls = SyntheticControlService()
+    evaluator = PriorityRouteEvaluator(options, synthetic_controls)
+    return state, SkipPolicy(
+        options=options,
+        direct_route_index=direct_route_index,
+        priority_route_evaluator=evaluator,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -396,10 +402,19 @@ class TestLiveAssemblyState(unittest.TestCase):
 
 class TestLiveAssemblyServices(unittest.TestCase):
     def test_runner_wires_focused_services(self) -> None:
-        runner = _runner()
+        options = _options_from_args(_args())
+        plan = {
+            "routing_strategy": RoutingStrategy.RU_PRIORITY,
+            "segments": [],
+            "hubs": ["IST"],
+            "dates": {"depart": "2026-08-01", "return": "2026-08-15"},
+            "metrics": {"segment_search_count": 0},
+        }
+        runner = LiveAssemblyRunner(options, Store(), plan_builder=lambda *a, **kw: plan)
 
-        runner._ensure_services()
+        state = runner.initialize_state()
 
+        self.assertEqual(state.plan, plan)
         self.assertIsInstance(runner.synthetic_controls, SyntheticControlService)
         self.assertIsInstance(runner.priority_route_evaluator, PriorityRouteEvaluator)
         self.assertIsInstance(runner.skip_policy, SkipPolicy)
@@ -409,57 +424,57 @@ class TestLiveAssemblyServices(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# _skipped_by_direct_route_intel
+# SkipPolicy.skipped_by_direct_route_intel
 # ---------------------------------------------------------------------------
 
 class TestSkippedByDirectRouteIntel(unittest.TestCase):
     def test_returns_none_when_no_direct_route_index(self) -> None:
-        runner = _runner(direct_route_index=None)
+        state, policy = _skip_policy(direct_route_index=None)
         spec = {"leg": Leg.DIRECT_OUTBOUND, "origin": "SVX", "destination": "BKK"}
-        self.assertIsNone(runner._skipped_by_direct_route_intel(spec))
+        self.assertIsNone(policy.skipped_by_direct_route_intel(state, spec))
 
     def test_returns_none_when_not_direct_leg(self) -> None:
-        runner = _runner(direct_route_index={"routes": {}})
+        state, policy = _skip_policy(direct_route_index={"routes": {}})
         spec = {"leg": Leg.ORIGIN_TO_HUB, "origin": "SVX", "destination": "IST"}
-        self.assertIsNone(runner._skipped_by_direct_route_intel(spec))
+        self.assertIsNone(policy.skipped_by_direct_route_intel(state, spec))
 
     def test_skips_when_airport_not_in_route_set(self) -> None:
-        runner = _runner(direct_route_index={
+        state, policy = _skip_policy(direct_route_index={
             "routes": {"outbound": ["BKK", "IST"], "return": ["SVX"]},
             "source": "svx-route-index",
             "fetched_at": "2026-01-01",
         })
         spec = {"leg": Leg.DIRECT_OUTBOUND, "origin": "SVX", "destination": "HKT"}
-        result = runner._skipped_by_direct_route_intel(spec)
+        result = policy.skipped_by_direct_route_intel(state, spec)
         self.assertIsNotNone(result)
         self.assertEqual(result["reason"], "direct_route_schedule_negative")
         self.assertEqual(result["skipped_because"]["checked_airport"], "HKT")
 
     def test_does_not_skip_when_airport_in_route_set(self) -> None:
-        runner = _runner(direct_route_index={
+        state, policy = _skip_policy(direct_route_index={
             "routes": {"outbound": ["BKK", "IST"], "return": ["SVX"]},
         })
         spec = {"leg": Leg.DIRECT_OUTBOUND, "origin": "SVX", "destination": "BKK"}
-        self.assertIsNone(runner._skipped_by_direct_route_intel(spec))
+        self.assertIsNone(policy.skipped_by_direct_route_intel(state, spec))
 
     def test_returns_none_when_neither_endpoint_is_svx(self) -> None:
-        runner = _runner(direct_route_index={"routes": {"outbound": ["BKK"]}})
+        state, policy = _skip_policy(direct_route_index={"routes": {"outbound": ["BKK"]}})
         spec = {"leg": Leg.DIRECT_OUTBOUND, "origin": "MOW", "destination": "BKK"}
-        self.assertIsNone(runner._skipped_by_direct_route_intel(spec))
+        self.assertIsNone(policy.skipped_by_direct_route_intel(state, spec))
 
 
 # ---------------------------------------------------------------------------
-# _skipped_by_condition
+# SkipPolicy.skipped_by_condition
 # ---------------------------------------------------------------------------
 
 class TestSkippedByCondition(unittest.TestCase):
     def test_returns_none_when_no_conditions_and_no_priority(self) -> None:
-        runner = _runner()
+        state, policy = _skip_policy()
         spec = {"direction": "outbound", "leg": "origin_to_hub"}
-        self.assertIsNone(runner._skipped_by_condition(spec))
+        self.assertIsNone(policy.skipped_by_condition(state, spec))
 
     def test_skips_by_skip_if_offer_exists(self) -> None:
-        runner = _runner(offer_counts={("outbound", "direct_outbound", "SVX", "BKK"): 3})
+        state, policy = _skip_policy(offer_counts={("outbound", "direct_outbound", "SVX", "BKK"): 3})
         spec = {
             "direction": "outbound",
             "leg": "direct_outbound",
@@ -472,13 +487,13 @@ class TestSkippedByCondition(unittest.TestCase):
                 "destination": "BKK",
             },
         }
-        result = runner._skipped_by_condition(spec)
+        result = policy.skipped_by_condition(state, spec)
         self.assertIsNotNone(result)
         self.assertEqual(result["reason"], "direct_probe_has_offers")
         self.assertEqual(result["skipped_because"]["offer_count"], 3)
 
     def test_does_not_skip_when_offer_count_zero(self) -> None:
-        runner = _runner(offer_counts={("outbound", "direct_outbound", "SVX", "BKK"): 0})
+        state, policy = _skip_policy(offer_counts={("outbound", "direct_outbound", "SVX", "BKK"): 0})
         spec = {
             "direction": "outbound",
             "skip_if_offer_exists": {
@@ -488,29 +503,30 @@ class TestSkippedByCondition(unittest.TestCase):
                 "destination": "BKK",
             },
         }
-        self.assertIsNone(runner._skipped_by_condition(spec))
+        self.assertIsNone(policy.skipped_by_condition(state, spec))
 
     def test_skips_by_priority_route_viable(self) -> None:
-        runner = _runner(priority_route_viability={"outbound": True})
+        state, policy = _skip_policy(priority_route_viability={"outbound": True})
         spec = {"direction": "outbound", "skip_if_priority_route_viable": "outbound"}
-        result = runner._skipped_by_condition(spec)
+        result = policy.skipped_by_condition(state, spec)
         self.assertIsNotNone(result)
         self.assertEqual(result["reason"], "priority_route_viable")
 
     def test_does_not_skip_priority_when_not_viable(self) -> None:
-        runner = _runner(priority_route_viability={"outbound": False})
+        state, policy = _skip_policy(priority_route_viability={"outbound": False})
         spec = {"direction": "outbound", "skip_if_priority_route_viable": "outbound"}
-        self.assertIsNone(runner._skipped_by_condition(spec))
+        self.assertIsNone(policy.skipped_by_condition(state, spec))
 
 
 # ---------------------------------------------------------------------------
-# _skipped_by_offer_keys
+# SkipPolicy.skipped_by_offer_keys
 # ---------------------------------------------------------------------------
 
 class TestSkippedByOfferKeys(unittest.TestCase):
     def test_returns_none_when_no_matches(self) -> None:
-        runner = _runner(offer_counts={("outbound", "direct_outbound", "SVX", "BKK"): 0})
-        result = runner._skipped_by_offer_keys(
+        state, policy = _skip_policy(offer_counts={("outbound", "direct_outbound", "SVX", "BKK"): 0})
+        result = policy.skipped_by_offer_keys(
+            state,
             {"direction": "outbound"},
             keys=[("outbound", "direct_outbound", "SVX", "BKK")],
             reason="test_reason",
@@ -519,8 +535,9 @@ class TestSkippedByOfferKeys(unittest.TestCase):
         self.assertIsNone(result)
 
     def test_returns_skip_dict_when_matches(self) -> None:
-        runner = _runner(offer_counts={("outbound", "direct_outbound", "SVX", "BKK"): 5})
-        result = runner._skipped_by_offer_keys(
+        state, policy = _skip_policy(offer_counts={("outbound", "direct_outbound", "SVX", "BKK"): 5})
+        result = policy.skipped_by_offer_keys(
+            state,
             {"direction": "outbound", "leg": "direct_outbound"},
             keys=[("outbound", "direct_outbound", "SVX", "BKK")],
             reason="test_reason",
@@ -533,12 +550,12 @@ class TestSkippedByOfferKeys(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# _skipped_by_city_code_primary
+# SkipPolicy.skipped_by_city_code_primary
 # ---------------------------------------------------------------------------
 
 class TestSkippedByCityCodePrimary(unittest.TestCase):
     def test_returns_skip_when_city_code_primary_has_offers(self) -> None:
-        runner = _runner(offer_counts={("outbound", "origin_to_hub", "MOW", "IST"): 2})
+        state, policy = _skip_policy(offer_counts={("outbound", "origin_to_hub", "MOW", "IST"): 2})
         spec = {
             "deferred_for_city_code_request": True,
             "provider_city_code": "MOW",
@@ -547,66 +564,66 @@ class TestSkippedByCityCodePrimary(unittest.TestCase):
             "origin": "SVO",
             "destination": "IST",
         }
-        result = runner._skipped_by_city_code_primary(spec)
+        result = policy.skipped_by_city_code_primary(state, spec)
         self.assertIsNotNone(result)
         self.assertEqual(result["reason"], "city_code_request_has_offers")
 
 
 # ---------------------------------------------------------------------------
-# _priority_route_viable
+# PriorityRouteEvaluator.is_viable
 # ---------------------------------------------------------------------------
 
 class TestPriorityRouteViable(unittest.TestCase):
     def test_returns_false_when_not_ru_priority(self) -> None:
-        runner = _runner(plan={"routing_strategy": RoutingStrategy.HUB_LIST, "segments": [], "hubs": [], "dates": {}})
-        self.assertFalse(runner._priority_route_viable("outbound"))
+        state, options = _state(plan={"routing_strategy": RoutingStrategy.HUB_LIST, "segments": [], "hubs": [], "dates": {}})
+        self.assertFalse(PriorityRouteEvaluator(options, SyntheticControlService()).is_viable(state, "outbound"))
 
     def test_returns_cached_viability(self) -> None:
-        runner = _runner(priority_route_viability={"outbound": True})
-        self.assertTrue(runner._priority_route_viable("outbound"))
+        state, options = _state(priority_route_viability={"outbound": True})
+        self.assertTrue(PriorityRouteEvaluator(options, SyntheticControlService()).is_viable(state, "outbound"))
 
     def test_returns_false_for_unknown_direction(self) -> None:
-        runner = _runner()
-        self.assertFalse(runner._priority_route_viable("sideways"))
+        state, options = _state()
+        self.assertFalse(PriorityRouteEvaluator(options, SyntheticControlService()).is_viable(state, "sideways"))
 
 
 # ---------------------------------------------------------------------------
-# _ensure_moscow_gateway_control_synthesized
+# SyntheticControlService.apply_pending
 # ---------------------------------------------------------------------------
 
 class TestEnsureMoscowGatewayControlSynthesized(unittest.TestCase):
     def test_does_nothing_when_already_done(self) -> None:
-        runner = _runner(synthetic_moscow_control_done={"outbound", "return"})
+        state, _ = _state(synthetic_moscow_control_done={"outbound", "return"})
         # Should not raise or modify anything
-        runner._ensure_moscow_gateway_control_synthesized("outbound")
-        self.assertEqual(runner.synthetic_moscow_control_done, {"outbound", "return"})
+        SyntheticControlService().apply_pending(state, "outbound")
+        self.assertEqual(state.synthetic_controls_done, {"outbound", "return"})
 
     def test_adds_direction_to_done_set(self) -> None:
-        runner = _runner(synthetic_moscow_control_done=set())
+        state, _ = _state(synthetic_moscow_control_done=set())
         # We can't easily test the full synthesis without mocking
         # synthesize_moscow_gateway_control_results, but we can verify the set update
-        runner.synthetic_moscow_control_done = set()
-        runner.segment_results = []
-        runner.searches = []
-        runner.offer_counts = {}
+        state.synthetic_controls_done = set()
+        state.segment_results = []
+        state.searches = []
+        state.offer_counts = {}
         # Patch synthesize to return empty results
         import flights_cli.orchestrators.live_assembly_runner as runner_mod
         original = runner_mod.synthesize_moscow_gateway_control_results
         try:
             runner_mod.synthesize_moscow_gateway_control_results = lambda *a, **kw: ([], [])
-            runner._ensure_moscow_gateway_control_synthesized("outbound")
-            self.assertIn("outbound", runner.synthetic_moscow_control_done)
+            SyntheticControlService().apply_pending(state, "outbound")
+            self.assertIn("outbound", state.synthetic_controls_done)
         finally:
             runner_mod.synthesize_moscow_gateway_control_results = original
 
 
 # ---------------------------------------------------------------------------
-# _skipped_by_preferred_airport_tier
+# SkipPolicy.skipped_by_preferred_airport_tier
 # ---------------------------------------------------------------------------
 
 class TestSkippedByPreferredAirportTier(unittest.TestCase):
     def test_returns_none_when_no_preferred_offers(self) -> None:
-        runner = _runner(offer_counts={})
+        state, policy = _skip_policy(offer_counts={})
         spec = {
             "direction": "outbound",
             "leg": "origin_to_hub",
@@ -615,7 +632,7 @@ class TestSkippedByPreferredAirportTier(unittest.TestCase):
             "origin_airport_priority": {"tier": 1, "city_code": "MOW"},
         }
         # preferred_keys_for_deferred_airport returns [] if no matching plan segments
-        result = runner._skipped_by_preferred_airport_tier(spec)
+        result = policy.skipped_by_preferred_airport_tier(state, spec)
         self.assertIsNone(result)
 
 

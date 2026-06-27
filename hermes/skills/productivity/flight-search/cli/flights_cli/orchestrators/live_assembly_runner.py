@@ -693,112 +693,6 @@ class LiveAssemblyRunner:
         self.probe_executor: SegmentProbeExecutor | None = None
         self.result_builder: LiveSearchResultBuilder | None = None
 
-    def _require_state(self) -> LiveAssemblyState:
-        if self.state is None:
-            raise RuntimeError("live assembly state is not initialized")
-        return self.state
-
-    @property
-    def flow(self) -> LiveRouteSearchFlow:
-        return self._require_state().flow
-
-    @property
-    def plan(self) -> dict[str, Any]:
-        return self._require_state().plan
-
-    @property
-    def segment_results(self) -> list[dict[str, Any]]:
-        return self._require_state().segment_results
-
-    @segment_results.setter
-    def segment_results(self, value: list[dict[str, Any]]) -> None:
-        self._require_state().segment_results = value
-
-    @property
-    def searches(self) -> list[dict[str, Any]]:
-        return self._require_state().searches
-
-    @searches.setter
-    def searches(self, value: list[dict[str, Any]]) -> None:
-        self._require_state().searches = value
-
-    @property
-    def failures(self) -> list[dict[str, Any]]:
-        return self._require_state().failures
-
-    @failures.setter
-    def failures(self, value: list[dict[str, Any]]) -> None:
-        self._require_state().failures = value
-
-    @property
-    def offer_counts(self) -> dict[tuple[str, str, str, str], int]:
-        return self._require_state().offer_counts
-
-    @offer_counts.setter
-    def offer_counts(self, value: dict[tuple[str, str, str, str], int]) -> None:
-        self._require_state().offer_counts = value
-
-    @property
-    def probe_ledger(self) -> ProbeExecutionLedger:
-        return self._require_state().probe_ledger
-
-    @probe_ledger.setter
-    def probe_ledger(self, value: ProbeExecutionLedger) -> None:
-        self._require_state().probe_ledger = value
-
-    @property
-    def synthetic_moscow_control_done(self) -> set[str]:
-        return self._require_state().synthetic_controls_done
-
-    @synthetic_moscow_control_done.setter
-    def synthetic_moscow_control_done(self, value: set[str]) -> None:
-        self._require_state().synthetic_controls_done = value
-
-    @property
-    def priority_route_viability(self) -> dict[str, bool]:
-        return self._require_state().priority_route_viability
-
-    @priority_route_viability.setter
-    def priority_route_viability(self, value: dict[str, bool]) -> None:
-        self._require_state().priority_route_viability = value
-
-    def _ensure_services(self) -> None:
-        self._require_state()
-        if getattr(self, "synthetic_controls", None) is None:
-            self.synthetic_controls = SyntheticControlService()
-        if getattr(self, "priority_route_evaluator", None) is None:
-            self.priority_route_evaluator = PriorityRouteEvaluator(self.options, self.synthetic_controls)
-        if getattr(self, "skip_policy", None) is None:
-            self.skip_policy = SkipPolicy(
-                options=self.options,
-                direct_route_index=getattr(self, "direct_route_index", None),
-                priority_route_evaluator=self.priority_route_evaluator,
-            )
-        else:
-            self.skip_policy.direct_route_index = getattr(self, "direct_route_index", None)
-        if getattr(self, "probe_accumulator", None) is None:
-            self.probe_accumulator = ProbeResultAccumulator(getattr(self, "only_carriers", []))
-        if getattr(self, "request_deduper", None) is None:
-            self.request_deduper = RequestDeduper()
-        if getattr(self, "probe_executor", None) is None:
-            self.probe_executor = SegmentProbeExecutor(
-                options=self.options,
-                store=self.store,
-                only_carriers=getattr(self, "only_carriers", []),
-                cache_ttl_seconds=getattr(self, "cache_ttl_seconds", 0),
-                use_live_cache=getattr(self, "use_live_cache", False),
-                provider_policy=getattr(self, "provider_policy", ""),
-                request_deduper=self.request_deduper,
-                skip_policy=self.skip_policy,
-                accumulator=self.probe_accumulator,
-            )
-        if getattr(self, "result_builder", None) is None:
-            self.result_builder = LiveSearchResultBuilder(
-                options=self.options,
-                store=self.store,
-                provider_policy=getattr(self, "provider_policy", ""),
-            )
-
     def run(self) -> dict[str, Any]:
         state = self.initialize_state()
         assert self.probe_executor is not None
@@ -814,18 +708,18 @@ class LiveAssemblyRunner:
         build_plan = self._plan_builder
         plan = build_plan(self.options, store, flow=flow)
         self.state = LiveAssemblyState(flow=flow, plan=plan)
-        self.max_searches = max(1, int(self.flow.evidence_plan.max_segment_searches))
-        if self.plan["metrics"]["segment_search_count"] > self.max_searches:
+        self.max_searches = max(1, int(flow.evidence_plan.max_segment_searches))
+        if plan["metrics"]["segment_search_count"] > self.max_searches:
             raise CliError(
-                f"planned {self.plan['metrics']['segment_search_count']} segment searches exceeds --max-segment-searches {self.max_searches}",
+                f"planned {plan['metrics']['segment_search_count']} segment searches exceeds --max-segment-searches {self.max_searches}",
                 error_type="validation_error",
-                details={"planned": self.plan["metrics"]["segment_search_count"], "max_segment_searches": self.max_searches},
+                details={"planned": plan["metrics"]["segment_search_count"], "max_segment_searches": self.max_searches},
             )
         self.only_carriers = [normalize_carrier_code(code, "only-carrier") for code in self.options.filters.only_carriers]
-        self.cache_ttl_seconds = int(self.flow.evidence_plan.live_cache_ttl_seconds)
-        self.use_live_cache = bool(self.flow.evidence_plan.live_cache_enabled)
-        self.provider_policy = self.flow.evidence_plan.provider_policy
-        self.direct_route_index, self.direct_route_intel = direct_route_intel_context(self.options, store, self.plan)
+        self.cache_ttl_seconds = int(flow.evidence_plan.live_cache_ttl_seconds)
+        self.use_live_cache = bool(flow.evidence_plan.live_cache_enabled)
+        self.provider_policy = flow.evidence_plan.provider_policy
+        self.direct_route_index, self.direct_route_intel = direct_route_intel_context(self.options, store, plan)
         self.request_deduper = RequestDeduper()
         self.synthetic_controls = SyntheticControlService()
         self.priority_route_evaluator = PriorityRouteEvaluator(self.options, self.synthetic_controls)
@@ -848,84 +742,3 @@ class LiveAssemblyRunner:
         )
         self.result_builder = LiveSearchResultBuilder(options=self.options, store=store, provider_policy=self.provider_policy)
         return self.state
-
-    def _init_run(self) -> None:
-        self.initialize_state()
-
-    def _probe_segments(self) -> None:
-        if self.probe_executor is None:
-            self._ensure_services()
-        assert self.probe_executor is not None
-        self.probe_executor.run(self._require_state())
-        self.synthetic_controls.apply_pending(self._require_state())
-
-    def _build_live_search_block(self) -> dict[str, Any]:
-        if self.result_builder is None:
-            self._ensure_services()
-        assert self.result_builder is not None
-        return self.result_builder.build(self._require_state(), self.direct_route_intel)
-
-    # --- skip-predicate methods ---
-
-    def _skipped_by_offer_keys(
-        self,
-        spec: dict[str, Any],
-        *,
-        keys: list[tuple[str, str, str, str]],
-        reason: str,
-        note: str,
-    ) -> dict[str, Any] | None:
-        self._ensure_services()
-        assert self.skip_policy is not None
-        return self.skip_policy.skipped_by_offer_keys(
-            self._require_state(),
-            spec,
-            keys=keys,
-            reason=reason,
-            note=note,
-        )
-
-    def _skipped_by_preferred_airport_tier(self, spec: dict[str, Any]) -> dict[str, Any] | None:
-        self._ensure_services()
-        assert self.skip_policy is not None
-        return self.skip_policy.skipped_by_preferred_airport_tier(self._require_state(), spec)
-
-    def _skipped_by_city_code_primary(self, spec: dict[str, Any]) -> dict[str, Any] | None:
-        self._ensure_services()
-        assert self.skip_policy is not None
-        return self.skip_policy.skipped_by_city_code_primary(self._require_state(), spec)
-
-    def _skipped_by_condition(self, spec: dict[str, Any]) -> dict[str, Any] | None:
-        self._ensure_services()
-        assert self.skip_policy is not None
-        return self.skip_policy.skipped_by_condition(self._require_state(), spec)
-
-    def _skipped_by_direct_route_intel(self, spec: dict[str, Any]) -> dict[str, Any] | None:
-        self._ensure_services()
-        assert self.skip_policy is not None
-        return self.skip_policy.skipped_by_direct_route_intel(self._require_state(), spec)
-
-    def _priority_route_viable(self, direction: str) -> bool:
-        self._ensure_services()
-        assert self.priority_route_evaluator is not None
-        return self.priority_route_evaluator.is_viable(self._require_state(), direction)
-
-    def _ensure_moscow_gateway_control_synthesized(self, direction: str | None = None) -> None:
-        self._ensure_services()
-        self.synthetic_controls.apply_pending(self._require_state(), direction)
-
-    def _record_segment_probe_summary(
-        self,
-        spec: dict[str, Any],
-        summary: dict[str, Any],
-        *,
-        provider_result: Any | None = None,
-    ) -> None:
-        self._ensure_services()
-        assert self.probe_accumulator is not None
-        self.probe_accumulator.record_segment_probe_summary(
-            self._require_state(),
-            spec,
-            summary,
-            provider_result=provider_result,
-        )

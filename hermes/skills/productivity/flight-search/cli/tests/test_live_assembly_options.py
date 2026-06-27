@@ -126,5 +126,52 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertTrue(options.output.agent_report)
         self.assertTrue(options.output.agent_brief)
 
+    def test_search_request_preserves_explicit_zero_values(self) -> None:
+        options = search_request_to_options(
+            {
+                "schema_version": "flight_search_request.v1",
+                "origin": "svx",
+                "destination": "dme",
+                "depart_date": "2026-08-15",
+                "route_options": {
+                    "coverage_control_limit": 0,
+                    "min_same_airport_min": 0,
+                    "min_cross_airport_min": 0,
+                    "max_connections": 0,
+                    "tier2_max_connections": 0,
+                },
+                "evidence": {
+                    "aggregate_control_limit": 0,
+                    "live_cache_ttl_seconds": 0,
+                    "direct_route_index_ttl_seconds": 0,
+                },
+                "output": {
+                    "include_segment_results": 0,
+                    "include_candidates": 0,
+                    "include_ranked_candidates": 0,
+                    "include_rejected_pairs": 0,
+                    "include_filtered": 0,
+                    "max_candidates": 0,
+                    "max_reasons": 0,
+                },
+            }
+        )
+
+        self.assertEqual(options.route.max_connections, 0)
+        self.assertEqual(options.route.tier2_max_connections, 0)
+        self.assertEqual(options.route.min_same_airport_min, 0)
+        self.assertEqual(options.route.min_cross_airport_min, 0)
+        self.assertEqual(options.evidence.coverage_control_limit, 0)
+        self.assertEqual(options.evidence.aggregate_control_limit, 0)
+        self.assertEqual(options.evidence.live_cache_ttl_seconds, 0)
+        self.assertEqual(options.evidence.direct_route_index_ttl_seconds, 0)
+        self.assertEqual(options.output.include_segment_results, 0)
+        self.assertEqual(options.output.include_candidates, 0)
+        self.assertEqual(options.output.include_ranked_candidates, 0)
+        self.assertEqual(options.output.include_rejected_pairs, 0)
+        self.assertEqual(options.output.include_filtered, 0)
+        self.assertEqual(options.output.max_candidates, 0)
+        self.assertEqual(options.output.max_reasons, 0)
+
 if __name__ == "__main__":
     unittest.main()
