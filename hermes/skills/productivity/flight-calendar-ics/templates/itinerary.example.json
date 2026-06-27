@@ -1,0 +1,28 @@
+{
+  "schema_version": "flight-calendar-ics-itinerary.v1",
+  "pnr": "ABC123",
+  "passengers": [
+    "KONSTANTIN ORLOV"
+  ],
+  "ticket_number": "5552400000000",
+  "booking_url": "https://carrier.example/manage",
+  "flights": [
+    {
+      "flight_number": "SU1234",
+      "departure": {
+        "airport": "SVO",
+        "city": "Москва",
+        "local": "2026-06-01T09:15",
+        "tz": "Europe/Moscow"
+      },
+      "arrival": {
+        "airport": "SVX",
+        "city": "Екатеринбург",
+        "local": "2026-06-01T13:45",
+        "tz": "Asia/Yekaterinburg"
+      },
+      "aircraft": "Boeing 737",
+      "status": "confirmed"
+    }
+  ]
+}

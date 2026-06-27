@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Canonical itinerary JSON Schema contract for flight-calendar-ics.
-
-This module is intentionally provider-agnostic: carrier/API/PDF-specific fields
-belong in adapters, while this contract validates the normalized itinerary that
-is ready for ICS generation.
-"""
+"""Minimal itinerary JSON Schema contract for flight-calendar-ics."""
 from __future__ import annotations
 
 import copy
@@ -50,17 +45,10 @@ def _validator() -> Any:
 
 
 def normalize_legacy_itinerary(data: dict[str, Any]) -> dict[str, Any]:
-    """Return a canonical-compatible copy of old itinerary JSON input.
-
-    Older templates predated the explicit input-schema version. Keep those files
-    usable by adding the version in memory, but do not remove unknown fields: the
-    schema gate must still reject non-canonical payloads and typos.
-    """
+    """Return a defensive copy without accepting legacy aliases or defaults."""
     if not isinstance(data, dict):
         raise ValueError("input JSON root must be an object")
-    normalized = copy.deepcopy(data)
-    normalized.setdefault("schema_version", SCHEMA_VERSION)
-    return normalized
+    return copy.deepcopy(data)
 
 
 def _format_path(parts: Iterable[Any]) -> str:
@@ -122,7 +110,17 @@ def validate_itinerary_schema(data: dict[str, Any]) -> None:
         raise ValueError(f"itinerary schema validation failed: {summary}")
 
 
-def _parse_local(value: Any, tzid: Any, path: str) -> dt.datetime:
+def parse_local_datetime(value: Any, tzid: Any, path: str) -> dt.datetime:
+    """Parse a local datetime string and attach an IANA timezone.
+
+    This is the single canonical implementation used by both the contract
+    validator and the ICS renderer.  It expects a *naive* local datetime
+    (``YYYY-MM-DDTHH:MM[:SS]``) and a valid IANA timezone identifier.
+    The JSON Schema already rejects values with ``Z`` or an explicit
+    offset; this helper enforces the same invariant independently so
+    that direct callers bypassing schema validation cannot sneak in
+    an aware datetime that would silently ignore the ``tz`` field.
+    """
     if is_placeholder(value):
         raise ValueError(f"{path}.local is required")
     if is_placeholder(tzid):
@@ -133,12 +131,26 @@ def _parse_local(value: Any, tzid: Any, path: str) -> dt.datetime:
     except ValueError as exc:
         raise ValueError(f"{path}.local must be an ISO local datetime") from exc
     if parsed.tzinfo is not None:
-        return parsed
+        raise ValueError(f"{path}.local must be a local datetime without timezone offset")
     try:
         zone = ZoneInfo(str(tzid).strip())
     except ZoneInfoNotFoundError as exc:
         raise ValueError(f"{path}.tz is not a known IANA timezone") from exc
     return parsed.replace(tzinfo=zone)
+
+
+def ensure_arrival_after_departure(
+    dep_dt: dt.datetime, arr_dt: dt.datetime, path: str
+) -> None:
+    """Verify that arrival is strictly after departure in UTC.
+
+    Both datetimes are converted to UTC before comparison so that
+    cross-timezone flights are evaluated correctly.
+    """
+    if arr_dt.astimezone(UTC) <= dep_dt.astimezone(UTC):
+        raise ValueError(
+            f"{path}: arrival must be after departure after timezone conversion"
+        )
 
 
 def validate_itinerary_semantics(data: dict[str, Any]) -> None:
@@ -159,7 +171,6 @@ def validate_itinerary_semantics(data: dict[str, Any]) -> None:
             if is_placeholder(endpoint.get("tz")):
                 raise ValueError(f"{endpoint_path}.tz is required")
 
-        dep_dt = _parse_local(dep.get("local"), dep.get("tz"), f"{flight_path}.departure")
-        arr_dt = _parse_local(arr.get("local"), arr.get("tz"), f"{flight_path}.arrival")
-        if arr_dt.astimezone(UTC) <= dep_dt.astimezone(UTC):
-            raise ValueError(f"{flight_path}: arrival must be after departure after timezone conversion")
+        dep_dt = parse_local_datetime(dep.get("local"), dep.get("tz"), f"{flight_path}.departure")
+        arr_dt = parse_local_datetime(arr.get("local"), arr.get("tz"), f"{flight_path}.arrival")
+        ensure_arrival_after_departure(dep_dt, arr_dt, flight_path)

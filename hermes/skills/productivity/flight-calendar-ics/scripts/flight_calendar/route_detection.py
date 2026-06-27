@@ -1,4 +1,4 @@
-"""Route inference helpers for ``flight_calendar_ics.py build auto``."""
+"""Internal route inference helpers for booking URLs."""
 from __future__ import annotations
 
 import argparse
@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
-from flight_calendar.envelope import CliFailure
+from flight_calendar.errors import CliFailure
 
 
 def read_private_text(path: Path) -> str:
@@ -20,8 +20,8 @@ def read_private_text(path: Path) -> str:
 def first_url_from_args(args: argparse.Namespace) -> str | None:
     url = getattr(args, "url", None)
     url_file = getattr(args, "url_file", None)
-    if url and url_file:
-        raise CliFailure("use either --url or --url-file, not both", code="usage_error")
+    if url:
+        raise CliFailure("--url is not supported; use --url-file", code="usage_error")
     if url_file:
         text = read_private_text(url_file)
         if not text:
@@ -57,6 +57,8 @@ def _safe_host_evidence(host: str) -> str | None:
         return "host:flyredwings.com"
     if _host_matches(host, "webskyx.com"):
         return "host:webskyx.com"
+    if _host_matches(host, "s7.ru"):
+        return "host:myb.s7.ru" if host == "myb.s7.ru" else "host:s7.ru"
     return None
 
 
@@ -121,6 +123,8 @@ def _known_host_route(host: str) -> str | None:
         return "utair"
     if _host_matches(host, "flyredwings.com") or _host_matches(host, "webskyx.com"):
         return "redwings"
+    if _host_matches(host, "s7.ru"):
+        return "s7"
     return None
 
 
@@ -158,6 +162,14 @@ def _utair_field_evidence(field_names: list[str], *, host_bound: bool) -> list[s
     return []
 
 
+def _s7_field_evidence(field_names: list[str]) -> list[str]:
+    if _field_present(field_names, {"bookingId", "booking_id"}) and _field_present(
+        field_names, {"passengerId", "passenger_id"}
+    ):
+        return _field_evidence(field_names, {"bookingId", "booking_id", "passengerId", "passenger_id"})
+    return []
+
+
 def _route_url_credential_evidence(route: str, field_names: list[str], fragment: str, *, host_bound: bool) -> list[str]:
     if route == "aeroflot":
         return _aeroflot_field_evidence(field_names)
@@ -167,6 +179,8 @@ def _route_url_credential_evidence(route: str, field_names: list[str], fragment:
         return _utair_field_evidence(field_names, host_bound=host_bound)
     if route == "redwings" and _redwings_find_fragment(fragment):
         return ["fragment_route:redwings_find"]
+    if route == "s7":
+        return _s7_field_evidence(field_names)
     return []
 
 
@@ -195,7 +209,7 @@ def _route_input_insufficient(route: str, message: str | None = None) -> CliFail
     return CliFailure(
         message or default_message,
         code="route_input_insufficient",
-        details={"route": route, "required_disambiguation": ["provide route-specific URL/arguments", "or use explicit build <route> for diagnostics"]},
+        details={"route": route, "required_disambiguation": ["provide a carrier booking URL via --url-file"]},
     )
 
 
@@ -244,14 +258,17 @@ def _global_url_route_evidence(fingerprints: list[dict[str, Any]]) -> dict[str, 
         utair_evidence = _utair_field_evidence(field_names, host_bound=False)
         if utair_evidence:
             _merge_evidence(candidates, "utair", utair_evidence)
+        s7_evidence = _s7_field_evidence(field_names)
+        if s7_evidence:
+            _merge_evidence(candidates, "s7", s7_evidence)
     return candidates
 
 
-def infer_build_route(args: argparse.Namespace) -> dict[str, Any]:
+def infer_build_route(args: argparse.Namespace, *, url_override: str | None = None) -> dict[str, Any]:
     if getattr(args, "input", None) is not None:
         return _detection("make", 1.0, ["input_kind:canonical_itinerary_json"])
 
-    url = first_url_from_args(args)
+    url = url_override if url_override is not None else first_url_from_args(args)
     fingerprints = _url_fingerprints(url) if url else []
     known_host_evidence: dict[str, list[str]] = {}
     known_complete: dict[str, list[str]] = {}
@@ -304,5 +321,5 @@ def infer_build_route(args: argparse.Namespace) -> dict[str, Any]:
     raise CliFailure(
         "could not infer carrier route from safe source fingerprint",
         code="route_unknown",
-        details={"required_disambiguation": ["provide build <route> explicitly", "or provide route-specific URL/arguments"]},
+        details={"required_disambiguation": ["provide a supported carrier booking URL via --url-file"]},
     )
