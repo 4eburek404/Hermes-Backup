@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import unittest
-from datetime import date
 from unittest.mock import patch
 
 from flights_cli.adapters.providers.registry import providers_for_segment

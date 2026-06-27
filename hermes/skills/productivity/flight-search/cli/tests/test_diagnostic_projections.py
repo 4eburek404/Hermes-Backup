@@ -6,7 +6,6 @@ from flights_cli.contracts.registry import DIAGNOSTIC_PROJECTIONS
 from flights_cli.reporting.projections.human_answer_mirror import build_human_answer_mirror
 from flights_cli.reporting.projections.itinerary_display import build_itinerary_display
 from flights_cli.reporting.projections.summary_lines import build_summary_lines
-from tests.test_agent_report_contract import valid_report
 from tests.test_user_answer_contract import report_with_required_caveats
 
 

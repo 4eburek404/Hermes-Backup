@@ -10,7 +10,7 @@ import argparse
 import unittest
 from typing import Any
 
-from flights_cli.domain.vocabulary import Direction, Leg, RoutingStrategy
+from flights_cli.domain.vocabulary import Leg, RoutingStrategy
 from flights_cli.orchestrators.live_assembly_runner import (
     LiveAssemblyState,
     LiveAssemblyRunner,
@@ -22,12 +22,10 @@ from flights_cli.orchestrators.live_assembly_runner import (
     SyntheticControlService,
     city_code_primary_keys_for_deferred_airport,
     deferred_airport_priority_sides,
-    direct_route_intel_context,
     direct_route_intel_skip_allowed,
     endpoint_group_code,
     hub_viability_summary,
     plan_has_svx_direct_control,
-    preferred_keys_for_deferred_airport,
     provider_city_code_side,
 )
 from flights_cli.pipeline.options import search_request_to_options

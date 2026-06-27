@@ -502,7 +502,7 @@ class ProbeResultAccumulator:
 
     def _search_summary(self, spec: dict[str, Any], summary: dict[str, Any]) -> dict[str, Any]:
         enriched = dict(summary)
-        for field in (
+        for summary_field in (
             "direction",
             "leg",
             "origin",
@@ -520,14 +520,14 @@ class ProbeResultAccumulator:
             "origin_airport_priority",
             "destination_airport_priority",
         ):
-            if field not in enriched and field in spec:
-                enriched[field] = spec[field]
-        for field in ("only_carriers", "preferred_carriers"):
-            value = enriched.get(field)
+            if summary_field not in enriched and summary_field in spec:
+                enriched[summary_field] = spec[summary_field]
+        for summary_field in ("only_carriers", "preferred_carriers"):
+            value = enriched.get(summary_field)
             if value is None:
-                enriched[field] = []
+                enriched[summary_field] = []
             elif isinstance(value, tuple):
-                enriched[field] = list(value)
+                enriched[summary_field] = list(value)
         return enriched
 
     def record_skipped(self, state: LiveAssemblyState, spec: dict[str, Any], skipped: dict[str, Any]) -> None:

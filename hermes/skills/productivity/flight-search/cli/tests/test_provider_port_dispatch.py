@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import argparse
 import inspect
 import unittest
 from unittest.mock import patch
 
 import flights_cli.execution.aggregate_control_runner as aggregate_control_runner
 import flights_cli.execution.probe_dispatcher as probe_dispatcher
-from flights_cli.cli import build_parser
 from flights_cli.execution.aggregate_control_runner import AggregateControlOptions, run_aggregate_controls
 from flights_cli.orchestrators.live_route_assembly import run_live_route_assembly
 from flights_cli.ports.providers import ProviderCapabilities, ProviderProbeResult
