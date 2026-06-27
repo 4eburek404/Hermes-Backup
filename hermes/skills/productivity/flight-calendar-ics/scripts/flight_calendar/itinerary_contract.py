@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Minimal itinerary JSON Schema contract for flight-calendar-ics."""
+
 from __future__ import annotations
 
 import copy
@@ -12,7 +13,9 @@ from typing import Any, Iterable
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 SCHEMA_VERSION = "flight-calendar-ics-itinerary.v1"
-SCHEMA_PATH = Path(__file__).resolve().parents[2] / "schemas" / "itinerary.v1.schema.json"
+SCHEMA_PATH = (
+    Path(__file__).resolve().parents[2] / "schemas" / "itinerary.v1.schema.json"
+)
 UTC = dt.timezone.utc
 PLACEHOLDERS = {"", "tbd", "todo", "unknown", "none", "null", "n/a", "na", "?"}
 
@@ -26,7 +29,9 @@ def load_itinerary_schema() -> dict[str, Any]:
     try:
         schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:  # pragma: no cover - repository packaging guard
-        raise ValueError(f"canonical itinerary schema is missing: {SCHEMA_PATH}") from exc
+        raise ValueError(
+            f"canonical itinerary schema is missing: {SCHEMA_PATH}"
+        ) from exc
     if not isinstance(schema, dict):  # pragma: no cover - defensive guard
         raise ValueError("canonical itinerary schema root must be a JSON object")
     return schema
@@ -37,11 +42,15 @@ def _validator() -> Any:
     try:
         from jsonschema import Draft202012Validator
     except ModuleNotFoundError as exc:  # pragma: no cover - depends on runtime image
-        raise ValueError("jsonschema package is required for canonical itinerary validation") from exc
+        raise ValueError(
+            "jsonschema package is required for canonical itinerary validation"
+        ) from exc
 
     schema = load_itinerary_schema()
     Draft202012Validator.check_schema(schema)
-    return Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
+    return Draft202012Validator(
+        schema, format_checker=Draft202012Validator.FORMAT_CHECKER
+    )
 
 
 def normalize_legacy_itinerary(data: dict[str, Any]) -> dict[str, Any]:
@@ -102,7 +111,9 @@ def _safe_error_message(error: Any) -> str:
 
 def validate_itinerary_schema(data: dict[str, Any]) -> None:
     validator = _validator()
-    errors = sorted(validator.iter_errors(data), key=lambda err: list(err.absolute_path))
+    errors = sorted(
+        validator.iter_errors(data), key=lambda err: list(err.absolute_path)
+    )
     if errors:
         summary = "; ".join(_safe_error_message(error) for error in errors[:5])
         if len(errors) > 5:
@@ -131,7 +142,9 @@ def parse_local_datetime(value: Any, tzid: Any, path: str) -> dt.datetime:
     except ValueError as exc:
         raise ValueError(f"{path}.local must be an ISO local datetime") from exc
     if parsed.tzinfo is not None:
-        raise ValueError(f"{path}.local must be a local datetime without timezone offset")
+        raise ValueError(
+            f"{path}.local must be a local datetime without timezone offset"
+        )
     try:
         zone = ZoneInfo(str(tzid).strip())
     except ZoneInfoNotFoundError as exc:
@@ -171,6 +184,10 @@ def validate_itinerary_semantics(data: dict[str, Any]) -> None:
             if is_placeholder(endpoint.get("tz")):
                 raise ValueError(f"{endpoint_path}.tz is required")
 
-        dep_dt = parse_local_datetime(dep.get("local"), dep.get("tz"), f"{flight_path}.departure")
-        arr_dt = parse_local_datetime(arr.get("local"), arr.get("tz"), f"{flight_path}.arrival")
+        dep_dt = parse_local_datetime(
+            dep.get("local"), dep.get("tz"), f"{flight_path}.departure"
+        )
+        arr_dt = parse_local_datetime(
+            arr.get("local"), arr.get("tz"), f"{flight_path}.arrival"
+        )
         ensure_arrival_after_departure(dep_dt, arr_dt, flight_path)

@@ -1,4 +1,5 @@
 """Small error types for the compact flight-calendar-ics CLI."""
+
 from __future__ import annotations
 
 from typing import Any

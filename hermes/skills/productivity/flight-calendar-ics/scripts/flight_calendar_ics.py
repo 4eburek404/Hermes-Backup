@@ -4,6 +4,7 @@
 Command parsing and behavior live in ``flight_calendar.parser``; this wrapper
 exposes the public CLI hooks and forwards execution.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -18,6 +19,7 @@ __all__ = ["build_parser", "main"]
 
 def __getattr__(name: str) -> Any:
     return getattr(_parser, name)
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

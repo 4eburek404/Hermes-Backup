@@ -1,4 +1,5 @@
 """Carrier HTTP must use the required curl_cffi transport without urllib fallback."""
+
 from __future__ import annotations
 
 import inspect

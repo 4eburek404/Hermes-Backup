@@ -1,4 +1,5 @@
 """Safe redirect resolution for known carrier booking-link wrappers."""
+
 from __future__ import annotations
 
 from urllib.parse import urlparse
@@ -36,7 +37,9 @@ def resolve_known_booking_redirect(raw_url: str) -> str:
         return raw_url
 
     try:
-        final_url = carrier_http.resolve_redirect_url(raw_url, label="known booking redirect")
+        final_url = carrier_http.resolve_redirect_url(
+            raw_url, label="known booking redirect"
+        )
     except carrier_http.TransportError as exc:
         raise CliFailure(
             "known booking redirect could not be resolved; provide the direct carrier booking URL",

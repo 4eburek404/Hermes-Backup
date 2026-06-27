@@ -1,4 +1,5 @@
 """Compact public contract for flight-calendar-ics."""
+
 from __future__ import annotations
 
 import copy
@@ -16,7 +17,14 @@ SCRIPTS = ROOT / "scripts"
 CLI = SCRIPTS / "flight_calendar_ics.py"
 TEMPLATE = ROOT / "templates" / "itinerary.example.json"
 
-ROOT_FIELDS = {"schema_version", "pnr", "passengers", "ticket_number", "booking_url", "flights"}
+ROOT_FIELDS = {
+    "schema_version",
+    "pnr",
+    "passengers",
+    "ticket_number",
+    "booking_url",
+    "flights",
+}
 FLIGHT_FIELDS = {"flight_number", "departure", "arrival", "aircraft", "status"}
 ENDPOINT_FIELDS = {"airport", "city", "local", "tz"}
 REMOVED_ROOT_FIELDS = {
@@ -101,19 +109,28 @@ class CompactContractTests(unittest.TestCase):
         for field in REMOVED_ROOT_FIELDS:
             payload = copy.deepcopy(itinerary)
             payload[field] = "legacy"
-            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "unknown field"):
+            with (
+                self.subTest(field=field),
+                self.assertRaisesRegex(ValueError, "unknown field"),
+            ):
                 itinerary_contract.validate_itinerary_schema(payload)
 
         for field in REMOVED_FLIGHT_FIELDS:
             payload = copy.deepcopy(itinerary)
             payload["flights"][0][field] = "legacy"  # type: ignore[index]
-            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "unknown field"):
+            with (
+                self.subTest(field=field),
+                self.assertRaisesRegex(ValueError, "unknown field"),
+            ):
                 itinerary_contract.validate_itinerary_schema(payload)
 
         for field in REMOVED_ENDPOINT_FIELDS:
             payload = copy.deepcopy(itinerary)
             payload["flights"][0]["departure"][field] = "legacy"  # type: ignore[index]
-            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "unknown field"):
+            with (
+                self.subTest(field=field),
+                self.assertRaisesRegex(ValueError, "unknown field"),
+            ):
                 itinerary_contract.validate_itinerary_schema(payload)
 
     def test_template_is_neutral_minimal_and_valid(self) -> None:
@@ -121,7 +138,9 @@ class CompactContractTests(unittest.TestCase):
         from flight_calendar import itinerary_contract
 
         self.assertTrue(TEMPLATE.exists())
-        self.assertFalse((ROOT / "templates" / "aeroflot-itinerary.example.json").exists())
+        self.assertFalse(
+            (ROOT / "templates" / "aeroflot-itinerary.example.json").exists()
+        )
         data = json.loads(TEMPLATE.read_text(encoding="utf-8"))
         itinerary_contract.validate_itinerary_schema(data)
         self.assertLessEqual(set(data), ROOT_FIELDS)
@@ -131,7 +150,9 @@ class CompactContractTests(unittest.TestCase):
         serialized = json.dumps(data, ensure_ascii=False)
         self.assertNotIn("Aeroflot", serialized)
         self.assertNotIn("Аэрофлот", serialized)
-        globally_removed = (REMOVED_ROOT_FIELDS | REMOVED_FLIGHT_FIELDS | REMOVED_ENDPOINT_FIELDS) - {
+        globally_removed = (
+            REMOVED_ROOT_FIELDS | REMOVED_FLIGHT_FIELDS | REMOVED_ENDPOINT_FIELDS
+        ) - {
             "pnr",
             "passengers",
             "ticket_number",
@@ -143,10 +164,14 @@ class CompactContractTests(unittest.TestCase):
         sys.path.insert(0, str(SCRIPTS))
         from flight_calendar import ics_render
 
-        ics_text, summaries = ics_render.build_calendar(minimal_itinerary(), no_alarms=True)
+        ics_text, summaries = ics_render.build_calendar(
+            minimal_itinerary(), no_alarms=True
+        )
         unfolded = ics_text.replace("\r\n ", "").replace("\n ", "")
         self.assertEqual(len(summaries), 1)
-        self.assertIn("SUMMARY:Константин Орлов 01.06 Москва - Екатеринбург 09:15 13:45", unfolded)
+        self.assertIn(
+            "SUMMARY:Константин Орлов 01.06 Москва - Екатеринбург 09:15 13:45", unfolded
+        )
         self.assertIn("DESCRIPTION:Код брони: ABC123\\nБилет: 555 2400000000", unfolded)
         self.assertIn("01.06 Москва -> Екатеринбург 09:15 13:45", unfolded)
         self.assertIn("Самолет: Boeing 737", unfolded)
@@ -177,9 +202,19 @@ class CompactContractTests(unittest.TestCase):
             tmp_path = Path(tmp)
             source = tmp_path / "itinerary.json"
             output = tmp_path / "trip.ics"
-            source.write_text(json.dumps(minimal_itinerary(), ensure_ascii=False), encoding="utf-8")
+            source.write_text(
+                json.dumps(minimal_itinerary(), ensure_ascii=False), encoding="utf-8"
+            )
 
-            result = self.run_cli("--json", "build", "--input", str(source), "--output", str(output), "--no-alarms")
+            result = self.run_cli(
+                "--json",
+                "build",
+                "--input",
+                str(source),
+                "--output",
+                str(output),
+                "--no-alarms",
+            )
 
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
             payload = json.loads(result.stdout)
@@ -223,18 +258,35 @@ class CompactContractTests(unittest.TestCase):
     def test_input_with_timezone_override_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory(prefix="flight-compact-tz.") as tmp:
             source = Path(tmp) / "itinerary.json"
-            source.write_text(json.dumps(minimal_itinerary(), ensure_ascii=False), encoding="utf-8")
-            result = self.run_cli("--json", "build", "--input", str(source), "--tz", "KUF=Europe/Samara")
+            source.write_text(
+                json.dumps(minimal_itinerary(), ensure_ascii=False), encoding="utf-8"
+            )
+            result = self.run_cli(
+                "--json", "build", "--input", str(source), "--tz", "KUF=Europe/Samara"
+            )
             self.assertNotEqual(result.returncode, 0)
             payload = json.loads(result.stdout)
-            self.assertEqual(payload, {"ok": False, "error": {"code": "usage_error", "message": "--tz is only supported with --url-file"}})
+            self.assertEqual(
+                payload,
+                {
+                    "ok": False,
+                    "error": {
+                        "code": "usage_error",
+                        "message": "--tz is only supported with --url-file",
+                    },
+                },
+            )
 
     def test_only_compact_carrier_reference_remains(self) -> None:
         references = ROOT / "references"
         carriers = references / "carriers.md"
         self.assertTrue(carriers.exists())
         self.assertEqual(
-            sorted(path.relative_to(references).as_posix() for path in references.rglob("*") if path.is_file()),
+            sorted(
+                path.relative_to(references).as_posix()
+                for path in references.rglob("*")
+                if path.is_file()
+            ),
             ["carriers.md"],
         )
         text = carriers.read_text(encoding="utf-8")
@@ -243,7 +295,15 @@ class CompactContractTests(unittest.TestCase):
         self.assertNotIn("core/", text)
 
     def test_legacy_modules_are_removed(self) -> None:
-        for name in ["bundle.py", "maintenance.py", "privacy.py", "contracts.py", "build_command.py", "carrier_adapters.py", "segments.py"]:
+        for name in [
+            "bundle.py",
+            "maintenance.py",
+            "privacy.py",
+            "contracts.py",
+            "build_command.py",
+            "carrier_adapters.py",
+            "segments.py",
+        ]:
             self.assertFalse((SCRIPTS / "flight_calendar" / name).exists(), name)
 
 
