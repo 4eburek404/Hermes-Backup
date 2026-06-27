@@ -237,7 +237,7 @@
           ],
           "properties": {
             "style": {
-              "const": "numbered_compact"
+              "const": "numbered_inline_itinerary_v1"
             },
             "language": {
               "const": "ru"
@@ -472,6 +472,7 @@
         "protection",
         "badges",
         "caveats",
+        "agent_display",
         "render_line",
         "evidence_refs"
       ],
@@ -567,6 +568,9 @@
             "type": "string"
           }
         },
+        "agent_display": {
+          "$ref": "#/$defs/agent_display"
+        },
         "render_line": {
           "type": "string",
           "minLength": 1
@@ -576,6 +580,32 @@
           "items": {
             "type": "string"
           }
+        }
+      }
+    },
+    "agent_display": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "style",
+        "lines",
+        "text"
+      ],
+      "properties": {
+        "style": {
+          "const": "inline_number_itinerary_with_aircraft_duration_v1"
+        },
+        "lines": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },
@@ -677,7 +707,8 @@
         "origin",
         "destination",
         "departure_at",
-        "arrival_at"
+        "arrival_at",
+        "aircraft_code"
       ],
       "properties": {
         "flight_number": {
@@ -704,6 +735,18 @@
             "null"
           ]
         },
+        "departure_terminal": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "arrival_terminal": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "departure_at": {
           "type": [
             "string",
@@ -711,6 +754,12 @@
           ]
         },
         "arrival_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "aircraft_code": {
           "type": [
             "string",
             "null"

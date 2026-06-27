@@ -3,8 +3,13 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from ..domain.offer_order import provider_offer_business_key
 from ..domain.stop_metrics import offer_stop_metrics
-from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY, StopPolicy, decide_stop_policy
+from ..domain.stop_policy import (
+    BUSINESS_DEFAULT_STOP_POLICY,
+    StopPolicy,
+    decide_stop_policy,
+)
 from .formatting import price_label
 from .option_projector import segment_summary
 
@@ -18,15 +23,15 @@ def aggregate_offer_with_stop_metrics(offer: dict[str, Any]) -> dict[str, Any]:
 
 
 def aggregate_control_summary(control: dict[str, Any]) -> dict[str, Any]:
-    top_offers = control.get("top_offers") if isinstance(control.get("top_offers"), list) else []
-    projected_offers = [aggregate_offer_with_stop_metrics(offer) for offer in top_offers if isinstance(offer, dict)]
-    projected_offers.sort(
-        key=lambda offer: (
-            int(offer.get("connection_count") or 0),
-            int(offer.get("airport_mismatch_count") or 0),
-            offer.get("price") if offer.get("price") is not None else 10**12,
-        )
+    top_offers = (
+        control.get("top_offers") if isinstance(control.get("top_offers"), list) else []
     )
+    projected_offers = [
+        aggregate_offer_with_stop_metrics(offer)
+        for offer in top_offers
+        if isinstance(offer, dict)
+    ]
+    projected_offers.sort(key=provider_offer_business_key)
     return {
         "direction": control.get("direction"),
         "origin": control.get("origin"),
@@ -38,7 +43,9 @@ def aggregate_control_summary(control: dict[str, Any]) -> dict[str, Any]:
         "offer_count": control.get("offer_count"),
         "raw_offer_count": control.get("raw_offer_count"),
         "suppressed_three_plus_count": control.get("suppressed_three_plus_count"),
-        "suppressed_airport_change_count": control.get("suppressed_airport_change_count"),
+        "suppressed_airport_change_count": control.get(
+            "suppressed_airport_change_count"
+        ),
         "raw_variant_count": control.get("raw_variant_count"),
         "cache_status": control.get("cache_status"),
         "top_offers": projected_offers[:3],
@@ -92,7 +99,9 @@ def segment_duration_min(segment: dict[str, Any]) -> int | None:
     explicit = positive_minutes(segment.get("duration"))
     if explicit is not None:
         return explicit
-    return strict_nonnegative_minutes_between(segment.get("departure_at"), segment.get("arrival_at"))
+    return strict_nonnegative_minutes_between(
+        segment.get("departure_at"), segment.get("arrival_at")
+    )
 
 
 def flight_time_from_segments(segments: list[dict[str, Any]]) -> int | None:
@@ -109,7 +118,9 @@ def layover_time_from_segments(segments: list[dict[str, Any]]) -> int | None:
         return 0 if segments else None
     layovers: list[int] = []
     for previous, current in zip(segments, segments[1:]):
-        gap = strict_nonnegative_minutes_between(previous.get("arrival_at"), current.get("departure_at"))
+        gap = strict_nonnegative_minutes_between(
+            previous.get("arrival_at"), current.get("departure_at")
+        )
         if gap is None:
             return None
         layovers.append(gap)
@@ -117,10 +128,14 @@ def layover_time_from_segments(segments: list[dict[str, Any]]) -> int | None:
 
 
 def aggregate_time_fields(offer: dict[str, Any]) -> dict[str, int | None]:
-    segments = [segment for segment in offer.get("segments") or [] if isinstance(segment, dict)]
+    segments = [
+        segment for segment in offer.get("segments") or [] if isinstance(segment, dict)
+    ]
     itinerary_elapsed_min: int | None = None
     if segments:
-        itinerary_elapsed_min = strict_nonnegative_minutes_between(segments[0].get("departure_at"), segments[-1].get("arrival_at"))
+        itinerary_elapsed_min = strict_nonnegative_minutes_between(
+            segments[0].get("departure_at"), segments[-1].get("arrival_at")
+        )
 
     flight_time_min = flight_time_from_segments(segments)
     if flight_time_min is None:
@@ -160,8 +175,14 @@ def aggregate_time_text(time_fields: dict[str, Any]) -> str | None:
     if itinerary is not None:
         itinerary_text = duration_label(itinerary)
         layover_text = duration_label(layover)
-        if itinerary_text and layover_text and positive_minutes(layover) not in (None, 0):
-            return f"Travel time: {itinerary_text}, including layover time: {layover_text}"
+        if (
+            itinerary_text
+            and layover_text
+            and positive_minutes(layover) not in (None, 0)
+        ):
+            return (
+                f"Travel time: {itinerary_text}, including layover time: {layover_text}"
+            )
         if itinerary_text:
             return f"Travel time: {itinerary_text}"
     flight_text = duration_label(flight)
@@ -187,7 +208,9 @@ def aggregate_user_facing_label(
     if journey_scope == "outbound_only":
         return f"One-way outbound alternative: {base}. Does not cover requested round trip."
     if journey_scope == "return_only":
-        return f"One-way return alternative: {base}. Does not cover requested round trip."
+        return (
+            f"One-way return alternative: {base}. Does not cover requested round trip."
+        )
     direction_text = "return" if direction == "return" else "outbound"
     return f"One-way {direction_text} provider aggregate alternative: {base}."
 
@@ -218,7 +241,9 @@ def option_price_text(option: dict[str, Any]) -> str:
 
 
 def option_route_label(option: dict[str, Any], default_label: str) -> str:
-    segments = [segment for segment in option.get("segments") or [] if isinstance(segment, dict)]
+    segments = [
+        segment for segment in option.get("segments") or [] if isinstance(segment, dict)
+    ]
     if segments:
         first = segments[0]
         last = segments[-1]
@@ -251,13 +276,19 @@ def option_max_connections(option: dict[str, Any]) -> int:
 
 def worst_stop_tier(outbound: dict[str, Any], inbound: dict[str, Any]) -> str | None:
     tier_order = {"T0_DIRECT": 0, "T1_ONE_STOP": 1, "T2_TWO_STOP": 2}
-    tiers = [tier for tier in (outbound.get("stop_tier"), inbound.get("stop_tier")) if tier in tier_order]
+    tiers = [
+        tier
+        for tier in (outbound.get("stop_tier"), inbound.get("stop_tier"))
+        if tier in tier_order
+    ]
     if not tiers:
         return None
     return max(tiers, key=lambda tier: tier_order[str(tier)])
 
 
-def two_one_way_pair_price(outbound: dict[str, Any], inbound: dict[str, Any]) -> tuple[dict[str, Any], str]:
+def two_one_way_pair_price(
+    outbound: dict[str, Any], inbound: dict[str, Any]
+) -> tuple[dict[str, Any], str]:
     outbound_amount, outbound_currency = option_price_amount_and_currency(outbound)
     inbound_amount, inbound_currency = option_price_amount_and_currency(inbound)
     outbound_number = numeric_price_amount(outbound_amount)
@@ -270,14 +301,19 @@ def two_one_way_pair_price(outbound: dict[str, Any], inbound: dict[str, Any]) ->
         and str(outbound_currency) == str(inbound_currency)
     ):
         total = outbound_number + inbound_number
-        return {"amount": total, "currency": outbound_currency}, f"Sum of displayed one-way prices: {price_label(total, outbound_currency)}"
+        return {
+            "amount": total,
+            "currency": outbound_currency,
+        }, f"Sum of displayed one-way prices: {price_label(total, outbound_currency)}"
     return (
         {"amount": None, "currency": None},
         f"Displayed one-way prices: outbound {option_price_text(outbound)} + return {option_price_text(inbound)}",
     )
 
 
-def two_one_way_pair_option(outbound: dict[str, Any], inbound: dict[str, Any]) -> dict[str, Any]:
+def two_one_way_pair_option(
+    outbound: dict[str, Any], inbound: dict[str, Any]
+) -> dict[str, Any]:
     price, price_text = two_one_way_pair_price(outbound, inbound)
     outbound_route = option_route_label(outbound, "outbound offer")
     inbound_route = option_route_label(inbound, "return offer")
@@ -296,7 +332,9 @@ def two_one_way_pair_option(outbound: dict[str, Any], inbound: dict[str, Any]) -
             carrier = str(code).upper()
             if carrier and carrier not in carriers:
                 carriers.append(carrier)
-    max_connections = max(option_max_connections(outbound), option_max_connections(inbound))
+    max_connections = max(
+        option_max_connections(outbound), option_max_connections(inbound)
+    )
     pair = {
         "rank": None,
         "id": f"provider-aggregate:two-one-way-pair:{outbound.get('id')}+{inbound.get('id')}",
@@ -323,8 +361,18 @@ def two_one_way_pair_option(outbound: dict[str, Any], inbound: dict[str, Any]) -
         "validation_summary": {
             "candidate_type": "two_one_way_pair",
             "components": [
-                {"id": outbound.get("id"), "journey_scope": outbound.get("journey_scope"), "price_text": option_price_text(outbound), **option_time_fields(outbound)},
-                {"id": inbound.get("id"), "journey_scope": inbound.get("journey_scope"), "price_text": option_price_text(inbound), **option_time_fields(inbound)},
+                {
+                    "id": outbound.get("id"),
+                    "journey_scope": outbound.get("journey_scope"),
+                    "price_text": option_price_text(outbound),
+                    **option_time_fields(outbound),
+                },
+                {
+                    "id": inbound.get("id"),
+                    "journey_scope": inbound.get("journey_scope"),
+                    "price_text": option_price_text(inbound),
+                    **option_time_fields(inbound),
+                },
             ],
         },
         "stop_tier": worst_stop_tier(outbound, inbound),
@@ -350,11 +398,17 @@ def two_one_way_pair_option(outbound: dict[str, Any], inbound: dict[str, Any]) -
     return pair
 
 
-def add_two_one_way_pair_if_available(options: list[dict[str, Any]], *, requested_round_trip: bool) -> list[dict[str, Any]]:
+def add_two_one_way_pair_if_available(
+    options: list[dict[str, Any]], *, requested_round_trip: bool
+) -> list[dict[str, Any]]:
     if not requested_round_trip:
         return options
-    outbound = next((item for item in options if item.get("journey_scope") == "outbound_only"), None)
-    inbound = next((item for item in options if item.get("journey_scope") == "return_only"), None)
+    outbound = next(
+        (item for item in options if item.get("journey_scope") == "outbound_only"), None
+    )
+    inbound = next(
+        (item for item in options if item.get("journey_scope") == "return_only"), None
+    )
     if not outbound or not inbound:
         return options
     if any(item.get("journey_scope") == "two_one_way_pair" for item in options):
@@ -372,10 +426,13 @@ def provider_aggregate_candidate_options(
 ) -> list[dict[str, Any]]:
     options: list[dict[str, Any]] = []
     aggregate_preferred_available = any(
-        offer_stop_metrics(offer)["max_connections_per_journey"] <= stop_policy.preferred_max_connections
+        offer_stop_metrics(offer)["max_connections_per_journey"]
+        <= stop_policy.preferred_max_connections
         for control in controls
         for offer in (control.get("top_offers") or [])
-        if isinstance(control, dict) and control.get("status") == "ok" and isinstance(offer, dict)
+        if isinstance(control, dict)
+        and control.get("status") == "ok"
+        and isinstance(offer, dict)
     )
     effective_preferred_available = preferred_available or aggregate_preferred_available
     for control in controls:
@@ -386,17 +443,36 @@ def provider_aggregate_candidate_options(
             if not isinstance(offer, dict):
                 continue
             metrics = offer_stop_metrics(offer)
-            decision = decide_stop_policy(metrics, stop_policy, preferred_available=effective_preferred_available)
+            decision = decide_stop_policy(
+                metrics, stop_policy, preferred_available=effective_preferred_available
+            )
             if not decision.reportable_by_stop_policy:
                 continue
-            segments = [segment_summary(segment, direction) for segment in offer.get("segments") or [] if isinstance(segment, dict)]
+            segments = [
+                segment_summary(segment, direction)
+                for segment in offer.get("segments") or []
+                if isinstance(segment, dict)
+            ]
             time_fields = aggregate_time_fields({**offer, "segments": segments})
             detail_status = "full" if segments else "summary_only"
-            offer_id = offer.get("id") or f"{control.get('origin')}-{control.get('destination')}-{len(options) + 1}"
-            provider_note = str(offer.get("ticketing_note") or "Provider-assembled route offer.")
-            journey_scope = aggregate_journey_scope(direction, requested_round_trip=requested_round_trip)
+            offer_id = (
+                offer.get("id")
+                or f"{control.get('origin')}-{control.get('destination')}-{len(options) + 1}"
+            )
+            provider_note = str(
+                offer.get("ticketing_note") or "Provider-assembled route offer."
+            )
+            journey_scope = aggregate_journey_scope(
+                direction, requested_round_trip=requested_round_trip
+            )
             covers_requested_trip = journey_scope == "one_way"
-            user_facing_label = aggregate_user_facing_label(control, offer, direction=direction, journey_scope=journey_scope, time_fields=time_fields)
+            user_facing_label = aggregate_user_facing_label(
+                control,
+                offer,
+                direction=direction,
+                journey_scope=journey_scope,
+                time_fields=time_fields,
+            )
             ticketing_note = (
                 f"Provider aggregate one-way {direction} candidate; ticketing_protection=unknown. {provider_note} "
                 "Verify single-PNR/protection, baggage, fare rules, and final fare on the booking screen."
@@ -409,12 +485,21 @@ def provider_aggregate_candidate_options(
                     "reason": "Provider returned a directional one-way aggregate offer; treat as a candidate for purchase-screen verification, not as proof of protected through-ticketing.",
                     "detail_status": detail_status,
                     "ok": True,
-                    "price": {"amount": offer.get("price"), "currency": offer.get("currency")},
-                    "price_text": price_label(offer.get("price"), offer.get("currency")),
+                    "price": {
+                        "amount": offer.get("price"),
+                        "currency": offer.get("currency"),
+                    },
+                    "price_text": price_label(
+                        offer.get("price"), offer.get("currency")
+                    ),
                     "elapsed_min": None,
                     "elapsed": None,
                     **time_fields,
-                    "carriers": [str(code).upper() for code in offer.get("carriers") or [] if code],
+                    "carriers": [
+                        str(code).upper()
+                        for code in offer.get("carriers") or []
+                        if code
+                    ],
                     "risk": {
                         "score": None,
                         "grade": None,
@@ -434,7 +519,9 @@ def provider_aggregate_candidate_options(
                         **metrics,
                     },
                     "stop_tier": metrics["stop_tier"],
-                    "max_connections_per_journey": metrics["max_connections_per_journey"],
+                    "max_connections_per_journey": metrics[
+                        "max_connections_per_journey"
+                    ],
                     "journey_scope": journey_scope,
                     "covers_requested_trip": covers_requested_trip,
                     "direction": direction,
@@ -449,5 +536,9 @@ def provider_aggregate_candidate_options(
                 }
             )
             if len(options) >= max(0, limit):
-                return add_two_one_way_pair_if_available(options, requested_round_trip=requested_round_trip)
-    return add_two_one_way_pair_if_available(options, requested_round_trip=requested_round_trip)
+                return add_two_one_way_pair_if_available(
+                    options, requested_round_trip=requested_round_trip
+                )
+    return add_two_one_way_pair_if_available(
+        options, requested_round_trip=requested_round_trip
+    )

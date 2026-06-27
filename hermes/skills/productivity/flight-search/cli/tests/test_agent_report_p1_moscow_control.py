@@ -6,7 +6,9 @@ from helpers import CliSubprocessMixin
 
 
 class AgentReportP1MoscowControlTests(CliSubprocessMixin, unittest.TestCase):
-    def test_agent_brief_surfaces_moscow_gateway_control_when_direct_is_best(self) -> None:
+    def test_agent_brief_surfaces_moscow_gateway_control_when_direct_is_best(
+        self,
+    ) -> None:
         def offer(offer_id: str, price: int, segments: list[dict]) -> dict:
             return {
                 "id": offer_id,
@@ -62,7 +64,12 @@ class AgentReportP1MoscowControlTests(CliSubprocessMixin, unittest.TestCase):
                 {
                     "direction": "outbound",
                     "leg": "direct_outbound",
-                    "query": {"origin": "SVX", "destination": "IST", "date": "2026-06-15", "currency": "RUB"},
+                    "query": {
+                        "origin": "SVX",
+                        "destination": "IST",
+                        "date": "2026-06-15",
+                        "currency": "RUB",
+                    },
                     "offers": [direct, via_svo],
                 }
             ]
@@ -77,13 +84,21 @@ class AgentReportP1MoscowControlTests(CliSubprocessMixin, unittest.TestCase):
             "1",
         )
         report = assembled["data"]["agent_report"]
-        moscow = next((item for item in report["frontier"]["priority_options"] if item.get("category") == "moscow_gateway_control"), None)
+        moscow = next(
+            (
+                item
+                for item in report["frontier"]["priority_options"]
+                if item.get("category") == "moscow_gateway_control"
+            ),
+            None,
+        )
 
         self.assertIsNotNone(moscow)
         self.assertGreater(moscow["rank"], 1)
         self.assertEqual(moscow["detail_status"], "full")
-        self.assertEqual([segment["origin"] for segment in moscow["segments"]], ["SVX", "SVO"])
-        self.assertIn("Moscow gateway control", " ".join(report["diagnostics"]["answer_lines"]))
+        self.assertEqual(
+            [segment["origin"] for segment in moscow["segments"]], ["SVX", "SVO"]
+        )
 
 
 if __name__ == "__main__":

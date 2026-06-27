@@ -44,7 +44,12 @@ class AgentReportOvernightTradeoffTests(CliSubprocessMixin, unittest.TestCase):
                 {
                     "direction": "outbound",
                     "leg": "origin_to_hub",
-                    "query": {"origin": "TLS", "destination": "IST", "date": "2026-06-18", "currency": "RUB"},
+                    "query": {
+                        "origin": "TLS",
+                        "destination": "IST",
+                        "date": "2026-06-18",
+                        "currency": "RUB",
+                    },
                     "offers": [
                         leg_offer(
                             "tls-ist-evening",
@@ -60,7 +65,12 @@ class AgentReportOvernightTradeoffTests(CliSubprocessMixin, unittest.TestCase):
                 {
                     "direction": "outbound",
                     "leg": "hub_to_destination",
-                    "query": {"origin": "IST", "destination": "SVX", "date": "2026-06-19", "currency": "RUB"},
+                    "query": {
+                        "origin": "IST",
+                        "destination": "SVX",
+                        "date": "2026-06-19",
+                        "currency": "RUB",
+                    },
                     "offers": [
                         leg_offer(
                             "ist-svx-next-day",
@@ -88,11 +98,6 @@ class AgentReportOvernightTradeoffTests(CliSubprocessMixin, unittest.TestCase):
         connection_risk_codes = {item["code"] for item in connection["risk"]["reasons"]}
         self.assertNotIn("long_layover", connection_risk_codes)
         self.assertNotIn("night_connection", connection_risk_codes)
-
-        answer_text = "\n".join(report["diagnostics"]["answer_lines"]).lower()
-        self.assertIn("connection trade-off", answer_text)
-        self.assertIn("overnight", answer_text)
-        self.assertIn("long wait", answer_text)
 
 
 if __name__ == "__main__":

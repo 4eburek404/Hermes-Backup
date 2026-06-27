@@ -41,10 +41,14 @@ class TestClassifyMarket:
 
 class TestIsDirectOnly:
     def test_direct(self):
-        assert is_direct_only({"max_connections": 0, "tier2_max_connections": 0}) is True
+        assert (
+            is_direct_only({"max_connections": 0, "tier2_max_connections": 0}) is True
+        )
 
     def test_not_direct(self):
-        assert is_direct_only({"max_connections": 1, "tier2_max_connections": 0}) is False
+        assert (
+            is_direct_only({"max_connections": 1, "tier2_max_connections": 0}) is False
+        )
 
     def test_missing_keys(self):
         assert is_direct_only({}) is False
@@ -55,33 +59,43 @@ class TestResolveCountryCode:
         class FakeStore:
             airport_by_code = {}
             city_by_code = {}
+
             def resolve_location(self, code):
                 raise ValueError("not found")
+
         assert resolve_country_code(FakeStore(), "XXX") is None
 
     def test_airport_lookup(self):
         class FakeStore:
             airport_by_code = {"SVO": {"country_code": "RU"}}
             city_by_code = {}
+
             def resolve_location(self, code):
                 raise ValueError("not found")
+
         assert resolve_country_code(FakeStore(), "svo") == "RU"
 
     def test_city_lookup(self):
         class FakeStore:
             airport_by_code = {}
             city_by_code = {"MOW": {"country_code": "RU"}}
+
             def resolve_location(self, code):
                 raise ValueError("not found")
+
         assert resolve_country_code(FakeStore(), "MOW") == "RU"
 
     def test_resolve_location_fallback(self):
         """When airport/city dicts don't contain the code but resolve_location does."""
+
         class Location:
             country_code = "RU"
+
         class FakeStore:
             airport_by_code = {}
             city_by_code = {}
+
             def resolve_location(self, code):
                 return Location()
+
         assert resolve_country_code(FakeStore(), "LED") == "RU"

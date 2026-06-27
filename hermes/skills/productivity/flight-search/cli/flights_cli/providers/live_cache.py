@@ -19,7 +19,9 @@ def live_cache_path(key: str, cache_dir: Path = LIVE_SEARCH_CACHE_DIR) -> Path:
     return cache_dir / f"{key}.json"
 
 
-def read_live_cache(key: str, *, ttl_seconds: int, cache_dir: Path = LIVE_SEARCH_CACHE_DIR) -> dict[str, Any] | None:
+def read_live_cache(
+    key: str, *, ttl_seconds: int, cache_dir: Path = LIVE_SEARCH_CACHE_DIR
+) -> dict[str, Any] | None:
     if ttl_seconds <= 0:
         return None
     path = live_cache_path(key, cache_dir)
@@ -59,7 +61,9 @@ def write_live_cache(
     try:
         cache_dir.mkdir(parents=True, exist_ok=True)
         path.write_text(
-            json.dumps({"written_at": int(time.time()), "result": cached}, ensure_ascii=False),
+            json.dumps(
+                {"written_at": int(time.time()), "result": cached}, ensure_ascii=False
+            ),
             encoding="utf-8",
         )
     except OSError:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+
 def parse_iso_datetime(value: str) -> datetime | None:
     if not value:
         return None
@@ -37,7 +38,10 @@ def is_night_time(value: str) -> bool:
 def elapsed_minutes(segments: list[dict[str, Any]]) -> int | None:
     if not segments:
         return None
-    return minutes_between(str(segments[0].get("departure_at") or ""), str(segments[-1].get("arrival_at") or ""))
+    return minutes_between(
+        str(segments[0].get("departure_at") or ""),
+        str(segments[-1].get("arrival_at") or ""),
+    )
 
 
 def validation_elapsed_minutes(validation: dict[str, Any]) -> int | None:
@@ -46,12 +50,16 @@ def validation_elapsed_minutes(validation: dict[str, Any]) -> int | None:
         return elapsed_minutes(validation["segments"])
     total = 0
     seen = False
-    segments_by_index = {segment["index"]: segment for segment in validation["segments"]}
+    segments_by_index = {
+        segment["index"]: segment for segment in validation["segments"]
+    }
     for journey in journeys:
         indexes = journey.get("segment_indexes") if isinstance(journey, dict) else None
         if not indexes:
             continue
-        journey_segments = [segments_by_index[index] for index in indexes if index in segments_by_index]
+        journey_segments = [
+            segments_by_index[index] for index in indexes if index in segments_by_index
+        ]
         elapsed = elapsed_minutes(journey_segments)
         if elapsed is not None:
             total += elapsed

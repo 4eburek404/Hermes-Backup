@@ -1,21 +1,50 @@
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 import sys
-from argparse import Namespace
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 
 PROJECT = Path(__file__).resolve().parents[1]
-TEST_ENV = {"PYTHONPATH": str(PROJECT), "FLIGHTS_CATALOG_REFRESH": "never", "PYTHONDONTWRITEBYTECODE": "1"}
+TEST_ENV = {
+    "PYTHONPATH": str(PROJECT),
+    "FLIGHTS_CATALOG_REFRESH": "never",
+    "PYTHONDONTWRITEBYTECODE": "1",
+}
 
 
-def live_assembly_args(**overrides: Any) -> Namespace:
-    """Build internal live-assembly args through the canonical search request adapter."""
+def subparser_choices(
+    parser: argparse.ArgumentParser,
+) -> dict[str, argparse.ArgumentParser]:
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            return dict(action.choices)
+    return {}
 
-    from flights_cli.apps.search import live_assembly_args_from_search_request
+
+def parser_leaf_defaults(parser: argparse.ArgumentParser) -> dict[str, dict[str, Any]]:
+    leaves: dict[str, dict[str, Any]] = {}
+
+    def walk(current: argparse.ArgumentParser, path: tuple[str, ...]) -> None:
+        children = subparser_choices(current)
+        if not children:
+            leaves[" ".join(path)] = dict(getattr(current, "_defaults", {}))
+            return
+        for name, child in children.items():
+            walk(child, (*path, name))
+
+    walk(parser, ())
+    return leaves
+
+
+def live_assembly_args(**overrides: Any) -> Any:
+    """Build typed live-assembly options through the canonical search request adapter."""
+
+    from flights_cli.apps.search import live_assembly_options_from_search_request
 
     def as_list(value: Any) -> list[Any]:
         if value is None:
@@ -86,13 +115,14 @@ def live_assembly_args(**overrides: Any) -> Namespace:
     }
 
     values = dict(overrides)
+    agent_report_override = values.pop("agent_report", None)
     request: dict[str, Any] = {
         "schema_version": "flight_search_request.v1",
         "origin": values.pop("origin", "SVX"),
         "destination": values.pop("destination", "CDG"),
         "depart_date": values.pop("depart_date", "2026-08-15"),
         "currency": values.pop("currency", "RUB"),
-        "profile": values.pop("profile", "balanced"),
+        "profile": values.pop("profile", "business"),
         "ticketing": values.pop("ticketing", "separate"),
         "provider_policy": values.pop("provider_policy", "auto"),
     }
@@ -107,13 +137,22 @@ def live_assembly_args(**overrides: Any) -> Namespace:
     for key, target in route_option_keys.items():
         if key in values:
             value = values.pop(key)
-            if target in {"hubs", "origin_airports", "destination_airports", "coverage_controls"}:
+            if target in {
+                "hubs",
+                "origin_airports",
+                "destination_airports",
+                "coverage_controls",
+            }:
                 value = as_list(value)
             route_options[target] = value
     for key, target in evidence_keys.items():
         if key in values:
             value = values.pop(key)
-            if target in {"outbound_second_leg_day_offsets", "return_second_leg_day_offsets", "aggregate_control_carriers"}:
+            if target in {
+                "outbound_second_leg_day_offsets",
+                "return_second_leg_day_offsets",
+                "aggregate_control_carriers",
+            }:
                 value = as_list(value)
             evidence[target] = value
     for key, target in output_keys.items():
@@ -131,10 +170,16 @@ def live_assembly_args(**overrides: Any) -> Namespace:
     if filters:
         request["filters"] = filters
 
-    args = live_assembly_args_from_search_request(request)
-    for key, value in values.items():
-        setattr(args, key, value)
-    return args
+    if values:
+        unknown = ", ".join(sorted(values))
+        raise AssertionError(f"unsupported live_assembly_args overrides: {unknown}")
+    options = live_assembly_options_from_search_request(request)
+    if agent_report_override is not None:
+        options = replace(
+            options,
+            output=replace(options.output, agent_report=bool(agent_report_override)),
+        )
+    return options
 
 
 class CliSubprocessMixin:
@@ -184,12 +229,28 @@ class CliSubprocessMixin:
             raw = raw["data"]
 
         if origin is None:
-            origin = str(request_variables.get("destination") if direction == "return" else request_variables.get("origin") or "") or None
+            origin = (
+                str(
+                    request_variables.get("destination")
+                    if direction == "return"
+                    else request_variables.get("origin") or ""
+                )
+                or None
+            )
         if destination is None:
-            destination = str(request_variables.get("origin") if direction == "return" else request_variables.get("destination") or "") or None
+            destination = (
+                str(
+                    request_variables.get("origin")
+                    if direction == "return"
+                    else request_variables.get("destination") or ""
+                )
+                or None
+            )
 
         items = raw.get("prices_one_way") or raw.get("prices_round_trip") or []
-        selected_index = 1 if direction == "return" and raw.get("prices_round_trip") else 0
+        selected_index = (
+            1 if direction == "return" and raw.get("prices_round_trip") else 0
+        )
         offers = []
         for index, item in enumerate(items):
             trip_segments = item.get("segments") or []
@@ -203,10 +264,13 @@ class CliSubprocessMixin:
                 segment = {
                     "origin": flight_leg.get("origin"),
                     "destination": flight_leg.get("destination"),
-                    "departure_at": flight_leg.get("departure_at") or trip.get("departure_at"),
-                    "arrival_at": flight_leg.get("arrival_at") or trip.get("arrival_at"),
+                    "departure_at": flight_leg.get("departure_at")
+                    or trip.get("departure_at"),
+                    "arrival_at": flight_leg.get("arrival_at")
+                    or trip.get("arrival_at"),
                     "flight_number": flight_leg.get("flight_number"),
-                    "carrier": flight_leg.get("operating_carrier") or item.get("main_airline"),
+                    "carrier": flight_leg.get("operating_carrier")
+                    or item.get("main_airline"),
                     "operating_carrier": flight_leg.get("operating_carrier"),
                     "aircraft_code": flight_leg.get("aircraft_code"),
                 }
@@ -248,7 +312,12 @@ class CliSubprocessMixin:
                 "segment_result": {
                     "direction": direction,
                     "leg": leg,
-                    "query": {"origin": origin, "destination": destination, "date": date, "currency": "RUB"},
+                    "query": {
+                        "origin": origin,
+                        "destination": destination,
+                        "date": date,
+                        "currency": "RUB",
+                    },
                     "source_key": "normalized_fixture",
                     "raw_count": len(items),
                     "parse_errors": 0,

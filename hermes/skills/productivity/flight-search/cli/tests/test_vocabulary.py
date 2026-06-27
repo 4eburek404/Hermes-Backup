@@ -36,7 +36,9 @@ def _collect_schema_enums(schema: dict, prefix: str = "") -> dict[str, list[str]
             key = prefix or "$root"
             result[key] = schema["enum"]
         for key, value in schema.items():
-            result.update(_collect_schema_enums(value, f"{prefix}.{key}" if prefix else key))
+            result.update(
+                _collect_schema_enums(value, f"{prefix}.{key}" if prefix else key)
+            )
     elif isinstance(schema, list):
         for i, item in enumerate(schema):
             result.update(_collect_schema_enums(item, f"{prefix}[{i}]"))
@@ -46,6 +48,7 @@ def _collect_schema_enums(schema: dict, prefix: str = "") -> dict[str, list[str]
 # ---------------------------------------------------------------------------
 # direction ↔ user_answer.v3 schema
 # ---------------------------------------------------------------------------
+
 
 class TestDirectionSchemaSync(unittest.TestCase):
     """Direction enum must match the ``direction`` enum in the user answer schema."""
@@ -73,6 +76,7 @@ class TestDirectionSchemaSync(unittest.TestCase):
 # General: all enum values are non-empty strings
 # ---------------------------------------------------------------------------
 
+
 class TestVocabularyWellFormed(unittest.TestCase):
     """Structural sanity checks for every StrEnum in the vocabulary."""
 
@@ -80,27 +84,52 @@ class TestVocabularyWellFormed(unittest.TestCase):
         from flights_cli.domain import vocabulary as v
 
         enums = [
-            v.Leg, v.Direction, v.StopBucket, v.MarketClass, v.IntentClass,
-            v.EvidenceClass, v.RoutingStrategy, v.RouteFamily, v.RequiredControl,
-            v.AbsenceReason, v.ProbeStatus,
+            v.Leg,
+            v.Direction,
+            v.StopBucket,
+            v.MarketClass,
+            v.IntentClass,
+            v.EvidenceClass,
+            v.RoutingStrategy,
+            v.RouteFamily,
+            v.RequiredControl,
+            v.AbsenceReason,
+            v.ProbeStatus,
         ]
         for enum_cls in enums:
             for member in enum_cls:
-                self.assertIsInstance(member.value, str, f"{enum_cls.__name__}.{member.name} value is not str")
-                self.assertGreater(len(member.value), 0, f"{enum_cls.__name__}.{member.name} value is empty")
+                self.assertIsInstance(
+                    member.value,
+                    str,
+                    f"{enum_cls.__name__}.{member.name} value is not str",
+                )
+                self.assertGreater(
+                    len(member.value),
+                    0,
+                    f"{enum_cls.__name__}.{member.name} value is empty",
+                )
 
     def test_no_duplicate_values_within_enum(self) -> None:
         from flights_cli.domain import vocabulary as v
 
         enums = [
-            v.Leg, v.Direction, v.StopBucket, v.MarketClass, v.IntentClass,
-            v.EvidenceClass, v.RoutingStrategy, v.RouteFamily, v.RequiredControl,
-            v.AbsenceReason, v.ProbeStatus,
+            v.Leg,
+            v.Direction,
+            v.StopBucket,
+            v.MarketClass,
+            v.IntentClass,
+            v.EvidenceClass,
+            v.RoutingStrategy,
+            v.RouteFamily,
+            v.RequiredControl,
+            v.AbsenceReason,
+            v.ProbeStatus,
         ]
         for enum_cls in enums:
             values = [m.value for m in enum_cls]
             self.assertEqual(
-                len(values), len(set(values)),
+                len(values),
+                len(set(values)),
                 f"{enum_cls.__name__} has duplicate values: "
                 f"{[v for v in values if values.count(v) > 1]}",
             )
@@ -110,13 +139,25 @@ class TestVocabularyWellFormed(unittest.TestCase):
         from flights_cli.domain import vocabulary as v
 
         enums = [
-            v.Leg, v.Direction, v.StopBucket, v.MarketClass, v.IntentClass,
-            v.EvidenceClass, v.RoutingStrategy, v.RouteFamily, v.RequiredControl,
-            v.AbsenceReason, v.ProbeStatus,
+            v.Leg,
+            v.Direction,
+            v.StopBucket,
+            v.MarketClass,
+            v.IntentClass,
+            v.EvidenceClass,
+            v.RoutingStrategy,
+            v.RouteFamily,
+            v.RequiredControl,
+            v.AbsenceReason,
+            v.ProbeStatus,
         ]
         for enum_cls in enums:
             for member in enum_cls:
-                self.assertEqual(member, member.value, f"{enum_cls.__name__}.{member.name} != '{member.value}'")
+                self.assertEqual(
+                    member,
+                    member.value,
+                    f"{enum_cls.__name__}.{member.name} != '{member.value}'",
+                )
 
     def test_json_serialisation_is_string(self) -> None:
         """json.dumps must produce the plain string, not the enum repr."""
@@ -125,12 +166,15 @@ class TestVocabularyWellFormed(unittest.TestCase):
 
         for member in v.Leg:
             result = json.dumps(member)
-            self.assertEqual(result, json.dumps(member.value), f"json.dumps({member!r}) = {result!r}")
+            self.assertEqual(
+                result, json.dumps(member.value), f"json.dumps({member!r}) = {result!r}"
+            )
 
 
 # ---------------------------------------------------------------------------
 # Phase 4: lint — block vocabulary drift outside domain/vocabulary.py
 # ---------------------------------------------------------------------------
+
 
 class TestVocabularyDriftLint(unittest.TestCase):
     """Scan flights_cli/ for bare string literals that belong to vocabulary enums.
@@ -158,6 +202,7 @@ class TestVocabularyDriftLint(unittest.TestCase):
         if cls.VOCABULARY_FAMILIES:
             return cls.VOCABULARY_FAMILIES
         from flights_cli.domain import vocabulary as v
+
         # Only include unambiguous, domain-specific values.
         # Common words (ok, failed, return, preferred, etc.) are excluded because
         # they appear in error messages, CLI help, and unrelated dict keys.
@@ -195,13 +240,13 @@ class TestVocabularyDriftLint(unittest.TestCase):
         # Specific files where vocabulary values appear in non-vocabulary context
         # (e.g. "preferred" as airport tier, CLI argparse choices, etc.)
         false_positive_files = {
-            "cli.py",        # argparse choices — user-facing CLI, not semantic ID
-            "config.py",     # airport tier "preferred" — different domain
-            "airports.py",   # airport priority "preferred" role — different domain
+            "cli.py",  # argparse choices — user-facing CLI, not semantic ID
+            "config.py",  # airport tier "preferred" — different domain
+            "airports.py",  # airport priority "preferred" role — different domain
             "stop_policy.py",  # stop_policy payload key "suppressed" — display dict
             "aggregate_control_runner.py",  # probe_type — belongs to ports/providers.py
             "probe_intent.py",  # probe_type — belongs to ports/providers.py
-            "diagnose.py",   # probe_type comparison — belongs to ports/providers.py
+            "diagnose.py",  # probe_type comparison — belongs to ports/providers.py
         }
 
         violations: list[str] = []
@@ -231,7 +276,7 @@ class TestVocabularyDriftLint(unittest.TestCase):
                         ]
                         rel = py_file.relative_to(cli_root.parent)
                         violation = (
-                            f"{rel}:{line_no}: \"{value}\" "
+                            f'{rel}:{line_no}: "{value}" '
                             f"(belongs to {', '.join(families_for_value)})"
                         )
                         violations.append(violation)
@@ -249,10 +294,10 @@ class TestVocabularyDriftLint(unittest.TestCase):
         elif violations:
             # Report but don't fail yet — track progress
             import warnings
+
             msg = (
                 f"{len(violations)} vocabulary literals still outside vocabulary.py "
-                f"(threshold: {max_allowed}); first 10:\n"
-                + "\n".join(violations[:10])
+                f"(threshold: {max_allowed}); first 10:\n" + "\n".join(violations[:10])
             )
             warnings.warn(msg, stacklevel=1)
 

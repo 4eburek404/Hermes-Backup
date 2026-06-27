@@ -1,0 +1,32 @@
+{
+  "skill": {
+    "name": "flight-search",
+    "version": "0.8.8"
+  },
+  "cli": {
+    "package": "flights-cli",
+    "version": "0.5.8"
+  },
+  "contracts": {
+    "flight_search_request": "flight_search_request.v1",
+    "flight_search_result": "flight_search_result.v1",
+    "agent_report": "agent_report.v2",
+    "user_answer": "flight_search_user_answer.v3"
+  },
+  "command_surface": {
+    "version": "command_surface.v1",
+    "canonical_path": "search --request",
+    "diagnostic_commands": [
+      "diagnose plan",
+      "diagnose probe",
+      "diagnose render",
+      "diagnose kb-search",
+      "diagnose kb-roundtrip",
+      "diagnose fli-search",
+      "diagnose fli-dates",
+      "route assemble",
+      "route rank",
+      "route validate"
+    ]
+  }
+}

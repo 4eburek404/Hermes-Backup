@@ -3,8 +3,18 @@ from __future__ import annotations
 from typing import Any, cast
 
 from ...domain.normalize import parse_iso_date
-from ...ports.providers import CacheStatus, ProviderCapabilities, ProviderName, ProviderProbeResult, ProbeType
-from ...providers.fli_mcp import cached_fli_mcp_search, fli_result_to_segment_result, fli_segment_search_summary
+from ...ports.providers import (
+    CacheStatus,
+    ProviderCapabilities,
+    ProviderName,
+    ProviderProbeResult,
+    ProbeType,
+)
+from ...providers.fli_mcp import (
+    cached_fli_mcp_search,
+    fli_result_to_segment_result,
+    fli_segment_search_summary,
+)
 from ...store import Store
 from ...execution.cache_status import cache_status_from_result
 from .common import evidence_type_for_offer_count, segment_probe_type_from_query
@@ -56,7 +66,9 @@ class FliProviderAdapter:
             store=self.store,
             **kwargs,
         )
-        segment_result = fli_result_to_segment_result(result, direction=direction, leg=leg)
+        segment_result = fli_result_to_segment_result(
+            result, direction=direction, leg=leg
+        )
         spec = {
             "direction": direction,
             "leg": leg,
@@ -82,7 +94,9 @@ class FliProviderAdapter:
             },
             execution_state="searched",
             cache_status=cache_status,
-            evidence_type=evidence_type_for_offer_count(offer_count=offer_count, cache_status=cache_status),
+            evidence_type=evidence_type_for_offer_count(
+                offer_count=offer_count, cache_status=cache_status
+            ),
             result_summary=summary,
             normalized_offers=list(segment_result.get("offers") or []),
             normalized_result=segment_result,
@@ -98,7 +112,9 @@ class FliProviderAdapter:
     def search_aggregate(self, query: dict[str, Any]) -> ProviderProbeResult:
         probe_type: ProbeType = cast(
             ProbeType,
-            query.get("probe_type") if query.get("probe_type") in {"full_route_aggregate", "carrier_aggregate"} else "full_route_aggregate",
+            query.get("probe_type")
+            if query.get("probe_type") in {"full_route_aggregate", "carrier_aggregate"}
+            else "full_route_aggregate",
         )
         reason = "fli does not support full-route aggregate probes"
         return ProviderProbeResult(
@@ -114,6 +130,8 @@ class FliProviderAdapter:
             cache_status="unknown",
             evidence_type="not_supported",
             result_summary={"reason": reason},
-            source_boundary={"warning": "provider capability does not support this probe type"},
+            source_boundary={
+                "warning": "provider capability does not support this probe type"
+            },
             errors=[{"type": "not_supported", "message": reason}],
         )

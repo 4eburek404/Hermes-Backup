@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import argparse
 from dataclasses import dataclass
-from typing import Any
+from datetime import date
+from typing import Any, Callable
 
 from .evidence_plan import EvidencePlan, plan_evidence
 from .flow_decision import FlowDecision, decide_flow
-from .search_request import SearchRequest, search_request_from_live_args
+from .options import LiveAssemblyOptions
+from .search_request import SearchRequest, search_request_from_options
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,10 +19,15 @@ class LiveRouteSearchFlow:
     evidence_plan: EvidencePlan
 
 
-def build_live_route_search_flow(args: argparse.Namespace, store: Any | None = None) -> LiveRouteSearchFlow:
-    request = search_request_from_live_args(args)
+def build_live_route_search_flow(
+    options: LiveAssemblyOptions,
+    store: Any | None = None,
+    *,
+    today_provider: Callable[[], date] | None = None,
+) -> LiveRouteSearchFlow:
+    request = search_request_from_options(options)
     flow_decision = decide_flow(request, store)
-    evidence_plan = plan_evidence(request, flow_decision)
+    evidence_plan = plan_evidence(request, flow_decision, today_provider=today_provider)
     return LiveRouteSearchFlow(
         request=request,
         flow_decision=flow_decision,

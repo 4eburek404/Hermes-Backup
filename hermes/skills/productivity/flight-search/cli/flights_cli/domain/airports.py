@@ -18,6 +18,7 @@ from ..errors import CliError
 if TYPE_CHECKING:
     from ..store import Location, Store
 
+
 def airport_group(code: str) -> dict[str, Any] | None:
     group_key = AIRPORT_TO_GROUP.get(code.upper())
     if not group_key:
@@ -137,33 +138,56 @@ def explicit_or_resolved_airports(
     if not airports and location.kind in {"airport", "iata"}:
         airports = [location.code]
     if not airports:
-        raise CliError(f"no flightable airports found for {location.input!r}", error_type="not_found")
-    return airports[:max(1, max_airports)]
+        raise CliError(
+            f"no flightable airports found for {location.input!r}",
+            error_type="not_found",
+        )
+    return airports[: max(1, max_airports)]
 
 
-def airport_scope_summary(location: Location, airports: list[str], explicit: list[str] | None, *, role: str) -> dict[str, Any]:
+def airport_scope_summary(
+    location: Location, airports: list[str], explicit: list[str] | None, *, role: str
+) -> dict[str, Any]:
     normalized_airports = [str(code).upper() for code in airports]
     location_code = str(location.code or "").upper()
-    preferred_tiers = preferred_airport_tiers_for_city(location_code) if not explicit else []
+    preferred_tiers = (
+        preferred_airport_tiers_for_city(location_code) if not explicit else []
+    )
     if explicit:
         scope = "explicit_or_single_airport"
         excluded: list[str] = []
         note = f"{role} airport scope was explicitly constrained."
     elif preferred_tiers:
         scope = "preferred_city_airports"
-        excluded = [code for code in CITY_AIRPORTS_EXCLUDED_BY_DEFAULT.get(location_code, []) if code not in normalized_airports]
+        excluded = [
+            code
+            for code in CITY_AIRPORTS_EXCLUDED_BY_DEFAULT.get(location_code, [])
+            if code not in normalized_airports
+        ]
         note = f"{role} resolved to preferred city-airport tiers; excluded airports are not searched by default."
     elif is_dubai_city_location(location):
         scope = "dubai_default"
-        excluded = [code for code in DUBAI_EXCLUDED_BY_DEFAULT if code not in normalized_airports]
+        excluded = [
+            code
+            for code in DUBAI_EXCLUDED_BY_DEFAULT
+            if code not in normalized_airports
+        ]
         note = "Dubai defaults to DXB primary + DWC secondary; SHJ is Sharjah and is excluded unless explicitly requested or returned by a provider."
     elif len(normalized_airports) == 1:
         scope = "explicit_or_single_airport"
-        excluded = [code for code in CITY_AIRPORTS_EXCLUDED_BY_DEFAULT.get(location_code, []) if code not in normalized_airports]
+        excluded = [
+            code
+            for code in CITY_AIRPORTS_EXCLUDED_BY_DEFAULT.get(location_code, [])
+            if code not in normalized_airports
+        ]
         note = f"{role} resolved to a single flightable airport."
     else:
         scope = "city_airports"
-        excluded = [code for code in CITY_AIRPORTS_EXCLUDED_BY_DEFAULT.get(location_code, []) if code not in normalized_airports]
+        excluded = [
+            code
+            for code in CITY_AIRPORTS_EXCLUDED_BY_DEFAULT.get(location_code, [])
+            if code not in normalized_airports
+        ]
         note = f"{role} resolved to the city's flightable airports within max-airports-per-city."
     summary = {
         "role": role,
@@ -184,10 +208,14 @@ def airport_scope_summary(location: Location, airports: list[str], explicit: lis
 def airport_pair_risk(origin: str, destination: str) -> dict[str, Any]:
     origin_group = airport_group(origin)
     dest_group = airport_group(destination)
-    same_group = bool(origin_group and dest_group and origin_group["key"] == dest_group["key"])
+    same_group = bool(
+        origin_group and dest_group and origin_group["key"] == dest_group["key"]
+    )
     notes: list[str] = []
     if origin != destination and same_group:
-        notes.append(f"{origin} and {destination} are separate airports in {origin_group['label']}.")
+        notes.append(
+            f"{origin} and {destination} are separate airports in {origin_group['label']}."
+        )
     if destination in SINGLE_AIRPORT_NOTES:
         notes.append(SINGLE_AIRPORT_NOTES[destination])
     return {

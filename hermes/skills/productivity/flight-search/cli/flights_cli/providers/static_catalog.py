@@ -92,7 +92,10 @@ def parse_ttl_seconds(value: str) -> int:
     raw = value.strip().lower()
     match = TTL_RE.match(raw)
     if not match:
-        raise CliError("catalog max age must look like 12h, 7d, 2w, or 3600s", error_type="validation_error")
+        raise CliError(
+            "catalog max age must look like 12h, 7d, 2w, or 3600s",
+            error_type="validation_error",
+        )
     amount = int(match.group("value"))
     unit = match.group("unit") or "s"
     multipliers = {
@@ -119,9 +122,14 @@ def default_fetch_url(url: str, timeout: int) -> bytes:
             return response.read()
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")[:1000]
-        raise CliError(f"static catalog HTTP {exc.code}: {body}", error_type="upstream_error") from exc
+        raise CliError(
+            f"static catalog HTTP {exc.code}: {body}", error_type="upstream_error"
+        ) from exc
     except (urllib.error.URLError, TimeoutError) as exc:
-        raise CliError(f"static catalog request failed: {type(exc).__name__}", error_type="upstream_error") from exc
+        raise CliError(
+            f"static catalog request failed: {type(exc).__name__}",
+            error_type="upstream_error",
+        ) from exc
 
 
 def selected_static_specs(names: list[str] | None) -> list[StaticCatalogSpec]:
@@ -148,14 +156,20 @@ def parse_catalog_payload(raw: bytes, spec: StaticCatalogSpec) -> tuple[Any, int
     try:
         data = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise CliError(f"{spec.name} did not return valid JSON", error_type="upstream_error") from exc
+        raise CliError(
+            f"{spec.name} did not return valid JSON", error_type="upstream_error"
+        ) from exc
     if not isinstance(data, list):
-        raise CliError(f"{spec.name} JSON must be an array", error_type="upstream_error")
+        raise CliError(
+            f"{spec.name} JSON must be an array", error_type="upstream_error"
+        )
     return data, len(data)
 
 
 def canonical_json_bytes(data: Any) -> bytes:
-    return (json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    return (
+        json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
 
 
 def atomic_write_bytes(path: Path, content: bytes) -> None:
@@ -177,7 +191,9 @@ def read_catalog_manifest(cache_dir: Path) -> dict[str, Any]:
 
 
 def active_catalog_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
-    entries = manifest.get("entries") if isinstance(manifest.get("entries"), dict) else None
+    entries = (
+        manifest.get("entries") if isinstance(manifest.get("entries"), dict) else None
+    )
     if entries is None:
         return manifest
     return {
@@ -211,7 +227,9 @@ def catalog_staleness(
 ) -> dict[str, Any]:
     specs = selected_static_specs(names)
     manifest = read_catalog_manifest(cache_dir)
-    entries = manifest.get("entries") if isinstance(manifest.get("entries"), dict) else {}
+    entries = (
+        manifest.get("entries") if isinstance(manifest.get("entries"), dict) else {}
+    )
     checked_at = (now or datetime.now(timezone.utc)).replace(microsecond=0)
     stale: list[dict[str, Any]] = []
     fresh: list[str] = []
@@ -246,7 +264,9 @@ def catalog_staleness(
                     "name": spec.name,
                     "filename": spec.filename,
                     "reasons": reasons,
-                    "downloaded_at": entry.get("downloaded_at") if isinstance(entry, dict) else None,
+                    "downloaded_at": entry.get("downloaded_at")
+                    if isinstance(entry, dict)
+                    else None,
                 }
             )
         else:
@@ -272,7 +292,9 @@ def download_static_catalog(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     specs = selected_static_specs(names)
-    downloaded_at = (now or datetime.now(timezone.utc)).replace(microsecond=0).isoformat()
+    downloaded_at = (
+        (now or datetime.now(timezone.utc)).replace(microsecond=0).isoformat()
+    )
     planned = [
         {
             "name": spec.name,
@@ -292,7 +314,11 @@ def download_static_catalog(
         }
 
     existing_manifest = read_catalog_manifest(cache_dir)
-    existing_entries = existing_manifest.get("entries") if isinstance(existing_manifest.get("entries"), dict) else {}
+    existing_entries = (
+        existing_manifest.get("entries")
+        if isinstance(existing_manifest.get("entries"), dict)
+        else {}
+    )
     entries = {
         name: entry
         for name, entry in dict(existing_entries or {}).items()
@@ -347,7 +373,9 @@ def refresh_static_catalog_if_needed(
     now: datetime | None = None,
     force: bool = False,
 ) -> dict[str, Any]:
-    stale_report = catalog_staleness(cache_dir, names=names, max_age_seconds=max_age_seconds, now=now)
+    stale_report = catalog_staleness(
+        cache_dir, names=names, max_age_seconds=max_age_seconds, now=now
+    )
     stale_names = [item["name"] for item in stale_report["stale"]]
     if not force and not stale_names:
         return {

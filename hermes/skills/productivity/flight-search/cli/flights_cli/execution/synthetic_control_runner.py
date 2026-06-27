@@ -6,7 +6,10 @@ from ..config import PRIORITY_MOSCOW_GATEWAY, PRIORITY_PRIMARY_HUB
 from ..domain.vocabulary import Leg, RoutingStrategy
 from ..domain.normalize import currency_value, price_value
 
-def segment_result_matches(result: dict[str, Any], direction: str, leg: str, origin: str, destination: str) -> bool:
+
+def segment_result_matches(
+    result: dict[str, Any], direction: str, leg: str, origin: str, destination: str
+) -> bool:
     query = result.get("query") if isinstance(result.get("query"), dict) else {}
     return (
         result.get("direction") == direction
@@ -14,13 +17,34 @@ def segment_result_matches(result: dict[str, Any], direction: str, leg: str, ori
         and str(query.get("origin") or "").upper() == origin
         and str(query.get("destination") or "").upper() == destination
     )
-def combined_offer(first: dict[str, Any], second: dict[str, Any], *, direction: str, leg: str, index: int) -> dict[str, Any] | None:
-    first_arrival = str(first.get("arrival_airport") or first.get("destination") or "").upper()
-    second_departure = str(second.get("departure_airport") or second.get("origin") or "").upper()
+
+
+def combined_offer(
+    first: dict[str, Any],
+    second: dict[str, Any],
+    *,
+    direction: str,
+    leg: str,
+    index: int,
+) -> dict[str, Any] | None:
+    first_arrival = str(
+        first.get("arrival_airport") or first.get("destination") or ""
+    ).upper()
+    second_departure = str(
+        second.get("departure_airport") or second.get("origin") or ""
+    ).upper()
     if not first_arrival or first_arrival != second_departure:
         return None
-    first_segments = [segment for segment in (first.get("segments") or []) if isinstance(segment, dict)]
-    second_segments = [segment for segment in (second.get("segments") or []) if isinstance(segment, dict)]
+    first_segments = [
+        segment
+        for segment in (first.get("segments") or [])
+        if isinstance(segment, dict)
+    ]
+    second_segments = [
+        segment
+        for segment in (second.get("segments") or [])
+        if isinstance(segment, dict)
+    ]
     segments = first_segments + second_segments
     if len(segments) < 2:
         return None
@@ -57,10 +81,20 @@ def combined_offer(first: dict[str, Any], second: dict[str, Any], *, direction: 
         "internal_connection_count": max(0, len(segments) - 1),
         "synthetic": True,
         "source_offers": [
-            {"id": first.get("id"), "origin": first.get("origin"), "destination": first.get("destination")},
-            {"id": second.get("id"), "origin": second.get("origin"), "destination": second.get("destination")},
+            {
+                "id": first.get("id"),
+                "origin": first.get("origin"),
+                "destination": first.get("destination"),
+            },
+            {
+                "id": second.get("id"),
+                "origin": second.get("origin"),
+                "destination": second.get("destination"),
+            },
         ],
     }
+
+
 def synthesize_moscow_gateway_control_results(
     plan: dict[str, Any],
     segment_results: list[dict[str, Any]],
@@ -72,7 +106,9 @@ def synthesize_moscow_gateway_control_results(
     synthetic_results: list[dict[str, Any]] = []
     synthetic_searches: list[dict[str, Any]] = []
 
-    final_destination_airports = {str(code).upper() for code in (plan.get("destination_airports") or [])}
+    final_destination_airports = {
+        str(code).upper() for code in (plan.get("destination_airports") or [])
+    }
     if not final_destination_airports and plan.get("destination"):
         final_destination_airports.add(str(plan.get("destination")).upper())
 
@@ -96,7 +132,9 @@ def synthesize_moscow_gateway_control_results(
         second_results = [
             result
             for result in segment_results
-            if segment_result_matches(result, direction, second_leg, gateway, destination)
+            if segment_result_matches(
+                result, direction, second_leg, gateway, destination
+            )
         ]
         offers: list[dict[str, Any]] = []
         for first_result in first_results:
@@ -107,7 +145,13 @@ def synthesize_moscow_gateway_control_results(
                     for second_offer in second_result.get("offers") or []:
                         if not isinstance(second_offer, dict):
                             continue
-                        offer = combined_offer(first_offer, second_offer, direction=direction, leg=direct_leg, index=len(offers) + 1)
+                        offer = combined_offer(
+                            first_offer,
+                            second_offer,
+                            direction=direction,
+                            leg=direct_leg,
+                            index=len(offers) + 1,
+                        )
                         if offer is not None:
                             offers.append(offer)
         if not offers:
@@ -146,7 +190,9 @@ def synthesize_moscow_gateway_control_results(
         )
 
     for origin in plan.get("origin_airports") or []:
-        if (directions is None or "outbound" in directions) and origin != PRIORITY_MOSCOW_GATEWAY:
+        if (
+            directions is None or "outbound" in directions
+        ) and origin != PRIORITY_MOSCOW_GATEWAY:
             synthesize(
                 direction="outbound",
                 direct_leg=Leg.ORIGIN_TO_HUB,
@@ -166,7 +212,11 @@ def synthesize_moscow_gateway_control_results(
                     gateway=PRIORITY_MOSCOW_GATEWAY,
                     destination=PRIORITY_PRIMARY_HUB,
                 )
-        if (directions is None or "return" in directions) and plan["dates"].get("return") and origin != PRIORITY_MOSCOW_GATEWAY:
+        if (
+            (directions is None or "return" in directions)
+            and plan["dates"].get("return")
+            and origin != PRIORITY_MOSCOW_GATEWAY
+        ):
             synthesize(
                 direction="return",
                 direct_leg=Leg.HUB_TO_ORIGIN,

@@ -1,14 +1,71 @@
 from __future__ import annotations
 
-import argparse
+from dataclasses import dataclass
 from typing import Any
 
-from ..config import RISK_PROFILES
+from ..config import (
+    BUSINESS_EXCESSIVE_CONNECTION_WAIT_MIN,
+    BUSINESS_LATE_ARRIVAL_HOUR,
+    BUSINESS_LATE_TO_MORNING_MAX_WAIT_MIN,
+    BUSINESS_MORNING_DEPARTURE_END_HOUR,
+    DEFAULT_PROFILE,
+    RISK_PROFILES,
+)
 from ..domain.carriers import itinerary_carriers, segment_carriers
-from ..domain.normalize import clamp_score, currency_value, is_reject_score, normalize_carrier_codes, normalize_profile, risk_grade
-from ..domain.stop_policy import decide_stop_policy, reportable_max_connections, stop_policy_from_args, stop_policy_payload
-from ..services.validation import rank_key, validate_itinerary
+from ..domain.normalize import (
+    clamp_score,
+    currency_value,
+    is_reject_score,
+    normalize_carrier_codes,
+    normalize_profile,
+    risk_grade,
+)
+from ..domain.stop_policy import (
+    StopPolicyOptions,
+    decide_stop_policy,
+    reportable_max_connections,
+    stop_policy_from_options,
+    stop_policy_options_from_args,
+    stop_policy_payload,
+)
+from ..domain.time import airport_hour
+from ..services.validation import (
+    ItineraryValidationOptions,
+    rank_key,
+    validate_itinerary,
+)
 from ..errors import CliError
+
+
+@dataclass(frozen=True, slots=True)
+class CarrierPolicyOptions:
+    only_carriers: tuple[str, ...] = ()
+    exclude_carriers: tuple[str, ...] = ()
+    prefer_carriers: tuple[str, ...] = ()
+    avoid_carriers: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class RankingOptions:
+    profile: str = DEFAULT_PROFILE
+    ticketing: str = "separate"
+    min_same_airport_min: int = 120
+    min_cross_airport_min: int = 300
+    max_reasons: int = 5
+    include_filtered: int = 20
+    carrier_policy: CarrierPolicyOptions = CarrierPolicyOptions()
+    stop_policy: StopPolicyOptions = StopPolicyOptions()
+
+
+def _str_tuple(value: Any) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, tuple):
+        return tuple(str(item) for item in value if str(item))
+    if isinstance(value, list):
+        return tuple(str(item) for item in value if str(item))
+    return (str(value),) if str(value) else ()
+
 
 def extract_candidate_list(data: Any) -> list[dict[str, Any]]:
     if isinstance(data, list):
@@ -18,26 +75,57 @@ def extract_candidate_list(data: Any) -> list[dict[str, Any]]:
     elif isinstance(data, dict) and isinstance(data.get("candidates"), list):
         candidates = data["candidates"]
     else:
-        raise CliError("input must be a list or an object with itineraries/candidates", error_type="validation_error")
+        raise CliError(
+            "input must be a list or an object with itineraries/candidates",
+            error_type="validation_error",
+        )
     if not all(isinstance(candidate, dict) for candidate in candidates):
         raise CliError("all candidates must be objects", error_type="validation_error")
     return candidates
 
 
-def carrier_policy_from_args(args: argparse.Namespace) -> dict[str, set[str]]:
+def carrier_policy_options_from_args(args: Any) -> CarrierPolicyOptions:
+    return CarrierPolicyOptions(
+        only_carriers=_str_tuple(getattr(args, "only_carrier", None)),
+        exclude_carriers=_str_tuple(getattr(args, "exclude_carrier", None)),
+        prefer_carriers=_str_tuple(getattr(args, "prefer_carrier", None)),
+        avoid_carriers=_str_tuple(getattr(args, "avoid_carrier", None)),
+    )
+
+
+def ranking_options_from_args(args: Any) -> RankingOptions:
+    return RankingOptions(
+        profile=str(getattr(args, "profile", DEFAULT_PROFILE) or DEFAULT_PROFILE),
+        ticketing=str(getattr(args, "ticketing", "separate") or "separate"),
+        min_same_airport_min=int(getattr(args, "min_same_airport_min", 120)),
+        min_cross_airport_min=int(getattr(args, "min_cross_airport_min", 300)),
+        max_reasons=int(getattr(args, "max_reasons", 5)),
+        include_filtered=int(getattr(args, "include_filtered", 20)),
+        carrier_policy=carrier_policy_options_from_args(args),
+        stop_policy=stop_policy_options_from_args(args),
+    )
+
+
+def carrier_policy_from_options(options: CarrierPolicyOptions) -> dict[str, set[str]]:
     return {
-        "only": normalize_carrier_codes(getattr(args, "only_carrier", None), "only-carrier"),
-        "exclude": normalize_carrier_codes(getattr(args, "exclude_carrier", None), "exclude-carrier"),
-        "prefer": normalize_carrier_codes(getattr(args, "prefer_carrier", None), "prefer-carrier"),
-        "avoid": normalize_carrier_codes(getattr(args, "avoid_carrier", None), "avoid-carrier"),
+        "only": normalize_carrier_codes(options.only_carriers, "only-carrier"),
+        "exclude": normalize_carrier_codes(options.exclude_carriers, "exclude-carrier"),
+        "prefer": normalize_carrier_codes(options.prefer_carriers, "prefer-carrier"),
+        "avoid": normalize_carrier_codes(options.avoid_carriers, "avoid-carrier"),
     }
+
+
+def carrier_policy_from_args(args: Any) -> dict[str, set[str]]:
+    return carrier_policy_from_options(carrier_policy_options_from_args(args))
 
 
 def carrier_policy_output(policy: dict[str, set[str]]) -> dict[str, list[str]]:
     return {key: sorted(value) for key, value in policy.items()}
 
 
-def carrier_filter_result(segments: list[dict[str, Any]], policy: dict[str, set[str]]) -> dict[str, Any]:
+def carrier_filter_result(
+    segments: list[dict[str, Any]], policy: dict[str, set[str]]
+) -> dict[str, Any]:
     only = policy["only"]
     exclude = policy["exclude"]
     all_carriers = itinerary_carriers(segments)
@@ -80,7 +168,9 @@ def carrier_filter_result(segments: list[dict[str, Any]], policy: dict[str, set[
     }
 
 
-def apply_carrier_preferences(risk: dict[str, Any], segments: list[dict[str, Any]], policy: dict[str, set[str]]) -> dict[str, Any]:
+def apply_carrier_preferences(
+    risk: dict[str, Any], segments: list[dict[str, Any]], policy: dict[str, set[str]]
+) -> dict[str, Any]:
     prefer = policy["prefer"]
     avoid = policy["avoid"]
     if not prefer and not avoid:
@@ -138,27 +228,121 @@ def apply_carrier_preferences(risk: dict[str, Any], segments: list[dict[str, Any
         "matched_preferred": sorted(carriers & prefer),
         "matched_avoided": sorted(carriers & avoid),
     }
-    adjusted["rank_key"] = rank_key(str(risk["profile"]), score, risk.get("price"), risk.get("elapsed_min"))
+    adjusted["rank_key"] = rank_key(
+        str(risk["profile"]), score, risk.get("price"), risk.get("elapsed_min")
+    )
     return adjusted
 
 
-def rank_candidate_list(candidates: list[dict[str, Any]], args: argparse.Namespace) -> dict[str, Any]:
-    profile = normalize_profile(args.profile)
-    policy = carrier_policy_from_args(args)
-    stop_policy = stop_policy_from_args(args)
+def validation_reject_filter(
+    candidate_id: str, validation: dict[str, Any], risk: dict[str, Any]
+) -> dict[str, Any]:
+    violations = (
+        validation.get("violations")
+        if isinstance(validation.get("violations"), list)
+        else []
+    )
+    first_violation = next((item for item in violations if isinstance(item, dict)), {})
+    components = (
+        risk.get("components") if isinstance(risk.get("components"), list) else []
+    )
+    first_component = next((item for item in components if isinstance(item, dict)), {})
+    reason = str(
+        first_violation.get("status")
+        or first_component.get("code")
+        or "validation_reject"
+    )
+    message = str(
+        first_violation.get("message")
+        or first_component.get("message")
+        or "Candidate rejected by itinerary validation."
+    )
+    return {
+        "id": candidate_id,
+        "reason": reason,
+        "message": message,
+        "risk_score": risk.get("score"),
+        "risk_grade": risk.get("grade"),
+        "risk_reject": bool(risk.get("reject")),
+        "validation_ok": bool(validation.get("ok")),
+        "validation_summary": validation.get("summary") or {},
+    }
+
+
+def excessive_connection_wait_filter(
+    validation: dict[str, Any], *, profile: str
+) -> dict[str, Any] | None:
+    if profile != DEFAULT_PROFILE:
+        return None
+
+    segments_by_index = {
+        segment.get("index"): segment
+        for segment in validation.get("segments") or []
+        if isinstance(segment, dict)
+    }
+    for connection in validation.get("connections") or []:
+        if not isinstance(connection, dict):
+            continue
+        actual = connection.get("actual_min")
+        if (
+            not isinstance(actual, int)
+            or actual < BUSINESS_EXCESSIVE_CONNECTION_WAIT_MIN
+        ):
+            continue
+        indexes = connection.get("between_segments")
+        if not isinstance(indexes, list) or len(indexes) != 2:
+            continue
+        previous_segment = segments_by_index.get(indexes[0])
+        next_segment = segments_by_index.get(indexes[1])
+        if not isinstance(previous_segment, dict) or not isinstance(next_segment, dict):
+            continue
+
+        arrival_hour = airport_hour(str(previous_segment.get("arrival_at") or ""))
+        departure_hour = airport_hour(str(next_segment.get("departure_at") or ""))
+        late_arrival_to_morning_departure = (
+            arrival_hour is not None
+            and departure_hour is not None
+            and arrival_hour >= BUSINESS_LATE_ARRIVAL_HOUR
+            and 5 <= departure_hour < BUSINESS_MORNING_DEPARTURE_END_HOUR
+            and actual <= BUSINESS_LATE_TO_MORNING_MAX_WAIT_MIN
+        )
+        if late_arrival_to_morning_departure:
+            continue
+        return {
+            "reason": "excessive_connection_wait",
+            "message": (
+                f"Business output suppresses {actual // 60}h{actual % 60:02d} connection waits "
+                "unless it is a late-arrival to morning-departure overnight transfer."
+            ),
+            "actual_min": actual,
+            "arrival_hour": arrival_hour,
+            "departure_hour": departure_hour,
+            "between_segments": indexes,
+        }
+    return None
+
+
+def rank_candidate_list(
+    candidates: list[dict[str, Any]], options: RankingOptions
+) -> dict[str, Any]:
+    profile = normalize_profile(options.profile)
+    policy = carrier_policy_from_options(options.carrier_policy)
+    stop_policy = stop_policy_from_options(options.stop_policy)
     evaluated: list[dict[str, Any]] = []
     filtered: list[dict[str, Any]] = []
-    include_filtered = max(0, int(getattr(args, "include_filtered", 20)))
+    include_filtered = max(0, int(options.include_filtered))
     for index, candidate in enumerate(candidates):
-        candidate_args = argparse.Namespace(
-            ticketing=str(candidate.get("ticketing") or args.ticketing),
-            min_same_airport_min=args.min_same_airport_min,
-            min_cross_airport_min=args.min_cross_airport_min,
+        validation_options = ItineraryValidationOptions(
+            ticketing=str(candidate.get("ticketing") or options.ticketing),
+            min_same_airport_min=options.min_same_airport_min,
+            min_cross_airport_min=options.min_cross_airport_min,
             profile=profile,
         )
-        validation = validate_itinerary(candidate, candidate_args)
+        validation = validate_itinerary(candidate, validation_options)
         carrier_filter = carrier_filter_result(validation["segments"], policy)
-        candidate_id = candidate.get("id") or candidate.get("name") or f"candidate-{index + 1}"
+        candidate_id = (
+            candidate.get("id") or candidate.get("name") or f"candidate-{index + 1}"
+        )
         if not carrier_filter["ok"]:
             if len(filtered) < include_filtered:
                 filtered.append(
@@ -183,14 +367,22 @@ def rank_candidate_list(candidates: list[dict[str, Any]], args: argparse.Namespa
 
     preferred_available = any(
         bool(item["validation"].get("ok"))
-        and int((item["validation"].get("summary") or {}).get("max_connections_per_journey") or 0) <= stop_policy.preferred_max_connections
+        and int(
+            (item["validation"].get("summary") or {}).get("max_connections_per_journey")
+            or 0
+        )
+        <= stop_policy.preferred_max_connections
         for item in evaluated
     )
-    allowed_max_connections = reportable_max_connections(stop_policy, preferred_available)
+    allowed_max_connections = reportable_max_connections(
+        stop_policy, preferred_available
+    )
+    rankable: list[dict[str, Any]] = []
     ranked: list[dict[str, Any]] = []
     stop_filtered_count = 0
     suppressed_three_plus_count = 0
     suppressed_two_stop_count = 0
+    suppressed_excessive_wait_count = 0
     preferred_candidate_count = 0
     two_stop_candidate_count = 0
     for item in evaluated:
@@ -202,7 +394,9 @@ def rank_candidate_list(candidates: list[dict[str, Any]], args: argparse.Namespa
             preferred_candidate_count += 1
         if max_connections == 2:
             two_stop_candidate_count += 1
-        decision = decide_stop_policy(summary, stop_policy, preferred_available=preferred_available)
+        decision = decide_stop_policy(
+            summary, stop_policy, preferred_available=preferred_available
+        )
         if not decision.reportable_by_stop_policy:
             stop_filtered_count += 1
             if max_connections >= 3:
@@ -222,28 +416,61 @@ def rank_candidate_list(candidates: list[dict[str, Any]], args: argparse.Namespa
                 )
             continue
         carrier_filter = item["carrier_filter"]
-        risk = apply_carrier_preferences(validation["risk"], validation["segments"], policy)
-        ranked.append(
+        risk = apply_carrier_preferences(
+            validation["risk"], validation["segments"], policy
+        )
+        if validation.get("ok") is not True or risk.get("reject") is True:
+            if len(filtered) < include_filtered:
+                filtered.append(
+                    validation_reject_filter(item["candidate_id"], validation, risk)
+                )
+            continue
+        rankable.append(
             {
-                "id": item["candidate_id"],
-                "ok": validation["ok"],
-                "price": risk["price"],
-                "currency": currency_value(item["candidate"]),
-                "elapsed_min": risk["elapsed_min"],
-                "carriers": carrier_filter["carriers"],
-                "journeys": validation.get("journeys"),
-                "risk": {
-                    "profile": risk["profile"],
-                    "score": risk["score"],
-                    "grade": risk["grade"],
-                    "reject": risk["reject"],
-                    "rank_key": risk["rank_key"],
-                    "top_reasons": risk["components"][: args.max_reasons],
+                "max_connections": max_connections,
+                "wait_filter": excessive_connection_wait_filter(
+                    validation, profile=profile
+                ),
+                "ranked": {
+                    "id": item["candidate_id"],
+                    "ok": validation["ok"],
+                    "price": risk["price"],
+                    "currency": currency_value(item["candidate"]),
+                    "elapsed_min": risk["elapsed_min"],
+                    "carriers": carrier_filter["carriers"],
+                    "journeys": validation.get("journeys"),
+                    "risk": {
+                        "profile": risk["profile"],
+                        "score": risk["score"],
+                        "grade": risk["grade"],
+                        "reject": risk["reject"],
+                        "rank_key": risk["rank_key"],
+                        "top_reasons": risk["components"][: options.max_reasons],
+                    },
+                    "validation_summary": validation["summary"],
+                    "connections": validation["connections"],
                 },
-                "validation_summary": validation["summary"],
-                "connections": validation["connections"],
             }
         )
+
+    for item in rankable:
+        wait_filter = (
+            item.get("wait_filter")
+            if isinstance(item.get("wait_filter"), dict)
+            else None
+        )
+        if wait_filter is not None:
+            suppressed_excessive_wait_count += 1
+            if len(filtered) < include_filtered:
+                filtered.append(
+                    {
+                        "id": item["ranked"]["id"],
+                        **wait_filter,
+                        "max_connections_per_journey": item["max_connections"],
+                    }
+                )
+            continue
+        ranked.append(item["ranked"])
 
     ranked.sort(key=lambda item: item["risk"]["rank_key"])
     for position, item in enumerate(ranked, 1):
@@ -269,12 +496,15 @@ def rank_candidate_list(candidates: list[dict[str, Any]], args: argparse.Namespa
             "two_stop_candidate_count": two_stop_candidate_count,
             "eligible_preferred_count": preferred_candidate_count,
             "eligible_tier2_count": two_stop_candidate_count,
-            "used_two_stop_tier": not preferred_available and two_stop_candidate_count > 0,
-            "used_tier2_two_stop": not preferred_available and two_stop_candidate_count > 0,
+            "used_two_stop_tier": not preferred_available
+            and two_stop_candidate_count > 0,
+            "used_tier2_two_stop": not preferred_available
+            and two_stop_candidate_count > 0,
             "three_plus_suppressed_count": suppressed_three_plus_count,
             "suppressed_three_plus_count": suppressed_three_plus_count,
             "two_stop_suppressed_because_preferred_exists": suppressed_two_stop_count,
             "suppressed_two_stop_because_preferred_exists": suppressed_two_stop_count,
+            "excessive_wait_suppressed_count": suppressed_excessive_wait_count,
             "stop_policy_filtered_count": stop_filtered_count,
             "garbage_options_hidden_from_answer": suppressed_three_plus_count > 0,
             "allowed_max_connections": allowed_max_connections,

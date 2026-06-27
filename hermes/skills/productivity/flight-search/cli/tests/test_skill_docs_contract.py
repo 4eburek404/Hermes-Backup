@@ -30,13 +30,18 @@ class FlightSearchSkillDocsContractTests(unittest.TestCase):
         skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
         referenced = set(re.findall(r"references/([A-Za-z0-9_.-]+\.md)", skill_text))
         self.assertTrue(referenced)
-        self.assertTrue(referenced <= CANONICAL_REFERENCES, f"noncanonical references in SKILL.md: {sorted(referenced - CANONICAL_REFERENCES)}")
+        self.assertTrue(
+            referenced <= CANONICAL_REFERENCES,
+            f"noncanonical references in SKILL.md: {sorted(referenced - CANONICAL_REFERENCES)}",
+        )
 
     def test_no_new_active_reference_markdown_files_are_present(self) -> None:
         actual = {path.name for path in (SKILL_ROOT / "references").glob("*.md")}
         self.assertEqual(actual, CANONICAL_REFERENCES)
 
-    def test_skill_uses_canonical_search_and_answer_path_without_removed_commands(self) -> None:
+    def test_skill_uses_canonical_search_and_answer_path_without_removed_commands(
+        self,
+    ) -> None:
         text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("python3 -m flights_cli --json search --request", text)
         self.assertIn("data.agent_report.user_answer.rendered_text", text)
