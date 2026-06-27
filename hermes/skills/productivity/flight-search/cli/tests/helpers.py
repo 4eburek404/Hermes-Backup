@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 import sys
@@ -10,6 +11,28 @@ from typing import Any
 
 PROJECT = Path(__file__).resolve().parents[1]
 TEST_ENV = {"PYTHONPATH": str(PROJECT), "FLIGHTS_CATALOG_REFRESH": "never", "PYTHONDONTWRITEBYTECODE": "1"}
+
+
+def subparser_choices(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentParser]:
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            return dict(action.choices)
+    return {}
+
+
+def parser_leaf_defaults(parser: argparse.ArgumentParser) -> dict[str, dict[str, Any]]:
+    leaves: dict[str, dict[str, Any]] = {}
+
+    def walk(current: argparse.ArgumentParser, path: tuple[str, ...]) -> None:
+        children = subparser_choices(current)
+        if not children:
+            leaves[" ".join(path)] = dict(getattr(current, "_defaults", {}))
+            return
+        for name, child in children.items():
+            walk(child, (*path, name))
+
+    walk(parser, ())
+    return leaves
 
 
 def live_assembly_args(**overrides: Any) -> Any:

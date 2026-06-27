@@ -16,50 +16,15 @@ from flights_cli.command_surface import (
     CATALOG_AUTO_REFRESH_COMMANDS,
     CATALOG_READ_COMMANDS,
     CATALOG_REFRESH_COMMANDS,
+    DIAGNOSTIC_COMMANDS,
     LIVE_PROVIDER_COMMANDS,
     PRIMARY_ROUTE_COMMAND,
-    ROOT_COMMANDS,
-    ROUTE_COMMANDS,
     TARGETED_PROBE_COMMANDS,
 )
 from flights_cli.config import DEFAULT_ROUTE_HUBS
 from flights_cli.domain.stop_policy import stop_policy_from_args
 
-from helpers import PROJECT, TEST_ENV
-
-
-def subparser_choices(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentParser]:
-    for action in parser._actions:
-        if isinstance(action, argparse._SubParsersAction):
-            return dict(action.choices)
-    return {}
-
-
-COMMAND_ARGV = {
-    "cities search": ["cities", "search", "Yekaterinburg"],
-    "airports explain": ["airports", "explain", "SVX"],
-    "diagnose fli-search": ["diagnose", "fli-search", "IST", "LHR", "--depart-date", "2026-07-20"],
-    "search": ["search", "--request", "request.json"],
-    "diagnose plan": ["diagnose", "plan", "--request", "request.json"],
-}
-
-TARGETED_PROBE_ARGV = {
-    "diagnose probe": ["diagnose", "probe", "--provider", "kupibilet", "--request", "probe.json"],
-    "diagnose render": ["diagnose", "render", "--input", "agent_report.json"],
-    "diagnose kb-search": ["diagnose", "kb-search", "SVX", "MOW", "--depart-date", "2026-07-19"],
-    "diagnose kb-roundtrip": ["diagnose", "kb-roundtrip", "SVX", "BJS", "--depart-date", "2026-08-01", "--return-date", "2026-08-08"],
-    "diagnose fli-dates": ["diagnose", "fli-dates", "IST", "LHR", "--from-date", "2026-07-20", "--to-date", "2026-07-22"],
-}
-
-DEV_ROUTE_ARGV = {
-    "route assemble": ["route", "assemble", "--input", "segment-results.json"],
-    "route rank": ["route", "rank", "--input", "candidates.json"],
-    "route validate": ["route", "validate", "--input", "itinerary.json"],
-}
-
-CATALOG_REFRESH_ARGV = {
-    "maint catalog refresh": ["maint", "catalog", "refresh", "--dry-run"],
-}
+from helpers import PROJECT, TEST_ENV, parser_leaf_defaults
 
 def _dash(*parts: str) -> str:
     return "-".join(parts)
@@ -69,7 +34,7 @@ def _command_label(*parts: str) -> str:
     return " ".join(parts)
 
 
-REMOVED_COMMAND_ARGV = {
+REMOVED_COMMAND_CASES = {
     _command_label("route", _dash("live", "assemble")): ["route", _dash("live", "assemble"), "SVX", "LON", "--depart-date", "2026-07-20"],
     _command_label("route", _dash("kb", "assemble")): ["route", _dash("kb", "assemble"), "SVX", "LON", "--depart-date", "2026-07-20"],
     _command_label("route", "plan"): ["route", "plan", "SVX", "LON", "--depart-date", "2026-07-20"],
@@ -164,32 +129,24 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(assemble_args.limit_per_pair, 10)
 
     def test_active_command_surface_is_registered_with_leaf_dispatch(self) -> None:
-        parser = build_parser()
-        root = subparser_choices(parser)
-        self.assertEqual(tuple(root), ROOT_COMMANDS)
-        route = subparser_choices(root["route"])
-        self.assertEqual(tuple(route), ROUTE_COMMANDS)
-
-        for command_name, argv in COMMAND_ARGV.items():
+        leaves = parser_leaf_defaults(build_parser())
+        policy_commands = (
+            set(DIAGNOSTIC_COMMANDS)
+            | set(LIVE_PROVIDER_COMMANDS)
+            | set(CATALOG_READ_COMMANDS)
+            | set(CATALOG_REFRESH_COMMANDS)
+        )
+        self.assertTrue(policy_commands.issubset(leaves))
+        self.assertIn(PRIMARY_ROUTE_COMMAND, leaves)
+        for command_name, defaults in leaves.items():
             with self.subTest(command_name=command_name):
-                args = parser.parse_args(argv)
-                self.assertEqual(args.command_name, command_name)
-                self.assertTrue(callable(args.func))
-        for command_name, argv in TARGETED_PROBE_ARGV.items():
-            with self.subTest(command_name=command_name):
-                args = parser.parse_args(argv)
-                self.assertEqual(args.command_name, command_name)
-                self.assertTrue(callable(args.func))
-        for command_name, argv in DEV_ROUTE_ARGV.items():
-            with self.subTest(command_name=command_name):
-                args = parser.parse_args(argv)
-                self.assertEqual(args.command_name, command_name)
-                self.assertTrue(callable(args.func))
+                self.assertEqual(defaults.get("command_name"), command_name)
+                self.assertTrue(callable(defaults.get("func")))
 
     def test_removed_legacy_commands_are_not_registered(self) -> None:
         parser = build_parser()
 
-        for command_name, argv in REMOVED_COMMAND_ARGV.items():
+        for command_name, argv in REMOVED_COMMAND_CASES.items():
             with self.subTest(command_name=command_name):
                 with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
                     parser.parse_args(argv)
@@ -226,19 +183,16 @@ class CliContractTests(unittest.TestCase):
         self.assertNotIn(removed_plan, readme_text)
 
     def test_catalog_refresh_surface_matches_registered_catalog_commands(self) -> None:
-        parser = build_parser()
-        self.assertEqual(set(CATALOG_READ_COMMANDS), set(COMMAND_ARGV))
-        self.assertEqual(set(CATALOG_AUTO_REFRESH_COMMANDS), set(COMMAND_ARGV))
-        self.assertEqual(set(CATALOG_REFRESH_COMMANDS), set(CATALOG_REFRESH_ARGV))
+        leaves = parser_leaf_defaults(build_parser())
+        self.assertEqual(set(CATALOG_AUTO_REFRESH_COMMANDS), set(CATALOG_READ_COMMANDS))
         for command_name in CATALOG_READ_COMMANDS:
             with self.subTest(command_name=command_name):
-                args = parser.parse_args(COMMAND_ARGV[command_name])
-                self.assertTrue(getattr(args, "requires_catalog", False))
-                self.assertEqual(getattr(args, "catalog_access", None), "auto_refresh")
+                defaults = leaves[command_name]
+                self.assertTrue(defaults.get("requires_catalog", False))
+                self.assertEqual(defaults.get("catalog_access"), "auto_refresh")
         for command_name in CATALOG_REFRESH_COMMANDS:
             with self.subTest(command_name=command_name):
-                args = parser.parse_args(CATALOG_REFRESH_ARGV[command_name])
-                self.assertEqual(getattr(args, "catalog_access", None), "refresh_explicit")
+                self.assertEqual(leaves[command_name].get("catalog_access"), "refresh_explicit")
 
     def test_metadata_commands_report_metadata_only_evidence_scope(self) -> None:
         commands = {

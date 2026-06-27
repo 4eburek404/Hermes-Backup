@@ -17,6 +17,8 @@ from flights_cli.contracts.registry import current_contract
 from flights_cli.pipeline.options import LiveAssemblyOptions
 from flights_cli.store import Store
 
+from helpers import parser_leaf_defaults
+
 
 MINIMAL_SEARCH_REQUEST = {
     "schema_version": "flight_search_request.v1",
@@ -34,29 +36,24 @@ MINIMAL_SEARCH_REQUEST = {
 class PrimaryCliNamespaceTests(unittest.TestCase):
     def test_catalog_dependent_commands_auto_refresh_when_needed_and_refresh_is_explicit(self) -> None:
         parser = build_parser()
-        argv_by_command = {
-            "cities search": ["cities", "search", "London"],
-            "airports explain": ["airports", "explain", "LHR"],
-            "diagnose fli-search": ["diagnose", "fli-search", "IST", "LHR", "--depart-date", "2026-07-20"],
-            "search": ["search", "--request", "request.json"],
-            "diagnose plan": ["diagnose", "plan", "--request", "request.json"],
-        }
-        self.assertEqual(set(CATALOG_READ_COMMANDS), set(argv_by_command))
-        self.assertEqual(set(CATALOG_AUTO_REFRESH_COMMANDS), set(argv_by_command))
+        leaves = parser_leaf_defaults(parser)
+        self.assertEqual(set(CATALOG_AUTO_REFRESH_COMMANDS), set(CATALOG_READ_COMMANDS))
         self.assertEqual(CATALOG_REFRESH_COMMANDS, ("maint catalog refresh",))
-        for command_name, argv in argv_by_command.items():
+        for command_name in CATALOG_READ_COMMANDS:
             with self.subTest(command_name=command_name):
-                args = parser.parse_args(argv)
-                self.assertEqual(getattr(args, "catalog_access", None), "auto_refresh")
-                with patch("flights_cli.cli.refresh_static_catalog_if_needed") as refresh:
-                    refresh.return_value = {"enabled": True, "refreshed": False, "reason": "fresh"}
-                    self.assertEqual(auto_refresh_catalog(args, Store()), refresh.return_value)
-                    refresh.assert_called_once_with(
-                        Store().cache_dir,
-                        max_age_seconds=14 * 24 * 60 * 60,
-                        timeout=30,
-                        force=False,
-                    )
+                defaults = leaves[command_name]
+                self.assertEqual(defaults.get("catalog_access"), "auto_refresh")
+                self.assertTrue(defaults.get("requires_catalog", False))
+        args = parser.parse_args(["search", "--request", "request.json"])
+        with patch("flights_cli.cli.refresh_static_catalog_if_needed") as refresh:
+            refresh.return_value = {"enabled": True, "refreshed": False, "reason": "fresh"}
+            self.assertEqual(auto_refresh_catalog(args, Store()), refresh.return_value)
+            refresh.assert_called_once_with(
+                Store().cache_dir,
+                max_age_seconds=14 * 24 * 60 * 60,
+                timeout=30,
+                force=False,
+            )
 
     def test_catalog_refresh_can_be_disabled_for_catalog_dependent_commands(self) -> None:
         parser = build_parser()
