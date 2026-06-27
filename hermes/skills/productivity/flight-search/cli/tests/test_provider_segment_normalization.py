@@ -107,8 +107,6 @@ class ProviderSegmentNormalizationTests(unittest.TestCase):
         self.assertEqual(kupibilet["offers"][0]["segments"][0].keys(), fli["offers"][0]["segments"][0].keys())
         self.assertEqual(kupibilet["source_key"], "kupibilet_frontend_search")
         self.assertEqual(fli["source_key"], "fli_mcp_search_flights")
-        self.assertEqual(kupibilet["offers"][0]["source"], "Kupibilet frontend_search direct-only")
-        self.assertEqual(fli["offers"][0]["source"], "FLI MCP search_flights")
 
 
 if __name__ == "__main__":

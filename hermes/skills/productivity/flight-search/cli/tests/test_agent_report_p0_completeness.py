@@ -66,7 +66,6 @@ class AgentReportP0CompletenessTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(cheapest["rank"], 3)
         self.assertEqual(cheapest.get("detail_status"), "full")
         self.assertEqual([segment["flight_number"] for segment in cheapest["segments"]], ["SU300"])
-        self.assertIn("Cheapest acceptable", "\n".join(report["diagnostics"]["answer_lines"]))
 
 
 if __name__ == "__main__":

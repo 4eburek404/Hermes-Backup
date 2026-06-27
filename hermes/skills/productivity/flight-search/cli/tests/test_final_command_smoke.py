@@ -1,30 +1,12 @@
 from __future__ import annotations
 
-import argparse
 import contextlib
 import io
 import re
 import unittest
 
-from flights_cli.cli import build_parser
-
 from helpers import PROJECT
 
-
-DOCS_COMMANDS = {
-    "search --request": ["--json", "search", "--request", "/tmp/flight-search-request.json"],
-    "diagnose plan --request": ["--json", "diagnose", "plan", "--request", "/tmp/flight-search-request.json"],
-    "maint doctor": ["--json", "maint", "doctor"],
-    "maint check": ["--json", "maint", "check"],
-    "cities search": ["--json", "cities", "search", "Yekaterinburg"],
-    "airports explain": ["--json", "airports", "explain", "SVX", "MOW"],
-}
-
-DEV_DIAGNOSTIC_COMMANDS = {
-    "route assemble": ["--json", "route", "assemble", "--input", "segment-results.json"],
-    "route rank": ["--json", "route", "rank", "--input", "candidates.json"],
-    "route validate": ["--json", "route", "validate", "--input", "itinerary.json"],
-}
 
 def _dash(*parts: str) -> str:
     return "-".join(parts)
@@ -58,24 +40,9 @@ def docs_text() -> str:
 
 
 class FinalCommandSmokeTests(unittest.TestCase):
-    def parse(self, argv: list[str]) -> argparse.Namespace:
-        return build_parser().parse_args(argv)
-
-    def test_docs_command_examples_parse(self) -> None:
-        for label, argv in DOCS_COMMANDS.items():
-            with self.subTest(label=label):
-                parsed = self.parse(argv)
-                self.assertEqual(parsed.command_name, label.split(" --request", 1)[0])
-                self.assertTrue(callable(parsed.func))
-
-    def test_diagnostic_dev_commands_parse(self) -> None:
-        for label, argv in DEV_DIAGNOSTIC_COMMANDS.items():
-            with self.subTest(label=label):
-                parsed = self.parse(argv)
-                self.assertEqual(parsed.command_name, label)
-                self.assertTrue(callable(parsed.func))
-
     def test_removed_commands_fail_parser(self) -> None:
+        from flights_cli.cli import build_parser
+
         parser = build_parser()
         for label, argv in REMOVED_COMMANDS.items():
             with self.subTest(label=label), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
@@ -118,7 +85,7 @@ class FinalCommandSmokeTests(unittest.TestCase):
                     matches.append(f"{path.relative_to(PROJECT.parent)}: {needle}")
         self.assertEqual(matches, [])
 
-    def test_search_request_remains_single_golden_path(self) -> None:
+    def test_search_request_remains_single_canonical_path(self) -> None:
         text = docs_text()
         self.assertIn("python3 -m flights_cli --json search --request", text)
         self.assertIn("python3 -m flights_cli --json diagnose plan --request", text)

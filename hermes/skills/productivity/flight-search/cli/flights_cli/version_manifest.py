@@ -6,14 +6,13 @@ from typing import Any
 
 from . import __skill_name__, __skill_version__, __version__
 from .command_surface import (
+    COMMAND_SURFACE_VERSION,
+    DIAGNOSTIC_COMMANDS,
     PRIMARY_ROUTE_COMMAND,
-    ROUTE_COMMANDS,
-    TARGETED_PROBE_COMMANDS,
 )
 from .contracts.registry import current_contract
 
 MANIFEST_FILENAME = "version_manifest.json"
-COMMAND_SURFACE_VERSION = "command_surface.v1"
 
 
 def source_skill_path() -> Path:
@@ -35,13 +34,8 @@ def load_version_manifest(skill_path: Path | None = None) -> dict[str, Any]:
 def expected_command_surface() -> dict[str, Any]:
     return {
         "version": COMMAND_SURFACE_VERSION,
-        "golden_path": f"{PRIMARY_ROUTE_COMMAND} --request",
-        "diagnostic_commands": [
-            "diagnose plan",
-            "diagnose render",
-            *TARGETED_PROBE_COMMANDS,
-            *(f"route {name}" for name in ROUTE_COMMANDS),
-        ],
+        "canonical_path": f"{PRIMARY_ROUTE_COMMAND} --request",
+        "diagnostic_commands": list(DIAGNOSTIC_COMMANDS),
     }
 
 
@@ -77,8 +71,8 @@ def manifest_mismatches(manifest: dict[str, Any]) -> list[str]:
     expected_surface = expected_command_surface()
     if command_surface.get("version") != expected_surface["version"]:
         mismatches.append("command_surface.version")
-    if command_surface.get("golden_path") != expected_surface["golden_path"]:
-        mismatches.append("command_surface.golden_path")
+    if command_surface.get("canonical_path") != expected_surface["canonical_path"]:
+        mismatches.append("command_surface.canonical_path")
     if sorted(command_surface.get("diagnostic_commands") or []) != sorted(expected_surface["diagnostic_commands"]):
         mismatches.append("command_surface.diagnostic_commands")
     return mismatches

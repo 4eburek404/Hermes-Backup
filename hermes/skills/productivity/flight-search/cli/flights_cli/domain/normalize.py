@@ -45,9 +45,16 @@ def parse_iso_date(value: str, field: str, *, today: date | None = None) -> date
     if parsed < current_date:
         suggestion = _next_future_occurrence(parsed.month, parsed.day, current_date)
         message = f"{field} is in the past: {parsed.isoformat()}. Today is {current_date.isoformat()}."
+        details = {
+            "field": field,
+            "reason": "past_date",
+            "value": parsed.isoformat(),
+            "today": current_date.isoformat(),
+        }
         if suggestion is not None:
             message += f" Did you mean {suggestion.isoformat()}?"
-        raise CliError(message, error_type="validation_error")
+            details["suggested_date"] = suggestion.isoformat()
+        raise CliError(message, error_type="validation_error", details=details)
     return parsed
 
 

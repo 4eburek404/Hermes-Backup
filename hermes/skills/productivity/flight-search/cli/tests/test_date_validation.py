@@ -20,8 +20,14 @@ class DateValidationTests(unittest.TestCase):
 
         self.assertEqual(ctx.exception.error_type, "validation_error")
         self.assertEqual(
-            str(ctx.exception),
-            "depart-date is in the past: 2025-09-17. Today is 2026-05-10. Did you mean 2026-09-17?",
+            ctx.exception.details,
+            {
+                "field": "depart-date",
+                "reason": "past_date",
+                "value": "2025-09-17",
+                "today": "2026-05-10",
+                "suggested_date": "2026-09-17",
+            },
         )
 
     def test_parse_iso_date_allows_today_and_future_dates(self) -> None:
@@ -60,12 +66,12 @@ class DateValidationTests(unittest.TestCase):
             )
 
         self.assertNotEqual(proc.returncode, 0)
-        self.assertEqual(proc.stdout, "")
-        payload = json.loads(proc.stderr)
+        self.assertEqual(proc.stderr, "")
+        payload = json.loads(proc.stdout)
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["error"]["type"], "validation_error")
-        self.assertIn("depart-date is in the past: 2000-09-17", payload["error"]["message"])
-        self.assertIn("Did you mean", payload["error"]["message"])
+        self.assertEqual(payload["error"]["details"]["reason"], "past_date")
+        self.assertEqual(payload["error"]["details"]["value"], "2000-09-17")
 
 
 if __name__ == "__main__":

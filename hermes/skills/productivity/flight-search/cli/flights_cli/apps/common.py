@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from importlib import resources
-from pathlib import Path
 from typing import Any
 
 from jsonschema import Draft202012Validator
@@ -11,27 +10,6 @@ from jsonschema import Draft202012Validator
 from ..contracts.registry import current_contract
 from ..contracts.schema_errors import validation_error_detail
 from ..errors import CliError
-
-
-def read_json_document(path: str) -> dict[str, Any]:
-    if path == "-":
-        import sys
-
-        text = sys.stdin.read()
-        source = "stdin"
-    else:
-        source = path
-        try:
-            text = Path(path).expanduser().read_text(encoding="utf-8")
-        except OSError as exc:
-            raise CliError(f"could not read JSON input {path!r}: {exc}", error_type="not_found") from exc
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise CliError(f"invalid JSON in {source}: {exc.msg}", error_type="validation_error") from exc
-    if not isinstance(payload, dict):
-        raise CliError("JSON input must be an object", error_type="validation_error")
-    return payload
 
 
 @lru_cache(maxsize=None)

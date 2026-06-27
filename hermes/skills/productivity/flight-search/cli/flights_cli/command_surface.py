@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+COMMAND_SURFACE_VERSION = "command_surface.v1"
+
 ROOT_COMMANDS = (
     "search",
     "diagnose",
@@ -22,6 +24,12 @@ TARGETED_PROBE_COMMANDS = (
     "diagnose kb-roundtrip",
     "diagnose fli-search",
     "diagnose fli-dates",
+)
+DIAGNOSTIC_COMMANDS = (
+    "diagnose plan",
+    "diagnose render",
+    *TARGETED_PROBE_COMMANDS,
+    *(f"route {name}" for name in ROUTE_COMMANDS),
 )
 LIVE_PROVIDER_COMMANDS = (PRIMARY_ROUTE_COMMAND, *TARGETED_PROBE_COMMANDS)
 

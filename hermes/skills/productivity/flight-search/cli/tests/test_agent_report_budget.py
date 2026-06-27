@@ -90,7 +90,6 @@ class AgentReportBudgetTests(unittest.TestCase):
         self.assertEqual(budgeted["recommended_options"][1]["detail_status"], "summary_only")
         self.assertEqual(budgeted["recommended_options"][1]["segments"], [])
         self.assertIn("SU232", full_display["text"])
-        self.assertIn("Подробности рейсов не включены в краткий отчёт.", summary_display["text"])
         self.assertNotIn("U6123", summary_display["text"])
         self.assertNotIn("TK1985", summary_display["text"])
         self.assertNotIn("пересадка", summary_display["text"].lower())

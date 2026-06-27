@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import __version__
-from ..commands.basic import command_doctor
+from ..commands.maint import command_maint_doctor
 from ..store import Store
 from ..version_manifest import expected_command_surface, load_version_manifest, manifest_mismatches, manifest_path
 
@@ -162,7 +162,7 @@ def _source_runtime_parity(source_path: Path, runtime_path: Path) -> dict[str, A
 
 def _doctor_status(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     try:
-        doctor = command_doctor(args, store)
+        doctor = command_maint_doctor(args, store)
     except Exception as exc:  # pragma: no cover - defensive status reporting
         return {"status": "error", "issues": [f"{type(exc).__name__}: {exc}"]}
     return {

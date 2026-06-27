@@ -100,6 +100,26 @@ def route_families_for_strategy(routing_strategy: str, routing_profile: str) -> 
     return []
 
 
+def complete_route_families(base_families: list[dict[str, Any]], segment_family_ids: list[str]) -> list[dict[str, Any]]:
+    """Return route family metadata that covers every family used by segments."""
+
+    completed = [dict(family) for family in base_families]
+    known = {str(family.get("id")) for family in completed}
+    for family_id in segment_family_ids:
+        normalized = str(family_id)
+        if not normalized or normalized in known:
+            continue
+        known.add(normalized)
+        completed.append(
+            {
+                "id": normalized,
+                "priority": None,
+                "condition": "derived from route segment plan",
+            }
+        )
+    return completed
+
+
 def route_segment_spec(
     direction: str,
     leg: str,

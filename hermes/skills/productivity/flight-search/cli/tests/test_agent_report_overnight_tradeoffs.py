@@ -89,11 +89,6 @@ class AgentReportOvernightTradeoffTests(CliSubprocessMixin, unittest.TestCase):
         self.assertNotIn("long_layover", connection_risk_codes)
         self.assertNotIn("night_connection", connection_risk_codes)
 
-        answer_text = "\n".join(report["diagnostics"]["answer_lines"]).lower()
-        self.assertIn("connection trade-off", answer_text)
-        self.assertIn("overnight", answer_text)
-        self.assertIn("long wait", answer_text)
-
 
 if __name__ == "__main__":
     unittest.main()

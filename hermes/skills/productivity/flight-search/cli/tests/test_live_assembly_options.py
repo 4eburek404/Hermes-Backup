@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import argparse
 import unittest
 
 from flights_cli.apps.search import live_assembly_options_from_search_request
 from flights_cli.errors import CliError
-from flights_cli.pipeline.options import argparse_args_to_options, search_request_to_options
+from flights_cli.pipeline.options import search_request_to_options
 
 
 REQUEST = {
@@ -126,21 +125,6 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.evidence.provider_policy, "auto")
         self.assertTrue(options.output.agent_report)
         self.assertTrue(options.output.agent_brief)
-
-    def test_argparse_args_to_options_keeps_cli_command_name_and_agent_report_flag(self) -> None:
-        args = argparse.Namespace(
-            command_name="diagnose plan",
-            origin="SVX",
-            destination="LON",
-            depart_date="2026-07-20",
-            agent_report=False,
-        )
-
-        options = argparse_args_to_options(args)
-
-        self.assertEqual(options.command_name, "diagnose plan")
-        self.assertFalse(options.output.agent_report)
-
 
 if __name__ == "__main__":
     unittest.main()

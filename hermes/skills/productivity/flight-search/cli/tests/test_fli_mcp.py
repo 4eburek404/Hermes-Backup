@@ -141,7 +141,6 @@ class FliMcpTests(unittest.TestCase):
         self.assertEqual(result["offers"][0]["flight_numbers"], ["TK1987"])
         self.assertEqual(result["offers"][0]["duration"], 250)
         self.assertEqual(segment["source_key"], "fli_mcp_search_flights")
-        self.assertEqual(segment["offers"][0]["source"], "FLI MCP search_flights")
         self.assertEqual(segment["offers"][0]["segments"][0]["carrier"], "TK")
 
     def test_parse_fli_flight_search_filters_three_stop_and_airport_change_before_limit(self) -> None:

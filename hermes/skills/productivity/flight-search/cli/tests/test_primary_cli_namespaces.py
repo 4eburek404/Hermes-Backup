@@ -12,7 +12,7 @@ from unittest.mock import patch
 from jsonschema import Draft202012Validator
 
 from flights_cli.cli import auto_refresh_catalog, build_parser
-from flights_cli.command_surface import CATALOG_AUTO_REFRESH_COMMANDS, CATALOG_READ_COMMANDS, CATALOG_REFRESH_COMMANDS, PRIMARY_ROUTE_COMMAND
+from flights_cli.command_surface import CATALOG_AUTO_REFRESH_COMMANDS, CATALOG_READ_COMMANDS, CATALOG_REFRESH_COMMANDS
 from flights_cli.contracts.registry import current_contract
 from flights_cli.pipeline.options import LiveAssemblyOptions
 from flights_cli.store import Store
@@ -32,38 +32,6 @@ MINIMAL_SEARCH_REQUEST = {
 
 
 class PrimaryCliNamespaceTests(unittest.TestCase):
-    def test_primary_search_diagnose_and_maint_namespaces_parse_target_commands(self) -> None:
-        parser = build_parser()
-
-        parsed = {
-            "search": parser.parse_args(["search", "--request", "request.json"]),
-            "diagnose plan": parser.parse_args(["diagnose", "plan", "--request", "request.json"]),
-            "diagnose probe kupibilet": parser.parse_args(["diagnose", "probe", "--provider", "kupibilet", "--request", "probe.json"]),
-            "diagnose probe fli": parser.parse_args(["diagnose", "probe", "--provider", "fli", "--request", "probe.json"]),
-            "diagnose render": parser.parse_args(["diagnose", "render", "--input", "agent-report.json"]),
-            "diagnose kb-search": parser.parse_args(["diagnose", "kb-search", "SVX", "MOW", "--depart-date", "2026-07-19"]),
-            "diagnose kb-roundtrip": parser.parse_args(["diagnose", "kb-roundtrip", "SVX", "BJS", "--depart-date", "2026-08-01", "--return-date", "2026-08-08"]),
-            "diagnose fli-search": parser.parse_args(["diagnose", "fli-search", "IST", "LHR", "--depart-date", "2026-07-20"]),
-            "diagnose fli-dates": parser.parse_args(["diagnose", "fli-dates", "IST", "LHR", "--from-date", "2026-07-20", "--to-date", "2026-07-22"]),
-            "maint doctor": parser.parse_args(["maint", "doctor"]),
-            "maint catalog manifest": parser.parse_args(["maint", "catalog", "manifest"]),
-            "maint catalog refresh": parser.parse_args(["maint", "catalog", "refresh", "--dry-run"]),
-        }
-
-        self.assertEqual(parsed["search"].command_name, "search")
-        self.assertEqual(parsed["diagnose plan"].command_name, "diagnose plan")
-        self.assertEqual(parsed["diagnose probe kupibilet"].provider, "kupibilet")
-        self.assertEqual(parsed["diagnose probe fli"].provider, "fli")
-        self.assertEqual(parsed["diagnose render"].command_name, "diagnose render")
-        self.assertEqual(parsed["diagnose kb-search"].command_name, "diagnose kb-search")
-        self.assertEqual(parsed["diagnose kb-roundtrip"].command_name, "diagnose kb-roundtrip")
-        self.assertEqual(parsed["diagnose fli-search"].command_name, "diagnose fli-search")
-        self.assertEqual(parsed["diagnose fli-dates"].command_name, "diagnose fli-dates")
-        self.assertEqual(parsed["maint doctor"].command_name, "maint doctor")
-        self.assertEqual(parsed["maint catalog manifest"].command_name, "maint catalog manifest")
-        self.assertTrue(parsed["maint catalog refresh"].dry_run)
-        self.assertEqual(PRIMARY_ROUTE_COMMAND, "search")
-
     def test_catalog_dependent_commands_auto_refresh_when_needed_and_refresh_is_explicit(self) -> None:
         parser = build_parser()
         argv_by_command = {

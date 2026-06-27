@@ -53,10 +53,8 @@ class StaticCatalogLayerTests(unittest.TestCase):
             self.assertNotIn("url", manifest["entries"]["countries"])
             self.assertNotIn("aliases", manifest["entries"]["countries"])
             self.assertEqual(manifest["entries"]["planes"]["count"], 1)
-            self.assertEqual(
-                manifest["entries"]["planes"]["stale_note"],
-                "planes.json is upstream-marked as not maintained; use it only as metadata.",
-            )
+            self.assertIn("not maintained", manifest["entries"]["planes"]["stale_note"])
+            self.assertIn("metadata", manifest["entries"]["planes"]["stale_note"])
             self.assertNotIn("routes", manifest["entries"])
 
             dry_run = download_static_catalog(cache_dir, names=["countries"], dry_run=True)

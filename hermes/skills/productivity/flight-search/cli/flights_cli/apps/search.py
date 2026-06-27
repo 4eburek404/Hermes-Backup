@@ -5,10 +5,11 @@ from typing import Any
 
 from ..config import DEFAULT_CURRENCY, DEFAULT_PROFILE
 from ..contracts.registry import current_contract
+from ..io import read_json_object
 from ..orchestrators.live_route_assembly import run_live_route_assembly
 from ..pipeline.options import LiveAssemblyOptions, search_request_to_options
 from ..store import Store
-from .common import read_json_document, validate_contract_payload
+from .common import validate_contract_payload
 
 _SEARCH_RESULT_CONTRACT = current_contract("search_result")
 SEARCH_RESULT_SCHEMA_VERSION = _SEARCH_RESULT_CONTRACT["schema_version"]
@@ -27,9 +28,8 @@ def normalize_search_request(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def live_assembly_options_from_search_request(payload: dict[str, Any]) -> LiveAssemblyOptions:
-    request = normalize_search_request(payload)
-    validate_contract_payload("search_request", request, error_type="validation_error")
-    return search_request_to_options(request)
+    validate_contract_payload("search_request", payload, error_type="validation_error")
+    return search_request_to_options(payload)
 
 
 def build_search_result(request: dict[str, Any], route_result: dict[str, Any]) -> dict[str, Any]:
@@ -45,7 +45,7 @@ def build_search_result(request: dict[str, Any], route_result: dict[str, Any]) -
 
 
 def command_search(args: argparse.Namespace, store: Store) -> dict[str, Any]:
-    request = normalize_search_request(read_json_document(args.request))
+    request = normalize_search_request(read_json_object(args.request))
     live_assembly_options = live_assembly_options_from_search_request(request)
     route_result = run_live_route_assembly(live_assembly_options, store)
     return build_search_result(request, route_result)

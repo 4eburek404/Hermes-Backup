@@ -212,8 +212,6 @@ def agent_report_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]
     frontier = frontier_section(report)
     diagnostics_payload = diagnostics_section(report)
     errors: list[dict[str, Any]] = []
-    answer_text = "\n".join(str(line).lower() for line in diagnostics_payload.get("answer_lines") or [])
-
     if not diagnostics_payload.get("answer_lines"):
         errors.append({"path": "$.diagnostics.answer_lines", "message": "diagnostics.answer_lines must not be empty", "validator": "semantic"})
     source_boundaries = evidence.get("source_boundaries") if isinstance(evidence.get("source_boundaries"), list) else []
@@ -266,27 +264,6 @@ def agent_report_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]
                     "validator": "semantic",
                 }
             )
-
-    if evidence.get("through_fare_checks"):
-        has_through_fare_signal = "through-fare" in answer_text or "through fare" in answer_text
-        has_verify_signal = "verify" in answer_text or "verification" in answer_text
-        if not has_through_fare_signal or not has_verify_signal:
-            errors.append(
-                {
-                    "path": "$.diagnostics.answer_lines",
-                    "message": "diagnostics.answer_lines must surface through-fare verification",
-                    "validator": "semantic",
-                }
-            )
-
-    if evidence.get("provider_failures") and "provider failure" not in answer_text and "failed" not in answer_text:
-        errors.append(
-            {
-                "path": "$.diagnostics.answer_lines",
-                "message": "diagnostics.answer_lines must surface provider failures",
-                "validator": "semantic",
-            }
-        )
 
     stop_diagnostics = evidence.get("stop_policy_diagnostics") if isinstance(evidence.get("stop_policy_diagnostics"), dict) else {}
     for collection_name in ("recommended_options", "priority_options"):

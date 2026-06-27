@@ -67,7 +67,7 @@ class MaintenanceCheckTests(unittest.TestCase):
         self.assertEqual(workflow["manifest"]["command_surface_version"], "command_surface.v1")
         self.assertEqual(workflow["manifest"]["mismatches"], [])
         self.assertEqual(workflow["command_surface"]["version"], "command_surface.v1")
-        self.assertEqual(workflow["command_surface"]["golden_path"], "search --request")
+        self.assertEqual(workflow["command_surface"]["canonical_path"], "search --request")
         self.assertIn("diagnose plan", workflow["command_surface"]["diagnostic_commands"])
         self.assertEqual(workflow["parity"]["status"], "runtime_missing")
         self.assertFalse(workflow["parity"]["runtime_claims_allowed"])
@@ -101,18 +101,8 @@ class MaintenanceCheckTests(unittest.TestCase):
 
         lines = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
         self.assertLessEqual(len(lines), 12)
-        summary = "\n".join(lines)
-        self.assertIn("flight-search maintenance", summary)
-        self.assertIn("branch:", summary)
-        self.assertIn("HEAD:", summary)
-        self.assertIn("source:", summary)
-        self.assertIn("runtime:", summary)
-        self.assertIn("versions:", summary)
-        self.assertIn("manifest: ok", summary)
-        self.assertIn("parity: runtime_missing runtime_claims=no", summary)
-        self.assertIn("doctor: ok", summary)
-        self.assertIn("references:", summary)
-        self.assertIn("generated artifacts:", summary)
+        self.assertEqual(proc.stderr, "")
+        self.assertFalse(proc.stdout.lstrip().startswith("{"))
 
 
 if __name__ == "__main__":

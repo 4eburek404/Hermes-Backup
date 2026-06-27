@@ -137,13 +137,13 @@ class CoverageDiagnosticsTests(unittest.TestCase):
         self.assertEqual(diagnostics["completeness"]["planned_count"], diagnostics["completeness"]["terminal_count"])
         self.assertTrue(diagnostics["completeness"]["all_planned_controls_have_terminal_state"])
 
-    def test_answer_lines_keep_coverage_diagnostics_compact(self) -> None:
+    def test_answer_lines_do_not_dump_coverage_control_lists(self) -> None:
         report = build_agent_report(base_payload())
         joined = " ".join(report["diagnostics"]["answer_lines"])
+        diagnostics = report["evidence"]["coverage_diagnostics"]
 
-        self.assertIn("Coverage diagnostics", joined)
-        self.assertIn("not_executed=1", joined)
-        self.assertIn("Coverage is incomplete", joined)
+        self.assertEqual(len(diagnostics["not_executed_controls"]), 1)
+        self.assertTrue(diagnostics["completeness"]["all_planned_controls_have_terminal_state"])
         self.assertNotIn("searched_controls", joined)
         self.assertNotIn("skipped_controls", joined)
 

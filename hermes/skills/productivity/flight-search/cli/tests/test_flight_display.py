@@ -66,10 +66,14 @@ class FlightDisplayTests(unittest.TestCase):
             display = build_itinerary_display(report, Store(cache))
 
         text = display["text"]
-        self.assertIn("всего 9:30", text)
-        self.assertIn("пересадка Шереметьево 2:50", text)
-        self.assertIn("SU1415 15JUL Екатеринбург - Шереметьево 12:00 - 12:30 борт A320 в полете 2:30", text)
-        self.assertIn("SU2134 15JUL Шереметьево - Стамбул 15:20 - 19:30 борт B738 в полете 4:10", text)
+        option = display["options"][0]
+        self.assertEqual(option["total_elapsed"], "9:30")
+        self.assertEqual(option["connection_count"], 1)
+        self.assertEqual(len(option["lines"]), 3)
+        self.assertIn("SU1415", option["lines"][0])
+        self.assertIn("SU2134", option["lines"][2])
+        self.assertIn("2:50", option["lines"][1])
+        self.assertNotIn("Новый (Стамбул)", text)
 
     def test_round_trip_does_not_turn_trip_gap_into_layover(self) -> None:
         report = valid_report()
@@ -95,10 +99,13 @@ class FlightDisplayTests(unittest.TestCase):
         ]
 
         display = build_itinerary_display(report)
+        option = display["options"][0]
 
-        self.assertIn("всего туда 2:30; обратно 2:25", display["text"])
-        self.assertIn("туда: всего 2:30, пересадок 0", display["text"])
-        self.assertIn("обратно: всего 2:25, пересадок 0", display["text"])
+        self.assertEqual(option["total_elapsed"], "туда 2:30; обратно 2:25")
+        self.assertEqual(option["connection_count"], 0)
+        self.assertEqual(len(option["lines"]), 4)
+        self.assertIn("SU1415", option["lines"][1])
+        self.assertIn("SU1416", option["lines"][3])
         self.assertNotIn("пересадка SVO", display["text"])
 
 

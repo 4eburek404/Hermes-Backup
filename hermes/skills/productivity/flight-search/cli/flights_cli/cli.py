@@ -7,15 +7,11 @@ import sys
 from typing import Any
 
 from . import __version__
-from .commands.basic import (
-    command_airports_explain,
-    command_cities_search,
-    metadata_evidence_scope,
-)
 from .apps.diagnose import command_diagnose_plan, command_diagnose_probe, command_diagnose_render
-from .apps.maint import command_maint_catalog_manifest, command_maint_catalog_refresh, command_maint_doctor
 from .apps.search import command_search
+from .commands.maint import command_maint_catalog_manifest, command_maint_catalog_refresh, command_maint_doctor
 from .commands.maintenance import command_maintenance_check
+from .commands.metadata import command_airports_explain, command_cities_search, metadata_evidence_scope
 from .commands.providers import (
     command_fli_dates,
     command_fli_search,
@@ -28,13 +24,11 @@ from .commands.route import (
     command_route_validate,
 )
 from .config import (
-    DEFAULT_COVERAGE_CONTROL_LIMIT,
     DEFAULT_CURRENCY,
     DEFAULT_PROFILE,
     FLI_MCP_DEFAULT_URL,
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
     DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR,
-    DEFAULT_ROUTING_STRATEGY,
     RISK_PROFILES,
 )
 from .errors import CliError
@@ -47,52 +41,11 @@ from .providers.static_catalog import (
 from .store import Store
 
 
-def add_route_scope_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("origin", help="Origin city/airport, e.g. SVX or Ekaterinburg")
-    parser.add_argument("destination", help="Destination city/airport, e.g. LON or London")
-    parser.add_argument("--depart-date", required=True, help="Departure date YYYY-MM-DD")
-    parser.add_argument("--return-date", help="Return date YYYY-MM-DD")
-    parser.add_argument("--hub", action="append", help="Hub airport. Repeatable. In auto strategy, passing --hub uses hub-list routing.")
-    parser.add_argument(
-        "--routing-strategy",
-        choices=["auto", "hub-list", "ru-priority", "domestic-ru"],
-        default=DEFAULT_ROUTING_STRATEGY,
-        help="Routing strategy. auto selects domestic-ru for RU domestic routes, ru-priority for international default, or hub-list when --hub is passed.",
-    )
-    parser.add_argument("--origin-airport", action="append", help="Force origin airport. Repeatable.")
-    parser.add_argument("--destination-airport", action="append", help="Force destination airport. Repeatable.")
-    parser.add_argument("--max-airports-per-city", type=int, default=6)
-    parser.add_argument("--currency", default=DEFAULT_CURRENCY, help="Currency. Default RUB.")
-    parser.add_argument(
-        "--coverage-mode",
-        choices=["standard", "targeted", "full"],
-        default="targeted",
-        help="Coverage-control scope metadata. targeted adds exact-airport direct and aggregate/carrier controls without unbounded live fan-out.",
-    )
-    parser.add_argument(
-        "--coverage-control",
-        action="append",
-        help="Repeatable targeted coverage control hint, e.g. carrier_aggregate:SU or exact_airport_direct. Exposed in diagnostics; no unbounded live fan-out.",
-    )
-    parser.add_argument(
-        "--coverage-control-limit",
-        type=int,
-        default=DEFAULT_COVERAGE_CONTROL_LIMIT,
-        help="Maximum planned coverage controls to surface in route metadata. Default 12; this is a fan-out guardrail, not a cache/rate-limit implementation.",
-    )
-
-
 def add_connection_policy_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--ticketing", choices=["separate", "single"], default="separate")
     parser.add_argument("--profile", choices=sorted(RISK_PROFILES), default=DEFAULT_PROFILE, help="Risk/ranking profile.")
     parser.add_argument("--min-same-airport-min", type=int, default=120)
     parser.add_argument("--min-cross-airport-min", type=int, default=300)
-
-
-def add_common_route_flags(parser: argparse.ArgumentParser) -> None:
-    add_route_scope_flags(parser)
-    add_connection_policy_flags(parser)
-    add_stop_policy_flags(parser)
 
 
 def add_stop_policy_flags(parser: argparse.ArgumentParser) -> None:
@@ -154,10 +107,6 @@ def _parent(add_flags) -> argparse.ArgumentParser:
     return parser
 
 
-def route_query_parent() -> argparse.ArgumentParser:
-    return _parent(add_common_route_flags)
-
-
 def connection_policy_parent() -> argparse.ArgumentParser:
     return _parent(add_connection_policy_flags)
 
@@ -185,7 +134,7 @@ def _catalog_read_defaults(**kwargs: Any) -> dict[str, Any]:
 def _register_primary_search_commands(sub) -> None:
     search = sub.add_parser("search", help="Primary request-file route search; JSON output keeps flight_search_result.v1 envelope.")
     search.add_argument("--request", required=True, help="flight_search_request.v1 JSON file, or - for stdin.")
-    search.set_defaults(func=command_search, command_name="search", error_envelope_stdout=True, **_catalog_read_defaults())
+    search.set_defaults(func=command_search, command_name="search", **_catalog_read_defaults())
 
 
 def _register_diagnose_commands(sub) -> None:
@@ -382,14 +331,18 @@ def normalize_global_json(argv: list[str]) -> list[str]:
     return [argv[0], "--json"] + [item for item in argv[1:] if item != "--json"]
 
 
+def validate_cli_config(args: argparse.Namespace) -> None:
+    if args.catalog_refresh not in {"auto", "always", "never"}:
+        raise CliError("catalog refresh policy must be one of auto, always, never", error_type="validation_error")
+    parse_ttl_seconds(args.catalog_max_age)
+
+
 def auto_refresh_catalog(args: argparse.Namespace, store: Store) -> dict | None:
     # Catalog-dependent commands need a complete local static catalog before
     # routing commands. They refresh only when files are missing/stale unless the
     # caller disables this with `--catalog-refresh never`.
     if getattr(args, "catalog_access", None) != "auto_refresh":
         return None
-    if args.catalog_refresh not in {"auto", "always", "never"}:
-        raise CliError("catalog refresh policy must be one of auto, always, never", error_type="validation_error")
     if args.catalog_refresh == "never":
         return {"enabled": False, "reason": "disabled", "evidence_scope": metadata_evidence_scope("catalog auto refresh")}
     max_age = 0 if args.catalog_refresh == "always" else parse_ttl_seconds(args.catalog_max_age)
@@ -420,9 +373,10 @@ def main(argv: list[str] | None = None) -> int:
     argv = normalize_global_json(list(sys.argv if argv is None else argv))
     parser = build_parser()
     args = parser.parse_args(argv[1:])
-    apply_agent_output_defaults(args)
-    store = Store()
     try:
+        validate_cli_config(args)
+        apply_agent_output_defaults(args)
+        store = Store()
         catalog_auto_refresh = auto_refresh_catalog(args, store)
         data = args.func(args, store)
         if catalog_auto_refresh is not None and isinstance(data, dict):
@@ -430,10 +384,7 @@ def main(argv: list[str] | None = None) -> int:
         data = apply_agent_brief_output(args, data)
     except CliError as exc:
         if args.json:
-            if getattr(args, "error_envelope_stdout", False):
-                emit_json(error_envelope(exc))
-            else:
-                print(json.dumps(error_envelope(exc), ensure_ascii=False, indent=2, sort_keys=True), file=sys.stderr)
+            emit_json(error_envelope(exc))
         else:
             print(f"error: {exc.message}", file=sys.stderr)
             if exc.details is not None:

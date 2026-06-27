@@ -32,7 +32,7 @@ def render_agent_report_human(report: dict[str, Any]) -> str:
 def render_human(command: str, data: Any) -> str:
     if isinstance(data, dict) and isinstance(data.get("agent_report"), dict):
         return render_agent_report_human(data["agent_report"])
-    if command in {"diagnose fli-search", "fli-search"}:
+    if command == "diagnose fli-search":
         lines = [
             f"FLI MCP live search: {data['origin']} → {data['destination']}",
             f"Date: {data['depart_date']}",
@@ -71,7 +71,7 @@ def render_human(command: str, data: Any) -> str:
         if not data.get("dates"):
             lines.append("(no priced dates found)")
         return "\n".join(lines)
-    if command in {"diagnose kb-search", "kb-search"}:
+    if command == "diagnose kb-search":
         lines = [
             f"Kupibilet live search: {data['origin']} → {data['destination']}",
             f"Date: {data['depart_date']}",

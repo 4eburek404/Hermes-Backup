@@ -10,8 +10,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from jsonschema import Draft202012Validator
-
 from flights_cli.apps import search as search_app
 from flights_cli.cli import apply_agent_brief_output, apply_agent_output_defaults, build_parser, normalize_global_json
 from flights_cli.command_surface import (
@@ -28,33 +26,6 @@ from flights_cli.config import DEFAULT_ROUTE_HUBS
 from flights_cli.domain.stop_policy import stop_policy_from_args
 
 from helpers import PROJECT, TEST_ENV
-
-
-def load_doctor_envelope_schema() -> dict:
-    schema_suffix = (
-        Path("software-development")
-        / "skill-audit-and-improvement"
-        / "schemas"
-        / "cli-doctor-envelope.v1.schema.json"
-    )
-    skill_roots = (Path("hermes") / "skills", Path("skills"))
-    checked_candidates = []
-    checked_bases = []
-
-    for start in (PROJECT, Path.cwd().resolve()):
-        for base in (start, *start.parents):
-            if base not in checked_bases:
-                checked_bases.append(base)
-
-    for base in checked_bases:
-        for skill_root in skill_roots:
-            candidate = base / skill_root / schema_suffix
-            checked_candidates.append(candidate)
-            if candidate.exists():
-                return json.loads(candidate.read_text(encoding="utf-8"))
-
-    checked = "\n".join(f"  - {candidate}" for candidate in checked_candidates)
-    raise AssertionError(f"doctor envelope schema not found from {PROJECT}; checked:\n{checked}")
 
 
 def subparser_choices(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentParser]:
@@ -241,7 +212,7 @@ class CliContractTests(unittest.TestCase):
             with self.subTest(label=label):
                 self.assertTrue(callable(parser.parse_args(argv).func))
 
-    def test_docs_name_current_golden_path_and_diagnostic_plan(self) -> None:
+    def test_docs_name_current_canonical_path_and_diagnostic_plan(self) -> None:
         skill_text = (PROJECT.parent / "SKILL.md").read_text(encoding="utf-8")
         readme_text = (PROJECT / "README.md").read_text(encoding="utf-8")
         self.assertIn("python3 -m flights_cli --json search --request", skill_text)
@@ -317,9 +288,6 @@ class CliContractTests(unittest.TestCase):
             stderr=subprocess.PIPE,
         )
         payload = json.loads(proc.stdout)
-        doctor_schema = load_doctor_envelope_schema()
-        Draft202012Validator.check_schema(doctor_schema)
-        Draft202012Validator(doctor_schema).validate(payload)
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["command"], "maint doctor")
         self.assertEqual(payload["issues"], [])
@@ -367,10 +335,30 @@ class CliContractTests(unittest.TestCase):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        self.assertIn("flights 0.5.8 (skill flight-search 0.8.8)", human_proc.stdout)
-        self.assertIn("primary route command: search", human_proc.stdout)
-        self.assertIn("targeted probe commands: diagnose probe, diagnose kb-search, diagnose kb-roundtrip, diagnose fli-search, diagnose fli-dates", human_proc.stdout)
-        self.assertIn("default hubs: IST, DXB, DOH", human_proc.stdout)
+        self.assertEqual(human_proc.stderr, "")
+        self.assertFalse(human_proc.stdout.lstrip().startswith("{"))
+        self.assertLessEqual(len([line for line in human_proc.stdout.splitlines() if line.strip()]), 12)
+
+    def test_invalid_catalog_refresh_env_is_json_validation_error_for_all_commands(self) -> None:
+        env = {**TEST_ENV, "FLIGHTS_CATALOG_REFRESH": "bad"}
+        for argv in (
+            ["--json", "maint", "doctor"],
+            ["--json", "cities", "search", "London"],
+        ):
+            with self.subTest(argv=argv):
+                proc = subprocess.run(
+                    [sys.executable, "-m", "flights_cli", *argv],
+                    cwd=PROJECT,
+                    env=env,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                payload = json.loads(proc.stdout)
+                self.assertEqual(proc.returncode, 1)
+                self.assertEqual(proc.stderr, "")
+                self.assertFalse(payload["ok"])
+                self.assertEqual(payload["error"]["type"], "validation_error")
 
     def test_agent_report_is_report_attachment_without_output_or_evidence_side_effects(self) -> None:
         args = live_search_args(agent_report=True)

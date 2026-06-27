@@ -14,25 +14,14 @@ from ..command_surface import (
     TARGETED_PROBE_COMMANDS,
 )
 from ..config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, DEFAULT_ROUTE_HUB_NOTES, DEFAULT_ROUTE_HUBS, RISK_PROFILES
-from ..domain.airports import explain_airport
 from ..providers.route_intel import svx_route_index_path
 from ..providers.static_catalog import active_catalog_manifest, catalog_staleness, download_static_catalog, parse_ttl_seconds
-from ..store import Store, city_to_output
+from ..store import Store
 from ..version_manifest import load_version_manifest, manifest_mismatches, manifest_path, source_skill_path
+from .metadata import metadata_evidence_scope
 
 
-def metadata_evidence_scope(source: str) -> dict[str, Any]:
-    return {
-        "source": source,
-        "kind": "static_metadata",
-        "availability_evidence": False,
-        "availability_claims_allowed": False,
-        "live_provider_evidence_required": True,
-        "note": "Static catalog metadata can explain labels and routing scope, but cannot prove flight availability or absence.",
-    }
-
-
-def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
+def command_maint_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     cache_files = {}
     for name in [
         "countries.json",
@@ -127,22 +116,7 @@ def command_doctor(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     }
 
 
-def command_cities_search(args: argparse.Namespace, store: Store) -> dict[str, Any]:
-    return {
-        "query": args.query,
-        "evidence_scope": metadata_evidence_scope("cities static catalog"),
-        "cities": [city_to_output(store, city) for city in store.search_cities(args.query, args.limit)],
-    }
-
-
-def command_airports_explain(args: argparse.Namespace, store: Store) -> dict[str, Any]:
-    return {
-        "evidence_scope": metadata_evidence_scope("airports static catalog"),
-        "airports": [explain_airport(store, code) for code in args.code],
-    }
-
-
-def command_catalog_update(args: argparse.Namespace, store: Store) -> dict[str, Any]:
+def command_maint_catalog_refresh(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     result = download_static_catalog(
         store.cache_dir,
         names=args.only,
@@ -153,7 +127,7 @@ def command_catalog_update(args: argparse.Namespace, store: Store) -> dict[str, 
     return result
 
 
-def command_catalog_manifest(args: argparse.Namespace, store: Store) -> dict[str, Any]:
+def command_maint_catalog_manifest(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     max_age_seconds = parse_ttl_seconds(args.catalog_max_age)
     manifest = active_catalog_manifest(store.load_manifest())
     return {

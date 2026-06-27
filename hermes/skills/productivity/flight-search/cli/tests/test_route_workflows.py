@@ -398,7 +398,6 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(assembled["data"]["candidates"], [])
         self.assertEqual(report["schema_version"], "agent_report.v2")
         self.assertEqual(report["frontier"]["recommended_options"][0]["segments"][0]["flight_number"], "SU630")
-        self.assertIn("Best CLI-ranked option", report["diagnostics"]["answer_lines"][0])
         self.assertIn("does not construct GDS", report["evidence"]["source_boundaries"][0])
 
     def test_agent_report_surfaces_hidden_all_su_svo_priority_option(self) -> None:
@@ -475,7 +474,6 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
             ["SU1403", "SU232"],
         )
         self.assertEqual(report["evidence"]["through_fare_checks"][0]["carrier"], "SU")
-        self.assertIn("Priority control", " ".join(report["diagnostics"]["answer_lines"]))
 
     def test_agent_brief_json_returns_only_report(self) -> None:
         payload = {

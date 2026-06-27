@@ -31,6 +31,7 @@ from ..store import Store
 
 from .route_graph import (
     append_unique_route_segment,
+    complete_route_families,
     coverage_controls_for_plan,
     resolve_route_graph_context,
     route_families_for_strategy,
@@ -634,6 +635,7 @@ class RoutePlanBuilder:
             destination_airports=self.destination_airports,
             segments=self.segments,
         )
+        route_families = complete_route_families(self.route_families, route_graph["families"])
 
         return {
             "origin": self.origin.code,
@@ -658,7 +660,7 @@ class RoutePlanBuilder:
             "flow_decision": self.flow.flow_decision.to_dict(),
             "evidence_plan": self.flow.evidence_plan.to_dict(),
             "route_graph": route_graph,
-            "route_families": self.route_families,
+            "route_families": route_families,
             "dates": {
                 "depart": self.depart.isoformat(),
                 "return": self.ret.isoformat() if self.ret else None,

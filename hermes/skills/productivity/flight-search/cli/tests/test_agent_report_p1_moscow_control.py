@@ -83,7 +83,6 @@ class AgentReportP1MoscowControlTests(CliSubprocessMixin, unittest.TestCase):
         self.assertGreater(moscow["rank"], 1)
         self.assertEqual(moscow["detail_status"], "full")
         self.assertEqual([segment["origin"] for segment in moscow["segments"]], ["SVX", "SVO"])
-        self.assertIn("Moscow gateway control", " ".join(report["diagnostics"]["answer_lines"]))
 
 
 if __name__ == "__main__":

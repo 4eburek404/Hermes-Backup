@@ -619,7 +619,6 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
 
         self.assertEqual(len(synthetic_results), 1)
         self.assertEqual(synthetic_results[0]["leg"], "origin_to_hub")
-        self.assertEqual(synthetic_results[0]["offers"][0]["source"], "Kupibilet synthesized Moscow gateway control")
         self.assertEqual(synthetic_searches[0]["route_family"], "moscow_gateway_control")
 
     def test_ru_priority_skips_dxb_when_ist_pair_is_usable(self) -> None:
@@ -779,11 +778,15 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
     def test_explicit_carrier_aggregate_control_reports_through_fare_check(self) -> None:
         from flights_cli.cli import apply_agent_output_defaults
 
-        future_depart = date(date.today().year + 1, 6, 1).isoformat()
+        class FixedDate(date):
+            @classmethod
+            def today(cls) -> date:
+                return cls(2026, 5, 1)
+
         args = live_assembly_args(
                 origin='SVX',
                 destination='DEL',
-                depart_date=future_depart,
+                depart_date="2026-06-01",
                 provider_policy='kupibilet',
                 aggregate_control_limit=10,
                 aggregate_control_carriers=['SU'],
@@ -842,7 +845,11 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
                 "offers": offers,
             }
 
-        with patch("flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search", side_effect=fake_fetch):
+        with (
+            patch("flights_cli.domain.normalize.date", FixedDate),
+            patch("flights_cli.pipeline.evidence_plan.SYSTEM_CLOCK.today", return_value=date(2026, 5, 1)),
+            patch("flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search", side_effect=fake_fetch),
+        ):
             result = run_live_route_assembly(args, Store())
 
         self.assertIn(("SVX", "DEL", False, ("SU",)), calls)
@@ -864,7 +871,6 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         report = result["agent_report"]
         self.assertEqual(report["evidence"]["coverage_diagnostics"]["not_executed_controls"], [])
         self.assertEqual(report["evidence"]["through_fare_checks"][0]["carrier"], "SU")
-        self.assertIn("Through-fare check required", " ".join(report["diagnostics"]["answer_lines"]))
 
     def test_direct_route_intel_skips_absent_direct_control_to_svx(self) -> None:
         args = live_assembly_args(
@@ -1080,7 +1086,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             ),
         ]
 
-        self.assertEqual(segment_results[0]["offers"][0]["source"], "Kupibilet frontend_search direct-only")
+        self.assertEqual(segment_results[0]["source_key"], "kupibilet_frontend_search")
         assembled = self._assemble({"segment_results": segment_results}, "--include-candidates", "10")
         self.assertEqual(assembled["data"]["assembly"]["candidate_count"], 1)
         self.assertEqual(assembled["data"]["ranked"][0]["price"], 90704)

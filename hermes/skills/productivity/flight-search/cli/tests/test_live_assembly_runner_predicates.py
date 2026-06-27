@@ -30,7 +30,7 @@ from flights_cli.orchestrators.live_assembly_runner import (
     preferred_keys_for_deferred_airport,
     provider_city_code_side,
 )
-from flights_cli.pipeline.options import argparse_args_to_options
+from flights_cli.pipeline.options import search_request_to_options
 from flights_cli.pipeline.search_pipeline import build_live_route_search_flow
 from flights_cli.store import Store
 
@@ -74,6 +74,75 @@ def _args(**overrides: Any) -> argparse.Namespace:
     return argparse.Namespace(**defaults)
 
 
+def _options_from_args(args: argparse.Namespace):
+    options = search_request_to_options(
+        {
+            "origin": args.origin,
+            "destination": args.destination,
+            "depart_date": args.depart_date,
+            "return_date": args.return_date,
+            "currency": args.currency,
+            "profile": args.profile,
+            "ticketing": args.ticketing,
+            "provider_policy": args.provider_policy,
+            "route_options": {
+                "routing_strategy": getattr(args, "routing_strategy", RoutingStrategy.RU_PRIORITY),
+                "hubs": getattr(args, "hub", None),
+                "origin_airports": getattr(args, "origin_airport", None),
+                "destination_airports": getattr(args, "destination_airport", None),
+                "max_airports_per_city": args.max_airports_per_city,
+                "coverage_controls": getattr(args, "coverage_control", None),
+                "min_same_airport_min": args.min_same_airport_min,
+                "min_cross_airport_min": args.min_cross_airport_min,
+                "date_window_end": args.date_window_end,
+                "max_connections": getattr(args, "max_connections", None),
+                "tier2_max_connections": getattr(args, "tier2_max_connections", None),
+            },
+            "filters": {
+                "only_carriers": args.only_carrier,
+                "exclude_carriers": args.exclude_carrier,
+                "prefer_carriers": args.prefer_carrier,
+                "avoid_carriers": args.avoid_carrier,
+            },
+            "evidence": {
+                "max_segment_searches": args.max_segment_searches,
+                "direct_route_index_ttl_seconds": args.direct_route_index_ttl_seconds,
+                "no_direct_route_intel": args.no_direct_route_intel,
+                "timeout": args.timeout,
+            },
+            "output": {
+                "include_segment_results": args.include_segment_results,
+                "limit_per_pair": args.limit_per_pair,
+            },
+        }
+    )
+    if getattr(args, "agent_report", True) == options.output.agent_report:
+        return options
+    return options.__class__(
+        command_name=getattr(args, "command_name", options.command_name),
+        route=options.route,
+        filters=options.filters,
+        evidence=options.evidence,
+        output=options.output.__class__(
+            agent_report=bool(args.agent_report),
+            agent_brief=options.output.agent_brief,
+            include_segment_results=options.output.include_segment_results,
+            include_candidates=options.output.include_candidates,
+            include_ranked_candidates=options.output.include_ranked_candidates,
+            include_rejected_pairs=options.output.include_rejected_pairs,
+            include_filtered=options.output.include_filtered,
+            limit_per_pair=options.output.limit_per_pair,
+            candidate_pool_limit=options.output.candidate_pool_limit,
+            max_candidates=options.output.max_candidates,
+            max_reasons=options.output.max_reasons,
+            include_stop_policy_diagnostics=options.output.include_stop_policy_diagnostics,
+        ),
+        profile=options.profile,
+        ticketing=options.ticketing,
+        currency=options.currency,
+    )
+
+
 def _runner(
     *,
     offer_counts: dict | None = None,
@@ -89,7 +158,7 @@ def _runner(
     """
     runner = object.__new__(LiveAssemblyRunner)
     runner.args = _args()
-    runner.options = argparse_args_to_options(runner.args)
+    runner.options = _options_from_args(runner.args)
     runner.store = Store()
     runner._plan_builder = lambda *a, **kw: {}  # unused in predicates
     flow = build_live_route_search_flow(runner.options, runner.store)
@@ -253,7 +322,7 @@ class TestPlanHasSvxDirectControl(unittest.TestCase):
 class TestDirectRouteIntelSkipAllowed(unittest.TestCase):
     def _policy(self, **overrides: Any) -> tuple[bool, str | None]:
         args = _args(**overrides)
-        options = argparse_args_to_options(args)
+        options = _options_from_args(args)
         flow = build_live_route_search_flow(options, Store())
         return direct_route_intel_skip_allowed(flow, options)
 
@@ -312,7 +381,7 @@ class TestDirectRouteIntelSkipAllowed(unittest.TestCase):
 class TestLiveAssemblyState(unittest.TestCase):
     def test_can_be_created_without_cli_args(self) -> None:
         args = _args()
-        options = argparse_args_to_options(args)
+        options = _options_from_args(args)
         flow = build_live_route_search_flow(options, Store())
 
         state = LiveAssemblyState(flow=flow, plan={"segments": []})

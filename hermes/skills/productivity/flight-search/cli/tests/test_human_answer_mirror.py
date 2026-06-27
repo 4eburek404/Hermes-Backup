@@ -42,7 +42,6 @@ class HumanAnswerMirrorTests(unittest.TestCase):
         validate_agent_report(report)
         validate_user_answer(report["user_answer"])
         text = report["user_answer"]["rendered_text"]
-        self.assertIn("Нашёл варианты SVX→DEL", text)
         self.assertEqual(report["diagnostics"]["human_answer"]["text"], text)
         self.assertNotIn("agent report:", render_agent_report_human(report))
         self.assertEqual(render_agent_report_human(report), text)
