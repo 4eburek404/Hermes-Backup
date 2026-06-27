@@ -56,6 +56,18 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 
+# Hermes runtime metadata and local skill-manager state
+hermes/backups/
+hermes/skills/.archive/
+hermes/skills/.bundled_manifest
+hermes/skills/.bundled_manifest.*
+hermes/skills/.curator_backups/
+hermes/skills/.curator_state
+hermes/skills/.hub/index-cache/
+hermes/skills/.hub/lock.json
+hermes/skills/.hub/taps.json
+hermes/skills/.usage.json
+
 # Upstream source checkout must not be vendored at repo root.
 # The reproducible CLI layer under cli/hermes-agent/ stores manifest+patch only.
 /hermes-agent/
