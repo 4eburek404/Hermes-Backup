@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://hermes-agent.local/schemas/flight-calendar-ics-itinerary.v1.json",
-  "title": "flight-calendar-ics canonical itinerary v1",
-  "description": "Provider-agnostic normalized flight itinerary contract consumed by the flight-calendar-ics calendar builder. One flights[] item represents one flight segment and one generated VEVENT.",
+  "title": "flight-calendar-ics minimal itinerary v1",
+  "description": "Minimal input contract consumed by the compact flight-calendar-ics renderer. One flights[] item becomes one VEVENT.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -13,14 +13,8 @@
     "schema_version": {
       "const": "flight-calendar-ics-itinerary.v1"
     },
-    "calendar_name": {
-      "$ref": "#/$defs/nullable_non_empty_string"
-    },
-    "booking_reference": {
-      "$ref": "#/$defs/nullable_short_string"
-    },
-    "ticket_number": {
-      "$ref": "#/$defs/nullable_short_string"
+    "pnr": {
+      "$ref": "#/$defs/short_string"
     },
     "passengers": {
       "type": "array",
@@ -29,27 +23,12 @@
       },
       "uniqueItems": true
     },
-    "links": {
-      "$ref": "#/$defs/links"
+    "ticket_number": {
+      "$ref": "#/$defs/short_string"
     },
-    "alarms_minutes": {
-      "type": "array",
-      "items": {
-        "type": "integer",
-        "minimum": 1
-      }
-    },
-    "source": {
-      "$ref": "#/$defs/source"
-    },
-    "notes": {
-      "$ref": "#/$defs/nullable_long_string"
-    },
-    "extensions": {
-      "type": "object",
-      "additionalProperties": {
-        "$ref": "#/$defs/extension_value"
-      }
+    "booking_url": {
+      "type": "string",
+      "format": "uri"
     },
     "flights": {
       "type": "array",
@@ -64,28 +43,10 @@
       "type": "string",
       "minLength": 1
     },
-    "nullable_non_empty_string": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "minLength": 1
-    },
-    "nullable_short_string": {
-      "type": [
-        "string",
-        "null"
-      ],
+    "short_string": {
+      "type": "string",
       "minLength": 1,
-      "maxLength": 128
-    },
-    "nullable_long_string": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "minLength": 1,
-      "maxLength": 5000
+      "maxLength": 256
     },
     "iata_airport": {
       "type": "string",
@@ -101,75 +62,6 @@
       "maxLength": 80,
       "pattern": "^[A-Za-z0-9_+./-]+$"
     },
-    "links": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "format": "uri"
-      },
-      "uniqueItems": true
-    },
-    "extension_value": {
-      "oneOf": [
-        {
-          "type": "null"
-        },
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "number"
-        },
-        {
-          "type": "string",
-          "maxLength": 5000
-        },
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/extension_value"
-          }
-        },
-        {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/extension_value"
-          }
-        }
-      ]
-    },
-    "source": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "kind": {
-          "enum": [
-            "manual",
-            "email",
-            "pdf",
-            "image",
-            "web",
-            "api",
-            "unknown"
-          ]
-        },
-        "retrieved_at": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "description": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 500
-        },
-        "extensions": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/extension_value"
-          }
-        }
-      }
-    },
     "airport_endpoint": {
       "type": "object",
       "additionalProperties": false,
@@ -183,13 +75,7 @@
           "$ref": "#/$defs/iata_airport"
         },
         "city": {
-          "$ref": "#/$defs/nullable_non_empty_string"
-        },
-        "terminal": {
-          "$ref": "#/$defs/nullable_short_string"
-        },
-        "gate": {
-          "$ref": "#/$defs/nullable_short_string"
+          "$ref": "#/$defs/non_empty_string"
         },
         "local": {
           "$ref": "#/$defs/local_datetime"
@@ -212,74 +98,17 @@
           "type": "string",
           "pattern": "^[A-Z0-9]{2,3} ?[0-9]{1,5}[A-Z]?$"
         },
-        "carrier": {
-          "$ref": "#/$defs/nullable_non_empty_string"
-        },
-        "carrier_code": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "pattern": "^[A-Z0-9]{2,3}$"
-        },
-        "operating_carrier": {
-          "$ref": "#/$defs/nullable_non_empty_string"
-        },
         "departure": {
           "$ref": "#/$defs/airport_endpoint"
         },
         "arrival": {
           "$ref": "#/$defs/airport_endpoint"
         },
-        "pnr": {
-          "$ref": "#/$defs/nullable_short_string"
-        },
-        "ticket_number": {
-          "$ref": "#/$defs/nullable_short_string"
-        },
-        "passengers": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/non_empty_string"
-          },
-          "uniqueItems": true
-        },
-        "seat": {
-          "$ref": "#/$defs/nullable_short_string"
-        },
-        "baggage": {
-          "$ref": "#/$defs/nullable_non_empty_string"
-        },
-        "cabin": {
-          "$ref": "#/$defs/nullable_short_string"
-        },
-        "fare": {
-          "$ref": "#/$defs/nullable_non_empty_string"
-        },
         "aircraft": {
-          "$ref": "#/$defs/nullable_non_empty_string"
+          "$ref": "#/$defs/non_empty_string"
         },
         "status": {
-          "$ref": "#/$defs/nullable_non_empty_string"
-        },
-        "notes": {
-          "$ref": "#/$defs/nullable_long_string"
-        },
-        "url": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "uri"
-        },
-        "links": {
-          "$ref": "#/$defs/links"
-        },
-        "extensions": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/extension_value"
-          }
+          "$ref": "#/$defs/non_empty_string"
         }
       }
     }

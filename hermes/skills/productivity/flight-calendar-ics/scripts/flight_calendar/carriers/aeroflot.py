@@ -205,8 +205,16 @@ def clean(value: Any) -> Any:
     return None if value in (None, "", []) else value
 
 
-def terminal_name(location: dict[str, Any]) -> str | None:
-    return clean(location.get("terminal_code")) or clean(location.get("terminal_name"))
+def _endpoint(location: dict[str, Any], *, airport: str, local: Any, tz: str) -> dict[str, Any]:
+    endpoint: dict[str, Any] = {
+        "airport": airport,
+        "local": str(local or "").replace(" ", "T"),
+        "tz": tz,
+    }
+    city = clean(location.get("city_name"))
+    if city:
+        endpoint["city"] = str(city)
+    return endpoint
 
 
 def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_url: str | None = None) -> dict[str, Any]:
@@ -226,51 +234,17 @@ def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_u
             if missing_tz:
                 continue
 
-            notes: list[str] = []
-            for label, value in [
-                ("Время в пути", seg.get("flight_time_name")),
-                ("Самолёт", seg.get("aircraft_type_name")),
-                ("Тариф", seg.get("fare_group_name")),
-                ("Питание", seg.get("meal_names")),
-            ]:
-                if clean(value):
-                    notes.append(f"{label}: {value}")
-            for warning in data.get("warnings") or []:
-                if isinstance(warning, dict) and warning.get("description"):
-                    notes.append(str(warning["description"]))
-
-            franchise = seg.get("franchise_info")
-            baggage = "; ".join(str(x) for x in franchise if x) if isinstance(franchise, list) and franchise else None
             airline_code = seg.get("airline_code") or "SU"
             flight_number = f"{airline_code}{seg.get('flight_number')}"
-            flight = {
-                "carrier": seg.get("airline_name") or "Аэрофлот",
+            flight: dict[str, Any] = {
                 "flight_number": flight_number,
-                "departure": {
-                    "airport": dep_code,
-                    "city": dep.get("city_name"),
-                    "terminal": terminal_name(dep),
-                    "local": str(seg.get("departure") or "").replace(" ", "T"),
-                    "tz": tz_map[dep_code],
-                },
-                "arrival": {
-                    "airport": arr_code,
-                    "city": arr.get("city_name"),
-                    "terminal": terminal_name(arr),
-                    "local": str(seg.get("arrival") or "").replace(" ", "T"),
-                    "tz": tz_map[arr_code],
-                },
-                "baggage": baggage,
-                "ticket_number": ticket_number,
-                "pnr": data.get("pnr_locator"),
+                "departure": _endpoint(dep, airport=dep_code, local=seg.get("departure"), tz=tz_map[dep_code]),
+                "arrival": _endpoint(arr, airport=arr_code, local=seg.get("arrival"), tz=tz_map[arr_code]),
                 "status": "confirmed" if seg.get("status_code") == "HK" else (seg.get("status_name") or "confirmed"),
-                "cabin": seg.get("cabin_name"),
-                "fare": seg.get("fare_group_name"),
-                "aircraft": seg.get("aircraft_type_name"),
             }
-            notes_text = "\n".join(notes)
-            if notes_text:
-                flight["notes"] = notes_text
+            aircraft = clean(seg.get("aircraft_type_name"))
+            if aircraft:
+                flight["aircraft"] = str(aircraft)
             flights.append(flight)
 
     if missing_tz:
@@ -279,13 +253,18 @@ def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_u
     if not flights:
         die("no flight segments found in Aeroflot response")
 
-    return {
+    itinerary: dict[str, Any] = {
         "schema_version": "flight-calendar-ics-itinerary.v1",
-        "calendar_name": "Aeroflot flight",
-        "booking_reference": data.get("pnr_locator"),
-        "passengers": passenger_names(data),
-        "alarms_minutes": [1440, 180],
-        "links": [booking_url] if booking_url else [],
-        "notes": "Сформировано из данных страницы управления бронированием Аэрофлота.",
         "flights": flights,
     }
+    pnr = clean(data.get("pnr_locator"))
+    passengers = passenger_names(data)
+    if pnr:
+        itinerary["pnr"] = str(pnr)
+    if passengers:
+        itinerary["passengers"] = passengers
+    if ticket_number:
+        itinerary["ticket_number"] = ticket_number
+    if booking_url:
+        itinerary["booking_url"] = booking_url
+    return itinerary

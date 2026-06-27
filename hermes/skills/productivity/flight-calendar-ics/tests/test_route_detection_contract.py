@@ -1,98 +1,112 @@
-#!/usr/bin/env python3
-"""Route detection contract tests for flight-calendar-ics build auto."""
+"""Route detection contract for compact URL sources."""
 from __future__ import annotations
 
 import argparse
-import tempfile
+import inspect
+import sys
 import unittest
 from pathlib import Path
 
-from helpers import ScriptPathMixin
+
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = ROOT / "scripts"
+sys.path.insert(0, str(SCRIPTS))
 
 
-def build_args(**overrides: object) -> argparse.Namespace:
-    defaults: dict[str, object] = {
-        "input": None,
-        "url": None,
-        "url_file": None,
-        "pnr_locator": None,
-        "pnr_key": None,
-        "last_name": None,
-        "first_name": None,
-        "pnr": None,
-        "access_code": None,
-        "rloc": None,
-    }
-    defaults.update(overrides)
-    return argparse.Namespace(**defaults)
+class ExplodingUrlFile:
+    def read_text(self, encoding: str = "utf-8") -> str:  # pragma: no cover - must not be called
+        raise AssertionError("url_file was read despite url_override")
 
 
-class RouteDetectionContractTests(ScriptPathMixin, unittest.TestCase):
-    maxDiff = None
-
-    def test_canonical_itinerary_input_routes_to_make(self) -> None:
+class RouteDetectionContractTests(unittest.TestCase):
+    def test_url_override_detects_utair_without_reading_url_file(self) -> None:
         from flight_calendar.route_detection import infer_build_route
 
-        result = infer_build_route(build_args(input=Path("/private/itinerary.json")))
-
-        self.assertEqual(result["mode"], "auto")
-        self.assertEqual(result["route"], "make")
-        self.assertEqual(result["confidence"], 1.0)
-        self.assertEqual(result["evidence"], ["input_kind:canonical_itinerary_json"])
-
-    def test_known_host_route_wins_over_generic_query_field_names(self) -> None:
-        from flight_calendar.route_detection import infer_build_route
-
-        result = infer_build_route(
-            build_args(url="https://www.utair.ru/manage?pnr=ABC123&lastName=ORLOV")
+        args = argparse.Namespace(
+            input=None,
+            url=None,
+            url_file=ExplodingUrlFile(),
+            pnr_locator=None,
+            pnr_key=None,
+            pnr=None,
+            rloc=None,
+            last_name=None,
+            first_name=None,
+            access_code=None,
         )
 
-        self.assertEqual(result["route"], "utair")
-        self.assertEqual(result["confidence"], 1.0)
-        self.assertIn("host:utair.ru", result["evidence"])
-        self.assertIn("query_field:pnr", result["evidence"])
-        self.assertIn("query_field:lastName", result["evidence"])
+        route = infer_build_route(
+            args,
+            url_override="https://www.utair.ru/order-manage?rloc=ABC123&last_name=IVANOV",
+        )
 
-    def test_first_url_from_args_reads_private_file_first_line_and_rejects_double_source(self) -> None:
-        from flight_calendar.envelope import CliFailure
-        from flight_calendar.route_detection import first_url_from_args
+        self.assertEqual(route["route"], "utair")
+        self.assertEqual(route["confidence"], 1.0)
+        self.assertIn("host:utair.ru", route["evidence"])
+        self.assertLessEqual(set(route), {"mode", "route", "confidence", "evidence"})
 
-        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as handle:
-            handle.write("https://example.invalid/first\nhttps://example.invalid/second\n")
-            url_file = Path(handle.name)
-        try:
-            self.assertEqual(first_url_from_args(build_args(url_file=url_file)), "https://example.invalid/first")
-            with self.assertRaises(CliFailure) as caught:
-                first_url_from_args(build_args(url="https://example.invalid/direct", url_file=url_file))
-        finally:
-            url_file.unlink(missing_ok=True)
-
-        self.assertEqual(caught.exception.code, "usage_error")
-        self.assertIn("either --url or --url-file", str(caught.exception))
-
-    def test_ambiguous_generic_credentials_require_explicit_route(self) -> None:
-        from flight_calendar.envelope import CliFailure
+    def test_url_override_detects_s7_manage_order_without_reading_url_file(self) -> None:
         from flight_calendar.route_detection import infer_build_route
 
-        with self.assertRaises(CliFailure) as caught:
-            infer_build_route(build_args(pnr="ABC123", last_name="ORLOV"))
+        args = argparse.Namespace(
+            input=None,
+            url=None,
+            url_file=ExplodingUrlFile(),
+            pnr_locator=None,
+            pnr_key=None,
+            pnr=None,
+            rloc=None,
+            last_name=None,
+            first_name=None,
+            access_code=None,
+        )
 
-        self.assertEqual(caught.exception.code, "route_ambiguous")
-        self.assertEqual(caught.exception.details["safe_candidates"], ["ural", "utair"])
-        self.assertEqual(caught.exception.details["required_disambiguation"], ["explicit route or carrier URL"])
+        route = infer_build_route(
+            args,
+            url_override="https://myb.s7.ru/myb/manage-order?bookingId=ABC123&passengerId=ivanov",
+        )
 
-    def test_redwings_order_page_is_insufficient_without_find_fragment(self) -> None:
-        from flight_calendar.envelope import CliFailure
+        self.assertEqual(route["route"], "s7")
+        self.assertEqual(route["confidence"], 1.0)
+        self.assertIn("host:myb.s7.ru", route["evidence"])
+        self.assertIn("query_field:bookingId", route["evidence"])
+        self.assertIn("query_field:passengerId", route["evidence"])
+        self.assertLessEqual(set(route), {"mode", "route", "confidence", "evidence"})
+
+    def test_s7_manage_order_without_required_params_is_insufficient_and_redacted(self) -> None:
+        from flight_calendar.errors import CliFailure
         from flight_calendar.route_detection import infer_build_route
 
-        with self.assertRaises(CliFailure) as caught:
-            infer_build_route(build_args(url="https://booking.flyredwings.com/#/booking/ABC123/order"))
+        args = argparse.Namespace(
+            input=None,
+            url=None,
+            url_file=ExplodingUrlFile(),
+            pnr_locator=None,
+            pnr_key=None,
+            pnr=None,
+            rloc=None,
+            last_name=None,
+            first_name=None,
+            access_code=None,
+        )
 
-        self.assertEqual(caught.exception.code, "route_input_insufficient")
-        self.assertEqual(caught.exception.details["route"], "redwings")
-        self.assertIn("direct find link", str(caught.exception))
-        self.assertNotIn("ABC123", str(caught.exception))
+        with self.assertRaises(CliFailure) as ctx:
+            infer_build_route(
+                args,
+                url_override="https://myb.s7.ru/myb/manage-order?bookingId=ABC123",
+            )
+
+        self.assertEqual(ctx.exception.code, "route_input_insufficient")
+        self.assertEqual(ctx.exception.details.get("route"), "s7")
+        self.assertNotIn("ABC123", str(ctx.exception))
+        self.assertNotIn("bookingId=", str(ctx.exception))
+
+    def test_click_mail_utair_is_not_a_route_detection_host(self) -> None:
+        import flight_calendar.route_detection as route_detection
+
+        source = inspect.getsource(route_detection)
+        self.assertNotIn("click.mail.utair.io", source)
 
 
 if __name__ == "__main__":
-    unittest.main(verbosity=2)
+    unittest.main()

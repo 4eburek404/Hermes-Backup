@@ -1,13 +1,13 @@
 # Carrier Notes
 
-Open this file only when a carrier `build` fails or the source evidence is ambiguous. The normal path stays one command: `--json build auto` dispatches the route itself. Endpoints, payloads, headers, retries, and response mapping are code-owned by `flight_calendar/carriers/` and `flight_calendar/carrier_http.py`; argv templates are code-owned by `doctor.data.agent_contract.dispatch_matrix`. Sensitive-data classes: `core/privacy-hardening.md`.
+Open this file only when a carrier `build` fails or the source evidence is ambiguous. The normal path stays one command: `--json build` with either `--url-file` or `--input`. Endpoints, payloads, headers, retries, and response mapping are code-owned by `flight_calendar/carriers/` and `flight_calendar/carrier_http.py`.
 
-Common to all carriers: store credential-bearing URLs in a private file and pass `--url-file`; manage-booking pages are JavaScript SPAs, so never scrape page HTML for itinerary data; if no live lookup is possible, normalize visible flight facts into canonical JSON (`core/itinerary.md`) and state any limitation (for example, a missing reopen link).
+Common to all carriers: store credential-bearing URLs in a private file and pass `--url-file`; manage-booking pages are JavaScript SPAs, so never scrape page HTML for itinerary data; if no live lookup is possible, normalize visible flight facts into minimal itinerary JSON using `templates/itinerary.example.json` and state any limitation (for example, a missing reopen link). The compact public CLI accepts only `--url-file` or `--input`; do not use carrier-specific argv. A `route_unknown` error means the source fingerprint was not recognized; it does not prove the carrier is unsupported.
 
 ## Aeroflot
 
-- A `#/search` URL is not a direct booking link; direct links require a `pnr_key`. The adapter obtains it itself from PNR + surname (name lookup), so locator and surname from a ticket/PDF/email are sufficient evidence — do not re-ask the user for values already visible in the source.
-- If the surname lookup is ambiguous, the adapter retries once with the first name; supply it when available.
+- A `#/search` URL is not a direct booking link; direct links require `pnr_key` and `pnr_locator`. If the user has only locator/surname evidence from a ticket/PDF/email, use minimal itinerary JSON unless they also provide a supported direct booking URL.
+- If the source lacks `pnr_key`, do not invent it or ask for values already visible in the source; switch to `--input` when the visible flight facts are enough.
 - An "Ngenix browser check" error means Aeroflot's anti-bot gate blocked the request: retry later, or fetch the booking through a real browser session and normalize manually. The adapter requires `curl_cffi` transport; if it is missing, install it into the same Python interpreter used to run the skill CLI.
 - Treat `pnr_key` as a booking credential. Writing the direct booking URL inside the private `.ics` is intended behavior; exposing it anywhere else is not.
 
@@ -21,12 +21,20 @@ Common to all carriers: store credential-bearing URLs in a private file and pass
 ## Ural Airlines
 
 - Tracker-wrapped links (`u=` / `url=` query parameters) are decoded by the adapter; pass them as-is via `--url-file`.
-- A link carrying only `pnrOrTicket=` is a form-prefill signal, not sufficient evidence: the live lookup also needs the passenger surname. A `route_input_insufficient` error here is the correct outcome, not a generator failure — obtain the surname and retry.
+- A link carrying only `pnrOrTicket=` is a form-prefill signal, not sufficient evidence: the live lookup also needs the passenger surname in the URL. A missing-surname error here is the correct outcome, not a generator failure; use a complete manage-booking URL or minimal itinerary JSON.
 - Node.js is required at runtime: the adapter executes the carrier's frontend API-key helper in a sandboxed Node VM. Generated API keys and session keys are credentials.
 - Do not hand the adapter local `.env`/`env.json` copies; the normal path reads live frontend config.
 
+## S7 Airlines
+
+- Evidence is a direct `https://myb.s7.ru/myb/manage-order?...` URL carrying both `bookingId` and `passengerId`; both query values are private booking credentials and must stay in `--url-file` or inside the generated `.ics` only.
+- S7's entrypoint returns an auto-submit HTML form first; the adapter follows that form with the same session and extracts the embedded `__r_airs_data` payload from the resulting page. Do not scrape arbitrary visible labels when this payload exists.
+- The S7 payload usually includes IANA timezones per segment; `--tz CODE=Area/City` remains a fallback if a segment lacks timezone data.
+- Ticket number can be absent from S7 manage-order data; this is acceptable because the compact itinerary contract makes it optional.
+
 ## Utair
 
-- Evidence is `rloc` (locator) plus `last_name` from the order-manage URL; Cyrillic surnames and URL-encoding are handled, `utm_*` parameters are ignored. Explicit `--rloc` / `--last-name` work instead of a URL.
+- Evidence is `rloc` (locator) plus `last_name` from the order-manage URL; Cyrillic surnames and URL-encoding are handled, `utm_*` parameters are ignored. In the compact public CLI, pass the full URL through `--url-file` or use minimal itinerary JSON with `--input`.
+- Utair mail redirect links like `click.mail.utair.io/...` must resolve to `utair.ru/order-manage?...`; the CLI handles known Utair redirects automatically. If redirect resolution fails, provide the direct Utair `order-manage` URL.
 - A smoke run with a fake locator/surname is a safe reachability check: token success plus a redacted "no orders found" confirms the flow without real booking data.
 - Baggage is included only when explicit in booking data; it is never inferred from the fare brand.

@@ -5,8 +5,6 @@ from pathlib import Path
 from typing import Any
 
 from flight_calendar import timezone_catalog as airport_catalog
-from flight_calendar.envelope import add_step
-
 
 def load_airport_timezone_document(catalog_path: Path | None = None) -> dict[str, Any]:
     """Load the bundled airport timezone catalog document."""
@@ -28,11 +26,13 @@ def build_timezone_map(
 
 
 def add_timezone_map_step(process: list[dict[str, Any]], catalog_timezones: dict[str, str], overrides_count: int) -> None:
-    add_step(
-        process,
-        "load_timezone_map",
-        defaults_count=0,
-        catalog_source="skill-bundled-airport-timezones",
-        catalog_timezones_count=len(catalog_timezones),
-        overrides_count=overrides_count,
+    process.append(
+        {
+            "step": "load_timezone_map",
+            "status": "ok",
+            "defaults_count": 0,
+            "catalog_source": "skill-bundled-airport-timezones",
+            "catalog_timezones_count": len(catalog_timezones),
+            "overrides_count": overrides_count,
+        }
     )

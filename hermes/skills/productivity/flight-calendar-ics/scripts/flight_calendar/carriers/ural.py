@@ -279,15 +279,13 @@ def passenger_names(data: dict[str, Any]) -> list[str]:
     return names
 
 
-def tickets_by_flight_reference(data: dict[str, Any]) -> dict[str, list[str]]:
-    out: dict[str, list[str]] = {}
+def ticket_numbers(data: dict[str, Any]) -> list[str]:
+    numbers: list[str] = []
     for ticket in data.get("tickets") or []:
-        number = clean(ticket.get("number"))
-        if not number:
-            continue
-        for ref in ticket.get("flightReferences") or []:
-            out.setdefault(str(ref), []).append(str(number))
-    return out
+        number = clean(ticket.get("number")) if isinstance(ticket, dict) else clean(ticket)
+        if number:
+            numbers.append(str(number))
+    return sorted(dict.fromkeys(numbers))
 
 
 def status_text(statuses: Any) -> str | None:
@@ -299,10 +297,6 @@ def status_text(statuses: Any) -> str | None:
     return "confirmed"
 
 
-def carrier_name(code: str | None) -> str:
-    return "Уральские авиалинии" if (code or "").upper() == "U6" else (code or "")
-
-
 def convert_to_itinerary(data_or_response: dict[str, Any], tz_map: dict[str, str], booking_url: str | None = None) -> dict[str, Any]:
     if data_or_response.get("success") is False:
         die("Ural Airlines Reservation API returned success=false")
@@ -311,7 +305,6 @@ def convert_to_itinerary(data_or_response: dict[str, Any], tz_map: dict[str, str
         die("Ural Airlines Reservation response has no data object")
 
     journey = data.get("journey") or {}
-    ticket_map = tickets_by_flight_reference(data)
     flights: list[dict[str, Any]] = []
     missing_tz: set[str] = set()
     flight_groups = [
@@ -333,45 +326,24 @@ def convert_to_itinerary(data_or_response: dict[str, Any], tz_map: dict[str, str
             marketing = str(seg.get("marketingCarrier") or seg.get("operatingCarrier") or "U6").upper()
             raw_flight_number = str(seg.get("flightNumber") or "").strip()
             flight_number = f"{marketing} {raw_flight_number}".strip()
-            ref = str(seg.get("referenceNumber") or "")
-            ticket_numbers = sorted(set(ticket_map.get(ref, [])))
-            notes: list[str] = []
-            for label, value in [
-                ("Самолёт", seg.get("aircraft")),
-                ("Класс бронирования", seg.get("classOfService")),
-                ("Тариф", seg.get("commercialFamily")),
-                ("Время в пути", seg.get("flightDuration")),
-            ]:
-                if clean(value):
-                    notes.append(f"{label}: {value}")
-            baggage = "не указано в бронировании"
-            if baggage:
-                notes.append("Багаж в данных бронирования не указан")
-
-            flights.append(
-                {
-                    "carrier": carrier_name(marketing),
-                    "flight_number": flight_number,
-                    "departure": {
-                        "airport": dep_code,
-                        "local": local_datetime(seg.get("departureDate")),
-                        "tz": tz_map[dep_code],
-                    },
-                    "arrival": {
-                        "airport": arr_code,
-                        "local": local_datetime(seg.get("arrivalDate")),
-                        "tz": tz_map[arr_code],
-                    },
-                    "pnr": data.get("number"),
-                    "ticket_number": ", ".join(ticket_numbers) if ticket_numbers else None,
-                    "status": status_text(seg.get("statuses")),
-                    "baggage": baggage,
-                    "aircraft": seg.get("aircraft"),
-                    "cabin": seg.get("classOfService"),
-                    "fare": seg.get("commercialFamily"),
-                    "notes": "; ".join(notes),
-                }
-            )
+            flight: dict[str, Any] = {
+                "flight_number": flight_number,
+                "departure": {
+                    "airport": dep_code,
+                    "local": local_datetime(seg.get("departureDate")),
+                    "tz": tz_map[dep_code],
+                },
+                "arrival": {
+                    "airport": arr_code,
+                    "local": local_datetime(seg.get("arrivalDate")),
+                    "tz": tz_map[arr_code],
+                },
+                "status": status_text(seg.get("statuses")),
+            }
+            aircraft = clean(seg.get("aircraft"))
+            if aircraft:
+                flight["aircraft"] = str(aircraft)
+            flights.append(flight)
 
     if missing_tz:
         codes = ", ".join(sorted(missing_tz))
@@ -379,13 +351,19 @@ def convert_to_itinerary(data_or_response: dict[str, Any], tz_map: dict[str, str
     if not flights:
         die("no flight segments found in Ural Airlines response")
 
-    return {
+    itinerary: dict[str, Any] = {
         "schema_version": "flight-calendar-ics-itinerary.v1",
-        "calendar_name": "Ural Airlines flights",
-        "booking_reference": data.get("number"),
-        "links": [booking_url] if booking_url else [],
-        "passengers": passenger_names(data),
-        "alarms_minutes": [1440, 180],
-        "notes": "Сформировано из данных страницы управления бронированием Уральских авиалиний.",
         "flights": flights,
     }
+    pnr = clean(data.get("number"))
+    passengers = passenger_names(data)
+    tickets = ticket_numbers(data)
+    if pnr:
+        itinerary["pnr"] = str(pnr)
+    if passengers:
+        itinerary["passengers"] = passengers
+    if tickets:
+        itinerary["ticket_number"] = ", ".join(tickets)
+    if booking_url:
+        itinerary["booking_url"] = booking_url
+    return itinerary

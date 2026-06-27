@@ -10,6 +10,4 @@ Brief status first; после деталей — компактный выво�
 §
 Repo/deploy: branch-first перед inspection/changes; production-checkable work = deploy+verify до отчёта «готово/можно проверять».
 §
-Debug/root-cause: сначала production-shaped repro, concrete technical cause и implemented guardrail; потом narrative. Не заменять расследование философией.
-§
-Business travel/flights: default = operational frontier, не cheapest-first: длительность, главные аэропорты, безопасные стыковки, visa/baggage/self-transfer/ticketing risk, надёжность перевозчика; цена после практичности.
+Не заменять расследование философией.
