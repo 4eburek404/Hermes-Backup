@@ -45,3 +45,14 @@ If the CLI fails with ModuleNotFoundError, install dependencies into the same Py
 
 python -m pip install icalendar jsonschema curl_cffi
 Use python -m pip, not bare pip.
+
+## Maintenance
+Do not run maintenance during normal calendar generation.
+
+If a Hermes runtime is missing `.ics` gateway delivery support after an upstream update, run:
+
+```bash
+python "<skill_dir>/scripts/ensure_hermes_ics_delivery.py" --hermes-root "$HOME/.hermes/hermes-agent"
+```
+
+The script patches Hermes core delivery allowlists, writes a focused gateway regression test, and runs that test.
