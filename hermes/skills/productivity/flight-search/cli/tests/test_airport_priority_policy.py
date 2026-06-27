@@ -275,13 +275,16 @@ class AirportPriorityPolicyTests(unittest.TestCase):
             & set(calls)
         )
         skipped_direct = {
-            (str(search.get("origin")), str(search.get("destination"))): search.get("reason")
+            (str(search.get("origin")), str(search.get("destination"))): search
             for search in result["live_search"]["segment_searches"]
             if search.get("leg") == "direct_outbound" and search.get("status") == "skipped"
         }
-        self.assertEqual(skipped_direct[("MOW", "LGW")], "preferred_airport_tier_has_offers")
-        self.assertEqual(skipped_direct[("SVO", "LHR")], "city_code_request_has_offers")
-        self.assertEqual(skipped_direct[("SVO", "LGW")], "preferred_airport_tier_has_offers")
+        self.assertEqual(skipped_direct[("MOW", "LGW")]["reason"], "preferred_airport_tier_has_offers")
+        self.assertEqual(skipped_direct[("SVO", "LHR")]["reason"], "city_code_request_has_offers")
+        self.assertEqual(skipped_direct[("SVO", "LGW")]["reason"], "preferred_airport_tier_has_offers")
+        self.assertEqual(skipped_direct[("MOW", "LGW")]["route_family"], "direct_control")
+        self.assertEqual(skipped_direct[("MOW", "LGW")]["only_carriers"], [])
+        self.assertEqual(skipped_direct[("MOW", "LGW")]["preferred_carriers"], ["U6", "SU", "TK"])
 
     def test_kupibilet_mow_lgw_fallback_waits_until_lhr_city_and_exact_attempts_are_empty(self) -> None:
         args = live_args(origin="MOW", destination="LON", provider_policy="kupibilet", include_segment_results=20)

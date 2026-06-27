@@ -510,6 +510,8 @@ class ProbeResultAccumulator:
             "date",
             "route_family",
             "priority",
+            "only_carriers",
+            "preferred_carriers",
             "coverage_control",
             "provider_request_strategy",
             "provider_city_code",
@@ -520,11 +522,18 @@ class ProbeResultAccumulator:
         ):
             if field not in enriched and field in spec:
                 enriched[field] = spec[field]
+        for field in ("only_carriers", "preferred_carriers"):
+            value = enriched.get(field)
+            if value is None:
+                enriched[field] = []
+            elif isinstance(value, tuple):
+                enriched[field] = list(value)
         return enriched
 
     def record_skipped(self, state: LiveAssemblyState, spec: dict[str, Any], skipped: dict[str, Any]) -> None:
-        state.searches.append(skipped)
-        self.record_segment_probe_summary(state, spec, skipped)
+        summary = self._search_summary(spec, skipped)
+        state.searches.append(summary)
+        self.record_segment_probe_summary(state, spec, summary)
 
     def record_outcome(self, state: LiveAssemblyState, spec: dict[str, Any], outcome: Any) -> None:
         summary = self._search_summary(spec, outcome.summary)

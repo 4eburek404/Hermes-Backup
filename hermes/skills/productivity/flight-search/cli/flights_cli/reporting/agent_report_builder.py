@@ -168,6 +168,16 @@ def provider_failures(live: dict[str, Any], limit: int = 10) -> list[dict[str, A
     ]
 
 
+def carrier_scope_list(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, tuple):
+        return list(value)
+    return [value]
+
+
 def segment_search_summaries(live: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         {
@@ -176,6 +186,12 @@ def segment_search_summaries(live: dict[str, Any]) -> list[dict[str, Any]]:
             "origin": item.get("origin"),
             "destination": item.get("destination"),
             "date": item.get("date"),
+            "route_family": item.get("route_family"),
+            "priority": item.get("priority"),
+            "only_carriers": carrier_scope_list(item.get("only_carriers")),
+            "preferred_carriers": carrier_scope_list(item.get("preferred_carriers")),
+            "provider_request_strategy": item.get("provider_request_strategy"),
+            "provider_city_code": item.get("provider_city_code"),
             "provider": item.get("provider"),
             "status": item.get("status"),
             "reason": item.get("reason"),

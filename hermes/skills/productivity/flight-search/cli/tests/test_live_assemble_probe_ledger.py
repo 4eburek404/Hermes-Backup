@@ -94,6 +94,7 @@ class LiveAssembleProbeLedgerTests(unittest.TestCase):
                     "date": "2026-08-16",
                     "route_family": "ist_direct",
                     "priority": 1,
+                    "preferred_carriers": ["U6", "SU", "TK"],
                 }
             ],
             "coverage_mode": "targeted",
@@ -118,6 +119,8 @@ class LiveAssembleProbeLedgerTests(unittest.TestCase):
         self.assertEqual(search["origin"], "SVX")
         self.assertEqual(search["destination"], "IST")
         self.assertEqual(search["leg"], "origin_to_hub")
+        self.assertEqual(search["only_carriers"], [])
+        self.assertEqual(search["preferred_carriers"], ["U6", "SU", "TK"])
         self.assertEqual(search["status"], "ok")
 
 

@@ -134,6 +134,71 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         self.assertEqual(option.get("visibility_role"), "priority_control")
         return option
 
+    def test_segment_search_evidence_keeps_route_and_carrier_scope(self) -> None:
+        options = assembly_options_from_args(self._args())
+        data = empty_assembled_result(options)
+        data["live_search"] = {
+            "source": "fixture",
+            "provider_policy": "kupibilet",
+            "plan": {
+                "origin": "MOW",
+                "destination": "LON",
+                "origin_airports": MOW_AIRPORTS,
+                "destination_airports": ["LHR"],
+                "dates": {"depart": "2026-08-24", "return": None},
+                "profile": "business",
+                "routing_strategy": "ru-priority",
+                "coverage_mode": "targeted",
+                "coverage_controls": [],
+                "coverage_limits": {},
+            },
+            "segment_searches": [
+                {
+                    "direction": "outbound",
+                    "leg": "origin_to_hub",
+                    "origin": "SVO",
+                    "destination": "IST",
+                    "date": "2026-08-24",
+                    "route_family": "ist_direct",
+                    "priority": 1,
+                    "preferred_carriers": ["U6", "SU", "TK"],
+                    "provider": "kupibilet",
+                    "status": "ok",
+                    "offer_count": 8,
+                    "cache_status": "live",
+                },
+                {
+                    "direction": "outbound",
+                    "leg": "gateway_to_hub",
+                    "origin": "SVO",
+                    "destination": "IST",
+                    "date": "2026-08-24",
+                    "route_family": "moscow_gateway_control",
+                    "priority": 2,
+                    "only_carriers": ["SU"],
+                    "provider": "kupibilet",
+                    "status": "ok",
+                    "offer_count": 7,
+                    "cache_status": "live",
+                },
+            ],
+            "hub_viability": [],
+            "aggregate_controls": [],
+            "failures": [],
+            "failure_count": 0,
+        }
+
+        report = build_agent_report(data)
+        validate_agent_report(report)
+
+        searches = report["evidence"]["segment_searches"]
+        self.assertEqual(searches[0]["route_family"], "ist_direct")
+        self.assertEqual(searches[0]["only_carriers"], [])
+        self.assertEqual(searches[0]["preferred_carriers"], ["U6", "SU", "TK"])
+        self.assertEqual(searches[1]["route_family"], "moscow_gateway_control")
+        self.assertEqual(searches[1]["only_carriers"], ["SU"])
+        self.assertEqual(searches[1]["preferred_carriers"], [])
+
     def test_direct_destination_branch_is_viable_visible_and_not_mixed_with_hubs(self) -> None:
         report = self._report(
             [
