@@ -3,88 +3,207 @@
 
 The script is intentionally narrow and idempotent:
 * add .ics to gateway.platforms.base.SUPPORTED_DOCUMENT_TYPES
-* add .ics to gatewk.platforms.base.MEDIA_DELIVERY_EXTS
-ŠˆYH›ØÝ\ÙYØ]]Ø^H™YÜ™\ÜÚ[Ûˆ\ÝŠˆ[ˆ]\Ý[›\ÜÈK[›Ë]\Ý\È\ÜÙYˆˆˆ‚‚™œ›ÛH×Ù]\™W×È[\Ü[››Ý][ÛœÂ‚š[\Ü\™Ü\œÙBš[\ÜÜÂš[\ÜÝXœ›ØÙ\ÜÂš[\ÜÞ\Âš[\Ü^Ü˜\™œ›ÛH]Xˆ[\Ü]‚‚‘Ð×ÑS•–HH	È‹šXÜÈŽˆ^ØØ[[™\ˆ‹‰Â“QQPWÑÐÕSQS•ÓS‘HH
-ˆ	È‹œˆ‹‹™ØÞ‹‹™ØÈ‹‹›Ù‹‹œˆ‹‹‹‹›Y‹‹™\Xˆ‹	ÂŠB“QQPWÑÐÕSQS•ÓS‘WÕÒUÒPÔÈH
-ˆ	È‹œˆ‹‹™ØÞ‹‹™ØÈ‹‹›Ù‹‹œˆ‹‹‹‹›Y‹‹šXÜÈ‹‹™\Xˆ‹	ÂŠB‚•TÕÔ‘SUU‘WÔUH]
-\ÝËÙØ]]Ø^KÝ\ÝÙØ]]Ø^WÚXÜ×Ù[]™\žWØÛÛ˜XÝœHŠB•TÕÐÓÓ•S•Hˆˆ—™œ›ÛHØ]]Ø^Kœ]›Ü›\Ë˜˜\ÙH[\Ü
-ˆ˜\ÙT]›Ü›PY\\‹ˆQQPWÑSU‘T–WÑVËˆÕTÔ•QÑÐÕSQS•ÕTTËŠB‚‚™Yˆ\ÝÚXÜ×Ú\×ÜÝ\ÜYÙØÝ[Y[Ý\J
-N‚ˆ\ÜÙ\ÕTÔ•QÑÐÕSQS•ÕTTÖÈ‹šXÜÈ—HOH^ØØ[[™\ˆ‚‚‚™Yˆ\ÝÚXÜ×Ú\×Ú[—ÛYYXWÙ[]™\žWØ[ÝÛ\Ý
+* add .ics to gateway.platforms.base.MEDIA_DELIVERY_EXTS
+* add a focused gateway regression test
+* run that test unless --no-test is passed
+"""
 
-N‚ˆ\ÜÙ\‹šXÜÈˆ[ˆQQPWÑSU‘T–WÑVÂ‚‚™Yˆ\ÝÛYYXWÝY×Ù^˜XÝ×ÚXÜ×Ø]XÚY[
+from __future__ import annotations
 
-N‚ˆYYXKÛX[™YH˜\ÙT]›Ü›PY\\‹™^˜XÝÛYYXJˆØ[[™\ˆš[H]XÚY—“QQPN‹Ý\Ú\›Y\ËY›YÚšXÜ×‘Û™Kˆ‚ˆ
-B‚ˆ\ÜÙ\YYXHOHÊ‹Ý\Ú\›Y\ËY›YÚšXÜÈ‹˜[ÙJWBˆ\ÜÙ\“QQPNˆˆ›Ý[ˆÛX[™Yˆ\ÜÙ\š\›Y\ËY›YÚšXÜÈˆ›Ý[ˆÛX[™Yˆ\ÜÙ\Ø[[™\ˆš[H]XÚYˆˆ[ˆÛX[™Yˆˆˆ‚‚‚˜Û\ÜÈ]Ú\œ›ÜŠ[[YQ\œ›ÜŠN‚ˆ\ÜÂ‚‚™YˆÙY˜][Ú\›Y\×Ü›ÛÝ
+import argparse
+import os
+import subprocess
+import sys
+import textwrap
+from pathlib import Path
 
-HOˆ]‚ˆ[—Ü›ÛÝHÜË™[š\›Û‹™Ù]
-’T“QT×ÐQÑS•Ô“ÓÕŠBˆYˆ[—Ü›ÛÝ‚ˆ™]\›ˆ]
-[—Ü›ÛÝ
-K™^[™\Ù\Š
-B‚ˆ\›Y\×ÚÛYHH]
-ÜË™[š\›Û‹™Ù]
-’T“QT×ÒÓQH‹Ÿ‹Ëš\›Y\ÈŠJK™^[™\Ù\Š
-Bˆ™]\›ˆ\›Y\×ÚÛYHÈš\›Y\ËXYÙ[‚‚‚™YˆÜ™\XÙWÜÙXÝ[ÛŠ^ˆÝ‹Ý\ÛX\šÙ\ŽˆÝ‹[™ÛX\šÙ\ŽˆÝ‹›ÙNˆÝŠHOˆÝŽ‚ˆÝ\H^™š[™
-Ý\ÛX\šÙ\ŠBˆYˆÝ\OHLN‚ˆ˜Z\ÙH]Ú\œ›ÜŠˆÛÝ[›Ýš[™Ý\X\šÙ\ŽˆÜÝ\ÛX\šÙ\ˆ\ŸHŠBˆ[™H^™š[™
-[™ÛX\šÙ\‹Ý\
-BˆYˆ[™OHLN‚ˆ˜Z\ÙH]Ú\œ›ÜŠˆÛÝ[›Ýš[™[™X\šÙ\ˆY\ˆÜÝ\ÛX\šÙ\ˆ\ŸHŠBˆ™]\›ˆ^ÎœÝ\H
-È›ÙH
-È^Ù[™—B‚‚™Yˆ]ÚÙØ]]Ø^WØ˜\ÙJ˜\ÙWÜ]ˆ]
-HOˆ›ÛÛ‚ˆ^H˜\ÙWÜ]œ™XYÝ^
-[˜ÛÙ[™ÏH]‹NŠBˆÜšYÚ[˜[H^‚ˆØ×ÜÝ\ÛX\šÙ\ˆH”ÕTÔ•QÑÐÕSQS•ÕTTÈH×ˆ‚ˆØ×Ù[™ÛX\šÙ\ˆH—ŸW——ˆÈKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKWˆÈ^Z[š™XÝ[Ûˆ‚ˆØ×ÜÝ\H^™š[™
-Ø×ÜÝ\ÛX\šÙ\ŠBˆYˆØ×ÜÝ\OHLN‚ˆ˜Z\ÙH]Ú\œ›ÜŠÛÝ[›Ýš[™ÕTÔ•QÑÐÕSQS•ÕTTÈŠBˆØ×Ù[™H^™š[™
-Ø×Ù[™ÛX\šÙ\‹Ø×ÜÝ\
-BˆYˆØ×Ù[™OHLN‚ˆ˜Z\ÙH]Ú\œ›ÜŠÛÝ[›Ýš[™[™ÙˆÕTÔ•QÑÐÕSQS•ÕTTÈŠBˆØ×Ø›ØÚÈH^ÙØ×ÜÝ\™Ø×Ù[™BˆYˆ	È‹šXÜÈŽˆ^ØØ[[™\ˆ‰È›Ý[ˆØ×Ø›ØÚÎ‚ˆ[˜ÚÜˆH	È‹Žˆ^ÜZ[ˆ‹‰ÂˆYˆ[˜ÚÜˆ›Ý[ˆØ×Ø›ØÚÎ‚ˆ˜Z\ÙH]Ú\œ›ÜŠÛÝ[›Ýš[™ØÝ[Y[RSQH[˜ÚÜˆŠBˆØ×Ø›ØÚÈHØ×Ø›ØÚËœ™\XÙJ[˜ÚÜ‹[˜ÚÜˆ
-ÈÐ×ÑS•–KJBˆ^H^Î™Ø×ÜÝ\H
-ÈØ×Ø›ØÚÈ
-È^ÙØ×Ù[™—B‚ˆYYXWÜÝ\ÛX\šÙ\ˆH“QQPWÑSU‘T–WÑVÎˆ\VÜÝ‹‹‹—HH
-ˆ‚ˆYYXWÙ[™ÛX\šÙ\ˆH—ŠW—ˆÈ™YÙ^[\›˜][Ûˆ‚ˆYYXWÜÝ\H^™š[™
-YYXWÜÝ\ÛX\šÙ\ŠBˆYˆYYXWÜÝ\OHLN‚ˆ˜Z\ÙH]Ú\œ›ÜŠÛÝ[›Ýš[™QQPWÑSU‘T–WÑVÈŠBˆYYXWÙ[™H^™š[™
-YYXWÙ[™ÛX\šÙ\‹YYXWÜÝ\
-BˆYˆYYXWÙ[™OHLN‚ˆ˜Z\ÙH]Ú\œ›ÜŠÛÝ[›Ýš[™[™ÙˆQQPWÑSU‘T–WÑVÈŠBˆYYXWØ›ØÚÈH^ÛYYXWÜÝ\›YYXWÙ[™BˆYˆ	È‹šXÜÈ‰È›Ý[ˆYYXWØ›ØÚÎ‚ˆYˆQQPWÑÐÕSQS•ÓS‘H›Ý[ˆYYXWØ›ØÚÎ‚ˆ˜Z\ÙH]Ú\œ›ÜŠÛÝ[›Ýš[™ØÝ[Y[[]™\žH^[œÚ[Ûˆ[˜ÚÜˆŠBˆYYXWØ›ØÚÈHYYXWØ›ØÚËœ™\XÙJˆQQPWÑÐÕSQS•ÓS‘KˆQQPWÑÐÕSQS•ÓS‘WÕÒUÒPÔËˆKˆ
-Bˆ^H^Î›YYXWÜÝ\H
-ÈYYXWØ›ØÚÈ
-È^ÛYYXWÙ[™—B‚ˆYˆ^OHÜšYÚ[˜[‚ˆ˜\ÙWÜ]Üš]WÝ^
-^[˜ÛÙ[™ÏH]‹NŠBˆ™]\›ˆYBˆ™]\›ˆ˜[ÙB‚‚™YˆÜš]WÜ™YÜ™\ÜÚ[Û—Ý\Ý
-›ÛÝˆ]
-HOˆ›ÛÛ‚ˆ\ÝÜ]H›ÛÝÈTÕÔ‘SUU‘WÔUˆÝ\œ™[H\ÝÜ]œ™XYÝ^
-[˜ÛÙ[™ÏH]‹NŠHYˆ\ÝÜ]™^\ÝÊ
-H[ÙH›Û™BˆYˆÝ\œ™[OHTÕÐÓÓ•S•‚ˆ™]\›ˆ˜[ÙBˆ\ÝÜ]œ\™[›ZÙ\Š\™[ÏUYK^\ÝÛÚÏUYJBˆ\ÝÜ]Üš]WÝ^
-TÕÐÓÓ•S•[˜ÛÙ[™ÏH]‹NŠBˆ™]\›ˆYB‚‚™Yˆ\›Y\×Ü]ÛŠ›ÛÝˆ]
-HOˆ]‚ˆ]ÛˆH›ÛÝÈ™[ˆˆÈ˜š[ˆˆÈœ]Ûˆ‚ˆYˆ›Ý]Û‹™^\ÝÊ
-N‚ˆ]ÛˆH]
-Þ\Ë™^XÝ]X›JBˆ™]\›ˆ]Û‚‚‚™Yˆ[—Ü™YÜ™\ÜÚ[Û—Ý\Ý
-›ÛÝˆ]
-HOˆ›Û™N‚ˆ]ÛˆH\›Y\×Ü]ÛŠ›ÛÝ
-BˆÛYHÜÝŠ]ÛŠK‹[H‹œ]\Ý‹ÝŠTÕÔ‘SUU‘WÔU
-WBˆÝXœ›ØÙ\ÜËœ[ŠÛYÝÙ\›ÛÝÚXÚÏUYJB‚‚™Yˆ™\šYžJ›ÛÝˆ]
-HOˆ›Û™N‚ˆÛÙHH^Ü˜\™Y[
-ˆˆˆ‚ˆœ›ÛHØ]]Ø^Kœ]›Ü›\Ë˜˜\ÙH[\Ü
-ˆ˜\ÙT]›Ü›PY\\‹ˆQQPWÑSU‘T–WÑVËˆÕTÔ•QÑÐÕSQS•ÕTTËˆ
-B‚ˆYˆÕTÔ•QÑÐÕSQS•ÕTTË™Ù]
-‹šXÜÈŠHOH^ØØ[[™\ˆŽ‚ˆ˜Z\ÙHÞ\Ý[Q^]
-‹šXÜÈ\ÈZ\ÜÚ[™Èœ›ÛHÕTÔ•QÑÐÕSQS•ÕTTÈŠBˆYˆ‹šXÜÈˆ›Ý[ˆQQPWÑSU‘T–WÑVÎ‚ˆ˜Z\ÙHÞ\Ý[Q^]
-‹šXÜÈ\ÈZ\ÜÚ[™Èœ›ÛHQQPWÑSU‘T–WÑVÈŠBˆYYXKÛX[™YH˜\ÙT]›Ü›PY\\‹™^˜XÝÛYYXJ“QQPN‹Ý\Ù›YÚšXÜÈŠBˆYˆYYXHOHÊ‹Ý\Ù›YÚšXÜÈ‹˜[ÙJWHÜˆ“QQPNˆˆ[ˆÛX[™Y‚ˆ˜Z\ÙHÞ\Ý[Q^]
-™^˜XÝÛYYXHÙ\È›Ý[]™\ˆšXÜÈQQPHYÜÈŠBˆˆˆ‚ˆ
-BˆÝXœ›ØÙ\ÜËœ[ŠÜÝŠ\›Y\×Ü]ÛŠ›ÛÝ
-JK‹XÈ‹ÛÙWKÝÙ\›ÛÝÚXÚÏUYJB‚‚™Yˆ\œÙWØ\™ÜÊ\™ÝŽˆ\ÝÜÝ—JHOˆ\™Ü\œÙK“˜[Y\ÜXÙN‚ˆ\œÙ\ˆH\™Ü\œÙK\™Ý[Y[\œÙ\Šˆ\ØÜš\[ÛHY\›Y\ÈØ]]Ø^HšXÜÈØÝ[Y[[]™\žHÝ\Ü[™\ÝËˆ‹ˆ
-Bˆ\œÙ\‹˜YØ\™Ý[Y[
-ˆ‹KZ\›Y\Ë\›ÛÝ‹ˆ\OT]ˆY˜][WÙY˜][Ú\›Y\×Ü›ÛÝ
 
-Kˆ[H’\›Y\ÈYÙ[ÚXÚÛÝ]›ÛÝˆY˜][ÈÈ	T“QT×ÐQÑS•Ô“ÓÕÜˆ‹Ëš\›Y\ËÚ\›Y\ËXYÙ[ˆ‹ˆ
-Bˆ\œÙ\‹˜YØ\™Ý[Y[
-ˆ‹K[›Ë]\Ý‹ˆXÝ[ÛHœÝÜ™WÝYH‹ˆ[H”]Ú[™™\šYžH[\ÜË]È›Ý[ˆ]\Ýˆ‹ˆ
-Bˆ™]\›ˆ\œÙ\‹œ\œÙWØ\™ÜÊ\™ÝŠB‚‚™YˆXZ[Š\™ÝŽˆ\ÝÜÝ—H›Û™HH›Û™JHOˆ[‚ˆ\™ÜÈH\œÙWØ\™ÜÊÞ\Ë˜\™Ý–ÌN—HYˆ\™Ýˆ\È›Û™H[ÙH\™ÝŠBˆ›ÛÝH\™ÜËš\›Y\×Ü›ÛÝ™^[™\Ù\Š
-Kœ™\ÛÛ™J
-Bˆ˜\ÙWÜ]H›ÛÝÈ™Ø]]Ø^HˆÈœ]›Ü›\ÈˆÈ˜˜\ÙKœH‚ˆYˆ›Ý˜\ÙWÜ]™^\ÝÊ
-N‚ˆ˜Z\ÙHÞ\Ý[Q^]
-ˆ’\›Y\ÈØ]]Ø^H˜\ÙKœH›Ý›Ý[™ˆØ˜\ÙWÜ]HŠB‚ˆÚ[™ÙYØ˜\ÙHH]ÚÙØ]]Ø^WØ˜\ÙJ˜\ÙWÜ]
-BˆÚ[™ÙYÝ\ÝHÜš]WÜ™YÜ™\ÜÚ[Û—Ý\Ý
-›ÛÝ
-Bˆ™\šYžJ›ÛÝ
-BˆYˆ›Ý\™ÜË››×Ý\Ý‚ˆ[—Ü™YÜ™\ÜÚ[Û—Ý\Ý
-›ÛÝ
-B‚ˆš[
-ˆ’\›Y\ÈšXÜÈ[]™\žH]Ú™XYNˆ‚ˆˆ˜˜\ÙWØÚ[™ÙY^ØÚ[™ÙYØ˜\Ù_H\ÝØÚ[™ÙY^ØÚ[™ÙYÝ\ÝH‚ˆ
-Bˆ™]\›ˆ‚‚šYˆ×Û˜[YW×ÈOH—×ÛXZ[—×ÈŽ‚ˆ˜Z\ÙHÞ\Ý[Q^]
-XZ[Š
-JB
+DOC_ENTRY = '    ".ics": "text/calendar",\n'
+MEDIA_DOCUMENT_LINE = (
+    '    ".pdf", ".docx", ".doc", ".odt", ".rtf", ".txt", ".md", ".epub",'
+)
+MEDIA_DOCUMENT_LINE_WITH_ICS = (
+    '    ".pdf", ".docx", ".doc", ".odt", ".rtf", ".txt", ".md", ".ics", ".epub",'
+)
+
+TEST_RELATIVE_PATH = Path("tests/gateway/test_gateway_ics_delivery_contract.py")
+TEST_CONTENT = """\
+from gateway.platforms.base import (
+    BasePlatformAdapter,
+    MEDIA_DELIVERY_EXTS,
+    SUPPORTED_DOCUMENT_TYPES,
+)
+
+
+def test_ics_is_supported_document_type():
+    assert SUPPORTED_DOCUMENT_TYPES[".ics"] == "text/calendar"
+
+
+def test_ics_is_in_media_delivery_allowlist():
+    assert ".ics" in MEDIA_DELIVERY_EXTS
+
+
+def test_media_tag_extracts_ics_attachment():
+    media, cleaned = BasePlatformAdapter.extract_media(
+        "Calendar file attached.\\nMEDIA:/tmp/hermes-flight.ics\\nDone."
+    )
+
+    assert media == [("/tmp/hermes-flight.ics", False)]
+    assert "MEDIA:" not in cleaned
+    assert "hermes-flight.ics" not in cleaned
+    assert "Calendar file attached." in cleaned
+"""
+
+
+class PatchError(RuntimeError):
+    pass
+
+
+def _default_hermes_root() -> Path:
+    env_root = os.environ.get("HERMES_AGENT_ROOT")
+    if env_root:
+        return Path(env_root).expanduser()
+
+    hermes_home = Path(os.environ.get("HERMES_HOME", "~/.hermes")).expanduser()
+    return hermes_home / "hermes-agent"
+
+
+def _replace_section(text: str, start_marker: str, end_marker: str, body: str) -> str:
+    start = text.find(start_marker)
+    if start == -1:
+        raise PatchError(f"Could not find start marker: {start_marker!r}")
+    end = text.find(end_marker, start)
+    if end == -1:
+        raise PatchError(f"Could not find end marker after {start_marker!r}")
+    return text[:start] + body + text[end:]
+
+
+def patch_gateway_base(base_path: Path) -> bool:
+    text = base_path.read_text(encoding="utf-8")
+    original = text
+
+    doc_start_marker = "SUPPORTED_DOCUMENT_TYPES = {\n"
+    doc_end_marker = "\n}\n\n\n# ---------------------------------------------------------------------------\n# Text-injection"
+    doc_start = text.find(doc_start_marker)
+    if doc_start == -1:
+        raise PatchError("Could not find SUPPORTED_DOCUMENT_TYPES")
+    doc_end = text.find(doc_end_marker, doc_start)
+    if doc_end == -1:
+        raise PatchError("Could not find end of SUPPORTED_DOCUMENT_TYPES")
+    doc_block = text[doc_start:doc_end]
+    if '".ics": "text/calendar"' not in doc_block:
+        anchor = '    ".txt": "text/plain",\n'
+        if anchor not in doc_block:
+            raise PatchError("Could not find .txt document MIME anchor")
+        doc_block = doc_block.replace(anchor, anchor + DOC_ENTRY, 1)
+        text = text[:doc_start] + doc_block + text[doc_end:]
+
+    media_start_marker = "MEDIA_DELIVERY_EXTS: Tuple[str, ...] = (\n"
+    media_end_marker = "\n)\n\n# Regex alternation"
+    media_start = text.find(media_start_marker)
+    if media_start == -1:
+        raise PatchError("Could not find MEDIA_DELIVERY_EXTS")
+    media_end = text.find(media_end_marker, media_start)
+    if media_end == -1:
+        raise PatchError("Could not find end of MEDIA_DELIVERY_EXTS")
+    media_block = text[media_start:media_end]
+    if '".ics"' not in media_block:
+        if MEDIA_DOCUMENT_LINE not in media_block:
+            raise PatchError("Could not find document delivery extension anchor")
+        media_block = media_block.replace(
+            MEDIA_DOCUMENT_LINE,
+            MEDIA_DOCUMENT_LINE_WITH_ICS,
+            1,
+        )
+        text = text[:media_start] + media_block + text[media_end:]
+
+    if text != original:
+        base_path.write_text(text, encoding="utf-8")
+        return True
+    return False
+
+
+def write_regression_test(root: Path) -> bool:
+    test_path = root / TEST_RELATIVE_PATH
+    current = test_path.read_text(encoding="utf-8") if test_path.exists() else None
+    if current == TEST_CONTENT:
+        return False
+    test_path.parent.mkdir(parents=True, exist_ok=True)
+    test_path.write_text(TEST_CONTENT, encoding="utf-8")
+    return True
+
+
+def hermes_python(root: Path) -> Path:
+    python = root / "venv" / "bin" / "python"
+    if not python.exists():
+        python = Path(sys.executable)
+    return python
+
+
+def run_regression_test(root: Path) -> None:
+    python = hermes_python(root)
+    cmd = [str(python), "-m", "pytest", str(TEST_RELATIVE_PATH)]
+    subprocess.run(cmd, cwd=root, check=True)
+
+
+def verify(root: Path) -> None:
+    code = textwrap.dedent(
+        """
+        from gateway.platforms.base import (
+            BasePlatformAdapter,
+            MEDIA_DELIVERY_EXTS,
+            SUPPORTED_DOCUMENT_TYPES,
+        )
+
+        if SUPPORTED_DOCUMENT_TYPES.get(".ics") != "text/calendar":
+            raise SystemExit(".ics is missing from SUPPORTED_DOCUMENT_TYPES")
+        if ".ics" not in MEDIA_DELIVERY_EXTS:
+            raise SystemExit(".ics is missing from MEDIA_DELIVERY_EXTS")
+        media, cleaned = BasePlatformAdapter.extract_media("MEDIA:/tmp/flight.ics")
+        if media != [("/tmp/flight.ics", False)] or "MEDIA:" in cleaned:
+            raise SystemExit("extract_media does not deliver .ics MEDIA tags")
+        """
+    )
+    subprocess.run([str(hermes_python(root)), "-c", code], cwd=root, check=True)
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Add Hermes gateway .ics document delivery support and tests.",
+    )
+    parser.add_argument(
+        "--hermes-root",
+        type=Path,
+        default=_default_hermes_root(),
+        help="Hermes Agent checkout root. Defaults to $HERMES_AGENT_ROOT or ~/.hermes/hermes-agent.",
+    )
+    parser.add_argument(
+        "--no-test",
+        action="store_true",
+        help="Patch and verify imports, but do not run pytest.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    root = args.hermes_root.expanduser().resolve()
+    base_path = root / "gateway" / "platforms" / "base.py"
+    if not base_path.exists():
+        raise SystemExit(f"Hermes gateway base.py not found: {base_path}")
+
+    changed_base = patch_gateway_base(base_path)
+    changed_test = write_regression_test(root)
+    verify(root)
+    if not args.no_test:
+        run_regression_test(root)
+
+    print(
+        "Hermes .ics delivery patch ready: "
+        f"base_changed={changed_base} test_changed={changed_test}"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
