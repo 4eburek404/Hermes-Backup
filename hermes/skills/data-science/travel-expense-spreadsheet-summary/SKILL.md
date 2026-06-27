@@ -1,13 +1,13 @@
 ---
 name: travel-expense-spreadsheet-summary
 description: "Use when the user sends an Excel/CSV travel-expense spreadsheet and asks to summarize aviation, rail, hotel/lodging spend, booking counts, and total."
-version: 1.0.0
+version: 1.1.0
 author: Hermes Agent
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [excel, spreadsheet, travel-expenses, aviation, rail, hotels, reporting]
+    tags: [excel, spreadsheet, travel-expenses, aviation, rail, hotels, reporting, cli]
     category: data-science
 ---
 
@@ -17,12 +17,11 @@ metadata:
 
 Посчитать по пользовательскому Excel/CSV-файлу командировочных расходов:
 
-- сколько денег ушло на **авиа**;
-- сколько денег ушло на **ЖД**;
-- сколько денег ушло на **проживание в отелях**;
-- сколько **бронирований** в каждой категории;
+- расходы и количество бронирований по **авиа**;
+- расходы и количество бронирований по **ЖД**;
+- расходы и количество бронирований по **проживанию в отелях**;
 - общий **ИТОГО**;
-- сверить результат с итоговой строкой файла, если она есть.
+- сверку с итоговой строкой файла, если она есть.
 
 Главное правило: **одно бронирование = одна строка исходной таблицы после удаления итоговых/служебных строк**, если пользователь не сказал иначе.
 
@@ -30,218 +29,72 @@ metadata:
 
 Use this skill when:
 
-- пользователь прислал `.xls`, `.xlsx` или `.csv` со статистикой/расходами по поездкам;
+- пользователь прислал `.xls`, `.xlsx`, `.xlsm` или `.csv` со статистикой/расходами по поездкам;
 - просит посчитать авиа / ЖД / отели / количество бронирований / общий итог;
 - в таблице есть колонки вроде `Дата`, `Сотрудник`, `Перевозчик`, `Номер билета`, `Детали`, `Сумма`;
 - поставщики могут быть смешанными: `Trip.com`, `Яндекс`, `ДубльГис`, `Комфорт Букинг`, `РЖД`, авиакомпании и т.п.
 
 Do **not** use this as a generic Excel skill. It is specifically for travel-expense category summaries.
 
-## Step-by-Step Workflow
+## Primary Workflow
 
-### 1. Подготовь чтение файла
+### 1. Run the bundled script
 
-1. Найди путь к файлу из сообщения пользователя.
-2. Определи формат:
-   - `.xls` → читать через `xlrd`;
-   - `.xlsx` / `.xlsm` → читать через `openpyxl`;
-   - `.csv` → проверить разделитель и кодировку.
-3. Если `pandas`, `xlrd`, `openpyxl` не установлены, не ставь пакеты глобально в PEP 668 окружении. Создай временное окружение:
+Prefer the deterministic script over rebuilding ad-hoc pandas code from memory:
+
+```bash
+python3 hermes/skills/data-science/travel-expense-spreadsheet-summary/scripts/travel_expense_summary.py \
+  /path/to/file.xls \
+  --format json
+```
+
+For old `.xls` files, the active Python environment needs `pandas` + `xlrd`; for `.xlsx`/`.xlsm`, it needs `pandas` + `openpyxl`. In PEP 668 environments, use a temporary venv rather than installing globally:
 
 ```bash
 python3 -m venv /tmp/excelenv
 /tmp/excelenv/bin/python -m pip install -q --upgrade pip
 /tmp/excelenv/bin/python -m pip install -q pandas xlrd openpyxl
+/tmp/excelenv/bin/python hermes/skills/data-science/travel-expense-spreadsheet-summary/scripts/travel_expense_summary.py \
+  /path/to/file.xls \
+  --format json
 ```
 
-Completion criterion: файл открыт без ошибки, известны листы и размер таблицы.
+For CSV files, the script uses the Python standard library and does not need pandas.
 
-### 2. Осмотри структуру перед расчётами
+Completion criterion: the script exits `0` and returns JSON or Markdown.
 
-Выведи/проверь:
+### 2. Inspect verification and warnings
 
-1. список листов;
-2. размер таблицы;
-3. названия колонок;
-4. первые 20-30 строк;
-5. последние 10-20 строк;
-6. наличие строки `Итог` / `Total` / пустых строк / повторных заголовков внутри данных.
+In JSON output, check:
 
-Ожидаемый частый формат:
+- `verification.clean_rows` — count of real booking rows after removing `Итог`/`Total`;
+- `verification.category_rows` — sum of rows assigned to categories;
+- `verification.category_sum` — sum of all categories;
+- `verification.source_total_present` — whether a workbook total row was found;
+- `verification.source_total_sum` / `source_total_count` — source control values;
+- `verification.matches_source_total` — final reconciliation result.
 
-| Колонка | Смысл |
+Also inspect `warnings` before answering. Warnings are not automatic failures; they are rows the agent should be aware of when writing assumptions:
+
+| Warning | Meaning |
 |---|---|
-| `Дата` | дата операции/оформления |
-| `Сотрудник` | сотрудник/получатель услуги |
-| `Перевозчик` | авиакомпания, РЖД, сервис бронирования или поставщик |
-| `Номер билета` | номер билета/брони |
-| `Детали` | маршрут, проживание, даты, гостиница, приказ |
-| `Сумма` | стоимость |
+| `mixed_service_vendor` | A platform such as `Trip.com` can contain multiple service types; classification came from row details. |
+| `missing_carrier_air_route` | Carrier is empty, but the row fell into aviation by route/default logic. |
+| `hotel_vendor_without_lodging_marker` | Vendor looks hotel-related, but details did not contain `прожив`; verify before final answer. |
 
-Completion criterion: понятно, какая колонка содержит сумму, какая — детали, какая — перевозчика/поставщика.
+Completion criterion: totals reconcile, or the mismatch/warning is understood and can be explained.
 
-### 3. Очисти данные
+### 3. Report the result first
 
-1. Сохрани исходное количество строк.
-2. Удали итоговые/служебные строки из расчёта:
-   - строка, где первая колонка или `Дата` равна `Итог`;
-   - строка `Total`;
-   - пустые строки без суммы.
-3. Сохрани удалённую итоговую строку отдельно для сверки.
-4. Приведи `Сумма` к числу:
+Use the script's Markdown output when possible:
 
-```python
-df["Сумма_num"] = pd.to_numeric(df["Сумма"], errors="coerce")
+```bash
+python3 hermes/skills/data-science/travel-expense-spreadsheet-summary/scripts/travel_expense_summary.py \
+  /path/to/file.xls \
+  --format markdown
 ```
 
-5. Если есть `NaN` в суммах — распечатай эти строки и не финализируй без объяснения.
-
-Completion criterion: есть `clean_df` только с реальными бронированиями и числовой суммой.
-
-### 4. Классифицируй строки по доказательствам строки, а не только по поставщику
-
-Нельзя считать только по `Перевозчик`: один поставщик может продавать разные услуги.
-
-Примеры:
-
-- `TRIP.COM TRAVEL...` может содержать и `ЖД`, и `проживание`;
-- `Яндекс`, `ДубльГис`, `Комфорт Букинг`, `гостиница` обычно означают проживание, но проверяй текст `Детали`;
-- пустой `Перевозчик` не делает строку неопределённой: если в `Детали` авиамаршрут, это авиа.
-
-Для каждой строки создай нижний регистр:
-
-```python
-carrier = str(row.get("Перевозчик", "") or "").lower()
-details = str(row.get("Детали", "") or "").lower()
-text = carrier + " " + details
-```
-
-### 5. Применяй порядок категорий строго сверху вниз
-
-#### 5.1. Сначала — проживание в отелях
-
-Категория **Проживание в отелях**, если в `Детали` есть явные признаки проживания:
-
-- `прожив`;
-- `проживание с ...`;
-- при необходимости: `hotel`, `отель`, `гостиница`, `апартаменты`, но лучше не полагаться только на название поставщика.
-
-Основной безопасный критерий для типовых файлов пользователя:
-
-```python
-if "прожив" in details:
-    category = "Проживание в отелях"
-```
-
-Почему первым: строка может быть от смешанного сервиса (`Trip.com`, `Яндекс`) — слово `проживание` точнее названия поставщика.
-
-#### 5.2. Потом — ЖД
-
-Категория **ЖД**, если `carrier/details/text` содержит:
-
-- `ржд`;
-- `жд`;
-- `ж/д`;
-- `гранд сервис`;
-- `аэроэкспресс`;
-- частую опечатку `аэроэскпресс`.
-
-Типовое правило:
-
-```python
-rail_markers = ["ржд", "жд", "ж/д", "гранд сервис", "аэроэкспресс", "аэроэскпресс"]
-if any(marker in text for marker in rail_markers):
-    category = "ЖД"
-```
-
-Важно: `Аэроэкспресс` включать в **ЖД/наземный железнодорожный трансфер**, если пользователь просит только авиа / ЖД / отели и не выделяет отдельную категорию наземного транспорта.
-
-#### 5.3. Остальное — авиа
-
-Категория **Авиа**, если строка не проживание и не ЖД, но содержит авиаперевозчика или авиамаршрут.
-
-Типовые признаки:
-
-- `Аэрофлот`, `Победа`, `Уральские авиалинии`, `Red Wings`, `ЮТэйр`, `S7`, `Turkish Airlines`, `Oman Air`, `Air Serbia`, `China Eastern`, `ЮВТАЭРО`;
-- маршрут вида `ЕКБ-Москва`, `Москва-ЕКБ`, `ЕКБ-Ереван/Ереван-Рим` и т.п.;
-- пустой перевозчик, но в деталях явно указан авиамаршрут между городами.
-
-Default для этой задачи:
-
-```python
-category = "Авиа"
-```
-
-после того, как строка не попала в проживание и ЖД.
-
-Completion criterion: каждая строка получила одну из трёх категорий: `Авиа`, `ЖД`, `Проживание в отелях`.
-
-### 6. Отдельно проверь неоднозначные строки
-
-Перед финальным ответом распечатай и осмотри строки:
-
-1. `Перевозчик` пустой;
-2. `Перевозчик` содержит `TRIP.COM`;
-3. `Перевозчик` похож на гостиничный сервис, но нет слова `прожив` в деталях;
-4. `Детали` содержат одновременно маршрут и слова про проживание;
-5. очень крупные суммы;
-6. строки, которые классифицировались как авиа по default-правилу, но поставщик не похож на авиакомпанию.
-
-Completion criterion: спорные строки либо подтверждены, либо явно описаны в примечании к ответу.
-
-### 7. Посчитай суммы и бронирования
-
-Группировка:
-
-```python
-summary = (
-    clean_df
-    .groupby("Категория")
-    .agg(
-        Бронирований=("Сумма_num", "size"),
-        Сумма=("Сумма_num", "sum"),
-    )
-)
-```
-
-Затем зафиксируй порядок:
-
-1. `Авиа`
-2. `ЖД`
-3. `Проживание в отелях`
-4. `ИТОГО`
-
-Итого:
-
-```python
-total_count = len(clean_df)
-total_sum = clean_df["Сумма_num"].sum()
-```
-
-Completion criterion: есть таблица с количеством и суммой по каждой категории плюс общий итог.
-
-### 8. Сверь результат
-
-Обязательные проверки:
-
-1. сумма `Авиа + ЖД + Проживание` равна `total_sum` очищенных данных;
-2. количество категорий в сумме равно количеству строк `clean_df`;
-3. если в файле была строка `Итог`, то:
-   - `total_sum` равен сумме из строки `Итог`;
-   - `total_count` равен количеству из строки `Итог`, если оно там есть.
-
-Если расхождение есть — не скрывай его. Сообщи:
-
-- размер расхождения;
-- какие строки исключены;
-- какие строки не удалось классифицировать;
-- какое допущение нужно подтвердить у пользователя.
-
-Completion criterion: результат либо полностью сходится с итогом файла, либо расхождение объяснено.
-
-### 9. Ответь пользователю
-
-Формат ответа — коротко, сначала результат:
+Expected user-facing format:
 
 ```markdown
 Посчитал по файлу `<имя файла>`. Строку `Итог` не включал как бронирование, использовал её для сверки.
@@ -257,76 +110,71 @@ Completion criterion: результат либо полностью сходи�
 Примечание: `Аэроэкспресс` включён в ЖД; строки без перевозчика с авиамаршрутом отнесены к авиа.
 ```
 
-Не перегружай финальный ответ методологией, если пользователь не попросил подробно. Если попросил — опиши процесс по шагам и укажи ключевые правила классификации.
+Keep the final answer compact unless the user explicitly asks for methodology.
 
-## Reference Implementation
+## Classification Contract
 
-Минимальный скелет расчёта:
+The script applies this precedence, top-to-bottom:
 
-```python
-import pandas as pd
-from pathlib import Path
+1. **Проживание в отелях** — `Детали` contains `прожив...`.
+2. **ЖД** — combined carrier/details text contains `ржд`, `жд`, `ж/д`, `гранд сервис`, `аэроэкспресс`, or common misspelling `аэроэскпресс`.
+3. **Авиа** — everything not classified as lodging or rail, including airline carriers and missing-carrier rows with flight-style routes.
 
-path = Path("/path/to/file.xls")
-engine = "xlrd" if path.suffix.lower() == ".xls" else "openpyxl"
+Important consequences:
 
-df = pd.read_excel(path, sheet_name=0, engine=engine)
+- `Аэроэкспресс` is counted as **ЖД/rail transfer**, not aviation, unless the user asks for a separate ground-transport category.
+- `Trip.com` is classified per row details: `ЖД...` rows go to **ЖД**, `проживание...` rows go to **Проживание**.
+- Airline rows containing a hotel name only as a trip note are still **Авиа** unless the details explicitly say `прожив...`.
 
-first_col = df.columns[0]
-is_total = df[first_col].astype(str).str.strip().str.lower().isin(["итог", "total"])
-total_rows = df[is_total].copy()
-clean = df[~is_total].copy()
+## CLI Reference
 
-clean["Сумма_num"] = pd.to_numeric(clean["Сумма"], errors="coerce")
-if clean["Сумма_num"].isna().any():
-    print(clean[clean["Сумма_num"].isna()])
-    raise SystemExit("Есть нечисловые суммы")
-
-def classify(row):
-    carrier = "" if pd.isna(row.get("Перевозчик")) else str(row.get("Перевозчик")).lower()
-    details = "" if pd.isna(row.get("Детали")) else str(row.get("Детали")).lower()
-    text = carrier + " " + details
-
-    if "прожив" in details:
-        return "Проживание в отелях"
-
-    rail_markers = ["ржд", "жд", "ж/д", "гранд сервис", "аэроэкспресс", "аэроэскпресс"]
-    if any(marker in text for marker in rail_markers):
-        return "ЖД"
-
-    return "Авиа"
-
-clean["Категория"] = clean.apply(classify, axis=1)
-
-order = ["Авиа", "ЖД", "Проживание в отелях"]
-summary = clean.groupby("Категория").agg(
-    Бронирований=("Сумма_num", "size"),
-    Сумма=("Сумма_num", "sum"),
-).reindex(order)
-
-summary.loc["ИТОГО"] = [len(clean), clean["Сумма_num"].sum()]
-print(summary)
-print(total_rows)
+```bash
+python3 scripts/travel_expense_summary.py FILE [options]
 ```
+
+Options:
+
+| Option | Purpose |
+|---|---|
+| `--format json` / `--format markdown` | Machine-readable output for agent checks or ready-to-send table. |
+| `--sheet NAME_OR_INDEX` | Excel sheet; default is the first sheet. |
+| `--amount-col Сумма` | Override amount column. |
+| `--carrier-col Перевозчик` | Override carrier/vendor column. |
+| `--details-col Детали` | Override details/route/lodging column. |
+| `--date-col Дата` | Override date/first-column total-row detection. |
+| `--show-warnings` | Append warning rows to Markdown output. |
+
+## Test / Maintenance Workflow
+
+Tests live next to the script:
+
+```text
+scripts/travel_expense_summary.py
+scripts/test_travel_expense_summary.py
+```
+
+Run targeted tests after any script or classification change:
+
+```bash
+python3 -m pytest hermes/skills/data-science/travel-expense-spreadsheet-summary/scripts/test_travel_expense_summary.py -q
+```
+
+For behavior changes, follow TDD: update/add the test first, watch it fail, then update the script.
 
 ## Common Pitfalls
 
-1. **Задвоить итоговую строку.** Если строку `Итог` не удалить, сумма будет завышена.
-2. **Считать только по перевозчику.** `Trip.com` и похожие сервисы смешивают ЖД и отели.
-3. **Отнести Аэроэкспресс к авиа.** Для этой тройки категорий его нужно относить к ЖД/железнодорожному трансферу, если пользователь не сказал иначе.
-4. **Потерять строки без перевозчика.** Классифицируй по `Детали`: авиамаршрут без перевозчика всё равно авиа.
-5. **Считать сегменты маршрута как отдельные бронирования.** По умолчанию бронирование = строка, даже если в строке маршрут туда-обратно или несколько сегментов.
-6. **Отчитаться без сверки.** Всегда проверь, что категории сходятся с очищенным итогом и строкой `Итог` в файле.
+1. **Задвоить итоговую строку.** The script excludes `Итог`/`Total` rows from booking counts and uses them only for reconciliation.
+2. **Считать только по перевозчику.** Mixed platforms such as `Trip.com` can include rail and hotel rows; classification must use row details.
+3. **Отнести Аэроэкспресс к авиа.** Count it as ЖД/rail transfer for this three-category report unless the user says otherwise.
+4. **Потерять строки без перевозчика.** Missing carrier rows can still be aviation if details show a flight route.
+5. **Считать сегменты маршрута как отдельные бронирования.** By default, booking count is row count, not route segment count.
+6. **Отчитаться без сверки.** Do not present totals as final until category sums match cleaned rows and, when present, the source total row.
 
 ## Verification Checklist
 
-- [ ] Файл открыт правильным engine.
-- [ ] Листы, колонки, первые и последние строки осмотрены.
-- [ ] Строка `Итог`/`Total` исключена из расчёта и сохранена для сверки.
-- [ ] `Сумма` приведена к числу, нечисловые суммы проверены.
-- [ ] Каждая строка получила ровно одну категорию.
-- [ ] Проверены пустые перевозчики, `Trip.com`, `Аэроэкспресс` и другие неоднозначные строки.
-- [ ] Сумма категорий равна общей сумме очищенных строк.
-- [ ] Количество категорий равно количеству очищенных строк.
-- [ ] Итог совпадает с итоговой строкой файла или расхождение объяснено.
-- [ ] Ответ содержит таблицу: авиа, ЖД, проживание, ИТОГО.
+- [ ] Script ran successfully on the supplied file.
+- [ ] `verification.category_rows == verification.clean_rows`.
+- [ ] Category summary contains `Авиа`, `ЖД`, `Проживание в отелях`, and `ИТОГО`.
+- [ ] If source total row exists, `verification.matches_source_total` is `true`; otherwise mismatch is explained.
+- [ ] `warnings` were inspected and relevant assumptions are mentioned in the final answer.
+- [ ] If code changed, targeted tests passed.
