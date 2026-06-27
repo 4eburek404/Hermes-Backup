@@ -29,7 +29,7 @@ Active provider set: `kupibilet` and `fli` via `adapters/providers/registry.py`.
 - `filters`: carrier include/exclude/prefer/avoid;
 - `output`: output and diagnostic limits.
 
-`apps/search.py::live_assembly_args_from_search_request` validates the schema and materializes defaults into an `argparse.Namespace`. Downstream code reads that normalized `args` plus typed pipeline decisions.
+`apps/search.py::live_assembly_options_from_search_request` validates the schema and materializes defaults into `LiveAssemblyOptions`. The downstream request pipeline reads typed `SearchRequest`, `FlowDecision`, and `EvidencePlan` fields; it does not depend on argparse-style compatibility dicts.
 
 **Output**: `flight_search_result.v1` from `apps/search.py::build_search_result`:
 

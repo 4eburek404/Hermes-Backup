@@ -59,6 +59,17 @@ class FlowDecisionEvidenceContractTests(unittest.TestCase):
         self.assertEqual(plan["flow_decision"]["market_class"], "ru_touching_international")
         self.assertIn("ru_touching_market_uses_ru_priority_controls", plan["flow_decision"]["limitations"])
 
+    def test_flow_decision_plan_output_uses_canonical_class_fields_only(self) -> None:
+        plan = self.plan_for(origin="SVX", destination="IST", provider_policy="auto", return_date=None)
+
+        flow_decision = plan["flow_decision"]
+        self.assertEqual(flow_decision["intent_class"], "route_recommendation")
+        self.assertEqual(flow_decision["market_class"], "ru_touching_international")
+        self.assertEqual(flow_decision["evidence_class"], "shopping_advisory")
+        self.assertNotIn("intent", flow_decision)
+        self.assertNotIn("market", flow_decision)
+        self.assertNotIn("evidence_requirement", flow_decision)
+
     def test_direct_inventory_request_compiles_to_direct_only_flow_and_controls(self) -> None:
         flow = self.flow_for(origin="SVX", destination="KUF", max_connections=0, tier2_max_connections=0, return_date=None)
         plan = self.plan_for(origin="SVX", destination="KUF", max_connections=0, tier2_max_connections=0, return_date=None)

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping
 
 from .options import LiveAssemblyOptions
 
@@ -15,7 +14,6 @@ class SearchRequest:
     """
 
     command_name: str
-    route_mode: str
     origin: str
     destination: str
     depart_date: str
@@ -24,41 +22,31 @@ class SearchRequest:
     profile: str
     ticketing: str
     provider_policy: str
-    compatibility_options: Mapping[str, Any] = field(default_factory=dict)
-
-
-def _route_mode(command_name: str) -> str:
-    return "search_live"
+    routing_strategy: str
+    hubs: tuple[str, ...] = field(default_factory=tuple)
+    origin_airports: tuple[str, ...] = field(default_factory=tuple)
+    destination_airports: tuple[str, ...] = field(default_factory=tuple)
+    max_connections: int | None = None
+    tier2_max_connections: int | None = None
+    date_window_end: str | None = None
+    max_segment_searches: int = 300
+    live_cache_ttl_seconds: int = 0
+    no_live_cache: bool = False
+    direct_route_index_ttl_seconds: int = 0
+    no_direct_route_intel: bool = False
+    include_segment_results: int = 0
+    aggregate_control_limit: int = 0
+    aggregate_control_carriers: tuple[str, ...] = field(default_factory=tuple)
+    coverage_mode: str = "targeted"
+    coverage_controls: tuple[str, ...] = field(default_factory=tuple)
+    coverage_control_limit: int = 0
+    only_carriers: tuple[str, ...] = field(default_factory=tuple)
+    exclude_carriers: tuple[str, ...] = field(default_factory=tuple)
 
 
 def search_request_from_options(options: LiveAssemblyOptions) -> SearchRequest:
-    compatibility_options: dict[str, Any] = {
-        "routing_strategy": options.route.routing_strategy,
-        "hub": options.route.hubs,
-        "origin_airport": options.route.origin_airports,
-        "destination_airport": options.route.destination_airports,
-        "max_connections": options.route.max_connections,
-        "date_window_end": options.route.date_window_end,
-        "tier2_max_connections": options.route.tier2_max_connections,
-        "max_segment_searches": options.evidence.max_segment_searches,
-        "live_cache_ttl_seconds": options.evidence.live_cache_ttl_seconds,
-        "no_live_cache": options.evidence.no_live_cache,
-        "direct_route_index_ttl_seconds": options.evidence.direct_route_index_ttl_seconds,
-        "no_direct_route_intel": options.evidence.no_direct_route_intel,
-        "include_segment_results": options.output.include_segment_results,
-        "aggregate_control_limit": options.evidence.aggregate_control_limit,
-        "aggregate_control_carrier": options.evidence.aggregate_control_carriers,
-        "coverage_mode": options.evidence.coverage_mode,
-        "coverage_control": options.evidence.coverage_controls,
-        "coverage_control_limit": options.evidence.coverage_control_limit,
-        "only_carrier": options.filters.only_carriers,
-        "exclude_carrier": options.filters.exclude_carriers,
-        "prefer_carrier": options.filters.prefer_carriers,
-        "avoid_carrier": options.filters.avoid_carriers,
-    }
     return SearchRequest(
         command_name=options.command_name,
-        route_mode=_route_mode(options.command_name),
         origin=options.route.origin,
         destination=options.route.destination,
         depart_date=options.route.depart_date,
@@ -67,5 +55,24 @@ def search_request_from_options(options: LiveAssemblyOptions) -> SearchRequest:
         profile=options.profile,
         ticketing=options.ticketing,
         provider_policy=options.evidence.provider_policy,
-        compatibility_options=compatibility_options,
+        routing_strategy=options.route.routing_strategy,
+        hubs=options.route.hubs,
+        origin_airports=options.route.origin_airports,
+        destination_airports=options.route.destination_airports,
+        max_connections=options.route.max_connections,
+        tier2_max_connections=options.route.tier2_max_connections,
+        date_window_end=options.route.date_window_end,
+        max_segment_searches=options.evidence.max_segment_searches,
+        live_cache_ttl_seconds=options.evidence.live_cache_ttl_seconds,
+        no_live_cache=options.evidence.no_live_cache,
+        direct_route_index_ttl_seconds=options.evidence.direct_route_index_ttl_seconds,
+        no_direct_route_intel=options.evidence.no_direct_route_intel,
+        include_segment_results=options.output.include_segment_results,
+        aggregate_control_limit=options.evidence.aggregate_control_limit,
+        aggregate_control_carriers=options.evidence.aggregate_control_carriers,
+        coverage_mode=options.evidence.coverage_mode,
+        coverage_controls=options.evidence.coverage_controls,
+        coverage_control_limit=options.evidence.coverage_control_limit,
+        only_carriers=options.filters.only_carriers,
+        exclude_carriers=options.filters.exclude_carriers,
     )

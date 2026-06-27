@@ -24,24 +24,6 @@ class FlowDecision:
     source_boundaries: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
 
-    @property
-    def intent(self) -> str:
-        """Compatibility alias for older internal callers/tests."""
-
-        return self.intent_class
-
-    @property
-    def market(self) -> str:
-        """Compatibility alias for older internal callers/tests."""
-
-        return self.market_class
-
-    @property
-    def evidence_requirement(self) -> str:
-        """Compatibility alias for older internal callers/tests."""
-
-        return self.evidence_class
-
     def to_dict(self) -> dict[str, Any]:
         payload = {
             "intent_class": self.intent_class,
@@ -55,44 +37,22 @@ class FlowDecision:
             "limitations": list(self.limitations),
             "source_boundaries": list(self.source_boundaries),
             "notes": list(self.notes),
-            # Legacy names stay in the structured seam until downstream reports
-            # no longer need to read old keys.
-            "intent": self.intent_class,
-            "market": self.market_class,
-            "evidence_requirement": self.evidence_class,
         }
         if self.airport_scope is not None:
             payload["airport_scope"] = self.airport_scope
         return payload
 
 
-def _as_tuple(value: Any) -> tuple[Any, ...]:
-    if value is None:
-        return ()
-    if isinstance(value, tuple):
-        return value
-    if isinstance(value, list):
-        return tuple(value)
-    return (value,)
-
-
 def _is_direct_only(request: SearchRequest) -> bool:
-    options = request.compatibility_options
-    return options.get("max_connections") == 0 and options.get("tier2_max_connections") == 0
+    return request.max_connections == 0 and request.tier2_max_connections == 0
 
 
 def _has_airport_scope(request: SearchRequest) -> bool:
-    options = request.compatibility_options
-    return bool(_as_tuple(options.get("origin_airport")) or _as_tuple(options.get("destination_airport")))
+    return bool(request.origin_airports or request.destination_airports)
 
 
 def _has_carrier_scope(request: SearchRequest) -> bool:
-    options = request.compatibility_options
-    return bool(
-        _as_tuple(options.get("aggregate_control_carrier"))
-        or _as_tuple(options.get("only_carrier"))
-        or _as_tuple(options.get("exclude_carrier"))
-    )
+    return bool(request.aggregate_control_carriers or request.only_carriers or request.exclude_carriers)
 
 
 def _location_country(store: Any, code: str) -> str | None:
@@ -180,8 +140,8 @@ def _evidence_class_for(intent_class: str) -> str:
 
 
 def routing_strategy_for_market(request: SearchRequest, market_class: str) -> str:
-    raw = str(request.compatibility_options.get("routing_strategy") or "auto").strip().lower()
-    has_manual_hubs = bool(_as_tuple(request.compatibility_options.get("hub")))
+    raw = str(request.routing_strategy or "auto").strip().lower()
+    has_manual_hubs = bool(request.hubs)
     if raw != "auto":
         return raw
     if has_manual_hubs:
