@@ -89,6 +89,15 @@ def pairs(segments: list[dict[str, object]]) -> list[tuple[str, str]]:
     return [(str(segment["origin"]), str(segment["destination"])) for segment in segments]
 
 
+def non_direct_segments(plan: dict[str, object]) -> list[dict[str, object]]:
+    return [
+        segment
+        for segment in plan["segments"]  # type: ignore[index]
+        if isinstance(segment, dict)
+        and segment.get("leg") not in {"direct_outbound", "direct_return"}
+    ]
+
+
 def kupibilet_result(query_origin: str, query_destination: str, actual_origin: str, actual_destination: str) -> dict[str, object]:
     return {
         "origin": query_origin,
@@ -213,6 +222,16 @@ class AirportPriorityPolicyTests(unittest.TestCase):
         )
         self.assertTrue(all(segment.get("deferred_for_city_code_request") for segment in outbound_to_mow[1:4]))
         self.assertTrue(all(segment.get("deferred_for_city_code_request") for segment in outbound_from_mow[1:4]))
+        self.assertEqual(non_direct_segments(svx_to_mow), [])
+        self.assertEqual(non_direct_segments(mow_to_svx), [])
+
+    def test_domestic_mow_round_trip_does_not_add_intra_moscow_hub_fallback(self) -> None:
+        plan = build_live_route_segment_plan(
+            live_args(origin="SVX", destination="MOW", return_date="2026-08-19"),
+            Store(),
+        )
+
+        self.assertEqual(non_direct_segments(plan), [])
 
     def test_kupibilet_mow_to_lon_uses_moscow_city_code_with_london_preference_without_broad_fanout(self) -> None:
         plan = build_live_route_segment_plan(live_args(origin="MOW", destination="LON"), Store())

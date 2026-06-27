@@ -500,13 +500,36 @@ class ProbeResultAccumulator:
     def __init__(self, only_carriers: list[str]) -> None:
         self.only_carriers = only_carriers
 
+    def _search_summary(self, spec: dict[str, Any], summary: dict[str, Any]) -> dict[str, Any]:
+        enriched = dict(summary)
+        for field in (
+            "direction",
+            "leg",
+            "origin",
+            "destination",
+            "date",
+            "route_family",
+            "priority",
+            "coverage_control",
+            "provider_request_strategy",
+            "provider_city_code",
+            "provider_city_code_deferred_airports",
+            "deferred_for_city_code_request",
+            "origin_airport_priority",
+            "destination_airport_priority",
+        ):
+            if field not in enriched and field in spec:
+                enriched[field] = spec[field]
+        return enriched
+
     def record_skipped(self, state: LiveAssemblyState, spec: dict[str, Any], skipped: dict[str, Any]) -> None:
         state.searches.append(skipped)
         self.record_segment_probe_summary(state, spec, skipped)
 
     def record_outcome(self, state: LiveAssemblyState, spec: dict[str, Any], outcome: Any) -> None:
-        state.searches.append(outcome.summary)
-        self.record_segment_probe_summary(state, spec, outcome.summary, provider_result=outcome.provider_result)
+        summary = self._search_summary(spec, outcome.summary)
+        state.searches.append(summary)
+        self.record_segment_probe_summary(state, spec, summary, provider_result=outcome.provider_result)
         if outcome.failure is not None:
             state.failures.append(outcome.failure)
             return

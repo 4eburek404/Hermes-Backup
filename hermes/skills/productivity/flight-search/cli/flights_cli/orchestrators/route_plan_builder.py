@@ -207,6 +207,8 @@ class RoutePlanBuilder:
 
         self.route_families = route_families_for_strategy(self.routing_strategy, self.routing_profile)
         self._include_generic_direct_controls = self.flow.flow_decision.market_class == MarketClass.GLOBAL_NON_RU
+        endpoint_airports = {*(code.upper() for code in self.origin_airports), *(code.upper() for code in self.destination_airports)}
+        self._connection_hubs = [hub for hub in self.hubs if hub.upper() not in endpoint_airports]
         self._moscow_gateway_eligible = (
             self.routing_strategy == RoutingStrategy.RU_PRIORITY
             and str(self.origin.code or "").upper() != "MOW"
@@ -401,11 +403,11 @@ class RoutePlanBuilder:
                     **{**origin_extra, **dest_extra},
                 )
         for origin_code in self.origin_airports:
-            for hub in self.hubs:
+            for hub in self._connection_hubs:
                 self._add_segment(Direction.OUTBOUND, Leg.ORIGIN_TO_HUB, self.depart, origin_code, hub, route_family=RouteFamily.DOMESTIC_RU, priority=1)
         for offset in self.outbound_second_offsets:
             leg_date = self.depart + timedelta(days=offset)
-            for hub in self.hubs:
+            for hub in self._connection_hubs:
                 for dest_code in self.destination_airports:
                     self._add_segment(Direction.OUTBOUND, Leg.HUB_TO_DESTINATION, leg_date, hub, dest_code, route_family=RouteFamily.DOMESTIC_RU, priority=1)
 
@@ -561,11 +563,11 @@ class RoutePlanBuilder:
                     **{**dest_extra, **origin_extra},
                 )
         for dest_code in self.destination_airports:
-            for hub in self.hubs:
+            for hub in self._connection_hubs:
                 self._add_segment(Direction.RETURN, Leg.DESTINATION_TO_HUB, self.ret, dest_code, hub, route_family=RouteFamily.DOMESTIC_RU, priority=1)
         for offset in self.return_second_offsets:
             leg_date = self.ret + timedelta(days=offset)
-            for hub in self.hubs:
+            for hub in self._connection_hubs:
                 for origin_code in self.origin_airports:
                     self._add_segment(Direction.RETURN, Leg.HUB_TO_ORIGIN, leg_date, hub, origin_code, route_family=RouteFamily.DOMESTIC_RU, priority=1)
 
