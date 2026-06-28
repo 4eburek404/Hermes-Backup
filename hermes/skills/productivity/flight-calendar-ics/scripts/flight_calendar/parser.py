@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Compact public CLI for flight-calendar-ics."""
+
 from __future__ import annotations
 
 import argparse
@@ -87,7 +88,9 @@ def _source_args_for_url_file(url_file: Path) -> argparse.Namespace:
     )
 
 
-def _build_itinerary_from_url_file(url_file: Path, tz_items: list[str]) -> dict[str, Any]:
+def _build_itinerary_from_url_file(
+    url_file: Path, tz_items: list[str]
+) -> dict[str, Any]:
     source_args = _source_args_for_url_file(url_file)
     raw_url = first_url_from_args(source_args)
     if not raw_url:
@@ -97,17 +100,27 @@ def _build_itinerary_from_url_file(url_file: Path, tz_items: list[str]) -> dict[
 
     tz_map = build_timezone_map(parse_cli_tz_overrides(tz_items))
     if route == "aeroflot":
-        locator, key, normalized_url = aeroflot.parse_pnr_source(booking_url, None, None)
-        itinerary = aeroflot.convert_to_itinerary(aeroflot.fetch_aeroflot_pnr(locator, key), tz_map, booking_url=normalized_url)
+        locator, key, normalized_url = aeroflot.parse_pnr_source(
+            booking_url, None, None
+        )
+        itinerary = aeroflot.convert_to_itinerary(
+            aeroflot.fetch_aeroflot_pnr(locator, key),
+            tz_map,
+            booking_url=normalized_url,
+        )
     elif route == "ural":
-        locator, last_name, normalized_url = ural.parse_ural_source(booking_url, None, None)
+        locator, last_name, normalized_url = ural.parse_ural_source(
+            booking_url, None, None
+        )
         itinerary = ural.convert_to_itinerary(
             ural.fetch_ural_reservation(locator, last_name, booking_url=normalized_url),
             tz_map,
             booking_url=normalized_url,
         )
     elif route == "utair":
-        locator, last_name, normalized_url = utair.parse_utair_source(booking_url, None, None)
+        locator, last_name, normalized_url = utair.parse_utair_source(
+            booking_url, None, None
+        )
         token = utair.fetch_utair_token()
         itinerary = utair.convert_to_itinerary(
             utair.fetch_utair_orders(locator, last_name, token=token),
@@ -115,14 +128,18 @@ def _build_itinerary_from_url_file(url_file: Path, tz_items: list[str]) -> dict[
             booking_url=normalized_url,
         )
     elif route == "redwings":
-        locator, access_code, normalized_url = redwings.parse_redwings_source(booking_url, None, None)
+        locator, access_code, normalized_url = redwings.parse_redwings_source(
+            booking_url, None, None
+        )
         itinerary = redwings.convert_to_itinerary(
             redwings.fetch_redwings_order(locator, access_code),
             tz_map,
             booking_url=normalized_url,
         )
     elif route == "s7":
-        _booking_id, _passenger_id, normalized_url = s7.parse_s7_source(booking_url, None, None)
+        _booking_id, _passenger_id, normalized_url = s7.parse_s7_source(
+            booking_url, None, None
+        )
         itinerary = s7.convert_to_itinerary(
             s7.fetch_s7_order(normalized_url),
             tz_map,
@@ -159,17 +176,41 @@ def command_build(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = CompactArgumentParser(description="Create a compact flight .ics calendar file.", allow_abbrev=False)
-    parser.add_argument("--json", action="store_true", required=True, help="Emit short machine-readable JSON")
+    parser = CompactArgumentParser(
+        description="Create a compact flight .ics calendar file.", allow_abbrev=False
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        required=True,
+        help="Emit short machine-readable JSON",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    build = sub.add_parser("build", help="Create one .ics file from a booking URL file or itinerary JSON", allow_abbrev=False)
+    build = sub.add_parser(
+        "build",
+        help="Create one .ics file from a booking URL file or itinerary JSON",
+        allow_abbrev=False,
+    )
     source = build.add_mutually_exclusive_group(required=True)
-    source.add_argument("--url-file", type=Path, help="Private file containing one carrier booking URL")
+    source.add_argument(
+        "--url-file", type=Path, help="Private file containing one carrier booking URL"
+    )
     source.add_argument("--input", "-i", type=Path, help="Minimal itinerary JSON")
-    build.add_argument("--output", type=Path, help="Output .ics path; defaults to a temporary flights.ics")
-    build.add_argument("--no-alarms", action="store_true", help="Do not add VALARM reminders")
-    build.add_argument("--tz", action="append", default=[], help="Carrier URL path timezone override CODE=Area/City")
+    build.add_argument(
+        "--output",
+        type=Path,
+        help="Output .ics path; defaults to a temporary flights.ics",
+    )
+    build.add_argument(
+        "--no-alarms", action="store_true", help="Do not add VALARM reminders"
+    )
+    build.add_argument(
+        "--tz",
+        action="append",
+        default=[],
+        help="Carrier URL path timezone override CODE=Area/City",
+    )
     return parser
 
 
@@ -203,7 +244,10 @@ def main(argv: list[str] | None = None) -> int:
             _emit_human_error(str(exc))
         return exc.exit_code
     except ValueError as exc:
-        payload = {"ok": False, "error": {"code": "validation_error", "message": str(exc)}}
+        payload = {
+            "ok": False,
+            "error": {"code": "validation_error", "message": str(exc)},
+        }
         if json_mode:
             _emit_json(payload)
         else:
@@ -214,14 +258,26 @@ def main(argv: list[str] | None = None) -> int:
         if code == 0:
             return 0
         message = stderr_buffer.getvalue().strip() or PUBLIC_USAGE
-        payload = {"ok": False, "error": {"code": "validation_error", "message": message.replace("ERROR: ", "")}}
+        payload = {
+            "ok": False,
+            "error": {
+                "code": "validation_error",
+                "message": message.replace("ERROR: ", ""),
+            },
+        }
         if json_mode:
             _emit_json(payload)
         else:
             _emit_human_error(payload["error"]["message"])
         return code
     except Exception as exc:  # pragma: no cover - defensive CLI boundary
-        payload = {"ok": False, "error": {"code": "internal_error", "message": f"{type(exc).__name__}: {exc}"}}
+        payload = {
+            "ok": False,
+            "error": {
+                "code": "internal_error",
+                "message": f"{type(exc).__name__}: {exc}",
+            },
+        }
         if json_mode:
             _emit_json(payload)
         else:

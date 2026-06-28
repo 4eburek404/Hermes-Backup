@@ -1,15 +1,47 @@
 from __future__ import annotations
 
-import argparse
+from dataclasses import dataclass
 from typing import Any
 
-from ..config import LEISURE_HUBS, LOW_COST_CARRIERS, RISK_PROFILES
+from ..config import DEFAULT_PROFILE, LEISURE_HUBS, LOW_COST_CARRIERS, RISK_PROFILES
 from ..domain.airports import airport_group
 from ..domain.carriers import segment_carriers
-from ..domain.normalize import clamp_score, is_reject_score, normalize_iata, normalize_profile, normalize_transfer, normalize_transfers, price_value, risk_grade
+from ..domain.normalize import (
+    clamp_score,
+    is_reject_score,
+    normalize_iata,
+    normalize_profile,
+    normalize_transfer,
+    normalize_transfers,
+    price_value,
+    risk_grade,
+)
 from ..domain.stop_metrics import stop_metrics_from_normalized
-from ..domain.time import is_night_time, minutes_between, parse_iso_datetime, validation_elapsed_minutes
+from ..domain.time import (
+    is_night_time,
+    minutes_between,
+    parse_iso_datetime,
+    validation_elapsed_minutes,
+)
 from ..errors import CliError
+
+
+@dataclass(frozen=True, slots=True)
+class ItineraryValidationOptions:
+    ticketing: str = "separate"
+    min_same_airport_min: int = 120
+    min_cross_airport_min: int = 300
+    profile: str = DEFAULT_PROFILE
+
+
+def validation_options_from_args(args: Any) -> ItineraryValidationOptions:
+    return ItineraryValidationOptions(
+        ticketing=str(getattr(args, "ticketing", "separate") or "separate"),
+        min_same_airport_min=int(getattr(args, "min_same_airport_min", 120)),
+        min_cross_airport_min=int(getattr(args, "min_cross_airport_min", 300)),
+        profile=str(getattr(args, "profile", DEFAULT_PROFILE) or DEFAULT_PROFILE),
+    )
+
 
 def connection_rule(
     arrival_airport: str,
@@ -24,7 +56,11 @@ def connection_rule(
     same_airport = arrival == departure
     arrival_group = airport_group(arrival)
     departure_group = airport_group(departure)
-    same_group = bool(arrival_group and departure_group and arrival_group["key"] == departure_group["key"])
+    same_group = bool(
+        arrival_group
+        and departure_group
+        and arrival_group["key"] == departure_group["key"]
+    )
 
     if ticketing == "single":
         required = 60 if same_airport else min_cross_airport
@@ -42,11 +78,15 @@ def connection_rule(
         if same_group:
             status = "ground_transfer_required"
             severity = "warn"
-            notes.append(f"{arrival} to {departure} requires airport change inside {arrival_group['label']}.")
+            notes.append(
+                f"{arrival} to {departure} requires airport change inside {arrival_group['label']}."
+            )
         else:
             status = "airport_mismatch"
             severity = "error"
-            notes.append(f"Arrival airport {arrival} does not match next departure airport {departure}.")
+            notes.append(
+                f"Arrival airport {arrival} does not match next departure airport {departure}."
+            )
 
     if actual_minutes is not None:
         if actual_minutes < 0:
@@ -56,7 +96,9 @@ def connection_rule(
         elif actual_minutes < required:
             severity = "error"
             status = "too_short"
-            notes.append(f"Connection is {actual_minutes} min, below required {required} min.")
+            notes.append(
+                f"Connection is {actual_minutes} min, below required {required} min."
+            )
 
     return {
         "arrival_airport": arrival,
@@ -96,7 +138,11 @@ def connection_risk_points(
     elif rule["status"] == "airport_mismatch" and not rule["same_multi_airport_system"]:
         add("airport_mismatch", 92, "Connection changes to an unrelated airport.")
     elif actual is None:
-        add("missing_connection_time", config["missing_time_penalty"], "Connection time is unknown.")
+        add(
+            "missing_connection_time",
+            config["missing_time_penalty"],
+            "Connection time is unknown.",
+        )
     elif actual < required:
         short_by = required - actual
         add(
@@ -107,14 +153,26 @@ def connection_risk_points(
     elif not rule["same_airport"]:
         base = int(config["cross_airport_base"])
         if rule["same_multi_airport_system"]:
-            add("cross_airport_transfer", base, "Ground transfer between airports is required.")
+            add(
+                "cross_airport_transfer",
+                base,
+                "Ground transfer between airports is required.",
+            )
         else:
-            add("airport_change", max(base, 55), "Arrival airport differs from next departure airport.")
+            add(
+                "airport_change",
+                max(base, 55),
+                "Arrival airport differs from next departure airport.",
+            )
 
     if actual is not None and actual >= required and rule["same_airport"]:
         ideal_min = int(config["ideal_same_min"])
         if actual < ideal_min:
-            add("below_ideal_buffer", min(18, max(3, (ideal_min - actual) // 10)), "Connection is valid but below ideal buffer.")
+            add(
+                "below_ideal_buffer",
+                min(18, max(3, (ideal_min - actual) // 10)),
+                "Connection is valid but below ideal buffer.",
+            )
 
     return {
         "score": clamp_score(score),
@@ -123,7 +181,9 @@ def connection_risk_points(
     }
 
 
-def connection_tradeoffs(rule: dict[str, Any], prev_segment: dict[str, Any], next_segment: dict[str, Any]) -> list[dict[str, Any]]:
+def connection_tradeoffs(
+    rule: dict[str, Any], prev_segment: dict[str, Any], next_segment: dict[str, Any]
+) -> list[dict[str, Any]]:
     actual = rule.get("actual_min")
     if not isinstance(actual, int) or actual < 0:
         return []
@@ -133,7 +193,11 @@ def connection_tradeoffs(rule: dict[str, Any], prev_segment: dict[str, Any], nex
     departure_airport = str(rule.get("departure_airport") or "")
     parsed_arrival = parse_iso_datetime(arrival)
     parsed_departure = parse_iso_datetime(departure)
-    crosses_calendar_date = bool(parsed_arrival and parsed_departure and parsed_departure.date() > parsed_arrival.date())
+    crosses_calendar_date = bool(
+        parsed_arrival
+        and parsed_departure
+        and parsed_departure.date() > parsed_arrival.date()
+    )
     touches_night = is_night_time(arrival) or is_night_time(departure)
 
     tradeoffs: list[dict[str, Any]] = []
@@ -176,13 +240,25 @@ def segment_risk_points(segment: dict[str, Any], profile: str) -> dict[str, Any]
     destination = str(segment.get("destination") or "").upper()
     for airport in (origin, destination):
         if airport in LEISURE_HUBS:
-            add("leisure_hub", int(config["leisure_hub_penalty"]), f"{airport} is a leisure/charter-heavy hub.")
+            add(
+                "leisure_hub",
+                int(config["leisure_hub_penalty"]),
+                f"{airport} is a leisure/charter-heavy hub.",
+            )
         airport_penalty = dict(config["unpreferred_airport_penalty"]).get(airport, 0)
-        add("profile_airport_penalty", int(airport_penalty), f"{airport} is less preferred for profile {profile}.")
+        add(
+            "profile_airport_penalty",
+            int(airport_penalty),
+            f"{airport} is less preferred for profile {profile}.",
+        )
 
     lowcost = sorted(segment_carriers(segment) & LOW_COST_CARRIERS)
     if lowcost:
-        add("lowcost_carrier", int(config["lowcost_penalty"]), f"Low-cost/leisure carrier signal: {', '.join(lowcost)}.")
+        add(
+            "lowcost_carrier",
+            int(config["lowcost_penalty"]),
+            f"Low-cost/leisure carrier signal: {', '.join(lowcost)}.",
+        )
 
     transfer_after = segment.get("transfer_after")
     if isinstance(transfer_after, dict):
@@ -215,7 +291,9 @@ def segment_risk_points(segment: dict[str, Any], profile: str) -> dict[str, Any]
     }
 
 
-def score_itinerary(validation: dict[str, Any], source: dict[str, Any], profile: str) -> dict[str, Any]:
+def score_itinerary(
+    validation: dict[str, Any], source: dict[str, Any], profile: str
+) -> dict[str, Any]:
     segments = validation["segments"]
     connection_scores = []
     segment_scores = []
@@ -224,19 +302,38 @@ def score_itinerary(validation: dict[str, Any], source: dict[str, Any], profile:
 
     for connection in validation["connections"]:
         prev_index, next_index = connection["between_segments"]
-        risk = connection_risk_points(connection, segments[prev_index], segments[next_index], profile)
-        tradeoffs = connection_tradeoffs(connection, segments[prev_index], segments[next_index])
+        risk = connection_risk_points(
+            connection, segments[prev_index], segments[next_index], profile
+        )
+        tradeoffs = connection_tradeoffs(
+            connection, segments[prev_index], segments[next_index]
+        )
         connection_scores.append({**connection, "risk": risk, "tradeoffs": tradeoffs})
         total += risk["score"]
         for reason in risk["reasons"]:
-            components.append({"scope": "connection", "between_segments": [prev_index, next_index], **reason})
+            components.append(
+                {
+                    "scope": "connection",
+                    "between_segments": [prev_index, next_index],
+                    **reason,
+                }
+            )
 
     for segment in segments:
         risk = segment_risk_points(segment, profile)
-        segment_scores.append({"index": segment["index"], "origin": segment["origin"], "destination": segment["destination"], "risk": risk})
+        segment_scores.append(
+            {
+                "index": segment["index"],
+                "origin": segment["origin"],
+                "destination": segment["destination"],
+                "risk": risk,
+            }
+        )
         total += risk["score"]
         for reason in risk["reasons"]:
-            components.append({"scope": "segment", "segment": segment["index"], **reason})
+            components.append(
+                {"scope": "segment", "segment": segment["index"], **reason}
+            )
 
     if validation["violations"]:
         total = max(total, 86)
@@ -259,14 +356,22 @@ def score_itinerary(validation: dict[str, Any], source: dict[str, Any], profile:
     }
 
 
-def normalize_input_segments(data: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def normalize_input_segments(
+    data: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     normalized_segments: list[dict[str, Any]] = []
     journeys_out: list[dict[str, Any]] = []
 
-    def normalize_segment(seg: dict[str, Any], journey_index: int, direction: str | None) -> dict[str, Any]:
+    def normalize_segment(
+        seg: dict[str, Any], journey_index: int, direction: str | None
+    ) -> dict[str, Any]:
         index = len(normalized_segments)
-        origin = normalize_iata(str(seg.get("origin") or ""), f"segments[{index}].origin")
-        destination = normalize_iata(str(seg.get("destination") or ""), f"segments[{index}].destination")
+        origin = normalize_iata(
+            str(seg.get("origin") or ""), f"segments[{index}].origin"
+        )
+        destination = normalize_iata(
+            str(seg.get("destination") or ""), f"segments[{index}].destination"
+        )
         normalized = {
             "index": index,
             "journey_index": journey_index,
@@ -294,32 +399,62 @@ def normalize_input_segments(data: dict[str, Any]) -> tuple[list[dict[str, Any]]
     if isinstance(raw_journeys, list) and raw_journeys:
         for journey_index, journey in enumerate(raw_journeys):
             if not isinstance(journey, dict):
-                raise CliError(f"journeys[{journey_index}] must be an object", error_type="validation_error")
+                raise CliError(
+                    f"journeys[{journey_index}] must be an object",
+                    error_type="validation_error",
+                )
             raw_segments = journey.get("segments")
             if not isinstance(raw_segments, list) or not raw_segments:
-                raise CliError(f"journeys[{journey_index}].segments must be a non-empty list", error_type="validation_error")
-            direction = str(journey.get("direction") or journey.get("name") or f"journey-{journey_index + 1}")
+                raise CliError(
+                    f"journeys[{journey_index}].segments must be a non-empty list",
+                    error_type="validation_error",
+                )
+            direction = str(
+                journey.get("direction")
+                or journey.get("name")
+                or f"journey-{journey_index + 1}"
+            )
             indexes = []
             for seg in raw_segments:
                 if not isinstance(seg, dict):
-                    raise CliError(f"journeys[{journey_index}].segments must contain objects", error_type="validation_error")
-                indexes.append(normalize_segment(seg, journey_index, direction)["index"])
-            journeys_out.append({"index": journey_index, "direction": direction, "segment_indexes": indexes})
+                    raise CliError(
+                        f"journeys[{journey_index}].segments must contain objects",
+                        error_type="validation_error",
+                    )
+                indexes.append(
+                    normalize_segment(seg, journey_index, direction)["index"]
+                )
+            journeys_out.append(
+                {
+                    "index": journey_index,
+                    "direction": direction,
+                    "segment_indexes": indexes,
+                }
+            )
     else:
         raw_segments = data.get("segments")
         if not isinstance(raw_segments, list) or len(raw_segments) < 2:
-            raise CliError("input JSON must contain at least two segments", error_type="validation_error")
+            raise CliError(
+                "input JSON must contain at least two segments",
+                error_type="validation_error",
+            )
         indexes = []
         for seg in raw_segments:
             if not isinstance(seg, dict):
-                raise CliError("segments must contain objects", error_type="validation_error")
+                raise CliError(
+                    "segments must contain objects", error_type="validation_error"
+                )
             indexes.append(normalize_segment(seg, 0, "itinerary")["index"])
-        journeys_out.append({"index": 0, "direction": "itinerary", "segment_indexes": indexes})
+        journeys_out.append(
+            {"index": 0, "direction": "itinerary", "segment_indexes": indexes}
+        )
 
     return normalized_segments, journeys_out
 
 
-def rank_key(profile: str, score: int, price: int | None, elapsed: int | None) -> list[int]:
+def rank_key(
+    profile: str, score: int, price: int | None, elapsed: int | None
+) -> list[int]:
     values = {
         "reject": 1 if is_reject_score(score) else 0,
         "risk": score,
@@ -329,24 +464,32 @@ def rank_key(profile: str, score: int, price: int | None, elapsed: int | None) -
     return [values[name] for name in RISK_PROFILES[profile]["rank_order"]]
 
 
-def validate_itinerary(data: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
-    ticketing = str(data.get("ticketing") or args.ticketing or "separate")
-    profile = normalize_profile(str(data.get("profile") or getattr(args, "profile", "balanced")))
+def validate_itinerary(
+    data: dict[str, Any], options: ItineraryValidationOptions
+) -> dict[str, Any]:
+    ticketing = str(data.get("ticketing") or options.ticketing or "separate")
+    profile = normalize_profile(
+        str(data.get("profile") or options.profile or DEFAULT_PROFILE)
+    )
     normalized_segments, journeys = normalize_input_segments(data)
 
     connections: list[dict[str, Any]] = []
     violations: list[dict[str, Any]] = []
     segments_by_index = {segment["index"]: segment for segment in normalized_segments}
     for journey in journeys:
-        journey_segments = [segments_by_index[index] for index in journey["segment_indexes"] if index in segments_by_index]
+        journey_segments = [
+            segments_by_index[index]
+            for index in journey["segment_indexes"]
+            if index in segments_by_index
+        ]
         for prev, nxt in zip(journey_segments, journey_segments[1:]):
             actual = minutes_between(prev["arrival_at"], nxt["departure_at"])
             rule = connection_rule(
                 prev["destination"],
                 nxt["origin"],
                 ticketing,
-                args.min_same_airport_min,
-                args.min_cross_airport_min,
+                options.min_same_airport_min,
+                options.min_cross_airport_min,
                 actual,
             )
             rule["journey_index"] = journey["index"]

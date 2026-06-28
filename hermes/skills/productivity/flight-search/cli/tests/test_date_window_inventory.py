@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import unittest
 from unittest.mock import patch
 
+from flights_cli.cli import build_parser
 from flights_cli.errors import CliError
 from flights_cli.execution.probe_dispatcher import SegmentProbeOutcome
-from flights_cli.orchestrators.live_assemble import build_live_route_segment_plan, run_live_route_assembly
+from flights_cli.orchestrators.live_route_assembly import (
+    build_live_route_segment_plan,
+    run_live_route_assembly,
+)
 from flights_cli.pipeline.search_pipeline import build_live_route_search_flow
 from flights_cli.store import Store
 from helpers import live_assembly_args
@@ -78,19 +84,51 @@ def _dispatch_by_date(spec, **_kwargs):
         }
         return [SegmentProbeOutcome(summary=summary, segment_result=segment_result)]
     summary = {**base, "status": "error", "offer_count": 0, "error": "upstream timeout"}
-    failure = {"layer": "provider", "origin": spec.get("origin"), "destination": spec.get("destination"), "date": date_text, "error": "upstream timeout"}
+    failure = {
+        "layer": "provider",
+        "origin": spec.get("origin"),
+        "destination": spec.get("destination"),
+        "date": date_text,
+        "error": "upstream timeout",
+    }
     return [SegmentProbeOutcome(summary=summary, segment_result=None, failure=failure)]
 
 
 class DateWindowPlanTests(unittest.TestCase):
+    def test_date_window_end_is_request_only_not_cli_flag(self) -> None:
+        for argv in (
+            ["search", "--request", "request.json", "--date-window-end", "2026-08-18"],
+            [
+                "diagnose",
+                "plan",
+                "--request",
+                "request.json",
+                "--date-window-end",
+                "2026-08-18",
+            ],
+        ):
+            with self.subTest(argv=argv):
+                with (
+                    contextlib.redirect_stderr(io.StringIO()),
+                    self.assertRaises(SystemExit),
+                ):
+                    build_parser().parse_args(argv)
+
     def test_window_expands_into_per_date_direct_segments_and_controls(self) -> None:
         args = window_args()
         plan = build_live_route_segment_plan(args, Store())
 
         segment_dates = sorted({str(spec.get("date")) for spec in plan["segments"]})
         self.assertEqual(segment_dates, ["2026-08-16", "2026-08-17", "2026-08-18"])
-        self.assertTrue(all(spec.get("leg") == "direct_outbound" for spec in plan["segments"]))
-        self.assertTrue(all(spec.get("route_family") == "direct_inventory" for spec in plan["segments"]))
+        self.assertTrue(
+            all(spec.get("leg") == "direct_outbound" for spec in plan["segments"])
+        )
+        self.assertTrue(
+            all(
+                spec.get("route_family") == "direct_inventory"
+                for spec in plan["segments"]
+            )
+        )
         self.assertEqual(plan["metrics"]["segment_search_count"], 3)
         self.assertEqual(plan["dates"].get("window_end"), "2026-08-18")
 
@@ -98,26 +136,35 @@ class DateWindowPlanTests(unittest.TestCase):
             {
                 str(control.get("date"))
                 for control in plan["coverage_controls"]
-                if control.get("type") == "exact_airport_direct" and control.get("direction") == "outbound"
+                if control.get("type") == "exact_airport_direct"
+                and control.get("direction") == "outbound"
             }
         )
         self.assertEqual(control_dates, ["2026-08-16", "2026-08-17", "2026-08-18"])
 
     def test_window_requires_direct_only_route_options(self) -> None:
         with self.assertRaises(CliError):
-            build_live_route_segment_plan(window_args(max_connections=None, tier2_max_connections=None), Store())
+            build_live_route_segment_plan(
+                window_args(max_connections=None, tier2_max_connections=None), Store()
+            )
 
     def test_window_rejects_return_date(self) -> None:
         with self.assertRaises(CliError):
-            build_live_route_segment_plan(window_args(return_date="2026-08-20"), Store())
+            build_live_route_segment_plan(
+                window_args(return_date="2026-08-20"), Store()
+            )
 
     def test_window_end_must_not_precede_depart_date(self) -> None:
         with self.assertRaises(CliError):
-            build_live_route_segment_plan(window_args(date_window_end="2026-08-15"), Store())
+            build_live_route_segment_plan(
+                window_args(date_window_end="2026-08-15"), Store()
+            )
 
     def test_window_is_bounded(self) -> None:
         with self.assertRaises(CliError):
-            build_live_route_segment_plan(window_args(date_window_end="2026-09-30"), Store())
+            build_live_route_segment_plan(
+                window_args(date_window_end="2026-09-30"), Store()
+            )
 
     def test_required_controls_include_date_window_direct(self) -> None:
         flow = build_live_route_search_flow(window_args())
@@ -128,7 +175,10 @@ class DateWindowPlanTests(unittest.TestCase):
 class DateWindowInventoryProjectionTests(unittest.TestCase):
     def test_runner_projects_per_date_inventory_into_report_evidence(self) -> None:
         args = window_args()
-        with patch("flights_cli.orchestrators.live_assembly_runner.dispatch_segment_probe", side_effect=_dispatch_by_date):
+        with patch(
+            "flights_cli.orchestrators.live_assembly_runner.dispatch_segment_probe",
+            side_effect=_dispatch_by_date,
+        ):
             result = run_live_route_assembly(args, Store())
 
         inventory = result["live_search"].get("date_window_inventory")
@@ -148,8 +198,13 @@ class DateWindowInventoryProjectionTests(unittest.TestCase):
         report = result.get("agent_report")
         self.assertIsInstance(report, dict)
         self.assertIn("date_window_inventory", report["evidence"])
-        report_dates = [entry["date"] for entry in report["evidence"]["date_window_inventory"]["dates"]]
-        self.assertEqual(sorted(report_dates), ["2026-08-16", "2026-08-17", "2026-08-18"])
+        report_dates = [
+            entry["date"]
+            for entry in report["evidence"]["date_window_inventory"]["dates"]
+        ]
+        self.assertEqual(
+            sorted(report_dates), ["2026-08-16", "2026-08-17", "2026-08-18"]
+        )
 
 
 if __name__ == "__main__":

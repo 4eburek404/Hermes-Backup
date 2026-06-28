@@ -1,4 +1,5 @@
 """Shared unittest helpers for flight-calendar-ics contract tests."""
+
 from __future__ import annotations
 
 import json
@@ -43,7 +44,9 @@ class CliRunnerMixin:
 
 
 class JsonEnvelopeAssertionsMixin:
-    def parse_stdout_json(self, result: subprocess.CompletedProcess[str]) -> dict[str, Any]:
+    def parse_stdout_json(
+        self, result: subprocess.CompletedProcess[str]
+    ) -> dict[str, Any]:
         try:
             obj = json.loads(result.stdout)
         except json.JSONDecodeError as exc:  # pragma: no cover - assertion helper
@@ -63,5 +66,8 @@ class JsonEnvelopeAssertionsMixin:
         errors = sorted(validator.iter_errors(obj), key=lambda error: list(error.path))
         self.assertEqual(
             [],
-            [f"{'/'.join(map(str, error.absolute_path))}: {error.message}" for error in errors],
+            [
+                f"{'/'.join(map(str, error.absolute_path))}: {error.message}"
+                for error in errors
+            ],
         )

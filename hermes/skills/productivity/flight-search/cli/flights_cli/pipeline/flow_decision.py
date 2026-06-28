@@ -3,7 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from ..domain.vocabulary import EvidenceClass, IntentClass, MarketClass, RoutingStrategy, RouteFamily
+from ..domain.vocabulary import (
+    EvidenceClass,
+    IntentClass,
+    MarketClass,
+    RoutingStrategy,
+    RouteFamily,
+)
 from .search_request import SearchRequest
 
 
@@ -24,24 +30,6 @@ class FlowDecision:
     source_boundaries: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
 
-    @property
-    def intent(self) -> str:
-        """Compatibility alias for older internal callers/tests."""
-
-        return self.intent_class
-
-    @property
-    def market(self) -> str:
-        """Compatibility alias for older internal callers/tests."""
-
-        return self.market_class
-
-    @property
-    def evidence_requirement(self) -> str:
-        """Compatibility alias for older internal callers/tests."""
-
-        return self.evidence_class
-
     def to_dict(self) -> dict[str, Any]:
         payload = {
             "intent_class": self.intent_class,
@@ -55,43 +43,25 @@ class FlowDecision:
             "limitations": list(self.limitations),
             "source_boundaries": list(self.source_boundaries),
             "notes": list(self.notes),
-            # Legacy names stay in the structured seam until downstream reports
-            # no longer need to read old keys.
-            "intent": self.intent_class,
-            "market": self.market_class,
-            "evidence_requirement": self.evidence_class,
         }
         if self.airport_scope is not None:
             payload["airport_scope"] = self.airport_scope
         return payload
 
 
-def _as_tuple(value: Any) -> tuple[Any, ...]:
-    if value is None:
-        return ()
-    if isinstance(value, tuple):
-        return value
-    if isinstance(value, list):
-        return tuple(value)
-    return (value,)
-
-
 def _is_direct_only(request: SearchRequest) -> bool:
-    options = request.compatibility_options
-    return options.get("max_connections") == 0 and options.get("tier2_max_connections") == 0
+    return request.max_connections == 0 and request.tier2_max_connections == 0
 
 
 def _has_airport_scope(request: SearchRequest) -> bool:
-    options = request.compatibility_options
-    return bool(_as_tuple(options.get("origin_airport")) or _as_tuple(options.get("destination_airport")))
+    return bool(request.origin_airports or request.destination_airports)
 
 
 def _has_carrier_scope(request: SearchRequest) -> bool:
-    options = request.compatibility_options
     return bool(
-        _as_tuple(options.get("aggregate_control_carrier"))
-        or _as_tuple(options.get("only_carrier"))
-        or _as_tuple(options.get("prefer_carrier"))
+        request.aggregate_control_carriers
+        or request.only_carriers
+        or request.exclude_carriers
     )
 
 
@@ -136,14 +106,18 @@ def market_class_for_resolved_route(
     """Classify market from already-resolved locations/airports."""
 
     origin_country = str(getattr(origin, "country_code", None) or "").upper() or None
-    destination_country = str(getattr(destination, "country_code", None) or "").upper() or None
+    destination_country = (
+        str(getattr(destination, "country_code", None) or "").upper() or None
+    )
     if not origin_country:
         countries = {_location_country(store, code) for code in (origin_airports or [])}
         countries.discard(None)
         if len(countries) == 1:
             origin_country = countries.pop()
     if not destination_country:
-        countries = {_location_country(store, code) for code in (destination_airports or [])}
+        countries = {
+            _location_country(store, code) for code in (destination_airports or [])
+        }
         countries.discard(None)
         if len(countries) == 1:
             destination_country = countries.pop()
@@ -162,7 +136,7 @@ def _intent_for(request: SearchRequest) -> str:
         return IntentClass.MAINTENANCE
     if _is_direct_only(request):
         return IntentClass.DIRECT_INVENTORY
-    if str(request.ticketing or "").lower() in {"single", "protected", "through", "single_pnr"}:
+    if str(request.ticketing or "").lower() == "single":
         return IntentClass.TICKETING_PROOF
     if _has_carrier_scope(request) or _has_airport_scope(request):
         return IntentClass.CARRIER_OR_AIRPORT_SCOPE
@@ -174,14 +148,17 @@ def _evidence_class_for(intent_class: str) -> str:
         return EvidenceClass.DIAGNOSTIC_ONLY
     if intent_class == IntentClass.TICKETING_PROOF:
         return EvidenceClass.TICKETING_REQUIRED
-    if intent_class in {IntentClass.DIRECT_INVENTORY, IntentClass.CARRIER_OR_AIRPORT_SCOPE}:
+    if intent_class in {
+        IntentClass.DIRECT_INVENTORY,
+        IntentClass.CARRIER_OR_AIRPORT_SCOPE,
+    }:
         return EvidenceClass.ABSENCE_CLAIM
     return EvidenceClass.SHOPPING_ADVISORY
 
 
 def routing_strategy_for_market(request: SearchRequest, market_class: str) -> str:
-    raw = str(request.compatibility_options.get("routing_strategy") or "auto").strip().lower()
-    has_manual_hubs = bool(_as_tuple(request.compatibility_options.get("hub")))
+    raw = str(request.routing_strategy or "auto").strip().lower()
+    has_manual_hubs = bool(request.hubs)
     if raw != "auto":
         return raw
     if has_manual_hubs:
@@ -198,7 +175,10 @@ def routing_strategy_for_market(request: SearchRequest, market_class: str) -> st
 def _route_mode(intent_class: str, market_class: str, routing_strategy: str) -> str:
     if intent_class == IntentClass.DIRECT_INVENTORY:
         return RouteFamily.DIRECT_INVENTORY
-    if market_class == MarketClass.RU_DOMESTIC and routing_strategy == RoutingStrategy.DOMESTIC_RU:
+    if (
+        market_class == MarketClass.RU_DOMESTIC
+        and routing_strategy == RoutingStrategy.DOMESTIC_RU
+    ):
         return RouteFamily.DOMESTIC_RU
     if routing_strategy == RoutingStrategy.RU_PRIORITY:
         return RouteFamily.RU_PRIORITY
@@ -207,7 +187,9 @@ def _route_mode(intent_class: str, market_class: str, routing_strategy: str) -> 
     return routing_strategy.replace("-", "_")
 
 
-def _provider_plan(request: SearchRequest, market_class: str, routing_strategy: str) -> dict[str, Any]:
+def _provider_plan(
+    request: SearchRequest, market_class: str, routing_strategy: str
+) -> dict[str, Any]:
     policy = request.provider_policy
     if policy == "fli":
         default_provider = "fli"
@@ -221,7 +203,9 @@ def _provider_plan(request: SearchRequest, market_class: str, routing_strategy: 
         "policy": policy,
         "default_provider": default_provider,
         "dispatch": {
-            "ru_touching_segments": "kupibilet" if policy in {"auto", "both", "kupibilet"} else policy,
+            "ru_touching_segments": "kupibilet"
+            if policy in {"auto", "both", "kupibilet"}
+            else policy,
             "non_ru_segments": "fli" if policy in {"auto", "both", "fli"} else policy,
         },
         "routing_strategy": routing_strategy,
@@ -229,13 +213,24 @@ def _provider_plan(request: SearchRequest, market_class: str, routing_strategy: 
     }
 
 
-def _limitations(request: SearchRequest, intent_class: str, market_class: str, routing_strategy: str) -> tuple[str, ...]:
+def _limitations(
+    request: SearchRequest, intent_class: str, market_class: str, routing_strategy: str
+) -> tuple[str, ...]:
     values: list[str] = []
-    if market_class == MarketClass.RU_TOUCHING_INTERNATIONAL and routing_strategy == RoutingStrategy.RU_PRIORITY:
+    if (
+        market_class == MarketClass.RU_TOUCHING_INTERNATIONAL
+        and routing_strategy == RoutingStrategy.RU_PRIORITY
+    ):
         values.append("ru_touching_market_uses_ru_priority_controls")
-    if market_class == MarketClass.GLOBAL_NON_RU and routing_strategy == RoutingStrategy.RU_PRIORITY:
+    if (
+        market_class == MarketClass.GLOBAL_NON_RU
+        and routing_strategy == RoutingStrategy.RU_PRIORITY
+    ):
         values.append("global_non_ru_ru_priority_controls_require_explicit_scope")
-    if market_class == MarketClass.GLOBAL_NON_RU and request.provider_policy == "kupibilet":
+    if (
+        market_class == MarketClass.GLOBAL_NON_RU
+        and request.provider_policy == "kupibilet"
+    ):
         values.append("global_non_ru_with_ru_provider_override")
     if market_class == MarketClass.STRUCTURALLY_CONSTRAINED:
         values.append("catalog_country_metadata_incomplete")

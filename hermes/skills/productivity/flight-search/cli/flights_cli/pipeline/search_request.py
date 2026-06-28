@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import argparse
 from dataclasses import dataclass, field
-from typing import Any, Mapping
 
-from ._shared import as_tuple
+from .options import LiveAssemblyOptions
 
 
 @dataclass(frozen=True, slots=True)
@@ -16,7 +14,6 @@ class SearchRequest:
     """
 
     command_name: str
-    route_mode: str
     origin: str
     destination: str
     depart_date: str
@@ -25,61 +22,57 @@ class SearchRequest:
     profile: str
     ticketing: str
     provider_policy: str
-    compatibility_options: Mapping[str, Any] = field(default_factory=dict)
+    routing_strategy: str
+    hubs: tuple[str, ...] = field(default_factory=tuple)
+    origin_airports: tuple[str, ...] = field(default_factory=tuple)
+    destination_airports: tuple[str, ...] = field(default_factory=tuple)
+    max_connections: int | None = None
+    tier2_max_connections: int | None = None
+    date_window_end: str | None = None
+    max_segment_searches: int = 300
+    live_cache_ttl_seconds: int = 0
+    no_live_cache: bool = False
+    direct_route_index_ttl_seconds: int = 0
+    no_direct_route_intel: bool = False
+    include_segment_results: int = 0
+    aggregate_control_limit: int = 0
+    aggregate_control_carriers: tuple[str, ...] = field(default_factory=tuple)
+    coverage_mode: str = "targeted"
+    coverage_controls: tuple[str, ...] = field(default_factory=tuple)
+    coverage_control_limit: int = 0
+    only_carriers: tuple[str, ...] = field(default_factory=tuple)
+    exclude_carriers: tuple[str, ...] = field(default_factory=tuple)
 
 
-def _as_int(value: object, default: int) -> int:
-    try:
-        return int(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        return default
-
-
-def _route_mode(command_name: str) -> str:
-    return "live_assemble"
-
-
-def _default_provider_policy(command_name: str) -> str:
-    return "auto"
-
-
-def search_request_from_live_args(args: argparse.Namespace) -> SearchRequest:
-    command_name = str(getattr(args, "command_name", "search") or "search")
-    provider_policy = str(
-        getattr(args, "provider_policy", None) or _default_provider_policy(command_name)
-    ).strip().lower()
-    compatibility_options: dict[str, Any] = {
-        "routing_strategy": str(getattr(args, "routing_strategy", "auto") or "auto"),
-        "hub": as_tuple(getattr(args, "hub", None)),
-        "origin_airport": as_tuple(getattr(args, "origin_airport", None)),
-        "destination_airport": as_tuple(getattr(args, "destination_airport", None)),
-        "max_connections": getattr(args, "max_connections", None),
-        "date_window_end": getattr(args, "date_window_end", None),
-        "tier2_max_connections": getattr(args, "tier2_max_connections", None),
-        "max_segment_searches": _as_int(getattr(args, "max_segment_searches", 300), 300),
-        "live_cache_ttl_seconds": _as_int(getattr(args, "live_cache_ttl_seconds", 0), 0),
-        "no_live_cache": bool(getattr(args, "no_live_cache", False)),
-        "direct_route_index_ttl_seconds": _as_int(getattr(args, "direct_route_index_ttl_seconds", 0), 0),
-        "no_direct_route_intel": bool(getattr(args, "no_direct_route_intel", False)),
-        "include_segment_results": _as_int(getattr(args, "include_segment_results", 0), 0),
-        "aggregate_control_limit": _as_int(getattr(args, "aggregate_control_limit", 0), 0),
-        "aggregate_control_carrier": as_tuple(getattr(args, "aggregate_control_carrier", None)),
-        "coverage_mode": str(getattr(args, "coverage_mode", "targeted") or "targeted"),
-        "coverage_control": as_tuple(getattr(args, "coverage_control", None)),
-        "coverage_control_limit": _as_int(getattr(args, "coverage_control_limit", 0), 0),
-        "only_carrier": as_tuple(getattr(args, "only_carrier", None)),
-        "prefer_carrier": as_tuple(getattr(args, "prefer_carrier", None)),
-    }
+def search_request_from_options(options: LiveAssemblyOptions) -> SearchRequest:
     return SearchRequest(
-        command_name=command_name,
-        route_mode=_route_mode(command_name),
-        origin=str(getattr(args, "origin", "") or "").upper(),
-        destination=str(getattr(args, "destination", "") or "").upper(),
-        depart_date=str(getattr(args, "depart_date", "") or ""),
-        return_date=str(getattr(args, "return_date")) if getattr(args, "return_date", None) else None,
-        currency=str(getattr(args, "currency", "RUB") or "RUB").upper(),
-        profile=str(getattr(args, "profile", "balanced") or "balanced"),
-        ticketing=str(getattr(args, "ticketing", "separate") or "separate"),
-        provider_policy=provider_policy,
-        compatibility_options=compatibility_options,
+        command_name=options.command_name,
+        origin=options.route.origin,
+        destination=options.route.destination,
+        depart_date=options.route.depart_date,
+        return_date=options.route.return_date,
+        currency=options.currency,
+        profile=options.profile,
+        ticketing=options.ticketing,
+        provider_policy=options.evidence.provider_policy,
+        routing_strategy=options.route.routing_strategy,
+        hubs=options.route.hubs,
+        origin_airports=options.route.origin_airports,
+        destination_airports=options.route.destination_airports,
+        max_connections=options.route.max_connections,
+        tier2_max_connections=options.route.tier2_max_connections,
+        date_window_end=options.route.date_window_end,
+        max_segment_searches=options.evidence.max_segment_searches,
+        live_cache_ttl_seconds=options.evidence.live_cache_ttl_seconds,
+        no_live_cache=options.evidence.no_live_cache,
+        direct_route_index_ttl_seconds=options.evidence.direct_route_index_ttl_seconds,
+        no_direct_route_intel=options.evidence.no_direct_route_intel,
+        include_segment_results=options.output.include_segment_results,
+        aggregate_control_limit=options.evidence.aggregate_control_limit,
+        aggregate_control_carriers=options.evidence.aggregate_control_carriers,
+        coverage_mode=options.evidence.coverage_mode,
+        coverage_controls=options.evidence.coverage_controls,
+        coverage_control_limit=options.evidence.coverage_control_limit,
+        only_carriers=options.filters.only_carriers,
+        exclude_carriers=options.filters.exclude_carriers,
     )

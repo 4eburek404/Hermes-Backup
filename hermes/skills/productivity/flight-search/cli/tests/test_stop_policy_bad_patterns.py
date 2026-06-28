@@ -20,8 +20,12 @@ FORBIDDEN_NORMAL_ANSWER_FRAGMENTS = [
 
 class StopPolicyBadPatternTests(unittest.TestCase):
     def test_bad_pattern_ids_are_registered_for_stop_policy(self) -> None:
-        self.assertEqual(BAD_STOP_POLICY_PATTERNS["BAD-010"], "three_plus_option_reported")
-        self.assertEqual(BAD_STOP_POLICY_PATTERNS["BAD-014"], "aggregate_offer_bypasses_stop_policy")
+        self.assertEqual(
+            BAD_STOP_POLICY_PATTERNS["BAD-010"], "three_plus_option_reported"
+        )
+        self.assertEqual(
+            BAD_STOP_POLICY_PATTERNS["BAD-014"], "aggregate_offer_bypasses_stop_policy"
+        )
 
     def test_normal_answer_must_not_tease_suppressed_garbage_routes(self) -> None:
         answer = "Маршруты с тремя и более пересадками исключены политикой поиска."

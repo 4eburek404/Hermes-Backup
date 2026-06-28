@@ -24,8 +24,12 @@ class StaticCatalogLayerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             cache_dir = Path(tmp_dir)
             payloads = {
-                STATIC_CATALOG_BY_NAME["countries"].url: [{"code": "AE", "name": "United Arab Emirates"}],
-                STATIC_CATALOG_BY_NAME["planes"].url: [{"code": "320", "name": "Airbus A320"}],
+                STATIC_CATALOG_BY_NAME["countries"].url: [
+                    {"code": "AE", "name": "United Arab Emirates"}
+                ],
+                STATIC_CATALOG_BY_NAME["planes"].url: [
+                    {"code": "320", "name": "Airbus A320"}
+                ],
             }
 
             def fake_fetch(url: str, timeout: int) -> bytes:
@@ -44,22 +48,30 @@ class StaticCatalogLayerTests(unittest.TestCase):
             self.assertTrue((cache_dir / "planes.json").exists())
             self.assertFalse((cache_dir / "routes.json").exists())
             self.assertFalse((cache_dir / "countries_en.json").exists())
-            manifest = json.loads((cache_dir / "catalog_manifest.json").read_text(encoding="utf-8"))
+            manifest = json.loads(
+                (cache_dir / "catalog_manifest.json").read_text(encoding="utf-8")
+            )
             self.assertEqual(STATIC_CATALOG_SCHEMA_VERSION, "static-catalog-v1")
             self.assertEqual(manifest["schema_version"], "static-catalog-v1")
-            self.assertEqual(manifest["entries"]["countries"]["filename"], "countries.json")
-            self.assertEqual(manifest["entries"]["countries"]["schema_version"], "static-catalog-v1")
-            self.assertEqual(manifest["entries"]["countries"]["source"], "public_static_catalog")
+            self.assertEqual(
+                manifest["entries"]["countries"]["filename"], "countries.json"
+            )
+            self.assertEqual(
+                manifest["entries"]["countries"]["schema_version"], "static-catalog-v1"
+            )
+            self.assertEqual(
+                manifest["entries"]["countries"]["source"], "public_static_catalog"
+            )
             self.assertNotIn("url", manifest["entries"]["countries"])
             self.assertNotIn("aliases", manifest["entries"]["countries"])
             self.assertEqual(manifest["entries"]["planes"]["count"], 1)
-            self.assertEqual(
-                manifest["entries"]["planes"]["stale_note"],
-                "planes.json is upstream-marked as not maintained; use it only as metadata.",
-            )
+            self.assertIn("not maintained", manifest["entries"]["planes"]["stale_note"])
+            self.assertIn("metadata", manifest["entries"]["planes"]["stale_note"])
             self.assertNotIn("routes", manifest["entries"])
 
-            dry_run = download_static_catalog(cache_dir, names=["countries"], dry_run=True)
+            dry_run = download_static_catalog(
+                cache_dir, names=["countries"], dry_run=True
+            )
             self.assertEqual(dry_run["planned"][0]["source"], "public_static_catalog")
             self.assertNotIn("url", dry_run["planned"][0])
 
@@ -67,8 +79,12 @@ class StaticCatalogLayerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             cache_dir = Path(tmp_dir)
             payloads = {
-                STATIC_CATALOG_BY_NAME["countries"].url: [{"code": "AE", "name": "United Arab Emirates"}],
-                STATIC_CATALOG_BY_NAME["planes"].url: [{"code": "320", "name": "Airbus A320"}],
+                STATIC_CATALOG_BY_NAME["countries"].url: [
+                    {"code": "AE", "name": "United Arab Emirates"}
+                ],
+                STATIC_CATALOG_BY_NAME["planes"].url: [
+                    {"code": "320", "name": "Airbus A320"}
+                ],
             }
 
             def fake_fetch(url: str, timeout: int) -> bytes:
@@ -131,6 +147,7 @@ class StaticCatalogLayerTests(unittest.TestCase):
             "kupibilet.py",
             "live_cache.py",
             "route_intel.py",
+            "segment_normalization.py",
             "static_catalog.py",
         }
         modules = {path.name for path in provider_dir.glob("*.py")}

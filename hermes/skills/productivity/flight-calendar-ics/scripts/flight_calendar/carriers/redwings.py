@@ -6,6 +6,7 @@ email/manage-booking route ``#/find/<PNR>/<ACCESS_KEY>/Submit``: the PNR and
 access key are posted to Websky's public GraphQL ``FindOrder`` operation, then
 mapped into the provider-agnostic itinerary schema.
 """
+
 from __future__ import annotations
 
 import re
@@ -91,7 +92,9 @@ def first_value(obj: dict[str, Any], keys: list[str]) -> Any:
     return None
 
 
-def parse_redwings_source(url: str | None, pnr: str | None, finder_code: str | None) -> tuple[str, str, str]:
+def parse_redwings_source(
+    url: str | None, pnr: str | None, finder_code: str | None
+) -> tuple[str, str, str]:
     """Parse Red Wings ``#/find/<PNR>/<ACCESS_KEY>/Submit`` or explicit values.
 
     The access key is a private Websky/email-link credential. Do not infer it
@@ -108,10 +111,14 @@ def parse_redwings_source(url: str | None, pnr: str | None, finder_code: str | N
             pnr = pnr or parts[1]
             finder_code = finder_code or parts[2]
         elif lower_parts[:1] == ["booking"]:
-            die("Red Wings order page URL is not enough; provide a direct email/manage link shaped #/find/<PNR>/<ACCESS_KEY>/Submit")
+            die(
+                "Red Wings order page URL is not enough; provide a direct email/manage link shaped #/find/<PNR>/<ACCESS_KEY>/Submit"
+            )
 
     if not pnr or not finder_code:
-        die("provide --url shaped #/find/<PNR>/<ACCESS_KEY>/Submit or both --pnr and --access-key")
+        die(
+            "provide --url shaped #/find/<PNR>/<ACCESS_KEY>/Submit or both --pnr and --access-key"
+        )
 
     locator = str(pnr).strip().upper()
     code = str(finder_code).strip()
@@ -120,17 +127,21 @@ def parse_redwings_source(url: str | None, pnr: str | None, finder_code: str | N
     if not re.fullmatch(r"[^\s/]{2,256}", code):
         die("Red Wings access key format looks invalid")
     if not booking_url:
-        booking_url = REDWINGS_BOOKING_BASE + f"#/find/{locator}/{quote(code, safe='')}/Submit"
+        booking_url = (
+            REDWINGS_BOOKING_BASE + f"#/find/{locator}/{quote(code, safe='')}/Submit"
+        )
     return locator, code, booking_url
 
 
 def browser_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
-    return carrier_http.browser_headers({
-        "Origin": "https://flyredwings.com",
-        "Referer": REDWINGS_BOOKING_BASE,
-        "Cache-Control": "no-cache",
-        **(extra or {}),
-    })
+    return carrier_http.browser_headers(
+        {
+            "Origin": "https://flyredwings.com",
+            "Referer": REDWINGS_BOOKING_BASE,
+            "Cache-Control": "no-cache",
+            **(extra or {}),
+        }
+    )
 
 
 def post_json(url: str, body: dict[str, Any], *, timeout: int = 45) -> Any:
@@ -168,14 +179,19 @@ def fetch_redwings_order(
             for item in errors[:3]:
                 if isinstance(item, dict) and item.get("message"):
                     messages.append(str(item["message"]))
-        die("Red Wings GraphQL returned errors" + (": " + "; ".join(messages) if messages else ""))
+        die(
+            "Red Wings GraphQL returned errors"
+            + (": " + "; ".join(messages) if messages else "")
+        )
     if not find_order(data):
         die("no Red Wings order found")
     return data
 
 
 def find_order(data: dict[str, Any]) -> dict[str, Any] | None:
-    if isinstance(data.get("data"), dict) and isinstance(data["data"].get("FindOrder"), dict):
+    if isinstance(data.get("data"), dict) and isinstance(
+        data["data"].get("FindOrder"), dict
+    ):
         return data["data"]["FindOrder"]
     if isinstance(data.get("FindOrder"), dict):
         return data["FindOrder"]
@@ -193,14 +209,27 @@ def airline(segment: dict[str, Any], key: str) -> dict[str, Any]:
 
 
 def flight_number(segment: dict[str, Any]) -> str:
-    raw = str(segment.get("flightNumber") or segment.get("flight_number") or segment.get("number") or "").strip().upper()
+    raw = (
+        str(
+            segment.get("flightNumber")
+            or segment.get("flight_number")
+            or segment.get("number")
+            or ""
+        )
+        .strip()
+        .upper()
+    )
     if not raw:
         die("Red Wings segment has no flight number")
-    carrier = str(
-        first_value(airline(segment, "marketingAirline"), ["iata", "code"])
-        or first_value(airline(segment, "operatingAirline"), ["iata", "code"])
-        or "WZ"
-    ).strip().upper()
+    carrier = (
+        str(
+            first_value(airline(segment, "marketingAirline"), ["iata", "code"])
+            or first_value(airline(segment, "operatingAirline"), ["iata", "code"])
+            or "WZ"
+        )
+        .strip()
+        .upper()
+    )
     normalized = raw.replace(" ", "")
     if re.match(r"^[A-Z]{2}\d", normalized):
         return normalized
@@ -218,7 +247,11 @@ def point_airport(point: dict[str, Any]) -> str:
 def point_city(point: dict[str, Any]) -> str | None:
     airport = as_dict(point.get("airport"))
     city = as_dict(airport.get("city"))
-    value = first_value(city, ["name", "title"]) or first_value(airport, ["city", "cityName"]) or first_value(point, ["city", "cityName"])
+    value = (
+        first_value(city, ["name", "title"])
+        or first_value(airport, ["city", "cityName"])
+        or first_value(point, ["city", "cityName"])
+    )
     return str(value).strip() if clean(value) else None
 
 
@@ -233,7 +266,9 @@ def point_local(point: dict[str, Any]) -> str:
     return combined.replace(" ", "T", 1)[:16]
 
 
-def collect_segments(order: dict[str, Any]) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+def collect_segments(
+    order: dict[str, Any],
+) -> list[tuple[dict[str, Any], dict[str, Any]]]:
     flight = as_dict(order.get("flight"))
     out: list[tuple[dict[str, Any], dict[str, Any]]] = []
     groups = flight.get("segmentGroups") or []
@@ -241,13 +276,19 @@ def collect_segments(order: dict[str, Any]) -> list[tuple[dict[str, Any], dict[s
         for group in groups:
             group_obj = as_dict(group)
             for seg in group_obj.get("segments") or []:
-                seg_obj = as_dict(seg.get("segment") if isinstance(seg, dict) and "segment" in seg else seg)
+                seg_obj = as_dict(
+                    seg.get("segment")
+                    if isinstance(seg, dict) and "segment" in seg
+                    else seg
+                )
                 if seg_obj:
                     out.append((seg_obj, group_obj))
     if out:
         return out
     for seg in flight.get("segments") or []:
-        seg_obj = as_dict(seg.get("segment") if isinstance(seg, dict) and "segment" in seg else seg)
+        seg_obj = as_dict(
+            seg.get("segment") if isinstance(seg, dict) and "segment" in seg else seg
+        )
         if seg_obj:
             out.append((seg_obj, {}))
     return out
@@ -270,8 +311,12 @@ def passenger_name(traveller: dict[str, Any]) -> str | None:
     direct = first_value(traveller, ["fullName", "full_name", "name"])
     if clean(direct):
         return str(direct).strip()
-    first = traveller_value(traveller, "FirstName", "LatinFirstName", "firstname", "first_name")
-    last = traveller_value(traveller, "LastName", "LatinLastName", "lastname", "last_name", "surname")
+    first = traveller_value(
+        traveller, "FirstName", "LatinFirstName", "firstname", "first_name"
+    )
+    last = traveller_value(
+        traveller, "LastName", "LatinLastName", "lastname", "last_name", "surname"
+    )
     parts = [last, first]
     name = " ".join(part for part in parts if part)
     return name or None
@@ -295,7 +340,9 @@ def ticket_numbers(order: dict[str, Any]) -> list[str]:
             continue
         for ticket in traveller.get("tickets") or []:
             ticket_obj = as_dict(ticket)
-            number = first_value(ticket_obj, ["number", "ticketNumber", "ticket_number", "ticket"])
+            number = first_value(
+                ticket_obj, ["number", "ticketNumber", "ticket_number", "ticket"]
+            )
             if clean(number):
                 numbers.append(str(number).strip())
     return sorted(dict.fromkeys(numbers))
@@ -303,7 +350,11 @@ def ticket_numbers(order: dict[str, Any]) -> list[str]:
 
 def status_text(segment: dict[str, Any], order: dict[str, Any]) -> str:
     parts: list[str] = []
-    for value in [segment.get("status"), order.get("status"), order.get("paymentStatus")]:
+    for value in [
+        segment.get("status"),
+        order.get("status"),
+        order.get("paymentStatus"),
+    ]:
         if clean(value):
             text = str(value).strip()
             if text not in parts:
@@ -313,13 +364,18 @@ def status_text(segment: dict[str, Any], order: dict[str, Any]) -> str:
     return " / ".join(parts)
 
 
-def convert_to_itinerary(data: dict[str, Any], tz_map: dict[str, str], booking_url: str | None = None) -> dict[str, Any]:
+def convert_to_itinerary(
+    data: dict[str, Any], tz_map: dict[str, str], booking_url: str | None = None
+) -> dict[str, Any]:
     order = find_order(data)
     if not order:
         die("no Red Wings order found")
     assert order is not None
 
-    pnr = str(first_value(order, ["locator", "pnr", "bookingReference"]) or "").strip() or None
+    pnr = (
+        str(first_value(order, ["locator", "pnr", "bookingReference"]) or "").strip()
+        or None
+    )
     passengers = passenger_names(order)
     flights: list[dict[str, Any]] = []
     missing_tz: set[str] = set()

@@ -1,6 +1,6 @@
 # Flight Report Contract
 
-Use this when reading `data.agent_report` or deciding what to show the user. The report is the evidence layer; `frontier.offer_graph` is the primary decision graph; `user_answer.rendered_text` is canonical renderer output; `diagnostics.human_answer.text` is a debug mirror, not an alternative final-prose source. Raw CLI internals are debug-only.
+Use this when reading `data.agent_report` or deciding what to show the user. The report is the evidence layer; `frontier.offer_graph` is the primary decision graph; `user_answer.rendered_text` is canonical renderer output; `diagnostics.human_answer.text` is a mirror-only diagnostic field, not an alternative final-prose source. Raw CLI internals are debug-only.
 
 ## Active Contract Registry
 
@@ -12,7 +12,7 @@ Current contracts:
 Retired/projection surfaces:
 
 - `flight_search_user_answer.v2` is rejected; there is no v2→v3 runtime adapter.
-- `diagnostics.human_answer`, `diagnostics.display`, and `diagnostics.answer_lines` are debug/mirror projections. They are not canonical final-prose sources and are not alternative inputs.
+- `diagnostics.human_answer` is a mirror-only diagnostic projection; `diagnostics.display` and `diagnostics.answer_lines` are debug projections. They are not canonical final-prose sources and are not alternative inputs.
 - In-process legacy alias views are removed; serialized JSON and internal consumers should use nested v2 paths.
 
 Shadow subcontracts:
@@ -36,7 +36,7 @@ Retired/proposed candidates:
 6. `evidence.through_fare_checks` — ticketing/protection evidence and required purchase-screen checks.
 7. `evidence.provider_failures` — degraded provider evidence; mention only when it changes confidence or next action.
 8. `evidence.source_boundaries` — source/proof limits; print only decision-useful caveats.
-9. `diagnostics.human_answer.text` — debug mirror; while present it must mirror `user_answer.rendered_text`, but it is not alternative final prose.
+9. `diagnostics.human_answer.text` — mirror-only diagnostic field; while present it must mirror `user_answer.rendered_text`, and must not have independent rendering logic.
 10. `diagnostics.display` — deterministic itinerary fragments for evidence, not final prose.
 11. `diagnostics.answer_lines` — compact internal summary/warnings; do not copy diagnostic labels into final answers.
 12. `diagnostics.hub_viability`, `diagnostics.coverage_diagnostics`, `diagnostics.rejected_pair_warnings`, `diagnostics.stop_policy_diagnostics` — diagnostics for missing/demoted routes, not normal user output.
@@ -101,12 +101,12 @@ data.agent_report
   -> final Telegram/Markdown answer
 ```
 
-`rendered_text` is a deterministic projection from the v3 object. Do not make it an independent blob. `diagnostics.human_answer.text` is legacy and must mirror `user_answer.rendered_text` while both exist.
+`rendered_text` is a deterministic projection from the v3 object. Do not make it an independent blob. `diagnostics.human_answer.text` is diagnostics-only and must mirror `user_answer.rendered_text` while both exist.
 
 Implementation ownership:
 
 - `cli/flights_cli/reporting/user_answer.py` builds/validates the v3 user answer and deterministic rendered text.
-- `cli/flights_cli/reporting/projections/human_answer_mirror.py` and `cli/flights_cli/output.py` are diagnostic/rendering seams; they must prefer `user_answer.rendered_text`.
+- `cli/flights_cli/reporting/projections/human_answer_mirror.py` and `cli/flights_cli/output.py` may only mirror or select `user_answer.rendered_text`.
 - Agents must not copy `display.text`, `answer_lines`, provider client objects, booking URLs, cache semantics, or plugin-specific wording as final prose.
 
 Negative guarantees for `user_answer.rendered_text`, legacy `human_answer.text`, and final answers:
@@ -118,11 +118,16 @@ Negative guarantees for `user_answer.rendered_text`, legacy `human_answer.text`,
 - no raw `probe_id`, ranks, coverage structs, or pipe tables;
 - no collapsed multi-leg journey that hides each segment's departure and arrival time.
 
-Connected itineraries should show per-segment times, for example:
+Connected itineraries must show every segment as its own line and put the layover line between adjacent segments in the same direction:
 
-`SU1437 18:10–18:55 -> SU1844 20:35–21:55 | 01 авг | SVO 1ч40 | всего 5ч45`
+```text
+1. SU1401 23.07 Екатеринбург - Шереметьево(B) 13:10 13:50 A320 в пути 2:40
+    пересадка 3:25,
+    MU2076 23.07 Шереметьево(C) - Пекин 17:15 05:30 (24.07) A333 в пути 7:15
+    46 909 рублей
+```
 
-Do not collapse that into only first departure and final arrival for a multi-leg journey. If a later segment departs on a different date, show that date inline.
+Do not collapse that into only first departure and final arrival for a multi-leg journey. If a later segment arrives on a different date, show that date inline after the arrival time. Endpoints in a multi-airport city must show the actual airport name and terminal when provider data includes one, even when they are the initial origin or final destination.
 
 ## User Answer Contract v3
 
@@ -132,17 +137,24 @@ Required v3 fields:
 
 - `schema_version="flight_search_user_answer.v3"`.
 - `answer_mode`: `recommendation`, `catalog`, or `no_viable_options`. The builder infers mode from route/frontier; do not add public “catalog mode” flags.
-- `catalog.presentation`: deterministic compact numbered Russian output metadata.
-- `catalog.items[]`: one item per user-visible frontier option. Numbers must be contiguous from 1. Each item carries `option_id`, `covers_requested_trip`, `journey_scope`, `ticketing_model`, `total_price`, `directions.outbound/return`, `baggage`, `protection`, `badges`, `caveats`, and `render_line`.
-- Legacy-compatible fields remain present for readers during migration: `primary_recommendation`, `alternatives`, `evidence_status`, `required_caveats`, `stop_policy_status`, `rendered_text`, `answer_lines`.
+- `catalog.presentation`: deterministic compact numbered Russian output metadata with `style="numbered_inline_itinerary_v1"`.
+- `catalog.items[]`: one item per user-visible frontier option. Numbers must be contiguous from 1. Each item carries `option_id`, `covers_requested_trip`, `journey_scope`, `ticketing_model`, `total_price`, `directions.outbound/return`, `baggage`, `protection`, `badges`, `caveats`, `agent_display`, and `render_line`.
+- User-visible catalog order is deterministic: viable non-rejected full-trip options first, then lower `max_connections_per_journey` (nonstop/direct before one-stop), then price, itinerary elapsed time, and source rank. `ok=false` or `risk.reject=true` options are diagnostics only and must not appear in `catalog.items[]`.
+- `catalog.items[*].agent_display`: schema-backed agent output block with `style="inline_number_itinerary_with_aircraft_duration_v1"`, `lines[]`, and `text`. For full-detail options, the block is:
+  `N. FLIGHT DD.MM Origin city - Destination city HH:MM HH:MM (arrival DD.MM when different) AIRCRAFT в пути H:MM`
+  `    пересадка H:MM,`
+  `    FLIGHT DD.MM Origin city - Destination city HH:MM HH:MM (arrival DD.MM when different) AIRCRAFT в пути H:MM`
+  `    price рублей`
+  The layover line appears only between adjacent segments inside the same outbound or return direction; it is not printed after the direction or between outbound and return directions. Connection endpoints and any endpoint in a multi-airport city must use actual airport labels, not only city labels; append the provider terminal as `(B)`, `(C)`, `(2)`, etc. when present.
+- Derived summary fields remain present for validation and machine readers: `primary_recommendation`, `alternatives`, `evidence_status`, `required_caveats`, `stop_policy_status`, `rendered_text`, `answer_lines`.
 
-Semantic validation must reject: empty catalog mode, non-contiguous numbering, rendered text that loses numbered catalog items, round-trip catalog items without outbound+return directions, unproven ticketing models that do not require purchase-screen verification.
+Semantic validation must reject: empty catalog mode, non-contiguous numbering, rendered text that loses numbered catalog items, `agent_display`/`render_line` drift, standalone number lines, segment lines without aircraft/duration, missing indentation on continuation/price lines, round-trip catalog items without outbound+return directions, unproven ticketing models that do not require purchase-screen verification.
 
 Mutation guardrails for renderer/user-answer changes:
 
 - False single-PNR, through-fare, baggage-through, protected-connection, terminal, or final-price claims must fail unless supported by structured evidence.
 - Required caveats in `required_caveats`, ticketing model, missing evidence, or source boundaries must remain visible in `rendered_text` when they change the decision.
-- `catalog.items[*].render_line` must stay derived from structured route, price, risk, direction, baggage, and protection fields; mutate-and-validate tests should catch contradictory rendered dates, prices, segments, or mode/catalog state.
+- `catalog.items[*].render_line` must mirror `catalog.items[*].agent_display.text`; both must stay derived from structured route, price, risk, direction, baggage, and protection fields. Mutate-and-validate tests should catch contradictory rendered dates, prices, segments, or mode/catalog state.
 - Diagnostic summary projections may mirror the rendered text for debugging, but must not become a separate source for final prose.
 
 MCP `outputSchema` is only a transport description for `structuredContent`. It does not replace the domain schema, builder, semantic validator, or renderer.
@@ -153,7 +165,7 @@ For ordinary one-way tasks, start with `нашёл`, `не нашёл`, or `evid
 
 For round trips and multi-option frontiers, use v3 catalog shape:
 
-1. Numbered compact options from `catalog.items[]`; each line must include price, outbound/return detail when available, and decision-critical risk badges/caveats.
+1. Compact numbered options from `catalog.items[].agent_display`; each block starts with `N. FLIGHT ...`, continuation segment lines and the price line are indented by four spaces.
 2. Keep safer ticketing/protection/baggage options visible even when they are not cheapest.
 3. Keep one-way/provider aggregates visible only as directional alternatives; do not present them as covering a round trip.
 4. End with `Проверить перед покупкой`: single PNR/protection, baggage-through, fare rules, terminals when connection risk matters.

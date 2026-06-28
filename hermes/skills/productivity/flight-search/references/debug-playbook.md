@@ -181,9 +181,9 @@ If a date has no useful result, test whether the date is outside the provider’
 
 `not_executed`/`failed` controls are missing or degraded evidence. `not_supported` is a terminal provider/source capability boundary. Do not mark evidence incomplete solely because a provider cannot support a probe type, but do mention it if it changes the decision.
 
-### Ranking/profile bias vs physical possibility
+### Ranking vs physical possibility
 
-A safe/business/balanced profile can demote late-night, cross-airport, low-confidence, baggage-risk, or long-wait options. When the user asks whether something is possible, distinguish physical possibility from operational recommendation and name the profile/field that caused demotion.
+The production `business` ranking can demote late-night, cross-airport, low-confidence, baggage-risk, or long-wait options. When the user asks whether something is possible, distinguish physical possibility from operational recommendation and name the ranking field that caused demotion.
 
 ### Overnight / long-wait avoidance
 

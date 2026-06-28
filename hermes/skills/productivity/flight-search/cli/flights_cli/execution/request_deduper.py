@@ -77,7 +77,12 @@ def segment_probe_key(
     direct_only: bool,
     mcp_url: str | None = None,
 ) -> SegmentProbeKey:
-    effective_carriers = tuple(sorted(normalize_carrier_code(code, "only-carrier") for code in (spec.get("only_carriers") or only_carriers)))
+    effective_carriers = tuple(
+        sorted(
+            normalize_carrier_code(code, "only-carrier")
+            for code in (spec.get("only_carriers") or only_carriers)
+        )
+    )
     return (
         "segment",
         str(provider or ""),

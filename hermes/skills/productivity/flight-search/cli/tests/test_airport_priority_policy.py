@@ -1,19 +1,27 @@
 from __future__ import annotations
 
-import argparse
 import unittest
-from datetime import date
 from unittest.mock import patch
 
 from flights_cli.adapters.providers.registry import providers_for_segment
-from flights_cli.domain.airports import explicit_or_resolved_airports, segment_code_metadata
-from flights_cli.execution.probe_dispatcher import dispatch_segment_probe
-from flights_cli.orchestrators.live_assemble import build_live_route_segment_plan, run_live_route_assembly
+from flights_cli.domain.airports import (
+    explicit_or_resolved_airports,
+    segment_code_metadata,
+)
+from flights_cli.execution.probe_dispatcher import (
+    SegmentProbeOptions,
+    dispatch_segment_probe,
+)
+from flights_cli.orchestrators.live_route_assembly import (
+    build_live_route_segment_plan,
+    run_live_route_assembly,
+)
 from flights_cli.store import Store
+from helpers import live_assembly_args
 
 
-def live_args(**overrides: object) -> argparse.Namespace:
-    values = {
+def live_args(**overrides: object):
+    defaults = {
         "origin": "IST",
         "destination": "LON",
         "depart_date": "2026-08-12",
@@ -23,7 +31,6 @@ def live_args(**overrides: object) -> argparse.Namespace:
         "origin_airport": None,
         "destination_airport": None,
         "currency": "RUB",
-        "direct_only": False,
         "only_carrier": [],
         "exclude_carrier": [],
         "prefer_carrier": [],
@@ -59,13 +66,12 @@ def live_args(**overrides: object) -> argparse.Namespace:
         "agent_report": False,
         "agent_brief": False,
         "provider_policy": "auto",
-        "fli_mcp_url": None,
     }
-    values.update(overrides)
-    return argparse.Namespace(**values)
+    defaults.update(overrides)
+    return live_assembly_args(**defaults)
 
 
-def dispatcher_args(**overrides: object) -> argparse.Namespace:
+def dispatcher_options(**overrides: object) -> SegmentProbeOptions:
     values = {
         "segment_limit": 10,
         "timeout": 10,
@@ -73,10 +79,12 @@ def dispatcher_args(**overrides: object) -> argparse.Namespace:
         "fail_fast": False,
     }
     values.update(overrides)
-    return argparse.Namespace(**values)
+    return SegmentProbeOptions(**values)
 
 
-def direct_segments(plan: dict[str, object], *, direction: str = "outbound") -> list[dict[str, object]]:
+def direct_segments(
+    plan: dict[str, object], *, direction: str = "outbound"
+) -> list[dict[str, object]]:
     leg = "direct_outbound" if direction == "outbound" else "direct_return"
     return [
         segment
@@ -88,10 +96,26 @@ def direct_segments(plan: dict[str, object], *, direction: str = "outbound") -> 
 
 
 def pairs(segments: list[dict[str, object]]) -> list[tuple[str, str]]:
-    return [(str(segment["origin"]), str(segment["destination"])) for segment in segments]
+    return [
+        (str(segment["origin"]), str(segment["destination"])) for segment in segments
+    ]
 
 
-def kupibilet_result(query_origin: str, query_destination: str, actual_origin: str, actual_destination: str) -> dict[str, object]:
+def non_direct_segments(plan: dict[str, object]) -> list[dict[str, object]]:
+    return [
+        segment
+        for segment in plan["segments"]  # type: ignore[index]
+        if isinstance(segment, dict)
+        and segment.get("leg") not in {"direct_outbound", "direct_return"}
+    ]
+
+
+def kupibilet_result(
+    query_origin: str,
+    query_destination: str,
+    actual_origin: str,
+    actual_destination: str,
+) -> dict[str, object]:
     return {
         "origin": query_origin,
         "destination": query_destination,
@@ -127,8 +151,14 @@ def kupibilet_result(query_origin: str, query_destination: str, actual_origin: s
     }
 
 
-def empty_kupibilet_result(query_origin: str, query_destination: str, depart_date: object) -> dict[str, object]:
-    depart = depart_date.isoformat() if hasattr(depart_date, "isoformat") else str(depart_date)
+def empty_kupibilet_result(
+    query_origin: str, query_destination: str, depart_date: object
+) -> dict[str, object]:
+    depart = (
+        depart_date.isoformat()
+        if hasattr(depart_date, "isoformat")
+        else str(depart_date)
+    )
     return {
         "origin": query_origin,
         "destination": query_destination,
@@ -146,26 +176,49 @@ class AirportPriorityPolicyTests(unittest.TestCase):
     def test_segment_code_metadata_is_shared_airport_priority_projection(self) -> None:
         self.assertEqual(
             segment_code_metadata("SVX", "LHR"),
-            {"destination_airport_priority": {"city_code": "LON", "tier": 1, "role": "preferred"}},
+            {
+                "destination_airport_priority": {
+                    "city_code": "LON",
+                    "tier": 1,
+                    "role": "preferred",
+                }
+            },
         )
 
-    def test_ist_code_resolves_to_exact_ist_only_and_fli_direct_candidates_do_not_include_saw(self) -> None:
+    def test_ist_code_resolves_to_exact_ist_only_and_fli_direct_candidates_do_not_include_saw(
+        self,
+    ) -> None:
         store = Store()
         ist = store.resolve_location("IST")
         self.assertEqual(
-            explicit_or_resolved_airports(store, ist, None, role="origin", max_airports=6),
+            explicit_or_resolved_airports(
+                store, ist, None, role="origin", max_airports=6
+            ),
             ["IST"],
         )
 
-        plan = build_live_route_segment_plan(live_args(origin="IST", destination="LON"), store)
+        plan = build_live_route_segment_plan(
+            live_args(origin="IST", destination="LON"), store
+        )
         outbound_direct = direct_segments(plan)
 
         self.assertEqual(pairs(outbound_direct), [("IST", "LHR"), ("IST", "LGW")])
-        self.assertNotIn("SAW", {airport for pair in pairs(outbound_direct) for airport in pair})
-        self.assertTrue(all(providers_for_segment(segment, store, "auto") == ["fli"] for segment in outbound_direct))
+        self.assertNotIn(
+            "SAW", {airport for pair in pairs(outbound_direct) for airport in pair}
+        )
+        self.assertTrue(
+            all(
+                providers_for_segment(segment, store, "auto") == ["fli"]
+                for segment in outbound_direct
+            )
+        )
 
-    def test_lon_default_policy_keeps_lhr_tier_before_lgw_and_excludes_stn_ltn(self) -> None:
-        plan = build_live_route_segment_plan(live_args(origin="IST", destination="LON"), Store())
+    def test_lon_default_policy_keeps_lhr_tier_before_lgw_and_excludes_stn_ltn(
+        self,
+    ) -> None:
+        plan = build_live_route_segment_plan(
+            live_args(origin="IST", destination="LON"), Store()
+        )
 
         self.assertEqual(plan["destination_airports"], ["LHR", "LGW"])
         self.assertEqual(
@@ -175,12 +228,22 @@ class AirportPriorityPolicyTests(unittest.TestCase):
                 {"tier": 2, "airports": ["LGW"], "role": "deferred"},
             ],
         )
-        self.assertEqual(plan["airport_scope"]["destination"]["excluded_by_default"], ["STN", "LTN"])
+        self.assertEqual(
+            plan["airport_scope"]["destination"]["excluded_by_default"], ["STN", "LTN"]
+        )
         outbound_direct = direct_segments(plan)
         self.assertEqual(pairs(outbound_direct), [("IST", "LHR"), ("IST", "LGW")])
-        self.assertEqual([segment["destination_airport_priority"]["tier"] for segment in outbound_direct], [1, 2])
+        self.assertEqual(
+            [
+                segment["destination_airport_priority"]["tier"]
+                for segment in outbound_direct
+            ],
+            [1, 2],
+        )
 
-    def test_ist_lon_round_trip_direct_candidates_are_lhr_lgw_then_lgw_lhr_to_ist_without_saw_or_stn_ltn(self) -> None:
+    def test_ist_lon_round_trip_direct_candidates_are_lhr_lgw_then_lgw_lhr_to_ist_without_saw_or_stn_ltn(
+        self,
+    ) -> None:
         plan = build_live_route_segment_plan(
             live_args(origin="IST", destination="LON", return_date="2026-08-19"),
             Store(),
@@ -191,57 +254,125 @@ class AirportPriorityPolicyTests(unittest.TestCase):
 
         self.assertEqual(pairs(outbound_direct), [("IST", "LHR"), ("IST", "LGW")])
         self.assertEqual(pairs(return_direct), [("LHR", "IST"), ("LGW", "IST")])
-        generated_airports = {airport for pair in pairs(outbound_direct + return_direct) for airport in pair}
+        generated_airports = {
+            airport
+            for pair in pairs(outbound_direct + return_direct)
+            for airport in pair
+        }
         self.assertFalse({"SAW", "STN", "LTN"} & generated_airports)
 
-    def test_kupibilet_mow_destination_and_origin_generate_city_code_first_with_exact_fallbacks(self) -> None:
-        svx_to_mow = build_live_route_segment_plan(live_args(origin="SVX", destination="MOW"), Store())
-        mow_to_svx = build_live_route_segment_plan(live_args(origin="MOW", destination="SVX"), Store())
+    def test_kupibilet_mow_destination_and_origin_generate_city_code_first_with_exact_fallbacks(
+        self,
+    ) -> None:
+        svx_to_mow = build_live_route_segment_plan(
+            live_args(origin="SVX", destination="MOW"), Store()
+        )
+        mow_to_svx = build_live_route_segment_plan(
+            live_args(origin="MOW", destination="SVX"), Store()
+        )
 
         outbound_to_mow = direct_segments(svx_to_mow)
         outbound_from_mow = direct_segments(mow_to_svx)
 
         self.assertEqual(pairs(outbound_to_mow)[0], ("SVX", "MOW"))
         self.assertEqual(pairs(outbound_from_mow)[0], ("MOW", "SVX"))
-        self.assertEqual(outbound_to_mow[0]["provider_request_strategy"], "city_code_first")
-        self.assertEqual(outbound_from_mow[0]["provider_request_strategy"], "city_code_first")
         self.assertEqual(
-            [pair for pair in pairs(outbound_to_mow) if pair[1] in {"SVO", "DME", "VKO"}],
+            outbound_to_mow[0]["provider_request_strategy"], "city_code_first"
+        )
+        self.assertEqual(
+            outbound_from_mow[0]["provider_request_strategy"], "city_code_first"
+        )
+        self.assertEqual(
+            [
+                pair
+                for pair in pairs(outbound_to_mow)
+                if pair[1] in {"SVO", "DME", "VKO"}
+            ],
             [("SVX", "SVO"), ("SVX", "DME"), ("SVX", "VKO")],
         )
         self.assertEqual(
-            [pair for pair in pairs(outbound_from_mow) if pair[0] in {"SVO", "DME", "VKO"}],
+            [
+                pair
+                for pair in pairs(outbound_from_mow)
+                if pair[0] in {"SVO", "DME", "VKO"}
+            ],
             [("SVO", "SVX"), ("DME", "SVX"), ("VKO", "SVX")],
         )
-        self.assertTrue(all(segment.get("deferred_for_city_code_request") for segment in outbound_to_mow[1:4]))
-        self.assertTrue(all(segment.get("deferred_for_city_code_request") for segment in outbound_from_mow[1:4]))
+        self.assertTrue(
+            all(
+                segment.get("deferred_for_city_code_request")
+                for segment in outbound_to_mow[1:4]
+            )
+        )
+        self.assertTrue(
+            all(
+                segment.get("deferred_for_city_code_request")
+                for segment in outbound_from_mow[1:4]
+            )
+        )
+        self.assertEqual(non_direct_segments(svx_to_mow), [])
+        self.assertEqual(non_direct_segments(mow_to_svx), [])
 
-    def test_kupibilet_mow_to_lon_uses_moscow_city_code_with_london_preference_without_broad_fanout(self) -> None:
-        plan = build_live_route_segment_plan(live_args(origin="MOW", destination="LON"), Store())
+    def test_domestic_mow_round_trip_does_not_add_intra_moscow_hub_fallback(
+        self,
+    ) -> None:
+        plan = build_live_route_segment_plan(
+            live_args(origin="SVX", destination="MOW", return_date="2026-08-19"),
+            Store(),
+        )
+
+        self.assertEqual(non_direct_segments(plan), [])
+
+    def test_kupibilet_mow_to_lon_uses_moscow_city_code_with_london_preference_without_broad_fanout(
+        self,
+    ) -> None:
+        plan = build_live_route_segment_plan(
+            live_args(origin="MOW", destination="LON"), Store()
+        )
         outbound_direct = direct_segments(plan)
         direct_pairs = pairs(outbound_direct)
 
         self.assertEqual(direct_pairs[0], ("MOW", "LHR"))
         self.assertIn(("MOW", "LGW"), direct_pairs)
-        self.assertLess(direct_pairs.index(("MOW", "LHR")), direct_pairs.index(("MOW", "LGW")))
-        self.assertFalse({"STN", "LTN"} & {destination for _, destination in direct_pairs})
+        self.assertLess(
+            direct_pairs.index(("MOW", "LHR")), direct_pairs.index(("MOW", "LGW"))
+        )
+        self.assertFalse(
+            {"STN", "LTN"} & {destination for _, destination in direct_pairs}
+        )
         self.assertLess(len(direct_pairs), 12)
         self.assertEqual(
-            [segment["destination_airport_priority"]["tier"] for segment in outbound_direct if segment.get("provider_request_strategy") == "city_code_first"],
+            [
+                segment["destination_airport_priority"]["tier"]
+                for segment in outbound_direct
+                if segment.get("provider_request_strategy") == "city_code_first"
+            ],
             [1, 2],
         )
 
-    def test_kupibilet_mow_lhr_offer_skips_moscow_exact_fallbacks_and_lgw_provider_calls(self) -> None:
-        args = live_args(origin="MOW", destination="LON", provider_policy="kupibilet", include_segment_results=20)
+    def test_kupibilet_mow_lhr_offer_skips_moscow_exact_fallbacks_and_lgw_provider_calls(
+        self,
+    ) -> None:
+        args = live_args(
+            origin="MOW",
+            destination="LON",
+            provider_policy="kupibilet",
+            include_segment_results=20,
+        )
         calls: list[tuple[str, str]] = []
 
-        def fake_fetch(origin: str, destination: str, depart_date: object, **_: object) -> dict[str, object]:
+        def fake_fetch(
+            origin: str, destination: str, depart_date: object, **_: object
+        ) -> dict[str, object]:
             calls.append((origin, destination))
             if (origin, destination) == ("MOW", "LHR"):
                 return kupibilet_result("MOW", "LHR", "SVO", "LHR")
             return empty_kupibilet_result(origin, destination, depart_date)
 
-        with patch("flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search", side_effect=fake_fetch):
+        with patch(
+            "flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search",
+            side_effect=fake_fetch,
+        ):
             result = run_live_route_assembly(args, Store())
 
         self.assertIn(("MOW", "LHR"), calls)
@@ -258,25 +389,53 @@ class AirportPriorityPolicyTests(unittest.TestCase):
             & set(calls)
         )
         skipped_direct = {
-            (str(search.get("origin")), str(search.get("destination"))): search.get("reason")
+            (str(search.get("origin")), str(search.get("destination"))): search
             for search in result["live_search"]["segment_searches"]
-            if search.get("leg") == "direct_outbound" and search.get("status") == "skipped"
+            if search.get("leg") == "direct_outbound"
+            and search.get("status") == "skipped"
         }
-        self.assertEqual(skipped_direct[("MOW", "LGW")], "preferred_airport_tier_has_offers")
-        self.assertEqual(skipped_direct[("SVO", "LHR")], "city_code_request_has_offers")
-        self.assertEqual(skipped_direct[("SVO", "LGW")], "preferred_airport_tier_has_offers")
+        self.assertEqual(
+            skipped_direct[("MOW", "LGW")]["reason"],
+            "preferred_airport_tier_has_offers",
+        )
+        self.assertEqual(
+            skipped_direct[("SVO", "LHR")]["reason"], "city_code_request_has_offers"
+        )
+        self.assertEqual(
+            skipped_direct[("SVO", "LGW")]["reason"],
+            "preferred_airport_tier_has_offers",
+        )
+        self.assertEqual(
+            skipped_direct[("MOW", "LGW")]["route_family"], "direct_control"
+        )
+        self.assertEqual(skipped_direct[("MOW", "LGW")]["only_carriers"], [])
+        self.assertEqual(
+            skipped_direct[("MOW", "LGW")]["preferred_carriers"], ["U6", "SU", "TK"]
+        )
 
-    def test_kupibilet_mow_lgw_fallback_waits_until_lhr_city_and_exact_attempts_are_empty(self) -> None:
-        args = live_args(origin="MOW", destination="LON", provider_policy="kupibilet", include_segment_results=20)
+    def test_kupibilet_mow_lgw_fallback_waits_until_lhr_city_and_exact_attempts_are_empty(
+        self,
+    ) -> None:
+        args = live_args(
+            origin="MOW",
+            destination="LON",
+            provider_policy="kupibilet",
+            include_segment_results=20,
+        )
         calls: list[tuple[str, str]] = []
 
-        def fake_fetch(origin: str, destination: str, depart_date: object, **_: object) -> dict[str, object]:
+        def fake_fetch(
+            origin: str, destination: str, depart_date: object, **_: object
+        ) -> dict[str, object]:
             calls.append((origin, destination))
             if (origin, destination) == ("MOW", "LGW"):
                 return kupibilet_result("MOW", "LGW", "SVO", "LGW")
             return empty_kupibilet_result(origin, destination, depart_date)
 
-        with patch("flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search", side_effect=fake_fetch):
+        with patch(
+            "flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search",
+            side_effect=fake_fetch,
+        ):
             run_live_route_assembly(args, Store())
 
         lhr_attempts = [("MOW", "LHR"), ("SVO", "LHR"), ("DME", "LHR"), ("VKO", "LHR")]
@@ -288,16 +447,30 @@ class AirportPriorityPolicyTests(unittest.TestCase):
             max(calls.index(pair) for pair in lhr_attempts),
         )
 
-    def test_kupibilet_city_code_post_validation_accepts_moscow_actual_airport(self) -> None:
-        spec = {"direction": "outbound", "leg": "direct_outbound", "origin": "MOW", "destination": "SVX", "date": "2026-08-12"}
-        with patch("flights_cli.adapters.providers.registry.providers_for_segment", return_value=["kupibilet"]), patch(
-            "flights_cli.adapters.providers.kupibilet_adapter.cached_kupibilet_search",
-            return_value=kupibilet_result("MOW", "SVX", "SVO", "SVX"),
+    def test_kupibilet_city_code_post_validation_accepts_moscow_actual_airport(
+        self,
+    ) -> None:
+        spec = {
+            "direction": "outbound",
+            "leg": "direct_outbound",
+            "origin": "MOW",
+            "destination": "SVX",
+            "date": "2026-08-12",
+        }
+        with (
+            patch(
+                "flights_cli.adapters.providers.registry.providers_for_segment",
+                return_value=["kupibilet"],
+            ),
+            patch(
+                "flights_cli.adapters.providers.kupibilet_adapter.cached_kupibilet_search",
+                return_value=kupibilet_result("MOW", "SVX", "SVO", "SVX"),
+            ),
         ):
             outcomes = dispatch_segment_probe(
                 spec=spec,
                 plan={"currency": "RUB"},
-                args=dispatcher_args(),
+                options=dispatcher_options(),
                 store=Store(),
                 only_carriers=[],
                 cache_ttl_seconds=0,
@@ -306,19 +479,37 @@ class AirportPriorityPolicyTests(unittest.TestCase):
             )
 
         self.assertEqual(outcomes[0].summary["status"], "ok")
-        self.assertEqual(outcomes[0].summary["city_code_validation"]["accepted_offer_count"], 1)
-        self.assertEqual(outcomes[0].segment_result["offers"][0]["departure_airport"], "SVO")
+        self.assertEqual(
+            outcomes[0].summary["city_code_validation"]["accepted_offer_count"], 1
+        )
+        self.assertEqual(
+            outcomes[0].segment_result["offers"][0]["departure_airport"], "SVO"
+        )
 
-    def test_kupibilet_city_code_post_validation_rejects_out_of_scope_airport(self) -> None:
-        spec = {"direction": "outbound", "leg": "direct_outbound", "origin": "MOW", "destination": "SVX", "date": "2026-08-12"}
-        with patch("flights_cli.adapters.providers.registry.providers_for_segment", return_value=["kupibilet"]), patch(
-            "flights_cli.adapters.providers.kupibilet_adapter.cached_kupibilet_search",
-            return_value=kupibilet_result("MOW", "SVX", "ZIA", "SVX"),
+    def test_kupibilet_city_code_post_validation_rejects_out_of_scope_airport(
+        self,
+    ) -> None:
+        spec = {
+            "direction": "outbound",
+            "leg": "direct_outbound",
+            "origin": "MOW",
+            "destination": "SVX",
+            "date": "2026-08-12",
+        }
+        with (
+            patch(
+                "flights_cli.adapters.providers.registry.providers_for_segment",
+                return_value=["kupibilet"],
+            ),
+            patch(
+                "flights_cli.adapters.providers.kupibilet_adapter.cached_kupibilet_search",
+                return_value=kupibilet_result("MOW", "SVX", "ZIA", "SVX"),
+            ),
         ):
             outcomes = dispatch_segment_probe(
                 spec=spec,
                 plan={"currency": "RUB"},
-                args=dispatcher_args(),
+                options=dispatcher_options(),
                 store=Store(),
                 only_carriers=[],
                 cache_ttl_seconds=0,
@@ -327,22 +518,41 @@ class AirportPriorityPolicyTests(unittest.TestCase):
             )
 
         self.assertEqual(outcomes[0].summary["status"], "invalid")
-        self.assertEqual(outcomes[0].summary["reason"], "city_code_scope_validation_failed")
+        self.assertEqual(
+            outcomes[0].summary["reason"], "city_code_scope_validation_failed"
+        )
         self.assertEqual(outcomes[0].summary["offer_count"], 0)
-        self.assertEqual(outcomes[0].summary["city_code_validation"]["rejected_reasons"], {"origin_out_of_scope": 1})
+        self.assertEqual(
+            outcomes[0].summary["city_code_validation"]["rejected_reasons"],
+            {"origin_out_of_scope": 1},
+        )
         self.assertEqual(outcomes[0].segment_result["offers"], [])
 
-    def test_kupibilet_city_code_post_validation_marks_missing_actual_airport_fields_invalid(self) -> None:
-        spec = {"direction": "outbound", "leg": "direct_outbound", "origin": "SVX", "destination": "MOW", "date": "2026-08-12"}
+    def test_kupibilet_city_code_post_validation_marks_missing_actual_airport_fields_invalid(
+        self,
+    ) -> None:
+        spec = {
+            "direction": "outbound",
+            "leg": "direct_outbound",
+            "origin": "SVX",
+            "destination": "MOW",
+            "date": "2026-08-12",
+        }
         result = kupibilet_result("SVX", "MOW", "SVX", "")
-        with patch("flights_cli.adapters.providers.registry.providers_for_segment", return_value=["kupibilet"]), patch(
-            "flights_cli.adapters.providers.kupibilet_adapter.cached_kupibilet_search",
-            return_value=result,
+        with (
+            patch(
+                "flights_cli.adapters.providers.registry.providers_for_segment",
+                return_value=["kupibilet"],
+            ),
+            patch(
+                "flights_cli.adapters.providers.kupibilet_adapter.cached_kupibilet_search",
+                return_value=result,
+            ),
         ):
             outcomes = dispatch_segment_probe(
                 spec=spec,
                 plan={"currency": "RUB"},
-                args=dispatcher_args(),
+                options=dispatcher_options(),
                 store=Store(),
                 only_carriers=[],
                 cache_ttl_seconds=0,
@@ -351,8 +561,13 @@ class AirportPriorityPolicyTests(unittest.TestCase):
             )
 
         self.assertEqual(outcomes[0].summary["status"], "invalid")
-        self.assertEqual(outcomes[0].summary["reason"], "city_code_scope_validation_failed")
-        self.assertEqual(outcomes[0].summary["city_code_validation"]["rejected_reasons"], {"missing_actual_airport_fields": 1})
+        self.assertEqual(
+            outcomes[0].summary["reason"], "city_code_scope_validation_failed"
+        )
+        self.assertEqual(
+            outcomes[0].summary["city_code_validation"]["rejected_reasons"],
+            {"missing_actual_airport_fields": 1},
+        )
 
 
 if __name__ == "__main__":

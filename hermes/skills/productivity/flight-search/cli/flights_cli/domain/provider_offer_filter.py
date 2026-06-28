@@ -23,12 +23,18 @@ def offer_has_airport_change(offer: dict[str, Any]) -> bool:
     for previous, current in zip(segments, segments[1:]):
         previous_arrival = str(previous.get("destination") or "").upper()
         current_departure = str(current.get("origin") or "").upper()
-        if previous_arrival and current_departure and previous_arrival != current_departure:
+        if (
+            previous_arrival
+            and current_departure
+            and previous_arrival != current_departure
+        ):
             return True
     return False
 
 
-def filter_provider_offers(offers: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, int]]:
+def filter_provider_offers(
+    offers: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
     kept: list[dict[str, Any]] = []
     stats = {
         "raw_offer_count": len(offers),

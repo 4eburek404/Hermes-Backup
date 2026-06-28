@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 
-def option_common_carriers(option: dict[str, Any], segments: list[dict[str, Any]]) -> set[str]:
+def option_common_carriers(
+    option: dict[str, Any], segments: list[dict[str, Any]]
+) -> set[str]:
     common: set[str] | None = None
     for segment in segments:
         carriers = {
@@ -34,11 +36,15 @@ def grouped_option_segments(option: dict[str, Any]) -> dict[str, list[dict[str, 
     return grouped
 
 
-def through_fare_checks(controls: list[dict[str, Any]], priority_options: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+def through_fare_checks(
+    controls: list[dict[str, Any]], priority_options: list[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
     checks: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str, str]] = set()
 
-    def add_check(direction: Any, route: str, date: Any, carrier: str, reason: str) -> None:
+    def add_check(
+        direction: Any, route: str, date: Any, carrier: str, reason: str
+    ) -> None:
         key = (str(direction or ""), route, str(date or ""), carrier)
         if key in seen:
             return
@@ -50,7 +56,11 @@ def through_fare_checks(controls: list[dict[str, Any]], priority_options: list[d
                 "date": date,
                 "carrier": carrier,
                 "reason": reason,
-                "verify_with": ["airline website", "GDS/Sirena/Amadeus-capable seller", "booking screen fare rules"],
+                "verify_with": [
+                    "airline website",
+                    "GDS/Sirena/Amadeus-capable seller",
+                    "booking screen fare rules",
+                ],
             }
         )
 
@@ -58,9 +68,14 @@ def through_fare_checks(controls: list[dict[str, Any]], priority_options: list[d
         for offer in control.get("top_offers") or []:
             if not isinstance(offer, dict):
                 continue
-            if offer.get("stop_tier") == "T3_THREE_PLUS" or offer.get("reportable_by_stop_policy") is False:
+            if (
+                offer.get("stop_tier") == "T3_THREE_PLUS"
+                or offer.get("reportable_by_stop_policy") is False
+            ):
                 continue
-            carriers = [str(code).upper() for code in offer.get("carriers") or [] if code]
+            carriers = [
+                str(code).upper() for code in offer.get("carriers") or [] if code
+            ]
             if len(carriers) != 1 or int(offer.get("change_count") or 0) <= 0:
                 continue
             add_check(

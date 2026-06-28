@@ -3,20 +3,27 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from ..config import CARRIER_RE, IATA_RE, RISK_PROFILES
+from ..config import CARRIER_RE, DEFAULT_PROFILE, IATA_RE, RISK_PROFILES
 from ..errors import CliError
+
 
 def normalize_iata(value: str, field: str = "IATA") -> str:
     code = value.strip().upper()
     if not IATA_RE.match(code):
-        raise CliError(f"{field} must be a 3-letter IATA code, got {value!r}", error_type="validation_error")
+        raise CliError(
+            f"{field} must be a 3-letter IATA code, got {value!r}",
+            error_type="validation_error",
+        )
     return code
 
 
 def normalize_carrier_code(value: str, field: str = "carrier") -> str:
     code = str(value or "").strip().upper()
     if not CARRIER_RE.match(code):
-        raise CliError(f"{field} must be a 2-3 character airline code, got {value!r}", error_type="validation_error")
+        raise CliError(
+            f"{field} must be a 2-3 character airline code, got {value!r}",
+            error_type="validation_error",
+        )
     return code
 
 
@@ -39,15 +46,24 @@ def parse_iso_date(value: str, field: str, *, today: date | None = None) -> date
     try:
         parsed = date.fromisoformat(value)
     except ValueError as exc:
-        raise CliError(f"{field} must be YYYY-MM-DD, got {value!r}", error_type="validation_error") from exc
+        raise CliError(
+            f"{field} must be YYYY-MM-DD, got {value!r}", error_type="validation_error"
+        ) from exc
 
     current_date = today or date.today()
     if parsed < current_date:
         suggestion = _next_future_occurrence(parsed.month, parsed.day, current_date)
         message = f"{field} is in the past: {parsed.isoformat()}. Today is {current_date.isoformat()}."
+        details = {
+            "field": field,
+            "reason": "past_date",
+            "value": parsed.isoformat(),
+            "today": current_date.isoformat(),
+        }
         if suggestion is not None:
             message += f" Did you mean {suggestion.isoformat()}?"
-        raise CliError(message, error_type="validation_error")
+            details["suggested_date"] = suggestion.isoformat()
+        raise CliError(message, error_type="validation_error", details=details)
     return parsed
 
 
@@ -56,7 +72,7 @@ def clamp_score(value: int | float) -> int:
 
 
 def normalize_profile(value: str | None) -> str:
-    profile = (value or "balanced").strip().lower()
+    profile = (value or DEFAULT_PROFILE).strip().lower()
     if profile not in RISK_PROFILES:
         raise CliError(
             f"profile must be one of {', '.join(sorted(RISK_PROFILES))}, got {value!r}",

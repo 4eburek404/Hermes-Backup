@@ -20,10 +20,14 @@ class AgentReportBudget:
 
 
 def serialized_report_size(report: dict[str, Any]) -> int:
-    return len(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True).encode("utf-8"))
+    return len(
+        json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True).encode("utf-8")
+    )
 
 
-def apply_agent_report_budget(report: dict[str, Any], budget: AgentReportBudget | None = None) -> dict[str, Any]:
+def apply_agent_report_budget(
+    report: dict[str, Any], budget: AgentReportBudget | None = None
+) -> dict[str, Any]:
     budget = budget or AgentReportBudget()
     trimmed = copy.deepcopy(report)
     omitted: dict[str, int] = {}
@@ -35,10 +39,18 @@ def apply_agent_report_budget(report: dict[str, Any], budget: AgentReportBudget 
     skip_recommended_trim = all_direct
 
     if not skip_recommended_trim:
-        _trim_top_level_list(trimmed, "recommended_options", budget.max_recommended_options, omitted)
-    _trim_top_level_list(trimmed, "priority_options", budget.max_priority_options, omitted)
-    _trim_top_level_list(trimmed, "segment_searches", budget.max_segment_searches, omitted)
-    _trim_top_level_list(trimmed, "provider_failures", budget.max_provider_failures, omitted)
+        _trim_top_level_list(
+            trimmed, "recommended_options", budget.max_recommended_options, omitted
+        )
+    _trim_top_level_list(
+        trimmed, "priority_options", budget.max_priority_options, omitted
+    )
+    _trim_top_level_list(
+        trimmed, "segment_searches", budget.max_segment_searches, omitted
+    )
+    _trim_top_level_list(
+        trimmed, "provider_failures", budget.max_provider_failures, omitted
+    )
     _trim_answer_lines(trimmed, budget.max_answer_lines, omitted)
     _trim_coverage_controls(trimmed, budget.max_coverage_controls, omitted)
     sanitize_summary_only_display(trimmed)
@@ -50,14 +62,18 @@ def apply_agent_report_budget(report: dict[str, Any], budget: AgentReportBudget 
         removed_segments = _compact_non_primary_option_segments(trimmed)
         if removed_segments:
             omitted = dict(trimmed.get("omitted_counts") or {})
-            omitted["option_segments"] = omitted.get("option_segments", 0) + removed_segments
+            omitted["option_segments"] = (
+                omitted.get("option_segments", 0) + removed_segments
+            )
             trimmed["omitted_counts"] = omitted
             sanitize_summary_only_display(trimmed)
 
     return trimmed
 
 
-def _trim_top_level_list(report: dict[str, Any], key: str, limit: int, omitted: dict[str, int]) -> None:
+def _trim_top_level_list(
+    report: dict[str, Any], key: str, limit: int, omitted: dict[str, int]
+) -> None:
     values = report.get(key)
     if not isinstance(values, list):
         return
@@ -68,7 +84,9 @@ def _trim_top_level_list(report: dict[str, Any], key: str, limit: int, omitted: 
     report[key] = values[:allowed]
 
 
-def _trim_answer_lines(report: dict[str, Any], limit: int, omitted: dict[str, int]) -> None:
+def _trim_answer_lines(
+    report: dict[str, Any], limit: int, omitted: dict[str, int]
+) -> None:
     lines = report.get("answer_lines")
     if not isinstance(lines, list):
         return
@@ -107,7 +125,9 @@ def _select_answer_lines(lines: list[Any], limit: int) -> list[Any]:
     return selected
 
 
-def _trim_coverage_controls(report: dict[str, Any], limit: int, omitted: dict[str, int]) -> None:
+def _trim_coverage_controls(
+    report: dict[str, Any], limit: int, omitted: dict[str, int]
+) -> None:
     diagnostics = report.get("coverage_diagnostics")
     if not isinstance(diagnostics, dict):
         return

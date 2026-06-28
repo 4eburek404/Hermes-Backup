@@ -1,21 +1,6 @@
 from __future__ import annotations
 
-ROOT_COMMANDS = (
-    "search",
-    "diagnose",
-    "maint",
-    "cities",
-    "airports",
-    "route",
-    "metrics",
-)
-
-ROUTE_COMMANDS = (
-    "plan",
-    "validate",
-    "rank",
-    "assemble",
-)
+COMMAND_SURFACE_VERSION = "command_surface.v1"
 
 PRIMARY_ROUTE_COMMAND = "search"
 TARGETED_PROBE_COMMANDS = (
@@ -25,14 +10,20 @@ TARGETED_PROBE_COMMANDS = (
     "diagnose fli-search",
     "diagnose fli-dates",
 )
+DIAGNOSTIC_COMMANDS = (
+    "diagnose plan",
+    "diagnose render",
+    *TARGETED_PROBE_COMMANDS,
+    "route validate",
+    "route rank",
+    "route assemble",
+)
 LIVE_PROVIDER_COMMANDS = (PRIMARY_ROUTE_COMMAND, *TARGETED_PROBE_COMMANDS)
 
 CATALOG_READ_COMMANDS = (
     "cities search",
     "airports explain",
     "diagnose fli-search",
-    "route plan",
-    "metrics workflow",
     "search",
     "diagnose plan",
 )

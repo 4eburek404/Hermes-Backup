@@ -25,22 +25,37 @@ def _coverage_warnings() -> list[str]:
     ]
 
 
-def _runtime_ledger_diagnostics(plan: dict[str, Any], ledger: dict[str, Any]) -> dict[str, Any]:
+def _runtime_ledger_diagnostics(
+    plan: dict[str, Any], ledger: dict[str, Any]
+) -> dict[str, Any]:
     diagnostics: dict[str, Any] = {
-        "coverage_mode": ledger.get("coverage_mode") or plan.get("coverage_mode") or "standard",
-        "negative_evidence_type": ledger.get("negative_evidence_type") or "bounded_live_controls_only",
+        "coverage_mode": ledger.get("coverage_mode")
+        or plan.get("coverage_mode")
+        or "standard",
+        "negative_evidence_type": ledger.get("negative_evidence_type")
+        or "bounded_live_controls_only",
         "coverage_warnings": ledger.get("coverage_warnings") or _coverage_warnings(),
         "limits": ledger.get("limits") or plan.get("coverage_limits") or {},
     }
     for bucket in CONTROL_BUCKETS:
         values = ledger.get(bucket)
         diagnostics[bucket] = values if isinstance(values, list) else []
-    completeness = ledger.get("completeness") if isinstance(ledger.get("completeness"), dict) else None
+    completeness = (
+        ledger.get("completeness")
+        if isinstance(ledger.get("completeness"), dict)
+        else None
+    )
     if completeness is None:
         planned_count = len(diagnostics["planned_controls"])
         terminal_count = sum(
             len(diagnostics[bucket])
-            for bucket in ("searched_controls", "skipped_controls", "failed_controls", "not_supported_controls", "not_executed_controls")
+            for bucket in (
+                "searched_controls",
+                "skipped_controls",
+                "failed_controls",
+                "not_supported_controls",
+                "not_executed_controls",
+            )
         )
         completeness = {
             "planned_count": planned_count,
@@ -51,12 +66,18 @@ def _runtime_ledger_diagnostics(plan: dict[str, Any], ledger: dict[str, Any]) ->
     return diagnostics
 
 
-def build_coverage_diagnostics(plan: dict[str, Any], live: dict[str, Any]) -> dict[str, Any]:
-    runtime_ledger = live.get("probe_ledger") if isinstance(live.get("probe_ledger"), dict) else None
+def build_coverage_diagnostics(
+    plan: dict[str, Any], live: dict[str, Any]
+) -> dict[str, Any]:
+    runtime_ledger = (
+        live.get("probe_ledger") if isinstance(live.get("probe_ledger"), dict) else None
+    )
     if runtime_ledger is not None:
         return _runtime_ledger_diagnostics(plan, runtime_ledger)
 
-    controls = [item for item in plan.get("coverage_controls") or [] if isinstance(item, dict)]
+    controls = [
+        item for item in plan.get("coverage_controls") or [] if isinstance(item, dict)
+    ]
     ledger = ProbeExecutionLedger()
     ledger.plan_controls(controls)
     by_key = {control_identity(control): control for control in controls}
@@ -114,7 +135,9 @@ def build_coverage_diagnostics(plan: dict[str, Any], live: dict[str, Any]) -> di
         if not isinstance(item, dict):
             continue
         filters = item.get("filters") if isinstance(item.get("filters"), dict) else {}
-        carriers = [str(code).upper() for code in filters.get("only_carriers") or [] if code]
+        carriers = [
+            str(code).upper() for code in filters.get("only_carriers") or [] if code
+        ]
         if carriers:
             for carrier in carriers:
                 key = control_identity(
@@ -130,7 +153,11 @@ def build_coverage_diagnostics(plan: dict[str, Any], live: dict[str, Any]) -> di
                 control = by_key.get(key)
                 if control:
                     if item.get("status") == "error":
-                        ledger.record_failed(control, provider=item.get("provider"), error=item.get("error"))
+                        ledger.record_failed(
+                            control,
+                            provider=item.get("provider"),
+                            error=item.get("error"),
+                        )
                     else:
                         ledger.record_searched(
                             control,
@@ -152,7 +179,9 @@ def build_coverage_diagnostics(plan: dict[str, Any], live: dict[str, Any]) -> di
             control = by_key.get(key)
             if control:
                 if item.get("status") == "error":
-                    ledger.record_failed(control, provider=item.get("provider"), error=item.get("error"))
+                    ledger.record_failed(
+                        control, provider=item.get("provider"), error=item.get("error")
+                    )
                 else:
                     ledger.record_searched(
                         control,

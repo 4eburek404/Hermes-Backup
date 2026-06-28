@@ -1,4 +1,5 @@
 """Carrier adapters must emit only the minimal itinerary needed by the renderer."""
+
 from __future__ import annotations
 
 import json
@@ -11,7 +12,14 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-ROOT_FIELDS = {"schema_version", "pnr", "passengers", "ticket_number", "booking_url", "flights"}
+ROOT_FIELDS = {
+    "schema_version",
+    "pnr",
+    "passengers",
+    "ticket_number",
+    "booking_url",
+    "flights",
+}
 FLIGHT_FIELDS = {"flight_number", "departure", "arrival", "aircraft", "status"}
 ENDPOINT_FIELDS = {"airport", "city", "local", "tz"}
 REMOVED_FIELD_NAMES = {
@@ -72,8 +80,16 @@ class CarrierMinimalOutputTests(unittest.TestCase):
                 {
                     "segments": [
                         {
-                            "origin": {"airport_code": "SVO", "city_name": "Москва", "terminal_code": "B"},
-                            "destination": {"airport_code": "SVX", "city_name": "Екатеринбург", "terminal_code": "A"},
+                            "origin": {
+                                "airport_code": "SVO",
+                                "city_name": "Москва",
+                                "terminal_code": "B",
+                            },
+                            "destination": {
+                                "airport_code": "SVX",
+                                "city_name": "Екатеринбург",
+                                "terminal_code": "A",
+                            },
                             "departure": "2026-06-01 09:15",
                             "arrival": "2026-06-01 13:45",
                             "airline_code": "SU",
@@ -90,7 +106,11 @@ class CarrierMinimalOutputTests(unittest.TestCase):
             ],
         }
 
-        itinerary = aeroflot.convert_to_itinerary(data, {"SVO": "Europe/Moscow", "SVX": "Asia/Yekaterinburg"}, booking_url="https://carrier.example/aero")
+        itinerary = aeroflot.convert_to_itinerary(
+            data,
+            {"SVO": "Europe/Moscow", "SVX": "Asia/Yekaterinburg"},
+            booking_url="https://carrier.example/aero",
+        )
 
         self.assert_minimal_itinerary(itinerary)
         self.assertEqual(itinerary["pnr"], "ABC123")
@@ -125,7 +145,11 @@ class CarrierMinimalOutputTests(unittest.TestCase):
             }
         }
 
-        itinerary = ural.convert_to_itinerary(response, {"SVO": "Europe/Moscow", "SVX": "Asia/Yekaterinburg"}, booking_url="https://carrier.example/ural")
+        itinerary = ural.convert_to_itinerary(
+            response,
+            {"SVO": "Europe/Moscow", "SVX": "Asia/Yekaterinburg"},
+            booking_url="https://carrier.example/ural",
+        )
 
         self.assert_minimal_itinerary(itinerary)
         self.assertEqual(itinerary["pnr"], "ABC123")
@@ -166,7 +190,11 @@ class CarrierMinimalOutputTests(unittest.TestCase):
             ]
         }
 
-        itinerary = utair.convert_to_itinerary(data, {"VKO": "Europe/Moscow", "SVX": "Asia/Yekaterinburg"}, booking_url="https://carrier.example/utair")
+        itinerary = utair.convert_to_itinerary(
+            data,
+            {"VKO": "Europe/Moscow", "SVX": "Asia/Yekaterinburg"},
+            booking_url="https://carrier.example/utair",
+        )
 
         self.assert_minimal_itinerary(itinerary)
         self.assertEqual(itinerary["pnr"], "ABC123")
@@ -191,19 +219,28 @@ class CarrierMinimalOutputTests(unittest.TestCase):
                                         "id": "seg-1",
                                         "flightNumber": "123",
                                         "status": "CONFIRMED",
-                                        "marketingAirline": {"name": "Red Wings", "iata": "WZ"},
+                                        "marketingAirline": {
+                                            "name": "Red Wings",
+                                            "iata": "WZ",
+                                        },
                                         "aircraft": {"name": "Sukhoi Superjet"},
                                         "departure": {
                                             "date": "2026-06-01",
                                             "time": "09:15",
                                             "terminal": "1",
-                                            "airport": {"iata": "SVO", "city": {"name": "Москва"}},
+                                            "airport": {
+                                                "iata": "SVO",
+                                                "city": {"name": "Москва"},
+                                            },
                                         },
                                         "arrival": {
                                             "date": "2026-06-01",
                                             "time": "13:45",
                                             "terminal": "A",
-                                            "airport": {"iata": "SVX", "city": {"name": "Екатеринбург"}},
+                                            "airport": {
+                                                "iata": "SVX",
+                                                "city": {"name": "Екатеринбург"},
+                                            },
                                         },
                                     }
                                 ],
@@ -216,15 +253,31 @@ class CarrierMinimalOutputTests(unittest.TestCase):
                                 {"type": "LastName", "value": "ORLOV"},
                                 {"type": "FirstName", "value": "KONSTANTIN"},
                             ],
-                            "tickets": [{"number": "3092400000000", "coupons": [{"segment": {"id": "seg-1"}}]}],
-                            "services": {"seats": [{"segment": {"id": "seg-1"}, "seat": {"number": "12A"}}]},
+                            "tickets": [
+                                {
+                                    "number": "3092400000000",
+                                    "coupons": [{"segment": {"id": "seg-1"}}],
+                                }
+                            ],
+                            "services": {
+                                "seats": [
+                                    {
+                                        "segment": {"id": "seg-1"},
+                                        "seat": {"number": "12A"},
+                                    }
+                                ]
+                            },
                         }
                     ],
                 }
             }
         }
 
-        itinerary = redwings.convert_to_itinerary(data, {"SVO": "Europe/Moscow", "SVX": "Asia/Yekaterinburg"}, booking_url="https://carrier.example/redwings")
+        itinerary = redwings.convert_to_itinerary(
+            data,
+            {"SVO": "Europe/Moscow", "SVX": "Asia/Yekaterinburg"},
+            booking_url="https://carrier.example/redwings",
+        )
 
         self.assert_minimal_itinerary(itinerary)
         self.assertEqual(itinerary["pnr"], "ABC123")
@@ -264,10 +317,26 @@ class CarrierMinimalOutputTests(unittest.TestCase):
                                     "arrivalDate": "2026-06-01T13:45:00",
                                     "departureTimeZone": "Europe/Moscow",
                                     "arrivalTimeZone": "Asia/Yekaterinburg",
-                                    "departureAirport": {"code": "DME", "cityName": "Москва", "terminal": "T2"},
-                                    "arrivalAirport": {"code": "SVX", "cityName": "Екатеринбург", "terminal": "A"},
-                                    "marketingAirline": {"code": "S7", "displayCode": "S7", "flightNumber": "1234"},
-                                    "operatingAirline": {"code": "S7", "displayCode": "S7", "flightNumber": "1234"},
+                                    "departureAirport": {
+                                        "code": "DME",
+                                        "cityName": "Москва",
+                                        "terminal": "T2",
+                                    },
+                                    "arrivalAirport": {
+                                        "code": "SVX",
+                                        "cityName": "Екатеринбург",
+                                        "terminal": "A",
+                                    },
+                                    "marketingAirline": {
+                                        "code": "S7",
+                                        "displayCode": "S7",
+                                        "flightNumber": "1234",
+                                    },
+                                    "operatingAirline": {
+                                        "code": "S7",
+                                        "displayCode": "S7",
+                                        "flightNumber": "1234",
+                                    },
                                     "aircraft": {"name": "Airbus A320"},
                                     "status": "CONFIRMED",
                                     "supplierStatus": "HK",
@@ -279,7 +348,9 @@ class CarrierMinimalOutputTests(unittest.TestCase):
             }
         ]
 
-        itinerary = s7.convert_to_itinerary(data, {}, booking_url="https://carrier.example/s7")
+        itinerary = s7.convert_to_itinerary(
+            data, {}, booking_url="https://carrier.example/s7"
+        )
 
         self.assert_minimal_itinerary(itinerary)
         self.assertEqual(itinerary["pnr"], "ABC123")

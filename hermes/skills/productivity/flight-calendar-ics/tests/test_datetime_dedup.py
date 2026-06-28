@@ -5,9 +5,9 @@ These tests verify that:
 2. direct ics_render.build_calendar() call also rejects such an itinerary
 3. local datetime with Z/offset is not accepted by the public JSON Schema contract
 """
+
 from __future__ import annotations
 
-import copy
 import sys
 import unittest
 from pathlib import Path

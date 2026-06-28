@@ -10,7 +10,7 @@ Use this reference when the user asks for all direct/nonstop flights over a boun
 
 ## Canonical workflow
 
-The per-date probe loop is executed by the CLI planner, not by the agent. Encode the window in the canonical request and run the Golden Path command once:
+The per-date probe loop is executed by the CLI planner, not by the agent. Encode the window in the canonical request and run the Golden Path command once. `date_window_end` is request-only; do not pass a `--date-window-end` CLI flag.
 
 ```json
 {
@@ -18,7 +18,7 @@ The per-date probe loop is executed by the CLI planner, not by the agent. Encode
   "origin": "ORIGIN",
   "destination": "DEST",
   "depart_date": "YYYY-MM-DD",
-  "profile": "balanced",
+  "profile": "business",
   "provider_policy": "auto",
   "route_options": {
     "max_connections": 0,

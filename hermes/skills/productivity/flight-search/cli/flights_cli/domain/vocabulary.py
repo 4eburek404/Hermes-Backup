@@ -21,6 +21,7 @@ from enum import StrEnum
 # Leg identifiers (hub-segment legs + direct legs)
 # ---------------------------------------------------------------------------
 
+
 class Leg(StrEnum):
     ORIGIN_TO_HUB = "origin_to_hub"
     HUB_TO_DESTINATION = "hub_to_destination"
@@ -34,6 +35,7 @@ class Leg(StrEnum):
 # Direction
 # ---------------------------------------------------------------------------
 
+
 class Direction(StrEnum):
     OUTBOUND = "outbound"
     RETURN = "return"
@@ -42,6 +44,7 @@ class Direction(StrEnum):
 # ---------------------------------------------------------------------------
 # Stop-policy buckets
 # ---------------------------------------------------------------------------
+
 
 class StopBucket(StrEnum):
     PREFERRED = "preferred"
@@ -52,6 +55,7 @@ class StopBucket(StrEnum):
 # ---------------------------------------------------------------------------
 # Market / Intent / Evidence classification
 # ---------------------------------------------------------------------------
+
 
 class MarketClass(StrEnum):
     RU_DOMESTIC = "ru_domestic"
@@ -79,6 +83,7 @@ class EvidenceClass(StrEnum):
 # Routing strategy
 # ---------------------------------------------------------------------------
 
+
 class RoutingStrategy(StrEnum):
     DOMESTIC_RU = "domestic-ru"
     RU_PRIORITY = "ru-priority"
@@ -88,6 +93,7 @@ class RoutingStrategy(StrEnum):
 # ---------------------------------------------------------------------------
 # Route family (mirrors route_mode values, underscore form)
 # ---------------------------------------------------------------------------
+
 
 class RouteFamily(StrEnum):
     DIRECT_INVENTORY = "direct_inventory"
@@ -100,6 +106,7 @@ class RouteFamily(StrEnum):
 # Required controls (probe control types, not probe_type from ports)
 # ---------------------------------------------------------------------------
 
+
 class RequiredControl(StrEnum):
     EXACT_AIRPORT_DIRECT = "exact_airport_direct"
     DATE_WINDOW_DIRECT = "date_window_direct"
@@ -111,6 +118,7 @@ class RequiredControl(StrEnum):
 # ---------------------------------------------------------------------------
 # Absence taxonomy
 # ---------------------------------------------------------------------------
+
 
 class AbsenceReason(StrEnum):
     PROVIDER_EMPTY = "provider_empty"
@@ -126,6 +134,7 @@ class AbsenceReason(StrEnum):
 # Probe execution state  (extends ExecutionState from ports/providers.py
 # with ledger-specific states like "searched", "not_executed", "planned")
 # ---------------------------------------------------------------------------
+
 
 class ProbeStatus(StrEnum):
     SEARCHED = "searched"

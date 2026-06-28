@@ -12,7 +12,16 @@ ProbeType = Literal[
     "carrier_aggregate",
     "city_pair_direct",
 ]
-ExecutionState = Literal["searched", "skipped", "failed", "not_executed", "deduped", "cache_hit", "stale_cache_used", "not_supported"]
+ExecutionState = Literal[
+    "searched",
+    "skipped",
+    "failed",
+    "not_executed",
+    "deduped",
+    "cache_hit",
+    "stale_cache_used",
+    "not_supported",
+]
 CacheStatus = Literal["live", "cache_hit", "stale_cache_used", "disabled", "unknown"]
 EvidenceType = Literal[
     "positive_live_evidence",
@@ -76,8 +85,6 @@ class FlightProviderPort(Protocol):
     name: ProviderName
     capabilities: ProviderCapabilities
 
-    def search_segment(self, query: dict[str, Any]) -> ProviderProbeResult:
-        ...
+    def search_segment(self, query: dict[str, Any]) -> ProviderProbeResult: ...
 
-    def search_aggregate(self, query: dict[str, Any]) -> ProviderProbeResult:
-        ...
+    def search_aggregate(self, query: dict[str, Any]) -> ProviderProbeResult: ...

@@ -1,4 +1,5 @@
 """Route detection contract for compact URL sources."""
+
 from __future__ import annotations
 
 import argparse
@@ -14,7 +15,9 @@ sys.path.insert(0, str(SCRIPTS))
 
 
 class ExplodingUrlFile:
-    def read_text(self, encoding: str = "utf-8") -> str:  # pragma: no cover - must not be called
+    def read_text(
+        self, encoding: str = "utf-8"
+    ) -> str:  # pragma: no cover - must not be called
         raise AssertionError("url_file was read despite url_override")
 
 
@@ -45,7 +48,9 @@ class RouteDetectionContractTests(unittest.TestCase):
         self.assertIn("host:utair.ru", route["evidence"])
         self.assertLessEqual(set(route), {"mode", "route", "confidence", "evidence"})
 
-    def test_url_override_detects_s7_manage_order_without_reading_url_file(self) -> None:
+    def test_url_override_detects_s7_manage_order_without_reading_url_file(
+        self,
+    ) -> None:
         from flight_calendar.route_detection import infer_build_route
 
         args = argparse.Namespace(
@@ -73,7 +78,9 @@ class RouteDetectionContractTests(unittest.TestCase):
         self.assertIn("query_field:passengerId", route["evidence"])
         self.assertLessEqual(set(route), {"mode", "route", "confidence", "evidence"})
 
-    def test_s7_manage_order_without_required_params_is_insufficient_and_redacted(self) -> None:
+    def test_s7_manage_order_without_required_params_is_insufficient_and_redacted(
+        self,
+    ) -> None:
         from flight_calendar.errors import CliFailure
         from flight_calendar.route_detection import infer_build_route
 

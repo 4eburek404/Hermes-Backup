@@ -29,6 +29,16 @@ KUPIBILET_HEADERS = {
 
 DEFAULT_CURRENCY = "RUB"
 
+DEFAULT_PROFILE = "business"
+
+BUSINESS_EXCESSIVE_CONNECTION_WAIT_MIN = 12 * 60
+
+BUSINESS_LATE_ARRIVAL_HOUR = 21
+
+BUSINESS_MORNING_DEPARTURE_END_HOUR = 12
+
+BUSINESS_LATE_TO_MORNING_MAX_WAIT_MIN = 14 * 60
+
 SUPPORTED_CURRENCIES = {"RUB", "USD", "EUR", "KZT", "BYN", "TRY", "AED"}
 
 DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR = 10
@@ -68,7 +78,12 @@ DUBAI_DEFAULT_AIRPORTS = ("DXB", "DWC")
 DUBAI_EXCLUDED_BY_DEFAULT = ("SHJ",)
 
 DEFAULT_ROUTING_STRATEGY = "auto"
-ROUTING_STRATEGIES = {"auto", RoutingStrategy.HUB_LIST, RoutingStrategy.RU_PRIORITY, RoutingStrategy.DOMESTIC_RU}
+ROUTING_STRATEGIES = {
+    "auto",
+    RoutingStrategy.HUB_LIST,
+    RoutingStrategy.RU_PRIORITY,
+    RoutingStrategy.DOMESTIC_RU,
+}
 
 
 PRIORITY_ROUTE_CARRIERS = ("U6", "SU", "TK")
@@ -217,9 +232,7 @@ SINGLE_AIRPORT_NOTES = {
     "DXB": "Dubai DXB is one airport for this workflow, typically reliable but often expensive.",
 }
 
-CACHE_NOTE = (
-    "Provider price data can be cached or stale; prices and seats must be rechecked before purchase."
-)
+CACHE_NOTE = "Provider price data can be cached or stale; prices and seats must be rechecked before purchase."
 
 LOW_COST_CARRIERS = {"FR", "U2", "W6", "W9", "PC", "VF", "XQ", "2S"}
 

@@ -1,10 +1,12 @@
 """Timezone catalog helpers for flight-calendar-ics."""
+
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
 
 from flight_calendar import timezone_catalog as airport_catalog
+
 
 def load_airport_timezone_document(catalog_path: Path | None = None) -> dict[str, Any]:
     """Load the bundled airport timezone catalog document."""
@@ -25,7 +27,11 @@ def build_timezone_map(
     return airport_catalog.build_timezone_map(overrides, catalog_path=catalog_path)
 
 
-def add_timezone_map_step(process: list[dict[str, Any]], catalog_timezones: dict[str, str], overrides_count: int) -> None:
+def add_timezone_map_step(
+    process: list[dict[str, Any]],
+    catalog_timezones: dict[str, str],
+    overrides_count: int,
+) -> None:
     process.append(
         {
             "step": "load_timezone_map",

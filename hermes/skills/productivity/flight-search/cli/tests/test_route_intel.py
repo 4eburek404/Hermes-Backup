@@ -5,7 +5,10 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flights_cli.config import SVX_OFFICIAL_ARRIVAL_SCHEDULE_URL, SVX_OFFICIAL_SCHEDULE_URL
+from flights_cli.config import (
+    SVX_OFFICIAL_ARRIVAL_SCHEDULE_URL,
+    SVX_OFFICIAL_SCHEDULE_URL,
+)
 from flights_cli.providers.route_intel import (
     build_svx_route_index,
     load_or_refresh_svx_route_index,
@@ -21,7 +24,9 @@ class RouteIntelTests(unittest.TestCase):
         <tr><td>RED WINGS</td><td>RRJ-95B</td><td>ABA</td></tr>
         """
 
-        codes = parse_svx_schedule_airport_codes(html, known_airports={"PKX", "IST", "MUC"})
+        codes = parse_svx_schedule_airport_codes(
+            html, known_airports={"PKX", "IST", "MUC"}
+        )
 
         self.assertEqual(codes, ["IST", "PKX"])
 
@@ -67,7 +72,9 @@ class RouteIntelTests(unittest.TestCase):
                 fetch_text=fake_fetch,
             )
 
-            self.assertEqual(calls, [SVX_OFFICIAL_SCHEDULE_URL, SVX_OFFICIAL_ARRIVAL_SCHEDULE_URL])
+            self.assertEqual(
+                calls, [SVX_OFFICIAL_SCHEDULE_URL, SVX_OFFICIAL_ARRIVAL_SCHEDULE_URL]
+            )
             self.assertFalse(first_cache["hit"])
             self.assertTrue(second_cache["hit"])
             self.assertEqual(first_index["routes"], second_index["routes"])

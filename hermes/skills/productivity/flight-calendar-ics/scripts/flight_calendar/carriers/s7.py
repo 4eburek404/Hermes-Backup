@@ -6,6 +6,7 @@ HTML form.  The POST response embeds the booking payload in the JavaScript globa
 ``__r_airs_data``; this adapter extracts that data and maps only the compact
 calendar fields.
 """
+
 from __future__ import annotations
 
 import html
@@ -38,7 +39,9 @@ def first_value(obj: dict[str, Any], keys: list[str]) -> Any:
     return None
 
 
-def parse_s7_source(url: str | None, booking_id: str | None, passenger_id: str | None) -> tuple[str, str, str]:
+def parse_s7_source(
+    url: str | None, booking_id: str | None, passenger_id: str | None
+) -> tuple[str, str, str]:
     """Parse an S7 manage-order URL or explicit values.
 
     ``bookingId`` and ``passengerId`` are private booking credentials; errors
@@ -48,8 +51,13 @@ def parse_s7_source(url: str | None, booking_id: str | None, passenger_id: str |
     if booking_url:
         parsed = urlparse(booking_url)
         qs = parse_qs(parsed.query, keep_blank_values=True)
-        booking_id = booking_id or (qs.get("bookingId") or qs.get("booking_id") or [None])[0]
-        passenger_id = passenger_id or (qs.get("passengerId") or qs.get("passenger_id") or [None])[0]
+        booking_id = (
+            booking_id or (qs.get("bookingId") or qs.get("booking_id") or [None])[0]
+        )
+        passenger_id = (
+            passenger_id
+            or (qs.get("passengerId") or qs.get("passenger_id") or [None])[0]
+        )
     if not booking_id or not passenger_id:
         die("provide S7 manage-order URL containing bookingId and passengerId")
 
@@ -60,7 +68,11 @@ def parse_s7_source(url: str | None, booking_id: str | None, passenger_id: str |
     if not re.fullmatch(r"[^\s/?#&=]{2,128}", passenger):
         die("S7 passengerId format looks invalid")
     if not booking_url:
-        booking_url = S7_MANAGE_ORDER_BASE + "?" + urlencode({"bookingId": booking, "passengerId": passenger})
+        booking_url = (
+            S7_MANAGE_ORDER_BASE
+            + "?"
+            + urlencode({"bookingId": booking, "passengerId": passenger})
+        )
     return booking, passenger, booking_url
 
 
@@ -78,26 +90,40 @@ def browser_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
 
 def _response_text_or_die(response: Any, label: str) -> str:
     status = int(getattr(response, "status_code", 0) or 0)
-    content_type = getattr(response, "headers", {}).get("Content-Type", "") if getattr(response, "headers", None) else ""
+    content_type = (
+        getattr(response, "headers", {}).get("Content-Type", "")
+        if getattr(response, "headers", None)
+        else ""
+    )
     if status >= 400:
-        raise carrier_http.TransportError(f"{label} returned HTTP {status} ({content_type})")
+        raise carrier_http.TransportError(
+            f"{label} returned HTTP {status} ({content_type})"
+        )
     return str(getattr(response, "text", "") or "")
 
 
 def _attr(tag: str, name: str) -> str | None:
-    match = re.search(rf"\b{name}\s*=\s*(['\"])(.*?)\1", tag, flags=re.IGNORECASE | re.DOTALL)
+    match = re.search(
+        rf"\b{name}\s*=\s*(['\"])(.*?)\1", tag, flags=re.IGNORECASE | re.DOTALL
+    )
     return html.unescape(match.group(2)) if match else None
 
 
 def _first_form(html_text: str) -> tuple[str, dict[str, str]]:
-    form_match = re.search(r"<form\b(?P<tag>[^>]*)>(?P<body>.*?)</form>", html_text, flags=re.IGNORECASE | re.DOTALL)
+    form_match = re.search(
+        r"<form\b(?P<tag>[^>]*)>(?P<body>.*?)</form>",
+        html_text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
     if not form_match:
         die("S7 manage-order response did not contain an auto-submit form")
     action = _attr(form_match.group("tag"), "action")
     if not action:
         die("S7 manage-order form has no action")
     fields: dict[str, str] = {}
-    for input_match in re.finditer(r"<input\b[^>]*>", form_match.group("body"), flags=re.IGNORECASE | re.DOTALL):
+    for input_match in re.finditer(
+        r"<input\b[^>]*>", form_match.group("body"), flags=re.IGNORECASE | re.DOTALL
+    ):
         tag = input_match.group(0)
         name = _attr(tag, "name")
         if not name:
@@ -146,7 +172,9 @@ def _extract_js_array(html_text: str, var_name: str) -> list[Any]:
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise ValueError(f"S7 manage-order {var_name} payload is not valid JSON") from exc
+        raise ValueError(
+            f"S7 manage-order {var_name} payload is not valid JSON"
+        ) from exc
     if not isinstance(data, list):
         die(f"S7 manage-order {var_name} payload is not a list")
     return data
@@ -174,7 +202,12 @@ def fetch_s7_order(booking_url: str, *, timeout: int = 60) -> list[Any]:
         post_url = urljoin(str(getattr(initial, "url", booking_url)), action)
         post = session.post(
             post_url,
-            headers=browser_headers({"Referer": str(getattr(initial, "url", booking_url)), "Content-Type": "application/x-www-form-urlencoded"}),
+            headers=browser_headers(
+                {
+                    "Referer": str(getattr(initial, "url", booking_url)),
+                    "Content-Type": "application/x-www-form-urlencoded",
+                }
+            ),
             data=fields,
             timeout=timeout,
             allow_redirects=True,
@@ -185,7 +218,9 @@ def fetch_s7_order(booking_url: str, *, timeout: int = 60) -> list[Any]:
     except ValueError:
         raise
     except Exception as exc:  # curl_cffi exposes several transport exception classes
-        raise carrier_http.TransportError(f"S7 manage-order failed: network error ({type(exc).__name__})") from exc
+        raise carrier_http.TransportError(
+            f"S7 manage-order failed: network error ({type(exc).__name__})"
+        ) from exc
 
 
 def _air_from_payload(data: Any) -> dict[str, Any]:
@@ -206,9 +241,13 @@ def passenger_name(passenger: dict[str, Any]) -> str | None:
     direct = first_value(name, ["fullName", "fullNameCapitalized", "title"])
     if clean(direct):
         return str(direct).strip()
-    first = first_value(name, ["firstName"]) or first_value(as_dict(passenger.get("document")), ["firstName"])
+    first = first_value(name, ["firstName"]) or first_value(
+        as_dict(passenger.get("document")), ["firstName"]
+    )
     middle = first_value(name, ["middleName"])
-    last = first_value(name, ["lastName"]) or first_value(as_dict(passenger.get("document")), ["lastName"])
+    last = first_value(name, ["lastName"]) or first_value(
+        as_dict(passenger.get("document")), ["lastName"]
+    )
     parts = [last, first, middle]
     value = " ".join(str(part).strip() for part in parts if clean(part))
     return value or None
@@ -249,7 +288,10 @@ def collect_segments(air: dict[str, Any]) -> list[dict[str, Any]]:
             segment_obj = as_dict(segment)
             if not segment_obj:
                 continue
-            key = str(segment_obj.get("id") or f"{segment_obj.get('departureDate')}|{segment_obj.get('arrivalDate')}|{segment_obj.get('flightRph')}")
+            key = str(
+                segment_obj.get("id")
+                or f"{segment_obj.get('departureDate')}|{segment_obj.get('arrivalDate')}|{segment_obj.get('flightRph')}"
+            )
             if key in seen:
                 continue
             seen.add(key)
@@ -258,7 +300,9 @@ def collect_segments(air: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def airport_code(point: dict[str, Any]) -> str:
-    return str(first_value(point, ["code", "iata", "airportCode"]) or "").strip().upper()
+    return (
+        str(first_value(point, ["code", "iata", "airportCode"]) or "").strip().upper()
+    )
 
 
 def airport_city(point: dict[str, Any]) -> str | None:
@@ -273,7 +317,9 @@ def local_datetime(value: Any) -> str:
     return text[:16]
 
 
-def timezone_for(segment: dict[str, Any], field: str, airport: str, tz_map: dict[str, str]) -> str | None:
+def timezone_for(
+    segment: dict[str, Any], field: str, airport: str, tz_map: dict[str, str]
+) -> str | None:
     value = str(segment.get(field) or "").strip()
     if "/" in value:
         return value
@@ -281,18 +327,27 @@ def timezone_for(segment: dict[str, Any], field: str, airport: str, tz_map: dict
 
 
 def airline_code(airline: dict[str, Any]) -> str:
-    return str(first_value(airline, ["displayCode", "code", "iata"]) or "S7").strip().upper()
+    return (
+        str(first_value(airline, ["displayCode", "code", "iata"]) or "S7")
+        .strip()
+        .upper()
+    )
 
 
 def flight_number(segment: dict[str, Any]) -> str:
     marketing = as_dict(segment.get("marketingAirline"))
     operating = as_dict(segment.get("operatingAirline"))
-    raw = str(
-        first_value(marketing, ["flightNumber", "number"])
-        or first_value(operating, ["flightNumber", "number"])
-        or segment.get("flightRph")
-        or ""
-    ).strip().upper().replace(" ", "")
+    raw = (
+        str(
+            first_value(marketing, ["flightNumber", "number"])
+            or first_value(operating, ["flightNumber", "number"])
+            or segment.get("flightRph")
+            or ""
+        )
+        .strip()
+        .upper()
+        .replace(" ", "")
+    )
     if not raw:
         die("S7 segment has no flight number")
     if re.match(r"^[A-Z0-9]{2}\d+", raw):
@@ -302,7 +357,11 @@ def flight_number(segment: dict[str, Any]) -> str:
 
 def status_text(segment: dict[str, Any], air: dict[str, Any]) -> str:
     parts: list[str] = []
-    for value in [segment.get("status"), segment.get("supplierStatus"), air.get("status")]:
+    for value in [
+        segment.get("status"),
+        segment.get("supplierStatus"),
+        air.get("status"),
+    ]:
         if clean(value):
             text = str(value).strip()
             if text not in parts:
@@ -312,7 +371,9 @@ def status_text(segment: dict[str, Any], air: dict[str, Any]) -> str:
     return " / ".join(parts) if parts else "confirmed"
 
 
-def convert_to_itinerary(data: Any, tz_map: dict[str, str], booking_url: str | None = None) -> dict[str, Any]:
+def convert_to_itinerary(
+    data: Any, tz_map: dict[str, str], booking_url: str | None = None
+) -> dict[str, Any]:
     air = _air_from_payload(data)
     flights: list[dict[str, Any]] = []
     missing_tz: set[str] = set()
@@ -335,11 +396,19 @@ def convert_to_itinerary(data: Any, tz_map: dict[str, str], booking_url: str | N
         if not dep_code or not arr_code or not dep_local or not arr_local:
             die("S7 segment is missing route or local time fields")
 
-        departure: dict[str, Any] = {"airport": dep_code, "local": dep_local, "tz": dep_tz}
+        departure: dict[str, Any] = {
+            "airport": dep_code,
+            "local": dep_local,
+            "tz": dep_tz,
+        }
         dep_city = airport_city(dep_point)
         if dep_city:
             departure["city"] = dep_city
-        arrival: dict[str, Any] = {"airport": arr_code, "local": arr_local, "tz": arr_tz}
+        arrival: dict[str, Any] = {
+            "airport": arr_code,
+            "local": arr_local,
+            "tz": arr_tz,
+        }
         arr_city = airport_city(arr_point)
         if arr_city:
             arrival["city"] = arr_city
@@ -350,7 +419,9 @@ def convert_to_itinerary(data: Any, tz_map: dict[str, str], booking_url: str | N
             "arrival": arrival,
             "status": status_text(segment, air),
         }
-        aircraft_name = first_value(as_dict(segment.get("aircraft")), ["name", "title", "code"])
+        aircraft_name = first_value(
+            as_dict(segment.get("aircraft")), ["name", "title", "code"]
+        )
         if clean(aircraft_name):
             flight["aircraft"] = str(aircraft_name).strip()
         flights.append(flight)

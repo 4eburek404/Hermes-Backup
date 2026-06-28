@@ -29,7 +29,7 @@ Active provider set: `kupibilet` and `fli` via `adapters/providers/registry.py`.
 - `filters`: carrier include/exclude/prefer/avoid;
 - `output`: output and diagnostic limits.
 
-`apps/search.py::live_assembly_args_from_search_request` validates the schema and materializes defaults into an `argparse.Namespace`. Downstream code reads that normalized `args` plus typed pipeline decisions.
+`apps/search.py::live_assembly_options_from_search_request` validates the schema and materializes defaults into `LiveAssemblyOptions`. The downstream request pipeline reads typed `SearchRequest`, `FlowDecision`, and `EvidencePlan` fields; it does not depend on argparse-style compatibility dicts.
 
 **Output**: `flight_search_result.v1` from `apps/search.py::build_search_result`:
 
@@ -168,7 +168,7 @@ Strict direct-only request intent is `max_connections == 0` and `tier2_max_conne
 
 ## 9. All-direct output propagation
 
-`all_direct_inventory` prevents direct flights from being hidden by output caps.
+`all_direct_inventory` prevents direct flights from being hidden by output caps. A provider result from a `direct_outbound`/`direct_return` query is direct inventory only when the actual offer journey has one segment; connected offers returned by a direct-route provider query remain one-stop options.
 
 Current propagation:
 
@@ -188,8 +188,9 @@ Diagnosis for “direct flights missing from display” lives in `debug-playbook
 - `status`: counts, direct-priority flags, all-direct flag, omissions;
 - evidence fields: source boundaries, segment searches, provider failures, aggregate controls, coverage diagnostics, stop policy, through-fare checks, rejected pair warnings, direct flights;
 - frontier inputs: `recommended_options`, `priority_options`, `offer_graph`;
-- diagnostics: display fragments, answer lines, human-answer mirror;
-- `user_answer`: canonical `flight_search_user_answer.v3` with `rendered_text`.
+- diagnostics before canonical rendering: display fragments and answer lines;
+- `user_answer`: canonical `flight_search_user_answer.v3` with `rendered_text`;
+- diagnostics after canonical rendering: `human_answer` mirror copied from `user_answer.rendered_text`.
 
 Then:
 
@@ -197,7 +198,7 @@ Then:
 2. `project_agent_report` converts flat report to nested `agent_report.v2`: `route / evidence / frontier / user_answer / agent_guidance / diagnostics`.
 3. `services/agent_report.py::attach_agent_report` validates nested report against schema and semantic rules. Schema failures are `CliError(contract_error)`, not silent field drops.
 
-`diagnostics.human_answer.text` must mirror `user_answer.rendered_text` while it exists, but it is not an alternative final-prose source.
+`diagnostics.human_answer.text` is mirror-only diagnostic output: it must mirror `user_answer.rendered_text` while it exists and must not render or fallback independently.
 
 ## 11. Data artifact map
 
@@ -218,12 +219,12 @@ Then:
 These are maintenance/diagnostic surfaces, not normal traveler answers:
 
 - `search --request` — primary production search.
-- `diagnose plan` — segment plan only, no provider calls.
+- `diagnose plan --request` — segment plan only, no provider calls.
 - `diagnose probe` — one provider probe from JSON.
 - `diagnose render` — render diagnostics from an existing report.
 - `diagnose kb-search` / `diagnose kb-roundtrip` — narrow KupiBilet controls.
 - `diagnose fli-search` / `diagnose fli-dates` — narrow FLI controls.
-- `route plan|validate|rank|assemble` — offline/development stages.
+- `route validate|rank|assemble` — offline/development stages.
 - `maint check`, `maint doctor`, `maint catalog manifest|refresh` — readiness, source/runtime, static catalog maintenance.
 
 Do not use provider-specific diagnostics as the primary search path unless `search --request` is degraded and a narrower proof is needed.
