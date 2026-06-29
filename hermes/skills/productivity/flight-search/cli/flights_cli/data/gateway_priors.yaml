@@ -1,0 +1,50 @@
+schema_version: gateway_priors.v1
+markets:
+  ru_touching_western_europe:
+    - code: IST
+      prior_weight: 100
+      reason: Existing RU-touching western Europe primary gateway prior.
+      source: static_prior
+    - code: DXB
+      prior_weight: 40
+      reason: Existing RU-touching western Europe fallback gateway prior.
+      source: static_prior
+  ru_touching_asia_oceania:
+    - code: SVO
+      prior_weight: 100
+      reason: Existing Asia/Oceania SVO hub prior; Moscow control semantics remain separate.
+      source: static_prior
+    - code: IST
+      prior_weight: 80
+      reason: Existing Asia/Oceania IST fallback gateway prior.
+      source: static_prior
+    - code: DXB
+      prior_weight: 40
+      reason: Existing Asia/Oceania DXB fallback gateway prior.
+      source: static_prior
+  global_non_ru:
+    - code: IST
+      prior_weight: 70
+      reason: Built-in generic hub-list prior.
+      source: static_prior
+    - code: DXB
+      prior_weight: 60
+      reason: Built-in generic hub-list prior.
+      source: static_prior
+    - code: DOH
+      prior_weight: 55
+      reason: Built-in generic hub-list prior.
+      source: static_prior
+  domestic_ru:
+    - code: SVO
+      prior_weight: 70
+      reason: Domestic RU bounded airport fallback prior; not a Moscow visibility control.
+      source: static_prior
+    - code: DME
+      prior_weight: 60
+      reason: Domestic RU bounded airport fallback prior.
+      source: static_prior
+    - code: VKO
+      prior_weight: 50
+      reason: Domestic RU bounded airport fallback prior.
+      source: static_prior

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import CACHE_DIR, IATA_RE, SPECIAL_CITY_AIRPORTS
+from .domain.gateway_priors import GatewayPriorCatalog, load_gateway_priors
 from .errors import CliError
 
 
@@ -31,14 +32,18 @@ class Location:
 
 
 class Store:
-    def __init__(self, cache_dir: Path = CACHE_DIR):
+    def __init__(
+        self, cache_dir: Path = CACHE_DIR, *, gateway_priors_path: Path | None = None
+    ):
         self.cache_dir = cache_dir
+        self.gateway_priors_path = gateway_priors_path
         self._countries: list[dict[str, Any]] | None = None
         self._cities: list[dict[str, Any]] | None = None
         self._airports: list[dict[str, Any]] | None = None
         self._airlines: list[dict[str, Any]] | None = None
         self._alliances: list[dict[str, Any]] | None = None
         self._planes: list[dict[str, Any]] | None = None
+        self._gateway_prior_catalog: GatewayPriorCatalog | None = None
         self._city_by_code: dict[str, dict[str, Any]] | None = None
         self._airport_by_code: dict[str, dict[str, Any]] | None = None
         self._airline_by_code: dict[str, dict[str, Any]] | None = None
@@ -66,6 +71,15 @@ class Store:
         except (OSError, json.JSONDecodeError):
             return {}
         return data if isinstance(data, dict) else {}
+
+    @property
+    def gateway_prior_catalog(self) -> GatewayPriorCatalog:
+        if self._gateway_prior_catalog is None:
+            self._gateway_prior_catalog = load_gateway_priors(self.gateway_priors_path)
+        return self._gateway_prior_catalog
+
+    def gateway_priors_for_market(self, market_key: str) -> list[dict[str, Any]]:
+        return self.gateway_prior_catalog.for_market(market_key)
 
     @property
     def countries(self) -> list[dict[str, Any]]:

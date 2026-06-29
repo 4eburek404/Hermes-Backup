@@ -40,12 +40,24 @@ def airport_country_code(store: Store, code: str) -> str | None:
     return location_country_code(store, code)
 
 
-def is_ru_touching_segment(spec: dict[str, Any], store: Store) -> bool:
-    origin_country = airport_country_code(store, str(spec.get("origin") or ""))
-    destination_country = airport_country_code(
-        store, str(spec.get("destination") or "")
-    )
+def route_touches_ru(origin: Any, destination: Any, store: Store) -> bool:
+    origin_country = airport_country_code(store, str(origin or ""))
+    destination_country = airport_country_code(store, str(destination or ""))
     return "RU" in {origin_country, destination_country}
+
+
+def is_ru_touching_segment(spec: dict[str, Any], store: Store) -> bool:
+    return route_touches_ru(spec.get("origin"), spec.get("destination"), store)
+
+
+def _normalize_provider_policy(policy: str) -> str:
+    normalized_policy = str(policy or "auto").strip().lower()
+    if normalized_policy not in {"auto", "kupibilet", "fli", "both"}:
+        raise CliError(
+            "provider policy must be one of auto, kupibilet, fli, both",
+            error_type="validation_error",
+        )
+    return normalized_policy
 
 
 def _offer_query_probe_type(query: dict[str, Any]) -> ProbeType:
@@ -85,16 +97,11 @@ def _provider_supports_offer_market(
 def _offer_query_policy_candidates(
     query: dict[str, Any], store: Store, policy: str
 ) -> list[ProviderName]:
-    normalized_policy = str(policy or "auto").strip().lower()
+    normalized_policy = _normalize_provider_policy(policy)
     if normalized_policy in {"kupibilet", "fli"}:
         return [cast(ProviderName, normalized_policy)]
     if normalized_policy == "both":
         return list(PROVIDER_REGISTRY)
-    if normalized_policy != "auto":
-        raise CliError(
-            "provider policy must be one of auto, kupibilet, fli, both",
-            error_type="validation_error",
-        )
     if is_ru_touching_segment(query, store):
         return [
             name
@@ -106,6 +113,35 @@ def _offer_query_policy_candidates(
         for name, adapter in PROVIDER_REGISTRY.items()
         if adapter.capabilities.supports_global
     ]
+
+
+def providers_for_route_query(
+    query: dict[str, Any], store: Store, provider_policy: str
+) -> list[ProviderName]:
+    """Return route-level providers by market applicability, not probe capability."""
+
+    normalized_policy = _normalize_provider_policy(provider_policy)
+    touches_ru = route_touches_ru(
+        query.get("origin"), query.get("destination"), store
+    )
+    if normalized_policy == "auto":
+        return ["kupibilet"] if touches_ru else ["fli"]
+    if normalized_policy == "both":
+        return ["kupibilet"] if touches_ru else ["fli"]
+    if normalized_policy == "fli" and touches_ru:
+        return []
+    return [cast(ProviderName, normalized_policy)]
+
+
+def route_query_provider_skip_reasons(
+    query: dict[str, Any], store: Store, provider_policy: str
+) -> dict[ProviderName, str]:
+    normalized_policy = _normalize_provider_policy(provider_policy)
+    if not route_touches_ru(query.get("origin"), query.get("destination"), store):
+        return {}
+    if normalized_policy in {"both", "fli"}:
+        return {"fli": "route_touches_ru"}
+    return {}
 
 
 def providers_for_offer_query(
@@ -171,16 +207,11 @@ def provider_adapter(
 def providers_for_segment(
     spec: dict[str, Any], store: Store, policy: str
 ) -> list[ProviderName]:
-    normalized_policy = str(policy or "auto").strip().lower()
+    normalized_policy = _normalize_provider_policy(policy)
     if normalized_policy in {"kupibilet", "fli"}:
         return [cast(ProviderName, provider_adapter(normalized_policy).name)]
     if normalized_policy == "both":
         return ["kupibilet", "fli"]
-    if normalized_policy != "auto":
-        raise CliError(
-            "provider policy must be one of auto, kupibilet, fli, both",
-            error_type="validation_error",
-        )
     if is_ru_touching_segment(spec, store):
         return ["kupibilet"]
     return ["fli"]
@@ -240,6 +271,9 @@ __all__ = [
     "provider_adapter",
     "provider_adapters_for_segment",
     "providers_for_offer_query",
+    "providers_for_route_query",
     "providers_for_segment",
+    "route_query_provider_skip_reasons",
+    "route_touches_ru",
     "unsupported_providers_for_offer_query",
 ]

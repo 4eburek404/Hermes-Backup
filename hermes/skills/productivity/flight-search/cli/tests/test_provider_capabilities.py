@@ -10,7 +10,10 @@ from flights_cli.adapters.providers.registry import (
     provider_adapter,
     provider_adapters_for_segment,
     providers_for_offer_query,
+    providers_for_route_query,
     providers_for_segment,
+    route_query_provider_skip_reasons,
+    route_touches_ru,
 )
 from flights_cli.adapters.providers.common import (
     evidence_type_for_offer_count,
@@ -143,6 +146,52 @@ class ProviderCapabilitiesTests(unittest.TestCase):
                 "auto",
             ),
             ["kupibilet"],
+        )
+
+    def test_route_query_routing_reuses_ru_touching_market_boundary(self) -> None:
+        store = store_with_airports(self)
+
+        ru_route = {
+            "probe_type": "full_route_aggregate",
+            "origin": "SVX",
+            "destination": "CDG",
+        }
+        non_ru_route = {
+            "probe_type": "full_route_aggregate",
+            "origin": "IST",
+            "destination": "LHR",
+        }
+
+        self.assertTrue(route_touches_ru("SVX", "CDG", store))
+        self.assertFalse(route_touches_ru("IST", "LHR", store))
+        self.assertEqual(
+            providers_for_route_query(ru_route, store, "auto"), ["kupibilet"]
+        )
+        self.assertEqual(
+            providers_for_route_query(ru_route, store, "both"), ["kupibilet"]
+        )
+        self.assertEqual(providers_for_route_query(ru_route, store, "fli"), [])
+        self.assertEqual(
+            route_query_provider_skip_reasons(ru_route, store, "both"),
+            {"fli": "route_touches_ru"},
+        )
+        self.assertEqual(providers_for_route_query(non_ru_route, store, "auto"), ["fli"])
+        self.assertEqual(providers_for_route_query(non_ru_route, store, "both"), ["fli"])
+
+    def test_gateway_segments_follow_existing_ru_non_ru_provider_split(self) -> None:
+        store = store_with_airports(self)
+
+        self.assertEqual(
+            providers_for_segment(
+                {"origin": "SVX", "destination": "IST"}, store, "auto"
+            ),
+            ["kupibilet"],
+        )
+        self.assertEqual(
+            providers_for_segment(
+                {"origin": "IST", "destination": "LHR"}, store, "auto"
+            ),
+            ["fli"],
         )
 
     def test_unsupported_probe_result_is_explicit_not_supported_evidence(self) -> None:

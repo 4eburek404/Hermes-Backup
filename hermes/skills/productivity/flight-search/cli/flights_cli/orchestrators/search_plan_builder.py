@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from ..adapters.providers.registry import provider_adapter
+from ..adapters.providers.registry import providers_for_route_query
 from ..domain.vocabulary import RequiredControl
 from ..pipeline.options import LiveAssemblyOptions
 from ..pipeline.search_pipeline import LiveRouteSearchFlow, build_live_route_search_flow
@@ -105,14 +105,14 @@ class SearchPlanBuilder:
         )
 
     def _provider_names_for_primary_offers(
-        self, flow: LiveRouteSearchFlow
+        self, flow: LiveRouteSearchFlow, query: dict[str, Any]
     ) -> list[str]:
-        policy = str(flow.evidence_plan.provider_policy or "auto").strip().lower()
-        if policy == "both":
-            return ["kupibilet", "fli"]
-        if policy in {"kupibilet", "fli"}:
-            return [policy]
-        return [str(flow.flow_decision.provider_plan.get("default_provider") or "")]
+        return [
+            str(provider)
+            for provider in providers_for_route_query(
+                query, self._store, flow.evidence_plan.provider_policy
+            )
+        ]
 
     def _primary_offer_queries(
         self, flow: LiveRouteSearchFlow, fallback_route_plan: dict[str, Any]
@@ -133,20 +133,25 @@ class SearchPlanBuilder:
             self._store, origin, destination
         )
 
+        route_query: dict[str, Any] = {
+            "probe_type": RequiredControl.FULL_ROUTE_AGGREGATE,
+            "origin": origin,
+            "destination": destination,
+            "direct_only": False,
+        }
         queries: list[dict[str, Any]] = []
         seen: set[str] = set()
-        for provider_name in self._provider_names_for_primary_offers(flow):
+        for provider_name in self._provider_names_for_primary_offers(
+            flow, route_query
+        ):
             if not provider_name or provider_name in seen:
                 continue
             seen.add(provider_name)
-            adapter = provider_adapter(provider_name, store=self._store)
-            if not adapter.capabilities.supports_full_route_aggregate:
-                continue
             query: dict[str, Any] = {
                 "role": "primary_offer_collection",
                 "source_type": "provider_full_route",
                 "probe_type": RequiredControl.FULL_ROUTE_AGGREGATE,
-                "provider": adapter.name,
+                "provider": provider_name,
                 "direction": "outbound",
                 "origin": origin,
                 "destination": destination,

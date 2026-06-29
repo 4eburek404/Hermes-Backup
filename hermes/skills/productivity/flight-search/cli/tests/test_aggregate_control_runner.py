@@ -86,7 +86,7 @@ class FakeKupibiletAggregateAdapter:
 
 
 class AggregateControlRunnerTests(unittest.TestCase):
-    def test_fli_policy_aggregate_is_terminal_not_supported_ledger_bucket(
+    def test_fli_policy_ru_touching_aggregate_is_skipped_by_route_boundary(
         self,
     ) -> None:
         plan = {
@@ -108,12 +108,14 @@ class AggregateControlRunnerTests(unittest.TestCase):
             {"coverage_mode": "targeted", "coverage_limits": {}}
         )
         self.assertEqual(len(controls), 1)
-        self.assertEqual(controls[0]["status"], "not_supported")
+        self.assertEqual(controls[0]["status"], "skipped")
         self.assertEqual(controls[0]["provider"], "fli")
+        self.assertEqual(controls[0]["reason"], "route_touches_ru")
         self.assertEqual(
-            [item["type"] for item in diagnostics["not_supported_controls"]],
+            [item["type"] for item in diagnostics["skipped_controls"]],
             ["full_route_aggregate"],
         )
+        self.assertEqual(diagnostics["not_supported_controls"], [])
         self.assertEqual(diagnostics["not_executed_controls"], [])
         self.assertEqual(
             diagnostics["completeness"]["planned_count"],
@@ -152,30 +154,25 @@ class AggregateControlRunnerTests(unittest.TestCase):
         self.assertEqual(controls[0]["status"], "ok")
         self.assertEqual(len(adapter.aggregate_queries), 1)
 
-    def test_auto_policy_uses_capable_provider_for_offer_aggregate(self) -> None:
+    def test_auto_policy_routes_non_ru_aggregate_to_fli_not_supported(self) -> None:
         plan = {
             "origin": "IST",
             "destination": "LHR",
             "dates": {"depart": "2026-08-16", "return": None},
             "currency": "RUB",
         }
-        adapter = FakeKupibiletAggregateAdapter()
 
-        with patch(
-            "flights_cli.execution.aggregate_control_runner.provider_adapter",
-            return_value=adapter,
-        ):
-            controls = run_aggregate_controls(
-                aggregate_options(provider_policy="auto"),
-                plan,
-                store=store_with_airports(self),
-            )
+        controls = run_aggregate_controls(
+            aggregate_options(provider_policy="auto"),
+            plan,
+            store=store_with_airports(self),
+        )
 
         self.assertEqual(len(controls), 1)
-        self.assertEqual(controls[0]["provider"], "kupibilet")
-        self.assertEqual(adapter.aggregate_queries[0]["probe_type"], "full_route_aggregate")
+        self.assertEqual(controls[0]["provider"], "fli")
+        self.assertEqual(controls[0]["status"], "not_supported")
 
-    def test_both_policy_records_unsupported_provider_boundary(self) -> None:
+    def test_both_policy_skips_fli_for_ru_touching_route(self) -> None:
         plan = {
             "origin": "SVX",
             "destination": "CDG",
@@ -205,12 +202,32 @@ class AggregateControlRunnerTests(unittest.TestCase):
             {"coverage_mode": "targeted", "coverage_limits": {}}
         )
         self.assertEqual([control["provider"] for control in controls], ["kupibilet", "fli"])
-        self.assertEqual([control["status"] for control in controls], ["ok", "not_supported"])
+        self.assertEqual([control["status"] for control in controls], ["ok", "skipped"])
+        self.assertEqual(controls[1]["reason"], "route_touches_ru")
         self.assertEqual(
-            [item["provider"] for item in diagnostics["not_supported_controls"]],
+            [item["provider"] for item in diagnostics["skipped_controls"]],
             ["fli"],
         )
+        self.assertEqual(diagnostics["not_supported_controls"], [])
         self.assertEqual(diagnostics["not_executed_controls"], [])
+
+    def test_both_policy_routes_non_ru_aggregate_to_fli(self) -> None:
+        plan = {
+            "origin": "IST",
+            "destination": "LHR",
+            "dates": {"depart": "2026-08-16", "return": None},
+            "currency": "RUB",
+        }
+
+        controls = run_aggregate_controls(
+            aggregate_options(provider_policy="both"),
+            plan,
+            store=store_with_airports(self),
+        )
+
+        self.assertEqual(len(controls), 1)
+        self.assertEqual(controls[0]["provider"], "fli")
+        self.assertEqual(controls[0]["status"], "not_supported")
 
 
 if __name__ == "__main__":

@@ -4,10 +4,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..adapters.providers.registry import (
-    not_supported_probe_result,
     provider_adapter,
-    providers_for_offer_query,
-    unsupported_providers_for_offer_query,
+    providers_for_route_query,
+    route_query_provider_skip_reasons,
 )
 from ..config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
 from ..domain.normalize import normalize_carrier_code
@@ -58,6 +57,33 @@ def _control_from_not_supported(
     }
 
 
+def _control_from_skipped(
+    *,
+    provider: ProviderName,
+    reason: str,
+    direction: str,
+    origin: str,
+    destination: str,
+    date_text: str,
+    carriers: list[str],
+) -> dict[str, Any]:
+    return {
+        "direction": direction,
+        "origin": origin,
+        "destination": destination,
+        "date": date_text,
+        "status": "skipped",
+        "provider": provider,
+        "filters": {"direct_only": False, "only_carriers": carriers},
+        "offer_count": 0,
+        "raw_offer_count": 0,
+        "suppressed_three_plus_count": 0,
+        "suppressed_airport_change_count": 0,
+        "cache_status": "unknown",
+        "reason": reason,
+    }
+
+
 def _aggregate_probe_type(carriers: list[str]) -> ProbeType:
     return "carrier_aggregate" if carriers else "full_route_aggregate"
 
@@ -72,19 +98,6 @@ def _aggregate_probe_id(
     carriers: list[str],
 ) -> str:
     return f"aggregate:{provider}:{direction}:{origin}-{destination}:{date_text}:{','.join(carriers) or 'all'}"
-
-
-def _unsupported_provider_boundaries(
-    query: dict[str, Any], store: Store, provider_policy: str
-) -> list[ProviderName]:
-    normalized_policy = str(provider_policy or "auto").strip().lower()
-    if normalized_policy not in {"kupibilet", "fli", "both"}:
-        return []
-    return unsupported_providers_for_offer_query(query, store, normalized_policy)
-
-
-def _unsupported_reason(provider: ProviderName, probe_type: ProbeType) -> str:
-    return f"{provider} does not support {probe_type} probes"
 
 
 def run_aggregate_controls(
@@ -153,10 +166,10 @@ def run_aggregate_controls(
                 "cache_ttl_seconds": cache_ttl_seconds,
                 "use_cache": use_live_cache,
             }
-            provider_names = providers_for_offer_query(
+            provider_names = providers_for_route_query(
                 base_query, active_store, options.provider_policy
             )
-            unsupported_provider_names = _unsupported_provider_boundaries(
+            skipped_provider_reasons = route_query_provider_skip_reasons(
                 base_query, active_store, options.provider_policy
             )
 
@@ -226,7 +239,7 @@ def run_aggregate_controls(
                     continue
                 controls.append(dict(result.result_summary))
 
-            for provider_name in unsupported_provider_names:
+            for provider_name, reason in skipped_provider_reasons.items():
                 query = {
                     **base_query,
                     "provider": provider_name,
@@ -242,18 +255,12 @@ def run_aggregate_controls(
                 intent = intent_from_aggregate_query(query, provider=provider_name)
                 if probe_ledger is not None:
                     probe_ledger.plan_intents([intent])
-                result = not_supported_probe_result(
-                    provider=provider_name,
-                    probe_type=probe_type,
-                    query=query,
-                    reason=_unsupported_reason(provider_name, probe_type),
-                    probe_id=str(query["probe_id"]),
-                )
                 if probe_ledger is not None:
-                    probe_ledger.record_provider_result(intent, result)
+                    probe_ledger.record_skipped(intent, reason=reason)
                 controls.append(
-                    _control_from_not_supported(
-                        result,
+                    _control_from_skipped(
+                        provider=provider_name,
+                        reason=reason,
                         direction=direction,
                         origin=origin,
                         destination=destination,

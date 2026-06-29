@@ -104,6 +104,34 @@ class SearchPlanContractTests(unittest.TestCase):
             ],
         )
 
+    def test_builder_keeps_fli_out_of_both_policy_for_ru_touching_route(
+        self,
+    ) -> None:
+        store = Store()
+        options = live_assembly_args(
+            origin="SVX",
+            destination="AMS",
+            depart_date="2026-08-15",
+            return_date=None,
+            provider_policy="both",
+            routing_strategy="hub-list",
+            hub=["IST"],
+            no_live_cache=True,
+            no_direct_route_intel=True,
+        )
+        flow = build_live_route_search_flow(options, store)
+        route_plan = build_live_route_segment_plan(options, store, flow=flow)
+
+        search_plan = build_search_plan(
+            options, store, flow=flow, fallback_route_plan=route_plan
+        )
+
+        validate_contract_payload("search_plan", search_plan)
+        self.assertEqual(
+            [query["provider"] for query in search_plan["primary_offer_queries"]],
+            ["kupibilet"],
+        )
+
     def test_builder_does_not_add_primary_aggregate_for_direct_inventory(
         self,
     ) -> None:
@@ -151,18 +179,17 @@ class SearchPlanContractTests(unittest.TestCase):
                     )
                 )
 
-    def test_builder_skips_primary_aggregate_when_provider_lacks_support(
+    def test_builder_plans_non_ru_primary_route_with_fli_provider(
         self,
     ) -> None:
         store = Store()
         options = live_assembly_args(
             origin="IST",
-            destination="LHR",
+            destination="AMS",
             depart_date="2026-08-15",
             return_date=None,
-            provider_policy="fli",
             routing_strategy="hub-list",
-            hub=["AMS"],
+            hub=["LHR"],
             no_live_cache=True,
             no_direct_route_intel=True,
         )
@@ -174,7 +201,25 @@ class SearchPlanContractTests(unittest.TestCase):
         )
 
         validate_contract_payload("search_plan", search_plan)
-        self.assertEqual(search_plan["primary_offer_queries"], [])
+        self.assertEqual(
+            search_plan["primary_offer_queries"],
+            [
+                {
+                    "role": "primary_offer_collection",
+                    "source_type": "provider_full_route",
+                    "probe_type": "full_route_aggregate",
+                    "provider": "fli",
+                    "direction": "outbound",
+                    "origin": "IST",
+                    "destination": "AMS",
+                    "date": "2026-08-15",
+                    "currency": "RUB",
+                    "direct_only": False,
+                    "limit": 10,
+                    "execution_state": "not_executed",
+                }
+            ],
+        )
         self.assertEqual(search_plan["coverage_expectations"], [])
         self.assertEqual(
             search_plan["fallback_segment_plan"]["segments"], route_plan["segments"]
