@@ -170,6 +170,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                     "currency": "RUB",
                     "direct_only": False,
                     "limit": 10,
+                    "route_family": "ru_to_western_europe_bridge",
                 }
             ],
             "mandatory_controls": [],
@@ -180,10 +181,20 @@ class LiveRoutePipelineTests(unittest.TestCase):
         primary_results = [
             {
                 "role": "primary_offer_collection",
+                "source_type": "provider_full_route",
                 "provider": "kupibilet",
                 "status": "ok",
                 "execution_state": "searched",
                 "offer_count": 1,
+                "top_offers": [
+                    {
+                        "id": "kb-through-1",
+                        "segments": [
+                            {"origin": "SVX", "destination": "IST"},
+                            {"origin": "IST", "destination": "CDG"},
+                        ],
+                    }
+                ],
             }
         ]
 
@@ -238,6 +249,13 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertEqual(
             result["live_search"]["diagnostics"]["primary_offer_results"],
             primary_results,
+        )
+        gateway_discovery = result["live_search"]["diagnostics"]["gateway_discovery"]
+        self.assertEqual(gateway_discovery["market"], "ru_to_western_europe_bridge")
+        self.assertEqual(gateway_discovery["candidates"][0]["code"], "IST")
+        self.assertEqual(
+            [signal["source"] for signal in gateway_discovery["candidates"][0]["signals"]],
+            ["static_prior", "provider_returned_route"],
         )
 
 

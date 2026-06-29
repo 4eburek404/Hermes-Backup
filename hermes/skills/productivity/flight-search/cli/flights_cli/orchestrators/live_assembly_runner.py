@@ -7,6 +7,7 @@ from ..config import (
     KUPIBILET_CITY_CODE_FIRST_AIRPORTS,
     PRIORITY_SECONDARY_HUB,
 )
+from ..domain.gateway_discovery import GatewayDiscoveryService
 from ..domain.normalize import normalize_carrier_code
 from ..domain.vocabulary import (
     Direction,
@@ -325,6 +326,16 @@ def hub_viability_summary(
             item["hub"],
         ),
     )
+
+
+def gateway_discovery_market_key(state: "LiveAssemblyState") -> str:
+    for query in state.search_plan.get("primary_offer_queries") or []:
+        if isinstance(query, dict) and query.get("route_family"):
+            return str(query.get("route_family") or "")
+    for family in state.plan.get("route_families") or []:
+        if isinstance(family, dict) and family.get("id"):
+            return str(family.get("id") or "")
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -821,6 +832,12 @@ class LiveSearchResultBuilder:
         if self.provider_policy != "kupibilet":
             source_label = "Provider-policy live segment assembly"
             note = "Kupibilet is used for Russia-touching segments; FLI MCP is used for non-Russia segments under auto policy. Recheck price/seat availability before purchase."
+        gateway_discovery_diagnostics: dict[str, Any] = {}
+        GatewayDiscoveryService(self.store).discover(
+            gateway_discovery_market_key(state),
+            primary_offer_results=state.primary_offer_results,
+            diagnostics=gateway_discovery_diagnostics,
+        )
         assembled["live_search"] = {
             "source": source_label,
             "provider_policy": self.provider_policy,
@@ -837,6 +854,7 @@ class LiveSearchResultBuilder:
             "diagnostics": {
                 "search_plan": state.search_plan,
                 "primary_offer_results": state.primary_offer_results,
+                "gateway_discovery": gateway_discovery_diagnostics,
             },
             "failure_count": len(state.failures),
             "failures": state.failures,
