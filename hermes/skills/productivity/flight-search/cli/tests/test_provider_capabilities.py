@@ -9,6 +9,7 @@ from flights_cli.adapters.providers.registry import (
     not_supported_probe_result,
     provider_adapter,
     provider_adapters_for_segment,
+    providers_for_offer_query,
     providers_for_segment,
 )
 from flights_cli.adapters.providers.common import (
@@ -31,6 +32,7 @@ def store_with_airports(test_case: unittest.TestCase) -> Store:
         """
         [
           {"code": "SVX", "country_code": "RU", "flightable": true},
+          {"code": "CDG", "country_code": "FR", "flightable": true},
           {"code": "IST", "country_code": "TR", "flightable": true},
           {"code": "LHR", "country_code": "GB", "flightable": true}
         ]
@@ -100,6 +102,47 @@ class ProviderCapabilitiesTests(unittest.TestCase):
                 {"origin": "IST", "destination": "LHR"}, store, "both"
             ),
             ["kupibilet", "fli"],
+        )
+
+    def test_offer_query_policy_uses_full_route_aggregate_capabilities(self) -> None:
+        store = store_with_airports(self)
+        query = {
+            "probe_type": "full_route_aggregate",
+            "origin": "SVX",
+            "destination": "CDG",
+            "direct_only": False,
+        }
+
+        self.assertEqual(providers_for_offer_query(query, store, "kupibilet"), ["kupibilet"])
+        self.assertEqual(providers_for_offer_query(query, store, "fli"), [])
+        self.assertEqual(providers_for_offer_query(query, store, "both"), ["kupibilet"])
+
+    def test_auto_offer_query_uses_market_and_capability_routing(self) -> None:
+        store = store_with_airports(self)
+
+        self.assertEqual(
+            providers_for_offer_query(
+                {
+                    "probe_type": "full_route_aggregate",
+                    "origin": "SVX",
+                    "destination": "CDG",
+                },
+                store,
+                "auto",
+            ),
+            ["kupibilet"],
+        )
+        self.assertEqual(
+            providers_for_offer_query(
+                {
+                    "probe_type": "full_route_aggregate",
+                    "origin": "IST",
+                    "destination": "LHR",
+                },
+                store,
+                "auto",
+            ),
+            ["kupibilet"],
         )
 
     def test_unsupported_probe_result_is_explicit_not_supported_evidence(self) -> None:

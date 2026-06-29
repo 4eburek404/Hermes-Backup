@@ -803,6 +803,7 @@ class LiveSearchResultBuilder:
             state.plan,
             kupibilet_fetcher=fetch_kupibilet_search,
             probe_ledger=state.probe_ledger,
+            store=self.store,
         )
         for control in state.plan.get("coverage_controls") or []:
             if isinstance(control, dict) and control.get("type") == "city_pair_direct":

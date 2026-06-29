@@ -6,6 +6,7 @@ from ...errors import CliError
 from ...ports.providers import (
     FlightProviderPort,
     ProbeType,
+    ProviderCapabilities,
     ProviderName,
     ProviderProbeResult,
 )
@@ -45,6 +46,89 @@ def is_ru_touching_segment(spec: dict[str, Any], store: Store) -> bool:
         store, str(spec.get("destination") or "")
     )
     return "RU" in {origin_country, destination_country}
+
+
+def _offer_query_probe_type(query: dict[str, Any]) -> ProbeType:
+    probe_type = str(query.get("probe_type") or "")
+    if probe_type in {"full_route_aggregate", "carrier_aggregate"}:
+        return cast(ProbeType, probe_type)
+    if query.get("only_carriers"):
+        return "carrier_aggregate"
+    return "full_route_aggregate"
+
+
+def _provider_supports_offer_query(
+    provider: ProviderName, query: dict[str, Any], store: Store
+) -> bool:
+    capabilities = PROVIDER_REGISTRY[provider].capabilities
+    probe_type = _offer_query_probe_type(query)
+    if probe_type not in capabilities.probe_types:
+        return False
+    if probe_type in {"full_route_aggregate", "carrier_aggregate"}:
+        if not capabilities.supports_full_route_aggregate:
+            return False
+    if probe_type == "carrier_aggregate" and not capabilities.supports_carrier_filter:
+        return False
+    if bool(query.get("direct_only")) and not capabilities.supports_direct_only:
+        return False
+    return _provider_supports_offer_market(capabilities, query, store)
+
+
+def _provider_supports_offer_market(
+    capabilities: ProviderCapabilities, query: dict[str, Any], store: Store
+) -> bool:
+    if is_ru_touching_segment(query, store):
+        return capabilities.supports_ru_touching
+    return capabilities.supports_global
+
+
+def _offer_query_policy_candidates(
+    query: dict[str, Any], store: Store, policy: str
+) -> list[ProviderName]:
+    normalized_policy = str(policy or "auto").strip().lower()
+    if normalized_policy in {"kupibilet", "fli"}:
+        return [cast(ProviderName, normalized_policy)]
+    if normalized_policy == "both":
+        return list(PROVIDER_REGISTRY)
+    if normalized_policy != "auto":
+        raise CliError(
+            "provider policy must be one of auto, kupibilet, fli, both",
+            error_type="validation_error",
+        )
+    if is_ru_touching_segment(query, store):
+        return [
+            name
+            for name, adapter in PROVIDER_REGISTRY.items()
+            if adapter.capabilities.supports_ru_touching
+        ]
+    return [
+        name
+        for name, adapter in PROVIDER_REGISTRY.items()
+        if adapter.capabilities.supports_global
+    ]
+
+
+def providers_for_offer_query(
+    query: dict[str, Any], store: Store, provider_policy: str
+) -> list[ProviderName]:
+    """Return providers capable of running the requested full-route offer probe."""
+
+    return [
+        provider
+        for provider in _offer_query_policy_candidates(query, store, provider_policy)
+        if _provider_supports_offer_query(provider, query, store)
+    ]
+
+
+def unsupported_providers_for_offer_query(
+    query: dict[str, Any], store: Store, provider_policy: str
+) -> list[ProviderName]:
+    supported = set(providers_for_offer_query(query, store, provider_policy))
+    return [
+        provider
+        for provider in _offer_query_policy_candidates(query, store, provider_policy)
+        if provider not in supported
+    ]
 
 
 def provider_adapter(
@@ -155,5 +239,7 @@ __all__ = [
     "not_supported_probe_result",
     "provider_adapter",
     "provider_adapters_for_segment",
+    "providers_for_offer_query",
     "providers_for_segment",
+    "unsupported_providers_for_offer_query",
 ]
