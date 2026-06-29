@@ -74,42 +74,56 @@ def candidate_options_from_details(
             else {}
         )
         detail_status = "full" if segments else "missing"
-        options.append(
-            {
-                "rank": ranked.get("rank") or detail.get("rank"),
-                "id": ranked.get("id") or candidate.get("id"),
-                "category": detail.get("category"),
-                "reason": detail.get("reason"),
-                "detail_status": detail.get("detail_status") or detail_status,
-                "ok": ranked.get("ok"),
-                "price": {
-                    "amount": ranked.get("price"),
-                    "currency": ranked.get("currency"),
-                },
-                "price_text": price_label(ranked.get("price"), ranked.get("currency")),
-                "elapsed_min": ranked.get("elapsed_min"),
-                "elapsed": minutes_label(ranked.get("elapsed_min")),
-                "carriers": ranked.get("carriers") or [],
-                "risk": {
-                    "score": risk.get("score"),
-                    "grade": risk.get("grade"),
-                    "reject": risk.get("reject"),
-                    "top_reasons": risk.get("top_reasons") or [],
-                },
-                "validation_summary": ranked.get("validation_summary"),
-                "stop_tier": validation_summary.get("stop_tier"),
-                "max_connections_per_journey": validation_summary.get(
-                    "max_connections_per_journey"
-                ),
-                "connections": [
-                    connection_summary(item)
-                    for item in ranked.get("connections") or []
-                    if isinstance(item, dict)
-                ],
-                "segments": segments,
-                "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage.",
-            }
-        )
+        option = {
+            "rank": ranked.get("rank") or detail.get("rank"),
+            "id": ranked.get("id") or candidate.get("id"),
+            "category": detail.get("category"),
+            "reason": detail.get("reason"),
+            "detail_status": detail.get("detail_status") or detail_status,
+            "ok": ranked.get("ok"),
+            "price": {
+                "amount": ranked.get("price"),
+                "currency": ranked.get("currency"),
+            },
+            "price_text": price_label(ranked.get("price"), ranked.get("currency")),
+            "elapsed_min": ranked.get("elapsed_min"),
+            "elapsed": minutes_label(ranked.get("elapsed_min")),
+            "carriers": ranked.get("carriers") or [],
+            "risk": {
+                "score": risk.get("score"),
+                "grade": risk.get("grade"),
+                "reject": risk.get("reject"),
+                "top_reasons": risk.get("top_reasons") or [],
+            },
+            "validation_summary": ranked.get("validation_summary"),
+            "stop_tier": validation_summary.get("stop_tier"),
+            "max_connections_per_journey": validation_summary.get(
+                "max_connections_per_journey"
+            ),
+            "connections": [
+                connection_summary(item)
+                for item in ranked.get("connections") or []
+                if isinstance(item, dict)
+            ],
+            "segments": segments,
+            "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage.",
+        }
+        for key in (
+            "source_type",
+            "provider",
+            "source_providers",
+            "gateway",
+            "covers_requested_trip",
+            "journey_scope",
+            "price_basis",
+            "ticketing_model",
+            "warnings",
+            "selection_reasons",
+            "evidence_sources",
+        ):
+            if key in candidate:
+                option[key] = candidate.get(key)
+        options.append(option)
     return options
 
 

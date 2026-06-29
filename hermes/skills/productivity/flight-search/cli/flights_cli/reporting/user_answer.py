@@ -10,6 +10,7 @@ from jsonschema import Draft202012Validator
 
 from ..contracts.registry import current_contract
 from ..contracts.schema_errors import validation_error_detail
+from ..domain.vocabulary import RouteFamily
 
 from ..errors import CliError
 from .catalog_order import ordered_user_options
@@ -50,6 +51,127 @@ def is_provider_aggregate_option(option: dict[str, Any]) -> bool:
     return str(option.get("category") or "") == "provider_aggregate_candidate" or str(
         option.get("id") or ""
     ).startswith("provider-aggregate:")
+
+
+def option_source_type(option: dict[str, Any]) -> str | None:
+    source_type = str(option.get("source_type") or "").strip()
+    if source_type:
+        return source_type
+    if is_provider_aggregate_option(option):
+        return "provider_full_route"
+    return None
+
+
+def option_provider_labels(option: dict[str, Any]) -> list[str]:
+    raw = option.get("source_providers")
+    providers: list[str] = []
+    if isinstance(raw, list):
+        providers.extend(str(item).strip() for item in raw if str(item).strip())
+    provider = str(option.get("provider") or "").strip()
+    if provider:
+        providers.append(provider)
+    return list(dict.fromkeys(providers))
+
+
+def provider_label(option: dict[str, Any]) -> str:
+    providers = option_provider_labels(option)
+    return " + ".join(providers) if providers else "поставщика"
+
+
+def canonical_ticketing_model(
+    option: dict[str, Any], *, provider_aggregate: bool
+) -> str:
+    raw = str(option.get("ticketing_model") or "").strip()
+    if raw in (
+        "single_ticket_proven",
+        "provider_aggregate",
+        "separate_one_way_offers",
+        "separate_segments",
+        "unknown",
+    ):
+        return raw
+    if raw in ("provider_order_unverified", "provider_offer_unverified"):
+        return "provider_aggregate"
+    if raw in ("separate_ticket_sum", "gateway_separate_ticket"):
+        return "separate_segments"
+    if raw == "metasearch_redirect_unknown":
+        return "unknown"
+    if provider_aggregate:
+        return "provider_aggregate"
+    return "separate_segments"
+
+
+def source_ticketing_note(
+    option: dict[str, Any],
+    *,
+    journey_scope: str,
+    ticketing_model: str,
+    max_connections: int,
+) -> str:
+    source_type = option_source_type(option)
+    raw_ticketing = str(option.get("ticketing_model") or "").strip()
+    price_basis = str(option.get("price_basis") or "").strip()
+    provider = provider_label(option)
+    gateway = str(option.get("gateway") or "").strip()
+    has_fli_source = any(
+        item.lower() == "fli" for item in option_provider_labels(option)
+    )
+
+    if journey_scope == "two_one_way_pair" or ticketing_model == "separate_one_way_offers":
+        return (
+            "источник: две отдельные one-way выдачи; "
+            "цена - сумма отдельных one-way; "
+            "единый PNR, сквозной багаж и защищённый round-trip не подтверждены"
+        )
+
+    if source_type == "gateway_separate_ticket" or raw_ticketing == "separate_ticket_sum":
+        gateway_text = f" через {gateway}" if gateway else ""
+        provider_text = (
+            f" ({provider}; FLI/metasearch для non-RU плеча)"
+            if has_fli_source
+            else f" ({provider})"
+        )
+        return (
+            f"источник: separate-ticket сборка{gateway_text}{provider_text}; "
+            "цена - сумма отдельных плеч; "
+            "единый PNR, сквозной багаж и защита пересадки не подтверждены"
+        )
+
+    if raw_ticketing == "metasearch_redirect_unknown" or (
+        has_fli_source and source_type != "provider_full_route"
+    ):
+        return (
+            f"источник: FLI/metasearch для non-RU плеча ({provider}); "
+            "финальный тариф и ticketing проверить у redirect-поставщика"
+        )
+
+    if source_type == "provider_full_route" or is_provider_aggregate_option(option):
+        price_text = (
+            "цена поставщика"
+            if price_basis in ("", "provider_offer_price")
+            else "цену проверить у поставщика"
+        )
+        return (
+            f"источник: полный маршрут от {provider}; {price_text}; "
+            "единый PNR, сквозной багаж и защита пересадки не подтверждены"
+        )
+
+    if source_type == RouteFamily.DIRECT_INVENTORY or max_connections == 0:
+        return (
+            f"источник: прямой инвентарь ({provider}); "
+            "финальный тариф и багаж проверить на booking screen"
+        )
+
+    if source_type == "assembled_separate_ticket" or ticketing_model == "separate_segments":
+        return (
+            f"источник: сборка отдельных live-плеч ({provider}); "
+            "единый PNR, сквозной багаж и защита пересадки не подтверждены"
+        )
+
+    return (
+        f"источник: {provider}; "
+        "ticketing/protection, багаж и финальный тариф проверить на booking screen"
+    )
 
 
 def route_label(option: dict[str, Any]) -> str:
@@ -158,9 +280,8 @@ def option_summary(
             "return_only",
         )
     composed_of_directional_offers = bool(option.get("composed_of_directional_offers"))
-    ticketing_model = str(
-        option.get("ticketing_model")
-        or ("provider_aggregate" if provider_aggregate else "separate_segments")
+    ticketing_model = canonical_ticketing_model(
+        option, provider_aggregate=provider_aggregate
     )
     user_facing_label = str(
         option.get("user_facing_label")
@@ -707,6 +828,16 @@ def agent_display_lines_for_item(item: dict[str, Any]) -> list[str]:
     price_line = catalog_price_for_agent_display(
         item["total_price"] if isinstance(item.get("total_price"), dict) else {}
     )
+    source_note = next(
+        (
+            str(caveat)
+            for caveat in item.get("caveats") or []
+            if str(caveat).startswith("источник:")
+        ),
+        "",
+    )
+    if source_note:
+        price_line = f"{price_line} · {source_note}"
     if body_lines:
         first, *rest = body_lines
         return [
@@ -774,22 +905,10 @@ def catalog_item(
     journey_scope = infer_journey_scope(
         option, is_round_trip_request=is_round_trip_request
     )
-    ticketing_model = str(
-        option.get("ticketing_model")
-        or (
-            "provider_aggregate"
-            if is_provider_aggregate_option(option)
-            else "separate_segments"
-        )
+    provider_aggregate = is_provider_aggregate_option(option)
+    ticketing_model = canonical_ticketing_model(
+        option, provider_aggregate=provider_aggregate
     )
-    if ticketing_model not in (
-        "single_ticket_proven",
-        "provider_aggregate",
-        "separate_one_way_offers",
-        "separate_segments",
-        "unknown",
-    ):
-        ticketing_model = "unknown"
     baggage = baggage_contract(option)
     protection = protection_contract({**option, "ticketing_model": ticketing_model})
     badges = risk_badges(
@@ -797,6 +916,37 @@ def catalog_item(
     )
     outbound = direction_contract(option, "outbound")
     inbound = direction_contract(option, "return")
+    explicit_max_connections = option.get("max_connections_per_journey")
+    if explicit_max_connections is not None:
+        max_connections = int(explicit_max_connections)
+    else:
+        direction_counts = [
+            sum(
+                1
+                for segment in (
+                    option.get("segments")
+                    if isinstance(option.get("segments"), list)
+                    else []
+                )
+                if isinstance(segment, dict) and segment.get("direction") == direction
+            )
+            for direction in ("outbound", "return")
+        ]
+        max_direction_segments = (
+            max(direction_counts)
+            if any(direction_counts)
+            else len(option.get("segments") or [])
+        )
+        max_connections = max(0, max_direction_segments - 1)
+    caveats = catalog_caveats(option, badges=badges)
+    source_note = source_ticketing_note(
+        option,
+        journey_scope=journey_scope,
+        ticketing_model=ticketing_model,
+        max_connections=max_connections,
+    )
+    if source_note:
+        caveats = list(dict.fromkeys([source_note, *caveats]))
     item: dict[str, Any] = {
         "number": number,
         "option_id": str(option.get("id") or f"option-{number}"),
@@ -817,7 +967,7 @@ def catalog_item(
         "protection": protection,
         "risk": option.get("risk") if isinstance(option.get("risk"), dict) else {},
         "badges": badges,
-        "caveats": catalog_caveats(option, badges=badges),
+        "caveats": caveats,
         "agent_display": {
             "style": "inline_number_itinerary_with_aircraft_duration_v1",
             "lines": [],

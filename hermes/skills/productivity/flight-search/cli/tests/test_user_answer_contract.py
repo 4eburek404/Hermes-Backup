@@ -201,6 +201,78 @@ class FinalAnswerContractTests(unittest.TestCase):
         )
         return option
 
+    def _source_label_option(
+        self,
+        option_id: str,
+        *,
+        source_type: str,
+        ticketing_model: str,
+        price_basis: str,
+        source_providers: list[str],
+        gateway: str | None = None,
+        direct: bool = False,
+    ) -> dict:
+        option = copy.deepcopy(valid_option())
+        option.update(
+            {
+                "id": option_id,
+                "category": source_type,
+                "source_type": source_type,
+                "provider": source_providers[0] if source_providers else None,
+                "source_providers": source_providers,
+                "gateway": gateway,
+                "ticketing_model": ticketing_model,
+                "price_basis": price_basis,
+                "price": {"amount": 50000, "currency": "RUB"},
+                "price_text": "50 000 RUB",
+                "max_connections_per_journey": 0 if direct else 1,
+                "segments": [
+                    {
+                        "direction": "outbound",
+                        "flight_number": "U6001",
+                        "carrier": "U6",
+                        "origin": "SVX",
+                        "destination": "AMS" if direct else gateway or "IST",
+                        "departure_at": "2026-08-06T05:40:00+05:00",
+                        "arrival_at": "2026-08-06T08:10:00+03:00",
+                        "aircraft_code": "320",
+                        "duration_min": 150,
+                    }
+                ],
+            }
+        )
+        if not direct:
+            option["segments"].append(
+                {
+                    "direction": "outbound",
+                    "flight_number": "KL900",
+                    "carrier": "KL",
+                    "origin": gateway or "IST",
+                    "destination": "AMS",
+                    "departure_at": "2026-08-06T11:20:00+03:00",
+                    "arrival_at": "2026-08-06T13:55:00+02:00",
+                    "aircraft_code": "73H",
+                    "duration_min": 215,
+                }
+            )
+        return option
+
+    def _source_label_answer(self, option: dict) -> dict:
+        report = valid_report()
+        report["route"] = {
+            "origin": "SVX",
+            "destination": "AMS",
+            "origin_airports": ["SVX"],
+            "destination_airports": ["AMS"],
+            "dates": {"depart_date": "2026-08-06"},
+            "profile": "business",
+            "routing_strategy": "ru-priority",
+            "provider_policy": "both",
+        }
+        report["recommended_options"] = [option]
+        report["priority_options"] = []
+        return build_user_answer(report)
+
     def _valid_round_trip_answer(self) -> dict:
         report = report_with_required_caveats()
         report["route"]["dates"] = {
@@ -403,6 +475,94 @@ class FinalAnswerContractTests(unittest.TestCase):
         self.assertNotIn("single PNR", answer["rendered_text"])
         self.assertNotIn("through fare", answer["rendered_text"])
         self.assertNotIn("не нашёл в выполненных", answer["rendered_text"])
+
+    def test_rendered_text_labels_provider_full_route_without_protection_claim(
+        self,
+    ) -> None:
+        option = self._source_label_option(
+            "provider-full-route",
+            source_type="provider_full_route",
+            ticketing_model="provider_order_unverified",
+            price_basis="provider_offer_price",
+            source_providers=["kupibilet"],
+            gateway="IST",
+        )
+
+        answer = self._source_label_answer(option)
+
+        validate_user_answer(answer)
+        text = answer["rendered_text"]
+        self.assertIn("источник: полный маршрут от kupibilet", text)
+        self.assertIn("цена поставщика", text)
+        self.assertIn(
+            "единый PNR, сквозной багаж и защита пересадки не подтверждены",
+            text,
+        )
+        self.assertNotIn("provider_full_route", text)
+        self.assertEqual(
+            answer["catalog"]["items"][0]["ticketing_model"], "provider_aggregate"
+        )
+
+    def test_rendered_text_labels_gateway_separate_ticket_price_sum_and_fli_leg(
+        self,
+    ) -> None:
+        option = self._source_label_option(
+            "gateway-separate-ticket",
+            source_type="gateway_separate_ticket",
+            ticketing_model="separate_ticket_sum",
+            price_basis="summed_live_leg_prices",
+            source_providers=["kupibilet", "fli"],
+            gateway="IST",
+        )
+
+        answer = self._source_label_answer(option)
+
+        validate_user_answer(answer)
+        text = answer["rendered_text"]
+        self.assertIn("источник: separate-ticket сборка через IST", text)
+        self.assertIn("цена - сумма отдельных плеч", text)
+        self.assertIn("FLI/metasearch для non-RU плеча", text)
+        self.assertIn(
+            "единый PNR, сквозной багаж и защита пересадки не подтверждены",
+            text,
+        )
+        self.assertEqual(
+            answer["catalog"]["items"][0]["ticketing_model"], "separate_segments"
+        )
+
+    def test_rendered_text_labels_direct_inventory(self) -> None:
+        option = self._source_label_option(
+            "direct-inventory",
+            source_type="direct_inventory",
+            ticketing_model="unknown",
+            price_basis="provider_offer_price",
+            source_providers=["kupibilet"],
+            direct=True,
+        )
+
+        answer = self._source_label_answer(option)
+
+        validate_user_answer(answer)
+        text = answer["rendered_text"]
+        self.assertIn("источник: прямой инвентарь (kupibilet)", text)
+        self.assertIn("финальный тариф и багаж проверить на booking screen", text)
+
+    def test_rendered_text_labels_two_one_way_offers_as_separate_sum(self) -> None:
+        report = report_with_required_caveats()
+        report["route"]["dates"] = {
+            "depart_date": "2026-07-19",
+            "return_date": "2026-07-24",
+        }
+        report["recommended_options"] = [self._two_one_way_pair_option()]
+        report["priority_options"] = []
+
+        answer = build_user_answer(report)
+
+        validate_user_answer(answer)
+        text = answer["rendered_text"]
+        self.assertIn("источник: две отдельные one-way выдачи", text)
+        self.assertIn("цена - сумма отдельных one-way", text)
+        self.assertIn("защищённый round-trip не подтверждены", text)
 
     def test_catalog_orders_viable_direct_before_cheaper_connections_and_drops_rejects(
         self,
