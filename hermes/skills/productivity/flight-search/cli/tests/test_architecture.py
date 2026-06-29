@@ -153,6 +153,7 @@ class ArchitectureTests(unittest.TestCase):
             schema_names,
             [
                 "agent_report.v2.schema.json",
+                "flight_offer_graph.v1.schema.json",
                 "flight_search_plan.v1.schema.json",
                 "flight_search_request.v1.schema.json",
                 "flight_search_result.v1.schema.json",

@@ -21,6 +21,7 @@ class ContractRegistryTest(unittest.TestCase):
                 "search_request",
                 "search_result",
                 "search_plan",
+                "offer_graph",
             },
         )
         self.assertEqual(
@@ -39,9 +40,12 @@ class ContractRegistryTest(unittest.TestCase):
         self.assertEqual(
             current_contract("search_plan")["status"], "diagnostic_plan_contract"
         )
+        self.assertEqual(
+            current_contract("offer_graph")["status"], "diagnostic_graph_contract"
+        )
 
     def test_current_schema_resources_are_packaged(self) -> None:
-        for name in ("agent_report", "user_answer", "search_plan"):
+        for name in ("agent_report", "user_answer", "search_plan", "offer_graph"):
             contract = current_contract(name)
             resource = contract["schema_resource"]
             self.assertTrue(
@@ -84,6 +88,17 @@ class ContractRegistryTest(unittest.TestCase):
         self.assertEqual(projection["status"], "diagnostic_projection")
         self.assertEqual(
             current_contract("search_plan")["public_path"], projection["path"]
+        )
+
+    def test_offer_graph_projection_is_diagnostic_only(self) -> None:
+        projection = DIAGNOSTIC_PROJECTIONS["offer_graph"]
+        self.assertEqual(
+            projection["path"],
+            "data.route_result.live_search.diagnostics.offer_graph",
+        )
+        self.assertEqual(projection["status"], "diagnostic_projection")
+        self.assertEqual(
+            current_contract("offer_graph")["public_path"], projection["path"]
         )
 
 

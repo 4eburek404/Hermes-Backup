@@ -108,6 +108,13 @@ class GatewayDiscoveryService:
             diagnostics["candidate_count"] = len(candidates)
             diagnostics["candidates"] = [candidate.to_dict() for candidate in candidates]
             diagnostics["rejected_gateway_signals"] = rejected
+            diagnostics["skipped_reasons"] = []
+            diagnostics["empty_reason"] = None
+            if not candidates:
+                diagnostics["empty_reason"] = "no_gateway_candidates_discovered"
+                diagnostics["skipped_reasons"] = [
+                    diagnostics["empty_reason"],
+                ]
         return candidates
 
 

@@ -40,6 +40,10 @@ class SearchRequest:
     coverage_mode: str = "targeted"
     coverage_controls: tuple[str, ...] = field(default_factory=tuple)
     coverage_control_limit: int = 0
+    use_gateway_discovery_for_fallback_hubs: bool = False
+    gateway_discovery_limit: int = 3
+    gateway_probe_batch_size: int = 2
+    gateway_probe_max_batches: int = 2
     only_carriers: tuple[str, ...] = field(default_factory=tuple)
     exclude_carriers: tuple[str, ...] = field(default_factory=tuple)
 
@@ -73,6 +77,12 @@ def search_request_from_options(options: LiveAssemblyOptions) -> SearchRequest:
         coverage_mode=options.evidence.coverage_mode,
         coverage_controls=options.evidence.coverage_controls,
         coverage_control_limit=options.evidence.coverage_control_limit,
+        use_gateway_discovery_for_fallback_hubs=(
+            options.route.use_gateway_discovery_for_fallback_hubs
+        ),
+        gateway_discovery_limit=options.route.gateway_discovery_limit,
+        gateway_probe_batch_size=options.route.gateway_probe_batch_size,
+        gateway_probe_max_batches=options.route.gateway_probe_max_batches,
         only_carriers=options.filters.only_carriers,
         exclude_carriers=options.filters.exclude_carriers,
     )

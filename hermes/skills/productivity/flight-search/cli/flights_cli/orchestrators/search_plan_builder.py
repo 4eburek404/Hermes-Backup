@@ -4,6 +4,7 @@ from copy import deepcopy
 from typing import Any
 
 from ..adapters.providers.registry import providers_for_route_query
+from ..domain.gateway_discovery import GatewayDiscoveryService
 from ..domain.route_access_profiles import MODE_REQUIRED, PROFILE_RESTRICTED_ACCESS
 from ..domain.vocabulary import RequiredControl
 from ..pipeline.options import LiveAssemblyOptions
@@ -39,10 +40,14 @@ class SearchPlanBuilder:
                 self._options, self._store, flow=flow
             ).build()
         primary_offer_queries = self._primary_offer_queries(flow, fallback_route_plan)
+        gateway_discovery = self._gateway_discovery(flow, fallback_route_plan)
         return SearchPlan(
             primary_offer_queries=primary_offer_queries,
             mandatory_controls=[],
-            gateway_discovery=self._gateway_discovery(flow),
+            gateway_discovery=gateway_discovery,
+            gateway_leg_queries=self._gateway_leg_queries(
+                flow, fallback_route_plan, gateway_discovery
+            ),
             fallback_segment_plan=FallbackSegmentPlan(
                 segments=deepcopy(fallback_route_plan.get("segments") or [])
             ),
@@ -51,7 +56,9 @@ class SearchPlanBuilder:
             ),
         )
 
-    def _gateway_discovery(self, flow: LiveRouteSearchFlow) -> GatewayDiscovery:
+    def _gateway_discovery(
+        self, flow: LiveRouteSearchFlow, fallback_route_plan: dict[str, Any]
+    ) -> GatewayDiscovery:
         decision = flow.flow_decision
         mode = str(decision.gateway_discovery_mode or "disabled")
         enabled = mode != "disabled"
@@ -63,15 +70,77 @@ class SearchPlanBuilder:
             if enabled
             else None
         )
+        diagnostics = self._gateway_discovery_diagnostics(
+            str(decision.route_access_prior_set or ""),
+            fallback_route_plan,
+            enabled=enabled,
+        )
         return GatewayDiscovery(
             enabled=enabled,
             reason=reason,
             mode=mode,
             route_access_profile=decision.route_access_profile,
             route_access_reasons=reasons,
+            candidate_count=int(diagnostics.get("candidate_count") or 0),
+            candidates=[
+                dict(candidate)
+                for candidate in diagnostics.get("candidates") or []
+                if isinstance(candidate, dict)
+            ],
+            skipped_reasons=[
+                str(item)
+                for item in diagnostics.get("skipped_reasons") or []
+                if item
+            ],
+            empty_reason=diagnostics.get("empty_reason"),
             prior_set=decision.route_access_prior_set,
             matched_rule_id=decision.route_access_rule_id,
+            market=diagnostics.get("market"),
+            rejected_gateway_signals=[
+                dict(item)
+                for item in diagnostics.get("rejected_gateway_signals") or []
+                if isinstance(item, dict)
+            ],
         )
+
+    def _gateway_discovery_diagnostics(
+        self,
+        prior_set: str,
+        fallback_route_plan: dict[str, Any],
+        *,
+        enabled: bool,
+    ) -> dict[str, Any]:
+        market_key = prior_set or self._fallback_market_key(fallback_route_plan)
+        if not enabled:
+            return {
+                "market": market_key,
+                "candidate_count": 0,
+                "candidates": [],
+                "skipped_reasons": ["gateway_discovery_disabled"],
+                "empty_reason": "gateway_discovery_disabled",
+                "rejected_gateway_signals": [],
+            }
+        if not market_key:
+            return {
+                "market": "",
+                "candidate_count": 0,
+                "candidates": [],
+                "skipped_reasons": ["no_gateway_discovery_market"],
+                "empty_reason": "no_gateway_discovery_market",
+                "rejected_gateway_signals": [],
+            }
+        diagnostics: dict[str, Any] = {}
+        GatewayDiscoveryService(self._store).discover(
+            market_key,
+            diagnostics=diagnostics,
+        )
+        return diagnostics
+
+    def _fallback_market_key(self, fallback_route_plan: dict[str, Any]) -> str:
+        for family in fallback_route_plan.get("route_families") or []:
+            if isinstance(family, dict) and family.get("id"):
+                return str(family.get("id") or "")
+        return ""
 
     def _provider_names_for_primary_offers(
         self, flow: LiveRouteSearchFlow, query: dict[str, Any]
@@ -82,6 +151,121 @@ class SearchPlanBuilder:
                 query, self._store, flow.evidence_plan.provider_policy
             )
         ]
+
+    def _gateway_leg_queries(
+        self,
+        flow: LiveRouteSearchFlow,
+        fallback_route_plan: dict[str, Any],
+        gateway_discovery: GatewayDiscovery,
+    ) -> list[dict[str, Any]]:
+        discovery_payload = gateway_discovery.to_dict()
+        if (
+            discovery_payload.get("route_access_profile")
+            != PROFILE_RESTRICTED_ACCESS
+            or discovery_payload.get("mode") != MODE_REQUIRED
+        ):
+            return []
+
+        candidates = [
+            candidate
+            for candidate in discovery_payload.get("candidates") or []
+            if isinstance(candidate, dict) and candidate.get("code")
+        ]
+        candidate_cap = self._gateway_candidate_cap()
+        if candidate_cap <= 0:
+            return []
+
+        origin = str(fallback_route_plan.get("origin") or flow.request.origin).upper()
+        destination = str(
+            fallback_route_plan.get("destination") or flow.request.destination
+        ).upper()
+        date_text = str(
+            (fallback_route_plan.get("dates") or {}).get("depart")
+            or flow.request.depart_date
+        )
+        currency = str(fallback_route_plan.get("currency") or flow.request.currency).upper()
+
+        queries: list[dict[str, Any]] = []
+        for rank, candidate in enumerate(candidates[:candidate_cap], start=1):
+            gateway = str(candidate.get("code") or "").upper()
+            if not gateway:
+                continue
+            queries.extend(
+                self._queries_for_gateway_candidate(
+                    flow,
+                    origin=origin,
+                    destination=destination,
+                    gateway=gateway,
+                    date_text=date_text,
+                    currency=currency,
+                    rank=rank,
+                    score=candidate.get("score"),
+                    route_access_profile=str(
+                        discovery_payload.get("route_access_profile") or ""
+                    ),
+                    gateway_discovery_mode=str(discovery_payload.get("mode") or ""),
+                )
+            )
+        return queries
+
+    def _gateway_candidate_cap(self) -> int:
+        configured_limit = max(0, int(self._options.route.gateway_discovery_limit))
+        batch_size = max(0, int(self._options.route.gateway_probe_batch_size))
+        max_batches = max(0, int(self._options.route.gateway_probe_max_batches))
+        batch_cap = batch_size * max_batches
+        if batch_cap <= 0:
+            return 0
+        return min(configured_limit, batch_cap)
+
+    def _queries_for_gateway_candidate(
+        self,
+        flow: LiveRouteSearchFlow,
+        *,
+        origin: str,
+        destination: str,
+        gateway: str,
+        date_text: str,
+        currency: str,
+        rank: int,
+        score: Any,
+        route_access_profile: str,
+        gateway_discovery_mode: str,
+    ) -> list[dict[str, Any]]:
+        legs = (
+            ("origin_to_gateway", origin, gateway),
+            ("gateway_to_destination", gateway, destination),
+        )
+        queries: list[dict[str, Any]] = []
+        for leg, leg_origin, leg_destination in legs:
+            query = {
+                "role": "gateway_leg_probe",
+                "source_type": "gateway_discovery_candidate",
+                "probe_type": "segment_direct",
+                "direction": "outbound",
+                "leg": leg,
+                "origin": leg_origin,
+                "destination": leg_destination,
+                "date": date_text,
+                "currency": currency,
+                "direct_only": True,
+                "gateway": gateway,
+                "gateway_rank": rank,
+                "candidate_score": score,
+                "route_access_profile": route_access_profile,
+                "gateway_discovery_mode": gateway_discovery_mode,
+                "execution_state": "not_executed",
+            }
+            providers = providers_for_route_query(
+                query, self._store, flow.evidence_plan.provider_policy
+            )
+            if providers:
+                query["provider"] = str(providers[0])
+            else:
+                query["provider"] = None
+                query["execution_state"] = "skipped"
+                query["reason"] = "provider_not_applicable"
+            queries.append(query)
+        return queries
 
     def _primary_offer_queries(
         self, flow: LiveRouteSearchFlow, fallback_route_plan: dict[str, Any]

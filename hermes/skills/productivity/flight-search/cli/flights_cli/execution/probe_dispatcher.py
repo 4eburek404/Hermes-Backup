@@ -39,6 +39,9 @@ def search_key(spec: dict[str, Any]) -> tuple[str, str, str, str]:
 
 
 def segment_probe_type(spec: dict[str, Any]) -> str:
+    probe_type = str(spec.get("probe_type") or "")
+    if probe_type:
+        return probe_type
     leg = str(spec.get("leg") or "")
     return "segment_direct" if "direct" in leg else "segment_hub_leg"
 

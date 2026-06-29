@@ -7,6 +7,9 @@ from ..config import (
     DEFAULT_COVERAGE_CONTROL_LIMIT,
     DEFAULT_CURRENCY,
     DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS,
+    DEFAULT_GATEWAY_DISCOVERY_LIMIT,
+    DEFAULT_GATEWAY_PROBE_BATCH_SIZE,
+    DEFAULT_GATEWAY_PROBE_MAX_BATCHES,
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
     DEFAULT_PROFILE,
     DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR,
@@ -34,6 +37,10 @@ class RouteOptions:
     stop_policy: str
     min_same_airport_min: int
     min_cross_airport_min: int
+    use_gateway_discovery_for_fallback_hubs: bool
+    gateway_discovery_limit: int
+    gateway_probe_batch_size: int
+    gateway_probe_max_batches: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,6 +187,24 @@ def search_request_to_options(payload: dict[str, Any]) -> LiveAssemblyOptions:
             stop_policy=str(route.get("stop_policy") or "business-default"),
             min_same_airport_min=_int_option(route, "min_same_airport_min", 120),
             min_cross_airport_min=_int_option(route, "min_cross_airport_min", 300),
+            use_gateway_discovery_for_fallback_hubs=_bool_option(
+                route, "use_gateway_discovery_for_fallback_hubs", False
+            ),
+            gateway_discovery_limit=_int_option(
+                route,
+                "gateway_discovery_limit",
+                DEFAULT_GATEWAY_DISCOVERY_LIMIT,
+            ),
+            gateway_probe_batch_size=_int_option(
+                route,
+                "gateway_probe_batch_size",
+                DEFAULT_GATEWAY_PROBE_BATCH_SIZE,
+            ),
+            gateway_probe_max_batches=_int_option(
+                route,
+                "gateway_probe_max_batches",
+                DEFAULT_GATEWAY_PROBE_MAX_BATCHES,
+            ),
         ),
         filters=FilterOptions(
             only_carriers=_str_tuple(filters.get("only_carriers")),

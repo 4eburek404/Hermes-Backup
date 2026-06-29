@@ -5,6 +5,8 @@ import unittest
 from typing import Any
 
 from flights_cli.orchestrators.live_route_assembly import build_live_route_segment_plan
+from flights_cli.orchestrators.search_plan_builder import build_search_plan
+from flights_cli.pipeline.search_pipeline import build_live_route_search_flow
 from flights_cli.store import Store
 from helpers import live_assembly_args
 
@@ -42,6 +44,14 @@ def segment_family_ids(plan: dict[str, Any]) -> set[str]:
     return {
         value(segment.get("route_family")) for segment in plan.get("segments") or []
     }
+
+
+def segment_airports(plan: dict[str, Any]) -> set[str]:
+    airports: set[str] = set()
+    for segment in plan.get("segments") or []:
+        airports.add(value(segment.get("origin")).upper())
+        airports.add(value(segment.get("destination")).upper())
+    return airports
 
 
 def coverage_control_types(plan: dict[str, Any]) -> set[str]:
@@ -266,6 +276,77 @@ class RoutePlanContractTests(unittest.TestCase):
                     self.assertEqual(
                         coverage_control_types(plan), expected["coverage_types"]
                     )
+
+    def test_gateway_discovery_fallback_flag_preserves_old_dxb_when_off(self) -> None:
+        plan = self.build_plan(
+            routing_strategy="ru-priority",
+            origin="SVX",
+            destination="AMS",
+            depart_date="2026-08-15",
+            return_date=None,
+            no_direct_route_intel=True,
+            no_live_cache=True,
+        )
+
+        self.assertIn("dxb_direct", segment_family_ids(plan))
+        self.assertIn("dxb_direct", route_family_ids(plan))
+        self.assertIn("DXB", set(plan.get("hubs") or []))
+        self.assertIn("DXB", segment_airports(plan))
+
+    def test_gateway_discovery_fallback_flag_removes_imperative_dxb_branch(
+        self,
+    ) -> None:
+        plan = self.build_plan(
+            routing_strategy="ru-priority",
+            origin="SVX",
+            destination="AMS",
+            depart_date="2026-08-15",
+            return_date=None,
+            use_gateway_discovery_for_fallback_hubs=True,
+            no_direct_route_intel=True,
+            no_live_cache=True,
+        )
+
+        self.assertNotIn("dxb_direct", segment_family_ids(plan))
+        self.assertNotIn("dxb_direct", route_family_ids(plan))
+        self.assertNotIn("DXB", set(plan.get("hubs") or []))
+        self.assertNotIn("DXB", segment_airports(plan))
+        self.assertTrue(
+            {
+                "direct_control",
+                "ist_direct",
+                "ist_shared_destination",
+                "moscow_gateway_control",
+            }.issubset(segment_family_ids(plan))
+        )
+
+    def test_gateway_discovery_fallback_flag_keeps_dxb_as_diagnostic_candidate(
+        self,
+    ) -> None:
+        store = Store()
+        options = live_assembly_args(
+            routing_strategy="ru-priority",
+            origin="SVX",
+            destination="AMS",
+            depart_date="2026-08-15",
+            return_date=None,
+            use_gateway_discovery_for_fallback_hubs=True,
+            no_direct_route_intel=True,
+            no_live_cache=True,
+        )
+        flow = build_live_route_search_flow(options, store)
+        route_plan = build_live_route_segment_plan(options, store, flow=flow)
+
+        search_plan = build_search_plan(
+            options, store, flow=flow, fallback_route_plan=route_plan
+        )
+
+        self.assertNotIn("DXB", segment_airports(route_plan))
+        candidate_codes = {
+            value(candidate.get("code"))
+            for candidate in search_plan["gateway_discovery"]["candidates"]
+        }
+        self.assertIn("DXB", candidate_codes)
 
 
 if __name__ == "__main__":

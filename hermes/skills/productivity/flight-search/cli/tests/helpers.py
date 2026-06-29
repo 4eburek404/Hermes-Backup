@@ -72,6 +72,12 @@ def live_assembly_args(**overrides: Any) -> Any:
         "date_window_end": "date_window_end",
         "max_connections": "max_connections",
         "tier2_max_connections": "tier2_max_connections",
+        "use_gateway_discovery_for_fallback_hubs": (
+            "use_gateway_discovery_for_fallback_hubs"
+        ),
+        "gateway_discovery_limit": "gateway_discovery_limit",
+        "gateway_probe_batch_size": "gateway_probe_batch_size",
+        "gateway_probe_max_batches": "gateway_probe_max_batches",
     }
     evidence_keys = {
         "segment_limit": "segment_limit",

@@ -32,6 +32,10 @@ REQUEST = {
         "date_window_end": "2026-07-22",
         "max_connections": 0,
         "tier2_max_connections": 0,
+        "use_gateway_discovery_for_fallback_hubs": True,
+        "gateway_discovery_limit": 5,
+        "gateway_probe_batch_size": 2,
+        "gateway_probe_max_batches": 3,
     },
     "filters": {
         "only_carriers": ["SU"],
@@ -92,6 +96,10 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.route.depart_date, expected["depart_date"])
         self.assertEqual(options.route.return_date, expected["return_date"])
         self.assertEqual(options.route.hubs, expected["hubs"])
+        self.assertTrue(options.route.use_gateway_discovery_for_fallback_hubs)
+        self.assertEqual(options.route.gateway_discovery_limit, 5)
+        self.assertEqual(options.route.gateway_probe_batch_size, 2)
+        self.assertEqual(options.route.gateway_probe_max_batches, 3)
         self.assertEqual(options.ticketing, expected["ticketing"])
         self.assertEqual(options.profile, expected["profile"])
         self.assertEqual(options.filters.only_carriers, expected["only_carriers"])
@@ -145,6 +153,9 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
                     "min_cross_airport_min": 0,
                     "max_connections": 0,
                     "tier2_max_connections": 0,
+                    "gateway_discovery_limit": 0,
+                    "gateway_probe_batch_size": 0,
+                    "gateway_probe_max_batches": 0,
                 },
                 "evidence": {
                     "aggregate_control_limit": 0,
@@ -167,6 +178,9 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.route.tier2_max_connections, 0)
         self.assertEqual(options.route.min_same_airport_min, 0)
         self.assertEqual(options.route.min_cross_airport_min, 0)
+        self.assertEqual(options.route.gateway_discovery_limit, 0)
+        self.assertEqual(options.route.gateway_probe_batch_size, 0)
+        self.assertEqual(options.route.gateway_probe_max_batches, 0)
         self.assertEqual(options.evidence.coverage_control_limit, 0)
         self.assertEqual(options.evidence.aggregate_control_limit, 0)
         self.assertEqual(options.evidence.live_cache_ttl_seconds, 0)

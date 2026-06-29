@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -22,6 +23,10 @@ from ..execution.aggregate_control_runner import (
     AggregateControlOptions,
     run_aggregate_controls,
 )
+from ..execution.gateway_leg_probe_executor import (
+    GatewayLegProbeExecutor,
+    GatewayLegProbeOptions,
+)
 from ..execution.offer_query_runner import (
     PrimaryOfferQueryOptions,
     run_primary_offer_queries,
@@ -38,6 +43,10 @@ from ..execution.synthetic_control_runner import (
     synthesize_moscow_gateway_control_results,
 )
 from ..pipeline.options import LiveAssemblyOptions
+from ..pipeline.offer_graph import (
+    build_offer_graph as build_pipeline_offer_graph,
+    materialize_offer_graph_candidates,
+)
 from ..pipeline.search_pipeline import LiveRouteSearchFlow, build_live_route_search_flow
 from .search_plan_builder import build_search_plan
 from ..providers.route_intel import (
@@ -341,6 +350,59 @@ def gateway_discovery_market_key(state: "LiveAssemblyState") -> str:
     return ""
 
 
+def search_plan_with_gateway_discovery_output(
+    search_plan: dict[str, Any], gateway_discovery_diagnostics: dict[str, Any]
+) -> dict[str, Any]:
+    diagnostics_plan = deepcopy(search_plan)
+    discovery = (
+        dict(diagnostics_plan.get("gateway_discovery"))
+        if isinstance(diagnostics_plan.get("gateway_discovery"), dict)
+        else {}
+    )
+    discovery.setdefault("enabled", False)
+    discovery.setdefault("reason", None)
+    discovery.setdefault("mode", "disabled")
+    discovery.setdefault("route_access_profile", None)
+    discovery.setdefault("route_access_reasons", [])
+
+    candidate_count = int(gateway_discovery_diagnostics.get("candidate_count") or 0)
+    candidates = [
+        dict(candidate)
+        for candidate in gateway_discovery_diagnostics.get("candidates") or []
+        if isinstance(candidate, dict)
+    ]
+    empty_reason = gateway_discovery_diagnostics.get("empty_reason")
+    if candidate_count == 0 and not empty_reason:
+        empty_reason = (
+            "gateway_discovery_disabled"
+            if not bool(discovery.get("enabled"))
+            else "no_gateway_candidates_discovered"
+        )
+    skipped_reasons = [
+        str(item)
+        for item in gateway_discovery_diagnostics.get("skipped_reasons") or []
+        if item
+    ]
+    if candidate_count == 0 and empty_reason and not skipped_reasons:
+        skipped_reasons = [str(empty_reason)]
+
+    discovery["candidate_count"] = candidate_count
+    discovery["candidates"] = candidates
+    discovery["skipped_reasons"] = skipped_reasons
+    discovery["empty_reason"] = empty_reason
+    if gateway_discovery_diagnostics.get("market") is not None:
+        discovery["market"] = str(gateway_discovery_diagnostics.get("market") or "")
+    rejected = [
+        dict(item)
+        for item in gateway_discovery_diagnostics.get("rejected_gateway_signals") or []
+        if isinstance(item, dict)
+    ]
+    if rejected:
+        discovery["rejected_gateway_signals"] = rejected
+    diagnostics_plan["gateway_discovery"] = discovery
+    return diagnostics_plan
+
+
 # ---------------------------------------------------------------------------
 # LiveAssemblyRunner
 # ---------------------------------------------------------------------------
@@ -354,6 +416,7 @@ class LiveAssemblyState:
     plan: dict[str, Any]
     search_plan: dict[str, Any] = field(default_factory=dict)
     primary_offer_results: list[dict[str, Any]] = field(default_factory=list)
+    gateway_leg_results: dict[str, Any] = field(default_factory=dict)
     segment_results: list[dict[str, Any]] = field(default_factory=list)
     searches: list[dict[str, Any]] = field(default_factory=list)
     failures: list[dict[str, Any]] = field(default_factory=list)
@@ -841,6 +904,20 @@ class LiveSearchResultBuilder:
             provider_results=[*state.primary_offer_results, *aggregate_controls],
             diagnostics=gateway_discovery_diagnostics,
         )
+        search_plan_diagnostics = search_plan_with_gateway_discovery_output(
+            state.search_plan,
+            gateway_discovery_diagnostics,
+        )
+        offer_graph = build_pipeline_offer_graph(
+            primary_offer_results=state.primary_offer_results,
+            gateway_leg_results=state.gateway_leg_results,
+        )
+        offer_candidates = materialize_offer_graph_candidates(
+            offer_graph,
+            direct_only=bool(state.flow.evidence_plan.direct_only),
+            requested_origin=str(state.plan.get("origin") or ""),
+            requested_destination=str(state.plan.get("destination") or ""),
+        )
         assembled["live_search"] = {
             "source": source_label,
             "provider_policy": self.provider_policy,
@@ -851,12 +928,18 @@ class LiveSearchResultBuilder:
             "segment_searches": state.searches,
             "hub_viability": hub_viability_summary(state.plan, state.searches),
             "primary_offer_results": state.primary_offer_results,
+            "gateway_leg_results": state.gateway_leg_results,
+            "offer_graph": offer_graph,
+            "offer_candidates": offer_candidates,
             "aggregate_controls": aggregate_controls,
             "probe_ledger": state.probe_ledger.to_coverage_diagnostics(state.plan),
             "direct_route_intelligence": direct_route_intel,
             "diagnostics": {
-                "search_plan": state.search_plan,
+                "search_plan": search_plan_diagnostics,
                 "primary_offer_results": state.primary_offer_results,
+                "gateway_leg_results": state.gateway_leg_results,
+                "offer_graph": offer_graph,
+                "offer_candidates": offer_candidates,
                 "gateway_discovery": gateway_discovery_diagnostics,
             },
             "failure_count": len(state.failures),
@@ -908,6 +991,7 @@ class LiveAssemblyRunner:
         self.priority_route_evaluator: PriorityRouteEvaluator | None = None
         self.skip_policy: SkipPolicy | None = None
         self.probe_accumulator: ProbeResultAccumulator | None = None
+        self.gateway_leg_probe_executor: GatewayLegProbeExecutor | None = None
         self.probe_executor: SegmentProbeExecutor | None = None
         self.result_builder: LiveSearchResultBuilder | None = None
 
@@ -926,6 +1010,11 @@ class LiveAssemblyRunner:
             kupibilet_fetcher=fetch_kupibilet_search,
             probe_ledger=state.probe_ledger,
         )
+        if self.gateway_leg_probe_executor is not None:
+            state.gateway_leg_results = self.gateway_leg_probe_executor.run(
+                list(state.search_plan.get("gateway_leg_queries") or []),
+                state.plan,
+            )
         self.probe_executor.run(state)
         self.synthetic_controls.apply_pending(state)
         return self.result_builder.build(state, self.direct_route_intel)
@@ -971,6 +1060,22 @@ class LiveAssemblyRunner:
             priority_route_evaluator=self.priority_route_evaluator,
         )
         self.probe_accumulator = ProbeResultAccumulator(self.only_carriers)
+        self.gateway_leg_probe_executor = GatewayLegProbeExecutor(
+            options=GatewayLegProbeOptions(
+                gateway_discovery_limit=self.options.route.gateway_discovery_limit,
+                gateway_probe_batch_size=self.options.route.gateway_probe_batch_size,
+                gateway_probe_max_batches=self.options.route.gateway_probe_max_batches,
+                segment_limit=self.options.evidence.segment_limit,
+                timeout=self.options.evidence.timeout,
+                fli_mcp_url=self.options.evidence.fli_mcp_url,
+                fail_fast=self.options.evidence.fail_fast,
+            ),
+            store=store,
+            only_carriers=self.only_carriers,
+            cache_ttl_seconds=self.cache_ttl_seconds,
+            use_live_cache=self.use_live_cache,
+            kupibilet_fetcher=fetch_kupibilet_search,
+        )
         self.probe_executor = SegmentProbeExecutor(
             options=self.options,
             store=store,

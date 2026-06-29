@@ -253,6 +253,15 @@ class RoutePlanBuilder:
         self.hubs = self.route_context.hubs
         self.hub_source = self.route_context.hub_source
         self.routing_profile = self.route_context.routing_profile
+        self.use_gateway_discovery_for_fallback_hubs = bool(
+            options.route.use_gateway_discovery_for_fallback_hubs
+        )
+        self._include_dxb_fallback = not (
+            self.routing_strategy == RoutingStrategy.RU_PRIORITY
+            and self.use_gateway_discovery_for_fallback_hubs
+        )
+        if not self._include_dxb_fallback:
+            self.hubs = [hub for hub in self.hubs if hub != PRIORITY_SECONDARY_HUB]
         self.outbound_second_offsets = normalize_day_offsets(
             list(options.evidence.outbound_second_leg_day_offsets) or None,
             DEFAULT_KB_ROUTE_OUTBOUND_SECOND_LEG_DAY_OFFSETS,
@@ -270,6 +279,12 @@ class RoutePlanBuilder:
         self.route_families = route_families_for_strategy(
             self.routing_strategy, self.routing_profile
         )
+        if not self._include_dxb_fallback:
+            self.route_families = [
+                family
+                for family in self.route_families
+                if family.get("id") != "dxb_direct"
+            ]
         self._include_generic_direct_controls = (
             self.flow.flow_decision.market_class == MarketClass.GLOBAL_NON_RU
         )
@@ -453,32 +468,33 @@ class RoutePlanBuilder:
                     priority=2 if self.routing_profile == "asia-oceania" else 1,
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                 )
-        for origin_code in self.origin_airports:
-            self._add_segment(
-                Direction.OUTBOUND,
-                Leg.ORIGIN_TO_HUB,
-                self.depart,
-                origin_code,
-                PRIORITY_SECONDARY_HUB,
-                route_family="dxb_direct",
-                priority=4 if self.routing_profile == "asia-oceania" else 3,
-                preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
-                skip_if_priority_route_viable="outbound",
-            )
-        for offset in self.outbound_second_offsets:
-            leg_date = self.depart + timedelta(days=offset)
-            for dest_code in self.destination_airports:
+        if self._include_dxb_fallback:
+            for origin_code in self.origin_airports:
                 self._add_segment(
                     Direction.OUTBOUND,
-                    Leg.HUB_TO_DESTINATION,
-                    leg_date,
+                    Leg.ORIGIN_TO_HUB,
+                    self.depart,
+                    origin_code,
                     PRIORITY_SECONDARY_HUB,
-                    dest_code,
                     route_family="dxb_direct",
                     priority=4 if self.routing_profile == "asia-oceania" else 3,
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                     skip_if_priority_route_viable="outbound",
                 )
+            for offset in self.outbound_second_offsets:
+                leg_date = self.depart + timedelta(days=offset)
+                for dest_code in self.destination_airports:
+                    self._add_segment(
+                        Direction.OUTBOUND,
+                        Leg.HUB_TO_DESTINATION,
+                        leg_date,
+                        PRIORITY_SECONDARY_HUB,
+                        dest_code,
+                        route_family="dxb_direct",
+                        priority=4 if self.routing_profile == "asia-oceania" else 3,
+                        preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                        skip_if_priority_route_viable="outbound",
+                    )
         for gateway_code, gateway_extra in self._gateway_segment_options:
             for dest_code in self.destination_airports:
                 self._add_segment(
@@ -668,32 +684,33 @@ class RoutePlanBuilder:
                         priority=3 if self.routing_profile == "asia-oceania" else 2,
                         only_carriers=["SU"],
                     )
-        for dest_code in self.destination_airports:
-            self._add_segment(
-                Direction.RETURN,
-                Leg.DESTINATION_TO_HUB,
-                self.ret,
-                dest_code,
-                PRIORITY_SECONDARY_HUB,
-                route_family="dxb_direct",
-                priority=4 if self.routing_profile == "asia-oceania" else 3,
-                preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
-                skip_if_priority_route_viable="return",
-            )
-        for offset in self.return_second_offsets:
-            leg_date = self.ret + timedelta(days=offset)
-            for origin_code in self.origin_airports:
+        if self._include_dxb_fallback:
+            for dest_code in self.destination_airports:
                 self._add_segment(
                     Direction.RETURN,
-                    Leg.HUB_TO_ORIGIN,
-                    leg_date,
+                    Leg.DESTINATION_TO_HUB,
+                    self.ret,
+                    dest_code,
                     PRIORITY_SECONDARY_HUB,
-                    origin_code,
                     route_family="dxb_direct",
                     priority=4 if self.routing_profile == "asia-oceania" else 3,
                     preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
                     skip_if_priority_route_viable="return",
                 )
+            for offset in self.return_second_offsets:
+                leg_date = self.ret + timedelta(days=offset)
+                for origin_code in self.origin_airports:
+                    self._add_segment(
+                        Direction.RETURN,
+                        Leg.HUB_TO_ORIGIN,
+                        leg_date,
+                        PRIORITY_SECONDARY_HUB,
+                        origin_code,
+                        route_family="dxb_direct",
+                        priority=4 if self.routing_profile == "asia-oceania" else 3,
+                        preferred_carriers=list(PRIORITY_ROUTE_CARRIERS),
+                        skip_if_priority_route_viable="return",
+                    )
         for gateway_code, gateway_extra in self._gateway_segment_options:
             for dest_code in self.destination_airports:
                 self._add_segment(
@@ -796,13 +813,23 @@ class RoutePlanBuilder:
         ]
         if self.routing_strategy == RoutingStrategy.RU_PRIORITY:
             if self.routing_profile == "asia-oceania":
-                warnings.append(
-                    "Using geo-aware ru-priority routing: direct control, SVO as an independent Asia/Oceania hub, IST fallback, DXB only if priority routes are not usable."
-                )
+                if self._include_dxb_fallback:
+                    warnings.append(
+                        "Using geo-aware ru-priority routing: direct control, SVO as an independent Asia/Oceania hub, IST fallback, DXB only if priority routes are not usable."
+                    )
+                else:
+                    warnings.append(
+                        "Using geo-aware ru-priority routing: direct control, SVO as an independent Asia/Oceania hub, IST fallback; additional fallback hubs are diagnostic candidates only."
+                    )
             else:
-                warnings.append(
-                    "Using ru-priority routing: direct control, IST direct first, SVO/Moscow gateway control even when direct exists, DXB only if priority routes are not usable."
-                )
+                if self._include_dxb_fallback:
+                    warnings.append(
+                        "Using ru-priority routing: direct control, IST direct first, SVO/Moscow gateway control even when direct exists, DXB only if priority routes are not usable."
+                    )
+                else:
+                    warnings.append(
+                        "Using ru-priority routing: direct control, IST direct first, SVO/Moscow gateway control even when direct exists; additional fallback hubs are diagnostic candidates only."
+                    )
         elif self.routing_strategy == RoutingStrategy.DOMESTIC_RU:
             warnings.append(
                 "Using domestic-RU routing: direct domestic controls first, Moscow airports only as bounded fallback; international hubs are excluded by default."
