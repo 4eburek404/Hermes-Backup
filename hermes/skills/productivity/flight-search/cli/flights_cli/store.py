@@ -8,6 +8,11 @@ from typing import Any
 
 from .config import CACHE_DIR, IATA_RE, SPECIAL_CITY_AIRPORTS
 from .domain.gateway_priors import GatewayPriorCatalog, load_gateway_priors
+from .domain.route_access_profiles import (
+    RouteAccessDecision,
+    RouteAccessProfileCatalog,
+    load_route_access_profiles,
+)
 from .errors import CliError
 
 
@@ -33,10 +38,15 @@ class Location:
 
 class Store:
     def __init__(
-        self, cache_dir: Path = CACHE_DIR, *, gateway_priors_path: Path | None = None
+        self,
+        cache_dir: Path = CACHE_DIR,
+        *,
+        gateway_priors_path: Path | None = None,
+        route_access_profiles_path: Path | None = None,
     ):
         self.cache_dir = cache_dir
         self.gateway_priors_path = gateway_priors_path
+        self.route_access_profiles_path = route_access_profiles_path
         self._countries: list[dict[str, Any]] | None = None
         self._cities: list[dict[str, Any]] | None = None
         self._airports: list[dict[str, Any]] | None = None
@@ -44,6 +54,7 @@ class Store:
         self._alliances: list[dict[str, Any]] | None = None
         self._planes: list[dict[str, Any]] | None = None
         self._gateway_prior_catalog: GatewayPriorCatalog | None = None
+        self._route_access_profile_catalog: RouteAccessProfileCatalog | None = None
         self._city_by_code: dict[str, dict[str, Any]] | None = None
         self._airport_by_code: dict[str, dict[str, Any]] | None = None
         self._airline_by_code: dict[str, dict[str, Any]] | None = None
@@ -80,6 +91,27 @@ class Store:
 
     def gateway_priors_for_market(self, market_key: str) -> list[dict[str, Any]]:
         return self.gateway_prior_catalog.for_market(market_key)
+
+    @property
+    def route_access_profile_catalog(self) -> RouteAccessProfileCatalog:
+        if self._route_access_profile_catalog is None:
+            self._route_access_profile_catalog = load_route_access_profiles(
+                self.route_access_profiles_path
+            )
+        return self._route_access_profile_catalog
+
+    def route_access_profile_for_route(
+        self,
+        *,
+        market_class: str,
+        origin_country: str | None,
+        destination_country: str | None,
+    ) -> RouteAccessDecision:
+        return self.route_access_profile_catalog.decision_for_route(
+            market_class=market_class,
+            origin_country=origin_country,
+            destination_country=destination_country,
+        )
 
     @property
     def countries(self) -> list[dict[str, Any]]:

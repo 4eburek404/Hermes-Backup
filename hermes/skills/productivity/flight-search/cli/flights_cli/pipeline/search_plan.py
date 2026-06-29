@@ -12,12 +12,25 @@ SEARCH_PLAN_SCHEMA_VERSION = "flight_search_plan.v1"
 class GatewayDiscovery:
     enabled: bool = False
     reason: str | None = None
+    mode: str = "disabled"
+    route_access_profile: str | None = None
+    route_access_reasons: list[str] = field(default_factory=list)
+    prior_set: str | None = None
+    matched_rule_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "enabled": bool(self.enabled),
             "reason": self.reason,
+            "mode": self.mode,
+            "route_access_profile": self.route_access_profile,
+            "route_access_reasons": list(self.route_access_reasons),
         }
+        if self.prior_set:
+            payload["prior_set"] = self.prior_set
+        if self.matched_rule_id:
+            payload["matched_rule_id"] = self.matched_rule_id
+        return payload
 
 
 @dataclass(frozen=True, slots=True)

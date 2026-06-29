@@ -79,15 +79,30 @@ class SearchPlanContractTests(unittest.TestCase):
                     "direct_only": False,
                     "limit": 10,
                     "execution_state": "not_executed",
-                    "route_family": "ru_to_western_europe_bridge",
+                    "route_family": "restricted_access_market",
+                    "route_access_profile": "restricted_access_market",
+                    "gateway_discovery_mode": "required",
                     "exhaustive": False,
-                    "non_exhaustive_reason": "provider_full_route_aggregate_is_primary_collection_not_coverage_proof",
+                    "non_exhaustive_reason": "restricted_access_market_requires_gateway_discovery",
                 }
             ],
         )
         self.assertEqual(search_plan["mandatory_controls"], [])
         self.assertEqual(
-            search_plan["gateway_discovery"], {"enabled": False, "reason": None}
+            search_plan["gateway_discovery"],
+            {
+                "enabled": True,
+                "reason": "route_access_profile_requires_gateway_discovery",
+                "mode": "required",
+                "route_access_profile": "restricted_access_market",
+                "route_access_reasons": [
+                    "airspace_restrictions",
+                    "carrier_access_restrictions",
+                    "provider_full_route_not_exhaustive",
+                ],
+                "prior_set": "restricted_bridge_gateways",
+                "matched_rule_id": "ru_to_restricted_regions",
+            },
         )
         self.assertEqual(
             search_plan["fallback_segment_plan"]["segments"], route_plan["segments"]
@@ -96,10 +111,11 @@ class SearchPlanContractTests(unittest.TestCase):
             search_plan["coverage_expectations"],
             [
                 {
-                    "type": "primary_offer_collection_not_exhaustive",
-                    "route_family": "ru_to_western_europe_bridge",
+                    "type": "gateway_discovery_required",
+                    "route_access_profile": "restricted_access_market",
+                    "gateway_discovery_mode": "required",
                     "source_type": "provider_full_route",
-                    "reason": "keep segment fallback coverage for RU to Western Europe bridge routes",
+                    "reason": "restricted access markets keep segment fallback coverage and gateway discovery diagnostics",
                 }
             ],
         )

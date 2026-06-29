@@ -329,6 +329,9 @@ def hub_viability_summary(
 
 
 def gateway_discovery_market_key(state: "LiveAssemblyState") -> str:
+    discovery = state.search_plan.get("gateway_discovery")
+    if isinstance(discovery, dict) and discovery.get("prior_set"):
+        return str(discovery.get("prior_set") or "")
     for query in state.search_plan.get("primary_offer_queries") or []:
         if isinstance(query, dict) and query.get("route_family"):
             return str(query.get("route_family") or "")

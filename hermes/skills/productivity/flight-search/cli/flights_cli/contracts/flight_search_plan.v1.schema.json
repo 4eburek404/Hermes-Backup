@@ -25,10 +25,24 @@
     "gateway_discovery": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "reason"],
+      "required": [
+        "enabled",
+        "reason",
+        "mode",
+        "route_access_profile",
+        "route_access_reasons"
+      ],
       "properties": {
         "enabled": {"type": "boolean"},
-        "reason": {"type": ["string", "null"]}
+        "reason": {"type": ["string", "null"]},
+        "mode": {"type": "string"},
+        "route_access_profile": {"type": ["string", "null"]},
+        "route_access_reasons": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "prior_set": {"type": "string"},
+        "matched_rule_id": {"type": "string"}
       }
     },
     "fallback_segment_plan": {

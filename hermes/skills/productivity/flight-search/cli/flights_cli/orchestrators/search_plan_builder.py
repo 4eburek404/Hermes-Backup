@@ -4,6 +4,7 @@ from copy import deepcopy
 from typing import Any
 
 from ..adapters.providers.registry import providers_for_route_query
+from ..domain.route_access_profiles import MODE_REQUIRED, PROFILE_RESTRICTED_ACCESS
 from ..domain.vocabulary import RequiredControl
 from ..pipeline.options import LiveAssemblyOptions
 from ..pipeline.search_pipeline import LiveRouteSearchFlow, build_live_route_search_flow
@@ -12,60 +13,6 @@ from ..store import Store
 from .route_plan_builder import RoutePlanBuilder
 
 PRIMARY_OFFER_QUERY_LIMIT = 10
-WESTERN_EUROPE_COUNTRY_CODES = frozenset(
-    {
-        "AD",
-        "AT",
-        "BE",
-        "CH",
-        "DE",
-        "DK",
-        "ES",
-        "FI",
-        "FR",
-        "GB",
-        "IE",
-        "IS",
-        "IT",
-        "LI",
-        "LU",
-        "MC",
-        "NL",
-        "NO",
-        "PT",
-        "SE",
-        "SM",
-        "VA",
-    }
-)
-
-
-def _country_code(store: Store, code: str) -> str | None:
-    normalized = str(code or "").upper()
-    try:
-        location = store.resolve_location(normalized)
-    except Exception:
-        location = None
-    if location is not None and getattr(location, "country_code", None):
-        return str(location.country_code or "").upper()
-    airport = store.airport_by_code.get(normalized)
-    if airport and airport.get("country_code"):
-        return str(airport.get("country_code") or "").upper()
-    city = store.city_by_code.get(normalized)
-    if city and city.get("country_code"):
-        return str(city.get("country_code") or "").upper()
-    return None
-
-
-def _is_ru_to_western_europe_bridge(
-    store: Store, origin: str, destination: str
-) -> bool:
-    countries = {
-        _country_code(store, origin),
-        _country_code(store, destination),
-    }
-    countries.discard(None)
-    return "RU" in countries and bool(countries & WESTERN_EUROPE_COUNTRY_CODES)
 
 
 class SearchPlanBuilder:
@@ -95,13 +42,35 @@ class SearchPlanBuilder:
         return SearchPlan(
             primary_offer_queries=primary_offer_queries,
             mandatory_controls=[],
-            gateway_discovery=GatewayDiscovery(enabled=False, reason=None),
+            gateway_discovery=self._gateway_discovery(flow),
             fallback_segment_plan=FallbackSegmentPlan(
                 segments=deepcopy(fallback_route_plan.get("segments") or [])
             ),
             coverage_expectations=self._coverage_expectations(
                 fallback_route_plan, primary_offer_queries
             ),
+        )
+
+    def _gateway_discovery(self, flow: LiveRouteSearchFlow) -> GatewayDiscovery:
+        decision = flow.flow_decision
+        mode = str(decision.gateway_discovery_mode or "disabled")
+        enabled = mode != "disabled"
+        reasons = list(decision.route_access_reasons or [])
+        reason = (
+            "route_access_profile_requires_gateway_discovery"
+            if mode == MODE_REQUIRED
+            else "route_access_profile_allows_gateway_discovery_after_provider_failure"
+            if enabled
+            else None
+        )
+        return GatewayDiscovery(
+            enabled=enabled,
+            reason=reason,
+            mode=mode,
+            route_access_profile=decision.route_access_profile,
+            route_access_reasons=reasons,
+            prior_set=decision.route_access_prior_set,
+            matched_rule_id=decision.route_access_rule_id,
         )
 
     def _provider_names_for_primary_offers(
@@ -129,9 +98,8 @@ class SearchPlanBuilder:
             or flow.request.depart_date
         )
         currency = str(fallback_route_plan.get("currency") or flow.request.currency).upper()
-        bridge_route = _is_ru_to_western_europe_bridge(
-            self._store, origin, destination
-        )
+        access_profile = str(flow.flow_decision.route_access_profile or "")
+        discovery_mode = str(flow.flow_decision.gateway_discovery_mode or "disabled")
 
         route_query: dict[str, Any] = {
             "probe_type": RequiredControl.FULL_ROUTE_AGGREGATE,
@@ -161,11 +129,13 @@ class SearchPlanBuilder:
                 "limit": PRIMARY_OFFER_QUERY_LIMIT,
                 "execution_state": "not_executed",
             }
-            if bridge_route:
-                query["route_family"] = "ru_to_western_europe_bridge"
+            if access_profile == PROFILE_RESTRICTED_ACCESS:
+                query["route_family"] = PROFILE_RESTRICTED_ACCESS
+                query["route_access_profile"] = access_profile
+                query["gateway_discovery_mode"] = discovery_mode
                 query["exhaustive"] = False
                 query["non_exhaustive_reason"] = (
-                    "provider_full_route_aggregate_is_primary_collection_not_coverage_proof"
+                    "restricted_access_market_requires_gateway_discovery"
                 )
             queries.append(query)
         return queries
@@ -177,16 +147,18 @@ class SearchPlanBuilder:
     ) -> list[dict[str, Any]]:
         if not primary_offer_queries:
             return []
-        origin = str(fallback_route_plan.get("origin") or "").upper()
-        destination = str(fallback_route_plan.get("destination") or "").upper()
-        if not _is_ru_to_western_europe_bridge(self._store, origin, destination):
+        access_profile = str(
+            primary_offer_queries[0].get("route_access_profile") or ""
+        )
+        if access_profile != PROFILE_RESTRICTED_ACCESS:
             return []
         return [
             {
-                "type": "primary_offer_collection_not_exhaustive",
-                "route_family": "ru_to_western_europe_bridge",
+                "type": "gateway_discovery_required",
+                "route_access_profile": PROFILE_RESTRICTED_ACCESS,
+                "gateway_discovery_mode": MODE_REQUIRED,
                 "source_type": "provider_full_route",
-                "reason": "keep segment fallback coverage for RU to Western Europe bridge routes",
+                "reason": "restricted access markets keep segment fallback coverage and gateway discovery diagnostics",
             }
         ]
 
