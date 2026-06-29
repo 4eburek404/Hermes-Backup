@@ -14,7 +14,6 @@ class TableSchema:
 @dataclass(frozen=True)
 class NormalizedRow:
     source_row: int
-    fingerprint: str
     date: str
     carrier: str
     details: str
@@ -32,7 +31,6 @@ class RowKind:
 @dataclass
 class ClassifiedRow:
     row_number: int
-    fingerprint: str
     category: str
     amount: float
     amount_display: str
@@ -41,4 +39,5 @@ class ClassifiedRow:
     reason: str
     needs_review: bool
     override_applied: bool = False
+    override_name: str = ""
     row_kind: str = "booking"

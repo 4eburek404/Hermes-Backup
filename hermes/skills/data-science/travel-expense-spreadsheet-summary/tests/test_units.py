@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
+import pytest
+
 from travel_expense.classifier import classify_category
 from travel_expense.constants import CATEGORY_AIR, CATEGORY_HOTEL, CATEGORY_RAIL, CATEGORY_UNKNOWN
 from travel_expense.money import parse_amount
+from travel_expense.overrides import load_overrides, match_override
 from travel_expense.schema import detect_schema
 
 
@@ -49,3 +55,40 @@ def test_ground_transport_legacy_rail_review():
     category, reason, review = classify_category("Аэроэкспресс", "Аэропорт-город")
     assert category == CATEGORY_RAIL
     assert review
+
+
+def test_pattern_override_matches_future_similar_rows(tmp_path: Path):
+    overrides_path = tmp_path / "overrides.json"
+    overrides_path.write_text(json.dumps({
+        "version": 2,
+        "pattern_overrides": [
+            {
+                "name": "white-travel-shenzhen-xian-air",
+                "carrier_contains": "ВАЙТ ТРЕВЕЛ",
+                "details_regex": "Шэньчжэнь\\s*[-–—]\\s*Сиань",
+                "category": "Авиа",
+                "reason": "подтвержденный авиамаршрут",
+            }
+        ],
+    }, ensure_ascii=False), encoding="utf-8")
+    patterns = load_overrides(overrides_path)
+    assert match_override("ООО ВАЙТ ТРЕВЕЛ", "05.04.2025 Шэньчжэнь — Сиань", patterns).category == CATEGORY_AIR
+
+
+def test_old_point_override_format_is_rejected(tmp_path: Path):
+    overrides_path = tmp_path / "overrides.json"
+    overrides_path.write_text('{"2df630be4b7f71ff": "Авиа"}', encoding="utf-8")
+    with pytest.raises(ValueError, match="Точечные overrides"):
+        load_overrides(overrides_path)
+
+
+def test_too_broad_pattern_override_is_rejected(tmp_path: Path):
+    overrides_path = tmp_path / "overrides.json"
+    overrides_path.write_text(json.dumps({
+        "version": 2,
+        "pattern_overrides": [
+            {"carrier_contains": "ВАЙТ ТРЕВЕЛ", "category": "Авиа"}
+        ],
+    }, ensure_ascii=False), encoding="utf-8")
+    with pytest.raises(ValueError, match="слишком широкое"):
+        load_overrides(overrides_path)

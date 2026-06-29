@@ -1,41 +1,68 @@
-# Overrides
+# Pattern overrides
 
-Overrides are manual decisions for ambiguous rows, stored outside the code.
+Overrides are user-confirmed **pattern rules** for future similar rows.
+They are stored outside the code so mixed-service vendors are not hardcoded as always aviation, rail, or lodging.
 
-Use them when the script returns `Unknown` or `needs_review=true` and the user confirms the category. This prevents repeated questions for the same row without hardcoding a mixed-service vendor as always aviation, rail, or lodging.
+Use them when the script returns `Unknown` or `needs_review=true` and the user confirms a reusable rule such as:
 
-## Preferred format
+```text
+ВАЙТ ТРЕВЕЛ + маршрут Шэньчжэнь-Сиань → Авиа
+ВАЙТ ТРЕВЕЛ + маршрут Москва-Санкт-Петербург → ЖД
+```
+
+## Format
 
 ```json
 {
-  "version": 1,
-  "rows": {
-    "ebc9500b4cc40fa7": {
+  "version": 2,
+  "pattern_overrides": [
+    {
+      "name": "white-travel-shenzhen-xian-air",
+      "carrier_contains": "ВАЙТ ТРЕВЕЛ",
+      "details_regex": "Шэньчжэнь\\s*[-–—]\\s*Сиань",
       "category": "Авиа",
-      "reason": "Пользователь подтвердил: Шэньчжэнь-Сиань был авиаперелётом"
+      "reason": "Пользователь подтвердил: направление Шэньчжэнь-Сиань было авиаперелётом"
     }
-  }
+  ]
 }
 ```
 
-The key is a fingerprint calculated from normalized date, carrier, details, and amount. It is safer than a row number because row numbers can shift when the source file changes.
+Supported conditions:
 
-## Simple compatible format
+```text
+carrier_contains — string or list of strings; all must be present in carrier
+carrier_regex    — regular expression against carrier
+details_contains — string or list of strings; all must be present in details
+details_regex    — regular expression against details
+```
 
-The script also accepts:
+A rule matches only when **all specified conditions** are true.
+At least one `details_contains` or `details_regex` condition is required. This intentionally blocks broad rules like “entire vendor = category”.
+
+## Good rule
 
 ```json
 {
-  "ebc9500b4cc40fa7": "Авиа"
+  "carrier_contains": "ВАЙТ ТРЕВЕЛ",
+  "details_regex": "Шэньчжэнь\\s*[-–—]\\s*Сиань",
+  "category": "Авиа"
 }
 ```
 
-## Row-number fallback
+This is narrow enough to be reused in later months.
 
-The script can read row-number overrides, but they are brittle and should be used only for one-off processing:
+## Bad rule
 
 ```json
 {
-  "163": "ЖД"
+  "carrier_contains": "ВАЙТ ТРЕВЕЛ",
+  "category": "Авиа"
 }
 ```
+
+This is too broad because `ВАЙТ ТРЕВЕЛ` can sell aviation, rail, lodging, transfers, and other services.
+
+## Agent behavior
+
+When the user confirms an ambiguous row, prefer saving a narrow pattern rule, not a one-off correction.
+If no safe reusable rule can be made, leave the row as `Unknown` for that run and mention it in the report.

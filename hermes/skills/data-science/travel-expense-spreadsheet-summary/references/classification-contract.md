@@ -5,7 +5,7 @@ The skill intentionally uses a small deterministic decision pipeline instead of 
 ## Row pipeline
 
 ```text
-read file → detect schema → normalize row → classify row kind → classify category → apply overrides → summarize
+read file → detect schema → normalize row → classify row kind → classify category → apply pattern overrides → summarize
 ```
 
 Only `booking` rows are counted. The script excludes or reports:
@@ -43,3 +43,8 @@ English may appear in hotel or airline names, for example `Hotel`, `Garden Inn`,
 ## Fuzzy matching
 
 Fuzzy matching is allowed only for `Перевозчик` against known airlines and with a high threshold. Do not fuzzy-match the whole `Детали` field; it contains routes, companies, hotel names, orders, and comments, so fuzzy matching there creates false positives.
+
+
+## Overrides
+
+Overrides are reusable pattern rules by carrier/details. One-off row corrections are not supported because monthly reports rarely repeat identical rows. See `references/overrides.md`.

@@ -7,7 +7,7 @@ This package replaces the monolithic script with a small modular pipeline:
 - `scripts/travel_expense/schema.py` — header and column detection;
 - `scripts/travel_expense/row_types.py` — booking/total/service row detection;
 - `scripts/travel_expense/classifier.py` — deterministic category decisions;
-- `scripts/travel_expense/overrides.py` — manual exception loading;
+- `scripts/travel_expense/overrides.py` — pattern override loading and matching;
 - `scripts/travel_expense/summary.py` — orchestration and reconciliation;
 - `scripts/travel_expense/render.py` — JSON/Markdown output.
 

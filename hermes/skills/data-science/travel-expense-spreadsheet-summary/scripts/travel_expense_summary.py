@@ -16,7 +16,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sheet", help="Excel sheet name/index; default: first sheet")
     parser.add_argument("--format", choices=["json", "markdown"], default="markdown")
     parser.add_argument("--output", type=Path, help="Write output to file instead of stdout")
-    parser.add_argument("--overrides", type=Path, help="JSON file with fingerprint or row-number overrides")
+    parser.add_argument("--overrides", type=Path, help="JSON file with pattern overrides")
     parser.add_argument("--show-review", action="store_true", help="Show Unknown/review rows in Markdown output")
     parser.add_argument("--strict", action="store_true", help="Return non-zero code when review or reconciliation issues remain")
     parser.add_argument("--date-col", help="Manual source column name for date")

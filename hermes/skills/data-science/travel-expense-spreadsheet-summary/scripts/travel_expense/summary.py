@@ -18,7 +18,7 @@ from .io import read_rows
 from .models import ClassifiedRow
 from .money import format_money, parse_amount
 from .normalizer import normalize_row
-from .overrides import load_overrides
+from .overrides import load_overrides, match_override
 from .row_types import classify_row_kind
 from .schema import detect_schema
 from .text import text_value
@@ -54,7 +54,7 @@ def analyze_file(
 ) -> dict[str, Any]:
     rows = read_rows(path, sheet=sheet)
     schema = detect_schema(rows, overrides=column_overrides)
-    override_map = load_overrides(overrides_path)
+    pattern_overrides = load_overrides(overrides_path)
     data_rows = rows[schema.header_row_index + 1:]
     last_source_row = schema.header_row_index + 1 + len(data_rows)
 
@@ -103,16 +103,17 @@ def analyze_file(
 
         category, reason, needs_review = classify_category(row.carrier, row.details)
         override_applied = False
-        decision = override_map.get(row.fingerprint) or override_map.get(str(source_row))
-        if decision:
-            category = decision.category
-            reason = decision.reason
-            needs_review = False
+        override_name = ""
+        pattern = match_override(row.carrier, row.details, pattern_overrides)
+        if pattern:
+            category = pattern.category
+            reason = pattern.reason
+            needs_review = pattern.needs_review
             override_applied = True
+            override_name = pattern.name
 
         classified.append(ClassifiedRow(
             row_number=source_row,
-            fingerprint=row.fingerprint,
             category=category,
             amount=row.amount,
             amount_display=format_money(row.amount),
@@ -121,6 +122,7 @@ def analyze_file(
             reason=reason,
             needs_review=needs_review,
             override_applied=override_applied,
+            override_name=override_name,
         ))
 
     counts: dict[str, int] = {category: 0 for category in CATEGORY_ORDER}
@@ -160,6 +162,7 @@ def analyze_file(
     classified_dicts = [asdict(row) for row in classified]
     review_rows = [row for row in classified_dicts if row["needs_review"] or row["category"] == CATEGORY_UNKNOWN]
     unknown_rows = [row for row in classified_dicts if row["category"] == CATEGORY_UNKNOWN]
+    applied_overrides = [row for row in classified_dicts if row["override_applied"]]
 
     return {
         "source_file": path.name,
@@ -183,5 +186,6 @@ def analyze_file(
         },
         "unknown_rows": unknown_rows,
         "review_rows": review_rows,
+        "applied_overrides": applied_overrides,
         "warnings": warnings,
     }

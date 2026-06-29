@@ -1,9 +1,19 @@
 {
-  "version": 1,
-  "rows": {
-    "ebc9500b4cc40fa7": {
+  "version": 2,
+  "pattern_overrides": [
+    {
+      "name": "white-travel-shenzhen-xian-air",
+      "carrier_contains": "ВАЙТ ТРЕВЕЛ",
+      "details_regex": "Шэньчжэнь\\s*[-–—]\\s*Сиань",
       "category": "Авиа",
-      "reason": "Пользователь подтвердил спорную строку"
+      "reason": "Пользователь подтвердил: направление Шэньчжэнь-Сиань было авиаперелётом"
+    },
+    {
+      "name": "white-travel-moscow-spb-rail",
+      "carrier_contains": "ВАЙТ ТРЕВЕЛ",
+      "details_regex": "Москва\\s*[-–—]\\s*(Санкт-Петербург|СПб)",
+      "category": "ЖД",
+      "reason": "Пользователь подтвердил: это ЖД по направлению Москва-Санкт-Петербург"
     }
-  }
+  ]
 }

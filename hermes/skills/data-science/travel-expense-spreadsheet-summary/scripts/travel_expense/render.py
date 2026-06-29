@@ -44,6 +44,11 @@ def render_markdown(result: Mapping[str, Any], *, show_review: bool = False) -> 
             f"расчёт {verification['booking_rows']}, исходный счетчик {verification['source_total_count']}."
         )
 
+    applied_overrides = result.get("applied_overrides", [])
+    if applied_overrides:
+        lines.append("")
+        lines.append(f"Применено пользовательских pattern overrides: {len(applied_overrides)}.")
+
     if result.get("warnings"):
         lines.append("")
         lines.append("Предупреждения:")
@@ -56,8 +61,8 @@ def render_markdown(result: Mapping[str, Any], *, show_review: bool = False) -> 
             "",
             "Строки для проверки:",
             "",
-            "| Строка | Категория | Сумма | Перевозчик | Детали | Причина | Fingerprint |",
-            "|---:|---|---:|---|---|---|---|",
+            "| Строка | Категория | Сумма | Перевозчик | Детали | Причина |",
+            "|---:|---|---:|---|---|---|",
         ])
         for item in review_rows:
             carrier = text_value(item.get("carrier"))[:55].replace("|", " ")
@@ -65,7 +70,7 @@ def render_markdown(result: Mapping[str, Any], *, show_review: bool = False) -> 
             reason = text_value(item.get("reason")).replace("|", " ")
             lines.append(
                 f"| {item['row_number']} | {item['category']} | {item['amount_display']} | "
-                f"{carrier} | {details} | {reason} | `{item['fingerprint']}` |"
+                f"{carrier} | {details} | {reason} |"
             )
     return "\n".join(lines)
 

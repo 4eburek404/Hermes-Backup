@@ -1,7 +1,7 @@
 ---
 name: travel-expense-spreadsheet-summary
 description: "Use when the user sends an Excel/CSV travel-expense spreadsheet and asks to summarize aviation, rail, hotel/lodging spend, booking counts, totals, and ambiguous rows."
-version: 2.0.0
+version: 2.1.0
 author: Hermes Agent
 license: MIT
 platforms: [linux, macos, windows]
@@ -41,9 +41,9 @@ Excel dependencies: `.xlsx/.xlsm` need `pandas openpyxl`; `.xls` needs `pandas x
 
 ## Agent Workflow
 1. Run the script in JSON mode.
-2. Read `summary`, `verification`, `unknown_rows`, `review_rows`, and `warnings`.
+2. Read `summary`, `verification`, `unknown_rows`, `review_rows`, `applied_overrides`, and `warnings`.
 3. If `unknown_rows` or `review_rows` are non-empty, group similar rows and ask the user to classify them. Do not guess silently.
-4. Save confirmed exceptions to an overrides JSON file, then rerun with `--overrides`.
+4. Save only reusable pattern rules to an overrides JSON file, then rerun with `--overrides`. Do not create one-off row corrections.
 5. Report the final totals and mention unresolved `Unknown` rows or verification mismatches.
 
 ## CLI
@@ -57,7 +57,7 @@ Key options:
 ```text
 --format json|markdown
 --sheet NAME_OR_INDEX
---overrides overrides.json
+--overrides overrides.json    # reusable pattern rules by carrier/details
 --output result.json
 --show-review
 --strict
@@ -72,4 +72,4 @@ Key options:
 ## Rules
 Classification is deterministic and explainable. It first detects table schema, then row kind, then category. Mixed-service vendors such as `Trip.com`, `Яндекс`, `ВАЙТ ТРЕВЕЛ`, and `ДубльГис` are classified by row details, not by vendor name alone. Rows without reliable positive evidence remain `Unknown`.
 
-See `references/classification-contract.md` and `references/overrides.md`.
+Overrides are pattern-based only; one-off row corrections are intentionally not supported. See `references/classification-contract.md` and `references/overrides.md`.
