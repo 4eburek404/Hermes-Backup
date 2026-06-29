@@ -7,7 +7,7 @@ from typing import Any, MutableMapping
 from .gateway_priors import normalize_market_key
 
 IATA_CODE_RE = re.compile(r"^[A-Z]{3}$")
-PROVIDER_RETURNED_ROUTE_WEIGHT = 100
+PROVIDER_RETURNED_ROUTE_WEIGHT = 200
 PROVIDER_RETURNED_ROUTE_SOURCE = "provider_returned_route"
 STATIC_PRIOR_SOURCE = "static_prior"
 
@@ -17,8 +17,10 @@ class GatewaySignal:
     source: str
     weight: int | float
     reason: str
+    code: str | None = None
     provider: str | None = None
     offer_id: str | None = None
+    direction: str | None = None
     debug: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -27,10 +29,14 @@ class GatewaySignal:
             "weight": self.weight,
             "reason": self.reason,
         }
+        if self.code:
+            payload["code"] = self.code
         if self.provider:
             payload["provider"] = self.provider
         if self.offer_id:
             payload["offer_id"] = self.offer_id
+        if self.direction:
+            payload["direction"] = self.direction
         if self.debug:
             payload["debug"] = dict(self.debug)
         return payload
@@ -65,6 +71,7 @@ class GatewayDiscoveryService:
         market_key: str,
         *,
         primary_offer_results: list[dict[str, Any]] | None = None,
+        provider_results: list[dict[str, Any]] | None = None,
         diagnostics: MutableMapping[str, Any] | None = None,
     ) -> list[GatewayCandidate]:
         market = normalize_market_key(market_key)
@@ -81,11 +88,19 @@ class GatewayDiscoveryService:
                     source=STATIC_PRIOR_SOURCE,
                     weight=prior.get("prior_weight", 0),
                     reason=str(prior.get("reason") or "gateway prior"),
+                    code=code,
                 ),
             )
 
-        for result in primary_offer_results or []:
-            _collect_provider_returned_gateways(result, state, rejected)
+        extracted, rejected_provider_signals = extract_provider_returned_gateway_signals(
+            [
+                *(primary_offer_results or []),
+                *(provider_results or []),
+            ]
+        )
+        rejected.extend(rejected_provider_signals)
+        for code, signal in extracted:
+            state.add_signal(code, signal)
 
         candidates = state.candidates()
         if diagnostics is not None:
@@ -94,6 +109,17 @@ class GatewayDiscoveryService:
             diagnostics["candidates"] = [candidate.to_dict() for candidate in candidates]
             diagnostics["rejected_gateway_signals"] = rejected
         return candidates
+
+
+def extract_provider_returned_gateway_signals(
+    provider_results: list[dict[str, Any]] | None,
+) -> tuple[list[tuple[str, GatewaySignal]], list[dict[str, Any]]]:
+    extracted: list[tuple[str, GatewaySignal]] = []
+    rejected: list[dict[str, Any]] = []
+    for result in provider_results or []:
+        if isinstance(result, dict):
+            _collect_provider_returned_gateways(result, extracted, rejected)
+    return extracted, rejected
 
 
 class _DiscoveryState:
@@ -149,22 +175,13 @@ class _DiscoveryState:
 
 def _collect_provider_returned_gateways(
     result: dict[str, Any],
-    state: _DiscoveryState,
+    extracted: list[tuple[str, GatewaySignal]],
     rejected: list[dict[str, Any]],
 ) -> None:
-    provider = str(result.get("provider") or "").strip().lower()
-    if provider != "kupibilet":
-        return
-    role = str(result.get("role") or "").strip()
-    if role and role != "primary_offer_collection":
-        return
-    source_type = str(result.get("source_type") or "").strip()
-    if source_type and source_type != "provider_full_route":
-        return
+    provider = str(result.get("provider") or "").strip().lower() or None
+    result_direction = _normalize_direction(result.get("direction"))
 
-    offers = result.get("top_offers")
-    if not isinstance(offers, list):
-        offers = result.get("normalized_offers")
+    offers = _provider_result_offers(result)
     if not isinstance(offers, list):
         return
 
@@ -172,88 +189,213 @@ def _collect_provider_returned_gateways(
         if not isinstance(offer, dict):
             continue
         offer_id = str(offer.get("id") or offer.get("offer_id") or "").strip() or None
-        segments = offer.get("segments")
-        if not isinstance(segments, list):
-            rejected.append(
-                {
-                    "source": PROVIDER_RETURNED_ROUTE_SOURCE,
-                    "provider": provider,
-                    "offer_id": offer_id,
-                    "reason": "missing_segment_detail",
-                }
-            )
-            continue
-        if len(segments) < 2:
-            continue
-        _collect_gateways_from_segments(
-            segments,
-            state,
-            rejected,
+        offer_direction = _normalize_direction(offer.get("direction")) or result_direction
+        segment_paths, skipped = _offer_segment_paths(
+            offer,
             provider=provider,
             offer_id=offer_id,
+            fallback_direction=offer_direction,
         )
+        rejected.extend(skipped)
+        for path in segment_paths:
+            if len(path["segments"]) < 2:
+                continue
+            _collect_gateways_from_segments(
+                path["segments"],
+                extracted,
+                rejected,
+                provider=provider,
+                offer_id=offer_id,
+                direction=path["direction"],
+                path_debug=path["debug"],
+            )
+
+
+def _provider_result_offers(result: dict[str, Any]) -> list[Any] | None:
+    for key in ("top_offers", "normalized_offers", "offers"):
+        offers = result.get(key)
+        if isinstance(offers, list):
+            return offers
+    normalized_result = result.get("normalized_result")
+    if isinstance(normalized_result, dict):
+        return _provider_result_offers(normalized_result)
+    return None
+
+
+def _offer_segment_paths(
+    offer: dict[str, Any],
+    *,
+    provider: str | None,
+    offer_id: str | None,
+    fallback_direction: str | None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    segments = offer.get("segments")
+    if isinstance(segments, list):
+        return (
+            [
+                {
+                    "segments": segments,
+                    "direction": fallback_direction,
+                    "debug": {"source_path": "segments"},
+                }
+            ],
+            [],
+        )
+
+    journeys = offer.get("journeys")
+    if isinstance(journeys, list):
+        paths: list[dict[str, Any]] = []
+        rejected: list[dict[str, Any]] = []
+        for journey_index, journey in enumerate(journeys):
+            if not isinstance(journey, dict):
+                rejected.append(
+                    _rejection(
+                        provider=provider,
+                        offer_id=offer_id,
+                        reason="malformed_segments",
+                        debug={"source_path": "journeys", "journey_index": journey_index},
+                    )
+                )
+                continue
+            journey_segments = journey.get("segments")
+            if not isinstance(journey_segments, list):
+                rejected.append(
+                    _rejection(
+                        provider=provider,
+                        offer_id=offer_id,
+                        reason="missing_segments",
+                        debug={"source_path": "journeys", "journey_index": journey_index},
+                    )
+                )
+                continue
+            paths.append(
+                {
+                    "segments": journey_segments,
+                    "direction": _normalize_direction(journey.get("direction"))
+                    or fallback_direction,
+                    "debug": {
+                        "source_path": "journeys",
+                        "journey_index": journey_index,
+                    },
+                }
+            )
+        return paths, rejected
+
+    return (
+        [],
+        [
+            _rejection(
+                provider=provider,
+                offer_id=offer_id,
+                reason="missing_segments",
+            )
+        ],
+    )
 
 
 def _collect_gateways_from_segments(
     segments: list[Any],
-    state: _DiscoveryState,
+    extracted: list[tuple[str, GatewaySignal]],
     rejected: list[dict[str, Any]],
     *,
-    provider: str,
+    provider: str | None,
     offer_id: str | None,
+    direction: str | None,
+    path_debug: dict[str, Any],
 ) -> None:
     for index in range(len(segments) - 1):
         current = segments[index]
         following = segments[index + 1]
         if not isinstance(current, dict) or not isinstance(following, dict):
             rejected.append(
-                {
-                    "source": PROVIDER_RETURNED_ROUTE_SOURCE,
-                    "provider": provider,
-                    "offer_id": offer_id,
-                    "segment_index": index,
-                    "reason": "missing_segment_detail",
-                }
+                _rejection(
+                    provider=provider,
+                    offer_id=offer_id,
+                    reason="malformed_segments",
+                    segment_index=index,
+                    debug=path_debug,
+                )
             )
             continue
         arrival = _normalize_gateway_code(_segment_destination(current))
         next_departure = _normalize_gateway_code(_segment_origin(following))
         if not arrival or not next_departure:
             rejected.append(
-                {
-                    "source": PROVIDER_RETURNED_ROUTE_SOURCE,
-                    "provider": provider,
-                    "offer_id": offer_id,
-                    "segment_index": index,
-                    "reason": "missing_segment_detail",
-                }
+                _rejection(
+                    provider=provider,
+                    offer_id=offer_id,
+                    reason="malformed_segments",
+                    segment_index=index,
+                    debug=path_debug,
+                )
             )
             continue
         if arrival != next_departure:
             rejected.append(
-                {
-                    "source": PROVIDER_RETURNED_ROUTE_SOURCE,
-                    "provider": provider,
-                    "offer_id": offer_id,
-                    "segment_index": index,
-                    "reason": "airport_mismatch_between_segments",
-                    "arrival_airport": arrival,
-                    "next_departure_airport": next_departure,
-                    "debug": {"ground_transfer_required": True},
-                }
+                _rejection(
+                    provider=provider,
+                    offer_id=offer_id,
+                    reason="airport_mismatch",
+                    segment_index=index,
+                    arrival_airport=arrival,
+                    next_departure_airport=next_departure,
+                    debug={**path_debug, "ground_transfer_required": True},
+                )
             )
             continue
-        state.add_signal(
-            arrival,
-            GatewaySignal(
-                source=PROVIDER_RETURNED_ROUTE_SOURCE,
-                weight=PROVIDER_RETURNED_ROUTE_WEIGHT,
-                reason="provider full-route offer contains intermediate airport",
-                provider=provider,
-                offer_id=offer_id,
-                debug={"segment_index": index},
-            ),
+        extracted.append(
+            (
+                arrival,
+                GatewaySignal(
+                    source=PROVIDER_RETURNED_ROUTE_SOURCE,
+                    weight=PROVIDER_RETURNED_ROUTE_WEIGHT,
+                    reason="provider returned route via intermediate airport",
+                    code=arrival,
+                    provider=provider,
+                    offer_id=offer_id,
+                    direction=direction,
+                    debug={
+                        **path_debug,
+                        "segment_index": index,
+                        "between_segments": [index, index + 1],
+                    },
+                ),
+            )
         )
+
+
+def _rejection(
+    *,
+    provider: str | None,
+    offer_id: str | None,
+    reason: str,
+    segment_index: int | None = None,
+    arrival_airport: str | None = None,
+    next_departure_airport: str | None = None,
+    debug: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "source": PROVIDER_RETURNED_ROUTE_SOURCE,
+        "reason": reason,
+    }
+    if provider:
+        payload["provider"] = provider
+    if offer_id:
+        payload["offer_id"] = offer_id
+    if segment_index is not None:
+        payload["segment_index"] = segment_index
+    if arrival_airport:
+        payload["arrival_airport"] = arrival_airport
+    if next_departure_airport:
+        payload["next_departure_airport"] = next_departure_airport
+    if debug:
+        payload["debug"] = dict(debug)
+    return payload
+
+
+def _normalize_direction(value: Any) -> str | None:
+    direction = str(value or "").strip().lower()
+    return direction or None
 
 
 def _segment_origin(segment: dict[str, Any]) -> Any:
@@ -276,4 +418,5 @@ __all__ = [
     "PROVIDER_RETURNED_ROUTE_SOURCE",
     "PROVIDER_RETURNED_ROUTE_WEIGHT",
     "STATIC_PRIOR_SOURCE",
+    "extract_provider_returned_gateway_signals",
 ]

@@ -197,6 +197,21 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 ],
             }
         ]
+        aggregate_results = [
+            {
+                "provider": "kupibilet",
+                "status": "ok",
+                "top_offers": [
+                    {
+                        "id": "legacy-aggregate-1",
+                        "segments": [
+                            {"origin": "SVX", "destination": "BEG"},
+                            {"origin": "BEG", "destination": "CDG"},
+                        ],
+                    }
+                ],
+            }
+        ]
 
         def run_primary(*_: object, **__: object) -> list[dict[str, object]]:
             events.append("primary")
@@ -233,7 +248,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
             ),
             patch(
                 "flights_cli.orchestrators.live_assembly_runner.run_aggregate_controls",
-                return_value=[],
+                return_value=aggregate_results,
             ),
             patch(
                 "flights_cli.orchestrators.live_assembly_runner.hub_viability_summary",
@@ -246,13 +261,17 @@ class LiveRoutePipelineTests(unittest.TestCase):
 
         self.assertEqual(events, ["primary", "segment"])
         self.assertEqual(result["live_search"]["primary_offer_results"], primary_results)
+        self.assertEqual(result["live_search"]["aggregate_controls"], aggregate_results)
         self.assertEqual(
             result["live_search"]["diagnostics"]["primary_offer_results"],
             primary_results,
         )
         gateway_discovery = result["live_search"]["diagnostics"]["gateway_discovery"]
         self.assertEqual(gateway_discovery["market"], "ru_to_western_europe_bridge")
-        self.assertEqual(gateway_discovery["candidates"][0]["code"], "IST")
+        self.assertEqual(
+            [candidate["code"] for candidate in gateway_discovery["candidates"][:2]],
+            ["IST", "BEG"],
+        )
         self.assertEqual(
             [signal["source"] for signal in gateway_discovery["candidates"][0]["signals"]],
             ["static_prior", "provider_returned_route"],

@@ -835,7 +835,7 @@ class LiveSearchResultBuilder:
         gateway_discovery_diagnostics: dict[str, Any] = {}
         GatewayDiscoveryService(self.store).discover(
             gateway_discovery_market_key(state),
-            primary_offer_results=state.primary_offer_results,
+            provider_results=[*state.primary_offer_results, *aggregate_controls],
             diagnostics=gateway_discovery_diagnostics,
         )
         assembled["live_search"] = {
