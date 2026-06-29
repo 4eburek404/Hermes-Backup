@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermes.local/flights/flight_search_plan.v1.schema.json",
+  "title": "Flight Search Plan v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "primary_offer_queries",
+    "mandatory_controls",
+    "gateway_discovery",
+    "fallback_segment_plan",
+    "coverage_expectations"
+  ],
+  "properties": {
+    "schema_version": {"const": "flight_search_plan.v1"},
+    "primary_offer_queries": {
+      "type": "array",
+      "items": {"type": "object", "additionalProperties": true}
+    },
+    "mandatory_controls": {
+      "type": "array",
+      "items": {"type": "object", "additionalProperties": true}
+    },
+    "gateway_discovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "reason"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "reason": {"type": ["string", "null"]}
+      }
+    },
+    "fallback_segment_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["segments"],
+      "properties": {
+        "segments": {
+          "type": "array",
+          "items": {"type": "object", "additionalProperties": true}
+        }
+      }
+    },
+    "coverage_expectations": {
+      "type": "array",
+      "items": {"type": "object", "additionalProperties": true}
+    }
+  }
+}

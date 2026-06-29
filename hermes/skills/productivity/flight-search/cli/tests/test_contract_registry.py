@@ -15,7 +15,13 @@ class ContractRegistryTest(unittest.TestCase):
     def test_registry_declares_current_and_planned_contracts(self) -> None:
         self.assertEqual(
             set(CURRENT_CONTRACTS),
-            {"agent_report", "user_answer", "search_request", "search_result"},
+            {
+                "agent_report",
+                "user_answer",
+                "search_request",
+                "search_result",
+                "search_plan",
+            },
         )
         self.assertEqual(
             current_contract("agent_report")["schema_version"], "agent_report.v2"
@@ -30,9 +36,12 @@ class ContractRegistryTest(unittest.TestCase):
         self.assertEqual(
             current_contract("search_result")["status"], "planned_new_root_output"
         )
+        self.assertEqual(
+            current_contract("search_plan")["status"], "diagnostic_plan_contract"
+        )
 
     def test_current_schema_resources_are_packaged(self) -> None:
-        for name in ("agent_report", "user_answer"):
+        for name in ("agent_report", "user_answer", "search_plan"):
             contract = current_contract(name)
             resource = contract["schema_resource"]
             self.assertTrue(
@@ -64,6 +73,17 @@ class ContractRegistryTest(unittest.TestCase):
         )
         self.assertNotEqual(
             projection["path"], current_contract("user_answer")["canonical_text_path"]
+        )
+
+    def test_search_plan_projection_is_diagnostic_only(self) -> None:
+        projection = DIAGNOSTIC_PROJECTIONS["search_plan"]
+        self.assertEqual(
+            projection["path"],
+            "data.route_result.live_search.diagnostics.search_plan",
+        )
+        self.assertEqual(projection["status"], "diagnostic_projection")
+        self.assertEqual(
+            current_contract("search_plan")["public_path"], projection["path"]
         )
 
 

@@ -10,7 +10,7 @@ For the reference owner map, start with `references/index.md`. This file owns pi
 |---|---|---|
 | CLI/input | `cli.py`, `command_surface.py`, `apps/search.py`, `commands/` | Parse commands, read request JSON, emit JSON envelopes. |
 | Request pipeline | `pipeline/search_request.py`, `pipeline/flow_decision.py`, `pipeline/evidence_plan.py` | Normalize request, classify intent/market/evidence, choose routing/provider/evidence policy. |
-| Planning | `orchestrators/route_plan_builder.py`, `domain/` | Build segment plan, route families, airport tiers, date windows, hub logic. |
+| Planning | `pipeline/search_plan.py`, `orchestrators/search_plan_builder.py`, `orchestrators/route_plan_builder.py`, `domain/` | Build `SearchPlan` diagnostics; keep the legacy `RoutePlanBuilder` focused on segment fallback planning, route families, airport tiers, date windows, and hub logic. |
 | Execution | `orchestrators/live_assembly_runner.py`, `execution/` | Run segment probes through provider ports, dedupe, ledger, cache/failure states. |
 | Providers | `ports/`, `adapters/providers/`, `providers/` | KupiBilet and FLI adapters, normalized offers, capability boundaries. |
 | Assembly/ranking | `services/assembly.py`, `services/ranking.py` | Direct/pair journeys, stop-policy buckets, candidate generation, ranking. |
@@ -43,7 +43,8 @@ Active provider set: `kupibilet` and `fli` via `adapters/providers/registry.py`.
 request JSON
   → normalize/validate search request
   → build LiveRouteSearchFlow: FlowDecision + EvidencePlan
-  → RoutePlanBuilder builds segment plan
+  → SearchPlanBuilder exposes diagnostic SearchPlan
+  → RoutePlanBuilder builds the current segment fallback plan
   → LiveAssemblyRunner dispatches segment probes through provider adapters
   → assemble_segment_results builds journeys/candidates/ranking
   → aggregate controls and date-window inventory attach extra evidence
@@ -77,7 +78,11 @@ request JSON
 
 ## 5. Segment planning and provider dispatch
 
-`RoutePlanBuilder` creates `plan["segments"]` with direction, leg, date, origin, destination, route family, priority metadata, airport-tier metadata, and skip hints.
+`RoutePlanBuilder` is currently the **segment fallback planner**, not the universal search planner. It creates `plan["segments"]` with direction, leg, date, origin, destination, route family, priority metadata, airport-tier metadata, and skip hints.
+
+Primary full-route offers, including provider aggregate/through-fare searches, are represented in `SearchPlan.primary_offer_queries` when the selected provider supports full-route aggregate collection. These queries are diagnostic-only for now: `LiveAssemblyRunner` does not execute them, and the existing legacy `plan` artifact remains the execution source for fallback segment probes until provider execution is migrated.
+
+Do not treat provider aggregate collection as exhaustive coverage for `ru_to_western_europe_bridge`; keep segment fallback coverage active for that bridge route family.
 
 Key planning rules:
 
@@ -103,7 +108,7 @@ Provider adapters return typed `ProviderProbeResult` values. Unsupported probes 
 
 `LiveAssemblyRunner` executes the plan:
 
-1. Build `LiveRouteSearchFlow` and segment plan.
+1. Build `LiveRouteSearchFlow`, diagnostic `SearchPlan`, and the executable segment fallback plan.
 2. Reject requests whose planned segment count exceeds `evidence_plan.max_segment_searches`.
 3. Run skip predicates before dispatch: direct-route-intel negative, preferred airport tier already has offers, city-code primary already has offers, direct probe already has offers, better priority route already viable.
 4. Dispatch eligible segment probes via `execution/probe_dispatcher.py` and provider adapters.
@@ -207,7 +212,8 @@ Then:
 | `request` | normalized request dict | `apps/search.py`, `pipeline/search_request.py` |
 | `args` | materialized `argparse.Namespace` | `apps/search.py` |
 | `FlowDecision` / `EvidencePlan` | typed frozen decisions | `pipeline/` |
-| `plan` | segment plan and route/evidence metadata | `RoutePlanBuilder` |
+| `SearchPlan` | diagnostic search plan: primary offer queries, mandatory controls, gateway discovery, fallback segment plan | `SearchPlanBuilder` |
+| `plan` | executable segment fallback plan plus route/evidence metadata | `RoutePlanBuilder` |
 | `segment_results[]` | normalized provider offers with `segments[]` | provider adapters + execution |
 | `assembled` | ranked candidates, assembly diagnostics, live_search | `services/assembly.py`, `LiveAssemblyRunner` |
 | flat `report` | report builder working shape | `agent_report_builder.py` |

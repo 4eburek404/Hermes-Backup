@@ -1,7 +1,9 @@
-"""Route-plan builder: assembles the route segment plan from typed options and store.
+"""Segment fallback planner behind the legacy RoutePlanBuilder API.
 
-Builds the declarative routing plan used by live search execution and dry
-diagnostics.
+The public class name still says RoutePlanBuilder for compatibility. Its
+current responsibility is the fallback segment plan consumed by live execution
+and dry diagnostics. Primary full-route offer queries belong in
+SearchPlan.primary_offer_queries, not in this legacy segment planner.
 """
 
 from __future__ import annotations
@@ -160,17 +162,20 @@ def resolve_date_window(
 
 
 # ---------------------------------------------------------------------------
-# RoutePlanBuilder
+# RoutePlanBuilder (legacy name for the segment fallback planner)
 # ---------------------------------------------------------------------------
 
 
 class RoutePlanBuilder:
-    """Builds a route segment plan from typed options and store.
+    """Builds the segment fallback plan from typed options and store.
 
     This class is a structural extraction of the former
     ``build_live_route_segment_plan`` function.  It preserves
     behaviour exactly — the ``build`` method body is a copy-paste
     of the original function body.
+
+    Keep this class focused on fallback segment probes. New primary through-offer
+    planning should be represented by ``SearchPlan.primary_offer_queries``.
     """
 
     def __init__(

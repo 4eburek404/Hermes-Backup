@@ -27,6 +27,12 @@ _CURRENT_CONTRACTS: dict[str, dict[str, str]] = {
         "schema_resource": "flight_search_result.v1.schema.json",
         "status": "planned_new_root_output",
     },
+    "search_plan": {
+        "schema_version": "flight_search_plan.v1",
+        "schema_resource": "flight_search_plan.v1.schema.json",
+        "public_path": "data.route_result.live_search.diagnostics.search_plan",
+        "status": "diagnostic_plan_contract",
+    },
 }
 
 _DIAGNOSTIC_PROJECTIONS: dict[str, dict[str, str]] = {
@@ -43,6 +49,11 @@ _DIAGNOSTIC_PROJECTIONS: dict[str, dict[str, str]] = {
     },
     "summary_lines": {
         "path": "data.agent_report.diagnostics.answer_lines",
+        "status": "diagnostic_projection",
+    },
+    "search_plan": {
+        "wire_version": "flight_search_plan.v1",
+        "path": "data.route_result.live_search.diagnostics.search_plan",
         "status": "diagnostic_projection",
     },
 }

@@ -111,6 +111,13 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertEqual(build_flow.call_count, 1)
         self.assertIn("live_search", result)
         self.assertEqual(result["live_search"]["provider_policy"], "auto")
+        self.assertEqual(
+            result["live_search"]["plan"],
+            {key: value for key, value in plan.items() if key != "segments"},
+        )
+        search_plan = result["live_search"]["diagnostics"]["search_plan"]
+        self.assertEqual(search_plan["schema_version"], "flight_search_plan.v1")
+        self.assertEqual(search_plan["fallback_segment_plan"]["segments"], [])
         self.assertEqual(result["live_search"]["segment_searches"], [])
         self.assertEqual(result["live_search"]["aggregate_controls"], [])
         self.assertNotIn("flow_decision", result)

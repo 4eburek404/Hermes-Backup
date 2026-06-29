@@ -34,6 +34,7 @@ from ..execution.synthetic_control_runner import (
 )
 from ..pipeline.options import LiveAssemblyOptions
 from ..pipeline.search_pipeline import LiveRouteSearchFlow, build_live_route_search_flow
+from .search_plan_builder import build_search_plan
 from ..providers.route_intel import (
     load_or_refresh_svx_route_index,
     svx_direct_route_index_summary,
@@ -333,6 +334,7 @@ class LiveAssemblyState:
 
     flow: LiveRouteSearchFlow
     plan: dict[str, Any]
+    search_plan: dict[str, Any] = field(default_factory=dict)
     segment_results: list[dict[str, Any]] = field(default_factory=list)
     searches: list[dict[str, Any]] = field(default_factory=list)
     failures: list[dict[str, Any]] = field(default_factory=list)
@@ -825,6 +827,7 @@ class LiveSearchResultBuilder:
             "aggregate_controls": aggregate_controls,
             "probe_ledger": state.probe_ledger.to_coverage_diagnostics(state.plan),
             "direct_route_intelligence": direct_route_intel,
+            "diagnostics": {"search_plan": state.search_plan},
             "failure_count": len(state.failures),
             "failures": state.failures,
             "included_segment_result_count": min(
@@ -891,7 +894,10 @@ class LiveAssemblyRunner:
         # Use injected plan_builder or fall back to build_live_route_segment_plan.
         build_plan = self._plan_builder
         plan = build_plan(self.options, store, flow=flow)
-        self.state = LiveAssemblyState(flow=flow, plan=plan)
+        search_plan = build_search_plan(
+            self.options, store, flow=flow, fallback_route_plan=plan
+        )
+        self.state = LiveAssemblyState(flow=flow, plan=plan, search_plan=search_plan)
         self.max_searches = max(1, int(flow.evidence_plan.max_segment_searches))
         if plan["metrics"]["segment_search_count"] > self.max_searches:
             raise CliError(
