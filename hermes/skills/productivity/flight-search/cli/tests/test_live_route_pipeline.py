@@ -339,6 +339,11 @@ class LiveRoutePipelineTests(unittest.TestCase):
             "flight_mixed_candidate_ranking.v1",
         )
         self.assertEqual(mixed_ranking["ranked_candidates"][0]["rank"], 1)
+        frontier = result["live_search"]["diagnostics"]["decision_frontier"]
+        self.assertEqual(frontier, result["live_search"]["decision_frontier"])
+        self.assertEqual(frontier["schema_version"], "flight_decision_frontier.v1")
+        self.assertNotIn("rank_components", frontier["options"][0])
+        self.assertNotIn("rank_key", frontier["options"][0])
         self.assertIn("gateway_leg_results", result["live_search"])
         self.assertEqual(result["live_search"]["aggregate_controls"], aggregate_results)
         self.assertEqual(

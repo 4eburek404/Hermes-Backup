@@ -47,7 +47,10 @@ from ..pipeline.offer_graph import (
     build_offer_graph as build_pipeline_offer_graph,
     materialize_offer_graph_candidates,
 )
-from ..pipeline.candidate_ranker import rank_mixed_candidates
+from ..pipeline.candidate_ranker import (
+    build_decision_frontier,
+    rank_mixed_candidates,
+)
 from ..pipeline.search_pipeline import LiveRouteSearchFlow, build_live_route_search_flow
 from .search_plan_builder import build_search_plan
 from ..providers.route_intel import (
@@ -923,6 +926,7 @@ class LiveSearchResultBuilder:
             offer_candidates,
             max_connections_per_journey=2,
         )
+        decision_frontier = build_decision_frontier(mixed_candidate_ranking)
         assembled["live_search"] = {
             "source": source_label,
             "provider_policy": self.provider_policy,
@@ -937,6 +941,7 @@ class LiveSearchResultBuilder:
             "offer_graph": offer_graph,
             "offer_candidates": offer_candidates,
             "mixed_candidate_ranking": mixed_candidate_ranking,
+            "decision_frontier": decision_frontier,
             "aggregate_controls": aggregate_controls,
             "probe_ledger": state.probe_ledger.to_coverage_diagnostics(state.plan),
             "direct_route_intelligence": direct_route_intel,
@@ -947,6 +952,7 @@ class LiveSearchResultBuilder:
                 "offer_graph": offer_graph,
                 "offer_candidates": offer_candidates,
                 "mixed_candidate_ranking": mixed_candidate_ranking,
+                "decision_frontier": decision_frontier,
                 "gateway_discovery": gateway_discovery_diagnostics,
             },
             "failure_count": len(state.failures),

@@ -3,7 +3,10 @@ from __future__ import annotations
 import unittest
 
 from flights_cli.domain.vocabulary import RouteFamily
-from flights_cli.pipeline.candidate_ranker import rank_mixed_candidates
+from flights_cli.pipeline.candidate_ranker import (
+    build_decision_frontier,
+    rank_mixed_candidates,
+)
 
 
 def segment(origin: str, destination: str) -> dict[str, str]:
@@ -20,13 +23,16 @@ def candidate(
     covers_requested_trip: bool = True,
     connection_risk_score: int = 0,
     elapsed_min: int = 600,
+    gateway: str | None = None,
 ) -> dict:
     return {
         "id": candidate_id,
         "source_type": source_type,
         "provider": "kupibilet" if source_type == "provider_full_route" else None,
         "source_providers": ["kupibilet"],
-        "gateway": "IST" if source_type == "gateway_separate_ticket" else None,
+        "gateway": gateway
+        if gateway is not None
+        else ("IST" if source_type == "gateway_separate_ticket" else None),
         "covers_requested_trip": covers_requested_trip,
         "journey_scope": "one_way",
         "price": price,
@@ -203,6 +209,172 @@ class CandidateRankerTests(unittest.TestCase):
             ],
             1,
         )
+
+    def test_frontier_keeps_best_viable_option_without_raw_diagnostics(self) -> None:
+        provider = candidate(
+            "provider",
+            source_type="provider_full_route",
+            price=50000,
+            ticketing_model="provider_order_unverified",
+            segments=[segment("SVX", "IST"), segment("IST", "AMS")],
+        )
+
+        frontier = build_decision_frontier(
+            rank_mixed_candidates({"candidates": [provider]})
+        )
+
+        self.assertEqual(frontier["schema_version"], "flight_decision_frontier.v1")
+        self.assertEqual(frontier["options"][0]["id"], "provider")
+        self.assertEqual(frontier["options"][0]["selection_reasons"], ["best_viable"])
+        self.assertNotIn("rank_key", frontier["options"][0])
+        self.assertNotIn("rank_components", frontier["options"][0])
+        self.assertNotIn("ranking_reasons", frontier["options"][0])
+
+    def test_frontier_keeps_cheapest_materially_different_option(self) -> None:
+        provider = candidate(
+            "provider",
+            source_type="provider_full_route",
+            price=60000,
+            ticketing_model="provider_order_unverified",
+            segments=[segment("SVX", "IST"), segment("IST", "AMS")],
+        )
+        gateway = candidate(
+            "gateway",
+            source_type="gateway_separate_ticket",
+            price=30000,
+            ticketing_model="separate_ticket_sum",
+            segments=[segment("SVX", "IST"), segment("IST", "AMS")],
+        )
+
+        frontier = build_decision_frontier(
+            rank_mixed_candidates({"candidates": [gateway, provider]})
+        )
+
+        by_id = {option["id"]: option for option in frontier["options"]}
+        self.assertIn("provider", by_id)
+        self.assertIn("gateway", by_id)
+        self.assertIn("cheapest_acceptable", by_id["gateway"]["selection_reasons"])
+
+    def test_frontier_keeps_fastest_materially_different_option(self) -> None:
+        cheap = candidate(
+            "cheap",
+            source_type="provider_full_route",
+            price=45000,
+            ticketing_model="provider_order_unverified",
+            segments=[segment("SVX", "IST"), segment("IST", "AMS")],
+            elapsed_min=720,
+        )
+        fast = candidate(
+            "fast",
+            source_type="provider_full_route",
+            price=80000,
+            ticketing_model="provider_order_unverified",
+            segments=[segment("SVX", "IST"), segment("IST", "AMS")],
+            elapsed_min=360,
+        )
+
+        frontier = build_decision_frontier(
+            rank_mixed_candidates({"candidates": [fast, cheap]})
+        )
+
+        by_id = {option["id"]: option for option in frontier["options"]}
+        self.assertEqual(frontier["options"][0]["id"], "cheap")
+        self.assertIn("fast", by_id)
+        self.assertIn("fastest_acceptable", by_id["fast"]["selection_reasons"])
+
+    def test_frontier_keeps_safer_ticketing_and_direct_controls(self) -> None:
+        provider = candidate(
+            "provider",
+            source_type="provider_full_route",
+            price=40000,
+            ticketing_model="provider_order_unverified",
+            segments=[segment("SVX", "IST"), segment("IST", "AMS")],
+        )
+        direct = candidate(
+            "direct",
+            source_type=RouteFamily.DIRECT_INVENTORY,
+            price=90000,
+            ticketing_model="unknown",
+            segments=[segment("SVX", "AMS")],
+        )
+
+        frontier = build_decision_frontier(
+            rank_mixed_candidates({"candidates": [provider, direct]})
+        )
+
+        by_id = {option["id"]: option for option in frontier["options"]}
+        self.assertIn("direct", by_id)
+        self.assertIn("best_viable", by_id["direct"]["selection_reasons"])
+        self.assertIn("safer_ticketing", by_id["direct"]["selection_reasons"])
+        self.assertIn("direct_nonstop_control", by_id["direct"]["selection_reasons"])
+
+    def test_frontier_keeps_significant_gateway_alternatives(self) -> None:
+        provider = candidate(
+            "provider",
+            source_type="provider_full_route",
+            price=50000,
+            ticketing_model="provider_order_unverified",
+            segments=[segment("SVX", "IST"), segment("IST", "AMS")],
+        )
+        ist = candidate(
+            "gateway-ist",
+            source_type="gateway_separate_ticket",
+            price=48000,
+            ticketing_model="separate_ticket_sum",
+            segments=[segment("SVX", "IST"), segment("IST", "AMS")],
+            gateway="IST",
+        )
+        dxb = candidate(
+            "gateway-dxb",
+            source_type="gateway_separate_ticket",
+            price=52000,
+            ticketing_model="separate_ticket_sum",
+            segments=[segment("SVX", "DXB"), segment("DXB", "AMS")],
+            gateway="DXB",
+        )
+
+        frontier = build_decision_frontier(
+            rank_mixed_candidates({"candidates": [dxb, ist, provider]})
+        )
+
+        by_id = {option["id"]: option for option in frontier["options"]}
+        self.assertIn("gateway-ist", by_id)
+        self.assertIn("gateway-dxb", by_id)
+        self.assertIn(
+            "significant_gateway_alternative",
+            by_id["gateway-ist"]["selection_reasons"],
+        )
+        self.assertIn(
+            "significant_gateway_alternative",
+            by_id["gateway-dxb"]["selection_reasons"],
+        )
+
+    def test_frontier_coverage_summary_counts_representatives(self) -> None:
+        provider = candidate(
+            "provider",
+            source_type="provider_full_route",
+            price=50000,
+            ticketing_model="provider_order_unverified",
+            segments=[segment("SVX", "IST"), segment("IST", "AMS")],
+        )
+        impossible = candidate(
+            "impossible",
+            source_type="provider_full_route",
+            price=10000,
+            ticketing_model="provider_order_unverified",
+            segments=[segment("SVX", "IST"), segment("IST", "AMS")],
+            covers_requested_trip=False,
+        )
+
+        frontier = build_decision_frontier(
+            rank_mixed_candidates({"candidates": [impossible, provider]})
+        )
+
+        summary = frontier["coverage_summary"]
+        self.assertEqual(summary["candidate_count"], 2)
+        self.assertEqual(summary["acceptable_count"], 1)
+        self.assertEqual(summary["selected_count"], 1)
+        self.assertEqual(summary["selection_roles"], ["best_viable"])
 
 
 if __name__ == "__main__":
