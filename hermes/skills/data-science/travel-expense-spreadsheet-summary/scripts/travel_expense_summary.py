@@ -18,11 +18,19 @@ from typing import Any, Iterable, Mapping
 CATEGORY_AIR = "Авиа"
 CATEGORY_RAIL = "ЖД"
 CATEGORY_HOTEL = "Проживание в отелях"
+CATEGORY_UNKNOWN = "Unknown"
 CATEGORY_TOTAL = "ИТОГО"
-CATEGORY_ORDER = [CATEGORY_AIR, CATEGORY_RAIL, CATEGORY_HOTEL]
+CATEGORY_ORDER = [CATEGORY_AIR, CATEGORY_RAIL, CATEGORY_HOTEL, CATEGORY_UNKNOWN]
 
 RAIL_MARKERS = ["ржд", "жд", "ж/д", "гранд сервис", "аэроэкспресс", "аэроэскпресс"]
-MIXED_SERVICE_MARKERS = ["trip.com", "trip com", "trip"]
+AIRLINE_MARKERS = [
+    "авиа", "аэрофлот", "победа", "air ", "airlines", "airways", "turkish",
+    "ютэйр", "red wings", "ред вингс", "нордстар", "nordstar", "ювт аэро", "ювтаэро",
+    "уральские", "северсталь", "belavia", "indigo", "hainan",
+    "tianjin", "china eastern", "china southern", "china united",
+    "spring", "s7", "с7", "emirates", "etihad", "fly dubai", "flydubai", "nordwind", "нордвинд",
+]
+MIXED_SERVICE_MARKERS = ["trip.com", "trip com", "trip", "вайт тревел"]
 HOTEL_VENDOR_MARKERS = ["яндекс", "дубльгис", "комфорт букинг", "гостиниц"]
 TOTAL_LABELS = {"итог", "total", "grand total"}
 
@@ -90,13 +98,23 @@ def classify_record(
     details = lower_value(record.get(details_col))
     text = f"{carrier} {details}"
 
-    if "прожив" in details:
+    if any(marker in details for marker in ("прожив", "апартамент", "поздний выезд")):
         return CATEGORY_HOTEL
+
+    # If the carrier itself is an airline, it's aviation — regardless of
+    # what organisation name appears in the trip details (e.g. "РЖД" as
+    # a destination company in "Конструкторское бюро РЖД").
+    if any(marker in carrier for marker in AIRLINE_MARKERS):
+        return CATEGORY_AIR
 
     if any(marker in text for marker in RAIL_MARKERS):
         return CATEGORY_RAIL
 
-    return CATEGORY_AIR
+    # Airline marker only in details (e.g. empty carrier, route description).
+    if any(marker in text for marker in AIRLINE_MARKERS):
+        return CATEGORY_AIR
+
+    return CATEGORY_UNKNOWN
 
 
 def _first_column_name(record: Mapping[str, Any]) -> str | None:
@@ -107,12 +125,24 @@ def is_total_row(
     record: Mapping[str, Any],
     *,
     date_col: str = "Дата",
+    carrier_col: str = "Перевозчик",
 ) -> bool:
     first_col = _first_column_name(record)
     candidates = [record.get(date_col)]
     if first_col and first_col != date_col:
         candidates.append(record.get(first_col))
-    return any(lower_value(value) in TOTAL_LABELS for value in candidates)
+    # Also check all column values — some files put "ИТОГО:" in Детали
+    # with an empty date column.
+    candidates.extend(record.values())
+    if any(lower_value(value) in TOTAL_LABELS or lower_value(value).startswith("итого") for value in candidates):
+        return True
+    # Fallback: empty date + empty carrier → total row (some files have
+    # only a count in Детали and the total sum in Сумма, with no "ИТОГО" label).
+    date_val = lower_value(record.get(date_col))
+    carrier_val = lower_value(record.get(carrier_col))
+    if not date_val and not carrier_val:
+        return True
+    return False
 
 
 def _source_total_count(total_row: Mapping[str, Any], amount_col: str) -> int | None:
@@ -171,7 +201,7 @@ def summarize_records(
 
     for index, raw_record in enumerate(records_list, start=2):
         record = dict(raw_record)
-        if is_total_row(record, date_col=date_col):
+        if is_total_row(record, date_col=date_col, carrier_col=carrier_col):
             total_rows.append(record)
             continue
 
@@ -192,6 +222,17 @@ def summarize_records(
 
         carrier = lower_value(record.get(carrier_col))
         details = lower_value(record.get(details_col))
+        if category == CATEGORY_UNKNOWN:
+            warnings.append(
+                _warning_row(
+                    "unknown_category",
+                    index,
+                    category,
+                    record,
+                    carrier_col=carrier_col,
+                    details_col=details_col,
+                )
+            )
         if not carrier and category == CATEGORY_AIR:
             warnings.append(
                 _warning_row(
@@ -217,7 +258,7 @@ def summarize_records(
         if (
             any(marker in carrier for marker in HOTEL_VENDOR_MARKERS)
             and category != CATEGORY_HOTEL
-            and "прожив" not in details
+            and not any(marker in details for marker in ("прожив", "апартамент", "поздний выезд"))
         ):
             warnings.append(
                 _warning_row(

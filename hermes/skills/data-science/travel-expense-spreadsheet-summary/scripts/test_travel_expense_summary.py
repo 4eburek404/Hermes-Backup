@@ -27,11 +27,31 @@ def test_classify_record_handles_travel_edge_cases():
             "ЖД",
         ),
         (
-            {"Перевозчик": "", "Детали": "13.06.2026 ЕКБ-Ереван/ 14.06.2026 Ереван-Рим/27.06.2026 Рим-Ереван-ЕКБ"},
+            {"Перевозчик": "ПАО Аэрофлот", "Детали": "05.06.2026 ЕКБ-Москва/21.06.2026 Москва-ЕКБ, Физтех отель, МФТИ"},
             "Авиа",
         ),
         (
-            {"Перевозчик": "ПАО Аэрофлот", "Детали": "05.06.2026 ЕКБ-Москва/21.06.2026 Москва-ЕКБ, Физтех отель, МФТИ"},
+            {"Перевозчик": "ООО \"ЯНДЕКС ВЕРТИКАЛИ\" Москва", "Детали": "Приказ, 16.03-17.03.2026, Екатеринбург, апартаменты"},
+            "Проживание в отелях",
+        ),
+        # Unknown: no airline/rail/hotel marker → not auto-classified as Авиа
+        (
+            {"Перевозчик": "", "Детали": "13.06.2026 ЕКБ-Ереван/ 14.06.2026 Ереван-Рим/27.06.2026 Рим-Ереван-ЕКБ"},
+            "Unknown",
+        ),
+        # ВАЙТ ТРЕВЕЛ — mixed-service vendor, classified per row details
+        (
+            {"Перевозчик": "ООО \"ВАЙТ ТРЕВЕЛ\" МОСКВА", "Детали": "Приказ 5434, 04.05.2026 Санкт-Петербург- Великие Луки"},
+            "Unknown",
+        ),
+        # Поздний выезд → Проживание в отелях
+        (
+            {"Перевозчик": "ООО \"Центр бронирования ЮСТА\" Екатеринбург", "Детали": "Поздний выезд 26.04.2026, Екатеринбург, Московская горка"},
+            "Проживание в отелях",
+        ),
+        # Аэрофлот + "РЖД" в деталях как название организации → Авиа, не ЖД
+        (
+            {"Перевозчик": "ПАО \"Аэрофлот- Российские авиалинии\" Москва", "Детали": "12.01.2025 ЕКБ-Москва/13.01.2025 Москва-ЕКБ (Конструкторское бюро РЖД)"},
             "Авиа",
         ),
     ]
@@ -54,7 +74,7 @@ def test_summarize_records_excludes_total_and_verifies_source_total():
     result = tes.summarize_records(records)
 
     by_category = {row["category"]: row for row in result["summary"]}
-    assert by_category["Авиа"] == {"category": "Авиа", "bookings": 2, "amount": 30000.0, "amount_display": "30 000,00 ₽"}
+    assert by_category["Авиа"] == {"category": "Авиа", "bookings": 1, "amount": 10000.0, "amount_display": "10 000,00 ₽"}
     assert by_category["ЖД"] == {"category": "ЖД", "bookings": 2, "amount": 2150.5, "amount_display": "2 150,50 ₽"}
     assert by_category["Проживание в отелях"] == {
         "category": "Проживание в отелях",
@@ -62,6 +82,7 @@ def test_summarize_records_excludes_total_and_verifies_source_total():
         "amount": 7000.0,
         "amount_display": "7 000,00 ₽",
     }
+    assert by_category["Unknown"] == {"category": "Unknown", "bookings": 1, "amount": 20000.0, "amount_display": "20 000,00 ₽"}
     assert by_category["ИТОГО"] == {"category": "ИТОГО", "bookings": 6, "amount": 39150.5, "amount_display": "39 150,50 ₽"}
 
     assert result["verification"] == {
@@ -74,7 +95,7 @@ def test_summarize_records_excludes_total_and_verifies_source_total():
         "matches_source_total": True,
     }
     warning_types = {warning["type"] for warning in result["warnings"]}
-    assert {"mixed_service_vendor", "missing_carrier_air_route"} <= warning_types
+    assert {"mixed_service_vendor", "unknown_category"} <= warning_types
 
 
 def test_csv_cli_outputs_json_and_markdown(tmp_path):
