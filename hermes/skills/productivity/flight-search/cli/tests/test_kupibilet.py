@@ -885,9 +885,9 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             }
 
         def fake_fetch(
-            origin: str, destination: str, depart_date: object, **_: object
+            origin: str, destination: str, depart_date: object, **kwargs: object
         ) -> dict:
-            calls.append((origin, destination))
+            calls.append((origin, destination, bool(kwargs.get("direct_only", True))))
             depart = (
                 depart_date.isoformat()
                 if hasattr(depart_date, "isoformat")
@@ -917,8 +917,13 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         ):
             result = run_live_route_assembly(args, Store())
 
-        self.assertNotIn(("SVX", "DXB"), calls)
-        self.assertNotIn(("DXB", "MUC"), calls)
+        direct_calls = {
+            (origin, destination)
+            for origin, destination, direct_only in calls
+            if direct_only
+        }
+        self.assertNotIn(("SVX", "DXB"), direct_calls)
+        self.assertNotIn(("DXB", "MUC"), direct_calls)
         self.assertGreater(result["assembly"]["candidate_count"], 0)
         skipped_dxb = [
             search
@@ -996,9 +1001,9 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             }
 
         def fake_fetch(
-            origin: str, destination: str, depart_date: object, **_: object
+            origin: str, destination: str, depart_date: object, **kwargs: object
         ) -> dict:
-            calls.append((origin, destination))
+            calls.append((origin, destination, bool(kwargs.get("direct_only", True))))
             depart = (
                 depart_date.isoformat()
                 if hasattr(depart_date, "isoformat")
@@ -1034,8 +1039,13 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         ):
             result = run_live_route_assembly(args, Store())
 
-        self.assertNotIn(("SVX", "MUC"), calls)
-        self.assertIn(("SVX", "IST"), calls)
+        direct_calls = {
+            (origin, destination)
+            for origin, destination, direct_only in calls
+            if direct_only
+        }
+        self.assertNotIn(("SVX", "MUC"), direct_calls)
+        self.assertIn(("SVX", "IST"), direct_calls)
         self.assertTrue(result["live_search"]["direct_route_intelligence"]["available"])
         skipped = [
             search
@@ -1192,9 +1202,9 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         }
 
         def fake_fetch(
-            origin: str, destination: str, depart_date: object, **_: object
+            origin: str, destination: str, depart_date: object, **kwargs: object
         ) -> dict:
-            calls.append((origin, destination))
+            calls.append((origin, destination, bool(kwargs.get("direct_only", True))))
             depart = (
                 depart_date.isoformat()
                 if hasattr(depart_date, "isoformat")
@@ -1225,7 +1235,12 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         ):
             result = run_live_route_assembly(args, Store())
 
-        self.assertNotIn(("MUC", "SVX"), calls)
+        direct_calls = {
+            (origin, destination)
+            for origin, destination, direct_only in calls
+            if direct_only
+        }
+        self.assertNotIn(("MUC", "SVX"), direct_calls)
         skipped = [
             search
             for search in result["live_search"]["segment_searches"]

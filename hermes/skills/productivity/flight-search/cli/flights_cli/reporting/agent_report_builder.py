@@ -236,6 +236,14 @@ def provider_failures(live: dict[str, Any], limit: int = 10) -> list[dict[str, A
     ]
 
 
+def primary_offer_results(live: dict[str, Any], limit: int = 20) -> list[dict[str, Any]]:
+    return [
+        dict(item)
+        for item in (live.get("primary_offer_results") or [])[: max(0, limit)]
+        if isinstance(item, dict)
+    ]
+
+
 def carrier_scope_list(value: Any) -> list[Any]:
     if value is None:
         return []
@@ -1081,6 +1089,7 @@ def build_agent_report(
         "hub_viability": hub_viability_summaries(live),
         "segment_searches": segment_search_summaries(live),
         "provider_failures": provider_failures(live),
+        "primary_offer_results": primary_offer_results(live),
         "recommended_options": options,
         "priority_options": priority_options,
         "aggregate_controls": aggregate_controls,

@@ -21,6 +21,10 @@ from ..execution.aggregate_control_runner import (
     AggregateControlOptions,
     run_aggregate_controls,
 )
+from ..execution.offer_query_runner import (
+    PrimaryOfferQueryOptions,
+    run_primary_offer_queries,
+)
 from ..execution.probe_dispatcher import (
     SegmentProbeOptions,
     dispatch_segment_probe,
@@ -335,6 +339,7 @@ class LiveAssemblyState:
     flow: LiveRouteSearchFlow
     plan: dict[str, Any]
     search_plan: dict[str, Any] = field(default_factory=dict)
+    primary_offer_results: list[dict[str, Any]] = field(default_factory=list)
     segment_results: list[dict[str, Any]] = field(default_factory=list)
     searches: list[dict[str, Any]] = field(default_factory=list)
     failures: list[dict[str, Any]] = field(default_factory=list)
@@ -825,10 +830,14 @@ class LiveSearchResultBuilder:
             },
             "segment_searches": state.searches,
             "hub_viability": hub_viability_summary(state.plan, state.searches),
+            "primary_offer_results": state.primary_offer_results,
             "aggregate_controls": aggregate_controls,
             "probe_ledger": state.probe_ledger.to_coverage_diagnostics(state.plan),
             "direct_route_intelligence": direct_route_intel,
-            "diagnostics": {"search_plan": state.search_plan},
+            "diagnostics": {
+                "search_plan": state.search_plan,
+                "primary_offer_results": state.primary_offer_results,
+            },
             "failure_count": len(state.failures),
             "failures": state.failures,
             "included_segment_result_count": min(
@@ -885,6 +894,17 @@ class LiveAssemblyRunner:
         state = self.initialize_state()
         assert self.probe_executor is not None
         assert self.result_builder is not None
+        state.primary_offer_results = run_primary_offer_queries(
+            list(state.search_plan.get("primary_offer_queries") or []),
+            PrimaryOfferQueryOptions(
+                live_cache_ttl_seconds=self.cache_ttl_seconds,
+                no_live_cache=not self.use_live_cache,
+                timeout=self.options.evidence.timeout,
+            ),
+            store=self.store,
+            kupibilet_fetcher=fetch_kupibilet_search,
+            probe_ledger=state.probe_ledger,
+        )
         self.probe_executor.run(state)
         self.synthetic_controls.apply_pending(state)
         return self.result_builder.build(state, self.direct_route_intel)

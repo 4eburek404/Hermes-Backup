@@ -159,6 +159,62 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         self.assertEqual(option.get("visibility_role"), "priority_control")
         return option
 
+    def test_primary_offer_results_are_report_evidence_not_answer_material(self) -> None:
+        options = assembly_options_from_args(self._args())
+
+        def data_with_primary(
+            primary_offer_results: list[dict[str, Any]],
+        ) -> dict[str, Any]:
+            data = empty_assembled_result(options)
+            data["live_search"] = {
+                "source": "fixture",
+                "provider_policy": "kupibilet",
+                "plan": {
+                    "origin": "SVX",
+                    "destination": "LON",
+                    "origin_airports": ["SVX"],
+                    "destination_airports": LON_AIRPORTS,
+                    "dates": {"depart": "2026-07-19", "return": None},
+                    "profile": "business",
+                    "routing_strategy": "ru-priority",
+                    "coverage_mode": "targeted",
+                    "coverage_controls": [],
+                    "coverage_limits": {},
+                },
+                "segment_searches": [],
+                "hub_viability": [],
+                "primary_offer_results": primary_offer_results,
+                "aggregate_controls": [],
+                "failures": [],
+                "failure_count": 0,
+            }
+            return data
+
+        primary_results = [
+            {
+                "role": "primary_offer_collection",
+                "provider": "kupibilet",
+                "status": "ok",
+                "execution_state": "searched",
+                "offer_count": 1,
+                "top_offers": [{"id": "primary-offer"}],
+            }
+        ]
+
+        baseline = build_agent_report(data_with_primary([]))
+        with_primary = build_agent_report(data_with_primary(primary_results))
+        validate_agent_report(baseline)
+        validate_agent_report(with_primary)
+
+        self.assertEqual(
+            with_primary["evidence"]["primary_offer_results"], primary_results
+        )
+        self.assertEqual(
+            baseline["user_answer"]["rendered_text"],
+            with_primary["user_answer"]["rendered_text"],
+        )
+        self.assertEqual(baseline["frontier"], with_primary["frontier"])
+
     def test_segment_search_evidence_keeps_route_and_carrier_scope(self) -> None:
         options = assembly_options_from_args(self._args())
         data = empty_assembled_result(options)

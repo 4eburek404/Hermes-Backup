@@ -67,6 +67,17 @@ class LiveAssembleProbeLedgerTests(unittest.TestCase):
                 return_value=plan,
             ),
             patch(
+                "flights_cli.orchestrators.live_assembly_runner.build_search_plan",
+                return_value={
+                    "schema_version": "flight_search_plan.v1",
+                    "primary_offer_queries": [],
+                    "mandatory_controls": [],
+                    "gateway_discovery": {"enabled": False, "reason": None},
+                    "fallback_segment_plan": {"segments": []},
+                    "coverage_expectations": [],
+                },
+            ),
+            patch(
                 "flights_cli.orchestrators.live_assembly_runner.empty_assembled_result",
                 return_value={},
             ),

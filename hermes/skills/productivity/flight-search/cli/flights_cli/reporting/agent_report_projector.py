@@ -141,6 +141,7 @@ def project_agent_report(flat_report: dict[str, Any]) -> dict[str, Any]:
         "hub_viability": flat_report.get("hub_viability") or [],
         "segment_searches": flat_report.get("segment_searches") or [],
         "provider_failures": flat_report.get("provider_failures") or [],
+        "primary_offer_results": flat_report.get("primary_offer_results") or [],
         "aggregate_controls": flat_report.get("aggregate_controls") or [],
         "coverage_diagnostics": flat_report.get("coverage_diagnostics") or {},
         "through_fare_checks": flat_report.get("through_fare_checks") or [],

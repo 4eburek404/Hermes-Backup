@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
+from flights_cli.execution.probe_dispatcher import SegmentProbeOutcome
 from flights_cli.orchestrators.live_route_assembly import run_live_route_assembly
 from flights_cli.pipeline.search_pipeline import build_live_route_search_flow
 from flights_cli.store import Store
@@ -126,6 +127,118 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertNotIn("flow_decision", result["live_search"])
         self.assertNotIn("evidence_plan", result["live_search"])
         self.assertNotIn("search_request", result["live_search"])
+
+    def test_primary_offer_queries_execute_before_segment_probes(self) -> None:
+        events: list[str] = []
+        plan = {
+            "origin": "SVX",
+            "destination": "CDG",
+            "dates": {"depart": "2026-08-16", "return": None},
+            "currency": "RUB",
+            "profile": "business",
+            "ticketing": "separate",
+            "routing_strategy": "auto",
+            "hubs": [],
+            "route_graph": {"nodes": [], "edges": [], "strategy": "auto"},
+            "route_families": [],
+            "segments": [
+                {
+                    "direction": "outbound",
+                    "leg": "origin_to_hub",
+                    "origin": "SVX",
+                    "destination": "IST",
+                    "date": "2026-08-16",
+                }
+            ],
+            "coverage_mode": "targeted",
+            "coverage_limits": {},
+            "coverage_controls": [],
+            "metrics": {"segment_search_count": 1},
+        }
+        search_plan = {
+            "schema_version": "flight_search_plan.v1",
+            "primary_offer_queries": [
+                {
+                    "role": "primary_offer_collection",
+                    "source_type": "provider_full_route",
+                    "probe_type": "full_route_aggregate",
+                    "provider": "kupibilet",
+                    "direction": "outbound",
+                    "origin": "SVX",
+                    "destination": "CDG",
+                    "date": "2026-08-16",
+                    "currency": "RUB",
+                    "direct_only": False,
+                    "limit": 10,
+                }
+            ],
+            "mandatory_controls": [],
+            "gateway_discovery": {"enabled": False, "reason": None},
+            "fallback_segment_plan": {"segments": list(plan["segments"])},
+            "coverage_expectations": [],
+        }
+        primary_results = [
+            {
+                "role": "primary_offer_collection",
+                "provider": "kupibilet",
+                "status": "ok",
+                "execution_state": "searched",
+                "offer_count": 1,
+            }
+        ]
+
+        def run_primary(*_: object, **__: object) -> list[dict[str, object]]:
+            events.append("primary")
+            return primary_results
+
+        def dispatch_segment(**_: object) -> list[SegmentProbeOutcome]:
+            events.append("segment")
+            return [
+                SegmentProbeOutcome(
+                    summary={"status": "ok", "provider": "kupibilet", "offer_count": 0}
+                )
+            ]
+
+        with (
+            patch(
+                "flights_cli.orchestrators.live_route_assembly.build_live_route_segment_plan",
+                return_value=plan,
+            ),
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.build_search_plan",
+                return_value=search_plan,
+            ),
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.run_primary_offer_queries",
+                side_effect=run_primary,
+            ),
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.dispatch_segment_probe",
+                side_effect=dispatch_segment,
+            ),
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.empty_assembled_result",
+                return_value={},
+            ),
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.run_aggregate_controls",
+                return_value=[],
+            ),
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.hub_viability_summary",
+                return_value=[],
+            ),
+        ):
+            result = run_live_route_assembly(
+                live_args(provider_policy="kupibilet"), Store()
+            )
+
+        self.assertEqual(events, ["primary", "segment"])
+        self.assertEqual(result["live_search"]["primary_offer_results"], primary_results)
+        self.assertEqual(
+            result["live_search"]["diagnostics"]["primary_offer_results"],
+            primary_results,
+        )
 
 
 if __name__ == "__main__":
