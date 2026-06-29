@@ -24,6 +24,8 @@ COLUMN_HINTS: dict[str, list[str]] = {
     CANON_AMOUNT: ["сумма", "стоимость", "цена", "итого", "оплата", "руб"],
 }
 
+# Specific airline names and distinctive fragments. Generic words like
+# `авиа` / `air` are deliberately not used as standalone detail markers.
 KNOWN_AIRLINES = [
     "аэрофлот", "aeroflot",
     "победа",
@@ -47,23 +49,29 @@ KNOWN_AIRLINES = [
     "air india", "india",
 ]
 
-RAIL_MARKERS = [
-    "ржд", "жд", "ж/д", "железнодорож", "поезд", "вагон", "сапсан",
+RAIL_CARRIER_MARKERS = ["ржд", "ж/д", "железнодорож", "гранд сервис", "гранд сервис экспресс"]
+RAIL_DETAIL_MARKERS = [
+    "ржд", "ж/д", "жд", "железнодорож", "поезд", "вагон", "сапсан", "купе", "плацкарт",
     "гранд сервис", "гранд сервис экспресс",
 ]
 
+# Legacy report keeps ground transport inside ЖД unless the user asks for a
+# separate category. These are confirmed service markers, not review signals.
 GROUND_MARKERS = ["аэроэкспресс", "аэроэскпресс", "трансфер", "автобус"]
 
+# Mixed vendors cannot be classified by carrier alone.
 MIXED_SERVICE_VENDOR_MARKERS = [
     "trip.com", "trip com", "trip", "вайт тревел", "яндекс", "дубльгис",
 ]
 
 HOTEL_VENDOR_MARKERS = [
-    "комфорт букинг", "центр бронирования", "гостиниц", "гостиница", "отель", "hotel",
+    "комфорт букинг", "центр бронирования", "гостиниц", "гостиница", "отель", "hotel", "booking",
 ]
 
+# Strong lodging markers. These mean the service itself is lodging.
 EXPLICIT_LODGING_DETAILS = [
-    "прожив", "апартамент", "поздний выезд", "ранний заезд", "гостиниц",
+    "прожив", "апартамент", "поздний выезд", "ранний заезд",
 ]
 
-HOTEL_NAME_HINTS = ["отель", "hotel", "inn", "residence", "apart", "апарт"]
+# Softer hints: useful only with additional structure/vendor context.
+SOFT_LODGING_DETAILS = ["гостиница", "гостиниц", "отель", "hotel", "inn", "residence", "apart", "апарт"]

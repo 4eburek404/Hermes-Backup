@@ -7,10 +7,16 @@ from typing import Any, Iterable
 FORMULA_ERROR_VALUES = {"#NAME?", "#VALUE!", "#REF!", "#DIV/0!", "#N/A", "#NULL!", "#NUM!"}
 
 SINGLE_DATE_RE = re.compile(r"\b\d{1,2}[.]\d{1,2}[.]\d{2,4}\b")
-DATE_RANGE_RE = re.compile(r"\b\d{1,2}[.]\d{1,2}(?:[.]\d{2,4})?\s*[-–—]\s*\d{1,2}[.]\d{1,2}(?:[.]\d{2,4})?\b")
-ROUTE_DASH_RE = re.compile(r"[А-ЯA-ZЁ][А-ЯA-Zа-яa-zё .'-]{1,35}\s*[-–—]\s*[А-ЯA-ZЁ][А-ЯA-Zа-яa-zё .'-]{1,35}")
+DATE_RANGE_RE = re.compile(
+    r"\b\d{1,2}[.]\d{1,2}(?:[.]\d{2,4})?\s*[-–—]\s*\d{1,2}[.]\d{1,2}(?:[.]\d{2,4})?\b"
+)
+ROUTE_DASH_RE = re.compile(
+    r"[А-ЯA-ZЁ][А-ЯA-Zа-яa-zё .'-]{1,35}\s*[-–—]\s*[А-ЯA-ZЁ][А-ЯA-Zа-яa-zё .'-]{1,35}"
+)
 TOTAL_LABEL_RE = re.compile(r"\b(итог|итого|total|grand total)\b", re.IGNORECASE)
 ORG_AIRLINE_RE = re.compile(r"\b(авиакомпан\w*|авиалини\w*|airlines?|airways)\b", re.IGNORECASE)
+
+_WORD_CHARS = r"0-9a-zа-я"
 
 
 def text_value(value: Any) -> str:
@@ -32,17 +38,36 @@ def compact(value: Any) -> str:
     return re.sub(r"[^0-9a-zа-я]+", "", norm(value))
 
 
-def has_any(text: str, markers: Iterable[str]) -> bool:
+def marker_in_text(text: str, marker: str) -> bool:
+    """Safer substring match for classification markers.
+
+    Short markers such as `жд`, `s7`, `с7` are checked with token
+    boundaries to avoid accidental matches inside unrelated words. Compact
+    matching is still used for multi-token carrier names like `ЮВТ АЭРО` vs
+    `ЮВТАЭРО` and `Fly Dubai` vs `FlyDubai`.
+    """
     source = norm(text)
     source_compact = compact(text)
-    for marker in markers:
-        marker_norm = norm(marker)
-        marker_compact = compact(marker)
-        if not marker_norm:
-            continue
-        if marker_norm in source or marker_compact in source_compact:
-            return True
+    marker_norm = norm(marker)
+    marker_compact = compact(marker)
+    if not marker_norm:
+        return False
+
+    if len(marker_compact) <= 2:
+        return bool(re.search(rf"(?<![{_WORD_CHARS}]){re.escape(marker_norm)}(?![{_WORD_CHARS}])", source))
+
+    if marker_norm in source:
+        return True
+
+    # Compact matching is intentionally limited. It is needed for carrier names
+    # with unstable spaces/dashes but can be too broad for short generic words.
+    if len(marker_compact) >= 5 and marker_compact in source_compact:
+        return True
     return False
+
+
+def has_any(text: str, markers: Iterable[str]) -> bool:
+    return any(marker_in_text(text, marker) for marker in markers)
 
 
 def is_formula_error(value: Any) -> bool:

@@ -1,6 +1,6 @@
 # Pattern overrides
 
-Overrides are user-confirmed **pattern rules** for future similar rows.
+Overrides are user-confirmed **reusable pattern rules** for future similar rows.
 They are stored outside the code so mixed-service vendors are not hardcoded as always aviation, rail, or lodging.
 
 Use them when the script returns `Unknown` or `needs_review=true` and the user confirms a reusable rule such as:
@@ -9,6 +9,8 @@ Use them when the script returns `Unknown` or `needs_review=true` and the user c
 ВАЙТ ТРЕВЕЛ + маршрут Шэньчжэнь-Сиань → Авиа
 ВАЙТ ТРЕВЕЛ + маршрут Москва-Санкт-Петербург → ЖД
 ```
+
+There are no row-hash overrides. The same exact row almost never appears in later monthly files, so point corrections by row fingerprint are intentionally removed.
 
 ## Format
 
@@ -37,7 +39,7 @@ details_regex    — regular expression against details
 ```
 
 A rule matches only when **all specified conditions** are true.
-At least one `details_contains` or `details_regex` condition is required. This intentionally blocks broad rules like “entire vendor = category”.
+At least one `details_contains` or `details_regex` condition is required. This blocks broad rules like “entire vendor = category”.
 
 ## Good rule
 
@@ -49,8 +51,6 @@ At least one `details_contains` or `details_regex` condition is required. This i
 }
 ```
 
-This is narrow enough to be reused in later months.
-
 ## Bad rule
 
 ```json
@@ -61,8 +61,3 @@ This is narrow enough to be reused in later months.
 ```
 
 This is too broad because `ВАЙТ ТРЕВЕЛ` can sell aviation, rail, lodging, transfers, and other services.
-
-## Agent behavior
-
-When the user confirms an ambiguous row, prefer saving a narrow pattern rule, not a one-off correction.
-If no safe reusable rule can be made, leave the row as `Unknown` for that run and mention it in the report.

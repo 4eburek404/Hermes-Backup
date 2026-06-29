@@ -1,7 +1,7 @@
 ---
 name: travel-expense-spreadsheet-summary
-description: "Use when the user sends an Excel/CSV travel-expense spreadsheet and asks to summarize aviation, rail, hotel/lodging spend, booking counts, totals, and ambiguous rows."
-version: 2.1.0
+description: "Use when the user sends an Excel/CSV travel-expense spreadsheet and asks to summarize aviation, rail, lodging, Unknown, booking counts, totals, and ambiguous rows."
+version: 2.2.0
 author: Hermes Agent
 license: MIT
 platforms: [linux, macos, windows]
@@ -14,10 +14,10 @@ metadata:
 # Travel Expense Spreadsheet Summary
 
 ## Goal
-Summarize a travel-expense Excel/CSV file by **Авиа**, **ЖД**, **Проживание в отелях**, **Unknown**, and total. Count one booking as one real source row after excluding blank/service/total rows.
+Summarize a travel-expense Excel/CSV file by **Авиа**, **ЖД**, **Проживание в отелях**, **Unknown**, and total. One booking is one real source row after excluding blank/service/total rows.
 
 ## Use When
-Use this skill only for travel-expense category summaries, not as a generic Excel skill. Input files may have slightly different column names such as `Дата`, `Дата покупки`, `Перевозчик`, `Поставщик`, `Детали`, `Описание`, `Сумма`, `Стоимость`.
+Use only for travel-expense category summaries, not as a generic Excel skill. Files may use different column names such as `Дата`, `Дата покупки`, `Перевозчик`, `Поставщик`, `Детали`, `Описание`, `Сумма`, `Стоимость`.
 
 ## Run
 Prefer the bundled deterministic CLI:
@@ -40,24 +40,18 @@ python3 hermes/skills/data-science/travel-expense-spreadsheet-summary/scripts/tr
 Excel dependencies: `.xlsx/.xlsm` need `pandas openpyxl`; `.xls` needs `pandas xlrd`; `.csv` uses the Python standard library.
 
 ## Agent Workflow
-1. Run the script in JSON mode.
-2. Read `summary`, `verification`, `unknown_rows`, `review_rows`, `applied_overrides`, and `warnings`.
-3. If `unknown_rows` or `review_rows` are non-empty, group similar rows and ask the user to classify them. Do not guess silently.
-4. Save only reusable pattern rules to an overrides JSON file, then rerun with `--overrides`. Do not create one-off row corrections.
-5. Report the final totals and mention unresolved `Unknown` rows or verification mismatches.
+1. Run JSON mode.
+2. Check `summary`, `verification`, `unknown_rows`, `review_rows`, and `warnings`.
+3. If there are `Unknown`/review rows, group similar rows and ask the user. Do not guess silently.
+4. Use `--overrides` only for narrow reusable pattern rules by carrier/details. Do not create one-off row-hash corrections.
+5. Report final totals and any unresolved `Unknown` or reconciliation mismatch.
 
 ## CLI
-
-```bash
-python3 scripts/travel_expense_summary.py FILE [options]
-```
-
-Key options:
 
 ```text
 --format json|markdown
 --sheet NAME_OR_INDEX
---overrides overrides.json    # reusable pattern rules by carrier/details
+--overrides overrides.json
 --output result.json
 --show-review
 --strict
@@ -67,9 +61,9 @@ Key options:
 --amount-col NAME
 ```
 
-`--strict` returns exit code `3` when user review is needed and `2` when reconciliation fails.
+`--strict` returns exit code `3` when review is needed and `2` when reconciliation fails.
 
 ## Rules
-Classification is deterministic and explainable. It first detects table schema, then row kind, then category. Mixed-service vendors such as `Trip.com`, `Яндекс`, `ВАЙТ ТРЕВЕЛ`, and `ДубльГис` are classified by row details, not by vendor name alone. Rows without reliable positive evidence remain `Unknown`.
+The classifier is conservative and field-aware: schema detection first, row-kind detection second, category decision third. Mixed-service vendors such as `Trip.com`, `Яндекс`, `ВАЙТ ТРЕВЕЛ`, and `ДубльГис` are classified by row details, not by vendor name alone. Rows without reliable positive evidence remain `Unknown`.
 
-Overrides are pattern-based only; one-off row corrections are intentionally not supported. See `references/classification-contract.md` and `references/overrides.md`.
+See `references/classification-contract.md` and `references/overrides.md`.

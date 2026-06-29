@@ -51,10 +51,21 @@ def test_structural_yandex_hotel_review():
     assert review
 
 
-def test_ground_transport_legacy_rail_review():
+def test_ground_transport_legacy_rail_no_review_noise():
     category, reason, review = classify_category("Аэроэкспресс", "Аэропорт-город")
     assert category == CATEGORY_RAIL
-    assert review
+    assert not review
+
+
+def test_transfer_to_hotel_is_not_lodging():
+    category, reason, review = classify_category("Трансфер", "Трансфер аэропорт-отель")
+    assert category == CATEGORY_RAIL
+
+
+def test_airline_row_with_hotel_note_stays_air():
+    category, reason, review = classify_category("Аэрофлот", "Командировка, размещение: отель Амакс Сафар")
+    assert category == CATEGORY_AIR
+    assert not review
 
 
 def test_pattern_override_matches_future_similar_rows(tmp_path: Path):
