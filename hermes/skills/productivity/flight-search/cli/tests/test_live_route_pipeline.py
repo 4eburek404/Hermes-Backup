@@ -332,6 +332,13 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertIsNone(offer_candidates["candidates"][0]["price"])
         self.assertIsNone(offer_candidates["candidates"][0]["currency"])
         self.assertEqual(offer_candidates["candidates"][0]["price_basis"], "unknown")
+        mixed_ranking = result["live_search"]["diagnostics"]["mixed_candidate_ranking"]
+        self.assertEqual(mixed_ranking, result["live_search"]["mixed_candidate_ranking"])
+        self.assertEqual(
+            mixed_ranking["schema_version"],
+            "flight_mixed_candidate_ranking.v1",
+        )
+        self.assertEqual(mixed_ranking["ranked_candidates"][0]["rank"], 1)
         self.assertIn("gateway_leg_results", result["live_search"])
         self.assertEqual(result["live_search"]["aggregate_controls"], aggregate_results)
         self.assertEqual(
@@ -460,6 +467,12 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertEqual(offer_candidates, result["live_search"]["offer_candidates"])
         self.assertEqual(
             offer_candidates["candidates"][0]["source_type"],
+            "gateway_separate_ticket",
+        )
+        mixed_ranking = result["live_search"]["diagnostics"]["mixed_candidate_ranking"]
+        self.assertEqual(mixed_ranking, result["live_search"]["mixed_candidate_ranking"])
+        self.assertEqual(
+            mixed_ranking["ranked_candidates"][0]["source_type"],
             "gateway_separate_ticket",
         )
         self.assertEqual(result.get("segment_results"), [])
