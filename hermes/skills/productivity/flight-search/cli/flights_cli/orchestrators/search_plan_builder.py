@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from ..adapters.providers.registry import providers_for_route_query
+from ..adapters.providers.registry import providers_for_route_query, route_touches_ru
 from ..domain.gateway_discovery import GatewayDiscoveryService
 from ..domain.route_access_profiles import MODE_REQUIRED, PROFILE_RESTRICTED_ACCESS
 from ..domain.vocabulary import RequiredControl
@@ -236,18 +236,29 @@ class SearchPlanBuilder:
         )
         queries: list[dict[str, Any]] = []
         for leg, leg_origin, leg_destination in legs:
+            touches_ru = route_touches_ru(leg_origin, leg_destination, self._store)
+            direct_only = bool(touches_ru)
+            connection_layer = (
+                "restricted_ru_bridge_control"
+                if direct_only
+                else "restricted_non_ru_access"
+            )
             query = {
                 "role": "gateway_leg_probe",
                 "source_type": "gateway_discovery_candidate",
-                "probe_type": "segment_direct",
+                "probe_type": "segment_direct" if direct_only else "segment_hub_leg",
                 "direction": "outbound",
                 "leg": leg,
                 "origin": leg_origin,
                 "destination": leg_destination,
                 "date": date_text,
                 "currency": currency,
-                "direct_only": True,
+                "direct_only": direct_only,
                 "gateway": gateway,
+                "gateway_role": "bridge_gateway",
+                "connection_layer": connection_layer,
+                "allows_intermediate_hubs": not direct_only,
+                "date_strategy": "requested_departure_date_only",
                 "gateway_rank": rank,
                 "candidate_score": score,
                 "route_access_profile": route_access_profile,

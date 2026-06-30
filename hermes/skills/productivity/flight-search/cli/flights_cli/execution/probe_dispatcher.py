@@ -57,6 +57,7 @@ def segment_query(
     provider_policy: str,
     probe_id: str,
 ) -> dict[str, Any]:
+    direct_only = bool(spec.get("direct_only", True))
     return {
         "probe_id": probe_id,
         "probe_type": segment_probe_type(spec),
@@ -67,7 +68,7 @@ def segment_query(
         "date": str(spec["date"]),
         "currency": str(plan["currency"]).upper(),
         "only_carriers": only_carriers,
-        "direct_only": True,
+        "direct_only": direct_only,
         "limit": int(options.segment_limit),
         "timeout": int(options.timeout),
         "cache_ttl_seconds": cache_ttl_seconds,
@@ -129,6 +130,7 @@ def dispatch_segment_probe(
                 only_carriers=spec_only_carriers,
                 limit=options.segment_limit,
                 provider_policy=provider_policy,
+                direct_only=bool(spec.get("direct_only", True)),
                 mcp_url=options.fli_mcp_url,
             )
             if request_deduper is not None

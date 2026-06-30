@@ -178,6 +178,39 @@ class ProbeDispatcherTests(unittest.TestCase):
         self.assertEqual(adapter.segment_queries[0]["only_carriers"], ["SU"])
         self.assertTrue(adapter.segment_queries[0]["direct_only"])
 
+    def test_dispatcher_preserves_non_direct_access_probe_flag(self) -> None:
+        spec = {
+            "direction": "outbound",
+            "leg": "origin_to_gateway",
+            "origin": "NTE",
+            "destination": "IST",
+            "date": "2026-07-09",
+            "direct_only": False,
+            "probe_type": "segment_hub_leg",
+        }
+        adapter = FakeProviderAdapter()
+
+        with patch(
+            "flights_cli.execution.probe_dispatcher.provider_adapters_for_segment",
+            return_value=[adapter],
+            create=True,
+        ):
+            outcomes = dispatch_segment_probe(
+                spec=spec,
+                plan={"currency": "RUB"},
+                options=dispatcher_options(),
+                store=Store(),
+                only_carriers=[],
+                cache_ttl_seconds=0,
+                use_live_cache=False,
+                provider_policy="tutu",
+                request_deduper=RequestDeduper(),
+            )
+
+        self.assertEqual(len(outcomes), 1)
+        self.assertFalse(adapter.segment_queries[0]["direct_only"])
+        self.assertEqual(adapter.segment_queries[0]["probe_type"], "segment_hub_leg")
+
     def test_provider_error_returns_failure_outcome_without_raising_when_not_fail_fast(
         self,
     ) -> None:

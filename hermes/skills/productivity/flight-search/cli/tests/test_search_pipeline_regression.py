@@ -431,8 +431,16 @@ class SearchPipelineRegressionTests(unittest.TestCase):
         )
         aggregate = result["route_result"]["live_search"]["aggregate_controls"][0]
         self.assertEqual(aggregate["offer_count"], 0)
-        self.assertTrue(
-            all(query["direct_only"] is True for query in fixtures.segment_queries)
+        self.assertIn(
+            {
+                "provider": "fli",
+                "origin": "IST",
+                "destination": "AMS",
+                "date": DEPART_DATE,
+                "leg": "gateway_to_destination",
+                "direct_only": False,
+            },
+            fixtures.segment_queries,
         )
 
     def test_svx_fra_keeps_cheaper_segment_fallback_over_expensive_aggregate(

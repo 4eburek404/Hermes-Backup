@@ -134,12 +134,28 @@ class SearchPlanContractTests(unittest.TestCase):
                     query["origin"],
                     query["destination"],
                     query["provider"],
+                    query["direct_only"],
+                    query["connection_layer"],
                 )
                 for query in search_plan["gateway_leg_queries"][:2]
             ],
             [
-                ("origin_to_gateway", "SVX", "IST", "kupibilet"),
-                ("gateway_to_destination", "IST", "AMS", "fli"),
+                (
+                    "origin_to_gateway",
+                    "SVX",
+                    "IST",
+                    "kupibilet",
+                    True,
+                    "restricted_ru_bridge_control",
+                ),
+                (
+                    "gateway_to_destination",
+                    "IST",
+                    "AMS",
+                    "fli",
+                    False,
+                    "restricted_non_ru_access",
+                ),
             ],
         )
         self.assertTrue(
@@ -324,6 +340,76 @@ class SearchPlanContractTests(unittest.TestCase):
                 for query in search_plan["gateway_leg_queries"]
             },
             {("IST", "kupibilet"), ("IST", "fli")},
+        )
+
+    def test_restricted_eu_to_ru_plans_access_leg_as_aggregate_not_fake_gateway_to_ru(
+        self,
+    ) -> None:
+        store = Store()
+        options = live_assembly_args(
+            origin="NTE",
+            destination="SVX",
+            depart_date="2026-07-09",
+            return_date=None,
+            provider_policy="tutu",
+            gateway_discovery_limit=1,
+            gateway_probe_batch_size=1,
+            gateway_probe_max_batches=1,
+            no_live_cache=True,
+            no_direct_route_intel=True,
+        )
+        flow = build_live_route_search_flow(options, store)
+        route_plan = build_live_route_segment_plan(options, store, flow=flow)
+
+        search_plan = build_search_plan(
+            options, store, flow=flow, fallback_route_plan=route_plan
+        )
+
+        validate_contract_payload("search_plan", search_plan)
+        self.assertEqual(search_plan["gateway_discovery"]["mode"], "required")
+        self.assertEqual(
+            [
+                (
+                    query["leg"],
+                    query["origin"],
+                    query["destination"],
+                    query["provider"],
+                    query["direct_only"],
+                    query["probe_type"],
+                    query["connection_layer"],
+                    query["allows_intermediate_hubs"],
+                )
+                for query in search_plan["gateway_leg_queries"]
+            ],
+            [
+                (
+                    "origin_to_gateway",
+                    "NTE",
+                    "IST",
+                    "tutu",
+                    False,
+                    "segment_hub_leg",
+                    "restricted_non_ru_access",
+                    True,
+                ),
+                (
+                    "gateway_to_destination",
+                    "IST",
+                    "SVX",
+                    "tutu",
+                    True,
+                    "segment_direct",
+                    "restricted_ru_bridge_control",
+                    False,
+                ),
+            ],
+        )
+        self.assertNotIn(
+            ("AMS", "SVX"),
+            {
+                (query["origin"], query["destination"])
+                for query in search_plan["gateway_leg_queries"]
+            },
         )
 
     def test_builder_keeps_fli_out_of_both_policy_for_ru_touching_route(

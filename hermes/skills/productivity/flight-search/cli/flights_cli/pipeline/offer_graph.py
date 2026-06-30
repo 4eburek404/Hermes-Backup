@@ -309,6 +309,14 @@ class OfferGraphBuilder:
             )
             if not origin_leg or not destination_leg:
                 continue
+            origin_edge_ids = [
+                edge_id for item in origin_leg for edge_id in item.get("edge_ids", [])
+            ]
+            destination_edge_ids = [
+                edge_id
+                for item in destination_leg
+                for edge_id in item.get("edge_ids", [])
+            ]
             self.connections.append(
                 _compact(
                     {
@@ -325,10 +333,7 @@ class OfferGraphBuilder:
                         "destination_leg_offer_ids": [
                             item["offer_id"] for item in destination_leg
                         ],
-                        "edge_ids": [
-                            *[item["edge_id"] for item in origin_leg],
-                            *[item["edge_id"] for item in destination_leg],
-                        ],
+                        "edge_ids": [*origin_edge_ids, *destination_edge_ids],
                     }
                 )
             )
@@ -365,7 +370,7 @@ class OfferGraphBuilder:
         gateway: str,
         leg_role: str,
         gateway_index: int,
-    ) -> list[dict[str, str]]:
+    ) -> list[dict[str, Any]]:
         if not isinstance(leg_result, dict):
             return []
         if int(leg_result.get("offer_count") or 0) <= 0:
@@ -374,10 +379,79 @@ class OfferGraphBuilder:
         if not isinstance(offers, list) or not offers:
             return []
         provider = _provider(leg_result)
-        collected: list[dict[str, str]] = []
+        collected: list[dict[str, Any]] = []
         for offer_index, offer in enumerate(offers):
             if not isinstance(offer, dict):
                 self._skip("malformed_gateway_leg_offer")
+                continue
+            paths = _offer_segment_paths(
+                offer,
+                fallback_direction=_normalize_direction(leg_result.get("direction")),
+            )
+            if paths:
+                for path_index, path in enumerate(paths):
+                    segments = path["segments"]
+                    if not segments:
+                        continue
+                    offer_id = self._unique_offer_id(
+                        "gateway_leg",
+                        provider,
+                        gateway or f"gateway{gateway_index + 1}",
+                        leg_role,
+                        _offer_id(offer) or f"offer{offer_index + 1}",
+                        suffix=f"path{path_index + 1}" if len(paths) > 1 else None,
+                    )
+                    edge_ids = self._add_route_edges(
+                        offer_id=offer_id,
+                        provider=provider,
+                        source_type="gateway_leg",
+                        ticketing_boundary="separate_ticket_leg",
+                        segments=segments,
+                        direction=path.get("direction"),
+                        source_debug={
+                            "gateway_index": gateway_index,
+                            "leg_role": leg_role,
+                            "provider_offer_id": _offer_id(offer),
+                            **(path.get("debug") or {}),
+                        },
+                    )
+                    if not edge_ids:
+                        self._skip("gateway_leg_offer_no_valid_edges")
+                        continue
+                    self.offers.append(
+                        _compact(
+                            {
+                                "id": offer_id,
+                                "source_type": "gateway_leg",
+                                "provider": provider,
+                                "ticketing_boundary": "separate_ticket_leg",
+                                "origin": _normalize_code(_segment_origin(segments[0])),
+                                "destination": _normalize_code(
+                                    _segment_destination(segments[-1])
+                                ),
+                                "gateway": gateway,
+                                "leg_role": leg_role,
+                                "direction": path.get("direction"),
+                                "edge_ids": edge_ids,
+                                "route": _route_from_segments(segments),
+                                "price": _price_amount(offer, leg_result),
+                                "currency": _currency(offer, leg_result),
+                                "detail_status": _detail_status(
+                                    offer,
+                                    has_edges=bool(edge_ids),
+                                ),
+                                "warnings": _warnings(offer),
+                                "source_ref": {
+                                    "gateway_index": gateway_index,
+                                    "leg_role": leg_role,
+                                    "provider_offer_id": _offer_id(offer),
+                                    "probe_id": leg_result.get("probe_id"),
+                                },
+                            }
+                        )
+                    )
+                    self.coverage["gateway_leg_offer_count"] += 1
+                    collected.append({"offer_id": offer_id, "edge_ids": edge_ids})
                 continue
             origin = _normalize_code(
                 offer.get("origin")
@@ -456,7 +530,7 @@ class OfferGraphBuilder:
                 )
             )
             self.coverage["gateway_leg_offer_count"] += 1
-            collected.append({"offer_id": offer_id, "edge_id": edge_id})
+            collected.append({"offer_id": offer_id, "edge_ids": [edge_id]})
         return collected
 
     def _add_route_edges(

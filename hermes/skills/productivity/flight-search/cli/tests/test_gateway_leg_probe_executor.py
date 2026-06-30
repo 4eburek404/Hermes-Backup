@@ -32,19 +32,23 @@ def gateway_queries(
     *,
     rank: int = 1,
     destination: str = "AMS",
+    origin_leg_direct_only: bool = True,
+    destination_leg_direct_only: bool = True,
 ) -> list[dict[str, Any]]:
     return [
         {
             "role": "gateway_leg_probe",
             "source_type": "gateway_discovery_candidate",
-            "probe_type": "segment_direct",
+            "probe_type": "segment_direct"
+            if origin_leg_direct_only
+            else "segment_hub_leg",
             "direction": "outbound",
             "leg": "origin_to_gateway",
             "origin": "SVX",
             "destination": gateway,
             "date": "2026-08-15",
             "currency": "RUB",
-            "direct_only": True,
+            "direct_only": origin_leg_direct_only,
             "gateway": gateway,
             "gateway_rank": rank,
             "provider": "kupibilet",
@@ -53,14 +57,16 @@ def gateway_queries(
         {
             "role": "gateway_leg_probe",
             "source_type": "gateway_discovery_candidate",
-            "probe_type": "segment_direct",
+            "probe_type": "segment_direct"
+            if destination_leg_direct_only
+            else "segment_hub_leg",
             "direction": "outbound",
             "leg": "gateway_to_destination",
             "origin": gateway,
             "destination": destination,
             "date": "2026-08-15",
             "currency": "RUB",
-            "direct_only": True,
+            "direct_only": destination_leg_direct_only,
             "gateway": gateway,
             "gateway_rank": rank,
             "provider": "fli",
@@ -132,6 +138,18 @@ class GatewayLegProbeExecutorTests(unittest.TestCase):
         self.assertEqual(gateway["destination_leg"]["offer_count"], 1)
         self.assertEqual(
             [call["provider_policy"] for call in calls], ["kupibilet", "fli"]
+        )
+
+    def test_non_direct_access_leg_is_dispatched_without_rewriting_flag(self) -> None:
+        result, calls = self.run_executor(
+            gateway_queries("IST", origin_leg_direct_only=False),
+            offers_by_pair={("SVX", "IST"): 1, ("IST", "AMS"): 1},
+        )
+
+        self.assertEqual(result["viable_gateways"], 1)
+        self.assertEqual(
+            [(call["spec"]["leg"], call["spec"]["direct_only"]) for call in calls],
+            [("origin_to_gateway", False), ("gateway_to_destination", True)],
         )
 
     def test_origin_leg_missing_makes_gateway_not_viable(self) -> None:
