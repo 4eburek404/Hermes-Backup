@@ -14,7 +14,7 @@
     "currency": {"type": "string", "default": "RUB"},
     "profile": {"type": "string", "const": "business", "default": "business"},
     "ticketing": {"type": "string", "enum": ["separate", "single"], "default": "separate"},
-    "provider_policy": {"type": "string", "enum": ["auto", "kupibilet", "fli", "both"], "default": "auto"},
+    "provider_policy": {"type": "string", "enum": ["auto", "kupibilet", "fli", "tutu", "both"], "default": "auto"},
     "route_options": {
       "type": "object",
       "additionalProperties": false,

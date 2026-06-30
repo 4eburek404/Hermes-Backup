@@ -49,15 +49,19 @@ class ProviderCapabilitiesTests(unittest.TestCase):
     def test_registry_exposes_expected_provider_capabilities(self) -> None:
         kupibilet = PROVIDER_REGISTRY["kupibilet"].capabilities
         fli = PROVIDER_REGISTRY["fli"].capabilities
+        tutu = PROVIDER_REGISTRY["tutu"].capabilities
 
-        self.assertEqual(set(PROVIDER_REGISTRY), {"kupibilet", "fli"})
+        self.assertEqual(set(PROVIDER_REGISTRY), {"kupibilet", "fli", "tutu"})
         self.assertTrue(kupibilet.supports_ru_touching)
         self.assertTrue(kupibilet.supports_full_route_aggregate)
         self.assertTrue(fli.supports_global)
         self.assertFalse(fli.supports_full_route_aggregate)
+        self.assertTrue(tutu.supports_ru_touching)
+        self.assertTrue(tutu.supports_global)
+        self.assertTrue(tutu.supports_full_route_aggregate)
 
     def test_registry_values_are_concrete_provider_ports(self) -> None:
-        self.assertEqual(set(PROVIDER_REGISTRY), {"kupibilet", "fli"})
+        self.assertEqual(set(PROVIDER_REGISTRY), {"kupibilet", "fli", "tutu"})
         for name, adapter in PROVIDER_REGISTRY.items():
             with self.subTest(provider=name):
                 self.assertIsInstance(adapter, FlightProviderPort)

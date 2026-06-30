@@ -17,6 +17,8 @@ CANONICAL_REFERENCES = {
     "direct-date-window.md",
     "rail-rzd-live-pricing.md",
     "cli-maintenance.md",
+    "provider-failover.md",
+    "tutu-mcp-provider.md",
 }
 REMOVED_COMMAND_PATTERNS = (
     r"\broute\s+live-assemble\b",

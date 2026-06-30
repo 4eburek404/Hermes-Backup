@@ -171,6 +171,20 @@ Wording:
 - Present the best viable non-Moscow option first, then a Moscow backup if materially cleaner.
 - Do not call separate outbound/return provider offers a protected round trip. Say “ориентир за пару one-way предложений” unless booking-screen/GDS/airline fare proves one protected round-trip order.
 
+### API vs website mismatch
+
+When the user reports a flight on the KupiBilet website that the CLI didn't find, or the CLI shows a different departure time than the website:
+
+1. Make a **raw API call** directly to `api-rs-lb.kupibilet.ru/frontend_search` with the same payload the CLI uses (see `references/provider-failover.md` for payload template). Use the CLI's headers from `config.py::KUPIBILET_HEADERS`.
+2. Inspect the raw `flights` map: look for the flight by `number` field (the API uses `number` / `transport_number`, not `flight_number` — the CLI's `kupibilet_flight_number()` synthesizes the carrier-prefixed identifier).
+3. Check `departure_datetime` in the raw response. If the API itself returns a different time than the website, the root cause is **provider-side data drift**, not a CLI parser bug.
+4. Report the finding honestly: "API KupiBilet отдаёт X, сайт показывает Y — расхождение на стороне поставщика."
+5. For itinerary planning, use the user's website-observed times if more reliable, but label the discrepancy.
+
+### Connection feasibility at major hubs
+
+When evaluating assembled connections, **check terminal fields** in the normalized offer segments. The CLI preserves `departure_terminal` and `arrival_terminal` from the raw API. At airports where inter-terminal transfers are significant (CDG 2F↔2E, IST, LHR, etc.), a nominally adequate connection time (e.g. 2h20m) may be impractical if terminals differ. Do not present a connection as feasible without checking terminals when the user has raised terminal concerns or the hub is known for inter-terminal friction.
+
 ## Diagnostic splits
 
 ### Horizon vs coverage

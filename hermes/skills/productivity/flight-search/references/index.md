@@ -22,6 +22,9 @@ This file is the canonical map for `flight-search` support references. `SKILL.md
 | `direct-date-window.md` | Direct/nonstop inventory over a bounded date range using `route_options.max_connections=0`, `tier2_max_connections=0`, and `date_window_end`. | The user asks for all direct/nonstop flights across a range of dates. | Route recommendation or connected alternatives unless the user asks. |
 | `rail-rzd-live-pricing.md` | Bounded official RZD read-only train-price comparison after a flight search. | The user asks whether train tickets are cheaper or wants rail prices for the same route/date. | Full rail-booking workflow or non-official aggregator estimates. |
 | `cli-maintenance.md` | Source/runtime governance, CLI JSON stdout/stderr rules, contract/schema lifecycle, provider-port maintenance, renderer tests, generated artifacts, reference lifecycle. | The task is inspect/debug/refactor/sync/version/test work on the skill or CLI. | Traveler-facing route search and provider-live evidence. |
+| `provider-failover.md` | FLI-down failover to KupiBilet-only, gateway discovery mode, hub-list strategy for 1-stop, cross-day assembly limitation, large output extraction patterns. | FLI is unreachable, CLI output is truncated, 1-stop options missing despite segment offers existing, or need to parse 400KB+ JSON. | Normal route search with both providers healthy. |
+| `tutu-mcp-provider.md` | Tutu MCP provider integration architecture: endpoint, response structure, IATA extraction, city-name resolution, normalization, capabilities, provider policy routing, known limitations. | Adding/maintaining the `tutu` provider, debugging Tutu search_avia normalization, or understanding the three-provider architecture. | Normal route search not involving Tutu. |
+| `route-network-discovery.md` | Airport route network discovery via browser: when the CLI can't answer "where can I fly direct from X", source hierarchy (official site > Wikipedia), carousel/expandable-card extraction techniques, direct-vs-connecting classification, official-vs-Wikipedia comparison. | User asks for all direct destinations from an airport or route existence without a date — a network question, not a live-ticket-by-date question. | Live ticket search for a specific route+date (use the CLI golden path). |
 
 ## Routing examples
 
@@ -36,6 +39,7 @@ This file is the canonical map for `flight-search` support references. `SKILL.md
 | Short/missing direct set, direct suppresses connected, `all_direct_inventory`, output caps | `pipeline-reference.md` first; `debug-playbook.md` only if a narrow live control is needed |
 | Direct/nonstop options across several dates | `direct-date-window.md` |
 | Provider failure, suspected horizon/coverage gap, targeted carrier/direct probe | `debug-playbook.md` |
+| User specifies exact routing (via X→Y→Z), CLI doesn't assemble it | `provider-failover.md` → "Manual leg-by-leg assembly via `diagnose kb-search`" |
 | Train-vs-flight price/time comparison | `rail-rzd-live-pricing.md` |
 | Source/runtime parity, branch/publish/sync, generated artifacts, schema/test updates | `cli-maintenance.md` |
 

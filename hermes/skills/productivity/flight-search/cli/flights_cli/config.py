@@ -18,6 +18,8 @@ KUPIBILET_FRONTEND_SEARCH_URL = "https://api-rs-lb.kupibilet.ru/frontend_search"
 
 FLI_MCP_DEFAULT_URL = "http://127.0.0.1:8000/mcp"
 
+TUTU_MCP_DEFAULT_URL = "https://mcp.tutu.ru/mcp"
+
 KUPIBILET_HEADERS = {
     "Accept": "application/json",
     "Accept-Encoding": "gzip",
