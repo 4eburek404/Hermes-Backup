@@ -80,8 +80,10 @@ When the user specifies an exact routing (e.g. "TLS→CDG→IST→SVX") and the 
 
 ```python
 def run_kb_search(origin, dest, date, limit=50):
-    cmd = ["python", "-m", "flights_cli", "--json", "diagnose", "kb-search",
-           origin, dest, "--depart-date", date, "--limit", str(limit)]
+    cmd = (
+        f"python3 -m flights_cli --json diagnose kb-search {origin} {dest} "
+        f"--depart-date {date} --limit {limit}"
+    ).split()
     result = subprocess.run(cmd, cwd=cli_dir, capture_output=True, text=True, timeout=60,
                            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
     return json.loads(result.stdout)
@@ -106,7 +108,7 @@ def run_kb_search(origin, dest, date, limit=50):
 - **KupiBilet API coverage gap for foreign carriers**: The API can be missing entire flights that exist on the KupiBilet website and other aggregators. This is not data drift (wrong times) — the flight is simply absent from the API response. Confirmed case: AF7405 TLS→CDG 14:30 on 2026-07-10 — exists on the website, absent (or showing 10:30) in the API. When the user reports a flight the CLI didn't find, trust the user's observation; do not insist on API data over user-observed evidence. See `references/source-boundaries.md` → "KupiBilet coverage gap for foreign carriers".
 - **Self-transfer legs appear as "0 stops" in `number_of_changes`**: A TLS→NCE→CDG itinerary shows `number_of_changes: 0` because it's one KupiBilet offer, but it has 2 segments in `segments[]`. Check `len(segments)` for actual segment count, not `number_of_changes`.
 - **Airport mismatch**: Some CDG→IST results actually route via BSL, ZRH, OTP, BEG etc. Filter by exact airports if the user specified them.
-- **IST vs SAW**: Istanbul has two airports — IST (new) and SAW (Sabiha Gökçen). `kb-search CDG IST` returns both IST and SAW results. Filter `segments[-1]["destination"]` if exact airport matters.
+- **IST vs SAW**: Istanbul has two airports — IST (new) and SAW (Sabiha Gökçen). `diagnose kb-search CDG IST` returns both IST and SAW results. Filter `segments[-1]["destination"]` if exact airport matters.
 - **Price is int, not dict**: In `diagnose kb-search` output, `price` is a plain integer. In `search` output, it's also an int (not a dict as in older versions).
 - **Raw API `flight_number` is None — use `number`/`transport_number`**: The KupiBilet raw `flights` map has no `flight_number` key. Flight number is in `number` (int) and `transport_number` (string). The CLI's `kupibilet_flight_number()` synthesizes `carrier + number` (e.g. `AF7405`). When inspecting raw API responses, search by `number` field, not `flight_number`.
 - **API schedule drift vs website**: The API `departure_datetime` can differ from the KupiBilet website for the same flight/date. This is provider-side data drift, not a parser bug. See `references/source-boundaries.md` → "API vs website schedule discrepancy" and `references/debug-playbook.md` → "API vs website mismatch".
@@ -135,7 +137,7 @@ home = os.path.expanduser("~")
 hermes_home = os.environ.get("HERMES_HOME", os.path.join(home, ".hermes"))
 cli_dir = os.path.join(hermes_home, "skills", "productivity", "flight-search", "cli")
 env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
-cmd = ["python", "-m", "flights_cli", "--json", "search", "--request", req_path]
+cmd = ["python3", "-m", "flights_cli", "--json", "search", "--request", req_path]
 proc = subprocess.run(cmd, cwd=cli_dir, capture_output=True, text=True, timeout=180, env=env)
 data = json.loads(proc.stdout)
 
@@ -148,7 +150,7 @@ offers = primary["top_offers"]
 # offers = primary["top_offers"]
 ```
 
-**Note:** On this Windows host, `python3` is not found in bash — use `python` (3.11). The CLI works fine with `python -m flights_cli`.
+**Windows note:** on some Windows hosts `python3` is not found in bash; use `py -3` or `python` only after confirming it resolves to Python 3.11+.
 
 ### Pattern 2: background terminal + file
 
@@ -156,7 +158,7 @@ When `execute_code` or foreground `terminal` times out (CLI can take 60-120s wit
 
 ```bash
 cd "$HERMES_HOME/skills/productivity/flight-search/cli"
-PYTHONDONTWRITEBYTECODE=1 python -m flights_cli --json search --request "$HOME/req.json" > "$HOME/result.json" 2>&1
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request "$HOME/req.json" > "$HOME/result.json" 2>&1
 ```
 
 Then parse the result file with `read_file` (offset/limit for specific sections) or `search_files` (regex for specific fields like `"connection_count": 1`).

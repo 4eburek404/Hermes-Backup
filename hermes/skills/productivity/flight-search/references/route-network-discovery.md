@@ -8,7 +8,7 @@ Use when the user asks "where can I fly direct from city X" or "what destination
 - "What destinations does NTE serve" — route network
 - "Is there a direct flight from X to Y" (without a date) — route existence, not booking
 
-If the user gives a specific date + route, use the CLI (`python -m flights_cli --json search --request ...`), not this reference.
+If the user gives a specific date + route, use the CLI (`python3 -m flights_cli --json search --request ...`), not this reference.
 
 ## Source hierarchy (use in order)
 

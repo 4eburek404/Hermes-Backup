@@ -19,6 +19,7 @@ CANONICAL_REFERENCES = {
     "cli-maintenance.md",
     "provider-failover.md",
     "tutu-mcp-provider.md",
+    "route-network-discovery.md",
 }
 REMOVED_COMMAND_PATTERNS = (
     r"\broute\s+live-assemble\b",

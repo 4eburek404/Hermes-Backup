@@ -24,10 +24,10 @@ TUTU_CAPABILITIES = ProviderCapabilities(
     supports_ru_touching=True,
     supports_global=True,
     supports_city_code=False,
-    supports_direct_only=False,
-    supports_carrier_filter=False,
+    supports_direct_only=True,
+    supports_carrier_filter=True,
     supports_full_route_aggregate=True,
-    supports_round_trip=False,
+    supports_round_trip=True,
     supports_cache=True,
     probe_types=frozenset(
         {
@@ -55,25 +55,23 @@ class TutuProviderAdapter:
         depart_date = parse_iso_date(depart_date_text, "segment-date")
         direction = str(query["direction"])
         leg = str(query["leg"])
-        return_date_text = query.get("return_date")
-        return_date = parse_iso_date(return_date_text, "return-date") if return_date_text else None
         kwargs: dict[str, Any] = {}
         if self.fetcher is not None:
             kwargs["fetcher"] = self.fetcher
+        direct_only = bool(query.get("direct_only", True))
         result = cached_tutu_avia_search(
             origin,
             destination,
             depart_date,
             currency=str(query["currency"]).upper(),
             only_carriers=list(query.get("only_carriers") or []),
-            direct_only=False,  # Tutu always returns connected flights too
+            direct_only=direct_only,
             limit=int(query.get("limit") or 30),
             timeout=int(query.get("timeout") or 60),
             mcp_url=query.get("tutu_mcp_url"),  # Tutu-specific URL, not fli_mcp_url
             cache_ttl_seconds=int(query.get("cache_ttl_seconds") or 0),
             use_cache=bool(query.get("use_cache", True)),
             store=self.store,
-            return_date=return_date,
             **kwargs,
         )
         segment_result = tutu_result_to_segment_result(
@@ -99,8 +97,8 @@ class TutuProviderAdapter:
                 "date": depart_date_text,
                 "currency": str(query["currency"]).upper(),
                 "only_carriers": list(query.get("only_carriers") or []),
-                "direct_only": False,
-                "mcp_url": query.get("mcp_url"),
+                "direct_only": direct_only,
+                "mcp_url": query.get("tutu_mcp_url"),
             },
             execution_state="searched",
             cache_status=cache_status,
@@ -124,26 +122,44 @@ class TutuProviderAdapter:
         destination = str(query["destination"]).upper()
         depart_date_text = str(query["date"])
         depart_date = parse_iso_date(depart_date_text, "aggregate-control-date")
+        return_date_text = query.get("return_date")
+        return_date = (
+            parse_iso_date(return_date_text, "return-date") if return_date_text else None
+        )
+        direct_only = bool(query.get("direct_only", False))
+        kwargs: dict[str, Any] = {}
+        if self.fetcher is not None:
+            kwargs["fetcher"] = self.fetcher
         result = cached_tutu_avia_search(
             origin,
             destination,
             depart_date,
             currency=str(query["currency"]).upper(),
             only_carriers=list(query.get("only_carriers") or []),
-            direct_only=False,
+            direct_only=direct_only,
             limit=int(query.get("limit") or 10),
             timeout=int(query.get("timeout") or 60),
             mcp_url=query.get("tutu_mcp_url"),
             cache_ttl_seconds=int(query.get("cache_ttl_seconds") or 0),
             use_cache=bool(query.get("use_cache", True)),
             store=self.store,
+            return_date=return_date,
+            **kwargs,
         )
         from ...adapters.providers.kupibilet_adapter import aggregate_offer_summary
 
         offers = [
             offer for offer in (result.get("offers") or []) if isinstance(offer, dict)
         ]
-        top_offers = [aggregate_offer_summary(offer) for offer in offers]
+        top_offers = []
+        for offer in offers:
+            summary_offer = aggregate_offer_summary(offer)
+            if offer.get("journeys"):
+                summary_offer["journeys"] = offer.get("journeys")
+                summary_offer["journey_scope"] = offer.get("journey_scope")
+            if offer.get("ticketing_model"):
+                summary_offer["ticketing_model"] = offer.get("ticketing_model")
+            top_offers.append(summary_offer)
         summary = {
             "direction": str(query.get("direction") or ""),
             "origin": origin,
@@ -152,9 +168,16 @@ class TutuProviderAdapter:
             "status": "ok",
             "provider": "tutu",
             "source": result.get("source"),
-            "filters": {"direct_only": False, "only_carriers": list(query.get("only_carriers") or [])},
+            "filters": result.get(
+                "filters",
+                {
+                    "direct_only": direct_only,
+                    "only_carriers": list(query.get("only_carriers") or []),
+                },
+            ),
             "offer_count": len(top_offers),
             "raw_offer_count": result.get("raw_count"),
+            "pagination": result.get("pagination", {}),
             "cache": result.get("cache", {"hit": False}),
             "cache_status": cache_status_from_result(result),
             "top_offers": top_offers,
@@ -173,9 +196,10 @@ class TutuProviderAdapter:
                 "origin": origin,
                 "destination": destination,
                 "date": depart_date_text,
+                "return_date": return_date.isoformat() if return_date else None,
                 "currency": str(query["currency"]).upper(),
                 "only_carriers": list(query.get("only_carriers") or []),
-                "direct_only": False,
+                "direct_only": direct_only,
             },
             execution_state="searched",
             cache_status=cache_status,

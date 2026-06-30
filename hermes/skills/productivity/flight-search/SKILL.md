@@ -1,6 +1,6 @@
 ---
 name: flight-search
-version: 0.8.12
+version: 0.8.8
 description: Use when finding, comparing, or diagnosing live flight route options with the bundled flights CLI; assumes one adult in economy and never books tickets.
 metadata:
   hermes:
@@ -24,10 +24,10 @@ Write the request JSON to an **absolute path** under the user home directory (e.
 ```bash
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 cd "$HERMES_HOME"/skills/productivity/flight-search/cli
-PYTHONDONTWRITEBYTECODE=1 python -m flights_cli --json search --request "$HOME/flight-search-request.json"
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request "$HOME/flight-search-request.json"
 ```
 
-**Use `python`, not `python3`** — on Windows hosts `python3` is often missing while `python` (3.11+) is available.
+On Windows hosts `python3` is often missing; use `py -3 -m flights_cli` or `python -m flights_cli` there after confirming it is Python 3.11+.
 
 4. Answer from `data.route_result.agent_report.user_answer.rendered_text` (or `data.agent_report.user_answer.rendered_text` in flat mode). Read order, fields, renderer contract: `references/report-contract.md`.
 

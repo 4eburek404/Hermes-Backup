@@ -32,8 +32,10 @@ from .segment_normalization import (
     provider_result_to_segment_result,
 )
 
-MCP_PROTOCOL_VERSION = "2025-03-26"
-TUTU_NORMALIZER_VERSION = "tutu-avia-v1"
+MCP_PROTOCOL_VERSION = "2025-06-18"
+TUTU_NORMALIZER_VERSION = "tutu-avia-v2"
+TUTU_PAGE_SIZE = 30
+TUTU_MAX_PAGES = 3
 
 # Matches a 3-letter IATA code in parentheses at end of string: "Тулуза — Тулуза-Бланьяк (TLS)" -> TLS
 _IATA_RE = re.compile(r"\(([A-Z]{3})\)\s*(?:,\s*терм\.\s*\S+)?\s*$")
@@ -113,6 +115,7 @@ def tutu_mcp_http_post(
     headers = {
         "Accept": "application/json, text/event-stream",
         "Content-Type": "application/json",
+        "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
         "User-Agent": f"flights-cli/{__version__}",
     }
     if session_id:
@@ -383,9 +386,197 @@ def normalize_tutu_segment(
 
 def tutu_offer_key(flights: list[dict[str, Any]]) -> tuple[str, ...]:
     return tuple(
-        f"{flight.get('flight_number')}:{flight.get('departure_at')}:{flight.get('arrival_at')}"
+        ":".join(
+            [
+                str(flight.get("flight_number") or ""),
+                str(flight.get("origin") or ""),
+                str(flight.get("destination") or ""),
+                str(flight.get("departure_at") or ""),
+                str(flight.get("arrival_at") or ""),
+            ]
+        )
         for flight in flights
     )
+
+
+def _increment(counter: dict[str, int], key: str, amount: int = 1) -> None:
+    counter[key] = counter.get(key, 0) + amount
+
+
+def _journey_segments(journey: dict[str, Any]) -> list[dict[str, Any]]:
+    segments = journey.get("segments")
+    return [segment for segment in (segments or []) if isinstance(segment, dict)]
+
+
+def _all_journey_segments(journeys: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for journey in journeys:
+        result.extend(_journey_segments(journey))
+    return result
+
+
+def _journey_connection_count(journey: dict[str, Any]) -> int:
+    return max(0, len(_journey_segments(journey)) - 1)
+
+
+def _journeys_have_airport_change(journeys: list[dict[str, Any]]) -> bool:
+    for journey in journeys:
+        segments = _journey_segments(journey)
+        for previous, current in zip(segments, segments[1:]):
+            arrival = str(previous.get("destination") or "").upper()
+            departure = str(current.get("origin") or "").upper()
+            if arrival and departure and arrival != departure:
+                return True
+    return False
+
+
+def _tutu_journey_key(journeys: list[dict[str, Any]]) -> tuple[str, ...]:
+    parts: list[str] = []
+    for index, journey in enumerate(journeys):
+        direction = str(journey.get("direction") or f"journey_{index}")
+        for segment_key in tutu_offer_key(_journey_segments(journey)):
+            parts.append(f"{direction}:{segment_key}")
+    return tuple(parts)
+
+
+def _location_scope_codes(
+    code: str, store: Store | None
+) -> tuple[str, set[str], str | None]:
+    normalized = code.upper()
+    if store is None:
+        return "unknown", {normalized}, None
+    try:
+        location = store.resolve_location(normalized)
+    except CliError as exc:
+        return "unknown", {normalized}, exc.error_type
+    airports = {str(item).upper() for item in (location.airports or []) if item}
+    if not airports:
+        airports = {location.code.upper()}
+    return location.kind, airports, None
+
+
+def _journey_endpoint_codes(
+    journey: dict[str, Any],
+) -> tuple[str | None, str | None]:
+    segments = _journey_segments(journey)
+    if not segments:
+        return None, None
+    origin = str(segments[0].get("origin") or "").upper() or None
+    destination = str(segments[-1].get("destination") or "").upper() or None
+    return origin, destination
+
+
+def _matches_airport_scope(
+    journeys: list[dict[str, Any]],
+    *,
+    origin: str,
+    destination: str,
+    store: Store | None,
+    skipped: dict[str, int],
+) -> bool:
+    origin_kind, origin_codes, _origin_scope_error = _location_scope_codes(origin, store)
+    destination_kind, destination_codes, _destination_scope_error = _location_scope_codes(
+        destination, store
+    )
+
+    expected = [(origin_codes, destination_codes, "outbound")]
+    if len(journeys) > 1:
+        expected.append((destination_codes, origin_codes, "return"))
+
+    for journey, (allowed_origins, allowed_destinations, direction) in zip(
+        journeys, expected
+    ):
+        journey_origin, journey_destination = _journey_endpoint_codes(journey)
+        if journey_origin not in allowed_origins or journey_destination not in allowed_destinations:
+            _increment(skipped, "airport_scope")
+            debug = journey.setdefault("debug", {})
+            debug["airport_scope_mismatch"] = {
+                "direction": direction,
+                "origin_scope": origin_kind if direction == "outbound" else destination_kind,
+                "destination_scope": destination_kind if direction == "outbound" else origin_kind,
+                "actual_origin": journey_origin,
+                "actual_destination": journey_destination,
+            }
+            return False
+    return True
+
+
+def _matches_direct_only(journeys: list[dict[str, Any]]) -> bool:
+    return all(len(_journey_segments(journey)) == 1 for journey in journeys)
+
+
+def _segment_carrier_codes(segment: dict[str, Any]) -> set[str]:
+    codes = {
+        str(segment.get("marketing_carrier") or "").upper(),
+        str(segment.get("operating_carrier") or "").upper(),
+    }
+    flight_number = str(segment.get("flight_number") or "").upper()
+    if re.match(r"^[A-Z0-9]{2,3}", flight_number):
+        codes.add(flight_number[:2])
+    return {code for code in codes if code}
+
+
+def _matches_carrier_filter(
+    journeys: list[dict[str, Any]], carrier_filter: set[str]
+) -> bool:
+    if not carrier_filter:
+        return True
+    for segment in _all_journey_segments(journeys):
+        if not (_segment_carrier_codes(segment) & carrier_filter):
+            return False
+    return True
+
+
+def _normalize_tutu_journeys(
+    offer: dict[str, Any],
+    *,
+    origin: str,
+    destination: str,
+    carrier_name_index: dict[str, str],
+    skipped: dict[str, int],
+) -> list[dict[str, Any]]:
+    legs = offer.get("legs")
+    if not isinstance(legs, list) or not legs:
+        _increment(skipped, "no_legs")
+        return []
+
+    journeys: list[dict[str, Any]] = []
+    for leg_index, leg in enumerate(legs):
+        if not isinstance(leg, dict):
+            continue
+        raw_segments = [
+            segment
+            for segment in (leg.get("segments") or [])
+            if isinstance(segment, dict)
+        ]
+        if not raw_segments:
+            continue
+
+        direction = (
+            "outbound"
+            if leg_index == 0
+            else "return" if leg_index == 1 else f"journey_{leg_index + 1}"
+        )
+        expected_start = origin if leg_index == 0 else destination if leg_index == 1 else None
+        expected_end = destination if leg_index == 0 else origin if leg_index == 1 else None
+        normalized_segments: list[dict[str, Any]] = []
+        for segment_index, segment in enumerate(raw_segments):
+            normalized = normalize_tutu_segment(
+                segment,
+                carrier_name_index=carrier_name_index,
+                expected_origin=expected_start if segment_index == 0 else None,
+                expected_destination=(
+                    expected_end if segment_index == len(raw_segments) - 1 else None
+                ),
+            )
+            if normalized is not None:
+                normalized_segments.append(normalized)
+        if normalized_segments:
+            journeys.append({"direction": direction, "segments": normalized_segments})
+
+    if not journeys:
+        _increment(skipped, "no_segments")
+    return journeys
 
 
 def parse_tutu_avia_search(
@@ -395,8 +586,12 @@ def parse_tutu_avia_search(
     destination: str,
     depart_date: str,
     currency: str,
+    only_carriers: list[str] | None = None,
+    direct_only: bool = False,
+    return_date: str | None = None,
     limit: int = 20,
     store: Store | None = None,
+    source_url: str | None = None,
 ) -> dict[str, Any]:
     offers_raw = raw.get("offers")
     if not isinstance(offers_raw, list):
@@ -406,47 +601,45 @@ def parse_tutu_avia_search(
         )
 
     carrier_name_index = _build_carrier_name_index(store)
+    carrier_filter = {
+        str(code).strip().upper() for code in (only_carriers or []) if str(code).strip()
+    }
     deduped: dict[tuple[str, ...], dict[str, Any]] = {}
     skipped: dict[str, int] = {}
 
     for index, offer in enumerate(offers_raw):
         if not isinstance(offer, dict):
-            skipped["bad_offer"] = skipped.get("bad_offer", 0) + 1
+            _increment(skipped, "bad_offer")
             continue
 
-        legs = offer.get("legs")
-        if not isinstance(legs, list) or not legs:
-            skipped["no_legs"] = skipped.get("no_legs", 0) + 1
+        journeys = _normalize_tutu_journeys(
+            offer,
+            origin=origin,
+            destination=destination,
+            carrier_name_index=carrier_name_index,
+            skipped=skipped,
+        )
+        if not journeys:
             continue
-
-        # Flatten all segments from all legs (Tutu legs[0] = outbound)
-        raw_segments: list[dict[str, Any]] = []
-        for leg in legs:
-            if not isinstance(leg, dict):
-                continue
-            segments = leg.get("segments")
-            if isinstance(segments, list):
-                raw_segments.extend(s for s in segments if isinstance(s, dict))
-
-        if not raw_segments:
-            skipped["no_segments"] = skipped.get("no_segments", 0) + 1
+        if len(journeys) > 2:
+            _increment(skipped, "unsupported_journey_count")
             continue
-
-        normalized_flights: list[dict[str, Any]] = []
-        for seg_index, seg in enumerate(raw_segments):
-            normalized = normalize_tutu_segment(
-                seg,
-                carrier_name_index=carrier_name_index,
-                expected_origin=origin if seg_index == 0 else None,
-                expected_destination=(
-                    destination if seg_index == len(raw_segments) - 1 else None
-                ),
-            )
-            if normalized is not None:
-                normalized_flights.append(normalized)
-
-        if not normalized_flights:
-            skipped["bad_segments"] = skipped.get("bad_segments", 0) + 1
+        if _journeys_have_airport_change(journeys):
+            _increment(skipped, "airport_change")
+            continue
+        if not _matches_airport_scope(
+            journeys,
+            origin=origin,
+            destination=destination,
+            store=store,
+            skipped=skipped,
+        ):
+            continue
+        if direct_only and not _matches_direct_only(journeys):
+            _increment(skipped, "not_direct")
+            continue
+        if carrier_filter and not _matches_carrier_filter(journeys, carrier_filter):
+            _increment(skipped, "carrier")
             continue
 
         price_data = offer.get("price")
@@ -459,28 +652,41 @@ def parse_tutu_avia_search(
             amount = price_value({"price": price_data})
             offer_currency = currency
 
-        key = tutu_offer_key(normalized_flights)
+        outbound_segments = _journey_segments(journeys[0])
+        if not outbound_segments:
+            _increment(skipped, "bad_segments")
+            continue
+        all_segments = _all_journey_segments(journeys)
+        key = _tutu_journey_key(journeys)
         offer_obj = {
             "id": str(offer.get("offer_id") or f"tutu:{index}"),
             "price": amount,
             "currency": offer_currency,
-            "number_of_changes": max(0, len(normalized_flights) - 1),
+            "number_of_changes": max(_journey_connection_count(j) for j in journeys),
             "duration": offer.get("duration_min"),
-            "departure_at": normalized_flights[0]["departure_at"],
-            "arrival_at": normalized_flights[-1]["arrival_at"],
-            "origin": normalized_flights[0]["origin"],
-            "destination": normalized_flights[-1]["destination"],
+            "departure_at": outbound_segments[0]["departure_at"],
+            "arrival_at": outbound_segments[-1]["arrival_at"],
+            "origin": outbound_segments[0]["origin"],
+            "destination": outbound_segments[-1]["destination"],
             "flight_numbers": [
-                f["flight_number"] for f in normalized_flights if f.get("flight_number")
+                f["flight_number"] for f in all_segments if f.get("flight_number")
             ],
             "marketing_carriers": sorted(
-                {f["marketing_carrier"] for f in normalized_flights if f.get("marketing_carrier")}
+                {f["marketing_carrier"] for f in all_segments if f.get("marketing_carrier")}
             ),
             "operating_carriers": sorted(
-                {f["operating_carrier"] for f in normalized_flights if f.get("operating_carrier")}
+                {f["operating_carrier"] for f in all_segments if f.get("operating_carrier")}
             ),
-            "segments": normalized_flights,
+            "segments": outbound_segments,
+            "journeys": journeys,
+            "journey_scope": "round_trip" if len(journeys) == 2 else "one_way",
+            "ticketing_model": "provider_order_unverified",
         }
+        if len(journeys) == 2:
+            return_segments = _journey_segments(journeys[1])
+            if return_segments:
+                offer_obj["return_departure_at"] = return_segments[0]["departure_at"]
+                offer_obj["return_arrival_at"] = return_segments[-1]["arrival_at"]
         previous = deduped.get(key)
         previous_price = previous.get("price") if previous else None
         if previous is None or (
@@ -496,9 +702,14 @@ def parse_tutu_avia_search(
         "depart_date": depart_date,
         "currency": currency,
         "source": "Tutu MCP search_avia (tutu.ru)",
-        "source_url": default_tutu_mcp_url(),
+        "source_url": source_url or default_tutu_mcp_url(),
         "note": "Tutu.ru aggregate source; recheck final fare and seat availability before ticketing.",
-        "filters": {},
+        "filters": {
+            "direct_only": bool(direct_only),
+            "only_carriers": sorted(carrier_filter),
+        },
+        "return_date": return_date,
+        "pagination": raw.get("meta") if isinstance(raw.get("meta"), dict) else {},
         "raw_count": len(offers_raw),
         "skipped": skipped,
         "offer_count": len(offers),
@@ -534,7 +745,7 @@ def fetch_tutu_avia_search(
         "adults": 1,
         "view": "compact",
         "sort": "departure_asc",
-        "page_size": min(max(limit, 10), 30),
+        "page_size": TUTU_PAGE_SIZE,
     }
     if return_date is not None:
         arguments["return_date"] = return_date.isoformat()
@@ -544,27 +755,43 @@ def fetch_tutu_avia_search(
         "search_avia", arguments, mcp_url=mcp_url, timeout=timeout
     )
 
-    # Paginate if more pages exist (up to 3 pages = 90 offers max)
     all_offers = list(raw.get("offers") or [])
     meta = raw.get("meta") or {}
     page = 1
-    while meta.get("has_more") and page < 3 and len(all_offers) < limit:
+    pages_fetched = 1
+    page_budget_exhausted = False
+    empty_page_seen = False
+    while meta.get("has_more") and page < TUTU_MAX_PAGES:
         page += 1
         page_args = dict(arguments)
         page_args["page"] = page
         page_raw = call_tutu_mcp_tool(
             "search_avia", page_args, mcp_url=mcp_url, timeout=timeout
         )
+        pages_fetched += 1
         page_offers = list(page_raw.get("offers") or [])
         if not page_offers:
+            empty_page_seen = True
+            meta = page_raw.get("meta") or meta
             break
         all_offers.extend(page_offers)
         meta = page_raw.get("meta") or {}
+    if meta.get("has_more") and page >= TUTU_MAX_PAGES:
+        page_budget_exhausted = True
 
     raw["offers"] = all_offers
-    if "meta" in raw and isinstance(raw["meta"], dict):
-        raw["meta"]["total_returned"] = len(all_offers)
-        raw["meta"]["has_more"] = False
+    raw_meta = raw.get("meta") if isinstance(raw.get("meta"), dict) else {}
+    raw["meta"] = {
+        **raw_meta,
+        **(meta if isinstance(meta, dict) else {}),
+        "page_size": TUTU_PAGE_SIZE,
+        "pages_fetched": pages_fetched,
+        "total_returned": len(all_offers),
+        "max_pages": TUTU_MAX_PAGES,
+        "has_more_after_fetch": bool(meta.get("has_more")) if isinstance(meta, dict) else False,
+        "not_fetched_due_to_page_budget": page_budget_exhausted,
+        "empty_page_seen": empty_page_seen,
+    }
 
     return parse_tutu_avia_search(
         raw,
@@ -572,8 +799,12 @@ def fetch_tutu_avia_search(
         destination=destination.upper(),
         depart_date=depart_date.isoformat(),
         currency=currency,
+        only_carriers=only_carriers,
+        direct_only=direct_only,
+        return_date=return_date.isoformat() if return_date else None,
         limit=limit,
         store=store,
+        source_url=normalize_tutu_mcp_url(mcp_url),
     )
 
 
@@ -680,6 +911,8 @@ def tutu_segment_search_summary(
         "raw_count": result.get("raw_count"),
         "unique_flight_count": result.get("unique_flight_count"),
         "offer_count": len(segment_result.get("offers") or []),
+        "filters": result.get("filters", {}),
+        "pagination": result.get("pagination", {}),
         "skipped": result.get("skipped", {}),
         "cache": result.get("cache", {"hit": False}),
     }

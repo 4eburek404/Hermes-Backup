@@ -90,10 +90,10 @@ class ArchitectureTests(unittest.TestCase):
         self.assertIn("\n# Flight Search\n", text)
         self.assertGreater(text.count("\n"), 40)
 
-    def test_active_provider_set_is_kupibilet_and_fli(self) -> None:
-        # Prose test deleted; this code-level check verifies the same invariant.
-        self.assertEqual(set(ProviderName.__args__), {"kupibilet", "fli"})
-        self.assertEqual(set(PROVIDER_REGISTRY.keys()), {"kupibilet", "fli"})
+    def test_active_provider_set_includes_opt_in_tutu_provider(self) -> None:
+        # Tutu is opt-in only, but it is part of the typed provider registry.
+        self.assertEqual(set(ProviderName.__args__), {"kupibilet", "fli", "tutu"})
+        self.assertEqual(set(PROVIDER_REGISTRY.keys()), {"kupibilet", "fli", "tutu"})
 
     def test_ist_resolves_to_exact_code_only(self) -> None:
         # IST default scope is IST only; SAW requires explicit request.

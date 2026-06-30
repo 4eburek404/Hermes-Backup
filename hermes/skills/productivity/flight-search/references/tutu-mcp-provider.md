@@ -5,7 +5,7 @@ Architecture and normalization map for the `tutu` provider in the flight-search 
 ## Tutu MCP endpoint
 
 - URL: `https://mcp.tutu.ru/mcp` (config: `TUTU_MCP_DEFAULT_URL`)
-- Protocol: JSON-RPC 2.0 over HTTP (MCP `2025-03-26`)
+- Protocol: JSON-RPC 2.0 over Streamable HTTP (MCP `2025-06-18`); requests include `MCP-Protocol-Version`
 - No auth required
 - Tool: `search_avia` — accepts city names (Russian), not IATA codes
 
@@ -27,7 +27,7 @@ The CLI uses a ports-and-adapters pattern. To add a provider:
 2. **`config.py`** — Add `TUTU_MCP_DEFAULT_URL` constant
 3. **`providers/tutu_mcp.py`** — HTTP MCP client + response normalizer:
    - `call_tutu_mcp_tool(tool_name, arguments, mcp_url, timeout)` — JSON-RPC initialize → tools/call
-   - `parse_tutu_avia_search(raw, origin, destination, depart_date, currency, limit)` — normalize Tutu response to internal offer format
+   - `parse_tutu_avia_search(raw, origin, destination, depart_date, currency, limit, ...)` — normalize Tutu response to internal offer format and apply CLI post-filters
    - `cached_tutu_avia_search(...)` — cache wrapper (same pattern as `cached_kupibilet_search`)
    - `tutu_result_to_segment_result(...)` — delegate to `provider_result_to_segment_result`
    - `tutu_segment_search_summary(...)` — summary dict
@@ -100,10 +100,10 @@ TUTU_CAPABILITIES = ProviderCapabilities(
     supports_ru_touching=True,
     supports_global=True,
     supports_city_code=False,    # CLI resolves IATA→city name before calling Tutu
-    supports_direct_only=False,  # search_avia has no direct-only filter
-    supports_carrier_filter=False, # no carrier filter in search_avia
-    supports_full_route_aggregate=True,
-    supports_round_trip=False,
+	    supports_direct_only=True,   # CLI post-filter; search_avia has no upstream direct-only arg
+	    supports_carrier_filter=True, # CLI post-filter; search_avia has no upstream carrier arg
+	    supports_full_route_aggregate=True,
+	    supports_round_trip=True,    # stored as outbound/return journeys, not two protected one-ways
     supports_cache=True,
     probe_types=frozenset({"segment_direct", "segment_hub_leg", "full_route_aggregate", "city_pair_direct"}),
 )
@@ -122,9 +122,11 @@ Tests that assert `set(PROVIDER_REGISTRY) == {"kupibilet", "fli"}` need updating
 ## Known limitations
 
 - Tutu `search_avia` may return 0 offers for long-haul one-way routes on far-future dates. The upstream suggests retrying with `return_date` — some routes are sold only as round-trip packages.
-- Carrier names in Tutu responses are display names (e.g. "Air France", "Уральские авиалинии"), not IATA codes. The normalizer should attempt carrier-name-to-code resolution via `Store.airline_by_code` reverse lookup or leave as-is.
+- Carrier names in Tutu responses are display names (e.g. "Air France", "Уральские авиалинии"), not IATA codes. The normalizer resolves carrier names through the airline catalog where possible; carrier filtering is applied after normalization and requires every segment in every journey to match.
 - `voyage_no` (flight number) is often `null` in Tutu responses.
-- **Pagination: `page_size=10` by default (max 30).** Without explicit `page_size=30`, later departures (afternoon/evening) are invisible — they land on page 2+ behind cheaper morning flights. The CLI provider (`tutu_mcp.py`) sends `page_size=30` with `sort=departure_asc` and auto-paginates up to 3 pages (90 offers). When calling `mcp_tutu_search_avia` directly, always pass `page_size=30` and check `meta.has_more`.
+- **Pagination: `page_size=10` by default (max 30).** Without explicit `page_size=30`, later departures (afternoon/evening) are invisible — they land on page 2+ behind cheaper morning flights. The CLI provider (`tutu_mcp.py`) sends `page_size=30` with `sort=departure_asc` and auto-paginates up to 3 pages (90 offers) before applying display `limit`. Diagnostics keep `pagination.has_more_after_fetch` and `pagination.not_fetched_due_to_page_budget`. When calling `mcp_tutu_search_avia` directly, always pass `page_size=30` and check `meta.has_more`.
+- **Airport scope is post-filtered.** Tutu searches by city name, so an exact-airport request like `LHR` can return another London airport. The CLI accepts only offers whose actual first/last airports match the requested airport scope; city requests such as `LON` may accept multiple London airports.
+- **Round-trip offers stay single provider-returned packages.** The normalizer stores outbound and return as separate `journeys`; it does not flatten two journeys into a fake one-way connection and does not claim single-PNR/protection.
 - **Full-route search ≠ segment search coverage.** A `search_avia` call for NTE→SVX may NOT return all viable 1-stop connecting flights through a hub (e.g. KLM NTE→AMS→IST at 17:20). The aggregate search filters by its own routing logic and may exclude valid hub connections. A direct city-pair search (NTE→IST) reveals flights the full-route search missed. When the user reports a flight from tutu.ru not in your results, search the individual leg directly.
 - **Tutu segment probes return offers, but pipeline may reject them.** Live test (TLS→SVX 10.07.2026): 8 Tutu segment probes all returned 9-10 offers (status=ok), but 0 ranked candidates were assembled. All 20 rejected_pairs were `ground_transfer_required` — Tutu returned flights arriving at SAW but the connecting leg departed from IST (or vice versa). The pipeline correctly rejects these cross-airport pairs. When `ranked_candidates` is empty but `segment_searches[].offer_count > 0`, check `rejected_pairs` for the reason — the provider is working, the route just has no same-airport connections on that date.
 - **Tutu full-route aggregate may return 0 offers** for the complete route (e.g. TLS→SVX one-way), but segment-level probes (TLS→IST, IST→SVX separately) DO return offers. The CLI's pipeline handles this by probing segments individually when `provider_policy: "tutu"` is set. This is expected — Tutu's `search_avia` is a route-level search that may not find complex multi-stop itineraries, but the CLI's segment-by-segment approach finds them.

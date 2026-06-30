@@ -59,6 +59,9 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self.assertTrue(tutu.supports_ru_touching)
         self.assertTrue(tutu.supports_global)
         self.assertTrue(tutu.supports_full_route_aggregate)
+        self.assertTrue(tutu.supports_direct_only)
+        self.assertTrue(tutu.supports_carrier_filter)
+        self.assertTrue(tutu.supports_round_trip)
 
     def test_registry_values_are_concrete_provider_ports(self) -> None:
         self.assertEqual(set(PROVIDER_REGISTRY), {"kupibilet", "fli", "tutu"})
