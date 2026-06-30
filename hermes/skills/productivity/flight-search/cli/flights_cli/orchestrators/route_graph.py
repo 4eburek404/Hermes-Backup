@@ -11,7 +11,6 @@ from ..config import (
     PRIORITY_MOSCOW_GATEWAY,
     PRIORITY_PRIMARY_HUB,
     PRIORITY_ROUTE_CARRIERS,
-    PRIORITY_SECONDARY_HUB,
 )
 from ..domain.airports import airport_scope_summary, segment_code_metadata
 from ..domain.hubs import resolve_route_hubs, resolve_routing_strategy
@@ -85,13 +84,6 @@ def route_families_for_strategy(
                 "via": [PRIORITY_MOSCOW_GATEWAY],
                 "condition": "Moscow/SVO control; compare even when direct or primary-hub options exist",
                 "required_carriers": ["SU"],
-                "preferred_carriers": list(PRIORITY_ROUTE_CARRIERS),
-            },
-            {
-                "id": "dxb_direct",
-                "priority": 4 if routing_profile == "asia-oceania" else 3,
-                "hub": PRIORITY_SECONDARY_HUB,
-                "condition": "check only if direct/SVO/IST priority routes do not produce a usable assembled pair; do not expand origin->DXB through Moscow",
                 "preferred_carriers": list(PRIORITY_ROUTE_CARRIERS),
             },
         ]
@@ -294,9 +286,9 @@ def resolve_route_graph_context(
     hubs, hub_source = resolve_route_hubs(options.route.hubs)
     routing_profile = geo_routing_profile(destination, destination_airports)
     if routing_strategy == RoutingStrategy.RU_PRIORITY:
-        hubs = [PRIORITY_PRIMARY_HUB, PRIORITY_SECONDARY_HUB]
+        hubs = [PRIORITY_PRIMARY_HUB]
         if routing_profile == "asia-oceania":
-            hubs = [PRIORITY_ASIA_HUB, PRIORITY_PRIMARY_HUB, PRIORITY_SECONDARY_HUB]
+            hubs = [PRIORITY_ASIA_HUB, PRIORITY_PRIMARY_HUB]
         hub_source = "strategy"
     elif routing_strategy == RoutingStrategy.DOMESTIC_RU:
         hubs = [

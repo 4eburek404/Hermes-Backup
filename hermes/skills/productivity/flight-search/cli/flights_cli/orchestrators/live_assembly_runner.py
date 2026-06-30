@@ -4,10 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from ..config import (
-    KUPIBILET_CITY_CODE_FIRST_AIRPORTS,
-    PRIORITY_SECONDARY_HUB,
-)
+from ..config import KUPIBILET_CITY_CODE_FIRST_AIRPORTS
 from ..domain.gateway_discovery import GatewayDiscoveryService
 from ..domain.normalize import normalize_carrier_code
 from ..domain.vocabulary import (
@@ -517,7 +514,7 @@ class PriorityRouteEvaluator:
             next_origin = str(
                 offers[1].get("departure_airport") or offers[1].get("origin") or ""
             ).upper()
-            if hub != next_origin or hub == PRIORITY_SECONDARY_HUB:
+            if hub != next_origin:
                 continue
             if (pair.get("connection_quality") or {}).get("severity") != "error":
                 viable = True
@@ -663,7 +660,7 @@ class SkipPolicy:
                 "offer_count": 0,
                 "skipped_because": {
                     "direction": direction,
-                    "note": "DXB skipped because direct/SVO/IST priority routing already produced a non-error journey.",
+                    "note": "Secondary fallback skipped because priority routing already produced a non-error journey.",
                 },
             }
         key = (

@@ -1,8 +1,8 @@
 # Gateway Hardcode Map
 
-This is an inventory of current hardcoded gateway and hub behavior. It is not a
-design target. Keep runtime behavior unchanged until the hardcodes are moved
-behind an explicit planning/config contract.
+This is an inventory of current and recently removed hardcoded gateway and hub
+behavior. It is not a design target. Secondary fallback gateways should come
+from gateway discovery data rather than imperative segment generation.
 
 ## Source Owners
 
@@ -11,7 +11,7 @@ behind an explicit planning/config contract.
 | Hub constants and airport priors | `cli/flights_cli/config.py` | Defines default hub lists, RU-priority hubs, Moscow city-code airports, Dubai defaults, and Asia/Oceania triggers. |
 | Strategy and hub context | `cli/flights_cli/orchestrators/route_graph.py` | Converts routing strategy/profile into route families and effective hubs. |
 | Segment fallback plan injection | `cli/flights_cli/orchestrators/route_plan_builder.py` | Imperatively adds direct controls, gateway legs, and fallback hub legs to `plan["segments"]`. |
-| Segment execution skips | `cli/flights_cli/orchestrators/live_assembly_runner.py` | Skips DXB fallback probes when priority routing is already viable. |
+| Segment execution skips | `cli/flights_cli/orchestrators/live_assembly_runner.py` | Retains the generic `skip_if_priority_route_viable` compatibility hook, but current segment fallback planning no longer emits DXB fallback probes. |
 | Synthetic Moscow control | `cli/flights_cli/execution/synthetic_control_runner.py` | Synthesizes SVO/Moscow control results from executed legs. |
 | Ranking/report visibility | `cli/flights_cli/services/assembly.py`, `cli/flights_cli/reporting/agent_report_builder.py`, `cli/flights_cli/reporting/projections/summary_lines.py` | Keeps SVO/Moscow priority controls visible even when normal ranking would hide them. |
 
@@ -19,12 +19,11 @@ behind an explicit planning/config contract.
 
 | Constant/value | Category | Meaning |
 |---|---|---|
-| `DEFAULT_ROUTE_HUBS = ("IST", "DXB", "DOH", "AUH", "BEG", "TAS", "GYD", "PEK", "PVG", "CAN", "ADD", "CAI", "MCT")` | fallback priors | Built-in `hub-list` fallback when the user does not pass explicit hubs and the strategy resolves to hub-list. |
+| `DEFAULT_ROUTE_HUBS = ("IST",)` | primary gateway | Built-in `hub-list` fallback when the user does not pass explicit hubs and the strategy resolves to hub-list. Secondary gateway candidates now come from gateway discovery data, not this code list. |
 | `DOMESTIC_RU_HUBS = ("SVO", "DME", "VKO")` | fallback priors | Domestic-RU bounded fallback hubs; endpoint airports are removed before segments are built. |
 | `PRIORITY_PRIMARY_HUB = "IST"` | primary gateway | Primary RU-priority international gateway. |
 | `PRIORITY_MOSCOW_GATEWAY = "SVO"` | Moscow-specific visibility control | Main Moscow gateway used for control legs and synthetic Moscow results. |
-| `PRIORITY_SECONDARY_HUB = "DXB"` | fallback gateway | Secondary RU-priority gateway, gated by `skip_if_priority_route_viable`. |
-| `PRIORITY_ASIA_HUB = "SVO"` | primary gateway | Independent SVO hub for Asia/Oceania routes, before IST/DXB fallback. |
+| `PRIORITY_ASIA_HUB = "SVO"` | primary gateway | Independent SVO hub for Asia/Oceania routes, before IST fallback and data-driven secondary gateway discovery. |
 | `PRIORITY_ROUTE_CARRIERS = ("U6", "SU", "TK")` | fallback priors | Preferred carrier metadata on RU-priority direct/gateway legs. |
 | `ASIA_OCEANIA_COUNTRIES`, `ASIA_DESTINATION_CODES` | fallback priors | Trigger the `asia-oceania` route profile and the `svo_asia` family. |
 | `KUPIBILET_CITY_CODE_FIRST_AIRPORTS["MOW"] = ["SVO", "DME", "VKO"]` | Moscow-specific visibility control | Gives Moscow gateway controls a KupiBilet city-code-first search path plus deferred exact-airport fallbacks. |
@@ -39,9 +38,9 @@ behind an explicit planning/config contract.
 | `ist_direct` | primary gateway | RU-priority outbound/return builders | Adds IST direct gateway probes. Outbound adds origin->IST; return adds destination->IST and IST->origin. |
 | `ist_shared_destination` | primary gateway | RU-priority outbound builder | Adds IST->destination second legs for outbound assembly. The route-family metadata table names the broader IST branch as `ist_direct`, while segment rows can carry `ist_shared_destination`. |
 | `moscow_gateway_control` | Moscow-specific visibility control | RU-priority outbound/return builders plus synthetic runner/reporting | Adds SVO/Moscow control legs and keeps SVO/Moscow alternatives visible even when direct or IST options exist. |
-| `dxb_direct` | fallback gateway | RU-priority outbound/return builders | Adds DXB fallback gateway legs. Each segment gets `skip_if_priority_route_viable` so execution can skip DXB after direct/SVO/IST has a viable route. |
+| `dxb_direct` | removed fallback gateway | Not emitted by current segment fallback planning | DXB remains available as a data-driven `GatewayDiscovery` candidate from `gateway_priors.yaml` or provider-returned route signals. |
 | `domestic_ru` | fallback priors | Domestic-RU outbound/return builders | Adds direct domestic probes plus bounded Moscow-airport hub fallback using `DOMESTIC_RU_HUBS`; excludes IST/DXB by default. |
-| `hub_list` | gateway candidates | Hub-list outbound/return builders | Adds one-hop probes through effective `self.hubs`: user-provided hubs or `DEFAULT_ROUTE_HUBS`. |
+| `hub_list` | gateway candidates | Hub-list outbound/return builders | Adds one-hop probes through effective `self.hubs`: user-provided hubs or the primary default `DEFAULT_ROUTE_HUBS = ("IST",)`. |
 
 ## Strategy-To-Hub Rules
 
@@ -55,10 +54,10 @@ strategy-owned cases:
 
 | Strategy/profile | Effective hubs | Category |
 |---|---|---|
-| `ru-priority`, default profile | `["IST", "DXB"]` | primary gateway plus fallback gateway |
-| `ru-priority`, `asia-oceania` profile | `["SVO", "IST", "DXB"]` | SVO Asia gateway, primary IST gateway, fallback DXB gateway |
+| `ru-priority`, default profile | `["IST"]` | primary gateway only; secondary gateways are data-driven discovery candidates |
+| `ru-priority`, `asia-oceania` profile | `["SVO", "IST"]` | SVO Asia gateway and primary IST gateway; secondary gateways are data-driven discovery candidates |
 | `domestic-ru` | `DOMESTIC_RU_HUBS` minus endpoint airports, or `["SVO"]` if none remain | fallback priors |
-| `hub-list` | manual hubs or `DEFAULT_ROUTE_HUBS` | gateway candidates |
+| `hub-list` | manual hubs or `DEFAULT_ROUTE_HUBS = ("IST",)` | gateway candidates |
 
 ## Imperative Segment Injection
 
@@ -72,7 +71,7 @@ Outbound RU-priority:
 - Adds `origin -> IST` as `ist_direct`.
 - Adds `origin -> SVO` and `SVO -> IST` as `moscow_gateway_control` for origins other than SVO.
 - Adds `IST -> destination` as `ist_shared_destination`.
-- Adds `origin -> DXB` and `DXB -> destination` as `dxb_direct`, both with `skip_if_priority_route_viable="outbound"`.
+- Does not add DXB or other secondary fallback gateways; they can appear through `GatewayDiscovery` data.
 - Adds `MOW/SVO/DME/VKO -> destination` controls through `_gateway_segment_options` as `moscow_gateway_control`.
 
 Return RU-priority:
@@ -81,7 +80,7 @@ Return RU-priority:
 - If Asia/Oceania: adds `destination -> SVO` and `SVO -> origin` as `svo_asia`.
 - Adds `destination -> IST` and `IST -> origin` as `ist_direct`.
 - Adds `IST -> SVO` and `SVO -> origin` as `moscow_gateway_control` for origins other than SVO.
-- Adds `destination -> DXB` and `DXB -> origin` as `dxb_direct`, both with `skip_if_priority_route_viable="return"`.
+- Does not add DXB or other secondary fallback gateways; they can appear through `GatewayDiscovery` data.
 - Adds `destination -> MOW/SVO/DME/VKO` controls through `_gateway_segment_options` as `moscow_gateway_control`.
 
 Domestic-RU:
@@ -96,14 +95,14 @@ Hub-list:
 - Adds direct controls only for global non-RU routes.
 - Adds outbound `origin -> hub` and `hub -> destination` for every effective hub.
 - Adds return `destination -> hub` and `hub -> origin` for every effective hub.
-- Effective hubs are manual hubs or `DEFAULT_ROUTE_HUBS`.
+- Effective hubs are manual hubs or `DEFAULT_ROUTE_HUBS = ("IST",)`.
 
 ## Downstream Controls
 
-`LiveAssemblyRunner.skipped_by_condition()` interprets
-`skip_if_priority_route_viable` and skips DXB probes with reason
-`priority_route_viable` once direct/SVO/IST priority routing has a viable
-non-error journey.
+`LiveAssemblyRunner.skipped_by_condition()` still interprets
+`skip_if_priority_route_viable` for compatibility with older plans, but current
+`RoutePlanBuilder` no longer emits DXB or secondary fallback segments that use
+that skip.
 
 `synthesize_moscow_gateway_control_results()` builds synthetic
 `moscow_gateway_control` results from SVO split legs. It intentionally keeps

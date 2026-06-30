@@ -65,18 +65,6 @@ SVX_OFFICIAL_ARRIVAL_SCHEDULE_URL = "https://ar-svx.ru/schedule/?type=arr"
 
 DEFAULT_ROUTE_HUBS = (
     "IST",
-    "DXB",
-    "DOH",
-    "AUH",
-    "BEG",
-    "TAS",
-    "GYD",
-    "PEK",
-    "PVG",
-    "CAN",
-    "ADD",
-    "CAI",
-    "MCT",
 )
 
 DOMESTIC_RU_HUBS = ("SVO", "DME", "VKO")
@@ -97,8 +85,6 @@ PRIORITY_ROUTE_CARRIERS = ("U6", "SU", "TK")
 PRIORITY_PRIMARY_HUB = "IST"
 
 PRIORITY_MOSCOW_GATEWAY = "SVO"
-
-PRIORITY_SECONDARY_HUB = "DXB"
 
 PRIORITY_ASIA_HUB = "SVO"
 
@@ -159,19 +145,6 @@ ASIA_DESTINATION_CODES = {
 
 DEFAULT_ROUTE_HUB_NOTES = {
     "IST": "Broadest Russia-origin hub.",
-    "DXB": "Main competitor for Asia, Africa, and Australia routings.",
-    "DOH": "Strong long-haul hub via Qatar.",
-    "AUH": "Useful backup for DXB and DOH.",
-    "BEG": "Europe and some North America coverage, but not global.",
-    "TAS": "Regional hub with partial long-haul coverage.",
-    "GYD": "Regional hub with partial long-haul coverage.",
-    "PEK": "Asia, China, and Oceania-oriented secondary hub.",
-    "PVG": "Asia, China, and Oceania-oriented secondary hub.",
-    "CAN": "Asia, China, and Oceania-oriented secondary hub.",
-    "ADD": "Niche Africa, Middle East, India, and price hub.",
-    "CAI": "Niche Africa, Middle East, India, and price hub.",
-    "MCT": "Niche Africa, Middle East, India, and price hub.",
-    "SHJ": "Niche Africa, Middle East, India, and price hub.",
 }
 
 IATA_RE = re.compile(r"^[A-Z]{3}$")

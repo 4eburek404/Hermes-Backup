@@ -162,7 +162,6 @@ class RoutePlanContractTests(unittest.TestCase):
                         "ist_direct",
                         "ist_shared_destination",
                         "moscow_gateway_control",
-                        "dxb_direct",
                     },
                     "coverage_types": {
                         "exact_airport_direct",
@@ -277,7 +276,7 @@ class RoutePlanContractTests(unittest.TestCase):
                         coverage_control_types(plan), expected["coverage_types"]
                     )
 
-    def test_gateway_discovery_fallback_flag_preserves_old_dxb_when_off(self) -> None:
+    def test_ru_priority_plan_has_no_imperative_dxb_branch_without_flag(self) -> None:
         plan = self.build_plan(
             routing_strategy="ru-priority",
             origin="SVX",
@@ -288,12 +287,20 @@ class RoutePlanContractTests(unittest.TestCase):
             no_live_cache=True,
         )
 
-        self.assertIn("dxb_direct", segment_family_ids(plan))
-        self.assertIn("dxb_direct", route_family_ids(plan))
-        self.assertIn("DXB", set(plan.get("hubs") or []))
-        self.assertIn("DXB", segment_airports(plan))
+        self.assertNotIn("dxb_direct", segment_family_ids(plan))
+        self.assertNotIn("dxb_direct", route_family_ids(plan))
+        self.assertNotIn("DXB", set(plan.get("hubs") or []))
+        self.assertNotIn("DXB", segment_airports(plan))
+        self.assertTrue(
+            {
+                "direct_control",
+                "ist_direct",
+                "ist_shared_destination",
+                "moscow_gateway_control",
+            }.issubset(segment_family_ids(plan))
+        )
 
-    def test_gateway_discovery_fallback_flag_removes_imperative_dxb_branch(
+    def test_gateway_discovery_fallback_flag_keeps_dxb_branch_removed(
         self,
     ) -> None:
         plan = self.build_plan(

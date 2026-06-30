@@ -591,7 +591,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         plan = build_live_route_segment_plan(args, Store())
 
         self.assertEqual(plan["routing_strategy"], "ru-priority")
-        self.assertEqual(plan["hubs"], ["IST", "DXB"])
+        self.assertEqual(plan["hubs"], ["IST"])
         self.assertEqual(plan["hub_source"], "strategy")
         gateway_specs = [
             spec
@@ -606,7 +606,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             )
         )
         self.assertEqual(
-            plan["metrics"]["segment_search_count"], 24 + len(gateway_specs)
+            plan["metrics"]["segment_search_count"], 17 + len(gateway_specs)
         )
 
     def test_route_kb_command_uses_asia_profile_for_beijing(self) -> None:
@@ -622,7 +622,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
 
         self.assertEqual(plan["routing_profile"], "asia-oceania")
         self.assertEqual(plan["destination_airports"], ["PEK", "PKX"])
-        self.assertEqual(plan["hubs"], ["SVO", "IST", "DXB"])
+        self.assertEqual(plan["hubs"], ["SVO", "IST"])
         gateway_specs = [
             spec
             for spec in plan["segments"]
@@ -630,7 +630,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         ]
         self.assertEqual(len(gateway_specs), 16)
         self.assertEqual(
-            plan["metrics"]["segment_search_count"], 42 + len(gateway_specs)
+            plan["metrics"]["segment_search_count"], 32 + len(gateway_specs)
         )
         segments = {
             (
@@ -681,7 +681,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
 
         self.assertEqual(plan["hubs"], list(DEFAULT_ROUTE_HUBS))
         self.assertEqual(plan["hub_source"], "default")
-        self.assertEqual(plan["metrics"]["segment_search_count"], 91)
+        self.assertEqual(plan["metrics"]["segment_search_count"], 7)
 
     def test_ru_priority_synthesizes_svo_fallback_when_ist_direct_is_empty(
         self,
@@ -925,14 +925,17 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertNotIn(("SVX", "DXB"), direct_calls)
         self.assertNotIn(("DXB", "MUC"), direct_calls)
         self.assertGreater(result["assembly"]["candidate_count"], 0)
-        skipped_dxb = [
+        priority_skips = [
             search
             for search in result["live_search"]["segment_searches"]
             if search.get("reason") == "priority_route_viable"
         ]
-        self.assertGreaterEqual(len(skipped_dxb), 2)
-        self.assertTrue(
-            all(search["route_family"] == "dxb_direct" for search in skipped_dxb)
+        self.assertEqual(priority_skips, [])
+        self.assertFalse(
+            any(
+                "DXB" in {search.get("origin"), search.get("destination")}
+                for search in result["live_search"]["segment_searches"]
+            )
         )
 
     def test_direct_route_intel_skips_absent_svx_direct_control(self) -> None:

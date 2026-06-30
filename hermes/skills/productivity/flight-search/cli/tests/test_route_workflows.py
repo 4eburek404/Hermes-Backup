@@ -105,7 +105,7 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
         result = build_live_route_segment_plan(args, Store())
 
         self.assertEqual(result["routing_strategy"], "ru-priority")
-        self.assertEqual(result["hubs"], ["IST", "DXB"])
+        self.assertEqual(result["hubs"], ["IST"])
         self.assertEqual(result["hub_source"], "strategy")
         segments = {
             (segment["origin"], segment["destination"], segment["leg"])
@@ -114,7 +114,7 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
         self.assertIn(("SVX", "MUC", "direct_outbound"), segments)
         self.assertIn(("SVX", "IST", "origin_to_hub"), segments)
         self.assertIn(("SVO", "IST", "gateway_to_hub"), segments)
-        self.assertIn(("DXB", "MUC", "hub_to_destination"), segments)
+        self.assertNotIn(("DXB", "MUC", "hub_to_destination"), segments)
         self.assertEqual(result["route_families"][2]["required_carriers"], ["SU"])
         self.assertEqual(result["route_graph"]["strategy"], "ru-priority")
         self.assertIn("coverage_controls", result)
@@ -138,7 +138,7 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
 
         self.assertEqual(result["routing_profile"], "asia-oceania")
         self.assertEqual(result["destination_airports"], ["PEK", "PKX"])
-        self.assertEqual(result["hubs"], ["SVO", "IST", "DXB"])
+        self.assertEqual(result["hubs"], ["SVO", "IST"])
         self.assertGreater(result["metrics"]["segment_search_count"], 0)
         self.assertIn("svo_asia", {family["id"] for family in result["route_families"]})
         segments = {
