@@ -215,6 +215,70 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         )
         self.assertEqual(baseline["frontier"], with_primary["frontier"])
 
+    def test_gateway_leg_results_feed_compact_user_answer_summary(self) -> None:
+        options = assembly_options_from_args(self._args())
+        data = empty_assembled_result(options)
+        data["live_search"] = {
+            "source": "fixture",
+            "provider_policy": "both",
+            "plan": {
+                "origin": "SVX",
+                "destination": "AMS",
+                "origin_airports": ["SVX"],
+                "destination_airports": ["AMS"],
+                "dates": {"depart": "2026-07-19", "return": None},
+                "profile": "business",
+                "routing_strategy": "ru-priority",
+                "coverage_mode": "targeted",
+                "coverage_controls": [],
+                "coverage_limits": {},
+            },
+            "segment_searches": [],
+            "hub_viability": [],
+            "primary_offer_results": [
+                {
+                    "role": "primary_offer_collection",
+                    "provider": "kupibilet",
+                    "status": "ok",
+                    "execution_state": "searched",
+                    "offer_count": 2,
+                }
+            ],
+            "gateway_leg_results": {
+                "searched_gateways": 1,
+                "viable_gateways": 1,
+                "failed_gateways": 0,
+                "not_searched_budget": 1,
+                "gateways": [
+                    {
+                        "gateway": "IST",
+                        "searched": True,
+                        "viable": True,
+                        "provider_failures": [],
+                    },
+                    {
+                        "gateway": "TBS",
+                        "searched": False,
+                        "viable": False,
+                        "provider_failures": [],
+                    },
+                ],
+            },
+            "aggregate_controls": [],
+            "failures": [],
+            "failure_count": 0,
+        }
+
+        report = build_agent_report(data)
+
+        validate_agent_report(report)
+        rendered = report["user_answer"]["rendered_text"]
+        self.assertIn(
+            "Проверил KupiBilet по всему маршруту и 1 gateway: IST.",
+            rendered,
+        )
+        self.assertIn("Не проверено из-за лимита: TBS.", rendered)
+
     def test_segment_search_evidence_keeps_route_and_carrier_scope(self) -> None:
         options = assembly_options_from_args(self._args())
         data = empty_assembled_result(options)

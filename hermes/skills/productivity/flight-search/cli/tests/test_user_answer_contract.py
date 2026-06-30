@@ -273,6 +273,97 @@ class FinalAnswerContractTests(unittest.TestCase):
         report["priority_options"] = []
         return build_user_answer(report)
 
+    def _gateway_leg_results(
+        self, *, viable: list[str], failed: list[str] | None = None
+    ) -> dict:
+        failed = failed or []
+        gateways = []
+        for index, code in enumerate(["IST", "SAW", "BEG", "DXB"], start=1):
+            failures = (
+                [
+                    {
+                        "gateway": code,
+                        "provider": "fli",
+                        "status": "error",
+                        "probe_id": f"probe-{code.lower()}",
+                        "error": {"type": "upstream_error"},
+                    }
+                ]
+                if code in failed
+                else []
+            )
+            gateways.append(
+                {
+                    "gateway": code,
+                    "searched": True,
+                    "viable": code in viable,
+                    "origin_leg": {
+                        "provider": "kupibilet",
+                        "offer_count": 1,
+                        "probe_id": f"probe-origin-{index}",
+                    },
+                    "destination_leg": {
+                        "provider": "fli",
+                        "offer_count": 1 if code in viable else 0,
+                        "probe_id": f"probe-destination-{index}",
+                    },
+                    "provider_failures": failures,
+                    "skipped_reasons": [],
+                    "missing_legs": [] if code in viable else ["destination_leg"],
+                }
+            )
+        for code in ["TBS", "EVN"]:
+            gateways.append(
+                {
+                    "gateway": code,
+                    "searched": False,
+                    "viable": False,
+                    "origin_leg": {"probe_id": f"probe-{code.lower()}-origin"},
+                    "destination_leg": {
+                        "probe_id": f"probe-{code.lower()}-destination"
+                    },
+                    "provider_failures": [],
+                    "skipped_reasons": ["gateway_probe_budget_exhausted"],
+                    "missing_legs": [],
+                }
+            )
+        return {
+            "searched_gateways": 4,
+            "viable_gateways": len(viable),
+            "failed_gateways": len(failed),
+            "not_searched_budget": 2,
+            "gateways": gateways,
+        }
+
+    def _report_with_gateway_coverage(
+        self, *, viable: list[str], failed: list[str] | None = None
+    ) -> dict:
+        report = valid_report()
+        report["route"] = {
+            "origin": "SVX",
+            "destination": "AMS",
+            "origin_airports": ["SVX"],
+            "destination_airports": ["AMS"],
+            "dates": {"depart_date": "2026-08-06"},
+            "profile": "business",
+            "routing_strategy": "ru-priority",
+            "provider_policy": "both",
+        }
+        report["primary_offer_results"] = [
+            {
+                "role": "primary_offer_collection",
+                "provider": "kupibilet",
+                "status": "ok",
+                "execution_state": "searched",
+                "offer_count": 3,
+                "probe_id": "probe-full-route",
+            }
+        ]
+        report["gateway_leg_results"] = self._gateway_leg_results(
+            viable=viable, failed=failed
+        )
+        return report
+
     def _valid_round_trip_answer(self) -> dict:
         report = report_with_required_caveats()
         report["route"]["dates"] = {
@@ -563,6 +654,52 @@ class FinalAnswerContractTests(unittest.TestCase):
         self.assertIn("источник: две отдельные one-way выдачи", text)
         self.assertIn("цена - сумма отдельных one-way", text)
         self.assertIn("защищённый round-trip не подтверждены", text)
+
+    def test_rendered_text_includes_compact_gateway_coverage_summary(self) -> None:
+        answer = build_user_answer(
+            self._report_with_gateway_coverage(viable=["IST", "BEG"])
+        )
+
+        validate_user_answer(answer)
+        text = answer["rendered_text"]
+        self.assertIn(
+            "Проверил KupiBilet по всему маршруту и 4 gateway: IST, SAW, BEG, DXB.",
+            text,
+        )
+        self.assertIn("Жизнеспособные варианты нашлись через IST и BEG.", text)
+        self.assertIn("Не проверено из-за лимита: TBS, EVN.", text)
+        self.assertNotIn("probe-", text)
+        self.assertNotIn("gateway_leg_results", text)
+        self.assertNotIn("{", text)
+
+    def test_gateway_provider_failure_is_omitted_when_viable_gateway_exists(
+        self,
+    ) -> None:
+        answer = build_user_answer(
+            self._report_with_gateway_coverage(viable=["IST"], failed=["SAW"])
+        )
+
+        validate_user_answer(answer)
+        text = answer["rendered_text"]
+        self.assertIn("Жизнеспособные варианты нашлись через IST.", text)
+        self.assertNotIn("Сбой поставщика затронул gateway", text)
+        self.assertNotIn("probe-saw", text)
+
+    def test_gateway_provider_failure_is_summarized_when_no_gateway_is_viable(
+        self,
+    ) -> None:
+        answer = build_user_answer(
+            self._report_with_gateway_coverage(viable=[], failed=["SAW"])
+        )
+
+        validate_user_answer(answer)
+        text = answer["rendered_text"]
+        self.assertIn(
+            "Жизнеспособных gateway-вариантов среди проверенных не нашлось.",
+            text,
+        )
+        self.assertIn("Сбой поставщика затронул gateway: SAW.", text)
+        self.assertNotIn("probe-saw", text)
 
     def test_catalog_orders_viable_direct_before_cheaper_connections_and_drops_rejects(
         self,

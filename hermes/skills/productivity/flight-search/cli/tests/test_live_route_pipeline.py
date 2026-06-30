@@ -482,7 +482,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
         )
         self.assertEqual(result.get("segment_results"), [])
 
-    def test_restricted_route_discovery_is_diagnostic_only_for_rendered_text(
+    def test_restricted_route_discovery_does_not_leak_raw_diagnostics_to_rendered_text(
         self,
     ) -> None:
         for destination in ("AMS", "FRA", "LON"):
@@ -559,7 +559,11 @@ class LiveRoutePipelineTests(unittest.TestCase):
                     "user_answer"
                 ]["rendered_text"]
                 self.assertTrue(baseline_text)
-                self.assertEqual(baseline_text, with_provider_text)
+                self.assertIn("Проверил 1 gateway: IST.", baseline_text)
+                self.assertIn(
+                    "Проверил KupiBilet по всему маршруту и 1 gateway: IST.",
+                    with_provider_text,
+                )
                 self.assertNotIn("provider_returned_route", with_provider_text)
                 self.assertNotIn("restricted_bridge_gateways", with_provider_text)
 

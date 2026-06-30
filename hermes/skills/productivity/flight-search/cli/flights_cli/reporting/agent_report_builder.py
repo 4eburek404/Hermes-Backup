@@ -1090,6 +1090,9 @@ def build_agent_report(
         "segment_searches": segment_search_summaries(live),
         "provider_failures": provider_failures(live),
         "primary_offer_results": primary_offer_results(live),
+        "gateway_leg_results": live.get("gateway_leg_results")
+        if isinstance(live.get("gateway_leg_results"), dict)
+        else {},
         "recommended_options": options,
         "priority_options": priority_options,
         "aggregate_controls": aggregate_controls,
