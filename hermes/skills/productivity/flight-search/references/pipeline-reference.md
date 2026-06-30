@@ -87,7 +87,7 @@ Do not treat provider aggregate collection as exhaustive coverage for `ru_to_wes
 Key planning rules:
 
 - Direct inventory/date-window requests expand direct legs by date window and stay strict direct-only.
-- RU-touching international can add RU-priority controls: direct destination, IST primary, and Moscow gateway. Secondary fallback gateways belong to data-driven gateway discovery, not imperative segment generation.
+- RU-touching international can add RU-priority controls: direct destination, legacy IST primary, and Moscow gateway. When `use_gateway_discovery_for_fallback_hubs` is enabled, IST and secondary bridge gateways belong to data-driven gateway discovery, not imperative segment generation.
 - Domestic-RU stays domestic: direct exact-airport controls first, no international hubs by default.
 - City-code-first provider behavior and airport tiers are owned by `provider-aware-airport-priority.md`.
 - `direct_route_intel` can skip unsupported SVX direct-control pairs when official route intelligence is available; unavailability is reported as a boundary, not as live absence.

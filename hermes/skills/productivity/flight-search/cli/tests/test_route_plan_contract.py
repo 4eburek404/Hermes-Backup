@@ -291,6 +291,8 @@ class RoutePlanContractTests(unittest.TestCase):
         self.assertNotIn("dxb_direct", route_family_ids(plan))
         self.assertNotIn("DXB", set(plan.get("hubs") or []))
         self.assertNotIn("DXB", segment_airports(plan))
+        self.assertIn("IST", set(plan.get("hubs") or []))
+        self.assertIn("IST", segment_airports(plan))
         self.assertTrue(
             {
                 "direct_control",
@@ -300,7 +302,7 @@ class RoutePlanContractTests(unittest.TestCase):
             }.issubset(segment_family_ids(plan))
         )
 
-    def test_gateway_discovery_fallback_flag_keeps_dxb_branch_removed(
+    def test_gateway_discovery_flag_removes_imperative_primary_ist_branch(
         self,
     ) -> None:
         plan = self.build_plan(
@@ -318,16 +320,19 @@ class RoutePlanContractTests(unittest.TestCase):
         self.assertNotIn("dxb_direct", route_family_ids(plan))
         self.assertNotIn("DXB", set(plan.get("hubs") or []))
         self.assertNotIn("DXB", segment_airports(plan))
+        self.assertNotIn("ist_direct", segment_family_ids(plan))
+        self.assertNotIn("ist_direct", route_family_ids(plan))
+        self.assertNotIn("ist_shared_destination", segment_family_ids(plan))
+        self.assertNotIn("ist_shared_destination", route_family_ids(plan))
+        self.assertNotIn("IST", set(plan.get("hubs") or []))
+        self.assertNotIn("IST", segment_airports(plan))
         self.assertTrue(
-            {
-                "direct_control",
-                "ist_direct",
-                "ist_shared_destination",
-                "moscow_gateway_control",
-            }.issubset(segment_family_ids(plan))
+            {"direct_control", "moscow_gateway_control"}.issubset(
+                segment_family_ids(plan)
+            )
         )
 
-    def test_gateway_discovery_fallback_flag_keeps_dxb_as_diagnostic_candidate(
+    def test_gateway_discovery_flag_keeps_bridge_hubs_as_diagnostic_candidates(
         self,
     ) -> None:
         store = Store()
@@ -349,11 +354,28 @@ class RoutePlanContractTests(unittest.TestCase):
         )
 
         self.assertNotIn("DXB", segment_airports(route_plan))
+        self.assertNotIn("IST", segment_airports(route_plan))
         candidate_codes = {
             value(candidate.get("code"))
             for candidate in search_plan["gateway_discovery"]["candidates"]
         }
+        self.assertIn("IST", candidate_codes)
         self.assertIn("DXB", candidate_codes)
+        self.assertEqual(
+            [
+                (
+                    query["leg"],
+                    query["origin"],
+                    query["destination"],
+                    query["provider"],
+                )
+                for query in search_plan["gateway_leg_queries"][:2]
+            ],
+            [
+                ("origin_to_gateway", "SVX", "IST", "kupibilet"),
+                ("gateway_to_destination", "IST", "AMS", "fli"),
+            ],
+        )
 
 
 if __name__ == "__main__":
