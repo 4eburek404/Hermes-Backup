@@ -28,6 +28,17 @@ markets:
       prior_weight: 55
       reason: Generic global hub-list prior.
       source: static_prior
+  moscow_control:
+    - code: SVO
+      prior_weight: 70
+      reason: Moscow control prior.
+      source: static_prior
+      control_layer: moscow_svo_control
+    - code: SVO
+      prior_weight: 20
+      reason: Explicit ordinary SVO gateway prior.
+      source: static_prior
+      allow_as_gateway: true
 """
 
 
@@ -111,6 +122,31 @@ markets:
                     "prior_weight": 40,
                     "reason": "Secondary fallback prior.",
                     "source": "static_prior",
+                },
+            ],
+        )
+
+    def test_control_layer_and_explicit_gateway_metadata_loads(self) -> None:
+        path = self.write_file("gateway_priors.yaml", VALID_GATEWAY_PRIORS_YAML)
+
+        priors = load_gateway_priors(path).for_market("moscow_control")
+
+        self.assertEqual(
+            priors,
+            [
+                {
+                    "code": "SVO",
+                    "prior_weight": 70,
+                    "reason": "Moscow control prior.",
+                    "source": "static_prior",
+                    "control_layer": "moscow_svo_control",
+                },
+                {
+                    "code": "SVO",
+                    "prior_weight": 20,
+                    "reason": "Explicit ordinary SVO gateway prior.",
+                    "source": "static_prior",
+                    "allow_as_gateway": True,
                 },
             ],
         )

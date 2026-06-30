@@ -188,6 +188,133 @@ markets:
 
         self.assertEqual(candidates, [])
 
+    def test_moscow_control_prior_is_not_ranked_as_gateway_candidate(self) -> None:
+        diagnostics: dict[str, Any] = {}
+        store = self.store_with_priors(
+            """
+schema_version: gateway_priors.v1
+markets:
+  ru_touching_asia_oceania:
+    - code: SVO
+      prior_weight: 100
+      reason: Moscow/SVO control evidence, not an ordinary gateway.
+      source: static_prior
+      control_layer: moscow_svo_control
+    - code: IST
+      prior_weight: 80
+      reason: bridge gateway
+      source: static_prior
+"""
+        )
+
+        candidates = GatewayDiscoveryService(store).discover(
+            "ru_touching_asia_oceania", diagnostics=diagnostics
+        )
+
+        self.assertEqual([candidate.code for candidate in candidates], ["IST"])
+        self.assertEqual(
+            diagnostics["rejected_gateway_signals"],
+            [
+                {
+                    "source": "static_prior",
+                    "code": "SVO",
+                    "reason": "control_layer_prior_not_gateway_candidate",
+                    "control_layer": "moscow_svo_control",
+                    "market": "ru_touching_asia_oceania",
+                    "debug": {
+                        "static_prior_not_ranked": True,
+                        "allow_as_gateway_required": True,
+                    },
+                }
+            ],
+        )
+
+    def test_moscow_airport_static_prior_requires_explicit_gateway_opt_in(
+        self,
+    ) -> None:
+        diagnostics: dict[str, Any] = {}
+        store = self.store_with_priors(
+            """
+schema_version: gateway_priors.v1
+markets:
+  accidental_moscow_gateway:
+    - code: SVO
+      prior_weight: 90
+      reason: accidental ordinary prior
+      source: static_prior
+"""
+        )
+
+        candidates = GatewayDiscoveryService(store).discover(
+            "accidental_moscow_gateway", diagnostics=diagnostics
+        )
+
+        self.assertEqual(candidates, [])
+        self.assertEqual(
+            diagnostics["rejected_gateway_signals"][0]["reason"],
+            "control_layer_prior_not_gateway_candidate",
+        )
+        self.assertEqual(
+            diagnostics["rejected_gateway_signals"][0]["control_layer"],
+            "moscow_svo_control",
+        )
+
+    def test_explicit_moscow_gateway_prior_can_be_ranked(self) -> None:
+        store = self.store_with_priors(
+            """
+schema_version: gateway_priors.v1
+markets:
+  explicit_moscow_gateway:
+    - code: SVO
+      prior_weight: 90
+      reason: explicitly configured ordinary gateway prior
+      source: static_prior
+      allow_as_gateway: true
+"""
+        )
+
+        candidates = GatewayDiscoveryService(store).discover(
+            "explicit_moscow_gateway"
+        )
+
+        self.assertEqual([candidate.code for candidate in candidates], ["SVO"])
+        self.assertEqual(candidates[0].signals[0].debug, {"allow_as_gateway": True})
+
+    def test_provider_returned_svo_remains_provider_route_evidence(self) -> None:
+        service = GatewayDiscoveryService(self.store_with_priors())
+
+        candidates = service.discover(
+            "ru_to_western_europe_bridge",
+            primary_offer_results=[
+                provider_result(
+                    offer(
+                        "via-svo",
+                        [
+                            {"origin": "SVX", "destination": "SVO"},
+                            {"origin": "SVO", "destination": "AMS"},
+                        ],
+                    )
+                )
+            ],
+        )
+
+        self.assertEqual([candidate.code for candidate in candidates], ["SVO"])
+        self.assertEqual(candidates[0].signals[0].source, "provider_returned_route")
+
+    def test_bundled_asia_svo_prior_is_control_layer_diagnostic(self) -> None:
+        diagnostics: dict[str, Any] = {}
+
+        candidates = GatewayDiscoveryService(Store()).discover(
+            "ru_touching_asia_oceania", diagnostics=diagnostics
+        )
+
+        self.assertEqual([candidate.code for candidate in candidates], ["IST", "DXB"])
+        self.assertEqual(diagnostics["rejected_gateway_signals"][0]["code"], "SVO")
+        self.assertEqual(
+            diagnostics["rejected_gateway_signals"][0]["control_layer"],
+            "moscow_svo_control",
+        )
+
     def test_direct_offer_does_not_create_gateway(self) -> None:
         service = GatewayDiscoveryService(self.store_with_priors())
 

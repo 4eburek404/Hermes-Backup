@@ -12,6 +12,7 @@ DEFAULT_GATEWAY_PRIORS_PATH = (
 )
 GATEWAY_PRIORS_SCHEMA_VERSION = "gateway_priors.v1"
 IATA_CODE_RE = re.compile(r"^[A-Z]{3}$")
+BOOL_TEXT = {"true": True, "false": False}
 
 
 @dataclass(frozen=True, slots=True)
@@ -212,12 +213,35 @@ def _normalize_prior(
             f"invalid gateway priors YAML {path}: prior {market_key}[{index}].source must be static_prior",
             error_type="configuration_error",
         )
-    return {
+    normalized = {
         "code": code,
         "prior_weight": prior_weight,
         "reason": reason,
         "source": "static_prior",
     }
+    control_layer = str(item.get("control_layer") or "").strip()
+    if control_layer:
+        normalized["control_layer"] = control_layer
+    if "allow_as_gateway" in item:
+        normalized["allow_as_gateway"] = _normalize_bool_field(
+            item.get("allow_as_gateway"), path, market_key, index, "allow_as_gateway"
+        )
+    return normalized
+
+
+def _normalize_bool_field(
+    value: Any, path: Path, market_key: str, index: int, field: str
+) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in BOOL_TEXT:
+            return BOOL_TEXT[normalized]
+    raise CliError(
+        f"invalid gateway priors YAML {path}: prior {market_key}[{index}].{field} must be true or false",
+        error_type="configuration_error",
+    )
 
 
 def _yaml_error(path: Path, line_no: int, message: str) -> None:

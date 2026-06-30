@@ -41,6 +41,7 @@ markets:
       prior_weight: 100
       reason: Existing Asia/Oceania SVO hub prior; Moscow control semantics remain separate.
       source: static_prior
+      control_layer: moscow_svo_control
     - code: IST
       prior_weight: 80
       reason: Existing Asia/Oceania IST fallback gateway prior.
@@ -65,13 +66,16 @@ markets:
   domestic_ru:
     - code: SVO
       prior_weight: 70
-      reason: Domestic RU bounded airport fallback prior; not a Moscow visibility control.
+      reason: Domestic RU bounded Moscow-airport control prior.
       source: static_prior
+      control_layer: domestic_ru_moscow_airport_control
     - code: DME
       prior_weight: 60
-      reason: Domestic RU bounded airport fallback prior.
+      reason: Domestic RU bounded Moscow-airport control prior.
       source: static_prior
+      control_layer: domestic_ru_moscow_airport_control
     - code: VKO
       prior_weight: 50
-      reason: Domestic RU bounded airport fallback prior.
+      reason: Domestic RU bounded Moscow-airport control prior.
       source: static_prior
+      control_layer: domestic_ru_moscow_airport_control

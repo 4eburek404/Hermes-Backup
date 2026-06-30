@@ -104,6 +104,31 @@ class MoscowGatewayPlanTests(unittest.TestCase):
         self.assertEqual(flow.flow_decision.routing_strategy, "ru-priority")
         self.assertIn("moscow_gateway_direct", flow.evidence_plan.required_controls)
 
+    def test_gateway_discovery_flag_keeps_moscow_controls_as_control_layer(
+        self,
+    ) -> None:
+        plan = build_live_route_segment_plan(
+            ru_touching_args(use_gateway_discovery_for_fallback_hubs=True),
+            Store(),
+        )
+
+        gateway_specs = _gateway_specs(plan)
+        self.assertTrue(gateway_specs)
+        self.assertTrue(
+            all(
+                spec.get("route_family") == "moscow_gateway_control"
+                for spec in gateway_specs
+            )
+        )
+        outbound_origins = {
+            str(spec.get("origin"))
+            for spec in gateway_specs
+            if spec.get("direction") == "outbound"
+        }
+        self.assertIn("MOW", outbound_origins)
+        self.assertTrue(outbound_origins & {"SVO", "DME", "VKO"})
+        self.assertNotIn("IST", outbound_origins)
+
     def test_global_non_ru_does_not_inherit_moscow_gateway_controls(self) -> None:
         args = ru_touching_args(origin="CDG", destination="JFK", return_date=None)
         flow = build_live_route_search_flow(args)

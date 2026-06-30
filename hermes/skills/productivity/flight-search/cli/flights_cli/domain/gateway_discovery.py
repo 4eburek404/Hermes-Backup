@@ -10,6 +10,8 @@ IATA_CODE_RE = re.compile(r"^[A-Z]{3}$")
 PROVIDER_RETURNED_ROUTE_WEIGHT = 200
 PROVIDER_RETURNED_ROUTE_SOURCE = "provider_returned_route"
 STATIC_PRIOR_SOURCE = "static_prior"
+MOSCOW_CONTROL_AIRPORT_CODES = {"MOW", "SVO", "DME", "VKO", "ZIA"}
+MOSCOW_CONTROL_LAYER = "moscow_svo_control"
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,6 +84,9 @@ class GatewayDiscoveryService:
             code = _normalize_gateway_code(prior.get("code"))
             if not code:
                 continue
+            if _static_prior_is_control_layer(prior, code):
+                rejected.append(_static_prior_rejection(prior, code, market))
+                continue
             state.add_signal(
                 code,
                 GatewaySignal(
@@ -89,6 +94,7 @@ class GatewayDiscoveryService:
                     weight=prior.get("prior_weight", 0),
                     reason=str(prior.get("reason") or "gateway prior"),
                     code=code,
+                    debug=_static_prior_debug(prior),
                 ),
             )
 
@@ -398,6 +404,36 @@ def _rejection(
     if debug:
         payload["debug"] = dict(debug)
     return payload
+
+
+def _static_prior_is_control_layer(prior: dict[str, Any], code: str) -> bool:
+    if bool(prior.get("allow_as_gateway")):
+        return False
+    return bool(prior.get("control_layer")) or code in MOSCOW_CONTROL_AIRPORT_CODES
+
+
+def _static_prior_rejection(
+    prior: dict[str, Any], code: str, market: str
+) -> dict[str, Any]:
+    control_layer = str(prior.get("control_layer") or MOSCOW_CONTROL_LAYER)
+    return {
+        "source": STATIC_PRIOR_SOURCE,
+        "code": code,
+        "reason": "control_layer_prior_not_gateway_candidate",
+        "control_layer": control_layer,
+        "market": market,
+        "debug": {
+            "static_prior_not_ranked": True,
+            "allow_as_gateway_required": True,
+        },
+    }
+
+
+def _static_prior_debug(prior: dict[str, Any]) -> dict[str, Any]:
+    debug: dict[str, Any] = {}
+    if prior.get("allow_as_gateway") is True:
+        debug["allow_as_gateway"] = True
+    return debug
 
 
 def _normalize_direction(value: Any) -> str | None:

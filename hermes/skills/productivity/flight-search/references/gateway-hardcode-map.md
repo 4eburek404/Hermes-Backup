@@ -3,6 +3,8 @@
 This is an inventory of current and recently removed hardcoded gateway and hub
 behavior. It is not a design target. Gateway-discovery mode should source
 bridge gateways from discovery data rather than imperative segment generation.
+Moscow/SVO controls are a separate route/control evidence layer, not ordinary
+static gateway priors.
 
 ## Source Owners
 
@@ -28,6 +30,24 @@ bridge gateways from discovery data rather than imperative segment generation.
 | `ASIA_OCEANIA_COUNTRIES`, `ASIA_DESTINATION_CODES` | fallback priors | Trigger the `asia-oceania` route profile and the `svo_asia` family. |
 | `KUPIBILET_CITY_CODE_FIRST_AIRPORTS["MOW"] = ["SVO", "DME", "VKO"]` | Moscow-specific visibility control | Gives Moscow gateway controls a KupiBilet city-code-first search path plus deferred exact-airport fallbacks. |
 | `DUBAI_DEFAULT_AIRPORTS = ("DXB", "DWC")`, `DUBAI_EXCLUDED_BY_DEFAULT = ("SHJ",)` | airport-scope prior | Dubai endpoint resolution hardcode. This is not a route-plan gateway insertion, but it affects DXB/DWC endpoint scope before planning. |
+
+## Gateway Discovery Priors
+
+`gateway_priors.yaml` can contain ordinary gateway priors and control-layer
+priors. Ordinary priors become `GatewayCandidate` signals. Control-layer priors
+are retained for diagnostics but are not ranked as ordinary gateway candidates.
+
+Moscow/SVO airport codes (`MOW`, `SVO`, `DME`, `VKO`, `ZIA`) are protected by
+default: a static prior for one of these codes is rejected from ordinary gateway
+ranking unless it explicitly sets `allow_as_gateway: true`. Current SVO/Moscow
+entries use `control_layer: moscow_svo_control` or
+`control_layer: domestic_ru_moscow_airport_control`, so diagnostics expose why
+they were skipped while Moscow/SVO route controls remain visible elsewhere.
+
+Provider-returned route evidence is separate from static priors: if a full-route
+provider result actually contains an intermediate SVO segment, that
+`provider_returned_route` signal can still produce a candidate because it is
+observed route evidence, not a static Moscow prior.
 
 ## Route Families
 
