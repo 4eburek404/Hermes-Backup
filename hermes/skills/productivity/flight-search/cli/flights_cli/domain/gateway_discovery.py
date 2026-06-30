@@ -98,11 +98,13 @@ class GatewayDiscoveryService:
                 ),
             )
 
-        extracted, rejected_provider_signals = extract_provider_returned_gateway_signals(
-            [
-                *(primary_offer_results or []),
-                *(provider_results or []),
-            ]
+        extracted, rejected_provider_signals = (
+            extract_provider_returned_gateway_signals(
+                [
+                    *(primary_offer_results or []),
+                    *(provider_results or []),
+                ]
+            )
         )
         rejected.extend(rejected_provider_signals)
         for code, signal in extracted:
@@ -112,7 +114,9 @@ class GatewayDiscoveryService:
         if diagnostics is not None:
             diagnostics["market"] = market
             diagnostics["candidate_count"] = len(candidates)
-            diagnostics["candidates"] = [candidate.to_dict() for candidate in candidates]
+            diagnostics["candidates"] = [
+                candidate.to_dict() for candidate in candidates
+            ]
             diagnostics["rejected_gateway_signals"] = rejected
             diagnostics["skipped_reasons"] = []
             diagnostics["empty_reason"] = None
@@ -183,7 +187,12 @@ class _DiscoveryState:
             for signal in candidate.signals
         )
         provider_rank = 0 if has_provider_signal else 1
-        return (provider_rank, -candidate.score, int(record["first_seen"]), candidate.code)
+        return (
+            provider_rank,
+            -candidate.score,
+            int(record["first_seen"]),
+            candidate.code,
+        )
 
 
 def _collect_provider_returned_gateways(
@@ -202,7 +211,9 @@ def _collect_provider_returned_gateways(
         if not isinstance(offer, dict):
             continue
         offer_id = str(offer.get("id") or offer.get("offer_id") or "").strip() or None
-        offer_direction = _normalize_direction(offer.get("direction")) or result_direction
+        offer_direction = (
+            _normalize_direction(offer.get("direction")) or result_direction
+        )
         segment_paths, skipped = _offer_segment_paths(
             offer,
             provider=provider,
@@ -266,7 +277,10 @@ def _offer_segment_paths(
                         provider=provider,
                         offer_id=offer_id,
                         reason="malformed_segments",
-                        debug={"source_path": "journeys", "journey_index": journey_index},
+                        debug={
+                            "source_path": "journeys",
+                            "journey_index": journey_index,
+                        },
                     )
                 )
                 continue
@@ -277,7 +291,10 @@ def _offer_segment_paths(
                         provider=provider,
                         offer_id=offer_id,
                         reason="missing_segments",
-                        debug={"source_path": "journeys", "journey_index": journey_index},
+                        debug={
+                            "source_path": "journeys",
+                            "journey_index": journey_index,
+                        },
                     )
                 )
                 continue

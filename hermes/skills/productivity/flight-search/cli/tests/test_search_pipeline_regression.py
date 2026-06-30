@@ -244,7 +244,9 @@ class FixtureAggregateAdapter:
 class PipelineFixtures:
     def __init__(self) -> None:
         self.segment_offers: dict[tuple[str, str, str, str], list[dict[str, Any]]] = {}
-        self.aggregate_offers: dict[tuple[str, str, str, str], list[dict[str, Any]]] = {}
+        self.aggregate_offers: dict[
+            tuple[str, str, str, str], list[dict[str, Any]]
+        ] = {}
         self.segment_queries: list[dict[str, Any]] = []
         self.aggregate_queries: list[dict[str, Any]] = []
         self.kupibilet_segment_adapter = FixtureSegmentAdapter("kupibilet", self)
@@ -281,9 +283,9 @@ class PipelineFixtures:
         date: str,
         offer: dict[str, Any],
     ) -> None:
-        self.aggregate_offers.setdefault((direction, origin, destination, date), []).append(
-            offer
-        )
+        self.aggregate_offers.setdefault(
+            (direction, origin, destination, date), []
+        ).append(offer)
 
 
 def _request(destination: str, **overrides: Any) -> dict[str, Any]:
@@ -514,14 +516,12 @@ class SearchPipelineRegressionTests(unittest.TestCase):
         self.assertEqual(ranked["ranked"]["price"], 25000)
         self.assertLess(
             ranked["ranked"]["price"],
-            result["route_result"]["live_search"]["aggregate_controls"][0]["top_offers"][0][
-                "price"
-            ],
+            result["route_result"]["live_search"]["aggregate_controls"][0][
+                "top_offers"
+            ][0]["price"],
         )
         recommended = result["agent_report"]["frontier"]["recommended_options"][0]
-        self.assertNotEqual(
-            recommended.get("category"), "provider_aggregate_candidate"
-        )
+        self.assertNotEqual(recommended.get("category"), "provider_aggregate_candidate")
 
     def test_svx_lon_preserves_lhr_lgw_stn_airport_scope(self) -> None:
         fixtures = PipelineFixtures()

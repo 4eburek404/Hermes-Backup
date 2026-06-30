@@ -65,9 +65,7 @@ SVX_OFFICIAL_SCHEDULE_URL = "https://ar-svx.ru/schedule/"
 
 SVX_OFFICIAL_ARRIVAL_SCHEDULE_URL = "https://ar-svx.ru/schedule/?type=arr"
 
-DEFAULT_ROUTE_HUBS = (
-    "IST",
-)
+DEFAULT_ROUTE_HUBS = ("IST",)
 
 DOMESTIC_RU_HUBS = ("SVO", "DME", "VKO")
 DUBAI_DEFAULT_AIRPORTS = ("DXB", "DWC")

@@ -128,7 +128,9 @@ class RouteAccessProfileTests(unittest.TestCase):
         missing_decision = self.flow(
             "SVX", "PEK", Store(route_access_profiles_path=missing)
         )
-        empty_decision = self.flow("IST", "AMS", Store(route_access_profiles_path=empty))
+        empty_decision = self.flow(
+            "IST", "AMS", Store(route_access_profiles_path=empty)
+        )
 
         self.assertEqual(
             missing_decision.route_access_profile, "normal_ru_touching_market"

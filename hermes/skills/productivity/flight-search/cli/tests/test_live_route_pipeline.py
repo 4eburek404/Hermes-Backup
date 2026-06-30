@@ -305,7 +305,9 @@ class LiveRoutePipelineTests(unittest.TestCase):
             )
 
         self.assertEqual(events, ["primary", "segment"])
-        self.assertEqual(result["live_search"]["primary_offer_results"], primary_results)
+        self.assertEqual(
+            result["live_search"]["primary_offer_results"], primary_results
+        )
         offer_graph = result["live_search"]["diagnostics"]["offer_graph"]
         self.assertEqual(offer_graph["schema_version"], "flight_offer_graph.v1")
         self.assertEqual(
@@ -333,7 +335,9 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertIsNone(offer_candidates["candidates"][0]["currency"])
         self.assertEqual(offer_candidates["candidates"][0]["price_basis"], "unknown")
         mixed_ranking = result["live_search"]["diagnostics"]["mixed_candidate_ranking"]
-        self.assertEqual(mixed_ranking, result["live_search"]["mixed_candidate_ranking"])
+        self.assertEqual(
+            mixed_ranking, result["live_search"]["mixed_candidate_ranking"]
+        )
         self.assertEqual(
             mixed_ranking["schema_version"],
             "flight_mixed_candidate_ranking.v1",
@@ -357,14 +361,20 @@ class LiveRoutePipelineTests(unittest.TestCase):
             ["IST", "BEG"],
         )
         self.assertEqual(
-            [signal["source"] for signal in gateway_discovery["candidates"][0]["signals"]],
+            [
+                signal["source"]
+                for signal in gateway_discovery["candidates"][0]["signals"]
+            ],
             ["static_prior", "provider_returned_route"],
         )
         search_plan_gateway_discovery = result["live_search"]["diagnostics"][
             "search_plan"
         ]["gateway_discovery"]
         self.assertEqual(
-            [candidate["code"] for candidate in search_plan_gateway_discovery["candidates"][:2]],
+            [
+                candidate["code"]
+                for candidate in search_plan_gateway_discovery["candidates"][:2]
+            ],
             ["IST", "BEG"],
         )
         self.assertEqual(search_plan_gateway_discovery["candidate_count"], 3)
@@ -475,7 +485,9 @@ class LiveRoutePipelineTests(unittest.TestCase):
             "gateway_separate_ticket",
         )
         mixed_ranking = result["live_search"]["diagnostics"]["mixed_candidate_ranking"]
-        self.assertEqual(mixed_ranking, result["live_search"]["mixed_candidate_ranking"])
+        self.assertEqual(
+            mixed_ranking, result["live_search"]["mixed_candidate_ranking"]
+        )
         self.assertEqual(
             mixed_ranking["ranked_candidates"][0]["source_type"],
             "gateway_separate_ticket",
@@ -527,13 +539,17 @@ class LiveRoutePipelineTests(unittest.TestCase):
                     gateway_plan["route_access_profile"], "restricted_access_market"
                 )
                 self.assertEqual(gateway_plan["mode"], "required")
-                self.assertEqual(gateway_plan["prior_set"], "restricted_bridge_gateways")
+                self.assertEqual(
+                    gateway_plan["prior_set"], "restricted_bridge_gateways"
+                )
                 self.assertEqual(gateway_plan["market"], "restricted_bridge_gateways")
 
-                gateway_diagnostics = with_provider_route["live_search"][
-                    "diagnostics"
-                ]["gateway_discovery"]
-                self.assertEqual(gateway_diagnostics["market"], "restricted_bridge_gateways")
+                gateway_diagnostics = with_provider_route["live_search"]["diagnostics"][
+                    "gateway_discovery"
+                ]
+                self.assertEqual(
+                    gateway_diagnostics["market"], "restricted_bridge_gateways"
+                )
                 candidates = gateway_plan["candidates"]
                 self.assertEqual(gateway_plan["candidate_count"], len(candidates))
                 self.assertEqual(candidates[0]["code"], "IST")
@@ -552,12 +568,10 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 self.assertEqual(gateway_plan["skipped_reasons"], [])
                 self.assertIsNone(gateway_plan["empty_reason"])
 
-                baseline_text = baseline["agent_report"]["user_answer"][
+                baseline_text = baseline["agent_report"]["user_answer"]["rendered_text"]
+                with_provider_text = with_provider_route["agent_report"]["user_answer"][
                     "rendered_text"
                 ]
-                with_provider_text = with_provider_route["agent_report"][
-                    "user_answer"
-                ]["rendered_text"]
                 self.assertTrue(baseline_text)
                 self.assertIn("Проверил 1 gateway: IST.", baseline_text)
                 self.assertIn(

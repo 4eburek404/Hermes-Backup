@@ -167,7 +167,9 @@ def _candidate_with_rank_diagnostics(
     item = deepcopy(candidate)
     max_connections = _max_connections(candidate)
     rank_components = {
-        "hard_constraint_violation": 1 if _has_hard_constraint_violation(candidate) else 0,
+        "hard_constraint_violation": 1
+        if _has_hard_constraint_violation(candidate)
+        else 0,
         "not_covers_requested_trip": 0
         if bool(candidate.get("covers_requested_trip"))
         else 1,
@@ -210,9 +212,7 @@ def _normalize_ticketing_model(candidate: dict[str, Any]) -> tuple[str, list[str
     }:
         if _has_ticketing_proof(candidate):
             return model, []
-        return "provider_order_unverified", [
-            "provider_ticketing_protection_unverified"
-        ]
+        return "provider_order_unverified", ["provider_ticketing_protection_unverified"]
     return model, []
 
 
@@ -236,9 +236,7 @@ def _has_hard_constraint_violation(candidate: dict[str, Any]) -> bool:
 
 def _has_impossible_connection(candidate: dict[str, Any]) -> bool:
     status = str(
-        candidate.get("connection_status")
-        or candidate.get("candidate_status")
-        or ""
+        candidate.get("connection_status") or candidate.get("candidate_status") or ""
     ).lower()
     if status in {"rejected", "impossible", "invalid", "error"}:
         return True
@@ -256,7 +254,11 @@ def _has_impossible_connection(candidate: dict[str, Any]) -> bool:
 def _ticketing_risk_tier(candidate: dict[str, Any]) -> int:
     model = str(candidate.get("ticketing_model") or "unknown")
     source_type = str(candidate.get("source_type") or "")
-    if model in {"single_pnr_proven", "single_ticket_proven", "protected_provider_order"}:
+    if model in {
+        "single_pnr_proven",
+        "single_ticket_proven",
+        "protected_provider_order",
+    }:
         return 0
     if source_type == RouteFamily.DIRECT_INVENTORY:
         return 0
@@ -357,9 +359,9 @@ def _frontier_acceptable(candidate: dict[str, Any]) -> bool:
         )
         if any(int(components.get(key) or 0) > 0 for key in blocking_keys):
             return False
-    return bool(candidate.get("covers_requested_trip")) and not _has_impossible_connection(
-        candidate
-    )
+    return bool(
+        candidate.get("covers_requested_trip")
+    ) and not _has_impossible_connection(candidate)
 
 
 def _select_frontier_option(
@@ -453,7 +455,10 @@ def _min_finite(
     ]
     if not finite:
         return None
-    return min(finite, key=lambda candidate: (value_fn(candidate), int(candidate.get("rank") or 0)))
+    return min(
+        finite,
+        key=lambda candidate: (value_fn(candidate), int(candidate.get("rank") or 0)),
+    )
 
 
 def _materially_cheaper(
@@ -474,7 +479,9 @@ def _materially_cheaper(
         return False
     baseline = min(selected_prices)
     delta = baseline - candidate_price
-    threshold = max(MATERIAL_PRICE_DELTA_ABSOLUTE, baseline * MATERIAL_PRICE_DELTA_RATIO)
+    threshold = max(
+        MATERIAL_PRICE_DELTA_ABSOLUTE, baseline * MATERIAL_PRICE_DELTA_RATIO
+    )
     return delta >= threshold
 
 

@@ -124,7 +124,9 @@ class TutuProviderAdapter:
         depart_date = parse_iso_date(depart_date_text, "aggregate-control-date")
         return_date_text = query.get("return_date")
         return_date = (
-            parse_iso_date(return_date_text, "return-date") if return_date_text else None
+            parse_iso_date(return_date_text, "return-date")
+            if return_date_text
+            else None
         )
         direct_only = bool(query.get("direct_only", False))
         kwargs: dict[str, Any] = {}
@@ -186,7 +188,9 @@ class TutuProviderAdapter:
         offer_count = len(top_offers)
         probe_type: ProbeType = cast(
             ProbeType,
-            "carrier_aggregate" if query.get("only_carriers") else "full_route_aggregate",
+            "carrier_aggregate"
+            if query.get("only_carriers")
+            else "full_route_aggregate",
         )
         return ProviderProbeResult(
             probe_id=str(query.get("probe_id") or ""),

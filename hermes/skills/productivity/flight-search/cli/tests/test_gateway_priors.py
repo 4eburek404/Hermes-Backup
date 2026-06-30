@@ -83,7 +83,9 @@ class GatewayPriorsTests(unittest.TestCase):
         store = Store(gateway_priors_path=missing_path)
 
         self.assertEqual(catalog.for_market("ru_touching_western_europe"), [])
-        self.assertEqual(store.gateway_priors_for_market("ru_touching_western_europe"), [])
+        self.assertEqual(
+            store.gateway_priors_for_market("ru_touching_western_europe"), []
+        )
 
     def test_invalid_gateway_priors_yaml_raises_clear_configuration_error(self) -> None:
         path = self.write_file(

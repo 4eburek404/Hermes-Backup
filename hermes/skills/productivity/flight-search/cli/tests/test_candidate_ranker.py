@@ -149,7 +149,9 @@ class CandidateRankerTests(unittest.TestCase):
             "id": "legacy",
             "price": 25000,
             "currency": "RUB",
-            "journeys": [{"direction": "outbound", "segments": [segment("SVX", "AMS")]}],
+            "journeys": [
+                {"direction": "outbound", "segments": [segment("SVX", "AMS")]}
+            ],
         }
 
         ranking = rank_mixed_candidates(

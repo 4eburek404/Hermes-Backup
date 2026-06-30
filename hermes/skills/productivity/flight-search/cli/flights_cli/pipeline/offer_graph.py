@@ -50,13 +50,9 @@ def materialize_offer_graph_candidates(
     """Project graph evidence into a unified, unranked candidate envelope."""
 
     offers = [
-        offer
-        for offer in offer_graph.get("offers") or []
-        if isinstance(offer, dict)
+        offer for offer in offer_graph.get("offers") or [] if isinstance(offer, dict)
     ]
-    edges = [
-        edge for edge in offer_graph.get("edges") or [] if isinstance(edge, dict)
-    ]
+    edges = [edge for edge in offer_graph.get("edges") or [] if isinstance(edge, dict)]
     connections = [
         connection
         for connection in offer_graph.get("connections") or []
@@ -265,9 +261,7 @@ class OfferGraphBuilder:
                         offer.get("direction") or result.get("direction")
                     ),
                     "edge_ids": [],
-                    "route": [origin, destination]
-                    if origin and destination
-                    else [],
+                    "route": [origin, destination] if origin and destination else [],
                     "price": _price_amount(offer),
                     "currency": _currency(offer, result),
                     "detail_status": _detail_status(offer, has_edges=False),
@@ -318,12 +312,16 @@ class OfferGraphBuilder:
             self.connections.append(
                 _compact(
                     {
-                        "id": _stable_id("connection", gateway or str(gateway_index + 1)),
+                        "id": _stable_id(
+                            "connection", gateway or str(gateway_index + 1)
+                        ),
                         "source_type": "gateway_leg_pair",
                         "gateway": gateway,
                         "ticketing_boundary": "separate_ticket_candidate",
                         "candidate_status": "complete_gateway_legs_unranked",
-                        "origin_leg_offer_ids": [item["offer_id"] for item in origin_leg],
+                        "origin_leg_offer_ids": [
+                            item["offer_id"] for item in origin_leg
+                        ],
                         "destination_leg_offer_ids": [
                             item["offer_id"] for item in destination_leg
                         ],
@@ -355,7 +353,9 @@ class OfferGraphBuilder:
             edges=self.edges,
             offers=self.offers,
             connections=self.connections,
-            coverage={key: value for key, value in self.coverage.items() if value != []},
+            coverage={
+                key: value for key, value in self.coverage.items() if value != []
+            },
         )
 
     def _add_gateway_leg_offers(
@@ -621,7 +621,12 @@ def _candidates_from_connection(
                 "separate_ticket_connection_unverified",
                 *price_warnings,
                 *_candidate_warnings(
-                    {"warnings": [*origin_offer.get("warnings", []), *destination_offer.get("warnings", [])]},
+                    {
+                        "warnings": [
+                            *origin_offer.get("warnings", []),
+                            *destination_offer.get("warnings", []),
+                        ]
+                    },
                     detail_status=detail_status,
                 ),
             ]
@@ -690,16 +695,22 @@ def _accept_or_reject_candidate(
 
 
 def _candidate_is_direct(candidate: dict[str, Any]) -> bool:
-    journeys = candidate.get("journeys") if isinstance(candidate.get("journeys"), list) else []
+    journeys = (
+        candidate.get("journeys") if isinstance(candidate.get("journeys"), list) else []
+    )
     if not journeys:
         return False
     segment_count = 0
     for journey in journeys:
         if not isinstance(journey, dict):
             continue
-        segments = journey.get("segments") if isinstance(journey.get("segments"), list) else []
+        segments = (
+            journey.get("segments") if isinstance(journey.get("segments"), list) else []
+        )
         segment_count += len(segments)
-    return segment_count == 1 and candidate.get("source_type") != "gateway_separate_ticket"
+    return (
+        segment_count == 1 and candidate.get("source_type") != "gateway_separate_ticket"
+    )
 
 
 def _dedupe_candidates(
@@ -950,9 +961,7 @@ def _combined_detail_status(offers: list[dict[str, Any]]) -> str:
     return "full"
 
 
-def _candidate_warnings(
-    offer: dict[str, Any], *, detail_status: str
-) -> list[str]:
+def _candidate_warnings(offer: dict[str, Any], *, detail_status: str) -> list[str]:
     warnings = [str(item) for item in offer.get("warnings") or [] if item]
     if detail_status == "summary_only" and "summary_only_offer_details" not in warnings:
         warnings.append("summary_only_offer_details")
@@ -975,7 +984,11 @@ def _covers_requested_trip(
     destination = _normalize_code(requested_destination)
     if not origin and not destination:
         return bool(segments)
-    route_origin = _normalize_code(segments[0].get("origin")) if segments else _normalize_code(offer.get("origin"))
+    route_origin = (
+        _normalize_code(segments[0].get("origin"))
+        if segments
+        else _normalize_code(offer.get("origin"))
+    )
     route_destination = (
         _normalize_code(segments[-1].get("destination"))
         if segments
@@ -989,7 +1002,7 @@ def _covers_requested_trip(
 
 
 def _summed_leg_price(
-    offers: list[dict[str, Any]]
+    offers: list[dict[str, Any]],
 ) -> tuple[int | float | None, str | None, str, list[str]]:
     amounts = [_price_amount(offer) for offer in offers]
     currencies = [_currency(offer) for offer in offers]
@@ -998,10 +1011,17 @@ def _summed_leg_price(
         warnings.append("leg_price_missing")
         return None, None, "unknown", warnings
     normalized_currencies = [currency for currency in currencies if currency]
-    if len(set(normalized_currencies)) != 1 or len(normalized_currencies) != len(offers):
+    if len(set(normalized_currencies)) != 1 or len(normalized_currencies) != len(
+        offers
+    ):
         warnings.append("leg_currency_mismatch")
         return None, None, "unknown", warnings
-    return sum(amount for amount in amounts if amount is not None), normalized_currencies[0], "summed_live_leg_prices", warnings
+    return (
+        sum(amount for amount in amounts if amount is not None),
+        normalized_currencies[0],
+        "summed_live_leg_prices",
+        warnings,
+    )
 
 
 def _price_amount(*sources: dict[str, Any]) -> int | float | None:
@@ -1218,7 +1238,9 @@ def _normalize_direction(value: Any) -> str | None:
 
 
 def _stable_id(*parts: object, suffix: str | None = None) -> str:
-    tokens = [str(part).strip().replace(" ", "_") for part in parts if str(part).strip()]
+    tokens = [
+        str(part).strip().replace(" ", "_") for part in parts if str(part).strip()
+    ]
     if suffix:
         tokens.append(str(suffix).strip().replace(" ", "_"))
     return ":".join(tokens)

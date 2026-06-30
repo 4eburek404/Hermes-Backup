@@ -116,7 +116,9 @@ class SearchPlanContractTests(unittest.TestCase):
             ],
         )
         self.assertEqual(gateway_discovery["prior_set"], "restricted_bridge_gateways")
-        self.assertEqual(gateway_discovery["matched_rule_id"], "ru_to_restricted_regions")
+        self.assertEqual(
+            gateway_discovery["matched_rule_id"], "ru_to_restricted_regions"
+        )
         self.assertEqual(gateway_discovery["market"], "restricted_bridge_gateways")
         self.assertEqual(gateway_discovery["candidate_count"], 2)
         self.assertEqual(
@@ -229,20 +231,19 @@ class SearchPlanContractTests(unittest.TestCase):
                     len(gateway_discovery["candidates"]),
                 )
                 self.assertEqual(
-                    [query["provider"] for query in search_plan["primary_offer_queries"]],
+                    [
+                        query["provider"]
+                        for query in search_plan["primary_offer_queries"]
+                    ],
                     ["kupibilet"],
                 )
                 if destination == "PEK":
-                    self.assertNotEqual(
-                        gateway_discovery["mode"], "required"
-                    )
+                    self.assertNotEqual(gateway_discovery["mode"], "required")
                     self.assertEqual(search_plan["coverage_expectations"], [])
                     self.assertEqual(search_plan["gateway_leg_queries"], [])
                 else:
                     self.assertEqual(
-                        search_plan["primary_offer_queries"][0][
-                            "route_access_profile"
-                        ],
+                        search_plan["primary_offer_queries"][0]["route_access_profile"],
                         "restricted_access_market",
                     )
                     self.assertEqual(
@@ -318,7 +319,10 @@ class SearchPlanContractTests(unittest.TestCase):
         validate_contract_payload("search_plan", search_plan)
         self.assertEqual(len(search_plan["gateway_leg_queries"]), 2)
         self.assertEqual(
-            {(query["gateway"], query["provider"]) for query in search_plan["gateway_leg_queries"]},
+            {
+                (query["gateway"], query["provider"])
+                for query in search_plan["gateway_leg_queries"]
+            },
             {("IST", "kupibilet"), ("IST", "fli")},
         )
 

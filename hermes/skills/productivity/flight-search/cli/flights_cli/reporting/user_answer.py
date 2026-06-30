@@ -117,14 +117,20 @@ def source_ticketing_note(
         item.lower() == "fli" for item in option_provider_labels(option)
     )
 
-    if journey_scope == "two_one_way_pair" or ticketing_model == "separate_one_way_offers":
+    if (
+        journey_scope == "two_one_way_pair"
+        or ticketing_model == "separate_one_way_offers"
+    ):
         return (
             "источник: две отдельные one-way выдачи; "
             "цена - сумма отдельных one-way; "
             "единый PNR, сквозной багаж и защищённый round-trip не подтверждены"
         )
 
-    if source_type == "gateway_separate_ticket" or raw_ticketing == "separate_ticket_sum":
+    if (
+        source_type == "gateway_separate_ticket"
+        or raw_ticketing == "separate_ticket_sum"
+    ):
         gateway_text = f" через {gateway}" if gateway else ""
         provider_text = (
             f" ({provider}; FLI/metasearch для non-RU плеча)"
@@ -162,7 +168,10 @@ def source_ticketing_note(
             "финальный тариф и багаж проверить на booking screen"
         )
 
-    if source_type == "assembled_separate_ticket" or ticketing_model == "separate_segments":
+    if (
+        source_type == "assembled_separate_ticket"
+        or ticketing_model == "separate_segments"
+    ):
         return (
             f"источник: сборка отдельных live-плеч ({provider}); "
             "единый PNR, сквозной багаж и защита пересадки не подтверждены"
@@ -275,7 +284,9 @@ def gateway_coverage_summary(agent_report: dict[str, Any]) -> str | None:
         if isinstance(agent_report.get("gateway_leg_results"), dict)
         else {}
     )
-    gateways = results.get("gateways") if isinstance(results.get("gateways"), list) else []
+    gateways = (
+        results.get("gateways") if isinstance(results.get("gateways"), list) else []
+    )
     searched = gateway_codes(gateways, searched=True)
     viable = viable_gateway_codes(gateways)
     not_searched = gateway_codes(gateways, searched=False)

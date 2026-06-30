@@ -88,9 +88,7 @@ class SearchPlanBuilder:
                 if isinstance(candidate, dict)
             ],
             skipped_reasons=[
-                str(item)
-                for item in diagnostics.get("skipped_reasons") or []
-                if item
+                str(item) for item in diagnostics.get("skipped_reasons") or [] if item
             ],
             empty_reason=diagnostics.get("empty_reason"),
             prior_set=decision.route_access_prior_set,
@@ -160,8 +158,7 @@ class SearchPlanBuilder:
     ) -> list[dict[str, Any]]:
         discovery_payload = gateway_discovery.to_dict()
         if (
-            discovery_payload.get("route_access_profile")
-            != PROFILE_RESTRICTED_ACCESS
+            discovery_payload.get("route_access_profile") != PROFILE_RESTRICTED_ACCESS
             or discovery_payload.get("mode") != MODE_REQUIRED
         ):
             return []
@@ -183,7 +180,9 @@ class SearchPlanBuilder:
             (fallback_route_plan.get("dates") or {}).get("depart")
             or flow.request.depart_date
         )
-        currency = str(fallback_route_plan.get("currency") or flow.request.currency).upper()
+        currency = str(
+            fallback_route_plan.get("currency") or flow.request.currency
+        ).upper()
 
         queries: list[dict[str, Any]] = []
         for rank, candidate in enumerate(candidates[:candidate_cap], start=1):
@@ -281,7 +280,9 @@ class SearchPlanBuilder:
             (fallback_route_plan.get("dates") or {}).get("depart")
             or flow.request.depart_date
         )
-        currency = str(fallback_route_plan.get("currency") or flow.request.currency).upper()
+        currency = str(
+            fallback_route_plan.get("currency") or flow.request.currency
+        ).upper()
         access_profile = str(flow.flow_decision.route_access_profile or "")
         discovery_mode = str(flow.flow_decision.gateway_discovery_mode or "disabled")
 
@@ -293,9 +294,7 @@ class SearchPlanBuilder:
         }
         queries: list[dict[str, Any]] = []
         seen: set[str] = set()
-        for provider_name in self._provider_names_for_primary_offers(
-            flow, route_query
-        ):
+        for provider_name in self._provider_names_for_primary_offers(flow, route_query):
             if not provider_name or provider_name in seen:
                 continue
             seen.add(provider_name)
@@ -331,9 +330,7 @@ class SearchPlanBuilder:
     ) -> list[dict[str, Any]]:
         if not primary_offer_queries:
             return []
-        access_profile = str(
-            primary_offer_queries[0].get("route_access_profile") or ""
-        )
+        access_profile = str(primary_offer_queries[0].get("route_access_profile") or "")
         if access_profile != PROFILE_RESTRICTED_ACCESS:
             return []
         return [
@@ -354,9 +351,13 @@ def build_search_plan(
     flow: LiveRouteSearchFlow | None = None,
     fallback_route_plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return SearchPlanBuilder(
-        options,
-        store,
-        flow=flow,
-        fallback_route_plan=fallback_route_plan,
-    ).build().to_dict()
+    return (
+        SearchPlanBuilder(
+            options,
+            store,
+            flow=flow,
+            fallback_route_plan=fallback_route_plan,
+        )
+        .build()
+        .to_dict()
+    )

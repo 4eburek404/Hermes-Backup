@@ -54,14 +54,18 @@ def normalize_tutu_mcp_url(value: str | None) -> str:
     try:
         parsed = urllib.parse.urlparse(url)
     except ValueError as exc:
-        raise CliError("Tutu MCP URL is invalid", error_type="validation_error") from exc
+        raise CliError(
+            "Tutu MCP URL is invalid", error_type="validation_error"
+        ) from exc
     if parsed.scheme not in {"http", "https"}:
         raise CliError(
             "Tutu MCP URL must use http or https",
             error_type="validation_error",
         )
     if not parsed.netloc or not parsed.hostname:
-        raise CliError("Tutu MCP URL must include a host", error_type="validation_error")
+        raise CliError(
+            "Tutu MCP URL must include a host", error_type="validation_error"
+        )
     return url
 
 
@@ -168,7 +172,8 @@ def ensure_jsonrpc_ok(response: dict[str, Any], context: str) -> dict[str, Any]:
     if result is None:
         return {}
     raise CliError(
-        f"Tutu MCP {context} returned an unsupported result", error_type="upstream_error"
+        f"Tutu MCP {context} returned an unsupported result",
+        error_type="upstream_error",
     )
 
 
@@ -257,6 +262,7 @@ def call_tutu_mcp_tool(
 
 # --- IATA extraction from Tutu airport strings ---
 
+
 def extract_iata_from_airport_string(text: str) -> str | None:
     """Extract IATA code from a Tutu airport string like 'Тулуза — Тулуза-Бланьяк (TLS)'."""
     if not text:
@@ -272,6 +278,7 @@ def extract_iata_from_airport_string(text: str) -> str | None:
 
 
 # --- Carrier name → IATA code resolution ---
+
 
 def _build_carrier_name_index(store: Store | None) -> dict[str, str]:
     if store is None:
@@ -313,6 +320,7 @@ def resolve_carrier_code(
 
 # --- IATA → city name resolution for Tutu API calls ---
 
+
 def iata_to_city_name(iata_code: str, store: Store | None) -> str | None:
     """Resolve IATA code to Russian city name for Tutu search_avia."""
     if store is None:
@@ -335,6 +343,7 @@ def iata_to_city_name(iata_code: str, store: Store | None) -> str | None:
 
 # --- Normalization ---
 
+
 def normalize_tutu_segment(
     segment: dict[str, Any],
     *,
@@ -345,18 +354,20 @@ def normalize_tutu_segment(
     from_text = str(segment.get("from") or "")
     to_text = str(segment.get("to") or "")
     origin = extract_iata_from_airport_string(from_text) or expected_origin or ""
-    destination = extract_iata_from_airport_string(to_text) or expected_destination or ""
+    destination = (
+        extract_iata_from_airport_string(to_text) or expected_destination or ""
+    )
     if not origin or not destination:
         return None
 
     carrier_name = str(segment.get("carrier") or "")
-    carrier_code = resolve_carrier_code(
-        carrier_name, name_index=carrier_name_index
-    )
+    carrier_code = resolve_carrier_code(carrier_name, name_index=carrier_name_index)
     voyage_no = str(segment.get("voyage_no") or "").strip()
     flight_number = voyage_no or None
-    if carrier_code and flight_number and not flight_number.upper().startswith(
+    if (
         carrier_code
+        and flight_number
+        and not flight_number.upper().startswith(carrier_code)
     ):
         flight_number = f"{carrier_code}{flight_number}"
 
@@ -474,9 +485,11 @@ def _matches_airport_scope(
     store: Store | None,
     skipped: dict[str, int],
 ) -> bool:
-    origin_kind, origin_codes, _origin_scope_error = _location_scope_codes(origin, store)
-    destination_kind, destination_codes, _destination_scope_error = _location_scope_codes(
-        destination, store
+    origin_kind, origin_codes, _origin_scope_error = _location_scope_codes(
+        origin, store
+    )
+    destination_kind, destination_codes, _destination_scope_error = (
+        _location_scope_codes(destination, store)
     )
 
     expected = [(origin_codes, destination_codes, "outbound")]
@@ -487,13 +500,20 @@ def _matches_airport_scope(
         journeys, expected
     ):
         journey_origin, journey_destination = _journey_endpoint_codes(journey)
-        if journey_origin not in allowed_origins or journey_destination not in allowed_destinations:
+        if (
+            journey_origin not in allowed_origins
+            or journey_destination not in allowed_destinations
+        ):
             _increment(skipped, "airport_scope")
             debug = journey.setdefault("debug", {})
             debug["airport_scope_mismatch"] = {
                 "direction": direction,
-                "origin_scope": origin_kind if direction == "outbound" else destination_kind,
-                "destination_scope": destination_kind if direction == "outbound" else origin_kind,
+                "origin_scope": origin_kind
+                if direction == "outbound"
+                else destination_kind,
+                "destination_scope": destination_kind
+                if direction == "outbound"
+                else origin_kind,
                 "actual_origin": journey_origin,
                 "actual_destination": journey_destination,
             }
@@ -555,10 +575,16 @@ def _normalize_tutu_journeys(
         direction = (
             "outbound"
             if leg_index == 0
-            else "return" if leg_index == 1 else f"journey_{leg_index + 1}"
+            else "return"
+            if leg_index == 1
+            else f"journey_{leg_index + 1}"
         )
-        expected_start = origin if leg_index == 0 else destination if leg_index == 1 else None
-        expected_end = destination if leg_index == 0 else origin if leg_index == 1 else None
+        expected_start = (
+            origin if leg_index == 0 else destination if leg_index == 1 else None
+        )
+        expected_end = (
+            destination if leg_index == 0 else origin if leg_index == 1 else None
+        )
         normalized_segments: list[dict[str, Any]] = []
         for segment_index, segment in enumerate(raw_segments):
             normalized = normalize_tutu_segment(
@@ -645,9 +671,7 @@ def parse_tutu_avia_search(
         price_data = offer.get("price")
         if isinstance(price_data, dict):
             amount = price_value({"price": price_data.get("amount")})
-            offer_currency = str(
-                price_data.get("currency") or currency
-            ).upper()
+            offer_currency = str(price_data.get("currency") or currency).upper()
         else:
             amount = price_value({"price": price_data})
             offer_currency = currency
@@ -672,10 +696,18 @@ def parse_tutu_avia_search(
                 f["flight_number"] for f in all_segments if f.get("flight_number")
             ],
             "marketing_carriers": sorted(
-                {f["marketing_carrier"] for f in all_segments if f.get("marketing_carrier")}
+                {
+                    f["marketing_carrier"]
+                    for f in all_segments
+                    if f.get("marketing_carrier")
+                }
             ),
             "operating_carriers": sorted(
-                {f["operating_carrier"] for f in all_segments if f.get("operating_carrier")}
+                {
+                    f["operating_carrier"]
+                    for f in all_segments
+                    if f.get("operating_carrier")
+                }
             ),
             "segments": outbound_segments,
             "journeys": journeys,
@@ -751,9 +783,7 @@ def fetch_tutu_avia_search(
         arguments["return_date"] = return_date.isoformat()
 
     # Fetch first page
-    raw = call_tutu_mcp_tool(
-        "search_avia", arguments, mcp_url=mcp_url, timeout=timeout
-    )
+    raw = call_tutu_mcp_tool("search_avia", arguments, mcp_url=mcp_url, timeout=timeout)
 
     all_offers = list(raw.get("offers") or [])
     meta = raw.get("meta") or {}
@@ -788,7 +818,9 @@ def fetch_tutu_avia_search(
         "pages_fetched": pages_fetched,
         "total_returned": len(all_offers),
         "max_pages": TUTU_MAX_PAGES,
-        "has_more_after_fetch": bool(meta.get("has_more")) if isinstance(meta, dict) else False,
+        "has_more_after_fetch": bool(meta.get("has_more"))
+        if isinstance(meta, dict)
+        else False,
         "not_fetched_due_to_page_budget": page_budget_exhausted,
         "empty_page_seen": empty_page_seen,
     }

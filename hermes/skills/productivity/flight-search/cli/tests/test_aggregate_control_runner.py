@@ -201,7 +201,9 @@ class AggregateControlRunnerTests(unittest.TestCase):
         diagnostics = ledger.to_coverage_diagnostics(
             {"coverage_mode": "targeted", "coverage_limits": {}}
         )
-        self.assertEqual([control["provider"] for control in controls], ["kupibilet", "fli"])
+        self.assertEqual(
+            [control["provider"] for control in controls], ["kupibilet", "fli"]
+        )
         self.assertEqual([control["status"] for control in controls], ["ok", "skipped"])
         self.assertEqual(controls[1]["reason"], "route_touches_ru")
         self.assertEqual(

@@ -45,7 +45,9 @@ def _normalized_query(
         **dict(query),
         "provider": provider,
         "probe_id": _probe_id(query, provider),
-        "probe_type": str(query.get("probe_type") or RequiredControl.FULL_ROUTE_AGGREGATE),
+        "probe_type": str(
+            query.get("probe_type") or RequiredControl.FULL_ROUTE_AGGREGATE
+        ),
         "direction": str(query.get("direction") or "outbound"),
         "origin": str(query.get("origin") or "").upper(),
         "destination": str(query.get("destination") or "").upper(),

@@ -74,9 +74,7 @@ class GatewayLegProbeExecutor:
             if batch_index > max_batches:
                 break
             for gateway in gateway_batch:
-                gateways.append(
-                    self._execute_gateway(gateway, grouped[gateway], plan)
-                )
+                gateways.append(self._execute_gateway(gateway, grouped[gateway], plan))
             evaluation = evaluator.evaluate(
                 gateways,
                 total_gateway_count=len(grouped),
@@ -99,7 +97,9 @@ class GatewayLegProbeExecutor:
         for gateway, gateway_queries in grouped.items():
             if gateway in searched_codes:
                 continue
-            gateways.append(_not_searched_gateway(gateway, gateway_queries, stop_reason))
+            gateways.append(
+                _not_searched_gateway(gateway, gateway_queries, stop_reason)
+            )
         return _coverage(gateways, evaluations=evaluations)
 
     def _eligible_gateways(
@@ -143,7 +143,9 @@ class GatewayLegProbeExecutor:
         )
         return item
 
-    def _execute_leg(self, query: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
+    def _execute_leg(
+        self, query: dict[str, Any], plan: dict[str, Any]
+    ) -> dict[str, Any]:
         provider = str(query.get("provider") or "").strip().lower()
         if not provider:
             return _skipped_leg_result(query, "missing_provider")
@@ -199,9 +201,7 @@ def _gateway_query_groups(
         key=lambda query: (
             int(query.get("gateway_rank") or 0),
             str(query.get("gateway") or "").upper(),
-            0
-            if str(query.get("leg") or "") == "origin_to_gateway"
-            else 1,
+            0 if str(query.get("leg") or "") == "origin_to_gateway" else 1,
         )
     )
     grouped: "OrderedDict[str, dict[str, dict[str, Any]]]" = OrderedDict()

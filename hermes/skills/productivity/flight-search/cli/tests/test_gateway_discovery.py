@@ -28,7 +28,9 @@ def provider_result(
     return payload
 
 
-def legacy_aggregate_result(*offers: dict[str, Any], provider: str = "kupibilet") -> dict[str, Any]:
+def legacy_aggregate_result(
+    *offers: dict[str, Any], provider: str = "kupibilet"
+) -> dict[str, Any]:
     return {
         "provider": provider,
         "status": "ok",
@@ -273,9 +275,7 @@ markets:
 """
         )
 
-        candidates = GatewayDiscoveryService(store).discover(
-            "explicit_moscow_gateway"
-        )
+        candidates = GatewayDiscoveryService(store).discover("explicit_moscow_gateway")
 
         self.assertEqual([candidate.code for candidate in candidates], ["SVO"])
         self.assertEqual(candidates[0].signals[0].debug, {"allow_as_gateway": True})

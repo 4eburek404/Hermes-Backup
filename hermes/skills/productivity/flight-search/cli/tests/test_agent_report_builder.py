@@ -159,7 +159,9 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         self.assertEqual(option.get("visibility_role"), "priority_control")
         return option
 
-    def test_primary_offer_results_are_report_evidence_not_answer_material(self) -> None:
+    def test_primary_offer_results_are_report_evidence_not_answer_material(
+        self,
+    ) -> None:
         options = assembly_options_from_args(self._args())
 
         def data_with_primary(

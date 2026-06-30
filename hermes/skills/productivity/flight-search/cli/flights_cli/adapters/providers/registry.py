@@ -125,9 +125,7 @@ def providers_for_route_query(
     """Return route-level providers by market applicability, not probe capability."""
 
     normalized_policy = _normalize_provider_policy(provider_policy)
-    touches_ru = route_touches_ru(
-        query.get("origin"), query.get("destination"), store
-    )
+    touches_ru = route_touches_ru(query.get("origin"), query.get("destination"), store)
     if normalized_policy == "auto":
         return ["kupibilet"] if touches_ru else ["fli"]
     if normalized_policy == "both":

@@ -130,7 +130,9 @@ class GatewayLegProbeExecutorTests(unittest.TestCase):
         self.assertTrue(gateway["viable"])
         self.assertEqual(gateway["origin_leg"]["offer_count"], 1)
         self.assertEqual(gateway["destination_leg"]["offer_count"], 1)
-        self.assertEqual([call["provider_policy"] for call in calls], ["kupibilet", "fli"])
+        self.assertEqual(
+            [call["provider_policy"] for call in calls], ["kupibilet", "fli"]
+        )
 
     def test_origin_leg_missing_makes_gateway_not_viable(self) -> None:
         result, _calls = self.run_executor(

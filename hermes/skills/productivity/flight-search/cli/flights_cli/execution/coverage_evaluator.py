@@ -45,9 +45,7 @@ class CoverageEvaluator:
     ) -> CoverageEvaluation:
         searched = [gateway for gateway in gateways if gateway.get("searched")]
         viable = [gateway for gateway in searched if gateway.get("viable")]
-        failed = [
-            gateway for gateway in searched if gateway.get("provider_failures")
-        ]
+        failed = [gateway for gateway in searched if gateway.get("provider_failures")]
         searched_count = len(searched)
         viable_count = len(viable)
         failed_count = len(failed)

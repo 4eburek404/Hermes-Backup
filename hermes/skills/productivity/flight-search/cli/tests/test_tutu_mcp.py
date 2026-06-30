@@ -106,10 +106,14 @@ class TutuMcpProviderTests(unittest.TestCase):
                 return b'{"jsonrpc":"2.0","result":{}}'
 
         def fake_urlopen(request, *, timeout: int):  # type: ignore[no-untyped-def]
-            captured.update({key.lower(): value for key, value in request.header_items()})
+            captured.update(
+                {key.lower(): value for key, value in request.header_items()}
+            )
             return FakeResponse()
 
-        with patch("flights_cli.providers.tutu_mcp.urllib.request.urlopen", fake_urlopen):
+        with patch(
+            "flights_cli.providers.tutu_mcp.urllib.request.urlopen", fake_urlopen
+        ):
             tutu_mcp_http_post(
                 "https://mcp.tutu.ru/mcp", {"jsonrpc": "2.0"}, timeout=10
             )
@@ -203,7 +207,12 @@ class TutuMcpProviderTests(unittest.TestCase):
                 tutu_offer("direct", [[tutu_segment("SVX", "AMS", "100")]]),
                 tutu_offer(
                     "connected",
-                    [[tutu_segment("SVX", "IST", "101"), tutu_segment("IST", "AMS", "102")]],
+                    [
+                        [
+                            tutu_segment("SVX", "IST", "101"),
+                            tutu_segment("IST", "AMS", "102"),
+                        ]
+                    ],
                 ),
             ]
         }
@@ -315,7 +324,10 @@ class TutuMcpProviderTests(unittest.TestCase):
         self.assertEqual(offer["origin"], "SVX")
         self.assertEqual(offer["destination"], "AER")
         self.assertEqual(len(offer["segments"]), 1)
-        self.assertEqual([journey["direction"] for journey in offer["journeys"]], ["outbound", "return"])
+        self.assertEqual(
+            [journey["direction"] for journey in offer["journeys"]],
+            ["outbound", "return"],
+        )
         self.assertEqual(offer["number_of_changes"], 0)
         self.assertEqual(result["return_date"], "2026-08-22")
 
@@ -323,7 +335,9 @@ class TutuMcpProviderTests(unittest.TestCase):
         store = store_with_tutu_catalog(self)
         calls: list[dict] = []
 
-        def fake_fetcher(origin: str, destination: str, depart_date: date, **kwargs: object) -> dict:
+        def fake_fetcher(
+            origin: str, destination: str, depart_date: date, **kwargs: object
+        ) -> dict:
             calls.append(kwargs)
             return {
                 "origin": origin,
@@ -363,11 +377,15 @@ class TutuMcpProviderTests(unittest.TestCase):
         self.assertEqual(calls[0]["only_carriers"], ["SU"])
         self.assertIsNone(calls[0]["return_date"])
 
-    def test_aggregate_adapter_passes_return_date_and_keeps_round_trip_capability(self) -> None:
+    def test_aggregate_adapter_passes_return_date_and_keeps_round_trip_capability(
+        self,
+    ) -> None:
         store = store_with_tutu_catalog(self)
         calls: list[dict] = []
 
-        def fake_fetcher(origin: str, destination: str, depart_date: date, **kwargs: object) -> dict:
+        def fake_fetcher(
+            origin: str, destination: str, depart_date: date, **kwargs: object
+        ) -> dict:
             calls.append(kwargs)
             return {
                 "origin": origin,

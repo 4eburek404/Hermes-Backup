@@ -175,7 +175,9 @@ class OfferGraphTests(unittest.TestCase):
             requested_destination="AMS",
         )
 
-        self.assertEqual(envelope["schema_version"], "flight_offer_candidate_envelope.v1")
+        self.assertEqual(
+            envelope["schema_version"], "flight_offer_candidate_envelope.v1"
+        )
         self.assertEqual(len(envelope["candidates"]), 1)
         candidate = envelope["candidates"][0]
         self.assertEqual(candidate["source_type"], "provider_full_route")
@@ -254,7 +256,10 @@ class OfferGraphTests(unittest.TestCase):
         self.assertEqual(len(graph["edges"]), 2)
         self.assertEqual(len(graph["connections"]), 1)
         self.assertEqual(
-            [(edge["origin"], edge["destination"], edge["provider"]) for edge in graph["edges"]],
+            [
+                (edge["origin"], edge["destination"], edge["provider"])
+                for edge in graph["edges"]
+            ],
             [("SVX", "IST", "kupibilet"), ("IST", "AMS", "fli")],
         )
         self.assertEqual(
@@ -264,7 +269,9 @@ class OfferGraphTests(unittest.TestCase):
         connection = graph["connections"][0]
         self.assertEqual(connection["gateway"], "IST")
         self.assertEqual(connection["ticketing_boundary"], "separate_ticket_candidate")
-        self.assertEqual(connection["candidate_status"], "complete_gateway_legs_unranked")
+        self.assertEqual(
+            connection["candidate_status"], "complete_gateway_legs_unranked"
+        )
         self.assertEqual(
             graph["coverage"]["assembled_separate_ticket_candidate_count"], 1
         )

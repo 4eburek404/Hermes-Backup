@@ -123,7 +123,9 @@ class ProviderCapabilitiesTests(unittest.TestCase):
             "direct_only": False,
         }
 
-        self.assertEqual(providers_for_offer_query(query, store, "kupibilet"), ["kupibilet"])
+        self.assertEqual(
+            providers_for_offer_query(query, store, "kupibilet"), ["kupibilet"]
+        )
         self.assertEqual(providers_for_offer_query(query, store, "fli"), [])
         self.assertEqual(providers_for_offer_query(query, store, "both"), ["kupibilet"])
 
@@ -182,8 +184,12 @@ class ProviderCapabilitiesTests(unittest.TestCase):
             route_query_provider_skip_reasons(ru_route, store, "both"),
             {"fli": "route_touches_ru"},
         )
-        self.assertEqual(providers_for_route_query(non_ru_route, store, "auto"), ["fli"])
-        self.assertEqual(providers_for_route_query(non_ru_route, store, "both"), ["fli"])
+        self.assertEqual(
+            providers_for_route_query(non_ru_route, store, "auto"), ["fli"]
+        )
+        self.assertEqual(
+            providers_for_route_query(non_ru_route, store, "both"), ["fli"]
+        )
 
     def test_gateway_segments_follow_existing_ru_non_ru_provider_split(self) -> None:
         store = store_with_airports(self)
