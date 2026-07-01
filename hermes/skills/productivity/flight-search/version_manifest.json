@@ -11,7 +11,7 @@
     "flight_search_request": "flight_search_request.v1",
     "flight_search_result": "flight_search_result.v1",
     "agent_report": "agent_report.v2",
-    "user_answer": "flight_search_user_answer.v3"
+    "user_answer": "flight_search_user_answer.v4"
   },
   "command_surface": {
     "version": "command_surface.v1",

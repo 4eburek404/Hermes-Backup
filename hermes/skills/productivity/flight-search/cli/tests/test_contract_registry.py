@@ -29,7 +29,7 @@ class ContractRegistryTest(unittest.TestCase):
         )
         self.assertEqual(
             current_contract("user_answer")["schema_version"],
-            "flight_search_user_answer.v3",
+            "flight_search_user_answer.v4",
         )
         self.assertEqual(
             current_contract("search_request")["status"], "planned_new_root_input"

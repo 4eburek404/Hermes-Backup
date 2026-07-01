@@ -111,7 +111,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
         ]
         return report
 
-    def test_v3_schema_declares_catalog_contract(self) -> None:
+    def test_v4_schema_declares_catalog_contract(self) -> None:
         schema = load_user_answer_schema()
         text = (
             resources.files(USER_ANSWER_SCHEMA_PACKAGE)
@@ -121,12 +121,12 @@ class CatalogAnswerContractTests(unittest.TestCase):
         parsed = json.loads(text)
 
         Draft202012Validator.check_schema(schema)
-        self.assertEqual(USER_ANSWER_SCHEMA_VERSION, "flight_search_user_answer.v3")
+        self.assertEqual(USER_ANSWER_SCHEMA_VERSION, "flight_search_user_answer.v4")
         self.assertEqual(
-            USER_ANSWER_SCHEMA_RESOURCE, "flight_search_user_answer.v3.schema.json"
+            USER_ANSWER_SCHEMA_RESOURCE, "flight_search_user_answer.v4.schema.json"
         )
         self.assertEqual(
-            parsed["$id"], "urn:hermes:flights-cli:flight-search-user-answer:v3"
+            parsed["$id"], "urn:hermes:flights-cli:flight-search-user-answer:v4"
         )
         expected_keys = {
             "schema_version",
@@ -149,23 +149,14 @@ class CatalogAnswerContractTests(unittest.TestCase):
         self.assertLessEqual(len(text.encode("utf-8")), 20000)
 
     def test_round_trip_options_render_as_numbered_catalog_contract(self) -> None:
-        with (
-            patch(
-                "flights_cli.reporting.user_answer.airport_city_label",
-                side_effect=lambda code: {
-                    "SVX": "Екатеринбург",
-                    "SVO": "Москва",
-                    "CAN": "Гуанчжоу",
-                }.get(code, code),
-                create=True,
-            ),
-            patch(
-                "flights_cli.reporting.user_answer.airport_name_label",
-                side_effect=lambda code: {
-                    "SVO": "Шереметьево",
-                }.get(code, code),
-                create=True,
-            ),
+        with patch(
+            "flights_cli.reporting.user_answer.airport_city_label",
+            side_effect=lambda code: {
+                "SVX": "Екатеринбург",
+                "SVO": "Москва",
+                "CAN": "Гуанчжоу",
+            }.get(code, code),
+            create=True,
         ):
             answer = build_user_answer(self._round_trip_report())
 
@@ -184,7 +175,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
             "stop_policy_status",
         }
         self.assertEqual(set(answer), expected_keys)
-        self.assertEqual(answer["schema_version"], "flight_search_user_answer.v3")
+        self.assertEqual(answer["schema_version"], "flight_search_user_answer.v4")
         self.assertEqual(answer["answer_mode"], "catalog")
         self.assertEqual(
             answer["catalog"]["presentation"],
@@ -294,17 +285,10 @@ class CatalogAnswerContractTests(unittest.TestCase):
         report["recommended_options"] = [option]
         report["priority_options"] = []
 
-        with (
-            patch(
-                "flights_cli.reporting.user_answer.airport_city_label",
-                side_effect=lambda code: {"MCT": "Маскат"}.get(code, code),
-                create=True,
-            ),
-            patch(
-                "flights_cli.reporting.user_answer.airport_name_label",
-                side_effect=lambda code: {"SVO": "Шереметьево"}.get(code, code),
-                create=True,
-            ),
+        with patch(
+            "flights_cli.reporting.user_answer.airport_city_label",
+            side_effect=lambda code: {"MCT": "Маскат"}.get(code, code),
+            create=True,
         ):
             answer = build_user_answer(report)
             validate_user_answer(answer)
@@ -381,8 +365,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
         first_line = answer["catalog"]["items"][0]["agent_display"]["lines"][0]
         self.assertEqual(
             first_line,
-            "1. 09.07 Нант NTE → Париж CDG(2F) "
-            "18:45–19:55 борт A320 в пути 1ч 50мин",
+            "1. 09.07 Нант NTE → Париж CDG(2F) 18:45–19:55 борт A320 в пути 1ч 50мин",
         )
         self.assertIn(first_line, answer["rendered_text"])
         self.assertNotIn("CDG09.07", answer["rendered_text"])

@@ -157,7 +157,7 @@ class ArchitectureTests(unittest.TestCase):
                 "flight_search_plan.v1.schema.json",
                 "flight_search_request.v1.schema.json",
                 "flight_search_result.v1.schema.json",
-                "flight_search_user_answer.v3.schema.json",
+                "flight_search_user_answer.v4.schema.json",
             ],
         )
 

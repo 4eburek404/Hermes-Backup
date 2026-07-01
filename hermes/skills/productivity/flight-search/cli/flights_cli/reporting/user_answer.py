@@ -28,6 +28,7 @@ _USER_ANSWER_CONTRACT = current_contract("user_answer")
 USER_ANSWER_SCHEMA_VERSION = _USER_ANSWER_CONTRACT["schema_version"]
 USER_ANSWER_SCHEMA_RESOURCE = _USER_ANSWER_CONTRACT["schema_resource"]
 USER_ANSWER_SCHEMA_PACKAGE = "flights_cli.contracts"
+AGENT_DISPLAY_STYLE = "canonical_segment_line_v1"
 
 
 @lru_cache(maxsize=1)
@@ -729,77 +730,6 @@ def airport_city_label(code: str | None) -> str:
     return normalized
 
 
-@lru_cache(maxsize=512)
-def airport_name_label(code: str | None) -> str:
-    normalized = str(code or "").strip().upper()
-    if not normalized:
-        return "???"
-    try:
-        from ..store import Store
-
-        store = Store()
-        for airport in store.load_json("airports_ru.json"):
-            if str(airport.get("code") or "").upper() == normalized and airport.get(
-                "name"
-            ):
-                return clean_airport_name_label(str(airport["name"]), normalized, store)
-        airport = store.airport_by_code.get(normalized)
-        if airport and airport.get("name"):
-            return clean_airport_name_label(str(airport["name"]), normalized, store)
-    except Exception:
-        return normalized
-    return airport_city_label(normalized)
-
-
-def clean_airport_name_label(name: str, code: str, store: Any) -> str:
-    cleaned = re.sub(r"\s+", " ", str(name or "").strip())
-    if not cleaned:
-        return code
-    if "(" not in cleaned and ")" not in cleaned:
-        return cleaned
-    airport = (
-        store.airport_by_code.get(code.upper())
-        if hasattr(store, "airport_by_code")
-        else None
-    )
-    city_code = (
-        str(airport.get("city_code") or code).upper()
-        if isinstance(airport, dict)
-        else code.upper()
-    )
-    city_name = store.city_name(city_code) if hasattr(store, "city_name") else None
-    if city_name:
-        return f"{city_name} {code.upper()}"
-    return re.sub(r"[()]", "", cleaned).strip() or code.upper()
-
-
-@lru_cache(maxsize=512)
-def is_multi_airport_city_airport(code: str | None) -> bool:
-    normalized = str(code or "").strip().upper()
-    if not normalized:
-        return False
-    try:
-        from ..store import Store
-
-        store = Store()
-        airport = store.airport_by_code.get(normalized)
-        if not isinstance(airport, dict):
-            return False
-        city_code = str(airport.get("city_code") or "").upper()
-        if not city_code:
-            return False
-        flightable_airports = [
-            item
-            for item in store.airports_by_city.get(city_code, [])
-            if str(item.get("code") or "").upper()
-            and item.get("flightable") is not False
-            and str(item.get("iata_type") or "").lower() == "airport"
-        ]
-        return len(flightable_airports) > 1
-    except Exception:
-        return False
-
-
 def terminal_label(value: Any) -> str | None:
     terminal = str(value or "").strip().upper()
     return terminal or None
@@ -813,10 +743,7 @@ def agent_endpoint_code_label(code: Any, terminal: Any) -> str:
     return f"{normalized}({rendered_terminal})" if rendered_terminal else normalized
 
 
-def agent_endpoint_label(
-    segment: dict[str, Any], endpoint: str, *, show_airport: bool
-) -> str:
-    del show_airport
+def agent_endpoint_display_label(segment: dict[str, Any], endpoint: str) -> str:
     if endpoint == "origin":
         code = segment.get("origin")
         terminal = segment.get("departure_terminal")
@@ -929,16 +856,11 @@ def render_direction_for_catalog(
 
 def render_agent_display_segment(
     segment: dict[str, Any],
-    *,
-    show_origin_airport: bool = False,
-    show_destination_airport: bool = False,
 ) -> str:
     departure_at = segment.get("departure_at")
     arrival_at = segment.get("arrival_at")
-    origin = agent_endpoint_label(segment, "origin", show_airport=show_origin_airport)
-    destination = agent_endpoint_label(
-        segment, "destination", show_airport=show_destination_airport
-    )
+    origin = agent_endpoint_display_label(segment, "origin")
+    destination = agent_endpoint_display_label(segment, "destination")
     aircraft = aircraft_display_label(segment.get("aircraft_code")) or "н/д"
     duration = segment_duration_display(segment)
     return (
@@ -966,15 +888,7 @@ def agent_display_body_lines_for_direction(detail: dict[str, Any]) -> list[str]:
         if isinstance(layover, dict)
     ]
     for index, segment in enumerate(segments):
-        body_lines.append(
-            render_agent_display_segment(
-                segment,
-                show_origin_airport=index > 0
-                or is_multi_airport_city_airport(segment.get("origin")),
-                show_destination_airport=index < len(segments) - 1
-                or is_multi_airport_city_airport(segment.get("destination")),
-            )
-        )
+        body_lines.append(render_agent_display_segment(segment))
         if index < len(segments) - 1:
             layover = layovers[index] if index < len(layovers) else {}
             body_lines.append(render_agent_display_layover(layover))
@@ -1017,7 +931,7 @@ def agent_display_lines_for_item(item: dict[str, Any]) -> list[str]:
 def agent_display_contract(item: dict[str, Any]) -> dict[str, Any]:
     lines = agent_display_lines_for_item(item)
     return {
-        "style": "canonical_segment_line_v1",
+        "style": AGENT_DISPLAY_STYLE,
         "lines": lines,
         "text": "\n".join(lines),
     }
@@ -1135,7 +1049,7 @@ def catalog_item(
         "badges": badges,
         "caveats": caveats,
         "agent_display": {
-            "style": "canonical_segment_line_v1",
+            "style": AGENT_DISPLAY_STYLE,
             "lines": [],
             "text": "",
         },

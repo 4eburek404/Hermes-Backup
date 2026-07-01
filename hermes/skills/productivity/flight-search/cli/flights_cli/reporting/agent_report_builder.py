@@ -20,6 +20,7 @@ from .user_answer import build_user_answer
 from .projections.human_answer_mirror import build_human_answer_mirror
 from .option_projector import (
     candidate_options_from_details,
+    detail_stop_policy_selection,
     priority_candidate_options,
     ranked_candidate_options,
 )
@@ -61,33 +62,6 @@ def has_preferred_option(options: list[dict[str, Any]]) -> bool:
         int(option.get("max_connections_per_journey") or 0) <= 1
         for option in options
         if isinstance(option, dict)
-    )
-
-
-def option_requires_two_stop_tier(option: dict[str, Any]) -> bool:
-    if option.get("stop_tier") == "T2_TWO_STOP":
-        return True
-    validation_summary = (
-        option.get("validation_summary")
-        if isinstance(option.get("validation_summary"), dict)
-        else {}
-    )
-    if validation_summary.get("stop_tier") == "T2_TWO_STOP":
-        return True
-    try:
-        explicit_connections = option.get("max_connections_per_journey")
-        if explicit_connections is not None and int(explicit_connections) == 2:
-            return True
-    except (TypeError, ValueError):
-        pass
-    return option_max_connections_per_journey(option) == 2
-
-
-def selected_two_stop_option_count(options: list[dict[str, Any]]) -> int:
-    return sum(
-        1
-        for option in options
-        if isinstance(option, dict) and option_requires_two_stop_tier(option)
     )
 
 
@@ -164,7 +138,7 @@ def merge_stop_policy_diagnostics(
     data: dict[str, Any],
     aggregate_controls: list[dict[str, Any]],
     preferred_available: bool,
-    visible_options: list[dict[str, Any]] | None = None,
+    selected_stop_policy: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     diagnostics = dict(
         data.get("stop_policy_diagnostics")
@@ -196,10 +170,18 @@ def merge_stop_policy_diagnostics(
         int(diagnostics.get("two_stop_suppressed_because_preferred_exists") or 0)
         + aggregate_counts["aggregate_two_stop_suppressed_because_preferred_exists"]
     )
-    selected_two_stop_count = selected_two_stop_option_count(visible_options or [])
+    selected_stop_policy = (
+        selected_stop_policy if isinstance(selected_stop_policy, dict) else {}
+    )
+    selected_two_stop_count = int(
+        selected_stop_policy.get("selected_two_stop_option_count") or 0
+    )
     if selected_two_stop_count:
         diagnostics["used_two_stop_tier"] = True
         diagnostics["used_tier2_two_stop"] = True
+        diagnostics["selected_stop_policy_source"] = str(
+            selected_stop_policy.get("source") or "candidate_details"
+        )
         diagnostics["selected_two_stop_option_count"] = selected_two_stop_count
         diagnostics["two_stop_candidate_count"] = max(
             int(diagnostics.get("two_stop_candidate_count") or 0),
@@ -1047,6 +1029,11 @@ def build_agent_report(
         if isinstance(data.get("ranked_candidates"), list)
         else []
     )
+    frontier_candidates = (
+        data.get("frontier_candidates")
+        if isinstance(data.get("frontier_candidates"), list)
+        else []
+    )
     catalog_limit = (
         min(len(ranked_candidates), ALL_DIRECT_CATALOG_CAP)
         if all_direct
@@ -1066,6 +1053,10 @@ def build_agent_report(
     priority_options = order_frontier_options(
         priority_candidate_options(data, limit=5),
         is_round_trip_request=requested_round_trip,
+    )
+    selected_stop_policy = detail_stop_policy_selection(
+        ranked_candidates[:catalog_limit] + frontier_candidates[:5],
+        limit=catalog_limit + 5,
     )
     preferred_available = has_preferred_option(
         options + priority_options
@@ -1091,7 +1082,7 @@ def build_agent_report(
         data,
         raw_aggregate_controls,
         preferred_available,
-        visible_options=options + priority_options,
+        selected_stop_policy=selected_stop_policy,
     )
     coverage_diagnostics = build_coverage_diagnostics(plan, live)
     plan_flow_decision = plan.get("flow_decision") if isinstance(plan, dict) else {}

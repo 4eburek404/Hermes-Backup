@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:hermes:flights-cli:flight-search-user-answer:v3",
+  "$id": "urn:hermes:flights-cli:flight-search-user-answer:v4",
   "title": "Hermes Flight Search User Answer v3",
   "type": "object",
   "additionalProperties": false,
@@ -19,7 +19,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "flight_search_user_answer.v3"
+      "const": "flight_search_user_answer.v4"
     },
     "route": {
       "type": "object",

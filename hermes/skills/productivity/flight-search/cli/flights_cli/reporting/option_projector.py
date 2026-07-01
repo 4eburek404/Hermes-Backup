@@ -5,6 +5,33 @@ from typing import Any
 from .formatting import minutes_label, price_label
 
 
+def detail_stop_policy_selection(details: list[Any], limit: int = 5) -> dict[str, Any]:
+    selected_two_stop_count = 0
+    for detail in details[: max(0, limit)]:
+        if not isinstance(detail, dict):
+            continue
+        ranked = detail.get("ranked") if isinstance(detail.get("ranked"), dict) else {}
+        validation_summary = (
+            ranked.get("validation_summary")
+            if isinstance(ranked.get("validation_summary"), dict)
+            else {}
+        )
+        try:
+            max_connections = int(
+                validation_summary.get("max_connections_per_journey") or 0
+            )
+        except (TypeError, ValueError):
+            max_connections = 0
+        if validation_summary.get("stop_tier") == "T2_TWO_STOP" or max_connections == 2:
+            selected_two_stop_count += 1
+    return {
+        "source": "candidate_details",
+        "selected_two_stop_option_count": selected_two_stop_count,
+        "used_two_stop_tier": selected_two_stop_count > 0,
+        "used_tier2_two_stop": selected_two_stop_count > 0,
+    }
+
+
 def segment_summary(
     segment: dict[str, Any], direction: str | None = None
 ) -> dict[str, Any]:

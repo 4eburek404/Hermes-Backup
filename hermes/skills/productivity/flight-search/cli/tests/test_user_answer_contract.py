@@ -398,7 +398,7 @@ class FinalAnswerContractTests(unittest.TestCase):
 
         Draft202012Validator.check_schema(schema)
         self.assertEqual(
-            parsed["$id"], "urn:hermes:flights-cli:flight-search-user-answer:v3"
+            parsed["$id"], "urn:hermes:flights-cli:flight-search-user-answer:v4"
         )
         expected_keys = {
             "schema_version",
@@ -806,24 +806,14 @@ class FinalAnswerContractTests(unittest.TestCase):
         report["priority_options"] = [alias]
         report["status"] = {"all_direct_inventory": False, "direct_omitted": 0}
 
-        with (
-            patch(
-                "flights_cli.reporting.user_answer.airport_city_label",
-                side_effect=lambda code: {
-                    "SVX": "Екатеринбург",
-                    "SVO": "Москва",
-                    "IST": "Стамбул",
-                }.get(code, code),
-                create=True,
-            ),
-            patch(
-                "flights_cli.reporting.user_answer.airport_name_label",
-                side_effect=lambda code: {
-                    "SVO": "Шереметьево",
-                    "IST": "Стамбул IST",
-                }.get(code, code),
-                create=True,
-            ),
+        with patch(
+            "flights_cli.reporting.user_answer.airport_city_label",
+            side_effect=lambda code: {
+                "SVX": "Екатеринбург",
+                "SVO": "Москва",
+                "IST": "Стамбул",
+            }.get(code, code),
+            create=True,
         ):
             answer = build_user_answer(report)
 

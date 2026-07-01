@@ -372,8 +372,13 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         validate_agent_report(report)
         diagnostics = report["evidence"]["stop_policy_diagnostics"]
         self.assertTrue(diagnostics["used_two_stop_tier"])
+        self.assertEqual(
+            diagnostics["selected_stop_policy_source"], "candidate_details"
+        )
         self.assertEqual(diagnostics["selected_two_stop_option_count"], 1)
-        self.assertTrue(report["user_answer"]["stop_policy_status"]["two_stop_tier_used"])
+        self.assertTrue(
+            report["user_answer"]["stop_policy_status"]["two_stop_tier_used"]
+        )
 
     def test_segment_search_evidence_keeps_route_and_carrier_scope(self) -> None:
         options = assembly_options_from_args(self._args())
