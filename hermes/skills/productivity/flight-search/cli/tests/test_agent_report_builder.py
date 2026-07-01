@@ -281,6 +281,100 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         )
         self.assertIn("Не проверено из-за лимита: TBS.", rendered)
 
+    def test_two_stop_frontier_marks_tier2_used_in_agent_report(self) -> None:
+        options = assembly_options_from_args(self._args())
+        data = empty_assembled_result(options)
+        segments = [
+            segment(
+                "NTE",
+                "CDG",
+                "2026-07-09T18:45:00+02:00",
+                "2026-07-09T19:55:00+02:00",
+                "AF7507",
+                "AF",
+            ),
+            segment(
+                "CDG",
+                "IST",
+                "2026-07-09T22:55:00+02:00",
+                "2026-07-10T03:30:00+03:00",
+                "TK1828",
+                "TK",
+            ),
+            segment(
+                "IST",
+                "SVX",
+                "2026-07-10T12:50:00+03:00",
+                "2026-07-10T19:55:00+05:00",
+                "U6774",
+                "U6",
+            ),
+        ]
+        data["frontier_candidates"] = [
+            {
+                "category": "frontier_best",
+                "ranked": {
+                    "rank": 1,
+                    "id": "nte-svx-two-stop",
+                    "ok": True,
+                    "price": 70279,
+                    "currency": "RUB",
+                    "elapsed_min": 1510,
+                    "carriers": ["AF", "TK", "U6"],
+                    "risk": {
+                        "score": 20,
+                        "grade": "ok",
+                        "reject": False,
+                        "top_reasons": [],
+                    },
+                    "validation_summary": {
+                        "ok": True,
+                        "stop_tier": "T2_TWO_STOP",
+                        "max_connections_per_journey": 2,
+                    },
+                    "connections": [],
+                },
+                "candidate": {
+                    "id": "nte-svx-two-stop",
+                    "source_type": "gateway_separate_ticket",
+                    "covers_requested_trip": True,
+                    "journey_scope": "one_way",
+                    "price_basis": "summed_live_leg_prices",
+                    "ticketing_model": "separate_ticket_sum",
+                    "journeys": [{"direction": "outbound", "segments": segments}],
+                },
+            }
+        ]
+        data["live_search"] = {
+            "source": "fixture",
+            "provider_policy": "tutu",
+            "plan": {
+                "origin": "NTE",
+                "destination": "SVX",
+                "origin_airports": ["NTE"],
+                "destination_airports": ["SVX"],
+                "dates": {"depart": "2026-07-09", "return": None},
+                "profile": "business",
+                "routing_strategy": "default",
+                "coverage_mode": "targeted",
+                "coverage_controls": [],
+                "coverage_limits": {},
+            },
+            "segment_searches": [],
+            "hub_viability": [],
+            "aggregate_controls": [],
+            "failures": [],
+            "failure_count": 0,
+        }
+
+        report = build_agent_report(data)
+
+        validate_agent_report(report)
+        diagnostics = report["evidence"]["stop_policy_diagnostics"]
+        self.assertTrue(diagnostics["used_two_stop_tier"])
+        self.assertEqual(diagnostics["selected_two_stop_option_count"], 1)
+        self.assertTrue(report["user_answer"]["stop_policy_status"]["two_stop_tier_used"])
+
     def test_segment_search_evidence_keeps_route_and_carrier_scope(self) -> None:
         options = assembly_options_from_args(self._args())
         data = empty_assembled_result(options)

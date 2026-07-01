@@ -542,7 +542,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         self.assertEqual(answer["catalog"]["presentation"]["max_items"], 2)
         self.assertEqual(
             answer["catalog"]["items"][0]["agent_display"]["style"],
-            "inline_number_itinerary_with_aircraft_duration_v1",
+            "canonical_segment_line_v1",
         )
         self.assertEqual(
             [item["number"] for item in answer["catalog"]["items"]], [1, 2]

@@ -805,18 +805,29 @@ def terminal_label(value: Any) -> str | None:
     return terminal or None
 
 
+def agent_endpoint_code_label(code: Any, terminal: Any) -> str:
+    normalized = str(code or "").strip().upper()
+    if not normalized:
+        return "???"
+    rendered_terminal = terminal_label(terminal)
+    return f"{normalized}({rendered_terminal})" if rendered_terminal else normalized
+
+
 def agent_endpoint_label(
     segment: dict[str, Any], endpoint: str, *, show_airport: bool
 ) -> str:
+    del show_airport
     if endpoint == "origin":
         code = segment.get("origin")
         terminal = segment.get("departure_terminal")
     else:
         code = segment.get("destination")
         terminal = segment.get("arrival_terminal")
-    label = airport_name_label(code) if show_airport else airport_city_label(code)
-    rendered_terminal = terminal_label(terminal) if show_airport else None
-    return f"{label}({rendered_terminal})" if rendered_terminal else label
+    label = airport_city_label(code)
+    code_label = agent_endpoint_code_label(code, terminal)
+    if str(label or "").strip().upper() == str(code or "").strip().upper():
+        return code_label
+    return f"{label} {code_label}"
 
 
 @lru_cache(maxsize=512)
@@ -851,7 +862,11 @@ def segment_duration_display(segment: dict[str, Any]) -> str:
     if duration is None:
         return "н/д"
     hours, minutes = divmod(duration, 60)
-    return f"{hours}:{minutes:02d}"
+    if hours and minutes:
+        return f"{hours}ч {minutes}мин"
+    if hours:
+        return f"{hours}ч"
+    return f"{minutes}мин"
 
 
 def minutes_display(value: Any) -> str:
@@ -918,19 +933,19 @@ def render_agent_display_segment(
     show_origin_airport: bool = False,
     show_destination_airport: bool = False,
 ) -> str:
-    number = segment.get("flight_number") or segment.get("carrier") or "рейс"
     departure_at = segment.get("departure_at")
     arrival_at = segment.get("arrival_at")
     origin = agent_endpoint_label(segment, "origin", show_airport=show_origin_airport)
     destination = agent_endpoint_label(
         segment, "destination", show_airport=show_destination_airport
     )
-    aircraft = aircraft_display_label(segment.get("aircraft_code")) or "борт н/д"
+    aircraft = aircraft_display_label(segment.get("aircraft_code")) or "н/д"
     duration = segment_duration_display(segment)
     return (
-        f"{number} {catalog_display_date(departure_at)} {origin} - {destination} "
-        f"{catalog_display_time(departure_at)} {catalog_display_time(arrival_at)}"
-        f"{catalog_arrival_date_suffix(departure_at, arrival_at)} {aircraft} в пути {duration}"
+        f"{catalog_display_date(departure_at)} {origin} → {destination} "
+        f"{catalog_display_time(departure_at)}–{catalog_display_time(arrival_at)}"
+        f"{catalog_arrival_date_suffix(departure_at, arrival_at)} "
+        f"борт {aircraft} в пути {duration}"
     )
 
 
@@ -1002,7 +1017,7 @@ def agent_display_lines_for_item(item: dict[str, Any]) -> list[str]:
 def agent_display_contract(item: dict[str, Any]) -> dict[str, Any]:
     lines = agent_display_lines_for_item(item)
     return {
-        "style": "inline_number_itinerary_with_aircraft_duration_v1",
+        "style": "canonical_segment_line_v1",
         "lines": lines,
         "text": "\n".join(lines),
     }
@@ -1120,7 +1135,7 @@ def catalog_item(
         "badges": badges,
         "caveats": caveats,
         "agent_display": {
-            "style": "inline_number_itinerary_with_aircraft_duration_v1",
+            "style": "canonical_segment_line_v1",
             "lines": [],
             "text": "",
         },
@@ -1293,7 +1308,11 @@ def catalog_segment_count(item: dict[str, Any]) -> int:
 
 def has_agent_display_segment_suffix(line: str) -> bool:
     return bool(
-        re.search(r"(?:\b[A-Z0-9][A-Z0-9-]*|борт н/д) в пути (?:\d+:\d{2}|н/д)$", line)
+        re.search(
+            r"борт (?:\b[A-Z0-9][A-Z0-9-]*|н/д) в пути "
+            r"(?:(?:\d+ч(?: \d+мин)?)|(?:\d+мин)|н/д)$",
+            line,
+        )
     )
 
 

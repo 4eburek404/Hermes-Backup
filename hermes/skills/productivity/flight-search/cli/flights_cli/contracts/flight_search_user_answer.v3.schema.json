@@ -593,7 +593,7 @@
       ],
       "properties": {
         "style": {
-          "const": "inline_number_itinerary_with_aircraft_duration_v1"
+          "const": "canonical_segment_line_v1"
         },
         "lines": {
           "type": "array",
