@@ -36,6 +36,10 @@ from ..execution.probe_dispatcher import (
 from ..execution.probe_intent import intent_from_control, intent_from_segment
 from ..execution.probe_ledger import ProbeExecutionLedger
 from ..execution.request_deduper import RequestDeduper
+from ..execution.search_wave_planner import (
+    SearchWavePlanner,
+    SearchWavePlannerOptions,
+)
 from ..execution.synthetic_control_runner import (
     synthesize_moscow_gateway_control_results,
 )
@@ -1005,6 +1009,7 @@ class LiveAssemblyRunner:
         self.skip_policy: SkipPolicy | None = None
         self.probe_accumulator: ProbeResultAccumulator | None = None
         self.gateway_leg_probe_executor: GatewayLegProbeExecutor | None = None
+        self.search_wave_planner: SearchWavePlanner | None = None
         self.probe_executor: SegmentProbeExecutor | None = None
         self.result_builder: LiveSearchResultBuilder | None = None
 
@@ -1013,7 +1018,10 @@ class LiveAssemblyRunner:
         assert self.probe_executor is not None
         assert self.result_builder is not None
         state.primary_offer_results = run_primary_offer_queries(
-            list(state.search_plan.get("primary_offer_queries") or []),
+            [
+                {**query, "wave_index": 0}
+                for query in list(state.search_plan.get("primary_offer_queries") or [])
+            ],
             PrimaryOfferQueryOptions(
                 live_cache_ttl_seconds=self.cache_ttl_seconds,
                 no_live_cache=not self.use_live_cache,
@@ -1023,8 +1031,8 @@ class LiveAssemblyRunner:
             kupibilet_fetcher=fetch_kupibilet_search,
             probe_ledger=state.probe_ledger,
         )
-        if self.gateway_leg_probe_executor is not None:
-            state.gateway_leg_results = self.gateway_leg_probe_executor.run(
+        if self.search_wave_planner is not None:
+            state.gateway_leg_results = self.search_wave_planner.run(
                 list(state.search_plan.get("gateway_leg_queries") or []),
                 state.plan,
             )
@@ -1088,6 +1096,18 @@ class LiveAssemblyRunner:
             cache_ttl_seconds=self.cache_ttl_seconds,
             use_live_cache=self.use_live_cache,
             kupibilet_fetcher=fetch_kupibilet_search,
+            request_deduper=self.request_deduper,
+            probe_ledger=self.state.probe_ledger,
+        )
+        self.search_wave_planner = SearchWavePlanner(
+            options=SearchWavePlannerOptions(
+                max_waves=self.options.evidence.search_wave_max_waves,
+                probes_per_wave=self.options.evidence.search_wave_probe_limit,
+                max_segment_searches=self.max_searches,
+                top_k_partial_paths=self.options.evidence.search_wave_top_k,
+                timeout_seconds=self.options.evidence.timeout,
+            ),
+            executor=self.gateway_leg_probe_executor,
         )
         self.probe_executor = SegmentProbeExecutor(
             options=self.options,

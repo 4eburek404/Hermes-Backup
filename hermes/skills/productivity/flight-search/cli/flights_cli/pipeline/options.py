@@ -14,6 +14,9 @@ from ..config import (
     DEFAULT_PROFILE,
     DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR,
     DEFAULT_ROUTING_STRATEGY,
+    DEFAULT_SEARCH_WAVE_MAX_WAVES,
+    DEFAULT_SEARCH_WAVE_PROBE_LIMIT,
+    DEFAULT_SEARCH_WAVE_TOP_K,
     FLI_MCP_DEFAULT_URL,
     PRIORITY_ROUTE_CARRIERS,
 )
@@ -84,6 +87,9 @@ class EvidenceOptions:
     timeout: int
     outbound_second_leg_day_offsets: tuple[int, ...]
     return_second_leg_day_offsets: tuple[int, ...]
+    search_wave_max_waves: int
+    search_wave_probe_limit: int
+    search_wave_top_k: int
     fail_fast: bool
     fli_mcp_url: str
 
@@ -297,6 +303,15 @@ def search_request_to_options(payload: dict[str, Any]) -> LiveAssemblyOptions:
             ),
             return_second_leg_day_offsets=_int_tuple(
                 evidence.get("return_second_leg_day_offsets")
+            ),
+            search_wave_max_waves=_int_option(
+                evidence, "search_wave_max_waves", DEFAULT_SEARCH_WAVE_MAX_WAVES
+            ),
+            search_wave_probe_limit=_int_option(
+                evidence, "search_wave_probe_limit", DEFAULT_SEARCH_WAVE_PROBE_LIMIT
+            ),
+            search_wave_top_k=_int_option(
+                evidence, "search_wave_top_k", DEFAULT_SEARCH_WAVE_TOP_K
             ),
             fail_fast=_bool_option(evidence, "fail_fast", False),
             fli_mcp_url=str(evidence.get("fli_mcp_url") or FLI_MCP_DEFAULT_URL),

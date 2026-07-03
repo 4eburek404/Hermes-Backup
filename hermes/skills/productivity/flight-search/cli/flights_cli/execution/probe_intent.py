@@ -109,7 +109,10 @@ def intent_from_segment(
         carrier=carrier,
         probe_id=str(probe_id or spec.get("probe_id") or "") or None,
         negative_evidence=str(spec.get("negative_evidence") or "") or None,
-        filters={"direct_only": True, "only_carriers": only_carriers},
+        filters={
+            "direct_only": bool(spec.get("direct_only", True)),
+            "only_carriers": only_carriers,
+        },
         metadata={
             key: value
             for key, value in dict(spec).items()
@@ -140,6 +143,24 @@ def intent_from_aggregate_query(
         if len(carriers) == 1
         else (",".join(carriers) if carriers else None)
     )
+    metadata = {
+        key: value
+        for key, value in dict(query).items()
+        if key
+        not in {
+            "probe_type",
+            "direction",
+            "origin",
+            "destination",
+            "date",
+            "provider",
+            "carrier",
+            "probe_id",
+            "negative_evidence",
+            "only_carriers",
+            "direct_only",
+        }
+    }
     return ProbeIntent(
         probe_type=str(
             query.get("probe_type")
@@ -156,4 +177,5 @@ def intent_from_aggregate_query(
             "direct_only": bool(query.get("direct_only", False)),
             "only_carriers": carriers,
         },
+        metadata=metadata,
     )

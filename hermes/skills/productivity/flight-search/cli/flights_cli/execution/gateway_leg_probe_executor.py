@@ -12,6 +12,8 @@ from .probe_dispatcher import (
     SegmentProbeOptions,
     dispatch_segment_probe,
 )
+from .probe_intent import ProbeIntent, intent_from_segment
+from .probe_ledger import ProbeExecutionLedger
 from .request_deduper import RequestDeduper
 
 
@@ -36,6 +38,8 @@ class GatewayLegProbeExecutor:
         cache_ttl_seconds: int,
         use_live_cache: bool,
         kupibilet_fetcher: Any | None = None,
+        request_deduper: RequestDeduper | None = None,
+        probe_ledger: ProbeExecutionLedger | None = None,
     ) -> None:
         self.options = options
         self.store = store
@@ -43,6 +47,8 @@ class GatewayLegProbeExecutor:
         self.cache_ttl_seconds = cache_ttl_seconds
         self.use_live_cache = use_live_cache
         self.kupibilet_fetcher = kupibilet_fetcher
+        self.request_deduper = request_deduper or RequestDeduper()
+        self.probe_ledger = probe_ledger
         self.segment_options = SegmentProbeOptions(
             segment_limit=options.segment_limit,
             timeout=options.timeout,
@@ -147,12 +153,20 @@ class GatewayLegProbeExecutor:
         self, query: dict[str, Any], plan: dict[str, Any]
     ) -> dict[str, Any]:
         provider = str(query.get("provider") or "").strip().lower()
+        intent = intent_from_segment(query, provider=provider or None)
+        if self.probe_ledger is not None:
+            self.probe_ledger.plan_intents([intent])
         if not provider:
+            if self.probe_ledger is not None:
+                self.probe_ledger.record_skipped(intent, reason="missing_provider")
             return _skipped_leg_result(query, "missing_provider")
         if str(query.get("execution_state") or "") == "skipped":
+            reason = str(query.get("reason") or "gateway_leg_query_skipped")
+            if self.probe_ledger is not None:
+                self.probe_ledger.record_skipped(intent, reason=reason)
             return _skipped_leg_result(
                 query,
-                str(query.get("reason") or "gateway_leg_query_skipped"),
+                reason,
             )
         try:
             outcomes = dispatch_segment_probe(
@@ -165,16 +179,19 @@ class GatewayLegProbeExecutor:
                 use_live_cache=self.use_live_cache,
                 provider_policy=provider,
                 kupibilet_fetcher=self.kupibilet_fetcher,
-                request_deduper=RequestDeduper(),
+                request_deduper=self.request_deduper,
             )
         except CliError as exc:
             if self.options.fail_fast:
                 raise
+            error = error_payload_from_cli_error(exc)
+            if self.probe_ledger is not None:
+                self.probe_ledger.record_failed(intent, provider=provider, error=error)
             failure = {
                 **_leg_identity(query),
                 "provider": provider,
                 "status": "error",
-                "error": error_payload_from_cli_error(exc),
+                "error": error,
             }
             return {
                 **_leg_identity(query),
@@ -184,7 +201,51 @@ class GatewayLegProbeExecutor:
                 "offer_count": 0,
                 "failure": failure,
             }
+        if self.probe_ledger is not None:
+            self._record_ledger_outcome(intent, outcomes)
         return _leg_result_from_outcomes(query, outcomes)
+
+    def _record_ledger_outcome(
+        self, intent: ProbeIntent, outcomes: list[Any]
+    ) -> None:
+        assert self.probe_ledger is not None
+        if not outcomes:
+            self.probe_ledger.record_skipped(
+                intent, reason="provider_returned_no_outcome"
+            )
+            return
+        outcome = outcomes[0]
+        summary = dict(getattr(outcome, "summary", {}) or {})
+        provider = summary.get("provider") or intent.provider
+        status = summary.get("status") or "ok"
+        failure = getattr(outcome, "failure", None)
+        if failure is not None:
+            self.probe_ledger.record_failed(
+                intent, provider=provider, error=failure.get("error")
+            )
+            return
+        if status == "deduped":
+            self.probe_ledger.record_deduped(
+                intent, original_probe_id=summary.get("original_probe_id")
+            )
+            return
+        if status == "not_supported":
+            self.probe_ledger.record_not_supported(
+                intent, provider=provider, reason=summary.get("reason")
+            )
+            return
+        if status == "skipped":
+            self.probe_ledger.record_skipped(
+                intent, reason=summary.get("reason") or "provider_skipped"
+            )
+            return
+        self.probe_ledger.record_searched(
+            intent,
+            status=status,
+            provider=provider,
+            offer_count=summary.get("offer_count"),
+            cache_status=summary.get("cache_status"),
+        )
 
 
 def _gateway_query_groups(
@@ -278,13 +339,16 @@ def _batches(items: list[str], size: int) -> list[list[str]]:
 
 
 def _leg_identity(query: dict[str, Any]) -> dict[str, Any]:
-    return {
+    item = {
         "leg": query.get("leg"),
         "origin": query.get("origin"),
         "destination": query.get("destination"),
         "date": query.get("date"),
         "gateway": query.get("gateway"),
     }
+    if "wave_index" in query:
+        item["wave_index"] = query.get("wave_index")
+    return item
 
 
 def _not_searched_leg_result(
@@ -343,6 +407,16 @@ def _leg_result_from_outcomes(
         "offer_count": offer_count,
         "offers": offers,
     }
+    for name in (
+        "source_type",
+        "probe_type",
+        "direct_only",
+        "gateway_rank",
+        "only_carriers",
+        "preferred_carriers",
+    ):
+        if name in query:
+            result[name] = query.get(name)
     failure = getattr(outcome, "failure", None)
     if failure is not None:
         result["failure"] = failure

@@ -123,6 +123,21 @@ class OfferQueryRunnerTests(unittest.TestCase):
             ["skip-1"],
         )
 
+    def test_primary_offer_query_wave_index_is_recorded_in_ledger(self) -> None:
+        ledger = ProbeExecutionLedger()
+
+        results = run_primary_offer_queries(
+            [primary_query(provider="fli", probe_id="primary-fli", wave_index=0)],
+            PrimaryOfferQueryOptions(no_live_cache=True),
+            store=store_with_airports(self),
+            probe_ledger=ledger,
+        )
+
+        diagnostics = ledger.to_coverage_diagnostics({"coverage_mode": "targeted"})
+        self.assertEqual(results[0]["status"], "not_supported")
+        self.assertEqual(diagnostics["planned_controls"][0]["wave_index"], 0)
+        self.assertEqual(diagnostics["not_supported_controls"][0]["wave_index"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

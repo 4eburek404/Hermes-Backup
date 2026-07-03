@@ -48,6 +48,9 @@ REQUEST = {
         "timeout": 42,
         "outbound_second_leg_day_offsets": [0, 1],
         "return_second_leg_day_offsets": [0, 2],
+        "search_wave_max_waves": 4,
+        "search_wave_probe_limit": 8,
+        "search_wave_top_k": 6,
         "aggregate_control_limit": 4,
         "aggregate_control_carriers": ["SU", "TK"],
         "max_segment_searches": 99,
@@ -108,6 +111,9 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
             options.evidence.aggregate_control_carriers,
             expected["aggregate_control_carriers"],
         )
+        self.assertEqual(options.evidence.search_wave_max_waves, 4)
+        self.assertEqual(options.evidence.search_wave_probe_limit, 8)
+        self.assertEqual(options.evidence.search_wave_top_k, 6)
         self.assertEqual(options.output.agent_report, expected["agent_report"])
 
     def test_search_app_adapter_matches_typed_request_adapter(self) -> None:
