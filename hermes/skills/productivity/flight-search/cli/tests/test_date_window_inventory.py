@@ -7,11 +7,11 @@ from unittest.mock import patch
 
 from flights_cli.cli import build_parser
 from flights_cli.errors import CliError
-from flights_cli.execution.probe_dispatcher import SegmentProbeOutcome
 from flights_cli.orchestrators.live_route_assembly import (
     build_live_route_segment_plan,
     run_live_route_assembly,
 )
+from flights_cli.orchestrators.search_plan_builder import build_search_plan
 from flights_cli.pipeline.search_pipeline import build_live_route_search_flow
 from flights_cli.store import Store
 from helpers import live_assembly_args
@@ -49,6 +49,45 @@ def _offer(date_text: str) -> dict[str, object]:
     }
 
 
+def _primary_results_by_query(queries, *_args, **_kwargs):
+    results = []
+    emitted_offer_dates: set[str] = set()
+    for query in queries:
+        date_text = str(query.get("date"))
+        provider = query.get("provider") or "tutu"
+        base = {
+            "role": "primary_offer_collection",
+            "source_type": "provider_full_route",
+            "direction": query.get("direction"),
+            "origin": query.get("origin"),
+            "destination": query.get("destination"),
+            "date": date_text,
+            "provider": provider,
+            "probe_id": f"probe-{date_text}",
+            "cache_status": "live",
+            "filters": {"direct_only": True, "only_carriers": []},
+            "direct_only": True,
+        }
+        if date_text == "2026-08-16" and date_text not in emitted_offer_dates:
+            emitted_offer_dates.add(date_text)
+            results.append({**base, "status": "ok", "offer_count": 1, "top_offers": [_offer(date_text)]})
+            continue
+        if date_text in {"2026-08-16", "2026-08-17"}:
+            results.append({**base, "status": "ok", "offer_count": 0, "top_offers": []})
+            continue
+        results.append(
+            {
+                **base,
+                "status": "error",
+                "execution_state": "failed",
+                "offer_count": 0,
+                "top_offers": [],
+                "error": "upstream timeout",
+            }
+        )
+    return results
+
+
 def _dispatch_by_date(spec, **_kwargs):
     date_text = str(spec.get("date"))
     base = {
@@ -71,7 +110,7 @@ def _dispatch_by_date(spec, **_kwargs):
             "date": date_text,
             "offers": [_offer(date_text)],
         }
-        return [SegmentProbeOutcome(summary=summary, segment_result=segment_result)]
+        return [{"summary": summary, "segment_result": segment_result}]
     if date_text == "2026-08-17":
         summary = {**base, "status": "ok", "offer_count": 0}
         segment_result = {
@@ -82,7 +121,7 @@ def _dispatch_by_date(spec, **_kwargs):
             "date": date_text,
             "offers": [],
         }
-        return [SegmentProbeOutcome(summary=summary, segment_result=segment_result)]
+        return [{"summary": summary, "segment_result": segment_result}]
     summary = {**base, "status": "error", "offer_count": 0, "error": "upstream timeout"}
     failure = {
         "layer": "provider",
@@ -91,7 +130,7 @@ def _dispatch_by_date(spec, **_kwargs):
         "date": date_text,
         "error": "upstream timeout",
     }
-    return [SegmentProbeOutcome(summary=summary, segment_result=None, failure=failure)]
+    return [{"summary": summary, "segment_result": None, "failure": failure}]
 
 
 class DateWindowPlanTests(unittest.TestCase):
@@ -116,27 +155,31 @@ class DateWindowPlanTests(unittest.TestCase):
 
     def test_window_expands_into_per_date_direct_segments_and_controls(self) -> None:
         args = window_args()
+        flow = build_live_route_search_flow(args, Store())
         plan = build_live_route_segment_plan(args, Store())
+        search_plan = build_search_plan(args, Store(), flow=flow, fallback_route_plan=plan)
 
-        segment_dates = sorted({str(spec.get("date")) for spec in plan["segments"]})
-        self.assertEqual(segment_dates, ["2026-08-16", "2026-08-17", "2026-08-18"])
+        query_dates = sorted(
+            {str(query.get("date")) for query in search_plan["primary_offer_queries"]}
+        )
+        self.assertEqual(query_dates, ["2026-08-16", "2026-08-17", "2026-08-18"])
         self.assertTrue(
-            all(spec.get("leg") == "direct_outbound" for spec in plan["segments"])
+            all(query.get("direct_only") for query in search_plan["primary_offer_queries"])
         )
         self.assertTrue(
             all(
-                spec.get("route_family") == "direct_inventory"
-                for spec in plan["segments"]
+                query.get("route_family") == "direct_inventory"
+                for query in search_plan["primary_offer_queries"]
             )
         )
-        self.assertEqual(plan["metrics"]["segment_search_count"], 3)
+        self.assertEqual(plan["metrics"]["segment_search_count"], 0)
         self.assertEqual(plan["dates"].get("window_end"), "2026-08-18")
 
         control_dates = sorted(
             {
                 str(control.get("date"))
                 for control in plan["coverage_controls"]
-                if control.get("type") == "exact_airport_direct"
+                if control.get("type") == "city_pair_direct"
                 and control.get("direction") == "outbound"
             }
         )
@@ -176,8 +219,8 @@ class DateWindowInventoryProjectionTests(unittest.TestCase):
     def test_runner_projects_per_date_inventory_into_report_evidence(self) -> None:
         args = window_args()
         with patch(
-            "flights_cli.orchestrators.live_assembly_runner.dispatch_segment_probe",
-            side_effect=_dispatch_by_date,
+            "flights_cli.orchestrators.live_assembly_runner.run_primary_offer_queries",
+            side_effect=_primary_results_by_query,
         ):
             result = run_live_route_assembly(args, Store())
 

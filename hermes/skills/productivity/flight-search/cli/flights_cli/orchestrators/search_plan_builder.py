@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import timedelta
 from typing import Any
 
 from ..adapters.providers.registry import (
@@ -8,16 +9,184 @@ from ..adapters.providers.registry import (
     providers_for_segment,
     route_touches_ru,
 )
+from ..config import MAX_DATE_WINDOW_DAYS
+from ..domain.airports import airport_scope_summary, explicit_or_resolved_airports
 from ..domain.gateway_discovery import GatewayDiscoveryService
+from ..domain.normalize import parse_iso_date
 from ..domain.route_access_profiles import MODE_REQUIRED, PROFILE_RESTRICTED_ACCESS
-from ..domain.vocabulary import RequiredControl
+from ..domain.vocabulary import Direction, RequiredControl, RouteFamily
+from ..errors import CliError
 from ..pipeline.options import LiveAssemblyOptions
 from ..pipeline.search_pipeline import LiveRouteSearchFlow, build_live_route_search_flow
 from ..pipeline.search_plan import FallbackSegmentPlan, GatewayDiscovery, SearchPlan
 from ..store import Store
-from .route_plan_builder import RoutePlanBuilder
 
 PRIMARY_OFFER_QUERY_LIMIT = 10
+
+
+def direct_inventory_dates(
+    options: LiveAssemblyOptions, flow: LiveRouteSearchFlow
+) -> list[str]:
+    depart = parse_iso_date(flow.request.depart_date, "depart-date")
+    window_end_raw = options.route.date_window_end
+    if not window_end_raw:
+        return [depart.isoformat()]
+    if not flow.evidence_plan.direct_only:
+        raise CliError(
+            "date_window_end requires direct-only route options: set route_options.max_connections=0 and route_options.tier2_max_connections=0",
+            error_type="validation_error",
+        )
+    if flow.request.return_date:
+        raise CliError(
+            "date_window_end is a one-way direct inventory option; remove return_date or drop the window",
+            error_type="validation_error",
+        )
+    window_end = parse_iso_date(str(window_end_raw), "date-window-end")
+    if window_end < depart:
+        raise CliError(
+            "date-window-end must be on or after depart-date",
+            error_type="validation_error",
+        )
+    window_days = (window_end - depart).days + 1
+    if window_days > MAX_DATE_WINDOW_DAYS:
+        raise CliError(
+            f"date window spans {window_days} days; bound it to at most {MAX_DATE_WINDOW_DAYS} days",
+            error_type="validation_error",
+            details={"window_days": window_days, "max_days": MAX_DATE_WINDOW_DAYS},
+        )
+    return [(depart + timedelta(days=offset)).isoformat() for offset in range(window_days)]
+
+
+def _city_pair_direct_controls(
+    options: LiveAssemblyOptions, flow: LiveRouteSearchFlow
+) -> list[dict[str, Any]]:
+    controls: list[dict[str, Any]] = []
+    if not flow.evidence_plan.direct_only and not flow.request.date_window_end:
+        return controls
+    for date_text in direct_inventory_dates(options, flow):
+        controls.append(
+            {
+                "type": "city_pair_direct",
+                "probe_type": RequiredControl.EXACT_AIRPORT_DIRECT,
+                "direction": Direction.OUTBOUND,
+                "origin": flow.request.origin,
+                "destination": flow.request.destination,
+                "date": date_text,
+                "negative_evidence": "provider_empty_only_not_route_absence",
+                "source": "direct_inventory_policy",
+            }
+        )
+    if flow.request.return_date:
+        controls.append(
+            {
+                "type": "city_pair_direct",
+                "probe_type": RequiredControl.EXACT_AIRPORT_DIRECT,
+                "direction": Direction.RETURN,
+                "origin": flow.request.destination,
+                "destination": flow.request.origin,
+                "date": flow.request.return_date,
+                "negative_evidence": "provider_empty_only_not_route_absence",
+                "source": "direct_inventory_policy",
+            }
+        )
+    return controls
+
+
+def build_runtime_route_plan(
+    options: LiveAssemblyOptions,
+    flow: LiveRouteSearchFlow,
+    store: Store | None = None,
+) -> dict[str, Any]:
+    window_end = options.route.date_window_end
+    dates: dict[str, Any] = {
+        "depart": flow.request.depart_date,
+        "return": flow.request.return_date,
+    }
+    if window_end:
+        dates["window_end"] = str(window_end)
+    route_family = str(flow.flow_decision.route_mode or flow.flow_decision.routing_strategy)
+    origin_airports, destination_airports, airport_scope = _resolved_airport_scope(
+        options, flow, store
+    )
+    return {
+        "schema_version": "flight_runtime_plan.v1",
+        "origin": flow.request.origin,
+        "destination": flow.request.destination,
+        "dates": dates,
+        "currency": flow.request.currency,
+        "profile": flow.request.profile,
+        "ticketing": flow.request.ticketing,
+        "provider_policy": flow.evidence_plan.provider_policy,
+        "routing_strategy": flow.flow_decision.routing_strategy,
+        "route_mode": flow.flow_decision.route_mode,
+        "market_class": flow.flow_decision.market_class,
+        "route_families": [{"id": route_family}],
+        "hubs": list(flow.request.hubs),
+        "origin_airports": origin_airports,
+        "destination_airports": destination_airports,
+        "airport_scope": airport_scope,
+        "direct_only": bool(flow.evidence_plan.direct_only),
+        "coverage_controls": _city_pair_direct_controls(options, flow),
+        "segments": [],
+        "metrics": {
+            "segment_search_count": 0,
+            "primary_offer_query_count": 0,
+            "gateway_leg_query_count": 0,
+            "required_controls": list(flow.evidence_plan.required_controls),
+        },
+        "flow_decision": flow.flow_decision.to_dict(),
+        "evidence_plan": flow.evidence_plan.to_dict(),
+    }
+
+
+def _resolved_airport_scope(
+    options: LiveAssemblyOptions,
+    flow: LiveRouteSearchFlow,
+    store: Store | None,
+) -> tuple[list[str], list[str], dict[str, Any] | None]:
+    if store is None:
+        return (
+            list(flow.request.origin_airports),
+            list(flow.request.destination_airports),
+            deepcopy(flow.flow_decision.airport_scope)
+            if flow.flow_decision.airport_scope is not None
+            else None,
+        )
+
+    origin_location = store.resolve_location(flow.request.origin)
+    destination_location = store.resolve_location(flow.request.destination)
+    origin_airports = explicit_or_resolved_airports(
+        store,
+        origin_location,
+        list(options.route.origin_airports),
+        role="origin",
+        max_airports=options.route.max_airports_per_city,
+    )
+    destination_airports = explicit_or_resolved_airports(
+        store,
+        destination_location,
+        list(options.route.destination_airports),
+        role="destination",
+        max_airports=options.route.max_airports_per_city,
+    )
+    return (
+        origin_airports,
+        destination_airports,
+        {
+            "origin": airport_scope_summary(
+                origin_location,
+                origin_airports,
+                list(options.route.origin_airports),
+                role="origin",
+            ),
+            "destination": airport_scope_summary(
+                destination_location,
+                destination_airports,
+                list(options.route.destination_airports),
+                role="destination",
+            ),
+        },
+    )
 
 
 class SearchPlanBuilder:
@@ -38,25 +207,21 @@ class SearchPlanBuilder:
 
     def build(self) -> SearchPlan:
         flow = self._flow or build_live_route_search_flow(self._options, self._store)
-        fallback_route_plan = self._fallback_route_plan
-        if fallback_route_plan is None:
-            fallback_route_plan = RoutePlanBuilder(
-                self._options, self._store, flow=flow
-            ).build()
-        primary_offer_queries = self._primary_offer_queries(flow, fallback_route_plan)
-        gateway_discovery = self._gateway_discovery(flow, fallback_route_plan)
+        runtime_plan = self._fallback_route_plan
+        if runtime_plan is None:
+            runtime_plan = build_runtime_route_plan(self._options, flow, self._store)
+        primary_offer_queries = self._primary_offer_queries(flow, runtime_plan)
+        gateway_discovery = self._gateway_discovery(flow, runtime_plan)
         return SearchPlan(
             primary_offer_queries=primary_offer_queries,
             mandatory_controls=[],
             gateway_discovery=gateway_discovery,
             gateway_leg_queries=self._gateway_leg_queries(
-                flow, fallback_route_plan, gateway_discovery
+                flow, runtime_plan, gateway_discovery
             ),
-            fallback_segment_plan=FallbackSegmentPlan(
-                segments=deepcopy(fallback_route_plan.get("segments") or [])
-            ),
+            fallback_segment_plan=FallbackSegmentPlan(segments=[]),
             coverage_expectations=self._coverage_expectations(
-                fallback_route_plan, primary_offer_queries
+                runtime_plan, primary_offer_queries
             ),
         )
 
@@ -332,9 +497,6 @@ class SearchPlanBuilder:
     def _primary_offer_queries(
         self, flow: LiveRouteSearchFlow, fallback_route_plan: dict[str, Any]
     ) -> list[dict[str, Any]]:
-        if flow.evidence_plan.direct_only or flow.request.date_window_end:
-            return []
-
         origin = str(fallback_route_plan.get("origin") or flow.request.origin).upper()
         destination = str(
             fallback_route_plan.get("destination") or flow.request.destination
@@ -348,6 +510,14 @@ class SearchPlanBuilder:
         ).upper()
         access_profile = str(flow.flow_decision.route_access_profile or "")
         discovery_mode = str(flow.flow_decision.gateway_discovery_mode or "disabled")
+
+        if flow.evidence_plan.direct_only or flow.request.date_window_end:
+            return self._direct_inventory_queries(
+                flow,
+                origin=origin,
+                destination=destination,
+                currency=currency,
+            )
 
         route_query: dict[str, Any] = {
             "probe_type": RequiredControl.FULL_ROUTE_AGGREGATE,
@@ -376,6 +546,8 @@ class SearchPlanBuilder:
                 "limit": PRIMARY_OFFER_QUERY_LIMIT,
                 "execution_state": "not_executed",
             }
+            if flow.request.return_date:
+                query["return_date"] = flow.request.return_date
             self._apply_constraints(query)
             if access_profile == PROFILE_RESTRICTED_ACCESS:
                 query["route_family"] = PROFILE_RESTRICTED_ACCESS
@@ -385,6 +557,90 @@ class SearchPlanBuilder:
                 query["non_exhaustive_reason"] = (
                     "restricted_access_market_requires_gateway_discovery"
                 )
+            queries.append(query)
+        return queries
+
+    def _direct_inventory_queries(
+        self,
+        flow: LiveRouteSearchFlow,
+        *,
+        origin: str,
+        destination: str,
+        currency: str,
+    ) -> list[dict[str, Any]]:
+        queries: list[dict[str, Any]] = []
+        outbound_dates = direct_inventory_dates(self._options, flow)
+        for date_text in outbound_dates:
+            queries.extend(
+                self._provider_offer_queries_for_route(
+                    flow,
+                    direction=Direction.OUTBOUND,
+                    origin=origin,
+                    destination=destination,
+                    date_text=date_text,
+                    currency=currency,
+                    direct_only=True,
+                    route_family=RouteFamily.DIRECT_INVENTORY,
+                )
+            )
+        if flow.request.return_date:
+            queries.extend(
+                self._provider_offer_queries_for_route(
+                    flow,
+                    direction=Direction.RETURN,
+                    origin=destination,
+                    destination=origin,
+                    date_text=flow.request.return_date,
+                    currency=currency,
+                    direct_only=True,
+                    route_family=RouteFamily.DIRECT_INVENTORY,
+                )
+            )
+        return queries
+
+    def _provider_offer_queries_for_route(
+        self,
+        flow: LiveRouteSearchFlow,
+        *,
+        direction: str,
+        origin: str,
+        destination: str,
+        date_text: str,
+        currency: str,
+        direct_only: bool,
+        route_family: str | None = None,
+    ) -> list[dict[str, Any]]:
+        route_query: dict[str, Any] = {
+            "probe_type": RequiredControl.FULL_ROUTE_AGGREGATE,
+            "origin": origin,
+            "destination": destination,
+            "direct_only": direct_only,
+        }
+        self._apply_constraints(route_query)
+        queries: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for provider_name in self._provider_names_for_primary_offers(flow, route_query):
+            if not provider_name or provider_name in seen:
+                continue
+            seen.add(provider_name)
+            query: dict[str, Any] = {
+                "role": "primary_offer_collection",
+                "source_type": "provider_full_route",
+                "probe_type": RequiredControl.FULL_ROUTE_AGGREGATE,
+                "provider": provider_name,
+                "direction": str(direction),
+                "origin": origin,
+                "destination": destination,
+                "date": date_text,
+                "currency": currency,
+                "direct_only": direct_only,
+                "limit": PRIMARY_OFFER_QUERY_LIMIT,
+                "execution_state": "not_executed",
+                "exhaustive": direct_only,
+            }
+            if route_family:
+                query["route_family"] = route_family
+            self._apply_constraints(query)
             queries.append(query)
         return queries
 

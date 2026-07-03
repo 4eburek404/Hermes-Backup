@@ -1095,7 +1095,7 @@ def build_catalog_contract(
     # so that every direct flight appears in the user-facing answer.
     # The flag is computed in assemble_direction and propagated through
     # report["status"]["all_direct_inventory"].
-    catalog_limit = len(recommended) if all_direct_inventory else 10
+    catalog_limit = max(1, len(recommended)) if all_direct_inventory else 10
     options = catalog_options(
         recommended,
         priority,

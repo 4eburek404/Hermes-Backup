@@ -5,6 +5,7 @@ from typing import Any
 
 from ..config import DEFAULT_CURRENCY, DEFAULT_PROFILE
 from ..contracts.registry import current_contract
+from ..domain.normalize import parse_iso_date
 from ..io import read_json_object
 from ..orchestrators.live_route_assembly import run_live_route_assembly
 from ..pipeline.options import LiveAssemblyOptions, search_request_to_options
@@ -38,6 +39,12 @@ def live_assembly_options_from_search_request(
     return search_request_to_options(payload)
 
 
+def validate_search_request_dates(payload: dict[str, Any]) -> None:
+    parse_iso_date(str(payload.get("depart_date") or ""), "depart-date")
+    if payload.get("return_date"):
+        parse_iso_date(str(payload.get("return_date") or ""), "return-date")
+
+
 def build_search_result(
     request: dict[str, Any], route_result: dict[str, Any]
 ) -> dict[str, Any]:
@@ -56,6 +63,7 @@ def build_search_result(
 
 def command_search(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     request = normalize_search_request(read_json_object(args.request))
+    validate_search_request_dates(request)
     live_assembly_options = live_assembly_options_from_search_request(request)
     route_result = run_live_route_assembly(live_assembly_options, store)
     return build_search_result(request, route_result)

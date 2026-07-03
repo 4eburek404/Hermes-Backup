@@ -11,7 +11,6 @@ from ..domain.stop_policy import (
     decide_stop_policy,
     stop_policy_payload,
 )
-from ..services.assembly import ALL_DIRECT_CATALOG_CAP
 from .projections.summary_lines import build_summary_lines
 from .coverage_projector import build_coverage_diagnostics
 from .projections.itinerary_display import build_itinerary_display
@@ -32,6 +31,7 @@ from .source_boundary_projector import source_boundaries
 from .through_fare_analyzer import through_fare_checks
 
 CATALOG_LIMIT_DEFAULT = 5
+ALL_DIRECT_CATALOG_CAP = 20
 
 
 def stop_policy_from_report_data(data: dict[str, Any]) -> StopPolicy:

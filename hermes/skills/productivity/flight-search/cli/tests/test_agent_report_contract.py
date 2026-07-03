@@ -1,16 +1,12 @@
 from __future__ import annotations
 
-import contextlib
 import copy
-import io
 import json
 import unittest
 from importlib import resources
-from unittest.mock import patch
 
 from jsonschema import Draft202012Validator
 
-from flights_cli.cli import main
 from flights_cli.errors import CliError
 from flights_cli.reporting.agent_report_projector import project_agent_report
 from flights_cli.reporting.user_answer import build_user_answer, validate_user_answer
@@ -966,122 +962,6 @@ class AgentReportContractTests(unittest.TestCase):
 
         validate_agent_report(report)
         self.assertEqual(report["evidence"]["provider_failures"][0]["provider"], "fli")
-
-    def test_json_cli_envelope_reports_contract_failure(self) -> None:
-        payload = {
-            "segment_results": [
-                {
-                    "direction": "outbound",
-                    "leg": "origin_to_hub",
-                    "query": {
-                        "origin": "SVX",
-                        "destination": "SVO",
-                        "date": "2026-06-01",
-                        "currency": "RUB",
-                    },
-                    "offers": [
-                        {
-                            "id": "svx-svo",
-                            "origin": "SVX",
-                            "destination": "SVO",
-                            "departure_airport": "SVX",
-                            "arrival_airport": "SVO",
-                            "departure_at": "2026-06-01T16:30:00+05:00",
-                            "arrival_at": "2026-06-01T17:15:00+03:00",
-                            "price": 10000,
-                            "currency": "RUB",
-                            "segments": [
-                                {
-                                    "origin": "SVX",
-                                    "destination": "SVO",
-                                    "departure_at": "2026-06-01T16:30:00+05:00",
-                                    "arrival_at": "2026-06-01T17:15:00+03:00",
-                                    "flight_number": "SU1403",
-                                    "carrier": "SU",
-                                }
-                            ],
-                        }
-                    ],
-                },
-                {
-                    "direction": "outbound",
-                    "leg": "hub_to_destination",
-                    "query": {
-                        "origin": "SVO",
-                        "destination": "DEL",
-                        "date": "2026-06-01",
-                        "currency": "RUB",
-                    },
-                    "offers": [
-                        {
-                            "id": "svo-del",
-                            "origin": "SVO",
-                            "destination": "DEL",
-                            "departure_airport": "SVO",
-                            "arrival_airport": "DEL",
-                            "departure_at": "2026-06-01T21:20:00+03:00",
-                            "arrival_at": "2026-06-02T06:00:00+05:30",
-                            "price": 20000,
-                            "currency": "RUB",
-                            "segments": [
-                                {
-                                    "origin": "SVO",
-                                    "destination": "DEL",
-                                    "departure_at": "2026-06-01T21:20:00+03:00",
-                                    "arrival_at": "2026-06-02T06:00:00+05:30",
-                                    "flight_number": "SU232",
-                                    "carrier": "SU",
-                                }
-                            ],
-                        }
-                    ],
-                },
-            ]
-        }
-        forced_error = CliError(
-            "agent_report failed contract validation",
-            error_type="contract_error",
-            details={
-                "schema_version": AGENT_REPORT_SCHEMA_VERSION,
-                "errors": [{"path": "$", "message": "forced"}],
-            },
-        )
-
-        stdout = io.StringIO()
-        stderr = io.StringIO()
-        with (
-            patch("sys.stdin", io.StringIO(json.dumps(payload))),
-            patch(
-                "flights_cli.services.agent_report.validate_agent_report",
-                side_effect=forced_error,
-            ),
-            contextlib.redirect_stdout(stdout),
-            contextlib.redirect_stderr(stderr),
-        ):
-            code = main(
-                [
-                    "flights",
-                    "--json",
-                    "route",
-                    "assemble",
-                    "--profile",
-                    "safe",
-                    "--agent-brief",
-                    "--input",
-                    "-",
-                ]
-            )
-
-        self.assertEqual(code, 1)
-        self.assertEqual(stderr.getvalue(), "")
-        error_payload = json.loads(stdout.getvalue())
-        self.assertFalse(error_payload["ok"])
-        self.assertEqual(error_payload["error"]["type"], "contract_error")
-        self.assertEqual(
-            error_payload["error"]["details"]["schema_version"],
-            AGENT_REPORT_SCHEMA_VERSION,
-        )
-
 
 if __name__ == "__main__":
     unittest.main()

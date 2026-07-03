@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import tempfile
 import unittest
 from pathlib import Path
@@ -446,7 +445,7 @@ class SearchPlanContractTests(unittest.TestCase):
             ["tutu", "kupibilet"],
         )
 
-    def test_builder_does_not_add_primary_aggregate_for_direct_inventory(
+    def test_builder_adds_direct_primary_queries_for_direct_inventory(
         self,
     ) -> None:
         store = Store()
@@ -479,18 +478,23 @@ class SearchPlanContractTests(unittest.TestCase):
                 )
 
                 validate_contract_payload("search_plan", search_plan)
-                self.assertEqual(search_plan["primary_offer_queries"], [])
+                self.assertTrue(search_plan["primary_offer_queries"])
+                self.assertTrue(
+                    all(
+                        query["direct_only"]
+                        for query in search_plan["primary_offer_queries"]
+                    )
+                )
+                self.assertTrue(
+                    all(
+                        query.get("route_family") == "direct_inventory"
+                        for query in search_plan["primary_offer_queries"]
+                    )
+                )
                 self.assertEqual(search_plan["coverage_expectations"], [])
                 self.assertEqual(
                     search_plan["fallback_segment_plan"]["segments"],
-                    route_plan["segments"],
-                )
-                self.assertTrue(route_plan["segments"])
-                self.assertTrue(
-                    all(
-                        segment.get("route_family") == "direct_inventory"
-                        for segment in route_plan["segments"]
-                    )
+                    [],
                 )
 
     def test_builder_plans_non_ru_primary_route_with_tutu_and_kupibilet(
@@ -533,10 +537,8 @@ class SearchPlanContractTests(unittest.TestCase):
                 self.assertEqual(query["limit"], 10)
                 self.assertEqual(query["execution_state"], "not_executed")
         self.assertEqual(search_plan["coverage_expectations"], [])
-        self.assertEqual(
-            search_plan["fallback_segment_plan"]["segments"], route_plan["segments"]
-        )
-        self.assertTrue(route_plan["segments"])
+        self.assertEqual(search_plan["fallback_segment_plan"]["segments"], [])
+        self.assertEqual(route_plan["segments"], [])
 
     def test_request_constraints_seed_gateway_queries_and_provider_filters(
         self,
@@ -594,7 +596,7 @@ class SearchPlanContractTests(unittest.TestCase):
         self.assertEqual(first_gateway_leg["first_departure_after"], "15:00")
         self.assertNotIn("first_departure_after", second_gateway_leg)
 
-    def test_builder_does_not_share_mutable_segment_state(self) -> None:
+    def test_builder_does_not_emit_fallback_segment_state(self) -> None:
         store = Store()
         options = live_assembly_args(
             origin="SVX",
@@ -607,14 +609,11 @@ class SearchPlanContractTests(unittest.TestCase):
             no_direct_route_intel=True,
         )
         route_plan = build_live_route_segment_plan(options, store)
-        original_segments = copy.deepcopy(route_plan["segments"])
 
         search_plan = build_search_plan(options, store, fallback_route_plan=route_plan)
-        route_plan["segments"][0]["origin"] = "MUT"
+        route_plan["segments"].append({"origin": "MUT"})
 
-        self.assertEqual(
-            search_plan["fallback_segment_plan"]["segments"], original_segments
-        )
+        self.assertEqual(search_plan["fallback_segment_plan"]["segments"], [])
 
 
 if __name__ == "__main__":

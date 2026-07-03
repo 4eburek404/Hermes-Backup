@@ -17,7 +17,6 @@ DIAGNOSTIC_COMMANDS = (
     *TARGETED_PROBE_COMMANDS,
     "route validate",
     "route rank",
-    "route assemble",
 )
 LIVE_PROVIDER_COMMANDS = (PRIMARY_ROUTE_COMMAND, *TARGETED_PROBE_COMMANDS)
 

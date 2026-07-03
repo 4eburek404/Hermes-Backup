@@ -118,12 +118,12 @@ When the report shows fewer direct flights than expected:
 2. Run `diagnose kb-search ORIGIN DEST --depart-date YYYY-MM-DD --direct-only --limit 20` when KupiBilet is the relevant provider, or `diagnose fli-search ... --direct-only` for FLI exact-airport scope.
 3. If the provider probe returns all direct offers with prices, the provider is not the root cause; inspect display/report truncation.
 4. Inspect counts:
-   - `route_result.ranked` / `route_result.ranked_candidates`;
-   - `route_result.assembly.all_direct_inventory`;
-   - `data.agent_report.frontier.recommended_options`;
-   - `data.agent_report.status` / `agent_guidance` if exposed;
-   - `data.agent_report.diagnostics.display.options` only as debug.
-5. Current pipeline writes `all_direct_inventory` in assembly and propagates it to flat `report["status"]["all_direct_inventory"]` before budgeting/user-answer construction. If direct offers vanish after that point, debug report projection/budget, not provider availability.
+   - `data.route_result.live_search.decision_frontier.options`;
+   - `data.route_result.live_search.offer_graph.edges`;
+   - `data.route_result.live_search.primary_offer_results`;
+   - `data.agent_report.frontier.decision_frontier.options`;
+   - `data.agent_report.status` / `agent_guidance` if exposed.
+5. Current pipeline writes direct-suppression state in DecisionFrontier and projects it into `report["status"]["all_direct_inventory"]` before budgeting/user-answer construction. If direct offers vanish after that point, debug report projection/budget, not provider availability.
 
 Do not claim “provider did not return prices” when a narrow direct probe shows priced direct offers.
 
@@ -205,7 +205,7 @@ If the recommended option has an overnight or very long wait, test whether same-
 
 ### Ticketing proof vs shopping evidence
 
-A route assembled from segments is shopping evidence. Single PNR, baggage-through, fare rules, refund/exchange, disruption protection, terminal certainty, and final fare require purchase-screen/airline/GDS/seller proof; see `source-boundaries.md`.
+A route option from the DecisionFrontier is shopping evidence. Single PNR, baggage-through, fare rules, refund/exchange, disruption protection, terminal certainty, and final fare require purchase-screen/airline/GDS/seller proof; see `source-boundaries.md`.
 
 ## Internal fields for diagnosis
 

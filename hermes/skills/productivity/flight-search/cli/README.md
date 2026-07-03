@@ -212,17 +212,17 @@ Useful probe shapes:
 
 These probes are narrower evidence than the assembled report. Label the scope when using them in an answer.
 
-## Route Assemble and Rank
+## Route Rank and Validate
 
-The CLI supports offline assembly/ranking for normalized segment-result JSON:
+The CLI supports offline ranking and validation for already-built itinerary JSON:
 
 ```bash
-python3 -m flights_cli --json route assemble --input segment-results.json
 python3 -m flights_cli --json route rank --input candidates.json
 python3 -m flights_cli --json route validate --input itinerary.json
 ```
 
-Use these for maintenance, fixtures, and controlled diagnostics. They are not the default answer path for live user requests.
+Use these for maintenance, fixtures, and controlled diagnostics. Live user
+answers come from `search` and its DecisionFrontier.
 
 ## Price and Purchase Caveats
 

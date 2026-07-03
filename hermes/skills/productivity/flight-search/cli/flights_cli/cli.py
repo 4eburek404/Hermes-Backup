@@ -32,7 +32,6 @@ from .commands.providers import (
     command_tutu_search,
 )
 from .commands.route import (
-    command_route_assemble,
     command_route_rank,
     command_route_validate,
 )
@@ -616,26 +615,6 @@ def _register_route_commands(sub) -> None:
     )
     route_rank.add_argument("--max-reasons", type=int, default=5)
     route_rank.set_defaults(func=command_route_rank, command_name="route rank")
-
-    route_assemble = route_sub.add_parser(
-        "assemble",
-        parents=[
-            connection_policy_parent(),
-            assembly_output_parent(),
-            stop_policy_parent(),
-            agent_output_parent(),
-            carrier_selection_parent(),
-        ],
-        help="Assemble parsed segment results into ranked itinerary candidates.",
-    )
-    route_assemble.add_argument(
-        "--input",
-        action="append",
-        help="Parsed result JSON. Repeatable; omit for stdin.",
-    )
-    route_assemble.set_defaults(
-        func=command_route_assemble, command_name="route assemble"
-    )
 
 
 def build_parser() -> argparse.ArgumentParser:

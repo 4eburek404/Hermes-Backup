@@ -1,7 +1,7 @@
 {
   "skill": {
     "name": "flight-search",
-    "version": "0.8.8"
+    "version": "0.9.0"
   },
   "cli": {
     "package": "flights-cli",
@@ -25,7 +25,6 @@
       "diagnose tutu-search",
       "diagnose fli-search",
       "diagnose fli-dates",
-      "route assemble",
       "route rank",
       "route validate"
     ]

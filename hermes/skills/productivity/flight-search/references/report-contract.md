@@ -51,7 +51,7 @@ Do not present exact routing from a summary-only option. Any option named in `an
 - `summary_only`: price/time may be known, but segment details are incomplete.
 - `missing`: do not infer routing; rerun a targeted probe or debug the report.
 
-`segment_results=[]` does not prove segment details are absent. Full route bodies can still live under `ranked_candidates[].candidate.journeys[].segments[]`. If the compact report clipped a cheaper, faster, direct, same-carrier, exact-airport, or Moscow-control option, escalate to `references/debug-playbook.md` instead of guessing.
+`segment_results=[]` does not prove route details are absent. Full route bodies now live in `frontier.decision_frontier.options[]` and `evidence.offer_graph`; diagnostics may also expose the raw provider offer under `evidence.primary_offer_results[]`. If the compact report clipped a cheaper, faster, direct, same-carrier, exact-airport, or control option, escalate to `references/debug-playbook.md` instead of guessing.
 
 ## Progressive Evidence and Offer Graph Discipline
 

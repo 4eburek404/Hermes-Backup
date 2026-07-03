@@ -129,16 +129,10 @@ class FlowDecisionEvidenceContractTests(unittest.TestCase):
         self.assertTrue(flow.evidence_plan.direct_only)
         self.assertIn("exact_airport_direct", flow.evidence_plan.required_controls)
         self.assertTrue(plan["direct_only"])
-        self.assertTrue(plan["segments"])
+        self.assertEqual(plan["segments"], [])
         self.assertTrue(
             all(
-                str(segment.get("leg") or "").startswith("direct_")
-                for segment in plan["segments"]
-            )
-        )
-        self.assertTrue(
-            all(
-                control.get("type") == "exact_airport_direct"
+                control.get("type") == "city_pair_direct"
                 for control in plan["coverage_controls"]
             )
         )
