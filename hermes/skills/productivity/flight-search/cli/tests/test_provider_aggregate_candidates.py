@@ -8,6 +8,7 @@ from flights_cli.adapters.providers.kupibilet_adapter import (
 )
 from flights_cli.services.agent_report import build_agent_report
 from flights_cli.services.agent_report_contract import validate_agent_report
+from tests.helpers import decision_frontier_from_details
 
 
 def aggregate_offer() -> dict:
@@ -552,6 +553,9 @@ class ProviderAggregateCandidateTests(unittest.TestCase):
     ) -> None:
         payload = report_payload()
         payload["ranked_candidates"] = [assembled_round_trip_detail()]
+        payload["decision_frontier"] = decision_frontier_from_details(
+            payload["ranked_candidates"]
+        )
         payload["live_search"]["plan"]["dates"] = {
             "depart": "2026-07-19",
             "return": "2026-07-24",

@@ -228,7 +228,7 @@ def _catalog_read_defaults(**kwargs: Any) -> dict[str, Any]:
 def _register_primary_search_commands(sub) -> None:
     search = sub.add_parser(
         "search",
-        help="Primary request-file route search; JSON output keeps flight_search_result.v1 envelope.",
+        help="Primary request-file route search; JSON output keeps current flight_search_result envelope.",
     )
     search.add_argument(
         "--request",

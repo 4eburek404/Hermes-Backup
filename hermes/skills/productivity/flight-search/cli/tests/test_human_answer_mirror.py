@@ -66,7 +66,7 @@ class HumanAnswerMirrorTests(unittest.TestCase):
         self,
     ) -> None:
         report = valid_report()
-        report["user_answer"] = {"schema_version": "flight_search_user_answer.v4"}
+        report["user_answer"] = {"schema_version": "flight_search_user_answer.v5"}
         report["human_answer"]["text"] = "STALE HUMAN ANSWER"
         report["display"]["text"] = "STALE DISPLAY"
         report["answer_lines"] = ["STALE ANSWER LINE"]

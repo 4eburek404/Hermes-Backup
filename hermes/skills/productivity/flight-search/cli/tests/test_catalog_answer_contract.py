@@ -111,7 +111,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
         ]
         return report
 
-    def test_v4_schema_declares_catalog_contract(self) -> None:
+    def test_v5_schema_declares_catalog_contract(self) -> None:
         schema = load_user_answer_schema()
         text = (
             resources.files(USER_ANSWER_SCHEMA_PACKAGE)
@@ -121,12 +121,12 @@ class CatalogAnswerContractTests(unittest.TestCase):
         parsed = json.loads(text)
 
         Draft202012Validator.check_schema(schema)
-        self.assertEqual(USER_ANSWER_SCHEMA_VERSION, "flight_search_user_answer.v4")
+        self.assertEqual(USER_ANSWER_SCHEMA_VERSION, "flight_search_user_answer.v5")
         self.assertEqual(
-            USER_ANSWER_SCHEMA_RESOURCE, "flight_search_user_answer.v4.schema.json"
+            USER_ANSWER_SCHEMA_RESOURCE, "flight_search_user_answer.v5.schema.json"
         )
         self.assertEqual(
-            parsed["$id"], "urn:hermes:flights-cli:flight-search-user-answer:v4"
+            parsed["$id"], "urn:hermes:flights-cli:flight-search-user-answer:v5"
         )
         expected_keys = {
             "schema_version",
@@ -175,7 +175,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
             "stop_policy_status",
         }
         self.assertEqual(set(answer), expected_keys)
-        self.assertEqual(answer["schema_version"], "flight_search_user_answer.v4")
+        self.assertEqual(answer["schema_version"], "flight_search_user_answer.v5")
         self.assertEqual(answer["answer_mode"], "catalog")
         self.assertEqual(
             answer["catalog"]["presentation"],

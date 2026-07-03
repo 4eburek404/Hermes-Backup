@@ -5,14 +5,14 @@ from typing import Any
 
 _CURRENT_CONTRACTS: dict[str, dict[str, str]] = {
     "agent_report": {
-        "schema_version": "agent_report.v2",
-        "schema_resource": "agent_report.v2.schema.json",
+        "schema_version": "agent_report.v3",
+        "schema_resource": "agent_report.v3.schema.json",
         "public_path": "data.agent_report",
         "status": "current_compat_contract",
     },
     "user_answer": {
-        "schema_version": "flight_search_user_answer.v4",
-        "schema_resource": "flight_search_user_answer.v4.schema.json",
+        "schema_version": "flight_search_user_answer.v5",
+        "schema_resource": "flight_search_user_answer.v5.schema.json",
         "public_path": "data.agent_report.user_answer",
         "canonical_text_path": "data.agent_report.user_answer.rendered_text",
         "status": "current_canonical_answer",
@@ -23,8 +23,8 @@ _CURRENT_CONTRACTS: dict[str, dict[str, str]] = {
         "status": "planned_new_root_input",
     },
     "search_result": {
-        "schema_version": "flight_search_result.v1",
-        "schema_resource": "flight_search_result.v1.schema.json",
+        "schema_version": "flight_search_result.v2",
+        "schema_resource": "flight_search_result.v2.schema.json",
         "status": "planned_new_root_output",
     },
     "search_plan": {

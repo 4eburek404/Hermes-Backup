@@ -398,7 +398,7 @@ class FinalAnswerContractTests(unittest.TestCase):
 
         Draft202012Validator.check_schema(schema)
         self.assertEqual(
-            parsed["$id"], "urn:hermes:flights-cli:flight-search-user-answer:v4"
+            parsed["$id"], "urn:hermes:flights-cli:flight-search-user-answer:v5"
         )
         expected_keys = {
             "schema_version",

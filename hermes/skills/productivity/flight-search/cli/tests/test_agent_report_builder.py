@@ -11,6 +11,7 @@ from flights_cli.services.assembly import (
     assembly_options_from_args,
     empty_assembled_result,
 )
+from tests.helpers import decision_frontier_from_details
 
 
 LON_AIRPORTS = ["LHR", "LGW", "STN", "LTN"]
@@ -141,6 +142,9 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
             "failures": [],
             "failure_count": 0,
         }
+        data["live_search"]["decision_frontier"] = decision_frontier_from_details(
+            data.get("frontier_candidates") or data.get("ranked_candidates") or []
+        )
         report = build_agent_report(data)
         validate_agent_report(report)
         return report
@@ -366,6 +370,9 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
             "failures": [],
             "failure_count": 0,
         }
+        data["live_search"]["decision_frontier"] = decision_frontier_from_details(
+            data["frontier_candidates"]
+        )
 
         report = build_agent_report(data)
 
@@ -373,7 +380,7 @@ class RuPriorityAgentReportBuilderTests(unittest.TestCase):
         diagnostics = report["evidence"]["stop_policy_diagnostics"]
         self.assertTrue(diagnostics["used_two_stop_tier"])
         self.assertEqual(
-            diagnostics["selected_stop_policy_source"], "candidate_details"
+            diagnostics["selected_stop_policy_source"], "decision_frontier"
         )
         self.assertEqual(diagnostics["selected_two_stop_option_count"], 1)
         self.assertTrue(

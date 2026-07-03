@@ -158,6 +158,7 @@ def project_agent_report(flat_report: dict[str, Any]) -> dict[str, Any]:
     frontier = {
         "status": flat_report.get("status") or {},
         "offer_graph": flat_report.get("offer_graph") or {},
+        "decision_frontier": flat_report.get("decision_frontier") or {},
         "recommended_options": flat_report.get("recommended_options") or [],
         "priority_options": flat_report.get("priority_options") or [],
     }

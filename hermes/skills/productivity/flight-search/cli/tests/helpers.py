@@ -17,6 +17,62 @@ TEST_ENV = {
 }
 
 
+def decision_frontier_from_details(
+    details: list[dict[str, Any]],
+) -> dict[str, Any]:
+    options: list[dict[str, Any]] = []
+    for detail in details:
+        if not isinstance(detail, dict):
+            continue
+        ranked = detail.get("ranked") if isinstance(detail.get("ranked"), dict) else {}
+        candidate = (
+            detail.get("candidate") if isinstance(detail.get("candidate"), dict) else {}
+        )
+        validation = (
+            ranked.get("validation_summary")
+            if isinstance(ranked.get("validation_summary"), dict)
+            else {}
+        )
+        option = {
+            "id": ranked.get("id") or candidate.get("id"),
+            "rank": ranked.get("rank") or detail.get("rank"),
+            "source_type": candidate.get("source_type"),
+            "provider": candidate.get("provider"),
+            "source_providers": candidate.get("source_providers") or [],
+            "gateway": candidate.get("gateway"),
+            "covers_requested_trip": candidate.get("covers_requested_trip", True),
+            "journey_scope": candidate.get("journey_scope") or "one_way",
+            "price": ranked.get("price"),
+            "currency": ranked.get("currency"),
+            "price_basis": candidate.get("price_basis"),
+            "ticketing_model": candidate.get("ticketing_model"),
+            "detail_status": detail.get("detail_status") or "full",
+            "journeys": candidate.get("journeys") or [],
+            "warnings": candidate.get("warnings") or [],
+            "elapsed_min": ranked.get("elapsed_min"),
+            "connection_risk_score": (
+                ranked.get("risk", {}).get("score")
+                if isinstance(ranked.get("risk"), dict)
+                else None
+            ),
+            "selection_reasons": [detail.get("category") or "fixture_frontier"],
+            "connection_count": validation.get("max_connections_per_journey"),
+        }
+        options.append({key: value for key, value in option.items() if value is not None})
+    return {
+        "schema_version": "flight_decision_frontier.v1",
+        "options": options,
+        "controls": [],
+        "coverage_summary": {
+            "candidate_count": len(options),
+            "acceptable_count": len(options),
+            "selected_count": len(options),
+            "rejected_count": 0,
+            "control_count": 0,
+        },
+    }
+
+
 def subparser_choices(
     parser: argparse.ArgumentParser,
 ) -> dict[str, argparse.ArgumentParser]:

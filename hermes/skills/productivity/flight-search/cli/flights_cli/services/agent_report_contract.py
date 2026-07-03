@@ -7,6 +7,7 @@ from importlib import resources
 from typing import Any
 
 from jsonschema import Draft202012Validator
+from ..contracts.registry import current_contract
 from ..contracts.schema_errors import validation_error_detail
 from ..domain.vocabulary import RouteFamily
 from ..errors import CliError
@@ -30,7 +31,7 @@ __all__ = [
     "validate_agent_report",
 ]
 
-AGENT_REPORT_SCHEMA_RESOURCE = "agent_report.v2.schema.json"
+AGENT_REPORT_SCHEMA_RESOURCE = current_contract("agent_report")["schema_resource"]
 AGENT_REPORT_SCHEMA_PACKAGE = "flights_cli.contracts"
 DETAILED_FLIGHT_NUMBER_RE = re.compile(
     r"\b(?=[A-Z0-9]{2}\s?\d{2,4}\b)(?=[A-Z0-9]*[A-Z])[A-Z0-9]{2}\s?\d{2,4}\b",

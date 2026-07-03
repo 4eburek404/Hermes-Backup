@@ -477,7 +477,7 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
         report = assembled["data"]["agent_report"]
 
         self.assertEqual(assembled["data"]["candidates"], [])
-        self.assertEqual(report["schema_version"], "agent_report.v2")
+        self.assertEqual(report["schema_version"], "agent_report.v3")
         self.assertEqual(
             report["frontier"]["recommended_options"][0]["segments"][0][
                 "flight_number"
@@ -708,7 +708,7 @@ class RouteWorkflowTests(CliSubprocessMixin, unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(set(result["data"]), {"agent_report"})
         agent_report = result["data"]["agent_report"]
-        self.assertEqual(agent_report["schema_version"], "agent_report.v2")
+        self.assertEqual(agent_report["schema_version"], "agent_report.v3")
         self.assertIn("user_answer", agent_report)
         self.assertIn("answer_lines", agent_report["diagnostics"])
         self.assertNotIn("answer_lines", agent_report)

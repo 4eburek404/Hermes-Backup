@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:hermes:flights-cli:agent-report:v2",
-  "title": "Hermes Flights CLI Agent Report v2",
+  "$id": "urn:hermes:flights-cli:agent-report:v3",
+  "title": "Hermes Flights CLI Agent Report v3",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "route", "evidence", "frontier", "user_answer", "agent_guidance", "diagnostics"],
   "properties": {
-    "schema_version": {"const": "agent_report.v2"},
+    "schema_version": {"const": "agent_report.v3"},
     "route": {"$ref": "#/$defs/route"},
     "evidence": {"$ref": "#/$defs/search_evidence"},
     "frontier": {"$ref": "#/$defs/offer_frontier"},
@@ -105,10 +105,11 @@
     "offer_frontier": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status", "offer_graph", "recommended_options", "priority_options"],
+      "required": ["status", "offer_graph", "decision_frontier", "recommended_options", "priority_options"],
       "properties": {
         "status": {"type": "object"},
         "offer_graph": {"type": "object"},
+        "decision_frontier": {"type": "object"},
         "recommended_options": {"type": "array"},
         "priority_options": {"type": "array"}
       }

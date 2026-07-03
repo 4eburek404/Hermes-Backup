@@ -328,8 +328,8 @@ class AgentReportContractTests(unittest.TestCase):
         self.assertEqual(
             schema["$schema"], "https://json-schema.org/draft/2020-12/schema"
         )
-        self.assertEqual(schema["$id"], "urn:hermes:flights-cli:agent-report:v2")
-        self.assertEqual(schema["title"], "Hermes Flights CLI Agent Report v2")
+        self.assertEqual(schema["$id"], "urn:hermes:flights-cli:agent-report:v3")
+        self.assertEqual(schema["title"], "Hermes Flights CLI Agent Report v3")
         self.assertEqual(
             schema["properties"]["schema_version"]["const"], AGENT_REPORT_SCHEMA_VERSION
         )
@@ -373,7 +373,7 @@ class AgentReportContractTests(unittest.TestCase):
         )
         parsed = json.loads(text)
 
-        self.assertEqual(parsed["$id"], "urn:hermes:flights-cli:agent-report:v2")
+        self.assertEqual(parsed["$id"], "urn:hermes:flights-cli:agent-report:v3")
         self.assertLessEqual(len(text.splitlines()), 700)
         self.assertLessEqual(len(text.encode("utf-8")), 12000)
 
@@ -648,7 +648,7 @@ class AgentReportContractTests(unittest.TestCase):
             graph["missing_evidence"][0]["reason"],
             "not_reached_by_current_live_execution",
         )
-        self.assertEqual(report["schema_version"], "agent_report.v2")
+        self.assertEqual(report["schema_version"], "agent_report.v3")
         self.assertIn("evidence", report)
         self.assertIn("frontier", report)
         self.assertIn("diagnostics", report)
@@ -862,13 +862,13 @@ class AgentReportContractTests(unittest.TestCase):
 
     def test_wrong_schema_version_fails(self) -> None:
         report = valid_agent_report_v2()
-        report["schema_version"] = "agent_report.v3"
+        report["schema_version"] = "agent_report.v2"
 
         with self.assertRaises(CliError) as ctx:
             validate_agent_report(report)
 
         self.assertEqual(ctx.exception.error_type, "contract_error")
-        self.assertEqual(ctx.exception.details["schema_version"], "agent_report.v3")
+        self.assertEqual(ctx.exception.details["schema_version"], "agent_report.v2")
 
     def test_extra_top_level_field_fails(self) -> None:
         report = valid_agent_report_v2()

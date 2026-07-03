@@ -355,8 +355,8 @@ class SearchPipelineRegressionTests(unittest.TestCase):
                 )
 
     def assert_user_answer_contract(self, result: dict[str, Any]) -> str:
-        self.assertEqual(result["schema_version"], "flight_search_result.v1")
-        self.assertEqual(result["wire_version"], "flight_search_result.v1")
+        self.assertEqual(result["schema_version"], "flight_search_result.v2")
+        self.assertEqual(result["wire_version"], "flight_search_result.v2")
         self.assertIsInstance(result["route_result"], dict)
         report = result["agent_report"]
         self.assertIs(report, result["route_result"]["agent_report"])
@@ -761,15 +761,19 @@ class SearchPipelineRegressionTests(unittest.TestCase):
             for option in result["agent_report"]["frontier"]["priority_options"]
             if option.get("category") == "provider_aggregate_candidate"
         ]
-        pair = next(
-            option
-            for option in provider_options
-            if option.get("journey_scope") == "two_one_way_pair"
+        self.assertGreaterEqual(len(provider_options), 2)
+        self.assertFalse(
+            any(
+                option.get("ticketing_model") == "round_trip_single_ticket"
+                for option in provider_options
+            )
         )
-        self.assertEqual(pair["ticketing_model"], "separate_one_way_offers")
-        self.assertNotEqual(pair["journey_scope"], "round_trip")
+        self.assertEqual(
+            result["agent_report"]["frontier"]["decision_frontier"]["options"],
+            [],
+        )
         self.assertNotIn("protected round-trip fare", text.lower())
-        self.assertIn("separate one-way", json.dumps(pair).lower())
+        self.assertIn("separate one-way", json.dumps(provider_options).lower())
 
 
 if __name__ == "__main__":

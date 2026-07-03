@@ -1,18 +1,18 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://hermes.local/flights/flight_search_result.v1.schema.json",
-  "title": "Flight Search Result v1",
+  "$id": "https://hermes.local/flights/flight_search_result.v2.schema.json",
+  "title": "Flight Search Result v2",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "wire_version", "request", "agent_report", "route_result"],
   "properties": {
-    "schema_version": {"const": "flight_search_result.v1"},
-    "wire_version": {"const": "flight_search_result.v1"},
+    "schema_version": {"const": "flight_search_result.v2"},
+    "wire_version": {"const": "flight_search_result.v2"},
     "request": {"type": "object"},
     "agent_report": {
       "type": ["object", "null"],
       "properties": {
-        "schema_version": {"const": "agent_report.v2"}
+        "schema_version": {"const": "agent_report.v3"}
       },
       "required": ["schema_version"]
     },

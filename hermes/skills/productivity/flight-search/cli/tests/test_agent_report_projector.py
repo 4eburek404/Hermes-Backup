@@ -21,7 +21,7 @@ class AgentReportProjectorModuleTests(unittest.TestCase):
             AGENT_REPORT_SCHEMA_VERSION,
             current_contract("agent_report")["schema_version"],
         )
-        self.assertEqual(report["schema_version"], "agent_report.v2")
+        self.assertEqual(report["schema_version"], "agent_report.v3")
         self.assertIn("user_answer", report)
         self.assertIn("diagnostics", report)
 

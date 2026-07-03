@@ -783,6 +783,88 @@ def frontier_representative_details(
     return selected
 
 
+def decision_frontier_from_details(details: list[dict[str, Any]]) -> dict[str, Any]:
+    options: list[dict[str, Any]] = []
+    for detail in details:
+        if not isinstance(detail, dict):
+            continue
+        ranked = detail.get("ranked") if isinstance(detail.get("ranked"), dict) else {}
+        candidate = (
+            detail.get("candidate") if isinstance(detail.get("candidate"), dict) else {}
+        )
+        validation = (
+            ranked.get("validation_summary")
+            if isinstance(ranked.get("validation_summary"), dict)
+            else {}
+        )
+        risk = ranked.get("risk") if isinstance(ranked.get("risk"), dict) else {}
+        option = {
+            "id": ranked.get("id") or candidate.get("id"),
+            "rank": ranked.get("rank") or detail.get("rank"),
+            "category": detail.get("category"),
+            "source_type": candidate.get("source_type") or "assembled_separate_ticket",
+            "provider": candidate.get("provider"),
+            "source_providers": candidate.get("source_providers") or [],
+            "gateway": candidate.get("gateway"),
+            "covers_requested_trip": candidate.get("covers_requested_trip", True),
+            "journey_scope": candidate.get("journey_scope") or "one_way",
+            "price": ranked.get("price"),
+            "currency": ranked.get("currency"),
+            "price_basis": candidate.get("price_basis") or "summed_live_leg_prices",
+            "ticketing_model": candidate.get("ticketing_model")
+            or "separate_ticket_sum",
+            "detail_status": detail.get("detail_status") or "full",
+            "journeys": candidate.get("journeys") or [],
+            "warnings": candidate.get("warnings") or [],
+            "elapsed_min": ranked.get("elapsed_min"),
+            "connection_risk_score": risk.get("score"),
+            "connections": ranked.get("connections") or [],
+            "validation_summary": validation,
+            "selection_reasons": [detail.get("category") or "legacy_assembly_frontier"],
+            "connection_count": validation.get("max_connections_per_journey"),
+        }
+        options.append(
+            {key: value for key, value in option.items() if value is not None}
+        )
+    return {
+        "schema_version": "flight_decision_frontier.v1",
+        "options": options,
+        "controls": [],
+        "coverage_summary": {
+            "candidate_count": len(options),
+            "acceptable_count": len(options),
+            "selected_count": len(options),
+            "rejected_count": 0,
+            "control_count": 0,
+            "source": "legacy_assembly_adapter",
+        },
+    }
+
+
+def _merge_detail_lists(*groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for details in groups:
+        for detail in details:
+            ranked = (
+                detail.get("ranked") if isinstance(detail.get("ranked"), dict) else {}
+            )
+            candidate = (
+                detail.get("candidate")
+                if isinstance(detail.get("candidate"), dict)
+                else {}
+            )
+            key = (
+                str(ranked.get("id") or candidate.get("id") or ""),
+                str(detail.get("category") or ""),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(detail)
+    return merged
+
+
 def recommendation_item(item: dict[str, Any] | None) -> dict[str, Any] | None:
     if item is None:
         return None
@@ -897,6 +979,7 @@ def empty_assembled_result(options: AssemblyOptions) -> dict[str, Any]:
         "candidates": [],
         "ranked_candidates": [],
         "frontier_candidates": [],
+        "decision_frontier": decision_frontier_from_details([]),
         "recommendations": {
             "best_ranked": None,
             "cheapest_acceptable": None,
@@ -1065,6 +1148,27 @@ def assemble_segment_results(
     ranked["frontier_candidates"] = frontier_representative_details(
         full_ranked_items, candidates
     )
+    recommendation_details = ranked_candidate_details(
+        full_ranked_items,
+        candidates,
+        0,
+        required_items=recommendation_detail_items(
+            ranked["recommendations"], full_ranked_items
+        ),
+    )
+    frontier_details = _merge_detail_lists(
+        recommendation_details, ranked["frontier_candidates"]
+    )
+    if all_direct_inventory:
+        frontier_details = ranked_candidate_details(
+            full_ranked_items,
+            candidates,
+            min(len(full_ranked_items), ALL_DIRECT_CATALOG_CAP),
+            required_items=recommendation_detail_items(
+                ranked["recommendations"], full_ranked_items
+            ),
+        )
+    ranked["decision_frontier"] = decision_frontier_from_details(frontier_details)
     max_ranked = max(0, int(options.max_candidates))
     ranked["ranked"] = ranked["ranked"][:max_ranked]
     ranked["count"] = len(ranked["ranked"])
