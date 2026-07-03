@@ -1,12 +1,23 @@
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import Any
 
 from .domain.vocabulary import RoutingStrategy
 
-CACHE_DIR = Path.home() / ".hermes" / "cache" / "flight-search"
+DEFAULT_CACHE_DIR = Path.home() / ".hermes" / "cache" / "flight-search"
+
+
+def resolve_cache_dir() -> Path:
+    override = os.environ.get("FLIGHTS_CACHE_DIR")
+    if override and override.strip():
+        return Path(override).expanduser()
+    return DEFAULT_CACHE_DIR
+
+
+CACHE_DIR = resolve_cache_dir()
 
 MAX_DATE_WINDOW_DAYS = 14
 

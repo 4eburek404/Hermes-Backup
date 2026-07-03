@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .config import CACHE_DIR, IATA_RE, SPECIAL_CITY_AIRPORTS
+from .config import IATA_RE, SPECIAL_CITY_AIRPORTS, resolve_cache_dir
 from .domain.gateway_priors import GatewayPriorCatalog, load_gateway_priors
 from .domain.route_access_profiles import (
     RouteAccessDecision,
@@ -39,12 +39,12 @@ class Location:
 class Store:
     def __init__(
         self,
-        cache_dir: Path = CACHE_DIR,
+        cache_dir: Path | None = None,
         *,
         gateway_priors_path: Path | None = None,
         route_access_profiles_path: Path | None = None,
     ):
-        self.cache_dir = cache_dir
+        self.cache_dir = cache_dir or resolve_cache_dir()
         self.gateway_priors_path = gateway_priors_path
         self.route_access_profiles_path = route_access_profiles_path
         self._countries: list[dict[str, Any]] | None = None

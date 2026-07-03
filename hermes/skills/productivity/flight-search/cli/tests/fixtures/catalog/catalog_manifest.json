@@ -1,0 +1,11 @@
+{
+  "schema_version": "static-catalog-v1",
+  "entries": {
+    "countries": {"filename": "countries.json", "schema_version": "static-catalog-v1", "source": "test_fixture", "count": 12},
+    "cities": {"filename": "cities_ru.json", "schema_version": "static-catalog-v1", "source": "test_fixture", "count": 22},
+    "airports": {"filename": "airports_en.json", "schema_version": "static-catalog-v1", "source": "test_fixture", "count": 32},
+    "airlines": {"filename": "airlines_en.json", "schema_version": "static-catalog-v1", "source": "test_fixture", "count": 10},
+    "alliances": {"filename": "alliances.json", "schema_version": "static-catalog-v1", "source": "test_fixture", "count": 3},
+    "planes": {"filename": "planes.json", "schema_version": "static-catalog-v1", "source": "test_fixture", "count": 3}
+  }
+}

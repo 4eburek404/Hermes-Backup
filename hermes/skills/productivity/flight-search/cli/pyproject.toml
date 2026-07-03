@@ -23,3 +23,8 @@ include = ["flights_cli*"]
 [tool.setuptools.package-data]
 "flights_cli.contracts" = ["*.schema.json"]
 "flights_cli.data" = ["*.yaml"]
+
+[tool.pytest.ini_options]
+markers = [
+  "live_provider: opt-in tests that call live provider services or MCP servers",
+]

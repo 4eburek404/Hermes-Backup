@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+from ..domain.time import minutes_between
 from ..domain.vocabulary import IntentClass, RouteFamily
 
 
@@ -166,6 +167,10 @@ def _candidate_with_rank_diagnostics(
 ) -> dict[str, Any]:
     item = deepcopy(candidate)
     max_connections = _max_connections(candidate)
+    chronology_violations = _chronology_violations(candidate)
+    impossible_connection = _has_impossible_connection(candidate) or bool(
+        chronology_violations
+    )
     rank_components = {
         "hard_constraint_violation": 1
         if _has_hard_constraint_violation(candidate)
@@ -174,7 +179,7 @@ def _candidate_with_rank_diagnostics(
         if bool(candidate.get("covers_requested_trip"))
         else 1,
         "rejected_or_impossible_connection": 1
-        if _has_impossible_connection(candidate)
+        if impossible_connection
         else 0,
         "max_connections_per_journey": max(
             0,
@@ -186,6 +191,10 @@ def _candidate_with_rank_diagnostics(
         "price": _price_for_rank(candidate),
         "elapsed_time": _elapsed_time_for_rank(candidate),
     }
+    if chronology_violations:
+        item["candidate_status"] = "impossible"
+        item["connection_status"] = "impossible"
+        item["chronology_violations"] = chronology_violations
     item["rank_components"] = rank_components
     item["rank_key"] = [
         rank_components["hard_constraint_violation"],
@@ -249,6 +258,64 @@ def _has_impossible_connection(candidate: dict[str, Any]) -> bool:
             "airport_mismatch",
         }
     )
+
+
+def _chronology_violations(candidate: dict[str, Any]) -> list[dict[str, Any]]:
+    violations: list[dict[str, Any]] = []
+    for journey_index, direction, segments in _candidate_segment_groups(candidate):
+        for segment_index, (previous, current) in enumerate(
+            zip(segments, segments[1:])
+        ):
+            actual = minutes_between(
+                str(previous.get("arrival_at") or ""),
+                str(current.get("departure_at") or ""),
+            )
+            if actual is None or actual >= 0:
+                continue
+            violations.append(
+                {
+                    "reason": "invalid_time_order",
+                    "message": "next departure is earlier than previous arrival",
+                    "journey_index": journey_index,
+                    "journey_direction": direction,
+                    "between_segments": [segment_index, segment_index + 1],
+                    "actual_min": actual,
+                    "previous_arrival_at": previous.get("arrival_at"),
+                    "next_departure_at": current.get("departure_at"),
+                    "previous_destination": previous.get("destination"),
+                    "next_origin": current.get("origin"),
+                }
+            )
+    return violations
+
+
+def _candidate_segment_groups(
+    candidate: dict[str, Any],
+) -> list[tuple[int, str, list[dict[str, Any]]]]:
+    groups: list[tuple[int, str, list[dict[str, Any]]]] = []
+    journeys = candidate.get("journeys")
+    if isinstance(journeys, list):
+        for journey_index, journey in enumerate(journeys):
+            if not isinstance(journey, dict):
+                continue
+            raw_segments = journey.get("segments")
+            if not isinstance(raw_segments, list):
+                continue
+            segments = [segment for segment in raw_segments if isinstance(segment, dict)]
+            if segments:
+                groups.append(
+                    (
+                        journey_index,
+                        str(journey.get("direction") or f"journey_{journey_index}"),
+                        segments,
+                    )
+                )
+    raw_segments = candidate.get("segments")
+    if isinstance(raw_segments, list) and not groups:
+        segments = [segment for segment in raw_segments if isinstance(segment, dict)]
+        if segments:
+            groups.append((0, "itinerary", segments))
+    return groups
 
 
 def _ticketing_risk_tier(candidate: dict[str, Any]) -> int:
@@ -337,6 +404,8 @@ def _ranking_reasons(
         reasons.append("does_not_cover_requested_trip")
     if rank_components["rejected_or_impossible_connection"]:
         reasons.append("rejected_or_impossible_connection")
+    if _chronology_violations(candidate):
+        reasons.append("invalid_time_order")
     if rank_components["max_connections_per_journey"]:
         reasons.append("exceeds_max_connections_per_journey")
     if candidate.get("source_type") == "gateway_separate_ticket":
@@ -361,7 +430,9 @@ def _frontier_acceptable(candidate: dict[str, Any]) -> bool:
             return False
     return bool(
         candidate.get("covers_requested_trip")
-    ) and not _has_impossible_connection(candidate)
+    ) and not _has_impossible_connection(candidate) and not _chronology_violations(
+        candidate
+    )
 
 
 def _select_frontier_option(

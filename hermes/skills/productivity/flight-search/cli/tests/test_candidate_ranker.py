@@ -9,8 +9,19 @@ from flights_cli.pipeline.candidate_ranker import (
 )
 
 
-def segment(origin: str, destination: str) -> dict[str, str]:
-    return {"origin": origin, "destination": destination}
+def segment(
+    origin: str,
+    destination: str,
+    *,
+    depart: str | None = None,
+    arrive: str | None = None,
+) -> dict[str, str]:
+    item = {"origin": origin, "destination": destination}
+    if depart:
+        item["departure_at"] = depart
+    if arrive:
+        item["arrival_at"] = arrive
+    return item
 
 
 def candidate(
@@ -377,6 +388,68 @@ class CandidateRankerTests(unittest.TestCase):
         self.assertEqual(summary["acceptable_count"], 1)
         self.assertEqual(summary["selected_count"], 1)
         self.assertEqual(summary["selection_roles"], ["best_viable"])
+
+    def test_invalid_chronology_is_rejected_before_frontier(self) -> None:
+        viable = candidate(
+            "viable",
+            source_type="provider_full_route",
+            price=50000,
+            ticketing_model="provider_order_unverified",
+            segments=[
+                segment(
+                    "NTE",
+                    "AMS",
+                    depart="2026-07-09T17:20:00+02:00",
+                    arrive="2026-07-09T18:55:00+02:00",
+                ),
+                segment(
+                    "AMS",
+                    "IST",
+                    depart="2026-07-09T21:00:00+02:00",
+                    arrive="2026-07-10T01:20:00+03:00",
+                ),
+            ],
+        )
+        impossible = candidate(
+            "impossible",
+            source_type="provider_full_route",
+            price=10000,
+            ticketing_model="provider_order_unverified",
+            segments=[
+                segment(
+                    "NTE",
+                    "AMS",
+                    depart="2026-07-09T17:20:00+02:00",
+                    arrive="2026-07-09T18:55:00+02:00",
+                ),
+                segment(
+                    "AMS",
+                    "IST",
+                    depart="2026-07-09T18:00:00+02:00",
+                    arrive="2026-07-10T01:20:00+03:00",
+                ),
+            ],
+        )
+
+        ranking = rank_mixed_candidates({"candidates": [impossible, viable]})
+        ranked = {item["id"]: item for item in ranking["ranked_candidates"]}
+
+        self.assertEqual(ranking["ranked_candidates"][0]["id"], "viable")
+        self.assertEqual(
+            ranked["impossible"]["rank_components"][
+                "rejected_or_impossible_connection"
+            ],
+            1,
+        )
+        self.assertEqual(ranked["impossible"]["candidate_status"], "impossible")
+        self.assertEqual(
+            ranked["impossible"]["chronology_violations"][0]["reason"],
+            "invalid_time_order",
+        )
+        self.assertIn("invalid_time_order", ranked["impossible"]["ranking_reasons"])
+
+        frontier = build_decision_frontier(ranking)
+        self.assertEqual([item["id"] for item in frontier["options"]], ["viable"])
 
 
 if __name__ == "__main__":
