@@ -137,6 +137,9 @@ def build_decision_frontier(
             "direct_option_count": len(
                 [candidate for candidate in acceptable if _is_direct_control(candidate)]
             ),
+            "direct_option_count_by_direction": _direct_option_count_by_direction(
+                acceptable
+            ),
             "gateway_alternative_count": len(_best_gateway_alternatives(acceptable)),
             "source_types": sorted(
                 {
@@ -231,6 +234,13 @@ def _candidate_with_rank_diagnostics(
         item["chronology_violations"] = chronology_violations
     if mct_violations:
         item["mct_violations"] = mct_violations
+    journey_pairing = _journey_pairing_metadata(
+        candidate,
+        chronology_violations=chronology_violations,
+    )
+    if journey_pairing:
+        item["journey_pairing_model"] = journey_pairing["ticketing_model"]
+        item["direction_pairing"] = journey_pairing
     item["rank_components"] = rank_components
     item["rank_key"] = [
         rank_components["hard_constraint_violation"],
@@ -425,6 +435,52 @@ def _chronology_violations(candidate: dict[str, Any]) -> list[dict[str, Any]]:
                     "next_origin": current.get("origin"),
                 }
             )
+    violations.extend(_cross_direction_chronology_violations(candidate))
+    return violations
+
+
+def _cross_direction_chronology_violations(
+    candidate: dict[str, Any],
+) -> list[dict[str, Any]]:
+    outbound_groups: list[tuple[int, list[dict[str, Any]]]] = []
+    return_groups: list[tuple[int, list[dict[str, Any]]]] = []
+    for journey_index, direction, segments in _candidate_segment_groups(candidate):
+        normalized_direction = str(direction or "").strip().lower()
+        if normalized_direction == "outbound":
+            outbound_groups.append((journey_index, segments))
+        elif normalized_direction == "return":
+            return_groups.append((journey_index, segments))
+
+    violations: list[dict[str, Any]] = []
+    for outbound_index, outbound_segments in outbound_groups:
+        if not outbound_segments:
+            continue
+        outbound_final = outbound_segments[-1]
+        for return_index, return_segments in return_groups:
+            if not return_segments:
+                continue
+            return_first = return_segments[0]
+            actual = minutes_between(
+                str(outbound_final.get("arrival_at") or ""),
+                str(return_first.get("departure_at") or ""),
+            )
+            if actual is None or actual >= 0:
+                continue
+            violations.append(
+                {
+                    "reason": "return_departure_before_outbound_arrival",
+                    "message": (
+                        "return departure is earlier than final outbound arrival"
+                    ),
+                    "outbound_journey_index": outbound_index,
+                    "return_journey_index": return_index,
+                    "actual_min": actual,
+                    "outbound_arrival_at": outbound_final.get("arrival_at"),
+                    "return_departure_at": return_first.get("departure_at"),
+                    "outbound_destination": outbound_final.get("destination"),
+                    "return_origin": return_first.get("origin"),
+                }
+            )
     return violations
 
 
@@ -537,6 +593,48 @@ def _candidate_segment_groups(
         if segments:
             groups.append((0, "itinerary", segments))
     return groups
+
+
+def _journey_pairing_metadata(
+    candidate: dict[str, Any],
+    *,
+    chronology_violations: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    directions = {
+        str(direction or "").strip().lower()
+        for _, direction, segments in _candidate_segment_groups(candidate)
+        if segments
+    }
+    if not {"outbound", "return"}.issubset(directions):
+        return None
+    invalid_cross_direction = any(
+        str(violation.get("reason") or "")
+        == "return_departure_before_outbound_arrival"
+        for violation in chronology_violations
+        if isinstance(violation, dict)
+    )
+    ticketing_model = _round_trip_ticketing_model(candidate)
+    return {
+        "outbound": True,
+        "return": True,
+        "ticketing_model": ticketing_model,
+        "cross_direction_chronology": "invalid"
+        if invalid_cross_direction
+        else "valid",
+    }
+
+
+def _round_trip_ticketing_model(candidate: dict[str, Any]) -> str:
+    model = str(candidate.get("ticketing_model") or "").strip()
+    if model == "round_trip_single_ticket":
+        return "round_trip_single_ticket"
+    if model == "one_way_sum" or isinstance(candidate.get("round_trip_pair"), dict):
+        return "one_way_sum"
+    if model == "separate_ticket_sum":
+        return "one_way_sum"
+    if model == "provider_order_unverified":
+        return "round_trip_provider_order_unverified"
+    return model or "unknown"
 
 
 def _candidate_airports(candidate: dict[str, Any]) -> set[str]:
@@ -659,10 +757,13 @@ def _ticketing_risk_tier(candidate: dict[str, Any]) -> int:
         "single_pnr_proven",
         "single_ticket_proven",
         "protected_provider_order",
+        "round_trip_single_ticket",
     }:
         return 0
     if source_type == RouteFamily.DIRECT_INVENTORY:
         return 0
+    if model == "one_way_sum":
+        return 3
     if source_type == "provider_full_route":
         return 1
     if model in {"metasearch_redirect_unknown", "provider_order_unverified"}:
@@ -738,8 +839,15 @@ def _ranking_reasons(
         reasons.append("does_not_cover_requested_trip")
     if rank_components["rejected_or_impossible_connection"]:
         reasons.append("rejected_or_impossible_connection")
-    if _chronology_violations(candidate):
-        reasons.append("invalid_time_order")
+    chronology_violations = candidate.get("chronology_violations")
+    if not isinstance(chronology_violations, list):
+        chronology_violations = _chronology_violations(candidate)
+    for violation in chronology_violations:
+        if not isinstance(violation, dict):
+            continue
+        reason = str(violation.get("reason") or "invalid_time_order")
+        if reason not in reasons:
+            reasons.append(reason)
     if candidate.get("mct_violations"):
         reasons.append("cross_ticket_mct_violation")
     if rank_components["max_connections_per_journey"]:
@@ -804,6 +912,8 @@ def _frontier_option(candidate: dict[str, Any], role: str) -> dict[str, Any]:
         "currency",
         "price_basis",
         "ticketing_model",
+        "journey_pairing_model",
+        "direction_pairing",
         "detail_status",
         "journeys",
         "warnings",
@@ -984,6 +1094,25 @@ def _is_direct_control(candidate: dict[str, Any]) -> bool:
         and len(journey["segments"]) == 1
         for journey in journeys
     )
+
+
+def _direct_option_count_by_direction(
+    candidates: list[dict[str, Any]],
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for candidate in candidates:
+        if not _is_direct_control(candidate):
+            continue
+        groups = _candidate_segment_groups(candidate)
+        if not groups:
+            counts["itinerary"] = counts.get("itinerary", 0) + 1
+            continue
+        for _, direction, segments in groups:
+            if len(segments) != 1:
+                continue
+            key = str(direction or "itinerary")
+            counts[key] = counts.get(key, 0) + 1
+    return counts
 
 
 def _best_gateway_alternatives(

@@ -49,9 +49,9 @@ from ..pipeline.offer_graph import (
     build_offer_graph as build_pipeline_offer_graph,
     materialize_offer_graph_candidates,
 )
-from ..pipeline.candidate_ranker import (
-    build_decision_frontier,
-    rank_mixed_candidates,
+from ..pipeline.decision_scorer import (
+    DecisionScorer,
+    DecisionScorerOptions,
 )
 from ..pipeline.search_pipeline import LiveRouteSearchFlow, build_live_route_search_flow
 from .search_plan_builder import build_search_plan
@@ -948,17 +948,24 @@ class LiveSearchResultBuilder:
             requested_origin=str(state.plan.get("origin") or ""),
             requested_destination=str(state.plan.get("destination") or ""),
         )
-        mixed_candidate_ranking = rank_mixed_candidates(
+        scored_decisions = DecisionScorer(
+            DecisionScorerOptions(
+                round_trip=bool((state.plan.get("dates") or {}).get("return")),
+                max_connections_per_journey=2,
+                min_same_airport_connection_min=(
+                    self.options.route.min_same_airport_min
+                ),
+                min_cross_airport_connection_min=(
+                    self.options.route.min_cross_airport_min
+                ),
+            )
+        ).score(
             offer_candidates,
-            max_connections_per_journey=2,
             constraints=self.options.constraints.to_dict(),
-            min_same_airport_connection_min=self.options.route.min_same_airport_min,
-            min_cross_airport_connection_min=self.options.route.min_cross_airport_min,
-        )
-        decision_frontier = build_decision_frontier(
-            mixed_candidate_ranking,
             controls=[*graph_controls, *aggregate_controls],
         )
+        mixed_candidate_ranking = scored_decisions["mixed_candidate_ranking"]
+        decision_frontier = scored_decisions["decision_frontier"]
         assembled["live_search"] = {
             "source": source_label,
             "provider_policy": self.provider_policy,
@@ -972,6 +979,7 @@ class LiveSearchResultBuilder:
             "gateway_leg_results": state.gateway_leg_results,
             "offer_graph": offer_graph,
             "offer_candidates": offer_candidates,
+            "decision_scorer": scored_decisions["scorer"],
             "mixed_candidate_ranking": mixed_candidate_ranking,
             "decision_frontier": decision_frontier,
             "policy_controls": graph_controls,
@@ -984,6 +992,7 @@ class LiveSearchResultBuilder:
                 "gateway_leg_results": state.gateway_leg_results,
                 "offer_graph": offer_graph,
                 "offer_candidates": offer_candidates,
+                "decision_scorer": scored_decisions["scorer"],
                 "mixed_candidate_ranking": mixed_candidate_ranking,
                 "decision_frontier": decision_frontier,
                 "policy_controls": graph_controls,

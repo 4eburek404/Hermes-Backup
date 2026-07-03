@@ -7,6 +7,7 @@ from flights_cli.pipeline.candidate_ranker import (
     build_decision_frontier,
     rank_mixed_candidates,
 )
+from flights_cli.pipeline.decision_scorer import DecisionScorer, DecisionScorerOptions
 
 
 def segment(
@@ -37,6 +38,8 @@ def candidate(
     connection_risk_score: int = 0,
     elapsed_min: int = 600,
     gateway: str | None = None,
+    direction: str = "outbound",
+    journey_scope: str = "one_way",
 ) -> dict:
     return {
         "id": candidate_id,
@@ -47,7 +50,7 @@ def candidate(
         if gateway is not None
         else ("IST" if source_type == "gateway_separate_ticket" else None),
         "covers_requested_trip": covers_requested_trip,
-        "journey_scope": "one_way",
+        "journey_scope": journey_scope,
         "price": price,
         "currency": "RUB",
         "price_basis": "provider_offer_price"
@@ -55,7 +58,7 @@ def candidate(
         else "summed_live_leg_prices",
         "ticketing_model": ticketing_model,
         "detail_status": "full",
-        "journeys": [{"direction": "outbound", "segments": segments}],
+        "journeys": [{"direction": direction, "segments": segments}],
         "warnings": [],
         "elapsed_min": elapsed_min,
         "connection_risk_score": connection_risk_score,
@@ -322,6 +325,10 @@ class CandidateRankerTests(unittest.TestCase):
         self.assertIn("best_viable", by_id["direct"]["selection_reasons"])
         self.assertIn("safer_ticketing", by_id["direct"]["selection_reasons"])
         self.assertIn("direct_nonstop_control", by_id["direct"]["selection_reasons"])
+        self.assertEqual(
+            frontier["coverage_summary"]["direct_option_count_by_direction"],
+            {"outbound": 1},
+        )
 
     def test_frontier_keeps_significant_gateway_alternatives(self) -> None:
         provider = candidate(
@@ -750,6 +757,144 @@ class CandidateRankerTests(unittest.TestCase):
             ],
             1,
         )
+
+    def test_decision_scorer_keeps_round_trip_ticketing_models_distinct(
+        self,
+    ) -> None:
+        provider_round_trip = {
+            "id": "provider-round-trip",
+            "source_type": "provider_full_route",
+            "provider": "tutu",
+            "source_providers": ["tutu"],
+            "covers_requested_trip": True,
+            "journey_scope": "round_trip",
+            "price": 70000,
+            "currency": "RUB",
+            "price_basis": "provider_offer_price",
+            "ticketing_model": "round_trip_single_ticket",
+            "detail_status": "full",
+            "journeys": [
+                {
+                    "direction": "outbound",
+                    "segments": [
+                        segment(
+                            "NTE",
+                            "IST",
+                            depart="2026-07-09T17:20:00+02:00",
+                            arrive="2026-07-10T01:20:00+03:00",
+                        )
+                    ],
+                },
+                {
+                    "direction": "return",
+                    "segments": [
+                        segment(
+                            "IST",
+                            "NTE",
+                            depart="2026-07-15T10:00:00+03:00",
+                            arrive="2026-07-15T14:00:00+02:00",
+                        )
+                    ],
+                },
+            ],
+            "warnings": [],
+        }
+        outbound = candidate(
+            "outbound-one-way",
+            source_type="provider_full_route",
+            price=45000,
+            ticketing_model="provider_order_unverified",
+            segments=[
+                segment(
+                    "NTE",
+                    "IST",
+                    depart="2026-07-09T17:20:00+02:00",
+                    arrive="2026-07-10T01:20:00+03:00",
+                )
+            ],
+        )
+        inbound = candidate(
+            "return-one-way",
+            source_type="provider_full_route",
+            price=45000,
+            ticketing_model="provider_order_unverified",
+            segments=[
+                segment(
+                    "IST",
+                    "NTE",
+                    depart="2026-07-15T10:00:00+03:00",
+                    arrive="2026-07-15T14:00:00+02:00",
+                )
+            ],
+            direction="return",
+        )
+
+        scored = DecisionScorer(DecisionScorerOptions(round_trip=True)).score(
+            {"candidates": [outbound, inbound, provider_round_trip]}
+        )
+        ranked = scored["mixed_candidate_ranking"]["ranked_candidates"]
+        by_id = {item["id"]: item for item in ranked}
+        pair_id = "round-trip-pair:outbound-one-way:return-one-way"
+
+        self.assertEqual(scored["scorer"]["name"], "DecisionScorer")
+        self.assertEqual(ranked[0]["id"], "provider-round-trip")
+        self.assertEqual(
+            by_id["provider-round-trip"]["journey_pairing_model"],
+            "round_trip_single_ticket",
+        )
+        self.assertEqual(by_id[pair_id]["ticketing_model"], "one_way_sum")
+        self.assertEqual(by_id[pair_id]["journey_pairing_model"], "one_way_sum")
+        self.assertEqual(
+            scored["scorer"]["round_trip_pairing"]["one_way_pair_candidate_count"],
+            1,
+        )
+
+    def test_decision_scorer_rejects_return_before_outbound_arrival(self) -> None:
+        outbound = candidate(
+            "outbound-one-way",
+            source_type="provider_full_route",
+            price=45000,
+            ticketing_model="provider_order_unverified",
+            segments=[
+                segment(
+                    "NTE",
+                    "IST",
+                    depart="2026-07-09T17:20:00+02:00",
+                    arrive="2026-07-10T01:20:00+03:00",
+                )
+            ],
+        )
+        inbound = candidate(
+            "return-one-way",
+            source_type="provider_full_route",
+            price=45000,
+            ticketing_model="provider_order_unverified",
+            segments=[
+                segment(
+                    "IST",
+                    "NTE",
+                    depart="2026-07-09T23:00:00+03:00",
+                    arrive="2026-07-10T03:00:00+02:00",
+                )
+            ],
+            direction="return",
+        )
+
+        scored = DecisionScorer(DecisionScorerOptions(round_trip=True)).score(
+            {"candidates": [outbound, inbound]}
+        )
+        ranked = scored["mixed_candidate_ranking"]["ranked_candidates"][0]
+
+        self.assertEqual(ranked["candidate_status"], "impossible")
+        self.assertEqual(
+            ranked["chronology_violations"][0]["reason"],
+            "return_departure_before_outbound_arrival",
+        )
+        self.assertIn(
+            "return_departure_before_outbound_arrival",
+            ranked["ranking_reasons"],
+        )
+        self.assertEqual(scored["decision_frontier"]["options"], [])
 
 
 if __name__ == "__main__":
