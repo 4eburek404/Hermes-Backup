@@ -877,7 +877,7 @@ class LiveSearchResultBuilder:
             AggregateControlOptions(
                 provider_policy=self.provider_policy,
                 aggregate_control_limit=self.options.evidence.aggregate_control_limit,
-                only_carriers=self.options.filters.only_carriers,
+                only_carriers=self.options.effective_only_carriers(),
                 aggregate_control_carriers=self.options.evidence.aggregate_control_carriers,
                 live_cache_ttl_seconds=self.options.evidence.live_cache_ttl_seconds,
                 no_live_cache=self.options.evidence.no_live_cache,
@@ -922,6 +922,7 @@ class LiveSearchResultBuilder:
         mixed_candidate_ranking = rank_mixed_candidates(
             offer_candidates,
             max_connections_per_journey=2,
+            constraints=self.options.constraints.to_dict(),
         )
         decision_frontier = build_decision_frontier(mixed_candidate_ranking)
         assembled["live_search"] = {
@@ -1051,7 +1052,7 @@ class LiveAssemblyRunner:
             )
         self.only_carriers = [
             normalize_carrier_code(code, "only-carrier")
-            for code in self.options.filters.only_carriers
+            for code in self.options.effective_only_carriers()
         ]
         self.cache_ttl_seconds = int(flow.evidence_plan.live_cache_ttl_seconds)
         self.use_live_cache = bool(flow.evidence_plan.live_cache_enabled)

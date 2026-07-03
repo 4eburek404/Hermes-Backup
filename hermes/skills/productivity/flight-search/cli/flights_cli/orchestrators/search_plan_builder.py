@@ -161,20 +161,27 @@ class SearchPlanBuilder:
         gateway_discovery: GatewayDiscovery,
     ) -> list[dict[str, Any]]:
         discovery_payload = gateway_discovery.to_dict()
-        if (
-            discovery_payload.get("route_access_profile") != PROFILE_RESTRICTED_ACCESS
-            or discovery_payload.get("mode") != MODE_REQUIRED
-        ):
+        restricted_gateway_required = (
+            discovery_payload.get("route_access_profile") == PROFILE_RESTRICTED_ACCESS
+            and discovery_payload.get("mode") == MODE_REQUIRED
+        )
+        forced_candidates = self._constraint_gateway_candidates(flow)
+        if not restricted_gateway_required and not forced_candidates:
             return []
 
-        candidates = [
-            candidate
-            for candidate in discovery_payload.get("candidates") or []
-            if isinstance(candidate, dict) and candidate.get("code")
-        ]
+        candidates = list(forced_candidates)
         candidate_cap = self._gateway_candidate_cap()
-        if candidate_cap <= 0:
+        if restricted_gateway_required and candidate_cap > 0:
+            candidates.extend(
+                candidate
+                for candidate in (discovery_payload.get("candidates") or [])[
+                    :candidate_cap
+                ]
+                if isinstance(candidate, dict) and candidate.get("code")
+            )
+        if not candidates:
             return []
+        candidates = self._dedupe_gateway_candidates(candidates)
 
         origin = str(fallback_route_plan.get("origin") or flow.request.origin).upper()
         destination = str(
@@ -189,7 +196,7 @@ class SearchPlanBuilder:
         ).upper()
 
         queries: list[dict[str, Any]] = []
-        for rank, candidate in enumerate(candidates[:candidate_cap], start=1):
+        for rank, candidate in enumerate(candidates, start=1):
             gateway = str(candidate.get("code") or "").upper()
             if not gateway:
                 continue
@@ -207,9 +214,44 @@ class SearchPlanBuilder:
                         discovery_payload.get("route_access_profile") or ""
                     ),
                     gateway_discovery_mode=str(discovery_payload.get("mode") or ""),
+                    gateway_source=str(candidate.get("source") or ""),
                 )
             )
         return queries
+
+    def _constraint_gateway_candidates(
+        self, flow: LiveRouteSearchFlow
+    ) -> list[dict[str, Any]]:
+        origin = flow.request.origin.upper()
+        destination = flow.request.destination.upper()
+        endpoints = {origin, destination}
+        candidates: list[dict[str, Any]] = []
+        for code in self._options.constraints.must_include_airports:
+            airport = str(code or "").upper()
+            if not airport or airport in endpoints:
+                continue
+            candidates.append(
+                {
+                    "code": airport,
+                    "source": "request_constraint",
+                    "reason": "must_include_airport",
+                    "score": None,
+                }
+            )
+        return candidates
+
+    def _dedupe_gateway_candidates(
+        self, candidates: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        deduped: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for candidate in candidates:
+            code = str(candidate.get("code") or "").upper()
+            if not code or code in seen:
+                continue
+            seen.add(code)
+            deduped.append(candidate)
+        return deduped
 
     def _gateway_candidate_cap(self) -> int:
         configured_limit = max(0, int(self._options.route.gateway_discovery_limit))
@@ -233,6 +275,7 @@ class SearchPlanBuilder:
         score: Any,
         route_access_profile: str,
         gateway_discovery_mode: str,
+        gateway_source: str,
     ) -> list[dict[str, Any]]:
         legs = (
             ("origin_to_gateway", origin, gateway),
@@ -264,11 +307,16 @@ class SearchPlanBuilder:
                 "allows_intermediate_hubs": not direct_only,
                 "date_strategy": "requested_departure_date_only",
                 "gateway_rank": rank,
+                "gateway_source": gateway_source,
                 "candidate_score": score,
                 "route_access_profile": route_access_profile,
                 "gateway_discovery_mode": gateway_discovery_mode,
                 "execution_state": "not_executed",
             }
+            self._apply_constraints(
+                query,
+                include_first_departure_after=leg == "origin_to_gateway",
+            )
             providers = providers_for_segment(
                 query, self._store, flow.evidence_plan.provider_policy
             )
@@ -307,6 +355,7 @@ class SearchPlanBuilder:
             "destination": destination,
             "direct_only": False,
         }
+        self._apply_constraints(route_query)
         queries: list[dict[str, Any]] = []
         seen: set[str] = set()
         for provider_name in self._provider_names_for_primary_offers(flow, route_query):
@@ -327,6 +376,7 @@ class SearchPlanBuilder:
                 "limit": PRIMARY_OFFER_QUERY_LIMIT,
                 "execution_state": "not_executed",
             }
+            self._apply_constraints(query)
             if access_profile == PROFILE_RESTRICTED_ACCESS:
                 query["route_family"] = PROFILE_RESTRICTED_ACCESS
                 query["route_access_profile"] = access_profile
@@ -337,6 +387,21 @@ class SearchPlanBuilder:
                 )
             queries.append(query)
         return queries
+
+    def _apply_constraints(
+        self, query: dict[str, Any], *, include_first_departure_after: bool = True
+    ) -> None:
+        constraints = self._options.constraints
+        only_carriers = list(self._options.effective_only_carriers())
+        preferred_carriers = list(self._options.effective_prefer_carriers())
+        if constraints.first_departure_after and include_first_departure_after:
+            query["first_departure_after"] = constraints.first_departure_after
+        if constraints.must_include_airports:
+            query["must_include_airports"] = list(constraints.must_include_airports)
+        if only_carriers:
+            query["only_carriers"] = only_carriers
+        if preferred_carriers:
+            query["preferred_carriers"] = preferred_carriers
 
     def _coverage_expectations(
         self,

@@ -108,6 +108,8 @@ def _required_controls(
         decision.intent_class == IntentClass.CARRIER_OR_AIRPORT_SCOPE
         or request.only_carriers
         or request.exclude_carriers
+        or request.constraint_only_carriers
+        or request.constraint_preferred_carriers
         or request.aggregate_control_carriers
     ):
         controls.append(RequiredControl.CARRIER_AGGREGATE)

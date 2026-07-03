@@ -126,6 +126,31 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
                 {**REQUEST, "provider_policy": "both"}
             )
 
+    def test_search_request_maps_request_constraints(self) -> None:
+        request = {
+            "schema_version": "flight_search_request.v1",
+            "origin": "nte",
+            "destination": "svx",
+            "depart_date": "2026-07-09",
+            "filters": {"only_carriers": ["AF"], "prefer_carriers": ["TK"]},
+            "constraints": {
+                "first_departure_after": "15:00",
+                "must_include_airports": ["ams"],
+                "only_carriers": ["kl"],
+                "preferred_carriers": ["af"],
+            },
+        }
+        options = search_request_to_options(request)
+
+        self.assertEqual(options.constraints.first_departure_after, "15:00")
+        self.assertEqual(options.constraints.must_include_airports, ("AMS",))
+        self.assertEqual(options.constraints.only_carriers, ("KL",))
+        self.assertEqual(options.constraints.preferred_carriers, ("AF",))
+        self.assertEqual(options.filters.only_carriers, ("AF",))
+        self.assertEqual(options.effective_only_carriers(), ("AF", "KL"))
+        self.assertEqual(options.effective_prefer_carriers(), ("TK", "AF"))
+        self.assertEqual(live_assembly_options_from_search_request(request), options)
+
     def test_search_request_defaults_are_explicit_in_typed_options(self) -> None:
         options = search_request_to_options(
             {

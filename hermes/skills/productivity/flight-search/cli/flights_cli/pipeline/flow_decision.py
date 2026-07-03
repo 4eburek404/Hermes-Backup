@@ -78,6 +78,8 @@ def _has_carrier_scope(request: SearchRequest) -> bool:
         request.aggregate_control_carriers
         or request.only_carriers
         or request.exclude_carriers
+        or request.constraint_only_carriers
+        or request.constraint_preferred_carriers
     )
 
 

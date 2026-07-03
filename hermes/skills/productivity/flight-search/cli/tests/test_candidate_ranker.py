@@ -15,12 +15,14 @@ def segment(
     *,
     depart: str | None = None,
     arrive: str | None = None,
+    **extra: str,
 ) -> dict[str, str]:
     item = {"origin": origin, "destination": destination}
     if depart:
         item["departure_at"] = depart
     if arrive:
         item["arrival_at"] = arrive
+    item.update(extra)
     return item
 
 
@@ -450,6 +452,157 @@ class CandidateRankerTests(unittest.TestCase):
 
         frontier = build_decision_frontier(ranking)
         self.assertEqual([item["id"] for item in frontier["options"]], ["viable"])
+
+    def test_request_constraints_reject_before_frontier(self) -> None:
+        viable = candidate(
+            "viable",
+            source_type="provider_full_route",
+            price=50000,
+            ticketing_model="provider_order_unverified",
+            segments=[
+                segment(
+                    "NTE",
+                    "AMS",
+                    depart="2026-07-09T17:20:00+02:00",
+                    arrive="2026-07-09T18:55:00+02:00",
+                    carrier="KLM Royal Dutch Airlines",
+                ),
+                segment(
+                    "AMS",
+                    "IST",
+                    depart="2026-07-09T21:00:00+02:00",
+                    arrive="2026-07-10T01:20:00+03:00",
+                    carrier="KLM Royal Dutch Airlines",
+                ),
+            ],
+        )
+        missing_airport = candidate(
+            "missing-airport",
+            source_type="provider_full_route",
+            price=10000,
+            ticketing_model="provider_order_unverified",
+            segments=[
+                segment(
+                    "NTE",
+                    "IST",
+                    depart="2026-07-09T17:20:00+02:00",
+                    arrive="2026-07-10T01:20:00+03:00",
+                    carrier="KLM Royal Dutch Airlines",
+                )
+            ],
+        )
+        early = candidate(
+            "early",
+            source_type="provider_full_route",
+            price=11000,
+            ticketing_model="provider_order_unverified",
+            segments=[
+                segment(
+                    "NTE",
+                    "AMS",
+                    depart="2026-07-09T14:20:00+02:00",
+                    arrive="2026-07-09T15:55:00+02:00",
+                    carrier="KLM Royal Dutch Airlines",
+                ),
+                segment(
+                    "AMS",
+                    "IST",
+                    depart="2026-07-09T21:00:00+02:00",
+                    arrive="2026-07-10T01:20:00+03:00",
+                    carrier="KLM Royal Dutch Airlines",
+                ),
+            ],
+        )
+        wrong_carrier = candidate(
+            "wrong-carrier",
+            source_type="provider_full_route",
+            price=12000,
+            ticketing_model="provider_order_unverified",
+            segments=[
+                segment(
+                    "NTE",
+                    "AMS",
+                    depart="2026-07-09T17:20:00+02:00",
+                    arrive="2026-07-09T18:55:00+02:00",
+                    carrier="Air France",
+                ),
+                segment(
+                    "AMS",
+                    "IST",
+                    depart="2026-07-09T21:00:00+02:00",
+                    arrive="2026-07-10T01:20:00+03:00",
+                    carrier="Air France",
+                ),
+            ],
+        )
+
+        ranking = rank_mixed_candidates(
+            {"candidates": [missing_airport, early, wrong_carrier, viable]},
+            constraints={
+                "must_include_airports": ["AMS"],
+                "first_departure_after": "15:00",
+                "only_carriers": ["KL"],
+            },
+        )
+        ranked = {item["id"]: item for item in ranking["ranked_candidates"]}
+
+        self.assertEqual(ranking["ranked_candidates"][0]["id"], "viable")
+        self.assertEqual(
+            ranked["viable"]["rank_components"]["hard_constraint_violation"], 0
+        )
+        self.assertEqual(
+            ranked["missing-airport"]["hard_constraint_violations"][0]["reason"],
+            "missing_required_airport",
+        )
+        self.assertEqual(
+            ranked["early"]["hard_constraint_violations"][0]["reason"],
+            "first_departure_before_requested_time",
+        )
+        self.assertEqual(
+            ranked["wrong-carrier"]["hard_constraint_violations"][0]["reason"],
+            "carrier_not_allowed",
+        )
+
+        frontier = build_decision_frontier(ranking)
+        self.assertEqual([item["id"] for item in frontier["options"]], ["viable"])
+
+    def test_preferred_carrier_is_soft_rank_signal(self) -> None:
+        preferred = candidate(
+            "preferred",
+            source_type="provider_full_route",
+            price=50000,
+            ticketing_model="provider_order_unverified",
+            segments=[segment("IST", "CDG", carrier="Air France")],
+        )
+        other = candidate(
+            "other",
+            source_type="provider_full_route",
+            price=50000,
+            ticketing_model="provider_order_unverified",
+            segments=[segment("IST", "CDG", carrier="Turkish Airlines")],
+        )
+
+        ranking = rank_mixed_candidates(
+            {"candidates": [other, preferred]},
+            constraints={"preferred_carriers": ["AF"]},
+        )
+
+        self.assertEqual(
+            [item["id"] for item in ranking["ranked_candidates"]],
+            ["preferred", "other"],
+        )
+        self.assertEqual(
+            ranking["ranked_candidates"][0]["rank_components"][
+                "preferred_carrier_miss"
+            ],
+            0,
+        )
+        self.assertEqual(
+            ranking["ranked_candidates"][1]["rank_components"][
+                "preferred_carrier_miss"
+            ],
+            1,
+        )
 
 
 if __name__ == "__main__":

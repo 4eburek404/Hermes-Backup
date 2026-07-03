@@ -538,6 +538,62 @@ class SearchPlanContractTests(unittest.TestCase):
         )
         self.assertTrue(route_plan["segments"])
 
+    def test_request_constraints_seed_gateway_queries_and_provider_filters(
+        self,
+    ) -> None:
+        store = Store()
+        options = live_assembly_args(
+            origin="NTE",
+            destination="IST",
+            depart_date="2026-07-09",
+            return_date=None,
+            provider_policy="auto",
+            must_include_airport="AMS",
+            first_departure_after="15:00",
+            constraint_only_carrier="KL",
+            preferred_carrier="AF",
+            no_live_cache=True,
+            no_direct_route_intel=True,
+        )
+        flow = build_live_route_search_flow(options, store)
+        route_plan = build_live_route_segment_plan(options, store, flow=flow)
+
+        search_plan = build_search_plan(
+            options, store, flow=flow, fallback_route_plan=route_plan
+        )
+
+        validate_contract_payload("search_plan", search_plan)
+        self.assertNotEqual(search_plan["gateway_discovery"]["mode"], "required")
+        self.assertEqual(
+            [
+                (
+                    query["leg"],
+                    query["origin"],
+                    query["destination"],
+                    query["gateway"],
+                    query["gateway_source"],
+                )
+                for query in search_plan["gateway_leg_queries"]
+            ],
+            [
+                ("origin_to_gateway", "NTE", "AMS", "AMS", "request_constraint"),
+                ("gateway_to_destination", "AMS", "IST", "AMS", "request_constraint"),
+            ],
+        )
+        for query in [
+            *search_plan["primary_offer_queries"],
+            *search_plan["gateway_leg_queries"],
+        ]:
+            with self.subTest(role=query["role"], leg=query.get("leg")):
+                self.assertEqual(query["must_include_airports"], ["AMS"])
+                self.assertEqual(query["only_carriers"], ["KL"])
+                self.assertEqual(query["preferred_carriers"], ["AF"])
+        for query in search_plan["primary_offer_queries"]:
+            self.assertEqual(query["first_departure_after"], "15:00")
+        first_gateway_leg, second_gateway_leg = search_plan["gateway_leg_queries"]
+        self.assertEqual(first_gateway_leg["first_departure_after"], "15:00")
+        self.assertNotIn("first_departure_after", second_gateway_leg)
+
     def test_builder_does_not_share_mutable_segment_state(self) -> None:
         store = Store()
         options = live_assembly_args(
