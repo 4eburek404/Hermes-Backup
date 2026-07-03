@@ -16,7 +16,7 @@ from ..errors import CliError
 from ..ports.providers import ProbeType, ProviderName, ProviderProbeResult
 from ..store import Store
 from .failure_classifier import error_payload_from_cli_error
-from .probe_intent import intent_from_aggregate_query
+from .probe_intent import intent_from_aggregate_query, intent_from_control
 from .probe_ledger import ProbeExecutionLedger
 
 
@@ -102,12 +102,104 @@ def _aggregate_probe_id(
     return f"aggregate:{provider}:{direction}:{origin}-{destination}:{date_text}:{','.join(carriers) or 'all'}"
 
 
+def _graph_derived_control(
+    base_query: dict[str, Any],
+    offer_graph: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not isinstance(offer_graph, dict):
+        return None
+    origin = str(base_query.get("origin") or "").upper()
+    destination = str(base_query.get("destination") or "").upper()
+    direction = str(base_query.get("direction") or "")
+    date_text = str(base_query.get("date") or "")
+    carriers = [str(code).upper() for code in base_query.get("only_carriers") or []]
+    edges_by_id = {
+        str(edge.get("id") or ""): edge
+        for edge in offer_graph.get("edges") or []
+        if isinstance(edge, dict)
+    }
+    matches: list[dict[str, Any]] = []
+    source_providers: set[str] = set()
+    for offer in offer_graph.get("offers") or []:
+        if not isinstance(offer, dict):
+            continue
+        route = [str(code).upper() for code in offer.get("route") or [] if code]
+        if not route or route[0] != origin or route[-1] != destination:
+            continue
+        if bool(base_query.get("direct_only", False)) and len(route) != 2:
+            continue
+        if direction and str(offer.get("direction") or direction) != direction:
+            continue
+        edge_ids = [str(edge_id) for edge_id in offer.get("edge_ids") or []]
+        edges = [edges_by_id[edge_id] for edge_id in edge_ids if edge_id in edges_by_id]
+        if date_text and not _offer_matches_departure_date(edges, date_text):
+            continue
+        if carriers and not all(_edge_matches_carriers(edge, carriers) for edge in edges):
+            continue
+        provider = str(offer.get("provider") or "").lower()
+        if provider:
+            source_providers.add(provider)
+        matches.append(
+            {
+                "id": offer.get("id"),
+                "source_type": offer.get("source_type"),
+                "provider": offer.get("provider"),
+                "route": route,
+                "price": offer.get("price"),
+                "currency": offer.get("currency"),
+            }
+        )
+    if not matches:
+        return None
+    return {
+        "direction": direction,
+        "origin": origin,
+        "destination": destination,
+        "date": date_text,
+        "status": "graph_derived",
+        "provider": "graph",
+        "filters": {"direct_only": False, "only_carriers": carriers},
+        "offer_count": len(matches),
+        "raw_offer_count": len(matches),
+        "suppressed_three_plus_count": 0,
+        "suppressed_airport_change_count": 0,
+        "cache_status": "graph",
+        "top_offers": matches[: int(base_query.get("limit") or 3)],
+        "source_type": "graph_derived_control",
+        "source_providers": sorted(source_providers),
+        "graph_derived": True,
+    }
+
+
+def _offer_matches_departure_date(edges: list[dict[str, Any]], date_text: str) -> bool:
+    if not edges:
+        return True
+    first = edges[0]
+    departure_at = str(first.get("departure_at") or "")
+    if not departure_at:
+        return True
+    return departure_at.startswith(date_text)
+
+
+def _edge_matches_carriers(edge: dict[str, Any], carriers: list[str]) -> bool:
+    values = {
+        str(edge.get(name) or "").upper()
+        for name in ("carrier", "marketing_carrier", "operating_carrier")
+        if edge.get(name)
+    }
+    flight_number = str(edge.get("flight_number") or "").upper()
+    if len(flight_number) >= 2:
+        values.add(flight_number[:2])
+    return bool(values & set(carriers))
+
+
 def run_aggregate_controls(
     options: AggregateControlOptions,
     plan: dict[str, Any],
     kupibilet_fetcher: Any | None = None,
     probe_ledger: ProbeExecutionLedger | None = None,
     store: Store | None = None,
+    offer_graph: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     limit = max(0, int(options.aggregate_control_limit or 0))
     if limit <= 0:
@@ -168,6 +260,33 @@ def run_aggregate_controls(
                 "cache_ttl_seconds": cache_ttl_seconds,
                 "use_cache": use_live_cache,
             }
+            graph_control = _graph_derived_control(base_query, offer_graph)
+            if graph_control is not None:
+                query = {
+                    **base_query,
+                    "provider": "graph",
+                    "probe_id": _aggregate_probe_id(
+                        provider="graph",
+                        direction=direction,
+                        origin=origin,
+                        destination=destination,
+                        date_text=date_text,
+                        carriers=carriers,
+                    ),
+                    "source_type": "graph_derived_control",
+                }
+                intent = intent_from_aggregate_query(query, provider="graph")
+                if probe_ledger is not None:
+                    probe_ledger.plan_intents([intent])
+                    probe_ledger.record_searched(
+                        intent,
+                        status="graph_derived",
+                        provider="graph",
+                        offer_count=graph_control.get("offer_count"),
+                        cache_status="graph",
+                    )
+                controls.append(graph_control)
+                continue
             provider_names = providers_for_offer_query(
                 base_query, active_store, options.provider_policy
             )
@@ -309,4 +428,56 @@ def run_aggregate_controls(
                         carriers=carriers,
                     )
                 )
+    return controls
+
+
+def evaluate_graph_coverage_controls(
+    plan: dict[str, Any],
+    offer_graph: dict[str, Any],
+    *,
+    probe_ledger: ProbeExecutionLedger | None = None,
+) -> list[dict[str, Any]]:
+    controls: list[dict[str, Any]] = []
+    for control in plan.get("coverage_controls") or []:
+        if not isinstance(control, dict):
+            continue
+        if control.get("type") != "city_pair_direct":
+            continue
+        base_query = {
+            "probe_type": str(control.get("type") or "city_pair_direct"),
+            "direction": str(control.get("direction") or "outbound"),
+            "origin": str(control.get("origin") or "").upper(),
+            "destination": str(control.get("destination") or "").upper(),
+            "date": str(control.get("date") or ""),
+            "currency": str(plan.get("currency") or "").upper(),
+            "only_carriers": list(control.get("only_carriers") or []),
+            "direct_only": True,
+            "limit": 1,
+        }
+        graph_control = _graph_derived_control(base_query, offer_graph)
+        if graph_control is None:
+            continue
+        graph_control["type"] = control.get("type")
+        graph_control["negative_evidence"] = control.get("negative_evidence")
+        graph_control["source_type"] = "graph_derived_policy_control"
+        graph_control["control_policy"] = "coverage_controls"
+        intent = intent_from_control(
+            {
+                **control,
+                "provider": "graph",
+                "probe_id": f"graph-control:{base_query['direction']}:{base_query['origin']}-{base_query['destination']}:{base_query['date']}",
+                "source_type": "graph_derived_policy_control",
+            },
+            provider="graph",
+        )
+        if probe_ledger is not None:
+            probe_ledger.plan_intents([intent])
+            probe_ledger.record_searched(
+                intent,
+                status="graph_derived",
+                provider="graph",
+                offer_count=graph_control.get("offer_count"),
+                cache_status="graph",
+            )
+        controls.append(graph_control)
     return controls

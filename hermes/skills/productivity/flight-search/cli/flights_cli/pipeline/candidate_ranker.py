@@ -83,6 +83,7 @@ def rank_mixed_candidates(
 def build_decision_frontier(
     mixed_candidate_ranking: dict[str, Any],
     *,
+    controls: list[dict[str, Any]] | None = None,
     max_gateway_alternatives: int = 2,
 ) -> dict[str, Any]:
     ranked = [
@@ -126,11 +127,13 @@ def build_decision_frontier(
     return {
         "schema_version": DECISION_FRONTIER_SCHEMA_VERSION,
         "options": selected,
+        "controls": _frontier_controls(controls or []),
         "coverage_summary": {
             "candidate_count": len(ranked),
             "acceptable_count": len(acceptable),
             "selected_count": len(selected),
             "rejected_count": len(mixed_candidate_ranking.get("rejected") or []),
+            "control_count": len(controls or []),
             "direct_option_count": len(
                 [candidate for candidate in acceptable if _is_direct_control(candidate)]
             ),
@@ -817,6 +820,39 @@ def _frontier_option(candidate: dict[str, Any], role: str) -> dict[str, Any]:
     if sources:
         option["evidence_sources"] = sources
     return option
+
+
+def _frontier_controls(controls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    allowed = (
+        "type",
+        "direction",
+        "origin",
+        "destination",
+        "date",
+        "status",
+        "provider",
+        "filters",
+        "offer_count",
+        "raw_offer_count",
+        "cache_status",
+        "source_type",
+        "control_policy",
+        "source_providers",
+        "graph_derived",
+        "negative_evidence",
+        "reason",
+        "error",
+    )
+    result: list[dict[str, Any]] = []
+    for control in controls:
+        if not isinstance(control, dict):
+            continue
+        item = {key: deepcopy(control.get(key)) for key in allowed if key in control}
+        top_offers = control.get("top_offers")
+        if isinstance(top_offers, list):
+            item["top_offer_count"] = len(top_offers)
+        result.append(item)
+    return result
 
 
 def _evidence_sources(candidate: dict[str, Any]) -> list[dict[str, Any]]:

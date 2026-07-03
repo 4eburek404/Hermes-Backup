@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from flights_cli.execution.aggregate_control_runner import (
     AggregateControlOptions,
+    evaluate_graph_coverage_controls,
     run_aggregate_controls,
 )
 from flights_cli.execution.probe_ledger import ProbeExecutionLedger
@@ -158,6 +159,118 @@ class AggregateControlRunnerTests(unittest.TestCase):
         self.assertEqual(controls[0]["provider"], "kupibilet")
         self.assertEqual(controls[0]["status"], "ok")
         self.assertEqual(len(adapter.aggregate_queries), 1)
+
+    def test_graph_evidence_satisfies_control_before_provider_probe(self) -> None:
+        plan = {
+            "origin": "SVX",
+            "destination": "CDG",
+            "dates": {"depart": "2026-08-16", "return": None},
+            "currency": "RUB",
+        }
+        offer_graph = {
+            "schema_version": "flight_offer_graph.v1",
+            "edges": [
+                {
+                    "id": "edge-1",
+                    "origin": "SVX",
+                    "destination": "CDG",
+                    "departure_at": "2026-08-16T10:00:00+05:00",
+                    "carrier": "SU",
+                }
+            ],
+            "offers": [
+                {
+                    "id": "graph-offer",
+                    "source_type": "provider_full_route",
+                    "provider": "tutu",
+                    "direction": "outbound",
+                    "route": ["SVX", "CDG"],
+                    "edge_ids": ["edge-1"],
+                    "price": 42000,
+                    "currency": "RUB",
+                }
+            ],
+        }
+        ledger = ProbeExecutionLedger()
+
+        with patch(
+            "flights_cli.execution.aggregate_control_runner.provider_adapter",
+            side_effect=AssertionError("provider probe should not run"),
+        ):
+            controls = run_aggregate_controls(
+                aggregate_options(provider_policy="kupibilet", only_carriers=("SU",)),
+                plan,
+                probe_ledger=ledger,
+                store=store_with_airports(self),
+                offer_graph=offer_graph,
+            )
+
+        diagnostics = ledger.to_coverage_diagnostics({"coverage_mode": "targeted"})
+        self.assertEqual(len(controls), 1)
+        self.assertEqual(controls[0]["provider"], "graph")
+        self.assertEqual(controls[0]["status"], "graph_derived")
+        self.assertTrue(controls[0]["graph_derived"])
+        self.assertEqual(controls[0]["source_providers"], ["tutu"])
+        self.assertEqual(diagnostics["searched_controls"][0]["provider"], "graph")
+        self.assertEqual(
+            diagnostics["searched_controls"][0]["evidence_type"],
+            "provider_positive",
+        )
+
+    def test_policy_control_is_satisfied_by_direct_graph_evidence(self) -> None:
+        plan = {
+            "origin": "SVX",
+            "destination": "CDG",
+            "dates": {"depart": "2026-08-16", "return": None},
+            "currency": "RUB",
+            "coverage_controls": [
+                {
+                    "type": "city_pair_direct",
+                    "direction": "outbound",
+                    "origin": "SVX",
+                    "destination": "CDG",
+                    "date": "2026-08-16",
+                    "negative_evidence": "city_pair_direct_not_executable_by_provider",
+                }
+            ],
+        }
+        offer_graph = {
+            "schema_version": "flight_offer_graph.v1",
+            "edges": [
+                {
+                    "id": "edge-1",
+                    "origin": "SVX",
+                    "destination": "CDG",
+                    "departure_at": "2026-08-16T10:00:00+05:00",
+                    "carrier": "SU",
+                }
+            ],
+            "offers": [
+                {
+                    "id": "direct-graph-offer",
+                    "source_type": "provider_full_route",
+                    "provider": "tutu",
+                    "direction": "outbound",
+                    "route": ["SVX", "CDG"],
+                    "edge_ids": ["edge-1"],
+                }
+            ],
+        }
+        ledger = ProbeExecutionLedger()
+
+        controls = evaluate_graph_coverage_controls(
+            plan,
+            offer_graph,
+            probe_ledger=ledger,
+        )
+
+        ledger.finalize_unexecuted()
+        diagnostics = ledger.to_coverage_diagnostics(plan)
+        self.assertEqual(len(controls), 1)
+        self.assertEqual(controls[0]["type"], "city_pair_direct")
+        self.assertEqual(controls[0]["source_type"], "graph_derived_policy_control")
+        self.assertEqual(diagnostics["searched_controls"][0]["provider"], "graph")
+        self.assertEqual(diagnostics["not_executed_controls"], [])
 
     def test_auto_policy_uses_tutu_then_kupibilet_and_marks_fli_unsupported(
         self,

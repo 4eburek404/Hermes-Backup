@@ -18,6 +18,7 @@ from ..domain.vocabulary import (
 from ..errors import CliError
 from ..execution.aggregate_control_runner import (
     AggregateControlOptions,
+    evaluate_graph_coverage_controls,
     run_aggregate_controls,
 )
 from ..execution.gateway_leg_probe_executor import (
@@ -877,6 +878,10 @@ class LiveSearchResultBuilder:
             if state.segment_results
             else empty_assembled_result(assembly_options)
         )
+        offer_graph = build_pipeline_offer_graph(
+            primary_offer_results=state.primary_offer_results,
+            gateway_leg_results=state.gateway_leg_results,
+        )
         aggregate_controls = run_aggregate_controls(
             AggregateControlOptions(
                 provider_policy=self.provider_policy,
@@ -892,8 +897,32 @@ class LiveSearchResultBuilder:
             probe_ledger=state.probe_ledger,
             store=self.store,
         )
+        graph_controls = evaluate_graph_coverage_controls(
+            state.plan,
+            offer_graph,
+            probe_ledger=state.probe_ledger,
+        )
+        graph_control_keys = {
+            (
+                control.get("type"),
+                control.get("direction"),
+                control.get("origin"),
+                control.get("destination"),
+                control.get("date"),
+            )
+            for control in graph_controls
+        }
         for control in state.plan.get("coverage_controls") or []:
             if isinstance(control, dict) and control.get("type") == "city_pair_direct":
+                control_key = (
+                    control.get("type"),
+                    control.get("direction"),
+                    control.get("origin"),
+                    control.get("destination"),
+                    control.get("date"),
+                )
+                if control_key in graph_control_keys:
+                    continue
                 state.probe_ledger.plan_intents(
                     [intent_from_control(control, provider=self.provider_policy)]
                 )
@@ -913,10 +942,6 @@ class LiveSearchResultBuilder:
             state.search_plan,
             gateway_discovery_diagnostics,
         )
-        offer_graph = build_pipeline_offer_graph(
-            primary_offer_results=state.primary_offer_results,
-            gateway_leg_results=state.gateway_leg_results,
-        )
         offer_candidates = materialize_offer_graph_candidates(
             offer_graph,
             direct_only=bool(state.flow.evidence_plan.direct_only),
@@ -930,7 +955,10 @@ class LiveSearchResultBuilder:
             min_same_airport_connection_min=self.options.route.min_same_airport_min,
             min_cross_airport_connection_min=self.options.route.min_cross_airport_min,
         )
-        decision_frontier = build_decision_frontier(mixed_candidate_ranking)
+        decision_frontier = build_decision_frontier(
+            mixed_candidate_ranking,
+            controls=[*graph_controls, *aggregate_controls],
+        )
         assembled["live_search"] = {
             "source": source_label,
             "provider_policy": self.provider_policy,
@@ -946,6 +974,7 @@ class LiveSearchResultBuilder:
             "offer_candidates": offer_candidates,
             "mixed_candidate_ranking": mixed_candidate_ranking,
             "decision_frontier": decision_frontier,
+            "policy_controls": graph_controls,
             "aggregate_controls": aggregate_controls,
             "probe_ledger": state.probe_ledger.to_coverage_diagnostics(state.plan),
             "direct_route_intelligence": direct_route_intel,
@@ -957,6 +986,7 @@ class LiveSearchResultBuilder:
                 "offer_candidates": offer_candidates,
                 "mixed_candidate_ranking": mixed_candidate_ranking,
                 "decision_frontier": decision_frontier,
+                "policy_controls": graph_controls,
                 "gateway_discovery": gateway_discovery_diagnostics,
             },
             "failure_count": len(state.failures),

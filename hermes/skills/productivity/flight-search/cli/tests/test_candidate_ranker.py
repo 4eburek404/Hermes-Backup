@@ -391,6 +391,43 @@ class CandidateRankerTests(unittest.TestCase):
         self.assertEqual(summary["selected_count"], 1)
         self.assertEqual(summary["selection_roles"], ["best_viable"])
 
+    def test_frontier_exposes_controls_separately_from_route_options(self) -> None:
+        provider = candidate(
+            "provider",
+            source_type="provider_full_route",
+            price=50000,
+            ticketing_model="provider_order_unverified",
+            segments=[segment("SVX", "CDG")],
+        )
+        ranking = rank_mixed_candidates({"candidates": [provider]})
+
+        frontier = build_decision_frontier(
+            ranking,
+            controls=[
+                {
+                    "direction": "outbound",
+                    "origin": "SVX",
+                    "destination": "CDG",
+                    "date": "2026-08-16",
+                    "status": "graph_derived",
+                    "provider": "graph",
+                    "offer_count": 1,
+                    "raw_offer_count": 1,
+                    "cache_status": "graph",
+                    "top_offers": [{"id": "graph-offer"}],
+                    "source_type": "graph_derived_control",
+                    "source_providers": ["tutu"],
+                    "graph_derived": True,
+                }
+            ],
+        )
+
+        self.assertEqual([option["id"] for option in frontier["options"]], ["provider"])
+        self.assertEqual(len(frontier["controls"]), 1)
+        self.assertEqual(frontier["controls"][0]["provider"], "graph")
+        self.assertEqual(frontier["controls"][0]["top_offer_count"], 1)
+        self.assertEqual(frontier["coverage_summary"]["control_count"], 1)
+
     def test_invalid_chronology_is_rejected_before_frontier(self) -> None:
         viable = candidate(
             "viable",
