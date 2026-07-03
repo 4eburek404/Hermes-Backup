@@ -22,8 +22,14 @@ def rank_mixed_candidates(
     legacy_candidates: list[dict[str, Any]] | None = None,
     max_connections_per_journey: int = 2,
     constraints: dict[str, Any] | None = None,
+    min_same_airport_connection_min: int = 120,
+    min_cross_airport_connection_min: int = 300,
 ) -> dict[str, Any]:
     normalized_constraints = _normalize_constraints(constraints)
+    mct_settings = {
+        "min_same_airport_min": max(0, int(min_same_airport_connection_min)),
+        "min_cross_airport_min": max(0, int(min_cross_airport_connection_min)),
+    }
     candidates = [
         _normalize_candidate(candidate)
         for candidate in candidate_envelope.get("candidates") or []
@@ -39,6 +45,8 @@ def rank_mixed_candidates(
             candidate,
             max_connections_per_journey=max_connections_per_journey,
             constraints=normalized_constraints,
+            min_same_airport_connection_min=mct_settings["min_same_airport_min"],
+            min_cross_airport_connection_min=mct_settings["min_cross_airport_min"],
         )
         for candidate in candidates
     ]
@@ -60,6 +68,7 @@ def rank_mixed_candidates(
             "rejected_count": len(candidate_envelope.get("rejected") or []),
             "max_connections_per_journey": max(0, int(max_connections_per_journey)),
             "constraints": normalized_constraints,
+            "mct_settings": mct_settings,
             "source_types": sorted(
                 {
                     str(candidate.get("source_type"))
@@ -170,10 +179,17 @@ def _candidate_with_rank_diagnostics(
     *,
     max_connections_per_journey: int,
     constraints: dict[str, Any],
+    min_same_airport_connection_min: int,
+    min_cross_airport_connection_min: int,
 ) -> dict[str, Any]:
     item = deepcopy(candidate)
     max_connections = _max_connections(candidate)
     chronology_violations = _chronology_violations(candidate)
+    mct_violations = _cross_ticket_mct_violations(
+        candidate,
+        min_same_airport_connection_min=min_same_airport_connection_min,
+        min_cross_airport_connection_min=min_cross_airport_connection_min,
+    )
     constraint_violations = _constraint_violations(candidate, constraints)
     existing_violations = item.get("hard_constraint_violations")
     all_constraint_violations = [
@@ -183,8 +199,10 @@ def _candidate_with_rank_diagnostics(
     if all_constraint_violations:
         item["hard_constraint_violation"] = True
         item["hard_constraint_violations"] = all_constraint_violations
-    impossible_connection = _has_impossible_connection(candidate) or bool(
-        chronology_violations
+    impossible_connection = (
+        _has_impossible_connection(candidate)
+        or bool(chronology_violations)
+        or bool(mct_violations)
     )
     rank_components = {
         "hard_constraint_violation": 1 if _has_hard_constraint_violation(item) else 0,
@@ -203,10 +221,13 @@ def _candidate_with_rank_diagnostics(
         "price": _price_for_rank(candidate),
         "elapsed_time": _elapsed_time_for_rank(candidate),
     }
-    if chronology_violations:
+    if chronology_violations or mct_violations:
         item["candidate_status"] = "impossible"
         item["connection_status"] = "impossible"
+    if chronology_violations:
         item["chronology_violations"] = chronology_violations
+    if mct_violations:
+        item["mct_violations"] = mct_violations
     item["rank_components"] = rank_components
     item["rank_key"] = [
         rank_components["hard_constraint_violation"],
@@ -402,6 +423,86 @@ def _chronology_violations(candidate: dict[str, Any]) -> list[dict[str, Any]]:
                 }
             )
     return violations
+
+
+def _cross_ticket_mct_violations(
+    candidate: dict[str, Any],
+    *,
+    min_same_airport_connection_min: int,
+    min_cross_airport_connection_min: int,
+) -> list[dict[str, Any]]:
+    violations: list[dict[str, Any]] = []
+    for journey_index, direction, segments in _candidate_segment_groups(candidate):
+        for segment_index, (previous, current) in enumerate(
+            zip(segments, segments[1:])
+        ):
+            if not _is_cross_ticket_boundary(candidate, previous, current):
+                continue
+            actual = minutes_between(
+                str(previous.get("arrival_at") or ""),
+                str(current.get("departure_at") or ""),
+            )
+            if actual is None or actual < 0:
+                continue
+            previous_destination = str(previous.get("destination") or "").upper()
+            next_origin = str(current.get("origin") or "").upper()
+            same_airport = bool(
+                previous_destination and previous_destination == next_origin
+            )
+            required = (
+                min_same_airport_connection_min
+                if same_airport
+                else min_cross_airport_connection_min
+            )
+            if actual >= required:
+                continue
+            violations.append(
+                {
+                    "reason": "cross_ticket_mct_violation",
+                    "message": "cross-ticket connection is shorter than required MCT",
+                    "journey_index": journey_index,
+                    "journey_direction": direction,
+                    "between_segments": [segment_index, segment_index + 1],
+                    "actual_min": actual,
+                    "required_min": required,
+                    "same_airport": same_airport,
+                    "previous_arrival_at": previous.get("arrival_at"),
+                    "next_departure_at": current.get("departure_at"),
+                    "previous_destination": previous.get("destination"),
+                    "next_origin": current.get("origin"),
+                    "previous_offer_id": previous.get("offer_id"),
+                    "next_offer_id": current.get("offer_id"),
+                }
+            )
+    return violations
+
+
+def _is_cross_ticket_boundary(
+    candidate: dict[str, Any],
+    previous: dict[str, Any],
+    current: dict[str, Any],
+) -> bool:
+    ticketing_model = str(candidate.get("ticketing_model") or "")
+    if ticketing_model in {
+        "single_pnr",
+        "single_pnr_proven",
+        "single_ticket_proven",
+        "protected_provider_order",
+        "provider_order_unverified",
+        "round_trip_single_ticket",
+    }:
+        return False
+    previous_offer_id = str(previous.get("offer_id") or "")
+    current_offer_id = str(current.get("offer_id") or "")
+    if previous_offer_id and current_offer_id:
+        return previous_offer_id != current_offer_id
+    boundaries = {
+        str(previous.get("ticketing_boundary") or ""),
+        str(current.get("ticketing_boundary") or ""),
+    }
+    if any("separate_ticket" in boundary for boundary in boundaries):
+        return True
+    return str(candidate.get("source_type") or "") == "gateway_separate_ticket"
 
 
 def _candidate_segment_groups(
@@ -636,6 +737,8 @@ def _ranking_reasons(
         reasons.append("rejected_or_impossible_connection")
     if _chronology_violations(candidate):
         reasons.append("invalid_time_order")
+    if candidate.get("mct_violations"):
+        reasons.append("cross_ticket_mct_violation")
     if rank_components["max_connections_per_journey"]:
         reasons.append("exceeds_max_connections_per_journey")
     if candidate.get("source_type") == "gateway_separate_ticket":

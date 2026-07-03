@@ -46,6 +46,7 @@ def materialize_offer_graph_candidates(
     direct_only: bool = False,
     requested_origin: str | None = None,
     requested_destination: str | None = None,
+    max_path_offers: int = 3,
 ) -> dict[str, Any]:
     """Project graph evidence into a unified, unranked candidate envelope."""
 
@@ -53,12 +54,6 @@ def materialize_offer_graph_candidates(
         offer for offer in offer_graph.get("offers") or [] if isinstance(offer, dict)
     ]
     edges = [edge for edge in offer_graph.get("edges") or [] if isinstance(edge, dict)]
-    connections = [
-        connection
-        for connection in offer_graph.get("connections") or []
-        if isinstance(connection, dict)
-    ]
-    offers_by_id = {str(offer.get("id") or ""): offer for offer in offers}
     edges_by_id = {str(edge.get("id") or ""): edge for edge in edges}
     candidates: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
@@ -80,20 +75,19 @@ def materialize_offer_graph_candidates(
             direct_only=direct_only,
         )
 
-    for connection in connections:
-        for candidate in _candidates_from_connection(
-            connection,
-            offers_by_id,
-            edges_by_id,
-            requested_origin=requested_origin,
-            requested_destination=requested_destination,
-        ):
-            _accept_or_reject_candidate(
-                candidate,
-                candidates,
-                rejected,
-                direct_only=direct_only,
-            )
+    for candidate in _candidates_from_gateway_offer_paths(
+        offers,
+        edges_by_id,
+        requested_origin=requested_origin,
+        requested_destination=requested_destination,
+        max_path_offers=max_path_offers,
+    ):
+        _accept_or_reject_candidate(
+            candidate,
+            candidates,
+            rejected,
+            direct_only=direct_only,
+        )
 
     candidates, deduped_count = _dedupe_candidates(candidates)
     return {
@@ -105,6 +99,7 @@ def materialize_offer_graph_candidates(
             "rejected_count": len(rejected),
             "deduped_count": deduped_count,
             "direct_only": bool(direct_only),
+            "max_path_offers": max(1, int(max_path_offers)),
             "source_types": sorted(
                 {
                     str(candidate.get("source_type"))
@@ -206,6 +201,9 @@ class OfferGraphBuilder:
                                 "source_type": source_type,
                                 "provider": provider,
                                 "ticketing_boundary": "provider_protected_full_route",
+                                "ticketing_model": _ticketing_model_for_boundary(
+                                    "provider_protected_full_route"
+                                ),
                                 "origin": _normalize_code(_segment_origin(segments[0])),
                                 "destination": _normalize_code(
                                     _segment_destination(segments[-1])
@@ -255,6 +253,9 @@ class OfferGraphBuilder:
                     "source_type": "provider_full_route",
                     "provider": provider,
                     "ticketing_boundary": "provider_protected_full_route",
+                    "ticketing_model": _ticketing_model_for_boundary(
+                        "provider_protected_full_route"
+                    ),
                     "origin": origin,
                     "destination": destination,
                     "direction": _normalize_direction(
@@ -410,6 +411,7 @@ class OfferGraphBuilder:
                         direction=path.get("direction"),
                         source_debug={
                             "gateway_index": gateway_index,
+                            "gateway": gateway,
                             "leg_role": leg_role,
                             "provider_offer_id": _offer_id(offer),
                             **(path.get("debug") or {}),
@@ -425,6 +427,9 @@ class OfferGraphBuilder:
                                 "source_type": "gateway_leg",
                                 "provider": provider,
                                 "ticketing_boundary": "separate_ticket_leg",
+                                "ticketing_model": _ticketing_model_for_boundary(
+                                    "separate_ticket_leg"
+                                ),
                                 "origin": _normalize_code(_segment_origin(segments[0])),
                                 "destination": _normalize_code(
                                     _segment_destination(segments[-1])
@@ -482,6 +487,9 @@ class OfferGraphBuilder:
                         "source_type": "gateway_leg",
                         "provider": provider,
                         "ticketing_boundary": "separate_ticket_leg",
+                        "ticketing_model": _ticketing_model_for_boundary(
+                            "separate_ticket_leg"
+                        ),
                         "origin": origin,
                         "destination": destination,
                         "gateway": gateway,
@@ -489,6 +497,26 @@ class OfferGraphBuilder:
                         "direction": _normalize_direction(leg_result.get("direction")),
                         "sequence": 0,
                         "flight_number": _flight_number(offer, leg_result),
+                        "marketing_carrier": _carrier_value(
+                            offer,
+                            leg_result,
+                            keys=("marketing_carrier",),
+                        ),
+                        "operating_carrier": _carrier_value(
+                            offer,
+                            leg_result,
+                            keys=("operating_carrier",),
+                        ),
+                        "carrier": _carrier_value(
+                            offer,
+                            leg_result,
+                            keys=("carrier", "airline", "main_airline"),
+                        ),
+                        "carrier_name": _carrier_value(
+                            offer,
+                            leg_result,
+                            keys=("carrier_name", "airline_name"),
+                        ),
                         "departure_at": _time_value(
                             offer,
                             leg_result,
@@ -509,6 +537,9 @@ class OfferGraphBuilder:
                         "source_type": "gateway_leg",
                         "provider": provider,
                         "ticketing_boundary": "separate_ticket_leg",
+                        "ticketing_model": _ticketing_model_for_boundary(
+                            "separate_ticket_leg"
+                        ),
                         "origin": origin,
                         "destination": destination,
                         "gateway": gateway,
@@ -563,11 +594,32 @@ class OfferGraphBuilder:
                         "source_type": source_type,
                         "provider": provider,
                         "ticketing_boundary": ticketing_boundary,
+                        "ticketing_model": _ticketing_model_for_boundary(
+                            ticketing_boundary
+                        ),
                         "origin": origin,
                         "destination": destination,
+                        "gateway": source_debug.get("gateway"),
+                        "leg_role": source_debug.get("leg_role"),
                         "direction": direction,
                         "sequence": index,
                         "flight_number": _flight_number(segment),
+                        "marketing_carrier": _carrier_value(
+                            segment,
+                            keys=("marketing_carrier",),
+                        ),
+                        "operating_carrier": _carrier_value(
+                            segment,
+                            keys=("operating_carrier",),
+                        ),
+                        "carrier": _carrier_value(
+                            segment,
+                            keys=("carrier", "airline", "main_airline"),
+                        ),
+                        "carrier_name": _carrier_value(
+                            segment,
+                            keys=("carrier_name", "airline_name"),
+                        ),
                         "departure_at": _time_value(segment, prefix="departure"),
                         "arrival_at": _time_value(segment, prefix="arrival"),
                         "source_debug": source_debug,
@@ -606,6 +658,16 @@ class OfferGraphBuilder:
 
 def _provider(result: dict[str, Any]) -> str:
     return str(result.get("provider") or "unknown").strip().lower() or "unknown"
+
+
+def _ticketing_model_for_boundary(ticketing_boundary: str) -> str:
+    if ticketing_boundary == "provider_protected_full_route":
+        return "provider_order_unverified"
+    if ticketing_boundary == "separate_ticket_leg":
+        return "separate_ticket_leg"
+    if ticketing_boundary == "separate_ticket_candidate":
+        return "separate_ticket_sum"
+    return "unknown"
 
 
 def _candidate_from_offer(
@@ -661,92 +723,141 @@ def _candidate_from_offer(
     }
 
 
-def _candidates_from_connection(
-    connection: dict[str, Any],
-    offers_by_id: dict[str, dict[str, Any]],
+def _candidates_from_gateway_offer_paths(
+    offers: list[dict[str, Any]],
     edges_by_id: dict[str, dict[str, Any]],
     *,
     requested_origin: str | None,
     requested_destination: str | None,
+    max_path_offers: int,
 ) -> list[dict[str, Any]]:
-    origin_offers = [
-        offers_by_id[offer_id]
-        for offer_id in connection.get("origin_leg_offer_ids") or []
-        if offer_id in offers_by_id
+    origin = _normalize_code(requested_origin)
+    destination = _normalize_code(requested_destination)
+    if not origin or not destination:
+        return []
+    max_offers = max(1, int(max_path_offers))
+    gateway_offers = [
+        offer
+        for offer in offers
+        if str(offer.get("source_type") or "") == "gateway_leg"
+        and _normalize_code(offer.get("origin"))
+        and _normalize_code(offer.get("destination"))
     ]
-    destination_offers = [
-        offers_by_id[offer_id]
-        for offer_id in connection.get("destination_leg_offer_ids") or []
-        if offer_id in offers_by_id
-    ]
+    by_origin: dict[str, list[dict[str, Any]]] = {}
+    for offer in gateway_offers:
+        by_origin.setdefault(_normalize_code(offer.get("origin")), []).append(offer)
+    for bucket in by_origin.values():
+        bucket.sort(key=lambda item: str(item.get("id") or ""))
+
     candidates: list[dict[str, Any]] = []
-    for origin_offer in origin_offers:
-        for destination_offer in destination_offers:
-            edge_ids = [
-                *[str(edge_id) for edge_id in origin_offer.get("edge_ids") or []],
-                *[str(edge_id) for edge_id in destination_offer.get("edge_ids") or []],
-            ]
-            segments = _segments_for_edge_ids(edge_ids, edges_by_id)
-            price, currency, price_basis, price_warnings = _summed_leg_price(
-                [origin_offer, destination_offer]
-            )
-            detail_status = _combined_detail_status([origin_offer, destination_offer])
-            warnings = [
-                "separate_ticket_connection_unverified",
-                *price_warnings,
-                *_candidate_warnings(
-                    {
-                        "warnings": [
-                            *origin_offer.get("warnings", []),
-                            *destination_offer.get("warnings", []),
-                        ]
-                    },
-                    detail_status=detail_status,
-                ),
-            ]
+    queue: list[tuple[list[dict[str, Any]], set[str]]] = []
+    for offer in by_origin.get(origin, []):
+        offer_destination = _normalize_code(offer.get("destination"))
+        if not offer_destination:
+            continue
+        queue.append(([offer], {origin, offer_destination}))
+
+    while queue:
+        path, visited_airports = queue.pop(0)
+        last_destination = _normalize_code(path[-1].get("destination"))
+        if last_destination == destination and len(path) >= 2:
             candidates.append(
-                {
-                    "id": _stable_id(
-                        "candidate",
-                        connection.get("id"),
-                        origin_offer.get("id"),
-                        destination_offer.get("id"),
-                    ),
-                    "source_type": "gateway_separate_ticket",
-                    "provider": None,
-                    "source_providers": _ordered_unique(
-                        [
-                            origin_offer.get("provider"),
-                            destination_offer.get("provider"),
-                        ]
-                    ),
-                    "gateway": connection.get("gateway"),
-                    "covers_requested_trip": _covers_requested_trip(
-                        segments,
-                        {},
-                        requested_origin=requested_origin,
-                        requested_destination=requested_destination,
-                        detail_status=detail_status,
-                    ),
-                    "journey_scope": "one_way",
-                    "price": price,
-                    "currency": currency,
-                    "price_basis": price_basis,
-                    "ticketing_model": "separate_ticket_sum",
-                    "detail_status": detail_status,
-                    "journeys": _journeys_from_segments(
-                        segments,
-                        direction="outbound",
-                    ),
-                    "warnings": _ordered_unique(warnings),
-                    "offer_ids": [
-                        origin_offer.get("id"),
-                        destination_offer.get("id"),
-                    ],
-                    "edge_ids": edge_ids,
-                }
+                _candidate_from_offer_path(
+                    path,
+                    edges_by_id,
+                    requested_origin=requested_origin,
+                    requested_destination=requested_destination,
+                )
+            )
+            continue
+        if len(path) >= max_offers:
+            continue
+        used_offer_ids = {str(offer.get("id") or "") for offer in path}
+        for next_offer in by_origin.get(last_destination, []):
+            next_offer_id = str(next_offer.get("id") or "")
+            if next_offer_id in used_offer_ids:
+                continue
+            next_destination = _normalize_code(next_offer.get("destination"))
+            if not next_destination:
+                continue
+            if next_destination in visited_airports and next_destination != destination:
+                continue
+            queue.append(
+                (
+                    [*path, next_offer],
+                    {*visited_airports, next_destination},
+                )
             )
     return candidates
+
+
+def _candidate_from_offer_path(
+    path: list[dict[str, Any]],
+    edges_by_id: dict[str, dict[str, Any]],
+    *,
+    requested_origin: str | None,
+    requested_destination: str | None,
+) -> dict[str, Any]:
+    edge_ids = [
+        str(edge_id)
+        for offer in path
+        for edge_id in offer.get("edge_ids") or []
+        if str(edge_id)
+    ]
+    offer_ids = [offer.get("id") for offer in path]
+    segments = _segments_for_edge_ids(edge_ids, edges_by_id)
+    price, currency, price_basis, price_warnings = _summed_leg_price(path)
+    detail_status = _combined_detail_status(path)
+    route = _route_from_segments(segments)
+    gateways = _ordered_unique([offer.get("gateway") for offer in path])
+    if not gateways and len(route) > 2:
+        gateways = route[1:-1]
+    warnings = [
+        "separate_ticket_connection_unverified",
+        *price_warnings,
+        *_candidate_warnings(
+            {
+                "warnings": [
+                    warning
+                    for offer in path
+                    for warning in (offer.get("warnings") or [])
+                ]
+            },
+            detail_status=detail_status,
+        ),
+    ]
+    return {
+        "id": _stable_id("candidate", "path", *offer_ids),
+        "source_type": "gateway_separate_ticket",
+        "provider": None,
+        "source_providers": _ordered_unique([offer.get("provider") for offer in path]),
+        "gateway": gateways[0] if len(gateways) == 1 else None,
+        "gateways": gateways,
+        "covers_requested_trip": _covers_requested_trip(
+            segments,
+            {},
+            requested_origin=requested_origin,
+            requested_destination=requested_destination,
+            detail_status=detail_status,
+        ),
+        "journey_scope": "one_way",
+        "price": price,
+        "currency": currency,
+        "price_basis": price_basis,
+        "ticketing_model": "separate_ticket_sum",
+        "ticketing_boundaries": _ordered_unique(
+            [offer.get("ticketing_boundary") for offer in path]
+        ),
+        "detail_status": detail_status,
+        "journeys": _journeys_from_segments(
+            segments,
+            direction="outbound",
+        ),
+        "warnings": _ordered_unique(warnings),
+        "offer_ids": offer_ids,
+        "edge_ids": edge_ids,
+        "path_offer_count": len(path),
+    }
 
 
 def _accept_or_reject_candidate(
@@ -904,15 +1015,18 @@ def _candidate_source_summary(candidate: dict[str, Any]) -> dict[str, Any]:
         "provider",
         "source_providers",
         "gateway",
+        "gateways",
         "price",
         "currency",
         "price_basis",
         "ticketing_model",
+        "ticketing_boundaries",
         "detail_status",
         "journey_scope",
         "covers_requested_trip",
         "offer_ids",
         "edge_ids",
+        "path_offer_count",
         "warnings",
     )
     return {key: deepcopy(candidate.get(key)) for key in keys if key in candidate}
@@ -1000,7 +1114,15 @@ def _segments_for_edge_ids(
                     "edge_id": edge.get("id"),
                     "sequence": edge.get("sequence", index),
                     "gateway": edge.get("gateway"),
+                    "leg_role": edge.get("leg_role"),
+                    "source_type": edge.get("source_type"),
+                    "ticketing_boundary": edge.get("ticketing_boundary"),
+                    "ticketing_model": edge.get("ticketing_model"),
                     "flight_number": edge.get("flight_number"),
+                    "marketing_carrier": edge.get("marketing_carrier"),
+                    "operating_carrier": edge.get("operating_carrier"),
+                    "carrier": edge.get("carrier"),
+                    "carrier_name": edge.get("carrier_name"),
                     "departure_at": edge.get("departure_at"),
                     "arrival_at": edge.get("arrival_at"),
                 }
@@ -1177,6 +1299,17 @@ def _flight_number(*sources: dict[str, Any]) -> str | None:
         normalized = _normalize_flight_number(value)
         if normalized:
             return normalized
+    return None
+
+
+def _carrier_value(*sources: dict[str, Any], keys: tuple[str, ...]) -> str | None:
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        for key in keys:
+            value = str(source.get(key) or "").strip()
+            if value:
+                return value.upper()
     return None
 
 

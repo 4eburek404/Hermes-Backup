@@ -453,6 +453,116 @@ class CandidateRankerTests(unittest.TestCase):
         frontier = build_decision_frontier(ranking)
         self.assertEqual([item["id"] for item in frontier["options"]], ["viable"])
 
+    def test_provider_validated_short_connection_is_not_mct_rejected(self) -> None:
+        provider = candidate(
+            "provider-short-mct",
+            source_type="provider_full_route",
+            price=50000,
+            ticketing_model="provider_order_unverified",
+            segments=[
+                segment(
+                    "NTE",
+                    "AMS",
+                    depart="2026-07-09T17:20:00+02:00",
+                    arrive="2026-07-09T18:55:00+02:00",
+                    offer_id="provider-offer",
+                    ticketing_boundary="provider_protected_full_route",
+                ),
+                segment(
+                    "AMS",
+                    "IST",
+                    depart="2026-07-09T19:45:00+02:00",
+                    arrive="2026-07-09T23:55:00+03:00",
+                    offer_id="provider-offer",
+                    ticketing_boundary="provider_protected_full_route",
+                ),
+            ],
+        )
+
+        ranking = rank_mixed_candidates(
+            {"candidates": [provider]},
+            min_same_airport_connection_min=120,
+            min_cross_airport_connection_min=300,
+        )
+
+        ranked = ranking["ranked_candidates"][0]
+        self.assertEqual(
+            ranked["rank_components"]["rejected_or_impossible_connection"], 0
+        )
+        self.assertNotIn("mct_violations", ranked)
+        self.assertEqual(
+            build_decision_frontier(ranking)["options"][0]["id"], provider["id"]
+        )
+
+    def test_cross_ticket_short_connection_is_rejected_before_frontier(self) -> None:
+        viable = candidate(
+            "viable",
+            source_type="gateway_separate_ticket",
+            price=50000,
+            ticketing_model="separate_ticket_sum",
+            segments=[
+                segment(
+                    "NTE",
+                    "AMS",
+                    depart="2026-07-09T17:20:00+02:00",
+                    arrive="2026-07-09T18:55:00+02:00",
+                    offer_id="leg-1",
+                    ticketing_boundary="separate_ticket_leg",
+                ),
+                segment(
+                    "AMS",
+                    "IST",
+                    depart="2026-07-09T21:00:00+02:00",
+                    arrive="2026-07-10T01:20:00+03:00",
+                    offer_id="leg-2",
+                    ticketing_boundary="separate_ticket_leg",
+                ),
+            ],
+        )
+        short = candidate(
+            "short",
+            source_type="gateway_separate_ticket",
+            price=10000,
+            ticketing_model="separate_ticket_sum",
+            segments=[
+                segment(
+                    "NTE",
+                    "AMS",
+                    depart="2026-07-09T17:20:00+02:00",
+                    arrive="2026-07-09T18:55:00+02:00",
+                    offer_id="leg-1",
+                    ticketing_boundary="separate_ticket_leg",
+                ),
+                segment(
+                    "AMS",
+                    "IST",
+                    depart="2026-07-09T19:45:00+02:00",
+                    arrive="2026-07-09T23:55:00+03:00",
+                    offer_id="leg-2",
+                    ticketing_boundary="separate_ticket_leg",
+                ),
+            ],
+        )
+
+        ranking = rank_mixed_candidates(
+            {"candidates": [short, viable]},
+            min_same_airport_connection_min=120,
+            min_cross_airport_connection_min=300,
+        )
+        ranked = {item["id"]: item for item in ranking["ranked_candidates"]}
+
+        self.assertEqual(ranking["ranked_candidates"][0]["id"], "viable")
+        self.assertEqual(ranked["short"]["candidate_status"], "impossible")
+        self.assertEqual(
+            ranked["short"]["mct_violations"][0]["reason"],
+            "cross_ticket_mct_violation",
+        )
+        self.assertIn("cross_ticket_mct_violation", ranked["short"]["ranking_reasons"])
+        self.assertEqual(
+            [item["id"] for item in build_decision_frontier(ranking)["options"]],
+            ["viable"],
+        )
+
     def test_request_constraints_reject_before_frontier(self) -> None:
         viable = candidate(
             "viable",

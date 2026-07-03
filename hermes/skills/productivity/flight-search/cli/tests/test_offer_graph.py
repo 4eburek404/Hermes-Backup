@@ -380,6 +380,175 @@ class OfferGraphTests(unittest.TestCase):
             [("NTE", "AMS"), ("AMS", "IST"), ("IST", "SVX")],
         )
 
+    def test_edges_preserve_ticketing_and_carrier_metadata(self) -> None:
+        graph = build_offer_graph(
+            primary_offer_results=[
+                {
+                    "role": "primary_offer_collection",
+                    "source_type": "provider_full_route",
+                    "provider": "tutu",
+                    "origin": "NTE",
+                    "destination": "IST",
+                    "top_offers": [
+                        {
+                            "id": "tutu-kl",
+                            "price": 82103,
+                            "currency": "RUB",
+                            "segments": [
+                                {
+                                    "origin": "NTE",
+                                    "destination": "AMS",
+                                    "flight_number": "KL1420",
+                                    "marketing_carrier": "KL",
+                                    "operating_carrier": "KL",
+                                    "carrier": "KLM Royal Dutch Airlines",
+                                    "departure_at": "2026-07-09T17:20:00+02:00",
+                                    "arrival_at": "2026-07-09T18:55:00+02:00",
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+            gateway_leg_results={},
+        )
+
+        edge = graph["edges"][0]
+        self.assertEqual(edge["ticketing_boundary"], "provider_protected_full_route")
+        self.assertEqual(edge["ticketing_model"], "provider_order_unverified")
+        self.assertEqual(edge["marketing_carrier"], "KL")
+        self.assertEqual(edge["carrier"], "KLM ROYAL DUTCH AIRLINES")
+
+        envelope = materialize_offer_graph_candidates(
+            graph,
+            requested_origin="NTE",
+            requested_destination="AMS",
+        )
+        segment = envelope["candidates"][0]["journeys"][0]["segments"][0]
+        self.assertEqual(segment["ticketing_boundary"], "provider_protected_full_route")
+        self.assertEqual(segment["ticketing_model"], "provider_order_unverified")
+        self.assertEqual(segment["marketing_carrier"], "KL")
+        self.assertEqual(segment["carrier"], "KLM ROYAL DUTCH AIRLINES")
+
+    def test_n_leg_gateway_path_materializes_three_offer_chain(self) -> None:
+        graph = build_offer_graph(
+            primary_offer_results=[],
+            gateway_leg_results={
+                "searched_gateways": 2,
+                "viable_gateways": 2,
+                "failed_gateways": 0,
+                "not_searched_budget": 0,
+                "gateways": [
+                    {
+                        "gateway": "AMS",
+                        "searched": True,
+                        "viable": True,
+                        "origin_leg": {
+                            "leg": "origin_to_gateway",
+                            "origin": "NTE",
+                            "destination": "AMS",
+                            "provider": "tutu",
+                            "offer_count": 1,
+                            "offers": [
+                                {
+                                    "id": "nte-ams",
+                                    "origin": "NTE",
+                                    "destination": "AMS",
+                                    "price": 100,
+                                    "currency": "RUB",
+                                    "flight_number": "KL1420",
+                                    "departure_at": "2026-07-09T17:20:00+02:00",
+                                    "arrival_at": "2026-07-09T18:55:00+02:00",
+                                }
+                            ],
+                        },
+                        "destination_leg": {
+                            "leg": "gateway_to_destination",
+                            "origin": "AMS",
+                            "destination": "IST",
+                            "provider": "tutu",
+                            "offer_count": 1,
+                            "offers": [
+                                {
+                                    "id": "ams-ist",
+                                    "origin": "AMS",
+                                    "destination": "IST",
+                                    "price": 200,
+                                    "currency": "RUB",
+                                    "flight_number": "KL1959",
+                                    "departure_at": "2026-07-09T21:00:00+02:00",
+                                    "arrival_at": "2026-07-10T01:20:00+03:00",
+                                }
+                            ],
+                        },
+                    },
+                    {
+                        "gateway": "IST",
+                        "searched": True,
+                        "viable": True,
+                        "origin_leg": {
+                            "leg": "origin_to_gateway",
+                            "origin": "AMS",
+                            "destination": "IST",
+                            "provider": "tutu",
+                            "offer_count": 1,
+                            "offers": [
+                                {
+                                    "id": "ams-ist-duplicate",
+                                    "origin": "AMS",
+                                    "destination": "IST",
+                                    "price": 200,
+                                    "currency": "RUB",
+                                    "flight_number": "KL1959",
+                                    "departure_at": "2026-07-09T21:00:00+02:00",
+                                    "arrival_at": "2026-07-10T01:20:00+03:00",
+                                }
+                            ],
+                        },
+                        "destination_leg": {
+                            "leg": "gateway_to_destination",
+                            "origin": "IST",
+                            "destination": "SVX",
+                            "provider": "tutu",
+                            "offer_count": 1,
+                            "offers": [
+                                {
+                                    "id": "ist-svx",
+                                    "origin": "IST",
+                                    "destination": "SVX",
+                                    "price": 300,
+                                    "currency": "RUB",
+                                    "flight_number": "SU2137",
+                                    "departure_at": "2026-07-10T12:50:00+03:00",
+                                    "arrival_at": "2026-07-10T19:55:00+05:00",
+                                }
+                            ],
+                        },
+                    },
+                ],
+            },
+        )
+
+        envelope = materialize_offer_graph_candidates(
+            graph,
+            requested_origin="NTE",
+            requested_destination="SVX",
+        )
+
+        self.assertEqual(envelope["coverage"]["candidate_count"], 1)
+        candidate = envelope["candidates"][0]
+        self.assertEqual(candidate["source_type"], "gateway_separate_ticket")
+        self.assertEqual(candidate["path_offer_count"], 3)
+        self.assertEqual(candidate["price"], 600)
+        self.assertEqual(candidate["gateways"], ["AMS", "IST"])
+        self.assertEqual(
+            [
+                (segment["origin"], segment["destination"])
+                for segment in candidate["journeys"][0]["segments"]
+            ],
+            [("NTE", "AMS"), ("AMS", "IST"), ("IST", "SVX")],
+        )
+
     def test_gateway_separate_ticket_materializes_summed_leg_price(self) -> None:
         graph = build_offer_graph(
             primary_offer_results=[],
@@ -646,7 +815,9 @@ class OfferGraphTests(unittest.TestCase):
         self.assertEqual(candidate["alternate_sources"][0]["price"], 40000)
         self.assertEqual(candidate["price_comparison"]["difference"], -1000)
 
-    def test_alternate_sources_are_retained_after_repeated_dedupe(self) -> None:
+    def test_duplicate_legacy_connection_does_not_duplicate_path_candidate(
+        self,
+    ) -> None:
         graph = self.graph_with_provider_and_gateway()
         duplicate = dict(graph["connections"][0])
         duplicate["id"] = "connection:IST:duplicate"
@@ -660,7 +831,7 @@ class OfferGraphTests(unittest.TestCase):
 
         candidate = envelope["candidates"][0]
         self.assertEqual(envelope["coverage"]["candidate_count"], 1)
-        self.assertEqual(envelope["coverage"]["deduped_count"], 2)
+        self.assertEqual(envelope["coverage"]["deduped_count"], 1)
         self.assertEqual(len(candidate["alternate_sources"]), 1)
         self.assertEqual(
             candidate["alternate_sources"][0]["source_type"],

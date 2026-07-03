@@ -923,6 +923,8 @@ class LiveSearchResultBuilder:
             offer_candidates,
             max_connections_per_journey=2,
             constraints=self.options.constraints.to_dict(),
+            min_same_airport_connection_min=self.options.route.min_same_airport_min,
+            min_cross_airport_connection_min=self.options.route.min_cross_airport_min,
         )
         decision_frontier = build_decision_frontier(mixed_candidate_ranking)
         assembled["live_search"] = {
