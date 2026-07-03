@@ -372,8 +372,8 @@ class RoutePlanContractTests(unittest.TestCase):
                 for query in search_plan["gateway_leg_queries"][:2]
             ],
             [
-                ("origin_to_gateway", "SVX", "IST", "kupibilet"),
-                ("gateway_to_destination", "IST", "AMS", "fli"),
+                ("origin_to_gateway", "SVX", "IST", "tutu"),
+                ("gateway_to_destination", "IST", "AMS", "tutu"),
             ],
         )
 

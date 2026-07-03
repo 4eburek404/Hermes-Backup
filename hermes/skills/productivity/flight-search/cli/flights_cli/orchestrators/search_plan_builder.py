@@ -3,7 +3,11 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from ..adapters.providers.registry import providers_for_route_query, route_touches_ru
+from ..adapters.providers.registry import (
+    providers_for_offer_query,
+    providers_for_segment,
+    route_touches_ru,
+)
 from ..domain.gateway_discovery import GatewayDiscoveryService
 from ..domain.route_access_profiles import MODE_REQUIRED, PROFILE_RESTRICTED_ACCESS
 from ..domain.vocabulary import RequiredControl
@@ -145,7 +149,7 @@ class SearchPlanBuilder:
     ) -> list[str]:
         return [
             str(provider)
-            for provider in providers_for_route_query(
+            for provider in providers_for_offer_query(
                 query, self._store, flow.evidence_plan.provider_policy
             )
         ]
@@ -265,7 +269,7 @@ class SearchPlanBuilder:
                 "gateway_discovery_mode": gateway_discovery_mode,
                 "execution_state": "not_executed",
             }
-            providers = providers_for_route_query(
+            providers = providers_for_segment(
                 query, self._store, flow.evidence_plan.provider_policy
             )
             if providers:

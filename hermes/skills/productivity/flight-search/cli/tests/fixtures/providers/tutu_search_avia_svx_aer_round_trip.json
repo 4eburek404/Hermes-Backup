@@ -1,0 +1,58 @@
+{
+  "fixture_schema": "provider_raw_fixture.v1",
+  "provider": "tutu",
+  "tool": "search_avia",
+  "query": {
+    "origin": "SVX",
+    "destination": "AER",
+    "depart_date": "2026-08-15",
+    "return_date": "2026-08-22",
+    "currency": "RUB",
+    "direct_only": true
+  },
+  "raw": {
+    "offers": [
+      {
+        "offer_id": "tutu-svx-aer-round-trip",
+        "price": {
+          "amount": 28600,
+          "currency": "RUB"
+        },
+        "duration_min": 520,
+        "legs": [
+          {
+            "segments": [
+              {
+                "from": "Koltsovo International Airport (SVX)",
+                "to": "Sochi International Airport (AER)",
+                "carrier": "Ural Airlines",
+                "voyage_no": "U6 219",
+                "departure_at": "2026-08-15T08:10:00+05:00",
+                "arrival_at": "2026-08-15T10:55:00+03:00",
+                "duration_min": 165
+              }
+            ]
+          },
+          {
+            "segments": [
+              {
+                "from": "Sochi International Airport (AER)",
+                "to": "Koltsovo International Airport (SVX)",
+                "carrier": "Ural Airlines",
+                "voyage_no": "U6 220",
+                "departure_at": "2026-08-22T18:20:00+03:00",
+                "arrival_at": "2026-08-22T22:55:00+05:00",
+                "duration_min": 155
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "meta": {
+      "has_more": false,
+      "page": 1,
+      "page_size": 50
+    }
+  }
+}

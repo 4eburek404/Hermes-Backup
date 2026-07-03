@@ -38,7 +38,7 @@ class FlowDecisionEvidenceContractTests(unittest.TestCase):
 
         self.assertEqual(flow.flow_decision.market_class, "global_non_ru")
         self.assertEqual(flow.flow_decision.routing_strategy, "hub-list")
-        self.assertEqual(flow.flow_decision.provider_plan["default_provider"], "fli")
+        self.assertEqual(flow.flow_decision.provider_plan["default_provider"], "tutu")
         self.assertEqual(plan["routing_strategy"], "hub-list")
         self.assertNotIn(
             "ru-priority",

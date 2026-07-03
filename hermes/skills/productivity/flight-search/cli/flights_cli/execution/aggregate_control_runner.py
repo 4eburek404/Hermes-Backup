@@ -4,9 +4,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..adapters.providers.registry import (
+    not_supported_probe_result,
     provider_adapter,
-    providers_for_route_query,
+    providers_for_offer_query,
     route_query_provider_skip_reasons,
+    unsupported_providers_for_offer_query,
 )
 from ..config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
 from ..domain.normalize import normalize_carrier_code
@@ -166,7 +168,10 @@ def run_aggregate_controls(
                 "cache_ttl_seconds": cache_ttl_seconds,
                 "use_cache": use_live_cache,
             }
-            provider_names = providers_for_route_query(
+            provider_names = providers_for_offer_query(
+                base_query, active_store, options.provider_policy
+            )
+            unsupported_provider_names = unsupported_providers_for_offer_query(
                 base_query, active_store, options.provider_policy
             )
             skipped_provider_reasons = route_query_provider_skip_reasons(
@@ -238,6 +243,42 @@ def run_aggregate_controls(
                     )
                     continue
                 controls.append(dict(result.result_summary))
+
+            for provider_name in unsupported_provider_names:
+                query = {
+                    **base_query,
+                    "provider": provider_name,
+                    "probe_id": _aggregate_probe_id(
+                        provider=provider_name,
+                        direction=direction,
+                        origin=origin,
+                        destination=destination,
+                        date_text=date_text,
+                        carriers=carriers,
+                    ),
+                }
+                intent = intent_from_aggregate_query(query, provider=provider_name)
+                if probe_ledger is not None:
+                    probe_ledger.plan_intents([intent])
+                result = not_supported_probe_result(
+                    provider=provider_name,
+                    probe_type=probe_type,
+                    query=query,
+                    reason=f"{provider_name} does not support {probe_type} probes",
+                    probe_id=str(query["probe_id"]),
+                )
+                if probe_ledger is not None:
+                    probe_ledger.record_provider_result(intent, result)
+                controls.append(
+                    _control_from_not_supported(
+                        result,
+                        direction=direction,
+                        origin=origin,
+                        destination=destination,
+                        date_text=date_text,
+                        carriers=carriers,
+                    )
+                )
 
             for provider_name, reason in skipped_provider_reasons.items():
                 query = {

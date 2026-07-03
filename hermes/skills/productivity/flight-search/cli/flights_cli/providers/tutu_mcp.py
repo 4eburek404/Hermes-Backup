@@ -956,6 +956,10 @@ def run_tutu_search(
     origin = normalize_iata(args.origin, "origin")
     destination = normalize_iata(args.destination, "destination")
     depart = parse_iso_date(args.depart_date, "depart-date")
+    return_date_text = getattr(args, "return_date", None)
+    return_date = (
+        parse_iso_date(return_date_text, "return-date") if return_date_text else None
+    )
     currency = args.currency.upper()
     if currency not in SUPPORTED_CURRENCIES:
         raise CliError(
@@ -981,4 +985,5 @@ def run_tutu_search(
         ),
         use_cache=not bool(getattr(args, "no_cache", False)),
         store=store,
+        return_date=return_date,
     )

@@ -72,30 +72,33 @@ class SearchPlanContractTests(unittest.TestCase):
 
         validate_contract_payload("search_plan", search_plan)
         self.assertEqual(search_plan["schema_version"], "flight_search_plan.v1")
+        primary_queries = search_plan["primary_offer_queries"]
         self.assertEqual(
-            search_plan["primary_offer_queries"],
-            [
-                {
-                    "role": "primary_offer_collection",
-                    "source_type": "provider_full_route",
-                    "probe_type": "full_route_aggregate",
-                    "provider": "kupibilet",
-                    "direction": "outbound",
-                    "origin": "SVX",
-                    "destination": "AMS",
-                    "date": "2026-08-15",
-                    "currency": "RUB",
-                    "direct_only": False,
-                    "limit": 10,
-                    "execution_state": "not_executed",
-                    "route_family": "restricted_access_market",
-                    "route_access_profile": "restricted_access_market",
-                    "gateway_discovery_mode": "required",
-                    "exhaustive": False,
-                    "non_exhaustive_reason": "restricted_access_market_requires_gateway_discovery",
-                }
-            ],
+            [query["provider"] for query in primary_queries], ["tutu", "kupibilet"]
         )
+        for query in primary_queries:
+            with self.subTest(provider=query["provider"]):
+                self.assertEqual(query["role"], "primary_offer_collection")
+                self.assertEqual(query["source_type"], "provider_full_route")
+                self.assertEqual(query["probe_type"], "full_route_aggregate")
+                self.assertEqual(query["direction"], "outbound")
+                self.assertEqual(query["origin"], "SVX")
+                self.assertEqual(query["destination"], "AMS")
+                self.assertEqual(query["date"], "2026-08-15")
+                self.assertEqual(query["currency"], "RUB")
+                self.assertFalse(query["direct_only"])
+                self.assertEqual(query["limit"], 10)
+                self.assertEqual(query["execution_state"], "not_executed")
+                self.assertEqual(query["route_family"], "restricted_access_market")
+                self.assertEqual(
+                    query["route_access_profile"], "restricted_access_market"
+                )
+                self.assertEqual(query["gateway_discovery_mode"], "required")
+                self.assertFalse(query["exhaustive"])
+                self.assertEqual(
+                    query["non_exhaustive_reason"],
+                    "restricted_access_market_requires_gateway_discovery",
+                )
         self.assertEqual(search_plan["mandatory_controls"], [])
         gateway_discovery = search_plan["gateway_discovery"]
         self.assertEqual(gateway_discovery["enabled"], True)
@@ -144,7 +147,7 @@ class SearchPlanContractTests(unittest.TestCase):
                     "origin_to_gateway",
                     "SVX",
                     "IST",
-                    "kupibilet",
+                    "tutu",
                     True,
                     "restricted_ru_bridge_control",
                 ),
@@ -152,7 +155,7 @@ class SearchPlanContractTests(unittest.TestCase):
                     "gateway_to_destination",
                     "IST",
                     "AMS",
-                    "fli",
+                    "tutu",
                     False,
                     "restricted_non_ru_access",
                 ),
@@ -251,7 +254,7 @@ class SearchPlanContractTests(unittest.TestCase):
                         query["provider"]
                         for query in search_plan["primary_offer_queries"]
                     ],
-                    ["kupibilet"],
+                    ["tutu", "kupibilet"],
                 )
                 if destination == "PEK":
                     self.assertNotEqual(gateway_discovery["mode"], "required")
@@ -335,11 +338,14 @@ class SearchPlanContractTests(unittest.TestCase):
         validate_contract_payload("search_plan", search_plan)
         self.assertEqual(len(search_plan["gateway_leg_queries"]), 2)
         self.assertEqual(
-            {
-                (query["gateway"], query["provider"])
+            [
+                (query["leg"], query["gateway"], query["provider"])
                 for query in search_plan["gateway_leg_queries"]
-            },
-            {("IST", "kupibilet"), ("IST", "fli")},
+            ],
+            [
+                ("origin_to_gateway", "IST", "tutu"),
+                ("gateway_to_destination", "IST", "tutu"),
+            ],
         )
 
     def test_restricted_eu_to_ru_plans_access_leg_as_aggregate_not_fake_gateway_to_ru(
@@ -412,7 +418,7 @@ class SearchPlanContractTests(unittest.TestCase):
             },
         )
 
-    def test_builder_keeps_fli_out_of_both_policy_for_ru_touching_route(
+    def test_builder_uses_tutu_primary_for_ru_touching_auto_full_route(
         self,
     ) -> None:
         store = Store()
@@ -421,7 +427,7 @@ class SearchPlanContractTests(unittest.TestCase):
             destination="AMS",
             depart_date="2026-08-15",
             return_date=None,
-            provider_policy="both",
+            provider_policy="auto",
             routing_strategy="hub-list",
             hub=["IST"],
             no_live_cache=True,
@@ -437,7 +443,7 @@ class SearchPlanContractTests(unittest.TestCase):
         validate_contract_payload("search_plan", search_plan)
         self.assertEqual(
             [query["provider"] for query in search_plan["primary_offer_queries"]],
-            ["kupibilet"],
+            ["tutu", "kupibilet"],
         )
 
     def test_builder_does_not_add_primary_aggregate_for_direct_inventory(
@@ -487,7 +493,7 @@ class SearchPlanContractTests(unittest.TestCase):
                     )
                 )
 
-    def test_builder_plans_non_ru_primary_route_with_fli_provider(
+    def test_builder_plans_non_ru_primary_route_with_tutu_and_kupibilet(
         self,
     ) -> None:
         store = Store()
@@ -510,24 +516,22 @@ class SearchPlanContractTests(unittest.TestCase):
 
         validate_contract_payload("search_plan", search_plan)
         self.assertEqual(
-            search_plan["primary_offer_queries"],
-            [
-                {
-                    "role": "primary_offer_collection",
-                    "source_type": "provider_full_route",
-                    "probe_type": "full_route_aggregate",
-                    "provider": "fli",
-                    "direction": "outbound",
-                    "origin": "IST",
-                    "destination": "AMS",
-                    "date": "2026-08-15",
-                    "currency": "RUB",
-                    "direct_only": False,
-                    "limit": 10,
-                    "execution_state": "not_executed",
-                }
-            ],
+            [query["provider"] for query in search_plan["primary_offer_queries"]],
+            ["tutu", "kupibilet"],
         )
+        for query in search_plan["primary_offer_queries"]:
+            with self.subTest(provider=query["provider"]):
+                self.assertEqual(query["role"], "primary_offer_collection")
+                self.assertEqual(query["source_type"], "provider_full_route")
+                self.assertEqual(query["probe_type"], "full_route_aggregate")
+                self.assertEqual(query["direction"], "outbound")
+                self.assertEqual(query["origin"], "IST")
+                self.assertEqual(query["destination"], "AMS")
+                self.assertEqual(query["date"], "2026-08-15")
+                self.assertEqual(query["currency"], "RUB")
+                self.assertFalse(query["direct_only"])
+                self.assertEqual(query["limit"], 10)
+                self.assertEqual(query["execution_state"], "not_executed")
         self.assertEqual(search_plan["coverage_expectations"], [])
         self.assertEqual(
             search_plan["fallback_segment_plan"]["segments"], route_plan["segments"]

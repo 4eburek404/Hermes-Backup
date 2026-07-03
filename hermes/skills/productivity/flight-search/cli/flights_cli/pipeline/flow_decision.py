@@ -230,22 +230,22 @@ def _provider_plan(
     request: SearchRequest, market_class: str, routing_strategy: str
 ) -> dict[str, Any]:
     policy = request.provider_policy
-    if policy == "fli":
-        default_provider = "fli"
-    elif policy == "kupibilet":
-        default_provider = "kupibilet"
-    elif market_class == MarketClass.GLOBAL_NON_RU:
-        default_provider = "fli"
+    default_provider = policy if policy in {"fli", "kupibilet", "tutu"} else "tutu"
+    if policy == "auto":
+        ru_touching_segments: list[str] = ["tutu", "kupibilet"]
+        non_ru_segments: list[str] = ["tutu", "kupibilet", "fli"]
+    elif policy == "fli":
+        ru_touching_segments = []
+        non_ru_segments = ["fli"]
     else:
-        default_provider = "kupibilet"
+        ru_touching_segments = [policy]
+        non_ru_segments = [policy]
     return {
         "policy": policy,
         "default_provider": default_provider,
         "dispatch": {
-            "ru_touching_segments": "kupibilet"
-            if policy in {"auto", "both", "kupibilet"}
-            else policy,
-            "non_ru_segments": "fli" if policy in {"auto", "both", "fli"} else policy,
+            "ru_touching_segments": ru_touching_segments,
+            "non_ru_segments": non_ru_segments,
         },
         "routing_strategy": routing_strategy,
         "ru_priority_controls": routing_strategy == RoutingStrategy.RU_PRIORITY,

@@ -20,6 +20,7 @@ PROVIDER_REGISTRY: dict[ProviderName, FlightProviderPort] = {
     "fli": FliProviderAdapter(),
     "tutu": TutuProviderAdapter(),
 }
+PROVIDER_ROUTING_ORDER: tuple[ProviderName, ...] = ("tutu", "kupibilet", "fli")
 
 # Cache keyed by (name, id(store)). Grows to at most 2×N where N is the number of
 # distinct Store instances (typically 1 per CLI invocation). Custom fetcher calls
@@ -54,9 +55,9 @@ def is_ru_touching_segment(spec: dict[str, Any], store: Store) -> bool:
 
 def _normalize_provider_policy(policy: str) -> str:
     normalized_policy = str(policy or "auto").strip().lower()
-    if normalized_policy not in {"auto", "kupibilet", "fli", "tutu", "both"}:
+    if normalized_policy not in {"auto", "kupibilet", "fli", "tutu"}:
         raise CliError(
-            "provider policy must be one of auto, kupibilet, fli, tutu, both",
+            "provider policy must be one of auto, kupibilet, fli, tutu",
             error_type="validation_error",
         )
     return normalized_policy
@@ -96,26 +97,53 @@ def _provider_supports_offer_market(
     return capabilities.supports_global
 
 
+def _provider_supports_market(
+    provider: ProviderName, query: dict[str, Any], store: Store
+) -> bool:
+    return _provider_supports_offer_market(
+        PROVIDER_REGISTRY[provider].capabilities, query, store
+    )
+
+
 def _offer_query_policy_candidates(
     query: dict[str, Any], store: Store, policy: str
 ) -> list[ProviderName]:
     normalized_policy = _normalize_provider_policy(policy)
     if normalized_policy in {"kupibilet", "fli", "tutu"}:
-        return [cast(ProviderName, normalized_policy)]
-    # "both" and "auto" use only the original two providers (kupibilet + fli);
-    # tutu is opt-in only via explicit provider_policy: "tutu"
-    if normalized_policy == "both":
-        return ["kupibilet", "fli"]
-    if is_ru_touching_segment(query, store):
-        return [
-            name
-            for name, adapter in PROVIDER_REGISTRY.items()
-            if name != "tutu" and adapter.capabilities.supports_ru_touching
-        ]
+        provider = cast(ProviderName, normalized_policy)
+        return [provider] if _provider_supports_market(provider, query, store) else []
     return [
-        name
-        for name, adapter in PROVIDER_REGISTRY.items()
-        if name != "tutu" and adapter.capabilities.supports_global
+        provider
+        for provider in PROVIDER_ROUTING_ORDER
+        if _provider_supports_market(provider, query, store)
+    ]
+
+
+def _segment_policy_candidates(
+    spec: dict[str, Any], store: Store, policy: str
+) -> list[ProviderName]:
+    normalized_policy = _normalize_provider_policy(policy)
+    if normalized_policy in {"kupibilet", "fli", "tutu"}:
+        provider = cast(ProviderName, normalized_policy)
+        return [provider] if _provider_supports_market(provider, spec, store) else []
+    return [
+        provider
+        for provider in PROVIDER_ROUTING_ORDER
+        if _provider_supports_market(provider, spec, store)
+    ]
+
+
+def _route_query_policy_candidates(
+    query: dict[str, Any], store: Store, policy: str
+) -> list[ProviderName]:
+    normalized_policy = _normalize_provider_policy(policy)
+    if normalized_policy in {"kupibilet", "fli", "tutu"}:
+        provider = cast(ProviderName, normalized_policy)
+        return [provider] if _provider_supports_market(provider, query, store) else []
+    return [
+        provider
+        for provider in PROVIDER_ROUTING_ORDER
+        if _provider_supports_market(provider, query, store)
     ]
 
 
@@ -124,15 +152,7 @@ def providers_for_route_query(
 ) -> list[ProviderName]:
     """Return route-level providers by market applicability, not probe capability."""
 
-    normalized_policy = _normalize_provider_policy(provider_policy)
-    touches_ru = route_touches_ru(query.get("origin"), query.get("destination"), store)
-    if normalized_policy == "auto":
-        return ["kupibilet"] if touches_ru else ["fli"]
-    if normalized_policy == "both":
-        return ["kupibilet"] if touches_ru else ["fli"]
-    if normalized_policy == "fli" and touches_ru:
-        return []
-    return [cast(ProviderName, normalized_policy)]
+    return _route_query_policy_candidates(query, store, provider_policy)
 
 
 def route_query_provider_skip_reasons(
@@ -141,7 +161,7 @@ def route_query_provider_skip_reasons(
     normalized_policy = _normalize_provider_policy(provider_policy)
     if not route_touches_ru(query.get("origin"), query.get("destination"), store):
         return {}
-    if normalized_policy in {"both", "fli"}:
+    if normalized_policy == "fli":
         return {"fli": "route_touches_ru"}
     return {}
 
@@ -214,14 +234,7 @@ def provider_adapter(
 def providers_for_segment(
     spec: dict[str, Any], store: Store, policy: str
 ) -> list[ProviderName]:
-    normalized_policy = _normalize_provider_policy(policy)
-    if normalized_policy in {"kupibilet", "fli", "tutu"}:
-        return [cast(ProviderName, provider_adapter(normalized_policy).name)]
-    if normalized_policy == "both":
-        return ["kupibilet", "fli"]
-    if is_ru_touching_segment(spec, store):
-        return ["kupibilet"]
-    return ["fli"]
+    return _segment_policy_candidates(spec, store, policy)
 
 
 def provider_adapters_for_segment(
@@ -282,6 +295,7 @@ __all__ = [
     "KUPIBILET_CAPABILITIES",
     "TUTU_CAPABILITIES",
     "PROVIDER_REGISTRY",
+    "PROVIDER_ROUTING_ORDER",
     "airport_country_code",
     "is_ru_touching_segment",
     "location_country_code",

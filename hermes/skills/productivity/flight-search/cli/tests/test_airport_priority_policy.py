@@ -208,7 +208,8 @@ class AirportPriorityPolicyTests(unittest.TestCase):
         )
         self.assertTrue(
             all(
-                providers_for_segment(segment, store, "auto") == ["fli"]
+                providers_for_segment(segment, store, "auto")
+                == ["tutu", "kupibilet", "fli"]
                 for segment in outbound_direct
             )
         )

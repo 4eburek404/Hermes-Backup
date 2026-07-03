@@ -16,7 +16,7 @@ REQUEST = {
     "currency": "rub",
     "profile": "business",
     "ticketing": "single",
-    "provider_policy": "both",
+    "provider_policy": "auto",
     "route_options": {
         "routing_strategy": "hub-list",
         "hubs": ["IST", "DXB"],
@@ -119,6 +119,12 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
     def test_search_app_rejects_non_business_profile(self) -> None:
         with self.assertRaises(CliError):
             live_assembly_options_from_search_request({**REQUEST, "profile": "safe"})
+
+    def test_search_app_rejects_removed_both_provider_policy(self) -> None:
+        with self.assertRaises(CliError):
+            live_assembly_options_from_search_request(
+                {**REQUEST, "provider_policy": "both"}
+            )
 
     def test_search_request_defaults_are_explicit_in_typed_options(self) -> None:
         options = search_request_to_options(

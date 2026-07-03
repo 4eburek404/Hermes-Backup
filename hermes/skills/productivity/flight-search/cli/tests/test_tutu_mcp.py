@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from datetime import date
@@ -7,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from flights_cli.adapters.providers.tutu_adapter import TutuProviderAdapter
+from flights_cli.cli import build_parser
 from flights_cli.providers.tutu_mcp import (
     MCP_PROTOCOL_VERSION,
     TUTU_MAX_PAGES,
@@ -16,6 +18,9 @@ from flights_cli.providers.tutu_mcp import (
     tutu_mcp_http_post,
 )
 from flights_cli.store import Store
+
+FIXTURE_DIR = Path(__file__).parent / "fixtures" / "providers"
+CATALOG_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "catalog"
 
 
 def store_with_tutu_catalog(test_case: unittest.TestCase) -> Store:
@@ -90,6 +95,49 @@ def tutu_offer(offer_id: str, legs: list[list[dict]], *, price: int = 10000) -> 
 
 
 class TutuMcpProviderTests(unittest.TestCase):
+    def test_tutu_search_parser_exposes_one_way_and_round_trip_command(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "diagnose",
+                "tutu-search",
+                "SVX",
+                "AER",
+                "--depart-date",
+                "2026-08-15",
+                "--return-date",
+                "2026-08-22",
+                "--direct-only",
+                "--only-carrier",
+                "U6",
+                "--limit",
+                "10",
+            ]
+        )
+
+        self.assertEqual(args.command_name, "diagnose tutu-search")
+        self.assertEqual(args.origin, "SVX")
+        self.assertEqual(args.destination, "AER")
+        self.assertEqual(args.depart_date, "2026-08-15")
+        self.assertEqual(args.return_date, "2026-08-22")
+        self.assertEqual(args.only_carrier, ["U6"])
+        self.assertTrue(args.direct_only)
+        self.assertEqual(args.limit, 10)
+
+    def test_diagnose_probe_allows_tutu_provider(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "diagnose",
+                "probe",
+                "--provider",
+                "tutu",
+                "--request",
+                "probe.json",
+            ]
+        )
+
+        self.assertEqual(args.command_name, "diagnose probe")
+        self.assertEqual(args.provider, "tutu")
+
     def test_http_post_sends_mcp_protocol_version_header(self) -> None:
         captured: dict[str, str] = {}
 
@@ -330,6 +378,35 @@ class TutuMcpProviderTests(unittest.TestCase):
         )
         self.assertEqual(offer["number_of_changes"], 0)
         self.assertEqual(result["return_date"], "2026-08-22")
+
+    def test_round_trip_fixture_normalizes_provider_offer(self) -> None:
+        payload = json.loads(
+            (FIXTURE_DIR / "tutu_search_avia_svx_aer_round_trip.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        query = payload["query"]
+        result = parse_tutu_avia_search(
+            payload["raw"],
+            origin=query["origin"],
+            destination=query["destination"],
+            depart_date=query["depart_date"],
+            return_date=query["return_date"],
+            currency=query["currency"],
+            direct_only=query["direct_only"],
+            store=Store(CATALOG_FIXTURE_DIR),
+        )
+
+        self.assertEqual(result["return_date"], "2026-08-22")
+        self.assertEqual(result["offer_count"], 1)
+        offer = result["offers"][0]
+        self.assertEqual(offer["journey_scope"], "round_trip")
+        self.assertEqual(offer["ticketing_model"], "provider_order_unverified")
+        self.assertEqual(offer["marketing_carriers"], ["U6"])
+        self.assertEqual(
+            [journey["direction"] for journey in offer["journeys"]],
+            ["outbound", "return"],
+        )
 
     def test_segment_adapter_passes_direct_only_without_return_date(self) -> None:
         store = store_with_tutu_catalog(self)

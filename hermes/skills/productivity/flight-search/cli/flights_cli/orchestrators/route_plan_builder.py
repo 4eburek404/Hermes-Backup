@@ -54,7 +54,7 @@ from .route_graph import (
 
 def provider_policy_allows_kupibilet(policy: str | None) -> bool:
     normalized = str(policy or "kupibilet").strip().lower()
-    return normalized in {"auto", "both", "kupibilet"}
+    return normalized in {"auto", "kupibilet"}
 
 
 def city_code_first_segment_options(

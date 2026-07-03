@@ -22,6 +22,7 @@
       "diagnose render",
       "diagnose kb-search",
       "diagnose kb-roundtrip",
+      "diagnose tutu-search",
       "diagnose fli-search",
       "diagnose fli-dates",
       "route assemble",

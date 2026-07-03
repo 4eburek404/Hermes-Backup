@@ -29,6 +29,7 @@ from .commands.providers import (
     command_fli_search,
     command_kb_roundtrip,
     command_kb_search,
+    command_tutu_search,
 )
 from .commands.route import (
     command_route_assemble,
@@ -42,6 +43,7 @@ from .config import (
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
     DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR,
     RISK_PROFILES,
+    TUTU_MCP_DEFAULT_URL,
 )
 from .errors import CliError
 from .output import emit_json, error_envelope, output_envelope, render_human
@@ -260,7 +262,9 @@ def _register_diagnose_commands(sub) -> None:
     probe = diagnose_sub.add_parser(
         "probe", help="Run a single provider probe from a probe JSON file."
     )
-    probe.add_argument("--provider", required=True, choices=["kupibilet", "fli"])
+    probe.add_argument(
+        "--provider", required=True, choices=["kupibilet", "fli", "tutu"]
+    )
     probe.add_argument(
         "--request", required=True, help="Probe JSON file, or - for stdin."
     )
@@ -289,6 +293,17 @@ def _register_diagnose_commands(sub) -> None:
     _add_kb_roundtrip_flags(kb_roundtrip)
     kb_roundtrip.set_defaults(
         func=command_kb_roundtrip, command_name="diagnose kb-roundtrip"
+    )
+
+    tutu_search = diagnose_sub.add_parser(
+        "tutu-search",
+        help="Tutu MCP live aggregate diagnostic; supports one-way and round-trip search_avia probes.",
+    )
+    _add_tutu_search_flags(tutu_search)
+    tutu_search.set_defaults(
+        func=command_tutu_search,
+        command_name="diagnose tutu-search",
+        **_catalog_read_defaults(),
     )
 
     fli_search = diagnose_sub.add_parser(
@@ -440,6 +455,42 @@ def _add_kb_roundtrip_flags(parser: argparse.ArgumentParser) -> None:
         help="Maximum normalized round-trip fare packages to show.",
     )
     parser.add_argument("--timeout", type=int, default=60, help="HTTP timeout seconds.")
+    add_provider_cache_flags(parser)
+
+
+def _add_tutu_search_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("origin", help="Origin city/airport IATA code (e.g. SVX).")
+    parser.add_argument(
+        "destination", help="Destination city/airport IATA code (e.g. AER)."
+    )
+    parser.add_argument(
+        "--depart-date", required=True, help="Departure date YYYY-MM-DD."
+    )
+    parser.add_argument(
+        "--return-date",
+        default=None,
+        help="Return date YYYY-MM-DD for round-trip Tutu search_avia.",
+    )
+    parser.add_argument(
+        "--currency", default=DEFAULT_CURRENCY, help="Currency code (default: RUB)."
+    )
+    parser.add_argument(
+        "--only-carrier",
+        action="append",
+        help="Require each flight leg to match this carrier code. Repeatable.",
+    )
+    parser.add_argument(
+        "--direct-only", action="store_true", help="Only direct one-leg offers."
+    )
+    parser.add_argument(
+        "--limit", type=int, default=20, help="Maximum normalized offers to show."
+    )
+    parser.add_argument("--timeout", type=int, default=60, help="HTTP timeout seconds.")
+    parser.add_argument(
+        "--tutu-mcp-url",
+        default=os.getenv("FLIGHTS_TUTU_MCP_URL", TUTU_MCP_DEFAULT_URL),
+        help="Tutu MCP HTTP URL. Default from FLIGHTS_TUTU_MCP_URL or tutu.ru.",
+    )
     add_provider_cache_flags(parser)
 
 

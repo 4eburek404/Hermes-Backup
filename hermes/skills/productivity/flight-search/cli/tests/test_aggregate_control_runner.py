@@ -11,6 +11,7 @@ from flights_cli.execution.aggregate_control_runner import (
     run_aggregate_controls,
 )
 from flights_cli.execution.probe_ledger import ProbeExecutionLedger
+from flights_cli.errors import CliError
 from flights_cli.ports.providers import ProviderProbeResult
 from flights_cli.store import Store
 
@@ -47,10 +48,9 @@ def store_with_airports(test_case: unittest.TestCase) -> Store:
     return Store(cache)
 
 
-class FakeKupibiletAggregateAdapter:
-    name = "kupibilet"
-
-    def __init__(self) -> None:
+class FakeAggregateAdapter:
+    def __init__(self, name: str) -> None:
+        self.name = name
         self.aggregate_queries: list[dict[str, Any]] = []
 
     def search_aggregate(self, query: dict[str, Any]) -> ProviderProbeResult:
@@ -58,7 +58,7 @@ class FakeKupibiletAggregateAdapter:
         return ProviderProbeResult(
             probe_id=str(query["probe_id"]),
             probe_type="full_route_aggregate",
-            provider="kupibilet",
+            provider=self.name,
             query=query,
             execution_state="searched",
             cache_status="disabled",
@@ -69,7 +69,7 @@ class FakeKupibiletAggregateAdapter:
                 "destination": query["destination"],
                 "date": query["date"],
                 "status": "ok",
-                "provider": "kupibilet",
+                "provider": self.name,
                 "filters": {
                     "direct_only": False,
                     "only_carriers": query["only_carriers"],
@@ -83,6 +83,11 @@ class FakeKupibiletAggregateAdapter:
             },
             normalized_offers=[{"id": "agg-offer"}],
         )
+
+
+class FakeKupibiletAggregateAdapter(FakeAggregateAdapter):
+    def __init__(self) -> None:
+        super().__init__("kupibilet")
 
 
 class AggregateControlRunnerTests(unittest.TestCase):
@@ -154,66 +159,62 @@ class AggregateControlRunnerTests(unittest.TestCase):
         self.assertEqual(controls[0]["status"], "ok")
         self.assertEqual(len(adapter.aggregate_queries), 1)
 
-    def test_auto_policy_routes_non_ru_aggregate_to_fli_not_supported(self) -> None:
+    def test_auto_policy_uses_tutu_then_kupibilet_and_marks_fli_unsupported(
+        self,
+    ) -> None:
         plan = {
             "origin": "IST",
             "destination": "LHR",
             "dates": {"depart": "2026-08-16", "return": None},
             "currency": "RUB",
         }
-
-        controls = run_aggregate_controls(
-            aggregate_options(provider_policy="auto"),
-            plan,
-            store=store_with_airports(self),
-        )
-
-        self.assertEqual(len(controls), 1)
-        self.assertEqual(controls[0]["provider"], "fli")
-        self.assertEqual(controls[0]["status"], "not_supported")
-
-    def test_both_policy_skips_fli_for_ru_touching_route(self) -> None:
-        plan = {
-            "origin": "SVX",
-            "destination": "CDG",
-            "dates": {"depart": "2026-08-16", "return": None},
-            "currency": "RUB",
+        adapters = {
+            "tutu": FakeAggregateAdapter("tutu"),
+            "kupibilet": FakeKupibiletAggregateAdapter(),
         }
-        ledger = ProbeExecutionLedger()
-        adapter = FakeKupibiletAggregateAdapter()
 
-        def adapter_lookup(name: str, **_: Any) -> FakeKupibiletAggregateAdapter:
-            if name != "kupibilet":
+        def adapter_lookup(name: str, **_: Any) -> FakeAggregateAdapter:
+            if name not in adapters:
                 raise AssertionError(f"unexpected aggregate adapter {name}")
-            return adapter
+            return adapters[name]
 
         with patch(
             "flights_cli.execution.aggregate_control_runner.provider_adapter",
             side_effect=adapter_lookup,
         ):
             controls = run_aggregate_controls(
-                aggregate_options(provider_policy="both"),
+                aggregate_options(provider_policy="auto"),
                 plan,
-                probe_ledger=ledger,
                 store=store_with_airports(self),
             )
 
-        diagnostics = ledger.to_coverage_diagnostics(
-            {"coverage_mode": "targeted", "coverage_limits": {}}
+        self.assertEqual(
+            [control["provider"] for control in controls],
+            ["tutu", "kupibilet", "fli"],
         )
         self.assertEqual(
-            [control["provider"] for control in controls], ["kupibilet", "fli"]
+            [control["status"] for control in controls],
+            ["ok", "ok", "not_supported"],
         )
-        self.assertEqual([control["status"] for control in controls], ["ok", "skipped"])
-        self.assertEqual(controls[1]["reason"], "route_touches_ru")
-        self.assertEqual(
-            [item["provider"] for item in diagnostics["skipped_controls"]],
-            ["fli"],
-        )
-        self.assertEqual(diagnostics["not_supported_controls"], [])
-        self.assertEqual(diagnostics["not_executed_controls"], [])
+        self.assertEqual(len(adapters["tutu"].aggregate_queries), 1)
+        self.assertEqual(len(adapters["kupibilet"].aggregate_queries), 1)
 
-    def test_both_policy_routes_non_ru_aggregate_to_fli(self) -> None:
+    def test_both_policy_is_rejected(self) -> None:
+        plan = {
+            "origin": "SVX",
+            "destination": "CDG",
+            "dates": {"depart": "2026-08-16", "return": None},
+            "currency": "RUB",
+        }
+
+        with self.assertRaises(CliError):
+            run_aggregate_controls(
+                aggregate_options(provider_policy="both"),
+                plan,
+                store=store_with_airports(self),
+            )
+
+    def test_fli_policy_routes_non_ru_aggregate_to_not_supported(self) -> None:
         plan = {
             "origin": "IST",
             "destination": "LHR",
@@ -222,7 +223,7 @@ class AggregateControlRunnerTests(unittest.TestCase):
         }
 
         controls = run_aggregate_controls(
-            aggregate_options(provider_policy="both"),
+            aggregate_options(provider_policy="fli"),
             plan,
             store=store_with_airports(self),
         )
