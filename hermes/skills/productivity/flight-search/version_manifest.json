@@ -16,15 +16,13 @@
   "command_surface": {
     "version": "command_surface.v1",
     "canonical_path": "search --request",
+    "agent_commands": [
+      "search"
+    ],
     "diagnostic_commands": [
       "diagnose plan",
       "diagnose probe",
-      "diagnose render",
-      "diagnose kb-search",
-      "diagnose kb-roundtrip",
-      "diagnose tutu-search",
-      "diagnose fli-search",
-      "diagnose fli-dates"
+      "diagnose render"
     ]
   }
 }

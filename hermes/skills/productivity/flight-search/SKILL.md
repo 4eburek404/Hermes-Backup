@@ -103,7 +103,10 @@ Use diagnostics to inspect the pipeline, not as traveler-facing answers:
 ```bash
 python3 -m flights_cli --json diagnose plan --request "$HOME/flight-search-request.json"
 python3 -m flights_cli --json diagnose probe --provider tutu --request "$HOME/probe.json"
-python3 -m flights_cli --json diagnose tutu-search ORIGIN DEST --depart-date YYYY-MM-DD
 ```
+
+Provider-specific raw-search commands are intentionally absent from the agent
+surface. Use `search --request` and read
+`data.agent_report.user_answer.rendered_text`.
 
 For CLI/debug ownership and source boundaries, start from `references/index.md`.

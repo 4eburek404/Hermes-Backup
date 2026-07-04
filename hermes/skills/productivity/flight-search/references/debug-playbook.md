@@ -57,7 +57,7 @@ Decision read order is in `report-contract.md`; compact debug order:
 
 If JSON parsing or schema validation fails, report the parse/contract layer and rerun with JSON-clean stdout/stderr settings before making a travel claim.
 
-## Targeted probe commands
+## Targeted diagnostics
 
 Run the narrowest probe that answers the remaining uncertainty. Label probe results as narrower evidence than the assembled report unless you prove the main report missed a mandatory control.
 
@@ -75,48 +75,6 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose probe \
   --request probe.json
 ```
 
-Tutu raw search diagnostic:
-
-```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose tutu-search \
-  ORIGIN DEST \
-  --depart-date YYYY-MM-DD
-```
-
-Direct/carrier controls with KupiBilet:
-
-```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose kb-search ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --direct-only \
-  --limit 20
-
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose kb-search ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --only-carrier CARRIER \
-  --limit 20
-```
-
-KupiBilet one-checkout round-trip control:
-
-```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose kb-roundtrip ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --return-date YYYY-MM-DD \
-  --only-carrier CARRIER \
-  --direct-only \
-  --limit 20
-```
-
-FLI exact-airport direct control:
-
-```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose fli-search ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --direct-only \
-  --limit 20
-```
-
 Probe shapes:
 
 - exact-airport direct-only;
@@ -131,15 +89,15 @@ Probe shapes:
 When the report shows fewer direct flights than expected:
 
 1. Confirm the request scope: exact airport vs city, direct-only vs default recommendation, one-way vs return.
-2. Start with the canonical report and Tutu/provider-port diagnostics because `auto` is Tutu-first. Use `diagnose kb-search ... --direct-only` or `diagnose fli-search ... --direct-only` only for explicit provider comparison or source-boundary checks.
+2. Start with the canonical report and Tutu/provider-port diagnostics because `auto` is Tutu-first. Use `diagnose probe` only when you need one explicit provider probe that is not already visible in `route_result.live_search`.
 3. If the provider probe returns all direct offers with prices, the provider is not the root cause; inspect display/report truncation.
 4. Inspect counts:
    - `data.route_result.live_search.decision_frontier.options`;
    - `data.route_result.live_search.offer_graph.edges`;
    - `data.route_result.live_search.primary_offer_results`;
    - `data.agent_report.frontier.decision_frontier.options`;
-   - `data.agent_report.status` / `agent_guidance` if exposed.
-5. Current pipeline computes the direct-first gate from wave-0 offer evidence and projects active directions into `report["status"]["direct_mode"]` before budgeting/user-answer construction. If direct offers vanish after that point, debug report projection/budget, not provider availability.
+   - `data.agent_report.agent_guidance`.
+5. Current pipeline computes the direct-first gate from wave-0 offer evidence before `agent_report.v4` and `user_answer.v6` construction. If direct offers vanish after that point, debug report construction, not provider availability.
 
 Do not claim “provider did not return prices” when a narrow direct probe shows priced direct offers.
 

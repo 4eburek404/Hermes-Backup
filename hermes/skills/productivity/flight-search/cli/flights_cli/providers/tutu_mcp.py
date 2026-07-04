@@ -6,22 +6,15 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
 from .. import __version__
 from ..config import (
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
-    SUPPORTED_CURRENCIES,
     TUTU_MCP_DEFAULT_URL,
 )
-from ..domain.normalize import (
-    normalize_carrier_code,
-    normalize_iata,
-    parse_iso_date,
-    price_value,
-)
+from ..domain.normalize import price_value
 from ..domain.offer_order import provider_offer_business_key
 from ..domain.provider_offer_filter import filter_provider_offers
 from ..errors import CliError
@@ -39,22 +32,6 @@ TUTU_MAX_PAGES = 3
 
 # Matches a 3-letter IATA code in parentheses at end of string: "Тулуза — Тулуза-Бланьяк (TLS)" -> TLS
 _IATA_RE = re.compile(r"\(([A-Z]{3})\)\s*(?:,\s*терм\.\s*\S+)?\s*$")
-
-
-@dataclass(frozen=True)
-class TutuSearchOptions:
-    origin: str
-    destination: str
-    depart_date: str
-    currency: str
-    return_date: str | None = None
-    only_carrier: list[str] | None = None
-    direct_only: bool = False
-    limit: int = 20
-    timeout: int = 60
-    tutu_mcp_url: str | None = None
-    cache_ttl_seconds: int = DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
-    no_cache: bool = False
 
 
 def default_tutu_mcp_url() -> str:
@@ -976,42 +953,3 @@ def tutu_segment_search_summary(
         "skipped": result.get("skipped", {}),
         "cache": result.get("cache", {"hit": False}),
     }
-
-
-def run_tutu_search(
-    args: TutuSearchOptions, store: Store | None = None
-) -> dict[str, Any]:
-    origin = normalize_iata(args.origin, "origin")
-    destination = normalize_iata(args.destination, "destination")
-    depart = parse_iso_date(args.depart_date, "depart-date")
-    return_date_text = getattr(args, "return_date", None)
-    return_date = (
-        parse_iso_date(return_date_text, "return-date") if return_date_text else None
-    )
-    currency = args.currency.upper()
-    if currency not in SUPPORTED_CURRENCIES:
-        raise CliError(
-            f"currency must be one of {', '.join(sorted(SUPPORTED_CURRENCIES))}",
-            error_type="validation_error",
-        )
-    only_carriers = [
-        normalize_carrier_code(code, "only-carrier")
-        for code in (getattr(args, "only_carrier", None) or [])
-    ]
-    return cached_tutu_avia_search(
-        origin,
-        destination,
-        depart,
-        currency=currency,
-        only_carriers=only_carriers,
-        direct_only=getattr(args, "direct_only", False),
-        limit=getattr(args, "limit", 20),
-        timeout=getattr(args, "timeout", 60),
-        mcp_url=getattr(args, "tutu_mcp_url", None),
-        cache_ttl_seconds=int(
-            getattr(args, "cache_ttl_seconds", DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS)
-        ),
-        use_cache=not bool(getattr(args, "no_cache", False)),
-        store=store,
-        return_date=return_date,
-    )

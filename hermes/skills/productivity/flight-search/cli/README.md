@@ -165,6 +165,7 @@ Default connection thresholds are maintained in `references/source-boundaries.md
 ## Targeted Debug Probes
 
 Use targeted probes only after the main assembled report leaves a specific uncertainty.
+They are debug inputs, not alternate answer paths for agents.
 
 Dry plan diagnostic:
 
@@ -180,44 +181,9 @@ python3 -m flights_cli --json diagnose probe \
   --request /tmp/probe.json
 ```
 
-Tutu raw search:
-
-```bash
-python3 -m flights_cli --json diagnose tutu-search ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --direct-only \
-  --limit 20
-```
-
-KupiBilet source comparison:
-
-```bash
-python3 -m flights_cli --json diagnose kb-search ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --direct-only \
-  --limit 20
-
-python3 -m flights_cli --json diagnose kb-search ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --only-carrier CODE \
-  --limit 20
-
-python3 -m flights_cli --json diagnose kb-roundtrip ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --return-date YYYY-MM-DD \
-  --only-carrier CODE \
-  --direct-only \
-  --limit 20
-```
-
-FLI exact-airport source comparison:
-
-```bash
-python3 -m flights_cli --json diagnose fli-search ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --direct-only \
-  --limit 20
-```
+For source-boundary investigations, inspect `data.route_result.live_search` from
+the canonical result and use `diagnose probe` only for one explicit provider
+probe. Keep ordinary search work on `search --request`.
 
 Useful probe shapes:
 

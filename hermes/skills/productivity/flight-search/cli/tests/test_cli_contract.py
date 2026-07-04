@@ -11,13 +11,13 @@ from pathlib import Path
 from flights_cli.cli import build_parser, normalize_global_json
 from flights_cli.commands import search as search_app
 from flights_cli.command_surface import (
+    AGENT_COMMANDS,
     CATALOG_AUTO_REFRESH_COMMANDS,
     CATALOG_READ_COMMANDS,
     CATALOG_REFRESH_COMMANDS,
     DIAGNOSTIC_COMMANDS,
-    LIVE_PROVIDER_COMMANDS,
+    DIAGNOSTIC_PROBE_COMMANDS,
     PRIMARY_ROUTE_COMMAND,
-    TARGETED_PROBE_COMMANDS,
 )
 from flights_cli.config import DEFAULT_ROUTE_HUBS
 
@@ -25,7 +25,6 @@ from helpers import PROJECT, TEST_ENV, parser_leaf_defaults
 
 
 def live_search_args(**overrides: object) -> argparse.Namespace:
-    agent_report = bool(overrides.pop("agent_report", True))
     request = {
         "schema_version": "flight_search_request.v1",
         "origin": overrides.pop("origin", "SVX"),
@@ -64,7 +63,6 @@ def live_search_args(**overrides: object) -> argparse.Namespace:
         max_connections=options.route.max_connections,
         tier2_max_connections=options.route.tier2_max_connections,
         include_segment_results=options.output.include_segment_results,
-        agent_report=agent_report,
     )
     for key, value in overrides.items():
         setattr(args, key, value)
@@ -86,8 +84,8 @@ class CliContractTests(unittest.TestCase):
     def test_active_command_surface_is_registered_with_leaf_dispatch(self) -> None:
         leaves = parser_leaf_defaults(build_parser())
         policy_commands = (
-            set(DIAGNOSTIC_COMMANDS)
-            | set(LIVE_PROVIDER_COMMANDS)
+            set(AGENT_COMMANDS)
+            | set(DIAGNOSTIC_COMMANDS)
             | set(CATALOG_READ_COMMANDS)
             | set(CATALOG_REFRESH_COMMANDS)
         )
@@ -114,16 +112,14 @@ class CliContractTests(unittest.TestCase):
                 "--request",
                 "/tmp/flight-search-request.json",
             ],
-            "diagnose tutu-search": [
+            "diagnose probe --provider": [
                 "--json",
                 "diagnose",
-                "tutu-search",
-                "SVX",
-                "AER",
-                "--depart-date",
-                "2026-08-15",
-                "--return-date",
-                "2026-08-22",
+                "probe",
+                "--provider",
+                "tutu",
+                "--request",
+                "/tmp/probe.json",
             ],
             "maint doctor": ["--json", "maint", "doctor"],
             "maint check": ["--json", "maint", "check"],
@@ -245,9 +241,10 @@ class CliContractTests(unittest.TestCase):
             {
                 "booking_or_purchase": False,
                 "docker_touched": False,
+                "agent_commands": list(AGENT_COMMANDS),
                 "primary_route_command": PRIMARY_ROUTE_COMMAND,
-                "targeted_probe_commands": list(TARGETED_PROBE_COMMANDS),
-                "live_provider_commands": list(LIVE_PROVIDER_COMMANDS),
+                "canonical_path": f"{PRIMARY_ROUTE_COMMAND} --request",
+                "diagnostic_probe_commands": list(DIAGNOSTIC_PROBE_COMMANDS),
             },
         )
         self.assertEqual(

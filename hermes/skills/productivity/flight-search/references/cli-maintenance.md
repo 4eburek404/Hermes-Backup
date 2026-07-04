@@ -119,9 +119,9 @@ Rules:
 - Do not solve overload by adding a larger public taxonomy (`none/user/agent/debug/human/json`, `--format`, `--report`, `--evidence`) without a concrete consumer and contract.
 - For agent-only CLI refactors, design the production path as strict machine contract first: `flights search --request request.json --json`, with `flight_search_request.v1` validated before provider calls and a single stdout JSON result envelope validated before printing. Keep `agent_report.v4` and `flight_search_user_answer.v6` as nested active contracts; do not create another independent final-answer prose layer.
 - Keep the canonical user answer path explicit: `data.agent_report.user_answer.rendered_text`. If a result envelope exposes a derived `rendered_text` mirror, tests must prove exact equality with that canonical field.
-- Split agent-facing surfaces by operational role: production live search (`flights`), diagnostics/evidence/raw probes (`flights-diagnose`), and maintenance/source-runtime/catalog/cleanup (`flights-maint`). Provider-specific probes, raw candidates, rejected pairs, trace, coverage controls, and offline route internals belong in diagnostics, not ordinary search.
+- Split agent-facing surfaces by operational role: production live search (`search --request`), generic diagnostics (`diagnose plan|probe|render`), and maintenance/source-runtime/catalog/cleanup (`maint`). Provider-specific raw searches, raw candidates, rejected pairs, trace, coverage controls, and offline route internals belong in route diagnostics, not ordinary search.
 - Keep ordinary user commands narrow. Hide or classify as advanced/debug the knobs for raw provider bodies, live-cache TTL, fail-fast, day-offset fanout, coverage-control internals, and aggregate-control internals.
-- Prefer one public route-search wrapper over parallel user-facing variants. Provider-specific commands and `diagnose plan --request` are diagnostics/development surfaces unless the user explicitly asks for provider-level proof.
+- Prefer one public route-search wrapper over parallel user-facing variants. `diagnose plan --request` and `diagnose probe --provider ...` are diagnostics/development surfaces unless the user explicitly asks for provider-level proof.
 - Do not preserve compatibility aliases just because older tests referenced them; production search and diagnostic provider override surfaces are already separate.
 
 ## Provider Port Rule
@@ -135,8 +135,8 @@ Do not remove the provider port abstraction. Complete it:
 - provider policy owns mapping from route segment + request evidence policy to eligible providers using capabilities and airport/route policy.
 - `execution/probe_dispatcher.py` loops over provider adapters and translates `ProviderProbeResult` into probe ledger/outcome types.
 - aggregate controls call provider adapter `search_aggregate(...)` or receive structured `not_supported`; they must not contain provider-only algorithm branches.
-- production orchestration must not call provider-specific functions such as `fetch_kupibilet_search` directly. Keep provider-specific commands and human renderers in diagnostics or adapter-owned projections, not in the production answer path.
-- If KupiBilet round-trip remains outside the port while `diagnose kb-roundtrip` exists, document that capability boundary explicitly; otherwise model it as a typed provider-port method with tests.
+- production orchestration must not call provider-specific functions such as `fetch_kupibilet_search` directly. Keep provider-specific human renderers out of the production answer path.
+- If KupiBilet round-trip support is needed, model it as a typed provider-port method with tests rather than adding a parallel CLI command.
 
 Pitfalls:
 

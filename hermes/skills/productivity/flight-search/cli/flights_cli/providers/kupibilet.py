@@ -5,7 +5,6 @@ import json
 import urllib.error
 import urllib.request
 from collections import defaultdict
-from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
@@ -14,15 +13,9 @@ from ..config import (
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
     KUPIBILET_FRONTEND_SEARCH_URL,
     KUPIBILET_HEADERS,
-    SUPPORTED_CURRENCIES,
 )
 from ..domain.carriers import carrier_from_flight_number
-from ..domain.normalize import (
-    normalize_carrier_code,
-    normalize_iata,
-    parse_iso_date,
-    price_value,
-)
+from ..domain.normalize import price_value
 from ..domain.offer_order import provider_offer_business_key
 from ..domain.provider_offer_filter import filter_provider_offers
 from ..errors import CliError
@@ -31,35 +24,6 @@ from .segment_normalization import (
     provider_offer_to_segment_offer,
     provider_result_to_segment_result,
 )
-
-
-@dataclass(frozen=True)
-class KupiBiletSearchOptions:
-    origin: str
-    destination: str
-    depart_date: str
-    currency: str
-    only_carrier: list[str] | None
-    direct_only: bool
-    limit: int
-    timeout: int
-    cache_ttl_seconds: int = DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
-    no_cache: bool = False
-
-
-@dataclass(frozen=True)
-class KupiBiletRoundTripOptions:
-    origin: str
-    destination: str
-    depart_date: str
-    return_date: str
-    currency: str
-    only_carrier: list[str] | None
-    direct_only: bool
-    limit: int
-    timeout: int
-    cache_ttl_seconds: int = DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
-    no_cache: bool = False
 
 
 def build_kupibilet_payload(
@@ -795,71 +759,3 @@ def cached_kupibilet_roundtrip_search(
         return write_live_cache(key, result)
     result["cache"] = {"hit": False, "key": key, "disabled": True}
     return result
-
-
-def run_kb_search(args: KupiBiletSearchOptions) -> dict[str, Any]:
-    """Run a Kupibilet live aggregate search and normalize/dedupe offers."""
-    origin = normalize_iata(args.origin, "origin")
-    destination = normalize_iata(args.destination, "destination")
-    depart = parse_iso_date(args.depart_date, "depart-date")
-    currency = args.currency.upper()
-    if currency not in SUPPORTED_CURRENCIES:
-        raise CliError(
-            f"currency must be one of {', '.join(sorted(SUPPORTED_CURRENCIES))}",
-            error_type="validation_error",
-        )
-    only_carriers = [
-        normalize_carrier_code(code, "only-carrier")
-        for code in (args.only_carrier or [])
-    ]
-    return cached_kupibilet_search(
-        origin,
-        destination,
-        depart,
-        currency=currency,
-        only_carriers=only_carriers,
-        direct_only=args.direct_only,
-        limit=args.limit,
-        timeout=args.timeout,
-        cache_ttl_seconds=int(
-            getattr(args, "cache_ttl_seconds", DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS)
-        ),
-        use_cache=not bool(getattr(args, "no_cache", False)),
-    )
-
-
-def run_kb_roundtrip(args: KupiBiletRoundTripOptions) -> dict[str, Any]:
-    """Run a Kupibilet live two-trip search and normalize round-trip fare packages."""
-    origin = normalize_iata(args.origin, "origin")
-    destination = normalize_iata(args.destination, "destination")
-    depart = parse_iso_date(args.depart_date, "depart-date")
-    return_date = parse_iso_date(args.return_date, "return-date")
-    if return_date < depart:
-        raise CliError(
-            "return-date must be on or after depart-date", error_type="validation_error"
-        )
-    currency = args.currency.upper()
-    if currency not in SUPPORTED_CURRENCIES:
-        raise CliError(
-            f"currency must be one of {', '.join(sorted(SUPPORTED_CURRENCIES))}",
-            error_type="validation_error",
-        )
-    only_carriers = [
-        normalize_carrier_code(code, "only-carrier")
-        for code in (args.only_carrier or [])
-    ]
-    return cached_kupibilet_roundtrip_search(
-        origin,
-        destination,
-        depart,
-        return_date,
-        currency=currency,
-        only_carriers=only_carriers,
-        direct_only=args.direct_only,
-        limit=args.limit,
-        timeout=args.timeout,
-        cache_ttl_seconds=int(
-            getattr(args, "cache_ttl_seconds", DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS)
-        ),
-        use_cache=not bool(getattr(args, "no_cache", False)),
-    )

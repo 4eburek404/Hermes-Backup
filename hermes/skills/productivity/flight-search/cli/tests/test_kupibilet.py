@@ -7,7 +7,6 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
-from flights_cli.cli import build_parser
 from flights_cli.orchestrators.live_route_assembly import run_live_route_assembly
 from flights_cli.providers.kupibilet import (
     build_kupibilet_payload,
@@ -497,56 +496,6 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(result["suppressed_airport_change_count"], 1)
         self.assertEqual(result["offer_count"], 1)
         self.assertEqual(result["offers"][0]["id"], "good-one-stop")
-
-    def test_kb_search_parser_exposes_live_kupibilet_command(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "diagnose",
-                "kb-search",
-                "SVX",
-                "MOW",
-                "--depart-date",
-                "2026-07-19",
-                "--only-carrier",
-                "SU",
-                "--direct-only",
-                "--limit",
-                "20",
-            ]
-        )
-
-        self.assertEqual(args.command_name, "diagnose kb-search")
-        self.assertEqual(args.only_carrier, ["SU"])
-        self.assertTrue(args.direct_only)
-        self.assertEqual(args.limit, 20)
-        self.assertEqual(args.cache_ttl_seconds, 30 * 60)
-        self.assertFalse(args.no_cache)
-
-    def test_kb_roundtrip_parser_exposes_kupibilet_two_trip_command(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "diagnose",
-                "kb-roundtrip",
-                "SVX",
-                "BJS",
-                "--depart-date",
-                "2026-08-01",
-                "--return-date",
-                "2026-08-08",
-                "--only-carrier",
-                "U6",
-                "--direct-only",
-                "--limit",
-                "10",
-            ]
-        )
-
-        self.assertEqual(args.command_name, "diagnose kb-roundtrip")
-        self.assertEqual(args.only_carrier, ["U6"])
-        self.assertTrue(args.direct_only)
-        self.assertEqual(args.depart_date, "2026-08-01")
-        self.assertEqual(args.return_date, "2026-08-08")
-        self.assertEqual(args.limit, 10)
 
     def test_ru_priority_skips_dxb_when_ist_pair_is_usable(self) -> None:
         args = live_assembly_args(

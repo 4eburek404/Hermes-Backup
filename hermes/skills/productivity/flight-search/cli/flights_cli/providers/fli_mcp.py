@@ -7,7 +7,6 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass
 from datetime import date
 from functools import lru_cache
 from pathlib import Path
@@ -17,13 +16,10 @@ from .. import __version__
 from ..config import (
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
     FLI_MCP_DEFAULT_URL,
-    SUPPORTED_CURRENCIES,
 )
 from ..domain.carriers import carrier_from_flight_number
 from ..domain.normalize import (
     normalize_carrier_code,
-    normalize_iata,
-    parse_iso_date,
     price_value,
 )
 from ..domain.offer_order import provider_offer_business_key
@@ -38,44 +34,6 @@ from .segment_normalization import (
 
 MCP_PROTOCOL_VERSION = "2025-03-26"
 FLI_NORMALIZER_VERSION = "airport-name-v2"
-
-
-@dataclass(frozen=True)
-class FliSearchOptions:
-    origin: str
-    destination: str
-    depart_date: str
-    currency: str
-    only_carrier: list[str] | None
-    direct_only: bool
-    limit: int
-    timeout: int
-    mcp_url: str
-    cabin_class: str
-    max_stops: str
-    sort_by: str
-    passengers: int
-    cache_ttl_seconds: int = DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
-    no_cache: bool = False
-
-
-@dataclass(frozen=True)
-class FliDatesOptions:
-    origin: str
-    destination: str
-    from_date: str
-    to_date: str
-    trip_duration: int
-    round_trip: bool
-    only_carrier: list[str] | None
-    direct_only: bool
-    max_stops: str
-    cabin_class: str
-    sort_by_price: bool
-    passengers: int
-    limit: int
-    mcp_url: str
-    timeout: int
 
 
 def default_fli_mcp_url() -> str:
@@ -769,93 +727,4 @@ def fli_segment_search_summary(
         "offer_count": len(segment_result.get("offers") or []),
         "skipped": result.get("skipped", {}),
         "cache": result.get("cache", {"hit": False}),
-    }
-
-
-def run_fli_search(
-    args: FliSearchOptions, store: Store | None = None
-) -> dict[str, Any]:
-    origin = normalize_iata(args.origin, "origin")
-    destination = normalize_iata(args.destination, "destination")
-    depart = parse_iso_date(args.depart_date, "depart-date")
-    currency = args.currency.upper()
-    if currency not in SUPPORTED_CURRENCIES:
-        raise CliError(
-            f"currency must be one of {', '.join(sorted(SUPPORTED_CURRENCIES))}",
-            error_type="validation_error",
-        )
-    only_carriers = [
-        normalize_carrier_code(code, "only-carrier")
-        for code in (args.only_carrier or [])
-    ]
-    return cached_fli_mcp_search(
-        origin,
-        destination,
-        depart,
-        currency=currency,
-        only_carriers=only_carriers,
-        direct_only=args.direct_only,
-        limit=args.limit,
-        timeout=args.timeout,
-        mcp_url=args.mcp_url,
-        cabin_class=args.cabin_class,
-        max_stops=args.max_stops,
-        sort_by=args.sort_by,
-        passengers=args.passengers,
-        cache_ttl_seconds=args.cache_ttl_seconds,
-        use_cache=not args.no_cache,
-        store=store,
-    )
-
-
-def run_fli_dates(args: FliDatesOptions) -> dict[str, Any]:
-    origin = normalize_iata(args.origin, "origin")
-    destination = normalize_iata(args.destination, "destination")
-    start = parse_iso_date(args.from_date, "from-date")
-    end = parse_iso_date(args.to_date, "to-date")
-    if end < start:
-        raise CliError(
-            "to-date must be on or after from-date", error_type="validation_error"
-        )
-    only_carriers = [
-        normalize_carrier_code(code, "only-carrier")
-        for code in (args.only_carrier or [])
-    ]
-    raw = call_fli_mcp_tool(
-        "search_dates",
-        {
-            "origin": origin,
-            "destination": destination,
-            "start_date": start.isoformat(),
-            "end_date": end.isoformat(),
-            "trip_duration": args.trip_duration,
-            "is_round_trip": args.round_trip,
-            "airlines": only_carriers or None,
-            "cabin_class": args.cabin_class,
-            "max_stops": "NON_STOP" if args.direct_only else args.max_stops,
-            "sort_by_price": args.sort_by_price,
-            "passengers": args.passengers,
-        },
-        mcp_url=args.mcp_url,
-        timeout=args.timeout,
-    )
-    if raw.get("success") is False:
-        raise CliError(
-            f"FLI MCP date search failed: {raw.get('error') or 'unknown error'}",
-            error_type="upstream_error",
-        )
-    dates = raw.get("dates") if isinstance(raw.get("dates"), list) else []
-    return {
-        "origin": origin,
-        "destination": destination,
-        "from_date": start.isoformat(),
-        "to_date": end.isoformat(),
-        "source": "FLI MCP search_dates (Google Flights reverse-engineered)",
-        "source_url": normalize_mcp_url(args.mcp_url),
-        "note": "Self-hosted FLI MCP source; Google Flights date prices are advisory and must be rechecked before ticketing.",
-        "trip_type": raw.get("trip_type"),
-        "date_range": raw.get("date_range"),
-        "duration": raw.get("duration"),
-        "count": raw.get("count", len(dates)),
-        "dates": dates[: max(0, args.limit)],
     }

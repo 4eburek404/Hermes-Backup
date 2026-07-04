@@ -8,7 +8,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 from flights_cli.adapters.providers.tutu_adapter import TutuProviderAdapter
-from flights_cli.cli import build_parser
 from flights_cli.providers.tutu_mcp import (
     MCP_PROTOCOL_VERSION,
     TUTU_MAX_PAGES,
@@ -104,35 +103,9 @@ def tutu_offer(offer_id: str, legs: list[list[dict]], *, price: int = 10000) -> 
 
 
 class TutuMcpProviderTests(unittest.TestCase):
-    def test_tutu_search_parser_exposes_one_way_and_round_trip_command(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "diagnose",
-                "tutu-search",
-                "SVX",
-                "AER",
-                "--depart-date",
-                "2026-08-15",
-                "--return-date",
-                "2026-08-22",
-                "--direct-only",
-                "--only-carrier",
-                "U6",
-                "--limit",
-                "10",
-            ]
-        )
-
-        self.assertEqual(args.command_name, "diagnose tutu-search")
-        self.assertEqual(args.origin, "SVX")
-        self.assertEqual(args.destination, "AER")
-        self.assertEqual(args.depart_date, "2026-08-15")
-        self.assertEqual(args.return_date, "2026-08-22")
-        self.assertEqual(args.only_carrier, ["U6"])
-        self.assertTrue(args.direct_only)
-        self.assertEqual(args.limit, 10)
-
     def test_diagnose_probe_allows_tutu_provider(self) -> None:
+        from flights_cli.cli import build_parser
+
         args = build_parser().parse_args(
             [
                 "diagnose",

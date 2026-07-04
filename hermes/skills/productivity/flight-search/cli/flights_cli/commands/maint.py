@@ -11,12 +11,12 @@ from typing import Any
 
 from .. import __skill_name__, __skill_version__, __version__
 from ..command_surface import (
+    AGENT_COMMANDS,
     CATALOG_AUTO_REFRESH_COMMANDS,
     CATALOG_READ_COMMANDS,
     CATALOG_REFRESH_COMMANDS,
-    LIVE_PROVIDER_COMMANDS,
+    DIAGNOSTIC_PROBE_COMMANDS,
     PRIMARY_ROUTE_COMMAND,
-    TARGETED_PROBE_COMMANDS,
 )
 from ..config import (
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
@@ -128,9 +128,10 @@ def command_maint_doctor(args: argparse.Namespace, store: Store) -> dict[str, An
         "safety": {
             "booking_or_purchase": False,
             "docker_touched": False,
+            "agent_commands": list(AGENT_COMMANDS),
             "primary_route_command": PRIMARY_ROUTE_COMMAND,
-            "targeted_probe_commands": list(TARGETED_PROBE_COMMANDS),
-            "live_provider_commands": list(LIVE_PROVIDER_COMMANDS),
+            "canonical_path": f"{PRIMARY_ROUTE_COMMAND} --request",
+            "diagnostic_probe_commands": list(DIAGNOSTIC_PROBE_COMMANDS),
         },
         "risk_profiles": {
             name: {
