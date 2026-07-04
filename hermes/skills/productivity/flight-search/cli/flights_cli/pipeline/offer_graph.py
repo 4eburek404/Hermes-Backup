@@ -776,10 +776,15 @@ class OfferGraphBuilder:
         normalized_direction = _normalize_direction(direction)
         if not self.direct_mode.get(normalized_direction):
             return False
+        requested_origin, requested_destination = _requested_pair_for_direction(
+            self.requested_origin,
+            self.requested_destination,
+            normalized_direction,
+        )
         return not _segments_are_requested_direct_path(
             segments,
-            requested_origin=self.requested_origin,
-            requested_destination=self.requested_destination,
+            requested_origin=requested_origin,
+            requested_destination=requested_destination,
         )
 
 
@@ -1090,6 +1095,14 @@ def _segments_are_requested_direct_path(
     if destination_codes and destination not in destination_codes:
         return False
     return bool(origin and destination)
+
+
+def _requested_pair_for_direction(
+    requested_origin: str, requested_destination: str, direction: str | None
+) -> tuple[str, str]:
+    if _normalize_direction(direction) == "return":
+        return requested_destination, requested_origin
+    return requested_origin, requested_destination
 
 
 def _requested_codes(value: str) -> set[str]:

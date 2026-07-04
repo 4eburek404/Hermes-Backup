@@ -292,6 +292,62 @@ class OfferGraphTests(unittest.TestCase):
             ["outbound", "return"],
         )
 
+    def test_direct_mode_allows_atomic_round_trip_when_both_directions_direct(
+        self,
+    ) -> None:
+        graph = build_offer_graph(
+            primary_offer_results=[
+                {
+                    "role": "primary_offer_collection",
+                    "source_type": "provider_full_route",
+                    "provider": "tutu",
+                    "direction": "outbound",
+                    "origin": "SVX",
+                    "destination": "LED",
+                    "top_offers": [
+                        {
+                            "id": "tutu-rt-direct",
+                            "price": 18347,
+                            "currency": "RUB",
+                            "segments": [{"origin": "SVX", "destination": "LED"}],
+                            "journeys": [
+                                {
+                                    "direction": "outbound",
+                                    "segments": [
+                                        {"origin": "SVX", "destination": "LED"}
+                                    ],
+                                },
+                                {
+                                    "direction": "return",
+                                    "segments": [
+                                        {"origin": "LED", "destination": "SVX"}
+                                    ],
+                                },
+                            ],
+                            "journey_scope": "round_trip",
+                        }
+                    ],
+                }
+            ],
+            gateway_leg_results={},
+            direct_mode={"outbound": True, "return": True},
+            requested_origin="SVX",
+            requested_destination="LED",
+        )
+
+        self.assertEqual(len(graph["offers"]), 1)
+        self.assertEqual(len(graph["edges"]), 2)
+        self.assertNotIn(
+            "direct_mode_gate", graph["coverage"].get("skipped_reasons", [])
+        )
+        envelope = materialize_offer_graph_candidates(
+            graph,
+            direct_mode={"outbound": True, "return": True},
+            requested_origin="SVX",
+            requested_destination="LED",
+        )
+        self.assertEqual(envelope["coverage"]["candidate_count"], 1)
+
     def test_gateway_legs_build_two_edges_and_connection(self) -> None:
         graph = build_offer_graph(
             primary_offer_results=[],
