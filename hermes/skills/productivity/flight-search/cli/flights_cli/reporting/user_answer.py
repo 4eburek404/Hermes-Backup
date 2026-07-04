@@ -165,6 +165,16 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
     answer_mode = infer_answer_mode(
         is_round_trip_request=is_round_trip_request, options=catalog.get("items") or []
     )
+    presentation = (
+        catalog.get("presentation")
+        if isinstance(catalog.get("presentation"), dict)
+        else {}
+    )
+    try:
+        catalog_max_items = int(presentation.get("max_items") or 10)
+    except (TypeError, ValueError):
+        catalog_max_items = 10
+    alternative_limit = max(0, catalog_max_items - (1 if recommended else 0))
     route_contract = {
         "origin": route.get("origin"),
         "destination": route.get("destination"),
@@ -236,7 +246,9 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
             summary
             for summary in (
                 option_summary(item, is_round_trip_request=is_round_trip_request)
-                for item in priority_options_for_user_contract(priority, limit=5)
+                for item in priority_options_for_user_contract(
+                    priority, limit=alternative_limit
+                )
             )
             if summary is not None
         ],

@@ -36,7 +36,7 @@ from .report_budget import apply_agent_report_budget
 from .source_boundary_projector import source_boundaries
 from .through_fare_analyzer import through_fare_checks
 
-CATALOG_LIMIT_DEFAULT = 5
+CATALOG_LIMIT_DEFAULT = 10
 DIRECT_MODE_CATALOG_LIMIT = 30
 
 

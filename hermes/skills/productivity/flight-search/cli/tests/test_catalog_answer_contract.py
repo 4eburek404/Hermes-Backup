@@ -236,6 +236,28 @@ class CatalogAnswerContractTests(unittest.TestCase):
         )
         self.assertNotIn("1.\n", answer["catalog"]["items"][0]["agent_display"]["text"])
 
+    def test_catalog_keeps_ten_flight_options(self) -> None:
+        report = self._round_trip_report()
+        report["priority_options"] = []
+        for index in range(12):
+            option = self._round_trip_option(
+                f"assembled-alt-{index}", price=90_000 + index
+            )
+            option["rank"] = index + 2
+            report["priority_options"].append(option)
+
+        answer = build_user_answer(report)
+
+        validate_user_answer(answer)
+        self.assertEqual(answer["catalog"]["presentation"]["max_items"], 10)
+        self.assertEqual(len(answer["catalog"]["items"]), 10)
+        self.assertEqual(len(answer["alternatives"]), 9)
+        self.assertEqual(answer["catalog"]["items"][0]["option_id"], "assembled-primary")
+        self.assertEqual(answer["catalog"]["items"][-1]["option_id"], "assembled-alt-8")
+        rendered = answer["rendered_text"]
+        self.assertIn("10. ", rendered)
+        self.assertNotIn("11. ", rendered)
+
     def test_city_scope_endpoint_renders_actual_multi_airport_and_terminal(
         self,
     ) -> None:

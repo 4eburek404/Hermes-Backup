@@ -11,8 +11,8 @@ from .projections.itinerary_display import sanitize_summary_only_display
 @dataclass(frozen=True)
 class AgentReportBudget:
     max_bytes: int = 65536
-    max_recommended_options: int = 5
-    max_priority_options: int = 8
+    max_recommended_options: int = 10
+    max_priority_options: int = 12
     max_segment_searches: int = 20
     max_coverage_controls: int = 20
     max_provider_failures: int = 10

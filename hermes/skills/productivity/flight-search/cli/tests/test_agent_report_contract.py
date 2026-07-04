@@ -657,6 +657,89 @@ class AgentReportContractTests(unittest.TestCase):
             report["diagnostics"]["human_answer"]["text"],
         )
 
+    def test_build_agent_report_keeps_ten_catalog_options(self) -> None:
+        def frontier_option(index: int) -> dict:
+            hour = 6 + index
+            return {
+                "id": f"candidate:primary:tutu:{index}",
+                "rank": index + 1,
+                "source_type": "provider_full_route",
+                "provider": "tutu",
+                "source_providers": ["tutu"],
+                "covers_requested_trip": True,
+                "journey_scope": "one_way",
+                "ticketing_model": "provider_order_unverified",
+                "price": 10_000 + index,
+                "currency": "RUB",
+                "elapsed_min": 170 + index,
+                "connection_count": 0,
+                "journeys": [
+                    {
+                        "direction": "outbound",
+                        "segments": [
+                            {
+                                "origin": "SVX",
+                                "destination": "LED",
+                                "departure_at": (
+                                    f"2026-09-05T{hour:02d}:00:00+05:00"
+                                ),
+                                "arrival_at": f"2026-09-05T{hour:02d}:55:00+03:00",
+                                "marketing_carrier": "SU",
+                                "operating_carrier": "SU",
+                                "flight_number": f"SU{1000 + index}",
+                                "duration": 175,
+                            }
+                        ],
+                    }
+                ],
+                "selection_reasons": ["direct_nonstop_control"],
+            }
+
+        report = build_agent_report(
+            {
+                "profile": "business",
+                "assembly": {
+                    "ranked_output_count": 12,
+                    "ranked_total_count": 12,
+                    "candidate_count": 12,
+                    "candidate_pool_truncated": False,
+                },
+                "live_search": {
+                    "provider_policy": "tutu",
+                    "plan": {
+                        "origin": "SVX",
+                        "destination": "LED",
+                        "origin_airports": ["SVX"],
+                        "destination_airports": ["LED"],
+                        "dates": {"depart": "2026-09-05", "return": None},
+                        "profile": "business",
+                        "routing_strategy": "default",
+                    },
+                    "decision_frontier": {
+                        "options": [frontier_option(index) for index in range(12)],
+                        "coverage_summary": {
+                            "candidate_count": 12,
+                            "acceptable_count": 12,
+                            "selected_count": 12,
+                        },
+                    },
+                    "hub_viability": [],
+                    "segment_searches": [],
+                    "aggregate_controls": [],
+                    "failure_count": 0,
+                    "failures": [],
+                },
+            }
+        )
+
+        validate_agent_report(report)
+        self.assertEqual(len(report["frontier"]["recommended_options"]), 1)
+        self.assertEqual(len(report["frontier"]["priority_options"]), 9)
+        self.assertEqual(len(report["user_answer"]["catalog"]["items"]), 10)
+        rendered = report["user_answer"]["rendered_text"]
+        self.assertIn("10. ", rendered)
+        self.assertNotIn("11. ", rendered)
+
     def test_build_agent_report_projects_constraint_conflict_from_ranked_directs(
         self,
     ) -> None:
