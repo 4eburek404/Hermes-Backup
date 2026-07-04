@@ -5,14 +5,13 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from ..config import catalog_output_limits_from_mapping
 from .projections.itinerary_display import sanitize_summary_only_display
 
 
 @dataclass(frozen=True)
 class AgentReportBudget:
     max_bytes: int = 65536
-    max_recommended_options: int = 10
-    max_priority_options: int = 12
     max_segment_searches: int = 20
     max_coverage_controls: int = 20
     max_provider_failures: int = 10
@@ -36,15 +35,17 @@ def apply_agent_report_budget(
     direct_mode = (
         status.get("direct_mode") if isinstance(status.get("direct_mode"), dict) else {}
     )
+    output_limits = catalog_output_limits_from_mapping(
+        status.get("output_limits")
+        if isinstance(status.get("output_limits"), dict)
+        else None
+    )
+    catalog_limit = output_limits.catalog_limit
     skip_recommended_trim = any(bool(value) for value in direct_mode.values())
 
     if not skip_recommended_trim:
-        _trim_top_level_list(
-            trimmed, "recommended_options", budget.max_recommended_options, omitted
-        )
-    _trim_top_level_list(
-        trimmed, "priority_options", budget.max_priority_options, omitted
-    )
+        _trim_top_level_list(trimmed, "recommended_options", catalog_limit, omitted)
+    _trim_top_level_list(trimmed, "priority_options", catalog_limit, omitted)
     _trim_top_level_list(
         trimmed, "segment_searches", budget.max_segment_searches, omitted
     )

@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from flights_cli.commands.search import live_assembly_options_from_search_request
+from flights_cli.config import DEFAULT_CATALOG_LIMIT, DEFAULT_DIRECT_CATALOG_LIMIT
 from flights_cli.errors import CliError
 from flights_cli.pipeline.options import search_request_to_options
 
@@ -65,6 +66,8 @@ REQUEST = {
         "include_stop_policy_diagnostics": True,
         "limit_per_pair": 2,
         "candidate_pool_limit": 111,
+        "catalog_limit": 12,
+        "direct_catalog_limit": 35,
         "max_candidates": 9,
         "max_reasons": 3,
         "include_candidates": 4,
@@ -115,6 +118,8 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.evidence.search_wave_probe_limit, 8)
         self.assertEqual(options.evidence.search_wave_top_k, 6)
         self.assertEqual(options.output.agent_report, expected["agent_report"])
+        self.assertEqual(options.output.catalog_limit, 12)
+        self.assertEqual(options.output.direct_catalog_limit, 35)
 
     def test_search_app_adapter_matches_typed_request_adapter(self) -> None:
         self.assertEqual(
@@ -176,6 +181,10 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.evidence.provider_policy, "auto")
         self.assertTrue(options.output.agent_report)
         self.assertTrue(options.output.agent_brief)
+        self.assertEqual(options.output.catalog_limit, DEFAULT_CATALOG_LIMIT)
+        self.assertEqual(
+            options.output.direct_catalog_limit, DEFAULT_DIRECT_CATALOG_LIMIT
+        )
 
     def test_search_request_preserves_explicit_zero_values(self) -> None:
         options = search_request_to_options(

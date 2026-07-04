@@ -48,9 +48,7 @@ def connection_summary(connection: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def decision_frontier_options(
-    data: dict[str, Any], limit: int = 10
-) -> list[dict[str, Any]]:
+def decision_frontier_options(data: dict[str, Any], limit: int) -> list[dict[str, Any]]:
     live = data.get("live_search") if isinstance(data.get("live_search"), dict) else {}
     frontier = (
         live.get("decision_frontier")

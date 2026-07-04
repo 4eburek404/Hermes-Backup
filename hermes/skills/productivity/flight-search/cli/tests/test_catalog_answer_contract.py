@@ -236,10 +236,14 @@ class CatalogAnswerContractTests(unittest.TestCase):
         )
         self.assertNotIn("1.\n", answer["catalog"]["items"][0]["agent_display"]["text"])
 
-    def test_catalog_keeps_ten_flight_options(self) -> None:
+    def test_catalog_uses_report_output_limit(self) -> None:
         report = self._round_trip_report()
+        report["status"]["output_limits"] = {
+            "catalog_limit": 12,
+            "direct_catalog_limit": 30,
+        }
         report["priority_options"] = []
-        for index in range(12):
+        for index in range(14):
             option = self._round_trip_option(
                 f"assembled-alt-{index}", price=90_000 + index
             )
@@ -249,14 +253,14 @@ class CatalogAnswerContractTests(unittest.TestCase):
         answer = build_user_answer(report)
 
         validate_user_answer(answer)
-        self.assertEqual(answer["catalog"]["presentation"]["max_items"], 10)
-        self.assertEqual(len(answer["catalog"]["items"]), 10)
-        self.assertEqual(len(answer["alternatives"]), 9)
+        self.assertEqual(answer["catalog"]["presentation"]["max_items"], 12)
+        self.assertEqual(len(answer["catalog"]["items"]), 12)
+        self.assertEqual(len(answer["alternatives"]), 11)
         self.assertEqual(answer["catalog"]["items"][0]["option_id"], "assembled-primary")
-        self.assertEqual(answer["catalog"]["items"][-1]["option_id"], "assembled-alt-8")
+        self.assertEqual(answer["catalog"]["items"][-1]["option_id"], "assembled-alt-10")
         rendered = answer["rendered_text"]
-        self.assertIn("10. ", rendered)
-        self.assertNotIn("11. ", rendered)
+        self.assertIn("12. ", rendered)
+        self.assertNotIn("13. ", rendered)
 
     def test_city_scope_endpoint_renders_actual_multi_airport_and_terminal(
         self,

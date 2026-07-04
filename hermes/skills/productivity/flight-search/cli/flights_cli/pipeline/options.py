@@ -19,6 +19,7 @@ from ..config import (
     DEFAULT_SEARCH_WAVE_TOP_K,
     FLI_MCP_DEFAULT_URL,
     PRIORITY_ROUTE_CARRIERS,
+    catalog_output_limits_from_mapping,
 )
 from ..domain.vocabulary import RoutingStrategy
 
@@ -105,6 +106,8 @@ class OutputOptions:
     include_filtered: int
     limit_per_pair: int
     candidate_pool_limit: int
+    catalog_limit: int
+    direct_catalog_limit: int
     max_candidates: int
     max_reasons: int
     include_stop_policy_diagnostics: bool
@@ -211,6 +214,7 @@ def search_request_to_options(payload: dict[str, Any]) -> LiveAssemblyOptions:
     filters = _mapping(payload.get("filters"))
     constraints = _mapping(payload.get("constraints"))
     output = _mapping(payload.get("output"))
+    output_limits = catalog_output_limits_from_mapping(output)
     return LiveAssemblyOptions(
         command_name="search",
         route=RouteOptions(
@@ -330,6 +334,8 @@ def search_request_to_options(payload: dict[str, Any]) -> LiveAssemblyOptions:
                 output, "limit_per_pair", DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR
             ),
             candidate_pool_limit=_int_option(output, "candidate_pool_limit", 5000),
+            catalog_limit=output_limits.catalog_limit,
+            direct_catalog_limit=output_limits.direct_catalog_limit,
             max_candidates=_int_option(output, "max_candidates", 50),
             max_reasons=_int_option(output, "max_reasons", 5),
             include_stop_policy_diagnostics=_bool_option(

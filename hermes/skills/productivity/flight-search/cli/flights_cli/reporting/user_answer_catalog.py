@@ -607,7 +607,7 @@ def catalog_options(
     recommended: list[Any],
     priority: list[Any],
     *,
-    limit: int = 10,
+    limit: int,
     is_round_trip_request: bool = False,
 ) -> list[dict[str, Any]]:
     return ordered_user_options(
@@ -631,10 +631,12 @@ def build_catalog_contract(
     priority: list[Any],
     *,
     is_round_trip_request: bool,
+    catalog_limit: int,
     direct_mode: bool = False,
 ) -> dict[str, Any]:
+    requested_limit = max(1, int(catalog_limit))
     catalog_limit = (
-        max(1, len(recommended)) if direct_mode else max(10, len(recommended))
+        max(1, len(recommended)) if direct_mode else max(requested_limit, len(recommended))
     )
     options = catalog_options(
         recommended,

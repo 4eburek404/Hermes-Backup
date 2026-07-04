@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..config import SPECIAL_CITY_AIRPORTS
+from ..config import SPECIAL_CITY_AIRPORTS, catalog_output_limits_from_mapping
 from ..domain.vocabulary import Direction, Leg, RouteFamily, RoutingStrategy
 from ..domain.stop_metrics import offer_stop_metrics
 from ..domain.stop_policy import (
@@ -35,10 +35,6 @@ from .provider_aggregate_projector import (
 from .report_budget import apply_agent_report_budget
 from .source_boundary_projector import source_boundaries
 from .through_fare_analyzer import through_fare_checks
-
-CATALOG_LIMIT_DEFAULT = 10
-DIRECT_MODE_CATALOG_LIMIT = 30
-
 
 def stop_policy_from_report_data(data: dict[str, Any]) -> StopPolicy:
     payload = (
@@ -911,7 +907,7 @@ def _direct_mode_departure_key(
 
 
 def direct_mode_candidate_options(
-    data: dict[str, Any], direct_mode_directions: list[str]
+    data: dict[str, Any], direct_mode_directions: list[str], *, limit: int
 ) -> list[dict[str, Any]]:
     options: list[dict[str, Any]] = []
     for candidate in _ranked_candidates(data):
@@ -924,7 +920,7 @@ def direct_mode_candidate_options(
         )
         options.append(option)
     options.sort(key=lambda item: _direct_mode_departure_key(item, direct_mode_directions))
-    return annotate_schedule_options(options[:DIRECT_MODE_CATALOG_LIMIT])
+    return annotate_schedule_options(options[:limit])
 
 
 def annotate_schedule_options(options: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1048,6 +1044,8 @@ def _direct_schedule_option_from_candidate(
 def direct_conflict_schedule_options(
     data: dict[str, Any],
     direction: str,
+    *,
+    limit: int,
 ) -> list[dict[str, Any]]:
     options: list[dict[str, Any]] = []
     for candidate in _ranked_candidates(data):
@@ -1064,7 +1062,7 @@ def direct_conflict_schedule_options(
             )
         )
     options.sort(key=lambda item: _direct_mode_departure_key(item, [direction]))
-    return annotate_schedule_options(options[:DIRECT_MODE_CATALOG_LIMIT])
+    return annotate_schedule_options(options[:limit])
 
 
 def constraint_conflict_report(
@@ -1072,6 +1070,8 @@ def constraint_conflict_report(
     live: dict[str, Any],
     recommended_options: list[dict[str, Any]],
     priority_options: list[dict[str, Any]],
+    *,
+    direct_schedule_limit: int,
 ) -> dict[str, Any] | None:
     fallback = _direct_mode_fallback(live)
     directions = _conflict_directions(live)
@@ -1092,7 +1092,9 @@ def constraint_conflict_report(
     }
     conflict_directions: list[dict[str, Any]] = []
     for direction in directions:
-        direct_schedule = direct_conflict_schedule_options(data, direction)
+        direct_schedule = direct_conflict_schedule_options(
+            data, direction, limit=direct_schedule_limit
+        )
         constraints: list[dict[str, Any]] = []
         for option in direct_schedule:
             for constraint in option.get("conflicting_constraints") or []:
@@ -1339,6 +1341,11 @@ def build_agent_report(
     data: dict[str, Any], store: Any | None = None
 ) -> dict[str, Any]:
     live = data.get("live_search") if isinstance(data.get("live_search"), dict) else {}
+    output_limits = catalog_output_limits_from_mapping(
+        live.get("output") if isinstance(live.get("output"), dict) else None
+    )
+    catalog_limit = output_limits.catalog_limit
+    direct_catalog_limit = output_limits.direct_catalog_limit
     plan = live.get("plan") if isinstance(live.get("plan"), dict) else {}
     assembly = data.get("assembly") if isinstance(data.get("assembly"), dict) else {}
     direct_mode_directions = active_direct_mode_directions(live, assembly)
@@ -1360,13 +1367,12 @@ def build_agent_report(
         else {}
     )
     frontier_source_options = decision_frontier_options(
-        data, limit=CATALOG_LIMIT_DEFAULT + 5
+        data, limit=catalog_limit + 5
     )
     if direct_mode_directions:
         frontier_source_options = direct_mode_candidate_options(
-            data, direct_mode_directions
+            data, direct_mode_directions, limit=direct_catalog_limit
         )
-    catalog_limit = CATALOG_LIMIT_DEFAULT
     ranked_total_count = int(
         decision_coverage.get("candidate_count") or len(frontier_source_options)
     )
@@ -1413,6 +1419,7 @@ def build_agent_report(
         live,
         options,
         priority_options,
+        direct_schedule_limit=direct_catalog_limit,
     )
     stop_policy_diagnostics = merge_stop_policy_diagnostics(
         data,
@@ -1458,6 +1465,7 @@ def build_agent_report(
             "direct_mode": {
                 direction: True for direction in direct_mode_directions
             },
+            "output_limits": output_limits.to_dict(),
         },
         "source_boundaries": source_boundaries(),
         "hub_viability": hub_viability_summaries(live),
@@ -1489,9 +1497,9 @@ def build_agent_report(
     if ru_priority_controls is not None:
         report["ru_priority_controls"] = ru_priority_controls
     report["offer_graph"] = build_offer_graph(report, plan, live, data)
-    display_limit = len(options) if direct_mode_directions else CATALOG_LIMIT_DEFAULT
+    display_limit = len(options) if direct_mode_directions else catalog_limit
     report["display"] = build_itinerary_display(
-        report, store, limit=max(display_limit, CATALOG_LIMIT_DEFAULT)
+        report, store, limit=max(display_limit, catalog_limit)
     )
     report["answer_lines"] = build_summary_lines(report)
     report["user_answer"] = build_user_answer(report)

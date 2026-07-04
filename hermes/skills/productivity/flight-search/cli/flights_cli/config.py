@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import os
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from .domain.vocabulary import RoutingStrategy
 
@@ -56,6 +57,10 @@ SUPPORTED_CURRENCIES = {"RUB", "USD", "EUR", "KZT", "BYN", "TRY", "AED"}
 
 DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR = 10
 
+DEFAULT_CATALOG_LIMIT = 10
+
+DEFAULT_DIRECT_CATALOG_LIMIT = 30
+
 DEFAULT_COVERAGE_CONTROL_LIMIT = 12
 
 DEFAULT_GATEWAY_DISCOVERY_LIMIT = 1
@@ -79,6 +84,40 @@ DEFAULT_KB_ROUTE_RETURN_SECOND_LEG_DAY_OFFSETS = [0, 1, 2]
 DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS = 30 * 60
 
 DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS = 7 * 24 * 60 * 60
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogOutputLimits:
+    catalog_limit: int = DEFAULT_CATALOG_LIMIT
+    direct_catalog_limit: int = DEFAULT_DIRECT_CATALOG_LIMIT
+
+    def to_dict(self) -> dict[str, int]:
+        return {
+            "catalog_limit": self.catalog_limit,
+            "direct_catalog_limit": self.direct_catalog_limit,
+        }
+
+
+def _positive_int(value: Any, default: int) -> int:
+    if value is None:
+        return default
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(1, parsed)
+
+
+def catalog_output_limits_from_mapping(
+    mapping: Mapping[str, Any] | None,
+) -> CatalogOutputLimits:
+    source = mapping or {}
+    return CatalogOutputLimits(
+        catalog_limit=_positive_int(source.get("catalog_limit"), DEFAULT_CATALOG_LIMIT),
+        direct_catalog_limit=_positive_int(
+            source.get("direct_catalog_limit"), DEFAULT_DIRECT_CATALOG_LIMIT
+        ),
+    )
 
 SVX_OFFICIAL_SCHEDULE_URL = "https://ar-svx.ru/schedule/"
 

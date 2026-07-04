@@ -215,8 +215,12 @@ class AgentReportBudgetTests(unittest.TestCase):
 
     def test_regular_truncation_does_not_strip_non_primary_segments(self) -> None:
         report = valid_report()
+        report["status"]["output_limits"] = {
+            "catalog_limit": 12,
+            "direct_catalog_limit": 30,
+        }
         report["recommended_options"] = []
-        for index in range(12):
+        for index in range(14):
             option = valid_option()
             option["id"] = f"option-{index}"
             option["segments"] = [noisy_segment(index)]
@@ -225,7 +229,7 @@ class AgentReportBudgetTests(unittest.TestCase):
         budgeted = apply_agent_report_budget(report, AgentReportBudget(max_bytes=65536))
 
         validate_budgeted_flat_report(budgeted)
-        self.assertEqual(len(budgeted["recommended_options"]), 10)
+        self.assertEqual(len(budgeted["recommended_options"]), 12)
         self.assertTrue(
             all(option["segments"] for option in budgeted["recommended_options"])
         )

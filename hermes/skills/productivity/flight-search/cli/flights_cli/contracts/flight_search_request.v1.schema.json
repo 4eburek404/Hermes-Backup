@@ -95,7 +95,9 @@
         "include_ranked_candidates": {"type": "integer", "minimum": 0},
         "include_rejected_pairs": {"type": "integer", "minimum": 0},
         "include_segment_results": {"type": "integer", "minimum": 0},
-        "include_filtered": {"type": "integer", "minimum": 0}
+        "include_filtered": {"type": "integer", "minimum": 0},
+        "catalog_limit": {"type": "integer", "minimum": 1},
+        "direct_catalog_limit": {"type": "integer", "minimum": 1}
       }
     }
   }

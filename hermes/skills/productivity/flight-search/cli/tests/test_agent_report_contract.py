@@ -657,7 +657,7 @@ class AgentReportContractTests(unittest.TestCase):
             report["diagnostics"]["human_answer"]["text"],
         )
 
-    def test_build_agent_report_keeps_ten_catalog_options(self) -> None:
+    def test_build_agent_report_uses_pipeline_catalog_limit(self) -> None:
         def frontier_option(index: int) -> dict:
             hour = 6 + index
             return {
@@ -699,13 +699,14 @@ class AgentReportContractTests(unittest.TestCase):
             {
                 "profile": "business",
                 "assembly": {
-                    "ranked_output_count": 12,
-                    "ranked_total_count": 12,
-                    "candidate_count": 12,
+                    "ranked_output_count": 14,
+                    "ranked_total_count": 14,
+                    "candidate_count": 14,
                     "candidate_pool_truncated": False,
                 },
                 "live_search": {
                     "provider_policy": "tutu",
+                    "output": {"catalog_limit": 12, "direct_catalog_limit": 30},
                     "plan": {
                         "origin": "SVX",
                         "destination": "LED",
@@ -716,11 +717,11 @@ class AgentReportContractTests(unittest.TestCase):
                         "routing_strategy": "default",
                     },
                     "decision_frontier": {
-                        "options": [frontier_option(index) for index in range(12)],
+                        "options": [frontier_option(index) for index in range(14)],
                         "coverage_summary": {
-                            "candidate_count": 12,
-                            "acceptable_count": 12,
-                            "selected_count": 12,
+                            "candidate_count": 14,
+                            "acceptable_count": 14,
+                            "selected_count": 14,
                         },
                     },
                     "hub_viability": [],
@@ -734,11 +735,14 @@ class AgentReportContractTests(unittest.TestCase):
 
         validate_agent_report(report)
         self.assertEqual(len(report["frontier"]["recommended_options"]), 1)
-        self.assertEqual(len(report["frontier"]["priority_options"]), 9)
-        self.assertEqual(len(report["user_answer"]["catalog"]["items"]), 10)
+        self.assertEqual(len(report["frontier"]["priority_options"]), 11)
+        self.assertEqual(
+            report["frontier"]["status"]["output_limits"]["catalog_limit"], 12
+        )
+        self.assertEqual(len(report["user_answer"]["catalog"]["items"]), 12)
         rendered = report["user_answer"]["rendered_text"]
-        self.assertIn("10. ", rendered)
-        self.assertNotIn("11. ", rendered)
+        self.assertIn("12. ", rendered)
+        self.assertNotIn("13. ", rendered)
 
     def test_build_agent_report_projects_constraint_conflict_from_ranked_directs(
         self,

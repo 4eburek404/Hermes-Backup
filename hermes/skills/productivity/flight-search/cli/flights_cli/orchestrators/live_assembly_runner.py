@@ -587,6 +587,10 @@ class LiveSearchResultBuilder:
                 "provider_policy": self.provider_policy,
                 "note": "Provider offers are shopping evidence; verify final fare, baggage, and ticket protection on the booking screen.",
                 "plan": deepcopy(state.plan),
+                "output": {
+                    "catalog_limit": self.options.output.catalog_limit,
+                    "direct_catalog_limit": self.options.output.direct_catalog_limit,
+                },
                 "segment_searches": state.direct_inventory_searches,
                 "direct_inventory_results": state.direct_inventory_results[
                     : self.options.output.include_segment_results

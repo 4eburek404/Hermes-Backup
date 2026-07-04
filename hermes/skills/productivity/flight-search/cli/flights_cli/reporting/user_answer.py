@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..config import catalog_output_limits_from_mapping
 from .option_semantics import route_requested_round_trip
 from .user_answer_absence import (
     gateway_coverage_summary,
@@ -150,11 +151,20 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
     direct_mode = (
         status.get("direct_mode") if isinstance(status.get("direct_mode"), dict) else {}
     )
+    output_limits = catalog_output_limits_from_mapping(
+        status.get("output_limits")
+        if isinstance(status.get("output_limits"), dict)
+        else None
+    )
+    direct_mode_active = any(bool(value) for value in direct_mode.values())
     catalog = build_catalog_contract(
         recommended,
         priority,
         is_round_trip_request=is_round_trip_request,
-        direct_mode=any(bool(value) for value in direct_mode.values()),
+        catalog_limit=output_limits.direct_catalog_limit
+        if direct_mode_active
+        else output_limits.catalog_limit,
+        direct_mode=direct_mode_active,
     )
     constraint_conflict = build_constraint_conflict_payload(
         agent_report.get("constraint_conflict")
@@ -171,9 +181,11 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
         else {}
     )
     try:
-        catalog_max_items = int(presentation.get("max_items") or 10)
+        catalog_max_items = int(
+            presentation.get("max_items") or output_limits.catalog_limit
+        )
     except (TypeError, ValueError):
-        catalog_max_items = 10
+        catalog_max_items = output_limits.catalog_limit
     alternative_limit = max(0, catalog_max_items - (1 if recommended else 0))
     route_contract = {
         "origin": route.get("origin"),
