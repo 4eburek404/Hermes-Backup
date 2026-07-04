@@ -36,14 +36,12 @@ class DecisionScorer:
         self,
         candidate_envelope: dict[str, Any],
         *,
-        legacy_candidates: list[dict[str, Any]] | None = None,
         constraints: dict[str, Any] | None = None,
         controls: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         prepared_envelope = self._prepare_candidate_envelope(candidate_envelope)
         ranking = rank_mixed_candidates(
             prepared_envelope,
-            legacy_candidates=legacy_candidates,
             max_connections_per_journey=self.options.max_connections_per_journey,
             max_connections_per_direction=self.options.max_connections_per_direction,
             preferred_connections_per_journey=self.options.preferred_connections,

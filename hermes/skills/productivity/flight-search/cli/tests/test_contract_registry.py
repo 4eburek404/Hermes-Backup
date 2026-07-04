@@ -5,7 +5,6 @@ from importlib import resources
 
 from flights_cli.contracts.registry import (
     CURRENT_CONTRACTS,
-    REJECTED_CONTRACT_NAMES,
     current_contract,
 )
 
@@ -65,12 +64,6 @@ class ContractRegistryTest(unittest.TestCase):
             user_answer["canonical_text_path"],
             "data.agent_report.user_answer.rendered_text",
         )
-
-    def test_rejected_final_answer_names_are_not_registered(self) -> None:
-        self.assertNotIn("final_answer", CURRENT_CONTRACTS)
-        self.assertNotIn("user_output", CURRENT_CONTRACTS)
-        self.assertIn("user_output", REJECTED_CONTRACT_NAMES)
-        self.assertIn("flight_search_final_answer", REJECTED_CONTRACT_NAMES)
 
 
 if __name__ == "__main__":

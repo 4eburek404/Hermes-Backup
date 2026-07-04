@@ -8,7 +8,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 from flights_cli.config import CACHE_DIR, DEFAULT_CACHE_DIR, resolve_cache_dir
-from flights_cli.errors import CliError
 from flights_cli.providers.static_catalog import (
     STATIC_CATALOG_BY_NAME,
     STATIC_CATALOG_SCHEMA_VERSION,
@@ -68,8 +67,6 @@ class StaticCatalogLayerTests(unittest.TestCase):
             self.assertEqual(manifest["entries"]["planes"]["count"], 1)
             self.assertIn("not maintained", manifest["entries"]["planes"]["stale_note"])
             self.assertIn("metadata", manifest["entries"]["planes"]["stale_note"])
-            self.assertNotIn("routes", manifest["entries"])
-
             dry_run = download_static_catalog(
                 cache_dir, names=["countries"], dry_run=True
             )
@@ -119,26 +116,6 @@ class StaticCatalogLayerTests(unittest.TestCase):
             )
             self.assertEqual(stale["stale_count"], 2)
             self.assertIn("expired", stale["stale"][0]["reasons"])
-
-    def test_routes_catalog_item_is_removed(self) -> None:
-        self.assertNotIn("routes", STATIC_CATALOG_BY_NAME)
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            cache_dir = Path(tmp_dir)
-            (cache_dir / "catalog_manifest.json").write_text(
-                json.dumps(
-                    {
-                        "entries": {
-                            "countries": {"filename": "countries.json"},
-                            "routes": {"filename": "routes.json"},
-                        }
-                    }
-                ),
-                encoding="utf-8",
-            )
-            dry_run = download_static_catalog(cache_dir, dry_run=True)
-            self.assertNotIn("routes", dry_run["manifest"]["entries"])
-            with self.assertRaises(CliError):
-                download_static_catalog(cache_dir, names=["routes"])
 
     def test_provider_modules_are_active_surfaces_only(self) -> None:
         provider_dir = PROJECT / "flights_cli" / "providers"

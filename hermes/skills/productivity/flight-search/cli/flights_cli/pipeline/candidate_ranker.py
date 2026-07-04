@@ -19,7 +19,6 @@ MATERIAL_ELAPSED_DELTA_MIN = 60
 def rank_mixed_candidates(
     candidate_envelope: dict[str, Any],
     *,
-    legacy_candidates: list[dict[str, Any]] | None = None,
     max_connections_per_journey: int = 2,
     max_connections_per_direction: dict[str, int] | None = None,
     preferred_connections_per_journey: int = 1,
@@ -40,11 +39,6 @@ def rank_mixed_candidates(
         for candidate in candidate_envelope.get("candidates") or []
         if isinstance(candidate, dict)
     ]
-    candidates.extend(
-        _normalize_legacy_candidate(candidate)
-        for candidate in legacy_candidates or []
-        if isinstance(candidate, dict)
-    )
     evaluated = [
         _candidate_with_rank_diagnostics(
             candidate,
@@ -184,17 +178,6 @@ def _normalize_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
         [*(normalized.get("warnings") or []), *warnings]
     )
     return normalized
-
-
-def _normalize_legacy_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
-    normalized = deepcopy(candidate)
-    normalized.setdefault("source_type", "assembled_separate_ticket")
-    normalized.setdefault("covers_requested_trip", True)
-    normalized.setdefault("journey_scope", "one_way")
-    normalized.setdefault("ticketing_model", "unknown")
-    normalized.setdefault("detail_status", "summary_only")
-    normalized.setdefault("warnings", [])
-    return _normalize_candidate(normalized)
 
 
 def _candidate_with_rank_diagnostics(

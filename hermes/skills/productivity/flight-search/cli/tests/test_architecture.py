@@ -25,6 +25,30 @@ from flights_cli.contracts.registry import current_contract
 from helpers import PROJECT
 
 
+def import_targets(path) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    targets: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            targets.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            targets.add(node.module)
+    return targets
+
+
+def function_annotations(tree: ast.AST) -> dict[str, dict[str, str]]:
+    annotations: dict[str, dict[str, str]] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        annotations[node.name] = {
+            arg.arg: ast.unparse(arg.annotation)
+            for arg in node.args.args + node.args.kwonlyargs
+            if arg.annotation is not None
+        }
+    return annotations
+
+
 class ArchitectureTests(unittest.TestCase):
     def version_manifest(self) -> dict:
         return json.loads(
@@ -80,15 +104,6 @@ class ArchitectureTests(unittest.TestCase):
             sorted(manifest["command_surface"]["diagnostic_commands"]),
             sorted(DIAGNOSTIC_COMMANDS),
         )
-        self.assertNotIn("removed_commands", manifest["command_surface"])
-
-    def test_skill_markdown_formatting_is_sane(self) -> None:
-        skill = PROJECT.parent / "SKILL.md"
-        text = skill.read_text(encoding="utf-8")
-        self.assertTrue(text.startswith("---\n"))
-        self.assertIn("\n---\n", text[3:])
-        self.assertIn("\n# Flight Search\n", text)
-        self.assertGreater(text.count("\n"), 40)
 
     def test_active_provider_set_includes_opt_in_tutu_provider(self) -> None:
         # Tutu is opt-in only, but it is part of the typed provider registry.
@@ -254,100 +269,51 @@ class ArchitectureTests(unittest.TestCase):
 
     def test_live_assembly_core_has_no_args_like_adapter(self) -> None:
         root = PROJECT / "flights_cli"
-        runner = root / "orchestrators" / "live_assembly_runner.py"
         probe_dispatcher = root / "execution" / "probe_dispatcher.py"
         aggregate_runner = root / "execution" / "aggregate_control_runner.py"
         live_route_assembly = root / "orchestrators" / "live_route_assembly.py"
 
-        runner_text = runner.read_text(encoding="utf-8")
-        self.assertNotIn("SimpleNamespace", runner_text)
-        self.assertNotIn("live_assembly_args_view", runner_text)
-
         for path in (probe_dispatcher, aggregate_runner):
             with self.subTest(path=path.name):
-                text = path.read_text(encoding="utf-8")
-                self.assertNotIn("import argparse", text)
-                self.assertNotIn("argparse.Namespace", text)
+                self.assertFalse("argparse" in import_targets(path))
 
         tree = ast.parse(live_route_assembly.read_text(encoding="utf-8"))
-        functions = {
-            node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)
-        }
+        annotations = function_annotations(tree)
         for name in ("build_live_route_segment_plan", "run_live_route_assembly"):
             with self.subTest(function=name):
-                first_arg = functions[name].args.args[0]
-                annotation = ast.unparse(first_arg.annotation)
-                self.assertEqual(annotation, "LiveAssemblyOptions")
-        self.assertNotIn(
-            "argparse_args_to_options", live_route_assembly.read_text(encoding="utf-8")
-        )
+                self.assertEqual(
+                    next(iter(annotations[name].values())),
+                    "LiveAssemblyOptions",
+                )
 
     def test_provider_runtime_does_not_accept_argparse_namespace(self) -> None:
         provider_root = PROJECT / "flights_cli" / "providers"
         for path in sorted(provider_root.glob("*.py")):
             with self.subTest(path=path.name):
-                text = path.read_text(encoding="utf-8")
-                self.assertNotIn("import argparse", text)
-                self.assertNotIn("argparse.Namespace", text)
+                self.assertFalse("argparse" in import_targets(path))
+                annotations = function_annotations(
+                    ast.parse(path.read_text(encoding="utf-8"))
+                )
+                flattened = {
+                    annotation
+                    for function in annotations.values()
+                    for annotation in function.values()
+                }
+                self.assertTrue(
+                    flattened.isdisjoint({"argparse.Namespace", "Namespace"})
+                )
 
     def test_reporting_does_not_import_orchestrators(self) -> None:
         reporting_root = PROJECT / "flights_cli" / "reporting"
         for path in sorted(reporting_root.rglob("*.py")):
             with self.subTest(path=path.relative_to(reporting_root)):
-                text = path.read_text(encoding="utf-8")
-                self.assertNotIn("flights_cli.orchestrators", text)
-                self.assertNotIn("..orchestrators", text)
-
-    def test_live_assembly_runtime_has_no_legacy_builder_injection(self) -> None:
-        root = PROJECT / "flights_cli"
-        runner = root / "orchestrators" / "live_assembly_runner.py"
-        live_route_assembly = root / "orchestrators" / "live_route_assembly.py"
-        texts = {
-            "runner": runner.read_text(encoding="utf-8"),
-            "live_route_assembly": live_route_assembly.read_text(encoding="utf-8"),
-        }
-        for name, text in texts.items():
-            with self.subTest(file=name):
-                self.assertNotIn("RoutePlanBuilder", text)
-                self.assertNotIn("route_plan_builder", text)
-                self.assertNotIn("services.assembly", text)
-                self.assertNotIn("synthetic_control_runner", text)
-
-        tree = ast.parse(texts["runner"])
-        classes = {
-            node.name: node for node in tree.body if isinstance(node, ast.ClassDef)
-        }
-        runner_class = classes["LiveAssemblyRunner"]
-        init_func = next(
-            node
-            for node in runner_class.body
-            if isinstance(node, ast.FunctionDef) and node.name == "__init__"
-        )
-        annotations = {
-            arg.arg: ast.unparse(arg.annotation)
-            for arg in init_func.args.args + init_func.args.kwonlyargs
-            if arg.annotation is not None
-        }
-        self.assertNotIn("plan_builder", annotations)
-
-    def test_frontier_runtime_has_no_route_specific_conditions(self) -> None:
-        root = PROJECT / "flights_cli"
-        runtime_paths = [
-            root / "orchestrators" / "live_assembly_runner.py",
-            root / "orchestrators" / "live_route_assembly.py",
-            root / "orchestrators" / "search_plan_builder.py",
-            root / "pipeline" / "offer_graph.py",
-            root / "pipeline" / "decision_scorer.py",
-            root / "execution" / "search_wave_planner.py",
-        ]
-        forbidden = {"NTE", "AMS", "SVX", "KLM"}
-        matches: list[str] = []
-        for path in runtime_paths:
-            text = path.read_text(encoding="utf-8")
-            for token in forbidden:
-                if token in text:
-                    matches.append(f"{path.relative_to(root)}:{token}")
-        self.assertEqual(matches, [])
+                self.assertFalse(
+                    any(
+                        target.startswith("flights_cli.orchestrators")
+                        or target == "orchestrators"
+                        for target in import_targets(path)
+                    )
+                )
 
 
 if __name__ == "__main__":

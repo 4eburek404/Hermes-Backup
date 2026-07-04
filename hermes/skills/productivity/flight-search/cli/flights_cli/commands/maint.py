@@ -399,10 +399,7 @@ def _branch_workflow_summary(
             "command_surface_version": command_surface.get("version"),
             "mismatches": manifest_mismatch_keys,
         },
-        "command_surface": {
-            **expected_command_surface(),
-            "removed_commands": list(command_surface.get("removed_commands") or []),
-        },
+        "command_surface": expected_command_surface(),
         "parity": {
             "status": parity_status,
             "runtime_claims_allowed": runtime_claims_allowed,

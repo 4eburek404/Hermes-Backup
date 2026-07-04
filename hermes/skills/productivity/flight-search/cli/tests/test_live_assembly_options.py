@@ -131,12 +131,6 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         with self.assertRaises(CliError):
             live_assembly_options_from_search_request({**REQUEST, "profile": "safe"})
 
-    def test_search_app_rejects_removed_both_provider_policy(self) -> None:
-        with self.assertRaises(CliError):
-            live_assembly_options_from_search_request(
-                {**REQUEST, "provider_policy": "both"}
-            )
-
     def test_search_request_maps_request_constraints(self) -> None:
         request = {
             "schema_version": "flight_search_request.v1",

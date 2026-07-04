@@ -153,37 +153,6 @@ class CandidateRankerTests(unittest.TestCase):
         )
         self.assertEqual(ranking["coverage"]["candidate_count"], 3)
 
-    def test_legacy_assembled_candidate_is_ranked_but_not_preferred(self) -> None:
-        provider = candidate(
-            "provider",
-            source_type="provider_full_route",
-            price=50000,
-            ticketing_model="provider_order_unverified",
-            segments=[segment("SVX", "IST"), segment("IST", "AMS")],
-        )
-        legacy = {
-            "id": "legacy",
-            "price": 25000,
-            "currency": "RUB",
-            "journeys": [
-                {"direction": "outbound", "segments": [segment("SVX", "AMS")]}
-            ],
-        }
-
-        ranking = rank_mixed_candidates(
-            {"candidates": [provider]},
-            legacy_candidates=[legacy],
-        )
-
-        self.assertEqual(
-            [item["id"] for item in ranking["ranked_candidates"]],
-            ["provider", "legacy"],
-        )
-        self.assertEqual(
-            ranking["ranked_candidates"][1]["source_type"],
-            "assembled_separate_ticket",
-        )
-
     def test_impossible_connection_and_connection_limit_are_penalized(self) -> None:
         normal = candidate(
             "normal",

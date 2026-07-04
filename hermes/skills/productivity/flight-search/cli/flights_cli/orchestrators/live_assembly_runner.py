@@ -647,7 +647,7 @@ class LiveSearchResultBuilder:
                 "probe_ledger": state.probe_ledger.to_coverage_diagnostics(state.plan),
                 "direct_route_intelligence": {
                     "available": False,
-                    "reason": "route_specific_direct_intel_removed_from_runtime",
+                    "reason": "route_specific_direct_intel_not_runtime_source",
                 },
                 "direct_presence_gate": deepcopy(state.direct_presence_gate),
                 "diagnostics": {

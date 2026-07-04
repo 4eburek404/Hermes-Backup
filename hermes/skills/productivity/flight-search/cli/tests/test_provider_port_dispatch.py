@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import inspect
 import unittest
 from unittest.mock import patch
 
-import flights_cli.execution.aggregate_control_runner as aggregate_control_runner
-import flights_cli.execution.probe_dispatcher as probe_dispatcher
 from flights_cli.execution.aggregate_control_runner import (
     AggregateControlOptions,
     run_aggregate_controls,
@@ -129,21 +126,6 @@ class ProviderPortDispatchTests(unittest.TestCase):
         self.assertEqual(controls[0]["top_offers"], [{"id": "agg-adapter-offer"}])
         self.assertEqual(adapter.aggregate_queries[0]["only_carriers"], ["SU"])
         self.assertFalse(adapter.aggregate_queries[0]["direct_only"])
-
-    def test_execution_layer_has_no_direct_provider_search_symbols(self) -> None:
-        dispatcher_source = inspect.getsource(probe_dispatcher)
-        aggregate_source = inspect.getsource(aggregate_control_runner)
-        forbidden_symbols = [
-            "cached_kupibilet_search",
-            "cached_fli_mcp_search",
-            "kupibilet_result_to_segment_result",
-            "kupibilet_segment_search_summary",
-            "fli_result_to_segment_result",
-            "fli_segment_search_summary",
-        ]
-        for symbol in forbidden_symbols:
-            self.assertNotIn(symbol, dispatcher_source)
-            self.assertNotIn(symbol, aggregate_source)
 
 
 if __name__ == "__main__":

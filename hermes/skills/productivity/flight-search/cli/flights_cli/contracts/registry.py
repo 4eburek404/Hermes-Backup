@@ -43,7 +43,6 @@ _CURRENT_CONTRACTS: dict[str, dict[str, str]] = {
 }
 
 CURRENT_CONTRACTS = MappingProxyType(_CURRENT_CONTRACTS)
-REJECTED_CONTRACT_NAMES = frozenset({"user_output", "flight_search_final_answer"})
 
 
 def current_contract(name: str) -> dict[str, Any]:

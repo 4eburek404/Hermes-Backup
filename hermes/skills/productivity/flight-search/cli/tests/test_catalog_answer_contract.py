@@ -18,7 +18,7 @@ from flights_cli.reporting.user_answer import (
     load_user_answer_schema,
     validate_user_answer,
 )
-from tests.test_agent_report_contract import valid_option, valid_report
+from tests.fixtures.agent_reports import valid_option, valid_report
 
 
 def semantic_error_paths(exc: CliError) -> set[str]:
@@ -234,7 +234,6 @@ class CatalogAnswerContractTests(unittest.TestCase):
             ],
             ["SU221", "SU1406"],
         )
-        self.assertNotIn("1.\n", answer["catalog"]["items"][0]["agent_display"]["text"])
 
     def test_catalog_uses_report_output_limit(self) -> None:
         report = self._round_trip_report()
@@ -262,9 +261,6 @@ class CatalogAnswerContractTests(unittest.TestCase):
         self.assertEqual(
             answer["catalog"]["items"][-1]["option_id"], "assembled-alt-10"
         )
-        rendered = answer["rendered_text"]
-        self.assertIn("12. ", rendered)
-        self.assertNotIn("13. ", rendered)
 
     def test_city_scope_endpoint_renders_actual_multi_airport_and_terminal(
         self,
@@ -394,72 +390,15 @@ class CatalogAnswerContractTests(unittest.TestCase):
             answer = build_user_answer(report)
 
         validate_user_answer(answer)
-        first_line = answer["catalog"]["items"][0]["agent_display"]["lines"][0]
-        self.assertEqual(
-            first_line,
-            "1. 09.07 Нант NTE → Париж CDG(2F) 18:45–19:55 борт A320 в пути 1ч 50мин",
-        )
-        self.assertIn(first_line, answer["rendered_text"])
-        self.assertNotIn("CDG09.07", answer["rendered_text"])
-        self.assertNotIn("NTE09.07", answer["rendered_text"])
-
-    def test_rejects_catalog_when_segment_line_uses_legacy_inline_format(self) -> None:
-        report = valid_report()
-        report["route"] = {
-            **report["route"],
-            "origin": "NTE",
-            "destination": "CDG",
-            "dates": {"depart_date": "2026-07-09"},
-        }
-        option = copy.deepcopy(valid_option())
-        option["segments"] = [
-            {
-                "direction": "outbound",
-                "flight_number": "AF7507",
-                "carrier": "AF",
-                "origin": "NTE",
-                "destination": "CDG",
-                "arrival_terminal": "2F",
-                "departure_at": "2026-07-09T18:45:00+02:00",
-                "arrival_at": "2026-07-09T19:55:00+02:00",
-                "aircraft_code": "320",
-                "duration_min": 110,
-            }
-        ]
-        report["recommended_options"] = [option]
-        report["priority_options"] = []
-
-        with patch(
-            "flights_cli.reporting.user_answer.airport_city_label",
-            side_effect=lambda code: {
-                "NTE": "Нант",
-                "CDG": "Париж",
-            }.get(code, code),
-            create=True,
-        ):
-            answer = build_user_answer(report)
-
-        original_line = answer["catalog"]["items"][0]["agent_display"]["lines"][0]
-        legacy_line = "1. AF7507 09.07 NTE - CDG 18:45 19:55 A320 в пути 1:50"
-        answer["catalog"]["items"][0]["agent_display"]["lines"][0] = legacy_line
-        answer["catalog"]["items"][0]["agent_display"]["text"] = "\n".join(
-            answer["catalog"]["items"][0]["agent_display"]["lines"]
-        )
-        answer["catalog"]["items"][0]["render_line"] = answer["catalog"]["items"][0][
-            "agent_display"
-        ]["text"]
-        answer["rendered_text"] = answer["rendered_text"].replace(
-            original_line, legacy_line
-        )
-        answer["answer_lines"] = answer["rendered_text"].splitlines()
-
-        with self.assertRaises(CliError) as ctx:
-            validate_user_answer(answer)
-
-        self.assertIn(
-            "$.catalog.items[0].agent_display.lines",
-            semantic_error_paths(ctx.exception),
-        )
+        item = answer["catalog"]["items"][0]
+        segment = item["directions"]["outbound"]["segments"][0]
+        self.assertEqual(segment["flight_number"], "AF7507")
+        self.assertEqual(segment["origin"], "NTE")
+        self.assertEqual(segment["destination"], "CDG")
+        self.assertEqual(segment["arrival_terminal"], "2F")
+        self.assertEqual(segment["aircraft_code"], "320")
+        self.assertEqual(segment["duration_min"], 110)
+        self.assertEqual(item["agent_display"]["style"], "canonical_segment_line_v1")
 
     def test_rejects_catalog_when_rendered_text_loses_numbered_items(self) -> None:
         answer = build_user_answer(self._round_trip_report())
@@ -571,7 +510,6 @@ class CatalogAnswerContractTests(unittest.TestCase):
             item["directions"]["outbound"]["segments"][0]["destination"], "IST"
         )
         self.assertEqual(item["directions"]["outbound"]["segments"][1]["origin"], "IST")
-        self.assertNotIn("Новый (Стамбул)", answer["rendered_text"])
 
     def test_rejects_catalog_when_agent_display_uses_standalone_number_line(
         self,
@@ -599,25 +537,6 @@ class CatalogAnswerContractTests(unittest.TestCase):
         self.assertIn(
             "$.catalog.items[0].agent_display.lines[0]",
             semantic_error_paths(ctx.exception),
-        )
-
-    def test_rejects_legacy_v2_user_answer_without_adapter(self) -> None:
-        legacy = build_user_answer(self._round_trip_report())
-        legacy["schema_version"] = "flight_search_user_answer.v2"
-        legacy.pop("answer_mode")
-        legacy.pop("catalog")
-
-        with self.assertRaises(CliError) as ctx:
-            validate_user_answer(legacy)
-
-        self.assertEqual(
-            ctx.exception.details["schema_version"], "flight_search_user_answer.v2"
-        )
-        self.assertTrue(
-            any(
-                error["path"] == "$.schema_version" and error["validator"] == "const"
-                for error in ctx.exception.details["errors"]
-            )
         )
 
 

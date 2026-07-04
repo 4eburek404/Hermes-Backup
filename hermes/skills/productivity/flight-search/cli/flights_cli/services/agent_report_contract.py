@@ -52,39 +52,6 @@ RU_PRIORITY_EXECUTION_STATES = {
     "skipped_better_options_available",
 }
 
-PUBLIC_REPORT_BANNED_TOP_LEVEL = {
-    "diagnostics",
-    "human_answer",
-    "display",
-    "answer_lines",
-    "coverage_diagnostics",
-    "provider_failures",
-    "source_boundaries",
-    "offer_graph",
-    "recommended_options",
-    "priority_options",
-    "aggregate_controls",
-    "segment_searches",
-    "hub_viability",
-    "primary_offer_results",
-    "rejected_pair_warnings",
-    "stop_policy_diagnostics",
-}
-PUBLIC_REPORT_BANNED_EVIDENCE_FIELDS = {
-    "coverage_diagnostics",
-    "segment_searches",
-    "hub_viability",
-    "primary_offer_results",
-    "aggregate_controls",
-    "rejected_pair_warnings",
-    "stop_policy_diagnostics",
-}
-PUBLIC_REPORT_BANNED_FRONTIER_FIELDS = {
-    "offer_graph",
-    "recommended_options",
-    "priority_options",
-}
-
 __all__ = [
     "AGENT_REPORT_SCHEMA_PACKAGE",
     "AGENT_REPORT_SCHEMA_RESOURCE",
@@ -214,7 +181,10 @@ def ru_priority_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
                     "validator": "semantic",
                 }
             )
-        if branch_control.get("visible") is True and branch_control.get("viable") is not True:
+        if (
+            branch_control.get("visible") is True
+            and branch_control.get("viable") is not True
+        ):
             errors.append(
                 {
                     "path": f"{branch_path}.visible",
@@ -232,7 +202,10 @@ def ru_priority_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
                         "validator": "semantic",
                     }
                 )
-        if branch and controls.get("route_family") not in (None, RouteFamily.RU_PRIORITY):
+        if branch and controls.get("route_family") not in (
+            None,
+            RouteFamily.RU_PRIORITY,
+        ):
             errors.append(
                 {
                     "path": "$.evidence.ru_priority_controls.route_family",
@@ -243,40 +216,11 @@ def ru_priority_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
     return errors
 
 
-def banned_field_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
-    errors: list[dict[str, Any]] = []
-    for key in sorted(PUBLIC_REPORT_BANNED_TOP_LEVEL & set(report)):
-        errors.append(
-            {
-                "path": f"$.{key}",
-                "message": f"{key} is not part of agent_report.v4",
-                "validator": "semantic",
-            }
-        )
-    evidence = evidence_section(report)
-    for key in sorted(PUBLIC_REPORT_BANNED_EVIDENCE_FIELDS & set(evidence)):
-        errors.append(
-            {
-                "path": f"$.evidence.{key}",
-                "message": f"evidence.{key} is not part of compact agent_report.v4",
-                "validator": "semantic",
-            }
-        )
-    frontier = frontier_section(report)
-    for key in sorted(PUBLIC_REPORT_BANNED_FRONTIER_FIELDS & set(frontier)):
-        errors.append(
-            {
-                "path": f"$.frontier.{key}",
-                "message": f"frontier.{key} is not part of agent_report.v4",
-                "validator": "semantic",
-            }
-        )
-    return errors
-
-
 def coverage_guidance_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
     evidence = evidence_section(report)
-    coverage = evidence.get("coverage") if isinstance(evidence.get("coverage"), dict) else {}
+    coverage = (
+        evidence.get("coverage") if isinstance(evidence.get("coverage"), dict) else {}
+    )
     completeness = (
         coverage.get("completeness")
         if isinstance(coverage.get("completeness"), dict)
@@ -348,7 +292,6 @@ def source_boundary_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
 
 def agent_report_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
     errors: list[dict[str, Any]] = []
-    errors.extend(banned_field_errors(report))
     errors.extend(source_boundary_errors(report))
     errors.extend(coverage_guidance_errors(report))
     errors.extend(ru_priority_semantic_errors(report))

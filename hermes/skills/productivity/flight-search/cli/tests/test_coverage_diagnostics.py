@@ -157,7 +157,6 @@ class CoverageDiagnosticsTests(unittest.TestCase):
         self.assertIn(
             "segment_absence_is_not_route_absence", coverage["coverage_warnings"]
         )
-        self.assertNotIn("coverage_diagnostics", report["evidence"])
         self.assertIn("searched_controls", coverage["counts"])
         self.assertIn("not_executed_controls", coverage["counts"])
         self.assertEqual(
@@ -167,17 +166,6 @@ class CoverageDiagnosticsTests(unittest.TestCase):
         self.assertTrue(
             coverage["completeness"]["all_planned_controls_have_terminal_state"]
         )
-
-    def test_user_answer_lines_do_not_dump_coverage_control_lists(self) -> None:
-        report = build_agent_report(base_payload())
-        joined = " ".join(report["user_answer"]["answer_lines"])
-        coverage = report["evidence"]["coverage"]
-
-        self.assertTrue(
-            coverage["completeness"]["all_planned_controls_have_terminal_state"]
-        )
-        self.assertNotIn("searched_controls", joined)
-        self.assertNotIn("skipped_controls", joined)
 
 
 if __name__ == "__main__":

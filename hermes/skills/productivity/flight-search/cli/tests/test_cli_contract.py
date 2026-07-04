@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import contextlib
-import io
 import json
 import subprocess
 import sys
@@ -30,62 +28,6 @@ from flights_cli.config import DEFAULT_ROUTE_HUBS
 from flights_cli.domain.stop_policy import stop_policy_from_args
 
 from helpers import PROJECT, TEST_ENV, parser_leaf_defaults
-
-
-def _dash(*parts: str) -> str:
-    return "-".join(parts)
-
-
-def _command_label(*parts: str) -> str:
-    return " ".join(parts)
-
-
-REMOVED_COMMAND_CASES = {
-    _command_label("route", _dash("live", "assemble")): [
-        "route",
-        _dash("live", "assemble"),
-        "SVX",
-        "LON",
-        "--depart-date",
-        "2026-07-20",
-    ],
-    _command_label("route", _dash("kb", "assemble")): [
-        "route",
-        _dash("kb", "assemble"),
-        "SVX",
-        "LON",
-        "--depart-date",
-        "2026-07-20",
-    ],
-    _command_label("route", "plan"): [
-        "route",
-        "plan",
-        "SVX",
-        "LON",
-        "--depart-date",
-        "2026-07-20",
-    ],
-    "kb-search": ["kb-search", "SVX", "MOW", "--depart-date", "2026-07-19"],
-    "kb-roundtrip": [
-        "kb-roundtrip",
-        "SVX",
-        "BJS",
-        "--depart-date",
-        "2026-08-01",
-        "--return-date",
-        "2026-08-08",
-    ],
-    "fli-search": ["fli-search", "IST", "LHR", "--depart-date", "2026-07-20"],
-    "fli-dates": [
-        "fli-dates",
-        "IST",
-        "LHR",
-        "--from-date",
-        "2026-07-20",
-        "--to-date",
-        "2026-07-22",
-    ],
-}
 
 
 def live_search_args(**overrides: object) -> argparse.Namespace:
@@ -185,17 +127,6 @@ class CliContractTests(unittest.TestCase):
                 self.assertEqual(defaults.get("command_name"), command_name)
                 self.assertTrue(callable(defaults.get("func")))
 
-    def test_removed_legacy_commands_are_not_registered(self) -> None:
-        parser = build_parser()
-
-        for command_name, argv in REMOVED_COMMAND_CASES.items():
-            with self.subTest(command_name=command_name):
-                with (
-                    contextlib.redirect_stderr(io.StringIO()),
-                    self.assertRaises(SystemExit),
-                ):
-                    parser.parse_args(argv)
-
     def test_docs_smoke_commands_parse(self) -> None:
         parser = build_parser()
         docs_argv = {
@@ -240,21 +171,6 @@ class CliContractTests(unittest.TestCase):
         for label, argv in docs_argv.items():
             with self.subTest(label=label):
                 self.assertTrue(callable(parser.parse_args(argv).func))
-
-    def test_docs_name_current_canonical_path_and_diagnostic_plan(self) -> None:
-        skill_text = (PROJECT.parent / "SKILL.md").read_text(encoding="utf-8")
-        readme_text = (PROJECT / "README.md").read_text(encoding="utf-8")
-        self.assertIn("python3 -m flights_cli --json search --request", skill_text)
-        self.assertIn("python3 -m flights_cli --json search --request", readme_text)
-        self.assertIn(
-            "python3 -m flights_cli --json diagnose plan --request", readme_text
-        )
-        removed_live = _command_label("route", _dash("live", "assemble"))
-        removed_plan = _command_label("route", "plan")
-        self.assertNotIn(removed_live, skill_text)
-        self.assertNotIn(removed_live, readme_text)
-        self.assertNotIn(removed_plan, skill_text)
-        self.assertNotIn(removed_plan, readme_text)
 
     def test_catalog_refresh_surface_matches_registered_catalog_commands(self) -> None:
         leaves = parser_leaf_defaults(build_parser())

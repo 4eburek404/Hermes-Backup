@@ -255,7 +255,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 "status": "ok",
                 "top_offers": [
                     {
-                        "id": "legacy-aggregate-1",
+                        "id": "aggregate-1",
                         "segments": [
                             {"origin": "SVX", "destination": "BEG"},
                             {"origin": "BEG", "destination": "CDG"},
@@ -815,15 +815,13 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 self.assertEqual(gateway_plan["skipped_reasons"], [])
                 self.assertIsNone(gateway_plan["empty_reason"])
 
-                baseline_text = baseline["agent_report"]["user_answer"]["rendered_text"]
-                with_provider_text = with_provider_route["agent_report"]["user_answer"][
-                    "rendered_text"
-                ]
-                self.assertTrue(baseline_text)
-                self.assertNotIn("gateway_discovery", baseline_text)
-                self.assertNotIn("restricted_bridge_gateways", baseline_text)
-                self.assertNotIn("provider_returned_route", with_provider_text)
-                self.assertNotIn("restricted_bridge_gateways", with_provider_text)
+                self.assertEqual(
+                    set(baseline["agent_report"]["frontier"]), {"decision_frontier"}
+                )
+                self.assertEqual(
+                    set(with_provider_route["agent_report"]["frontier"]),
+                    {"decision_frontier"},
+                )
 
 
 if __name__ == "__main__":

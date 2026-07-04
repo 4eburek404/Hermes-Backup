@@ -8,7 +8,7 @@ from flights_cli.reporting.user_answer import (
     build_user_answer,
     validate_user_answer,
 )
-from tests.test_user_answer_contract import report_with_required_caveats
+from tests.fixtures.agent_reports import report_with_required_caveats
 
 
 class UserAnswerModuleTests(unittest.TestCase):

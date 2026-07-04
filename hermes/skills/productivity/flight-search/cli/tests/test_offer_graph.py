@@ -1129,7 +1129,7 @@ class OfferGraphTests(unittest.TestCase):
         self.assertEqual(candidate["alternate_sources"][0]["price"], 40000)
         self.assertEqual(candidate["price_comparison"]["difference"], -1000)
 
-    def test_duplicate_legacy_connection_does_not_duplicate_path_candidate(
+    def test_duplicate_connection_does_not_duplicate_path_candidate(
         self,
     ) -> None:
         graph = self.graph_with_provider_and_gateway()
