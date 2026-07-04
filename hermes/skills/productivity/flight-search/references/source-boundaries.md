@@ -107,13 +107,13 @@ This means:
 - **Cross-check with other sources** when possible: the KupiBilet website (user can check), other aggregators, or FLI (Google Flights) if available.
 - This coverage gap is a provider limitation, not a CLI bug. Do not attempt to "fix" it in the parser — the data is simply not in the API response.
 
-### No third provider alternative
+### Live provider alternatives
 
-The CLI has exactly two providers: `kupibilet` and `fli`. There is no third option:
-- **Tutu.ru** has no public API. All attempted endpoints (`avia.tutu.ru/api/search/`, `api.tutu.ru/avia/search/`, etc.) return 404 or SSL errors. The tutu.ru search form is a Next.js SPA that does not trigger navigation or XHR via headless browser interaction.
-- Other Russian aggregators (Aviasales, Яндекс.Путешествия) similarly lack documented public APIs.
-- The only path to fuller foreign-carrier coverage is **FLI (Google Flights)**, which requires a self-hosted MCP server at `http://127.0.0.1:8000/mcp`. If FLI is down, KupiBilet is the only programmatic source, with its coverage gaps.
-- For routes where KupiBilet coverage is insufficient, the fallback is **browser-based search** on aggregators (tutu.ru, Aviasales, Google Flights) or asking the user to check the KupiBilet website directly.
+The CLI has three provider adapters: `tutu`, `kupibilet`, and `fli`.
+- **Tutu MCP** is the default primary live source in `auto`. If a Tutu probe is searched successfully, fallback providers are not called for that logical probe.
+- **KupiBilet** is a fallback source when Tutu is unavailable or fails; its API can have foreign-carrier coverage gaps.
+- **FLI (Google Flights)** requires a self-hosted MCP server at `http://127.0.0.1:8000/mcp` and is fallback-only for non-RU probes when Tutu is unavailable or fails.
+- For routes where all configured provider evidence is insufficient, the fallback is browser-based search on aggregators or asking the user to check a specific seller/airline surface directly.
 
 ### Terminal data availability
 

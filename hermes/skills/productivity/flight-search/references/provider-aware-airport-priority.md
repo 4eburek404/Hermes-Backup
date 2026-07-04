@@ -4,7 +4,7 @@ Use this source reference when maintaining routing, provider dispatch, or report
 
 ## Active provider scope
 
-- The active provider set is closed to KupiBilet and FLI.
+- The active provider set is Tutu MCP, KupiBilet, and FLI. In `auto`, Tutu MCP is primary; KupiBilet and FLI are fallback-only when Tutu is unavailable or fails for the logical probe.
 - Static catalogs remain metadata only: they can normalize cities, airports, countries, airlines, alliances, and aircraft labels, but they do not prove live fares, availability, schedules, or direct service.
 
 ## Airport priority policy

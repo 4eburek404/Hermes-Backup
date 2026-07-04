@@ -64,8 +64,9 @@ There is no legacy assembly fallback. `RoutePlanBuilder`, old `services/assembly
 Provider routing is per probe, not per whole search.
 
 - `tutu` is the default primary provider.
-- `kupibilet` is fallback where its capability and market fit the probe.
-- `fli` is used only for non-RU probes.
+- In `auto`, a successful Tutu MCP probe stops fallback execution for the same logical probe.
+- `kupibilet` is fallback only when Tutu is unavailable or fails and its capability/market fit the probe.
+- `fli` is fallback only for non-RU probes when Tutu is unavailable or fails.
 - `provider_policy=both` is invalid.
 
 Tutu returns shopping evidence. It can return connected offers and supports pagination through the adapter. Carrier names are normalized through the catalog/aliases, not route-specific code.

@@ -200,4 +200,6 @@ def dispatch_segment_probe(
         if request_deduper is not None:
             request_deduper.record(claim, outcome)
         outcomes.append(outcome)
+        if result.provider == "tutu" and result.execution_state == "searched":
+            break
     return outcomes

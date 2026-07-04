@@ -141,6 +141,22 @@ def _failed_result(
     }
 
 
+def _fallback_group_key(query: Mapping[str, Any]) -> tuple[Any, ...]:
+    return (
+        query.get("role"),
+        query.get("source_type"),
+        query.get("probe_type"),
+        query.get("direction"),
+        query.get("origin"),
+        query.get("destination"),
+        query.get("date"),
+        query.get("return_date"),
+        query.get("currency"),
+        bool(query.get("direct_only", False)),
+        tuple(query.get("only_carriers") or []),
+    )
+
+
 def _should_execute_query(query: Mapping[str, Any]) -> tuple[bool, str | None]:
     if str(query.get("role") or "") != "primary_offer_collection":
         return False, "not_primary_offer_collection"
@@ -160,12 +176,19 @@ def run_primary_offer_queries(
     probe_ledger: ProbeExecutionLedger | None = None,
 ) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
+    tutu_available_groups: set[tuple[Any, ...]] = set()
     for source_query in queries:
         provider = str(source_query.get("provider") or "").strip().lower()
         query = _normalized_query(source_query, provider=provider, options=options)
         intent = intent_from_aggregate_query(query, provider=provider)
         if probe_ledger is not None:
             probe_ledger.plan_intents([intent])
+        fallback_group = _fallback_group_key(query)
+        if provider != "tutu" and fallback_group in tutu_available_groups:
+            if probe_ledger is not None:
+                probe_ledger.record_skipped(intent, reason="tutu_mcp_available")
+            results.append(_skipped_result(query, "tutu_mcp_available"))
+            continue
 
         should_execute, skip_reason = _should_execute_query(query)
         if not should_execute:
@@ -191,4 +214,6 @@ def run_primary_offer_queries(
         if probe_ledger is not None:
             probe_ledger.record_provider_result(intent, result)
         results.append(_result_from_provider_result(query, result))
+        if result.provider == "tutu" and result.execution_state == "searched":
+            tutu_available_groups.add(fallback_group)
     return results

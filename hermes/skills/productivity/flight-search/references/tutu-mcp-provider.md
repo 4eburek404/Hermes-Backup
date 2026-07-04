@@ -112,8 +112,9 @@ TUTU_CAPABILITIES = ProviderCapabilities(
 ## Provider policy routing
 
 - `"tutu"` — Tutu-only (all segments and aggregate probes)
-- `"both"` — kupibilet + fli only (tutu excluded)
-- `"auto"` — Tutu is NOT used by default; only when explicitly requested via `provider_policy: "tutu"`
+- `"auto"` — Tutu MCP first; a searched Tutu result suppresses fallback providers for the same logical probe
+- `"kupibilet"` / `"fli"` — explicit override modes
+- `"both"` — invalid
 
 ## Test fixtures
 

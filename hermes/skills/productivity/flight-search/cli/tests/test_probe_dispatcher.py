@@ -35,6 +35,7 @@ class FakeProviderAdapter:
 
     def search_segment(self, query: dict[str, object]) -> ProviderProbeResult:
         self.segment_queries.append(query)
+        provider_name = self.name
         segment_result = {
             "direction": query["direction"],
             "leg": query["leg"],
@@ -43,7 +44,7 @@ class FakeProviderAdapter:
         return ProviderProbeResult(
             probe_id=str(query.get("probe_id") or "adapter-probe"),
             probe_type="segment_direct",
-            provider="kupibilet",
+            provider=provider_name,
             query={
                 "origin": query["origin"],
                 "destination": query["destination"],
@@ -58,7 +59,7 @@ class FakeProviderAdapter:
                 "origin": query["origin"],
                 "destination": query["destination"],
                 "date": query["date"],
-                "provider": "kupibilet",
+                "provider": provider_name,
                 "status": "ok",
                 "offer_count": 1,
             },
@@ -68,6 +69,12 @@ class FakeProviderAdapter:
 
     def search_aggregate(self, query: dict[str, object]) -> ProviderProbeResult:
         raise AssertionError("not used by segment dispatcher")
+
+
+class NamedFakeProviderAdapter(FakeProviderAdapter):
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.segment_queries: list[dict[str, object]] = []
 
 
 class ProbeDispatcherTests(unittest.TestCase):
@@ -177,6 +184,38 @@ class ProbeDispatcherTests(unittest.TestCase):
         )
         self.assertEqual(adapter.segment_queries[0]["only_carriers"], ["SU"])
         self.assertTrue(adapter.segment_queries[0]["direct_only"])
+
+    def test_tutu_segment_success_skips_fallback_adapters(self) -> None:
+        spec = {
+            "direction": "outbound",
+            "leg": "origin_to_hub",
+            "origin": "SVX",
+            "destination": "IST",
+            "date": "2026-08-12",
+        }
+        tutu = NamedFakeProviderAdapter("tutu")
+        kupibilet = NamedFakeProviderAdapter("kupibilet")
+
+        with patch(
+            "flights_cli.execution.probe_dispatcher.provider_adapters_for_segment",
+            return_value=[tutu, kupibilet],
+            create=True,
+        ):
+            outcomes = dispatch_segment_probe(
+                spec=spec,
+                plan={"currency": "RUB"},
+                options=dispatcher_options(),
+                store=Store(),
+                only_carriers=[],
+                cache_ttl_seconds=0,
+                use_live_cache=False,
+                provider_policy="auto",
+            )
+
+        self.assertEqual(len(outcomes), 1)
+        self.assertEqual(outcomes[0].summary["provider"], "tutu")
+        self.assertEqual(len(tutu.segment_queries), 1)
+        self.assertEqual(len(kupibilet.segment_queries), 0)
 
     def test_dispatcher_preserves_non_direct_access_probe_flag(self) -> None:
         spec = {

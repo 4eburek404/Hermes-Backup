@@ -24,7 +24,7 @@ flight_search_request.v1
 | Request/options | `pipeline/options.py`, `pipeline/search_request.py` | Convert JSON/CLI fields into typed route, evidence, filter, and constraint options. |
 | Flow decision | `pipeline/search_pipeline.py`, `pipeline/flow_decision.py`, `pipeline/evidence_plan.py` | Classify intent, market, provider policy, evidence requirements, freshness, and required controls. |
 | Planning | `orchestrators/search_plan_builder.py` | Seed constraints into primary and gateway probes; produce diagnostics and an empty legacy segment fallback envelope. |
-| Provider routing | `adapters/providers/registry.py` | Choose providers per probe by policy, market, and capability. Tutu is primary, KupiBilet fallback, FLI non-RU only. |
+| Provider routing | `adapters/providers/registry.py` | Choose providers per probe by policy, market, and capability. Tutu is primary; KupiBilet and FLI are fallback-only when Tutu is unavailable or fails. |
 | Probe execution | `execution/offer_query_runner.py`, `execution/search_wave_planner.py`, `execution/gateway_leg_probe_executor.py`, `execution/aggregate_control_runner.py` | Execute bounded provider probes and record ledger evidence. |
 | Graph/materialization | `pipeline/offer_graph.py` | Build provider-provenance edges and materialize N-leg/cross-day candidates. |
 | Ranking/frontier | `pipeline/decision_scorer.py`, `pipeline/candidate_ranker.py` | Apply chronology, constraint, MCT, direct-first gate outcomes, round-trip pairing, and scoring policy. |
@@ -32,11 +32,11 @@ flight_search_request.v1
 
 ## Provider Policy
 
-- `auto`: per-probe routing with Tutu first, KupiBilet fallback, FLI only where the probe is non-RU and supported.
+- `auto`: per-probe routing with Tutu MCP first. A searched Tutu result short-circuits fallback providers for the same logical probe; KupiBilet and FLI run only when Tutu is unavailable, fails, or does not support the probe.
 - `tutu`, `kupibilet`, `fli`: force that provider where capability and market allow it.
 - `both`: invalid.
 
-Provider routing is never a whole-search exclusive lock in `auto`; each probe is routed independently.
+Provider routing is never a whole-search exclusive lock in `auto`; the Tutu-first short-circuit is scoped to each logical probe.
 
 ## Constraints
 

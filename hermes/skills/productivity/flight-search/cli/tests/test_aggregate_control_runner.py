@@ -91,6 +91,16 @@ class FakeKupibiletAggregateAdapter(FakeAggregateAdapter):
         super().__init__("kupibilet")
 
 
+class FailingAggregateAdapter(FakeAggregateAdapter):
+    def search_aggregate(self, query: dict[str, Any]) -> ProviderProbeResult:
+        self.aggregate_queries.append(query)
+        raise CliError(
+            f"{self.name} unavailable",
+            error_type="provider_unavailable",
+            details={"provider": self.name},
+        )
+
+
 class AggregateControlRunnerTests(unittest.TestCase):
     def test_fli_policy_ru_touching_aggregate_is_skipped_by_route_boundary(
         self,
@@ -272,7 +282,7 @@ class AggregateControlRunnerTests(unittest.TestCase):
         self.assertEqual(diagnostics["searched_controls"][0]["provider"], "graph")
         self.assertEqual(diagnostics["not_executed_controls"], [])
 
-    def test_auto_policy_uses_tutu_then_kupibilet_and_marks_fli_unsupported(
+    def test_auto_policy_skips_fallback_providers_when_tutu_is_available(
         self,
     ) -> None:
         plan = {
@@ -307,7 +317,45 @@ class AggregateControlRunnerTests(unittest.TestCase):
         )
         self.assertEqual(
             [control["status"] for control in controls],
-            ["ok", "ok", "not_supported"],
+            ["ok", "skipped", "skipped"],
+        )
+        self.assertEqual(
+            [control.get("reason") for control in controls],
+            [None, "tutu_mcp_available", "tutu_mcp_available"],
+        )
+        self.assertEqual(len(adapters["tutu"].aggregate_queries), 1)
+        self.assertEqual(len(adapters["kupibilet"].aggregate_queries), 0)
+
+    def test_auto_policy_falls_back_when_tutu_is_unavailable(self) -> None:
+        plan = {
+            "origin": "IST",
+            "destination": "LHR",
+            "dates": {"depart": "2026-08-16", "return": None},
+            "currency": "RUB",
+        }
+        adapters = {
+            "tutu": FailingAggregateAdapter("tutu"),
+            "kupibilet": FakeKupibiletAggregateAdapter(),
+        }
+
+        def adapter_lookup(name: str, **_: Any) -> FakeAggregateAdapter:
+            if name not in adapters:
+                raise AssertionError(f"unexpected aggregate adapter {name}")
+            return adapters[name]
+
+        with patch(
+            "flights_cli.execution.aggregate_control_runner.provider_adapter",
+            side_effect=adapter_lookup,
+        ):
+            controls = run_aggregate_controls(
+                aggregate_options(provider_policy="auto"),
+                plan,
+                store=store_with_airports(self),
+            )
+
+        self.assertEqual(
+            [(control["provider"], control["status"]) for control in controls],
+            [("tutu", "error"), ("kupibilet", "ok"), ("fli", "not_supported")],
         )
         self.assertEqual(len(adapters["tutu"].aggregate_queries), 1)
         self.assertEqual(len(adapters["kupibilet"].aggregate_queries), 1)

@@ -114,7 +114,7 @@ Common request fields:
 
 - `return_date: "YYYY-MM-DD"`
 - `profile: "business"` is the only production search profile; omit it to use the default
-- `provider_policy: "auto"|"kupibilet"|"fli"|"both"`
+- `provider_policy: "auto"|"tutu"|"kupibilet"|"fli"`
 - `route_options.stop_policy: "business-default"|"strict-direct-one-stop"|"allow-two-stop-fallback"|"debug-all"`
 - `route_options.date_window_end: "YYYY-MM-DD"` for bounded one-way direct-only inventory; request-only, no CLI flag
 - `evidence.aggregate_control_carriers: ["CODE"]`
@@ -136,8 +136,8 @@ Production search uses one ranking profile: `business`. It prioritizes visible n
 
 `search --request` chooses a live source mix through `provider_policy`:
 
-- `auto`: let the CLI choose the current source mix by segment.
-- `kupibilet`, `fli`, `both`: explicit diagnostic or comparison modes.
+- `auto`: Tutu MCP runs first and, when available, stops fallback execution for the same logical probe.
+- `tutu`, `kupibilet`, `fli`: explicit diagnostic/provider override modes.
 
 Read provider policy, provider failures, coverage diagnostics, and source boundaries from `data.agent_report` before answering. Do not hardcode source assumptions outside what the report states.
 
