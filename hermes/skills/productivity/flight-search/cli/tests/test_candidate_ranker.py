@@ -304,6 +304,56 @@ class CandidateRankerTests(unittest.TestCase):
         )
         self.assertIn("two-connection", frontier_ids)
 
+    def test_directional_connection_cap_does_not_reject_other_round_trip_direction(
+        self,
+    ) -> None:
+        outbound = candidate(
+            "outbound-one-stop",
+            source_type="provider_full_route",
+            price=20000,
+            ticketing_model="provider_order_unverified",
+            segments=[segment("SVX", "SVO"), segment("SVO", "LED")],
+            direction="outbound",
+        )
+        inbound = candidate(
+            "return-two-stop",
+            source_type="provider_full_route",
+            price=22000,
+            ticketing_model="provider_order_unverified",
+            segments=[
+                segment("LED", "SVO"),
+                segment("SVO", "KZN"),
+                segment("KZN", "SVX"),
+            ],
+            direction="return",
+        )
+
+        scored = DecisionScorer(
+            DecisionScorerOptions(
+                round_trip=True,
+                max_connections_per_journey=2,
+                max_connections_per_direction={"outbound": 1},
+                preferred_connections=1,
+            )
+        ).score({"candidates": [outbound, inbound]})
+        pair_id = "round-trip-pair:outbound-one-stop:return-two-stop"
+        ranked = {
+            item["id"]: item
+            for item in scored["mixed_candidate_ranking"]["ranked_candidates"]
+        }
+        frontier_ids = {item["id"] for item in scored["decision_frontier"]["options"]}
+
+        self.assertEqual(
+            ranked[pair_id]["rank_components"]["max_connections_per_journey"], 0
+        )
+        self.assertEqual(
+            scored["mixed_candidate_ranking"]["coverage"][
+                "max_connections_per_direction"
+            ],
+            {"outbound": 1},
+        )
+        self.assertIn(pair_id, frontier_ids)
+
     def test_zero_connection_limit_blocks_connected_candidate(self) -> None:
         one_connection = candidate(
             "one-connection",

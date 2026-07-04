@@ -64,7 +64,9 @@ class LiveAssemblyState:
     planned_gateway_leg_queries: list[dict[str, Any]] = field(default_factory=list)
     direct_mode: dict[str, bool] = field(default_factory=dict)
     direct_presence_gate: dict[str, Any] = field(default_factory=dict)
-    direct_mode_max_connections_override: int | None = None
+    direct_mode_max_connections_by_direction: dict[str, int] = field(
+        default_factory=dict
+    )
 
 
 def hub_viability_summary(
@@ -535,9 +537,10 @@ class LiveSearchResultBuilder:
                 round_trip=bool((state.plan.get("dates") or {}).get("return")),
                 max_connections_per_journey=_effective_hard_max_connections(
                     self.options
-                )
-                if state.direct_mode_max_connections_override is None
-                else state.direct_mode_max_connections_override,
+                ),
+                max_connections_per_direction=(
+                    state.direct_mode_max_connections_by_direction
+                ),
                 preferred_connections=_preferred_max_connections(self.options),
                 min_same_airport_connection_min=self.options.route.min_same_airport_min,
                 min_cross_airport_connection_min=self.options.route.min_cross_airport_min,
@@ -710,7 +713,9 @@ class LiveAssemblyRunner:
             if fallback_queries:
                 for direction in fallback_directions:
                     state.direct_mode[direction] = False
-                state.direct_mode_max_connections_override = 1
+                    state.direct_mode_max_connections_by_direction[direction] = 1
+                for query in fallback_queries:
+                    state.probe_ledger.reopen_for_execution(query)
                 remaining_budget = max(
                     0,
                     self.max_searches
@@ -738,6 +743,9 @@ class LiveAssemblyRunner:
                     "reason": "constraints_emptied_direct_set",
                     "directions": fallback_directions,
                     "max_connections_per_journey": 1,
+                    "max_connections_per_direction": {
+                        direction: 1 for direction in fallback_directions
+                    },
                     "wave_count": 1,
                 }
             else:
@@ -746,6 +754,9 @@ class LiveAssemblyRunner:
                     "reason": "constraints_emptied_direct_set",
                     "directions": fallback_directions,
                     "max_connections_per_journey": 1,
+                    "max_connections_per_direction": {
+                        direction: 1 for direction in fallback_directions
+                    },
                 }
         elif fallback_directions:
             state.direct_presence_gate["fallback"] = {
@@ -753,6 +764,9 @@ class LiveAssemblyRunner:
                 "reason": "constraints_emptied_direct_set",
                 "directions": fallback_directions,
                 "max_connections_per_journey": 1,
+                "max_connections_per_direction": {
+                    direction: 1 for direction in fallback_directions
+                },
             }
         return self.result_builder.build(state)
 

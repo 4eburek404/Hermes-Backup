@@ -44,6 +44,7 @@ class ProbeExecutionLedger:
         self._not_supported: list[dict[str, Any]] = []
         self._not_executed: list[dict[str, Any]] = []
         self._deduped: list[dict[str, Any]] = []
+        self._reopened_keys: set[ControlKey] = set()
 
     def plan_controls(self, controls: list[ControlInput]) -> None:
         for control in controls:
@@ -52,6 +53,10 @@ class ProbeExecutionLedger:
                 continue
             key = control_identity(item)
             if key in self._planned:
+                if key in self._reopened_keys:
+                    self._reopened_keys.discard(key)
+                    self._planned[key] = {**self._planned[key], **item}
+                    continue
                 self.record_deduped(item, original_probe_id=self._probe_ids.get(key))
                 continue
             self._planned[key] = item
@@ -76,6 +81,7 @@ class ProbeExecutionLedger:
         if key in self._terminal_keys:
             self.record_deduped(item, original_probe_id=self._probe_ids.get(key))
             return
+        self._reopened_keys.discard(key)
         self._terminal_keys.add(key)
         self._searched.append(
             self._diagnostic(
@@ -94,6 +100,7 @@ class ProbeExecutionLedger:
         if key in self._terminal_keys:
             self.record_deduped(item, original_probe_id=self._probe_ids.get(key))
             return
+        self._reopened_keys.discard(key)
         if key in self._planned:
             self._terminal_keys.add(key)
         self._skipped.append(
@@ -111,6 +118,7 @@ class ProbeExecutionLedger:
         if key in self._terminal_keys:
             self.record_deduped(item, original_probe_id=self._probe_ids.get(key))
             return
+        self._reopened_keys.discard(key)
         self._terminal_keys.add(key)
         self._failed.append(
             self._diagnostic(
@@ -131,6 +139,7 @@ class ProbeExecutionLedger:
         if key in self._terminal_keys:
             self.record_deduped(item, original_probe_id=self._probe_ids.get(key))
             return
+        self._reopened_keys.discard(key)
         self._terminal_keys.add(key)
         self._not_supported.append(
             self._diagnostic(
@@ -185,12 +194,26 @@ class ProbeExecutionLedger:
             )
         )
 
+    def reopen_for_execution(self, control: ControlInput) -> None:
+        item = _control_dict(control)
+        key = control_identity(item)
+        if key not in self._planned:
+            self._planned[key] = item
+            self._planned_order.append(key)
+            self._probe_ids[key] = str(
+                item.get("probe_id") or f"probe-{len(self._planned_order):03d}"
+            )
+        self._terminal_keys.discard(key)
+        self._remove_diagnostics_for_key(key)
+        self._reopened_keys.add(key)
+
     def finalize_unexecuted(
         self, reason: str = "not_reached_by_current_live_execution"
     ) -> None:
         for key in self._planned_order:
             if key in self._terminal_keys:
                 continue
+            self._reopened_keys.discard(key)
             control = self._planned[key]
             self._terminal_keys.add(key)
             self._not_executed.append(
@@ -201,6 +224,24 @@ class ProbeExecutionLedger:
                     reason=reason,
                 )
             )
+
+    def _remove_diagnostics_for_key(self, key: ControlKey) -> None:
+        self._searched = [
+            item for item in self._searched if control_identity(item) != key
+        ]
+        self._skipped = [
+            item for item in self._skipped if control_identity(item) != key
+        ]
+        self._failed = [item for item in self._failed if control_identity(item) != key]
+        self._not_supported = [
+            item for item in self._not_supported if control_identity(item) != key
+        ]
+        self._not_executed = [
+            item for item in self._not_executed if control_identity(item) != key
+        ]
+        self._deduped = [
+            item for item in self._deduped if control_identity(item) != key
+        ]
 
     def to_coverage_diagnostics(self, plan: dict[str, Any]) -> dict[str, Any]:
         terminal_count = len(self._terminal_keys)

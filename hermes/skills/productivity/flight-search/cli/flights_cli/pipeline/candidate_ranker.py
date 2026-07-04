@@ -21,12 +21,16 @@ def rank_mixed_candidates(
     *,
     legacy_candidates: list[dict[str, Any]] | None = None,
     max_connections_per_journey: int = 2,
+    max_connections_per_direction: dict[str, int] | None = None,
     preferred_connections_per_journey: int = 1,
     constraints: dict[str, Any] | None = None,
     min_same_airport_connection_min: int = 120,
     min_cross_airport_connection_min: int = 300,
 ) -> dict[str, Any]:
     normalized_constraints = _normalize_constraints(constraints)
+    directional_max_connections = _normalize_connection_caps(
+        max_connections_per_direction
+    )
     mct_settings = {
         "min_same_airport_min": max(0, int(min_same_airport_connection_min)),
         "min_cross_airport_min": max(0, int(min_cross_airport_connection_min)),
@@ -45,6 +49,7 @@ def rank_mixed_candidates(
         _candidate_with_rank_diagnostics(
             candidate,
             max_connections_per_journey=max_connections_per_journey,
+            max_connections_per_direction=directional_max_connections,
             preferred_connections_per_journey=preferred_connections_per_journey,
             constraints=normalized_constraints,
             min_same_airport_connection_min=mct_settings["min_same_airport_min"],
@@ -69,6 +74,7 @@ def rank_mixed_candidates(
             "candidate_count": len(ranked),
             "rejected_count": len(candidate_envelope.get("rejected") or []),
             "max_connections_per_journey": max(0, int(max_connections_per_journey)),
+            "max_connections_per_direction": directional_max_connections,
             "preferred_connections_per_journey": max(
                 0, int(preferred_connections_per_journey)
             ),
@@ -195,6 +201,7 @@ def _candidate_with_rank_diagnostics(
     candidate: dict[str, Any],
     *,
     max_connections_per_journey: int,
+    max_connections_per_direction: dict[str, int],
     preferred_connections_per_journey: int,
     constraints: dict[str, Any],
     min_same_airport_connection_min: int,
@@ -230,7 +237,11 @@ def _candidate_with_rank_diagnostics(
         "rejected_or_impossible_connection": 1 if impossible_connection else 0,
         "max_connections_per_journey": max(
             0,
-            max_connections - max(0, int(max_connections_per_journey)),
+            _max_connections_over_limit(
+                candidate,
+                default_limit=max_connections_per_journey,
+                direction_limits=max_connections_per_direction,
+            ),
         ),
         "preferred_connections_per_journey": max(
             0,
@@ -321,6 +332,20 @@ def _normalize_constraints(constraints: dict[str, Any] | None) -> dict[str, Any]
             if str(code).strip()
         ),
     }
+
+
+def _normalize_connection_caps(caps: dict[str, int] | None) -> dict[str, int]:
+    payload = caps if isinstance(caps, dict) else {}
+    normalized: dict[str, int] = {}
+    for direction, value in payload.items():
+        normalized_direction = _normalized_direction(direction)
+        if normalized_direction not in {"outbound", "return"}:
+            continue
+        try:
+            normalized[normalized_direction] = max(0, int(value))
+        except (TypeError, ValueError):
+            continue
+    return normalized
 
 
 def _constraint_violations(
@@ -612,6 +637,11 @@ def _candidate_segment_groups(
     return groups
 
 
+def _normalized_direction(value: Any) -> str:
+    direction = str(value or "").strip().lower()
+    return direction if direction in {"outbound", "return"} else ""
+
+
 def _journey_pairing_metadata(
     candidate: dict[str, Any],
     *,
@@ -843,6 +873,27 @@ def _max_connections(candidate: dict[str, Any]) -> int:
             continue
         max_connections = max(max_connections, max(0, len(segments) - 1))
     return max_connections
+
+
+def _max_connections_over_limit(
+    candidate: dict[str, Any],
+    *,
+    default_limit: int,
+    direction_limits: dict[str, int],
+) -> int:
+    default_cap = max(0, int(default_limit))
+    if not direction_limits:
+        return _max_connections(candidate) - default_cap
+    over_limit = 0
+    groups = _candidate_segment_groups(candidate)
+    if not groups:
+        connection_count = int(_numeric_or_none(candidate.get("connection_count")) or 0)
+        return connection_count - default_cap
+    for _, direction, segments in groups:
+        normalized_direction = _normalized_direction(direction)
+        cap = direction_limits.get(normalized_direction, default_cap)
+        over_limit = max(over_limit, max(0, len(segments) - 1) - cap)
+    return over_limit
 
 
 def _ranking_reasons(
