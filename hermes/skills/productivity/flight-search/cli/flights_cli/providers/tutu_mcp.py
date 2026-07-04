@@ -296,21 +296,33 @@ def extract_iata_from_airport_string(text: str) -> str | None:
 # --- Carrier name → IATA code resolution ---
 
 
+def _carrier_name_key(value: str) -> str:
+    text = str(value or "").replace("\u00a0", " ").strip().casefold()
+    text = text.replace("ё", "е")
+    return re.sub(r"\s+", " ", text)
+
+
+def _carrier_catalog_rows(store: Store) -> list[dict[str, Any]]:
+    rows = list(store.airlines)
+    rows.extend(store.load_json("airlines_ru.json"))
+    return rows
+
+
 def _build_carrier_name_index(store: Store | None) -> dict[str, str]:
     if store is None:
         return {}
     index: dict[str, str] = {}
-    for airline in store.airlines:
+    for airline in _carrier_catalog_rows(store):
         code = str(airline.get("code") or "").upper()
         if not code:
             continue
-        name = str(airline.get("name") or "").strip().lower()
+        name = _carrier_name_key(str(airline.get("name") or ""))
         if name:
             index[name] = code
         translations = airline.get("name_translations")
         if isinstance(translations, dict):
             for tr_name in translations.values():
-                tr = str(tr_name or "").strip().lower()
+                tr = _carrier_name_key(str(tr_name or ""))
                 if tr:
                     index[tr] = code
     return index
@@ -328,7 +340,7 @@ def resolve_carrier_code(
     if re.fullmatch(r"[A-Z0-9]{2,3}", text.upper()):
         return text.upper()
     if name_index:
-        key = text.lower()
+        key = _carrier_name_key(text)
         if key in name_index:
             return name_index[key]
     return None

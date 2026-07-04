@@ -56,8 +56,17 @@ def store_with_tutu_catalog(test_case: unittest.TestCase) -> Store:
     (cache / "airlines_en.json").write_text(
         """
         [
-          {"code": "SU", "name": "Aeroflot", "name_translations": {"ru": "Аэрофлот"}},
-          {"code": "TK", "name": "Turkish Airlines", "name_translations": {"ru": "Турецкие авиалинии"}}
+          {"code": "SU", "name": "Aeroflot", "name_translations": {"en": "Aeroflot"}},
+          {"code": "TK", "name": "Turkish Airlines", "name_translations": {"en": "Turkish Airlines"}}
+        ]
+        """,
+        encoding="utf-8",
+    )
+    (cache / "airlines_ru.json").write_text(
+        """
+        [
+          {"code": "SU", "name": "Аэрофлот", "name_translations": {"en": "Aeroflot"}},
+          {"code": "TK", "name": "Турецкие авиалинии", "name_translations": {"en": "Turkish Airlines"}}
         ]
         """,
         encoding="utf-8",
@@ -301,6 +310,38 @@ class TutuMcpProviderTests(unittest.TestCase):
         self.assertEqual([offer["id"] for offer in result["offers"]], ["su"])
         self.assertEqual(result["skipped"]["carrier"], 1)
         self.assertEqual(result["filters"]["only_carriers"], ["SU"])
+
+    def test_carrier_filter_matches_tutu_localized_name_without_flight_number(
+        self,
+    ) -> None:
+        store = store_with_tutu_catalog(self)
+        raw = {
+            "offers": [
+                tutu_offer(
+                    "su-name",
+                    [[tutu_segment("SVX", "AMS", "", carrier="Аэрофлот")]],
+                ),
+                tutu_offer(
+                    "tk-name",
+                    [[tutu_segment("SVX", "AMS", "", carrier="Турецкие авиалинии")]],
+                ),
+            ]
+        }
+
+        result = parse_tutu_avia_search(
+            raw,
+            origin="SVX",
+            destination="AMS",
+            depart_date="2026-08-15",
+            currency="RUB",
+            only_carriers=["SU"],
+            store=store,
+        )
+
+        self.assertEqual([offer["id"] for offer in result["offers"]], ["su-name"])
+        self.assertEqual(result["offers"][0]["flight_numbers"], [])
+        self.assertEqual(result["offers"][0]["marketing_carriers"], ["SU"])
+        self.assertEqual(result["skipped"]["carrier"], 1)
 
     def test_airport_scope_keeps_airports_distinct_from_city_scope(self) -> None:
         store = store_with_tutu_catalog(self)

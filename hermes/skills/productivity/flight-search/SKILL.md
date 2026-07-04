@@ -69,7 +69,7 @@ Provider routing is per probe, not per whole search.
 - `fli` is fallback only for non-RU probes when Tutu is unavailable, fails, or does not support the probe.
 - `provider_policy=both` is invalid.
 
-Tutu returns shopping evidence. It can return connected offers and supports pagination through the adapter. Carrier names are normalized through the catalog/aliases, not route-specific code.
+Tutu returns shopping evidence. It can return connected offers and supports pagination through the adapter. Carrier names are resolved through localized airline catalogs into canonical carrier codes, not route-specific code.
 
 When wave-0 primary offers prove direct flights for a direction, the direct-first gate suppresses connected options for that direction unless explicit route constraints override it.
 

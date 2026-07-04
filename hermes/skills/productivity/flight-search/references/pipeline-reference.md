@@ -47,7 +47,7 @@ Tutu MCP facts:
 - capabilities: RU-touching and global markets, segment and full-route aggregate probes, direct-only and carrier post-filtering, carrier aggregate, round-trip input, and cache;
 - pagination: `TUTU_PAGE_SIZE = 30`, `TUTU_MAX_PAGES = 3`, `sort=departure_asc`, with `pages_fetched`, `has_more_after_fetch`, and `not_fetched_due_to_page_budget` metadata.
 
-Tutu normalization extracts IATA from parenthesized airport strings, resolves carrier display names through the airline catalog where possible, maps `segments_count - 1` to connection count, and keeps provider-returned round-trip outbound/return journeys instead of flattening them into fake one-way connections.
+Tutu normalization extracts IATA from parenthesized airport strings, resolves carrier display names through localized airline catalogs (`airlines_en.json` and `airlines_ru.json`) where possible, maps `segments_count - 1` to connection count, and keeps provider-returned round-trip outbound/return journeys instead of flattening them into fake one-way connections. Carrier filtering must use normalized carrier identity, not depend on `voyage_no` or flight-number prefixes being present.
 
 ## Airport and Provider Scope
 
