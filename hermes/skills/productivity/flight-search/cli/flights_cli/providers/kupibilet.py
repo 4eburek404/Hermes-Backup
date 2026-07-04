@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import argparse
 import gzip
 import json
 import urllib.error
 import urllib.request
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
@@ -31,6 +31,35 @@ from .segment_normalization import (
     provider_offer_to_segment_offer,
     provider_result_to_segment_result,
 )
+
+
+@dataclass(frozen=True)
+class KupiBiletSearchOptions:
+    origin: str
+    destination: str
+    depart_date: str
+    currency: str
+    only_carrier: list[str] | None
+    direct_only: bool
+    limit: int
+    timeout: int
+    cache_ttl_seconds: int = DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
+    no_cache: bool = False
+
+
+@dataclass(frozen=True)
+class KupiBiletRoundTripOptions:
+    origin: str
+    destination: str
+    depart_date: str
+    return_date: str
+    currency: str
+    only_carrier: list[str] | None
+    direct_only: bool
+    limit: int
+    timeout: int
+    cache_ttl_seconds: int = DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
+    no_cache: bool = False
 
 
 def build_kupibilet_payload(
@@ -768,7 +797,7 @@ def cached_kupibilet_roundtrip_search(
     return result
 
 
-def run_kb_search(args: argparse.Namespace) -> dict[str, Any]:
+def run_kb_search(args: KupiBiletSearchOptions) -> dict[str, Any]:
     """Run a Kupibilet live aggregate search and normalize/dedupe offers."""
     origin = normalize_iata(args.origin, "origin")
     destination = normalize_iata(args.destination, "destination")
@@ -799,7 +828,7 @@ def run_kb_search(args: argparse.Namespace) -> dict[str, Any]:
     )
 
 
-def run_kb_roundtrip(args: argparse.Namespace) -> dict[str, Any]:
+def run_kb_roundtrip(args: KupiBiletRoundTripOptions) -> dict[str, Any]:
     """Run a Kupibilet live two-trip search and normalize round-trip fare packages."""
     origin = normalize_iata(args.origin, "origin")
     destination = normalize_iata(args.destination, "destination")

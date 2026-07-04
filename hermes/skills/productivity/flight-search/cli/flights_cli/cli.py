@@ -7,18 +7,17 @@ import sys
 from typing import Any
 
 from . import __version__
-from .apps.diagnose import (
-    command_diagnose_plan,
-    command_diagnose_probe,
-    command_diagnose_render,
-)
-from .apps.search import command_search
 from .commands.maint import (
     command_maint_catalog_manifest,
     command_maint_catalog_refresh,
     command_maint_doctor,
+    command_maintenance_check,
 )
-from .commands.maintenance import command_maintenance_check
+from .commands.diagnose import (
+    command_diagnose_plan,
+    command_diagnose_probe,
+    command_diagnose_render,
+)
 from .commands.metadata import (
     command_airports_explain,
     command_cities_search,
@@ -35,6 +34,7 @@ from .commands.route import (
     command_route_rank,
     command_route_validate,
 )
+from .commands.search import command_search
 from .config import (
     DEFAULT_CURRENCY,
     DEFAULT_PROFILE,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from flights_cli.apps.common import validate_contract_payload
+from flights_cli.commands.common import validate_contract_payload
 from flights_cli.pipeline.offer_graph import (
     OFFER_GRAPH_SCHEMA_VERSION,
     build_offer_graph,

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import ipaddress
 import json
 import os
@@ -8,6 +7,7 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
+from dataclasses import dataclass
 from datetime import date
 from functools import lru_cache
 from pathlib import Path
@@ -38,6 +38,44 @@ from .segment_normalization import (
 
 MCP_PROTOCOL_VERSION = "2025-03-26"
 FLI_NORMALIZER_VERSION = "airport-name-v2"
+
+
+@dataclass(frozen=True)
+class FliSearchOptions:
+    origin: str
+    destination: str
+    depart_date: str
+    currency: str
+    only_carrier: list[str] | None
+    direct_only: bool
+    limit: int
+    timeout: int
+    mcp_url: str
+    cabin_class: str
+    max_stops: str
+    sort_by: str
+    passengers: int
+    cache_ttl_seconds: int = DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
+    no_cache: bool = False
+
+
+@dataclass(frozen=True)
+class FliDatesOptions:
+    origin: str
+    destination: str
+    from_date: str
+    to_date: str
+    trip_duration: int
+    round_trip: bool
+    only_carrier: list[str] | None
+    direct_only: bool
+    max_stops: str
+    cabin_class: str
+    sort_by_price: bool
+    passengers: int
+    limit: int
+    mcp_url: str
+    timeout: int
 
 
 def default_fli_mcp_url() -> str:
@@ -735,7 +773,7 @@ def fli_segment_search_summary(
 
 
 def run_fli_search(
-    args: argparse.Namespace, store: Store | None = None
+    args: FliSearchOptions, store: Store | None = None
 ) -> dict[str, Any]:
     origin = normalize_iata(args.origin, "origin")
     destination = normalize_iata(args.destination, "destination")
@@ -770,7 +808,7 @@ def run_fli_search(
     )
 
 
-def run_fli_dates(args: argparse.Namespace) -> dict[str, Any]:
+def run_fli_dates(args: FliDatesOptions) -> dict[str, Any]:
     origin = normalize_iata(args.origin, "origin")
     destination = normalize_iata(args.destination, "destination")
     start = parse_iso_date(args.from_date, "from-date")

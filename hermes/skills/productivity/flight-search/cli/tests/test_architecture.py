@@ -282,6 +282,22 @@ class ArchitectureTests(unittest.TestCase):
             "argparse_args_to_options", live_route_assembly.read_text(encoding="utf-8")
         )
 
+    def test_provider_runtime_does_not_accept_argparse_namespace(self) -> None:
+        provider_root = PROJECT / "flights_cli" / "providers"
+        for path in sorted(provider_root.glob("*.py")):
+            with self.subTest(path=path.name):
+                text = path.read_text(encoding="utf-8")
+                self.assertNotIn("import argparse", text)
+                self.assertNotIn("argparse.Namespace", text)
+
+    def test_reporting_does_not_import_orchestrators(self) -> None:
+        reporting_root = PROJECT / "flights_cli" / "reporting"
+        for path in sorted(reporting_root.rglob("*.py")):
+            with self.subTest(path=path.relative_to(reporting_root)):
+                text = path.read_text(encoding="utf-8")
+                self.assertNotIn("flights_cli.orchestrators", text)
+                self.assertNotIn("..orchestrators", text)
+
     def test_live_assembly_runtime_has_no_legacy_builder_injection(self) -> None:
         root = PROJECT / "flights_cli"
         runner = root / "orchestrators" / "live_assembly_runner.py"

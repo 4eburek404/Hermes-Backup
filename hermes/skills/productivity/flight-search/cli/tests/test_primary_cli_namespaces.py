@@ -113,7 +113,7 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
         )
 
     def test_search_app_adapts_request_to_live_assembly_and_wraps_result(self) -> None:
-        from flights_cli.apps.search import command_search
+        from flights_cli.commands.search import command_search
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             request_path = Path(tmp_dir) / "request.json"
@@ -136,7 +136,8 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
                 }
 
             with patch(
-                "flights_cli.apps.search.run_live_route_assembly", side_effect=fake_run
+                "flights_cli.commands.search.run_live_route_assembly",
+                side_effect=fake_run,
             ):
                 result = command_search(args, Store())
 

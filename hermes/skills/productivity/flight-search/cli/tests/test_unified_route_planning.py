@@ -6,8 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from flights_cli.apps.diagnose import command_diagnose_plan
-from flights_cli.apps.search import (
+from flights_cli.commands.diagnose import command_diagnose_plan
+from flights_cli.commands.search import (
     live_assembly_options_from_search_request,
     normalize_search_request,
 )

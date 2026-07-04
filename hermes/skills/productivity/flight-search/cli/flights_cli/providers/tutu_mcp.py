@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import re
 import urllib.error
 import urllib.parse
 import urllib.request
+from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
@@ -39,6 +39,22 @@ TUTU_MAX_PAGES = 3
 
 # Matches a 3-letter IATA code in parentheses at end of string: "Тулуза — Тулуза-Бланьяк (TLS)" -> TLS
 _IATA_RE = re.compile(r"\(([A-Z]{3})\)\s*(?:,\s*терм\.\s*\S+)?\s*$")
+
+
+@dataclass(frozen=True)
+class TutuSearchOptions:
+    origin: str
+    destination: str
+    depart_date: str
+    currency: str
+    return_date: str | None = None
+    only_carrier: list[str] | None = None
+    direct_only: bool = False
+    limit: int = 20
+    timeout: int = 60
+    tutu_mcp_url: str | None = None
+    cache_ttl_seconds: int = DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
+    no_cache: bool = False
 
 
 def default_tutu_mcp_url() -> str:
@@ -951,7 +967,7 @@ def tutu_segment_search_summary(
 
 
 def run_tutu_search(
-    args: argparse.Namespace, store: Store | None = None
+    args: TutuSearchOptions, store: Store | None = None
 ) -> dict[str, Any]:
     origin = normalize_iata(args.origin, "origin")
     destination = normalize_iata(args.destination, "destination")

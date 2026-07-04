@@ -61,7 +61,9 @@ def decision_frontier_from_details(
             "selection_reasons": [detail.get("category") or "fixture_frontier"],
             "connection_count": validation.get("max_connections_per_journey"),
         }
-        options.append({key: value for key, value in option.items() if value is not None})
+        options.append(
+            {key: value for key, value in option.items() if value is not None}
+        )
     return {
         "schema_version": "flight_decision_frontier.v1",
         "options": options,
@@ -103,7 +105,7 @@ def parser_leaf_defaults(parser: argparse.ArgumentParser) -> dict[str, dict[str,
 def live_assembly_args(**overrides: Any) -> Any:
     """Build typed live-assembly options through the canonical search request adapter."""
 
-    from flights_cli.apps.search import live_assembly_options_from_search_request
+    from flights_cli.commands.search import live_assembly_options_from_search_request
 
     def as_list(value: Any) -> list[Any]:
         if value is None:

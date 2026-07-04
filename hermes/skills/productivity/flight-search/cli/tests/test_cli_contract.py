@@ -10,13 +10,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from flights_cli.apps import search as search_app
 from flights_cli.cli import (
     apply_agent_brief_output,
     apply_agent_output_defaults,
     build_parser,
     normalize_global_json,
 )
+from flights_cli.commands import search as search_app
 from flights_cli.command_surface import (
     CATALOG_AUTO_REFRESH_COMMANDS,
     CATALOG_READ_COMMANDS,
@@ -528,7 +528,9 @@ class CliContractTests(unittest.TestCase):
             data["airport_scope"]["destination"]["excluded_by_default"], ["STN", "LTN"]
         )
         self.assertEqual(data["metrics"]["segment_search_count"], 0)
-        self.assertEqual(payload["data"]["search_plan"]["schema_version"], "flight_search_plan.v1")
+        self.assertEqual(
+            payload["data"]["search_plan"]["schema_version"], "flight_search_plan.v1"
+        )
 
     def test_normalize_global_json_accepts_trailing_json(self) -> None:
         argv = ["flights", "diagnose", "plan", "--request", "request.json", "--json"]

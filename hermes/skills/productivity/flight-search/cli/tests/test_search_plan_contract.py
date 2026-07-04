@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from flights_cli.apps.common import validate_contract_payload
+from flights_cli.commands.common import validate_contract_payload
 from flights_cli.orchestrators.live_route_assembly import build_live_route_segment_plan
 from flights_cli.orchestrators.search_plan_builder import build_search_plan
 from flights_cli.pipeline.search_plan import (

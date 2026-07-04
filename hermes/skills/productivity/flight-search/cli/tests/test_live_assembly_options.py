@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from flights_cli.apps.search import live_assembly_options_from_search_request
+from flights_cli.commands.search import live_assembly_options_from_search_request
 from flights_cli.errors import CliError
 from flights_cli.pipeline.options import search_request_to_options
 
