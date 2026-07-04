@@ -67,6 +67,22 @@ Main report:
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request request.json
 ```
 
+Provider-port diagnostic:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose probe \
+  --provider tutu \
+  --request probe.json
+```
+
+Tutu raw search diagnostic:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose tutu-search \
+  ORIGIN DEST \
+  --depart-date YYYY-MM-DD
+```
+
 Direct/carrier controls with KupiBilet:
 
 ```bash
@@ -115,7 +131,7 @@ Probe shapes:
 When the report shows fewer direct flights than expected:
 
 1. Confirm the request scope: exact airport vs city, direct-only vs default recommendation, one-way vs return.
-2. Run `diagnose kb-search ORIGIN DEST --depart-date YYYY-MM-DD --direct-only --limit 20` when KupiBilet is the relevant provider, or `diagnose fli-search ... --direct-only` for FLI exact-airport scope.
+2. Start with the canonical report and Tutu/provider-port diagnostics because `auto` is Tutu-first. Use `diagnose kb-search ... --direct-only` or `diagnose fli-search ... --direct-only` only for explicit provider comparison or source-boundary checks.
 3. If the provider probe returns all direct offers with prices, the provider is not the root cause; inspect display/report truncation.
 4. Inspect counts:
    - `data.route_result.live_search.decision_frontier.options`;
@@ -146,13 +162,13 @@ Manual leg probes are for degraded/legacy reports only. If a compact or old repo
 
 If a wide live assembly fails validation, do not answer from the failed report. Use narrow controls and label them as control evidence, not full itinerary assembly.
 
-## RU → China with avoid-Moscow preference and arrival deadline
+## Russia-origin routes with avoid-Moscow preference and arrival deadline
 
-Use this route-family pattern when the user asks for Russia-origin flights to China, arrival by a morning/date, and says “желательно без Москвы”.
+Use this route-family pattern when the user asks for Russia-origin international flights, has an arrival-by deadline, and phrases Moscow avoidance as a preference rather than a hard constraint.
 
 Rules:
 
-1. Normalize destination airports separately: Guangzhou `CAN`, Shenzhen `SZX`, Beijing airport when named, etc.
+1. Normalize named destination airports separately; do not collapse nearby destination airports unless the user allowed city/region scope.
 2. If departure date is absent, state the working assumption. Default “morning” to destination-local arrival before 12:00.
 3. Search latest plausible departure first, then previous date if needed.
 4. Run Golden Path for each serious airport/date pair.
@@ -175,15 +191,14 @@ Wording:
 
 When the user reports a flight on the KupiBilet website that the CLI didn't find, or the CLI shows a different departure time than the website:
 
-1. Make a **raw API call** directly to `api-rs-lb.kupibilet.ru/frontend_search` with the same payload the CLI uses (see `references/provider-failover.md` for payload template). Use the CLI's headers from `config.py::KUPIBILET_HEADERS`.
-2. Inspect the raw `flights` map: look for the flight by `number` field (the API uses `number` / `transport_number`, not `flight_number` — the CLI's `kupibilet_flight_number()` synthesizes the carrier-prefixed identifier).
-3. Check `departure_datetime` in the raw response. If the API itself returns a different time than the website, the root cause is **provider-side data drift**, not a CLI parser bug.
-4. Report the finding honestly: "API KupiBilet отдаёт X, сайт показывает Y — расхождение на стороне поставщика."
-5. For itinerary planning, use the user's website-observed times if more reliable, but label the discrepancy.
+1. First run the narrow KupiBilet diagnostic command for the same route/date/filter. If a raw adapter-level reproduction is still needed, call `api-rs-lb.kupibilet.ru/frontend_search` with the same route/date/filter and the CLI headers from `config.py::KUPIBILET_HEADERS`.
+2. Inspect the raw `flights` map: look for the flight by `number` field. The API uses `number` / `transport_number`; the CLI synthesizes the carrier-prefixed display identifier.
+3. Check `departure_datetime` in the raw response. If the API itself differs from website evidence, report provider-side data drift or coverage gap instead of blaming the parser.
+4. For itinerary planning, use the user's website-observed times if more reliable, but label the discrepancy.
 
 ### Connection feasibility at major hubs
 
-When evaluating assembled connections, **check terminal fields** in the normalized offer segments. The CLI preserves `departure_terminal` and `arrival_terminal` from the raw API. At airports where inter-terminal transfers are significant (CDG 2F↔2E, IST, LHR, etc.), a nominally adequate connection time (e.g. 2h20m) may be impractical if terminals differ. Do not present a connection as feasible without checking terminals when the user has raised terminal concerns or the hub is known for inter-terminal friction.
+When evaluating assembled connections, check terminal fields in the normalized offer segments. The CLI preserves `departure_terminal` and `arrival_terminal` from raw provider data when available. At airports where inter-terminal transfers are significant, a nominally adequate connection can still be impractical if terminals differ. Do not present a connection as feasible without checking terminals when the user has raised terminal concerns or the hub is known for inter-terminal friction.
 
 ## Diagnostic splits
 

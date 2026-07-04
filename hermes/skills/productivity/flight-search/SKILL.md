@@ -65,8 +65,8 @@ Provider routing is per probe, not per whole search.
 
 - `tutu` is the default primary provider.
 - In `auto`, a successful Tutu MCP probe stops fallback execution for the same logical probe.
-- `kupibilet` is fallback only when Tutu is unavailable or fails and its capability/market fit the probe.
-- `fli` is fallback only for non-RU probes when Tutu is unavailable or fails.
+- `kupibilet` is fallback only when Tutu is unavailable, fails, or does not support the probe and KupiBilet capability/market fit it.
+- `fli` is fallback only for non-RU probes when Tutu is unavailable, fails, or does not support the probe.
 - `provider_policy=both` is invalid.
 
 Tutu returns shopping evidence. It can return connected offers and supports pagination through the adapter. Carrier names are normalized through the catalog/aliases, not route-specific code.
@@ -103,7 +103,7 @@ Use diagnostics to inspect the pipeline, not as traveler-facing answers:
 ```bash
 python3 -m flights_cli --json diagnose plan --request "$HOME/flight-search-request.json"
 python3 -m flights_cli --json diagnose probe --provider tutu --request "$HOME/probe.json"
-python3 -m flights_cli --json diagnose tutu-search --request "$HOME/tutu-search.json"
+python3 -m flights_cli --json diagnose tutu-search ORIGIN DEST --depart-date YYYY-MM-DD
 ```
 
 For CLI/debug ownership and source boundaries, start from `references/index.md`.

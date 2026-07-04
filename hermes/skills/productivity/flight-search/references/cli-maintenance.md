@@ -27,7 +27,7 @@ Important UX boundary: the flight-search CLI is an agent-facing implementation t
 
 ## Source, Runtime, and Mirror Validation
 
-Current source edits happen under `/home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-search`. Runtime state lives under `$HERMES_HOME/skills/productivity/flight-search` (usually `$HOME/.hermes/skills/productivity/flight-search`) and is a separate deployment/sync surface. The active Hermes release path may intentionally exclude this runtime/user skill. Do not recreate the retired distribution mirror formerly known as `skill-clis/flights`.
+Source edits happen in the active Git checkout that contains `hermes/skills/productivity/flight-search`; do not assume a fixed machine path. Runtime state lives under `$HERMES_HOME/skills/productivity/flight-search` (usually `$HOME/.hermes/skills/productivity/flight-search`) and is a separate deployment/sync surface. The active Hermes release path may intentionally exclude this runtime/user skill. Do not recreate the retired distribution mirror formerly known as `skill-clis/flights`.
 
 Before saying which version is current, run the compact local maintenance report when the CLI is available:
 
@@ -40,7 +40,7 @@ Then check separately when deeper evidence is required:
 - runtime skill `SKILL.md` version, bytes, and SHA-256;
 - runtime CLI markers: `cli/pyproject.toml`, `cli/flights_cli/__init__.py`, and `python3 -m flights_cli --version` from runtime `cli/`;
 - active Hermes release: whether `~/.hermes/hermes-agent/skills/productivity/flight-search` exists;
-- local source checkout: `/home/konstantin/src/Hermes-Backup/hermes`, branch, HEAD, dirty state, and ahead/behind status;
+- local source checkout: repository root, branch, HEAD, dirty state, origin URL, and ahead/behind status;
 - GitHub publication state only when asked for published link/current remote version.
 
 If runtime is newer than source/GitHub, say so explicitly: operationally loaded runtime may be ahead of published source until source changes are committed and pushed.
@@ -238,19 +238,21 @@ Generated artifacts must be intentionally cleaned or reported. Prefer `PYTHONDON
 
 ## Markdown Reference Governance
 
-Canonical active references are the index plus eight owner files:
+Canonical active references are the index plus ten owner files:
 
 0. `references/index.md` — canonical reference owner map and routing hub from `SKILL.md`.
 1. `references/report-contract.md` — how to read `agent_report`, contract lifecycle, and renderer contract.
 2. `references/source-boundaries.md` — evidence classes, absence, airports, connections, ticketing, OTA/smart-route semantics.
 3. `references/provider-aware-airport-priority.md` — provider/airport dispatch and city-code policy.
-4. `references/pipeline-reference.md` — current data flow, flow decision, evidence plan, direct-priority/all-direct mechanics, reporting projection, and data artifacts.
+4. `references/pipeline-reference.md` — current data flow, flow decision, evidence plan, provider/gateway routing, direct-first gate, reporting projection, and data artifacts.
 5. `references/debug-playbook.md` — targeted probes and bounded exception/debug patterns.
 6. `references/direct-date-window.md` — direct/nonstop inventory over a bounded date range.
 7. `references/rail-rzd-live-pricing.md` — bounded official-RZD train-price comparison after a flight search.
 8. `references/cli-maintenance.md` — source/runtime, schema/tests, provider ports, CLI-surface simplification, generated artifacts, dead-code/duplicate cleanup, and this reference lifecycle.
+9. `references/tutu-mcp-provider.md` — Tutu MCP adapter contract, normalization, pagination, provider policy, and limitations.
+10. `references/route-network-discovery.md` — route-network questions that are outside dated live-ticket search.
 
-Do not add a new active reference for every incident, smoke run, audit, handoff, route example, migration note, or implementation report. First extract durable rules into the appropriate canonical reference or test; leave raw history to session search. Add another active reference only when a new stable direction cannot be expressed in the canonical files.
+Do not add a new active reference for every incident, smoke run, audit, handoff, route example, migration note, or implementation report. First verify the rule against current code/schema/tests, then extract durable behavior into the appropriate canonical reference or test; leave raw history to session search. Add another active reference only when a new stable direction cannot be expressed in the canonical files.
 
 Before final reporting after Markdown consolidation:
 

@@ -46,18 +46,13 @@ The `h3.parentElement.parentElement` (two levels up) is the card container that 
 
 | Airport | URL pattern | Notes |
 |---|---|---|
-| Nantes (NTE) | `nantes.aeroport.fr/fr/toutes-les-destinations-en-direct-de-nantes` | Carousel by region → country. "+N destinations" subpages at `/fr/toutes-les-destinations/<country-slug>`. Labels: "Vol direct" / "Vol avec escales". |
+| French/European carousel pages | Airport-specific destinations page | Often grouped by region or country, with hidden destination subpages behind "+N destinations" links. Extract every expanded destination page before comparing to Wikipedia. |
 
-(Add more as encountered.)
+Add patterns only when they are reusable across future route-network tasks; keep one-off dated route examples out of active references.
 
 ## Comparison: official site vs Wikipedia
 
-Always compare. Official sites are more current (new routes announced months before Wikipedia editors update). Wikipedia may list routes that have been discontinued, and may miss seasonal-only or just-launched routes. When they disagree, the official site wins for "is there a direct flight" questions.
-
-Example discrepancy found (Nantes, 2026-06-30):
-- Official site has: Vienna (direct), Lapland/Rovaniemi (direct), Cairo (direct), Luxor (direct), Salerno (direct), San Vicente (direct), Brussels (new Oct 2026)
-- Wikipedia has but official site marks as connecting: Bilbao, Santander, Bologna, Genoa, Turin, Verona, Dakhla, Ouarzazate
-- Wikipedia has but official site doesn't list as direct: Paris-Orly (only CDG on site), Hamburg
+Always compare. Official sites are more current and usually distinguish direct from connecting service. Wikipedia may list discontinued routes or miss seasonal/new routes. When they disagree, the official site wins for "is there a direct flight" questions; cite the source and verification date in the final answer.
 
 ## Presentation
 

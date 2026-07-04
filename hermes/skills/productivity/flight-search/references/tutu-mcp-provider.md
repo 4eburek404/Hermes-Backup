@@ -1,165 +1,73 @@
-# Tutu MCP Provider Integration
+# Tutu MCP Provider
 
-Architecture and normalization map for the `tutu` provider in the flight-search CLI.
+Use this file only when maintaining or debugging the `tutu` provider. Normal route search should follow `SKILL.md` and read the assembled `agent_report`.
 
-## Tutu MCP endpoint
+## Current Contract
 
-- URL: `https://mcp.tutu.ru/mcp` (config: `TUTU_MCP_DEFAULT_URL`)
-- Protocol: JSON-RPC 2.0 over Streamable HTTP (MCP `2025-06-18`); requests include `MCP-Protocol-Version`
-- No auth required
-- Tool: `search_avia` — accepts city names (Russian), not IATA codes
+- Endpoint: `https://mcp.tutu.ru/mcp` by default, overridden by `FLIGHTS_TUTU_MCP_URL`.
+- Protocol: JSON-RPC 2.0 over Streamable HTTP with MCP protocol version header.
+- Tool: `search_avia`.
+- Input: Russian city names, not IATA codes. The adapter resolves IATA through `Store.city_by_code`.
+- Output: shopping offers, not booking proof.
 
-## Key differences from KupiBilet/FLI
+## Implementation Owners
 
-| Aspect | KupiBilet | FLI | Tutu |
-|--------|-----------|-----|------|
-| Input | IATA codes | IATA codes | City names (Russian) |
-| Auth | None | None | None |
-| Scope | RU-touching + global | Global only | Global (RU + international) |
-| Aggregate | Yes (full route) | No (segment only) | Yes (full route, connections included) |
-| URL | REST API | Local MCP | Remote MCP |
+| Concern | Owner |
+| --- | --- |
+| HTTP MCP call and pagination | `providers/tutu_mcp.py` |
+| Tutu response normalization | `providers/tutu_mcp.py` |
+| Provider-port adapter | `adapters/providers/tutu_adapter.py` |
+| Provider routing and policy enum | `adapters/providers/registry.py`, `contracts/flight_search_request.v1.schema.json` |
+| Pagination and normalizer tests | `tests/test_tutu_mcp.py` |
+| Routing/capability tests | `tests/test_provider_capabilities.py`, `tests/test_offer_query_runner.py`, `tests/test_probe_dispatcher.py`, `tests/test_aggregate_control_runner.py` |
 
-## CLI architecture: adding a provider
+## Routing Policy
 
-The CLI uses a ports-and-adapters pattern. To add a provider:
+- `auto`: Tutu MCP first. A searched Tutu result short-circuits fallback providers for the same logical probe.
+- `tutu`: Tutu-only where market and capability allow it.
+- `kupibilet` / `fli`: explicit override modes.
+- `both`: invalid.
 
-1. **`ports/providers.py`** — Add to `ProviderName = Literal[...]`
-2. **`config.py`** — Add `TUTU_MCP_DEFAULT_URL` constant
-3. **`providers/tutu_mcp.py`** — HTTP MCP client + response normalizer:
-   - `call_tutu_mcp_tool(tool_name, arguments, mcp_url, timeout)` — JSON-RPC initialize → tools/call
-   - `parse_tutu_avia_search(raw, origin, destination, depart_date, currency, limit, ...)` — normalize Tutu response to internal offer format and apply CLI post-filters
-   - `cached_tutu_avia_search(...)` — cache wrapper (same pattern as `cached_kupibilet_search`)
-   - `tutu_result_to_segment_result(...)` — delegate to `provider_result_to_segment_result`
-   - `tutu_segment_search_summary(...)` — summary dict
-4. **`adapters/providers/tutu_adapter.py`** — `TutuProviderAdapter` implementing `FlightProviderPort`:
-   - `TUTU_CAPABILITIES = ProviderCapabilities(supports_ru_touching=True, supports_global=True, supports_full_route_aggregate=True, ...)`
-   - `search_segment(query)` — calls `cached_tutu_avia_search`, returns `ProviderProbeResult`
-   - `search_aggregate(query)` — same as segment (Tutu returns full routes)
-5. **`adapters/providers/registry.py`** — Register in `PROVIDER_REGISTRY`, update `_normalize_provider_policy`, update policy candidate functions
-6. **`contracts/flight_search_request.v1.schema.json`** — Add `"tutu"` to `provider_policy` enum
+Tutu supports RU-touching and global markets, segment and full-route aggregate probes, direct-only post-filtering, carrier post-filtering, carrier aggregate, round-trip input, and cache.
 
-## Tutu search_avia response structure
+## Normalization Rules
 
-```
-offers[].price.amount          # float, RUB
-offers[].price.currency         # "RUB"
-offers[].duration_min           # int, total trip duration
-offers[].segments_count          # int
-offers[].departure_at            # ISO datetime with tz
-offers[].arrival_at              # ISO datetime with tz
-offers[].carriers                # list of carrier name strings
-offers[].legs[].segments[]       # per-leg segments
-  .from                          # "Тулуза — Тулуза-Бланьяк (TLS)" — IATA in parens
-  .to                            # "Париж — Шарль-де-Голль (CDG), терм. 2F"
-  .carrier                       # "Air France" (name, not IATA code)
-  .departure_at / .arrival_at    # ISO datetime with tz
-  .duration_min                  # int
-offers[].variants[]              # fare families
-  .price.amount
-  .conditions.baggage / .cabin_baggage / .refundable / .changeable
-  .service_class                  # ECONOMIC / BUSINESS
-offers[].checkout_ref            # pass verbatim to create_checkout_link
-```
+- Tutu airport strings contain IATA in parentheses, for example `"Париж - Шарль-де-Голль (CDG), терм. 2F"`.
+- Extract IATA from the parenthesized airport code; extract terminals from the provider terminal suffix when present.
+- Tutu carrier values are display names. Resolve them through the airline catalog where possible; carrier filters apply after normalization and require every segment in the journey to match.
+- `segments_count - 1` maps to connection count.
+- Round-trip provider offers stay provider-returned outbound/return journeys; do not flatten them into fake one-way connections or claim single-PNR/protection.
 
-## IATA extraction from airport strings
+## Pagination
 
-Tutu airport strings follow the pattern `"City — Airport Name (IATA)"` or `"City — Airport Name (IATA), терм. X"`.
+Current adapter constants:
 
-Extract IATA with: `re.search(r'\(([A-Z]{3})\)', airport_string)`
+- `TUTU_PAGE_SIZE = 30`
+- `TUTU_MAX_PAGES = 3`
 
-## City name resolution (IATA → Russian city name)
+The adapter requests `sort=departure_asc`, fetches up to the page budget, and records pagination metadata including `pages_fetched`, `has_more_after_fetch`, and `not_fetched_due_to_page_budget`. If later flights matter, inspect pagination before claiming absence.
 
-Tutu `search_avia` accepts city names like `"Тулуза"`, `"Екатеринбург"`. The CLI's `Store.city_by_code` maps IATA → city dict with `.name` (Russian nominative). Use `store.city_by_code["TLS"].name` → `"Тулуза"`.
+## Known Boundaries
 
-## Normalization to internal offer format
+- Tutu `search_avia` can return no full-route offers while segment-level probes still return useful legs. Treat this as provider route-search coverage, not proof that the leg does not exist.
+- Tutu searches by city name; exact-airport requests must be post-filtered against actual normalized segment endpoints.
+- Missing `voyage_no` is normal; flight numbers may be absent.
+- Tutu offers can still be rejected by chronology, airport-continuity, MCT, direct-mode, or user-constraint gates. If provider offers exist but the frontier is empty, inspect `decision_frontier.coverage_summary`, `offer_graph.rejected`, and provider failures before claiming absence.
 
-Each Tutu offer maps to the internal offer dict shape used by `provider_offer_to_segment_offer`:
+## Diagnostics
 
-```python
-{
-    "id": offer_id,
-    "price": price_amount,           # float
-    "currency": "RUB",
-    "number_of_changes": segments_count - 1,
-    "duration": duration_min,
-    "departure_at": first_segment_departure,
-    "arrival_at": last_segment_arrival,
-    "origin": first_segment_origin_iata,
-    "destination": last_segment_destination_iata,
-    "flight_numbers": [...],         # may be None — Tutu doesn't always return voyage_no
-    "marketing_carriers": [...],     # IATA codes resolved via Store.airlines name→code lookup
-    "operating_carriers": [...],
-    "segments": [{flight_number, marketing_carrier, operating_carrier, origin, destination, departure_at, arrival_at, duration}],
-}
+Prefer the provider-port diagnostic first:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose probe \
+  --provider tutu \
+  --request probe.json
 ```
 
-## Capabilities
+Use `diagnose tutu-search` only when you need Tutu-specific raw pagination/normalization evidence:
 
-```python
-TUTU_CAPABILITIES = ProviderCapabilities(
-    supports_ru_touching=True,
-    supports_global=True,
-    supports_city_code=False,    # CLI resolves IATA→city name before calling Tutu
-	    supports_direct_only=True,   # CLI post-filter; search_avia has no upstream direct-only arg
-	    supports_carrier_filter=True, # CLI post-filter; search_avia has no upstream carrier arg
-	    supports_full_route_aggregate=True,
-	    supports_round_trip=True,    # stored as outbound/return journeys, not two protected one-ways
-    supports_cache=True,
-    probe_types=frozenset({"segment_direct", "segment_hub_leg", "full_route_aggregate", "city_pair_direct"}),
-)
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose tutu-search \
+  ORIGIN DEST \
+  --depart-date YYYY-MM-DD
 ```
-
-## Provider policy routing
-
-- `"tutu"` — Tutu-only (all segments and aggregate probes)
-- `"auto"` — Tutu MCP first; a searched Tutu result suppresses fallback providers for the same logical probe
-- `"kupibilet"` / `"fli"` — explicit override modes
-- `"both"` — invalid
-
-## Test fixtures
-
-Tests that assert `set(PROVIDER_REGISTRY) == {"kupibilet", "fli"}` need updating to include `"tutu"`. See `tests/test_provider_capabilities.py`.
-
-## Known limitations
-
-- Tutu `search_avia` may return 0 offers for long-haul one-way routes on far-future dates. The upstream suggests retrying with `return_date` — some routes are sold only as round-trip packages.
-- Carrier names in Tutu responses are display names (e.g. "Air France", "Уральские авиалинии"), not IATA codes. The normalizer resolves carrier names through the airline catalog where possible; carrier filtering is applied after normalization and requires every segment in every journey to match.
-- `voyage_no` (flight number) is often `null` in Tutu responses.
-- **Pagination: `page_size=10` by default (max 30).** Without explicit `page_size=30`, later departures (afternoon/evening) are invisible — they land on page 2+ behind cheaper morning flights. The CLI provider (`tutu_mcp.py`) sends `page_size=30` with `sort=departure_asc` and auto-paginates up to 3 pages (90 offers) before applying display `limit`. Diagnostics keep `pagination.has_more_after_fetch` and `pagination.not_fetched_due_to_page_budget`. When calling `mcp_tutu_search_avia` directly, always pass `page_size=30` and check `meta.has_more`.
-- **Airport scope is post-filtered.** Tutu searches by city name, so an exact-airport request like `LHR` can return another London airport. The CLI accepts only offers whose actual first/last airports match the requested airport scope; city requests such as `LON` may accept multiple London airports.
-- **Round-trip offers stay single provider-returned packages.** The normalizer stores outbound and return as separate `journeys`; it does not flatten two journeys into a fake one-way connection and does not claim single-PNR/protection.
-- **Full-route search ≠ segment search coverage.** A `search_avia` call for NTE→SVX may NOT return all viable 1-stop connecting flights through a hub (e.g. KLM NTE→AMS→IST at 17:20). The aggregate search filters by its own routing logic and may exclude valid hub connections. A direct city-pair search (NTE→IST) reveals flights the full-route search missed. When the user reports a flight from tutu.ru not in your results, search the individual leg directly.
-- **Tutu offers can still be rejected by the frontier gate.** Cross-airport or impossible chronology paths stay in diagnostics/rejections, not in traveler options. When provider results have offers but the frontier is empty, inspect `decision_frontier.coverage_summary`, `offer_graph.rejected`, and provider failures before claiming absence.
-- **Tutu full-route aggregate may return 0 offers** for the complete route (e.g. TLS→SVX one-way), but segment-level probes (TLS→IST, IST→SVX separately) DO return offers. The CLI's pipeline handles this by probing segments individually when `provider_policy: "tutu"` is set. This is expected — Tutu's `search_avia` is a route-level search that may not find complex multi-stop itineraries, but the CLI's segment-by-segment approach finds them.
-
-## Direct segment search via MCP tool
-
-When DecisionFrontier is empty but Tutu provider evidence shows relevant offers, or when you need to inspect one specific leg (e.g. NTE→IST or AMS→SVX), call the Tutu MCP `search_avia` tool **directly** (via `mcp_tutu_search_avia`) for individual legs.
-
-### When to use
-
-- CLI `provider_policy: "tutu"` search returned 0 ranked candidates, but `segment_searches[].offer_count > 0` — the pipeline rejected the pairs, not the provider.
-- User asks for a specific routing through a hub that the CLI doesn't probe (e.g. "through Amsterdam" when CLI only tried IST/SVO).
-- User filters by departure time (e.g. "after 15:00") and no CLI results qualify — Tutu MCP may have additional flights on later pages.
-
-### How
-
-1. Call `mcp_tutu_search_avia` with `origin` and `destination` as **Russian city names** (not IATA codes). Example: `origin="Нант"`, `destination="Амстердам"`.
-2. Check `meta.has_more` — Tutu paginates, and morning flights often dominate page 1 while later departures are on page 2+.
-3. For connecting flights, search each leg separately (origin→hub, hub→destination). Use the date that matches the user's constraint.
-4. **Cross-day connections**: if leg 1 arrives in the evening, search leg 2 on the next day (`departure_date` = next day).
-5. Extract: `offers[].departure_at`, `offers[].arrival_at`, `offers[].price.amount`, `offers[].legs[].segments[].carrier`, `offers[].legs[].segments[].from`/`.to` (airport strings with IATA in parens).
-6. **Check airport codes** in segment `from`/`to` strings — IST and SAW are different airports in Istanbul. A connection IST→SAW requires ground transfer.
-
-### Example: NTE→AMS→IST→SVX (09-10.07.2026)
-
-- Leg 1: `mcp_tutu_search_avia(origin="Нант", destination="Амстердам", departure_date="2026-07-09")` — found KLM via CDG, 22 065 ₽
-- Leg 2: `mcp_tutu_search_avia(origin="Амстердам", destination="Екатеринбург", departure_date="2026-07-10")` — found Turkish Airlines + U6 via IST, 55 114 ₽
-- Total: ~77 179 ₽, overnight in Amsterdam
-
-### Tutu airport string parsing
-
-Tutu airport strings: `"Тулуза — Тулуза-Бланьяк (TLS)"` or `"Париж — Шарль-де-Голль (CDG), терм. 2F"`.
-
-Extract IATA: `re.search(r'\(([A-Z]{3})\)', airport_string)`
-Extract terminal: `re.search(r'терм\.\s*(\S+)', airport_string)`

@@ -7,7 +7,7 @@ Concise manual for the flight-search skill-owned CLI. The skill's Golden Path is
 - Route/date/IATA normalization and bounded live assembly.
 - Airport compatibility checks for same-airport and cross-airport connections.
 - Candidate generation, stop-policy filtering, ranking, and compact report projection.
-- Direct, carrier, aggregate, and sidecar controls when the current provider policy calls for them.
+- Direct, carrier, aggregate, and coverage controls when the current provider policy calls for them.
 - Static metadata lookup for city, airport, country/region, airline, alliance, and aircraft labels.
 - A compact `data.agent_report` for agents, including display lines, recommended options, priority controls, provider failures, through-fare checks, and source boundaries.
 
@@ -172,7 +172,24 @@ Dry plan diagnostic:
 python3 -m flights_cli --json diagnose plan --request /tmp/flight-search-request.json
 ```
 
-Direct or carrier probe:
+Provider-port probe:
+
+```bash
+python3 -m flights_cli --json diagnose probe \
+  --provider tutu \
+  --request /tmp/probe.json
+```
+
+Tutu raw search:
+
+```bash
+python3 -m flights_cli --json diagnose tutu-search ORIGIN DEST \
+  --depart-date YYYY-MM-DD \
+  --direct-only \
+  --limit 20
+```
+
+KupiBilet source comparison:
 
 ```bash
 python3 -m flights_cli --json diagnose kb-search ORIGIN DEST \
@@ -193,7 +210,7 @@ python3 -m flights_cli --json diagnose kb-roundtrip ORIGIN DEST \
   --limit 20
 ```
 
-Sidecar segment probe:
+FLI exact-airport source comparison:
 
 ```bash
 python3 -m flights_cli --json diagnose fli-search ORIGIN DEST \

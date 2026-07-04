@@ -14,12 +14,10 @@ CANONICAL_REFERENCES = {
     "source-boundaries.md",
     "provider-aware-airport-priority.md",
     "pipeline-reference.md",
-    "gateway-hardcode-map.md",
     "debug-playbook.md",
     "direct-date-window.md",
     "rail-rzd-live-pricing.md",
     "cli-maintenance.md",
-    "provider-failover.md",
     "tutu-mcp-provider.md",
     "route-network-discovery.md",
 }

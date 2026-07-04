@@ -17,7 +17,7 @@ Empty provider output is not proof of absence by itself. Use it to choose probes
 - Provider/horizon uncertainty: date is too far out, too near, or outside a searchable window.
 - Provider coverage gap: the source can search the date but has weak coverage for the route, airport, carrier, or market.
 - Constraint mismatch: direct-only, carrier-only, cabin, timing, baggage, airport, or stop-policy filters removed otherwise viable options.
-- Runtime/provider failure: provider, sidecar, network, parser, JSON, or dependency errors reduced evidence quality.
+- Runtime/provider failure: provider, network, parser, JSON, or dependency errors reduced evidence quality.
 - Structural unavailability: regular service is unavailable in normal booking channels.
 - Ticketing/protection uncertainty: segments may exist, but single PNR, through-fare, baggage-through, recheck, or disruption protection is unproven.
 
@@ -88,36 +88,28 @@ Useful wording:
 
 KupiBilet is useful as OTA discovery, price/checkout evidence, and smart-route discovery. It is not final airline/GDS proof by itself.
 
-### API vs website schedule discrepancy
+### API vs website mismatch
 
-The KupiBilet JSON API (`api-rs-lb.kupibilet.ru/frontend_search`) and the KupiBilet website can return **different `departure_datetime`** for the same flight number on the same date. Observed case: AF7405 TLS→CDG on 2026-07-10 — API returned `10:30+02:00`, website showed `14:30`. The CLI parser (`kupibilet.py:142`) reads `departure_datetime` from the API response correctly; the discrepancy is on the provider's side, not a parser bug.
+KupiBilet API evidence and KupiBilet website evidence can diverge on schedule times or whole offers. Treat this as a provider/source-boundary issue until proven otherwise, not as an immediate parser bug.
 
-When the user reports a flight visible on the KupiBilet website that the CLI didn't find or shows at a different time:
-1. Make a raw API call (see `references/debug-playbook.md` → "API vs website mismatch") to confirm whether the API itself returns the different time.
-2. If the API returns a different time than the website, the root cause is provider-side data drift — report it to the user as such, do not blame the CLI parser.
-3. Use the user's website-observed times for itinerary planning if they are more recent/reliable, but note the discrepancy.
+When the user reports a website-visible flight that the CLI did not find or time-shifted:
+1. Reproduce with the narrow KupiBilet diagnostic or raw API check from `references/debug-playbook.md`.
+2. If the API returns the same value the CLI normalized, report provider-side data drift or provider coverage gap.
+3. If website evidence is more current for planning, use it as user-observed evidence and label the discrepancy.
 
-### KupiBilet coverage gap for foreign carriers
-
-The KupiBilet API does not just drift on times — it can be **missing entire flights** that exist on the KupiBilet website and on other aggregators (Aviasales, Google Flights, etc.). Confirmed by user: "kupibilet показывает не все рейсы зарубежных компаний. Это факт." In the AF7405 case, the API returned 7 direct TLS→CDG flights, but none between 12:00 and 19:05 — a gap of 7 hours where the website showed a 14:30 departure.
-
-This means:
-- **Empty CLI results for a route segment do not prove absence of flights** when the route involves non-RU carriers or non-RU airports. The KupiBilet API has systematic coverage gaps for foreign carriers.
-- **Always treat KupiBilet as partial coverage for non-RU routes.** When the user reports a flight the CLI didn't find, trust the user's observation over the API output.
-- **Cross-check with other sources** when possible: the KupiBilet website (user can check), other aggregators, or FLI (Google Flights) if available.
-- This coverage gap is a provider limitation, not a CLI bug. Do not attempt to "fix" it in the parser — the data is simply not in the API response.
+For non-RU or foreign-carrier routes, KupiBilet API gaps are a known source limitation. Empty KupiBilet output alone does not prove absence; prefer the assembled `agent_report`, Tutu-first provider evidence, and targeted provider comparisons before making a negative route claim.
 
 ### Live provider alternatives
 
 The CLI has three provider adapters: `tutu`, `kupibilet`, and `fli`.
 - **Tutu MCP** is the default primary live source in `auto`. If a Tutu probe is searched successfully, fallback providers are not called for that logical probe.
-- **KupiBilet** is a fallback source when Tutu is unavailable or fails; its API can have foreign-carrier coverage gaps.
-- **FLI (Google Flights)** requires a self-hosted MCP server at `http://127.0.0.1:8000/mcp` and is fallback-only for non-RU probes when Tutu is unavailable or fails.
+- **KupiBilet** is a fallback source when Tutu is unavailable, fails, or does not support the probe; its API can have foreign-carrier coverage gaps.
+- **FLI (Google Flights)** requires a self-hosted MCP server at `http://127.0.0.1:8000/mcp` and is fallback-only for non-RU probes when Tutu is unavailable, fails, or does not support the probe.
 - For routes where all configured provider evidence is insufficient, the fallback is browser-based search on aggregators or asking the user to check a specific seller/airline surface directly.
 
 ### Terminal data availability
 
-The raw KupiBilet API returns `arrival_terminal` and `departure_terminal` per flight (e.g. CDG `2F`). The CLI normalizes these into `segments[].departure_terminal` / `segments[].arrival_terminal`. When evaluating connection feasibility at major hubs like CDG (where inter-terminal transfers add significant time), **check terminal fields** — do not assume same-terminal connections. A 2h20m connection at CDG is risky if terminals differ (e.g. 2F → 2E requires landside transfer).
+The raw KupiBilet API can return `arrival_terminal` and `departure_terminal` per flight. The CLI normalizes these into `segments[].departure_terminal` / `segments[].arrival_terminal`. When evaluating connection feasibility at major hubs, check terminal fields and do not assume same-terminal transfers.
 
 Distinguish:
 
@@ -143,8 +135,6 @@ Use catalog fields to normalize names, codes, airport geography, country/region 
 
 Catalog-dependent CLI commands refresh missing or older-than-2-weeks static metadata before planning unless disabled. This is runtime readiness, not live availability evidence.
 
-## Live Provider Policy and Sidecar Boundary
+## Live Provider Policy
 
 The live provider policy chooses the current source mix for each segment. Read policy, failures, coverage diagnostics, and source limits from `data.agent_report` instead of assuming a provider path.
-
-The sidecar is a discovery boundary. It can expand live discovery when available, but the core CLI must still report provider failures and source limits clearly when the sidecar is unavailable or degraded.

@@ -23,8 +23,8 @@ flight_search_request.v1
 | --- | --- | --- |
 | Request/options | `pipeline/options.py`, `pipeline/search_request.py` | Convert JSON/CLI fields into typed route, evidence, filter, and constraint options. |
 | Flow decision | `pipeline/search_pipeline.py`, `pipeline/flow_decision.py`, `pipeline/evidence_plan.py` | Classify intent, market, provider policy, evidence requirements, freshness, and required controls. |
-| Planning | `orchestrators/search_plan_builder.py` | Seed constraints into primary and gateway probes; produce diagnostics and an empty legacy segment fallback envelope. |
-| Provider routing | `adapters/providers/registry.py` | Choose providers per probe by policy, market, and capability. Tutu is primary; KupiBilet and FLI are fallback-only when Tutu is unavailable or fails. |
+| Planning | `orchestrators/search_plan_builder.py` | Seed constraints into primary and gateway probes; produce search-plan diagnostics and planned provider work. |
+| Provider routing | `adapters/providers/registry.py` | Choose providers per probe by policy, market, and capability. Tutu is primary; KupiBilet and FLI are fallback-only when Tutu is unavailable, fails, or does not support the probe. |
 | Probe execution | `execution/offer_query_runner.py`, `execution/search_wave_planner.py`, `execution/gateway_leg_probe_executor.py`, `execution/aggregate_control_runner.py` | Execute bounded provider probes and record ledger evidence. |
 | Graph/materialization | `pipeline/offer_graph.py` | Build provider-provenance edges and materialize N-leg/cross-day candidates. |
 | Ranking/frontier | `pipeline/decision_scorer.py`, `pipeline/candidate_ranker.py` | Apply chronology, constraint, MCT, direct-first gate outcomes, round-trip pairing, and scoring policy. |
@@ -37,6 +37,25 @@ flight_search_request.v1
 - `both`: invalid.
 
 Provider routing is never a whole-search exclusive lock in `auto`; the Tutu-first short-circuit is scoped to each logical probe.
+
+## Gateway Policy
+
+Gateway selection is policy/config driven, not route-specific Python branching.
+
+- Default bridge hints may seed gateway discovery only when the user did not constrain the route.
+- `constraints.must_include_airports` is an explicit gateway/path request and becomes both planner seed and scorer gate.
+- Provider-returned full-route offers can add gateway evidence through gateway discovery.
+- Coverage controls are evaluated from existing graph evidence before spending provider budget.
+- Route-specific provider data belongs in fixtures, policy/config, or live provider evidence, not hardcoded origin/destination/carrier branches.
+
+## Direct-First Gate
+
+After wave-0 primary offer queries, `LiveAssemblyRunner` computes direct evidence per direction. If direct evidence is present and not disabled by explicit route constraints, that direction enters `direct_mode`.
+
+- `direct_mode` skips gateway leg probes for that direction with ledger reason `direct_mode`.
+- Connected primary paths for a `direct_mode` direction are rejected with `direct_mode_gate`.
+- `constraints.must_include_airports` and explicit `route_options.max_connections >= 1` disable the gate because user constraints are stronger than default direct preference.
+- If direct options exist but explicit constraints leave no acceptable candidate, one fallback wave may run with hard cap one connection; this does not apply to routes with no direct evidence.
 
 ## Constraints
 

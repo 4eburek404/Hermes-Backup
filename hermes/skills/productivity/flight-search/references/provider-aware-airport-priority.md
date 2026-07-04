@@ -4,7 +4,7 @@ Use this source reference when maintaining routing, provider dispatch, or report
 
 ## Active provider scope
 
-- The active provider set is Tutu MCP, KupiBilet, and FLI. In `auto`, Tutu MCP is primary; KupiBilet and FLI are fallback-only when Tutu is unavailable or fails for the logical probe.
+- The active provider set is Tutu MCP, KupiBilet, and FLI. In `auto`, Tutu MCP is primary; KupiBilet and FLI are fallback-only when Tutu is unavailable, fails, or does not support the logical probe.
 - Static catalogs remain metadata only: they can normalize cities, airports, countries, airlines, alliances, and aircraft labels, but they do not prove live fares, availability, schedules, or direct service.
 
 ## Airport priority policy
@@ -25,6 +25,12 @@ This file is the single source of truth for airport/provider priority rules. Oth
 - Actual airports must be post-validated against `SVO`/`DME`/`VKO` and displayed as actual airport codes, not only `MOW`.
 - Missing actual airport fields or out-of-scope actual airports must invalidate city-code results and allow exact-airport deferred probes.
 
+## Tutu city-name policy
+
+- Tutu `search_avia` receives Russian city names; the adapter resolves IATA code to city name before the MCP call.
+- Exact-airport requests remain exact after normalization: offers whose actual first/last airports do not match the requested airport scope are skipped with `airport_scope`.
+- City-code requests may accept any in-scope airport, but reports must still show actual airport codes.
+
 ## FLI exact-airport policy
 
 - FLI is exact-airport only and must not receive `LON` city-code queries by default.
@@ -33,11 +39,11 @@ This file is the single source of truth for airport/provider priority rules. Oth
 
 ## Smoke invariants
 
-These invariants can be proved with mocked/offline execution unless the question is live availability:
+These provider-specific invariants can be proved with mocked/offline execution unless the question is live availability:
 
-- successful `SVX→MOW` skips exact deferred calls to `SVX→SVO`, `SVX→DME`, and `SVX→VKO`;
-- successful `IST→LHR` skips secondary-tier calls to `IST→LGW`;
-- `SAW`, `STN`, and `LTN` are absent from default generated plans and provider calls.
+- KupiBilet: successful `SVX→MOW` skips exact deferred calls to `SVX→SVO`, `SVX→DME`, and `SVX→VKO`;
+- FLI: successful `IST→LHR` skips secondary-tier calls to `IST→LGW`;
+- default planning: `SAW`, `STN`, and `LTN` are absent unless requested or returned and accepted within scope.
 
 ## RU-priority and report contract
 
