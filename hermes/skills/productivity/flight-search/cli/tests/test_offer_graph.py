@@ -718,6 +718,65 @@ class OfferGraphTests(unittest.TestCase):
             "direct_only_hard_constraint",
         )
 
+    def test_direct_mode_gate_rejects_connected_primary_path_at_ingest(self) -> None:
+        graph = build_offer_graph(
+            primary_offer_results=[
+                {
+                    "role": "primary_offer_collection",
+                    "source_type": "provider_full_route",
+                    "provider": "kupibilet",
+                    "direction": "outbound",
+                    "origin": "SVX",
+                    "destination": "AMS",
+                    "top_offers": [
+                        {
+                            "id": "kb-connected",
+                            "price": 42000,
+                            "currency": "RUB",
+                            "segments": [
+                                {"origin": "SVX", "destination": "IST"},
+                                {"origin": "IST", "destination": "AMS"},
+                            ],
+                        },
+                        {
+                            "id": "kb-direct",
+                            "price": 52000,
+                            "currency": "RUB",
+                            "segments": [{"origin": "SVX", "destination": "AMS"}],
+                        },
+                    ],
+                }
+            ],
+            gateway_leg_results={},
+            direct_mode={"outbound": True},
+            requested_origin="SVX",
+            requested_destination="AMS",
+        )
+
+        self.assertEqual(len(graph["offers"]), 1)
+        self.assertEqual(graph["offers"][0]["id"], "primary_offer:kupibilet:kb-direct")
+        self.assertIn("direct_mode_gate", graph["coverage"]["skipped_reasons"])
+
+    def test_direct_mode_gate_rejects_gateway_candidates_on_materialize(self) -> None:
+        graph = self.graph_with_provider_and_gateway()
+
+        envelope = materialize_offer_graph_candidates(
+            graph,
+            direct_mode={"outbound": True},
+            requested_origin="SVX",
+            requested_destination="AMS",
+        )
+
+        self.assertTrue(
+            all(
+                candidate["source_type"] != "gateway_separate_ticket"
+                for candidate in envelope["candidates"]
+            )
+        )
+        self.assertTrue(
+            any(item["reason"] == "direct_mode_gate" for item in envelope["rejected"])
+        )
+
     def test_summary_only_provider_offer_materializes_with_warning(self) -> None:
         graph = build_offer_graph(
             primary_offer_results=[

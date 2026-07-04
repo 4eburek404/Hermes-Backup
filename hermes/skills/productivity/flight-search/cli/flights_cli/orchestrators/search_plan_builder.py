@@ -525,7 +525,11 @@ class SearchPlanBuilder:
             "destination": destination,
             "direct_only": False,
         }
-        self._apply_constraints(route_query)
+        self._apply_constraints(
+            route_query,
+            include_first_departure_after=False,
+            include_only_carriers=False,
+        )
         queries: list[dict[str, Any]] = []
         seen: set[str] = set()
         for provider_name in self._provider_names_for_primary_offers(flow, route_query):
@@ -548,7 +552,11 @@ class SearchPlanBuilder:
             }
             if flow.request.return_date:
                 query["return_date"] = flow.request.return_date
-            self._apply_constraints(query)
+            self._apply_constraints(
+                query,
+                include_first_departure_after=False,
+                include_only_carriers=False,
+            )
             if access_profile == PROFILE_RESTRICTED_ACCESS:
                 query["route_family"] = PROFILE_RESTRICTED_ACCESS
                 query["route_access_profile"] = access_profile
@@ -645,7 +653,11 @@ class SearchPlanBuilder:
         return queries
 
     def _apply_constraints(
-        self, query: dict[str, Any], *, include_first_departure_after: bool = True
+        self,
+        query: dict[str, Any],
+        *,
+        include_first_departure_after: bool = True,
+        include_only_carriers: bool = True,
     ) -> None:
         constraints = self._options.constraints
         only_carriers = list(self._options.effective_only_carriers())
@@ -654,7 +666,7 @@ class SearchPlanBuilder:
             query["first_departure_after"] = constraints.first_departure_after
         if constraints.must_include_airports:
             query["must_include_airports"] = list(constraints.must_include_airports)
-        if only_carriers:
+        if only_carriers and include_only_carriers:
             query["only_carriers"] = only_carriers
         if preferred_carriers:
             query["preferred_carriers"] = preferred_carriers

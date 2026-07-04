@@ -327,6 +327,113 @@ class LiveRoutePipelineTests(unittest.TestCase):
         )
         self.assertEqual(search_plan_gateway_discovery["candidate_count"], 3)
 
+    def test_direct_presence_gate_skips_gateway_queries_after_wave0_evidence(self) -> None:
+        search_plan = {
+            "schema_version": "flight_search_plan.v1",
+            "primary_offer_queries": [
+                {
+                    "role": "primary_offer_collection",
+                    "source_type": "provider_full_route",
+                    "probe_type": "full_route_aggregate",
+                    "provider": "kupibilet",
+                    "direction": "outbound",
+                    "origin": "SVX",
+                    "destination": "CDG",
+                    "date": "2026-08-16",
+                    "currency": "RUB",
+                    "direct_only": False,
+                    "limit": 10,
+                }
+            ],
+            "mandatory_controls": [],
+            "gateway_discovery": {"enabled": True, "reason": "fixture"},
+            "gateway_leg_queries": [
+                {
+                    "role": "gateway_leg_probe",
+                    "source_type": "gateway_discovery_candidate",
+                    "probe_type": "segment_hub_leg",
+                    "direction": "outbound",
+                    "leg": "origin_to_gateway",
+                    "origin": "SVX",
+                    "destination": "IST",
+                    "date": "2026-08-16",
+                    "currency": "RUB",
+                    "direct_only": False,
+                    "gateway": "IST",
+                    "provider": "kupibilet",
+                    "execution_state": "not_executed",
+                }
+            ],
+            "fallback_segment_plan": {"segments": []},
+            "coverage_expectations": [],
+        }
+        primary_results = [
+            {
+                "role": "primary_offer_collection",
+                "source_type": "provider_full_route",
+                "provider": "kupibilet",
+                "direction": "outbound",
+                "origin": "SVX",
+                "destination": "CDG",
+                "status": "ok",
+                "execution_state": "searched",
+                "offer_count": 1,
+                "top_offers": [
+                    {
+                        "id": "kb-direct",
+                        "price": 22000,
+                        "currency": "RUB",
+                        "segments": [{"origin": "SVX", "destination": "CDG"}],
+                    }
+                ],
+            }
+        ]
+
+        with (
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.build_search_plan",
+                return_value=search_plan,
+            ),
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.run_primary_offer_queries",
+                return_value=primary_results,
+            ),
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.run_aggregate_controls",
+                return_value=[],
+            ),
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.SearchWavePlanner.run",
+                return_value={
+                    "searched_gateways": 0,
+                    "viable_gateways": 0,
+                    "failed_gateways": 0,
+                    "not_searched_budget": 0,
+                    "gateways": [],
+                    "wave_diagnostics": {
+                        "schema_version": "flight_search_wave_diagnostics.v1",
+                        "stop_reason": "no_gateway_leg_queries",
+                    },
+                },
+            ) as wave_run,
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.hub_viability_summary",
+                return_value=[],
+            ),
+        ):
+            result = run_live_route_assembly(
+                live_args(provider_policy="kupibilet"), Store()
+            )
+
+        wave_run.assert_called_once()
+        self.assertEqual(wave_run.call_args.args[0], [])
+        gate = result["live_search"]["direct_presence_gate"]
+        self.assertEqual(gate["direct_evidence_present"], {"outbound": True})
+        self.assertEqual(gate["direct_mode"], {"outbound": True})
+        self.assertEqual(gate["skipped_gateway_probe_count"], 1)
+        skipped = result["live_search"]["probe_ledger"]["skipped_controls"]
+        self.assertTrue(any(item.get("reason") == "direct_mode" for item in skipped))
+
     def test_live_search_payload_is_deduplicated(self) -> None:
         search_plan = {
             "schema_version": "flight_search_plan.v1",

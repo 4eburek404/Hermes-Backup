@@ -97,6 +97,10 @@ def build_decision_frontier(
         if isinstance(candidate, dict)
     ]
     acceptable = [candidate for candidate in ranked if _frontier_acceptable(candidate)]
+    direct_ranked = [candidate for candidate in ranked if _is_direct_control(candidate)]
+    direct_acceptable = [
+        candidate for candidate in acceptable if _is_direct_control(candidate)
+    ]
     selected: list[dict[str, Any]] = []
 
     best = acceptable[0] if acceptable else None
@@ -139,11 +143,13 @@ def build_decision_frontier(
             "selected_count": len(selected),
             "rejected_count": len(mixed_candidate_ranking.get("rejected") or []),
             "control_count": len(controls or []),
-            "direct_option_count": len(
-                [candidate for candidate in acceptable if _is_direct_control(candidate)]
-            ),
+            "direct_option_count": len(direct_ranked),
+            "acceptable_direct_option_count": len(direct_acceptable),
             "direct_option_count_by_direction": _direct_option_count_by_direction(
-                acceptable
+                direct_ranked
+            ),
+            "acceptable_direct_option_count_by_direction": (
+                _direct_option_count_by_direction(direct_acceptable)
             ),
             "gateway_alternative_count": len(_best_gateway_alternatives(acceptable)),
             "source_types": sorted(

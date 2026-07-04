@@ -4,6 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..config import SPECIAL_CITY_AIRPORTS
 from ..domain.vocabulary import RouteFamily
 
 
@@ -33,8 +34,15 @@ def build_offer_graph(
     *,
     primary_offer_results: list[dict[str, Any]] | None = None,
     gateway_leg_results: dict[str, Any] | None = None,
+    direct_mode: dict[str, bool] | None = None,
+    requested_origin: str | None = None,
+    requested_destination: str | None = None,
 ) -> dict[str, Any]:
-    builder = OfferGraphBuilder()
+    builder = OfferGraphBuilder(
+        direct_mode=direct_mode,
+        requested_origin=requested_origin,
+        requested_destination=requested_destination,
+    )
     builder.add_primary_offer_results(primary_offer_results or [])
     builder.add_gateway_leg_results(gateway_leg_results or {})
     return builder.to_graph().to_dict()
@@ -44,6 +52,7 @@ def materialize_offer_graph_candidates(
     offer_graph: dict[str, Any],
     *,
     direct_only: bool = False,
+    direct_mode: dict[str, bool] | None = None,
     requested_origin: str | None = None,
     requested_destination: str | None = None,
     max_path_offers: int = 3,
@@ -73,6 +82,7 @@ def materialize_offer_graph_candidates(
             candidates,
             rejected,
             direct_only=direct_only,
+            direct_mode=direct_mode or {},
         )
 
     for candidate in _candidates_from_gateway_offer_paths(
@@ -87,6 +97,7 @@ def materialize_offer_graph_candidates(
             candidates,
             rejected,
             direct_only=direct_only,
+            direct_mode=direct_mode or {},
         )
 
     candidates, deduped_count = _dedupe_candidates(candidates)
@@ -99,6 +110,11 @@ def materialize_offer_graph_candidates(
             "rejected_count": len(rejected),
             "deduped_count": deduped_count,
             "direct_only": bool(direct_only),
+            "direct_mode": {
+                str(direction): bool(enabled)
+                for direction, enabled in (direct_mode or {}).items()
+                if enabled
+            },
             "max_path_offers": max(1, int(max_path_offers)),
             "source_types": sorted(
                 {
@@ -112,12 +128,24 @@ def materialize_offer_graph_candidates(
 
 
 class OfferGraphBuilder:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        direct_mode: dict[str, bool] | None = None,
+        requested_origin: str | None = None,
+        requested_destination: str | None = None,
+    ) -> None:
         self.edges: list[dict[str, Any]] = []
         self.offers: list[dict[str, Any]] = []
         self.connections: list[dict[str, Any]] = []
         self._offer_ids: set[str] = set()
         self._edge_ids: set[str] = set()
+        self.direct_mode = {
+            _normalize_direction(direction): bool(enabled)
+            for direction, enabled in (direct_mode or {}).items()
+        }
+        self.requested_origin = _normalize_code(requested_origin)
+        self.requested_destination = _normalize_code(requested_destination)
         self.coverage: dict[str, Any] = {
             "primary_offer_result_count": 0,
             "gateway_count": 0,
@@ -170,6 +198,11 @@ class OfferGraphBuilder:
                             result_index=result_index,
                             offer_index=offer_index,
                         )
+                        continue
+                    if self._primary_path_blocked_by_direct_mode(
+                        segments, direction=path.get("direction")
+                    ):
+                        self._skip("direct_mode_gate")
                         continue
                     offer_id = self._unique_offer_id(
                         "primary_offer",
@@ -246,6 +279,10 @@ class OfferGraphBuilder:
         destination = _normalize_code(
             offer.get("destination") or result.get("destination")
         )
+        direction = _normalize_direction(offer.get("direction") or result.get("direction"))
+        if self.direct_mode.get(direction):
+            self._skip("direct_mode_gate")
+            return
         self.offers.append(
             _compact(
                 {
@@ -258,9 +295,7 @@ class OfferGraphBuilder:
                     ),
                     "origin": origin,
                     "destination": destination,
-                    "direction": _normalize_direction(
-                        offer.get("direction") or result.get("direction")
-                    ),
+                    "direction": direction,
                     "edge_ids": [],
                     "route": [origin, destination] if origin and destination else [],
                     "price": _price_amount(offer),
@@ -655,6 +690,18 @@ class OfferGraphBuilder:
         if reason not in reasons:
             reasons.append(reason)
 
+    def _primary_path_blocked_by_direct_mode(
+        self, segments: list[Any], *, direction: str | None
+    ) -> bool:
+        normalized_direction = _normalize_direction(direction)
+        if not self.direct_mode.get(normalized_direction):
+            return False
+        return not _segments_are_requested_direct_path(
+            segments,
+            requested_origin=self.requested_origin,
+            requested_destination=self.requested_destination,
+        )
+
 
 def _provider(result: dict[str, Any]) -> str:
     return str(result.get("provider") or "unknown").strip().lower() or "unknown"
@@ -866,6 +913,7 @@ def _accept_or_reject_candidate(
     rejected: list[dict[str, Any]],
     *,
     direct_only: bool,
+    direct_mode: dict[str, bool],
 ) -> None:
     if direct_only and not _candidate_is_direct(candidate):
         rejected.append(
@@ -873,6 +921,17 @@ def _accept_or_reject_candidate(
                 "candidate_id": candidate.get("id"),
                 "source_type": candidate.get("source_type"),
                 "reason": "direct_only_hard_constraint",
+            }
+        )
+        return
+    direct_mode_violation = _candidate_direct_mode_violation(candidate, direct_mode)
+    if direct_mode_violation is not None:
+        rejected.append(
+            {
+                "candidate_id": candidate.get("id"),
+                "source_type": candidate.get("source_type"),
+                "reason": "direct_mode_gate",
+                "direction": direct_mode_violation,
             }
         )
         return
@@ -896,6 +955,66 @@ def _candidate_is_direct(candidate: dict[str, Any]) -> bool:
     return (
         segment_count == 1 and candidate.get("source_type") != "gateway_separate_ticket"
     )
+
+
+def _candidate_direct_mode_violation(
+    candidate: dict[str, Any], direct_mode: dict[str, bool]
+) -> str | None:
+    active = {
+        _normalize_direction(direction)
+        for direction, enabled in (direct_mode or {}).items()
+        if enabled
+    }
+    if not active:
+        return None
+    journeys = (
+        candidate.get("journeys") if isinstance(candidate.get("journeys"), list) else []
+    )
+    if not journeys:
+        return next(iter(active))
+    for journey in journeys:
+        if not isinstance(journey, dict):
+            continue
+        direction = _normalize_direction(journey.get("direction"))
+        if direction not in active:
+            continue
+        segments = (
+            journey.get("segments") if isinstance(journey.get("segments"), list) else []
+        )
+        if (
+            len([segment for segment in segments if isinstance(segment, dict)]) != 1
+            or candidate.get("source_type") == "gateway_separate_ticket"
+        ):
+            return direction
+    return None
+
+
+def _segments_are_requested_direct_path(
+    segments: list[Any],
+    *,
+    requested_origin: str,
+    requested_destination: str,
+) -> bool:
+    rows = [segment for segment in segments if isinstance(segment, dict)]
+    if len(rows) != 1:
+        return False
+    segment = rows[0]
+    origin = _normalize_code(_segment_origin(segment))
+    destination = _normalize_code(_segment_destination(segment))
+    origin_codes = _requested_codes(requested_origin)
+    destination_codes = _requested_codes(requested_destination)
+    if origin_codes and origin not in origin_codes:
+        return False
+    if destination_codes and destination not in destination_codes:
+        return False
+    return bool(origin and destination)
+
+
+def _requested_codes(value: str) -> set[str]:
+    code = _normalize_code(value)
+    if not code:
+        return set()
+    return {code, *(str(item).upper() for item in SPECIAL_CITY_AIRPORTS.get(code, []))}
 
 
 def _dedupe_candidates(
