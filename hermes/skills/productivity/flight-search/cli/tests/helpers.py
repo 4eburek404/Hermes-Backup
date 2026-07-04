@@ -4,15 +4,18 @@ import argparse
 import json
 import subprocess
 import sys
+import tempfile
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 
 PROJECT = Path(__file__).resolve().parents[1]
+TEST_CACHE_DIR = Path(tempfile.mkdtemp(prefix="flight-search-test-cache-"))
 TEST_ENV = {
     "PYTHONPATH": str(PROJECT),
     "FLIGHTS_CATALOG_REFRESH": "never",
+    "FLIGHTS_CACHE_DIR": str(TEST_CACHE_DIR),
     "PYTHONDONTWRITEBYTECODE": "1",
 }
 

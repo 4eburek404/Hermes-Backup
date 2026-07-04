@@ -228,6 +228,107 @@ class CandidateRankerTests(unittest.TestCase):
             1,
         )
 
+    def test_max_connections_without_tier2_blocks_two_connection_candidate(
+        self,
+    ) -> None:
+        two_connection = candidate(
+            "two-connection",
+            source_type="provider_full_route",
+            price=30000,
+            ticketing_model="provider_order_unverified",
+            segments=[
+                segment("SVX", "IST"),
+                segment("IST", "AMS"),
+                segment("AMS", "CDG"),
+            ],
+        )
+
+        scored = DecisionScorer(
+            DecisionScorerOptions(
+                max_connections_per_journey=1,
+                preferred_connections=1,
+            )
+        ).score({"candidates": [two_connection]})
+        ranked = scored["mixed_candidate_ranking"]["ranked_candidates"][0]
+
+        self.assertEqual(
+            ranked["rank_components"]["max_connections_per_journey"], 1
+        )
+        self.assertEqual(scored["decision_frontier"]["options"], [])
+
+    def test_tier2_allows_two_connections_but_preferred_limit_demotes(
+        self,
+    ) -> None:
+        one_connection = candidate(
+            "one-connection",
+            source_type="provider_full_route",
+            price=50000,
+            ticketing_model="provider_order_unverified",
+            segments=[segment("SVX", "IST"), segment("IST", "CDG")],
+        )
+        two_connection = candidate(
+            "two-connection",
+            source_type="provider_full_route",
+            price=30000,
+            ticketing_model="provider_order_unverified",
+            segments=[
+                segment("SVX", "IST"),
+                segment("IST", "AMS"),
+                segment("AMS", "CDG"),
+            ],
+        )
+
+        scored = DecisionScorer(
+            DecisionScorerOptions(
+                max_connections_per_journey=2,
+                preferred_connections=1,
+            )
+        ).score({"candidates": [two_connection, one_connection]})
+        ranked = scored["mixed_candidate_ranking"]["ranked_candidates"]
+        by_id = {item["id"]: item for item in ranked}
+        frontier_ids = {item["id"] for item in scored["decision_frontier"]["options"]}
+
+        self.assertEqual(
+            [item["id"] for item in ranked],
+            ["one-connection", "two-connection"],
+        )
+        self.assertEqual(
+            by_id["two-connection"]["rank_components"]["max_connections_per_journey"],
+            0,
+        )
+        self.assertEqual(
+            by_id["two-connection"]["rank_components"][
+                "preferred_connections_per_journey"
+            ],
+            1,
+        )
+        self.assertIn("two-connection", frontier_ids)
+
+    def test_zero_connection_limit_blocks_connected_candidate(self) -> None:
+        one_connection = candidate(
+            "one-connection",
+            source_type="provider_full_route",
+            price=30000,
+            ticketing_model="provider_order_unverified",
+            segments=[segment("SVX", "IST"), segment("IST", "CDG")],
+        )
+
+        scored = DecisionScorer(
+            DecisionScorerOptions(
+                max_connections_per_journey=0,
+                preferred_connections=0,
+            )
+        ).score({"candidates": [one_connection]})
+        ranked = scored["mixed_candidate_ranking"]["ranked_candidates"][0]
+
+        self.assertEqual(
+            ranked["rank_components"]["max_connections_per_journey"], 1
+        )
+        self.assertEqual(
+            ranked["rank_components"]["preferred_connections_per_journey"], 1
+        )
+        self.assertEqual(scored["decision_frontier"]["options"], [])
+
     def test_frontier_keeps_best_viable_option_without_raw_diagnostics(self) -> None:
         provider = candidate(
             "provider",

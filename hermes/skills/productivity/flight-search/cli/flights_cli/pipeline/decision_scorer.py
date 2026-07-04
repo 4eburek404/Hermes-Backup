@@ -14,6 +14,7 @@ DECISION_SCORER_SCHEMA_VERSION = "flight_decision_scorer.v1"
 class DecisionScorerOptions:
     round_trip: bool = False
     max_connections_per_journey: int = 2
+    preferred_connections: int = 1
     min_same_airport_connection_min: int = 120
     min_cross_airport_connection_min: int = 300
     max_gateway_alternatives: int = 2
@@ -43,6 +44,7 @@ class DecisionScorer:
             prepared_envelope,
             legacy_candidates=legacy_candidates,
             max_connections_per_journey=self.options.max_connections_per_journey,
+            preferred_connections_per_journey=self.options.preferred_connections,
             constraints=constraints,
             min_same_airport_connection_min=(
                 self.options.min_same_airport_connection_min
@@ -62,6 +64,12 @@ class DecisionScorer:
                 "name": "DecisionScorer",
                 "schema_version": DECISION_SCORER_SCHEMA_VERSION,
                 "round_trip": bool(self.options.round_trip),
+                "max_connections_per_journey": max(
+                    0, int(self.options.max_connections_per_journey)
+                ),
+                "preferred_connections": max(
+                    0, int(self.options.preferred_connections)
+                ),
                 "adapters": {
                     "candidate_ranking": "flight_mixed_candidate_ranking.v1",
                     "frontier": "flight_decision_frontier.v1",

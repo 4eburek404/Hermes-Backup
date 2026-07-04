@@ -36,7 +36,7 @@ _CURRENT_CONTRACTS: dict[str, dict[str, str]] = {
     "offer_graph": {
         "schema_version": "flight_offer_graph.v1",
         "schema_resource": "flight_offer_graph.v1.schema.json",
-        "public_path": "data.route_result.live_search.diagnostics.offer_graph",
+        "public_path": "data.route_result.live_search.offer_graph",
         "status": "diagnostic_graph_contract",
     },
 }
@@ -64,7 +64,7 @@ _DIAGNOSTIC_PROJECTIONS: dict[str, dict[str, str]] = {
     },
     "offer_graph": {
         "wire_version": "flight_offer_graph.v1",
-        "path": "data.route_result.live_search.diagnostics.offer_graph",
+        "path": "data.route_result.live_search.offer_graph",
         "status": "diagnostic_projection",
     },
 }

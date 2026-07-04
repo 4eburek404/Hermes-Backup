@@ -5,7 +5,7 @@
   },
   "cli": {
     "package": "flights-cli",
-    "version": "0.5.8"
+    "version": "0.6.0"
   },
   "contracts": {
     "flight_search_request": "flight_search_request.v1",

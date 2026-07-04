@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any, Protocol
 
+from ..config import LATE_ARRIVAL_NEXT_DAY_THRESHOLD_HOUR
 from .gateway_leg_probe_executor import (
     _coverage,
     _gateway_query_groups,
@@ -186,29 +188,84 @@ def _select_wave_queries(
     probe_limit: int,
     seen_keys: set[tuple[Any, ...]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    grouped = _gateway_query_groups(queries)
     selected: list[dict[str, Any]] = []
     deferred: list[dict[str, Any]] = []
+    selected_slots: set[tuple[str, str]] = set()
     remaining = max(0, probe_limit)
-    for group in grouped.values():
+    for group in _selection_query_groups(queries):
         group_queries = [
             _with_wave_index(query, wave_index)
-            for query in group.values()
+            for query in group
             if _query_key(query) not in seen_keys
         ]
         if not group_queries:
             continue
+        group_slots = {_selection_slot(query) for query in group_queries}
+        if selected_slots & group_slots:
+            deferred.extend(group_queries)
+            continue
         if len(group_queries) <= remaining:
             selected.extend(group_queries)
+            selected_slots.update(group_slots)
             remaining -= len(group_queries)
             continue
         if remaining > 0 and not selected:
             selected.extend(group_queries[:remaining])
+            selected_slots.update(_selection_slot(query) for query in selected)
             deferred.extend(group_queries[remaining:])
             remaining = 0
             continue
         deferred.extend(group_queries)
     return selected, deferred
+
+
+def _selection_query_groups(queries: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    rows = [
+        query
+        for query in queries
+        if isinstance(query, dict)
+        and str(query.get("role") or "") == "gateway_leg_probe"
+        and str(query.get("gateway") or "").strip()
+    ]
+    rows.sort(
+        key=lambda query: (
+            int(query.get("gateway_rank") or 0),
+            str(query.get("gateway") or "").upper(),
+            0 if str(query.get("leg") or "") == "origin_to_gateway" else 1,
+            str(query.get("date") or ""),
+            str(query.get("date_strategy") or ""),
+        )
+    )
+    grouped: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
+    ordered_keys: list[tuple[Any, ...]] = []
+    for query in rows:
+        gateway = str(query.get("gateway") or "").upper()
+        leg = str(query.get("leg") or "")
+        if str(query.get("source_type") or "") == "search_wave_expansion":
+            group_key = (
+                "search_wave_expansion",
+                gateway,
+                leg,
+                str(query.get("origin") or "").upper(),
+                str(query.get("destination") or "").upper(),
+                str(query.get("provider") or ""),
+                str(query.get("date") or ""),
+                str(query.get("date_strategy") or ""),
+            )
+        else:
+            group_key = ("gateway_pair", gateway)
+        if group_key not in grouped:
+            grouped[group_key] = []
+            ordered_keys.append(group_key)
+        grouped[group_key].append(query)
+    return [grouped[key] for key in ordered_keys]
+
+
+def _selection_slot(query: dict[str, Any]) -> tuple[str, str]:
+    return (
+        str(query.get("gateway") or "").upper(),
+        str(query.get("leg") or ""),
+    )
 
 
 def _unique_queries(
@@ -259,18 +316,54 @@ def _expansion_queries_from_wave(
             for offer_index, offer in enumerate(leg.get("offers") or []):
                 if not isinstance(offer, dict):
                     continue
-                query = _expansion_query_for_offer(
+                queries = _expansion_queries_for_offer(
                     leg,
                     offer,
                     offer_index=offer_index,
                     plan=plan,
                     wave_index=wave_index,
                 )
-                if query is None or _query_key(query) in seen_keys:
-                    continue
-                partials.append((_expansion_rank_key(offer), query))
+                for query in queries:
+                    if _query_key(query) in seen_keys:
+                        continue
+                    partials.append((_expansion_rank_key(offer), query))
     partials.sort(key=lambda item: item[0])
     return _unique_queries([query for _key, query in partials[:top_k]], seen_keys=seen_keys)
+
+
+def _expansion_queries_for_offer(
+    leg: dict[str, Any],
+    offer: dict[str, Any],
+    *,
+    offer_index: int,
+    plan: dict[str, Any],
+    wave_index: int,
+) -> list[dict[str, Any]]:
+    base = _expansion_query_for_offer(
+        leg,
+        offer,
+        offer_index=offer_index,
+        plan=plan,
+        wave_index=wave_index,
+    )
+    if base is None:
+        return []
+    queries = [base]
+    arrival_at = _datetime_from_arrival(_segments_from_offer(offer)[-1])
+    if arrival_at is None:
+        arrival_at = _datetime_from_arrival(offer)
+    if (
+        arrival_at is not None
+        and arrival_at.hour >= LATE_ARRIVAL_NEXT_DAY_THRESHOLD_HOUR
+    ):
+        next_day = {
+            **base,
+            "date": (arrival_at.date() + timedelta(days=1)).isoformat(),
+            "date_strategy": "arrival_date_plus_one_late_arrival",
+        }
+        if next_day["date"] != base["date"]:
+            queries.append(next_day)
+    return queries
 
 
 def _expansion_query_for_offer(
@@ -363,6 +456,21 @@ def _date_from_arrival(item: dict[str, Any]) -> str | None:
         text = str(value)
         if len(text) >= 10 and text[4:5] == "-" and text[7:8] == "-":
             return text[:10]
+    return None
+
+
+def _datetime_from_arrival(item: dict[str, Any]) -> datetime | None:
+    for key in ("arrival_at", "arrival_time", "arrival_datetime", "arrival"):
+        value = item.get(key)
+        if not value:
+            continue
+        text = str(value).strip()
+        if not text:
+            continue
+        try:
+            return datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            continue
     return None
 
 

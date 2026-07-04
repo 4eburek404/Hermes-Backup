@@ -21,6 +21,7 @@ def rank_mixed_candidates(
     *,
     legacy_candidates: list[dict[str, Any]] | None = None,
     max_connections_per_journey: int = 2,
+    preferred_connections_per_journey: int = 1,
     constraints: dict[str, Any] | None = None,
     min_same_airport_connection_min: int = 120,
     min_cross_airport_connection_min: int = 300,
@@ -44,6 +45,7 @@ def rank_mixed_candidates(
         _candidate_with_rank_diagnostics(
             candidate,
             max_connections_per_journey=max_connections_per_journey,
+            preferred_connections_per_journey=preferred_connections_per_journey,
             constraints=normalized_constraints,
             min_same_airport_connection_min=mct_settings["min_same_airport_min"],
             min_cross_airport_connection_min=mct_settings["min_cross_airport_min"],
@@ -67,6 +69,9 @@ def rank_mixed_candidates(
             "candidate_count": len(ranked),
             "rejected_count": len(candidate_envelope.get("rejected") or []),
             "max_connections_per_journey": max(0, int(max_connections_per_journey)),
+            "preferred_connections_per_journey": max(
+                0, int(preferred_connections_per_journey)
+            ),
             "constraints": normalized_constraints,
             "mct_settings": mct_settings,
             "source_types": sorted(
@@ -184,6 +189,7 @@ def _candidate_with_rank_diagnostics(
     candidate: dict[str, Any],
     *,
     max_connections_per_journey: int,
+    preferred_connections_per_journey: int,
     constraints: dict[str, Any],
     min_same_airport_connection_min: int,
     min_cross_airport_connection_min: int,
@@ -220,6 +226,10 @@ def _candidate_with_rank_diagnostics(
             0,
             max_connections - max(0, int(max_connections_per_journey)),
         ),
+        "preferred_connections_per_journey": max(
+            0,
+            max_connections - max(0, int(preferred_connections_per_journey)),
+        ),
         "preferred_carrier_miss": _preferred_carrier_miss(candidate, constraints),
         "ticketing_risk_tier": _ticketing_risk_tier(candidate),
         "connection_risk_score": _connection_risk_score(candidate),
@@ -247,6 +257,7 @@ def _candidate_with_rank_diagnostics(
         rank_components["not_covers_requested_trip"],
         rank_components["rejected_or_impossible_connection"],
         rank_components["max_connections_per_journey"],
+        rank_components["preferred_connections_per_journey"],
         rank_components["preferred_carrier_miss"],
         rank_components["ticketing_risk_tier"],
         rank_components["connection_risk_score"],
@@ -852,6 +863,8 @@ def _ranking_reasons(
         reasons.append("cross_ticket_mct_violation")
     if rank_components["max_connections_per_journey"]:
         reasons.append("exceeds_max_connections_per_journey")
+    if rank_components.get("preferred_connections_per_journey"):
+        reasons.append("exceeds_preferred_connections_per_journey")
     if candidate.get("source_type") == "gateway_separate_ticket":
         reasons.append("separate_ticket_ranked_after_provider_route_evidence")
     if "provider_ticketing_protection_unverified" in set(

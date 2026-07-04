@@ -94,7 +94,7 @@ class ContractRegistryTest(unittest.TestCase):
         projection = DIAGNOSTIC_PROJECTIONS["offer_graph"]
         self.assertEqual(
             projection["path"],
-            "data.route_result.live_search.diagnostics.offer_graph",
+            "data.route_result.live_search.offer_graph",
         )
         self.assertEqual(projection["status"], "diagnostic_projection")
         self.assertEqual(

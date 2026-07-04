@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
 import re
 import unittest
+from pathlib import Path
+
+from flights_cli.contracts.registry import current_contract
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[2]
@@ -27,6 +29,27 @@ REMOVED_COMMAND_PATTERNS = (
     r"(?<!maint\s)\bcatalog\s+update\b",
     r"\bmaintenance\s+check\b",
 )
+VERSION_TOKEN_RE = re.compile(
+    r"\b(agent_report|(?:flight_search_)?user_answer|(?:flight_search_)?result)\.v(\d+)\b"
+)
+
+
+def docs_text() -> str:
+    paths = [SKILL_ROOT / "SKILL.md", *(SKILL_ROOT / "references").glob("*.md")]
+    return "\n".join(path.read_text(encoding="utf-8") for path in sorted(paths))
+
+
+def expected_version_major(contract_name: str) -> int:
+    version = str(current_contract(contract_name)["schema_version"])
+    return int(version.rsplit(".v", 1)[1])
+
+
+def token_family(raw: str) -> str:
+    if raw == "agent_report":
+        return "agent_report"
+    if raw.endswith("user_answer"):
+        return "user_answer"
+    return "search_result"
 
 
 class FlightSearchSkillDocsContractTests(unittest.TestCase):
@@ -54,6 +77,22 @@ class FlightSearchSkillDocsContractTests(unittest.TestCase):
         self.assertNotIn("answer_lines", text)
         for pattern in REMOVED_COMMAND_PATTERNS:
             self.assertIsNone(re.search(pattern, text), pattern)
+
+    def test_documented_contract_versions_match_registry(self) -> None:
+        expected = {
+            "agent_report": expected_version_major("agent_report"),
+            "user_answer": expected_version_major("user_answer"),
+            "search_result": expected_version_major("search_result"),
+        }
+        mismatches = []
+        for match in VERSION_TOKEN_RE.finditer(docs_text()):
+            family = token_family(match.group(1))
+            observed = int(match.group(2))
+            if observed != expected[family]:
+                mismatches.append(
+                    f"{match.group(0)} expected v{expected[family]}"
+                )
+        self.assertEqual(mismatches, [])
 
 
 if __name__ == "__main__":

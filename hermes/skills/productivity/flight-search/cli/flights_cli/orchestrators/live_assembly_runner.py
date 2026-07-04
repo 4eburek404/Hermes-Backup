@@ -219,6 +219,25 @@ def _all_direct_inventory(
     return all(int(item.get("connection_count") or 0) == 0 for item in options)
 
 
+def _effective_hard_max_connections(options: LiveAssemblyOptions) -> int:
+    if options.route.tier2_max_connections is not None:
+        return max(0, int(options.route.tier2_max_connections))
+    if options.route.max_connections is not None:
+        return max(0, int(options.route.max_connections))
+    return 2
+
+
+def _preferred_max_connections(options: LiveAssemblyOptions) -> int:
+    if options.route.max_connections is not None:
+        return max(0, int(options.route.max_connections))
+    return 1
+
+
+def _wave_diagnostics(gateway_leg_results: dict[str, Any]) -> dict[str, Any]:
+    diagnostics = gateway_leg_results.get("wave_diagnostics")
+    return deepcopy(diagnostics) if isinstance(diagnostics, dict) else {}
+
+
 class LiveSearchResultBuilder:
     def __init__(
         self, *, options: LiveAssemblyOptions, store: Store, provider_policy: str
@@ -269,7 +288,10 @@ class LiveSearchResultBuilder:
         scored_decisions = DecisionScorer(
             DecisionScorerOptions(
                 round_trip=bool((state.plan.get("dates") or {}).get("return")),
-                max_connections_per_journey=2,
+                max_connections_per_journey=_effective_hard_max_connections(
+                    self.options
+                ),
+                preferred_connections=_preferred_max_connections(self.options),
                 min_same_airport_connection_min=self.options.route.min_same_airport_min,
                 min_cross_airport_connection_min=self.options.route.min_cross_airport_min,
             )
@@ -297,7 +319,7 @@ class LiveSearchResultBuilder:
             else {}
         )
         route_result: dict[str, Any] = {
-            "schema_version": "flight_route_result.v2",
+            "schema_version": "flight_route_result.v3",
             "origin": state.plan.get("origin"),
             "destination": state.plan.get("destination"),
             "dates": deepcopy(state.plan.get("dates") or {}),
@@ -335,7 +357,6 @@ class LiveSearchResultBuilder:
                 "offer_candidates": offer_candidates,
                 "decision_scorer": scored_decisions["scorer"],
                 "mixed_candidate_ranking": mixed_candidate_ranking,
-                "decision_frontier": decision_frontier,
                 "policy_controls": graph_controls,
                 "aggregate_controls": aggregate_controls,
                 "probe_ledger": state.probe_ledger.to_coverage_diagnostics(state.plan),
@@ -347,17 +368,7 @@ class LiveSearchResultBuilder:
                     "search_plan": search_plan_with_gateway_discovery_output(
                         state.search_plan, gateway_discovery_diagnostics
                     ),
-                    "primary_offer_results": state.primary_offer_results,
-                    "gateway_leg_results": state.gateway_leg_results,
-                    "offer_graph": offer_graph,
-                    "offer_candidates": offer_candidates,
-                    "decision_scorer": scored_decisions["scorer"],
-                    "mixed_candidate_ranking": mixed_candidate_ranking,
-                    "decision_frontier": decision_frontier,
-                    "policy_controls": graph_controls,
-                    "gateway_discovery": (
-                        gateway_discovery_diagnostics
-                    ),
+                    "wave_diagnostics": _wave_diagnostics(state.gateway_leg_results),
                 },
                 "failure_count": len(state.failures),
                 "failures": state.failures,

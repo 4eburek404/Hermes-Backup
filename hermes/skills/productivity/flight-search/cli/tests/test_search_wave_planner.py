@@ -157,6 +157,87 @@ class FakeWaveExecutor:
         }
 
 
+class LateArrivalWaveExecutor:
+    def __init__(self, arrival_at: str) -> None:
+        self.arrival_at = arrival_at
+        self.calls: list[list[dict[str, Any]]] = []
+
+    def run(
+        self, queries: list[dict[str, Any]], plan: dict[str, Any]
+    ) -> dict[str, Any]:
+        self.calls.append(queries)
+        wave_index = int(queries[0].get("wave_index") or 0)
+        if wave_index == 0:
+            return {
+                "searched_gateways": 1,
+                "viable_gateways": 0,
+                "failed_gateways": 0,
+                "not_searched_budget": 0,
+                "coverage_evaluations": [],
+                "gateways": [
+                    {
+                        "gateway": "AMS",
+                        "searched": True,
+                        "viable": False,
+                        "origin_leg": {
+                            "leg": "origin_to_gateway",
+                            "origin": "NTE",
+                            "destination": "AMS",
+                            "date": "2026-07-09",
+                            "provider": "tutu",
+                            "offer_count": 1,
+                            "offers": [
+                                {
+                                    "id": "nte-ams",
+                                    "segments": [
+                                        {
+                                            "origin": "NTE",
+                                            "destination": "AMS",
+                                            "departure_at": "2026-07-09T17:20:00+02:00",
+                                            "arrival_at": "2026-07-09T18:55:00+02:00",
+                                        }
+                                    ],
+                                }
+                            ],
+                        },
+                        "destination_leg": {
+                            "leg": "gateway_to_destination",
+                            "origin": "AMS",
+                            "destination": "SVX",
+                            "date": "2026-07-09",
+                            "provider": "tutu",
+                            "offer_count": 1,
+                            "offers": [
+                                {
+                                    "id": "ams-ist",
+                                    "price": {"amount": 12000},
+                                    "segments": [
+                                        {
+                                            "origin": "AMS",
+                                            "destination": "IST",
+                                            "departure_at": "2026-07-09T21:00:00+02:00",
+                                            "arrival_at": self.arrival_at,
+                                        }
+                                    ],
+                                }
+                            ],
+                        },
+                        "provider_failures": [],
+                        "skipped_reasons": [],
+                        "missing_legs": ["destination_leg"],
+                    }
+                ],
+            }
+        return {
+            "searched_gateways": len(queries),
+            "viable_gateways": 0,
+            "failed_gateways": 0,
+            "not_searched_budget": 0,
+            "coverage_evaluations": [],
+            "gateways": [],
+        }
+
+
 class SearchWavePlannerTests(unittest.TestCase):
     def test_cross_day_expansion_uses_actual_arrival_date(self) -> None:
         executor = FakeWaveExecutor()
@@ -201,6 +282,76 @@ class SearchWavePlannerTests(unittest.TestCase):
             result["wave_diagnostics"]["stop_reason"], "global_budget_exhausted"
         )
         self.assertEqual(result["not_searched_budget"], 1)
+
+    def test_late_arrival_generates_day_zero_and_next_day_expansions(self) -> None:
+        executor = LateArrivalWaveExecutor("2026-07-10T23:25:00+03:00")
+        planner = SearchWavePlanner(
+            options=wave_options(max_segment_searches=4),
+            executor=executor,
+        )
+
+        planner.run(
+            initial_queries(),
+            {"origin": "NTE", "destination": "SVX", "currency": "RUB"},
+        )
+
+        self.assertEqual(len(executor.calls), 3)
+        expansion_queries = [*executor.calls[1], *executor.calls[2]]
+        self.assertEqual(
+            [query["date"] for query in expansion_queries],
+            ["2026-07-10", "2026-07-11"],
+        )
+        self.assertEqual(
+            [query["date_strategy"] for query in expansion_queries],
+            [
+                "arrival_date_from_partial_path",
+                "arrival_date_plus_one_late_arrival",
+            ],
+        )
+        self.assertEqual(
+            {query["parent_offer_id"] for query in expansion_queries},
+            {"ams-ist"},
+        )
+
+    def test_daytime_arrival_generates_only_arrival_date_expansion(self) -> None:
+        executor = LateArrivalWaveExecutor("2026-07-10T14:00:00+03:00")
+        planner = SearchWavePlanner(
+            options=wave_options(max_segment_searches=4),
+            executor=executor,
+        )
+
+        planner.run(
+            initial_queries(),
+            {"origin": "NTE", "destination": "SVX", "currency": "RUB"},
+        )
+
+        self.assertEqual(len(executor.calls), 2)
+        self.assertEqual(
+            [query["date"] for query in executor.calls[1]],
+            ["2026-07-10"],
+        )
+
+    def test_late_arrival_next_day_probe_is_clipped_first_by_budget(self) -> None:
+        executor = LateArrivalWaveExecutor("2026-07-10T23:25:00+03:00")
+        planner = SearchWavePlanner(
+            options=wave_options(max_segment_searches=3),
+            executor=executor,
+        )
+
+        planner.run(
+            initial_queries(),
+            {"origin": "NTE", "destination": "SVX", "currency": "RUB"},
+        )
+
+        self.assertEqual(len(executor.calls), 2)
+        self.assertEqual(
+            [query["date"] for query in executor.calls[1]],
+            ["2026-07-10"],
+        )
+        self.assertEqual(
+            executor.calls[1][0]["date_strategy"],
+            "arrival_date_from_partial_path",
+        )
 
 
 if __name__ == "__main__":

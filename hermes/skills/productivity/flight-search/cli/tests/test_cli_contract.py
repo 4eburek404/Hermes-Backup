@@ -318,6 +318,7 @@ class CliContractTests(unittest.TestCase):
 
     def test_subprocess_test_env_disables_bytecode_writes(self) -> None:
         self.assertEqual(TEST_ENV["PYTHONDONTWRITEBYTECODE"], "1")
+        self.assertIn("FLIGHTS_CACHE_DIR", TEST_ENV)
 
     def test_json_doctor_envelope(self) -> None:
         proc = subprocess.run(
@@ -334,7 +335,7 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(payload["command"], "maint doctor")
         self.assertEqual(payload["issues"], [])
         self.assertEqual(
-            payload["data"]["cli"], {"name": "flights-cli", "version": "0.5.8"}
+            payload["data"]["cli"], {"name": "flights-cli", "version": "0.6.0"}
         )
         self.assertEqual(
             payload["data"]["skill"], {"name": "flight-search", "version": "0.9.0"}
