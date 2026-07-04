@@ -124,7 +124,6 @@ class StaticCatalogLayerTests(unittest.TestCase):
             "fli_mcp.py",
             "kupibilet.py",
             "live_cache.py",
-            "route_intel.py",
             "segment_normalization.py",
             "static_catalog.py",
             "tutu_mcp.py",

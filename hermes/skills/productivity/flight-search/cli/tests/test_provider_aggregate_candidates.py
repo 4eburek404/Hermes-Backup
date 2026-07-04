@@ -6,7 +6,7 @@ from flights_cli.adapters.providers.kupibilet_adapter import (
     aggregate_offer_summary,
     kupibilet_aggregate_control_summary,
 )
-from flights_cli.reporting.provider_aggregate_controls import (
+from flights_cli.reporting.provider_aggregate_options import (
     aggregate_control_summary,
     provider_aggregate_candidate_options,
 )

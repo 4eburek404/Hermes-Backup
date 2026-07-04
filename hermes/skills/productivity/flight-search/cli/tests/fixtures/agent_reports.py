@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from flights_cli.reporting.user_answer import build_user_answer
+from flights_cli.reporting.user_answer import UserAnswerInput, build_user_answer
 
 
 def aggregate_offer() -> dict:
@@ -201,9 +201,9 @@ def valid_report() -> dict:
         },
         "source_boundaries": [],
         "provider_failures": [],
-        "recommended_options": [valid_option()],
-        "priority_options": [],
-        "coverage_diagnostics": {
+        "primary_options": [valid_option()],
+        "alternative_options": [],
+        "coverage_report": {
             "coverage_mode": "targeted",
             "negative_evidence_type": "bounded_live_controls_only",
             "planned_controls": [
@@ -244,24 +244,39 @@ def valid_report() -> dict:
                 "all_planned_controls_have_terminal_state": True,
             },
         },
-        "offer_graph": {
-            "truth_language": {
-                "inventory_scope": "live_provider_returned_inventory",
-                "absence_claim": "bounded_live_controls_only",
-                "negative_wording": "not no-flight evidence",
-            }
+        "truth_language": {
+            "inventory_scope": "live_provider_returned_inventory",
+            "absence_claim": "bounded_live_controls_only",
+            "negative_wording": "not no-flight evidence",
         },
         "through_fare_checks": [],
         "stop_policy": {"name": "business_default", "preferred_max_connections": 1},
-        "stop_policy_diagnostics": {
+        "stop_policy_status": {
             "policy": "business_default",
             "used_two_stop_tier": False,
             "three_plus_suppressed_count": 0,
             "garbage_options_hidden_from_answer": False,
         },
     }
-    report["user_answer"] = build_user_answer(report)
+    report["user_answer"] = build_user_answer(answer_input_from_fixture(report))
     return report
+
+
+def answer_input_from_fixture(report: dict) -> UserAnswerInput:
+    return UserAnswerInput(
+        route=report["route"],
+        status=report["status"],
+        source_boundaries=report["source_boundaries"],
+        provider_failures=report["provider_failures"],
+        primary_options=report["primary_options"],
+        alternative_options=report["alternative_options"],
+        coverage_report=report["coverage_report"],
+        stop_policy=report["stop_policy"],
+        stop_policy_status=report["stop_policy_status"],
+        through_fare_checks=report["through_fare_checks"],
+        constraint_conflict=report.get("constraint_conflict"),
+        truth_language=report["truth_language"],
+    )
 
 
 def report_with_required_caveats() -> dict:
@@ -269,7 +284,7 @@ def report_with_required_caveats() -> dict:
     priority = valid_option()
     priority["id"] = "priority-svo"
     priority["category"] = "moscow_gateway_control"
-    report["priority_options"] = [priority]
+    report["alternative_options"] = [priority]
     report["provider_failures"] = [
         {
             "direction": "outbound",

@@ -91,8 +91,7 @@ cat > /tmp/flight-search-request.json <<'JSON'
   "currency": "RUB",
   "profile": "business",
   "ticketing": "separate",
-  "provider_policy": "auto",
-  "output": {"agent_brief": true}
+  "provider_policy": "auto"
 }
 JSON
 python3 -m flights_cli --json search --request /tmp/flight-search-request.json
@@ -132,7 +131,6 @@ Production search uses one ranking profile: `business`. It prioritizes visible n
 - Direct and one-stop journeys are preferred.
 - Two-stop journeys are fallback/reportable only when no viable direct/one-stop option exists or the report explicitly marks fallback/reportability.
 - Three-or-more-connection itineraries are suppressed from normal recommendations.
-- `candidate_pool_limit` is a safety/debug cap, not an answer-quality workaround.
 
 ## Provider Policy
 
@@ -230,18 +228,6 @@ Useful probe shapes:
 - nearby in-horizon control date for horizon/coverage splits.
 
 These probes are narrower evidence than the assembled report. Label the scope when using them in an answer.
-
-## Route Rank and Validate
-
-The CLI supports offline ranking and validation for already-built itinerary JSON:
-
-```bash
-python3 -m flights_cli --json route rank --input candidates.json
-python3 -m flights_cli --json route validate --input itinerary.json
-```
-
-Use these for maintenance, fixtures, and controlled diagnostics. Live user
-answers come from `search` and its DecisionFrontier.
 
 ## Price and Purchase Caveats
 

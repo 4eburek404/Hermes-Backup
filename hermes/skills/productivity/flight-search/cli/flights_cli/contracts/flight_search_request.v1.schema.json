@@ -66,8 +66,6 @@
         "fail_fast": {"type": "boolean"},
         "live_cache_ttl_seconds": {"type": "integer", "minimum": 0},
         "no_live_cache": {"type": "boolean"},
-        "direct_route_index_ttl_seconds": {"type": "integer", "minimum": 0},
-        "no_direct_route_intel": {"type": "boolean"},
         "fli_mcp_url": {"type": "string"}
       }
     },
@@ -85,17 +83,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "agent_brief": {"type": "boolean"},
-        "include_stop_policy_diagnostics": {"type": "boolean"},
-        "limit_per_pair": {"type": "integer", "minimum": 1},
-        "candidate_pool_limit": {"type": "integer", "minimum": 1},
-        "max_candidates": {"type": "integer", "minimum": 0},
-        "max_reasons": {"type": "integer", "minimum": 0},
-        "include_candidates": {"type": "integer", "minimum": 0},
-        "include_ranked_candidates": {"type": "integer", "minimum": 0},
-        "include_rejected_pairs": {"type": "integer", "minimum": 0},
         "include_segment_results": {"type": "integer", "minimum": 0},
-        "include_filtered": {"type": "integer", "minimum": 0},
         "catalog_limit": {"type": "integer", "minimum": 1},
         "direct_catalog_limit": {"type": "integer", "minimum": 1}
       }

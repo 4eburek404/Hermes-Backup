@@ -164,7 +164,6 @@ markets:
                 depart_date="2026-08-15",
                 return_date=None,
                 routing_strategy="ru-priority",
-                no_direct_route_intel=True,
                 no_live_cache=True,
             ),
             store,

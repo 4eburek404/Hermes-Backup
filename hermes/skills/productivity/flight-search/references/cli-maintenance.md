@@ -11,7 +11,6 @@ Important UX boundary: the flight-search CLI is an agent-facing implementation t
 - Work offline by default unless live provider access is the subject of the task.
 - For behavior changes, add/update a focused failing test before implementation.
 - Test parser/subprocess CLI contract and internal helpers. A test that instantiates `argparse.Namespace` does not prove the CLI accepts the flag.
-- Preserve `--json --agent-brief` as JSON-clean stdout.
 - Keep search behavior limited to current live provider assembly and documented targeted probes.
 - Static catalogs are metadata only; flight options come from live provider assembly.
 - Historical audit/session/proposal notes should not remain active references. Distill durable rules into this file, the other canonical references, executable report fields, or tests; leave raw history to session search.
@@ -121,11 +120,8 @@ Rules:
 - For agent-only CLI refactors, design the production path as strict machine contract first: `flights search --request request.json --json`, with `flight_search_request.v1` validated before provider calls and a single stdout JSON result envelope validated before printing. Keep `agent_report.v4` and `flight_search_user_answer.v6` as nested active contracts; do not create another independent final-answer prose layer.
 - Keep the canonical user answer path explicit: `data.agent_report.user_answer.rendered_text`. If a result envelope exposes a derived `rendered_text` mirror, tests must prove exact equality with that canonical field.
 - Split agent-facing surfaces by operational role: production live search (`flights`), diagnostics/evidence/raw probes (`flights-diagnose`), and maintenance/source-runtime/catalog/cleanup (`flights-maint`). Provider-specific probes, raw candidates, rejected pairs, trace, coverage controls, and offline route internals belong in diagnostics, not ordinary search.
-- `--agent-report` should be a thin wrapper that attaches/validates `data.agent_report` without changing search budget.
-- `--agent-brief` should trim output only; if it implies legacy `agent_mode`, call out inherited evidence/budget side effects in audits and tests.
-- `--agent-mode` is a legacy compatibility preset, not a new design surface; remove it after replacement production/diagnostic contracts exist.
-- Keep ordinary user commands narrow. Hide or classify as advanced/debug the knobs for candidate pool limits, raw/ranked/rejected bodies, live-cache TTL, direct-route-intel TTL, fail-fast, day-offset fanout, coverage-control internals, and aggregate-control internals.
-- Prefer one public route-search wrapper over parallel user-facing variants. Provider-specific commands, `diagnose plan --request`, and offline `route validate/rank` are diagnostics/development surfaces unless the user explicitly asks for provider-level proof.
+- Keep ordinary user commands narrow. Hide or classify as advanced/debug the knobs for raw provider bodies, live-cache TTL, fail-fast, day-offset fanout, coverage-control internals, and aggregate-control internals.
+- Prefer one public route-search wrapper over parallel user-facing variants. Provider-specific commands and `diagnose plan --request` are diagnostics/development surfaces unless the user explicitly asks for provider-level proof.
 - Do not preserve compatibility aliases just because older tests referenced them; production search and diagnostic provider override surfaces are already separate.
 
 ## Provider Port Rule
@@ -198,10 +194,9 @@ Then run the full flight-search suite before reporting completion when behavior 
 
 - Mixing source, runtime, and temporary checkouts without naming the evidence layer.
 - Calling a refactor “complete” while source/runtime parity still has semantic diffs.
-- Letting `--agent-*` compatibility flags become a larger public flag matrix instead of separating search/evidence, decision, and output concerns internally.
+- Letting output compatibility flags become a larger public flag matrix instead of separating search/evidence, decision, and output concerns internally.
 - Treating MCP `outputSchema`, prompt text, or route debug traces as the domain contract; the enforceable layer lives in `references/report-contract.md` plus schema/builder/validator/tests.
 - Reintroducing provider execution shortcuts: segment and aggregate probes should go through provider adapters/ports, not direct provider-specific branches in `execution/*`.
-- Treating `--agent-brief` as permission to narrow evidence scope. It may trim output only; explicit evidence/search controls must still be honored.
 - During dead-code cleanup, classify `Protocol` ellipsis methods as interface declarations, not runtime stubs; use layer-specific names for helpers with different responsibilities.
 
 ## Version Bump Checklist

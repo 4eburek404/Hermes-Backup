@@ -99,10 +99,10 @@ def searched_full_route_providers(primary_results: list[Any]) -> list[str]:
     return ordered_unique_text(providers)
 
 
-def gateway_coverage_summary(agent_report: dict[str, Any]) -> str | None:
+def gateway_coverage_summary(coverage_report: dict[str, Any]) -> str | None:
     results = (
-        agent_report.get("gateway_leg_results")
-        if isinstance(agent_report.get("gateway_leg_results"), dict)
+        coverage_report.get("gateway_leg_results")
+        if isinstance(coverage_report.get("gateway_leg_results"), dict)
         else {}
     )
     gateways = (
@@ -113,8 +113,8 @@ def gateway_coverage_summary(agent_report: dict[str, Any]) -> str | None:
     not_searched = gateway_codes(gateways, searched=False)
     failed = failed_gateway_codes(gateways)
     providers = searched_full_route_providers(
-        agent_report.get("primary_offer_results")
-        if isinstance(agent_report.get("primary_offer_results"), list)
+        coverage_report.get("primary_offer_results")
+        if isinstance(coverage_report.get("primary_offer_results"), list)
         else []
     )
     if not searched and not not_searched:

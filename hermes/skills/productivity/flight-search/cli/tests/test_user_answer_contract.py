@@ -20,6 +20,7 @@ from flights_cli.reporting.user_answer import (
     validate_user_answer,
 )
 from tests.fixtures.agent_reports import (
+    answer_input_from_fixture,
     report_with_required_caveats,
     valid_option,
     valid_report,
@@ -358,9 +359,9 @@ class FinalAnswerContractTests(unittest.TestCase):
             "routing_strategy": "ru-priority",
             "provider_policy": "both",
         }
-        report["recommended_options"] = [option]
-        report["priority_options"] = []
-        return build_user_answer(report)
+        report["primary_options"] = [option]
+        report["alternative_options"] = []
+        return build_user_answer(answer_input_from_fixture(report))
 
     def _gateway_leg_results(
         self, *, viable: list[str], failed: list[str] | None = None
@@ -438,7 +439,7 @@ class FinalAnswerContractTests(unittest.TestCase):
             "routing_strategy": "ru-priority",
             "provider_policy": "both",
         }
-        report["primary_offer_results"] = [
+        report["coverage_report"]["primary_offer_results"] = [
             {
                 "role": "primary_offer_collection",
                 "provider": "kupibilet",
@@ -448,7 +449,7 @@ class FinalAnswerContractTests(unittest.TestCase):
                 "probe_id": "probe-full-route",
             }
         ]
-        report["gateway_leg_results"] = self._gateway_leg_results(
+        report["coverage_report"]["gateway_leg_results"] = self._gateway_leg_results(
             viable=viable, failed=failed
         )
         return report
@@ -459,8 +460,8 @@ class FinalAnswerContractTests(unittest.TestCase):
             "depart_date": "2026-07-19",
             "return_date": "2026-07-24",
         }
-        report["recommended_options"] = [self._round_trip_option("assembled-primary")]
-        return build_user_answer(report)
+        report["primary_options"] = [self._round_trip_option("assembled-primary")]
+        return build_user_answer(answer_input_from_fixture(report))
 
     def _minimal_alternative(self, alternative_id: str, **overrides: object) -> dict:
         alternative = {
@@ -515,7 +516,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         self.assertLessEqual(len(text.encode("utf-8")), 20000)
 
     def test_builds_valid_user_answer_contract_from_agent_report(self) -> None:
-        answer = build_user_answer(report_with_required_caveats())
+        answer = build_user_answer(answer_input_from_fixture(report_with_required_caveats()))
 
         validate_user_answer(answer)
         self.assertEqual(answer["schema_version"], USER_ANSWER_SCHEMA_VERSION)
@@ -544,7 +545,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         )
 
     def test_rejects_metadata_only_direct_absence_claim(self) -> None:
-        answer = build_user_answer(report_with_required_caveats())
+        answer = build_user_answer(answer_input_from_fixture(report_with_required_caveats()))
         answer["evidence_status"]["non_blocking_boundaries"] = ["metadata_only"]
         answer["rendered_text"] = "Нет прямых рейсов SVX→LED."
         answer["answer_lines"] = [answer["rendered_text"]]
@@ -555,7 +556,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         self.assertIn("$.rendered_text", semantic_error_paths(ctx.exception))
 
     def test_rejects_metadata_only_direct_presence_claim(self) -> None:
-        answer = build_user_answer(report_with_required_caveats())
+        answer = build_user_answer(answer_input_from_fixture(report_with_required_caveats()))
         answer["evidence_status"]["non_blocking_boundaries"] = ["catalog_metadata"]
         answer["rendered_text"] = "Есть прямой рейс SVX→LED."
         answer["answer_lines"] = [answer["rendered_text"]]
@@ -566,7 +567,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         self.assertIn("$.rendered_text", semantic_error_paths(ctx.exception))
 
     def test_allows_metadata_boundary_without_availability_claim(self) -> None:
-        answer = build_user_answer(report_with_required_caveats())
+        answer = build_user_answer(answer_input_from_fixture(report_with_required_caveats()))
         answer["evidence_status"]["non_blocking_boundaries"] = ["catalog_metadata"]
 
         validate_user_answer(answer)
@@ -610,10 +611,10 @@ class FinalAnswerContractTests(unittest.TestCase):
         second["segments"][0]["flight_number"] = "5N502"
         second["segments"][0]["departure_at"] = "2026-08-06T07:15:00+05:00"
         second["segments"][0]["arrival_at"] = "2026-08-06T08:05:00+03:00"
-        report["recommended_options"] = [direct, second]
-        report["priority_options"] = []
+        report["primary_options"] = [direct, second]
+        report["alternative_options"] = []
         report["status"] = {"direct_mode": {"outbound": True}}
-        report["offer_graph"]["truth_language"]["negative_wording"] = (
+        report["truth_language"]["negative_wording"] = (
             "не нашёл в выполненных live/probe источниках; "
             "это не доказательство отсутствия вне границ источника"
         )
@@ -626,7 +627,7 @@ class FinalAnswerContractTests(unittest.TestCase):
             }.get(code, code),
             create=True,
         ):
-            answer = build_user_answer(report)
+            answer = build_user_answer(answer_input_from_fixture(report))
 
         validate_user_answer(answer)
         self.assertEqual(answer["catalog"]["presentation"]["max_items"], 2)
@@ -719,13 +720,13 @@ class FinalAnswerContractTests(unittest.TestCase):
                 "dates": {"depart_date": "2026-08-06"},
             }
         )
-        report["recommended_options"] = [conflict_fallback_option()]
-        report["priority_options"] = []
+        report["primary_options"] = [conflict_fallback_option()]
+        report["alternative_options"] = []
         report["constraint_conflict"] = first_departure_conflict_payload(
             fallback_count=1
         )
 
-        answer = build_user_answer(report)
+        answer = build_user_answer(answer_input_from_fixture(report))
 
         validate_user_answer(answer)
         self.assertEqual(
@@ -758,11 +759,11 @@ class FinalAnswerContractTests(unittest.TestCase):
         for segment in fallback["segments"]:
             segment["carrier"] = "KL"
             segment["flight_number"] = "KL1234"
-        report["recommended_options"] = [fallback]
-        report["priority_options"] = []
+        report["primary_options"] = [fallback]
+        report["alternative_options"] = []
         report["constraint_conflict"] = only_carrier_conflict_payload(fallback_count=1)
 
-        answer = build_user_answer(report)
+        answer = build_user_answer(answer_input_from_fixture(report))
 
         validate_user_answer(answer)
         self.assertEqual(answer["primary_recommendation"]["id"], "kl-one-stop")
@@ -780,13 +781,13 @@ class FinalAnswerContractTests(unittest.TestCase):
                 "dates": {"depart_date": "2026-08-06"},
             }
         )
-        report["recommended_options"] = []
-        report["priority_options"] = []
+        report["primary_options"] = []
+        report["alternative_options"] = []
         report["constraint_conflict"] = first_departure_conflict_payload(
             fallback_count=0
         )
 
-        answer = build_user_answer(report)
+        answer = build_user_answer(answer_input_from_fixture(report))
 
         validate_user_answer(answer)
         self.assertEqual(answer["answer_mode"], "no_viable_options")
@@ -803,10 +804,10 @@ class FinalAnswerContractTests(unittest.TestCase):
             "depart_date": "2026-07-19",
             "return_date": "2026-07-24",
         }
-        report["recommended_options"] = [self._two_one_way_pair_option()]
-        report["priority_options"] = []
+        report["primary_options"] = [self._two_one_way_pair_option()]
+        report["alternative_options"] = []
 
-        answer = build_user_answer(report)
+        answer = build_user_answer(answer_input_from_fixture(report))
 
         validate_user_answer(answer)
         item = answer["catalog"]["items"][0]
@@ -817,7 +818,9 @@ class FinalAnswerContractTests(unittest.TestCase):
 
     def test_user_answer_includes_gateway_coverage_evidence_status(self) -> None:
         answer = build_user_answer(
-            self._report_with_gateway_coverage(viable=["IST", "BEG"])
+            answer_input_from_fixture(
+                self._report_with_gateway_coverage(viable=["IST", "BEG"])
+            )
         )
 
         validate_user_answer(answer)
@@ -829,7 +832,9 @@ class FinalAnswerContractTests(unittest.TestCase):
         self,
     ) -> None:
         answer = build_user_answer(
-            self._report_with_gateway_coverage(viable=[], failed=["SAW"])
+            answer_input_from_fixture(
+                self._report_with_gateway_coverage(viable=[], failed=["SAW"])
+            )
         )
 
         validate_user_answer(answer)
@@ -938,8 +943,8 @@ class FinalAnswerContractTests(unittest.TestCase):
         alias = copy.deepcopy(connected)
         alias["id"] = "ru-priority-moscow_gateway:assembled-cheap-svo"
         alias["category"] = "moscow_gateway_control"
-        report["recommended_options"] = [connected, direct, invalid]
-        report["priority_options"] = [alias]
+        report["primary_options"] = [connected, direct, invalid]
+        report["alternative_options"] = [alias]
         report["status"] = {"direct_mode": {}}
 
         with patch(
@@ -951,7 +956,7 @@ class FinalAnswerContractTests(unittest.TestCase):
             }.get(code, code),
             create=True,
         ):
-            answer = build_user_answer(report)
+            answer = build_user_answer(answer_input_from_fixture(report))
 
         validate_user_answer(answer)
         items = answer["catalog"]["items"]
@@ -1015,13 +1020,13 @@ class FinalAnswerContractTests(unittest.TestCase):
 
     def test_renderer_uses_report_truth_language_for_absence_scope(self) -> None:
         report = valid_report()
-        report["recommended_options"] = []
-        report["priority_options"] = []
-        report["offer_graph"]["truth_language"]["negative_wording"] = (
+        report["primary_options"] = []
+        report["alternative_options"] = []
+        report["truth_language"]["negative_wording"] = (
             "truth-boundary-token: не нашёл в выполненных live/probe источниках; "
             "это не доказательство отсутствия вне границ источника"
         )
-        report["coverage_diagnostics"]["searched_controls"] = [
+        report["coverage_report"]["searched_controls"] = [
             {
                 "type": "exact_airport_direct",
                 "direction": "outbound",
@@ -1035,14 +1040,14 @@ class FinalAnswerContractTests(unittest.TestCase):
                 "absence_class": "provider_empty_not_structural_absence",
             }
         ]
-        report["coverage_diagnostics"]["not_executed_controls"] = []
-        report["coverage_diagnostics"]["completeness"] = {
+        report["coverage_report"]["not_executed_controls"] = []
+        report["coverage_report"]["completeness"] = {
             "planned_count": 1,
             "terminal_count": 1,
             "all_planned_controls_have_terminal_state": True,
         }
 
-        answer = build_user_answer(report)
+        answer = build_user_answer(answer_input_from_fixture(report))
 
         validate_user_answer(answer)
         self.assertEqual(answer["answer_mode"], "no_viable_options")
@@ -1058,14 +1063,14 @@ class FinalAnswerContractTests(unittest.TestCase):
             "depart_date": "2026-07-19",
             "return_date": "2026-07-24",
         }
-        report["recommended_options"] = [self._round_trip_option("assembled-primary")]
-        report["priority_options"] = [
+        report["primary_options"] = [self._round_trip_option("assembled-primary")]
+        report["alternative_options"] = [
             self._round_trip_option("assembled-round-trip"),
             self._provider_aggregate_option("outbound"),
             self._provider_aggregate_option("return"),
         ]
 
-        answer = build_user_answer(report)
+        answer = build_user_answer(answer_input_from_fixture(report))
 
         validate_user_answer(answer)
         alternatives = {item["id"]: item for item in answer["alternatives"]}
@@ -1090,12 +1095,12 @@ class FinalAnswerContractTests(unittest.TestCase):
             "depart_date": "2026-07-19",
             "return_date": "2026-07-24",
         }
-        report["recommended_options"] = [self._round_trip_option("assembled-primary")]
-        report["priority_options"] = [
+        report["primary_options"] = [self._round_trip_option("assembled-primary")]
+        report["alternative_options"] = [
             self._round_trip_option(f"assembled-filler-{index}") for index in range(5)
         ] + [self._two_one_way_pair_option()]
 
-        answer = build_user_answer(report)
+        answer = build_user_answer(answer_input_from_fixture(report))
         validate_user_answer(answer)
 
         alternatives = {item["id"]: item for item in answer["alternatives"]}
@@ -1332,8 +1337,8 @@ class FinalAnswerContractTests(unittest.TestCase):
         self,
     ) -> None:
         report = valid_report()
-        report["coverage_diagnostics"]["not_executed_controls"] = []
-        report["coverage_diagnostics"]["not_supported_controls"] = [
+        report["coverage_report"]["not_executed_controls"] = []
+        report["coverage_report"]["not_supported_controls"] = [
             {
                 "type": "full_route_aggregate",
                 "direction": "outbound",
@@ -1347,13 +1352,13 @@ class FinalAnswerContractTests(unittest.TestCase):
                 "probe_id": "agg-probe-001",
             }
         ]
-        report["coverage_diagnostics"]["completeness"] = {
+        report["coverage_report"]["completeness"] = {
             "planned_count": 1,
             "terminal_count": 1,
             "all_planned_controls_have_terminal_state": True,
         }
 
-        answer = build_user_answer(report)
+        answer = build_user_answer(answer_input_from_fixture(report))
 
         validate_user_answer(answer)
         self.assertEqual(answer["evidence_status"]["not_supported_control_count"], 1)
@@ -1370,7 +1375,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         )
 
     def test_rejects_missing_provider_failure_acknowledgement(self) -> None:
-        answer = build_user_answer(report_with_required_caveats())
+        answer = build_user_answer(answer_input_from_fixture(report_with_required_caveats()))
         answer["required_caveats"]["provider_failures_acknowledged"] = False
 
         with self.assertRaises(CliError) as ctx:
@@ -1383,7 +1388,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         )
 
     def test_rejects_missing_through_fare_verification(self) -> None:
-        answer = build_user_answer(report_with_required_caveats())
+        answer = build_user_answer(answer_input_from_fixture(report_with_required_caveats()))
         answer["required_caveats"]["through_fare_verification_required"] = False
 
         with self.assertRaises(CliError) as ctx:
@@ -1395,7 +1400,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         )
 
     def test_rejects_missing_coverage_incompleteness_acknowledgement(self) -> None:
-        answer = build_user_answer(report_with_required_caveats())
+        answer = build_user_answer(answer_input_from_fixture(report_with_required_caveats()))
         answer["required_caveats"]["coverage_incompleteness_acknowledged"] = False
 
         with self.assertRaises(CliError) as ctx:
@@ -1407,7 +1412,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         )
 
     def test_rejects_missing_source_boundary_and_purchase_verification(self) -> None:
-        answer = build_user_answer(report_with_required_caveats())
+        answer = build_user_answer(answer_input_from_fixture(report_with_required_caveats()))
         answer["required_caveats"]["source_boundaries_included"] = False
         answer["required_caveats"]["purchase_screen_verification_required"] = False
 

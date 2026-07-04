@@ -34,8 +34,6 @@ class EvidencePlan:
     max_segment_searches: int
     live_cache_enabled: bool
     live_cache_ttl_seconds: int
-    direct_route_intel_enabled: bool
-    direct_route_index_ttl_seconds: int
     aggregate_control_limit: int
     aggregate_control_carriers: tuple[Any, ...]
     coverage_mode: str
@@ -60,8 +58,6 @@ class EvidencePlan:
             "max_segment_searches": self.max_segment_searches,
             "live_cache_enabled": self.live_cache_enabled,
             "live_cache_ttl_seconds": self.live_cache_ttl_seconds,
-            "direct_route_intel_enabled": self.direct_route_intel_enabled,
-            "direct_route_index_ttl_seconds": self.direct_route_index_ttl_seconds,
             "aggregate_control_limit": self.aggregate_control_limit,
             "aggregate_control_carriers": list(self.aggregate_control_carriers),
             "coverage_mode": self.coverage_mode,
@@ -168,7 +164,6 @@ def plan_evidence(
     *,
     today_provider: Callable[[], date] | None = None,
 ) -> EvidencePlan:
-    direct_route_ttl = request.direct_route_index_ttl_seconds
     direct_only = _is_direct_only(request)
     freshness_policy = _freshness_policy(
         request, decision, today_provider=today_provider
@@ -184,9 +179,6 @@ def plan_evidence(
         max_segment_searches=request.max_segment_searches,
         live_cache_enabled=cache_enabled,
         live_cache_ttl_seconds=cache_ttl,
-        direct_route_intel_enabled=not request.no_direct_route_intel
-        and direct_route_ttl > 0,
-        direct_route_index_ttl_seconds=direct_route_ttl,
         aggregate_control_limit=request.aggregate_control_limit,
         aggregate_control_carriers=request.aggregate_control_carriers,
         coverage_mode=request.coverage_mode,

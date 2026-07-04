@@ -30,18 +30,11 @@ from .commands.providers import (
     command_kb_search,
     command_tutu_search,
 )
-from .commands.route import (
-    command_route_rank,
-    command_route_validate,
-)
 from .commands.search import command_search
 from .config import (
     DEFAULT_CURRENCY,
-    DEFAULT_PROFILE,
     FLI_MCP_DEFAULT_URL,
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
-    DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR,
-    RISK_PROFILES,
     TUTU_MCP_DEFAULT_URL,
 )
 from .errors import CliError
@@ -52,93 +45,6 @@ from .providers.static_catalog import (
     refresh_static_catalog_if_needed,
 )
 from .store import Store
-
-
-def add_connection_policy_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--ticketing", choices=["separate", "single"], default="separate"
-    )
-    parser.add_argument(
-        "--profile",
-        choices=sorted(RISK_PROFILES),
-        default=DEFAULT_PROFILE,
-        help="Risk/ranking profile.",
-    )
-    parser.add_argument("--min-same-airport-min", type=int, default=120)
-    parser.add_argument("--min-cross-airport-min", type=int, default=300)
-
-
-def add_stop_policy_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--stop-policy",
-        choices=[
-            "business-default",
-            "strict-direct-one-stop",
-            "allow-two-stop-tier",
-            "debug-all",
-        ],
-        default="business-default",
-        help="Stop policy: prefer direct/one-stop; allow two-stop only as tier 2 by default; 3+ is suppressed in normal output.",
-    )
-    parser.add_argument(
-        "--max-connections",
-        type=int,
-        default=None,
-        help="Preferred max connections per journey. Default 1.",
-    )
-    parser.add_argument(
-        "--tier2-max-connections",
-        type=int,
-        default=None,
-        help="Tier 2 max connections per journey. Default 2.",
-    )
-    parser.add_argument(
-        "--include-stop-policy-diagnostics",
-        action="store_true",
-        help="Keep stop-policy diagnostics in agent_report.",
-    )
-
-
-def add_carrier_selection_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--only-carrier",
-        action="append",
-        help="Hard filter: every segment must use one of these carrier codes. Repeatable.",
-    )
-    parser.add_argument(
-        "--exclude-carrier",
-        action="append",
-        help="Hard filter: reject candidates using this carrier code. Repeatable.",
-    )
-    parser.add_argument(
-        "--prefer-carrier",
-        action="append",
-        help="Soft preference: demote candidates that do not use this carrier. Repeatable.",
-    )
-    parser.add_argument(
-        "--avoid-carrier",
-        action="append",
-        help="Soft preference: penalize candidates using this carrier. Repeatable.",
-    )
-    parser.add_argument(
-        "--include-filtered",
-        type=int,
-        default=20,
-        help="Include first N carrier-filtered candidates in JSON output.",
-    )
-
-
-def add_agent_output_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--agent-report",
-        action="store_true",
-        help="Include a compact agent_report block without changing other output limits.",
-    )
-    parser.add_argument(
-        "--agent-brief",
-        action="store_true",
-        help="Emit only the compact agent_report in JSON output. Implies --agent-report.",
-    )
 
 
 def add_fli_mcp_flags(parser: argparse.ArgumentParser) -> None:
@@ -165,59 +71,6 @@ def add_provider_cache_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--no-cache", action="store_true", help="Bypass live-search cache."
     )
-
-
-def add_assembly_output_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--limit-per-pair", type=int, default=DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR
-    )
-    parser.add_argument(
-        "--candidate-pool-limit",
-        type=int,
-        default=5000,
-        help="Maximum raw assembled candidates to score before ranked output is capped.",
-    )
-    parser.add_argument(
-        "--max-candidates",
-        type=int,
-        default=50,
-        help="Maximum ranked candidates to output after scoring.",
-    )
-    parser.add_argument("--max-reasons", type=int, default=5)
-    parser.add_argument("--include-candidates", type=int, default=5)
-    parser.add_argument(
-        "--include-ranked-candidates",
-        type=int,
-        default=5,
-        help="Include full candidate bodies for first N ranked candidates.",
-    )
-    parser.add_argument("--include-rejected-pairs", type=int, default=20)
-
-
-def _parent(add_flags) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(add_help=False)
-    add_flags(parser)
-    return parser
-
-
-def connection_policy_parent() -> argparse.ArgumentParser:
-    return _parent(add_connection_policy_flags)
-
-
-def stop_policy_parent() -> argparse.ArgumentParser:
-    return _parent(add_stop_policy_flags)
-
-
-def carrier_selection_parent() -> argparse.ArgumentParser:
-    return _parent(add_carrier_selection_flags)
-
-
-def agent_output_parent() -> argparse.ArgumentParser:
-    return _parent(add_agent_output_flags)
-
-
-def assembly_output_parent() -> argparse.ArgumentParser:
-    return _parent(add_assembly_output_flags)
 
 
 def _catalog_read_defaults(**kwargs: Any) -> dict[str, Any]:
@@ -269,7 +122,7 @@ def _register_diagnose_commands(sub) -> None:
     )
     probe.set_defaults(func=command_diagnose_probe, command_name="diagnose probe")
     render = diagnose_sub.add_parser(
-        "render", help="Render human-answer diagnostics from an agent_report JSON file."
+        "render", help="Validate and render user_answer from an agent_report JSON file."
     )
     render.add_argument(
         "--input",
@@ -583,40 +436,6 @@ def _add_fli_dates_flags(parser: argparse.ArgumentParser) -> None:
     add_fli_mcp_flags(parser)
 
 
-def _register_route_commands(sub) -> None:
-    route = sub.add_parser("route", help="Route planning and validation commands.")
-    route_sub = route.add_subparsers(dest="route_command", required=True)
-
-    route_validate = route_sub.add_parser(
-        "validate",
-        parents=[connection_policy_parent()],
-        help="Validate airport compatibility and connection windows from JSON.",
-    )
-    route_validate.add_argument(
-        "--input", default="-", help="Input JSON file, or - for stdin."
-    )
-    route_validate.set_defaults(
-        func=command_route_validate, command_name="route validate"
-    )
-
-    route_rank = route_sub.add_parser(
-        "rank",
-        parents=[
-            connection_policy_parent(),
-            carrier_selection_parent(),
-            stop_policy_parent(),
-        ],
-        help="Score and rank itinerary candidates from JSON.",
-    )
-    route_rank.add_argument(
-        "--input",
-        default="-",
-        help="Input JSON list, or object with itineraries/candidates.",
-    )
-    route_rank.add_argument("--max-reasons", type=int, default=5)
-    route_rank.set_defaults(func=command_route_rank, command_name="route rank")
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="flights",
@@ -651,7 +470,6 @@ def build_parser() -> argparse.ArgumentParser:
     _register_diagnose_commands(sub)
     _register_maint_commands(sub)
     _register_metadata_commands(sub)
-    _register_route_commands(sub)
 
     return parser
 
@@ -700,32 +518,17 @@ def auto_refresh_catalog(args: argparse.Namespace, store: Store) -> dict | None:
     return result
 
 
-def apply_agent_output_defaults(args: argparse.Namespace) -> None:
-    if bool(getattr(args, "agent_brief", False)):
-        args.agent_report = True
-
-
-def apply_agent_brief_output(args: argparse.Namespace, data: object) -> object:
-    if not bool(getattr(args, "agent_brief", False)):
-        return data
-    if isinstance(data, dict) and isinstance(data.get("agent_report"), dict):
-        return {"agent_report": data["agent_report"]}
-    return data
-
-
 def main(argv: list[str] | None = None) -> int:
     argv = normalize_global_json(list(sys.argv if argv is None else argv))
     parser = build_parser()
     args = parser.parse_args(argv[1:])
     try:
         validate_cli_config(args)
-        apply_agent_output_defaults(args)
         store = Store()
         catalog_auto_refresh = auto_refresh_catalog(args, store)
         data = args.func(args, store)
         if catalog_auto_refresh is not None and isinstance(data, dict):
             data["catalog_auto_refresh"] = catalog_auto_refresh
-        data = apply_agent_brief_output(args, data)
     except CliError as exc:
         if args.json:
             emit_json(error_envelope(exc))

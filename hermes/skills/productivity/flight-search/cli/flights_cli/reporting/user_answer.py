@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any
 
 from ..config import catalog_output_limits_from_mapping
@@ -83,9 +84,24 @@ __all__ = (
 )
 
 
-def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
-    diagnostics_raw = agent_report.get("coverage_diagnostics")
-    diagnostics = diagnostics_raw if isinstance(diagnostics_raw, dict) else {}
+@dataclass(frozen=True, slots=True)
+class UserAnswerInput:
+    route: dict[str, Any]
+    status: dict[str, Any]
+    source_boundaries: list[dict[str, Any]]
+    provider_failures: list[dict[str, Any]]
+    primary_options: list[dict[str, Any]]
+    alternative_options: list[dict[str, Any]]
+    coverage_report: dict[str, Any]
+    stop_policy: dict[str, Any]
+    stop_policy_status: dict[str, Any]
+    through_fare_checks: list[dict[str, Any]]
+    constraint_conflict: dict[str, Any] | None = None
+    truth_language: dict[str, Any] = field(default_factory=dict)
+
+
+def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
+    diagnostics = answer_input.coverage_report
     completeness = (
         diagnostics.get("completeness")
         if isinstance(diagnostics.get("completeness"), dict)
@@ -99,54 +115,19 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
     )
     not_supported_raw = diagnostics.get("not_supported_controls")
     not_supported = not_supported_raw if isinstance(not_supported_raw, list) else []
-    provider_failures = (
-        agent_report.get("provider_failures")
-        if isinstance(agent_report.get("provider_failures"), list)
-        else []
-    )
-    through_fare_checks = (
-        agent_report.get("through_fare_checks")
-        if isinstance(agent_report.get("through_fare_checks"), list)
-        else []
-    )
-    recommended = (
-        agent_report.get("recommended_options")
-        if isinstance(agent_report.get("recommended_options"), list)
-        else []
-    )
-    priority = (
-        agent_report.get("priority_options")
-        if isinstance(agent_report.get("priority_options"), list)
-        else []
-    )
-    route = (
-        agent_report.get("route") if isinstance(agent_report.get("route"), dict) else {}
-    )
-    stop_policy = (
-        agent_report.get("stop_policy")
-        if isinstance(agent_report.get("stop_policy"), dict)
-        else {}
-    )
-    stop_diagnostics = (
-        agent_report.get("stop_policy_diagnostics")
-        if isinstance(agent_report.get("stop_policy_diagnostics"), dict)
-        else {}
-    )
-    offer_graph_raw = agent_report.get("offer_graph")
-    offer_graph: dict[str, Any] = (
-        offer_graph_raw if isinstance(offer_graph_raw, dict) else {}
-    )
-    truth_language_raw = offer_graph.get("truth_language")
-    truth_language: dict[str, Any] = (
-        truth_language_raw if isinstance(truth_language_raw, dict) else {}
-    )
+    provider_failures = answer_input.provider_failures
+    through_fare_checks = answer_input.through_fare_checks
+    recommended = answer_input.primary_options
+    priority = answer_input.alternative_options
+    route = answer_input.route
+    stop_policy = answer_input.stop_policy
+    stop_diagnostics = answer_input.stop_policy_status
+    truth_language = answer_input.truth_language
     two_stop_tier_used = bool(stop_diagnostics.get("used_two_stop_tier"))
 
     is_round_trip_request = route_requested_round_trip(route)
     status = (
-        agent_report.get("status")
-        if isinstance(agent_report.get("status"), dict)
-        else {}
+        answer_input.status if isinstance(answer_input.status, dict) else {}
     )
     direct_mode = (
         status.get("direct_mode") if isinstance(status.get("direct_mode"), dict) else {}
@@ -167,9 +148,7 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
         direct_mode=direct_mode_active,
     )
     constraint_conflict = build_constraint_conflict_payload(
-        agent_report.get("constraint_conflict")
-        if isinstance(agent_report.get("constraint_conflict"), dict)
-        else None,
+        answer_input.constraint_conflict,
         is_round_trip_request=is_round_trip_request,
     )
     answer_mode = infer_answer_mode(
@@ -192,7 +171,7 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
         "destination": route.get("destination"),
         "dates": route.get("dates") if isinstance(route.get("dates"), dict) else {},
     }
-    gateway_summary = gateway_coverage_summary(agent_report)
+    gateway_summary = gateway_coverage_summary(diagnostics)
     caveat_context = {
         "not_executed": not_executed,
         "provider_failures": provider_failures,
@@ -297,7 +276,7 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
         },
         "required_caveats": {
             "source_boundaries_included": not bool(
-                agent_report.get("source_boundaries")
+                answer_input.source_boundaries
             )
             or has_any_signal(
                 answer_text_lower,
@@ -350,3 +329,4 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
         "rendered_text": answer_text,
         "answer_lines": answer_lines,
     }
+    "UserAnswerInput",

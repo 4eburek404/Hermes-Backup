@@ -58,24 +58,12 @@ REQUEST = {
         "fail_fast": True,
         "live_cache_ttl_seconds": 123,
         "no_live_cache": True,
-        "direct_route_index_ttl_seconds": 456,
-        "no_direct_route_intel": True,
         "fli_mcp_url": "http://127.0.0.1:9999/mcp",
     },
     "output": {
-        "include_stop_policy_diagnostics": True,
-        "limit_per_pair": 2,
-        "candidate_pool_limit": 111,
         "catalog_limit": 12,
         "direct_catalog_limit": 35,
-        "max_candidates": 9,
-        "max_reasons": 3,
-        "include_candidates": 4,
-        "include_ranked_candidates": 5,
-        "include_rejected_pairs": 6,
         "include_segment_results": 7,
-        "agent_brief": False,
-        "include_filtered": 8,
     },
 }
 
@@ -95,7 +83,6 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
             "only_carriers": ("SU",),
             "prefer_carriers": ("TK",),
             "aggregate_control_carriers": ("SU", "TK"),
-            "agent_report": True,
         }
         self.assertEqual(options.route.origin, expected["origin"])
         self.assertEqual(options.route.destination, expected["destination"])
@@ -117,7 +104,6 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.evidence.search_wave_max_waves, 4)
         self.assertEqual(options.evidence.search_wave_probe_limit, 8)
         self.assertEqual(options.evidence.search_wave_top_k, 6)
-        self.assertEqual(options.output.agent_report, expected["agent_report"])
         self.assertEqual(options.output.catalog_limit, 12)
         self.assertEqual(options.output.direct_catalog_limit, 35)
 
@@ -173,8 +159,6 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.profile, "business")
         self.assertEqual(options.ticketing, "separate")
         self.assertEqual(options.evidence.provider_policy, "auto")
-        self.assertTrue(options.output.agent_report)
-        self.assertTrue(options.output.agent_brief)
         self.assertEqual(options.output.catalog_limit, DEFAULT_CATALOG_LIMIT)
         self.assertEqual(
             options.output.direct_catalog_limit, DEFAULT_DIRECT_CATALOG_LIMIT
@@ -200,16 +184,11 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
                 "evidence": {
                     "aggregate_control_limit": 0,
                     "live_cache_ttl_seconds": 0,
-                    "direct_route_index_ttl_seconds": 0,
                 },
                 "output": {
                     "include_segment_results": 0,
-                    "include_candidates": 0,
-                    "include_ranked_candidates": 0,
-                    "include_rejected_pairs": 0,
-                    "include_filtered": 0,
-                    "max_candidates": 0,
-                    "max_reasons": 0,
+                    "catalog_limit": 0,
+                    "direct_catalog_limit": 0,
                 },
             }
         )
@@ -224,14 +203,9 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.evidence.coverage_control_limit, 0)
         self.assertEqual(options.evidence.aggregate_control_limit, 0)
         self.assertEqual(options.evidence.live_cache_ttl_seconds, 0)
-        self.assertEqual(options.evidence.direct_route_index_ttl_seconds, 0)
         self.assertEqual(options.output.include_segment_results, 0)
-        self.assertEqual(options.output.include_candidates, 0)
-        self.assertEqual(options.output.include_ranked_candidates, 0)
-        self.assertEqual(options.output.include_rejected_pairs, 0)
-        self.assertEqual(options.output.include_filtered, 0)
-        self.assertEqual(options.output.max_candidates, 0)
-        self.assertEqual(options.output.max_reasons, 0)
+        self.assertEqual(options.output.catalog_limit, 1)
+        self.assertEqual(options.output.direct_catalog_limit, 1)
 
 
 if __name__ == "__main__":

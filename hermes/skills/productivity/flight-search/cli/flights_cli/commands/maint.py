@@ -24,7 +24,6 @@ from ..config import (
     DEFAULT_ROUTE_HUBS,
     RISK_PROFILES,
 )
-from ..providers.route_intel import svx_route_index_path
 from ..providers.static_catalog import (
     active_catalog_manifest,
     catalog_staleness,
@@ -58,7 +57,6 @@ def command_maint_doctor(args: argparse.Namespace, store: Store) -> dict[str, An
     ]:
         path = store.cache_dir / name
         cache_files[name] = {"exists": path.exists(), "path": str(path)}
-    route_index_path = svx_route_index_path(store.cache_dir / "route_intel")
     max_age_seconds = parse_ttl_seconds(args.catalog_max_age)
     skill_path = source_skill_path()
     manifest = load_version_manifest(skill_path)
@@ -76,12 +74,6 @@ def command_maint_doctor(args: argparse.Namespace, store: Store) -> dict[str, An
         "cache_dir": str(store.cache_dir),
         "cache_dir_exists": store.cache_dir.exists(),
         "cache_files": cache_files,
-        "route_intel_cache": {
-            "svx_official_route_index": {
-                "exists": route_index_path.exists(),
-                "path": str(route_index_path),
-            }
-        },
         "cache_counts": store.cache_counts(),
         "catalog_auto_refresh_policy": {
             "mode": args.catalog_refresh,

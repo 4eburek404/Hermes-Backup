@@ -232,10 +232,9 @@ Use these fields to diagnose, not to overrule the canonical rendered answer:
 - `hub_viability`: connection feasibility by hub;
 - `rejected_pair_warnings`: airport mismatch and connection filters;
 - `stop_policy` / `stop_policy_diagnostics`: preferred vs secondary tier behavior;
-- `omitted_counts`: truncation after budgeting;
-- `direct_route_intelligence`: route-index availability and skip reasons.
+- `omitted_counts`: truncation after budgeting.
 
-If preferred options are missing while segment evidence exists, inspect generation diagnostics. Do not compensate by blindly increasing `candidate_pool_limit` in normal flow; reproduce the specific generation/report contract issue.
+If preferred options are missing while segment evidence exists, inspect generation diagnostics. Do not compensate by adding public output knobs in normal flow; reproduce the specific generation/report contract issue.
 
 ## Reference lifecycle
 

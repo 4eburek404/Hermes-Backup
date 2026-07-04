@@ -5,7 +5,6 @@ import json
 import subprocess
 import sys
 import tempfile
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -157,21 +156,12 @@ def live_assembly_args(**overrides: Any) -> Any:
         "fail_fast": "fail_fast",
         "live_cache_ttl_seconds": "live_cache_ttl_seconds",
         "no_live_cache": "no_live_cache",
-        "direct_route_index_ttl_seconds": "direct_route_index_ttl_seconds",
-        "no_direct_route_intel": "no_direct_route_intel",
         "fli_mcp_url": "fli_mcp_url",
     }
     output_keys = {
-        "limit_per_pair": "limit_per_pair",
-        "candidate_pool_limit": "candidate_pool_limit",
-        "max_candidates": "max_candidates",
-        "max_reasons": "max_reasons",
-        "include_candidates": "include_candidates",
-        "include_ranked_candidates": "include_ranked_candidates",
-        "include_rejected_pairs": "include_rejected_pairs",
         "include_segment_results": "include_segment_results",
-        "agent_brief": "agent_brief",
-        "include_filtered": "include_filtered",
+        "catalog_limit": "catalog_limit",
+        "direct_catalog_limit": "direct_catalog_limit",
     }
     filter_keys = {
         "only_carriers": "only_carriers",
@@ -194,7 +184,6 @@ def live_assembly_args(**overrides: Any) -> Any:
     }
 
     values = dict(overrides)
-    agent_report_override = values.pop("agent_report", None)
     request: dict[str, Any] = {
         "schema_version": "flight_search_request.v1",
         "origin": values.pop("origin", "SVX"),
@@ -265,41 +254,10 @@ def live_assembly_args(**overrides: Any) -> Any:
     if values:
         unknown = ", ".join(sorted(values))
         raise AssertionError(f"unsupported live_assembly_args overrides: {unknown}")
-    options = live_assembly_options_from_search_request(request)
-    if agent_report_override is not None:
-        options = replace(
-            options,
-            output=replace(options.output, agent_report=bool(agent_report_override)),
-        )
-    return options
+    return live_assembly_options_from_search_request(request)
 
 
 class CliSubprocessMixin:
-    def _rank(self, payload: dict, profile: str, *extra_args: str) -> dict:
-        proc = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "flights_cli",
-                "--json",
-                "route",
-                "rank",
-                "--profile",
-                profile,
-                "--input",
-                "-",
-                *extra_args,
-            ],
-            cwd=PROJECT,
-            env=TEST_ENV,
-            input=json.dumps(payload),
-            check=True,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        return json.loads(proc.stdout)
-
     def _parse_raw(
         self,
         payload: dict,

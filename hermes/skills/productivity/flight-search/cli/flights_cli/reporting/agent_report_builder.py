@@ -13,7 +13,7 @@ from ..domain.stop_policy import (
     stop_policy_payload,
 )
 from .coverage import build_coverage_diagnostics, compact_coverage_summary
-from .user_answer import build_user_answer
+from .user_answer import UserAnswerInput, build_user_answer
 from .decision_options import (
     decision_frontier_options,
     option_from_decision_frontier_item,
@@ -24,7 +24,7 @@ from .catalog_order import (
     option_is_user_visible,
     option_price_amount,
 )
-from .provider_aggregate_controls import (
+from .provider_aggregate_options import (
     aggregate_control_summary,
     provider_aggregate_candidate_options,
 )
@@ -1086,8 +1086,8 @@ def direct_conflict_schedule_options(
 def constraint_conflict_report(
     data: dict[str, Any],
     live: dict[str, Any],
-    recommended_options: list[dict[str, Any]],
-    priority_options: list[dict[str, Any]],
+    primary_options: list[dict[str, Any]],
+    alternative_options: list[dict[str, Any]],
     *,
     direct_schedule_limit: int,
 ) -> dict[str, Any] | None:
@@ -1097,7 +1097,7 @@ def constraint_conflict_report(
         return None
     visible_fallback_options = [
         option
-        for option in [*recommended_options, *priority_options]
+        for option in [*primary_options, *alternative_options]
         if int(option.get("max_connections_per_journey") or 0) <= 1
     ]
     fallback_payload = {
@@ -1162,10 +1162,10 @@ def frontier_stop_policy_selection(options: list[dict[str, Any]]) -> dict[str, A
 
 def ru_priority_source_options(
     data: dict[str, Any],
-    recommended_options: list[dict[str, Any]],
-    priority_options: list[dict[str, Any]],
+    primary_options: list[dict[str, Any]],
+    alternative_options: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    source = recommended_options + priority_options
+    source = primary_options + alternative_options
     seen: set[tuple[str, tuple[tuple[str, str, str], ...]]] = set()
     unique: list[dict[str, Any]] = []
     for option in source:
@@ -1231,8 +1231,8 @@ def ru_priority_control_option(option: dict[str, Any], branch: str) -> dict[str,
 def build_ru_priority_controls(
     data: dict[str, Any],
     plan: dict[str, Any],
-    recommended_options: list[dict[str, Any]],
-    priority_options: list[dict[str, Any]],
+    primary_options: list[dict[str, Any]],
+    alternative_options: list[dict[str, Any]],
 ) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     if plan.get("routing_strategy") != RoutingStrategy.RU_PRIORITY:
         return None, []
@@ -1270,7 +1270,7 @@ def build_ru_priority_controls(
         "decision": "no_viable_ru_priority_control",
     }
     source_options = ru_priority_source_options(
-        data, recommended_options, priority_options
+        data, primary_options, alternative_options
     )
     live = data.get("live_search") if isinstance(data.get("live_search"), dict) else {}
     branch_options: list[dict[str, Any]] = []
@@ -1396,44 +1396,44 @@ def build_agent_report(
     requested_round_trip = plan_requests_round_trip(plan)
     if direct_mode_directions:
         options = frontier_source_options
-        priority_options: list[dict[str, Any]] = []
+        alternative_options: list[dict[str, Any]] = []
     else:
         frontier_ordered = order_frontier_options(
             frontier_source_options,
             is_round_trip_request=requested_round_trip,
         )
         options = frontier_ordered[:1]
-        priority_options = frontier_ordered[1:catalog_limit]
-    selected_stop_policy = frontier_stop_policy_selection([*options, *priority_options])
+        alternative_options = frontier_ordered[1:catalog_limit]
+    selected_stop_policy = frontier_stop_policy_selection([*options, *alternative_options])
     preferred_available = has_preferred_option(
-        options + priority_options
+        options + alternative_options
     ) or aggregate_has_preferred_offer(raw_aggregate_controls, stop_policy)
     aggregate_controls = filter_aggregate_controls_for_stop_policy(
         raw_aggregate_controls, stop_policy, preferred_available
     )
-    aggregate_priority_options = (
+    aggregate_alternative_options = (
         []
         if direct_mode_directions
         else provider_aggregate_candidate_options(
             raw_aggregate_controls,
             limit=5,
             stop_policy=stop_policy,
-            preferred_available=has_preferred_option(options + priority_options),
+            preferred_available=has_preferred_option(options + alternative_options),
             requested_round_trip=requested_round_trip,
         )
     )
-    if aggregate_priority_options:
-        priority_options.extend(aggregate_priority_options)
-    ru_priority_controls, ru_priority_priority_options = build_ru_priority_controls(
-        data, plan, options, priority_options
+    if aggregate_alternative_options:
+        alternative_options.extend(aggregate_alternative_options)
+    ru_priority_controls, ru_priority_alternative_options = build_ru_priority_controls(
+        data, plan, options, alternative_options
     )
-    if ru_priority_priority_options:
-        priority_options = ru_priority_priority_options + priority_options
+    if ru_priority_alternative_options:
+        alternative_options = ru_priority_alternative_options + alternative_options
     constraint_conflict = constraint_conflict_report(
         data,
         live,
         options,
-        priority_options,
+        alternative_options,
         direct_schedule_limit=direct_catalog_limit,
     )
     stop_policy_diagnostics = merge_stop_policy_diagnostics(
@@ -1469,7 +1469,7 @@ def build_agent_report(
     compact_failures = provider_failures(live)
     coverage = compact_coverage_summary(coverage_diagnostics, compact_failures)
     through_fare_check_items = through_fare_checks(
-        aggregate_controls, [*options, *priority_options]
+        aggregate_controls, [*options, *alternative_options]
     )
     status = {
         "ranked_output_count": assembly.get(
@@ -1483,27 +1483,31 @@ def build_agent_report(
         "direct_mode": {direction: True for direction in direct_mode_directions},
         "output_limits": output_limits.to_dict(),
     }
-    answer_input = {
-        "route": route,
-        "status": status,
-        "source_boundaries": source_boundaries(),
-        "provider_failures": compact_failures,
-        "recommended_options": options,
-        "priority_options": priority_options,
-        "coverage_diagnostics": coverage_diagnostics,
-        "stop_policy": stop_policy_payload(stop_policy),
-        "stop_policy_diagnostics": stop_policy_diagnostics,
-        "through_fare_checks": through_fare_check_items,
-        "constraint_conflict": constraint_conflict,
-        "offer_graph": live.get("offer_graph")
-        if isinstance(live.get("offer_graph"), dict)
-        else {},
-    }
+    offer_graph = live.get("offer_graph") if isinstance(live.get("offer_graph"), dict) else {}
+    truth_language = (
+        offer_graph.get("truth_language")
+        if isinstance(offer_graph.get("truth_language"), dict)
+        else {}
+    )
+    answer_input = UserAnswerInput(
+        route=route,
+        status=status,
+        source_boundaries=source_boundaries(),
+        provider_failures=compact_failures,
+        primary_options=options,
+        alternative_options=alternative_options,
+        coverage_report=coverage_diagnostics,
+        stop_policy=stop_policy_payload(stop_policy),
+        stop_policy_status=stop_policy_diagnostics,
+        through_fare_checks=through_fare_check_items,
+        constraint_conflict=constraint_conflict,
+        truth_language=truth_language,
+    )
     if constraint_conflict is not None:
         status["constraint_conflict"] = constraint_conflict
     date_window_inventory = live.get("date_window_inventory")
     evidence: dict[str, Any] = {
-        "source_boundaries": answer_input["source_boundaries"],
+        "source_boundaries": answer_input.source_boundaries,
         "coverage": coverage,
         "provider_failures": compact_failures,
         "through_fare_checks": through_fare_check_items,

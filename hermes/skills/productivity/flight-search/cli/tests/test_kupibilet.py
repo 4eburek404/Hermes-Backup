@@ -23,6 +23,7 @@ from flights_cli.providers.live_cache import (
     read_live_cache,
     write_live_cache,
 )
+from flights_cli.services.agent_report import build_validated_agent_report
 from flights_cli.store import Store
 
 from helpers import CliSubprocessMixin, live_assembly_args
@@ -555,7 +556,6 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             provider_policy="kupibilet",
             include_segment_results=10,
             no_live_cache=True,
-            no_direct_route_intel=True,
         )
         calls: list[tuple[str, str]] = []
 
@@ -664,8 +664,6 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
     def test_explicit_carrier_aggregate_control_reports_through_fare_check(
         self,
     ) -> None:
-        from flights_cli.cli import apply_agent_output_defaults
-
         class FixedDate(date):
             @classmethod
             def today(cls) -> date:
@@ -679,10 +677,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             aggregate_control_limit=10,
             aggregate_control_carriers=["SU"],
             no_live_cache=True,
-            no_direct_route_intel=True,
-            agent_report=True,
         )
-        apply_agent_output_defaults(args)
         calls: list[tuple[str, str, bool, tuple[str, ...]]] = []
 
         def fake_fetch(
@@ -782,7 +777,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             ledger["completeness"]["planned_count"],
             ledger["completeness"]["terminal_count"],
         )
-        report = result["agent_report"]
+        report = build_validated_agent_report(result, Store())
         self.assertEqual(
             report["evidence"]["coverage"]["counts"]["not_executed_controls"], 0
         )

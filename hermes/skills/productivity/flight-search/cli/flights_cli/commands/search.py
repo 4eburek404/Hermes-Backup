@@ -9,6 +9,7 @@ from ..domain.normalize import parse_iso_date
 from ..io import read_json_object
 from ..orchestrators.live_route_assembly import run_live_route_assembly
 from ..pipeline.options import LiveAssemblyOptions, search_request_to_options
+from ..services.agent_report import build_validated_agent_report
 from ..store import Store
 from .common import validate_contract_payload
 
@@ -46,20 +47,14 @@ def validate_search_request_dates(payload: dict[str, Any]) -> None:
 
 
 def build_search_result(
-    request: dict[str, Any], route_result: dict[str, Any]
+    request: dict[str, Any], route_result: dict[str, Any], agent_report: dict[str, Any]
 ) -> dict[str, Any]:
-    public_route_result = dict(route_result)
-    agent_report = (
-        public_route_result.pop("agent_report")
-        if isinstance(public_route_result.get("agent_report"), dict)
-        else None
-    )
     result = {
         "schema_version": SEARCH_RESULT_SCHEMA_VERSION,
         "wire_version": SEARCH_RESULT_SCHEMA_VERSION,
         "request": request,
         "agent_report": agent_report,
-        "route_result": public_route_result,
+        "route_result": route_result,
     }
     validate_contract_payload("search_result", result)
     return result
@@ -70,4 +65,5 @@ def command_search(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     validate_search_request_dates(request)
     live_assembly_options = live_assembly_options_from_search_request(request)
     route_result = run_live_route_assembly(live_assembly_options, store)
-    return build_search_result(request, route_result)
+    agent_report = build_validated_agent_report(route_result, store)
+    return build_search_result(request, route_result, agent_report)

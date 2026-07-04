@@ -318,28 +318,4 @@ def render_human(command: str, data: Any) -> str:
             lines.append("warnings:")
             lines.extend(f"  - {warning}" for warning in plan["warnings"])
         return "\n".join(lines)
-    if command == "route validate":
-        lines = [
-            f"ok: {data['ok']}",
-            f"risk: {data['risk']['score']} ({data['risk']['grade']}) profile={data['risk']['profile']}",
-            f"segments: {data['summary']['segment_count']}, connections: {data['summary']['connection_count']}, violations: {data['summary']['violation_count']}",
-        ]
-        for violation in data["violations"]:
-            lines.append(
-                f"violation: {violation['arrival_airport']} -> {violation['departure_airport']}: {violation['status']}"
-            )
-            for note in violation.get("notes") or []:
-                lines.append(f"  - {note}")
-        return "\n".join(lines)
-    if command == "route rank":
-        lines = [f"profile: {data['profile']} ({data['rank_order']})"]
-        for item in data["ranked"]:
-            lines.append(
-                f"{item['rank']}. {item['id']} risk={item['risk']['score']}:{item['risk']['grade']} price={item['price']} elapsed={item['elapsed_min']}"
-            )
-            for reason in item["risk"]["top_reasons"][:3]:
-                lines.append(
-                    f"  - +{reason['points']} {reason['code']}: {reason['message']}"
-                )
-        return "\n".join(lines)
     return json.dumps(data, ensure_ascii=False, indent=2)

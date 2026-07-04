@@ -35,8 +35,7 @@ from ..pipeline.offer_graph import (
 )
 from ..pipeline.options import LiveAssemblyOptions
 from ..pipeline.search_pipeline import LiveRouteSearchFlow, build_live_route_search_flow
-from ..reporting.date_window_projector import build_date_window_inventory
-from ..services.agent_report import AgentReportOptions, attach_agent_report
+from ..reporting.date_window_inventory import build_date_window_inventory
 from ..store import Store
 from .search_plan_builder import build_runtime_route_plan, build_search_plan
 
@@ -645,10 +644,6 @@ class LiveSearchResultBuilder:
                 "policy_controls": graph_controls,
                 "aggregate_controls": aggregate_controls,
                 "probe_ledger": state.probe_ledger.to_coverage_diagnostics(state.plan),
-                "direct_route_intelligence": {
-                    "available": False,
-                    "reason": "route_specific_direct_intel_not_runtime_source",
-                },
                 "direct_presence_gate": deepcopy(state.direct_presence_gate),
                 "diagnostics": {
                     "search_plan": search_plan_with_gateway_discovery_output(
@@ -669,12 +664,7 @@ class LiveSearchResultBuilder:
         return route_result
 
     def build(self, state: LiveAssemblyState) -> dict[str, Any]:
-        route_result = self.build_route_result(state)
-        return attach_agent_report(
-            route_result,
-            AgentReportOptions(agent_report=self.options.output.agent_report),
-            self.store,
-        )
+        return self.build_route_result(state)
 
 
 class LiveAssemblyRunner:

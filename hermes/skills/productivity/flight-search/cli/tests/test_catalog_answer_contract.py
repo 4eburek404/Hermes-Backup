@@ -18,7 +18,11 @@ from flights_cli.reporting.user_answer import (
     load_user_answer_schema,
     validate_user_answer,
 )
-from tests.fixtures.agent_reports import valid_option, valid_report
+from tests.fixtures.agent_reports import (
+    answer_input_from_fixture,
+    valid_option,
+    valid_report,
+)
 
 
 def semantic_error_paths(exc: CliError) -> set[str]:
@@ -103,10 +107,10 @@ class CatalogAnswerContractTests(unittest.TestCase):
             "destination": "CAN",
             "dates": {"depart_date": "2026-07-14", "return_date": "2026-07-25"},
         }
-        report["recommended_options"] = [
+        report["primary_options"] = [
             self._round_trip_option("assembled-primary", price=92248)
         ]
-        report["priority_options"] = [
+        report["alternative_options"] = [
             self._round_trip_option("assembled-alt", price=90142)
         ]
         return report
@@ -159,7 +163,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
             }.get(code, code),
             create=True,
         ):
-            answer = build_user_answer(self._round_trip_report())
+            answer = build_user_answer(answer_input_from_fixture(self._round_trip_report()))
 
         validate_user_answer(answer)
         expected_keys = {
@@ -241,15 +245,15 @@ class CatalogAnswerContractTests(unittest.TestCase):
             "catalog_limit": 12,
             "direct_catalog_limit": 30,
         }
-        report["priority_options"] = []
+        report["alternative_options"] = []
         for index in range(14):
             option = self._round_trip_option(
                 f"assembled-alt-{index}", price=90_000 + index
             )
             option["rank"] = index + 2
-            report["priority_options"].append(option)
+            report["alternative_options"].append(option)
 
-        answer = build_user_answer(report)
+        answer = build_user_answer(answer_input_from_fixture(report))
 
         validate_user_answer(answer)
         self.assertEqual(answer["catalog"]["presentation"]["max_items"], 12)
@@ -310,15 +314,15 @@ class CatalogAnswerContractTests(unittest.TestCase):
                 ],
             }
         )
-        report["recommended_options"] = [option]
-        report["priority_options"] = []
+        report["primary_options"] = [option]
+        report["alternative_options"] = []
 
         with patch(
             "flights_cli.reporting.user_answer.airport_city_label",
             side_effect=lambda code: {"MCT": "Маскат"}.get(code, code),
             create=True,
         ):
-            answer = build_user_answer(report)
+            answer = build_user_answer(answer_input_from_fixture(report))
             validate_user_answer(answer)
         item = answer["catalog"]["items"][0]
         outbound = item["directions"]["outbound"]["segments"][0]
@@ -376,8 +380,8 @@ class CatalogAnswerContractTests(unittest.TestCase):
                 ],
             }
         )
-        report["recommended_options"] = [option]
-        report["priority_options"] = []
+        report["primary_options"] = [option]
+        report["alternative_options"] = []
 
         with patch(
             "flights_cli.reporting.user_answer.airport_city_label",
@@ -387,7 +391,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
             }.get(code, code),
             create=True,
         ):
-            answer = build_user_answer(report)
+            answer = build_user_answer(answer_input_from_fixture(report))
 
         validate_user_answer(answer)
         item = answer["catalog"]["items"][0]
@@ -401,7 +405,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
         self.assertEqual(item["agent_display"]["style"], "canonical_segment_line_v1")
 
     def test_rejects_catalog_when_rendered_text_loses_numbered_items(self) -> None:
-        answer = build_user_answer(self._round_trip_report())
+        answer = build_user_answer(answer_input_from_fixture(self._round_trip_report()))
         answer["rendered_text"] = "Нашёл варианты SVX→CAN без нумерованного каталога."
         answer["answer_lines"] = [answer["rendered_text"]]
 
@@ -411,7 +415,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
         self.assertIn("$.rendered_text", semantic_error_paths(ctx.exception))
 
     def test_rejects_catalog_when_agent_display_drifts_from_render_line(self) -> None:
-        answer = build_user_answer(self._round_trip_report())
+        answer = build_user_answer(answer_input_from_fixture(self._round_trip_report()))
         answer["catalog"]["items"][0]["agent_display"]["lines"] = [
             "1. BROKEN",
             "    92 248 рублей",
@@ -428,7 +432,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
     def test_rejects_catalog_when_agent_display_segment_loses_aircraft_duration(
         self,
     ) -> None:
-        answer = build_user_answer(self._round_trip_report())
+        answer = build_user_answer(answer_input_from_fixture(self._round_trip_report()))
         original_line = answer["catalog"]["items"][0]["agent_display"]["lines"][0]
         broken_line = re.sub(
             r" борт (?:[A-Z0-9][A-Z0-9-]*|н/д) в пути "
@@ -458,7 +462,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
     def test_rejects_catalog_when_layover_is_not_between_adjacent_segments(
         self,
     ) -> None:
-        answer = build_user_answer(self._round_trip_report())
+        answer = build_user_answer(answer_input_from_fixture(self._round_trip_report()))
         item = answer["catalog"]["items"][0]
         original_block = item["render_line"]
         original_lines = item["agent_display"]["lines"]
@@ -491,8 +495,8 @@ class CatalogAnswerContractTests(unittest.TestCase):
         option["segments"][1]["origin"] = "IST"
         option["segments"][1]["departure_terminal"] = None
         report = self._round_trip_report()
-        report["recommended_options"] = [option]
-        report["priority_options"] = []
+        report["primary_options"] = [option]
+        report["alternative_options"] = []
 
         with patch(
             "flights_cli.reporting.user_answer.airport_city_label",
@@ -503,7 +507,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
             }.get(code, code),
             create=True,
         ):
-            answer = build_user_answer(report)
+            answer = build_user_answer(answer_input_from_fixture(report))
             validate_user_answer(answer)
         item = answer["catalog"]["items"][0]
         self.assertEqual(
@@ -514,7 +518,7 @@ class CatalogAnswerContractTests(unittest.TestCase):
     def test_rejects_catalog_when_agent_display_uses_standalone_number_line(
         self,
     ) -> None:
-        answer = build_user_answer(self._round_trip_report())
+        answer = build_user_answer(answer_input_from_fixture(self._round_trip_report()))
         first_line = answer["catalog"]["items"][0]["agent_display"]["lines"][0]
         answer["catalog"]["items"][0]["agent_display"]["lines"] = [
             "1.",

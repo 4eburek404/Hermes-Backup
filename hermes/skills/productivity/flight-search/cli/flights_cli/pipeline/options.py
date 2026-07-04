@@ -6,13 +6,11 @@ from typing import Any
 from ..config import (
     DEFAULT_COVERAGE_CONTROL_LIMIT,
     DEFAULT_CURRENCY,
-    DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS,
     DEFAULT_GATEWAY_DISCOVERY_LIMIT,
     DEFAULT_GATEWAY_PROBE_BATCH_SIZE,
     DEFAULT_GATEWAY_PROBE_MAX_BATCHES,
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
     DEFAULT_PROFILE,
-    DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR,
     DEFAULT_ROUTING_STRATEGY,
     DEFAULT_SEARCH_WAVE_MAX_WAVES,
     DEFAULT_SEARCH_WAVE_PROBE_LIMIT,
@@ -82,8 +80,6 @@ class EvidenceOptions:
     max_segment_searches: int
     live_cache_ttl_seconds: int
     no_live_cache: bool
-    direct_route_index_ttl_seconds: int
-    no_direct_route_intel: bool
     segment_limit: int
     timeout: int
     outbound_second_leg_day_offsets: tuple[int, ...]
@@ -97,20 +93,9 @@ class EvidenceOptions:
 
 @dataclass(frozen=True, slots=True)
 class OutputOptions:
-    agent_report: bool
-    agent_brief: bool
     include_segment_results: int
-    include_candidates: int
-    include_ranked_candidates: int
-    include_rejected_pairs: int
-    include_filtered: int
-    limit_per_pair: int
-    candidate_pool_limit: int
     catalog_limit: int
     direct_catalog_limit: int
-    max_candidates: int
-    max_reasons: int
-    include_stop_policy_diagnostics: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -292,14 +277,6 @@ def search_request_to_options(payload: dict[str, Any]) -> LiveAssemblyOptions:
                 DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
             ),
             no_live_cache=_bool_option(evidence, "no_live_cache", False),
-            direct_route_index_ttl_seconds=_int_option(
-                evidence,
-                "direct_route_index_ttl_seconds",
-                DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS,
-            ),
-            no_direct_route_intel=_bool_option(
-                evidence, "no_direct_route_intel", False
-            ),
             segment_limit=_int_option(evidence, "segment_limit", 30),
             timeout=_int_option(evidence, "timeout", 60),
             outbound_second_leg_day_offsets=_int_tuple(
@@ -321,26 +298,9 @@ def search_request_to_options(payload: dict[str, Any]) -> LiveAssemblyOptions:
             fli_mcp_url=str(evidence.get("fli_mcp_url") or FLI_MCP_DEFAULT_URL),
         ),
         output=OutputOptions(
-            agent_report=True,
-            agent_brief=_bool_option(output, "agent_brief", True),
             include_segment_results=_int_option(output, "include_segment_results", 0),
-            include_candidates=_int_option(output, "include_candidates", 5),
-            include_ranked_candidates=_int_option(
-                output, "include_ranked_candidates", 5
-            ),
-            include_rejected_pairs=_int_option(output, "include_rejected_pairs", 20),
-            include_filtered=_int_option(output, "include_filtered", 20),
-            limit_per_pair=_int_option(
-                output, "limit_per_pair", DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR
-            ),
-            candidate_pool_limit=_int_option(output, "candidate_pool_limit", 5000),
             catalog_limit=output_limits.catalog_limit,
             direct_catalog_limit=output_limits.direct_catalog_limit,
-            max_candidates=_int_option(output, "max_candidates", 50),
-            max_reasons=_int_option(output, "max_reasons", 5),
-            include_stop_policy_diagnostics=_bool_option(
-                output, "include_stop_policy_diagnostics", False
-            ),
         ),
         profile=str(payload.get("profile") or DEFAULT_PROFILE),
         ticketing=str(payload.get("ticketing") or "separate"),

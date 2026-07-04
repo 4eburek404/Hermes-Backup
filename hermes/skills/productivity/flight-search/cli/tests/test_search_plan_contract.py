@@ -60,7 +60,6 @@ class SearchPlanContractTests(unittest.TestCase):
             routing_strategy="hub-list",
             hub=["IST"],
             no_live_cache=True,
-            no_direct_route_intel=True,
         )
         flow = build_live_route_search_flow(options, store)
         route_plan = build_live_route_segment_plan(options, store, flow=flow)
@@ -223,7 +222,6 @@ class SearchPlanContractTests(unittest.TestCase):
                     routing_strategy="hub-list",
                     hub=["IST"],
                     no_live_cache=True,
-                    no_direct_route_intel=True,
                 )
                 flow = build_live_route_search_flow(options, store)
                 route_plan = build_live_route_segment_plan(options, store, flow=flow)
@@ -286,7 +284,6 @@ class SearchPlanContractTests(unittest.TestCase):
                 routing_strategy="hub-list",
                 hub=["IST"],
                 no_live_cache=True,
-                no_direct_route_intel=True,
             )
             flow = build_live_route_search_flow(options, store)
             route_plan = build_live_route_segment_plan(options, store, flow=flow)
@@ -325,7 +322,6 @@ class SearchPlanContractTests(unittest.TestCase):
             gateway_probe_batch_size=1,
             gateway_probe_max_batches=1,
             no_live_cache=True,
-            no_direct_route_intel=True,
         )
         flow = build_live_route_search_flow(options, store)
         route_plan = build_live_route_segment_plan(options, store, flow=flow)
@@ -361,7 +357,6 @@ class SearchPlanContractTests(unittest.TestCase):
             gateway_probe_batch_size=1,
             gateway_probe_max_batches=1,
             no_live_cache=True,
-            no_direct_route_intel=True,
         )
         flow = build_live_route_search_flow(options, store)
         route_plan = build_live_route_segment_plan(options, store, flow=flow)
@@ -430,7 +425,6 @@ class SearchPlanContractTests(unittest.TestCase):
             routing_strategy="hub-list",
             hub=["IST"],
             no_live_cache=True,
-            no_direct_route_intel=True,
         )
         flow = build_live_route_search_flow(options, store)
         route_plan = build_live_route_segment_plan(options, store, flow=flow)
@@ -467,7 +461,6 @@ class SearchPlanContractTests(unittest.TestCase):
                     depart_date="2026-08-15",
                     return_date=None,
                     no_live_cache=True,
-                    no_direct_route_intel=True,
                     **overrides,
                 )
                 flow = build_live_route_search_flow(options, store)
@@ -509,7 +502,6 @@ class SearchPlanContractTests(unittest.TestCase):
             routing_strategy="hub-list",
             hub=["LHR"],
             no_live_cache=True,
-            no_direct_route_intel=True,
         )
         flow = build_live_route_search_flow(options, store)
         route_plan = build_live_route_segment_plan(options, store, flow=flow)
@@ -555,7 +547,6 @@ class SearchPlanContractTests(unittest.TestCase):
             constraint_only_carrier="KL",
             preferred_carrier="AF",
             no_live_cache=True,
-            no_direct_route_intel=True,
         )
         flow = build_live_route_search_flow(options, store)
         route_plan = build_live_route_segment_plan(options, store, flow=flow)
@@ -607,7 +598,6 @@ class SearchPlanContractTests(unittest.TestCase):
             routing_strategy="hub-list",
             hub=["IST"],
             no_live_cache=True,
-            no_direct_route_intel=True,
         )
         route_plan = build_live_route_segment_plan(options, store)
 

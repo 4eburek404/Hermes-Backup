@@ -74,7 +74,6 @@ class ProviderPortDispatchTests(unittest.TestCase):
             max_segment_searches=40,
             aggregate_control_limit=0,
             no_live_cache=True,
-            no_direct_route_intel=True,
         )
         adapter = FakeAggregateAdapter()
 

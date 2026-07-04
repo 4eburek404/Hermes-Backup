@@ -13,6 +13,7 @@ from flights_cli.orchestrators.live_route_assembly import (
 )
 from flights_cli.orchestrators.search_plan_builder import build_search_plan
 from flights_cli.pipeline.search_pipeline import build_live_route_search_flow
+from flights_cli.services.agent_report import build_validated_agent_report
 from flights_cli.store import Store
 from helpers import live_assembly_args
 
@@ -28,9 +29,7 @@ def window_args(**overrides: object):
         "max_connections": 0,
         "tier2_max_connections": 0,
         "no_live_cache": True,
-        "no_direct_route_intel": True,
         "coverage_mode": "targeted",
-        "agent_brief": True,
     }
     values.update(overrides)
     return live_assembly_args(**values)
@@ -250,7 +249,7 @@ class DateWindowInventoryProjectionTests(unittest.TestCase):
         self.assertEqual(entries["2026-08-18"]["status"], "probe_failed")
         self.assertEqual(inventory.get("boundary"), "provider_live_only")
 
-        report = result.get("agent_report")
+        report = build_validated_agent_report(result, Store())
         self.assertIsInstance(report, dict)
         self.assertIn("date_window_inventory", report["evidence"])
         report_dates = [

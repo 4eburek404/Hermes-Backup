@@ -8,12 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from flights_cli.cli import (
-    apply_agent_brief_output,
-    apply_agent_output_defaults,
-    build_parser,
-    normalize_global_json,
-)
+from flights_cli.cli import build_parser, normalize_global_json
 from flights_cli.commands import search as search_app
 from flights_cli.command_surface import (
     CATALOG_AUTO_REFRESH_COMMANDS,
@@ -25,7 +20,6 @@ from flights_cli.command_surface import (
     TARGETED_PROBE_COMMANDS,
 )
 from flights_cli.config import DEFAULT_ROUTE_HUBS
-from flights_cli.domain.stop_policy import stop_policy_from_args
 
 from helpers import PROJECT, TEST_ENV, parser_leaf_defaults
 
@@ -48,12 +42,7 @@ def live_search_args(**overrides: object) -> argparse.Namespace:
             "tier2_max_connections": overrides.pop("tier2_max_connections", None),
         },
         "output": {
-            "agent_brief": overrides.pop("agent_brief", False),
-            "include_candidates": overrides.pop("include_candidates", 5),
-            "include_ranked_candidates": overrides.pop("include_ranked_candidates", 5),
-            "include_rejected_pairs": overrides.pop("include_rejected_pairs", 20),
             "include_segment_results": overrides.pop("include_segment_results", 0),
-            "max_candidates": overrides.pop("max_candidates", 50),
         },
         "evidence": {
             "aggregate_control_limit": overrides.pop("aggregate_control_limit", 0),
@@ -74,13 +63,7 @@ def live_search_args(**overrides: object) -> argparse.Namespace:
         stop_policy=options.route.stop_policy,
         max_connections=options.route.max_connections,
         tier2_max_connections=options.route.tier2_max_connections,
-        limit_per_pair=options.output.limit_per_pair,
-        max_candidates=options.output.max_candidates,
-        include_candidates=options.output.include_candidates,
-        include_ranked_candidates=options.output.include_ranked_candidates,
-        include_rejected_pairs=options.output.include_rejected_pairs,
         include_segment_results=options.output.include_segment_results,
-        agent_brief=options.output.agent_brief,
         agent_report=agent_report,
     )
     for key, value in overrides.items():
@@ -99,18 +82,6 @@ class CliContractTests(unittest.TestCase):
         from flights_cli.config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
 
         self.assertEqual(DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS, 30 * 60)
-
-    def test_route_commands_default_same_airport_minimum_is_120(self) -> None:
-        parser = build_parser()
-        cases = [
-            ["route", "validate"],
-            ["route", "rank"],
-        ]
-        for argv in cases:
-            with self.subTest(argv=argv):
-                args = parser.parse_args(argv)
-                self.assertEqual(args.min_same_airport_min, 120)
-                self.assertEqual(args.min_cross_airport_min, 300)
 
     def test_active_command_surface_is_registered_with_leaf_dispatch(self) -> None:
         leaves = parser_leaf_defaults(build_parser())
@@ -158,14 +129,6 @@ class CliContractTests(unittest.TestCase):
             "maint check": ["--json", "maint", "check"],
             "cities search": ["--json", "cities", "search", "Yekaterinburg"],
             "airports explain": ["--json", "airports", "explain", "SVX", "MOW"],
-            "route rank": ["--json", "route", "rank", "--input", "candidates.json"],
-            "route validate": [
-                "--json",
-                "route",
-                "validate",
-                "--input",
-                "itinerary.json",
-            ],
         }
 
         for label, argv in docs_argv.items():
@@ -228,7 +191,6 @@ class CliContractTests(unittest.TestCase):
 
         self.assertEqual(args.command_name, "search")
         self.assertEqual(args.provider_policy, "kupibilet")
-        self.assertEqual(args.limit_per_pair, 10)
         self.assertEqual(args.stop_policy, "business-default")
         self.assertEqual(args.profile, "business")
 
@@ -270,7 +232,6 @@ class CliContractTests(unittest.TestCase):
                 "offline_first",
                 "python",
                 "risk_profiles",
-                "route_intel_cache",
                 "runtime_evidence_policy",
                 "safety",
                 "skill",
@@ -346,50 +307,6 @@ class CliContractTests(unittest.TestCase):
                 self.assertEqual(proc.stderr, "")
                 self.assertFalse(payload["ok"])
                 self.assertEqual(payload["error"]["type"], "validation_error")
-
-    def test_agent_report_is_report_attachment_without_output_or_evidence_side_effects(
-        self,
-    ) -> None:
-        args = live_search_args(agent_report=True)
-
-        apply_agent_output_defaults(args)
-
-        self.assertTrue(args.agent_report)
-        self.assertEqual(args.include_candidates, 5)
-        self.assertEqual(args.include_ranked_candidates, 5)
-        self.assertEqual(args.include_rejected_pairs, 20)
-        self.assertEqual(args.include_segment_results, 0)
-        self.assertEqual(args.max_candidates, 50)
-        self.assertEqual(args.aggregate_control_limit, 0)
-
-    def test_agent_brief_trims_payload_without_preset_side_effects(self) -> None:
-        args = live_search_args(agent_brief=True)
-
-        apply_agent_output_defaults(args)
-        trimmed = apply_agent_brief_output(
-            args,
-            {
-                "agent_report": {"answer_lines": ["ok"]},
-                "ranked": [{"id": "noisy"}],
-                "candidates": [{"id": "raw"}],
-            },
-        )
-
-        self.assertTrue(args.agent_report)
-        self.assertEqual(args.aggregate_control_limit, 0)
-        self.assertEqual(args.include_candidates, 5)
-        self.assertEqual(args.max_candidates, 50)
-        self.assertEqual(trimmed, {"agent_report": {"answer_lines": ["ok"]}})
-
-    def test_agent_brief_preserves_explicit_stop_policy_evidence_scope(self) -> None:
-        args = live_search_args(stop_policy="debug-all", agent_brief=True)
-
-        apply_agent_output_defaults(args)
-        policy = stop_policy_from_args(args)
-
-        self.assertTrue(args.agent_report)
-        self.assertEqual(policy.name, "debug_all")
-        self.assertFalse(policy.suppress_three_plus)
 
     def test_json_diagnose_plan_envelope_and_repeatable_hubs(self) -> None:
         request = {

@@ -8,17 +8,22 @@ from flights_cli.reporting.user_answer import (
     build_user_answer,
     validate_user_answer,
 )
-from tests.fixtures.agent_reports import report_with_required_caveats
+from tests.fixtures.agent_reports import (
+    answer_input_from_fixture,
+    report_with_required_caveats,
+)
 
 
 class UserAnswerModuleTests(unittest.TestCase):
     def test_user_answer_module_owns_canonical_builder_names(self) -> None:
         report = report_with_required_caveats()
 
-        answer = user_answer.build_user_answer(report)
+        answer_input = answer_input_from_fixture(report)
+
+        answer = user_answer.build_user_answer(answer_input)
 
         user_answer.validate_user_answer(answer)
-        self.assertEqual(answer, build_user_answer(report))
+        self.assertEqual(answer, build_user_answer(answer_input))
         self.assertEqual(
             answer["schema_version"], current_contract("user_answer")["schema_version"]
         )

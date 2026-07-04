@@ -8,6 +8,7 @@ from flights_cli.execution.probe_dispatcher import SegmentProbeOutcome
 from flights_cli.orchestrators.live_assembly_runner import _direct_evidence_by_direction
 from flights_cli.orchestrators.live_route_assembly import run_live_route_assembly
 from flights_cli.pipeline.search_pipeline import build_live_route_search_flow
+from flights_cli.services.agent_report import build_validated_agent_report
 from flights_cli.store import Store
 from helpers import live_assembly_args
 
@@ -23,14 +24,10 @@ def live_args(**overrides: object):
         "max_segment_searches": 10,
         "live_cache_ttl_seconds": 0,
         "no_live_cache": True,
-        "direct_route_index_ttl_seconds": 0,
-        "no_direct_route_intel": True,
         "include_segment_results": 0,
         "aggregate_control_limit": 0,
         "coverage_mode": "targeted",
         "coverage_control_limit": 12,
-        "agent_report": False,
-        "agent_brief": False,
     }
     defaults.update(overrides)
     return live_assembly_args(**defaults)
@@ -133,9 +130,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
             depart_date="2026-08-16",
             return_date="2026-08-20",
             profile="business",
-            agent_brief=True,
             no_live_cache=True,
-            no_direct_route_intel=True,
         )
 
         flow = build_live_route_search_flow(args)
@@ -152,7 +147,6 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertEqual(flow.flow_decision.evidence_class, "shopping_advisory")
         self.assertEqual(flow.flow_decision.provider_policy, "auto")
         self.assertFalse(flow.evidence_plan.live_cache_enabled)
-        self.assertFalse(flow.evidence_plan.direct_route_intel_enabled)
         self.assertEqual(flow.evidence_plan.max_segment_searches, 300)
 
     def test_live_assembly_runner_uses_typed_flow_without_public_report_shape_change(
@@ -774,12 +768,16 @@ class LiveRoutePipelineTests(unittest.TestCase):
                         ),
                     ):
                         return run_live_route_assembly(
-                            live_args(destination=destination, agent_report=True),
+                            live_args(destination=destination),
                             Store(),
                         )
 
                 baseline = run_with_primary([])
                 with_provider_route = run_with_primary(route_results)
+                baseline_report = build_validated_agent_report(baseline, Store())
+                provider_route_report = build_validated_agent_report(
+                    with_provider_route, Store()
+                )
 
                 search_plan = with_provider_route["live_search"]["diagnostics"][
                     "search_plan"
@@ -816,10 +814,10 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 self.assertIsNone(gateway_plan["empty_reason"])
 
                 self.assertEqual(
-                    set(baseline["agent_report"]["frontier"]), {"decision_frontier"}
+                    set(baseline_report["frontier"]), {"decision_frontier"}
                 )
                 self.assertEqual(
-                    set(with_provider_route["agent_report"]["frontier"]),
+                    set(provider_route_report["frontier"]),
                     {"decision_frontier"},
                 )
 

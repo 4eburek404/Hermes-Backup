@@ -109,7 +109,7 @@ Use request-level date windows when the user asks for all direct/nonstop flights
     "tier2_max_connections": 0,
     "date_window_end": "YYYY-MM-DD"
   },
-  "output": {"agent_brief": true}
+  "output": {"catalog_limit": 10, "direct_catalog_limit": 30}
 }
 ```
 

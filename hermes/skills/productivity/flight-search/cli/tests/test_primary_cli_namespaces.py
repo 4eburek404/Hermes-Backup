@@ -129,9 +129,11 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
                 captured["origin"] = live_assembly_options.route.origin
                 captured["destination"] = live_assembly_options.route.destination
                 captured["command_name"] = live_assembly_options.command_name
-                captured["agent_brief"] = live_assembly_options.output.agent_brief
+                captured["catalog_limit"] = live_assembly_options.output.catalog_limit
+                captured["direct_catalog_limit"] = (
+                    live_assembly_options.output.direct_catalog_limit
+                )
                 return {
-                    "agent_report": {"schema_version": "agent_report.v4"},
                     "live_search": {
                         "offer_graph": {"schema_version": "flight_offer_graph.v1"}
                     },
@@ -141,6 +143,9 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
             with patch(
                 "flights_cli.commands.search.run_live_route_assembly",
                 side_effect=fake_run,
+            ), patch(
+                "flights_cli.commands.search.build_validated_agent_report",
+                return_value={"schema_version": "agent_report.v4"},
             ):
                 result = command_search(args, Store())
 
@@ -150,7 +155,8 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
                 "origin": "SVX",
                 "destination": "LON",
                 "command_name": "search",
-                "agent_brief": True,
+                "catalog_limit": 10,
+                "direct_catalog_limit": 30,
             },
         )
         self.assertEqual(result["schema_version"], "flight_search_result.v3")
