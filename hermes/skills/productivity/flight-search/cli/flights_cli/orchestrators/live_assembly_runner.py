@@ -460,17 +460,6 @@ def _merge_gateway_leg_results(
     return merged
 
 
-def _all_direct_inventory(
-    flow: LiveRouteSearchFlow, decision_frontier: dict[str, Any]
-) -> bool:
-    if not flow.evidence_plan.direct_only:
-        return False
-    options = _decision_options(decision_frontier)
-    if not options:
-        return True
-    return all(int(item.get("connection_count") or 0) == 0 for item in options)
-
-
 def _effective_hard_max_connections(options: LiveAssemblyOptions) -> int:
     if options.route.tier2_max_connections is not None:
         return max(0, int(options.route.tier2_max_connections))
@@ -587,9 +576,7 @@ class LiveSearchResultBuilder:
             "segment_results": [],
             "assembly": {
                 "source": "decision_frontier",
-                "all_direct_inventory": _all_direct_inventory(
-                    state.flow, decision_frontier
-                ),
+                "direct_mode": dict(state.direct_mode),
                 "candidate_count": int(coverage.get("candidate_count") or 0),
                 "ranked_total_count": int(coverage.get("candidate_count") or 0),
                 "ranked_output_count": len(_decision_options(decision_frontier)),

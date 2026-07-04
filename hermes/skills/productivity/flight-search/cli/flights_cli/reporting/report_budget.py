@@ -32,11 +32,11 @@ def apply_agent_report_budget(
     trimmed = copy.deepcopy(report)
     omitted: dict[str, int] = {}
 
-    # When all recommended options are direct flights, keep them all — do not
-    # truncate.  The source-of-truth flag is computed in assemble_direction and
-    # propagated through report["status"]["all_direct_inventory"].
-    all_direct = bool((report.get("status") or {}).get("all_direct_inventory"))
-    skip_recommended_trim = all_direct
+    status = report.get("status") if isinstance(report.get("status"), dict) else {}
+    direct_mode = (
+        status.get("direct_mode") if isinstance(status.get("direct_mode"), dict) else {}
+    )
+    skip_recommended_trim = any(bool(value) for value in direct_mode.values())
 
     if not skip_recommended_trim:
         _trim_top_level_list(

@@ -522,7 +522,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         second["segments"][0]["arrival_at"] = "2026-08-06T08:05:00+03:00"
         report["recommended_options"] = [direct, second]
         report["priority_options"] = []
-        report["status"] = {"all_direct_inventory": True, "direct_omitted": 0}
+        report["status"] = {"direct_mode": {"outbound": True}}
         report["offer_graph"]["truth_language"]["negative_wording"] = (
             "не нашёл в выполненных live/probe источниках; "
             "это не доказательство отсутствия вне границ источника"
@@ -804,7 +804,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         alias["category"] = "moscow_gateway_control"
         report["recommended_options"] = [connected, direct, invalid]
         report["priority_options"] = [alias]
-        report["status"] = {"all_direct_inventory": False, "direct_omitted": 0}
+        report["status"] = {"direct_mode": {}}
 
         with patch(
             "flights_cli.reporting.user_answer.airport_city_label",

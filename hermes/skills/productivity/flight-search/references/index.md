@@ -36,7 +36,7 @@ This file is the canonical map for `flight-search` support references. `SKILL.md
 | Exact airport vs city scope, KupiBilet `MOW`, FLI exact airport, London/Dubai/IST defaults | `provider-aware-airport-priority.md` |
 | Global non-RU must not inherit RU/Moscow controls; market/intent/evidence classification | `pipeline-reference.md` |
 | Current and historical gateway hardcode inventory | `gateway-hardcode-map.md` |
-| Short/missing direct set, direct suppresses connected, `all_direct_inventory`, output caps | `pipeline-reference.md` first; `debug-playbook.md` only if a narrow live control is needed |
+| Short/missing direct set, direct-first gate, connected suppression, output caps | `pipeline-reference.md` first; `debug-playbook.md` only if a narrow live control is needed |
 | Direct/nonstop options across several dates | `direct-date-window.md` |
 | Provider failure, suspected horizon/coverage gap, targeted carrier/direct probe | `debug-playbook.md` |
 | User specifies exact routing (via X→Y→Z), CLI doesn't assemble it | `provider-failover.md` → "Manual leg-by-leg assembly via `diagnose kb-search`" |

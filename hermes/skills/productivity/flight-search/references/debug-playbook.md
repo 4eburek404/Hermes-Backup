@@ -123,7 +123,7 @@ When the report shows fewer direct flights than expected:
    - `data.route_result.live_search.primary_offer_results`;
    - `data.agent_report.frontier.decision_frontier.options`;
    - `data.agent_report.status` / `agent_guidance` if exposed.
-5. Current pipeline writes direct-suppression state in DecisionFrontier and projects it into `report["status"]["all_direct_inventory"]` before budgeting/user-answer construction. If direct offers vanish after that point, debug report projection/budget, not provider availability.
+5. Current pipeline computes the direct-first gate from wave-0 offer evidence and projects active directions into `report["status"]["direct_mode"]` before budgeting/user-answer construction. If direct offers vanish after that point, debug report projection/budget, not provider availability.
 
 Do not claim “provider did not return prices” when a narrow direct probe shows priced direct offers.
 

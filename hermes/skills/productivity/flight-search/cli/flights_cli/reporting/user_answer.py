@@ -138,14 +138,19 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
     two_stop_tier_used = bool(stop_diagnostics.get("used_two_stop_tier"))
 
     is_round_trip_request = route_requested_round_trip(route)
-    all_direct_inventory = bool(
-        (agent_report.get("status") or {}).get("all_direct_inventory")
+    status = (
+        agent_report.get("status")
+        if isinstance(agent_report.get("status"), dict)
+        else {}
+    )
+    direct_mode = (
+        status.get("direct_mode") if isinstance(status.get("direct_mode"), dict) else {}
     )
     catalog = build_catalog_contract(
         recommended,
         priority,
         is_round_trip_request=is_round_trip_request,
-        all_direct_inventory=all_direct_inventory,
+        direct_mode=any(bool(value) for value in direct_mode.values()),
     )
     answer_mode = infer_answer_mode(
         is_round_trip_request=is_round_trip_request, options=catalog.get("items") or []
@@ -155,7 +160,6 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
         "destination": route.get("destination"),
         "dates": route.get("dates") if isinstance(route.get("dates"), dict) else {},
     }
-    direct_omitted = int((agent_report.get("status") or {}).get("direct_omitted") or 0)
     gateway_summary = gateway_coverage_summary(agent_report)
     if answer_mode == "catalog":
         answer_text = render_catalog_answer(
@@ -166,7 +170,6 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
                 "provider_failures": provider_failures,
                 "negative_wording": truth_language.get("negative_wording"),
             },
-            direct_omitted=direct_omitted,
             gateway_summary=gateway_summary,
         )
     else:

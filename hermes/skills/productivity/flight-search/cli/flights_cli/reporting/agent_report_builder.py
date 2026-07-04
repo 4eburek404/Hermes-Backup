@@ -19,6 +19,7 @@ from .user_answer import build_user_answer
 from .projections.human_answer_mirror import build_human_answer_mirror
 from .option_projector import (
     decision_frontier_options,
+    option_from_decision_frontier_item,
 )
 from .catalog_order import catalog_order_key, option_is_user_visible
 from .offer_graph_projector import build_offer_graph
@@ -31,7 +32,7 @@ from .source_boundary_projector import source_boundaries
 from .through_fare_analyzer import through_fare_checks
 
 CATALOG_LIMIT_DEFAULT = 5
-ALL_DIRECT_CATALOG_CAP = 20
+DIRECT_MODE_CATALOG_LIMIT = 30
 
 
 def stop_policy_from_report_data(data: dict[str, Any]) -> StopPolicy:
@@ -793,6 +794,127 @@ def order_frontier_options(
     )
 
 
+def active_direct_mode_directions(
+    live: dict[str, Any], assembly: dict[str, Any]
+) -> list[str]:
+    direct_mode = (
+        assembly.get("direct_mode")
+        if isinstance(assembly.get("direct_mode"), dict)
+        else {}
+    )
+    if not direct_mode:
+        gate = (
+            live.get("direct_presence_gate")
+            if isinstance(live.get("direct_presence_gate"), dict)
+            else {}
+        )
+        direct_mode = (
+            gate.get("direct_mode") if isinstance(gate.get("direct_mode"), dict) else {}
+        )
+    return [
+        direction
+        for direction in ("outbound", "return")
+        if bool(direct_mode.get(direction))
+    ]
+
+
+def _ranked_candidates(data: dict[str, Any]) -> list[dict[str, Any]]:
+    live = data.get("live_search") if isinstance(data.get("live_search"), dict) else {}
+    ranking = (
+        live.get("mixed_candidate_ranking")
+        if isinstance(live.get("mixed_candidate_ranking"), dict)
+        else {}
+    )
+    return [
+        candidate
+        for candidate in ranking.get("ranked_candidates") or []
+        if isinstance(candidate, dict)
+    ]
+
+
+def _ranked_candidate_acceptable(candidate: dict[str, Any]) -> bool:
+    components = (
+        candidate.get("rank_components")
+        if isinstance(candidate.get("rank_components"), dict)
+        else {}
+    )
+    for key in (
+        "hard_constraint_violation",
+        "not_covers_requested_trip",
+        "rejected_or_impossible_connection",
+        "max_connections_per_journey",
+    ):
+        if int(components.get(key) or 0) > 0:
+            return False
+    return bool(candidate.get("covers_requested_trip", True))
+
+
+def _candidate_direction_segments(
+    candidate: dict[str, Any], direction: str
+) -> list[dict[str, Any]]:
+    journeys = candidate.get("journeys") if isinstance(candidate.get("journeys"), list) else []
+    rows: list[dict[str, Any]] = []
+    for journey in journeys:
+        if not isinstance(journey, dict):
+            continue
+        if str(journey.get("direction") or "outbound") != direction:
+            continue
+        rows.extend(
+            segment
+            for segment in journey.get("segments") or []
+            if isinstance(segment, dict)
+        )
+    return rows
+
+
+def _candidate_matches_direct_mode(
+    candidate: dict[str, Any], direct_mode_directions: list[str]
+) -> bool:
+    if str(candidate.get("source_type") or "") == "gateway_separate_ticket":
+        return False
+    for direction in direct_mode_directions:
+        if len(_candidate_direction_segments(candidate, direction)) != 1:
+            return False
+    return True
+
+
+def _direct_mode_departure_key(
+    option: dict[str, Any], direct_mode_directions: list[str]
+) -> tuple[str, int | float, int]:
+    direction_order = direct_mode_directions or ["outbound", "return"]
+    for direction in direction_order:
+        for segment in option_direction_segments(option, direction):
+            departure = str(segment.get("departure_at") or "")
+            if departure:
+                return (
+                    departure,
+                    catalog_order_key(option, is_round_trip_request=False)[-1],
+                    int(option.get("rank") or 0),
+                )
+    return (
+        "",
+        catalog_order_key(option, is_round_trip_request=False)[-1],
+        int(option.get("rank") or 0),
+    )
+
+
+def direct_mode_candidate_options(
+    data: dict[str, Any], direct_mode_directions: list[str]
+) -> list[dict[str, Any]]:
+    options: list[dict[str, Any]] = []
+    for candidate in _ranked_candidates(data):
+        if not _ranked_candidate_acceptable(candidate):
+            continue
+        if not _candidate_matches_direct_mode(candidate, direct_mode_directions):
+            continue
+        option = option_from_decision_frontier_item(
+            {**candidate, "selection_reasons": ["direct_mode_schedule"]}
+        )
+        options.append(option)
+    options.sort(key=lambda item: _direct_mode_departure_key(item, direct_mode_directions))
+    return options[:DIRECT_MODE_CATALOG_LIMIT]
+
+
 def has_lower_stop_viable_option(
     source_options: list[dict[str, Any]], tier2_connections: int
 ) -> bool:
@@ -1020,7 +1142,7 @@ def build_agent_report(
     live = data.get("live_search") if isinstance(data.get("live_search"), dict) else {}
     plan = live.get("plan") if isinstance(live.get("plan"), dict) else {}
     assembly = data.get("assembly") if isinstance(data.get("assembly"), dict) else {}
-    all_direct = bool(assembly.get("all_direct_inventory"))
+    direct_mode_directions = active_direct_mode_directions(live, assembly)
     raw_aggregate_controls = [
         aggregate_control_summary(item)
         for item in live.get("aggregate_controls") or []
@@ -1039,34 +1161,25 @@ def build_agent_report(
         else {}
     )
     frontier_source_options = decision_frontier_options(
-        data, limit=max(ALL_DIRECT_CATALOG_CAP, CATALOG_LIMIT_DEFAULT + 5)
+        data, limit=CATALOG_LIMIT_DEFAULT + 5
     )
-    catalog_limit = (
-        min(len(frontier_source_options), ALL_DIRECT_CATALOG_CAP)
-        if all_direct
-        else CATALOG_LIMIT_DEFAULT
-    )
+    if direct_mode_directions:
+        frontier_source_options = direct_mode_candidate_options(
+            data, direct_mode_directions
+        )
+    catalog_limit = CATALOG_LIMIT_DEFAULT
     ranked_total_count = int(
         decision_coverage.get("candidate_count") or len(frontier_source_options)
     )
-    direct_omitted = (
-        max(
-            0,
-            int(decision_coverage.get("direct_option_count") or 0)
-            - ALL_DIRECT_CATALOG_CAP,
-        )
-        if all_direct
-        else 0
-    )
     requested_round_trip = plan_requests_round_trip(plan)
-    frontier_ordered = order_frontier_options(
-        frontier_source_options,
-        is_round_trip_request=requested_round_trip,
-    )
-    if all_direct:
-        options = frontier_ordered[:catalog_limit]
+    if direct_mode_directions:
+        options = frontier_source_options
         priority_options: list[dict[str, Any]] = []
     else:
+        frontier_ordered = order_frontier_options(
+            frontier_source_options,
+            is_round_trip_request=requested_round_trip,
+        )
         options = frontier_ordered[:1]
         priority_options = frontier_ordered[1:catalog_limit]
     selected_stop_policy = frontier_stop_policy_selection(
@@ -1078,12 +1191,16 @@ def build_agent_report(
     aggregate_controls = filter_aggregate_controls_for_stop_policy(
         raw_aggregate_controls, stop_policy, preferred_available
     )
-    aggregate_priority_options = provider_aggregate_candidate_options(
-        raw_aggregate_controls,
-        limit=5,
-        stop_policy=stop_policy,
-        preferred_available=has_preferred_option(options + priority_options),
-        requested_round_trip=requested_round_trip,
+    aggregate_priority_options = (
+        []
+        if direct_mode_directions
+        else provider_aggregate_candidate_options(
+            raw_aggregate_controls,
+            limit=5,
+            stop_policy=stop_policy,
+            preferred_available=has_preferred_option(options + priority_options),
+            requested_round_trip=requested_round_trip,
+        )
     )
     if aggregate_priority_options:
         priority_options.extend(aggregate_priority_options)
@@ -1133,8 +1250,9 @@ def build_agent_report(
             "candidate_pool_truncated": assembly.get("candidate_pool_truncated"),
             "failure_count": live.get("failure_count", 0),
             "direct_priority_applied": assembly.get("direct_priority_applied", False),
-            "all_direct_inventory": assembly.get("all_direct_inventory", False),
-            "direct_omitted": direct_omitted,
+            "direct_mode": {
+                direction: True for direction in direct_mode_directions
+            },
         },
         "source_boundaries": source_boundaries(),
         "hub_viability": hub_viability_summaries(live),
@@ -1163,11 +1281,7 @@ def build_agent_report(
     if ru_priority_controls is not None:
         report["ru_priority_controls"] = ru_priority_controls
     report["offer_graph"] = build_offer_graph(report, plan, live, data)
-    display_limit = (
-        min(len(options), ALL_DIRECT_CATALOG_CAP)
-        if all_direct
-        else CATALOG_LIMIT_DEFAULT
-    )
+    display_limit = len(options) if direct_mode_directions else CATALOG_LIMIT_DEFAULT
     report["display"] = build_itinerary_display(
         report, store, limit=max(display_limit, CATALOG_LIMIT_DEFAULT)
     )

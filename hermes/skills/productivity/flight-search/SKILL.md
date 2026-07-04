@@ -70,6 +70,8 @@ Provider routing is per probe, not per whole search.
 
 Tutu returns shopping evidence. It can return connected offers and supports pagination through the adapter. Carrier names are normalized through the catalog/aliases, not route-specific code.
 
+When wave-0 primary offers prove direct flights for a direction, the direct-first gate suppresses connected options for that direction unless explicit route constraints override it.
+
 ## Constraints
 
 User constraints are planner inputs before ranking:

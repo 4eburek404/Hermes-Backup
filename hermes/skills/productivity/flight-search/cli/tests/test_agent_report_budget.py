@@ -231,6 +231,24 @@ class AgentReportBudgetTests(unittest.TestCase):
         )
         self.assertEqual(budgeted["omitted_counts"]["recommended_options"], 2)
 
+    def test_direct_mode_keeps_all_recommended_schedule_options(self) -> None:
+        report = valid_report()
+        report["status"] = {"direct_mode": {"outbound": True}}
+        report["recommended_options"] = []
+        for index in range(7):
+            option = valid_option()
+            option["id"] = f"direct-{index}"
+            option["rank"] = index + 1
+            option["segments"] = [noisy_segment(index)]
+            option["max_connections_per_journey"] = 0
+            report["recommended_options"].append(option)
+
+        budgeted = apply_agent_report_budget(report, AgentReportBudget(max_bytes=65536))
+
+        validate_budgeted_flat_report(budgeted)
+        self.assertEqual(len(budgeted["recommended_options"]), 7)
+        self.assertNotIn("recommended_options", budgeted.get("omitted_counts", {}))
+
     def test_budget_prioritizes_blocking_controls_before_provider_boundaries(
         self,
     ) -> None:
