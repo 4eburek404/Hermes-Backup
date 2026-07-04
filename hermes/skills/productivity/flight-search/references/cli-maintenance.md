@@ -78,7 +78,7 @@ The current report/user-answer registry lives in `references/report-contract.md`
 
 Before adding or documenting another final-answer/report surface, classify every touched surface as current, retired/projection, shadow, or proposed according to `references/report-contract.md`. Do not introduce another v1/v2/v3 layer until the ownership map is clear.
 
-Public JSON tests should assert nested `agent_report.v3` paths such as `report["frontier"]["decision_frontier"]["options"]`, not top-level legacy aliases.
+Public JSON tests should assert `agent_report.v4` paths such as `report["frontier"]["decision_frontier"]["options"]` and `report["user_answer"]["rendered_text"]`, not removed flat aliases.
 
 ## CLI Surface and Contract Simplification
 
@@ -86,15 +86,15 @@ Use this when the user asks whether flags, schemas, commands, or agent/user path
 
 Parser registration in `cli.py` owns the runtime command tree. `command_surface.py` is policy/contract metadata for manifest, maintenance, diagnostics, live-provider, and catalog-refresh classification; it must not grow into a second parser registry. Tests that need command coverage should inspect the built `argparse` tree and compare policy metadata against real leaf commands instead of keeping parallel active-command argv maps.
 
-When the user is confused by contract versions, `user_answer`, `user_output`, `final_answer`, `human_answer`, `display`, or `answer_lines`, first audit whether this is a real multi-version implementation or only misleading names. Current durable finding: the active public line is single-path (`agent_report.v3` → `flight_search_user_answer.v6` → `user_answer.rendered_text`); `user_output` and `flight_search_final_answer` are not active code contracts. The confusing surfaces are diagnostics only: `flight_human_answer.v1` is a mirror-only diagnostic projection, `flight_display.v1` is itinerary diagnostics, and diagnostic `answer_lines` are summary lines. Before adding new schemas, add/update a contract registry with logical names (`search_request`, `search_result`, `agent_report`, `user_answer`) and statuses (`current`, `diagnostic_mirror_only`, `diagnostic_projection`, `retired/rejected`, `proposed`) so agents do not reason directly in raw version labels.
+When the user is confused by contract versions or final-answer names, first audit the registry and emitted JSON. Current durable finding: the active public line is single-path (`flight_search_result.v3` → `agent_report.v4` → `flight_search_user_answer.v6` → `user_answer.rendered_text`); `user_output` and `flight_search_final_answer` are not active code contracts. Route debug contracts remain explicit under `data.route_result.live_search`, not inside the public report.
 
-Prefer internal intent-name cleanup before wire-version bumps: canonical user-answer code lives in `reporting/user_answer.py`; diagnostic human-answer mirror code lives in `reporting/projections/human_answer_mirror.py` and must not render independently; diagnostic `answer_lines` are summary lines; `display` is itinerary diagnostics. Do not bump `agent_report.v3` or `flight_search_user_answer.v6` merely to rename Python modules. Bump wire versions only when emitted JSON changes incompatibly.
+Prefer internal intent-name cleanup before wire-version bumps: canonical user-answer code lives in `reporting/user_answer.py`, and route debug traces live under `route_result.live_search`. Bump wire versions only when emitted JSON changes incompatibly.
 
 Separate three concerns before removals:
 
 1. Search/evidence semantics — provider calls, probes, coverage controls.
 2. Decision semantics — assembly, ranking, stop policy, frontier.
-3. Output semantics — JSON size, `agent_report`, `human_answer`, brief rendering.
+3. Output semantics — JSON size, `agent_report`, canonical rendered text, brief rendering.
 
 External CLI practice anchors for this decision:
 
@@ -108,8 +108,8 @@ External CLI practice anchors for this decision:
 
 Rules:
 
-- When the user is already confused by current structure, prioritize **structural cleanup planning before adversarial future-breakage**. A good plan first states the current canonical path, identifies misleading names, and gives a concrete merge/split/rename order. For this CLI, the current canonical cleanup order is: contract registry → `reporting/user_answer.py` owns `flight_search_user_answer.v6` → diagnostic projections live under `reporting/projections/` → `agent_report_projector.py` owns `agent_report.v3` projection without changing the wire version → typed `SearchRequest`/`FlowDecision`/`EvidencePlan` behind `search --request`.
-- For flight-search structural plans, keep one implementation binary first (`flights`) with role namespaces (`flights search`, `flights diagnose`, `flights maint`). Separate executable names such as `flights-diagnose`/`flights-maint` may be aliases later, but should not introduce separate implementation trees. Do not switch parser frameworks or delete `agent_report.v3` just to simplify the plan; retain compatibility until migration tests prove consumers moved.
+- When the user is already confused by current structure, prioritize **structural cleanup planning before adversarial future-breakage**. A good plan first states the current canonical path, identifies misleading names, and gives a concrete merge/split/rename order. For this CLI, the current path is: contract registry → compact `agent_report.v4` builder → `reporting/user_answer.py` owns `flight_search_user_answer.v6` → typed `SearchRequest`/`FlowDecision`/`EvidencePlan` behind `search --request`.
+- For flight-search structural plans, keep one implementation binary first (`flights`) with role namespaces (`flights search`, `flights diagnose`, `flights maint`). Separate executable names such as `flights-diagnose`/`flights-maint` may be aliases later, but should not introduce separate implementation trees.
 - Before approving or implementing a CLI-surface refactor plan, do an adversarial architecture pass **after** the structural cleanup order is clear: try to break it through version/name drift, multiple final-text sources, stdout/stderr error ambiguity, JSON-as-flag-zoo, misclassified `flow_decision`, provider-port bypasses, diagnostic commands becoming production answers, hidden maintenance side effects, source/runtime overwrites, `$ref` packaging failures, schema meta-validation without subprocess output validation, round-trip capability gaps, stale cache caveats, secret/log leakage, executable drift, and premature legacy removal. Label each item as observed seam, existing guardrail, refactor hazard, or current bug; do not present hazards as code facts without provenance. For each break scenario, record the concrete closing rule/test before implementation.
 - Before approving or implementing a CLI-surface refactor plan, audit the dependency order explicitly: source/runtime ownership gate → contract registry/naming cleanup → request/result schema foundation → flow decision/evidence plan → new production `flights search` entrypoint → provider/evidence boundary cleanup → diagnostics/maintenance executable split → legacy removal → skill docs update. Do not delete legacy commands/flags before replacement contracts and migration tests exist.
 - Treat `flow_decision` as a first-class contract seam, not prose: classify `intent_class`, `market_class`, `evidence_class`, routing strategy, provider plan, and limitations before command/provider reasoning. A JSON request without this normalized decision layer only moves the old flag/command ambiguity into JSON.
@@ -118,7 +118,7 @@ Rules:
 - Context7/CPython argparse guidance: keep `add_subparsers(required=True)` at every command level, attach leaf handlers with `set_defaults(func=...)`, and use parent parsers with `add_help=False` for shared option groups instead of copy-pasting flags.
 - Do not treat “agent mode” as one design primitive. It can conflate report attachment, output shape, and evidence budget.
 - Do not solve overload by adding a larger public taxonomy (`none/user/agent/debug/human/json`, `--format`, `--report`, `--evidence`) without a concrete consumer and contract.
-- For agent-only CLI refactors, design the production path as strict machine contract first: `flights search --request request.json --json`, with `flight_search_request.v1` validated before provider calls and a single stdout JSON result envelope validated before printing. Keep `agent_report.v3` and `flight_search_user_answer.v6` as nested active contracts; do not create another independent final-answer prose layer.
+- For agent-only CLI refactors, design the production path as strict machine contract first: `flights search --request request.json --json`, with `flight_search_request.v1` validated before provider calls and a single stdout JSON result envelope validated before printing. Keep `agent_report.v4` and `flight_search_user_answer.v6` as nested active contracts; do not create another independent final-answer prose layer.
 - Keep the canonical user answer path explicit: `data.agent_report.user_answer.rendered_text`. If a result envelope exposes a derived `rendered_text` mirror, tests must prove exact equality with that canonical field.
 - Split agent-facing surfaces by operational role: production live search (`flights`), diagnostics/evidence/raw probes (`flights-diagnose`), and maintenance/source-runtime/catalog/cleanup (`flights-maint`). Provider-specific probes, raw candidates, rejected pairs, trace, coverage controls, and offline route internals belong in diagnostics, not ordinary search.
 - `--agent-report` should be a thin wrapper that attaches/validates `data.agent_report` without changing search budget.
@@ -177,9 +177,9 @@ Use this when operational logic in `SKILL.md` starts compensating for determinis
 
 ## Human/User Answer Renderer Maintenance
 
-Use this when improving final user-visible flight output. The current seam is `data.agent_report.user_answer` → `flight_search_user_answer.v6` → `user_answer.rendered_text` → final Telegram/Markdown answer. `diagnostics.human_answer` is a mirror-only diagnostic projection and must not render, fallback, or be used as an alternative final-prose source.
+Use this when improving final user-visible flight output. The current seam is `data.agent_report.user_answer` → `flight_search_user_answer.v6` → `user_answer.rendered_text` → final Telegram/Markdown answer.
 
-- Implement user-answer contract changes in `cli/flights_cli/reporting/user_answer.py`; `reporting/projections/human_answer_mirror.py` and `output.py` may only mirror or select `user_answer.rendered_text`.
+- Implement user-answer contract changes in `cli/flights_cli/reporting/user_answer.py`; output selection may only use `user_answer.rendered_text`.
 - Preserve provider neutrality: renderer input is normalized report fields, not provider client objects, booking URLs, cache semantics, or provider caveat text.
 - Test negative format guarantees: no `agent report:`, `Best CLI-ranked option`, `Coverage diagnostics`, `provider_aggregate_candidate`, `provider-aggregate:`, pipe tables, raw `probe_id`, raw risk badges (`single_pnr_unproven`, `baggage_unknown`), or English caveats (`single PNR`, `through fare`, `booking screen`) in user-facing text.
 - For every positive catalog answer, use one deterministic compact multiline shape from `catalog.items[*].agent_display`: first line is `N. FLIGHT DD.MM Origin city - Destination city HH:MM HH:MM (arrival DD.MM when different) AIRCRAFT в пути H:MM`; continuation segment lines and the price line are indented by four spaces. Do not create a second compact pipe renderer in diagnostics.
@@ -189,7 +189,7 @@ Use this when improving final user-visible flight output. The current seam is `d
 Focused renderer/contract suite after renderer changes:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests:. python3 -m pytest   tests/test_human_answer_mirror.py   tests/test_agent_report_contract.py   tests/test_user_answer_contract.py   tests/test_catalog_answer_contract.py   tests/test_flight_display.py   tests/test_provider_aggregate_candidates.py -q
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests:. python3 -m pytest   tests/test_agent_report_contract.py   tests/test_user_answer_contract.py   tests/test_catalog_answer_contract.py   tests/test_coverage_diagnostics.py   tests/test_provider_aggregate_candidates.py -q
 ```
 
 Then run the full flight-search suite before reporting completion when behavior changed.
@@ -199,7 +199,7 @@ Then run the full flight-search suite before reporting completion when behavior 
 - Mixing source, runtime, and temporary checkouts without naming the evidence layer.
 - Calling a refactor “complete” while source/runtime parity still has semantic diffs.
 - Letting `--agent-*` compatibility flags become a larger public flag matrix instead of separating search/evidence, decision, and output concerns internally.
-- Treating MCP `outputSchema`, prompt text, or debug mirrors (`diagnostics.human_answer`, `diagnostics.display`, `diagnostics.answer_lines`) as the domain contract; the enforceable layer lives in `references/report-contract.md` plus schema/builder/validator/tests.
+- Treating MCP `outputSchema`, prompt text, or route debug traces as the domain contract; the enforceable layer lives in `references/report-contract.md` plus schema/builder/validator/tests.
 - Reintroducing provider execution shortcuts: segment and aggregate probes should go through provider adapters/ports, not direct provider-specific branches in `execution/*`.
 - Treating `--agent-brief` as permission to narrow evidence scope. It may trim output only; explicit evidence/search controls must still be honored.
 - During dead-code cleanup, classify `Protocol` ellipsis methods as interface declarations, not runtime stubs; use layer-specific names for helpers with different responsibilities.

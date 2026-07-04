@@ -193,3 +193,49 @@ def build_coverage_diagnostics(
 
     ledger.finalize_unexecuted()
     return ledger.to_coverage_diagnostics(plan)
+
+
+def compact_coverage_summary(
+    diagnostics: dict[str, Any], provider_failures: list[dict[str, Any]]
+) -> dict[str, Any]:
+    completeness = (
+        diagnostics.get("completeness")
+        if isinstance(diagnostics.get("completeness"), dict)
+        else {}
+    )
+    counts = {
+        bucket: len(diagnostics.get(bucket) or [])
+        for bucket in CONTROL_BUCKETS
+        if isinstance(diagnostics.get(bucket), list)
+    }
+    not_executed = diagnostics.get("not_executed_controls")
+    failed = diagnostics.get("failed_controls")
+    not_supported = diagnostics.get("not_supported_controls")
+    blocking_evidence: list[str] = []
+    if isinstance(not_executed, list) and not_executed:
+        blocking_evidence.append("not_executed_controls")
+    if isinstance(failed, list) and failed:
+        blocking_evidence.append("failed_controls")
+    if provider_failures:
+        blocking_evidence.append("provider_failures")
+    non_blocking_boundaries = (
+        ["not_supported_controls"]
+        if isinstance(not_supported, list) and not_supported
+        else []
+    )
+    return {
+        "coverage_mode": diagnostics.get("coverage_mode"),
+        "negative_evidence_type": diagnostics.get("negative_evidence_type"),
+        "coverage_warnings": diagnostics.get("coverage_warnings") or [],
+        "limits": diagnostics.get("limits") or {},
+        "counts": counts,
+        "completeness": {
+            "planned_count": int(completeness.get("planned_count") or 0),
+            "terminal_count": int(completeness.get("terminal_count") or 0),
+            "all_planned_controls_have_terminal_state": bool(
+                completeness.get("all_planned_controls_have_terminal_state")
+            ),
+        },
+        "blocking_evidence": blocking_evidence,
+        "non_blocking_boundaries": non_blocking_boundaries,
+    }

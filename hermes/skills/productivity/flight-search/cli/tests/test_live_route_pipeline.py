@@ -820,11 +820,8 @@ class LiveRoutePipelineTests(unittest.TestCase):
                     "rendered_text"
                 ]
                 self.assertTrue(baseline_text)
-                self.assertIn("Проверил 1 gateway: IST.", baseline_text)
-                self.assertIn(
-                    "Проверил KupiBilet по всему маршруту и 1 gateway: IST.",
-                    with_provider_text,
-                )
+                self.assertNotIn("gateway_discovery", baseline_text)
+                self.assertNotIn("restricted_bridge_gateways", baseline_text)
                 self.assertNotIn("provider_returned_route", with_provider_text)
                 self.assertNotIn("restricted_bridge_gateways", with_provider_text)
 

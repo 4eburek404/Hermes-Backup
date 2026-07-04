@@ -49,9 +49,9 @@ Read only JSON payloads for decisions. If logs surround JSON, extract the envelo
 Decision read order is in `report-contract.md`; compact debug order:
 
 1. `data.agent_report.agent_guidance` — command, answer path, readiness, blocking evidence.
-2. `data.agent_report.frontier.offer_graph` — constraints, collection, evidence, missing evidence, truth language.
+2. `data.route_result.live_search.offer_graph` — constraints, collection, evidence, missing evidence, truth language.
 3. `data.agent_report.user_answer.rendered_text` — canonical final rendering.
-4. `frontier.recommended_options` / `priority_options` — decision-critical options and controls.
+4. `data.agent_report.user_answer.catalog.items` and `frontier.decision_frontier` — decision-critical options and controls.
 5. `evidence.*` — through-fare checks, provider failures, source boundaries, coverage diagnostics.
 6. `diagnostics.*` — debug only.
 

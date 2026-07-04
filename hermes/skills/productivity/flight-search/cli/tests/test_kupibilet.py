@@ -784,7 +784,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         )
         report = result["agent_report"]
         self.assertEqual(
-            report["evidence"]["coverage_diagnostics"]["not_executed_controls"], []
+            report["evidence"]["coverage"]["counts"]["not_executed_controls"], 0
         )
         self.assertEqual(report["evidence"]["through_fare_checks"][0]["carrier"], "SU")
 

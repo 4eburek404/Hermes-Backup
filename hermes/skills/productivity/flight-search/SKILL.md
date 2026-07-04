@@ -23,7 +23,7 @@ cd "$HERMES_HOME"/skills/productivity/flight-search/cli
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request "$HOME/flight-search-request.json"
 ```
 
-Use the rendered answer from `data.agent_report.user_answer.rendered_text` or `data.route_result.agent_report.user_answer.rendered_text`. Do not answer from raw provider JSON when the frontier/report is present.
+Use the rendered answer from `data.agent_report.user_answer.rendered_text`. Do not answer from raw provider JSON when the frontier/report is present.
 
 Minimal request:
 
@@ -54,7 +54,7 @@ request
   -> OfferGraph
   -> DecisionScorer
   -> DecisionFrontier
-  -> agent_report.v3 + user_answer.v6
+  -> flight_search_result.v3 + agent_report.v4 + user_answer.v6
 ```
 
 There is no legacy assembly fallback. `RoutePlanBuilder`, old `services/assembly`, synthetic controls, and old `ranked_candidates/frontier_candidates` answer paths are not runtime sources.
@@ -92,7 +92,7 @@ Use report fields for evidence and absence language:
 - Empty provider output is not proof that no flight exists outside executed probes.
 - Static catalogs, cached metadata, and diagnostics do not prove availability.
 - Named airports are not city scope unless the request or report explicitly broadens scope.
-- For round trips, frontier options are outbound+return pairs; unpaired directional evidence belongs in diagnostics.
+- For round trips, frontier options are outbound+return pairs; unpaired directional evidence stays in route diagnostics, not in the public answer.
 
 Details: `references/report-contract.md`, `references/source-boundaries.md`, and `references/pipeline-reference.md`.
 

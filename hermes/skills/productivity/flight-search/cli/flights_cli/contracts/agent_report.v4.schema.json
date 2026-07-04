@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:hermes:flights-cli:agent-report:v4",
+  "title": "Hermes Flights CLI Agent Report v4",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "route", "evidence", "frontier", "user_answer", "agent_guidance"],
+  "properties": {
+    "schema_version": {"const": "agent_report.v4"},
+    "route": {"$ref": "#/$defs/route"},
+    "evidence": {"$ref": "#/$defs/compact_evidence"},
+    "frontier": {"$ref": "#/$defs/frontier"},
+    "user_answer": {"type": "object"},
+    "agent_guidance": {"$ref": "#/$defs/agent_guidance"}
+  },
+  "$defs": {
+    "route": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["origin", "destination", "dates"],
+      "properties": {
+        "origin": {"type": ["string", "null"]},
+        "destination": {"type": ["string", "null"]},
+        "origin_airports": {"type": "array"},
+        "destination_airports": {"type": "array"},
+        "dates": {"type": "object"},
+        "profile": {"type": ["string", "null"]},
+        "routing_strategy": {"type": ["string", "null"]},
+        "provider_policy": {"type": ["string", "null"]},
+        "flow_decision": {"type": "object"},
+        "evidence_plan": {"type": "object"}
+      }
+    },
+    "compact_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_boundaries", "coverage", "provider_failures", "through_fare_checks", "direct_flights"],
+      "properties": {
+        "source_boundaries": {"type": "array", "items": {"type": "string"}},
+        "coverage": {"$ref": "#/$defs/compact_coverage"},
+        "provider_failures": {"type": "array"},
+        "through_fare_checks": {"type": "array"},
+        "direct_flights": {"type": "array"},
+        "ru_priority_controls": {"type": "object"},
+        "date_window_inventory": {"type": "object"}
+      }
+    },
+    "compact_coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coverage_mode",
+        "negative_evidence_type",
+        "coverage_warnings",
+        "limits",
+        "counts",
+        "completeness",
+        "blocking_evidence",
+        "non_blocking_boundaries"
+      ],
+      "properties": {
+        "coverage_mode": {"type": ["string", "null"]},
+        "negative_evidence_type": {"type": ["string", "null"]},
+        "coverage_warnings": {"type": "array"},
+        "limits": {"type": "object"},
+        "counts": {"type": "object", "additionalProperties": {"type": "integer"}},
+        "completeness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["planned_count", "terminal_count", "all_planned_controls_have_terminal_state"],
+          "properties": {
+            "planned_count": {"type": "integer"},
+            "terminal_count": {"type": "integer"},
+            "all_planned_controls_have_terminal_state": {"type": "boolean"}
+          }
+        },
+        "blocking_evidence": {"type": "array", "items": {"type": "string"}},
+        "non_blocking_boundaries": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "frontier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision_frontier"],
+      "properties": {
+        "decision_frontier": {"type": "object"}
+      }
+    },
+    "agent_guidance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "primary_command",
+        "canonical_answer_path",
+        "answer_readiness",
+        "execution_complete",
+        "evidence_complete",
+        "blocking_evidence",
+        "non_blocking_boundaries",
+        "next_actions"
+      ],
+      "properties": {
+        "primary_command": {"const": "search --request"},
+        "canonical_answer_path": {"const": "data.agent_report.user_answer.rendered_text"},
+        "answer_readiness": {
+          "enum": ["answerable", "answerable_with_caveats", "needs_more_evidence"]
+        },
+        "execution_complete": {"type": "boolean"},
+        "evidence_complete": {"type": "boolean"},
+        "blocking_evidence": {"type": "array", "items": {"type": "string"}},
+        "non_blocking_boundaries": {"type": "array", "items": {"type": "string"}},
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["id", "reason"],
+            "properties": {
+              "id": {"type": "string"},
+              "reason": {"type": "string"},
+              "request_patch": {"type": "object"},
+              "answer_path": {"type": "string"},
+              "external_evidence_required": {"type": "boolean"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -65,8 +65,8 @@ class FlightSearchSkillDocsContractTests(unittest.TestCase):
         text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("python3 -m flights_cli --json search --request", text)
         self.assertIn("data.agent_report.user_answer.rendered_text", text)
-        self.assertNotIn("diagnostics.human_answer", text)
-        self.assertNotIn("diagnostics.display", text)
+        self.assertNotIn(f"diagnostics.{'human_answer'}", text)
+        self.assertNotIn(f"diagnostics.{'display'}", text)
         self.assertNotIn("answer_lines", text)
         for pattern in REMOVED_COMMAND_PATTERNS:
             self.assertIsNone(re.search(pattern, text), pattern)

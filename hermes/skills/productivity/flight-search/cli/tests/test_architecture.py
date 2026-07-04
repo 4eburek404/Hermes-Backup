@@ -126,10 +126,10 @@ class ArchitectureTests(unittest.TestCase):
         self.assertEqual(sorted(moscow["airports"]), ["DME", "SVO", "VKO"])
 
     def test_report_contract_primary_fields_exist(self) -> None:
-        # offer_graph, frontier, missing_evidence, truth_language, rendered_text
-        # are structural fields in the report/answer path, not just prose.
+        # Runtime offer_graph stays under route_result.live_search; public
+        # agent_report exposes decision_frontier and canonical rendered_text only.
         from flights_cli.reporting.user_answer import build_user_answer
-        from flights_cli.reporting.offer_graph_projector import build_offer_graph
+        from flights_cli.pipeline.offer_graph import build_offer_graph
 
         # Verify these are callable code-level functions, not just prose references.
         self.assertTrue(callable(build_user_answer))
@@ -152,11 +152,11 @@ class ArchitectureTests(unittest.TestCase):
         self.assertEqual(
             schema_names,
             [
-                "agent_report.v3.schema.json",
+                "agent_report.v4.schema.json",
                 "flight_offer_graph.v1.schema.json",
                 "flight_search_plan.v1.schema.json",
                 "flight_search_request.v1.schema.json",
-                "flight_search_result.v2.schema.json",
+                "flight_search_result.v3.schema.json",
                 "flight_search_user_answer.v6.schema.json",
             ],
         )

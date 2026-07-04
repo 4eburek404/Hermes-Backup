@@ -9,8 +9,8 @@ from ..orchestrators.live_route_assembly import build_live_route_segment_plan
 from ..orchestrators.search_plan_builder import build_search_plan
 from ..pipeline.search_pipeline import build_live_route_search_flow
 from ..pipeline.specs import probe_specs_from_segments, segment_specs_from_plan
-from ..reporting.projections.human_answer_mirror import build_human_answer_mirror
-from ..reporting.user_answer import build_user_answer
+from ..reporting.user_answer import validate_user_answer
+from ..errors import CliError
 from ..store import Store
 from .metadata import metadata_evidence_scope
 from .search import (
@@ -78,12 +78,22 @@ def command_diagnose_render(args: argparse.Namespace, store: Store) -> dict[str,
         else None
     )
     if user_answer is None:
-        user_answer = build_user_answer(report)
-    mirror_report = {**report, "user_answer": user_answer}
-    human_answer = build_human_answer_mirror(mirror_report)
+        raise CliError(
+            "diagnose render requires data.agent_report.user_answer",
+            error_type="validation_error",
+        )
+    validation: dict[str, Any] = {"ok": True, "errors": []}
+    try:
+        validate_user_answer(user_answer)
+    except CliError as exc:
+        validation = {
+            "ok": False,
+            "errors": (exc.details or {}).get("errors") or [],
+        }
     return {
         "schema_version": "flight_search_render_diagnostic.v1",
         "agent_report_schema_version": report.get("schema_version"),
-        "human_answer": human_answer,
         "user_answer": user_answer,
+        "rendered_text": user_answer.get("rendered_text"),
+        "validation": validation,
     }

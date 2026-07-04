@@ -6,10 +6,10 @@ Concise manual for the flight-search skill-owned CLI. The skill's Golden Path is
 
 - Route/date/IATA normalization and bounded live assembly.
 - Airport compatibility checks for same-airport and cross-airport connections.
-- Candidate generation, stop-policy filtering, ranking, and compact report projection.
+- Candidate generation, stop-policy filtering, ranking, and compact report assembly.
 - Direct, carrier, aggregate, and coverage controls when the current provider policy calls for them.
 - Static metadata lookup for city, airport, country/region, airline, alliance, and aircraft labels.
-- A compact `data.agent_report` for agents, including display lines, recommended options, priority controls, provider failures, through-fare checks, and source boundaries.
+- A compact `data.agent_report` for agents, including `frontier.decision_frontier`, compact evidence, canonical `user_answer`, guidance, provider failures, through-fare checks, and source boundaries.
 
 The CLI does not book, buy, or write to Hermes runtime state.
 
@@ -100,13 +100,15 @@ python3 -m flights_cli --json search --request /tmp/flight-search-request.json
 
 Read only `data.agent_report` for the user answer. Primary serialized paths:
 
-- `frontier.offer_graph`
 - `user_answer.rendered_text`
-- `frontier.recommended_options`
-- `frontier.priority_options`
+- `user_answer.catalog.items`
+- `frontier.decision_frontier`
+- `evidence.coverage`
 - `evidence.through_fare_checks`
 - `evidence.provider_failures`
 - `evidence.source_boundaries`
+
+Full graph/debug traces stay under `data.route_result.live_search.offer_graph` and `data.route_result.live_search.diagnostics`, not inside the public agent report.
 
 `search --request` searches and compares route options for the default scope of one adult in economy. It does not buy or book tickets, and final fare, baggage-through, refund/change conditions, disruption protection, and single-PNR claims require purchase-screen, airline/GDS, seller, or explicit upstream proof.
 

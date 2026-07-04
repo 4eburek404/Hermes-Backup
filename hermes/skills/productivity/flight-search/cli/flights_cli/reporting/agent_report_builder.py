@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..config import SPECIAL_CITY_AIRPORTS, catalog_output_limits_from_mapping
+from ..contracts.registry import current_contract
 from ..domain.vocabulary import Direction, Leg, RouteFamily, RoutingStrategy
 from ..domain.stop_metrics import offer_stop_metrics
 from ..domain.stop_policy import (
@@ -11,13 +12,9 @@ from ..domain.stop_policy import (
     decide_stop_policy,
     stop_policy_payload,
 )
-from .projections.summary_lines import build_summary_lines
-from .coverage_projector import build_coverage_diagnostics
-from .projections.itinerary_display import build_itinerary_display
-from .agent_report_projector import AGENT_REPORT_SCHEMA_VERSION, project_agent_report
+from .coverage import build_coverage_diagnostics, compact_coverage_summary
 from .user_answer import build_user_answer
-from .projections.human_answer_mirror import build_human_answer_mirror
-from .option_projector import (
+from .decision_options import (
     decision_frontier_options,
     option_from_decision_frontier_item,
 )
@@ -27,14 +24,15 @@ from .catalog_order import (
     option_is_user_visible,
     option_price_amount,
 )
-from .offer_graph_projector import build_offer_graph
-from .provider_aggregate_projector import (
+from .provider_aggregate_controls import (
     aggregate_control_summary,
     provider_aggregate_candidate_options,
 )
-from .report_budget import apply_agent_report_budget
-from .source_boundary_projector import source_boundaries
+from .source_boundaries import source_boundaries
 from .through_fare_analyzer import through_fare_checks
+
+
+AGENT_REPORT_SCHEMA_VERSION = current_contract("agent_report")["schema_version"]
 
 
 def stop_policy_from_report_data(data: dict[str, Any]) -> StopPolicy:
@@ -197,32 +195,6 @@ def merge_stop_policy_diagnostics(
     return diagnostics
 
 
-def rejected_pair_warnings(
-    data: dict[str, Any], limit: int = 5
-) -> list[dict[str, Any]]:
-    warnings = []
-    for item in (data.get("rejected_pairs") or [])[: max(0, limit)]:
-        if not isinstance(item, dict):
-            continue
-        warnings.append(
-            {
-                "direction": item.get("direction"),
-                "reason": item.get("reason"),
-                "airport_pair_status": item.get("airport_pair_status"),
-                "arrival_airport": item.get("arrival_airport"),
-                "departure_airport": item.get("departure_airport"),
-                "actual_min": item.get("actual_min"),
-                "required_min": item.get("required_min"),
-                "price": {
-                    "amount": item.get("price"),
-                    "currency": item.get("currency"),
-                },
-                "notes": item.get("notes") or [],
-            }
-        )
-    return warnings
-
-
 def provider_failure_summary(failure: dict[str, Any]) -> dict[str, Any]:
     error = failure.get("error") if isinstance(failure.get("error"), dict) else {}
     error_summary = {
@@ -259,64 +231,101 @@ def provider_failures(live: dict[str, Any], limit: int = 10) -> list[dict[str, A
     ]
 
 
-def primary_offer_results(
-    live: dict[str, Any], limit: int = 20
-) -> list[dict[str, Any]]:
-    return [
-        dict(item)
-        for item in (live.get("primary_offer_results") or [])[: max(0, limit)]
-        if isinstance(item, dict)
+def answer_readiness(coverage: dict[str, Any]) -> str:
+    if bool(coverage.get("evidence_complete")):
+        return "answerable"
+    if bool(coverage.get("execution_complete")):
+        return "answerable_with_caveats"
+    return "needs_more_evidence"
+
+
+def compact_evidence_status(coverage: dict[str, Any]) -> dict[str, Any]:
+    completeness = (
+        coverage.get("completeness")
+        if isinstance(coverage.get("completeness"), dict)
+        else {}
+    )
+    blocking = [
+        str(value)
+        for value in coverage.get("blocking_evidence") or []
+        if str(value).strip()
     ]
+    execution_complete = bool(
+        completeness.get("all_planned_controls_have_terminal_state")
+    )
+    return {
+        "execution_complete": execution_complete,
+        "evidence_complete": execution_complete and not blocking,
+        "blocking_evidence": blocking,
+        "non_blocking_boundaries": [
+            str(value)
+            for value in coverage.get("non_blocking_boundaries") or []
+            if str(value).strip()
+        ],
+    }
 
 
-def carrier_scope_list(value: Any) -> list[Any]:
-    if value is None:
-        return []
-    if isinstance(value, list):
-        return value
-    if isinstance(value, tuple):
-        return list(value)
-    return [value]
-
-
-def segment_search_summaries(live: dict[str, Any]) -> list[dict[str, Any]]:
-    return [
-        {
-            "direction": item.get("direction"),
-            "leg": item.get("leg"),
-            "origin": item.get("origin"),
-            "destination": item.get("destination"),
-            "date": item.get("date"),
-            "route_family": item.get("route_family"),
-            "priority": item.get("priority"),
-            "only_carriers": carrier_scope_list(item.get("only_carriers")),
-            "preferred_carriers": carrier_scope_list(item.get("preferred_carriers")),
-            "provider_request_strategy": item.get("provider_request_strategy"),
-            "provider_city_code": item.get("provider_city_code"),
-            "provider": item.get("provider"),
-            "status": item.get("status"),
-            "reason": item.get("reason"),
-            "offer_count": item.get("offer_count"),
-            "cache_status": item.get("cache_status"),
-            "probe_id": item.get("probe_id"),
-            "original_probe_id": item.get("original_probe_id"),
-        }
-        for item in (live.get("segment_searches") or [])[:20]
-        if isinstance(item, dict)
-    ]
-
-
-def hub_viability_summaries(live: dict[str, Any]) -> list[dict[str, Any]]:
-    return [
-        {
-            "hub": item.get("hub"),
-            "viable": item.get("viable"),
-            "total_offer_count": item.get("total_offer_count"),
-            "missing_legs": item.get("missing_legs") or [],
-        }
-        for item in live.get("hub_viability") or []
-        if isinstance(item, dict)
-    ]
+def build_agent_guidance(
+    *,
+    route: dict[str, Any],
+    coverage: dict[str, Any],
+    through_fare_check_items: list[dict[str, Any]],
+) -> dict[str, Any]:
+    evidence_status = compact_evidence_status(coverage)
+    actions: list[dict[str, Any]] = []
+    if "not_executed_controls" in evidence_status["blocking_evidence"]:
+        evidence_plan = (
+            route.get("evidence_plan")
+            if isinstance(route.get("evidence_plan"), dict)
+            else {}
+        )
+        current_limit = int(evidence_plan.get("max_segment_searches") or 300)
+        actions.append(
+            {
+                "id": "rerun_with_larger_execution_budget",
+                "reason": "not_executed_controls",
+                "request_patch": {
+                    "evidence": {
+                        "max_segment_searches": max(current_limit * 2, current_limit + 1),
+                        "no_live_cache": True,
+                    }
+                },
+            }
+        )
+    if any(
+        item in evidence_status["blocking_evidence"]
+        for item in ("failed_controls", "provider_failures")
+    ):
+        actions.append(
+            {
+                "id": "rerun_fresh_without_cache",
+                "reason": "provider_failures_or_failed_controls",
+                "request_patch": {"evidence": {"no_live_cache": True, "timeout": 90}},
+            }
+        )
+    if through_fare_check_items:
+        actions.append(
+            {
+                "id": "verify_purchase_screen_or_airline_gds",
+                "reason": "ticketing_or_through_fare_proof_required",
+                "external_evidence_required": True,
+            }
+        )
+    if not actions and evidence_status["evidence_complete"]:
+        actions.append(
+            {
+                "id": "answer_from_canonical_rendered_text",
+                "reason": "evidence_complete",
+                "answer_path": current_contract("user_answer")["canonical_text_path"],
+            }
+        )
+    return {
+        "primary_command": "search --request",
+        "canonical_answer_path": current_contract("user_answer")["canonical_text_path"],
+        "answer_readiness": answer_readiness(evidence_status),
+        **evidence_status,
+        "next_actions": actions,
+    }
 
 
 def normalize_airport_values(
@@ -1349,6 +1358,7 @@ def build_ru_priority_controls(
 def build_agent_report(
     data: dict[str, Any], store: Any | None = None
 ) -> dict[str, Any]:
+    del store
     live = data.get("live_search") if isinstance(data.get("live_search"), dict) else {}
     output_limits = catalog_output_limits_from_mapping(
         live.get("output") if isinstance(live.get("output"), dict) else None
@@ -1440,71 +1450,78 @@ def build_agent_report(
     tier2_destination = (
         tier2_segments[-1].get("destination") if tier2_segments else None
     )
-    report = {
-        "schema_version": AGENT_REPORT_SCHEMA_VERSION,
-        "route": {
-            "origin": plan.get("origin") or tier2_origin,
-            "destination": plan.get("destination") or tier2_destination,
-            "origin_airports": plan.get("origin_airports") or [],
-            "destination_airports": plan.get("destination_airports") or [],
-            "dates": plan.get("dates") or {},
-            "profile": data.get("profile") or plan.get("profile"),
-            "routing_strategy": plan.get("routing_strategy"),
-            "provider_policy": live.get("provider_policy"),
-            "flow_decision": plan_flow_decision
-            if isinstance(plan_flow_decision, dict)
-            else {},
-            "evidence_plan": plan_evidence_plan
-            if isinstance(plan_evidence_plan, dict)
-            else {},
-        },
-        "status": {
-            "ranked_output_count": assembly.get(
-                "ranked_output_count", len(data.get("ranked") or [])
-            ),
-            "ranked_total_count": ranked_total_count,
-            "candidate_count": assembly.get("candidate_count"),
-            "candidate_pool_truncated": assembly.get("candidate_pool_truncated"),
-            "failure_count": live.get("failure_count", 0),
-            "direct_priority_applied": assembly.get("direct_priority_applied", False),
-            "direct_mode": {direction: True for direction in direct_mode_directions},
-            "output_limits": output_limits.to_dict(),
-        },
-        "source_boundaries": source_boundaries(),
-        "hub_viability": hub_viability_summaries(live),
-        "segment_searches": segment_search_summaries(live),
-        "provider_failures": provider_failures(live),
-        "primary_offer_results": primary_offer_results(live),
-        "gateway_leg_results": live.get("gateway_leg_results")
-        if isinstance(live.get("gateway_leg_results"), dict)
+    route = {
+        "origin": plan.get("origin") or tier2_origin,
+        "destination": plan.get("destination") or tier2_destination,
+        "origin_airports": plan.get("origin_airports") or [],
+        "destination_airports": plan.get("destination_airports") or [],
+        "dates": plan.get("dates") or {},
+        "profile": data.get("profile") or plan.get("profile"),
+        "routing_strategy": plan.get("routing_strategy"),
+        "provider_policy": live.get("provider_policy"),
+        "flow_decision": plan_flow_decision
+        if isinstance(plan_flow_decision, dict)
         else {},
-        "decision_frontier": decision_frontier,
+        "evidence_plan": plan_evidence_plan
+        if isinstance(plan_evidence_plan, dict)
+        else {},
+    }
+    compact_failures = provider_failures(live)
+    coverage = compact_coverage_summary(coverage_diagnostics, compact_failures)
+    through_fare_check_items = through_fare_checks(
+        aggregate_controls, [*options, *priority_options]
+    )
+    status = {
+        "ranked_output_count": assembly.get(
+            "ranked_output_count", len(data.get("ranked") or [])
+        ),
+        "ranked_total_count": ranked_total_count,
+        "candidate_count": assembly.get("candidate_count"),
+        "candidate_pool_truncated": assembly.get("candidate_pool_truncated"),
+        "failure_count": live.get("failure_count", 0),
+        "direct_priority_applied": assembly.get("direct_priority_applied", False),
+        "direct_mode": {direction: True for direction in direct_mode_directions},
+        "output_limits": output_limits.to_dict(),
+    }
+    answer_input = {
+        "route": route,
+        "status": status,
+        "source_boundaries": source_boundaries(),
+        "provider_failures": compact_failures,
         "recommended_options": options,
         "priority_options": priority_options,
-        "aggregate_controls": aggregate_controls,
         "coverage_diagnostics": coverage_diagnostics,
         "stop_policy": stop_policy_payload(stop_policy),
         "stop_policy_diagnostics": stop_policy_diagnostics,
-        "through_fare_checks": through_fare_checks(
-            aggregate_controls, [*options, *priority_options]
-        ),
-        "rejected_pair_warnings": rejected_pair_warnings(data, limit=5),
-        "direct_flights": assembly.get("direct_flights", []),
+        "through_fare_checks": through_fare_check_items,
+        "constraint_conflict": constraint_conflict,
+        "offer_graph": live.get("offer_graph")
+        if isinstance(live.get("offer_graph"), dict)
+        else {},
     }
     if constraint_conflict is not None:
-        report["constraint_conflict"] = constraint_conflict
-        report["status"]["constraint_conflict"] = constraint_conflict
+        status["constraint_conflict"] = constraint_conflict
     date_window_inventory = live.get("date_window_inventory")
+    evidence: dict[str, Any] = {
+        "source_boundaries": answer_input["source_boundaries"],
+        "coverage": coverage,
+        "provider_failures": compact_failures,
+        "through_fare_checks": through_fare_check_items,
+        "direct_flights": assembly.get("direct_flights", []),
+    }
     if isinstance(date_window_inventory, dict):
-        report["date_window_inventory"] = date_window_inventory
+        evidence["date_window_inventory"] = date_window_inventory
     if ru_priority_controls is not None:
-        report["ru_priority_controls"] = ru_priority_controls
-    report["offer_graph"] = build_offer_graph(report, plan, live, data)
-    display_limit = len(options) if direct_mode_directions else catalog_limit
-    report["display"] = build_itinerary_display(
-        report, store, limit=max(display_limit, catalog_limit)
-    )
-    report["answer_lines"] = build_summary_lines(report)
-    report["user_answer"] = build_user_answer(report)
-    report["human_answer"] = build_human_answer_mirror(report)
-    return project_agent_report(apply_agent_report_budget(report))
+        evidence["ru_priority_controls"] = ru_priority_controls
+    return {
+        "schema_version": AGENT_REPORT_SCHEMA_VERSION,
+        "route": route,
+        "evidence": evidence,
+        "frontier": {"decision_frontier": decision_frontier},
+        "user_answer": build_user_answer(answer_input),
+        "agent_guidance": build_agent_guidance(
+            route=route,
+            coverage=coverage,
+            through_fare_check_items=through_fare_check_items,
+        ),
+    }

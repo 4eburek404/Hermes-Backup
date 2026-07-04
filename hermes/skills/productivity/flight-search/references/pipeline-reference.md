@@ -28,7 +28,7 @@ flight_search_request.v1
 | Probe execution | `execution/offer_query_runner.py`, `execution/search_wave_planner.py`, `execution/gateway_leg_probe_executor.py`, `execution/aggregate_control_runner.py` | Execute bounded provider probes and record ledger evidence. |
 | Graph/materialization | `pipeline/offer_graph.py` | Build provider-provenance edges and materialize N-leg/cross-day candidates. |
 | Ranking/frontier | `pipeline/decision_scorer.py`, `pipeline/candidate_ranker.py` | Apply chronology, constraint, MCT, direct-first gate outcomes, round-trip pairing, and scoring policy. |
-| Reporting | `services/agent_report.py`, `reporting/agent_report_builder.py`, `reporting/user_answer.py` | Project `agent_report.v3`, `flight_search_user_answer.v6`, and final traveler text from DecisionFrontier only. |
+| Reporting | `services/agent_report.py`, `reporting/agent_report_builder.py`, `reporting/user_answer.py` | Assemble compact `agent_report.v4`, `flight_search_user_answer.v6`, and final traveler text from DecisionFrontier only. |
 
 ## Provider Policy
 

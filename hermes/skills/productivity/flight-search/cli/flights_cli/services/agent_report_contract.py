@@ -7,32 +7,17 @@ from importlib import resources
 from typing import Any
 
 from jsonschema import Draft202012Validator
+
 from ..contracts.registry import current_contract
 from ..contracts.schema_errors import validation_error_detail
 from ..domain.vocabulary import RouteFamily
 from ..errors import CliError
-
-from ..reporting.agent_report_projector import (
-    AGENT_REPORT_SCHEMA_VERSION,
-)  # re-exported for test_agent_report_contract
 from ..reporting.user_answer import validate_user_answer
 
-__all__ = [
-    "AGENT_REPORT_SCHEMA_PACKAGE",
-    "AGENT_REPORT_SCHEMA_RESOURCE",
-    "AGENT_REPORT_SCHEMA_VERSION",
-    "DETAILED_FLIGHT_NUMBER_RE",
-    "DISPLAY_DATE_RE",
-    "TIME_RANGE_RE",
-    "AIRPORT_TIME_ROUTE_RE",
-    "RU_PRIORITY_BRANCHES",
-    "RU_PRIORITY_DECISIONS",
-    "load_agent_report_schema",
-    "validate_agent_report",
-]
-
+AGENT_REPORT_SCHEMA_VERSION = current_contract("agent_report")["schema_version"]
 AGENT_REPORT_SCHEMA_RESOURCE = current_contract("agent_report")["schema_resource"]
 AGENT_REPORT_SCHEMA_PACKAGE = "flights_cli.contracts"
+
 DETAILED_FLIGHT_NUMBER_RE = re.compile(
     r"\b(?=[A-Z0-9]{2}\s?\d{2,4}\b)(?=[A-Z0-9]*[A-Z])[A-Z0-9]{2}\s?\d{2,4}\b",
     re.IGNORECASE,
@@ -44,6 +29,7 @@ TIME_RANGE_RE = re.compile(r"\b\d{1,2}:\d{2}\s*[-–—→]\s*\d{1,2}:\d{2}\b")
 AIRPORT_TIME_ROUTE_RE = re.compile(
     r"\b[A-Z]{3}\s*(?:-|→|to)\s*[A-Z]{3}\b.*\b\d{1,2}:\d{2}\b"
 )
+
 RU_PRIORITY_BRANCHES = {
     "direct_destination_control": "direct_destination",
     "ist_primary_hub_control": "ist_primary_hub",
@@ -66,6 +52,54 @@ RU_PRIORITY_EXECUTION_STATES = {
     "skipped_better_options_available",
 }
 
+PUBLIC_REPORT_BANNED_TOP_LEVEL = {
+    "diagnostics",
+    "human_answer",
+    "display",
+    "answer_lines",
+    "coverage_diagnostics",
+    "provider_failures",
+    "source_boundaries",
+    "offer_graph",
+    "recommended_options",
+    "priority_options",
+    "aggregate_controls",
+    "segment_searches",
+    "hub_viability",
+    "primary_offer_results",
+    "rejected_pair_warnings",
+    "stop_policy_diagnostics",
+}
+PUBLIC_REPORT_BANNED_EVIDENCE_FIELDS = {
+    "coverage_diagnostics",
+    "segment_searches",
+    "hub_viability",
+    "primary_offer_results",
+    "aggregate_controls",
+    "rejected_pair_warnings",
+    "stop_policy_diagnostics",
+}
+PUBLIC_REPORT_BANNED_FRONTIER_FIELDS = {
+    "offer_graph",
+    "recommended_options",
+    "priority_options",
+}
+
+__all__ = [
+    "AGENT_REPORT_SCHEMA_PACKAGE",
+    "AGENT_REPORT_SCHEMA_RESOURCE",
+    "AGENT_REPORT_SCHEMA_VERSION",
+    "DETAILED_FLIGHT_NUMBER_RE",
+    "DISPLAY_DATE_RE",
+    "TIME_RANGE_RE",
+    "AIRPORT_TIME_ROUTE_RE",
+    "RU_PRIORITY_BRANCHES",
+    "RU_PRIORITY_DECISIONS",
+    "load_agent_report_schema",
+    "agent_report_semantic_errors",
+    "validate_agent_report",
+]
+
 
 def evidence_section(report: dict[str, Any]) -> dict[str, Any]:
     evidence = report.get("evidence")
@@ -75,11 +109,6 @@ def evidence_section(report: dict[str, Any]) -> dict[str, Any]:
 def frontier_section(report: dict[str, Any]) -> dict[str, Any]:
     frontier = report.get("frontier")
     return frontier if isinstance(frontier, dict) else {}
-
-
-def diagnostics_section(report: dict[str, Any]) -> dict[str, Any]:
-    diagnostics = report.get("diagnostics")
-    return diagnostics if isinstance(diagnostics, dict) else {}
 
 
 @lru_cache(maxsize=1)
@@ -99,41 +128,38 @@ def agent_report_validator() -> Draft202012Validator:
     return Draft202012Validator(load_agent_report_schema())
 
 
-def display_lines(display_option: dict[str, Any]) -> list[str]:
-    lines: list[str] = []
-    raw_lines = display_option.get("lines")
-    if isinstance(raw_lines, list):
-        lines.extend(str(line) for line in raw_lines)
-    text = display_option.get("text")
-    if isinstance(text, str):
-        lines.extend(text.splitlines())
-    return lines
+def has_metadata_availability_boundary(source_boundaries: list[Any]) -> bool:
+    text = " ".join(str(item).lower() for item in source_boundaries)
+    has_metadata_scope = "metadata" in text and ("static" in text or "catalog" in text)
+    has_availability_boundary = "availability" in text or "absence" in text
+    return has_metadata_scope and has_availability_boundary
 
 
-def has_detailed_flight_display_line(line: str) -> bool:
-    stripped = line.strip()
-    lowered = stripped.lower()
-    if lowered.startswith("пересадка") or lowered.startswith("layover"):
-        return True
-    if DETAILED_FLIGHT_NUMBER_RE.search(stripped):
-        return True
-    if DISPLAY_DATE_RE.search(stripped) and TIME_RANGE_RE.search(stripped):
-        return True
-    if AIRPORT_TIME_ROUTE_RE.search(stripped):
-        return True
-    if "борт " in lowered and "в полете" in lowered:
-        return True
-    return False
+def user_answer_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
+    user_answer = report.get("user_answer")
+    if not isinstance(user_answer, dict):
+        return []
+    errors: list[dict[str, Any]] = []
+    try:
+        validate_user_answer(user_answer)
+    except CliError as exc:
+        for error in (exc.details or {}).get("errors") or []:
+            if not isinstance(error, dict):
+                continue
+            detail = dict(error)
+            path = str(detail.get("path") or "$")
+            detail["path"] = "$.user_answer" + (
+                path[1:] if path.startswith("$") else f".{path}"
+            )
+            errors.append(detail)
+    return errors
 
 
 def ru_priority_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
-    evidence = evidence_section(report)
-    controls = evidence.get("ru_priority_controls")
-    if controls is None:
+    controls = evidence_section(report).get("ru_priority_controls")
+    if controls is None or not isinstance(controls, dict):
         return []
     errors: list[dict[str, Any]] = []
-    if not isinstance(controls, dict):
-        return errors
     decision = controls.get("decision")
     if decision not in RU_PRIORITY_DECISIONS:
         errors.append(
@@ -143,20 +169,6 @@ def ru_priority_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
                 "validator": "semantic",
             }
         )
-
-    frontier = frontier_section(report)
-    priority_options = (
-        frontier.get("priority_options")
-        if isinstance(frontier.get("priority_options"), list)
-        else []
-    )
-    priority_by_id = {
-        str(option.get("id")): option
-        for option in priority_options
-        if isinstance(option, dict)
-        and isinstance(option.get("id"), str)
-        and str(option.get("id")).strip()
-    }
     required_fields = (
         "checked",
         "execution_state",
@@ -186,8 +198,7 @@ def ru_priority_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
                         "validator": "semantic",
                     }
                 )
-        execution_state = branch_control.get("execution_state")
-        if execution_state not in RU_PRIORITY_EXECUTION_STATES:
+        if branch_control.get("execution_state") not in RU_PRIORITY_EXECUTION_STATES:
             errors.append(
                 {
                     "path": f"{branch_path}.execution_state",
@@ -203,10 +214,7 @@ def ru_priority_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
                     "validator": "semantic",
                 }
             )
-
-        visible = branch_control.get("visible") is True
-        viable = branch_control.get("viable") is True
-        if visible and not viable:
+        if branch_control.get("visible") is True and branch_control.get("viable") is not True:
             errors.append(
                 {
                     "path": f"{branch_path}.visible",
@@ -214,389 +222,135 @@ def ru_priority_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
                     "validator": "semantic",
                 }
             )
-        priority_option_id = branch_control.get("priority_option_id")
-        priority_option_id_is_present = isinstance(priority_option_id, str) and bool(
-            priority_option_id.strip()
-        )
-        if visible and not priority_option_id_is_present:
+        if branch_control.get("visible") is True:
+            visible_id = str(branch_control.get("priority_option_id") or "").strip()
+            if not visible_id:
+                errors.append(
+                    {
+                        "path": f"{branch_path}.priority_option_id",
+                        "message": f"{control_key}.visible requires a non-empty priority_option_id",
+                        "validator": "semantic",
+                    }
+                )
+        if branch and controls.get("route_family") not in (None, RouteFamily.RU_PRIORITY):
             errors.append(
                 {
-                    "path": f"{branch_path}.priority_option_id",
-                    "message": f"{control_key}.visible requires a non-empty priority_option_id",
-                    "validator": "semantic",
-                }
-            )
-            continue
-        if not priority_option_id_is_present:
-            continue
-        option = priority_by_id.get(priority_option_id)
-        if option is None:
-            errors.append(
-                {
-                    "path": f"{branch_path}.priority_option_id",
-                    "message": f"{control_key}.priority_option_id must reference priority_options",
-                    "validator": "semantic",
-                }
-            )
-            continue
-        if option.get("control_family") != RouteFamily.RU_PRIORITY:
-            errors.append(
-                {
-                    "path": f"$.frontier.priority_options[{priority_option_id}].control_family",
-                    "message": "visible RU-priority option must have control_family=ru_priority",
-                    "validator": "semantic",
-                }
-            )
-        if option.get("control_branch") != branch:
-            errors.append(
-                {
-                    "path": f"$.frontier.priority_options[{priority_option_id}].control_branch",
-                    "message": f"visible RU-priority option must have control_branch={branch}",
-                    "validator": "semantic",
-                }
-            )
-        if option.get("visibility_role") != "priority_control":
-            errors.append(
-                {
-                    "path": f"$.frontier.priority_options[{priority_option_id}].visibility_role",
-                    "message": "visible RU-priority option must have visibility_role=priority_control",
+                    "path": "$.evidence.ru_priority_controls.route_family",
+                    "message": "ru_priority_controls.route_family has invalid value",
                     "validator": "semantic",
                 }
             )
     return errors
 
 
-def user_answer_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
-    user_answer = report.get("user_answer")
-    if not isinstance(user_answer, dict):
-        return []
+def banned_field_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
     errors: list[dict[str, Any]] = []
-    try:
-        validate_user_answer(user_answer)
-    except CliError as exc:
-        for error in (exc.details or {}).get("errors") or []:
-            if not isinstance(error, dict):
-                continue
-            detail = dict(error)
-            path = str(detail.get("path") or "$")
-            detail["path"] = "$.user_answer" + (
-                path[1:] if path.startswith("$") else f".{path}"
-            )
-            errors.append(detail)
-    diagnostics = diagnostics_section(report)
-    human_answer = (
-        diagnostics.get("human_answer")
-        if isinstance(diagnostics.get("human_answer"), dict)
+    for key in sorted(PUBLIC_REPORT_BANNED_TOP_LEVEL & set(report)):
+        errors.append(
+            {
+                "path": f"$.{key}",
+                "message": f"{key} is not part of agent_report.v4",
+                "validator": "semantic",
+            }
+        )
+    evidence = evidence_section(report)
+    for key in sorted(PUBLIC_REPORT_BANNED_EVIDENCE_FIELDS & set(evidence)):
+        errors.append(
+            {
+                "path": f"$.evidence.{key}",
+                "message": f"evidence.{key} is not part of compact agent_report.v4",
+                "validator": "semantic",
+            }
+        )
+    frontier = frontier_section(report)
+    for key in sorted(PUBLIC_REPORT_BANNED_FRONTIER_FIELDS & set(frontier)):
+        errors.append(
+            {
+                "path": f"$.frontier.{key}",
+                "message": f"frontier.{key} is not part of agent_report.v4",
+                "validator": "semantic",
+            }
+        )
+    return errors
+
+
+def coverage_guidance_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
+    evidence = evidence_section(report)
+    coverage = evidence.get("coverage") if isinstance(evidence.get("coverage"), dict) else {}
+    completeness = (
+        coverage.get("completeness")
+        if isinstance(coverage.get("completeness"), dict)
         else {}
     )
-    if str(user_answer.get("rendered_text") or "") != str(
-        human_answer.get("text") or ""
-    ):
-        errors.append(
-            {
-                "path": "$.diagnostics.human_answer.text",
-                "message": "diagnostics.human_answer.text must mirror canonical user_answer.rendered_text",
-                "validator": "semantic",
-            }
-        )
+    agent_guidance = (
+        report.get("agent_guidance")
+        if isinstance(report.get("agent_guidance"), dict)
+        else {}
+    )
+    blocking_evidence = (
+        coverage.get("blocking_evidence")
+        if isinstance(coverage.get("blocking_evidence"), list)
+        else []
+    )
+    non_blocking_boundaries = (
+        coverage.get("non_blocking_boundaries")
+        if isinstance(coverage.get("non_blocking_boundaries"), list)
+        else []
+    )
+    execution_complete = bool(
+        completeness.get("all_planned_controls_have_terminal_state")
+    )
+    evidence_complete = execution_complete and not blocking_evidence
+    expected = {
+        "execution_complete": execution_complete,
+        "evidence_complete": evidence_complete,
+        "blocking_evidence": blocking_evidence,
+        "non_blocking_boundaries": non_blocking_boundaries,
+    }
+    errors: list[dict[str, Any]] = []
+    for key, value in expected.items():
+        if agent_guidance.get(key) != value:
+            errors.append(
+                {
+                    "path": f"$.agent_guidance.{key}",
+                    "message": f"agent_guidance.{key} must match compact coverage",
+                    "validator": "semantic",
+                }
+            )
     return errors
 
 
-def has_metadata_availability_boundary(source_boundaries: list[Any]) -> bool:
-    text = " ".join(str(item).lower() for item in source_boundaries)
-    has_metadata_scope = "metadata" in text and ("static" in text or "catalog" in text)
-    has_availability_boundary = "availability" in text or "absence" in text
-    return has_metadata_scope and has_availability_boundary
-
-
-def agent_report_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
+def source_boundary_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
     evidence = evidence_section(report)
-    frontier = frontier_section(report)
-    diagnostics_payload = diagnostics_section(report)
-    errors: list[dict[str, Any]] = []
-    if not diagnostics_payload.get("answer_lines"):
-        errors.append(
-            {
-                "path": "$.diagnostics.answer_lines",
-                "message": "diagnostics.answer_lines must not be empty",
-                "validator": "semantic",
-            }
-        )
     source_boundaries = (
         evidence.get("source_boundaries")
         if isinstance(evidence.get("source_boundaries"), list)
         else []
     )
     if not source_boundaries:
-        errors.append(
+        return [
             {
                 "path": "$.evidence.source_boundaries",
                 "message": "evidence.source_boundaries must not be empty",
                 "validator": "semantic",
             }
-        )
-    elif not has_metadata_availability_boundary(source_boundaries):
-        errors.append(
+        ]
+    if not has_metadata_availability_boundary(source_boundaries):
+        return [
             {
                 "path": "$.evidence.source_boundaries",
                 "message": "evidence.source_boundaries must state that static catalog metadata is not flight availability or absence evidence",
                 "validator": "semantic",
             }
-        )
+        ]
+    return []
 
-    recommended = frontier.get("recommended_options") or []
-    if recommended and not (
-        recommended[0].get("segments") if isinstance(recommended[0], dict) else None
-    ):
-        errors.append(
-            {
-                "path": "$.frontier.recommended_options[0].segments",
-                "message": "first recommended option must include at least one segment",
-                "validator": "semantic",
-            }
-        )
-    if recommended and (
-        recommended[0].get("segments") if isinstance(recommended[0], dict) else None
-    ):
-        display = (
-            diagnostics_payload.get("display")
-            if isinstance(diagnostics_payload.get("display"), dict)
-            else {}
-        )
-        if not str(display.get("text") or "").strip():
-            errors.append(
-                {
-                    "path": "$.diagnostics.display.text",
-                    "message": "diagnostics.display.text must render user-facing flight lines when recommended segments exist",
-                    "validator": "semantic",
-                }
-            )
 
-    summary_option_ids = {
-        option.get("id")
-        for collection_name in ("recommended_options", "priority_options")
-        for option in (frontier.get(collection_name) or [])
-        if isinstance(option, dict) and option.get("detail_status") == "summary_only"
-    }
-    display = (
-        diagnostics_payload.get("display")
-        if isinstance(diagnostics_payload.get("display"), dict)
-        else {}
-    )
-    for index, display_option in enumerate(display.get("options") or []):
-        if (
-            not isinstance(display_option, dict)
-            or display_option.get("id") not in summary_option_ids
-        ):
-            continue
-        if any(
-            has_detailed_flight_display_line(line)
-            for line in display_lines(display_option)
-        ):
-            errors.append(
-                {
-                    "path": f"$.diagnostics.display.options[{index}]",
-                    "message": "summary_only display must not include detailed flight lines",
-                    "validator": "semantic",
-                }
-            )
-
-    stop_diagnostics = (
-        evidence.get("stop_policy_diagnostics")
-        if isinstance(evidence.get("stop_policy_diagnostics"), dict)
-        else {}
-    )
-    for collection_name in ("recommended_options", "priority_options"):
-        for index, option in enumerate(frontier.get(collection_name) or []):
-            if not isinstance(option, dict):
-                continue
-            if (
-                option.get("stop_tier") == "T3_THREE_PLUS"
-                or int(option.get("max_connections_per_journey") or 0) >= 3
-            ):
-                errors.append(
-                    {
-                        "path": f"$.frontier.{collection_name}[{index}]",
-                        "message": "agent_report must not surface three-plus-connection options",
-                        "validator": "semantic",
-                    }
-                )
-            if (
-                option.get("stop_tier") == "T2_TWO_STOP"
-                or int(option.get("max_connections_per_journey") or 0) == 2
-            ) and stop_diagnostics.get("used_two_stop_tier") is not True:
-                errors.append(
-                    {
-                        "path": f"$.frontier.{collection_name}[{index}]",
-                        "message": "two-stop options require stop-policy tier2 mode",
-                        "validator": "semantic",
-                    }
-                )
-
-    diagnostics = (
-        evidence.get("coverage_diagnostics")
-        if isinstance(evidence.get("coverage_diagnostics"), dict)
-        else {}
-    )
-    control_bucket_states = {
-        "planned_controls": "planned",
-        "searched_controls": "searched",
-        "skipped_controls": "skipped",
-        "failed_controls": "failed",
-        "not_supported_controls": "not_supported",
-        "not_executed_controls": "not_executed",
-        "deduped_controls": "deduped",
-    }
-    for required_key in (*control_bucket_states.keys(), "completeness"):
-        if required_key not in diagnostics:
-            errors.append(
-                {
-                    "path": f"$.evidence.coverage_diagnostics.{required_key}",
-                    "message": f"coverage_diagnostics requires canonical {required_key}",
-                    "validator": "semantic",
-                }
-            )
-            continue
-        if required_key in control_bucket_states and not isinstance(
-            diagnostics.get(required_key), list
-        ):
-            errors.append(
-                {
-                    "path": f"$.evidence.coverage_diagnostics.{required_key}",
-                    "message": f"coverage_diagnostics.{required_key} must be a list",
-                    "validator": "semantic",
-                }
-            )
-    for bucket, expected_state in control_bucket_states.items():
-        controls = diagnostics.get(bucket)
-        if not isinstance(controls, list):
-            continue
-        for index, control in enumerate(controls):
-            if not isinstance(control, dict):
-                errors.append(
-                    {
-                        "path": f"$.evidence.coverage_diagnostics.{bucket}[{index}]",
-                        "message": f"coverage_diagnostics.{bucket}[{index}] must be an object",
-                        "validator": "semantic",
-                    }
-                )
-                continue
-            state = control.get("execution_state")
-            if state is not None and state != expected_state:
-                errors.append(
-                    {
-                        "path": f"$.evidence.coverage_diagnostics.{bucket}[{index}].execution_state",
-                        "message": f"{bucket} entries must have execution_state={expected_state}",
-                        "validator": "semantic",
-                    }
-                )
-            status = control.get("status")
-            if (
-                status is not None
-                and expected_state
-                in {"failed", "not_supported", "not_executed", "deduped"}
-                and status != expected_state
-            ):
-                errors.append(
-                    {
-                        "path": f"$.evidence.coverage_diagnostics.{bucket}[{index}].status",
-                        "message": f"{bucket} entries with status must use status={expected_state}",
-                        "validator": "semantic",
-                    }
-                )
-    completeness = (
-        diagnostics.get("completeness")
-        if isinstance(diagnostics.get("completeness"), dict)
-        else {}
-    )
-    if completeness.get("planned_count") != completeness.get("terminal_count"):
-        errors.append(
-            {
-                "path": "$.evidence.coverage_diagnostics.completeness",
-                "message": "coverage completeness requires planned_count == terminal_count",
-                "validator": "semantic",
-            }
-        )
-    if completeness.get("all_planned_controls_have_terminal_state") is not True:
-        errors.append(
-            {
-                "path": "$.evidence.coverage_diagnostics.completeness.all_planned_controls_have_terminal_state",
-                "message": "coverage completeness requires every planned control to have a terminal state",
-                "validator": "semantic",
-            }
-        )
-    agent_guidance = (
-        report.get("agent_guidance")
-        if isinstance(report.get("agent_guidance"), dict)
-        else {}
-    )
-    not_executed_controls = (
-        diagnostics.get("not_executed_controls")
-        if isinstance(diagnostics.get("not_executed_controls"), list)
-        else []
-    )
-    failed_controls = (
-        diagnostics.get("failed_controls")
-        if isinstance(diagnostics.get("failed_controls"), list)
-        else []
-    )
-    not_supported_controls = (
-        diagnostics.get("not_supported_controls")
-        if isinstance(diagnostics.get("not_supported_controls"), list)
-        else []
-    )
-    provider_failures = (
-        evidence.get("provider_failures")
-        if isinstance(evidence.get("provider_failures"), list)
-        else []
-    )
-    guidance_execution_complete = bool(
-        completeness.get("all_planned_controls_have_terminal_state")
-    )
-    guidance_blocking_evidence: list[str] = []
-    if not_executed_controls:
-        guidance_blocking_evidence.append("not_executed_controls")
-    if failed_controls:
-        guidance_blocking_evidence.append("failed_controls")
-    if provider_failures:
-        guidance_blocking_evidence.append("provider_failures")
-    guidance_evidence_complete = (
-        guidance_execution_complete and not guidance_blocking_evidence
-    )
-    expected_boundaries = ["not_supported_controls"] if not_supported_controls else []
-    if agent_guidance.get("execution_complete") != guidance_execution_complete:
-        errors.append(
-            {
-                "path": "$.agent_guidance.execution_complete",
-                "message": "agent_guidance.execution_complete must match coverage diagnostics",
-                "validator": "semantic",
-            }
-        )
-    if agent_guidance.get("evidence_complete") != guidance_evidence_complete:
-        errors.append(
-            {
-                "path": "$.agent_guidance.evidence_complete",
-                "message": "agent_guidance.evidence_complete must reflect blocking evidence",
-                "validator": "semantic",
-            }
-        )
-    if agent_guidance.get("blocking_evidence") != guidance_blocking_evidence:
-        errors.append(
-            {
-                "path": "$.agent_guidance.blocking_evidence",
-                "message": "agent_guidance.blocking_evidence must match missing/degraded evidence buckets",
-                "validator": "semantic",
-            }
-        )
-    if agent_guidance.get("non_blocking_boundaries") != expected_boundaries:
-        errors.append(
-            {
-                "path": "$.agent_guidance.non_blocking_boundaries",
-                "message": "agent_guidance.non_blocking_boundaries must match provider capability boundaries",
-                "validator": "semantic",
-            }
-        )
-
+def agent_report_semantic_errors(report: dict[str, Any]) -> list[dict[str, Any]]:
+    errors: list[dict[str, Any]] = []
+    errors.extend(banned_field_errors(report))
+    errors.extend(source_boundary_errors(report))
+    errors.extend(coverage_guidance_errors(report))
     errors.extend(ru_priority_semantic_errors(report))
     errors.extend(user_answer_semantic_errors(report))
     return errors

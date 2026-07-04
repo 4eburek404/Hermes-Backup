@@ -48,14 +48,18 @@ def validate_search_request_dates(payload: dict[str, Any]) -> None:
 def build_search_result(
     request: dict[str, Any], route_result: dict[str, Any]
 ) -> dict[str, Any]:
+    public_route_result = dict(route_result)
+    agent_report = (
+        public_route_result.pop("agent_report")
+        if isinstance(public_route_result.get("agent_report"), dict)
+        else None
+    )
     result = {
         "schema_version": SEARCH_RESULT_SCHEMA_VERSION,
         "wire_version": SEARCH_RESULT_SCHEMA_VERSION,
         "request": request,
-        "agent_report": route_result.get("agent_report")
-        if isinstance(route_result.get("agent_report"), dict)
-        else None,
-        "route_result": route_result,
+        "agent_report": agent_report,
+        "route_result": public_route_result,
     }
     validate_contract_payload("search_result", result)
     return result

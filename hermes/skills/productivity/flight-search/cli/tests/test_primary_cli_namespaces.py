@@ -104,11 +104,11 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
         Draft202012Validator(request_schema).validate(MINIMAL_SEARCH_REQUEST)
         Draft202012Validator(result_schema).validate(
             {
-                "schema_version": "flight_search_result.v2",
-                "wire_version": "flight_search_result.v2",
+                "schema_version": "flight_search_result.v3",
+                "wire_version": "flight_search_result.v3",
                 "request": MINIMAL_SEARCH_REQUEST,
-                "agent_report": {"schema_version": "agent_report.v3"},
-                "route_result": {"agent_report": {"schema_version": "agent_report.v3"}},
+                "agent_report": {"schema_version": "agent_report.v4"},
+                "route_result": {"assembly": True},
             }
         )
 
@@ -131,7 +131,10 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
                 captured["command_name"] = live_assembly_options.command_name
                 captured["agent_brief"] = live_assembly_options.output.agent_brief
                 return {
-                    "agent_report": {"schema_version": "agent_report.v3"},
+                    "agent_report": {"schema_version": "agent_report.v4"},
+                    "live_search": {
+                        "offer_graph": {"schema_version": "flight_offer_graph.v1"}
+                    },
                     "assembly": True,
                 }
 
@@ -150,11 +153,16 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
                 "agent_brief": True,
             },
         )
-        self.assertEqual(result["schema_version"], "flight_search_result.v2")
-        self.assertEqual(result["wire_version"], "flight_search_result.v2")
+        self.assertEqual(result["schema_version"], "flight_search_result.v3")
+        self.assertEqual(result["wire_version"], "flight_search_result.v3")
         self.assertEqual(result["request"], MINIMAL_SEARCH_REQUEST)
-        self.assertEqual(result["agent_report"], {"schema_version": "agent_report.v3"})
+        self.assertEqual(result["agent_report"], {"schema_version": "agent_report.v4"})
         self.assertTrue(result["route_result"]["assembly"])
+        self.assertNotIn("agent_report", result["route_result"])
+        self.assertEqual(
+            result["route_result"]["live_search"]["offer_graph"],
+            {"schema_version": "flight_offer_graph.v1"},
+        )
 
     def test_search_json_errors_are_machine_parseable_on_stdout(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
