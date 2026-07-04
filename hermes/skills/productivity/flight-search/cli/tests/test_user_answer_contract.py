@@ -820,9 +820,7 @@ class FinalAnswerContractTests(unittest.TestCase):
             segment["flight_number"] = "KL1234"
         report["recommended_options"] = [fallback]
         report["priority_options"] = []
-        report["constraint_conflict"] = only_carrier_conflict_payload(
-            fallback_count=1
-        )
+        report["constraint_conflict"] = only_carrier_conflict_payload(fallback_count=1)
 
         answer = build_user_answer(report)
 

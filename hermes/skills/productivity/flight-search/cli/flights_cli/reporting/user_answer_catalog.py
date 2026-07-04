@@ -502,9 +502,7 @@ def risk_badges(
     ):
         badges.append("two_stop_or_more")
     badges.extend(
-        str(value)
-        for value in option.get("option_badges") or []
-        if str(value).strip()
+        str(value) for value in option.get("option_badges") or [] if str(value).strip()
     )
     return list(dict.fromkeys(badges))
 
@@ -636,7 +634,9 @@ def build_catalog_contract(
 ) -> dict[str, Any]:
     requested_limit = max(1, int(catalog_limit))
     catalog_limit = (
-        max(1, len(recommended)) if direct_mode else max(requested_limit, len(recommended))
+        max(1, len(recommended))
+        if direct_mode
+        else max(requested_limit, len(recommended))
     )
     options = catalog_options(
         recommended,

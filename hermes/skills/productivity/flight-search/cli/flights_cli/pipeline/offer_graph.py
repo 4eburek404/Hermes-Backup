@@ -279,7 +279,9 @@ class OfferGraphBuilder:
         destination = _normalize_code(
             offer.get("destination") or result.get("destination")
         )
-        direction = _normalize_direction(offer.get("direction") or result.get("direction"))
+        direction = _normalize_direction(
+            offer.get("direction") or result.get("direction")
+        )
         if self.direct_mode.get(direction):
             self._skip("direct_mode_gate")
             return

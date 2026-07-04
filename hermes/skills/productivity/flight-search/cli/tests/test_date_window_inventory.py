@@ -70,7 +70,14 @@ def _primary_results_by_query(queries, *_args, **_kwargs):
         }
         if date_text == "2026-08-16" and date_text not in emitted_offer_dates:
             emitted_offer_dates.add(date_text)
-            results.append({**base, "status": "ok", "offer_count": 1, "top_offers": [_offer(date_text)]})
+            results.append(
+                {
+                    **base,
+                    "status": "ok",
+                    "offer_count": 1,
+                    "top_offers": [_offer(date_text)],
+                }
+            )
             continue
         if date_text in {"2026-08-16", "2026-08-17"}:
             results.append({**base, "status": "ok", "offer_count": 0, "top_offers": []})
@@ -157,14 +164,19 @@ class DateWindowPlanTests(unittest.TestCase):
         args = window_args()
         flow = build_live_route_search_flow(args, Store())
         plan = build_live_route_segment_plan(args, Store())
-        search_plan = build_search_plan(args, Store(), flow=flow, fallback_route_plan=plan)
+        search_plan = build_search_plan(
+            args, Store(), flow=flow, fallback_route_plan=plan
+        )
 
         query_dates = sorted(
             {str(query.get("date")) for query in search_plan["primary_offer_queries"]}
         )
         self.assertEqual(query_dates, ["2026-08-16", "2026-08-17", "2026-08-18"])
         self.assertTrue(
-            all(query.get("direct_only") for query in search_plan["primary_offer_queries"])
+            all(
+                query.get("direct_only")
+                for query in search_plan["primary_offer_queries"]
+            )
         )
         self.assertTrue(
             all(

@@ -173,7 +173,9 @@ def _graph_derived_control(
         edges = [edges_by_id[edge_id] for edge_id in edge_ids if edge_id in edges_by_id]
         if date_text and not _offer_matches_departure_date(edges, date_text):
             continue
-        if carriers and not all(_edge_matches_carriers(edge, carriers) for edge in edges):
+        if carriers and not all(
+            _edge_matches_carriers(edge, carriers) for edge in edges
+        ):
             continue
         provider = str(offer.get("provider") or "").lower()
         if provider:

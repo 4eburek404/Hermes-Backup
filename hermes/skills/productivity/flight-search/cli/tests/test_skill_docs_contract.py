@@ -82,9 +82,7 @@ class FlightSearchSkillDocsContractTests(unittest.TestCase):
             family = token_family(match.group(1))
             observed = int(match.group(2))
             if observed != expected[family]:
-                mismatches.append(
-                    f"{match.group(0)} expected v{expected[family]}"
-                )
+                mismatches.append(f"{match.group(0)} expected v{expected[family]}")
         self.assertEqual(mismatches, [])
 
 

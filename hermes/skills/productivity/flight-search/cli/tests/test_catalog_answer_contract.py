@@ -256,8 +256,12 @@ class CatalogAnswerContractTests(unittest.TestCase):
         self.assertEqual(answer["catalog"]["presentation"]["max_items"], 12)
         self.assertEqual(len(answer["catalog"]["items"]), 12)
         self.assertEqual(len(answer["alternatives"]), 11)
-        self.assertEqual(answer["catalog"]["items"][0]["option_id"], "assembled-primary")
-        self.assertEqual(answer["catalog"]["items"][-1]["option_id"], "assembled-alt-10")
+        self.assertEqual(
+            answer["catalog"]["items"][0]["option_id"], "assembled-primary"
+        )
+        self.assertEqual(
+            answer["catalog"]["items"][-1]["option_id"], "assembled-alt-10"
+        )
         rendered = answer["rendered_text"]
         self.assertIn("12. ", rendered)
         self.assertNotIn("13. ", rendered)

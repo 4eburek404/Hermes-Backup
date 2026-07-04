@@ -264,7 +264,9 @@ class AgentReportBudgetTests(unittest.TestCase):
             + [conflict_line]
         )
 
-        budgeted = apply_agent_report_budget(report, AgentReportBudget(max_answer_lines=3))
+        budgeted = apply_agent_report_budget(
+            report, AgentReportBudget(max_answer_lines=3)
+        )
 
         self.assertIn(conflict_line, budgeted["answer_lines"])
         self.assertLessEqual(len(budgeted["answer_lines"]), 3)

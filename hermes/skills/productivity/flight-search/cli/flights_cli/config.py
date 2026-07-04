@@ -119,6 +119,7 @@ def catalog_output_limits_from_mapping(
         ),
     )
 
+
 SVX_OFFICIAL_SCHEDULE_URL = "https://ar-svx.ru/schedule/"
 
 SVX_OFFICIAL_ARRIVAL_SCHEDULE_URL = "https://ar-svx.ru/schedule/?type=arr"

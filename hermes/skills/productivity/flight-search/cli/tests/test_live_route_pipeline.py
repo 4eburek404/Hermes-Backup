@@ -327,7 +327,9 @@ class LiveRoutePipelineTests(unittest.TestCase):
         )
         self.assertEqual(search_plan_gateway_discovery["candidate_count"], 3)
 
-    def test_direct_presence_gate_skips_gateway_queries_after_wave0_evidence(self) -> None:
+    def test_direct_presence_gate_skips_gateway_queries_after_wave0_evidence(
+        self,
+    ) -> None:
         search_plan = {
             "schema_version": "flight_search_plan.v1",
             "primary_offer_queries": [
@@ -562,7 +564,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                     tier2_max_connections=2,
                 ),
                 Store(),
-        )
+            )
 
         coverage = result["live_search"]["mixed_candidate_ranking"]["coverage"]
         ranked = result["live_search"]["mixed_candidate_ranking"]["ranked_candidates"][
@@ -570,9 +572,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
         ]
         self.assertEqual(coverage["max_connections_per_journey"], 2)
         self.assertEqual(coverage["preferred_connections_per_journey"], 1)
-        self.assertEqual(
-            ranked["rank_components"]["max_connections_per_journey"], 0
-        )
+        self.assertEqual(ranked["rank_components"]["max_connections_per_journey"], 0)
         self.assertEqual(
             ranked["rank_components"]["preferred_connections_per_journey"], 1
         )

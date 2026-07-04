@@ -23,15 +23,11 @@ def _unique_text(values: list[str]) -> list[str]:
 
 def _constraint_records(direction: dict[str, Any]) -> list[dict[str, Any]]:
     return [
-        item
-        for item in direction.get("constraints") or []
-        if isinstance(item, dict)
+        item for item in direction.get("constraints") or [] if isinstance(item, dict)
     ]
 
 
-def _first_constraint_value(
-    constraints: list[dict[str, Any]], key: str
-) -> Any | None:
+def _first_constraint_value(constraints: list[dict[str, Any]], key: str) -> Any | None:
     for item in constraints:
         if item.get("type") == key:
             return item.get("value")
@@ -48,7 +44,9 @@ def _schedule_departure_hours(direction: dict[str, Any]) -> list[int]:
     for item in schedule.get("items") or []:
         if not isinstance(item, dict):
             continue
-        directions = item.get("directions") if isinstance(item.get("directions"), dict) else {}
+        directions = (
+            item.get("directions") if isinstance(item.get("directions"), dict) else {}
+        )
         for detail in directions.values():
             if not isinstance(detail, dict):
                 continue
@@ -96,8 +94,7 @@ def _conflict_caveat(direction: dict[str, Any]) -> str:
                 "прямые есть у других перевозчиков — показаны ниже."
             )
     return (
-        "прямые рейсы есть, но они нарушают явное ограничение запроса — "
-        "показаны ниже."
+        "прямые рейсы есть, но они нарушают явное ограничение запроса — показаны ниже."
     )
 
 
@@ -187,7 +184,7 @@ def _render_schedule_item(item: dict[str, Any]) -> str:
     number = int(item.get("number") or 0)
     prefix = f"{number}. "
     if number > 0 and lines[0].startswith(prefix):
-        lines[0] = f"прямой {number}: {lines[0][len(prefix):]}"
+        lines[0] = f"прямой {number}: {lines[0][len(prefix) :]}"
     return "\n".join(lines)
 
 

@@ -236,8 +236,7 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
     answerability = (
         "answerable_with_caveats"
         if constraint_conflict is not None
-        else
-        "answerable"
+        else "answerable"
         if evidence_complete
         else "answerable_with_caveats"
         if execution_complete

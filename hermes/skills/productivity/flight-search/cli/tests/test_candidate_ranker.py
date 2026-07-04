@@ -251,9 +251,7 @@ class CandidateRankerTests(unittest.TestCase):
         ).score({"candidates": [two_connection]})
         ranked = scored["mixed_candidate_ranking"]["ranked_candidates"][0]
 
-        self.assertEqual(
-            ranked["rank_components"]["max_connections_per_journey"], 1
-        )
+        self.assertEqual(ranked["rank_components"]["max_connections_per_journey"], 1)
         self.assertEqual(scored["decision_frontier"]["options"], [])
 
     def test_tier2_allows_two_connections_but_preferred_limit_demotes(
@@ -371,9 +369,7 @@ class CandidateRankerTests(unittest.TestCase):
         ).score({"candidates": [one_connection]})
         ranked = scored["mixed_candidate_ranking"]["ranked_candidates"][0]
 
-        self.assertEqual(
-            ranked["rank_components"]["max_connections_per_journey"], 1
-        )
+        self.assertEqual(ranked["rank_components"]["max_connections_per_journey"], 1)
         self.assertEqual(
             ranked["rank_components"]["preferred_connections_per_journey"], 1
         )

@@ -680,9 +680,7 @@ class AgentReportContractTests(unittest.TestCase):
                             {
                                 "origin": "SVX",
                                 "destination": "LED",
-                                "departure_at": (
-                                    f"2026-09-05T{hour:02d}:00:00+05:00"
-                                ),
+                                "departure_at": (f"2026-09-05T{hour:02d}:00:00+05:00"),
                                 "arrival_at": f"2026-09-05T{hour:02d}:55:00+03:00",
                                 "marketing_carrier": "SU",
                                 "operating_carrier": "SU",
@@ -1202,6 +1200,7 @@ class AgentReportContractTests(unittest.TestCase):
 
         validate_agent_report(report)
         self.assertEqual(report["evidence"]["provider_failures"][0]["provider"], "fli")
+
 
 if __name__ == "__main__":
     unittest.main()

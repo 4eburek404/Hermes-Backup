@@ -655,8 +655,7 @@ def _journey_pairing_metadata(
     if not {"outbound", "return"}.issubset(directions):
         return None
     invalid_cross_direction = any(
-        str(violation.get("reason") or "")
-        == "return_departure_before_outbound_arrival"
+        str(violation.get("reason") or "") == "return_departure_before_outbound_arrival"
         for violation in chronology_violations
         if isinstance(violation, dict)
     )
@@ -665,9 +664,7 @@ def _journey_pairing_metadata(
         "outbound": True,
         "return": True,
         "ticketing_model": ticketing_model,
-        "cross_direction_chronology": "invalid"
-        if invalid_cross_direction
-        else "valid",
+        "cross_direction_chronology": "invalid" if invalid_cross_direction else "valid",
     }
 
 

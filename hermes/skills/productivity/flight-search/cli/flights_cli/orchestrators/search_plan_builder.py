@@ -54,7 +54,9 @@ def direct_inventory_dates(
             error_type="validation_error",
             details={"window_days": window_days, "max_days": MAX_DATE_WINDOW_DAYS},
         )
-    return [(depart + timedelta(days=offset)).isoformat() for offset in range(window_days)]
+    return [
+        (depart + timedelta(days=offset)).isoformat() for offset in range(window_days)
+    ]
 
 
 def _city_pair_direct_controls(
@@ -104,7 +106,9 @@ def build_runtime_route_plan(
     }
     if window_end:
         dates["window_end"] = str(window_end)
-    route_family = str(flow.flow_decision.route_mode or flow.flow_decision.routing_strategy)
+    route_family = str(
+        flow.flow_decision.route_mode or flow.flow_decision.routing_strategy
+    )
     origin_airports, destination_airports, airport_scope = _resolved_airport_scope(
         options, flow, store
     )

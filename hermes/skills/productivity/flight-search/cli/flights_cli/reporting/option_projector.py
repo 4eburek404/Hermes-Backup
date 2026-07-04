@@ -57,7 +57,9 @@ def decision_frontier_options(data: dict[str, Any], limit: int) -> list[dict[str
     )
     if not frontier and isinstance(data.get("decision_frontier"), dict):
         frontier = data["decision_frontier"]
-    options = frontier.get("options") if isinstance(frontier.get("options"), list) else []
+    options = (
+        frontier.get("options") if isinstance(frontier.get("options"), list) else []
+    )
     return [
         option_from_decision_frontier_item(item)
         for item in options[: max(0, limit)]
@@ -73,7 +75,9 @@ def option_from_decision_frontier_item(item: dict[str, Any]) -> dict[str, Any]:
             continue
         direction = str(journey.get("direction") or "")
         journey_segments = [
-            segment for segment in journey.get("segments") or [] if isinstance(segment, dict)
+            segment
+            for segment in journey.get("segments") or []
+            if isinstance(segment, dict)
         ]
         max_connections = max(max_connections, max(0, len(journey_segments) - 1))
         for segment in journey_segments:
@@ -88,7 +92,8 @@ def option_from_decision_frontier_item(item: dict[str, Any]) -> dict[str, Any]:
         "category": item.get("category") or "decision_frontier_option",
         "reason": ", ".join(str(value) for value in item.get("selection_reasons") or [])
         or None,
-        "detail_status": item.get("detail_status") or ("full" if segments else "missing"),
+        "detail_status": item.get("detail_status")
+        or ("full" if segments else "missing"),
         "ok": True,
         "price": {"amount": price_amount, "currency": currency},
         "price_text": price_label(price_amount, currency),

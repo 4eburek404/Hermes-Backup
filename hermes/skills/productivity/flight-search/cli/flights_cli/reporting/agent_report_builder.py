@@ -36,6 +36,7 @@ from .report_budget import apply_agent_report_budget
 from .source_boundary_projector import source_boundaries
 from .through_fare_analyzer import through_fare_checks
 
+
 def stop_policy_from_report_data(data: dict[str, Any]) -> StopPolicy:
     payload = (
         data.get("stop_policy") if isinstance(data.get("stop_policy"), dict) else {}
@@ -860,7 +861,9 @@ def _ranked_candidate_hard_constraint_violations(
 def _candidate_direction_segments(
     candidate: dict[str, Any], direction: str
 ) -> list[dict[str, Any]]:
-    journeys = candidate.get("journeys") if isinstance(candidate.get("journeys"), list) else []
+    journeys = (
+        candidate.get("journeys") if isinstance(candidate.get("journeys"), list) else []
+    )
     rows: list[dict[str, Any]] = []
     for journey in journeys:
         if not isinstance(journey, dict):
@@ -919,7 +922,9 @@ def direct_mode_candidate_options(
             {**candidate, "selection_reasons": ["direct_mode_schedule"]}
         )
         options.append(option)
-    options.sort(key=lambda item: _direct_mode_departure_key(item, direct_mode_directions))
+    options.sort(
+        key=lambda item: _direct_mode_departure_key(item, direct_mode_directions)
+    )
     return annotate_schedule_options(options[:limit])
 
 
@@ -1001,7 +1006,11 @@ def _candidate_conflict_constraints(
         if parsed is None:
             continue
         constraint_type, value = parsed
-        value_key = ",".join(str(item) for item in value) if isinstance(value, list) else str(value)
+        value_key = (
+            ",".join(str(item) for item in value)
+            if isinstance(value, list)
+            else str(value)
+        )
         key = (constraint_type, value_key)
         if key in seen:
             continue
@@ -1366,9 +1375,7 @@ def build_agent_report(
         if isinstance(decision_frontier.get("coverage_summary"), dict)
         else {}
     )
-    frontier_source_options = decision_frontier_options(
-        data, limit=catalog_limit + 5
-    )
+    frontier_source_options = decision_frontier_options(data, limit=catalog_limit + 5)
     if direct_mode_directions:
         frontier_source_options = direct_mode_candidate_options(
             data, direct_mode_directions, limit=direct_catalog_limit
@@ -1387,9 +1394,7 @@ def build_agent_report(
         )
         options = frontier_ordered[:1]
         priority_options = frontier_ordered[1:catalog_limit]
-    selected_stop_policy = frontier_stop_policy_selection(
-        [*options, *priority_options]
-    )
+    selected_stop_policy = frontier_stop_policy_selection([*options, *priority_options])
     preferred_available = has_preferred_option(
         options + priority_options
     ) or aggregate_has_preferred_offer(raw_aggregate_controls, stop_policy)
@@ -1462,9 +1467,7 @@ def build_agent_report(
             "candidate_pool_truncated": assembly.get("candidate_pool_truncated"),
             "failure_count": live.get("failure_count", 0),
             "direct_priority_applied": assembly.get("direct_priority_applied", False),
-            "direct_mode": {
-                direction: True for direction in direct_mode_directions
-            },
+            "direct_mode": {direction: True for direction in direct_mode_directions},
             "output_limits": output_limits.to_dict(),
         },
         "source_boundaries": source_boundaries(),
