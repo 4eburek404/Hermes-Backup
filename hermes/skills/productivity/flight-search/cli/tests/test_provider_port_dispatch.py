@@ -65,58 +65,8 @@ class FakeAggregateAdapter:
         )
 
 
-class FakeSegmentAdapter:
-    name = "kupibilet"
-    capabilities = ProviderCapabilities(
-        probe_types=frozenset({"segment_direct", "segment_hub_leg"})
-    )
-
-    def __init__(self) -> None:
-        self.segment_queries: list[dict[str, object]] = []
-
-    def search_segment(self, query: dict[str, object]) -> ProviderProbeResult:
-        self.segment_queries.append(query)
-        leg = str(query["leg"])
-        return ProviderProbeResult(
-            probe_id=str(query.get("probe_id") or "fake-segment"),
-            probe_type="segment_direct"
-            if leg in {"direct_outbound", "direct_return"}
-            else "segment_hub_leg",
-            provider="kupibilet",
-            query={
-                "origin": query["origin"],
-                "destination": query["destination"],
-                "date": query["date"],
-            },
-            execution_state="searched",
-            cache_status="disabled",
-            evidence_type="negative_provider_empty",
-            result_summary={
-                "direction": query["direction"],
-                "leg": leg,
-                "origin": query["origin"],
-                "destination": query["destination"],
-                "date": query["date"],
-                "status": "ok",
-                "provider": "kupibilet",
-                "offer_count": 0,
-                "cache_status": "disabled",
-            },
-            normalized_result={
-                "direction": query["direction"],
-                "leg": leg,
-                "origin": query["origin"],
-                "destination": query["destination"],
-                "offers": [],
-            },
-        )
-
-    def search_aggregate(self, query: dict[str, object]) -> ProviderProbeResult:
-        raise AssertionError("not used by segment pipeline test")
-
-
 class ProviderPortDispatchTests(unittest.TestCase):
-    def test_live_route_assembly_dispatches_segment_search_through_provider_port(
+    def test_live_route_assembly_dispatches_primary_offer_through_provider_port(
         self,
     ) -> None:
         args = live_assembly_args(
@@ -129,18 +79,24 @@ class ProviderPortDispatchTests(unittest.TestCase):
             no_live_cache=True,
             no_direct_route_intel=True,
         )
-        adapter = FakeSegmentAdapter()
+        adapter = FakeAggregateAdapter()
 
-        with patch(
-            "flights_cli.execution.probe_dispatcher.provider_adapters_for_segment",
-            return_value=[adapter],
-            create=True,
+        with (
+            patch(
+                "flights_cli.execution.offer_query_runner.provider_adapter",
+                return_value=adapter,
+                create=True,
+            ),
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.SearchWavePlanner.run",
+                return_value={},
+            ),
         ):
             result = run_live_route_assembly(args, Store())
 
-        self.assertGreaterEqual(len(adapter.segment_queries), 1)
+        self.assertGreaterEqual(len(adapter.aggregate_queries), 1)
         self.assertEqual(
-            result["live_search"]["segment_searches"][0]["provider"], "kupibilet"
+            result["live_search"]["primary_offer_results"][0]["provider"], "kupibilet"
         )
 
     def test_aggregate_controls_execute_through_provider_port(self) -> None:

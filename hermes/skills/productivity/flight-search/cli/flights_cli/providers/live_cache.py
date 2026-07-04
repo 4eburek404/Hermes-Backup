@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from ..config import LIVE_SEARCH_CACHE_DIR
+from ..config import resolve_cache_dir
 
 
 def live_cache_key(provider: str, params: dict[str, Any]) -> str:
@@ -15,12 +15,16 @@ def live_cache_key(provider: str, params: dict[str, Any]) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def live_cache_path(key: str, cache_dir: Path = LIVE_SEARCH_CACHE_DIR) -> Path:
-    return cache_dir / f"{key}.json"
+def _live_cache_dir(cache_dir: Path | None = None) -> Path:
+    return cache_dir or (resolve_cache_dir() / "live_search")
+
+
+def live_cache_path(key: str, cache_dir: Path | None = None) -> Path:
+    return _live_cache_dir(cache_dir) / f"{key}.json"
 
 
 def read_live_cache(
-    key: str, *, ttl_seconds: int, cache_dir: Path = LIVE_SEARCH_CACHE_DIR
+    key: str, *, ttl_seconds: int, cache_dir: Path | None = None
 ) -> dict[str, Any] | None:
     if ttl_seconds <= 0:
         return None
@@ -53,10 +57,11 @@ def write_live_cache(
     key: str,
     result: dict[str, Any],
     *,
-    cache_dir: Path = LIVE_SEARCH_CACHE_DIR,
+    cache_dir: Path | None = None,
 ) -> dict[str, Any]:
     cached = dict(result)
     cached.pop("cache", None)
+    cache_dir = _live_cache_dir(cache_dir)
     path = live_cache_path(key, cache_dir)
     try:
         cache_dir.mkdir(parents=True, exist_ok=True)

@@ -1,0 +1,5 @@
+[
+  {"name": "SkyTeam", "airlines": ["AF", "KL", "SU"]},
+  {"name": "Star Alliance", "airlines": ["LH", "TK"]},
+  {"name": "oneworld", "airlines": ["BA"]}
+]

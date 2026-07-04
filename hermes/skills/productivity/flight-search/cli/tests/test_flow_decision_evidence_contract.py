@@ -38,7 +38,7 @@ class FlowDecisionEvidenceContractTests(unittest.TestCase):
 
         self.assertEqual(flow.flow_decision.market_class, "global_non_ru")
         self.assertEqual(flow.flow_decision.routing_strategy, "hub-list")
-        self.assertEqual(flow.flow_decision.provider_plan["default_provider"], "fli")
+        self.assertEqual(flow.flow_decision.provider_plan["default_provider"], "tutu")
         self.assertEqual(plan["routing_strategy"], "hub-list")
         self.assertNotIn(
             "ru-priority",
@@ -129,16 +129,10 @@ class FlowDecisionEvidenceContractTests(unittest.TestCase):
         self.assertTrue(flow.evidence_plan.direct_only)
         self.assertIn("exact_airport_direct", flow.evidence_plan.required_controls)
         self.assertTrue(plan["direct_only"])
-        self.assertTrue(plan["segments"])
+        self.assertEqual(plan["segments"], [])
         self.assertTrue(
             all(
-                str(segment.get("leg") or "").startswith("direct_")
-                for segment in plan["segments"]
-            )
-        )
-        self.assertTrue(
-            all(
-                control.get("type") == "exact_airport_direct"
+                control.get("type") == "city_pair_direct"
                 for control in plan["coverage_controls"]
             )
         )

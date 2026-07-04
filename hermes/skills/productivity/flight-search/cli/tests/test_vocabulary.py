@@ -46,7 +46,7 @@ def _collect_schema_enums(schema: dict, prefix: str = "") -> dict[str, list[str]
 
 
 # ---------------------------------------------------------------------------
-# direction ↔ user_answer.v3 schema
+# direction ↔ user_answer.v4 schema
 # ---------------------------------------------------------------------------
 
 
@@ -54,7 +54,7 @@ class TestDirectionSchemaSync(unittest.TestCase):
     """Direction enum must match the ``direction`` enum in the user answer schema."""
 
     def setUp(self) -> None:
-        self.schema = _load_schema("flight_search_user_answer.v3.schema.json")
+        self.schema = _load_schema("flight_search_user_answer.v5.schema.json")
 
     def test_direction_values_match_schema(self) -> None:
         enums = _collect_schema_enums(self.schema)

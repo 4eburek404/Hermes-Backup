@@ -11,7 +11,6 @@ from ..domain.stop_policy import (
     decide_stop_policy,
     stop_policy_payload,
 )
-from ..services.assembly import ALL_DIRECT_CATALOG_CAP
 from .projections.summary_lines import build_summary_lines
 from .coverage_projector import build_coverage_diagnostics
 from .projections.itinerary_display import build_itinerary_display
@@ -19,9 +18,7 @@ from .agent_report_projector import AGENT_REPORT_SCHEMA_VERSION, project_agent_r
 from .user_answer import build_user_answer
 from .projections.human_answer_mirror import build_human_answer_mirror
 from .option_projector import (
-    candidate_options_from_details,
-    priority_candidate_options,
-    ranked_candidate_options,
+    decision_frontier_options,
 )
 from .catalog_order import catalog_order_key, option_is_user_visible
 from .offer_graph_projector import build_offer_graph
@@ -34,6 +31,7 @@ from .source_boundary_projector import source_boundaries
 from .through_fare_analyzer import through_fare_checks
 
 CATALOG_LIMIT_DEFAULT = 5
+ALL_DIRECT_CATALOG_CAP = 20
 
 
 def stop_policy_from_report_data(data: dict[str, Any]) -> StopPolicy:
@@ -137,6 +135,7 @@ def merge_stop_policy_diagnostics(
     data: dict[str, Any],
     aggregate_controls: list[dict[str, Any]],
     preferred_available: bool,
+    selected_stop_policy: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     diagnostics = dict(
         data.get("stop_policy_diagnostics")
@@ -168,6 +167,27 @@ def merge_stop_policy_diagnostics(
         int(diagnostics.get("two_stop_suppressed_because_preferred_exists") or 0)
         + aggregate_counts["aggregate_two_stop_suppressed_because_preferred_exists"]
     )
+    selected_stop_policy = (
+        selected_stop_policy if isinstance(selected_stop_policy, dict) else {}
+    )
+    selected_two_stop_count = int(
+        selected_stop_policy.get("selected_two_stop_option_count") or 0
+    )
+    if selected_two_stop_count:
+        diagnostics["used_two_stop_tier"] = True
+        diagnostics["used_tier2_two_stop"] = True
+        diagnostics["selected_stop_policy_source"] = str(
+            selected_stop_policy.get("source") or "candidate_details"
+        )
+        diagnostics["selected_two_stop_option_count"] = selected_two_stop_count
+        diagnostics["two_stop_candidate_count"] = max(
+            int(diagnostics.get("two_stop_candidate_count") or 0),
+            selected_two_stop_count,
+        )
+        diagnostics["eligible_tier2_count"] = max(
+            int(diagnostics.get("eligible_tier2_count") or 0),
+            selected_two_stop_count,
+        )
     diagnostics["garbage_options_hidden_from_answer"] = (
         int(diagnostics.get("three_plus_suppressed_count") or 0) > 0
     )
@@ -232,6 +252,16 @@ def provider_failures(live: dict[str, Any], limit: int = 10) -> list[dict[str, A
     return [
         provider_failure_summary(item)
         for item in (live.get("failures") or [])[: max(0, limit)]
+        if isinstance(item, dict)
+    ]
+
+
+def primary_offer_results(
+    live: dict[str, Any], limit: int = 20
+) -> list[dict[str, Any]]:
+    return [
+        dict(item)
+        for item in (live.get("primary_offer_results") or [])[: max(0, limit)]
         if isinstance(item, dict)
     ]
 
@@ -775,20 +805,26 @@ def has_lower_stop_viable_option(
     return False
 
 
+def frontier_stop_policy_selection(options: list[dict[str, Any]]) -> dict[str, Any]:
+    selected_two_stop_count = sum(
+        1
+        for option in options
+        if int(option.get("max_connections_per_journey") or 0) == 2
+    )
+    return {
+        "source": "decision_frontier",
+        "selected_two_stop_option_count": selected_two_stop_count,
+        "used_two_stop_tier": selected_two_stop_count > 0,
+        "used_tier2_two_stop": selected_two_stop_count > 0,
+    }
+
+
 def ru_priority_source_options(
     data: dict[str, Any],
     recommended_options: list[dict[str, Any]],
     priority_options: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    details: list[Any] = []
-    for key in ("ranked_candidates", "frontier_candidates"):
-        values = data.get(key)
-        if isinstance(values, list):
-            details.extend(values)
-    projected = (
-        candidate_options_from_details(details, limit=len(details)) if details else []
-    )
-    source = projected + recommended_options + priority_options
+    source = recommended_options + priority_options
     seen: set[tuple[str, tuple[tuple[str, str, str], ...]]] = set()
     unique: list[dict[str, Any]] = []
     for option in source:
@@ -991,30 +1027,50 @@ def build_agent_report(
         if isinstance(item, dict)
     ]
     stop_policy = stop_policy_from_report_data(data)
-    ranked_candidates = (
-        data.get("ranked_candidates")
-        if isinstance(data.get("ranked_candidates"), list)
-        else []
+    live_decision_frontier = live.get("decision_frontier")
+    decision_frontier = (
+        live_decision_frontier if isinstance(live_decision_frontier, dict) else {}
+    )
+    if not decision_frontier and isinstance(data.get("decision_frontier"), dict):
+        decision_frontier = data["decision_frontier"]
+    decision_coverage = (
+        decision_frontier.get("coverage_summary")
+        if isinstance(decision_frontier.get("coverage_summary"), dict)
+        else {}
+    )
+    frontier_source_options = decision_frontier_options(
+        data, limit=max(ALL_DIRECT_CATALOG_CAP, CATALOG_LIMIT_DEFAULT + 5)
     )
     catalog_limit = (
-        min(len(ranked_candidates), ALL_DIRECT_CATALOG_CAP)
+        min(len(frontier_source_options), ALL_DIRECT_CATALOG_CAP)
         if all_direct
         else CATALOG_LIMIT_DEFAULT
     )
     ranked_total_count = int(
-        assembly.get("ranked_total_count") or len(ranked_candidates)
+        decision_coverage.get("candidate_count") or len(frontier_source_options)
     )
     direct_omitted = (
-        max(0, ranked_total_count - ALL_DIRECT_CATALOG_CAP) if all_direct else 0
+        max(
+            0,
+            int(decision_coverage.get("direct_option_count") or 0)
+            - ALL_DIRECT_CATALOG_CAP,
+        )
+        if all_direct
+        else 0
     )
     requested_round_trip = plan_requests_round_trip(plan)
-    options = order_frontier_options(
-        ranked_candidate_options(data, limit=catalog_limit),
+    frontier_ordered = order_frontier_options(
+        frontier_source_options,
         is_round_trip_request=requested_round_trip,
     )
-    priority_options = order_frontier_options(
-        priority_candidate_options(data, limit=5),
-        is_round_trip_request=requested_round_trip,
+    if all_direct:
+        options = frontier_ordered[:catalog_limit]
+        priority_options: list[dict[str, Any]] = []
+    else:
+        options = frontier_ordered[:1]
+        priority_options = frontier_ordered[1:catalog_limit]
+    selected_stop_policy = frontier_stop_policy_selection(
+        [*options, *priority_options]
     )
     preferred_available = has_preferred_option(
         options + priority_options
@@ -1037,7 +1093,10 @@ def build_agent_report(
     if ru_priority_priority_options:
         priority_options = ru_priority_priority_options + priority_options
     stop_policy_diagnostics = merge_stop_policy_diagnostics(
-        data, raw_aggregate_controls, preferred_available
+        data,
+        raw_aggregate_controls,
+        preferred_available,
+        selected_stop_policy=selected_stop_policy,
     )
     coverage_diagnostics = build_coverage_diagnostics(plan, live)
     plan_flow_decision = plan.get("flow_decision") if isinstance(plan, dict) else {}
@@ -1069,7 +1128,7 @@ def build_agent_report(
             "ranked_output_count": assembly.get(
                 "ranked_output_count", len(data.get("ranked") or [])
             ),
-            "ranked_total_count": assembly.get("ranked_total_count"),
+            "ranked_total_count": ranked_total_count,
             "candidate_count": assembly.get("candidate_count"),
             "candidate_pool_truncated": assembly.get("candidate_pool_truncated"),
             "failure_count": live.get("failure_count", 0),
@@ -1081,6 +1140,11 @@ def build_agent_report(
         "hub_viability": hub_viability_summaries(live),
         "segment_searches": segment_search_summaries(live),
         "provider_failures": provider_failures(live),
+        "primary_offer_results": primary_offer_results(live),
+        "gateway_leg_results": live.get("gateway_leg_results")
+        if isinstance(live.get("gateway_leg_results"), dict)
+        else {},
+        "decision_frontier": decision_frontier,
         "recommended_options": options,
         "priority_options": priority_options,
         "aggregate_controls": aggregate_controls,
@@ -1088,7 +1152,7 @@ def build_agent_report(
         "stop_policy": stop_policy_payload(stop_policy),
         "stop_policy_diagnostics": stop_policy_diagnostics,
         "through_fare_checks": through_fare_checks(
-            aggregate_controls, priority_options
+            aggregate_controls, [*options, *priority_options]
         ),
         "rejected_pair_warnings": rejected_pair_warnings(data, limit=5),
         "direct_flights": assembly.get("direct_flights", []),

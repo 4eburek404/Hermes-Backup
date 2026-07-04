@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from flights_cli.apps.search import live_assembly_options_from_search_request
+from flights_cli.commands.search import live_assembly_options_from_search_request
 from flights_cli.errors import CliError
 from flights_cli.pipeline.options import search_request_to_options
 
@@ -16,7 +16,7 @@ REQUEST = {
     "currency": "rub",
     "profile": "business",
     "ticketing": "single",
-    "provider_policy": "both",
+    "provider_policy": "auto",
     "route_options": {
         "routing_strategy": "hub-list",
         "hubs": ["IST", "DXB"],
@@ -32,6 +32,10 @@ REQUEST = {
         "date_window_end": "2026-07-22",
         "max_connections": 0,
         "tier2_max_connections": 0,
+        "use_gateway_discovery_for_fallback_hubs": True,
+        "gateway_discovery_limit": 5,
+        "gateway_probe_batch_size": 2,
+        "gateway_probe_max_batches": 3,
     },
     "filters": {
         "only_carriers": ["SU"],
@@ -44,6 +48,9 @@ REQUEST = {
         "timeout": 42,
         "outbound_second_leg_day_offsets": [0, 1],
         "return_second_leg_day_offsets": [0, 2],
+        "search_wave_max_waves": 4,
+        "search_wave_probe_limit": 8,
+        "search_wave_top_k": 6,
         "aggregate_control_limit": 4,
         "aggregate_control_carriers": ["SU", "TK"],
         "max_segment_searches": 99,
@@ -92,6 +99,10 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.route.depart_date, expected["depart_date"])
         self.assertEqual(options.route.return_date, expected["return_date"])
         self.assertEqual(options.route.hubs, expected["hubs"])
+        self.assertTrue(options.route.use_gateway_discovery_for_fallback_hubs)
+        self.assertEqual(options.route.gateway_discovery_limit, 5)
+        self.assertEqual(options.route.gateway_probe_batch_size, 2)
+        self.assertEqual(options.route.gateway_probe_max_batches, 3)
         self.assertEqual(options.ticketing, expected["ticketing"])
         self.assertEqual(options.profile, expected["profile"])
         self.assertEqual(options.filters.only_carriers, expected["only_carriers"])
@@ -100,6 +111,9 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
             options.evidence.aggregate_control_carriers,
             expected["aggregate_control_carriers"],
         )
+        self.assertEqual(options.evidence.search_wave_max_waves, 4)
+        self.assertEqual(options.evidence.search_wave_probe_limit, 8)
+        self.assertEqual(options.evidence.search_wave_top_k, 6)
         self.assertEqual(options.output.agent_report, expected["agent_report"])
 
     def test_search_app_adapter_matches_typed_request_adapter(self) -> None:
@@ -111,6 +125,37 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
     def test_search_app_rejects_non_business_profile(self) -> None:
         with self.assertRaises(CliError):
             live_assembly_options_from_search_request({**REQUEST, "profile": "safe"})
+
+    def test_search_app_rejects_removed_both_provider_policy(self) -> None:
+        with self.assertRaises(CliError):
+            live_assembly_options_from_search_request(
+                {**REQUEST, "provider_policy": "both"}
+            )
+
+    def test_search_request_maps_request_constraints(self) -> None:
+        request = {
+            "schema_version": "flight_search_request.v1",
+            "origin": "nte",
+            "destination": "svx",
+            "depart_date": "2026-07-09",
+            "filters": {"only_carriers": ["AF"], "prefer_carriers": ["TK"]},
+            "constraints": {
+                "first_departure_after": "15:00",
+                "must_include_airports": ["ams"],
+                "only_carriers": ["kl"],
+                "preferred_carriers": ["af"],
+            },
+        }
+        options = search_request_to_options(request)
+
+        self.assertEqual(options.constraints.first_departure_after, "15:00")
+        self.assertEqual(options.constraints.must_include_airports, ("AMS",))
+        self.assertEqual(options.constraints.only_carriers, ("KL",))
+        self.assertEqual(options.constraints.preferred_carriers, ("AF",))
+        self.assertEqual(options.filters.only_carriers, ("AF",))
+        self.assertEqual(options.effective_only_carriers(), ("AF", "KL"))
+        self.assertEqual(options.effective_prefer_carriers(), ("TK", "AF"))
+        self.assertEqual(live_assembly_options_from_search_request(request), options)
 
     def test_search_request_defaults_are_explicit_in_typed_options(self) -> None:
         options = search_request_to_options(
@@ -145,6 +190,9 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
                     "min_cross_airport_min": 0,
                     "max_connections": 0,
                     "tier2_max_connections": 0,
+                    "gateway_discovery_limit": 0,
+                    "gateway_probe_batch_size": 0,
+                    "gateway_probe_max_batches": 0,
                 },
                 "evidence": {
                     "aggregate_control_limit": 0,
@@ -167,6 +215,9 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.route.tier2_max_connections, 0)
         self.assertEqual(options.route.min_same_airport_min, 0)
         self.assertEqual(options.route.min_cross_airport_min, 0)
+        self.assertEqual(options.route.gateway_discovery_limit, 0)
+        self.assertEqual(options.route.gateway_probe_batch_size, 0)
+        self.assertEqual(options.route.gateway_probe_max_batches, 0)
         self.assertEqual(options.evidence.coverage_control_limit, 0)
         self.assertEqual(options.evidence.aggregate_control_limit, 0)
         self.assertEqual(options.evidence.live_cache_ttl_seconds, 0)

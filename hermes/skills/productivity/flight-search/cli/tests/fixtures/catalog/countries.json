@@ -1,0 +1,14 @@
+[
+  {"code": "AE", "name": "United Arab Emirates"},
+  {"code": "CA", "name": "Canada"},
+  {"code": "CN", "name": "China"},
+  {"code": "DE", "name": "Germany"},
+  {"code": "ES", "name": "Spain"},
+  {"code": "FR", "name": "France"},
+  {"code": "GB", "name": "United Kingdom"},
+  {"code": "JP", "name": "Japan"},
+  {"code": "NL", "name": "Netherlands"},
+  {"code": "RU", "name": "Russia"},
+  {"code": "TR", "name": "Turkey"},
+  {"code": "US", "name": "United States"}
+]

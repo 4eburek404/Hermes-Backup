@@ -10,6 +10,10 @@ from ..domain.vocabulary import (
     RoutingStrategy,
     RouteFamily,
 )
+from ..domain.route_access_profiles import (
+    RouteAccessDecision,
+    default_route_access_decision,
+)
 from .search_request import SearchRequest
 
 
@@ -25,6 +29,11 @@ class FlowDecision:
     provider_policy: str
     routing_strategy: str
     provider_plan: dict[str, Any]
+    route_access_profile: str
+    gateway_discovery_mode: str
+    route_access_reasons: tuple[str, ...] = ()
+    route_access_rule_id: str | None = None
+    route_access_prior_set: str | None = None
     limitations: tuple[str, ...] = ()
     airport_scope: dict[str, Any] | None = None
     source_boundaries: tuple[str, ...] = ()
@@ -40,10 +49,17 @@ class FlowDecision:
             "provider_policy": self.provider_policy,
             "routing_strategy": self.routing_strategy,
             "provider_plan": self.provider_plan,
+            "route_access_profile": self.route_access_profile,
+            "gateway_discovery_mode": self.gateway_discovery_mode,
+            "route_access_reasons": list(self.route_access_reasons),
             "limitations": list(self.limitations),
             "source_boundaries": list(self.source_boundaries),
             "notes": list(self.notes),
         }
+        if self.route_access_rule_id:
+            payload["route_access_rule_id"] = self.route_access_rule_id
+        if self.route_access_prior_set:
+            payload["route_access_prior_set"] = self.route_access_prior_set
         if self.airport_scope is not None:
             payload["airport_scope"] = self.airport_scope
         return payload
@@ -62,6 +78,8 @@ def _has_carrier_scope(request: SearchRequest) -> bool:
         request.aggregate_control_carriers
         or request.only_carriers
         or request.exclude_carriers
+        or request.constraint_only_carriers
+        or request.constraint_preferred_carriers
     )
 
 
@@ -87,6 +105,12 @@ def market_class_for_codes(store: Any, origin: str, destination: str) -> str:
 
     origin_country = _location_country(store, origin)
     destination_country = _location_country(store, destination)
+    return _market_class_from_country_codes(origin_country, destination_country)
+
+
+def _market_class_from_country_codes(
+    origin_country: str | None, destination_country: str | None
+) -> str:
     if origin_country == "RU" and destination_country == "RU":
         return MarketClass.RU_DOMESTIC
     if origin_country == "RU" or destination_country == "RU":
@@ -94,6 +118,23 @@ def market_class_for_codes(store: Any, origin: str, destination: str) -> str:
     if origin_country and destination_country:
         return MarketClass.GLOBAL_NON_RU
     return MarketClass.STRUCTURALLY_CONSTRAINED
+
+
+def route_access_decision_for_codes(
+    store: Any,
+    origin: str,
+    destination: str,
+    market_class: str,
+) -> RouteAccessDecision:
+    origin_country = _location_country(store, origin)
+    destination_country = _location_country(store, destination)
+    if hasattr(store, "route_access_profile_for_route"):
+        return store.route_access_profile_for_route(
+            market_class=market_class,
+            origin_country=origin_country,
+            destination_country=destination_country,
+        )
+    return default_route_access_decision(market_class)
 
 
 def market_class_for_resolved_route(
@@ -191,22 +232,22 @@ def _provider_plan(
     request: SearchRequest, market_class: str, routing_strategy: str
 ) -> dict[str, Any]:
     policy = request.provider_policy
-    if policy == "fli":
-        default_provider = "fli"
-    elif policy == "kupibilet":
-        default_provider = "kupibilet"
-    elif market_class == MarketClass.GLOBAL_NON_RU:
-        default_provider = "fli"
+    default_provider = policy if policy in {"fli", "kupibilet", "tutu"} else "tutu"
+    if policy == "auto":
+        ru_touching_segments: list[str] = ["tutu", "kupibilet"]
+        non_ru_segments: list[str] = ["tutu", "kupibilet", "fli"]
+    elif policy == "fli":
+        ru_touching_segments = []
+        non_ru_segments = ["fli"]
     else:
-        default_provider = "kupibilet"
+        ru_touching_segments = [policy]
+        non_ru_segments = [policy]
     return {
         "policy": policy,
         "default_provider": default_provider,
         "dispatch": {
-            "ru_touching_segments": "kupibilet"
-            if policy in {"auto", "both", "kupibilet"}
-            else policy,
-            "non_ru_segments": "fli" if policy in {"auto", "both", "fli"} else policy,
+            "ru_touching_segments": ru_touching_segments,
+            "non_ru_segments": non_ru_segments,
         },
         "routing_strategy": routing_strategy,
         "ru_priority_controls": routing_strategy == RoutingStrategy.RU_PRIORITY,
@@ -248,6 +289,9 @@ def decide_flow(request: SearchRequest, store: Any | None = None) -> FlowDecisio
         store = Store()
     intent_class = _intent_for(request)
     market_class = market_class_for_codes(store, request.origin, request.destination)
+    route_access = route_access_decision_for_codes(
+        store, request.origin, request.destination, market_class
+    )
     evidence_class = _evidence_class_for(intent_class)
     routing_strategy = routing_strategy_for_market(request, market_class)
     route_mode = _route_mode(intent_class, market_class, routing_strategy)
@@ -260,6 +304,11 @@ def decide_flow(request: SearchRequest, store: Any | None = None) -> FlowDecisio
         provider_policy=request.provider_policy,
         routing_strategy=routing_strategy,
         provider_plan=_provider_plan(request, market_class, routing_strategy),
+        route_access_profile=route_access.route_access_profile,
+        gateway_discovery_mode=route_access.gateway_discovery_mode,
+        route_access_reasons=route_access.route_access_reasons,
+        route_access_rule_id=route_access.matched_rule_id,
+        route_access_prior_set=route_access.prior_set,
         limitations=_limitations(request, intent_class, market_class, routing_strategy),
         source_boundaries=(
             "provider_empty_is_not_structural_absence",

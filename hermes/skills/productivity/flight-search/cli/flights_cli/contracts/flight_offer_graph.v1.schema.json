@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermes.local/flights/flight_offer_graph.v1.schema.json",
+  "title": "Flight Offer Graph v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "edges", "offers", "connections", "coverage"],
+  "properties": {
+    "schema_version": {"const": "flight_offer_graph.v1"},
+    "edges": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/edge"}
+    },
+    "offers": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/offer"}
+    },
+    "connections": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/connection"}
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "edge": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "offer_id",
+        "source_type",
+        "provider",
+        "ticketing_boundary",
+        "origin",
+        "destination"
+      ],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "offer_id": {"type": "string", "minLength": 1},
+        "source_type": {
+          "enum": [
+            "provider_full_route",
+            "gateway_leg",
+            "direct_inventory",
+            "assembled_separate_ticket"
+          ]
+        },
+        "provider": {"type": "string", "minLength": 1},
+        "ticketing_boundary": {"type": "string", "minLength": 1},
+        "origin": {"type": "string", "minLength": 1},
+        "destination": {"type": "string", "minLength": 1}
+      }
+    },
+    "offer": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "source_type",
+        "provider",
+        "ticketing_boundary",
+        "edge_ids"
+      ],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "source_type": {
+          "enum": [
+            "provider_full_route",
+            "gateway_leg",
+            "direct_inventory",
+            "assembled_separate_ticket"
+          ]
+        },
+        "provider": {"type": "string", "minLength": 1},
+        "ticketing_boundary": {"type": "string", "minLength": 1},
+        "edge_ids": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "connection": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "source_type", "ticketing_boundary", "edge_ids"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "source_type": {"type": "string", "minLength": 1},
+        "ticketing_boundary": {"type": "string", "minLength": 1},
+        "edge_ids": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

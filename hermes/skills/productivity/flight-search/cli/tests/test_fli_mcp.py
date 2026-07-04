@@ -371,7 +371,7 @@ class FliMcpTests(unittest.TestCase):
 
         self.assertEqual(decoded["result"]["structuredContent"]["flights"], [])
 
-    def test_provider_policy_uses_kupibilet_for_ru_touching_and_fli_for_global(
+    def test_provider_policy_uses_tutu_primary_and_keeps_fli_non_ru_only(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -392,19 +392,19 @@ class FliMcpTests(unittest.TestCase):
                 providers_for_segment(
                     {"origin": "SVX", "destination": "IST"}, store, "auto"
                 ),
-                ["kupibilet"],
+                ["tutu", "kupibilet"],
             )
             self.assertEqual(
                 providers_for_segment(
                     {"origin": "IST", "destination": "LHR"}, store, "auto"
                 ),
-                ["fli"],
+                ["tutu", "kupibilet", "fli"],
             )
             self.assertEqual(
                 providers_for_segment(
-                    {"origin": "IST", "destination": "LHR"}, store, "both"
+                    {"origin": "SVX", "destination": "IST"}, store, "fli"
                 ),
-                ["kupibilet", "fli"],
+                [],
             )
 
 

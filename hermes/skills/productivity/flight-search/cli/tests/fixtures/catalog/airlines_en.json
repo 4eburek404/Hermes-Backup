@@ -1,0 +1,12 @@
+[
+  {"code": "5N", "name": "Smartavia"},
+  {"code": "AF", "name": "Air France"},
+  {"code": "BA", "name": "British Airways"},
+  {"code": "DP", "name": "Pobeda"},
+  {"code": "FR", "name": "Ryanair"},
+  {"code": "KL", "name": "KLM Royal Dutch Airlines", "aliases": ["KLM"]},
+  {"code": "LH", "name": "Lufthansa"},
+  {"code": "SU", "name": "Aeroflot"},
+  {"code": "TK", "name": "Turkish Airlines"},
+  {"code": "U6", "name": "Ural Airlines"}
+]

@@ -1,12 +1,23 @@
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import Any
 
 from .domain.vocabulary import RoutingStrategy
 
-CACHE_DIR = Path.home() / ".hermes" / "cache" / "flight-search"
+DEFAULT_CACHE_DIR = Path.home() / ".hermes" / "cache" / "flight-search"
+
+
+def resolve_cache_dir() -> Path:
+    override = os.environ.get("FLIGHTS_CACHE_DIR")
+    if override and override.strip():
+        return Path(override).expanduser()
+    return DEFAULT_CACHE_DIR
+
+
+CACHE_DIR = resolve_cache_dir()
 
 MAX_DATE_WINDOW_DAYS = 14
 
@@ -17,6 +28,8 @@ ROUTE_INTEL_CACHE_DIR = CACHE_DIR / "route_intel"
 KUPIBILET_FRONTEND_SEARCH_URL = "https://api-rs-lb.kupibilet.ru/frontend_search"
 
 FLI_MCP_DEFAULT_URL = "http://127.0.0.1:8000/mcp"
+
+TUTU_MCP_DEFAULT_URL = "https://mcp.tutu.ru/mcp"
 
 KUPIBILET_HEADERS = {
     "Accept": "application/json",
@@ -45,6 +58,20 @@ DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR = 10
 
 DEFAULT_COVERAGE_CONTROL_LIMIT = 12
 
+DEFAULT_GATEWAY_DISCOVERY_LIMIT = 1
+
+DEFAULT_GATEWAY_PROBE_BATCH_SIZE = 1
+
+DEFAULT_GATEWAY_PROBE_MAX_BATCHES = 1
+
+DEFAULT_SEARCH_WAVE_MAX_WAVES = 3
+
+DEFAULT_SEARCH_WAVE_PROBE_LIMIT = 6
+
+DEFAULT_SEARCH_WAVE_TOP_K = 5
+
+LATE_ARRIVAL_NEXT_DAY_THRESHOLD_HOUR = 20
+
 DEFAULT_KB_ROUTE_OUTBOUND_SECOND_LEG_DAY_OFFSETS = [0, 1]
 
 DEFAULT_KB_ROUTE_RETURN_SECOND_LEG_DAY_OFFSETS = [0, 1, 2]
@@ -57,21 +84,7 @@ SVX_OFFICIAL_SCHEDULE_URL = "https://ar-svx.ru/schedule/"
 
 SVX_OFFICIAL_ARRIVAL_SCHEDULE_URL = "https://ar-svx.ru/schedule/?type=arr"
 
-DEFAULT_ROUTE_HUBS = (
-    "IST",
-    "DXB",
-    "DOH",
-    "AUH",
-    "BEG",
-    "TAS",
-    "GYD",
-    "PEK",
-    "PVG",
-    "CAN",
-    "ADD",
-    "CAI",
-    "MCT",
-)
+DEFAULT_ROUTE_HUBS = ("IST",)
 
 DOMESTIC_RU_HUBS = ("SVO", "DME", "VKO")
 DUBAI_DEFAULT_AIRPORTS = ("DXB", "DWC")
@@ -91,8 +104,6 @@ PRIORITY_ROUTE_CARRIERS = ("U6", "SU", "TK")
 PRIORITY_PRIMARY_HUB = "IST"
 
 PRIORITY_MOSCOW_GATEWAY = "SVO"
-
-PRIORITY_SECONDARY_HUB = "DXB"
 
 PRIORITY_ASIA_HUB = "SVO"
 
@@ -153,19 +164,6 @@ ASIA_DESTINATION_CODES = {
 
 DEFAULT_ROUTE_HUB_NOTES = {
     "IST": "Broadest Russia-origin hub.",
-    "DXB": "Main competitor for Asia, Africa, and Australia routings.",
-    "DOH": "Strong long-haul hub via Qatar.",
-    "AUH": "Useful backup for DXB and DOH.",
-    "BEG": "Europe and some North America coverage, but not global.",
-    "TAS": "Regional hub with partial long-haul coverage.",
-    "GYD": "Regional hub with partial long-haul coverage.",
-    "PEK": "Asia, China, and Oceania-oriented secondary hub.",
-    "PVG": "Asia, China, and Oceania-oriented secondary hub.",
-    "CAN": "Asia, China, and Oceania-oriented secondary hub.",
-    "ADD": "Niche Africa, Middle East, India, and price hub.",
-    "CAI": "Niche Africa, Middle East, India, and price hub.",
-    "MCT": "Niche Africa, Middle East, India, and price hub.",
-    "SHJ": "Niche Africa, Middle East, India, and price hub.",
 }
 
 IATA_RE = re.compile(r"^[A-Z]{3}$")

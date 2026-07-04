@@ -1,0 +1,872 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:hermes:flights-cli:flight-search-user-answer:v5",
+  "title": "Hermes Flight Search User Answer v5",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "answer_mode",
+    "route",
+    "catalog",
+    "primary_recommendation",
+    "alternatives",
+    "evidence_status",
+    "required_caveats",
+    "rendered_text",
+    "answer_lines",
+    "stop_policy_status"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "flight_search_user_answer.v5"
+    },
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "destination",
+        "dates"
+      ],
+      "properties": {
+        "origin": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "destination": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dates": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "primary_recommendation": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/option_summary"
+        }
+      ]
+    },
+    "alternatives": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/option_summary"
+      }
+    },
+    "evidence_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coverage_complete",
+        "execution_complete",
+        "evidence_complete",
+        "answerability",
+        "planned_control_count",
+        "terminal_control_count",
+        "not_executed_control_count",
+        "failed_control_count",
+        "not_supported_control_count",
+        "provider_failure_count",
+        "through_fare_check_count",
+        "blocking_evidence",
+        "non_blocking_boundaries"
+      ],
+      "properties": {
+        "coverage_complete": {
+          "type": "boolean"
+        },
+        "execution_complete": {
+          "type": "boolean"
+        },
+        "evidence_complete": {
+          "type": "boolean"
+        },
+        "answerability": {
+          "enum": [
+            "answerable",
+            "answerable_with_caveats",
+            "needs_more_evidence"
+          ]
+        },
+        "planned_control_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "terminal_control_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "not_executed_control_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed_control_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "provider_failure_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "through_fare_check_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "not_supported_control_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocking_evidence": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "non_blocking_boundaries": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "required_caveats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_boundaries_included",
+        "coverage_incompleteness_acknowledged",
+        "provider_failures_acknowledged",
+        "through_fare_verification_required",
+        "purchase_screen_verification_required"
+      ],
+      "properties": {
+        "source_boundaries_included": {
+          "type": "boolean"
+        },
+        "coverage_incompleteness_acknowledged": {
+          "type": "boolean"
+        },
+        "provider_failures_acknowledged": {
+          "type": "boolean"
+        },
+        "through_fare_verification_required": {
+          "type": "boolean"
+        },
+        "purchase_screen_verification_required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "answer_lines": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "stop_policy_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy",
+        "max_reported_connections",
+        "two_stop_tier_used",
+        "three_plus_suppressed_count",
+        "garbage_options_suppressed"
+      ],
+      "properties": {
+        "policy": {
+          "type": "string"
+        },
+        "max_reported_connections": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "two_stop_tier_used": {
+          "type": "boolean"
+        },
+        "three_plus_suppressed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "garbage_options_suppressed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "rendered_text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "answer_mode": {
+      "enum": [
+        "recommendation",
+        "catalog",
+        "no_viable_options"
+      ]
+    },
+    "catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "presentation",
+        "items"
+      ],
+      "properties": {
+        "presentation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "style",
+            "language",
+            "max_items"
+          ],
+          "properties": {
+            "style": {
+              "const": "numbered_inline_itinerary_v1"
+            },
+            "language": {
+              "const": "ru"
+            },
+            "max_items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20
+            }
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/catalog_item"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "option_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "category",
+        "price_text",
+        "elapsed",
+        "risk_grade",
+        "segment_count",
+        "stop_tier",
+        "max_connections_per_journey"
+      ],
+      "properties": {
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "category": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "price_text": {
+          "type": "string"
+        },
+        "elapsed": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "risk_grade": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "segment_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stop_tier": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "T0_DIRECT",
+            "T1_ONE_STOP",
+            "T2_TWO_STOP",
+            null
+          ]
+        },
+        "max_connections_per_journey": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "journey_scope": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "one_way",
+            "outbound_only",
+            "return_only",
+            "round_trip",
+            "two_one_way_pair",
+            null
+          ]
+        },
+        "covers_requested_trip": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "direction": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "outbound",
+            "return",
+            null
+          ]
+        },
+        "directional_only": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "composed_of_directional_offers": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "ticketing_model": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "single_ticket_proven",
+            "provider_aggregate",
+            "separate_one_way_offers",
+            "separate_segments",
+            "unknown",
+            null
+          ]
+        },
+        "user_facing_label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "disclaimer": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "itinerary_elapsed_min": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "flight_time_min": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "layover_total_min": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "outbound_time": {
+          "$ref": "#/$defs/provider_aggregate_time_fields"
+        },
+        "return_time": {
+          "$ref": "#/$defs/provider_aggregate_time_fields"
+        }
+      }
+    },
+    "provider_aggregate_time_fields": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "itinerary_elapsed_min",
+        "flight_time_min",
+        "layover_total_min"
+      ],
+      "properties": {
+        "itinerary_elapsed_min": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "flight_time_min": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "layover_total_min": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "catalog_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "option_id",
+        "covers_requested_trip",
+        "journey_scope",
+        "ticketing_model",
+        "detail_status",
+        "total_price",
+        "directions",
+        "baggage",
+        "protection",
+        "badges",
+        "caveats",
+        "agent_display",
+        "render_line",
+        "evidence_refs"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "option_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "covers_requested_trip": {
+          "type": "boolean"
+        },
+        "journey_scope": {
+          "enum": [
+            "one_way",
+            "round_trip",
+            "outbound_only",
+            "return_only",
+            "two_one_way_pair"
+          ]
+        },
+        "ticketing_model": {
+          "enum": [
+            "single_ticket_proven",
+            "provider_aggregate",
+            "separate_one_way_offers",
+            "separate_segments",
+            "unknown"
+          ]
+        },
+        "detail_status": {
+          "enum": [
+            "full",
+            "summary_only",
+            "missing"
+          ]
+        },
+        "total_price": {
+          "$ref": "#/$defs/price_summary"
+        },
+        "directions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "outbound",
+            "return"
+          ],
+          "properties": {
+            "outbound": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/direction_detail"
+                }
+              ]
+            },
+            "return": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/direction_detail"
+                }
+              ]
+            }
+          }
+        },
+        "baggage": {
+          "$ref": "#/$defs/baggage_summary"
+        },
+        "protection": {
+          "$ref": "#/$defs/protection_summary"
+        },
+        "risk": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "badges": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "caveats": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "agent_display": {
+          "$ref": "#/$defs/agent_display"
+        },
+        "render_line": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "agent_display": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "style",
+        "lines",
+        "text"
+      ],
+      "properties": {
+        "style": {
+          "const": "canonical_segment_line_v1"
+        },
+        "lines": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "price_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "display",
+        "source",
+        "confidence"
+      ],
+      "properties": {
+        "amount": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "currency": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "display": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "enum": [
+            "live_provider",
+            "provider_aggregate",
+            "cache",
+            "web",
+            "manual",
+            "unknown"
+          ]
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "direction_detail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "detail_status",
+        "segments",
+        "layovers",
+        "elapsed_min"
+      ],
+      "properties": {
+        "detail_status": {
+          "enum": [
+            "full",
+            "summary_only",
+            "missing"
+          ]
+        },
+        "segments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/catalog_segment"
+          }
+        },
+        "layovers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/catalog_layover"
+          }
+        },
+        "elapsed_min": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "render_line": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "catalog_segment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "flight_number",
+        "carrier",
+        "origin",
+        "destination",
+        "departure_at",
+        "arrival_at",
+        "aircraft_code"
+      ],
+      "properties": {
+        "flight_number": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "carrier": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "origin": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "destination": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "departure_terminal": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "arrival_terminal": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "departure_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "arrival_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "aircraft_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "duration_min": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "catalog_layover": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "airport",
+        "duration_min"
+      ],
+      "properties": {
+        "airport": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "duration_min": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "baggage_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "checked",
+        "cabin",
+        "source",
+        "confidence"
+      ],
+      "properties": {
+        "checked": {
+          "type": "string"
+        },
+        "cabin": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "fare_family",
+            "provider_offer",
+            "web",
+            "unknown"
+          ]
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "protection_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "single_pnr_status",
+        "through_baggage_status",
+        "self_transfer",
+        "purchase_screen_verification_required"
+      ],
+      "properties": {
+        "single_pnr_status": {
+          "enum": [
+            "proven",
+            "unproven",
+            "unknown",
+            "not_applicable"
+          ]
+        },
+        "through_baggage_status": {
+          "enum": [
+            "proven",
+            "unproven",
+            "unknown",
+            "not_applicable"
+          ]
+        },
+        "self_transfer": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "purchase_screen_verification_required": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

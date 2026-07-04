@@ -90,10 +90,10 @@ class ArchitectureTests(unittest.TestCase):
         self.assertIn("\n# Flight Search\n", text)
         self.assertGreater(text.count("\n"), 40)
 
-    def test_active_provider_set_is_kupibilet_and_fli(self) -> None:
-        # Prose test deleted; this code-level check verifies the same invariant.
-        self.assertEqual(set(ProviderName.__args__), {"kupibilet", "fli"})
-        self.assertEqual(set(PROVIDER_REGISTRY.keys()), {"kupibilet", "fli"})
+    def test_active_provider_set_includes_opt_in_tutu_provider(self) -> None:
+        # Tutu is opt-in only, but it is part of the typed provider registry.
+        self.assertEqual(set(ProviderName.__args__), {"kupibilet", "fli", "tutu"})
+        self.assertEqual(set(PROVIDER_REGISTRY.keys()), {"kupibilet", "fli", "tutu"})
 
     def test_ist_resolves_to_exact_code_only(self) -> None:
         # IST default scope is IST only; SAW requires explicit request.
@@ -152,10 +152,12 @@ class ArchitectureTests(unittest.TestCase):
         self.assertEqual(
             schema_names,
             [
-                "agent_report.v2.schema.json",
+                "agent_report.v3.schema.json",
+                "flight_offer_graph.v1.schema.json",
+                "flight_search_plan.v1.schema.json",
                 "flight_search_request.v1.schema.json",
-                "flight_search_result.v1.schema.json",
-                "flight_search_user_answer.v3.schema.json",
+                "flight_search_result.v2.schema.json",
+                "flight_search_user_answer.v5.schema.json",
             ],
         )
 
@@ -255,14 +257,13 @@ class ArchitectureTests(unittest.TestCase):
         runner = root / "orchestrators" / "live_assembly_runner.py"
         probe_dispatcher = root / "execution" / "probe_dispatcher.py"
         aggregate_runner = root / "execution" / "aggregate_control_runner.py"
-        assembly = root / "services" / "assembly.py"
         live_route_assembly = root / "orchestrators" / "live_route_assembly.py"
 
         runner_text = runner.read_text(encoding="utf-8")
         self.assertNotIn("SimpleNamespace", runner_text)
         self.assertNotIn("live_assembly_args_view", runner_text)
 
-        for path in (probe_dispatcher, aggregate_runner, assembly):
+        for path in (probe_dispatcher, aggregate_runner):
             with self.subTest(path=path.name):
                 text = path.read_text(encoding="utf-8")
                 self.assertNotIn("import argparse", text)
@@ -281,14 +282,38 @@ class ArchitectureTests(unittest.TestCase):
             "argparse_args_to_options", live_route_assembly.read_text(encoding="utf-8")
         )
 
-    def test_live_assembly_plan_builder_injection_is_typed(self) -> None:
+    def test_provider_runtime_does_not_accept_argparse_namespace(self) -> None:
+        provider_root = PROJECT / "flights_cli" / "providers"
+        for path in sorted(provider_root.glob("*.py")):
+            with self.subTest(path=path.name):
+                text = path.read_text(encoding="utf-8")
+                self.assertNotIn("import argparse", text)
+                self.assertNotIn("argparse.Namespace", text)
+
+    def test_reporting_does_not_import_orchestrators(self) -> None:
+        reporting_root = PROJECT / "flights_cli" / "reporting"
+        for path in sorted(reporting_root.rglob("*.py")):
+            with self.subTest(path=path.relative_to(reporting_root)):
+                text = path.read_text(encoding="utf-8")
+                self.assertNotIn("flights_cli.orchestrators", text)
+                self.assertNotIn("..orchestrators", text)
+
+    def test_live_assembly_runtime_has_no_legacy_builder_injection(self) -> None:
         root = PROJECT / "flights_cli"
         runner = root / "orchestrators" / "live_assembly_runner.py"
-        text = runner.read_text(encoding="utf-8")
-        self.assertNotIn("plan_builder: Any", text)
-        self.assertIn("class RoutePlanBuilderFn(Protocol):", text)
+        live_route_assembly = root / "orchestrators" / "live_route_assembly.py"
+        texts = {
+            "runner": runner.read_text(encoding="utf-8"),
+            "live_route_assembly": live_route_assembly.read_text(encoding="utf-8"),
+        }
+        for name, text in texts.items():
+            with self.subTest(file=name):
+                self.assertNotIn("RoutePlanBuilder", text)
+                self.assertNotIn("route_plan_builder", text)
+                self.assertNotIn("services.assembly", text)
+                self.assertNotIn("synthetic_control_runner", text)
 
-        tree = ast.parse(text)
+        tree = ast.parse(texts["runner"])
         classes = {
             node.name: node for node in tree.body if isinstance(node, ast.ClassDef)
         }
@@ -303,7 +328,26 @@ class ArchitectureTests(unittest.TestCase):
             for arg in init_func.args.args + init_func.args.kwonlyargs
             if arg.annotation is not None
         }
-        self.assertEqual(annotations["plan_builder"], "RoutePlanBuilderFn")
+        self.assertNotIn("plan_builder", annotations)
+
+    def test_frontier_runtime_has_no_route_specific_conditions(self) -> None:
+        root = PROJECT / "flights_cli"
+        runtime_paths = [
+            root / "orchestrators" / "live_assembly_runner.py",
+            root / "orchestrators" / "live_route_assembly.py",
+            root / "orchestrators" / "search_plan_builder.py",
+            root / "pipeline" / "offer_graph.py",
+            root / "pipeline" / "decision_scorer.py",
+            root / "execution" / "search_wave_planner.py",
+        ]
+        forbidden = {"NTE", "AMS", "SVX", "KLM"}
+        matches: list[str] = []
+        for path in runtime_paths:
+            text = path.read_text(encoding="utf-8")
+            for token in forbidden:
+                if token in text:
+                    matches.append(f"{path.relative_to(root)}:{token}")
+        self.assertEqual(matches, [])
 
 
 if __name__ == "__main__":

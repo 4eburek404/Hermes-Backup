@@ -10,13 +10,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from flights_cli.apps import search as search_app
 from flights_cli.cli import (
     apply_agent_brief_output,
     apply_agent_output_defaults,
     build_parser,
     normalize_global_json,
 )
+from flights_cli.commands import search as search_app
 from flights_cli.command_surface import (
     CATALOG_AUTO_REFRESH_COMMANDS,
     CATALOG_READ_COMMANDS,
@@ -163,15 +163,12 @@ class CliContractTests(unittest.TestCase):
         cases = [
             ["route", "validate"],
             ["route", "rank"],
-            ["route", "assemble"],
         ]
         for argv in cases:
             with self.subTest(argv=argv):
                 args = parser.parse_args(argv)
                 self.assertEqual(args.min_same_airport_min, 120)
                 self.assertEqual(args.min_cross_airport_min, 300)
-        assemble_args = parser.parse_args(["route", "assemble"])
-        self.assertEqual(assemble_args.limit_per_pair, 10)
 
     def test_active_command_surface_is_registered_with_leaf_dispatch(self) -> None:
         leaves = parser_leaf_defaults(build_parser())
@@ -215,17 +212,21 @@ class CliContractTests(unittest.TestCase):
                 "--request",
                 "/tmp/flight-search-request.json",
             ],
+            "diagnose tutu-search": [
+                "--json",
+                "diagnose",
+                "tutu-search",
+                "SVX",
+                "AER",
+                "--depart-date",
+                "2026-08-15",
+                "--return-date",
+                "2026-08-22",
+            ],
             "maint doctor": ["--json", "maint", "doctor"],
             "maint check": ["--json", "maint", "check"],
             "cities search": ["--json", "cities", "search", "Yekaterinburg"],
             "airports explain": ["--json", "airports", "explain", "SVX", "MOW"],
-            "route assemble": [
-                "--json",
-                "route",
-                "assemble",
-                "--input",
-                "segment-results.json",
-            ],
             "route rank": ["--json", "route", "rank", "--input", "candidates.json"],
             "route validate": [
                 "--json",
@@ -317,6 +318,7 @@ class CliContractTests(unittest.TestCase):
 
     def test_subprocess_test_env_disables_bytecode_writes(self) -> None:
         self.assertEqual(TEST_ENV["PYTHONDONTWRITEBYTECODE"], "1")
+        self.assertIn("FLIGHTS_CACHE_DIR", TEST_ENV)
 
     def test_json_doctor_envelope(self) -> None:
         proc = subprocess.run(
@@ -333,10 +335,10 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(payload["command"], "maint doctor")
         self.assertEqual(payload["issues"], [])
         self.assertEqual(
-            payload["data"]["cli"], {"name": "flights-cli", "version": "0.5.8"}
+            payload["data"]["cli"], {"name": "flights-cli", "version": "0.6.0"}
         )
         self.assertEqual(
-            payload["data"]["skill"], {"name": "flight-search", "version": "0.8.8"}
+            payload["data"]["skill"], {"name": "flight-search", "version": "0.9.0"}
         )
         self.assertEqual(
             set(payload["data"]),
@@ -512,30 +514,23 @@ class CliContractTests(unittest.TestCase):
         data = payload["data"]["plan"]
         self.assertEqual(len(payload["data"]["segments"]), len(data["segments"]))
         self.assertEqual(len(payload["data"]["probe_specs"]), len(data["segments"]))
-        first_probe = payload["data"]["probe_specs"][0]
-        self.assertEqual(first_probe["probe_type"], "segment_direct")
-        self.assertEqual(first_probe["provider_policy"], "auto")
-        self.assertEqual(first_probe["currency"], "RUB")
-        self.assertEqual(
-            first_probe["filters"],
-            {
-                "only_carriers": [],
-                "exclude_carriers": [],
-                "prefer_carriers": [],
-                "avoid_carriers": [],
-            },
-        )
-        self.assertNotIn("command", first_probe)
+        provider_queries = payload["data"]["provider_queries"]
+        self.assertTrue(provider_queries)
+        first_query = provider_queries[0]
+        self.assertEqual(first_query["role"], "primary_offer_collection")
+        self.assertEqual(first_query["source_type"], "provider_full_route")
+        self.assertEqual(first_query["probe_type"], "full_route_aggregate")
+        self.assertEqual(first_query["currency"], "RUB")
+        self.assertNotIn("command", first_query)
         self.assertEqual(data["hubs"], ["IST", "DXB"])
         self.assertEqual(data["destination_airports"], ["LHR", "LGW"])
         self.assertEqual(
             data["airport_scope"]["destination"]["excluded_by_default"], ["STN", "LTN"]
         )
-        self.assertEqual(data["metrics"]["segment_search_count"], 10)
-        self.assertEqual(data["segments"][0]["route_family"], "hub_list")
-        self.assertEqual(data["segments"][0]["origin"], "SVX")
-        self.assertEqual(data["segments"][0]["destination"], "IST")
-        self.assertIn("warnings", data)
+        self.assertEqual(data["metrics"]["segment_search_count"], 0)
+        self.assertEqual(
+            payload["data"]["search_plan"]["schema_version"], "flight_search_plan.v1"
+        )
 
     def test_normalize_global_json_accepts_trailing_json(self) -> None:
         argv = ["flights", "diagnose", "plan", "--request", "request.json", "--json"]

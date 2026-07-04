@@ -7,6 +7,7 @@ TARGETED_PROBE_COMMANDS = (
     "diagnose probe",
     "diagnose kb-search",
     "diagnose kb-roundtrip",
+    "diagnose tutu-search",
     "diagnose fli-search",
     "diagnose fli-dates",
 )
@@ -16,13 +17,13 @@ DIAGNOSTIC_COMMANDS = (
     *TARGETED_PROBE_COMMANDS,
     "route validate",
     "route rank",
-    "route assemble",
 )
 LIVE_PROVIDER_COMMANDS = (PRIMARY_ROUTE_COMMAND, *TARGETED_PROBE_COMMANDS)
 
 CATALOG_READ_COMMANDS = (
     "cities search",
     "airports explain",
+    "diagnose tutu-search",
     "diagnose fli-search",
     "search",
     "diagnose plan",

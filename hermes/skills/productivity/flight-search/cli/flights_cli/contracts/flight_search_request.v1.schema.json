@@ -14,7 +14,17 @@
     "currency": {"type": "string", "default": "RUB"},
     "profile": {"type": "string", "const": "business", "default": "business"},
     "ticketing": {"type": "string", "enum": ["separate", "single"], "default": "separate"},
-    "provider_policy": {"type": "string", "enum": ["auto", "kupibilet", "fli", "both"], "default": "auto"},
+    "provider_policy": {"type": "string", "enum": ["auto", "kupibilet", "fli", "tutu"], "default": "auto"},
+    "constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "first_departure_after": {"type": ["string", "null"], "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"},
+        "must_include_airports": {"type": "array", "items": {"type": "string"}},
+        "only_carriers": {"type": "array", "items": {"type": "string"}},
+        "preferred_carriers": {"type": "array", "items": {"type": "string"}}
+      }
+    },
     "route_options": {
       "type": "object",
       "additionalProperties": false,
@@ -32,7 +42,11 @@
         "stop_policy": {"type": "string", "enum": ["business-default", "strict-direct-one-stop", "allow-two-stop-tier", "debug-all"]},
         "date_window_end": {"type": ["string", "null"], "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
         "max_connections": {"type": ["integer", "null"], "minimum": 0},
-        "tier2_max_connections": {"type": ["integer", "null"], "minimum": 0}
+        "tier2_max_connections": {"type": ["integer", "null"], "minimum": 0},
+        "use_gateway_discovery_for_fallback_hubs": {"type": "boolean"},
+        "gateway_discovery_limit": {"type": "integer", "minimum": 0},
+        "gateway_probe_batch_size": {"type": "integer", "minimum": 0},
+        "gateway_probe_max_batches": {"type": "integer", "minimum": 0}
       }
     },
     "evidence": {
@@ -43,6 +57,9 @@
         "timeout": {"type": "integer", "minimum": 1},
         "outbound_second_leg_day_offsets": {"type": "array", "items": {"type": "integer"}},
         "return_second_leg_day_offsets": {"type": "array", "items": {"type": "integer"}},
+        "search_wave_max_waves": {"type": "integer", "minimum": 1},
+        "search_wave_probe_limit": {"type": "integer", "minimum": 1},
+        "search_wave_top_k": {"type": "integer", "minimum": 1},
         "aggregate_control_limit": {"type": "integer", "minimum": 0},
         "aggregate_control_carriers": {"type": "array", "items": {"type": "string"}},
         "max_segment_searches": {"type": "integer", "minimum": 1},

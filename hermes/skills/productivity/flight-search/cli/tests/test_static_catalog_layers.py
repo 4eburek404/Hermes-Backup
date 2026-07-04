@@ -5,8 +5,9 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
-from flights_cli.config import CACHE_DIR
+from flights_cli.config import CACHE_DIR, DEFAULT_CACHE_DIR, resolve_cache_dir
 from flights_cli.errors import CliError
 from flights_cli.providers.static_catalog import (
     STATIC_CATALOG_BY_NAME,
@@ -149,12 +150,23 @@ class StaticCatalogLayerTests(unittest.TestCase):
             "route_intel.py",
             "segment_normalization.py",
             "static_catalog.py",
+            "tutu_mcp.py",
         }
         modules = {path.name for path in provider_dir.glob("*.py")}
         self.assertEqual(modules, allowed)
 
     def test_default_cache_path_is_skill_scoped(self) -> None:
-        self.assertEqual(CACHE_DIR, Path.home() / ".hermes" / "cache" / "flight-search")
+        self.assertEqual(
+            DEFAULT_CACHE_DIR, Path.home() / ".hermes" / "cache" / "flight-search"
+        )
+        self.assertEqual(CACHE_DIR, DEFAULT_CACHE_DIR)
+
+    def test_cache_path_can_be_overridden_by_env(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with patch.dict(
+                "os.environ", {"FLIGHTS_CACHE_DIR": str(Path(tmp_dir) / "cache")}
+            ):
+                self.assertEqual(resolve_cache_dir(), Path(tmp_dir) / "cache")
 
 
 if __name__ == "__main__":

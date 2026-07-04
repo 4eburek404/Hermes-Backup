@@ -1,17 +1,17 @@
 {
   "skill": {
     "name": "flight-search",
-    "version": "0.8.8"
+    "version": "0.9.0"
   },
   "cli": {
     "package": "flights-cli",
-    "version": "0.5.8"
+    "version": "0.6.0"
   },
   "contracts": {
     "flight_search_request": "flight_search_request.v1",
-    "flight_search_result": "flight_search_result.v1",
-    "agent_report": "agent_report.v2",
-    "user_answer": "flight_search_user_answer.v3"
+    "flight_search_result": "flight_search_result.v2",
+    "agent_report": "agent_report.v3",
+    "user_answer": "flight_search_user_answer.v5"
   },
   "command_surface": {
     "version": "command_surface.v1",
@@ -22,9 +22,9 @@
       "diagnose render",
       "diagnose kb-search",
       "diagnose kb-roundtrip",
+      "diagnose tutu-search",
       "diagnose fli-search",
       "diagnose fli-dates",
-      "route assemble",
       "route rank",
       "route validate"
     ]

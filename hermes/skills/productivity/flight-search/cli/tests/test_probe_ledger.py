@@ -162,6 +162,32 @@ class ProbeExecutionLedgerTests(unittest.TestCase):
             diagnostics["completeness"]["terminal_count"],
         )
 
+    def test_wave_index_is_projected_into_diagnostics(self) -> None:
+        intent = ProbeIntent(
+            probe_type="segment_hub_leg",
+            direction="outbound",
+            leg="gateway_to_destination",
+            origin="IST",
+            destination="SVX",
+            date="2026-07-10",
+            provider="tutu",
+            metadata={"wave_index": 1},
+        )
+        ledger = ProbeExecutionLedger()
+        ledger.plan_intents([intent])
+        ledger.record_searched(
+            intent,
+            status="ok",
+            provider="tutu",
+            offer_count=1,
+            cache_status="disabled",
+        )
+
+        diagnostics = ledger.to_coverage_diagnostics({"coverage_mode": "targeted"})
+
+        self.assertEqual(diagnostics["planned_controls"][0]["wave_index"], 1)
+        self.assertEqual(diagnostics["searched_controls"][0]["wave_index"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -9,12 +9,17 @@ from flights_cli.adapters.providers.registry import (
     not_supported_probe_result,
     provider_adapter,
     provider_adapters_for_segment,
+    providers_for_offer_query,
+    providers_for_route_query,
     providers_for_segment,
+    route_query_provider_skip_reasons,
+    route_touches_ru,
 )
 from flights_cli.adapters.providers.common import (
     evidence_type_for_offer_count,
     segment_probe_type_from_query,
 )
+from flights_cli.errors import CliError
 from flights_cli.ports.providers import (
     FlightProviderPort,
     ProviderCapabilities,
@@ -31,6 +36,7 @@ def store_with_airports(test_case: unittest.TestCase) -> Store:
         """
         [
           {"code": "SVX", "country_code": "RU", "flightable": true},
+          {"code": "CDG", "country_code": "FR", "flightable": true},
           {"code": "IST", "country_code": "TR", "flightable": true},
           {"code": "LHR", "country_code": "GB", "flightable": true}
         ]
@@ -44,15 +50,23 @@ class ProviderCapabilitiesTests(unittest.TestCase):
     def test_registry_exposes_expected_provider_capabilities(self) -> None:
         kupibilet = PROVIDER_REGISTRY["kupibilet"].capabilities
         fli = PROVIDER_REGISTRY["fli"].capabilities
+        tutu = PROVIDER_REGISTRY["tutu"].capabilities
 
-        self.assertEqual(set(PROVIDER_REGISTRY), {"kupibilet", "fli"})
+        self.assertEqual(set(PROVIDER_REGISTRY), {"kupibilet", "fli", "tutu"})
         self.assertTrue(kupibilet.supports_ru_touching)
         self.assertTrue(kupibilet.supports_full_route_aggregate)
         self.assertTrue(fli.supports_global)
         self.assertFalse(fli.supports_full_route_aggregate)
+        self.assertTrue(tutu.supports_ru_touching)
+        self.assertTrue(tutu.supports_global)
+        self.assertTrue(tutu.supports_full_route_aggregate)
+        self.assertTrue(tutu.supports_direct_only)
+        self.assertTrue(tutu.supports_carrier_filter)
+        self.assertTrue(tutu.supports_round_trip)
+        self.assertIn("carrier_aggregate", tutu.probe_types)
 
     def test_registry_values_are_concrete_provider_ports(self) -> None:
-        self.assertEqual(set(PROVIDER_REGISTRY), {"kupibilet", "fli"})
+        self.assertEqual(set(PROVIDER_REGISTRY), {"kupibilet", "fli", "tutu"})
         for name, adapter in PROVIDER_REGISTRY.items():
             with self.subTest(provider=name):
                 self.assertIsInstance(adapter, FlightProviderPort)
@@ -70,10 +84,12 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         store = store_with_airports(self)
 
         adapters = provider_adapters_for_segment(
-            {"origin": "IST", "destination": "LHR"}, store, "both"
+            {"origin": "IST", "destination": "LHR"}, store, "auto"
         )
 
-        self.assertEqual([adapter.name for adapter in adapters], ["kupibilet", "fli"])
+        self.assertEqual(
+            [adapter.name for adapter in adapters], ["tutu", "kupibilet", "fli"]
+        )
         self.assertTrue(
             all(isinstance(adapter, FlightProviderPort) for adapter in adapters)
         )
@@ -87,19 +103,132 @@ class ProviderCapabilitiesTests(unittest.TestCase):
             providers_for_segment(
                 {"origin": "SVX", "destination": "IST"}, store, "auto"
             ),
-            ["kupibilet"],
+            ["tutu", "kupibilet"],
         )
         self.assertEqual(
             providers_for_segment(
                 {"origin": "IST", "destination": "LHR"}, store, "auto"
             ),
-            ["fli"],
+            ["tutu", "kupibilet", "fli"],
         )
         self.assertEqual(
             providers_for_segment(
-                {"origin": "IST", "destination": "LHR"}, store, "both"
+                {"origin": "SVX", "destination": "IST"}, store, "fli"
             ),
-            ["kupibilet", "fli"],
+            [],
+        )
+
+    def test_both_policy_is_rejected(self) -> None:
+        store = store_with_airports(self)
+
+        with self.assertRaises(CliError):
+            providers_for_segment(
+                {"origin": "IST", "destination": "LHR"}, store, "both"
+            )
+
+    def test_offer_query_policy_uses_full_route_aggregate_capabilities(self) -> None:
+        store = store_with_airports(self)
+        query = {
+            "probe_type": "full_route_aggregate",
+            "origin": "SVX",
+            "destination": "CDG",
+            "direct_only": False,
+        }
+
+        self.assertEqual(
+            providers_for_offer_query(query, store, "kupibilet"), ["kupibilet"]
+        )
+        self.assertEqual(providers_for_offer_query(query, store, "fli"), [])
+        self.assertEqual(providers_for_offer_query(query, store, "tutu"), ["tutu"])
+
+    def test_auto_offer_query_uses_market_and_capability_routing(self) -> None:
+        store = store_with_airports(self)
+
+        self.assertEqual(
+            providers_for_offer_query(
+                {
+                    "probe_type": "full_route_aggregate",
+                    "origin": "SVX",
+                    "destination": "CDG",
+                },
+                store,
+                "auto",
+            ),
+            ["tutu", "kupibilet"],
+        )
+        self.assertEqual(
+            providers_for_offer_query(
+                {
+                    "probe_type": "full_route_aggregate",
+                    "origin": "IST",
+                    "destination": "LHR",
+                },
+                store,
+                "auto",
+            ),
+            ["tutu", "kupibilet"],
+        )
+
+    def test_auto_carrier_aggregate_keeps_tutu_primary(self) -> None:
+        store = store_with_airports(self)
+
+        self.assertEqual(
+            providers_for_offer_query(
+                {
+                    "probe_type": "carrier_aggregate",
+                    "origin": "IST",
+                    "destination": "LHR",
+                    "only_carriers": ["TK"],
+                },
+                store,
+                "auto",
+            ),
+            ["tutu", "kupibilet"],
+        )
+
+    def test_route_query_routing_reuses_ru_touching_market_boundary(self) -> None:
+        store = store_with_airports(self)
+
+        ru_route = {
+            "probe_type": "full_route_aggregate",
+            "origin": "SVX",
+            "destination": "CDG",
+        }
+        non_ru_route = {
+            "probe_type": "full_route_aggregate",
+            "origin": "IST",
+            "destination": "LHR",
+        }
+
+        self.assertTrue(route_touches_ru("SVX", "CDG", store))
+        self.assertFalse(route_touches_ru("IST", "LHR", store))
+        self.assertEqual(
+            providers_for_route_query(ru_route, store, "auto"), ["tutu", "kupibilet"]
+        )
+        self.assertEqual(providers_for_route_query(ru_route, store, "fli"), [])
+        self.assertEqual(
+            route_query_provider_skip_reasons(ru_route, store, "fli"),
+            {"fli": "route_touches_ru"},
+        )
+        self.assertEqual(
+            providers_for_route_query(non_ru_route, store, "auto"),
+            ["tutu", "kupibilet", "fli"],
+        )
+
+    def test_gateway_segments_follow_existing_ru_non_ru_provider_split(self) -> None:
+        store = store_with_airports(self)
+
+        self.assertEqual(
+            providers_for_segment(
+                {"origin": "SVX", "destination": "IST"}, store, "auto"
+            ),
+            ["tutu", "kupibilet"],
+        )
+        self.assertEqual(
+            providers_for_segment(
+                {"origin": "IST", "destination": "LHR"}, store, "auto"
+            ),
+            ["tutu", "kupibilet", "fli"],
         )
 
     def test_unsupported_probe_result_is_explicit_not_supported_evidence(self) -> None:

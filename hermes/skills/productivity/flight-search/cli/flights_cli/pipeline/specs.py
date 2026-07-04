@@ -133,10 +133,12 @@ def probe_specs_from_segments(
     specs: list[ProbeSpec] = []
     for segment in segments:
         filters = FilterOptions(
-            only_carriers=_unique(options.filters.only_carriers, segment.only_carriers),
+            only_carriers=_unique(
+                options.effective_only_carriers(), segment.only_carriers
+            ),
             exclude_carriers=options.filters.exclude_carriers,
             prefer_carriers=_unique(
-                options.filters.prefer_carriers, segment.preferred_carriers
+                options.effective_prefer_carriers(), segment.preferred_carriers
             ),
             avoid_carriers=options.filters.avoid_carriers,
         )

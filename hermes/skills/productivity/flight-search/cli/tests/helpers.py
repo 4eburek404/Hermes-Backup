@@ -4,17 +4,78 @@ import argparse
 import json
 import subprocess
 import sys
+import tempfile
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 
 PROJECT = Path(__file__).resolve().parents[1]
+TEST_CACHE_DIR = Path(tempfile.mkdtemp(prefix="flight-search-test-cache-"))
 TEST_ENV = {
     "PYTHONPATH": str(PROJECT),
     "FLIGHTS_CATALOG_REFRESH": "never",
+    "FLIGHTS_CACHE_DIR": str(TEST_CACHE_DIR),
     "PYTHONDONTWRITEBYTECODE": "1",
 }
+
+
+def decision_frontier_from_details(
+    details: list[dict[str, Any]],
+) -> dict[str, Any]:
+    options: list[dict[str, Any]] = []
+    for detail in details:
+        if not isinstance(detail, dict):
+            continue
+        ranked = detail.get("ranked") if isinstance(detail.get("ranked"), dict) else {}
+        candidate = (
+            detail.get("candidate") if isinstance(detail.get("candidate"), dict) else {}
+        )
+        validation = (
+            ranked.get("validation_summary")
+            if isinstance(ranked.get("validation_summary"), dict)
+            else {}
+        )
+        option = {
+            "id": ranked.get("id") or candidate.get("id"),
+            "rank": ranked.get("rank") or detail.get("rank"),
+            "source_type": candidate.get("source_type"),
+            "provider": candidate.get("provider"),
+            "source_providers": candidate.get("source_providers") or [],
+            "gateway": candidate.get("gateway"),
+            "covers_requested_trip": candidate.get("covers_requested_trip", True),
+            "journey_scope": candidate.get("journey_scope") or "one_way",
+            "price": ranked.get("price"),
+            "currency": ranked.get("currency"),
+            "price_basis": candidate.get("price_basis"),
+            "ticketing_model": candidate.get("ticketing_model"),
+            "detail_status": detail.get("detail_status") or "full",
+            "journeys": candidate.get("journeys") or [],
+            "warnings": candidate.get("warnings") or [],
+            "elapsed_min": ranked.get("elapsed_min"),
+            "connection_risk_score": (
+                ranked.get("risk", {}).get("score")
+                if isinstance(ranked.get("risk"), dict)
+                else None
+            ),
+            "selection_reasons": [detail.get("category") or "fixture_frontier"],
+            "connection_count": validation.get("max_connections_per_journey"),
+        }
+        options.append(
+            {key: value for key, value in option.items() if value is not None}
+        )
+    return {
+        "schema_version": "flight_decision_frontier.v1",
+        "options": options,
+        "controls": [],
+        "coverage_summary": {
+            "candidate_count": len(options),
+            "acceptable_count": len(options),
+            "selected_count": len(options),
+            "rejected_count": 0,
+            "control_count": 0,
+        },
+    }
 
 
 def subparser_choices(
@@ -44,7 +105,7 @@ def parser_leaf_defaults(parser: argparse.ArgumentParser) -> dict[str, dict[str,
 def live_assembly_args(**overrides: Any) -> Any:
     """Build typed live-assembly options through the canonical search request adapter."""
 
-    from flights_cli.apps.search import live_assembly_options_from_search_request
+    from flights_cli.commands.search import live_assembly_options_from_search_request
 
     def as_list(value: Any) -> list[Any]:
         if value is None:
@@ -72,6 +133,12 @@ def live_assembly_args(**overrides: Any) -> Any:
         "date_window_end": "date_window_end",
         "max_connections": "max_connections",
         "tier2_max_connections": "tier2_max_connections",
+        "use_gateway_discovery_for_fallback_hubs": (
+            "use_gateway_discovery_for_fallback_hubs"
+        ),
+        "gateway_discovery_limit": "gateway_discovery_limit",
+        "gateway_probe_batch_size": "gateway_probe_batch_size",
+        "gateway_probe_max_batches": "gateway_probe_max_batches",
     }
     evidence_keys = {
         "segment_limit": "segment_limit",
@@ -80,6 +147,9 @@ def live_assembly_args(**overrides: Any) -> Any:
         "outbound_second_leg_day_offset": "outbound_second_leg_day_offsets",
         "return_second_leg_day_offsets": "return_second_leg_day_offsets",
         "return_second_leg_day_offset": "return_second_leg_day_offsets",
+        "search_wave_max_waves": "search_wave_max_waves",
+        "search_wave_probe_limit": "search_wave_probe_limit",
+        "search_wave_top_k": "search_wave_top_k",
         "aggregate_control_limit": "aggregate_control_limit",
         "aggregate_control_carriers": "aggregate_control_carriers",
         "aggregate_control_carrier": "aggregate_control_carriers",
@@ -113,6 +183,15 @@ def live_assembly_args(**overrides: Any) -> Any:
         "avoid_carriers": "avoid_carriers",
         "avoid_carrier": "avoid_carriers",
     }
+    constraint_keys = {
+        "first_departure_after": "first_departure_after",
+        "must_include_airports": "must_include_airports",
+        "must_include_airport": "must_include_airports",
+        "constraint_only_carriers": "only_carriers",
+        "constraint_only_carrier": "only_carriers",
+        "preferred_carriers": "preferred_carriers",
+        "preferred_carrier": "preferred_carriers",
+    }
 
     values = dict(overrides)
     agent_report_override = values.pop("agent_report", None)
@@ -134,6 +213,7 @@ def live_assembly_args(**overrides: Any) -> Any:
     evidence: dict[str, Any] = {}
     output: dict[str, Any] = {}
     filters: dict[str, Any] = {}
+    constraints: dict[str, Any] = {}
     for key, target in route_option_keys.items():
         if key in values:
             value = values.pop(key)
@@ -161,6 +241,16 @@ def live_assembly_args(**overrides: Any) -> Any:
     for key, target in filter_keys.items():
         if key in values:
             filters[target] = as_list(values.pop(key))
+    for key, target in constraint_keys.items():
+        if key in values:
+            value = values.pop(key)
+            if target in {
+                "must_include_airports",
+                "only_carriers",
+                "preferred_carriers",
+            }:
+                value = as_list(value)
+            constraints[target] = value
     if route_options:
         request["route_options"] = route_options
     if evidence:
@@ -169,6 +259,8 @@ def live_assembly_args(**overrides: Any) -> Any:
         request["output"] = output
     if filters:
         request["filters"] = filters
+    if constraints:
+        request["constraints"] = constraints
 
     if values:
         unknown = ", ".join(sorted(values))

@@ -12,9 +12,9 @@ from typing import Any, Callable
 
 from .. import __version__
 from ..config import (
-    ROUTE_INTEL_CACHE_DIR,
     SVX_OFFICIAL_ARRIVAL_SCHEDULE_URL,
     SVX_OFFICIAL_SCHEDULE_URL,
+    resolve_cache_dir,
 )
 from ..errors import CliError
 from .static_catalog import atomic_write_bytes, canonical_json_bytes
@@ -52,8 +52,12 @@ def default_fetch_text(url: str, timeout: int) -> str:
         ) from exc
 
 
-def svx_route_index_path(cache_dir: Path = ROUTE_INTEL_CACHE_DIR) -> Path:
-    return cache_dir / SVX_ROUTE_INDEX_FILENAME
+def _route_intel_cache_dir(cache_dir: Path | None = None) -> Path:
+    return cache_dir or (resolve_cache_dir() / "route_intel")
+
+
+def svx_route_index_path(cache_dir: Path | None = None) -> Path:
+    return _route_intel_cache_dir(cache_dir) / SVX_ROUTE_INDEX_FILENAME
 
 
 def parse_svx_schedule_airport_codes(
@@ -108,7 +112,7 @@ def build_svx_route_index(
 def read_svx_route_index(
     *,
     ttl_seconds: int,
-    cache_dir: Path = ROUTE_INTEL_CACHE_DIR,
+    cache_dir: Path | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]] | None:
     if ttl_seconds <= 0:
         return None
@@ -138,7 +142,7 @@ def read_svx_route_index(
 
 
 def write_svx_route_index(
-    index: dict[str, Any], *, cache_dir: Path = ROUTE_INTEL_CACHE_DIR
+    index: dict[str, Any], *, cache_dir: Path | None = None
 ) -> dict[str, Any]:
     path = svx_route_index_path(cache_dir)
     atomic_write_bytes(path, canonical_json_bytes(index))
@@ -154,7 +158,7 @@ def load_or_refresh_svx_route_index(
     ttl_seconds: int,
     timeout: int,
     known_airports: set[str] | None = None,
-    cache_dir: Path = ROUTE_INTEL_CACHE_DIR,
+    cache_dir: Path | None = None,
     fetch_text: FetchText = default_fetch_text,
     now: datetime | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:

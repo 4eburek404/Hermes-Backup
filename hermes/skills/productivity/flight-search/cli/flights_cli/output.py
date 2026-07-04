@@ -342,16 +342,4 @@ def render_human(command: str, data: Any) -> str:
                     f"  - +{reason['points']} {reason['code']}: {reason['message']}"
                 )
         return "\n".join(lines)
-    if command == "route assemble":
-        assembly = data["assembly"]
-        lines = [
-            f"profile: {data['profile']} ({data['rank_order']})",
-            f"assembled candidates: {assembly['candidate_count']} from outbound_pairs={assembly['outbound_pair_count']} return_pairs={assembly['return_pair_count']}",
-            f"rejected pairs: {assembly.get('rejected_pair_count', 0)}",
-        ]
-        for item in data["ranked"]:
-            lines.append(
-                f"{item['rank']}. {item['id']} risk={item['risk']['score']}:{item['risk']['grade']} price={item['price']} elapsed={item['elapsed_min']}"
-            )
-        return "\n".join(lines)
     return json.dumps(data, ensure_ascii=False, indent=2)

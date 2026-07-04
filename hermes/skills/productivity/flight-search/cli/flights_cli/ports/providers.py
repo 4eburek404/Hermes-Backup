@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol, runtime_checkable
 
 
-ProviderName = Literal["kupibilet", "fli"]
+ProviderName = Literal["kupibilet", "fli", "tutu"]
 ProbeType = Literal[
     "segment_direct",
     "segment_hub_leg",

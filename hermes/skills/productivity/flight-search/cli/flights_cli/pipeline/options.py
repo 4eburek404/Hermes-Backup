@@ -7,10 +7,16 @@ from ..config import (
     DEFAULT_COVERAGE_CONTROL_LIMIT,
     DEFAULT_CURRENCY,
     DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS,
+    DEFAULT_GATEWAY_DISCOVERY_LIMIT,
+    DEFAULT_GATEWAY_PROBE_BATCH_SIZE,
+    DEFAULT_GATEWAY_PROBE_MAX_BATCHES,
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
     DEFAULT_PROFILE,
     DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR,
     DEFAULT_ROUTING_STRATEGY,
+    DEFAULT_SEARCH_WAVE_MAX_WAVES,
+    DEFAULT_SEARCH_WAVE_PROBE_LIMIT,
+    DEFAULT_SEARCH_WAVE_TOP_K,
     FLI_MCP_DEFAULT_URL,
     PRIORITY_ROUTE_CARRIERS,
 )
@@ -34,6 +40,10 @@ class RouteOptions:
     stop_policy: str
     min_same_airport_min: int
     min_cross_airport_min: int
+    use_gateway_discovery_for_fallback_hubs: bool
+    gateway_discovery_limit: int
+    gateway_probe_batch_size: int
+    gateway_probe_max_batches: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +52,22 @@ class FilterOptions:
     exclude_carriers: tuple[str, ...]
     prefer_carriers: tuple[str, ...]
     avoid_carriers: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class RequestConstraints:
+    first_departure_after: str | None = None
+    must_include_airports: tuple[str, ...] = ()
+    only_carriers: tuple[str, ...] = ()
+    preferred_carriers: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "first_departure_after": self.first_departure_after,
+            "must_include_airports": list(self.must_include_airports),
+            "only_carriers": list(self.only_carriers),
+            "preferred_carriers": list(self.preferred_carriers),
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +87,9 @@ class EvidenceOptions:
     timeout: int
     outbound_second_leg_day_offsets: tuple[int, ...]
     return_second_leg_day_offsets: tuple[int, ...]
+    search_wave_max_waves: int
+    search_wave_probe_limit: int
+    search_wave_top_k: int
     fail_fast: bool
     fli_mcp_url: str
 
@@ -86,16 +115,24 @@ class LiveAssemblyOptions:
     command_name: str
     route: RouteOptions
     filters: FilterOptions
+    constraints: RequestConstraints
     evidence: EvidenceOptions
     output: OutputOptions
     profile: str
     ticketing: str
     currency: str
 
+    def effective_only_carriers(self) -> tuple[str, ...]:
+        return _unique_strs(self.filters.only_carriers, self.constraints.only_carriers)
+
     def effective_prefer_carriers(
         self, routing_strategy: str | None = None
     ) -> tuple[str, ...]:
-        carriers = list(self.filters.prefer_carriers)
+        carriers = list(
+            _unique_strs(
+                self.filters.prefer_carriers, self.constraints.preferred_carriers
+            )
+        )
         if (
             str(routing_strategy or self.route.routing_strategy or "").lower()
             == RoutingStrategy.RU_PRIORITY
@@ -118,6 +155,23 @@ def _as_tuple(value: object) -> tuple[Any, ...]:
 
 def _str_tuple(value: object) -> tuple[str, ...]:
     return tuple(str(item) for item in _as_tuple(value) if str(item))
+
+
+def _upper_str_tuple(value: object) -> tuple[str, ...]:
+    return tuple(str(item).strip().upper() for item in _as_tuple(value) if str(item))
+
+
+def _unique_strs(*values: tuple[str, ...]) -> tuple[str, ...]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for group in values:
+        for item in group:
+            text = str(item).strip().upper()
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            result.append(text)
+    return tuple(result)
 
 
 def _int_tuple(value: object) -> tuple[int, ...]:
@@ -155,6 +209,7 @@ def search_request_to_options(payload: dict[str, Any]) -> LiveAssemblyOptions:
     route = _mapping(payload.get("route_options"))
     evidence = _mapping(payload.get("evidence"))
     filters = _mapping(payload.get("filters"))
+    constraints = _mapping(payload.get("constraints"))
     output = _mapping(payload.get("output"))
     return LiveAssemblyOptions(
         command_name="search",
@@ -180,12 +235,40 @@ def search_request_to_options(payload: dict[str, Any]) -> LiveAssemblyOptions:
             stop_policy=str(route.get("stop_policy") or "business-default"),
             min_same_airport_min=_int_option(route, "min_same_airport_min", 120),
             min_cross_airport_min=_int_option(route, "min_cross_airport_min", 300),
+            use_gateway_discovery_for_fallback_hubs=_bool_option(
+                route, "use_gateway_discovery_for_fallback_hubs", False
+            ),
+            gateway_discovery_limit=_int_option(
+                route,
+                "gateway_discovery_limit",
+                DEFAULT_GATEWAY_DISCOVERY_LIMIT,
+            ),
+            gateway_probe_batch_size=_int_option(
+                route,
+                "gateway_probe_batch_size",
+                DEFAULT_GATEWAY_PROBE_BATCH_SIZE,
+            ),
+            gateway_probe_max_batches=_int_option(
+                route,
+                "gateway_probe_max_batches",
+                DEFAULT_GATEWAY_PROBE_MAX_BATCHES,
+            ),
         ),
         filters=FilterOptions(
             only_carriers=_str_tuple(filters.get("only_carriers")),
             exclude_carriers=_str_tuple(filters.get("exclude_carriers")),
             prefer_carriers=_str_tuple(filters.get("prefer_carriers")),
             avoid_carriers=_str_tuple(filters.get("avoid_carriers")),
+        ),
+        constraints=RequestConstraints(
+            first_departure_after=str(constraints.get("first_departure_after"))
+            if constraints.get("first_departure_after")
+            else None,
+            must_include_airports=_upper_str_tuple(
+                constraints.get("must_include_airports")
+            ),
+            only_carriers=_upper_str_tuple(constraints.get("only_carriers")),
+            preferred_carriers=_upper_str_tuple(constraints.get("preferred_carriers")),
         ),
         evidence=EvidenceOptions(
             provider_policy=str(payload.get("provider_policy") or "auto").lower(),
@@ -220,6 +303,15 @@ def search_request_to_options(payload: dict[str, Any]) -> LiveAssemblyOptions:
             ),
             return_second_leg_day_offsets=_int_tuple(
                 evidence.get("return_second_leg_day_offsets")
+            ),
+            search_wave_max_waves=_int_option(
+                evidence, "search_wave_max_waves", DEFAULT_SEARCH_WAVE_MAX_WAVES
+            ),
+            search_wave_probe_limit=_int_option(
+                evidence, "search_wave_probe_limit", DEFAULT_SEARCH_WAVE_PROBE_LIMIT
+            ),
+            search_wave_top_k=_int_option(
+                evidence, "search_wave_top_k", DEFAULT_SEARCH_WAVE_TOP_K
             ),
             fail_fast=_bool_option(evidence, "fail_fast", False),
             fli_mcp_url=str(evidence.get("fli_mcp_url") or FLI_MCP_DEFAULT_URL),

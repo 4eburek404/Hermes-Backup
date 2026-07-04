@@ -135,7 +135,7 @@ class FinalCommandSmokeTests(unittest.TestCase):
         text = docs_text()
         self.assertIn("python3 -m flights_cli --json search --request", text)
         self.assertIn("python3 -m flights_cli --json diagnose plan --request", text)
-        self.assertIn("route assemble", text)
+        self.assertNotIn("route assemble", text)
         self.assertIn("route rank", text)
         self.assertIn("route validate", text)
 

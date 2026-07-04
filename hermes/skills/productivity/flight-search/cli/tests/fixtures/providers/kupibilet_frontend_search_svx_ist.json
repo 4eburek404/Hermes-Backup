@@ -1,0 +1,41 @@
+{
+  "fixture_schema": "provider_raw_fixture.v1",
+  "provider": "kupibilet",
+  "endpoint": "frontend_search",
+  "query": {
+    "origin": "SVX",
+    "destination": "IST",
+    "depart_date": "2026-08-15",
+    "currency": "RUB"
+  },
+  "raw": {
+    "variants": [
+      {
+        "id": "kb-svx-ist-direct",
+        "price": {
+          "amount": 52000,
+          "currency": "RUB"
+        },
+        "segments": [
+          {
+            "flights": ["kb-flight-1"]
+          }
+        ]
+      }
+    ],
+    "flights": {
+      "kb-flight-1": {
+        "transport_kind": "airplane",
+        "marketing_carrier": "U6",
+        "operating_carrier": "U6",
+        "transport_number": "703",
+        "departure": "SVX",
+        "arrival": "IST",
+        "departure_datetime": "2026-08-15T08:20:00+05:00",
+        "arrival_datetime": "2026-08-15T10:40:00+03:00",
+        "duration": 260,
+        "equipment": "320"
+      }
+    }
+  }
+}
