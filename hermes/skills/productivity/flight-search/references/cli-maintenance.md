@@ -152,7 +152,7 @@ Pitfalls:
 
 ## Provider and Airport Policy Coupling
 
-The authoritative rules live in `references/provider-aware-airport-priority.md`; do not duplicate them here. When maintaining the CLI, tests, or docs, read that file for city/airport dispatch invariants, KupiBilet MOW city-code behavior, FLI exact-airport policy, and airport interchangeability rules.
+The authoritative dispatch rules live in `references/pipeline-reference.md`; confidence/source wording lives in `references/source-boundaries.md`. Do not duplicate them here. When maintaining the CLI, tests, or docs, read those files for city/airport dispatch invariants, KupiBilet MOW city-code behavior, FLI exact-airport policy, Tutu city-name behavior, and airport interchangeability rules.
 
 ## Route-Family and Coverage-Control Rules
 
@@ -238,19 +238,14 @@ Generated artifacts must be intentionally cleaned or reported. Prefer `PYTHONDON
 
 ## Markdown Reference Governance
 
-Canonical active references are the index plus ten owner files:
+Canonical active references are the index plus five owner files:
 
 0. `references/index.md` — canonical reference owner map and routing hub from `SKILL.md`.
 1. `references/report-contract.md` — how to read `agent_report`, contract lifecycle, and renderer contract.
-2. `references/source-boundaries.md` — evidence classes, absence, airports, connections, ticketing, OTA/smart-route semantics.
-3. `references/provider-aware-airport-priority.md` — provider/airport dispatch and city-code policy.
-4. `references/pipeline-reference.md` — current data flow, flow decision, evidence plan, provider/gateway routing, direct-first gate, reporting projection, and data artifacts.
-5. `references/debug-playbook.md` — targeted probes and bounded exception/debug patterns.
-6. `references/direct-date-window.md` — direct/nonstop inventory over a bounded date range.
-7. `references/rail-rzd-live-pricing.md` — bounded official-RZD train-price comparison after a flight search.
-8. `references/cli-maintenance.md` — source/runtime, schema/tests, provider ports, CLI-surface simplification, generated artifacts, dead-code/duplicate cleanup, and this reference lifecycle.
-9. `references/tutu-mcp-provider.md` — Tutu MCP adapter contract, normalization, pagination, provider policy, and limitations.
-10. `references/route-network-discovery.md` — route-network questions that are outside dated live-ticket search.
+2. `references/source-boundaries.md` — evidence classes, absence, airports, connections, ticketing, adjacent source boundaries, OTA/smart-route semantics.
+3. `references/pipeline-reference.md` — current data flow, flow decision, evidence plan, provider/gateway routing, provider/airport scope, Tutu MCP facts, direct-first/date-window mechanics, reporting projection, and data artifacts.
+4. `references/debug-playbook.md` — targeted probes and bounded exception/debug patterns.
+5. `references/cli-maintenance.md` — source/runtime, schema/tests, provider ports, CLI-surface simplification, generated artifacts, dead-code/duplicate cleanup, and this reference lifecycle.
 
 Do not add a new active reference for every incident, smoke run, audit, handoff, route example, migration note, or implementation report. First verify the rule against current code/schema/tests, then extract durable behavior into the appropriate canonical reference or test; leave raw history to session search. Add another active reference only when a new stable direction cannot be expressed in the canonical files.
 
@@ -259,5 +254,5 @@ Before final reporting after Markdown consolidation:
 - Confirm the canonical Markdown set explicitly.
 - Confirm no new incident, runbook, audit, handoff, smoke, or implementation-report Markdown was added.
 - Link from `SKILL.md` to `references/index.md` for reference routing; direct links to specific references are allowed only for hot-path invariants.
-- Keep provider/airport policy in `references/provider-aware-airport-priority.md`; cross-reference it instead of duplicating provider-specific rules across docs.
+- Keep provider/airport policy in `references/pipeline-reference.md` and source caveats in `references/source-boundaries.md`; cross-reference them instead of duplicating provider-specific rules across docs.
 - Verify noncanonical runtime-only Markdown files are gone and source/runtime Markdown parity holds after sync when runtime sync is in scope.

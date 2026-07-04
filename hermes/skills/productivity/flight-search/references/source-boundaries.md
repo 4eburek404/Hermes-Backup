@@ -25,7 +25,7 @@ When a market is structurally constrained, do not phrase the answer as “the pr
 
 ## Airport and City Boundaries
 
-Use airport codes, not city labels, when continuity matters. Airports within the same city are not interchangeable for itinerary continuity; see `references/provider-aware-airport-priority.md` for the full city/airport dispatch policy and priority tiers.
+Use airport codes, not city labels, when continuity matters. Airports within the same city are not interchangeable for itinerary continuity; dispatch policy and priority tiers live in `references/pipeline-reference.md`.
 
 For separate tickets, same-airport continuity is required by default. Cross-airport options must be rejected or explicitly labeled as ground-transfer risk.
 
@@ -35,7 +35,7 @@ City-scope boundary:
 - City-code requests must still display the actual airport codes returned by normalized offers.
 - Cross-airport options require explicit ground-transfer risk labels.
 
-Provider-specific airport priority, city-code expansion, and dispatch semantics live in `references/provider-aware-airport-priority.md`; do not duplicate those rules here.
+Provider-specific airport priority, city-code expansion, and dispatch semantics live in `references/pipeline-reference.md`; keep this file focused on confidence and caveat wording.
 
 ## Connection Thresholds
 
@@ -138,3 +138,23 @@ Catalog-dependent CLI commands refresh missing or older-than-2-weeks static meta
 ## Live Provider Policy
 
 The live provider policy chooses the current source mix for each segment. Read policy, failures, coverage diagnostics, and source limits from `data.agent_report` instead of assuming a provider path.
+
+## Adjacent Source Boundaries
+
+### Route network without a date
+
+When the user asks where an airport flies direct, or whether a route exists without a travel date, this is a route-network question, not live-ticket search. The flight-search CLI searches live inventory for a specific route/date and cannot prove a full airport route map.
+
+Source order for route-network answers:
+
+1. official airport website or airline route map, preferably pages that distinguish direct vs connecting service;
+2. Wikipedia "Airlines and destinations" as structured but possibly stale support;
+3. Google Flights Explore or departure boards only as fallback.
+
+Official airport/airline sources win over Wikipedia when they disagree. Cite source and verification date, and keep undated route existence separate from dated live availability.
+
+### Train-vs-flight comparison
+
+Use rail evidence only as a bounded adjacent comparison after a flight search, when the user asks whether train tickets are cheaper or wants rail prices on the same route/date. For Russian rail availability and prices, use official RZD/pass.rzd data as the source of truth. Do not replace official-source failure with aggregator estimates unless the user explicitly asks for non-official advisory context.
+
+RZD/pass.rzd output is read-only availability and tariff evidence, not purchase proof. Final fare, exact seat/car, fees, refund rules, meals/service details, and purchase eligibility require the official RZD booking screen.

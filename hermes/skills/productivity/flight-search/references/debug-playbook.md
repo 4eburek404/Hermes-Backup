@@ -239,4 +239,4 @@ If preferred options are missing while segment evidence exists, inspect generati
 
 ## Reference lifecycle
 
-Route-specific debug notes should not become new active references. After a case is understood, distill the durable rule into this playbook, `report-contract.md`, `source-boundaries.md`, `provider-aware-airport-priority.md`, `pipeline-reference.md`, `cli-maintenance.md`, or tests; leave raw incident history to session search.
+Route-specific debug notes should not become new active references. After a case is understood, distill the durable rule into this playbook, `report-contract.md`, `source-boundaries.md`, `pipeline-reference.md`, `cli-maintenance.md`, or tests; leave raw incident history to session search.

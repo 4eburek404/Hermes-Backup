@@ -141,7 +141,7 @@ Production search uses one ranking profile: `business`. It prioritizes visible n
 
 Read provider policy, provider failures, coverage diagnostics, and source boundaries from `data.agent_report` before answering. Do not hardcode source assumptions outside what the report states.
 
-Provider-aware airport priority is documented in `references/provider-aware-airport-priority.md`; use that contract for the active provider set, IST/LON/MOW airport priority, city-code post-validation, and dispatch boundaries. Do not duplicate those rules in CLI help or answer prose.
+Provider-aware airport priority is documented in `references/pipeline-reference.md`; use that contract for the active provider set, IST/LON/MOW airport priority, city-code post-validation, and dispatch boundaries. Do not duplicate those rules in CLI help or answer prose.
 
 ## Airport and Connection Risk
 

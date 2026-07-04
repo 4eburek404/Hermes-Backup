@@ -12,14 +12,9 @@ CANONICAL_REFERENCES = {
     "index.md",
     "report-contract.md",
     "source-boundaries.md",
-    "provider-aware-airport-priority.md",
     "pipeline-reference.md",
     "debug-playbook.md",
-    "direct-date-window.md",
-    "rail-rzd-live-pricing.md",
     "cli-maintenance.md",
-    "tutu-mcp-provider.md",
-    "route-network-discovery.md",
 }
 REMOVED_COMMAND_PATTERNS = (
     r"\broute\s+live-assemble\b",

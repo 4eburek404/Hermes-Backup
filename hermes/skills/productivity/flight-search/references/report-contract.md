@@ -87,7 +87,7 @@ Stop-policy diagnostics describe how assembly generated the candidate pool. Trea
 
 ## Route-Specific Controls
 
-Moscow/SVO controls, domestic-RU direct visibility, and carrier-specific existence questions are report contract concerns only when they affect `frontier.decision_frontier.controls[]`, `control_family`, `control_branch`, `visibility_role`, `priority_option_id`, or absence language. Detailed provider/airport dispatch policy lives in `references/provider-aware-airport-priority.md`; detailed debug probes live in `references/debug-playbook.md`.
+Moscow/SVO controls, domestic-RU direct visibility, and carrier-specific existence questions are report contract concerns only when they affect `frontier.decision_frontier.controls[]`, `control_family`, `control_branch`, `visibility_role`, `priority_option_id`, or absence language. Detailed provider/airport dispatch policy lives in `references/pipeline-reference.md`; detailed debug probes live in `references/debug-playbook.md`.
 
 Provider-aware airport priority is part of the report contract: city codes describe request scope, while normalized offers and user-facing display must expose actual airport codes. `direct_destination_control` is a search branch, not a nonstop claim. Validate structured fields instead of relying on `answer_lines` text.
 

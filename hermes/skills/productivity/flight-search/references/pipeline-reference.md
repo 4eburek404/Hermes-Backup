@@ -38,6 +38,32 @@ flight_search_request.v1
 
 Provider routing is never a whole-search exclusive lock in `auto`; the Tutu-first short-circuit is scoped to each logical probe.
 
+Tutu MCP facts:
+
+- endpoint: `https://mcp.tutu.ru/mcp` by default, overridden by `FLIGHTS_TUTU_MCP_URL`;
+- tool: `search_avia`, JSON-RPC over Streamable HTTP;
+- input: Russian city names, not IATA codes; the adapter resolves IATA through `Store.city_by_code`;
+- output: shopping offers, not booking or purchase proof;
+- capabilities: RU-touching and global markets, segment and full-route aggregate probes, direct-only and carrier post-filtering, carrier aggregate, round-trip input, and cache;
+- pagination: `TUTU_PAGE_SIZE = 30`, `TUTU_MAX_PAGES = 3`, `sort=departure_asc`, with `pages_fetched`, `has_more_after_fetch`, and `not_fetched_due_to_page_budget` metadata.
+
+Tutu normalization extracts IATA from parenthesized airport strings, resolves carrier display names through the airline catalog where possible, maps `segments_count - 1` to connection count, and keeps provider-returned round-trip outbound/return journeys instead of flattening them into fake one-way connections.
+
+## Airport and Provider Scope
+
+City codes describe request scope; normalized offers and reports must show actual airport codes.
+
+- Exact airport requests stay exact unless the user allows city scope.
+- Tutu searches by city name, then post-filters exact-airport requests against normalized first/last airports; mismatches are skipped with `airport_scope`.
+- KupiBilet uses `MOW` city-code first; exact `SVO`/`DME`/`VKO` deferred probes are not executed in parallel when city-code results have accepted offers.
+- FLI is exact-airport only and must not receive `LON` city-code queries by default.
+- IST means exact `IST`; do not add `SAW` unless requested.
+- London defaults to `LHR` first, with `LGW` secondary only if `LHR` has no accepted/viable offers; `STN` and `LTN` are excluded by default.
+- Dubai city scope defaults to `DXB`; use `DWC` as secondary when relevant; include `SHJ` only when requested, carrier-relevant, cheapest UAE-wide, or provider-returned and labeled.
+- Moscow airports are not interchangeable for itinerary continuity; reports must show actual `SVO`/`DME`/`VKO` airports.
+
+RU-priority controls remain structured report fields, not prose-only rules: `direct_destination_control` is a search branch, not a nonstop claim; Moscow/SVO is a first-class control for Russian-origin international routes; domestic-RU direct offers must stay visible when they are objectively cheapest/fastest even if profile scoring ranks a hub option higher.
+
 ## Gateway Policy
 
 Gateway selection is policy/config driven, not route-specific Python branching.
@@ -65,6 +91,29 @@ Constraints are planner inputs and scorer gates:
 - `first_departure_after` filters first outbound departure before frontier selection.
 - `only_carriers` is hard; `preferred_carriers` is soft scoring input.
 - Carrier matching uses normalized codes and raw provider names.
+
+## Direct Date Window
+
+Use request-level date windows when the user asks for all direct/nonstop flights over several dates. This is inventory, not a route-recommendation frontier.
+
+```json
+{
+  "schema_version": "flight_search_request.v1",
+  "origin": "ORIGIN",
+  "destination": "DEST",
+  "depart_date": "YYYY-MM-DD",
+  "profile": "business",
+  "provider_policy": "auto",
+  "route_options": {
+    "max_connections": 0,
+    "tier2_max_connections": 0,
+    "date_window_end": "YYYY-MM-DD"
+  },
+  "output": {"agent_brief": true}
+}
+```
+
+`depart_date` is the inclusive start; `route_options.date_window_end` is the inclusive end. Do not pass a `--date-window-end` CLI flag. Date-window mode requires strict direct-only route options and no `return_date`; the CLI fails fast otherwise. Read per-date inventory from `date_window_inventory`, and summarize direct-offer dates before no-offer dates and source boundaries.
 
 ## Chronology and MCT
 
