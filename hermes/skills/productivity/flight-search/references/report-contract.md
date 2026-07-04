@@ -8,7 +8,7 @@ Current contracts:
 
 - `flight_search_result.v2` — public search result envelope. It carries `route_result` and the current `agent_report`.
 - `agent_report.v3` — public serialized report envelope. Required top-level layers are `route`, `evidence`, `frontier`, `user_answer`, `agent_guidance`, and `diagnostics`.
-- `flight_search_user_answer.v5` — canonical user-facing contract. Built by `cli/flights_cli/reporting/user_answer.py`, validated before `agent_report.user_answer` is accepted, and rendered through `user_answer.rendered_text`.
+- `flight_search_user_answer.v6` — canonical user-facing contract. Built by `cli/flights_cli/reporting/user_answer.py`, validated before `agent_report.user_answer` is accepted, and rendered through `user_answer.rendered_text`.
 
 Retired/projection surfaces:
 
@@ -97,7 +97,7 @@ The provider-neutral seam is:
 
 ```text
 data.agent_report
-  -> user_answer (flight_search_user_answer.v5)
+  -> user_answer (flight_search_user_answer.v6)
   -> user_answer.rendered_text
   -> final Telegram/Markdown answer
 ```
@@ -132,11 +132,11 @@ Do not collapse that into only first departure and final arrival for a multi-leg
 
 ## User Answer Contract v5
 
-`flight_search_user_answer.v5` is the enforceable user-facing contract for CLI reports. It lives in `cli/flights_cli/contracts/flight_search_user_answer.v5.schema.json`, is built by `cli/flights_cli/reporting/user_answer.py`, and is semantically validated before `agent_report.user_answer` is accepted.
+`flight_search_user_answer.v6` is the enforceable user-facing contract for CLI reports. It lives in `cli/flights_cli/contracts/flight_search_user_answer.v6.schema.json`, is built by `cli/flights_cli/reporting/user_answer.py`, and is semantically validated before `agent_report.user_answer` is accepted.
 
 Required v5 fields:
 
-- `schema_version="flight_search_user_answer.v5"`.
+- `schema_version="flight_search_user_answer.v6"`.
 - `answer_mode`: `recommendation`, `catalog`, or `no_viable_options`. The builder infers mode from route/frontier; do not add public “catalog mode” flags.
 - `catalog.presentation`: deterministic compact numbered Russian output metadata with `style="numbered_inline_itinerary_v1"`.
 - `catalog.items[]`: one item per user-visible frontier option. Numbers must be contiguous from 1. Each item carries `option_id`, `covers_requested_trip`, `journey_scope`, `ticketing_model`, `total_price`, `directions.outbound/return`, `baggage`, `protection`, `badges`, `caveats`, `agent_display`, and `render_line`.

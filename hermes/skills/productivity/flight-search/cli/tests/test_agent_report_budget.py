@@ -249,6 +249,22 @@ class AgentReportBudgetTests(unittest.TestCase):
         self.assertEqual(len(budgeted["recommended_options"]), 7)
         self.assertNotIn("recommended_options", budgeted.get("omitted_counts", {}))
 
+    def test_answer_line_trim_preserves_constraint_conflict_caveat(self) -> None:
+        report = valid_report()
+        conflict_line = (
+            "прямых рейсов после 15:00 нет; прямые есть утром — показаны ниже."
+        )
+        report["answer_lines"] = (
+            ["Best CLI-ranked option: 10 000 RUB risk=good/1 elapsed=2h."]
+            + [f"line {index}" for index in range(20)]
+            + [conflict_line]
+        )
+
+        budgeted = apply_agent_report_budget(report, AgentReportBudget(max_answer_lines=3))
+
+        self.assertIn(conflict_line, budgeted["answer_lines"])
+        self.assertLessEqual(len(budgeted["answer_lines"]), 3)
+
     def test_budget_prioritizes_blocking_controls_before_provider_boundaries(
         self,
     ) -> None:

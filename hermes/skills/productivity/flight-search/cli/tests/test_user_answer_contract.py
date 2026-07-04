@@ -68,6 +68,129 @@ def report_with_required_caveats() -> dict:
     return report
 
 
+def conflict_direct_option() -> dict:
+    option = copy.deepcopy(valid_option())
+    option.update(
+        {
+            "id": "direct-morning",
+            "category": "constraint_conflict_direct_schedule",
+            "price": {"amount": 10179, "currency": "RUB"},
+            "price_text": "10 179 RUB",
+            "max_connections_per_journey": 0,
+            "source_type": "direct_inventory",
+            "option_badges": ["cheapest", "fastest"],
+            "segments": [
+                {
+                    "direction": "outbound",
+                    "flight_number": "DP516",
+                    "carrier": "DP",
+                    "origin": "SVX",
+                    "destination": "MOW",
+                    "departure_at": "2026-08-06T05:40:00+05:00",
+                    "arrival_at": "2026-08-06T06:30:00+03:00",
+                    "aircraft_code": "73H",
+                    "duration_min": 170,
+                }
+            ],
+        }
+    )
+    return option
+
+
+def conflict_fallback_option() -> dict:
+    option = copy.deepcopy(valid_option())
+    option.update(
+        {
+            "id": "one-stop-after-1500",
+            "category": "decision_frontier_option",
+            "price": {"amount": 18100, "currency": "RUB"},
+            "price_text": "18 100 RUB",
+            "max_connections_per_journey": 1,
+            "segments": [
+                {
+                    "direction": "outbound",
+                    "flight_number": "SU1400",
+                    "carrier": "SU",
+                    "origin": "SVX",
+                    "destination": "KZN",
+                    "departure_at": "2026-08-06T15:35:00+05:00",
+                    "arrival_at": "2026-08-06T15:55:00+03:00",
+                    "aircraft_code": "32A",
+                    "duration_min": 140,
+                },
+                {
+                    "direction": "outbound",
+                    "flight_number": "SU1197",
+                    "carrier": "SU",
+                    "origin": "KZN",
+                    "destination": "MOW",
+                    "departure_at": "2026-08-06T18:00:00+03:00",
+                    "arrival_at": "2026-08-06T19:35:00+03:00",
+                    "aircraft_code": "32A",
+                    "duration_min": 95,
+                },
+            ],
+        }
+    )
+    return option
+
+
+def first_departure_conflict_payload(*, fallback_count: int) -> dict:
+    fallback = {
+        "status": "executed",
+        "reason": "constraints_emptied_direct_set",
+        "max_connections_per_journey": 1,
+        "acceptable_count": fallback_count,
+    }
+    return {
+        "schema_version": "flight_constraint_conflict.v1",
+        "present": True,
+        "directions": [
+            {
+                "direction": "outbound",
+                "constraints": [
+                    {
+                        "type": "first_departure_after",
+                        "value": "15:00",
+                        "reason": "first_departure_before_requested_time",
+                    }
+                ],
+                "direct_schedule": [conflict_direct_option()],
+                "fallback": fallback,
+            }
+        ],
+        "fallback": fallback,
+    }
+
+
+def only_carrier_conflict_payload(*, fallback_count: int) -> dict:
+    fallback = {
+        "status": "executed",
+        "reason": "constraints_emptied_direct_set",
+        "max_connections_per_journey": 1,
+        "acceptable_count": fallback_count,
+    }
+    return {
+        "schema_version": "flight_constraint_conflict.v1",
+        "present": True,
+        "directions": [
+            {
+                "direction": "outbound",
+                "constraints": [
+                    {
+                        "type": "only_carriers",
+                        "value": ["KL"],
+                        "reason": "carrier_not_allowed",
+                    }
+                ],
+                "direct_schedule": [conflict_direct_option()],
+                "fallback": fallback,
+            }
+        ],
+        "fallback": fallback,
+    }
+
+
 class FinalAnswerContractTests(unittest.TestCase):
     def _round_trip_option(self, option_id: str) -> dict:
         option = copy.deepcopy(valid_option())
@@ -398,7 +521,7 @@ class FinalAnswerContractTests(unittest.TestCase):
 
         Draft202012Validator.check_schema(schema)
         self.assertEqual(
-            parsed["$id"], "urn:hermes:flights-cli:flight-search-user-answer:v5"
+            parsed["$id"], "urn:hermes:flights-cli:flight-search-user-answer:v6"
         )
         expected_keys = {
             "schema_version",
@@ -412,6 +535,7 @@ class FinalAnswerContractTests(unittest.TestCase):
             "rendered_text",
             "answer_lines",
             "stop_policy_status",
+            "constraint_conflict",
         }
         self.assertEqual(set(schema["required"]), expected_keys)
         self.assertEqual(set(schema["properties"]), expected_keys)
@@ -637,6 +761,101 @@ class FinalAnswerContractTests(unittest.TestCase):
         text = answer["rendered_text"]
         self.assertIn("источник: прямой инвентарь (kupibilet)", text)
         self.assertIn("финальный тариф и багаж проверить на booking screen", text)
+
+    def test_constraint_conflict_shows_direct_schedule_and_one_stop_fallback(
+        self,
+    ) -> None:
+        report = valid_report()
+        report["route"].update(
+            {
+                "origin": "SVX",
+                "destination": "MOW",
+                "dates": {"depart_date": "2026-08-06"},
+            }
+        )
+        report["recommended_options"] = [conflict_fallback_option()]
+        report["priority_options"] = []
+        report["constraint_conflict"] = first_departure_conflict_payload(
+            fallback_count=1
+        )
+
+        answer = build_user_answer(report)
+
+        validate_user_answer(answer)
+        rendered = answer["rendered_text"]
+        self.assertEqual(
+            answer["evidence_status"]["answerability"],
+            "answerable_with_caveats",
+        )
+        self.assertEqual(answer["primary_recommendation"]["id"], "one-stop-after-1500")
+        self.assertIn("прямых рейсов после 15:00 нет", rendered)
+        self.assertIn("прямые есть утром", rendered)
+        self.assertIn("прямой 1:", rendered)
+        self.assertIn("05:40", rendered)
+        self.assertIn("15:35", rendered)
+        schedule = answer["constraint_conflict"]["directions"][0]["direct_schedule"]
+        self.assertEqual(schedule["items"][0]["option_id"], "direct-morning")
+        self.assertEqual(
+            schedule["items"][0]["directions"]["outbound"]["segments"][0][
+                "flight_number"
+            ],
+            "DP516",
+        )
+        self.assertIn("cheapest", schedule["items"][0]["badges"])
+        self.assertIn("fastest", schedule["items"][0]["badges"])
+
+    def test_constraint_conflict_renders_only_carriers_caveat(self) -> None:
+        report = valid_report()
+        report["route"].update(
+            {
+                "origin": "SVX",
+                "destination": "MOW",
+                "dates": {"depart_date": "2026-08-06"},
+            }
+        )
+        fallback = conflict_fallback_option()
+        fallback["id"] = "kl-one-stop"
+        for segment in fallback["segments"]:
+            segment["carrier"] = "KL"
+            segment["flight_number"] = "KL1234"
+        report["recommended_options"] = [fallback]
+        report["priority_options"] = []
+        report["constraint_conflict"] = only_carrier_conflict_payload(
+            fallback_count=1
+        )
+
+        answer = build_user_answer(report)
+
+        validate_user_answer(answer)
+        self.assertEqual(answer["primary_recommendation"]["id"], "kl-one-stop")
+        self.assertIn("прямых рейсов KL нет", answer["rendered_text"])
+        self.assertIn("прямые есть у других перевозчиков", answer["rendered_text"])
+
+    def test_constraint_conflict_without_one_stop_renders_absence_line(self) -> None:
+        report = valid_report()
+        report["route"].update(
+            {
+                "origin": "SVX",
+                "destination": "MOW",
+                "dates": {"depart_date": "2026-08-06"},
+            }
+        )
+        report["recommended_options"] = []
+        report["priority_options"] = []
+        report["constraint_conflict"] = first_departure_conflict_payload(
+            fallback_count=0
+        )
+
+        answer = build_user_answer(report)
+
+        validate_user_answer(answer)
+        rendered = answer["rendered_text"]
+        self.assertEqual(answer["answer_mode"], "no_viable_options")
+        self.assertIsNone(answer["primary_recommendation"])
+        self.assertIn("прямой 1:", rendered)
+        self.assertIn("05:40", rendered)
+        self.assertIn("и с одной пересадкой после 15:00 вариантов нет", rendered)
+        self.assertNotIn("двумя пересад", rendered)
 
     def test_rendered_text_labels_two_one_way_offers_as_separate_sum(self) -> None:
         report = report_with_required_caveats()

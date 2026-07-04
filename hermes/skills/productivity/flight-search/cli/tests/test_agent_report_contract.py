@@ -657,6 +657,159 @@ class AgentReportContractTests(unittest.TestCase):
             report["diagnostics"]["human_answer"]["text"],
         )
 
+    def test_build_agent_report_projects_constraint_conflict_from_ranked_directs(
+        self,
+    ) -> None:
+        direct_segment = {
+            "direction": "outbound",
+            "flight_number": "DP516",
+            "carrier": "DP",
+            "origin": "SVX",
+            "destination": "MOW",
+            "departure_at": "2026-08-06T05:40:00+05:00",
+            "arrival_at": "2026-08-06T06:30:00+03:00",
+            "aircraft_code": "73H",
+            "duration_min": 170,
+        }
+        fallback_segments = [
+            {
+                "direction": "outbound",
+                "flight_number": "SU1400",
+                "carrier": "SU",
+                "origin": "SVX",
+                "destination": "KZN",
+                "departure_at": "2026-08-06T15:35:00+05:00",
+                "arrival_at": "2026-08-06T15:55:00+03:00",
+                "aircraft_code": "32A",
+                "duration_min": 140,
+            },
+            {
+                "direction": "outbound",
+                "flight_number": "SU1197",
+                "carrier": "SU",
+                "origin": "KZN",
+                "destination": "MOW",
+                "departure_at": "2026-08-06T18:00:00+03:00",
+                "arrival_at": "2026-08-06T19:35:00+03:00",
+                "aircraft_code": "32A",
+                "duration_min": 95,
+            },
+        ]
+        direct_candidate = {
+            "id": "direct-morning",
+            "rank": 2,
+            "source_type": "provider_full_route",
+            "provider": "tutu",
+            "source_providers": ["tutu"],
+            "covers_requested_trip": True,
+            "journey_scope": "one_way",
+            "ticketing_model": "unknown",
+            "price": 10179,
+            "currency": "RUB",
+            "elapsed_min": 170,
+            "journeys": [{"direction": "outbound", "segments": [direct_segment]}],
+            "hard_constraint_violation": True,
+            "hard_constraint_violations": [
+                {
+                    "reason": "first_departure_before_requested_time",
+                    "first_departure_after": "15:00",
+                    "actual_first_departure": "05:40",
+                }
+            ],
+            "rank_components": {
+                "hard_constraint_violation": 1,
+                "not_covers_requested_trip": 0,
+                "rejected_or_impossible_connection": 0,
+                "max_connections_per_journey": 0,
+            },
+        }
+        fallback_item = {
+            "id": "one-stop-after-1500",
+            "rank": 1,
+            "source_type": "gateway_separate_ticket",
+            "provider": "tutu",
+            "source_providers": ["tutu"],
+            "covers_requested_trip": True,
+            "journey_scope": "one_way",
+            "ticketing_model": "separate_segments",
+            "price": 18100,
+            "currency": "RUB",
+            "elapsed_min": 360,
+            "connection_count": 1,
+            "journeys": [{"direction": "outbound", "segments": fallback_segments}],
+            "selection_reasons": ["best_practical"],
+        }
+
+        report = build_agent_report(
+            {
+                "profile": "business",
+                "assembly": {
+                    "direct_mode": {"outbound": False},
+                    "ranked_output_count": 1,
+                    "ranked_total_count": 2,
+                    "candidate_count": 2,
+                    "candidate_pool_truncated": False,
+                },
+                "live_search": {
+                    "provider_policy": "tutu",
+                    "plan": {
+                        "origin": "SVX",
+                        "destination": "MOW",
+                        "origin_airports": ["SVX"],
+                        "destination_airports": ["SVO", "DME", "VKO"],
+                        "dates": {"depart": "2026-08-06", "return": None},
+                        "profile": "business",
+                        "routing_strategy": "default",
+                    },
+                    "decision_frontier": {
+                        "options": [fallback_item],
+                        "coverage_summary": {
+                            "candidate_count": 2,
+                            "acceptable_count": 1,
+                            "direct_option_count": 1,
+                        },
+                    },
+                    "mixed_candidate_ranking": {
+                        "ranked_candidates": [fallback_item, direct_candidate],
+                        "rejected": [],
+                    },
+                    "direct_presence_gate": {
+                        "schema_version": "flight_direct_presence_gate.v1",
+                        "direct_evidence_present": {"outbound": True},
+                        "direct_mode": {"outbound": True},
+                        "source": "wave0_primary_offer_results",
+                        "fallback": {
+                            "status": "executed",
+                            "reason": "constraints_emptied_direct_set",
+                            "directions": ["outbound"],
+                            "max_connections_per_journey": 1,
+                        },
+                    },
+                    "hub_viability": [],
+                    "segment_searches": [],
+                    "aggregate_controls": [],
+                    "failure_count": 0,
+                    "failures": [],
+                },
+            }
+        )
+
+        validate_agent_report(report)
+        user_answer = report["user_answer"]
+        self.assertEqual(
+            user_answer["primary_recommendation"]["id"], "one-stop-after-1500"
+        )
+        self.assertEqual(
+            user_answer["evidence_status"]["answerability"],
+            "answerable_with_caveats",
+        )
+        conflict = user_answer["constraint_conflict"]
+        self.assertEqual(
+            conflict["directions"][0]["direct_schedule"]["items"][0]["option_id"],
+            "direct-morning",
+        )
+        self.assertIn("прямых рейсов после 15:00 нет", user_answer["rendered_text"])
+
     def test_v1_accepts_optional_omitted_counts(self) -> None:
         report = valid_report()
         report["omitted_counts"] = {

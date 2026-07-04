@@ -16,6 +16,10 @@ from .user_answer_catalog import (
     render_catalog_answer,
     rendered_answer_lines,
 )
+from .user_answer_conflict import (
+    build_constraint_conflict_payload,
+    render_constraint_conflict_answer,
+)
 from .user_answer_contracts import (
     USER_ANSWER_SCHEMA_PACKAGE,
     USER_ANSWER_SCHEMA_RESOURCE,
@@ -152,6 +156,12 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
         is_round_trip_request=is_round_trip_request,
         direct_mode=any(bool(value) for value in direct_mode.values()),
     )
+    constraint_conflict = build_constraint_conflict_payload(
+        agent_report.get("constraint_conflict")
+        if isinstance(agent_report.get("constraint_conflict"), dict)
+        else None,
+        is_round_trip_request=is_round_trip_request,
+    )
     answer_mode = infer_answer_mode(
         is_round_trip_request=is_round_trip_request, options=catalog.get("items") or []
     )
@@ -161,25 +171,30 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
         "dates": route.get("dates") if isinstance(route.get("dates"), dict) else {},
     }
     gateway_summary = gateway_coverage_summary(agent_report)
-    if answer_mode == "catalog":
+    caveat_context = {
+        "not_executed": not_executed,
+        "provider_failures": provider_failures,
+        "negative_wording": truth_language.get("negative_wording"),
+    }
+    if constraint_conflict is not None:
+        answer_text = render_constraint_conflict_answer(
+            route_contract,
+            catalog,
+            constraint_conflict,
+            caveat_context=caveat_context,
+            gateway_summary=gateway_summary,
+        )
+    elif answer_mode == "catalog":
         answer_text = render_catalog_answer(
             route_contract,
             catalog,
-            caveat_context={
-                "not_executed": not_executed,
-                "provider_failures": provider_failures,
-                "negative_wording": truth_language.get("negative_wording"),
-            },
+            caveat_context=caveat_context,
             gateway_summary=gateway_summary,
         )
     else:
         answer_text = render_no_viable_answer(
             route_contract,
-            caveat_context={
-                "not_executed": not_executed,
-                "provider_failures": provider_failures,
-                "negative_wording": truth_language.get("negative_wording"),
-            },
+            caveat_context=caveat_context,
             gateway_summary=gateway_summary,
         )
     answer_lines = rendered_answer_lines(answer_text)
@@ -197,6 +212,9 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
     non_blocking_boundaries = ["not_supported_controls"] if not_supported else []
     evidence_complete = execution_complete and not blocking_evidence
     answerability = (
+        "answerable_with_caveats"
+        if constraint_conflict is not None
+        else
         "answerable"
         if evidence_complete
         else "answerable_with_caveats"
@@ -207,6 +225,7 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
     return {
         "schema_version": USER_ANSWER_SCHEMA_VERSION,
         "answer_mode": answer_mode,
+        "constraint_conflict": constraint_conflict,
         "route": route_contract,
         "catalog": catalog,
         "primary_recommendation": option_summary(

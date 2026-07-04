@@ -582,16 +582,17 @@ class SearchPlanContractTests(unittest.TestCase):
                 ("gateway_to_destination", "AMS", "IST", "AMS", "request_constraint"),
             ],
         )
-        for query in [
-            *search_plan["primary_offer_queries"],
-            *search_plan["gateway_leg_queries"],
-        ]:
+        for query in search_plan["primary_offer_queries"]:
+            with self.subTest(role=query["role"], leg=query.get("leg")):
+                self.assertEqual(query["must_include_airports"], ["AMS"])
+                self.assertEqual(query["preferred_carriers"], ["AF"])
+                self.assertNotIn("only_carriers", query)
+                self.assertNotIn("first_departure_after", query)
+        for query in search_plan["gateway_leg_queries"]:
             with self.subTest(role=query["role"], leg=query.get("leg")):
                 self.assertEqual(query["must_include_airports"], ["AMS"])
                 self.assertEqual(query["only_carriers"], ["KL"])
                 self.assertEqual(query["preferred_carriers"], ["AF"])
-        for query in search_plan["primary_offer_queries"]:
-            self.assertEqual(query["first_departure_after"], "15:00")
         first_gateway_leg, second_gateway_leg = search_plan["gateway_leg_queries"]
         self.assertEqual(first_gateway_leg["first_departure_after"], "15:00")
         self.assertNotIn("first_departure_after", second_gateway_leg)

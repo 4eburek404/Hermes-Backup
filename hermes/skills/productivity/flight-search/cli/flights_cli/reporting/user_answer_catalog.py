@@ -501,6 +501,11 @@ def risk_badges(
         and int(option.get("max_connections_per_journey") or 0) >= 2
     ):
         badges.append("two_stop_or_more")
+    badges.extend(
+        str(value)
+        for value in option.get("option_badges") or []
+        if str(value).strip()
+    )
     return list(dict.fromkeys(badges))
 
 

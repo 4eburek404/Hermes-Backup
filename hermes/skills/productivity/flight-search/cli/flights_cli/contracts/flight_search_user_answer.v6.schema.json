@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:hermes:flights-cli:flight-search-user-answer:v5",
-  "title": "Hermes Flight Search User Answer v5",
+  "$id": "urn:hermes:flights-cli:flight-search-user-answer:v6",
+  "title": "Hermes Flight Search User Answer v6",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -15,11 +15,12 @@
     "required_caveats",
     "rendered_text",
     "answer_lines",
-    "stop_policy_status"
+    "stop_policy_status",
+    "constraint_conflict"
   ],
   "properties": {
     "schema_version": {
-      "const": "flight_search_user_answer.v5"
+      "const": "flight_search_user_answer.v6"
     },
     "route": {
       "type": "object",
@@ -207,6 +208,37 @@
           "type": "boolean"
         }
       }
+    },
+    "constraint_conflict": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "schema_version",
+            "present",
+            "directions"
+          ],
+          "properties": {
+            "schema_version": {
+              "const": "flight_constraint_conflict.v1"
+            },
+            "present": {
+              "type": "boolean"
+            },
+            "directions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      ]
     },
     "rendered_text": {
       "type": "string",

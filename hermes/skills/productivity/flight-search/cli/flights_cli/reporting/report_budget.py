@@ -116,6 +116,10 @@ def _select_answer_lines(lines: list[Any], limit: int) -> list[Any]:
         "coverage diagnostics",
         "coverage is incomplete",
         "do not treat",
+        "constraint conflict",
+        "прямых рейсов",
+        "показаны ниже",
+        "одной пересадкой",
     ):
         for line in lines:
             if marker in str(line).lower():
