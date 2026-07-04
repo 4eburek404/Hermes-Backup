@@ -198,6 +198,100 @@ class OfferGraphTests(unittest.TestCase):
             [("SVX", "IST"), ("IST", "AMS")],
         )
 
+    def test_tutu_round_trip_offer_uses_journeys_atomically(self) -> None:
+        graph = build_offer_graph(
+            primary_offer_results=[
+                {
+                    "role": "primary_offer_collection",
+                    "source_type": "provider_full_route",
+                    "provider": "tutu",
+                    "direction": "outbound",
+                    "origin": "SVX",
+                    "destination": "LED",
+                    "top_offers": [
+                        {
+                            "id": "tutu-rt-1",
+                            "price": 20441,
+                            "currency": "RUB",
+                            "segments": [
+                                {
+                                    "origin": "SVX",
+                                    "destination": "LED",
+                                    "departure_at": "2026-09-05T19:00:00+05:00",
+                                    "arrival_at": "2026-09-05T19:55:00+03:00",
+                                    "marketing_carrier": "SU",
+                                }
+                            ],
+                            "journeys": [
+                                {
+                                    "direction": "outbound",
+                                    "segments": [
+                                        {
+                                            "origin": "SVX",
+                                            "destination": "LED",
+                                            "departure_at": (
+                                                "2026-09-05T19:00:00+05:00"
+                                            ),
+                                            "arrival_at": ("2026-09-05T19:55:00+03:00"),
+                                            "marketing_carrier": "SU",
+                                        }
+                                    ],
+                                },
+                                {
+                                    "direction": "return",
+                                    "segments": [
+                                        {
+                                            "origin": "LED",
+                                            "destination": "SVX",
+                                            "departure_at": (
+                                                "2026-09-12T18:55:00+03:00"
+                                            ),
+                                            "arrival_at": ("2026-09-12T23:40:00+05:00"),
+                                            "marketing_carrier": "U6",
+                                        }
+                                    ],
+                                },
+                            ],
+                            "journey_scope": "round_trip",
+                            "ticketing_model": "provider_order_unverified",
+                        }
+                    ],
+                }
+            ],
+            gateway_leg_results={},
+        )
+
+        validate_contract_payload("offer_graph", graph)
+        self.assertEqual(len(graph["offers"]), 1)
+        self.assertEqual(len(graph["edges"]), 2)
+        offer = graph["offers"][0]
+        self.assertEqual(offer["id"], "primary_offer:tutu:tutu-rt-1")
+        self.assertEqual(offer["journey_scope"], "round_trip")
+        self.assertEqual(offer["price"], 20441)
+        self.assertEqual(
+            [
+                (edge["origin"], edge["destination"], edge["direction"])
+                for edge in graph["edges"]
+            ],
+            [("SVX", "LED", "outbound"), ("LED", "SVX", "return")],
+        )
+        self.assertEqual(graph["coverage"]["provider_full_route_offer_count"], 1)
+
+        envelope = materialize_offer_graph_candidates(
+            graph,
+            requested_origin="SVX",
+            requested_destination="LED",
+        )
+        self.assertEqual(envelope["coverage"]["candidate_count"], 1)
+        candidate = envelope["candidates"][0]
+        self.assertTrue(candidate["covers_requested_trip"])
+        self.assertEqual(candidate["journey_scope"], "round_trip")
+        self.assertEqual(candidate["price"], 20441)
+        self.assertEqual(
+            [journey["direction"] for journey in candidate["journeys"]],
+            ["outbound", "return"],
+        )
+
     def test_gateway_legs_build_two_edges_and_connection(self) -> None:
         graph = build_offer_graph(
             primary_offer_results=[],
@@ -756,6 +850,111 @@ class OfferGraphTests(unittest.TestCase):
         self.assertEqual(len(graph["offers"]), 1)
         self.assertEqual(graph["offers"][0]["id"], "primary_offer:kupibilet:kb-direct")
         self.assertIn("direct_mode_gate", graph["coverage"]["skipped_reasons"])
+
+    def test_direct_mode_gate_rejects_atomic_round_trip_when_gated_journey_connected(
+        self,
+    ) -> None:
+        graph = build_offer_graph(
+            primary_offer_results=[
+                {
+                    "role": "primary_offer_collection",
+                    "source_type": "provider_full_route",
+                    "provider": "tutu",
+                    "direction": "outbound",
+                    "origin": "SVX",
+                    "destination": "LED",
+                    "top_offers": [
+                        {
+                            "id": "tutu-rt-connected-out",
+                            "price": 20441,
+                            "currency": "RUB",
+                            "segments": [
+                                {"origin": "SVX", "destination": "SVO"},
+                                {"origin": "SVO", "destination": "LED"},
+                            ],
+                            "journeys": [
+                                {
+                                    "direction": "outbound",
+                                    "segments": [
+                                        {"origin": "SVX", "destination": "SVO"},
+                                        {"origin": "SVO", "destination": "LED"},
+                                    ],
+                                },
+                                {
+                                    "direction": "return",
+                                    "segments": [
+                                        {"origin": "LED", "destination": "SVX"}
+                                    ],
+                                },
+                            ],
+                            "journey_scope": "round_trip",
+                        }
+                    ],
+                }
+            ],
+            gateway_leg_results={},
+            direct_mode={"outbound": True},
+            requested_origin="SVX",
+            requested_destination="LED",
+        )
+
+        self.assertEqual(graph["offers"], [])
+        self.assertEqual(graph["edges"], [])
+        self.assertIn("direct_mode_gate", graph["coverage"]["skipped_reasons"])
+
+    def test_direct_mode_gate_allows_atomic_round_trip_connected_other_direction(
+        self,
+    ) -> None:
+        graph = build_offer_graph(
+            primary_offer_results=[
+                {
+                    "role": "primary_offer_collection",
+                    "source_type": "provider_full_route",
+                    "provider": "tutu",
+                    "direction": "outbound",
+                    "origin": "SVX",
+                    "destination": "LED",
+                    "top_offers": [
+                        {
+                            "id": "tutu-rt-connected-return",
+                            "price": 20441,
+                            "currency": "RUB",
+                            "segments": [{"origin": "SVX", "destination": "LED"}],
+                            "journeys": [
+                                {
+                                    "direction": "outbound",
+                                    "segments": [
+                                        {"origin": "SVX", "destination": "LED"}
+                                    ],
+                                },
+                                {
+                                    "direction": "return",
+                                    "segments": [
+                                        {"origin": "LED", "destination": "SVO"},
+                                        {"origin": "SVO", "destination": "SVX"},
+                                    ],
+                                },
+                            ],
+                            "journey_scope": "round_trip",
+                        }
+                    ],
+                }
+            ],
+            gateway_leg_results={},
+            direct_mode={"outbound": True},
+            requested_origin="SVX",
+            requested_destination="LED",
+        )
+
+        self.assertEqual(len(graph["offers"]), 1)
+        self.assertEqual(len(graph["edges"]), 3)
+        envelope = materialize_offer_graph_candidates(
+            graph,
+            direct_mode={"outbound": True},
+            requested_origin="SVX",
+            requested_destination="LED",
+        )
+        self.assertEqual(len(envelope["candidates"]), 1)
 
     def test_direct_mode_gate_rejects_gateway_candidates_on_materialize(self) -> None:
         graph = self.graph_with_provider_and_gateway()

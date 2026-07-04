@@ -188,6 +188,84 @@ class OfferGraphBuilder:
                         offer_index=offer_index,
                     )
                     continue
+                if _is_atomic_round_trip_offer(offer, paths):
+                    if any(
+                        self._primary_path_blocked_by_direct_mode(
+                            path["segments"], direction=path.get("direction")
+                        )
+                        for path in paths
+                    ):
+                        self._skip("direct_mode_gate")
+                        continue
+                    offer_id = self._unique_offer_id(
+                        "primary_offer",
+                        provider,
+                        _offer_id(offer)
+                        or f"result{result_index + 1}-offer{offer_index + 1}",
+                    )
+                    edge_ids: list[str] = []
+                    for path_index, path in enumerate(paths):
+                        edge_ids.extend(
+                            self._add_route_edges(
+                                offer_id=offer_id,
+                                provider=provider,
+                                source_type=source_type,
+                                ticketing_boundary="provider_protected_full_route",
+                                segments=path["segments"],
+                                direction=path.get("direction"),
+                                source_debug={
+                                    "result_index": result_index,
+                                    "offer_index": offer_index,
+                                    **(path.get("debug") or {}),
+                                    "path_index": path_index,
+                                },
+                            )
+                        )
+                    if not edge_ids:
+                        self._skip("primary_offer_no_valid_edges")
+                        continue
+                    first_segments = paths[0]["segments"]
+                    self.offers.append(
+                        _compact(
+                            {
+                                "id": offer_id,
+                                "source_type": source_type,
+                                "provider": provider,
+                                "ticketing_boundary": "provider_protected_full_route",
+                                "ticketing_model": str(
+                                    offer.get("ticketing_model")
+                                    or _ticketing_model_for_boundary(
+                                        "provider_protected_full_route"
+                                    )
+                                ),
+                                "origin": _normalize_code(
+                                    _segment_origin(first_segments[0])
+                                ),
+                                "destination": _normalize_code(
+                                    _segment_destination(first_segments[-1])
+                                ),
+                                "journey_scope": str(
+                                    offer.get("journey_scope") or "round_trip"
+                                ),
+                                "edge_ids": edge_ids,
+                                "route": _route_from_paths(paths),
+                                "price": _price_amount(offer),
+                                "currency": _currency(offer, result),
+                                "detail_status": _detail_status(
+                                    offer,
+                                    has_edges=bool(edge_ids),
+                                ),
+                                "warnings": _warnings(offer),
+                                "source_ref": {
+                                    "result_index": result_index,
+                                    "offer_index": offer_index,
+                                    "provider_offer_id": _offer_id(offer),
+                                },
+                            }
+                        )
+                    )
+                    self.coverage["provider_full_route_offer_count"] += 1
+                    continue
                 for path_index, path in enumerate(paths):
                     segments = path["segments"]
                     if not segments:
@@ -736,9 +814,9 @@ def _candidate_from_offer(
         candidate_source_type = "provider_full_route"
     edge_ids = [str(edge_id) for edge_id in offer.get("edge_ids") or []]
     segments = _segments_for_edge_ids(edge_ids, edges_by_id)
-    journeys = _journeys_from_segments(
+    journeys = _journeys_from_segments_by_direction(
         segments,
-        direction=_normalize_direction(offer.get("direction")) or "outbound",
+        fallback_direction=_normalize_direction(offer.get("direction")) or "outbound",
     )
     detail_status = _candidate_detail_status(offer, segments)
     price = _price_amount(offer)
@@ -753,6 +831,7 @@ def _candidate_from_offer(
         "covers_requested_trip": _covers_requested_trip(
             segments,
             offer,
+            journeys=journeys,
             requested_origin=requested_origin,
             requested_destination=requested_destination,
             detail_status=detail_status,
@@ -885,6 +964,7 @@ def _candidate_from_offer_path(
         "covers_requested_trip": _covers_requested_trip(
             segments,
             {},
+            journeys=None,
             requested_origin=requested_origin,
             requested_destination=requested_destination,
             detail_status=detail_status,
@@ -1239,6 +1319,7 @@ def _segments_for_edge_ids(
                     "source_type": edge.get("source_type"),
                     "ticketing_boundary": edge.get("ticketing_boundary"),
                     "ticketing_model": edge.get("ticketing_model"),
+                    "direction": edge.get("direction"),
                     "flight_number": edge.get("flight_number"),
                     "marketing_carrier": edge.get("marketing_carrier"),
                     "operating_carrier": edge.get("operating_carrier"),
@@ -1258,6 +1339,30 @@ def _journeys_from_segments(
     if not segments:
         return []
     return [{"direction": direction, "segments": segments}]
+
+
+def _journeys_from_segments_by_direction(
+    segments: list[dict[str, Any]], *, fallback_direction: str
+) -> list[dict[str, Any]]:
+    if not segments:
+        return []
+    groups: dict[str, list[dict[str, Any]]] = {}
+    order: list[str] = []
+    for segment in segments:
+        direction = (
+            _normalize_direction(segment.get("direction"))
+            or _normalize_direction(fallback_direction)
+            or "outbound"
+        )
+        if direction not in groups:
+            groups[direction] = []
+            order.append(direction)
+        groups[direction].append(segment)
+    return [
+        {"direction": direction, "segments": groups[direction]}
+        for direction in order
+        if groups[direction]
+    ]
 
 
 def _candidate_detail_status(
@@ -1291,6 +1396,7 @@ def _covers_requested_trip(
     segments: list[dict[str, Any]],
     offer: dict[str, Any],
     *,
+    journeys: list[dict[str, Any]] | None,
     requested_origin: str | None,
     requested_destination: str | None,
     detail_status: str,
@@ -1299,6 +1405,24 @@ def _covers_requested_trip(
         return False
     origin = _normalize_code(requested_origin)
     destination = _normalize_code(requested_destination)
+    if origin and destination and journeys:
+        by_direction: dict[str, list[dict[str, Any]]] = {}
+        for journey in journeys:
+            if not isinstance(journey, dict):
+                continue
+            direction = _normalize_direction(journey.get("direction"))
+            journey_segments = _segment_dicts(journey.get("segments"))
+            if direction and journey_segments:
+                by_direction[direction] = journey_segments
+        outbound = by_direction.get("outbound") or []
+        inbound = by_direction.get("return") or []
+        if outbound and inbound:
+            return (
+                _normalize_code(outbound[0].get("origin")) == origin
+                and _normalize_code(outbound[-1].get("destination")) == destination
+                and _normalize_code(inbound[0].get("origin")) == destination
+                and _normalize_code(inbound[-1].get("destination")) == origin
+            )
     if not origin and not destination:
         return bool(segments)
     route_origin = (
@@ -1485,8 +1609,30 @@ def _provider_result_offers(result: dict[str, Any]) -> list[Any] | None:
 def _offer_segment_paths(
     offer: dict[str, Any], *, fallback_direction: str | None
 ) -> list[dict[str, Any]]:
-    segments = offer.get("segments")
-    if isinstance(segments, list):
+    journeys = offer.get("journeys")
+    paths: list[dict[str, Any]] = []
+    if isinstance(journeys, list):
+        for journey_index, journey in enumerate(journeys):
+            if not isinstance(journey, dict):
+                continue
+            journey_segments = _segment_dicts(journey.get("segments"))
+            if not journey_segments:
+                continue
+            paths.append(
+                {
+                    "segments": journey_segments,
+                    "direction": _normalize_direction(journey.get("direction"))
+                    or fallback_direction,
+                    "debug": {
+                        "source_path": "journeys",
+                        "journey_index": journey_index,
+                    },
+                }
+            )
+    if paths:
+        return paths
+    segments = _segment_dicts(offer.get("segments"))
+    if segments:
         return [
             {
                 "segments": segments,
@@ -1495,28 +1641,28 @@ def _offer_segment_paths(
                 "debug": {"source_path": "segments"},
             }
         ]
-    journeys = offer.get("journeys")
-    if not isinstance(journeys, list):
+    return []
+
+
+def _segment_dicts(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
         return []
-    paths: list[dict[str, Any]] = []
-    for journey_index, journey in enumerate(journeys):
-        if not isinstance(journey, dict):
-            continue
-        journey_segments = journey.get("segments")
-        if not isinstance(journey_segments, list):
-            continue
-        paths.append(
-            {
-                "segments": journey_segments,
-                "direction": _normalize_direction(journey.get("direction"))
-                or fallback_direction,
-                "debug": {
-                    "source_path": "journeys",
-                    "journey_index": journey_index,
-                },
-            }
-        )
-    return paths
+    return [segment for segment in value if isinstance(segment, dict)]
+
+
+def _is_atomic_round_trip_offer(
+    offer: dict[str, Any], paths: list[dict[str, Any]]
+) -> bool:
+    if len(paths) < 2:
+        return False
+    directions = {
+        _normalize_direction(path.get("direction"))
+        for path in paths
+        if _normalize_direction(path.get("direction"))
+    }
+    if {"outbound", "return"}.issubset(directions):
+        return True
+    return str(offer.get("journey_scope") or "").strip().lower() == "round_trip"
 
 
 def _offer_id(offer: dict[str, Any]) -> str | None:
@@ -1553,6 +1699,15 @@ def _route_from_segments(segments: list[Any]) -> list[str]:
             route.append(origin)
         if destination:
             route.append(destination)
+    return route
+
+
+def _route_from_paths(paths: list[dict[str, Any]]) -> list[str]:
+    route: list[str] = []
+    for path in paths:
+        for code in _route_from_segments(path.get("segments") or []):
+            if code and (not route or route[-1] != code):
+                route.append(code)
     return route
 
 

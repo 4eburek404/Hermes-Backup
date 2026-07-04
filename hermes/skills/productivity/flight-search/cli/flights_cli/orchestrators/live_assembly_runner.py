@@ -279,39 +279,42 @@ def _provider_result_offers(result: dict[str, Any]) -> list[Any]:
 def _offer_paths(
     offer: dict[str, Any], *, fallback_direction: str
 ) -> list[dict[str, Any]]:
-    segments = offer.get("segments")
-    if isinstance(segments, list):
+    journeys = offer.get("journeys")
+    paths: list[dict[str, Any]] = []
+    if isinstance(journeys, list):
+        for journey in journeys:
+            if not isinstance(journey, dict):
+                continue
+            journey_segments = _segment_dicts(journey.get("segments"))
+            if not journey_segments:
+                continue
+            paths.append(
+                {
+                    "direction": _normalize_direction(
+                        journey.get("direction") or fallback_direction
+                    ),
+                    "segments": journey_segments,
+                }
+            )
+    if paths:
+        return paths
+    segments = _segment_dicts(offer.get("segments"))
+    if segments:
         return [
             {
                 "direction": _normalize_direction(
                     offer.get("direction") or fallback_direction
                 ),
-                "segments": [
-                    segment for segment in segments if isinstance(segment, dict)
-                ],
+                "segments": segments,
             }
         ]
-    journeys = offer.get("journeys")
-    if not isinstance(journeys, list):
+    return []
+
+
+def _segment_dicts(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
         return []
-    paths: list[dict[str, Any]] = []
-    for journey in journeys:
-        if not isinstance(journey, dict):
-            continue
-        journey_segments = journey.get("segments")
-        if not isinstance(journey_segments, list):
-            continue
-        paths.append(
-            {
-                "direction": _normalize_direction(
-                    journey.get("direction") or fallback_direction
-                ),
-                "segments": [
-                    segment for segment in journey_segments if isinstance(segment, dict)
-                ],
-            }
-        )
-    return paths
+    return [segment for segment in value if isinstance(segment, dict)]
 
 
 def _segment_origin(segment: dict[str, Any]) -> str:
@@ -334,24 +337,20 @@ def _segment_destination(segment: dict[str, Any]) -> str:
     ).upper()
 
 
-def _offer_has_requested_direct_path(
-    offer: dict[str, Any],
+def _path_has_requested_direct_segment(
+    path: dict[str, Any],
     *,
-    fallback_direction: str,
     requested_origins: set[str],
     requested_destinations: set[str],
 ) -> bool:
-    for path in _offer_paths(offer, fallback_direction=fallback_direction):
-        segments = path["segments"]
-        if len(segments) != 1:
-            continue
-        segment = segments[0]
-        if (
-            _segment_origin(segment) in requested_origins
-            and _segment_destination(segment) in requested_destinations
-        ):
-            return True
-    return False
+    segments = path["segments"]
+    if len(segments) != 1:
+        return False
+    segment = segments[0]
+    return (
+        _segment_origin(segment) in requested_origins
+        and _segment_destination(segment) in requested_destinations
+    )
 
 
 def _direct_evidence_by_direction(
@@ -364,22 +363,27 @@ def _direct_evidence_by_direction(
         if not isinstance(result, dict):
             continue
         direction = _normalize_direction(result.get("direction"))
-        requested_origins, requested_destinations = _requested_airport_pair(
-            plan, direction
-        )
-        requested_origins.update(_airport_set(result.get("origin")))
-        requested_destinations.update(_airport_set(result.get("destination")))
-        if any(
-            isinstance(offer, dict)
-            and _offer_has_requested_direct_path(
-                offer,
-                fallback_direction=direction,
-                requested_origins=requested_origins,
-                requested_destinations=requested_destinations,
-            )
-            for offer in _provider_result_offers(result)
-        ):
-            evidence[direction] = True
+        for offer in _provider_result_offers(result):
+            if not isinstance(offer, dict):
+                continue
+            for path in _offer_paths(offer, fallback_direction=direction):
+                path_direction = _normalize_direction(path.get("direction"))
+                if path_direction not in evidence:
+                    continue
+                requested_origins, requested_destinations = _requested_airport_pair(
+                    plan, path_direction
+                )
+                if path_direction == direction:
+                    requested_origins.update(_airport_set(result.get("origin")))
+                    requested_destinations.update(
+                        _airport_set(result.get("destination"))
+                    )
+                if _path_has_requested_direct_segment(
+                    path,
+                    requested_origins=requested_origins,
+                    requested_destinations=requested_destinations,
+                ):
+                    evidence[path_direction] = True
     return evidence
 
 

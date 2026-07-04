@@ -996,6 +996,98 @@ class CandidateRankerTests(unittest.TestCase):
             1,
         )
 
+    def test_decision_scorer_keeps_provider_round_trip_price_atomic(self) -> None:
+        provider_round_trip = {
+            "id": "provider-round-trip",
+            "source_type": "provider_full_route",
+            "provider": "tutu",
+            "source_providers": ["tutu"],
+            "covers_requested_trip": True,
+            "journey_scope": "round_trip",
+            "price": 20441,
+            "currency": "RUB",
+            "price_basis": "provider_offer_price",
+            "ticketing_model": "provider_order_unverified",
+            "detail_status": "full",
+            "journeys": [
+                {
+                    "direction": "outbound",
+                    "segments": [
+                        segment(
+                            "SVX",
+                            "LED",
+                            depart="2026-09-05T19:00:00+05:00",
+                            arrive="2026-09-05T19:55:00+03:00",
+                        )
+                    ],
+                },
+                {
+                    "direction": "return",
+                    "segments": [
+                        segment(
+                            "LED",
+                            "SVX",
+                            depart="2026-09-12T18:55:00+03:00",
+                            arrive="2026-09-12T23:40:00+05:00",
+                        )
+                    ],
+                },
+            ],
+            "warnings": [],
+        }
+        outbound = candidate(
+            "outbound-one-way",
+            source_type="provider_full_route",
+            price=20441,
+            ticketing_model="provider_order_unverified",
+            segments=[
+                segment(
+                    "SVX",
+                    "LED",
+                    depart="2026-09-05T19:00:00+05:00",
+                    arrive="2026-09-05T19:55:00+03:00",
+                )
+            ],
+        )
+        inbound = candidate(
+            "return-one-way",
+            source_type="provider_full_route",
+            price=20441,
+            ticketing_model="provider_order_unverified",
+            segments=[
+                segment(
+                    "LED",
+                    "SVX",
+                    depart="2026-09-12T18:55:00+03:00",
+                    arrive="2026-09-12T23:40:00+05:00",
+                )
+            ],
+            direction="return",
+        )
+
+        scored = DecisionScorer(DecisionScorerOptions(round_trip=True)).score(
+            {"candidates": [outbound, inbound, provider_round_trip]}
+        )
+        ranked = scored["mixed_candidate_ranking"]["ranked_candidates"]
+        by_id = {item["id"]: item for item in ranked}
+
+        self.assertEqual(ranked[0]["id"], "provider-round-trip")
+        self.assertEqual(by_id["provider-round-trip"]["price"], 20441)
+        self.assertEqual(
+            by_id["provider-round-trip"]["journey_pairing_model"],
+            "round_trip_provider_order_unverified",
+        )
+        self.assertEqual(
+            by_id["round-trip-pair:outbound-one-way:return-one-way"]["price"],
+            40882,
+        )
+        self.assertEqual(
+            scored["scorer"]["round_trip_pairing"][
+                "provider_round_trip_candidate_count"
+            ],
+            1,
+        )
+
     def test_decision_scorer_rejects_return_before_outbound_arrival(self) -> None:
         outbound = candidate(
             "outbound-one-way",

@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from flights_cli.execution.probe_dispatcher import SegmentProbeOutcome
+from flights_cli.orchestrators.live_assembly_runner import _direct_evidence_by_direction
 from flights_cli.orchestrators.live_route_assembly import run_live_route_assembly
 from flights_cli.pipeline.search_pipeline import build_live_route_search_flow
 from flights_cli.store import Store
@@ -90,6 +91,41 @@ def count_key(payload: object, key: str) -> int:
 
 
 class LiveRoutePipelineTests(unittest.TestCase):
+    def test_direct_evidence_uses_round_trip_journey_directions(self) -> None:
+        plan = minimal_route_plan("LED")
+        plan["dates"] = {"depart": "2026-09-05", "return": "2026-09-12"}
+        primary_results = [
+            {
+                "role": "primary_offer_collection",
+                "source_type": "provider_full_route",
+                "provider": "tutu",
+                "direction": "outbound",
+                "origin": "SVX",
+                "destination": "LED",
+                "top_offers": [
+                    {
+                        "id": "tutu-rt-1",
+                        "segments": [{"origin": "SVX", "destination": "LED"}],
+                        "journeys": [
+                            {
+                                "direction": "outbound",
+                                "segments": [{"origin": "SVX", "destination": "LED"}],
+                            },
+                            {
+                                "direction": "return",
+                                "segments": [{"origin": "LED", "destination": "SVX"}],
+                            },
+                        ],
+                    }
+                ],
+            }
+        ]
+
+        self.assertEqual(
+            _direct_evidence_by_direction(plan, primary_results),
+            {"outbound": True, "return": True},
+        )
+
     def test_live_route_args_adapt_to_typed_search_flow(self) -> None:
         args = live_assembly_args(
             origin="SVX",
