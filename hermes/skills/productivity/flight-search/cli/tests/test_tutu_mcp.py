@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.client
 import json
 import tempfile
 import unittest
@@ -8,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from flights_cli.adapters.providers.tutu_adapter import TutuProviderAdapter
+from flights_cli.errors import CliError
 from flights_cli.providers.tutu_mcp import (
     MCP_PROTOCOL_VERSION,
     TUTU_MAX_PAGES,
@@ -151,6 +153,87 @@ class TutuMcpProviderTests(unittest.TestCase):
         self.assertEqual(captured["mcp-protocol-version"], MCP_PROTOCOL_VERSION)
         self.assertIn("application/json", captured["accept"])
         self.assertIn("text/event-stream", captured["accept"])
+
+    def test_http_post_retries_incomplete_read_once_and_succeeds(self) -> None:
+        calls = 0
+
+        class FakeResponse:
+            headers = {"Content-Type": "application/json"}
+
+            def __enter__(self) -> "FakeResponse":
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+            def read(self) -> bytes:
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    raise http.client.IncompleteRead(b'{"jsonrpc"', 20)
+                return b'{"jsonrpc":"2.0","result":{"ok":true}}'
+
+        with (
+            patch(
+                "flights_cli.providers.tutu_mcp.urllib.request.urlopen",
+                return_value=FakeResponse(),
+            ),
+            patch("flights_cli.providers.tutu_mcp.time.sleep") as sleep,
+        ):
+            response, session_id = tutu_mcp_http_post(
+                "https://mcp.tutu.ru/mcp",
+                {
+                    "jsonrpc": "2.0",
+                    "method": "tools/call",
+                    "params": {"name": "search_avia"},
+                },
+                timeout=10,
+            )
+
+        self.assertEqual(response["result"], {"ok": True})
+        self.assertIsNone(session_id)
+        self.assertEqual(calls, 2)
+        sleep.assert_called_once()
+
+    def test_http_post_reports_incomplete_read_after_retries(self) -> None:
+        class FakeResponse:
+            headers = {"Content-Type": "application/json"}
+
+            def __enter__(self) -> "FakeResponse":
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+            def read(self) -> bytes:
+                raise http.client.IncompleteRead(b"partial", 10)
+
+        with (
+            patch(
+                "flights_cli.providers.tutu_mcp.urllib.request.urlopen",
+                return_value=FakeResponse(),
+            ),
+            patch("flights_cli.providers.tutu_mcp.time.sleep"),
+            self.assertRaises(CliError) as error,
+        ):
+            tutu_mcp_http_post(
+                "https://mcp.tutu.ru/mcp",
+                {
+                    "jsonrpc": "2.0",
+                    "method": "tools/call",
+                    "params": {"name": "search_avia"},
+                },
+                timeout=10,
+            )
+
+        self.assertEqual(error.exception.error_type, "upstream_incomplete_read")
+        self.assertEqual(error.exception.details["failure_reason"], "incomplete_read")
+        self.assertEqual(error.exception.details["tool"], "search_avia")
+        self.assertEqual(error.exception.details["bytes_read"], len(b"partial"))
+        self.assertEqual(error.exception.details["bytes_missing"], 10)
+        self.assertEqual(
+            error.exception.details["bytes_expected"], len(b"partial") + 10
+        )
 
     def test_fetch_paginates_before_applying_display_limit(self) -> None:
         store = store_with_tutu_catalog(self)

@@ -20,6 +20,7 @@ class ContractRegistryTest(unittest.TestCase):
                 "user_answer",
                 "search_request",
                 "search_result",
+                "route_trace",
                 "search_plan",
                 "offer_graph",
             },
@@ -29,7 +30,11 @@ class ContractRegistryTest(unittest.TestCase):
         )
         self.assertEqual(
             current_contract("search_result")["schema_version"],
-            "flight_search_result.v3",
+            "flight_search_result.v4",
+        )
+        self.assertEqual(
+            current_contract("route_trace")["schema_version"],
+            "flight_route_trace_diagnostic.v1",
         )
         self.assertEqual(
             current_contract("user_answer")["schema_version"],
@@ -40,11 +45,11 @@ class ContractRegistryTest(unittest.TestCase):
         )
         self.assertEqual(
             current_contract("search_plan")["public_path"],
-            "data.route_result.live_search.diagnostics.search_plan",
+            "data.route_trace.live_search.diagnostics.search_plan",
         )
         self.assertEqual(
             current_contract("offer_graph")["public_path"],
-            "data.route_result.live_search.offer_graph",
+            "data.route_trace.live_search.offer_graph",
         )
 
     def test_current_schema_resources_are_packaged(self) -> None:

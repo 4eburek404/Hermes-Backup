@@ -1,6 +1,6 @@
 ---
 name: flight-search
-version: 0.9.0
+version: 0.10.0
 description: Use when finding, comparing, or diagnosing live flight route options with the bundled flights CLI; assumes one adult in economy and never books tickets.
 metadata:
   hermes:
@@ -53,7 +53,7 @@ request
   -> OfferGraph
   -> DecisionScorer
   -> DecisionFrontier
-  -> flight_search_result.v3 + agent_report.v4 + user_answer.v7
+  -> flight_search_result.v4 + agent_report.v4 + user_answer.v7
 ```
 
 There is no legacy assembly fallback. `RoutePlanBuilder`, old `services/assembly`, synthetic controls, and old `ranked_candidates/frontier_candidates` answer paths are not runtime sources.
@@ -101,10 +101,12 @@ Use diagnostics to inspect the pipeline, not as traveler-facing answers:
 ```bash
 python3 -m flights_cli --json diagnose plan --request "$HOME/flight-search-request.json"
 python3 -m flights_cli --json diagnose probe --provider tutu --request "$HOME/probe.json"
+python3 -m flights_cli --json diagnose trace --request "$HOME/flight-search-request.json"
 ```
 
 Provider-specific raw-search commands are intentionally absent from the agent
 surface. Use `search --request` and read
-`data.agent_report.user_answer.rendered_text`.
+`data.agent_report.user_answer.rendered_text`. Use `diagnose trace` only when
+you need the full internal route/live-search trace.
 
 For CLI/debug ownership and source boundaries, start from `references/index.md`.

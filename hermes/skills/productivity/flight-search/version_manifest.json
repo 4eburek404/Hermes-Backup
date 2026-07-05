@@ -1,20 +1,20 @@
 {
   "skill": {
     "name": "flight-search",
-    "version": "0.9.0"
+    "version": "0.10.0"
   },
   "cli": {
     "package": "flights-cli",
-    "version": "0.6.0"
+    "version": "0.7.0"
   },
   "contracts": {
     "flight_search_request": "flight_search_request.v1",
-    "flight_search_result": "flight_search_result.v3",
+    "flight_search_result": "flight_search_result.v4",
     "agent_report": "agent_report.v4",
     "user_answer": "flight_search_user_answer.v7"
   },
   "command_surface": {
-    "version": "command_surface.v1",
+    "version": "command_surface.v2",
     "canonical_path": "search --request",
     "agent_commands": [
       "search"
@@ -22,7 +22,8 @@
     "diagnostic_commands": [
       "diagnose plan",
       "diagnose probe",
-      "diagnose render"
+      "diagnose render",
+      "diagnose trace"
     ]
   }
 }

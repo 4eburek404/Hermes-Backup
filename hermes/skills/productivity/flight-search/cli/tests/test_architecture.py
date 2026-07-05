@@ -141,7 +141,7 @@ class ArchitectureTests(unittest.TestCase):
         self.assertEqual(sorted(moscow["airports"]), ["DME", "SVO", "VKO"])
 
     def test_report_contract_primary_fields_exist(self) -> None:
-        # Runtime offer_graph stays under route_result.live_search; public
+        # Runtime offer_graph stays under diagnose trace; public
         # agent_report exposes decision_frontier and canonical rendered_text only.
         from flights_cli.reporting.user_answer import build_user_answer
         from flights_cli.pipeline.offer_graph import build_offer_graph
@@ -169,9 +169,10 @@ class ArchitectureTests(unittest.TestCase):
             [
                 "agent_report.v4.schema.json",
                 "flight_offer_graph.v1.schema.json",
+                "flight_route_trace_diagnostic.v1.schema.json",
                 "flight_search_plan.v1.schema.json",
                 "flight_search_request.v1.schema.json",
-                "flight_search_result.v3.schema.json",
+                "flight_search_result.v4.schema.json",
                 "flight_search_user_answer.v7.schema.json",
             ],
         )

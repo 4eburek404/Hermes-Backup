@@ -503,7 +503,6 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             destination="MUC",
             depart_date="2026-08-12",
             provider_policy="kupibilet",
-            include_segment_results=10,
             no_live_cache=True,
         )
         calls: list[tuple[str, str]] = []

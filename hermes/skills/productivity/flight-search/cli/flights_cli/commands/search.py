@@ -46,15 +46,27 @@ def validate_search_request_dates(payload: dict[str, Any]) -> None:
         parse_iso_date(str(payload.get("return_date") or ""), "return-date")
 
 
+def build_search_artifacts(
+    request: dict[str, Any], store: Store
+) -> dict[str, dict[str, Any]]:
+    live_assembly_options = live_assembly_options_from_search_request(request)
+    route_trace = run_live_route_assembly(live_assembly_options, store)
+    agent_report = build_validated_agent_report(route_trace, store)
+    return {
+        "request": request,
+        "route_trace": route_trace,
+        "agent_report": agent_report,
+    }
+
+
 def build_search_result(
-    request: dict[str, Any], route_result: dict[str, Any], agent_report: dict[str, Any]
+    request: dict[str, Any], agent_report: dict[str, Any]
 ) -> dict[str, Any]:
     result = {
         "schema_version": SEARCH_RESULT_SCHEMA_VERSION,
         "wire_version": SEARCH_RESULT_SCHEMA_VERSION,
         "request": request,
         "agent_report": agent_report,
-        "route_result": route_result,
     }
     validate_contract_payload("search_result", result)
     return result
@@ -63,7 +75,5 @@ def build_search_result(
 def command_search(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     request = normalize_search_request(read_json_object(args.request))
     validate_search_request_dates(request)
-    live_assembly_options = live_assembly_options_from_search_request(request)
-    route_result = run_live_route_assembly(live_assembly_options, store)
-    agent_report = build_validated_agent_report(route_result, store)
-    return build_search_result(request, route_result, agent_report)
+    artifacts = build_search_artifacts(request, store)
+    return build_search_result(request, artifacts["agent_report"])

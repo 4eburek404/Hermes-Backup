@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -29,6 +31,7 @@ MCP_PROTOCOL_VERSION = "2025-06-18"
 TUTU_NORMALIZER_VERSION = "tutu-avia-v2"
 TUTU_PAGE_SIZE = 30
 TUTU_MAX_PAGES = 3
+TUTU_MCP_INCOMPLETE_READ_RETRIES = 2
 
 # Matches a 3-letter IATA code in parentheses at end of string: "Тулуза — Тулуза-Бланьяк (TLS)" -> TLS
 _IATA_RE = re.compile(r"\(([A-Z]{3})\)\s*(?:,\s*терм\.\s*\S+)?\s*$")
@@ -102,6 +105,42 @@ def decode_mcp_response(raw: bytes, content_type: str | None) -> dict[str, Any]:
     return data
 
 
+def _mcp_payload_context(payload: dict[str, Any]) -> dict[str, Any]:
+    method = str(payload.get("method") or "")
+    params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
+    tool = params.get("name") if isinstance(params, dict) else None
+    return {
+        "provider": "tutu",
+        "method": method or None,
+        "tool": str(tool) if tool else method or None,
+    }
+
+
+def _incomplete_read_details(
+    exc: http.client.IncompleteRead,
+    *,
+    payload: dict[str, Any],
+    attempts: int,
+) -> dict[str, Any]:
+    partial = exc.partial
+    bytes_read = len(partial) if isinstance(partial, bytes) else None
+    bytes_missing = exc.expected if isinstance(exc.expected, int) else None
+    bytes_expected = (
+        bytes_read + bytes_missing
+        if bytes_read is not None and bytes_missing is not None
+        else None
+    )
+    details = {
+        **_mcp_payload_context(payload),
+        "failure_reason": "incomplete_read",
+        "bytes_read": bytes_read,
+        "bytes_missing": bytes_missing,
+        "bytes_expected": bytes_expected,
+        "attempts": attempts,
+    }
+    return {key: value for key, value in details.items() if value is not None}
+
+
 def tutu_mcp_http_post(
     url: str,
     payload: dict[str, Any],
@@ -117,37 +156,58 @@ def tutu_mcp_http_post(
     }
     if session_id:
         headers["Mcp-Session-Id"] = session_id
-    request = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers=headers,
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            raw = response.read()
-            content_type = response.headers.get("Content-Type")
-            next_session_id = (
-                response.headers.get("Mcp-Session-Id")
-                or response.headers.get("mcp-session-id")
-                or session_id
+    data = json.dumps(payload).encode("utf-8")
+    attempts = TUTU_MCP_INCOMPLETE_READ_RETRIES + 1
+    for attempt in range(1, attempts + 1):
+        request = urllib.request.Request(
+            url,
+            data=data,
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                raw = response.read()
+                content_type = response.headers.get("Content-Type")
+                next_session_id = (
+                    response.headers.get("Mcp-Session-Id")
+                    or response.headers.get("mcp-session-id")
+                    or session_id
+                )
+                return decode_mcp_response(raw, content_type), next_session_id
+        except http.client.IncompleteRead as exc:
+            details = _incomplete_read_details(
+                exc,
+                payload=payload,
+                attempts=attempt,
             )
-            return decode_mcp_response(raw, content_type), next_session_id
-    except urllib.error.HTTPError as exc:
-        body_text = exc.read().decode("utf-8", errors="replace")[:1000]
-        raise CliError(
-            f"Tutu MCP HTTP {exc.code}: {body_text}",
-            error_type="upstream_error",
-            details={
-                "http_status": exc.code,
-                "retry_after": exc.headers.get("Retry-After"),
-            },
-        ) from exc
-    except (urllib.error.URLError, TimeoutError) as exc:
-        raise CliError(
-            f"Tutu MCP request failed: {type(exc).__name__}: {exc}",
-            error_type="upstream_error",
-        ) from exc
+            if attempt < attempts:
+                time.sleep(0.2 * attempt)
+                continue
+            read = details.get("bytes_read", "unknown")
+            expected = details.get("bytes_expected", "unknown")
+            tool = details.get("tool") or details.get("method") or "request"
+            raise CliError(
+                f"Tutu MCP incomplete HTTP response while calling {tool}: read {read} of {expected} bytes",
+                error_type="upstream_incomplete_read",
+                details=details,
+            ) from exc
+        except urllib.error.HTTPError as exc:
+            body_text = exc.read().decode("utf-8", errors="replace")[:1000]
+            raise CliError(
+                f"Tutu MCP HTTP {exc.code}: {body_text}",
+                error_type="upstream_error",
+                details={
+                    "http_status": exc.code,
+                    "retry_after": exc.headers.get("Retry-After"),
+                },
+            ) from exc
+        except (urllib.error.URLError, TimeoutError) as exc:
+            raise CliError(
+                f"Tutu MCP request failed: {type(exc).__name__}: {exc}",
+                error_type="upstream_error",
+            ) from exc
+    raise CliError("Tutu MCP request failed", error_type="upstream_error")
 
 
 def ensure_jsonrpc_ok(response: dict[str, Any], context: str) -> dict[str, Any]:

@@ -73,7 +73,6 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "include_segment_results": {"type": "integer", "minimum": 0},
         "catalog_limit": {"type": "integer", "minimum": 1},
         "direct_catalog_limit": {"type": "integer", "minimum": 1}
       }

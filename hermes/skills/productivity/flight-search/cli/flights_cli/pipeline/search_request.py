@@ -33,7 +33,6 @@ class SearchRequest:
     max_segment_searches: int = 300
     live_cache_ttl_seconds: int = 0
     no_live_cache: bool = False
-    include_segment_results: int = 0
     aggregate_control_limit: int = 0
     aggregate_control_carriers: tuple[str, ...] = field(default_factory=tuple)
     coverage_mode: str = "targeted"
@@ -69,7 +68,6 @@ def search_request_from_options(options: LiveAssemblyOptions) -> SearchRequest:
         max_segment_searches=options.evidence.max_segment_searches,
         live_cache_ttl_seconds=options.evidence.live_cache_ttl_seconds,
         no_live_cache=options.evidence.no_live_cache,
-        include_segment_results=options.output.include_segment_results,
         aggregate_control_limit=options.evidence.aggregate_control_limit,
         aggregate_control_carriers=options.evidence.aggregate_control_carriers,
         coverage_mode=options.evidence.coverage_mode,

@@ -85,9 +85,9 @@ Use this when the user asks whether flags, schemas, commands, or agent/user path
 
 Parser registration in `cli.py` owns the runtime command tree. `command_surface.py` is policy/contract metadata for manifest, maintenance, diagnostics, live-provider, and catalog-refresh classification; it must not grow into a second parser registry. Tests that need command coverage should inspect the built `argparse` tree and compare policy metadata against real leaf commands instead of keeping parallel active-command argv maps.
 
-When the user is confused by contract versions or final-answer names, first audit the registry and emitted JSON. Current durable finding: the active public line is single-path (`flight_search_result.v3` → `agent_report.v4` → `flight_search_user_answer.v7` → `user_answer.rendered_text`); `user_output` and `flight_search_final_answer` are not active code contracts. Route debug contracts remain explicit under `data.route_result.live_search`, not inside the public report.
+When the user is confused by contract versions or final-answer names, first audit the registry and emitted JSON. Current durable finding: the active public line is single-path (`flight_search_result.v4` → `agent_report.v4` → `flight_search_user_answer.v7` → `user_answer.rendered_text`); `user_output` and `flight_search_final_answer` are not active code contracts. Route debug traces remain explicit under `diagnose trace`, not inside the public report.
 
-Prefer internal intent-name cleanup before wire-version bumps: canonical user-answer code lives in `reporting/user_answer.py`, and route debug traces live under `route_result.live_search`. Bump wire versions only when emitted JSON changes incompatibly.
+Prefer internal intent-name cleanup before wire-version bumps: canonical user-answer code lives in `reporting/user_answer.py`, and route debug traces live under `diagnose trace` as `data.route_trace.live_search`. Bump wire versions only when emitted JSON changes incompatibly.
 
 Separate three concerns before removals:
 

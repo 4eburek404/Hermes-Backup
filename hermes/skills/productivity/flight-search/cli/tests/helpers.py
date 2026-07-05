@@ -159,7 +159,6 @@ def live_assembly_args(**overrides: Any) -> Any:
         "fli_mcp_url": "fli_mcp_url",
     }
     output_keys = {
-        "include_segment_results": "include_segment_results",
         "catalog_limit": "catalog_limit",
         "direct_catalog_limit": "direct_catalog_limit",
     }

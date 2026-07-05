@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from flights_cli.cli import build_parser, normalize_global_json
+from flights_cli.cli import build_parser
 from flights_cli.commands import search as search_app
 from flights_cli.command_surface import (
     AGENT_COMMANDS,
@@ -40,9 +40,7 @@ def live_search_args(**overrides: object) -> argparse.Namespace:
             "max_connections": overrides.pop("max_connections", None),
             "tier2_max_connections": overrides.pop("tier2_max_connections", None),
         },
-        "output": {
-            "include_segment_results": overrides.pop("include_segment_results", 0),
-        },
+        "output": {},
         "evidence": {
             "aggregate_control_limit": overrides.pop("aggregate_control_limit", 0),
         },
@@ -62,7 +60,6 @@ def live_search_args(**overrides: object) -> argparse.Namespace:
         stop_policy=options.route.stop_policy,
         max_connections=options.route.max_connections,
         tier2_max_connections=options.route.tier2_max_connections,
-        include_segment_results=options.output.include_segment_results,
     )
     for key, value in overrides.items():
         setattr(args, key, value)
@@ -120,6 +117,13 @@ class CliContractTests(unittest.TestCase):
                 "tutu",
                 "--request",
                 "/tmp/probe.json",
+            ],
+            "diagnose trace --request": [
+                "--json",
+                "diagnose",
+                "trace",
+                "--request",
+                "/tmp/flight-search-request.json",
             ],
             "maint doctor": ["--json", "maint", "doctor"],
             "maint check": ["--json", "maint", "check"],
@@ -209,10 +213,10 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(payload["command"], "maint doctor")
         self.assertEqual(payload["issues"], [])
         self.assertEqual(
-            payload["data"]["cli"], {"name": "flights-cli", "version": "0.6.0"}
+            payload["data"]["cli"], {"name": "flights-cli", "version": "0.7.0"}
         )
         self.assertEqual(
-            payload["data"]["skill"], {"name": "flight-search", "version": "0.9.0"}
+            payload["data"]["skill"], {"name": "flight-search", "version": "0.10.0"}
         )
         self.assertEqual(
             set(payload["data"]),
@@ -363,12 +367,14 @@ class CliContractTests(unittest.TestCase):
             payload["data"]["search_plan"]["schema_version"], "flight_search_plan.v1"
         )
 
-    def test_normalize_global_json_accepts_trailing_json(self) -> None:
-        argv = ["flights", "diagnose", "plan", "--request", "request.json", "--json"]
-        self.assertEqual(
-            normalize_global_json(argv),
-            ["flights", "--json", "diagnose", "plan", "--request", "request.json"],
+    def test_leaf_json_flag_is_accepted_without_argv_rewrite(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(
+            ["diagnose", "plan", "--request", "request.json", "--json"]
         )
+
+        self.assertTrue(args.json)
+        self.assertEqual(args.command_name, "diagnose plan")
 
 
 if __name__ == "__main__":

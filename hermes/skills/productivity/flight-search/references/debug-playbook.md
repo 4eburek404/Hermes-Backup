@@ -49,7 +49,7 @@ Read only JSON payloads for decisions. If logs surround JSON, extract the envelo
 Decision read order is in `report-contract.md`; compact debug order:
 
 1. `data.agent_report.agent_guidance` — command, answer path, readiness, blocking evidence.
-2. `data.route_result.live_search.offer_graph` — constraints, collection, evidence, missing evidence, truth language.
+2. `data.route_trace.live_search.offer_graph` from `diagnose trace` — collection, evidence, missing evidence, truth language.
 3. `data.agent_report.user_answer.rendered_text` — canonical final rendering.
 4. `data.agent_report.user_answer.catalog.items` and `frontier.decision_frontier` — decision-critical options and controls.
 5. `evidence.*` — through-fare checks, provider failures, source boundaries, coverage diagnostics.
@@ -65,6 +65,12 @@ Main report:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request request.json
+```
+
+Full route/live trace:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose trace --request request.json
 ```
 
 Provider-port diagnostic:
@@ -89,15 +95,15 @@ Probe shapes:
 When the report shows fewer direct flights than expected:
 
 1. Confirm the request scope: exact airport vs city, direct-only vs default recommendation, one-way vs return.
-2. Start with the canonical report and Tutu/provider-port diagnostics because `auto` is Tutu-first. Use `diagnose probe` only when you need one explicit provider probe that is not already visible in `route_result.live_search`.
+2. Start with the canonical report, then run `diagnose trace` for the full assembled route/live-search trace because `auto` is Tutu-first. Use `diagnose probe` only when you need one explicit provider probe outside the assembled trace.
 3. If the provider probe returns all direct offers with prices, the provider is not the root cause; inspect display/report truncation.
 4. Inspect counts:
-   - `data.route_result.live_search.decision_frontier.options`;
-   - `data.route_result.live_search.offer_graph.edges`;
-   - `data.route_result.live_search.primary_offer_results`;
+   - `data.route_trace.live_search.decision_frontier.options`;
+   - `data.route_trace.live_search.offer_graph.edges`;
+   - `data.route_trace.live_search.primary_offer_results`;
    - `data.agent_report.frontier.decision_frontier.options`;
    - `data.agent_report.agent_guidance`.
-5. Current pipeline computes the direct-first gate from wave-0 offer evidence before `agent_report.v4` and `user_answer.v6` construction. If direct offers vanish after that point, debug report construction, not provider availability.
+5. Current pipeline computes the direct-first gate from wave-0 offer evidence before `agent_report.v4` and `user_answer.v7` construction. If direct offers vanish after that point, debug report construction, not provider availability.
 
 Do not claim “provider did not return prices” when a narrow direct probe shows priced direct offers.
 

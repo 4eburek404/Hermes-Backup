@@ -63,6 +63,25 @@ class FailingAggregateAdapter:
         )
 
 
+class IncompleteReadAggregateAdapter:
+    name = "tutu"
+
+    def search_aggregate(self, query: dict[str, Any]) -> ProviderProbeResult:
+        raise CliError(
+            "Tutu MCP incomplete HTTP response while calling search_avia: read 7 of 17 bytes",
+            error_type="upstream_incomplete_read",
+            details={
+                "provider": "tutu",
+                "tool": "search_avia",
+                "failure_reason": "incomplete_read",
+                "bytes_read": 7,
+                "bytes_missing": 10,
+                "bytes_expected": 17,
+                "attempts": 3,
+            },
+        )
+
+
 class SuccessfulAggregateAdapter:
     def __init__(self, name: str) -> None:
         self.name = name
@@ -237,6 +256,42 @@ class OfferQueryRunnerTests(unittest.TestCase):
             [("tutu", "error"), ("kupibilet", "ok")],
         )
         self.assertEqual(len(adapters["kupibilet"].aggregate_queries), 1)
+
+    def test_tutu_incomplete_read_failure_is_structured_and_falls_back(self) -> None:
+        adapters = {
+            "tutu": IncompleteReadAggregateAdapter(),
+            "kupibilet": SuccessfulAggregateAdapter("kupibilet"),
+        }
+
+        with patch(
+            "flights_cli.execution.offer_query_runner.provider_adapter",
+            side_effect=lambda name, **_: adapters[name],
+        ):
+            results = run_primary_offer_queries(
+                [
+                    primary_query(provider="tutu", probe_id="primary-tutu"),
+                    primary_query(provider="kupibilet", probe_id="primary-kupibilet"),
+                ],
+                PrimaryOfferQueryOptions(no_live_cache=True),
+                store=store_with_airports(self),
+            )
+
+        self.assertEqual(results[0]["status"], "error")
+        self.assertEqual(results[0]["error"]["classification"], "incomplete_read")
+        self.assertEqual(
+            results[0]["error"]["details"],
+            {
+                "provider": "tutu",
+                "tool": "search_avia",
+                "failure_reason": "incomplete_read",
+                "bytes_read": 7,
+                "bytes_missing": 10,
+                "bytes_expected": 17,
+                "attempts": 3,
+            },
+        )
+        self.assertEqual(results[1]["provider"], "kupibilet")
+        self.assertEqual(results[1]["status"], "ok")
 
 
 if __name__ == "__main__":

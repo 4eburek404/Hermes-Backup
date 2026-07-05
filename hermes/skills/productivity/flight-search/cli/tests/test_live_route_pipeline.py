@@ -25,7 +25,6 @@ def live_args(**overrides: object):
         "max_segment_searches": 10,
         "live_cache_ttl_seconds": 0,
         "no_live_cache": True,
-        "include_segment_results": 0,
         "aggregate_control_limit": 0,
         "coverage_mode": "targeted",
         "coverage_control_limit": 12,
@@ -296,24 +295,25 @@ class LiveRoutePipelineTests(unittest.TestCase):
             [(edge["origin"], edge["destination"]) for edge in offer_graph["edges"]],
             [("SVX", "IST"), ("IST", "CDG")],
         )
-        offer_candidates = result["live_search"]["offer_candidates"]
-        self.assertEqual(
-            offer_candidates["schema_version"],
-            "flight_offer_candidate_envelope.v1",
-        )
-        self.assertEqual(
-            offer_candidates["candidates"][0]["source_type"],
-            "provider_full_route",
-        )
-        self.assertIsNone(offer_candidates["candidates"][0]["price"])
-        self.assertIsNone(offer_candidates["candidates"][0]["currency"])
-        self.assertEqual(offer_candidates["candidates"][0]["price_basis"], "unknown")
         mixed_ranking = result["live_search"]["mixed_candidate_ranking"]
         self.assertEqual(
             mixed_ranking["schema_version"],
             "flight_mixed_candidate_ranking.v1",
         )
         self.assertEqual(mixed_ranking["ranked_candidates"][0]["rank"], 1)
+        self.assertEqual(
+            set(result["live_search"]["candidate_input_ids"]),
+            {candidate["id"] for candidate in mixed_ranking["ranked_candidates"]},
+        )
+        self.assertEqual(
+            mixed_ranking["ranked_candidates"][0]["source_type"],
+            "provider_full_route",
+        )
+        self.assertIsNone(mixed_ranking["ranked_candidates"][0]["price"])
+        self.assertIsNone(mixed_ranking["ranked_candidates"][0]["currency"])
+        self.assertEqual(
+            mixed_ranking["ranked_candidates"][0]["price_basis"], "unknown"
+        )
         frontier = result["decision_frontier"]
         self.assertEqual(frontier["schema_version"], "flight_decision_frontier.v1")
         self.assertNotIn("rank_components", frontier["options"][0])
@@ -516,7 +516,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
 
         serialized = json.dumps(result, sort_keys=True, separators=(",", ":"))
         self.assertLess(len(serialized.encode("utf-8")), 80_000)
-        self.assertEqual(result["schema_version"], "flight_route_result.v3")
+        self.assertEqual(result["schema_version"], "flight_route_trace_diagnostic.v1")
         self.assertEqual(count_key(result, "decision_frontier"), 1)
         self.assertIn("decision_frontier", result)
         self.assertNotIn("decision_frontier", result["live_search"])
@@ -706,17 +706,15 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertEqual(offer_graph["schema_version"], "flight_offer_graph.v1")
         self.assertEqual(len(offer_graph["edges"]), 2)
         self.assertEqual(len(offer_graph["connections"]), 1)
-        offer_candidates = result["live_search"]["offer_candidates"]
-        self.assertEqual(
-            offer_candidates["candidates"][0]["source_type"],
-            "gateway_separate_ticket",
-        )
         mixed_ranking = result["live_search"]["mixed_candidate_ranking"]
         self.assertEqual(
             mixed_ranking["ranked_candidates"][0]["source_type"],
             "gateway_separate_ticket",
         )
-        self.assertEqual(result.get("segment_results"), [])
+        self.assertEqual(
+            set(result["live_search"]["candidate_input_ids"]),
+            {candidate["id"] for candidate in mixed_ranking["ranked_candidates"]},
+        )
 
     def test_restricted_route_discovery_does_not_leak_raw_diagnostics_to_rendered_text(
         self,
@@ -724,7 +722,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
         for destination in ("AMS", "FRA", "LON"):
             with self.subTest(destination=destination):
                 plan = minimal_route_plan(destination)
-                route_results = provider_returned_route(destination)
+                provider_results = provider_returned_route(destination)
 
                 def run_with_primary(
                     primary_results: list[dict[str, object]],
@@ -774,7 +772,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                         )
 
                 baseline = run_with_primary([])
-                with_provider_route = run_with_primary(route_results)
+                with_provider_route = run_with_primary(provider_results)
                 baseline_report = build_validated_agent_report(baseline, Store())
                 provider_route_report = build_validated_agent_report(
                     with_provider_route, Store()

@@ -40,7 +40,6 @@ class EvidencePlan:
     coverage_mode: str
     coverage_controls: tuple[Any, ...]
     coverage_control_limit: int
-    include_segment_results: int
     evidence_class: str
     direct_only: bool
     required_controls: tuple[str, ...]
@@ -65,7 +64,6 @@ class EvidencePlan:
             "coverage_mode": self.coverage_mode,
             "coverage_controls": list(self.coverage_controls),
             "coverage_control_limit": self.coverage_control_limit,
-            "include_segment_results": self.include_segment_results,
             "evidence_class": self.evidence_class,
             "direct_only": self.direct_only,
             "required_controls": list(self.required_controls),
@@ -185,7 +183,6 @@ def plan_evidence(
         coverage_mode=request.coverage_mode,
         coverage_controls=request.coverage_controls,
         coverage_control_limit=request.coverage_control_limit,
-        include_segment_results=request.include_segment_results,
         evidence_class=decision.evidence_class,
         direct_only=direct_only,
         required_controls=required_controls,

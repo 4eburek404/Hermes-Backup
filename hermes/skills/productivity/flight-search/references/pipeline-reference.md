@@ -119,4 +119,4 @@ Chronology applies to every edge and every round-trip pair. MCT applies only at 
 
 ## Diagnostics
 
-Use `diagnose plan` for planned probes and `diagnose probe --provider tutu|kupibilet|fli` for one explicit provider probe. Provider-specific raw-search commands are not part of the CLI surface; inspect `route_result.live_search` from the canonical result first.
+Use `diagnose plan` for planned probes, `diagnose trace --request` for the full assembled route/live-search trace, and `diagnose probe --provider tutu|kupibilet|fli` for one explicit provider probe. Provider-specific raw-search commands are not part of the CLI surface.

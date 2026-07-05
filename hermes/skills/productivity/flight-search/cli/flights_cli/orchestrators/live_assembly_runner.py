@@ -220,6 +220,14 @@ def _decision_options(decision_frontier: dict[str, Any]) -> list[dict[str, Any]]
     ]
 
 
+def _candidate_ids(candidate_envelope: dict[str, Any]) -> list[str]:
+    return [
+        str(candidate.get("id"))
+        for candidate in candidate_envelope.get("candidates") or []
+        if isinstance(candidate, dict) and candidate.get("id")
+    ]
+
+
 def _normalize_direction(value: Any) -> str:
     direction = str(value or Direction.OUTBOUND).strip().lower()
     return Direction.RETURN if direction == Direction.RETURN else Direction.OUTBOUND
@@ -519,7 +527,7 @@ class LiveSearchResultBuilder:
         self.store = store
         self.provider_policy = provider_policy
 
-    def build_route_result(self, state: LiveAssemblyState) -> dict[str, Any]:
+    def build_route_trace(self, state: LiveAssemblyState) -> dict[str, Any]:
         offer_graph = build_pipeline_offer_graph(
             primary_offer_results=state.primary_offer_results,
             gateway_leg_results=state.gateway_leg_results,
@@ -597,15 +605,14 @@ class LiveSearchResultBuilder:
             if isinstance(decision_frontier.get("coverage_summary"), dict)
             else {}
         )
-        route_result: dict[str, Any] = {
-            "schema_version": "flight_route_result.v3",
+        route_trace: dict[str, Any] = {
+            "schema_version": "flight_route_trace_diagnostic.v1",
             "origin": state.plan.get("origin"),
             "destination": state.plan.get("destination"),
             "dates": deepcopy(state.plan.get("dates") or {}),
             "currency": state.plan.get("currency"),
             "count": len(_decision_options(decision_frontier)),
             "decision_frontier": decision_frontier,
-            "segment_results": [],
             "assembly": {
                 "source": "decision_frontier",
                 "direct_mode": dict(state.direct_mode),
@@ -624,9 +631,6 @@ class LiveSearchResultBuilder:
                     "direct_catalog_limit": self.options.output.direct_catalog_limit,
                 },
                 "segment_searches": state.direct_inventory_searches,
-                "direct_inventory_results": state.direct_inventory_results[
-                    : self.options.output.include_segment_results
-                ],
                 "hub_viability": hub_viability_summary(
                     state.plan,
                     state.direct_inventory_searches,
@@ -635,7 +639,7 @@ class LiveSearchResultBuilder:
                 "primary_offer_results": state.primary_offer_results,
                 "gateway_leg_results": state.gateway_leg_results,
                 "offer_graph": offer_graph,
-                "offer_candidates": offer_candidates,
+                "candidate_input_ids": _candidate_ids(offer_candidates),
                 "decision_scorer": scored_decisions["scorer"],
                 "mixed_candidate_ranking": mixed_candidate_ranking,
                 "policy_controls": graph_controls,
@@ -650,18 +654,14 @@ class LiveSearchResultBuilder:
                 },
                 "failure_count": len(state.failures),
                 "failures": state.failures,
-                "included_segment_result_count": min(
-                    len(state.direct_inventory_results),
-                    self.options.output.include_segment_results,
-                ),
             },
         }
         if date_window_inventory is not None:
-            route_result["live_search"]["date_window_inventory"] = date_window_inventory
-        return route_result
+            route_trace["live_search"]["date_window_inventory"] = date_window_inventory
+        return route_trace
 
     def build(self, state: LiveAssemblyState) -> dict[str, Any]:
-        return self.build_route_result(state)
+        return self.build_route_trace(state)
 
 
 class LiveAssemblyRunner:
@@ -721,7 +721,7 @@ class LiveAssemblyRunner:
                 gateway_queries,
                 state.plan,
             )
-        preliminary = self.result_builder.build_route_result(state)
+        preliminary = self.result_builder.build_route_trace(state)
         fallback_directions = _fallback_directions_from_frontier(
             preliminary.get("decision_frontier")
             if isinstance(preliminary.get("decision_frontier"), dict)

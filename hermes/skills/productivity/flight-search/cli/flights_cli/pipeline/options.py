@@ -78,7 +78,6 @@ class EvidenceOptions:
 
 @dataclass(frozen=True, slots=True)
 class OutputOptions:
-    include_segment_results: int
     catalog_limit: int
     direct_catalog_limit: int
 
@@ -270,7 +269,6 @@ def search_request_to_options(payload: dict[str, Any]) -> LiveAssemblyOptions:
             fli_mcp_url=str(evidence.get("fli_mcp_url") or FLI_MCP_DEFAULT_URL),
         ),
         output=OutputOptions(
-            include_segment_results=_int_option(output, "include_segment_results", 0),
             catalog_limit=output_limits.catalog_limit,
             direct_catalog_limit=output_limits.direct_catalog_limit,
         ),

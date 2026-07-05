@@ -63,7 +63,6 @@ REQUEST = {
     "output": {
         "catalog_limit": 12,
         "direct_catalog_limit": 35,
-        "include_segment_results": 7,
     },
 }
 
@@ -180,7 +179,6 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
                     "live_cache_ttl_seconds": 0,
                 },
                 "output": {
-                    "include_segment_results": 0,
                     "catalog_limit": 0,
                     "direct_catalog_limit": 0,
                 },
@@ -198,7 +196,6 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.evidence.aggregate_control_limit, 0)
         self.assertEqual(options.evidence.live_cache_ttl_seconds, 0)
         self.assertEqual(options.evidence.primary_offer_limit, 1)
-        self.assertEqual(options.output.include_segment_results, 0)
         self.assertEqual(options.output.catalog_limit, 1)
         self.assertEqual(options.output.direct_catalog_limit, 1)
 

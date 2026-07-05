@@ -42,7 +42,6 @@ def live_args(**overrides: object):
         "return_second_leg_day_offset": None,
         "segment_limit": 30,
         "timeout": 60,
-        "include_segment_results": 0,
         "aggregate_control_limit": 0,
         "aggregate_control_carrier": None,
         "max_segment_searches": 300,

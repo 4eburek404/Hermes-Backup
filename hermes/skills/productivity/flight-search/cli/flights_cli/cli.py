@@ -17,6 +17,7 @@ from .commands.diagnose import (
     command_diagnose_plan,
     command_diagnose_probe,
     command_diagnose_render,
+    command_diagnose_trace,
 )
 from .commands.metadata import (
     command_airports_explain,
@@ -38,10 +39,24 @@ def _catalog_read_defaults(**kwargs: Any) -> dict[str, Any]:
     return {"catalog_access": "auto_refresh", "requires_catalog": True, **kwargs}
 
 
-def _register_primary_search_commands(sub) -> None:
+def _json_parent() -> argparse.ArgumentParser:
+    parent = argparse.ArgumentParser(add_help=False)
+    parent.add_argument(
+        "--json",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help=argparse.SUPPRESS,
+    )
+    return parent
+
+
+def _register_primary_search_commands(
+    sub, json_parent: argparse.ArgumentParser
+) -> None:
     search = sub.add_parser(
         "search",
-        help="Primary request-file route search; JSON output keeps current flight_search_result envelope.",
+        parents=[json_parent],
+        help="Primary request-file route search; JSON output keeps compact flight_search_result envelope.",
     )
     search.add_argument(
         "--request",
@@ -53,13 +68,16 @@ def _register_primary_search_commands(sub) -> None:
     )
 
 
-def _register_diagnose_commands(sub) -> None:
+def _register_diagnose_commands(sub, json_parent: argparse.ArgumentParser) -> None:
     diagnose = sub.add_parser(
-        "diagnose", help="Diagnostics for plan/probe/render workflows."
+        "diagnose",
+        parents=[json_parent],
+        help="Diagnostics for plan/probe/render/trace workflows.",
     )
     diagnose_sub = diagnose.add_subparsers(dest="diagnose_command", required=True)
     plan = diagnose_sub.add_parser(
         "plan",
+        parents=[json_parent],
         help="Render the route segment plan from a flight_search_request.v1 file without provider calls.",
     )
     plan.add_argument(
@@ -73,7 +91,9 @@ def _register_diagnose_commands(sub) -> None:
         **_catalog_read_defaults(),
     )
     probe = diagnose_sub.add_parser(
-        "probe", help="Run a single provider probe from a probe JSON file."
+        "probe",
+        parents=[json_parent],
+        help="Run a single provider probe from a probe JSON file.",
     )
     probe.add_argument(
         "--provider", required=True, choices=["kupibilet", "fli", "tutu"]
@@ -83,7 +103,9 @@ def _register_diagnose_commands(sub) -> None:
     )
     probe.set_defaults(func=command_diagnose_probe, command_name="diagnose probe")
     render = diagnose_sub.add_parser(
-        "render", help="Validate and render user_answer from an agent_report JSON file."
+        "render",
+        parents=[json_parent],
+        help="Validate and render user_answer from an agent_report JSON file.",
     )
     render.add_argument(
         "--input",
@@ -91,13 +113,31 @@ def _register_diagnose_commands(sub) -> None:
         help="agent_report JSON file, output envelope, or - for stdin.",
     )
     render.set_defaults(func=command_diagnose_render, command_name="diagnose render")
+    trace = diagnose_sub.add_parser(
+        "trace",
+        parents=[json_parent],
+        help="Run search and return the full route/live diagnostic trace.",
+    )
+    trace.add_argument(
+        "--request",
+        required=True,
+        help="flight_search_request.v1 JSON file, or - for stdin.",
+    )
+    trace.set_defaults(
+        func=command_diagnose_trace,
+        command_name="diagnose trace",
+        **_catalog_read_defaults(),
+    )
 
 
-def _register_maint_commands(sub) -> None:
-    maint = sub.add_parser("maint", help="Primary maintenance namespace.")
+def _register_maint_commands(sub, json_parent: argparse.ArgumentParser) -> None:
+    maint = sub.add_parser(
+        "maint", parents=[json_parent], help="Primary maintenance namespace."
+    )
     maint_sub = maint.add_subparsers(dest="maint_command", required=True)
     check = maint_sub.add_parser(
         "check",
+        parents=[json_parent],
         help="Report source/runtime provenance and local maintenance status without network calls.",
     )
     check.add_argument(
@@ -107,19 +147,28 @@ def _register_maint_commands(sub) -> None:
     check.set_defaults(func=command_maintenance_check, command_name="maint check")
     doctor = maint_sub.add_parser(
         "doctor",
+        parents=[json_parent],
         help="Check local caches and static catalog status without provider calls.",
     )
     doctor.set_defaults(func=command_maint_doctor, command_name="maint doctor")
-    catalog = maint_sub.add_parser("catalog", help="Static catalog maintenance.")
+    catalog = maint_sub.add_parser(
+        "catalog",
+        parents=[json_parent],
+        help="Static catalog maintenance.",
+    )
     catalog_sub = catalog.add_subparsers(dest="maint_catalog_command", required=True)
     manifest = catalog_sub.add_parser(
-        "manifest", help="Show the local static catalog manifest."
+        "manifest",
+        parents=[json_parent],
+        help="Show the local static catalog manifest.",
     )
     manifest.set_defaults(
         func=command_maint_catalog_manifest, command_name="maint catalog manifest"
     )
     refresh = catalog_sub.add_parser(
-        "refresh", help="Download public static catalog JSON files explicitly."
+        "refresh",
+        parents=[json_parent],
+        help="Download public static catalog JSON files explicitly.",
     )
     refresh.add_argument(
         "--only",
@@ -141,11 +190,15 @@ def _register_maint_commands(sub) -> None:
     )
 
 
-def _register_metadata_commands(sub) -> None:
-    cities = sub.add_parser("cities", help="City lookup commands.")
+def _register_metadata_commands(sub, json_parent: argparse.ArgumentParser) -> None:
+    cities = sub.add_parser(
+        "cities", parents=[json_parent], help="City lookup commands."
+    )
     cities_sub = cities.add_subparsers(dest="cities_command", required=True)
     cities_search = cities_sub.add_parser(
-        "search", help="Search city name or IATA code in local cache."
+        "search",
+        parents=[json_parent],
+        help="Search city name or IATA code in local cache.",
     )
     cities_search.add_argument("query")
     cities_search.add_argument("--limit", type=int, default=5)
@@ -155,10 +208,14 @@ def _register_metadata_commands(sub) -> None:
         **_catalog_read_defaults(),
     )
 
-    airports = sub.add_parser("airports", help="Airport rule lookup commands.")
+    airports = sub.add_parser(
+        "airports", parents=[json_parent], help="Airport rule lookup commands."
+    )
     airports_sub = airports.add_subparsers(dest="airports_command", required=True)
     airports_explain = airports_sub.add_parser(
-        "explain", help="Explain airport and multi-airport risk rules."
+        "explain",
+        parents=[json_parent],
+        help="Explain airport and multi-airport risk rules.",
     )
     airports_explain.add_argument("code", nargs="+")
     airports_explain.set_defaults(
@@ -197,19 +254,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--version", action="version", version=f"%(prog)s {__version__}"
     )
     sub = parser.add_subparsers(dest="command", required=True)
+    json_parent = _json_parent()
 
-    _register_primary_search_commands(sub)
-    _register_diagnose_commands(sub)
-    _register_maint_commands(sub)
-    _register_metadata_commands(sub)
+    _register_primary_search_commands(sub, json_parent)
+    _register_diagnose_commands(sub, json_parent)
+    _register_maint_commands(sub, json_parent)
+    _register_metadata_commands(sub, json_parent)
 
     return parser
-
-
-def normalize_global_json(argv: list[str]) -> list[str]:
-    if "--json" not in argv[1:]:
-        return argv
-    return [argv[0], "--json"] + [item for item in argv[1:] if item != "--json"]
 
 
 def validate_cli_config(args: argparse.Namespace) -> None:
@@ -251,7 +303,7 @@ def auto_refresh_catalog(args: argparse.Namespace, store: Store) -> dict | None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    argv = normalize_global_json(list(sys.argv if argv is None else argv))
+    argv = list(sys.argv if argv is None else argv)
     parser = build_parser()
     args = parser.parse_args(argv[1:])
     try:

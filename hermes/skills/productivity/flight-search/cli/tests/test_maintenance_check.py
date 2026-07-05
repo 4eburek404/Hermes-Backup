@@ -47,20 +47,20 @@ class MaintenanceCheckTests(unittest.TestCase):
 
         self.assertEqual(data["runtime"]["skill_path"], str(missing_runtime))
         self.assertFalse(data["runtime"]["exists"])
-        self.assertEqual(data["versions"], {"skill_md": "0.9.0", "cli": "0.6.0"})
+        self.assertEqual(data["versions"], {"skill_md": "0.10.0", "cli": "0.7.0"})
         self.assertTrue(data["version_manifest"]["exists"])
         self.assertEqual(data["version_manifest"]["mismatches"], [])
         self.assertEqual(
             data["version_manifest"]["data"]["skill"],
-            {"name": "flight-search", "version": "0.9.0"},
+            {"name": "flight-search", "version": "0.10.0"},
         )
         self.assertEqual(
             data["version_manifest"]["data"]["cli"],
-            {"package": "flights-cli", "version": "0.6.0"},
+            {"package": "flights-cli", "version": "0.7.0"},
         )
         self.assertEqual(
             data["version_manifest"]["data"]["command_surface"]["version"],
-            "command_surface.v1",
+            "command_surface.v2",
         )
         self.assertEqual(data["source_runtime_parity"]["status"], "runtime_missing")
         workflow = data["branch_workflow"]
@@ -71,18 +71,21 @@ class MaintenanceCheckTests(unittest.TestCase):
         self.assertEqual(workflow["source"]["dirty"], data["source"]["git"]["dirty"])
         self.assertEqual(workflow["runtime"]["path"], str(missing_runtime))
         self.assertFalse(workflow["runtime"]["exists"])
-        self.assertEqual(workflow["manifest"]["skill_version"], "0.9.0")
-        self.assertEqual(workflow["manifest"]["cli_version"], "0.6.0")
+        self.assertEqual(workflow["manifest"]["skill_version"], "0.10.0")
+        self.assertEqual(workflow["manifest"]["cli_version"], "0.7.0")
         self.assertEqual(
-            workflow["manifest"]["command_surface_version"], "command_surface.v1"
+            workflow["manifest"]["command_surface_version"], "command_surface.v2"
         )
         self.assertEqual(workflow["manifest"]["mismatches"], [])
-        self.assertEqual(workflow["command_surface"]["version"], "command_surface.v1")
+        self.assertEqual(workflow["command_surface"]["version"], "command_surface.v2")
         self.assertEqual(
             workflow["command_surface"]["canonical_path"], "search --request"
         )
         self.assertIn(
             "diagnose plan", workflow["command_surface"]["diagnostic_commands"]
+        )
+        self.assertIn(
+            "diagnose trace", workflow["command_surface"]["diagnostic_commands"]
         )
         self.assertEqual(workflow["parity"]["status"], "runtime_missing")
         self.assertFalse(workflow["parity"]["runtime_claims_allowed"])

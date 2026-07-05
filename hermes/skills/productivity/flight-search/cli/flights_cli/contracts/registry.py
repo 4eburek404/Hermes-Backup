@@ -23,21 +23,27 @@ _CURRENT_CONTRACTS: dict[str, dict[str, str]] = {
         "status": "planned_new_root_input",
     },
     "search_result": {
-        "schema_version": "flight_search_result.v3",
-        "schema_resource": "flight_search_result.v3.schema.json",
+        "schema_version": "flight_search_result.v4",
+        "schema_resource": "flight_search_result.v4.schema.json",
         "public_path": "data",
         "status": "current_public_contract",
+    },
+    "route_trace": {
+        "schema_version": "flight_route_trace_diagnostic.v1",
+        "schema_resource": "flight_route_trace_diagnostic.v1.schema.json",
+        "public_path": "data.route_trace",
+        "status": "diagnostic_trace_contract",
     },
     "search_plan": {
         "schema_version": "flight_search_plan.v1",
         "schema_resource": "flight_search_plan.v1.schema.json",
-        "public_path": "data.route_result.live_search.diagnostics.search_plan",
+        "public_path": "data.route_trace.live_search.diagnostics.search_plan",
         "status": "diagnostic_plan_contract",
     },
     "offer_graph": {
         "schema_version": "flight_offer_graph.v1",
         "schema_resource": "flight_offer_graph.v1.schema.json",
-        "public_path": "data.route_result.live_search.offer_graph",
+        "public_path": "data.route_trace.live_search.offer_graph",
         "status": "diagnostic_graph_contract",
     },
 }

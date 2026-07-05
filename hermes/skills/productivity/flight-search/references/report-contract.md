@@ -4,10 +4,11 @@ Use this when reading `data.agent_report` or deciding what to show the traveler.
 
 ## Active Contracts
 
-- `flight_search_result.v3` is the public search envelope. It carries `data.agent_report` at the root and `data.route_result` without a nested report copy.
+- `flight_search_result.v4` is the public search envelope. It carries `data.agent_report` at the root and no public route trace by default.
 - `agent_report.v4` is the public agent report. Its only top-level layers are `route`, `evidence`, `frontier`, `user_answer`, and `agent_guidance`.
 - `flight_search_user_answer.v7` is the canonical user-facing answer. `data.agent_report.user_answer.rendered_text` is the only final prose source.
-- `flight_offer_graph.v1` remains active only as route-result diagnostic data at `data.route_result.live_search.offer_graph`.
+- `flight_route_trace_diagnostic.v1` is the diagnostic wrapper returned by `diagnose trace --request`.
+- `flight_offer_graph.v1` remains active only as route-trace diagnostic data at `data.route_trace.live_search.offer_graph`.
 
 There is no runtime adapter for previous agent-report or search-result envelopes.
 
@@ -22,7 +23,7 @@ Read in this order:
 5. `evidence.through_fare_checks`, `evidence.provider_failures`, and `evidence.source_boundaries` — caveats and next-action evidence when they change confidence.
 6. `agent_guidance` — canonical command, answer path, evidence completeness, and request patches for follow-up probes.
 
-The public report must not duplicate full provider bodies, full coverage buckets, full graph data, display projections, or old recommendation aliases. Use `diagnose` commands or `route_result.live_search` for trace/debug work.
+The public report must not duplicate full provider bodies, full coverage buckets, full graph data, display projections, or old recommendation aliases. Use `diagnose trace` for full route/live-search trace work.
 
 ## Search Envelope
 
@@ -30,14 +31,13 @@ The public report must not duplicate full provider bodies, full coverage buckets
 
 ```text
 data
-├── schema_version = flight_search_result.v3
-├── wire_version = flight_search_result.v3
+├── schema_version = flight_search_result.v4
+├── wire_version = flight_search_result.v4
 ├── request
-├── agent_report
-└── route_result
+└── agent_report
 ```
 
-The `route_result` object must not contain a report copy. Consumers should read the report only from `data.agent_report`.
+Consumers should read the final answer only from `data.agent_report.user_answer.rendered_text`.
 
 ## Answer Rules
 
@@ -66,7 +66,7 @@ Full graph, search plan, gateway waves, provider payloads, and coverage buckets 
 
 - `diagnose plan`
 - `diagnose probe`
+- `diagnose trace`
 - provider-specific `diagnose ...` commands
-- `data.route_result.live_search`
 
 Do not add public-report compatibility mirrors for these traces.

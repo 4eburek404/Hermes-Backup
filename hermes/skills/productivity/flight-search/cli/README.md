@@ -107,7 +107,9 @@ Read only `data.agent_report` for the user answer. Primary serialized paths:
 - `evidence.provider_failures`
 - `evidence.source_boundaries`
 
-Full graph/debug traces stay under `data.route_result.live_search.offer_graph` and `data.route_result.live_search.diagnostics`, not inside the public agent report.
+Full graph/debug traces are excluded from default `search` output. Use
+`diagnose trace --request` and inspect `data.route_trace.live_search.offer_graph`
+or `data.route_trace.live_search.diagnostics` when you need the internal trace.
 
 `search --request` searches and compares route options for the default scope of one adult in economy. It does not buy or book tickets, and final fare, baggage-through, refund/change conditions, disruption protection, and single-PNR claims require purchase-screen, airline/GDS, seller, or explicit upstream proof.
 
@@ -181,9 +183,9 @@ python3 -m flights_cli --json diagnose probe \
   --request /tmp/probe.json
 ```
 
-For source-boundary investigations, inspect `data.route_result.live_search` from
-the canonical result and use `diagnose probe` only for one explicit provider
-probe. Keep ordinary search work on `search --request`.
+For source-boundary investigations, run `diagnose trace --request` and inspect
+`data.route_trace.live_search`; use `diagnose probe` only for one explicit
+provider probe. Keep ordinary search work on `search --request`.
 
 Useful probe shapes:
 
