@@ -17,7 +17,7 @@ from flights_cli.services.agent_report_contract import (
     load_agent_report_schema,
     validate_agent_report,
 )
-from tests.fixtures.agent_reports import provider_report_payload
+from tests.fixtures.agent_reports import aggregate_offer, provider_report_payload
 
 
 def semantic_error_paths(exc: CliError) -> set[str]:
@@ -28,13 +28,27 @@ def semantic_error_paths(exc: CliError) -> set[str]:
     }
 
 
+def recursive_mapping_keys(value: object) -> set[str]:
+    if isinstance(value, dict):
+        keys = set(value)
+        for item in value.values():
+            keys.update(recursive_mapping_keys(item))
+        return keys
+    if isinstance(value, list):
+        keys: set[str] = set()
+        for item in value:
+            keys.update(recursive_mapping_keys(item))
+        return keys
+    return set()
+
+
 class AgentReportContractTests(unittest.TestCase):
-    def test_schema_is_valid_v4_and_stable(self) -> None:
+    def test_schema_is_valid_v5_and_stable(self) -> None:
         schema = load_agent_report_schema()
 
         Draft202012Validator.check_schema(schema)
-        self.assertEqual(schema["$id"], "urn:hermes:flights-cli:agent-report:v4")
-        self.assertEqual(schema["title"], "Hermes Flights CLI Agent Report v4")
+        self.assertEqual(schema["$id"], "urn:hermes:flights-cli:agent-report:v5")
+        self.assertEqual(schema["title"], "Hermes Flights CLI Agent Report v5")
         self.assertEqual(
             schema["properties"]["schema_version"]["const"], AGENT_REPORT_SCHEMA_VERSION
         )
@@ -59,15 +73,15 @@ class AgentReportContractTests(unittest.TestCase):
         )
         parsed = json.loads(text)
 
-        self.assertEqual(parsed["$id"], "urn:hermes:flights-cli:agent-report:v4")
+        self.assertEqual(parsed["$id"], "urn:hermes:flights-cli:agent-report:v5")
         self.assertLessEqual(len(text.encode("utf-8")), 14000)
 
-    def test_build_agent_report_emits_compact_v4_public_contract(self) -> None:
+    def test_build_agent_report_emits_compact_v5_public_contract(self) -> None:
         report = build_agent_report(provider_report_payload())
 
         validate_agent_report(report)
         validate_user_answer(report["user_answer"])
-        self.assertEqual(report["schema_version"], "agent_report.v4")
+        self.assertEqual(report["schema_version"], "agent_report.v5")
         self.assertEqual(
             set(report),
             {
@@ -79,7 +93,13 @@ class AgentReportContractTests(unittest.TestCase):
                 "agent_guidance",
             },
         )
+        self.assertNotIn("flow_decision", report["route"])
+        self.assertNotIn("evidence_plan", report["route"])
         self.assertEqual(set(report["frontier"]), {"decision_frontier"})
+        self.assertEqual(
+            report["frontier"]["decision_frontier"]["schema_version"],
+            "flight_decision_frontier.public.v1",
+        )
         self.assertEqual(
             set(report["evidence"]),
             {
@@ -106,6 +126,89 @@ class AgentReportContractTests(unittest.TestCase):
                 "rendered_text",
                 "answer_lines",
             },
+        )
+
+    def test_public_frontier_is_compact_projection_only(self) -> None:
+        payload = provider_report_payload()
+        payload["live_search"]["decision_frontier"] = {
+            "schema_version": "flight_decision_frontier.v1",
+            "options": [
+                {
+                    "id": "frontier-1",
+                    "rank": 1,
+                    "source_type": "provider_full_route",
+                    "provider": "kupibilet",
+                    "source_providers": ["kupibilet"],
+                    "gateway": "SVO",
+                    "covers_requested_trip": True,
+                    "journey_scope": "one_way",
+                    "price": 42000,
+                    "currency": "RUB",
+                    "price_basis": "provider_offer",
+                    "ticketing_model": "provider_aggregate",
+                    "detail_status": "full",
+                    "connection_count": 1,
+                    "selection_reasons": ["primary"],
+                    "evidence_sources": [
+                        {
+                            "source_type": "provider_full_route",
+                            "source_providers": ["kupibilet"],
+                        }
+                    ],
+                    "price_comparison": {"cheapest": True},
+                    "journeys": [
+                        {
+                            "direction": "outbound",
+                            "segments": aggregate_offer()["segments"],
+                        }
+                    ],
+                    "connections": [{"arrival_airport": "SVO"}],
+                    "rank_features": {"price_score": 0.9},
+                    "graph_data": {"node_count": 3},
+                    "raw_evidence": {"body": {"offers": [aggregate_offer()]}},
+                }
+            ],
+            "controls": [
+                {
+                    "id": "control-1",
+                    "type": "full_route_aggregate",
+                    "direction": "outbound",
+                    "origin": "SVX",
+                    "destination": "DEL",
+                    "date": "2026-06-01",
+                    "status": "ok",
+                    "provider": "kupibilet",
+                    "offer_count": 1,
+                    "top_offer_count": 1,
+                    "error": {"raw_body": "hidden"},
+                    "top_offers": [aggregate_offer()],
+                }
+            ],
+            "coverage_summary": {"option_count": 1, "control_count": 1},
+        }
+
+        report = build_agent_report(payload)
+
+        validate_agent_report(report)
+        frontier = report["frontier"]["decision_frontier"]
+        option = frontier["options"][0]
+        control = frontier["controls"][0]
+        self.assertEqual(frontier["schema_version"], "flight_decision_frontier.public.v1")
+        self.assertEqual(option["id"], "frontier-1")
+        self.assertEqual(option["catalog_item_number"], 1)
+        self.assertEqual(
+            option["catalog_item_path"],
+            "data.agent_report.user_answer.catalog.items[0]",
+        )
+        self.assertNotIn("journeys", option)
+        self.assertNotIn("connections", option)
+        self.assertNotIn("rank_features", option)
+        self.assertNotIn("raw_evidence", option)
+        self.assertNotIn("error", control)
+        self.assertNotIn("top_offers", control)
+        self.assertFalse(
+            {"journeys", "connections", "rank_features", "graph_data", "raw_evidence"}
+            & recursive_mapping_keys(frontier)
         )
 
     def test_user_text_report_renderer_preserves_canonical_answer_lines(self) -> None:

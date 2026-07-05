@@ -4,8 +4,8 @@ Use this when reading `data.agent_report` or deciding what to show the traveler.
 
 ## Active Contracts
 
-- `flight_search_result.v4` is the public search envelope. It carries `data.agent_report` at the root and no public route trace by default.
-- `agent_report.v4` is the public agent report. Its only top-level layers are `route`, `evidence`, `frontier`, `user_answer`, and `agent_guidance`.
+- `flight_search_result.v5` is the public search envelope. It carries `data.agent_report` at the root and no public route trace by default.
+- `agent_report.v5` is the public agent report. Its only top-level layers are `route`, `evidence`, `frontier`, `user_answer`, and `agent_guidance`.
 - `flight_search_user_answer.v7` is the canonical user-facing answer. `data.agent_report.user_answer.rendered_text` is the only final prose source.
 - `flight_route_trace_diagnostic.v1` is the diagnostic wrapper returned by `diagnose trace --request`.
 - `flight_offer_graph.v1` remains active only as route-trace diagnostic data at `data.route_trace.live_search.offer_graph`.
@@ -25,14 +25,16 @@ Read in this order:
 
 The public report must not duplicate full provider bodies, full coverage buckets, full graph data, display projections, or old recommendation aliases. Use `diagnose trace` for full route/live-search trace work.
 
+In `agent_report.v5`, `route` is only request/report context; it does not expose `flow_decision` or `evidence_plan`. Public `frontier.decision_frontier` uses `flight_decision_frontier.public.v1` and is a compact projection: option ids, rank, reasons, source/provider, price, ticketing model, coverage flags, and catalog item links. Full journeys, connections, rank internals, graph data, and raw evidence stay in `diagnose trace` under `data.route_trace`.
+
 ## Search Envelope
 
 `search --request --json` returns:
 
 ```text
 data
-├── schema_version = flight_search_result.v4
-├── wire_version = flight_search_result.v4
+├── schema_version = flight_search_result.v5
+├── wire_version = flight_search_result.v5
 ├── request
 └── agent_report
 ```

@@ -106,10 +106,10 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
         Draft202012Validator(request_schema).validate(MINIMAL_SEARCH_REQUEST)
         Draft202012Validator(result_schema).validate(
             {
-                "schema_version": "flight_search_result.v4",
-                "wire_version": "flight_search_result.v4",
+                "schema_version": "flight_search_result.v5",
+                "wire_version": "flight_search_result.v5",
                 "request": MINIMAL_SEARCH_REQUEST,
-                "agent_report": {"schema_version": "agent_report.v4"},
+                "agent_report": {"schema_version": "agent_report.v5"},
             }
         )
 
@@ -149,7 +149,7 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
                 ),
                 patch(
                     "flights_cli.commands.search.build_validated_agent_report",
-                    return_value={"schema_version": "agent_report.v4"},
+                    return_value={"schema_version": "agent_report.v5"},
                 ),
             ):
                 result = command_search(args, Store())
@@ -164,10 +164,10 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
                 "direct_catalog_limit": 30,
             },
         )
-        self.assertEqual(result["schema_version"], "flight_search_result.v4")
-        self.assertEqual(result["wire_version"], "flight_search_result.v4")
+        self.assertEqual(result["schema_version"], "flight_search_result.v5")
+        self.assertEqual(result["wire_version"], "flight_search_result.v5")
         self.assertEqual(result["request"], MINIMAL_SEARCH_REQUEST)
-        self.assertEqual(result["agent_report"], {"schema_version": "agent_report.v4"})
+        self.assertEqual(result["agent_report"], {"schema_version": "agent_report.v5"})
         self.assertEqual(
             set(result), {"schema_version", "wire_version", "request", "agent_report"}
         )
@@ -197,7 +197,7 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
                 ),
                 patch(
                     "flights_cli.commands.search.build_validated_agent_report",
-                    return_value={"schema_version": "agent_report.v4"},
+                    return_value={"schema_version": "agent_report.v5"},
                 ),
             ):
                 result = command_diagnose_trace(args, Store())
@@ -205,7 +205,7 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
         self.assertEqual(result["schema_version"], "flight_route_trace_diagnostic.v1")
         self.assertEqual(result["request"], MINIMAL_SEARCH_REQUEST)
         self.assertEqual(result["route_trace"], route_trace)
-        self.assertEqual(result["agent_report"], {"schema_version": "agent_report.v4"})
+        self.assertEqual(result["agent_report"], {"schema_version": "agent_report.v5"})
 
     def test_search_json_errors_are_machine_parseable_on_stdout(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -251,7 +251,7 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
             },
         }
         agent_report = {
-            "schema_version": "agent_report.v4",
+            "schema_version": "agent_report.v5",
             "evidence": {
                 "provider_failures": [
                     {
@@ -299,7 +299,7 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
         payload = json.loads(stdout.getvalue())
         self.assertTrue(payload["ok"])
         data = payload["data"]
-        self.assertEqual(data["schema_version"], "flight_search_result.v4")
+        self.assertEqual(data["schema_version"], "flight_search_result.v5")
         self.assertNotIn("route_result", data)
         self.assertEqual(
             data["agent_report"]["evidence"]["provider_failures"][0]["reason"],

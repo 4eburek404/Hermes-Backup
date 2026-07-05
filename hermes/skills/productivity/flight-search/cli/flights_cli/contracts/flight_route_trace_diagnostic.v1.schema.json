@@ -18,7 +18,7 @@
     "agent_report": {
       "type": ["object", "null"],
       "properties": {
-        "schema_version": {"const": "agent_report.v4"}
+        "schema_version": {"const": "agent_report.v5"}
       },
       "required": ["schema_version"]
     }

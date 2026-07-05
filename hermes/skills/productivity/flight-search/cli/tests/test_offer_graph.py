@@ -16,6 +16,10 @@ class OfferGraphTests(unittest.TestCase):
         *,
         provider_price: int = 39000,
         gateway_destination_departure_at: str = "2026-08-15T15:00:00+03:00",
+        provider_first_flight_number: str | None = "U6 123",
+        provider_second_flight_number: str | None = "TK 1953",
+        gateway_first_flight_number: str | None = "U6123",
+        gateway_second_flight_number: str | None = "TK1953",
     ) -> dict:
         return build_offer_graph(
             primary_offer_results=[
@@ -34,14 +38,14 @@ class OfferGraphTests(unittest.TestCase):
                                 {
                                     "origin": "SVX",
                                     "destination": "IST",
-                                    "flight_number": "U6 123",
+                                    "flight_number": provider_first_flight_number,
                                     "departure_at": "2026-08-15T10:00:00+05:00",
                                     "arrival_at": "2026-08-15T13:00:00+03:00",
                                 },
                                 {
                                     "origin": "IST",
                                     "destination": "AMS",
-                                    "flight_number": "TK 1953",
+                                    "flight_number": provider_second_flight_number,
                                     "departure_at": "2026-08-15T15:00:00+03:00",
                                     "arrival_at": "2026-08-15T17:30:00+02:00",
                                 },
@@ -71,7 +75,7 @@ class OfferGraphTests(unittest.TestCase):
                                     "id": "svx-ist-1",
                                     "price": 18000,
                                     "currency": "RUB",
-                                    "flight_number": "U6123",
+                                    "flight_number": gateway_first_flight_number,
                                     "departure_at": "2026-08-15T10:00:00+05:00",
                                     "arrival_at": "2026-08-15T13:00:00+03:00",
                                 }
@@ -88,7 +92,7 @@ class OfferGraphTests(unittest.TestCase):
                                     "id": "ist-ams-1",
                                     "price": 22000,
                                     "currency": "RUB",
-                                    "flight_number": "TK1953",
+                                    "flight_number": gateway_second_flight_number,
                                     "departure_at": gateway_destination_departure_at,
                                     "arrival_at": "2026-08-15T17:30:00+02:00",
                                 }
@@ -1157,6 +1161,49 @@ class OfferGraphTests(unittest.TestCase):
             [candidate["source_type"] for candidate in envelope["candidates"]],
             ["provider_full_route", "gateway_separate_ticket"],
         )
+
+    def test_same_physical_itinerary_without_flight_numbers_dedupes(self) -> None:
+        envelope = materialize_offer_graph_candidates(
+            self.graph_with_provider_and_gateway(
+                provider_first_flight_number=None,
+                provider_second_flight_number=None,
+                gateway_first_flight_number=None,
+                gateway_second_flight_number=None,
+            ),
+            requested_origin="SVX",
+            requested_destination="AMS",
+        )
+
+        self.assertEqual(envelope["coverage"]["candidate_count"], 1)
+        self.assertEqual(envelope["coverage"]["deduped_count"], 1)
+        candidate = envelope["candidates"][0]
+        self.assertEqual(candidate["source_type"], "provider_full_route")
+        self.assertEqual(len(candidate["alternate_sources"]), 1)
+        self.assertEqual(
+            candidate["alternate_sources"][0]["source_type"],
+            "gateway_separate_ticket",
+        )
+
+    def test_same_physical_itinerary_with_different_flight_numbers_dedupes(
+        self,
+    ) -> None:
+        envelope = materialize_offer_graph_candidates(
+            self.graph_with_provider_and_gateway(
+                provider_first_flight_number="U6 123",
+                provider_second_flight_number="TK 1953",
+                gateway_first_flight_number="DP 777",
+                gateway_second_flight_number="PC 888",
+            ),
+            requested_origin="SVX",
+            requested_destination="AMS",
+        )
+
+        self.assertEqual(envelope["coverage"]["candidate_count"], 1)
+        self.assertEqual(envelope["coverage"]["deduped_count"], 1)
+        candidate = envelope["candidates"][0]
+        self.assertEqual(candidate["source_type"], "provider_full_route")
+        self.assertEqual(candidate["price_basis"], "provider_offer_price")
+        self.assertEqual(len(candidate["alternate_sources"]), 1)
 
     def test_provider_price_retained_when_summed_legs_are_cheaper(self) -> None:
         envelope = materialize_offer_graph_candidates(

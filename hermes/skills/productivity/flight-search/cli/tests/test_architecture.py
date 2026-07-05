@@ -160,22 +160,29 @@ class ArchitectureTests(unittest.TestCase):
             RU_PRIORITY_BRANCHES["direct_destination_control"], "direct_destination"
         )
 
-    def test_only_active_contract_schemas_are_packaged(self) -> None:
+    def test_active_contract_schema_resources_match_registry_versions(self) -> None:
         contracts = PROJECT / "flights_cli" / "contracts"
-        schema_names = sorted(path.name for path in contracts.glob("*.schema.json"))
-
-        self.assertEqual(
-            schema_names,
-            [
-                "agent_report.v4.schema.json",
-                "flight_offer_graph.v1.schema.json",
-                "flight_route_trace_diagnostic.v1.schema.json",
-                "flight_search_plan.v1.schema.json",
-                "flight_search_request.v1.schema.json",
-                "flight_search_result.v4.schema.json",
-                "flight_search_user_answer.v7.schema.json",
-            ],
-        )
+        for contract_name in (
+            "agent_report",
+            "user_answer",
+            "search_request",
+            "search_result",
+            "route_trace",
+            "search_plan",
+            "offer_graph",
+        ):
+            contract = current_contract(contract_name)
+            resource = contract.get("schema_resource")
+            if not resource:
+                continue
+            with self.subTest(contract_name=contract_name):
+                schema_path = contracts / resource
+                self.assertTrue(schema_path.is_file())
+                schema = json.loads(schema_path.read_text(encoding="utf-8"))
+                self.assertEqual(
+                    schema["properties"]["schema_version"]["const"],
+                    contract["schema_version"],
+                )
 
     def test_module_dependency_boundaries(self) -> None:
         root = PROJECT / "flights_cli"

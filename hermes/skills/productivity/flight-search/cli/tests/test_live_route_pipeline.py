@@ -143,6 +143,9 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertEqual(flow.request.currency, "RUB")
         self.assertEqual(flow.request.profile, "business")
         self.assertEqual(flow.request.provider_policy, "auto")
+        self.assertIs(flow.request._options, args)
+        with self.assertRaises(AttributeError):
+            flow.request.origin = "LED"
         self.assertEqual(flow.flow_decision.intent_class, "route_recommendation")
         self.assertEqual(flow.flow_decision.evidence_class, "shopping_advisory")
         self.assertEqual(flow.flow_decision.provider_policy, "auto")

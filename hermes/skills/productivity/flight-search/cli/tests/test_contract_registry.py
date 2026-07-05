@@ -26,11 +26,11 @@ class ContractRegistryTest(unittest.TestCase):
             },
         )
         self.assertEqual(
-            current_contract("agent_report")["schema_version"], "agent_report.v4"
+            current_contract("agent_report")["schema_version"], "agent_report.v5"
         )
         self.assertEqual(
             current_contract("search_result")["schema_version"],
-            "flight_search_result.v4",
+            "flight_search_result.v5",
         )
         self.assertEqual(
             current_contract("route_trace")["schema_version"],

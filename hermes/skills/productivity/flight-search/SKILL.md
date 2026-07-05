@@ -53,7 +53,7 @@ request
   -> OfferGraph
   -> DecisionScorer
   -> DecisionFrontier
-  -> flight_search_result.v4 + agent_report.v4 + user_answer.v7
+  -> flight_search_result.v5 + agent_report.v5 + user_answer.v7
 ```
 
 There is no legacy assembly fallback. `RoutePlanBuilder`, old `services/assembly`, synthetic controls, and old `ranked_candidates/frontier_candidates` answer paths are not runtime sources.

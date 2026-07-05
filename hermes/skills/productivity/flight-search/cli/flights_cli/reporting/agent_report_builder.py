@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 from ..config import SPECIAL_CITY_AIRPORTS, catalog_output_limits_from_mapping
@@ -270,16 +271,13 @@ def build_agent_guidance(
     route: dict[str, Any],
     coverage: dict[str, Any],
     through_fare_check_items: list[dict[str, Any]],
+    evidence_plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     evidence_status = compact_evidence_status(coverage)
     actions: list[dict[str, Any]] = []
     if "not_executed_controls" in evidence_status["blocking_evidence"]:
-        evidence_plan = (
-            route.get("evidence_plan")
-            if isinstance(route.get("evidence_plan"), dict)
-            else {}
-        )
-        current_limit = int(evidence_plan.get("max_segment_searches") or 300)
+        plan = evidence_plan if isinstance(evidence_plan, dict) else {}
+        current_limit = int(plan.get("max_segment_searches") or 300)
         actions.append(
             {
                 "id": "rerun_with_larger_execution_budget",
@@ -327,6 +325,125 @@ def build_agent_guidance(
         "answer_readiness": answer_readiness(evidence_status),
         **evidence_status,
         "next_actions": actions,
+    }
+
+
+def _compact_public_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            str(key): _compact_public_value(item)
+            for key, item in value.items()
+            if item is not None
+        }
+    if isinstance(value, list):
+        return [_compact_public_value(item) for item in value if item is not None]
+    return value
+
+
+def _catalog_item_links(user_answer: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    catalog = (
+        user_answer.get("catalog")
+        if isinstance(user_answer.get("catalog"), dict)
+        else {}
+    )
+    links: dict[str, dict[str, Any]] = {}
+    for index, item in enumerate(catalog.get("items") or []):
+        if not isinstance(item, dict):
+            continue
+        option_id = str(item.get("option_id") or "").strip()
+        if not option_id:
+            continue
+        number = item.get("number")
+        if not isinstance(number, int):
+            number = index + 1
+        links[option_id] = {
+            "catalog_item_number": number,
+            "catalog_item_path": f"data.agent_report.user_answer.catalog.items[{index}]",
+        }
+    return links
+
+
+def compact_public_decision_frontier(
+    decision_frontier: dict[str, Any], user_answer: dict[str, Any]
+) -> dict[str, Any]:
+    """Project full decision details into the public report surface."""
+
+    catalog_links = _catalog_item_links(user_answer)
+    allowed_option_keys = (
+        "id",
+        "rank",
+        "selection_reasons",
+        "source_type",
+        "provider",
+        "source_providers",
+        "gateway",
+        "covers_requested_trip",
+        "journey_scope",
+        "price",
+        "currency",
+        "price_basis",
+        "ticketing_model",
+        "detail_status",
+        "connection_count",
+        "evidence_sources",
+        "price_comparison",
+    )
+    options: list[dict[str, Any]] = []
+    for option in decision_frontier.get("options") or []:
+        if not isinstance(option, dict):
+            continue
+        option_id = str(option.get("id") or "").strip()
+        if not option_id:
+            continue
+        compact = {
+            key: _compact_public_value(deepcopy(option.get(key)))
+            for key in allowed_option_keys
+            if key in option and option.get(key) is not None
+        }
+        compact.update(catalog_links.get(option_id, {}))
+        options.append(compact)
+
+    controls: list[dict[str, Any]] = []
+    allowed_control_keys = (
+        "id",
+        "type",
+        "direction",
+        "origin",
+        "destination",
+        "date",
+        "status",
+        "provider",
+        "source_type",
+        "control_policy",
+        "source_providers",
+        "offer_count",
+        "raw_offer_count",
+        "top_offer_count",
+        "cache_status",
+        "graph_derived",
+        "negative_evidence",
+        "reason",
+    )
+    for control in decision_frontier.get("controls") or []:
+        if isinstance(control, dict):
+            controls.append(
+                {
+                    key: _compact_public_value(deepcopy(control.get(key)))
+                    for key in allowed_control_keys
+                    if key in control and control.get(key) is not None
+                }
+            )
+
+    coverage_summary = (
+        decision_frontier.get("coverage_summary")
+        if isinstance(decision_frontier.get("coverage_summary"), dict)
+        else {}
+    )
+    return {
+        "schema_version": "flight_decision_frontier.public.v1",
+        "options": options,
+        "controls": controls,
+        "coverage_summary": _compact_public_value(deepcopy(coverage_summary)),
     }
 
 
@@ -1268,7 +1385,6 @@ def build_agent_report(
         selected_stop_policy=selected_stop_policy,
     )
     coverage_diagnostics = build_coverage_diagnostics(plan, live)
-    plan_flow_decision = plan.get("flow_decision") if isinstance(plan, dict) else {}
     plan_evidence_plan = plan.get("evidence_plan") if isinstance(plan, dict) else {}
     tier2_segments = options[0].get("segments") if options else []
     tier2_origin = tier2_segments[0].get("origin") if tier2_segments else None
@@ -1284,12 +1400,6 @@ def build_agent_report(
         "profile": data.get("profile") or plan.get("profile"),
         "routing_strategy": plan.get("routing_strategy"),
         "provider_policy": live.get("provider_policy"),
-        "flow_decision": plan_flow_decision
-        if isinstance(plan_flow_decision, dict)
-        else {},
-        "evidence_plan": plan_evidence_plan
-        if isinstance(plan_evidence_plan, dict)
-        else {},
     }
     compact_failures = provider_failures(live)
     coverage = compact_coverage_summary(coverage_diagnostics, compact_failures)
@@ -1341,15 +1451,18 @@ def build_agent_report(
         evidence["date_window_inventory"] = date_window_inventory
     if ru_priority_controls is not None:
         evidence["ru_priority_controls"] = ru_priority_controls
+    user_answer = build_user_answer(answer_input)
+    public_frontier = compact_public_decision_frontier(decision_frontier, user_answer)
     return {
         "schema_version": AGENT_REPORT_SCHEMA_VERSION,
         "route": route,
         "evidence": evidence,
-        "frontier": {"decision_frontier": decision_frontier},
-        "user_answer": build_user_answer(answer_input),
+        "frontier": {"decision_frontier": public_frontier},
+        "user_answer": user_answer,
         "agent_guidance": build_agent_guidance(
             route=route,
             coverage=coverage,
             through_fare_check_items=through_fare_check_items,
+            evidence_plan=plan_evidence_plan if isinstance(plan_evidence_plan, dict) else {},
         ),
     }

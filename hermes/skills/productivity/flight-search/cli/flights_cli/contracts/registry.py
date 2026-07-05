@@ -5,8 +5,8 @@ from typing import Any
 
 _CURRENT_CONTRACTS: dict[str, dict[str, str]] = {
     "agent_report": {
-        "schema_version": "agent_report.v4",
-        "schema_resource": "agent_report.v4.schema.json",
+        "schema_version": "agent_report.v5",
+        "schema_resource": "agent_report.v5.schema.json",
         "public_path": "data.agent_report",
         "status": "current_public_contract",
     },
@@ -23,8 +23,8 @@ _CURRENT_CONTRACTS: dict[str, dict[str, str]] = {
         "status": "planned_new_root_input",
     },
     "search_result": {
-        "schema_version": "flight_search_result.v4",
-        "schema_resource": "flight_search_result.v4.schema.json",
+        "schema_version": "flight_search_result.v5",
+        "schema_resource": "flight_search_result.v5.schema.json",
         "public_path": "data",
         "status": "current_public_contract",
     },

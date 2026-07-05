@@ -103,7 +103,7 @@ When the report shows fewer direct flights than expected:
    - `data.route_trace.live_search.primary_offer_results`;
    - `data.agent_report.frontier.decision_frontier.options`;
    - `data.agent_report.agent_guidance`.
-5. Current pipeline computes the direct-first gate from wave-0 offer evidence before `agent_report.v4` and `user_answer.v7` construction. If direct offers vanish after that point, debug report construction, not provider availability.
+5. Current pipeline computes the direct-first gate from wave-0 offer evidence before `agent_report.v5` and `user_answer.v7` construction. If direct offers vanish after that point, debug report construction, not provider availability.
 
 Do not claim “provider did not return prices” when a narrow direct probe shows priced direct offers.
 

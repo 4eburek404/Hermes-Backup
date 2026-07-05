@@ -1155,7 +1155,6 @@ def _candidate_signature(
                 return None
             part = (
                 direction,
-                _normalize_flight_number(segment.get("flight_number")),
                 _normalize_code(segment.get("origin")),
                 _normalize_code(segment.get("destination")),
                 _normalize_token(segment.get("departure_at")),

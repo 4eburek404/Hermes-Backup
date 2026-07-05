@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:hermes:flights-cli:agent-report:v4",
-  "title": "Hermes Flights CLI Agent Report v4",
+  "$id": "urn:hermes:flights-cli:agent-report:v5",
+  "title": "Hermes Flights CLI Agent Report v5",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "route", "evidence", "frontier", "user_answer", "agent_guidance"],
   "properties": {
-    "schema_version": {"const": "agent_report.v4"},
+    "schema_version": {"const": "agent_report.v5"},
     "route": {"$ref": "#/$defs/route"},
     "evidence": {"$ref": "#/$defs/compact_evidence"},
     "frontier": {"$ref": "#/$defs/frontier"},
@@ -16,7 +16,7 @@
   "$defs": {
     "route": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": ["origin", "destination", "dates"],
       "properties": {
         "origin": {"type": ["string", "null"]},
@@ -26,9 +26,7 @@
         "dates": {"type": "object"},
         "profile": {"type": ["string", "null"]},
         "routing_strategy": {"type": ["string", "null"]},
-        "provider_policy": {"type": ["string", "null"]},
-        "flow_decision": {"type": "object"},
-        "evidence_plan": {"type": "object"}
+        "provider_policy": {"type": ["string", "null"]}
       }
     },
     "compact_evidence": {
@@ -83,7 +81,47 @@
       "additionalProperties": false,
       "required": ["decision_frontier"],
       "properties": {
-        "decision_frontier": {"type": "object"}
+        "decision_frontier": {"$ref": "#/$defs/public_decision_frontier"}
+      }
+    },
+    "public_decision_frontier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "options", "controls", "coverage_summary"],
+      "properties": {
+        "schema_version": {"const": "flight_decision_frontier.public.v1"},
+        "options": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/public_frontier_option"}
+        },
+        "controls": {"type": "array", "items": {"type": "object"}},
+        "coverage_summary": {"type": "object"}
+      }
+    },
+    "public_frontier_option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": {"type": "string"},
+        "rank": {"type": ["integer", "null"]},
+        "selection_reasons": {"type": "array", "items": {"type": "string"}},
+        "source_type": {"type": ["string", "null"]},
+        "provider": {"type": ["string", "null"]},
+        "source_providers": {"type": "array", "items": {"type": "string"}},
+        "gateway": {"type": ["string", "null"]},
+        "covers_requested_trip": {"type": "boolean"},
+        "journey_scope": {"type": ["string", "null"]},
+        "price": {"type": ["number", "null"]},
+        "currency": {"type": ["string", "null"]},
+        "price_basis": {"type": ["string", "null"]},
+        "ticketing_model": {"type": ["string", "null"]},
+        "detail_status": {"type": ["string", "null"]},
+        "connection_count": {"type": ["integer", "null"]},
+        "catalog_item_number": {"type": "integer"},
+        "catalog_item_path": {"type": "string"},
+        "evidence_sources": {"type": "array", "items": {"type": "object"}},
+        "price_comparison": {"type": "object"}
       }
     },
     "agent_guidance": {
