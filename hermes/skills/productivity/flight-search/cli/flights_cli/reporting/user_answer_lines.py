@@ -44,6 +44,10 @@ def catalog_display_time(value: Any) -> str:
     return value.split("T", 1)[1][:5]
 
 
+def answer_display_time(value: Any) -> str:
+    return catalog_display_time(value).replace(":", "")
+
+
 def catalog_route_code(code: Any) -> str:
     normalized = str(code or "").strip().upper()
     return normalized or "???"
@@ -101,6 +105,14 @@ def agent_endpoint_code_label(code: Any, terminal: Any) -> str:
     return f"{normalized}({rendered_terminal})" if rendered_terminal else normalized
 
 
+def answer_endpoint_code_label(code: Any, terminal: Any) -> str:
+    normalized = str(code or "").strip().upper()
+    if not normalized:
+        return "???"
+    rendered_terminal = terminal_label(terminal)
+    return f"{normalized},{rendered_terminal}" if rendered_terminal else normalized
+
+
 def agent_endpoint_display_label(segment: dict[str, Any], endpoint: str) -> str:
     if endpoint == "origin":
         code = segment.get("origin")
@@ -113,6 +125,25 @@ def agent_endpoint_display_label(segment: dict[str, Any], endpoint: str) -> str:
     if str(label or "").strip().upper() == str(code or "").strip().upper():
         return code_label
     return f"{label} {code_label}"
+
+
+def answer_endpoint_display_label(
+    segment: dict[str, Any], endpoint: str, *, include_code: bool
+) -> str:
+    if endpoint == "origin":
+        code = segment.get("origin")
+        terminal = segment.get("departure_terminal")
+    else:
+        code = segment.get("destination")
+        terminal = segment.get("arrival_terminal")
+    label = airport_city_label(str(code or ""))
+    normalized = str(code or "").strip().upper()
+    if not include_code:
+        return label
+    code_label = answer_endpoint_code_label(code, terminal)
+    if str(label or "").strip().upper() == normalized:
+        return f"({code_label})"
+    return f"{label} ({code_label})"
 
 
 @lru_cache(maxsize=512)
@@ -154,12 +185,32 @@ def segment_duration_display(segment: dict[str, Any]) -> str:
     return f"{minutes}мин"
 
 
+def segment_duration_clock_display(segment: dict[str, Any]) -> str:
+    duration = segment_duration_minutes(segment)
+    if duration is None:
+        return "н/д"
+    hours, minutes = divmod(max(0, duration), 60)
+    return f"{hours}:{minutes:02d}"
+
+
 def minutes_display(value: Any) -> str:
     minutes = int_or_none(value)
     if minutes is None:
         return "н/д"
     hours, mins = divmod(max(0, minutes), 60)
     return f"{hours}:{mins:02d}"
+
+
+def layover_minutes_display(value: Any) -> str:
+    minutes = int_or_none(value)
+    if minutes is None:
+        return "н/д"
+    hours, mins = divmod(max(0, minutes), 60)
+    if hours and mins:
+        return f"{hours}ч {mins:02d}мин"
+    if hours:
+        return f"{hours}ч"
+    return f"{mins}мин"
 
 
 def catalog_price_for_traveler_line(price: dict[str, Any]) -> str:
@@ -231,6 +282,69 @@ def render_agent_display_segment(
 
 def render_agent_display_layover(layover: dict[str, Any]) -> str:
     return f"пересадка {minutes_display(layover.get('duration_min'))},"
+
+
+def render_answer_display_segment(
+    segment: dict[str, Any],
+    *,
+    prefix: str,
+    include_origin_code: bool,
+) -> str:
+    departure_at = segment.get("departure_at")
+    arrival_at = segment.get("arrival_at")
+    origin = answer_endpoint_display_label(
+        segment, "origin", include_code=include_origin_code
+    )
+    destination = answer_endpoint_display_label(segment, "destination", include_code=True)
+    return (
+        f"{prefix}{catalog_display_date(departure_at)} {origin}-{destination} "
+        f"{answer_display_time(departure_at)} {answer_display_time(arrival_at)}"
+        f"{catalog_arrival_date_suffix(departure_at, arrival_at)} "
+        f"в пути {segment_duration_clock_display(segment)}"
+    )
+
+
+def answer_display_lines_for_item(item: dict[str, Any]) -> list[str]:
+    body_lines: list[str] = []
+    directions = (
+        item.get("directions") if isinstance(item.get("directions"), dict) else {}
+    )
+    first_segment = True
+    for key in ("outbound", "return"):
+        detail = directions.get(key)
+        if not isinstance(detail, dict):
+            continue
+        segments = [
+            segment
+            for segment in (detail.get("segments") or [])
+            if isinstance(segment, dict)
+        ]
+        layovers = [
+            layover
+            for layover in (detail.get("layovers") or [])
+            if isinstance(layover, dict)
+        ]
+        for index, segment in enumerate(segments):
+            prefix = f"{item.get('number')}. " if first_segment else "   "
+            body_lines.append(
+                render_answer_display_segment(
+                    segment,
+                    prefix=prefix,
+                    include_origin_code=not first_segment,
+                )
+            )
+            first_segment = False
+            if index < len(segments) - 1:
+                layover = layovers[index] if index < len(layovers) else {}
+                body_lines.append(
+                    f"    пересадка {layover_minutes_display(layover.get('duration_min'))}"
+                )
+    price_line = catalog_price_for_agent_display(
+        item["total_price"] if isinstance(item.get("total_price"), dict) else {}
+    )
+    if body_lines:
+        return [*body_lines, f"    {price_line}"]
+    return [f"{item.get('number')}. вариант без детализации", f"    {price_line}"]
 
 
 def agent_display_body_lines_for_direction(detail: dict[str, Any]) -> list[str]:
