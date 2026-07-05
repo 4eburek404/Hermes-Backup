@@ -91,20 +91,6 @@ def preferred_airports_for_city(city_code: str | None) -> list[str]:
     return airports
 
 
-def airport_priority_metadata(code: str) -> dict[str, Any] | None:
-    normalized = str(code or "").upper()
-    for city_code, tiers in PREFERRED_AIRPORT_TIERS.items():
-        for tier in tiers:
-            airports = [str(item).upper() for item in tier.get("airports", [])]
-            if normalized in airports:
-                return {
-                    "city_code": city_code,
-                    "tier": int(tier["tier"]),
-                    "role": str(tier.get("role") or "preferred"),
-                }
-    return None
-
-
 def explicit_or_resolved_airports(
     store: Store,
     location: Location,

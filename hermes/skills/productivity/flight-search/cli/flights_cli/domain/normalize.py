@@ -63,16 +63,6 @@ def parse_iso_date(value: str, field: str, *, today: date | None = None) -> date
     return parsed
 
 
-def risk_grade(score: int) -> str:
-    if score <= 20:
-        return "excellent"
-    if score <= 40:
-        return "good"
-    if score <= 70:
-        return "risky"
-    return "reject"
-
-
 def price_value(data: dict[str, Any]) -> int | None:
     raw = data.get("price")
     if raw is None and isinstance(data.get("pricing"), dict):
@@ -92,23 +82,3 @@ def currency_value(data: dict[str, Any]) -> str | None:
     if isinstance(pricing, dict) and isinstance(pricing.get("currency"), str):
         return pricing["currency"]
     return None
-
-
-def normalize_transfer(raw: Any) -> dict[str, Any] | None:
-    if not isinstance(raw, dict):
-        return None
-    transfer: dict[str, Any] = {}
-    for key in ("at", "to", "country_code"):
-        value = raw.get(key)
-        if isinstance(value, str) and value.strip():
-            transfer[key] = value.strip().upper()
-    duration = raw.get("duration_seconds")
-    if duration is not None:
-        try:
-            transfer["duration_seconds"] = max(0, int(float(duration)))
-        except (TypeError, ValueError):
-            transfer.pop("duration_seconds", None)
-    for key in ("night_transfer", "visa_required"):
-        if key in raw:
-            transfer[key] = bool(raw.get(key))
-    return transfer or None

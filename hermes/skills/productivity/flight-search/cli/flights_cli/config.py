@@ -6,8 +6,6 @@ import re
 from pathlib import Path
 from typing import Any, Mapping
 
-from .domain.vocabulary import RoutingStrategy
-
 DEFAULT_CACHE_DIR = Path.home() / ".hermes" / "cache" / "flight-search"
 
 
@@ -43,16 +41,6 @@ DEFAULT_CURRENCY = "RUB"
 
 DEFAULT_PROFILE = "business"
 
-BUSINESS_EXCESSIVE_CONNECTION_WAIT_MIN = 12 * 60
-
-BUSINESS_LATE_ARRIVAL_HOUR = 21
-
-BUSINESS_MORNING_DEPARTURE_END_HOUR = 12
-
-BUSINESS_LATE_TO_MORNING_MAX_WAIT_MIN = 14 * 60
-
-SUPPORTED_CURRENCIES = {"RUB", "USD", "EUR", "KZT", "BYN", "TRY", "AED"}
-
 DEFAULT_CATALOG_LIMIT = 10
 
 DEFAULT_DIRECT_CATALOG_LIMIT = 30
@@ -73,13 +61,7 @@ DEFAULT_SEARCH_WAVE_TOP_K = 5
 
 LATE_ARRIVAL_NEXT_DAY_THRESHOLD_HOUR = 20
 
-DEFAULT_KB_ROUTE_OUTBOUND_SECOND_LEG_DAY_OFFSETS = [0, 1]
-
-DEFAULT_KB_ROUTE_RETURN_SECOND_LEG_DAY_OFFSETS = [0, 1, 2]
-
 DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS = 30 * 60
-
-DEFAULT_DIRECT_ROUTE_INDEX_TTL_SECONDS = 7 * 24 * 60 * 60
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,87 +98,14 @@ def catalog_output_limits_from_mapping(
     )
 
 
-SVX_OFFICIAL_SCHEDULE_URL = "https://ar-svx.ru/schedule/"
-
-SVX_OFFICIAL_ARRIVAL_SCHEDULE_URL = "https://ar-svx.ru/schedule/?type=arr"
-
 DEFAULT_ROUTE_HUBS = ("IST",)
 
-DOMESTIC_RU_HUBS = ("SVO", "DME", "VKO")
 DUBAI_DEFAULT_AIRPORTS = ("DXB", "DWC")
 DUBAI_EXCLUDED_BY_DEFAULT = ("SHJ",)
 
 DEFAULT_ROUTING_STRATEGY = "auto"
-ROUTING_STRATEGIES = {
-    "auto",
-    RoutingStrategy.HUB_LIST,
-    RoutingStrategy.RU_PRIORITY,
-    RoutingStrategy.DOMESTIC_RU,
-}
-
 
 PRIORITY_ROUTE_CARRIERS = ("U6", "SU", "TK")
-
-PRIORITY_PRIMARY_HUB = "IST"
-
-PRIORITY_MOSCOW_GATEWAY = "SVO"
-
-PRIORITY_ASIA_HUB = "SVO"
-
-ASIA_OCEANIA_COUNTRIES = {
-    "AM",
-    "AZ",
-    "BH",
-    "CN",
-    "HK",
-    "ID",
-    "IN",
-    "JP",
-    "KG",
-    "KH",
-    "KR",
-    "KZ",
-    "MO",
-    "MY",
-    "PH",
-    "SG",
-    "TH",
-    "TJ",
-    "TM",
-    "TW",
-    "UZ",
-    "VN",
-    "AU",
-    "NZ",
-}
-
-ASIA_DESTINATION_CODES = {
-    "BJS",
-    "PEK",
-    "PKX",
-    "PVG",
-    "SHA",
-    "CAN",
-    "HKG",
-    "MFM",
-    "TYO",
-    "NRT",
-    "HND",
-    "SEL",
-    "ICN",
-    "PUS",
-    "BKK",
-    "HKT",
-    "SGN",
-    "HAN",
-    "SIN",
-    "KUL",
-    "DPS",
-    "MNL",
-    "SYD",
-    "MEL",
-    "AKL",
-}
 
 DEFAULT_ROUTE_HUB_NOTES = {
     "IST": "Broadest Russia-origin hub.",
@@ -265,12 +174,6 @@ SINGLE_AIRPORT_NOTES = {
     "GYD": "Baku is usually a single-airport hub for this workflow; still verify bags and ticket protection.",
     "DXB": "Dubai DXB is one airport for this workflow, typically reliable but often expensive.",
 }
-
-CACHE_NOTE = "Provider price data can be cached or stale; prices and seats must be rechecked before purchase."
-
-LOW_COST_CARRIERS = {"FR", "U2", "W6", "W9", "PC", "VF", "XQ", "2S"}
-
-LEISURE_HUBS = {"AYT"}
 
 RISK_PROFILES: dict[str, dict[str, Any]] = {
     "balanced": {

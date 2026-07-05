@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-from typing import Any
 
 from ..config import CARRIER_RE
 
@@ -17,19 +16,3 @@ def carrier_from_flight_number(flight_number: str) -> str | None:
         return compact[:2]
     prefix = "".join(ch for ch in compact if ch.isalpha())
     return prefix if CARRIER_RE.match(prefix) else None
-
-
-def segment_carriers(segment: dict[str, Any]) -> set[str]:
-    carriers: set[str] = set()
-    for key in ("carrier", "airline", "operating_carrier", "main_airline"):
-        value = segment.get(key)
-        if isinstance(value, str) and value.strip():
-            code = value.strip().upper()
-            if CARRIER_RE.match(code):
-                carriers.add(code)
-    flight_number = segment.get("flight_number")
-    if isinstance(flight_number, str):
-        code = carrier_from_flight_number(flight_number)
-        if code:
-            carriers.add(code)
-    return carriers

@@ -305,4 +305,3 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
         "rendered_text": answer_text,
         "answer_lines": answer_lines,
     }
-    ("UserAnswerInput",)
