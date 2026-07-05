@@ -8,7 +8,6 @@ from flights_cli.errors import CliError
 from flights_cli.execution.probe_dispatcher import (
     SegmentProbeOptions,
     dispatch_segment_probe,
-    search_key,
 )
 from flights_cli.execution.request_deduper import RequestDeduper
 from flights_cli.ports.providers import ProviderCapabilities, ProviderProbeResult
@@ -78,19 +77,6 @@ class NamedFakeProviderAdapter(FakeProviderAdapter):
 
 
 class ProbeDispatcherTests(unittest.TestCase):
-    def test_search_key_matches_logical_segment_identity(self) -> None:
-        self.assertEqual(
-            search_key(
-                {
-                    "direction": "outbound",
-                    "leg": "direct",
-                    "origin": "svx",
-                    "destination": "ist",
-                }
-            ),
-            ("outbound", "direct", "SVX", "IST"),
-        )
-
     def test_dispatches_kupibilet_segment_with_fake_provider_call(self) -> None:
         spec = {
             "direction": "outbound",

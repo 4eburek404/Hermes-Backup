@@ -29,15 +29,6 @@ class SegmentProbeOptions:
     fail_fast: bool
 
 
-def search_key(spec: dict[str, Any]) -> tuple[str, str, str, str]:
-    return (
-        str(spec.get("direction") or ""),
-        str(spec.get("leg") or ""),
-        str(spec.get("origin") or "").upper(),
-        str(spec.get("destination") or "").upper(),
-    )
-
-
 def segment_probe_type(spec: dict[str, Any]) -> str:
     probe_type = str(spec.get("probe_type") or "")
     if probe_type:

@@ -27,10 +27,7 @@ from ..domain.provider_offer_filter import filter_provider_offers
 from ..errors import CliError
 from ..store import Store
 from .live_cache import live_cache_key, read_live_cache, write_live_cache
-from .segment_normalization import (
-    provider_offer_to_segment_offer,
-    provider_result_to_segment_result,
-)
+from .segment_normalization import provider_result_to_segment_result
 
 MCP_PROTOCOL_VERSION = "2025-03-26"
 FLI_NORMALIZER_VERSION = "airport-name-v2"
@@ -674,31 +671,6 @@ def cached_fli_mcp_search(
         return write_live_cache(key, result)
     result["cache"] = {"hit": False, "key": key, "disabled": True}
     return result
-
-
-def fli_offer_to_segment_offer(
-    offer: dict[str, Any],
-    *,
-    direction: str,
-    leg: str,
-    query_origin: str,
-    query_destination: str,
-    query_date: str,
-    currency: str,
-    index: int,
-) -> dict[str, Any] | None:
-    return provider_offer_to_segment_offer(
-        offer,
-        provider_prefix="fli",
-        source_label="FLI MCP search_flights",
-        direction=direction,
-        leg=leg,
-        query_origin=query_origin,
-        query_destination=query_destination,
-        query_date=query_date,
-        currency=currency,
-        index=index,
-    )
 
 
 def fli_result_to_segment_result(

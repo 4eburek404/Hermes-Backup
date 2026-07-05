@@ -19,16 +19,6 @@ def carrier_from_flight_number(flight_number: str) -> str | None:
     return prefix if CARRIER_RE.match(prefix) else None
 
 
-def carrier_from_leg(leg: dict[str, Any]) -> str | None:
-    for key in ("operating_carrier", "carrier", "airline", "main_airline"):
-        value = leg.get(key)
-        if isinstance(value, str) and value.strip():
-            code = value.strip().upper()
-            if CARRIER_RE.match(code):
-                return code
-    return carrier_from_flight_number(str(leg.get("flight_number") or ""))
-
-
 def segment_carriers(segment: dict[str, Any]) -> set[str]:
     carriers: set[str] = set()
     for key in ("carrier", "airline", "operating_carrier", "main_airline"):
@@ -42,11 +32,4 @@ def segment_carriers(segment: dict[str, Any]) -> set[str]:
         code = carrier_from_flight_number(flight_number)
         if code:
             carriers.add(code)
-    return carriers
-
-
-def itinerary_carriers(segments: list[dict[str, Any]]) -> set[str]:
-    carriers: set[str] = set()
-    for segment in segments:
-        carriers.update(segment_carriers(segment))
     return carriers

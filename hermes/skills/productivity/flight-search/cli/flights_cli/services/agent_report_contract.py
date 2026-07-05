@@ -73,11 +73,6 @@ def evidence_section(report: dict[str, Any]) -> dict[str, Any]:
     return evidence if isinstance(evidence, dict) else {}
 
 
-def frontier_section(report: dict[str, Any]) -> dict[str, Any]:
-    frontier = report.get("frontier")
-    return frontier if isinstance(frontier, dict) else {}
-
-
 @lru_cache(maxsize=1)
 def load_agent_report_schema() -> dict[str, Any]:
     text = (

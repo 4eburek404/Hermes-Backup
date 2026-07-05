@@ -111,10 +111,6 @@ def stop_policy_options_from_args(args: Any) -> StopPolicyOptions:
     )
 
 
-def stop_policy_from_args(args: Any) -> StopPolicy:
-    return stop_policy_from_options(stop_policy_options_from_args(args))
-
-
 def stop_policy_payload(policy: StopPolicy) -> dict[str, Any]:
     return {
         "name": policy.name,
@@ -124,14 +120,6 @@ def stop_policy_payload(policy: StopPolicy) -> dict[str, Any]:
         "two_stop_allowed_only_if_no_preferred": policy.allow_two_stop_tier,
         "three_plus_reportable": not policy.suppress_three_plus,
     }
-
-
-def reportable_max_connections(policy: StopPolicy, preferred_available: bool) -> int:
-    if preferred_available:
-        return policy.preferred_max_connections
-    if policy.allow_two_stop_tier:
-        return policy.tier2_max_connections
-    return policy.preferred_max_connections
 
 
 def stop_tier_from_count(connection_count: int) -> StopTier:

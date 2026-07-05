@@ -135,40 +135,6 @@ def route_access_decision_for_codes(
     return default_route_access_decision(market_class)
 
 
-def market_class_for_resolved_route(
-    store: Any,
-    origin: Any,
-    destination: Any,
-    origin_airports: list[str] | tuple[str, ...] | None = None,
-    destination_airports: list[str] | tuple[str, ...] | None = None,
-) -> str:
-    """Classify market from already-resolved locations/airports."""
-
-    origin_country = str(getattr(origin, "country_code", None) or "").upper() or None
-    destination_country = (
-        str(getattr(destination, "country_code", None) or "").upper() or None
-    )
-    if not origin_country:
-        countries = {_location_country(store, code) for code in (origin_airports or [])}
-        countries.discard(None)
-        if len(countries) == 1:
-            origin_country = countries.pop()
-    if not destination_country:
-        countries = {
-            _location_country(store, code) for code in (destination_airports or [])
-        }
-        countries.discard(None)
-        if len(countries) == 1:
-            destination_country = countries.pop()
-    if origin_country == "RU" and destination_country == "RU":
-        return MarketClass.RU_DOMESTIC
-    if origin_country == "RU" or destination_country == "RU":
-        return MarketClass.RU_TOUCHING_INTERNATIONAL
-    if origin_country and destination_country:
-        return MarketClass.GLOBAL_NON_RU
-    return MarketClass.STRUCTURALLY_CONSTRAINED
-
-
 def _intent_for(request: SearchRequest) -> str:
     command = request.command_name.replace("_", "-")
     if command.startswith("maint"):

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from ..config import CARRIER_RE, DEFAULT_PROFILE, IATA_RE, RISK_PROFILES
+from ..config import CARRIER_RE, IATA_RE
 from ..errors import CliError
 
 
@@ -25,10 +25,6 @@ def normalize_carrier_code(value: str, field: str = "carrier") -> str:
             error_type="validation_error",
         )
     return code
-
-
-def normalize_carrier_codes(values: list[str] | None, field: str) -> set[str]:
-    return {normalize_carrier_code(value, field) for value in (values or [])}
 
 
 def _next_future_occurrence(month: int, day: int, today: date) -> date | None:
@@ -67,20 +63,6 @@ def parse_iso_date(value: str, field: str, *, today: date | None = None) -> date
     return parsed
 
 
-def clamp_score(value: int | float) -> int:
-    return max(0, min(100, int(round(value))))
-
-
-def normalize_profile(value: str | None) -> str:
-    profile = (value or DEFAULT_PROFILE).strip().lower()
-    if profile not in RISK_PROFILES:
-        raise CliError(
-            f"profile must be one of {', '.join(sorted(RISK_PROFILES))}, got {value!r}",
-            error_type="validation_error",
-        )
-    return profile
-
-
 def risk_grade(score: int) -> str:
     if score <= 20:
         return "excellent"
@@ -89,10 +71,6 @@ def risk_grade(score: int) -> str:
     if score <= 70:
         return "risky"
     return "reject"
-
-
-def is_reject_score(score: int) -> bool:
-    return score > 70
 
 
 def price_value(data: dict[str, Any]) -> int | None:
@@ -134,14 +112,3 @@ def normalize_transfer(raw: Any) -> dict[str, Any] | None:
         if key in raw:
             transfer[key] = bool(raw.get(key))
     return transfer or None
-
-
-def normalize_transfers(raw: Any) -> list[dict[str, Any]]:
-    if not isinstance(raw, list):
-        return []
-    transfers = []
-    for item in raw:
-        transfer = normalize_transfer(item)
-        if transfer is not None:
-            transfers.append(transfer)
-    return transfers

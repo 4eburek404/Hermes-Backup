@@ -124,10 +124,6 @@ def _str_tuple(value: object) -> tuple[str, ...]:
     return tuple(str(item) for item in _as_tuple(value) if str(item))
 
 
-def _upper_str_tuple(value: object) -> tuple[str, ...]:
-    return tuple(str(item).strip().upper() for item in _as_tuple(value) if str(item))
-
-
 def _unique_strs(*values: tuple[str, ...]) -> tuple[str, ...]:
     result: list[str] = []
     seen: set[str] = set()

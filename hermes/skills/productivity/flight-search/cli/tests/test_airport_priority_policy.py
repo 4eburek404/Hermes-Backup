@@ -3,7 +3,6 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from flights_cli.domain.airports import segment_code_metadata
 from flights_cli.execution.probe_dispatcher import (
     SegmentProbeOptions,
     dispatch_segment_probe,
@@ -137,18 +136,6 @@ def empty_kupibilet_result(
 
 
 class AirportPriorityPolicyTests(unittest.TestCase):
-    def test_segment_code_metadata_is_shared_airport_priority_projection(self) -> None:
-        self.assertEqual(
-            segment_code_metadata("SVX", "LHR"),
-            {
-                "destination_airport_priority": {
-                    "city_code": "LON",
-                    "tier": 1,
-                    "role": "preferred",
-                }
-            },
-        )
-
     def test_domestic_mow_round_trip_does_not_add_intra_moscow_hub_fallback(
         self,
     ) -> None:

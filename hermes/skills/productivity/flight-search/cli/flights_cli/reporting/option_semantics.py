@@ -11,12 +11,6 @@ def route_requested_round_trip(route: Mapping[str, Any] | None) -> bool:
     return bool(dates.get("return") or dates.get("return_date"))
 
 
-def report_requested_round_trip(report: Mapping[str, Any] | None) -> bool:
-    report_map = report if isinstance(report, Mapping) else {}
-    route = report_map.get("route")
-    return route_requested_round_trip(route)
-
-
 def option_direction(option: Mapping[str, Any] | None) -> str | None:
     option_map = option if isinstance(option, Mapping) else {}
     explicit = option_map.get("direction")

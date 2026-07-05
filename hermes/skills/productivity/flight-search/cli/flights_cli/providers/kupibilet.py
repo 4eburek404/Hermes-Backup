@@ -20,10 +20,7 @@ from ..domain.offer_order import provider_offer_business_key
 from ..domain.provider_offer_filter import filter_provider_offers
 from ..errors import CliError
 from .live_cache import live_cache_key, read_live_cache, write_live_cache
-from .segment_normalization import (
-    provider_offer_to_segment_offer,
-    provider_result_to_segment_result,
-)
+from .segment_normalization import provider_result_to_segment_result
 
 
 def build_kupibilet_payload(
@@ -612,31 +609,6 @@ def fetch_kupibilet_roundtrip_search(
     return result
 
 
-def kupibilet_offer_to_segment_offer(
-    offer: dict[str, Any],
-    *,
-    direction: str,
-    leg: str,
-    query_origin: str,
-    query_destination: str,
-    query_date: str,
-    currency: str,
-    index: int,
-) -> dict[str, Any] | None:
-    return provider_offer_to_segment_offer(
-        offer,
-        provider_prefix="kb",
-        source_label="Kupibilet frontend_search direct-only",
-        direction=direction,
-        leg=leg,
-        query_origin=query_origin,
-        query_destination=query_destination,
-        query_date=query_date,
-        currency=currency,
-        index=index,
-    )
-
-
 def kupibilet_result_to_segment_result(
     result: dict[str, Any], *, direction: str, leg: str
 ) -> dict[str, Any]:
@@ -700,55 +672,6 @@ def cached_kupibilet_search(
         origin,
         destination,
         depart_date,
-        currency=currency,
-        only_carriers=only_carriers,
-        direct_only=direct_only,
-        limit=limit,
-        timeout=timeout,
-    )
-    if use_cache and int(cache_ttl_seconds) > 0:
-        return write_live_cache(key, result)
-    result["cache"] = {"hit": False, "key": key, "disabled": True}
-    return result
-
-
-def cached_kupibilet_roundtrip_search(
-    origin: str,
-    destination: str,
-    depart_date: date,
-    return_date: date,
-    *,
-    currency: str,
-    only_carriers: list[str],
-    direct_only: bool,
-    limit: int,
-    timeout: int,
-    cache_ttl_seconds: int = DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
-    use_cache: bool = True,
-    fetcher: Any = fetch_kupibilet_roundtrip_search,
-) -> dict[str, Any]:
-    params = {
-        "origin": origin,
-        "destination": destination,
-        "depart_date": depart_date.isoformat(),
-        "return_date": return_date.isoformat(),
-        "currency": currency,
-        "only_carriers": sorted(only_carriers),
-        "direct_only": bool(direct_only),
-        "limit": int(limit),
-    }
-    key = live_cache_key("kupibilet_frontend_search_roundtrip", params)
-    if use_cache:
-        cached = read_live_cache(key, ttl_seconds=int(cache_ttl_seconds))
-        if cached is not None:
-            return cached
-    if fetcher is None:
-        fetcher = fetch_kupibilet_roundtrip_search
-    result = fetcher(
-        origin,
-        destination,
-        depart_date,
-        return_date,
         currency=currency,
         only_carriers=only_carriers,
         direct_only=direct_only,
