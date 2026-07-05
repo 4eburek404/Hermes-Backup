@@ -8,10 +8,15 @@ import unittest
 from pathlib import Path
 
 _CLI_ROOT = Path(__file__).resolve().parent.parent / "flights_cli"
+_CLI_PACKAGE_ROOT = _CLI_ROOT.parent
 _TESTS_ROOT = Path(__file__).resolve().parent
 
 
-def _run_python_module(module: str, *args: str) -> tuple[int, str, str]:
+def _run_python_module(
+    module: str,
+    *args: str,
+    cwd: Path | None = None,
+) -> tuple[int, str, str]:
     commands = [
         [sys.executable, "-m", module, *args],
         ["python3", "-m", module, *args],
@@ -23,10 +28,13 @@ def _run_python_module(module: str, *args: str) -> tuple[int, str, str]:
         proc = subprocess.run(
             command,
             capture_output=True,
+            cwd=cwd,
             text=True,
         )
         output = (proc.stdout + proc.stderr).strip()
         rendered_command = " ".join(command)
+        if cwd is not None:
+            rendered_command = f"(cd {cwd} && {rendered_command})"
         if f"No module named {module}" not in output:
             return proc.returncode, output, rendered_command
         last_code = proc.returncode
@@ -47,6 +55,17 @@ def _run_ruff_check() -> tuple[int, str, str]:
         "check",
         str(_CLI_ROOT),
         str(_TESTS_ROOT),
+    )
+
+
+def _run_vulture() -> tuple[int, str, str]:
+    """Run vulture on the flights_cli package; return (exit_code, combined_output)."""
+    return _run_python_module(
+        "vulture",
+        "flights_cli",
+        "--min-confidence",
+        "80",
+        cwd=_CLI_PACKAGE_ROOT,
     )
 
 
@@ -76,6 +95,22 @@ class RuffLintGateTests(unittest.TestCase):
             code,
             0,
             f"{command} found ruff violations in flights_cli/ or tests/:\n{output}",
+        )
+
+
+class VultureLintGateTests(unittest.TestCase):
+    def test_vulture_has_no_dead_code_candidates(self) -> None:
+        """Fail if vulture reports high-confidence dead code candidates in flights_cli/."""
+        code, output, command = _run_vulture()
+        self.assertNotIn(
+            "No module named vulture",
+            output,
+            "vulture is required for the lint gate; install the dev extra with `pip install -e '.[dev]'`.",
+        )
+        self.assertEqual(
+            code,
+            0,
+            f"{command} found vulture dead-code candidates in flights_cli/:\n{output}",
         )
 
 
