@@ -3,7 +3,6 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from flights_cli.domain.airports import segment_code_metadata
 from flights_cli.execution.probe_dispatcher import (
     SegmentProbeOptions,
     dispatch_segment_probe,
@@ -42,24 +41,12 @@ def live_args(**overrides: object):
         "return_second_leg_day_offset": None,
         "segment_limit": 30,
         "timeout": 60,
-        "limit_per_pair": 10,
-        "candidate_pool_limit": 5000,
-        "max_candidates": 50,
-        "max_reasons": 5,
-        "include_candidates": 5,
-        "include_ranked_candidates": 5,
-        "include_rejected_pairs": 20,
-        "include_segment_results": 0,
         "aggregate_control_limit": 0,
         "aggregate_control_carrier": None,
         "max_segment_searches": 300,
         "fail_fast": False,
         "live_cache_ttl_seconds": 0,
         "no_live_cache": True,
-        "direct_route_index_ttl_seconds": 0,
-        "no_direct_route_intel": True,
-        "agent_report": False,
-        "agent_brief": False,
         "provider_policy": "auto",
     }
     defaults.update(overrides)
@@ -149,18 +136,6 @@ def empty_kupibilet_result(
 
 
 class AirportPriorityPolicyTests(unittest.TestCase):
-    def test_segment_code_metadata_is_shared_airport_priority_projection(self) -> None:
-        self.assertEqual(
-            segment_code_metadata("SVX", "LHR"),
-            {
-                "destination_airport_priority": {
-                    "city_code": "LON",
-                    "tier": 1,
-                    "role": "preferred",
-                }
-            },
-        )
-
     def test_domestic_mow_round_trip_does_not_add_intra_moscow_hub_fallback(
         self,
     ) -> None:

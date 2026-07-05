@@ -13,6 +13,7 @@ from flights_cli.orchestrators.live_route_assembly import (
 )
 from flights_cli.orchestrators.search_plan_builder import build_search_plan
 from flights_cli.pipeline.search_pipeline import build_live_route_search_flow
+from flights_cli.services.agent_report import build_validated_agent_report
 from flights_cli.store import Store
 from helpers import live_assembly_args
 
@@ -28,9 +29,7 @@ def window_args(**overrides: object):
         "max_connections": 0,
         "tier2_max_connections": 0,
         "no_live_cache": True,
-        "no_direct_route_intel": True,
         "coverage_mode": "targeted",
-        "agent_brief": True,
     }
     values.update(overrides)
     return live_assembly_args(**values)
@@ -70,7 +69,14 @@ def _primary_results_by_query(queries, *_args, **_kwargs):
         }
         if date_text == "2026-08-16" and date_text not in emitted_offer_dates:
             emitted_offer_dates.add(date_text)
-            results.append({**base, "status": "ok", "offer_count": 1, "top_offers": [_offer(date_text)]})
+            results.append(
+                {
+                    **base,
+                    "status": "ok",
+                    "offer_count": 1,
+                    "top_offers": [_offer(date_text)],
+                }
+            )
             continue
         if date_text in {"2026-08-16", "2026-08-17"}:
             results.append({**base, "status": "ok", "offer_count": 0, "top_offers": []})
@@ -157,14 +163,19 @@ class DateWindowPlanTests(unittest.TestCase):
         args = window_args()
         flow = build_live_route_search_flow(args, Store())
         plan = build_live_route_segment_plan(args, Store())
-        search_plan = build_search_plan(args, Store(), flow=flow, fallback_route_plan=plan)
+        search_plan = build_search_plan(
+            args, Store(), flow=flow, fallback_route_plan=plan
+        )
 
         query_dates = sorted(
             {str(query.get("date")) for query in search_plan["primary_offer_queries"]}
         )
         self.assertEqual(query_dates, ["2026-08-16", "2026-08-17", "2026-08-18"])
         self.assertTrue(
-            all(query.get("direct_only") for query in search_plan["primary_offer_queries"])
+            all(
+                query.get("direct_only")
+                for query in search_plan["primary_offer_queries"]
+            )
         )
         self.assertTrue(
             all(
@@ -238,7 +249,7 @@ class DateWindowInventoryProjectionTests(unittest.TestCase):
         self.assertEqual(entries["2026-08-18"]["status"], "probe_failed")
         self.assertEqual(inventory.get("boundary"), "provider_live_only")
 
-        report = result.get("agent_report")
+        report = build_validated_agent_report(result, Store())
         self.assertIsInstance(report, dict)
         self.assertIn("date_window_inventory", report["evidence"])
         report_dates = [

@@ -91,31 +91,6 @@ def preferred_airports_for_city(city_code: str | None) -> list[str]:
     return airports
 
 
-def airport_priority_metadata(code: str) -> dict[str, Any] | None:
-    normalized = str(code or "").upper()
-    for city_code, tiers in PREFERRED_AIRPORT_TIERS.items():
-        for tier in tiers:
-            airports = [str(item).upper() for item in tier.get("airports", [])]
-            if normalized in airports:
-                return {
-                    "city_code": city_code,
-                    "tier": int(tier["tier"]),
-                    "role": str(tier.get("role") or "preferred"),
-                }
-    return None
-
-
-def segment_code_metadata(origin_code: str, dest_code: str) -> dict[str, Any]:
-    metadata: dict[str, Any] = {}
-    origin_priority = airport_priority_metadata(origin_code)
-    destination_priority = airport_priority_metadata(dest_code)
-    if origin_priority:
-        metadata["origin_airport_priority"] = origin_priority
-    if destination_priority:
-        metadata["destination_airport_priority"] = destination_priority
-    return metadata
-
-
 def explicit_or_resolved_airports(
     store: Store,
     location: Location,
@@ -203,24 +178,3 @@ def airport_scope_summary(
     if preferred_tiers:
         summary["preferred_airport_tiers"] = preferred_tiers
     return summary
-
-
-def airport_pair_risk(origin: str, destination: str) -> dict[str, Any]:
-    origin_group = airport_group(origin)
-    dest_group = airport_group(destination)
-    same_group = bool(
-        origin_group and dest_group and origin_group["key"] == dest_group["key"]
-    )
-    notes: list[str] = []
-    if origin != destination and same_group:
-        notes.append(
-            f"{origin} and {destination} are separate airports in {origin_group['label']}."
-        )
-    if destination in SINGLE_AIRPORT_NOTES:
-        notes.append(SINGLE_AIRPORT_NOTES[destination])
-    return {
-        "origin_group": origin_group["label"] if origin_group else None,
-        "destination_group": dest_group["label"] if dest_group else None,
-        "same_multi_airport_system": same_group,
-        "notes": notes,
-    }

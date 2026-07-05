@@ -11,12 +11,12 @@ from typing import Any
 
 from .. import __skill_name__, __skill_version__, __version__
 from ..command_surface import (
+    AGENT_COMMANDS,
     CATALOG_AUTO_REFRESH_COMMANDS,
     CATALOG_READ_COMMANDS,
     CATALOG_REFRESH_COMMANDS,
-    LIVE_PROVIDER_COMMANDS,
+    DIAGNOSTIC_PROBE_COMMANDS,
     PRIMARY_ROUTE_COMMAND,
-    TARGETED_PROBE_COMMANDS,
 )
 from ..config import (
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
@@ -24,7 +24,6 @@ from ..config import (
     DEFAULT_ROUTE_HUBS,
     RISK_PROFILES,
 )
-from ..providers.route_intel import svx_route_index_path
 from ..providers.static_catalog import (
     active_catalog_manifest,
     catalog_staleness,
@@ -58,7 +57,6 @@ def command_maint_doctor(args: argparse.Namespace, store: Store) -> dict[str, An
     ]:
         path = store.cache_dir / name
         cache_files[name] = {"exists": path.exists(), "path": str(path)}
-    route_index_path = svx_route_index_path(store.cache_dir / "route_intel")
     max_age_seconds = parse_ttl_seconds(args.catalog_max_age)
     skill_path = source_skill_path()
     manifest = load_version_manifest(skill_path)
@@ -76,12 +74,6 @@ def command_maint_doctor(args: argparse.Namespace, store: Store) -> dict[str, An
         "cache_dir": str(store.cache_dir),
         "cache_dir_exists": store.cache_dir.exists(),
         "cache_files": cache_files,
-        "route_intel_cache": {
-            "svx_official_route_index": {
-                "exists": route_index_path.exists(),
-                "path": str(route_index_path),
-            }
-        },
         "cache_counts": store.cache_counts(),
         "catalog_auto_refresh_policy": {
             "mode": args.catalog_refresh,
@@ -136,9 +128,10 @@ def command_maint_doctor(args: argparse.Namespace, store: Store) -> dict[str, An
         "safety": {
             "booking_or_purchase": False,
             "docker_touched": False,
+            "agent_commands": list(AGENT_COMMANDS),
             "primary_route_command": PRIMARY_ROUTE_COMMAND,
-            "targeted_probe_commands": list(TARGETED_PROBE_COMMANDS),
-            "live_provider_commands": list(LIVE_PROVIDER_COMMANDS),
+            "canonical_path": f"{PRIMARY_ROUTE_COMMAND} --request",
+            "diagnostic_probe_commands": list(DIAGNOSTIC_PROBE_COMMANDS),
         },
         "risk_profiles": {
             name: {
@@ -399,10 +392,7 @@ def _branch_workflow_summary(
             "command_surface_version": command_surface.get("version"),
             "mismatches": manifest_mismatch_keys,
         },
-        "command_surface": {
-            **expected_command_surface(),
-            "removed_commands": list(command_surface.get("removed_commands") or []),
-        },
+        "command_surface": expected_command_surface(),
         "parity": {
             "status": parity_status,
             "runtime_claims_allowed": runtime_claims_allowed,

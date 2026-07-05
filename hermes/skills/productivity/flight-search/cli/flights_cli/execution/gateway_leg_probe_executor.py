@@ -205,9 +205,7 @@ class GatewayLegProbeExecutor:
             self._record_ledger_outcome(intent, outcomes)
         return _leg_result_from_outcomes(query, outcomes)
 
-    def _record_ledger_outcome(
-        self, intent: ProbeIntent, outcomes: list[Any]
-    ) -> None:
+    def _record_ledger_outcome(self, intent: ProbeIntent, outcomes: list[Any]) -> None:
         assert self.probe_ledger is not None
         if not outcomes:
             self.probe_ledger.record_skipped(

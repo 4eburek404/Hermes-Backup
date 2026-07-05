@@ -6,10 +6,10 @@ Concise manual for the flight-search skill-owned CLI. The skill's Golden Path is
 
 - Route/date/IATA normalization and bounded live assembly.
 - Airport compatibility checks for same-airport and cross-airport connections.
-- Candidate generation, stop-policy filtering, ranking, and compact report projection.
-- Direct, carrier, aggregate, and sidecar controls when the current provider policy calls for them.
+- Candidate generation, stop-policy filtering, ranking, and compact report assembly.
+- Direct, carrier, aggregate, and coverage controls when the current provider policy calls for them.
 - Static metadata lookup for city, airport, country/region, airline, alliance, and aircraft labels.
-- A compact `data.agent_report` for agents, including display lines, recommended options, priority controls, provider failures, through-fare checks, and source boundaries.
+- A compact `data.agent_report` for agents, including `frontier.decision_frontier`, compact evidence, canonical `user_answer`, guidance, provider failures, through-fare checks, and source boundaries.
 
 The CLI does not book, buy, or write to Hermes runtime state.
 
@@ -91,8 +91,7 @@ cat > /tmp/flight-search-request.json <<'JSON'
   "currency": "RUB",
   "profile": "business",
   "ticketing": "separate",
-  "provider_policy": "auto",
-  "output": {"agent_brief": true}
+  "provider_policy": "auto"
 }
 JSON
 python3 -m flights_cli --json search --request /tmp/flight-search-request.json
@@ -100,13 +99,17 @@ python3 -m flights_cli --json search --request /tmp/flight-search-request.json
 
 Read only `data.agent_report` for the user answer. Primary serialized paths:
 
-- `frontier.offer_graph`
 - `user_answer.rendered_text`
-- `frontier.recommended_options`
-- `frontier.priority_options`
+- `user_answer.catalog.items`
+- `frontier.decision_frontier`
+- `evidence.coverage`
 - `evidence.through_fare_checks`
 - `evidence.provider_failures`
 - `evidence.source_boundaries`
+
+Full graph/debug traces are excluded from default `search` output. Use
+`diagnose trace --request` and inspect `data.route_trace.live_search.offer_graph`
+or `data.route_trace.live_search.diagnostics` when you need the internal trace.
 
 `search --request` searches and compares route options for the default scope of one adult in economy. It does not buy or book tickets, and final fare, baggage-through, refund/change conditions, disruption protection, and single-PNR claims require purchase-screen, airline/GDS, seller, or explicit upstream proof.
 
@@ -114,7 +117,7 @@ Common request fields:
 
 - `return_date: "YYYY-MM-DD"`
 - `profile: "business"` is the only production search profile; omit it to use the default
-- `provider_policy: "auto"|"kupibilet"|"fli"|"both"`
+- `provider_policy: "auto"|"tutu"|"kupibilet"|"fli"`
 - `route_options.stop_policy: "business-default"|"strict-direct-one-stop"|"allow-two-stop-fallback"|"debug-all"`
 - `route_options.date_window_end: "YYYY-MM-DD"` for bounded one-way direct-only inventory; request-only, no CLI flag
 - `evidence.aggregate_control_carriers: ["CODE"]`
@@ -130,18 +133,17 @@ Production search uses one ranking profile: `business`. It prioritizes visible n
 - Direct and one-stop journeys are preferred.
 - Two-stop journeys are fallback/reportable only when no viable direct/one-stop option exists or the report explicitly marks fallback/reportability.
 - Three-or-more-connection itineraries are suppressed from normal recommendations.
-- `candidate_pool_limit` is a safety/debug cap, not an answer-quality workaround.
 
 ## Provider Policy
 
 `search --request` chooses a live source mix through `provider_policy`:
 
-- `auto`: let the CLI choose the current source mix by segment.
-- `kupibilet`, `fli`, `both`: explicit diagnostic or comparison modes.
+- `auto`: Tutu MCP runs first and, when available, stops fallback execution for the same logical probe.
+- `tutu`, `kupibilet`, `fli`: explicit diagnostic/provider override modes.
 
 Read provider policy, provider failures, coverage diagnostics, and source boundaries from `data.agent_report` before answering. Do not hardcode source assumptions outside what the report states.
 
-Provider-aware airport priority is documented in `references/provider-aware-airport-priority.md`; use that contract for the active provider set, IST/LON/MOW airport priority, city-code post-validation, and dispatch boundaries. Do not duplicate those rules in CLI help or answer prose.
+Provider-aware airport priority is documented in `references/pipeline-reference.md`; use that contract for the active provider set, IST/LON/MOW airport priority, city-code post-validation, and dispatch boundaries. Do not duplicate those rules in CLI help or answer prose.
 
 ## Airport and Connection Risk
 
@@ -165,6 +167,7 @@ Default connection thresholds are maintained in `references/source-boundaries.md
 ## Targeted Debug Probes
 
 Use targeted probes only after the main assembled report leaves a specific uncertainty.
+They are debug inputs, not alternate answer paths for agents.
 
 Dry plan diagnostic:
 
@@ -172,35 +175,17 @@ Dry plan diagnostic:
 python3 -m flights_cli --json diagnose plan --request /tmp/flight-search-request.json
 ```
 
-Direct or carrier probe:
+Provider-port probe:
 
 ```bash
-python3 -m flights_cli --json diagnose kb-search ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --direct-only \
-  --limit 20
-
-python3 -m flights_cli --json diagnose kb-search ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --only-carrier CODE \
-  --limit 20
-
-python3 -m flights_cli --json diagnose kb-roundtrip ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --return-date YYYY-MM-DD \
-  --only-carrier CODE \
-  --direct-only \
-  --limit 20
+python3 -m flights_cli --json diagnose probe \
+  --provider tutu \
+  --request /tmp/probe.json
 ```
 
-Sidecar segment probe:
-
-```bash
-python3 -m flights_cli --json diagnose fli-search ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --direct-only \
-  --limit 20
-```
+For source-boundary investigations, run `diagnose trace --request` and inspect
+`data.route_trace.live_search`; use `diagnose probe` only for one explicit
+provider probe. Keep ordinary search work on `search --request`.
 
 Useful probe shapes:
 
@@ -211,18 +196,6 @@ Useful probe shapes:
 - nearby in-horizon control date for horizon/coverage splits.
 
 These probes are narrower evidence than the assembled report. Label the scope when using them in an answer.
-
-## Route Rank and Validate
-
-The CLI supports offline ranking and validation for already-built itinerary JSON:
-
-```bash
-python3 -m flights_cli --json route rank --input candidates.json
-python3 -m flights_cli --json route validate --input itinerary.json
-```
-
-Use these for maintenance, fixtures, and controlled diagnostics. Live user
-answers come from `search` and its DecisionFrontier.
 
 ## Price and Purchase Caveats
 

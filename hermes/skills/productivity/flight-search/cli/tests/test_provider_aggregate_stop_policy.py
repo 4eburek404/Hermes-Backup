@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from flights_cli.reporting.provider_aggregate_projector import (
+from flights_cli.reporting.provider_aggregate_options import (
     aggregate_control_summary,
     provider_aggregate_candidate_options,
 )

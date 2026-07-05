@@ -49,15 +49,15 @@ Read only JSON payloads for decisions. If logs surround JSON, extract the envelo
 Decision read order is in `report-contract.md`; compact debug order:
 
 1. `data.agent_report.agent_guidance` — command, answer path, readiness, blocking evidence.
-2. `data.agent_report.frontier.offer_graph` — constraints, collection, evidence, missing evidence, truth language.
+2. `data.route_trace.live_search.offer_graph` from `diagnose trace` — collection, evidence, missing evidence, truth language.
 3. `data.agent_report.user_answer.rendered_text` — canonical final rendering.
-4. `frontier.recommended_options` / `priority_options` — decision-critical options and controls.
+4. `data.agent_report.user_answer.catalog.items` and `frontier.decision_frontier` — decision-critical options and controls.
 5. `evidence.*` — through-fare checks, provider failures, source boundaries, coverage diagnostics.
 6. `diagnostics.*` — debug only.
 
 If JSON parsing or schema validation fails, report the parse/contract layer and rerun with JSON-clean stdout/stderr settings before making a travel claim.
 
-## Targeted probe commands
+## Targeted diagnostics
 
 Run the narrowest probe that answers the remaining uncertainty. Label probe results as narrower evidence than the assembled report unless you prove the main report missed a mandatory control.
 
@@ -67,38 +67,18 @@ Main report:
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request request.json
 ```
 
-Direct/carrier controls with KupiBilet:
+Full route/live trace:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose kb-search ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --direct-only \
-  --limit 20
-
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose kb-search ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --only-carrier CARRIER \
-  --limit 20
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose trace --request request.json
 ```
 
-KupiBilet one-checkout round-trip control:
+Provider-port diagnostic:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose kb-roundtrip ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --return-date YYYY-MM-DD \
-  --only-carrier CARRIER \
-  --direct-only \
-  --limit 20
-```
-
-FLI exact-airport direct control:
-
-```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose fli-search ORIGIN DEST \
-  --depart-date YYYY-MM-DD \
-  --direct-only \
-  --limit 20
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose probe \
+  --provider tutu \
+  --request probe.json
 ```
 
 Probe shapes:
@@ -115,15 +95,15 @@ Probe shapes:
 When the report shows fewer direct flights than expected:
 
 1. Confirm the request scope: exact airport vs city, direct-only vs default recommendation, one-way vs return.
-2. Run `diagnose kb-search ORIGIN DEST --depart-date YYYY-MM-DD --direct-only --limit 20` when KupiBilet is the relevant provider, or `diagnose fli-search ... --direct-only` for FLI exact-airport scope.
+2. Start with the canonical report, then run `diagnose trace` for the full assembled route/live-search trace because `auto` is Tutu-first. Use `diagnose probe` only when you need one explicit provider probe outside the assembled trace.
 3. If the provider probe returns all direct offers with prices, the provider is not the root cause; inspect display/report truncation.
 4. Inspect counts:
-   - `data.route_result.live_search.decision_frontier.options`;
-   - `data.route_result.live_search.offer_graph.edges`;
-   - `data.route_result.live_search.primary_offer_results`;
+   - `data.route_trace.live_search.decision_frontier.options`;
+   - `data.route_trace.live_search.offer_graph.edges`;
+   - `data.route_trace.live_search.primary_offer_results`;
    - `data.agent_report.frontier.decision_frontier.options`;
-   - `data.agent_report.status` / `agent_guidance` if exposed.
-5. Current pipeline writes direct-suppression state in DecisionFrontier and projects it into `report["status"]["all_direct_inventory"]` before budgeting/user-answer construction. If direct offers vanish after that point, debug report projection/budget, not provider availability.
+   - `data.agent_report.agent_guidance`.
+5. Current pipeline computes the direct-first gate from wave-0 offer evidence before `agent_report.v5` and `user_answer.v7` construction. If direct offers vanish after that point, debug report construction, not provider availability.
 
 Do not claim “provider did not return prices” when a narrow direct probe shows priced direct offers.
 
@@ -146,13 +126,13 @@ Manual leg probes are for degraded/legacy reports only. If a compact or old repo
 
 If a wide live assembly fails validation, do not answer from the failed report. Use narrow controls and label them as control evidence, not full itinerary assembly.
 
-## RU → China with avoid-Moscow preference and arrival deadline
+## Russia-origin routes with avoid-Moscow preference and arrival deadline
 
-Use this route-family pattern when the user asks for Russia-origin flights to China, arrival by a morning/date, and says “желательно без Москвы”.
+Use this route-family pattern when the user asks for Russia-origin international flights, has an arrival-by deadline, and phrases Moscow avoidance as a preference rather than a hard constraint.
 
 Rules:
 
-1. Normalize destination airports separately: Guangzhou `CAN`, Shenzhen `SZX`, Beijing airport when named, etc.
+1. Normalize named destination airports separately; do not collapse nearby destination airports unless the user allowed city/region scope.
 2. If departure date is absent, state the working assumption. Default “morning” to destination-local arrival before 12:00.
 3. Search latest plausible departure first, then previous date if needed.
 4. Run Golden Path for each serious airport/date pair.
@@ -175,15 +155,14 @@ Wording:
 
 When the user reports a flight on the KupiBilet website that the CLI didn't find, or the CLI shows a different departure time than the website:
 
-1. Make a **raw API call** directly to `api-rs-lb.kupibilet.ru/frontend_search` with the same payload the CLI uses (see `references/provider-failover.md` for payload template). Use the CLI's headers from `config.py::KUPIBILET_HEADERS`.
-2. Inspect the raw `flights` map: look for the flight by `number` field (the API uses `number` / `transport_number`, not `flight_number` — the CLI's `kupibilet_flight_number()` synthesizes the carrier-prefixed identifier).
-3. Check `departure_datetime` in the raw response. If the API itself returns a different time than the website, the root cause is **provider-side data drift**, not a CLI parser bug.
-4. Report the finding honestly: "API KupiBilet отдаёт X, сайт показывает Y — расхождение на стороне поставщика."
-5. For itinerary planning, use the user's website-observed times if more reliable, but label the discrepancy.
+1. First run the narrow KupiBilet diagnostic command for the same route/date/filter. If a raw adapter-level reproduction is still needed, call `api-rs-lb.kupibilet.ru/frontend_search` with the same route/date/filter and the CLI headers from `config.py::KUPIBILET_HEADERS`.
+2. Inspect the raw `flights` map: look for the flight by `number` field. The API uses `number` / `transport_number`; the CLI synthesizes the carrier-prefixed display identifier.
+3. Check `departure_datetime` in the raw response. If the API itself differs from website evidence, report provider-side data drift or coverage gap instead of blaming the parser.
+4. For itinerary planning, use the user's website-observed times if more reliable, but label the discrepancy.
 
 ### Connection feasibility at major hubs
 
-When evaluating assembled connections, **check terminal fields** in the normalized offer segments. The CLI preserves `departure_terminal` and `arrival_terminal` from the raw API. At airports where inter-terminal transfers are significant (CDG 2F↔2E, IST, LHR, etc.), a nominally adequate connection time (e.g. 2h20m) may be impractical if terminals differ. Do not present a connection as feasible without checking terminals when the user has raised terminal concerns or the hub is known for inter-terminal friction.
+When evaluating assembled connections, check terminal fields in the normalized offer segments. The CLI preserves `departure_terminal` and `arrival_terminal` from raw provider data when available. At airports where inter-terminal transfers are significant, a nominally adequate connection can still be impractical if terminals differ. Do not present a connection as feasible without checking terminals when the user has raised terminal concerns or the hub is known for inter-terminal friction.
 
 ## Diagnostic splits
 
@@ -217,11 +196,10 @@ Use these fields to diagnose, not to overrule the canonical rendered answer:
 - `hub_viability`: connection feasibility by hub;
 - `rejected_pair_warnings`: airport mismatch and connection filters;
 - `stop_policy` / `stop_policy_diagnostics`: preferred vs secondary tier behavior;
-- `omitted_counts`: truncation after budgeting;
-- `direct_route_intelligence`: route-index availability and skip reasons.
+- `omitted_counts`: truncation after budgeting.
 
-If preferred options are missing while segment evidence exists, inspect generation diagnostics. Do not compensate by blindly increasing `candidate_pool_limit` in normal flow; reproduce the specific generation/report contract issue.
+If preferred options are missing while segment evidence exists, inspect generation diagnostics. Do not compensate by adding public output knobs in normal flow; reproduce the specific generation/report contract issue.
 
 ## Reference lifecycle
 
-Route-specific debug notes should not become new active references. After a case is understood, distill the durable rule into this playbook, `report-contract.md`, `source-boundaries.md`, `provider-aware-airport-priority.md`, `pipeline-reference.md`, `cli-maintenance.md`, or tests; leave raw incident history to session search.
+Route-specific debug notes should not become new active references. After a case is understood, distill the durable rule into this playbook, `report-contract.md`, `source-boundaries.md`, `pipeline-reference.md`, `cli-maintenance.md`, or tests; leave raw incident history to session search.

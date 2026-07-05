@@ -21,8 +21,6 @@ from ..pipeline.search_pipeline import LiveRouteSearchFlow, build_live_route_sea
 from ..pipeline.search_plan import FallbackSegmentPlan, GatewayDiscovery, SearchPlan
 from ..store import Store
 
-PRIMARY_OFFER_QUERY_LIMIT = 10
-
 
 def direct_inventory_dates(
     options: LiveAssemblyOptions, flow: LiveRouteSearchFlow
@@ -54,7 +52,9 @@ def direct_inventory_dates(
             error_type="validation_error",
             details={"window_days": window_days, "max_days": MAX_DATE_WINDOW_DAYS},
         )
-    return [(depart + timedelta(days=offset)).isoformat() for offset in range(window_days)]
+    return [
+        (depart + timedelta(days=offset)).isoformat() for offset in range(window_days)
+    ]
 
 
 def _city_pair_direct_controls(
@@ -104,7 +104,9 @@ def build_runtime_route_plan(
     }
     if window_end:
         dates["window_end"] = str(window_end)
-    route_family = str(flow.flow_decision.route_mode or flow.flow_decision.routing_strategy)
+    route_family = str(
+        flow.flow_decision.route_mode or flow.flow_decision.routing_strategy
+    )
     origin_airports, destination_airports, airport_scope = _resolved_airport_scope(
         options, flow, store
     )
@@ -330,11 +332,10 @@ class SearchPlanBuilder:
             discovery_payload.get("route_access_profile") == PROFILE_RESTRICTED_ACCESS
             and discovery_payload.get("mode") == MODE_REQUIRED
         )
-        forced_candidates = self._constraint_gateway_candidates(flow)
-        if not restricted_gateway_required and not forced_candidates:
+        if not restricted_gateway_required:
             return []
 
-        candidates = list(forced_candidates)
+        candidates: list[dict[str, Any]] = []
         candidate_cap = self._gateway_candidate_cap()
         if restricted_gateway_required and candidate_cap > 0:
             candidates.extend(
@@ -383,27 +384,6 @@ class SearchPlanBuilder:
                 )
             )
         return queries
-
-    def _constraint_gateway_candidates(
-        self, flow: LiveRouteSearchFlow
-    ) -> list[dict[str, Any]]:
-        origin = flow.request.origin.upper()
-        destination = flow.request.destination.upper()
-        endpoints = {origin, destination}
-        candidates: list[dict[str, Any]] = []
-        for code in self._options.constraints.must_include_airports:
-            airport = str(code or "").upper()
-            if not airport or airport in endpoints:
-                continue
-            candidates.append(
-                {
-                    "code": airport,
-                    "source": "request_constraint",
-                    "reason": "must_include_airport",
-                    "score": None,
-                }
-            )
-        return candidates
 
     def _dedupe_gateway_candidates(
         self, candidates: list[dict[str, Any]]
@@ -478,10 +458,7 @@ class SearchPlanBuilder:
                 "gateway_discovery_mode": gateway_discovery_mode,
                 "execution_state": "not_executed",
             }
-            self._apply_constraints(
-                query,
-                include_first_departure_after=leg == "origin_to_gateway",
-            )
+            self._apply_filters(query)
             providers = providers_for_segment(
                 query, self._store, flow.evidence_plan.provider_policy
             )
@@ -525,7 +502,7 @@ class SearchPlanBuilder:
             "destination": destination,
             "direct_only": False,
         }
-        self._apply_constraints(route_query)
+        self._apply_filters(route_query)
         queries: list[dict[str, Any]] = []
         seen: set[str] = set()
         for provider_name in self._provider_names_for_primary_offers(flow, route_query):
@@ -543,12 +520,12 @@ class SearchPlanBuilder:
                 "date": date_text,
                 "currency": currency,
                 "direct_only": False,
-                "limit": PRIMARY_OFFER_QUERY_LIMIT,
+                "limit": flow.evidence_plan.primary_offer_limit,
                 "execution_state": "not_executed",
             }
             if flow.request.return_date:
                 query["return_date"] = flow.request.return_date
-            self._apply_constraints(query)
+            self._apply_filters(query)
             if access_profile == PROFILE_RESTRICTED_ACCESS:
                 query["route_family"] = PROFILE_RESTRICTED_ACCESS
                 query["route_access_profile"] = access_profile
@@ -616,7 +593,7 @@ class SearchPlanBuilder:
             "destination": destination,
             "direct_only": direct_only,
         }
-        self._apply_constraints(route_query)
+        self._apply_filters(route_query)
         queries: list[dict[str, Any]] = []
         seen: set[str] = set()
         for provider_name in self._provider_names_for_primary_offers(flow, route_query):
@@ -634,26 +611,19 @@ class SearchPlanBuilder:
                 "date": date_text,
                 "currency": currency,
                 "direct_only": direct_only,
-                "limit": PRIMARY_OFFER_QUERY_LIMIT,
+                "limit": flow.evidence_plan.primary_offer_limit,
                 "execution_state": "not_executed",
                 "exhaustive": direct_only,
             }
             if route_family:
                 query["route_family"] = route_family
-            self._apply_constraints(query)
+            self._apply_filters(query)
             queries.append(query)
         return queries
 
-    def _apply_constraints(
-        self, query: dict[str, Any], *, include_first_departure_after: bool = True
-    ) -> None:
-        constraints = self._options.constraints
+    def _apply_filters(self, query: dict[str, Any]) -> None:
         only_carriers = list(self._options.effective_only_carriers())
         preferred_carriers = list(self._options.effective_prefer_carriers())
-        if constraints.first_departure_after and include_first_departure_after:
-            query["first_departure_after"] = constraints.first_departure_after
-        if constraints.must_include_airports:
-            query["must_include_airports"] = list(constraints.must_include_airports)
         if only_carriers:
             query["only_carriers"] = only_carriers
         if preferred_carriers:

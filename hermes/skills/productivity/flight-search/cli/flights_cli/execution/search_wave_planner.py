@@ -219,7 +219,9 @@ def _select_wave_queries(
     return selected, deferred
 
 
-def _selection_query_groups(queries: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+def _selection_query_groups(
+    queries: list[dict[str, Any]],
+) -> list[list[dict[str, Any]]]:
     rows = [
         query
         for query in queries
@@ -283,7 +285,9 @@ def _unique_queries(
 
 
 def _query_key(query: dict[str, Any]) -> tuple[Any, ...]:
-    carriers = tuple(sorted(str(item).upper() for item in query.get("only_carriers") or []))
+    carriers = tuple(
+        sorted(str(item).upper() for item in query.get("only_carriers") or [])
+    )
     return (
         str(query.get("role") or ""),
         str(query.get("provider") or ""),
@@ -328,7 +332,9 @@ def _expansion_queries_from_wave(
                         continue
                     partials.append((_expansion_rank_key(offer), query))
     partials.sort(key=lambda item: item[0])
-    return _unique_queries([query for _key, query in partials[:top_k]], seen_keys=seen_keys)
+    return _unique_queries(
+        [query for _key, query in partials[:top_k]], seen_keys=seen_keys
+    )
 
 
 def _expansion_queries_for_offer(

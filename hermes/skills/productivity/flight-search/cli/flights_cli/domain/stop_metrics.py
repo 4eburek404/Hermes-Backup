@@ -16,44 +16,6 @@ def stop_tier(connection_count: int) -> StopTier:
     return "T3_THREE_PLUS"
 
 
-def journey_connection_count(journey: dict[str, Any]) -> int:
-    segments = journey.get("segments")
-    if isinstance(segments, list):
-        return max(0, len(segments) - 1)
-    indexes = journey.get("segment_indexes")
-    if isinstance(indexes, list):
-        return max(0, len(indexes) - 1)
-    return 0
-
-
-def candidate_stop_metrics(candidate: dict[str, Any]) -> dict[str, Any]:
-    journeys = candidate.get("journeys")
-    if isinstance(journeys, list) and journeys:
-        per_journey = [
-            journey_connection_count(journey)
-            for journey in journeys
-            if isinstance(journey, dict)
-        ]
-    else:
-        segments = (
-            candidate.get("segments")
-            if isinstance(candidate.get("segments"), list)
-            else []
-        )
-        per_journey = [max(0, len(segments) - 1)] if segments else [0]
-    return stop_metrics_from_connection_counts(per_journey)
-
-
-def stop_metrics_from_normalized(
-    journeys: list[dict[str, Any]], segments: list[dict[str, Any]]
-) -> dict[str, Any]:
-    if journeys:
-        per_journey = [journey_connection_count(journey) for journey in journeys]
-    else:
-        per_journey = [max(0, len(segments) - 1)] if segments else [0]
-    return stop_metrics_from_connection_counts(per_journey)
-
-
 def stop_metrics_from_connection_counts(per_journey: list[int]) -> dict[str, Any]:
     counts = [max(0, int(count)) for count in per_journey] or [0]
     max_connections = max(counts)

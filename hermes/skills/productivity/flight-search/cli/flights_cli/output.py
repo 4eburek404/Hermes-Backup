@@ -23,7 +23,7 @@ def emit_json(data: Any) -> None:
     print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
 
 
-def render_agent_report_human(report: dict[str, Any]) -> str:
+def render_agent_report_user_text(report: dict[str, Any]) -> str:
     raw_user_answer = report.get("user_answer")
     user_answer: dict[str, Any] = (
         raw_user_answer if isinstance(raw_user_answer, dict) else {}
@@ -32,161 +32,9 @@ def render_agent_report_human(report: dict[str, Any]) -> str:
     return str(user_answer["rendered_text"])
 
 
-def render_human(command: str, data: Any) -> str:
+def render_user_text(command: str, data: Any) -> str:
     if isinstance(data, dict) and isinstance(data.get("agent_report"), dict):
-        return render_agent_report_human(data["agent_report"])
-    if command == "diagnose fli-search":
-        lines = [
-            f"FLI MCP live search: {data['origin']} → {data['destination']}",
-            f"Date: {data['depart_date']}",
-            f"Results: {data['offer_count']} unique offers from {data['raw_count']} raw results",
-            f"Source: {data['source']}",
-            f"Note: {data.get('note', '')}",
-            "",
-        ]
-        if not data.get("offers"):
-            lines.append("(no matching offers found)")
-        for i, offer in enumerate(data.get("offers", []), 1):
-            price = offer.get("price")
-            price_text = (
-                f"{price:,.0f} {offer.get('currency', data.get('currency', ''))}"
-                if price is not None
-                else "price n/a"
-            )
-            changes = (
-                "direct"
-                if offer.get("number_of_changes") == 0
-                else f"{offer.get('number_of_changes')} stop(s)"
-            )
-            lines.append(
-                f"  {i}. {price_text}  {changes}  {offer.get('duration') or '?'}min"
-            )
-            leg_bits = []
-            for flight in offer.get("segments", []):
-                dep = str(flight.get("departure_at") or "")
-                arr = str(flight.get("arrival_at") or "")
-                leg_bits.append(
-                    f"{flight.get('flight_number')} {flight.get('origin')}{dep[11:16]}→{flight.get('destination')}{arr[11:16]}"
-                )
-            if leg_bits:
-                lines.append("     " + " | ".join(leg_bits))
-        return "\n".join(lines)
-    if command == "diagnose fli-dates":
-        lines = [
-            f"FLI MCP date search: {data['origin']} → {data['destination']}",
-            f"Range: {data.get('from_date')} — {data.get('to_date')}",
-            f"Results: {len(data.get('dates') or [])}/{data.get('count', 0)}",
-            f"Source: {data['source']}",
-            "",
-        ]
-        for item in data.get("dates", []):
-            lines.append(
-                f"{item.get('date')}  {item.get('price')} {item.get('currency') or ''}"
-            )
-        if not data.get("dates"):
-            lines.append("(no priced dates found)")
-        return "\n".join(lines)
-    if command == "diagnose kb-search":
-        lines = [
-            f"Kupibilet live search: {data['origin']} → {data['destination']}",
-            f"Date: {data['depart_date']}",
-            f"Results: {data['offer_count']} unique offers from {data['raw_variant_count']} raw variants",
-            f"Source: {data['source']}",
-            f"Note: {data.get('note', '')}",
-            "",
-        ]
-        if not data.get("offers"):
-            lines.append("(no matching offers found)")
-        for i, offer in enumerate(data.get("offers", []), 1):
-            price = offer.get("price")
-            price_text = (
-                f"{price:,.0f} {offer.get('currency', data.get('currency', ''))}"
-                if price is not None
-                else "price n/a"
-            )
-            changes = (
-                "direct"
-                if offer.get("number_of_changes") == 0
-                else f"{offer.get('number_of_changes')} stop(s)"
-            )
-            lines.append(
-                f"  {i}. {price_text}  {changes}  {offer.get('duration') or '?'}min"
-            )
-            leg_bits = []
-            for flight in offer.get("segments", []):
-                operating = flight.get("operating_carrier")
-                marketing = flight.get("marketing_carrier")
-                op_note = (
-                    f" op:{operating}"
-                    if operating and marketing and operating != marketing
-                    else ""
-                )
-                dep = str(flight.get("departure_at") or "")
-                arr = str(flight.get("arrival_at") or "")
-                leg_bits.append(
-                    f"{flight.get('flight_number')} {flight.get('origin')}{dep[11:16]}→{flight.get('destination')}{arr[11:16]}{op_note}"
-                )
-            if leg_bits:
-                lines.append("     " + " | ".join(leg_bits))
-        return "\n".join(lines)
-    if command == "diagnose kb-roundtrip":
-        lines = [
-            f"Kupibilet live round-trip search: {data['origin']} ↔ {data['destination']}",
-            f"Dates: {data['depart_date']} → {data['return_date']}",
-            f"Results: {data['offer_count']} fare packages from {data['raw_variant_count']} raw variants",
-            f"Source: {data['source']}",
-            f"Note: {data.get('note', '')}",
-            "",
-        ]
-        if not data.get("offers"):
-            lines.append("(no matching round-trip offers found)")
-        for i, offer in enumerate(data.get("offers", []), 1):
-            price = offer.get("price")
-            price_text = (
-                f"{price:,.0f} {offer.get('currency', data.get('currency', ''))}"
-                if price is not None
-                else "price n/a"
-            )
-            changes = (
-                "direct/direct"
-                if all(
-                    (journey.get("number_of_changes") or 0) == 0
-                    for journey in offer.get("journeys", [])
-                )
-                else f"{offer.get('number_of_changes')} total stop(s)"
-            )
-            baggage = (
-                offer.get("baggage") if isinstance(offer.get("baggage"), dict) else {}
-            )
-            baggage_bits = []
-            if baggage.get("count") is not None:
-                baggage_bits.append(f"{baggage.get('count')}pc")
-            if baggage.get("weight") is not None:
-                baggage_bits.append(f"{baggage.get('weight')}kg")
-            baggage_text = (
-                "bag " + "/".join(baggage_bits) if baggage_bits else "bag n/a"
-            )
-            lines.append(f"  {i}. {price_text}  {changes}  {baggage_text}")
-            for journey in offer.get("journeys", []):
-                leg_bits = []
-                for flight in journey.get("segments", []):
-                    operating = flight.get("operating_carrier")
-                    marketing = flight.get("marketing_carrier")
-                    op_note = (
-                        f" op:{operating}"
-                        if operating and marketing and operating != marketing
-                        else ""
-                    )
-                    dep = str(flight.get("departure_at") or "")
-                    arr = str(flight.get("arrival_at") or "")
-                    leg_bits.append(
-                        f"{flight.get('flight_number')} {flight.get('origin')}{dep[11:16]}→{flight.get('destination')}{arr[11:16]}{op_note}"
-                    )
-                if leg_bits:
-                    lines.append(
-                        f"     {journey.get('direction')}: " + " | ".join(leg_bits)
-                    )
-        return "\n".join(lines)
+        return render_agent_report_user_text(data["agent_report"])
     if command == "maint doctor":
         counts = data["cache_counts"]
         policy = data["catalog_auto_refresh_policy"]
@@ -202,8 +50,8 @@ def render_human(command: str, data: Any) -> str:
                 ),
                 f"catalog refresh: {policy['mode']} max_age={policy['max_age']} stale={staleness['stale_count']}/{staleness['checked_count']}",
                 f"default hubs: {', '.join(item['code'] for item in data.get('default_route_hubs', []))}",
-                f"primary route command: {data['safety']['primary_route_command']}",
-                f"targeted probe commands: {', '.join(data['safety']['targeted_probe_commands'])}",
+                f"agent path: {data['safety']['canonical_path']}",
+                f"diagnostic probe commands: {', '.join(data['safety']['diagnostic_probe_commands'])}",
             ]
         )
     if command == "maint check":
@@ -317,29 +165,5 @@ def render_human(command: str, data: Any) -> str:
         if plan["warnings"]:
             lines.append("warnings:")
             lines.extend(f"  - {warning}" for warning in plan["warnings"])
-        return "\n".join(lines)
-    if command == "route validate":
-        lines = [
-            f"ok: {data['ok']}",
-            f"risk: {data['risk']['score']} ({data['risk']['grade']}) profile={data['risk']['profile']}",
-            f"segments: {data['summary']['segment_count']}, connections: {data['summary']['connection_count']}, violations: {data['summary']['violation_count']}",
-        ]
-        for violation in data["violations"]:
-            lines.append(
-                f"violation: {violation['arrival_airport']} -> {violation['departure_airport']}: {violation['status']}"
-            )
-            for note in violation.get("notes") or []:
-                lines.append(f"  - {note}")
-        return "\n".join(lines)
-    if command == "route rank":
-        lines = [f"profile: {data['profile']} ({data['rank_order']})"]
-        for item in data["ranked"]:
-            lines.append(
-                f"{item['rank']}. {item['id']} risk={item['risk']['score']}:{item['risk']['grade']} price={item['price']} elapsed={item['elapsed_min']}"
-            )
-            for reason in item["risk"]["top_reasons"][:3]:
-                lines.append(
-                    f"  - +{reason['points']} {reason['code']}: {reason['message']}"
-                )
         return "\n".join(lines)
     return json.dumps(data, ensure_ascii=False, indent=2)

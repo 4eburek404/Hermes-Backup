@@ -9,15 +9,17 @@ from ..orchestrators.live_route_assembly import build_live_route_segment_plan
 from ..orchestrators.search_plan_builder import build_search_plan
 from ..pipeline.search_pipeline import build_live_route_search_flow
 from ..pipeline.specs import probe_specs_from_segments, segment_specs_from_plan
-from ..reporting.projections.human_answer_mirror import build_human_answer_mirror
-from ..reporting.user_answer import build_user_answer
+from ..reporting.user_answer import validate_user_answer
+from ..errors import CliError
 from ..store import Store
 from .metadata import metadata_evidence_scope
 from .search import (
+    build_search_artifacts,
     live_assembly_options_from_search_request,
     normalize_search_request,
     validate_search_request_dates,
 )
+from .common import validate_contract_payload
 
 
 def _agent_report_from_document(payload: dict[str, Any]) -> dict[str, Any]:
@@ -68,6 +70,20 @@ def command_diagnose_probe(args: argparse.Namespace, store: Store) -> dict[str, 
     return run_diagnostic_probe(args.provider, request, store)
 
 
+def command_diagnose_trace(args: argparse.Namespace, store: Store) -> dict[str, Any]:
+    request = normalize_search_request(read_json_object(args.request))
+    validate_search_request_dates(request)
+    artifacts = build_search_artifacts(request, store)
+    result = {
+        "schema_version": "flight_route_trace_diagnostic.v1",
+        "request": artifacts["request"],
+        "route_trace": artifacts["route_trace"],
+        "agent_report": artifacts["agent_report"],
+    }
+    validate_contract_payload("route_trace", result)
+    return result
+
+
 def command_diagnose_render(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     del store
     payload = read_json_object(args.input)
@@ -78,12 +94,22 @@ def command_diagnose_render(args: argparse.Namespace, store: Store) -> dict[str,
         else None
     )
     if user_answer is None:
-        user_answer = build_user_answer(report)
-    mirror_report = {**report, "user_answer": user_answer}
-    human_answer = build_human_answer_mirror(mirror_report)
+        raise CliError(
+            "diagnose render requires data.agent_report.user_answer",
+            error_type="validation_error",
+        )
+    validation: dict[str, Any] = {"ok": True, "errors": []}
+    try:
+        validate_user_answer(user_answer)
+    except CliError as exc:
+        validation = {
+            "ok": False,
+            "errors": (exc.details or {}).get("errors") or [],
+        }
     return {
         "schema_version": "flight_search_render_diagnostic.v1",
         "agent_report_schema_version": report.get("schema_version"),
-        "human_answer": human_answer,
         "user_answer": user_answer,
+        "rendered_text": user_answer.get("rendered_text"),
+        "validation": validation,
     }

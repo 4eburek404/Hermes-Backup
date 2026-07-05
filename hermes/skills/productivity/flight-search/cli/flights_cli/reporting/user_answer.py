@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any
 
+from ..config import catalog_output_limits_from_mapping
 from .option_semantics import route_requested_round_trip
 from .user_answer_absence import (
     gateway_coverage_summary,
@@ -78,9 +80,23 @@ __all__ = (
 )
 
 
-def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
-    diagnostics_raw = agent_report.get("coverage_diagnostics")
-    diagnostics = diagnostics_raw if isinstance(diagnostics_raw, dict) else {}
+@dataclass(frozen=True, slots=True)
+class UserAnswerInput:
+    route: dict[str, Any]
+    status: dict[str, Any]
+    source_boundaries: list[dict[str, Any]]
+    provider_failures: list[dict[str, Any]]
+    primary_options: list[dict[str, Any]]
+    alternative_options: list[dict[str, Any]]
+    coverage_report: dict[str, Any]
+    stop_policy: dict[str, Any]
+    stop_policy_status: dict[str, Any]
+    through_fare_checks: list[dict[str, Any]]
+    truth_language: dict[str, Any] = field(default_factory=dict)
+
+
+def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
+    diagnostics = answer_input.coverage_report
     completeness = (
         diagnostics.get("completeness")
         if isinstance(diagnostics.get("completeness"), dict)
@@ -94,89 +110,73 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
     )
     not_supported_raw = diagnostics.get("not_supported_controls")
     not_supported = not_supported_raw if isinstance(not_supported_raw, list) else []
-    provider_failures = (
-        agent_report.get("provider_failures")
-        if isinstance(agent_report.get("provider_failures"), list)
-        else []
-    )
-    through_fare_checks = (
-        agent_report.get("through_fare_checks")
-        if isinstance(agent_report.get("through_fare_checks"), list)
-        else []
-    )
-    recommended = (
-        agent_report.get("recommended_options")
-        if isinstance(agent_report.get("recommended_options"), list)
-        else []
-    )
-    priority = (
-        agent_report.get("priority_options")
-        if isinstance(agent_report.get("priority_options"), list)
-        else []
-    )
-    route = (
-        agent_report.get("route") if isinstance(agent_report.get("route"), dict) else {}
-    )
-    stop_policy = (
-        agent_report.get("stop_policy")
-        if isinstance(agent_report.get("stop_policy"), dict)
-        else {}
-    )
-    stop_diagnostics = (
-        agent_report.get("stop_policy_diagnostics")
-        if isinstance(agent_report.get("stop_policy_diagnostics"), dict)
-        else {}
-    )
-    offer_graph_raw = agent_report.get("offer_graph")
-    offer_graph: dict[str, Any] = (
-        offer_graph_raw if isinstance(offer_graph_raw, dict) else {}
-    )
-    truth_language_raw = offer_graph.get("truth_language")
-    truth_language: dict[str, Any] = (
-        truth_language_raw if isinstance(truth_language_raw, dict) else {}
-    )
+    provider_failures = answer_input.provider_failures
+    through_fare_checks = answer_input.through_fare_checks
+    recommended = answer_input.primary_options
+    priority = answer_input.alternative_options
+    route = answer_input.route
+    stop_policy = answer_input.stop_policy
+    stop_diagnostics = answer_input.stop_policy_status
+    truth_language = answer_input.truth_language
     two_stop_tier_used = bool(stop_diagnostics.get("used_two_stop_tier"))
 
     is_round_trip_request = route_requested_round_trip(route)
-    all_direct_inventory = bool(
-        (agent_report.get("status") or {}).get("all_direct_inventory")
+    status = answer_input.status if isinstance(answer_input.status, dict) else {}
+    direct_mode = (
+        status.get("direct_mode") if isinstance(status.get("direct_mode"), dict) else {}
     )
+    output_limits = catalog_output_limits_from_mapping(
+        status.get("output_limits")
+        if isinstance(status.get("output_limits"), dict)
+        else None
+    )
+    direct_mode_active = any(bool(value) for value in direct_mode.values())
     catalog = build_catalog_contract(
         recommended,
         priority,
         is_round_trip_request=is_round_trip_request,
-        all_direct_inventory=all_direct_inventory,
+        catalog_limit=output_limits.direct_catalog_limit
+        if direct_mode_active
+        else output_limits.catalog_limit,
+        direct_mode=direct_mode_active,
     )
     answer_mode = infer_answer_mode(
         is_round_trip_request=is_round_trip_request, options=catalog.get("items") or []
     )
+    presentation = (
+        catalog.get("presentation")
+        if isinstance(catalog.get("presentation"), dict)
+        else {}
+    )
+    try:
+        catalog_max_items = int(
+            presentation.get("max_items") or output_limits.catalog_limit
+        )
+    except (TypeError, ValueError):
+        catalog_max_items = output_limits.catalog_limit
+    alternative_limit = max(0, catalog_max_items - (1 if recommended else 0))
     route_contract = {
         "origin": route.get("origin"),
         "destination": route.get("destination"),
         "dates": route.get("dates") if isinstance(route.get("dates"), dict) else {},
     }
-    direct_omitted = int((agent_report.get("status") or {}).get("direct_omitted") or 0)
-    gateway_summary = gateway_coverage_summary(agent_report)
+    gateway_summary = gateway_coverage_summary(diagnostics)
+    caveat_context = {
+        "not_executed": not_executed,
+        "provider_failures": provider_failures,
+        "negative_wording": truth_language.get("negative_wording"),
+    }
     if answer_mode == "catalog":
         answer_text = render_catalog_answer(
             route_contract,
             catalog,
-            caveat_context={
-                "not_executed": not_executed,
-                "provider_failures": provider_failures,
-                "negative_wording": truth_language.get("negative_wording"),
-            },
-            direct_omitted=direct_omitted,
+            caveat_context=caveat_context,
             gateway_summary=gateway_summary,
         )
     else:
         answer_text = render_no_viable_answer(
             route_contract,
-            caveat_context={
-                "not_executed": not_executed,
-                "provider_failures": provider_failures,
-                "negative_wording": truth_language.get("negative_wording"),
-            },
+            caveat_context=caveat_context,
             gateway_summary=gateway_summary,
         )
     answer_lines = rendered_answer_lines(answer_text)
@@ -214,7 +214,9 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
             summary
             for summary in (
                 option_summary(item, is_round_trip_request=is_round_trip_request)
-                for item in priority_options_for_user_contract(priority, limit=5)
+                for item in priority_options_for_user_contract(
+                    priority, limit=alternative_limit
+                )
             )
             if summary is not None
         ],
@@ -251,9 +253,7 @@ def build_user_answer(agent_report: dict[str, Any]) -> dict[str, Any]:
             "non_blocking_boundaries": non_blocking_boundaries,
         },
         "required_caveats": {
-            "source_boundaries_included": not bool(
-                agent_report.get("source_boundaries")
-            )
+            "source_boundaries_included": not bool(answer_input.source_boundaries)
             or has_any_signal(
                 answer_text_lower,
                 (

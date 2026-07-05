@@ -1,1 +1,1 @@
-"""Reporting helpers for flight search agent projections."""
+"""Reporting helpers for compact flight search agent reports."""

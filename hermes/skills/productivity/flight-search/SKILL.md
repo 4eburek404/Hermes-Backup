@@ -1,6 +1,6 @@
 ---
 name: flight-search
-version: 0.9.0
+version: 0.10.0
 description: Use when finding, comparing, or diagnosing live flight route options with the bundled flights CLI; assumes one adult in economy and never books tickets.
 metadata:
   hermes:
@@ -23,7 +23,7 @@ cd "$HERMES_HOME"/skills/productivity/flight-search/cli
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request "$HOME/flight-search-request.json"
 ```
 
-Use the rendered answer from `data.agent_report.user_answer.rendered_text` or `data.route_result.agent_report.user_answer.rendered_text`. Do not answer from raw provider JSON when the frontier/report is present.
+Use the rendered answer from `data.agent_report.user_answer.rendered_text`. Do not answer from raw provider JSON when the frontier/report is present.
 
 Minimal request:
 
@@ -36,8 +36,7 @@ Common options:
 - Direct only: `"route_options":{"max_connections":0,"tier2_max_connections":0}`
 - Date window: add `"date_window_end":"YYYY-MM-DD"` inside `route_options`; omit `return_date`.
 - Return trip: `"return_date":"YYYY-MM-DD"`
-- Hard constraints: `"constraints":{"must_include_airports":["AMS"],"first_departure_after":"15:00","only_carriers":["KL"]}`
-- Soft carrier preference: `"constraints":{"preferred_carriers":["KL"]}`
+- Carrier filters: `"filters":{"only_carriers":["KL"],"prefer_carriers":["KL"]}`
 - Provider override only when needed: `"provider_policy":"tutu"`, `"kupibilet"`, or `"fli"`
 
 ## Pipeline
@@ -48,13 +47,13 @@ Runtime flow:
 request
   -> normalize and validate flight_search_request.v1
   -> FlowDecision + EvidencePlan
-  -> SearchPlanBuilder seeds constraints into provider probes
+  -> SearchPlanBuilder builds provider probes from route, evidence, and filters
   -> per-probe provider router
   -> primary offer queries + bounded gateway waves
   -> OfferGraph
   -> DecisionScorer
   -> DecisionFrontier
-  -> agent_report.v3 + user_answer.v5
+  -> flight_search_result.v5 + agent_report.v5 + user_answer.v7
 ```
 
 There is no legacy assembly fallback. `RoutePlanBuilder`, old `services/assembly`, synthetic controls, and old `ranked_candidates/frontier_candidates` answer paths are not runtime sources.
@@ -64,22 +63,24 @@ There is no legacy assembly fallback. `RoutePlanBuilder`, old `services/assembly
 Provider routing is per probe, not per whole search.
 
 - `tutu` is the default primary provider.
-- `kupibilet` is fallback where its capability and market fit the probe.
-- `fli` is used only for non-RU probes.
+- In `auto`, a successful Tutu MCP probe stops fallback execution for the same logical probe.
+- `kupibilet` is fallback only when Tutu is unavailable, fails, or does not support the probe and KupiBilet capability/market fit it.
+- `fli` is fallback only for non-RU probes when Tutu is unavailable, fails, or does not support the probe.
 - `provider_policy=both` is invalid.
 
-Tutu returns shopping evidence. It can return connected offers and supports pagination through the adapter. Carrier names are normalized through the catalog/aliases, not route-specific code.
+Tutu returns shopping evidence. It can return connected offers and supports pagination through the adapter. Carrier names are resolved through localized airline catalogs into canonical carrier codes, not route-specific code.
 
-## Constraints
+When wave-0 primary offers prove direct flights for a direction, the direct-first gate suppresses connected options for that direction unless route options explicitly allow connected alternatives.
 
-User constraints are planner inputs before ranking:
+## Filters
 
-- `must_include_airports` seeds gateway/path probes and rejects options without the required airport.
-- `first_departure_after` applies to the first outbound departure in origin-local time; it does not filter return departures.
-- `only_carriers` is hard; `preferred_carriers` is scoring preference.
+Carrier filters are provider-query inputs:
+
+- `filters.only_carriers` narrows provider/search queries to the requested carriers where supported.
+- `filters.prefer_carriers` is a provider-query preference and RU-priority seed; it is not a hidden scorer gate.
 - Carrier matching uses normalized codes and raw provider names.
 
-If the user says "through AMS" or "KLM after 15:00", do not let default bridge policy outrank that request. Defaults live in policy/config and only fill gaps when the user did not constrain the route.
+Do not reintroduce request `constraints`; route shape belongs in `route_options`, carrier scope belongs in `filters`, and final selection belongs in the decision frontier.
 
 ## Evidence Boundaries
 
@@ -89,7 +90,7 @@ Use report fields for evidence and absence language:
 - Empty provider output is not proof that no flight exists outside executed probes.
 - Static catalogs, cached metadata, and diagnostics do not prove availability.
 - Named airports are not city scope unless the request or report explicitly broadens scope.
-- For round trips, frontier options are outbound+return pairs; unpaired directional evidence belongs in diagnostics.
+- For round trips, frontier options are outbound+return pairs; unpaired directional evidence stays in route diagnostics, not in the public answer.
 
 Details: `references/report-contract.md`, `references/source-boundaries.md`, and `references/pipeline-reference.md`.
 
@@ -100,7 +101,12 @@ Use diagnostics to inspect the pipeline, not as traveler-facing answers:
 ```bash
 python3 -m flights_cli --json diagnose plan --request "$HOME/flight-search-request.json"
 python3 -m flights_cli --json diagnose probe --provider tutu --request "$HOME/probe.json"
-python3 -m flights_cli --json diagnose tutu-search --request "$HOME/tutu-search.json"
+python3 -m flights_cli --json diagnose trace --request "$HOME/flight-search-request.json"
 ```
+
+Provider-specific raw-search commands are intentionally absent from the agent
+surface. Use `search --request` and read
+`data.agent_report.user_answer.rendered_text`. Use `diagnose trace` only when
+you need the full internal route/live-search trace.
 
 For CLI/debug ownership and source boundaries, start from `references/index.md`.

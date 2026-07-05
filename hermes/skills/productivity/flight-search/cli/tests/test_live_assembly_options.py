@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from flights_cli.commands.search import live_assembly_options_from_search_request
+from flights_cli.config import DEFAULT_CATALOG_LIMIT, DEFAULT_DIRECT_CATALOG_LIMIT
 from flights_cli.errors import CliError
 from flights_cli.pipeline.options import search_request_to_options
 
@@ -57,22 +58,11 @@ REQUEST = {
         "fail_fast": True,
         "live_cache_ttl_seconds": 123,
         "no_live_cache": True,
-        "direct_route_index_ttl_seconds": 456,
-        "no_direct_route_intel": True,
         "fli_mcp_url": "http://127.0.0.1:9999/mcp",
     },
     "output": {
-        "include_stop_policy_diagnostics": True,
-        "limit_per_pair": 2,
-        "candidate_pool_limit": 111,
-        "max_candidates": 9,
-        "max_reasons": 3,
-        "include_candidates": 4,
-        "include_ranked_candidates": 5,
-        "include_rejected_pairs": 6,
-        "include_segment_results": 7,
-        "agent_brief": False,
-        "include_filtered": 8,
+        "catalog_limit": 12,
+        "direct_catalog_limit": 35,
     },
 }
 
@@ -92,7 +82,6 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
             "only_carriers": ("SU",),
             "prefer_carriers": ("TK",),
             "aggregate_control_carriers": ("SU", "TK"),
-            "agent_report": True,
         }
         self.assertEqual(options.route.origin, expected["origin"])
         self.assertEqual(options.route.destination, expected["destination"])
@@ -114,7 +103,9 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.evidence.search_wave_max_waves, 4)
         self.assertEqual(options.evidence.search_wave_probe_limit, 8)
         self.assertEqual(options.evidence.search_wave_top_k, 6)
-        self.assertEqual(options.output.agent_report, expected["agent_report"])
+        self.assertEqual(options.evidence.primary_offer_limit, 35)
+        self.assertEqual(options.output.catalog_limit, 12)
+        self.assertEqual(options.output.direct_catalog_limit, 35)
 
     def test_search_app_adapter_matches_typed_request_adapter(self) -> None:
         self.assertEqual(
@@ -126,35 +117,19 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         with self.assertRaises(CliError):
             live_assembly_options_from_search_request({**REQUEST, "profile": "safe"})
 
-    def test_search_app_rejects_removed_both_provider_policy(self) -> None:
-        with self.assertRaises(CliError):
-            live_assembly_options_from_search_request(
-                {**REQUEST, "provider_policy": "both"}
-            )
-
-    def test_search_request_maps_request_constraints(self) -> None:
+    def test_search_request_maps_carrier_filters(self) -> None:
         request = {
             "schema_version": "flight_search_request.v1",
             "origin": "nte",
             "destination": "svx",
             "depart_date": "2026-07-09",
             "filters": {"only_carriers": ["AF"], "prefer_carriers": ["TK"]},
-            "constraints": {
-                "first_departure_after": "15:00",
-                "must_include_airports": ["ams"],
-                "only_carriers": ["kl"],
-                "preferred_carriers": ["af"],
-            },
         }
         options = search_request_to_options(request)
 
-        self.assertEqual(options.constraints.first_departure_after, "15:00")
-        self.assertEqual(options.constraints.must_include_airports, ("AMS",))
-        self.assertEqual(options.constraints.only_carriers, ("KL",))
-        self.assertEqual(options.constraints.preferred_carriers, ("AF",))
         self.assertEqual(options.filters.only_carriers, ("AF",))
-        self.assertEqual(options.effective_only_carriers(), ("AF", "KL"))
-        self.assertEqual(options.effective_prefer_carriers(), ("TK", "AF"))
+        self.assertEqual(options.effective_only_carriers(), ("AF",))
+        self.assertEqual(options.effective_prefer_carriers(), ("TK",))
         self.assertEqual(live_assembly_options_from_search_request(request), options)
 
     def test_search_request_defaults_are_explicit_in_typed_options(self) -> None:
@@ -174,8 +149,13 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.profile, "business")
         self.assertEqual(options.ticketing, "separate")
         self.assertEqual(options.evidence.provider_policy, "auto")
-        self.assertTrue(options.output.agent_report)
-        self.assertTrue(options.output.agent_brief)
+        self.assertEqual(
+            options.evidence.primary_offer_limit, DEFAULT_DIRECT_CATALOG_LIMIT
+        )
+        self.assertEqual(options.output.catalog_limit, DEFAULT_CATALOG_LIMIT)
+        self.assertEqual(
+            options.output.direct_catalog_limit, DEFAULT_DIRECT_CATALOG_LIMIT
+        )
 
     def test_search_request_preserves_explicit_zero_values(self) -> None:
         options = search_request_to_options(
@@ -197,16 +177,10 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
                 "evidence": {
                     "aggregate_control_limit": 0,
                     "live_cache_ttl_seconds": 0,
-                    "direct_route_index_ttl_seconds": 0,
                 },
                 "output": {
-                    "include_segment_results": 0,
-                    "include_candidates": 0,
-                    "include_ranked_candidates": 0,
-                    "include_rejected_pairs": 0,
-                    "include_filtered": 0,
-                    "max_candidates": 0,
-                    "max_reasons": 0,
+                    "catalog_limit": 0,
+                    "direct_catalog_limit": 0,
                 },
             }
         )
@@ -221,14 +195,9 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.evidence.coverage_control_limit, 0)
         self.assertEqual(options.evidence.aggregate_control_limit, 0)
         self.assertEqual(options.evidence.live_cache_ttl_seconds, 0)
-        self.assertEqual(options.evidence.direct_route_index_ttl_seconds, 0)
-        self.assertEqual(options.output.include_segment_results, 0)
-        self.assertEqual(options.output.include_candidates, 0)
-        self.assertEqual(options.output.include_ranked_candidates, 0)
-        self.assertEqual(options.output.include_rejected_pairs, 0)
-        self.assertEqual(options.output.include_filtered, 0)
-        self.assertEqual(options.output.max_candidates, 0)
-        self.assertEqual(options.output.max_reasons, 0)
+        self.assertEqual(options.evidence.primary_offer_limit, 1)
+        self.assertEqual(options.output.catalog_limit, 1)
+        self.assertEqual(options.output.direct_catalog_limit, 1)
 
 
 if __name__ == "__main__":

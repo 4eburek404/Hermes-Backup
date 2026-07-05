@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
-from ..config import SPECIAL_CITY_AIRPORTS
+from ..config import SPECIAL_CITY_AIRPORTS, catalog_output_limits_from_mapping
+from ..contracts.registry import current_contract
 from ..domain.vocabulary import Direction, Leg, RouteFamily, RoutingStrategy
 from ..domain.stop_metrics import offer_stop_metrics
 from ..domain.stop_policy import (
@@ -11,27 +13,27 @@ from ..domain.stop_policy import (
     decide_stop_policy,
     stop_policy_payload,
 )
-from .projections.summary_lines import build_summary_lines
-from .coverage_projector import build_coverage_diagnostics
-from .projections.itinerary_display import build_itinerary_display
-from .agent_report_projector import AGENT_REPORT_SCHEMA_VERSION, project_agent_report
-from .user_answer import build_user_answer
-from .projections.human_answer_mirror import build_human_answer_mirror
-from .option_projector import (
+from .coverage import build_coverage_diagnostics, compact_coverage_summary
+from .user_answer import UserAnswerInput, build_user_answer
+from .decision_options import (
     decision_frontier_options,
+    option_from_decision_frontier_item,
 )
-from .catalog_order import catalog_order_key, option_is_user_visible
-from .offer_graph_projector import build_offer_graph
-from .provider_aggregate_projector import (
+from .catalog_order import (
+    catalog_order_key,
+    option_elapsed_minutes,
+    option_is_user_visible,
+    option_price_amount,
+)
+from .provider_aggregate_options import (
     aggregate_control_summary,
     provider_aggregate_candidate_options,
 )
-from .report_budget import apply_agent_report_budget
-from .source_boundary_projector import source_boundaries
+from .source_boundaries import source_boundaries
 from .through_fare_analyzer import through_fare_checks
 
-CATALOG_LIMIT_DEFAULT = 5
-ALL_DIRECT_CATALOG_CAP = 20
+
+AGENT_REPORT_SCHEMA_VERSION = current_contract("agent_report")["schema_version"]
 
 
 def stop_policy_from_report_data(data: dict[str, Any]) -> StopPolicy:
@@ -194,32 +196,6 @@ def merge_stop_policy_diagnostics(
     return diagnostics
 
 
-def rejected_pair_warnings(
-    data: dict[str, Any], limit: int = 5
-) -> list[dict[str, Any]]:
-    warnings = []
-    for item in (data.get("rejected_pairs") or [])[: max(0, limit)]:
-        if not isinstance(item, dict):
-            continue
-        warnings.append(
-            {
-                "direction": item.get("direction"),
-                "reason": item.get("reason"),
-                "airport_pair_status": item.get("airport_pair_status"),
-                "arrival_airport": item.get("arrival_airport"),
-                "departure_airport": item.get("departure_airport"),
-                "actual_min": item.get("actual_min"),
-                "required_min": item.get("required_min"),
-                "price": {
-                    "amount": item.get("price"),
-                    "currency": item.get("currency"),
-                },
-                "notes": item.get("notes") or [],
-            }
-        )
-    return warnings
-
-
 def provider_failure_summary(failure: dict[str, Any]) -> dict[str, Any]:
     error = failure.get("error") if isinstance(failure.get("error"), dict) else {}
     error_summary = {
@@ -256,64 +232,219 @@ def provider_failures(live: dict[str, Any], limit: int = 10) -> list[dict[str, A
     ]
 
 
-def primary_offer_results(
-    live: dict[str, Any], limit: int = 20
-) -> list[dict[str, Any]]:
-    return [
-        dict(item)
-        for item in (live.get("primary_offer_results") or [])[: max(0, limit)]
-        if isinstance(item, dict)
+def answer_readiness(coverage: dict[str, Any]) -> str:
+    if bool(coverage.get("evidence_complete")):
+        return "answerable"
+    if bool(coverage.get("execution_complete")):
+        return "answerable_with_caveats"
+    return "needs_more_evidence"
+
+
+def compact_evidence_status(coverage: dict[str, Any]) -> dict[str, Any]:
+    completeness = (
+        coverage.get("completeness")
+        if isinstance(coverage.get("completeness"), dict)
+        else {}
+    )
+    blocking = [
+        str(value)
+        for value in coverage.get("blocking_evidence") or []
+        if str(value).strip()
     ]
+    execution_complete = bool(
+        completeness.get("all_planned_controls_have_terminal_state")
+    )
+    return {
+        "execution_complete": execution_complete,
+        "evidence_complete": execution_complete and not blocking,
+        "blocking_evidence": blocking,
+        "non_blocking_boundaries": [
+            str(value)
+            for value in coverage.get("non_blocking_boundaries") or []
+            if str(value).strip()
+        ],
+    }
 
 
-def carrier_scope_list(value: Any) -> list[Any]:
-    if value is None:
-        return []
+def build_agent_guidance(
+    *,
+    route: dict[str, Any],
+    coverage: dict[str, Any],
+    through_fare_check_items: list[dict[str, Any]],
+    evidence_plan: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    evidence_status = compact_evidence_status(coverage)
+    actions: list[dict[str, Any]] = []
+    if "not_executed_controls" in evidence_status["blocking_evidence"]:
+        plan = evidence_plan if isinstance(evidence_plan, dict) else {}
+        current_limit = int(plan.get("max_segment_searches") or 300)
+        actions.append(
+            {
+                "id": "rerun_with_larger_execution_budget",
+                "reason": "not_executed_controls",
+                "request_patch": {
+                    "evidence": {
+                        "max_segment_searches": max(
+                            current_limit * 2, current_limit + 1
+                        ),
+                        "no_live_cache": True,
+                    }
+                },
+            }
+        )
+    if any(
+        item in evidence_status["blocking_evidence"]
+        for item in ("failed_controls", "provider_failures")
+    ):
+        actions.append(
+            {
+                "id": "rerun_fresh_without_cache",
+                "reason": "provider_failures_or_failed_controls",
+                "request_patch": {"evidence": {"no_live_cache": True, "timeout": 90}},
+            }
+        )
+    if through_fare_check_items:
+        actions.append(
+            {
+                "id": "verify_purchase_screen_or_airline_gds",
+                "reason": "ticketing_or_through_fare_proof_required",
+                "external_evidence_required": True,
+            }
+        )
+    if not actions and evidence_status["evidence_complete"]:
+        actions.append(
+            {
+                "id": "answer_from_canonical_rendered_text",
+                "reason": "evidence_complete",
+                "answer_path": current_contract("user_answer")["canonical_text_path"],
+            }
+        )
+    return {
+        "primary_command": "search --request",
+        "canonical_answer_path": current_contract("user_answer")["canonical_text_path"],
+        "answer_readiness": answer_readiness(evidence_status),
+        **evidence_status,
+        "next_actions": actions,
+    }
+
+
+def _compact_public_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            str(key): _compact_public_value(item)
+            for key, item in value.items()
+            if item is not None
+        }
     if isinstance(value, list):
-        return value
-    if isinstance(value, tuple):
-        return list(value)
-    return [value]
+        return [_compact_public_value(item) for item in value if item is not None]
+    return value
 
 
-def segment_search_summaries(live: dict[str, Any]) -> list[dict[str, Any]]:
-    return [
-        {
-            "direction": item.get("direction"),
-            "leg": item.get("leg"),
-            "origin": item.get("origin"),
-            "destination": item.get("destination"),
-            "date": item.get("date"),
-            "route_family": item.get("route_family"),
-            "priority": item.get("priority"),
-            "only_carriers": carrier_scope_list(item.get("only_carriers")),
-            "preferred_carriers": carrier_scope_list(item.get("preferred_carriers")),
-            "provider_request_strategy": item.get("provider_request_strategy"),
-            "provider_city_code": item.get("provider_city_code"),
-            "provider": item.get("provider"),
-            "status": item.get("status"),
-            "reason": item.get("reason"),
-            "offer_count": item.get("offer_count"),
-            "cache_status": item.get("cache_status"),
-            "probe_id": item.get("probe_id"),
-            "original_probe_id": item.get("original_probe_id"),
+def _catalog_item_links(user_answer: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    catalog = (
+        user_answer.get("catalog")
+        if isinstance(user_answer.get("catalog"), dict)
+        else {}
+    )
+    links: dict[str, dict[str, Any]] = {}
+    for index, item in enumerate(catalog.get("items") or []):
+        if not isinstance(item, dict):
+            continue
+        option_id = str(item.get("option_id") or "").strip()
+        if not option_id:
+            continue
+        number = item.get("number")
+        if not isinstance(number, int):
+            number = index + 1
+        links[option_id] = {
+            "catalog_item_number": number,
+            "catalog_item_path": f"data.agent_report.user_answer.catalog.items[{index}]",
         }
-        for item in (live.get("segment_searches") or [])[:20]
-        if isinstance(item, dict)
-    ]
+    return links
 
 
-def hub_viability_summaries(live: dict[str, Any]) -> list[dict[str, Any]]:
-    return [
-        {
-            "hub": item.get("hub"),
-            "viable": item.get("viable"),
-            "total_offer_count": item.get("total_offer_count"),
-            "missing_legs": item.get("missing_legs") or [],
+def compact_public_decision_frontier(
+    decision_frontier: dict[str, Any], user_answer: dict[str, Any]
+) -> dict[str, Any]:
+    """Project full decision details into the public report surface."""
+
+    catalog_links = _catalog_item_links(user_answer)
+    allowed_option_keys = (
+        "id",
+        "rank",
+        "selection_reasons",
+        "source_type",
+        "provider",
+        "source_providers",
+        "gateway",
+        "covers_requested_trip",
+        "journey_scope",
+        "price",
+        "currency",
+        "price_basis",
+        "ticketing_model",
+        "detail_status",
+        "connection_count",
+        "evidence_sources",
+        "price_comparison",
+    )
+    options: list[dict[str, Any]] = []
+    for option in decision_frontier.get("options") or []:
+        if not isinstance(option, dict):
+            continue
+        option_id = str(option.get("id") or "").strip()
+        if not option_id:
+            continue
+        compact = {
+            key: _compact_public_value(deepcopy(option.get(key)))
+            for key in allowed_option_keys
+            if key in option and option.get(key) is not None
         }
-        for item in live.get("hub_viability") or []
-        if isinstance(item, dict)
-    ]
+        compact.update(catalog_links.get(option_id, {}))
+        options.append(compact)
+
+    controls: list[dict[str, Any]] = []
+    allowed_control_keys = (
+        "id",
+        "type",
+        "direction",
+        "origin",
+        "destination",
+        "date",
+        "status",
+        "provider",
+        "source_type",
+        "control_policy",
+        "source_providers",
+        "offer_count",
+        "raw_offer_count",
+        "top_offer_count",
+        "cache_status",
+        "graph_derived",
+        "negative_evidence",
+        "reason",
+    )
+    for control in decision_frontier.get("controls") or []:
+        if isinstance(control, dict):
+            controls.append(
+                {
+                    key: _compact_public_value(deepcopy(control.get(key)))
+                    for key in allowed_control_keys
+                    if key in control and control.get(key) is not None
+                }
+            )
+
+    coverage_summary = (
+        decision_frontier.get("coverage_summary")
+        if isinstance(decision_frontier.get("coverage_summary"), dict)
+        else {}
+    )
+    return {
+        "schema_version": "flight_decision_frontier.public.v1",
+        "options": options,
+        "controls": controls,
+        "coverage_summary": _compact_public_value(deepcopy(coverage_summary)),
+    }
 
 
 def normalize_airport_values(
@@ -793,6 +924,163 @@ def order_frontier_options(
     )
 
 
+def active_direct_mode_directions(
+    live: dict[str, Any], assembly: dict[str, Any]
+) -> list[str]:
+    direct_mode = (
+        assembly.get("direct_mode")
+        if isinstance(assembly.get("direct_mode"), dict)
+        else {}
+    )
+    if not direct_mode:
+        gate = (
+            live.get("direct_presence_gate")
+            if isinstance(live.get("direct_presence_gate"), dict)
+            else {}
+        )
+        direct_mode = (
+            gate.get("direct_mode") if isinstance(gate.get("direct_mode"), dict) else {}
+        )
+    return [
+        direction
+        for direction in ("outbound", "return")
+        if bool(direct_mode.get(direction))
+    ]
+
+
+def _ranked_candidates(data: dict[str, Any]) -> list[dict[str, Any]]:
+    live = data.get("live_search") if isinstance(data.get("live_search"), dict) else {}
+    ranking = (
+        live.get("mixed_candidate_ranking")
+        if isinstance(live.get("mixed_candidate_ranking"), dict)
+        else {}
+    )
+    return [
+        candidate
+        for candidate in ranking.get("ranked_candidates") or []
+        if isinstance(candidate, dict)
+    ]
+
+
+def _ranked_candidate_acceptable(candidate: dict[str, Any]) -> bool:
+    components = (
+        candidate.get("rank_components")
+        if isinstance(candidate.get("rank_components"), dict)
+        else {}
+    )
+    for key in (
+        "not_covers_requested_trip",
+        "rejected_or_impossible_connection",
+        "max_connections_per_journey",
+    ):
+        if int(components.get(key) or 0) > 0:
+            return False
+    return bool(candidate.get("covers_requested_trip", True))
+
+
+def _candidate_direction_segments(
+    candidate: dict[str, Any], direction: str
+) -> list[dict[str, Any]]:
+    journeys = (
+        candidate.get("journeys") if isinstance(candidate.get("journeys"), list) else []
+    )
+    rows: list[dict[str, Any]] = []
+    for journey in journeys:
+        if not isinstance(journey, dict):
+            continue
+        if str(journey.get("direction") or "outbound") != direction:
+            continue
+        rows.extend(
+            segment
+            for segment in journey.get("segments") or []
+            if isinstance(segment, dict)
+        )
+    return rows
+
+
+def _candidate_matches_direct_mode(
+    candidate: dict[str, Any], direct_mode_directions: list[str]
+) -> bool:
+    if str(candidate.get("source_type") or "") == "gateway_separate_ticket":
+        return False
+    for direction in direct_mode_directions:
+        if len(_candidate_direction_segments(candidate, direction)) != 1:
+            return False
+    return True
+
+
+def _direct_mode_departure_key(
+    option: dict[str, Any], direct_mode_directions: list[str]
+) -> tuple[str, int | float, int]:
+    direction_order = direct_mode_directions or ["outbound", "return"]
+    for direction in direction_order:
+        for segment in option_direction_segments(option, direction):
+            departure = str(segment.get("departure_at") or "")
+            if departure:
+                return (
+                    departure,
+                    catalog_order_key(option, is_round_trip_request=False)[-1],
+                    int(option.get("rank") or 0),
+                )
+    return (
+        "",
+        catalog_order_key(option, is_round_trip_request=False)[-1],
+        int(option.get("rank") or 0),
+    )
+
+
+def direct_mode_candidate_options(
+    data: dict[str, Any], direct_mode_directions: list[str], *, limit: int
+) -> list[dict[str, Any]]:
+    options: list[dict[str, Any]] = []
+    for candidate in _ranked_candidates(data):
+        if not _ranked_candidate_acceptable(candidate):
+            continue
+        if not _candidate_matches_direct_mode(candidate, direct_mode_directions):
+            continue
+        option = option_from_decision_frontier_item(
+            {**candidate, "selection_reasons": ["direct_mode_schedule"]}
+        )
+        options.append(option)
+    options.sort(
+        key=lambda item: _direct_mode_departure_key(item, direct_mode_directions)
+    )
+    return annotate_schedule_options(options[:limit])
+
+
+def annotate_schedule_options(options: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not options:
+        return []
+    prices = [
+        option_price_amount(option)
+        for option in options
+        if option_price_amount(option) < 10**12
+    ]
+    elapsed_values = [
+        option_elapsed_minutes(option)
+        for option in options
+        if option_elapsed_minutes(option) < 10**9
+    ]
+    cheapest = min(prices) if prices else None
+    fastest = min(elapsed_values) if elapsed_values else None
+    annotated: list[dict[str, Any]] = []
+    for option in options:
+        item = dict(option)
+        badges = [
+            str(value)
+            for value in item.get("option_badges") or []
+            if str(value).strip()
+        ]
+        if cheapest is not None and option_price_amount(item) == cheapest:
+            badges.append("cheapest")
+        if fastest is not None and option_elapsed_minutes(item) == fastest:
+            badges.append("fastest")
+        if badges:
+            item["option_badges"] = list(dict.fromkeys(badges))
+        annotated.append(item)
+    return annotated
+
+
 def has_lower_stop_viable_option(
     source_options: list[dict[str, Any]], tier2_connections: int
 ) -> bool:
@@ -821,10 +1109,10 @@ def frontier_stop_policy_selection(options: list[dict[str, Any]]) -> dict[str, A
 
 def ru_priority_source_options(
     data: dict[str, Any],
-    recommended_options: list[dict[str, Any]],
-    priority_options: list[dict[str, Any]],
+    primary_options: list[dict[str, Any]],
+    alternative_options: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    source = recommended_options + priority_options
+    source = primary_options + alternative_options
     seen: set[tuple[str, tuple[tuple[str, str, str], ...]]] = set()
     unique: list[dict[str, Any]] = []
     for option in source:
@@ -890,8 +1178,8 @@ def ru_priority_control_option(option: dict[str, Any], branch: str) -> dict[str,
 def build_ru_priority_controls(
     data: dict[str, Any],
     plan: dict[str, Any],
-    recommended_options: list[dict[str, Any]],
-    priority_options: list[dict[str, Any]],
+    primary_options: list[dict[str, Any]],
+    alternative_options: list[dict[str, Any]],
 ) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     if plan.get("routing_strategy") != RoutingStrategy.RU_PRIORITY:
         return None, []
@@ -929,7 +1217,7 @@ def build_ru_priority_controls(
         "decision": "no_viable_ru_priority_control",
     }
     source_options = ru_priority_source_options(
-        data, recommended_options, priority_options
+        data, primary_options, alternative_options
     )
     live = data.get("live_search") if isinstance(data.get("live_search"), dict) else {}
     branch_options: list[dict[str, Any]] = []
@@ -1017,10 +1305,16 @@ def build_ru_priority_controls(
 def build_agent_report(
     data: dict[str, Any], store: Any | None = None
 ) -> dict[str, Any]:
+    del store
     live = data.get("live_search") if isinstance(data.get("live_search"), dict) else {}
+    output_limits = catalog_output_limits_from_mapping(
+        live.get("output") if isinstance(live.get("output"), dict) else None
+    )
+    catalog_limit = output_limits.catalog_limit
+    direct_catalog_limit = output_limits.direct_catalog_limit
     plan = live.get("plan") if isinstance(live.get("plan"), dict) else {}
     assembly = data.get("assembly") if isinstance(data.get("assembly"), dict) else {}
-    all_direct = bool(assembly.get("all_direct_inventory"))
+    direct_mode_directions = active_direct_mode_directions(live, assembly)
     raw_aggregate_controls = [
         aggregate_control_summary(item)
         for item in live.get("aggregate_controls") or []
@@ -1038,60 +1332,52 @@ def build_agent_report(
         if isinstance(decision_frontier.get("coverage_summary"), dict)
         else {}
     )
-    frontier_source_options = decision_frontier_options(
-        data, limit=max(ALL_DIRECT_CATALOG_CAP, CATALOG_LIMIT_DEFAULT + 5)
-    )
-    catalog_limit = (
-        min(len(frontier_source_options), ALL_DIRECT_CATALOG_CAP)
-        if all_direct
-        else CATALOG_LIMIT_DEFAULT
-    )
+    frontier_source_options = decision_frontier_options(data, limit=catalog_limit + 5)
+    if direct_mode_directions:
+        frontier_source_options = direct_mode_candidate_options(
+            data, direct_mode_directions, limit=direct_catalog_limit
+        )
     ranked_total_count = int(
         decision_coverage.get("candidate_count") or len(frontier_source_options)
     )
-    direct_omitted = (
-        max(
-            0,
-            int(decision_coverage.get("direct_option_count") or 0)
-            - ALL_DIRECT_CATALOG_CAP,
-        )
-        if all_direct
-        else 0
-    )
     requested_round_trip = plan_requests_round_trip(plan)
-    frontier_ordered = order_frontier_options(
-        frontier_source_options,
-        is_round_trip_request=requested_round_trip,
-    )
-    if all_direct:
-        options = frontier_ordered[:catalog_limit]
-        priority_options: list[dict[str, Any]] = []
+    if direct_mode_directions:
+        options = frontier_source_options
+        alternative_options: list[dict[str, Any]] = []
     else:
+        frontier_ordered = order_frontier_options(
+            frontier_source_options,
+            is_round_trip_request=requested_round_trip,
+        )
         options = frontier_ordered[:1]
-        priority_options = frontier_ordered[1:catalog_limit]
+        alternative_options = frontier_ordered[1:catalog_limit]
     selected_stop_policy = frontier_stop_policy_selection(
-        [*options, *priority_options]
+        [*options, *alternative_options]
     )
     preferred_available = has_preferred_option(
-        options + priority_options
+        options + alternative_options
     ) or aggregate_has_preferred_offer(raw_aggregate_controls, stop_policy)
     aggregate_controls = filter_aggregate_controls_for_stop_policy(
         raw_aggregate_controls, stop_policy, preferred_available
     )
-    aggregate_priority_options = provider_aggregate_candidate_options(
-        raw_aggregate_controls,
-        limit=5,
-        stop_policy=stop_policy,
-        preferred_available=has_preferred_option(options + priority_options),
-        requested_round_trip=requested_round_trip,
+    aggregate_alternative_options = (
+        []
+        if direct_mode_directions
+        else provider_aggregate_candidate_options(
+            raw_aggregate_controls,
+            limit=5,
+            stop_policy=stop_policy,
+            preferred_available=has_preferred_option(options + alternative_options),
+            requested_round_trip=requested_round_trip,
+        )
     )
-    if aggregate_priority_options:
-        priority_options.extend(aggregate_priority_options)
-    ru_priority_controls, ru_priority_priority_options = build_ru_priority_controls(
-        data, plan, options, priority_options
+    if aggregate_alternative_options:
+        alternative_options.extend(aggregate_alternative_options)
+    ru_priority_controls, ru_priority_alternative_options = build_ru_priority_controls(
+        data, plan, options, alternative_options
     )
-    if ru_priority_priority_options:
-        priority_options = ru_priority_priority_options + priority_options
+    if ru_priority_alternative_options:
+        alternative_options = ru_priority_alternative_options + alternative_options
     stop_policy_diagnostics = merge_stop_policy_diagnostics(
         data,
         raw_aggregate_controls,
@@ -1099,79 +1385,84 @@ def build_agent_report(
         selected_stop_policy=selected_stop_policy,
     )
     coverage_diagnostics = build_coverage_diagnostics(plan, live)
-    plan_flow_decision = plan.get("flow_decision") if isinstance(plan, dict) else {}
     plan_evidence_plan = plan.get("evidence_plan") if isinstance(plan, dict) else {}
     tier2_segments = options[0].get("segments") if options else []
     tier2_origin = tier2_segments[0].get("origin") if tier2_segments else None
     tier2_destination = (
         tier2_segments[-1].get("destination") if tier2_segments else None
     )
-    report = {
-        "schema_version": AGENT_REPORT_SCHEMA_VERSION,
-        "route": {
-            "origin": plan.get("origin") or tier2_origin,
-            "destination": plan.get("destination") or tier2_destination,
-            "origin_airports": plan.get("origin_airports") or [],
-            "destination_airports": plan.get("destination_airports") or [],
-            "dates": plan.get("dates") or {},
-            "profile": data.get("profile") or plan.get("profile"),
-            "routing_strategy": plan.get("routing_strategy"),
-            "provider_policy": live.get("provider_policy"),
-            "flow_decision": plan_flow_decision
-            if isinstance(plan_flow_decision, dict)
-            else {},
-            "evidence_plan": plan_evidence_plan
-            if isinstance(plan_evidence_plan, dict)
-            else {},
-        },
-        "status": {
-            "ranked_output_count": assembly.get(
-                "ranked_output_count", len(data.get("ranked") or [])
-            ),
-            "ranked_total_count": ranked_total_count,
-            "candidate_count": assembly.get("candidate_count"),
-            "candidate_pool_truncated": assembly.get("candidate_pool_truncated"),
-            "failure_count": live.get("failure_count", 0),
-            "direct_priority_applied": assembly.get("direct_priority_applied", False),
-            "all_direct_inventory": assembly.get("all_direct_inventory", False),
-            "direct_omitted": direct_omitted,
-        },
-        "source_boundaries": source_boundaries(),
-        "hub_viability": hub_viability_summaries(live),
-        "segment_searches": segment_search_summaries(live),
-        "provider_failures": provider_failures(live),
-        "primary_offer_results": primary_offer_results(live),
-        "gateway_leg_results": live.get("gateway_leg_results")
-        if isinstance(live.get("gateway_leg_results"), dict)
-        else {},
-        "decision_frontier": decision_frontier,
-        "recommended_options": options,
-        "priority_options": priority_options,
-        "aggregate_controls": aggregate_controls,
-        "coverage_diagnostics": coverage_diagnostics,
-        "stop_policy": stop_policy_payload(stop_policy),
-        "stop_policy_diagnostics": stop_policy_diagnostics,
-        "through_fare_checks": through_fare_checks(
-            aggregate_controls, [*options, *priority_options]
+    route = {
+        "origin": plan.get("origin") or tier2_origin,
+        "destination": plan.get("destination") or tier2_destination,
+        "origin_airports": plan.get("origin_airports") or [],
+        "destination_airports": plan.get("destination_airports") or [],
+        "dates": plan.get("dates") or {},
+        "profile": data.get("profile") or plan.get("profile"),
+        "routing_strategy": plan.get("routing_strategy"),
+        "provider_policy": live.get("provider_policy"),
+    }
+    compact_failures = provider_failures(live)
+    coverage = compact_coverage_summary(coverage_diagnostics, compact_failures)
+    through_fare_check_items = through_fare_checks(
+        aggregate_controls, [*options, *alternative_options]
+    )
+    status = {
+        "ranked_output_count": assembly.get(
+            "ranked_output_count", len(data.get("ranked") or [])
         ),
-        "rejected_pair_warnings": rejected_pair_warnings(data, limit=5),
+        "ranked_total_count": ranked_total_count,
+        "candidate_count": assembly.get("candidate_count"),
+        "candidate_pool_truncated": assembly.get("candidate_pool_truncated"),
+        "failure_count": live.get("failure_count", 0),
+        "direct_priority_applied": assembly.get("direct_priority_applied", False),
+        "direct_mode": {direction: True for direction in direct_mode_directions},
+        "output_limits": output_limits.to_dict(),
+    }
+    offer_graph = (
+        live.get("offer_graph") if isinstance(live.get("offer_graph"), dict) else {}
+    )
+    truth_language = (
+        offer_graph.get("truth_language")
+        if isinstance(offer_graph.get("truth_language"), dict)
+        else {}
+    )
+    answer_input = UserAnswerInput(
+        route=route,
+        status=status,
+        source_boundaries=source_boundaries(),
+        provider_failures=compact_failures,
+        primary_options=options,
+        alternative_options=alternative_options,
+        coverage_report=coverage_diagnostics,
+        stop_policy=stop_policy_payload(stop_policy),
+        stop_policy_status=stop_policy_diagnostics,
+        through_fare_checks=through_fare_check_items,
+        truth_language=truth_language,
+    )
+    date_window_inventory = live.get("date_window_inventory")
+    evidence: dict[str, Any] = {
+        "source_boundaries": answer_input.source_boundaries,
+        "coverage": coverage,
+        "provider_failures": compact_failures,
+        "through_fare_checks": through_fare_check_items,
         "direct_flights": assembly.get("direct_flights", []),
     }
-    date_window_inventory = live.get("date_window_inventory")
     if isinstance(date_window_inventory, dict):
-        report["date_window_inventory"] = date_window_inventory
+        evidence["date_window_inventory"] = date_window_inventory
     if ru_priority_controls is not None:
-        report["ru_priority_controls"] = ru_priority_controls
-    report["offer_graph"] = build_offer_graph(report, plan, live, data)
-    display_limit = (
-        min(len(options), ALL_DIRECT_CATALOG_CAP)
-        if all_direct
-        else CATALOG_LIMIT_DEFAULT
-    )
-    report["display"] = build_itinerary_display(
-        report, store, limit=max(display_limit, CATALOG_LIMIT_DEFAULT)
-    )
-    report["answer_lines"] = build_summary_lines(report)
-    report["user_answer"] = build_user_answer(report)
-    report["human_answer"] = build_human_answer_mirror(report)
-    return project_agent_report(apply_agent_report_budget(report))
+        evidence["ru_priority_controls"] = ru_priority_controls
+    user_answer = build_user_answer(answer_input)
+    public_frontier = compact_public_decision_frontier(decision_frontier, user_answer)
+    return {
+        "schema_version": AGENT_REPORT_SCHEMA_VERSION,
+        "route": route,
+        "evidence": evidence,
+        "frontier": {"decision_frontier": public_frontier},
+        "user_answer": user_answer,
+        "agent_guidance": build_agent_guidance(
+            route=route,
+            coverage=coverage,
+            through_fare_check_items=through_fare_check_items,
+            evidence_plan=plan_evidence_plan if isinstance(plan_evidence_plan, dict) else {},
+        ),
+    }

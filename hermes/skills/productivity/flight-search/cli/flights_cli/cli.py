@@ -17,35 +17,16 @@ from .commands.diagnose import (
     command_diagnose_plan,
     command_diagnose_probe,
     command_diagnose_render,
+    command_diagnose_trace,
 )
 from .commands.metadata import (
     command_airports_explain,
     command_cities_search,
     metadata_evidence_scope,
 )
-from .commands.providers import (
-    command_fli_dates,
-    command_fli_search,
-    command_kb_roundtrip,
-    command_kb_search,
-    command_tutu_search,
-)
-from .commands.route import (
-    command_route_rank,
-    command_route_validate,
-)
 from .commands.search import command_search
-from .config import (
-    DEFAULT_CURRENCY,
-    DEFAULT_PROFILE,
-    FLI_MCP_DEFAULT_URL,
-    DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
-    DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR,
-    RISK_PROFILES,
-    TUTU_MCP_DEFAULT_URL,
-)
 from .errors import CliError
-from .output import emit_json, error_envelope, output_envelope, render_human
+from .output import emit_json, error_envelope, output_envelope, render_user_text
 from .providers.static_catalog import (
     DEFAULT_AUTO_REFRESH_MAX_AGE_SECONDS,
     parse_ttl_seconds,
@@ -54,180 +35,28 @@ from .providers.static_catalog import (
 from .store import Store
 
 
-def add_connection_policy_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--ticketing", choices=["separate", "single"], default="separate"
-    )
-    parser.add_argument(
-        "--profile",
-        choices=sorted(RISK_PROFILES),
-        default=DEFAULT_PROFILE,
-        help="Risk/ranking profile.",
-    )
-    parser.add_argument("--min-same-airport-min", type=int, default=120)
-    parser.add_argument("--min-cross-airport-min", type=int, default=300)
-
-
-def add_stop_policy_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--stop-policy",
-        choices=[
-            "business-default",
-            "strict-direct-one-stop",
-            "allow-two-stop-tier",
-            "debug-all",
-        ],
-        default="business-default",
-        help="Stop policy: prefer direct/one-stop; allow two-stop only as tier 2 by default; 3+ is suppressed in normal output.",
-    )
-    parser.add_argument(
-        "--max-connections",
-        type=int,
-        default=None,
-        help="Preferred max connections per journey. Default 1.",
-    )
-    parser.add_argument(
-        "--tier2-max-connections",
-        type=int,
-        default=None,
-        help="Tier 2 max connections per journey. Default 2.",
-    )
-    parser.add_argument(
-        "--include-stop-policy-diagnostics",
-        action="store_true",
-        help="Keep stop-policy diagnostics in agent_report.",
-    )
-
-
-def add_carrier_selection_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--only-carrier",
-        action="append",
-        help="Hard filter: every segment must use one of these carrier codes. Repeatable.",
-    )
-    parser.add_argument(
-        "--exclude-carrier",
-        action="append",
-        help="Hard filter: reject candidates using this carrier code. Repeatable.",
-    )
-    parser.add_argument(
-        "--prefer-carrier",
-        action="append",
-        help="Soft preference: demote candidates that do not use this carrier. Repeatable.",
-    )
-    parser.add_argument(
-        "--avoid-carrier",
-        action="append",
-        help="Soft preference: penalize candidates using this carrier. Repeatable.",
-    )
-    parser.add_argument(
-        "--include-filtered",
-        type=int,
-        default=20,
-        help="Include first N carrier-filtered candidates in JSON output.",
-    )
-
-
-def add_agent_output_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--agent-report",
-        action="store_true",
-        help="Include a compact agent_report block without changing other output limits.",
-    )
-    parser.add_argument(
-        "--agent-brief",
-        action="store_true",
-        help="Emit only the compact agent_report in JSON output. Implies --agent-report.",
-    )
-
-
-def add_fli_mcp_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--mcp-url",
-        default=os.getenv("FLIGHTS_FLI_MCP_URL", FLI_MCP_DEFAULT_URL),
-        help="FLI MCP HTTP URL. Default from FLIGHTS_FLI_MCP_URL or localhost.",
-    )
-    parser.add_argument(
-        "--timeout",
-        type=int,
-        default=60,
-        help="HTTP timeout seconds for FLI MCP calls.",
-    )
-
-
-def add_provider_cache_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--cache-ttl-seconds",
-        type=int,
-        default=DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
-        help="Short-lived live-search cache TTL seconds. Use 0 to disable.",
-    )
-    parser.add_argument(
-        "--no-cache", action="store_true", help="Bypass live-search cache."
-    )
-
-
-def add_assembly_output_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--limit-per-pair", type=int, default=DEFAULT_ROUTE_ASSEMBLE_LIMIT_PER_PAIR
-    )
-    parser.add_argument(
-        "--candidate-pool-limit",
-        type=int,
-        default=5000,
-        help="Maximum raw assembled candidates to score before ranked output is capped.",
-    )
-    parser.add_argument(
-        "--max-candidates",
-        type=int,
-        default=50,
-        help="Maximum ranked candidates to output after scoring.",
-    )
-    parser.add_argument("--max-reasons", type=int, default=5)
-    parser.add_argument("--include-candidates", type=int, default=5)
-    parser.add_argument(
-        "--include-ranked-candidates",
-        type=int,
-        default=5,
-        help="Include full candidate bodies for first N ranked candidates.",
-    )
-    parser.add_argument("--include-rejected-pairs", type=int, default=20)
-
-
-def _parent(add_flags) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(add_help=False)
-    add_flags(parser)
-    return parser
-
-
-def connection_policy_parent() -> argparse.ArgumentParser:
-    return _parent(add_connection_policy_flags)
-
-
-def stop_policy_parent() -> argparse.ArgumentParser:
-    return _parent(add_stop_policy_flags)
-
-
-def carrier_selection_parent() -> argparse.ArgumentParser:
-    return _parent(add_carrier_selection_flags)
-
-
-def agent_output_parent() -> argparse.ArgumentParser:
-    return _parent(add_agent_output_flags)
-
-
-def assembly_output_parent() -> argparse.ArgumentParser:
-    return _parent(add_assembly_output_flags)
-
-
 def _catalog_read_defaults(**kwargs: Any) -> dict[str, Any]:
     return {"catalog_access": "auto_refresh", "requires_catalog": True, **kwargs}
 
 
-def _register_primary_search_commands(sub) -> None:
+def _json_parent() -> argparse.ArgumentParser:
+    parent = argparse.ArgumentParser(add_help=False)
+    parent.add_argument(
+        "--json",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help=argparse.SUPPRESS,
+    )
+    return parent
+
+
+def _register_primary_search_commands(
+    sub, json_parent: argparse.ArgumentParser
+) -> None:
     search = sub.add_parser(
         "search",
-        help="Primary request-file route search; JSON output keeps current flight_search_result envelope.",
+        parents=[json_parent],
+        help="Primary request-file route search; JSON output keeps compact flight_search_result envelope.",
     )
     search.add_argument(
         "--request",
@@ -239,13 +68,16 @@ def _register_primary_search_commands(sub) -> None:
     )
 
 
-def _register_diagnose_commands(sub) -> None:
+def _register_diagnose_commands(sub, json_parent: argparse.ArgumentParser) -> None:
     diagnose = sub.add_parser(
-        "diagnose", help="Diagnostics for plan/probe/render workflows."
+        "diagnose",
+        parents=[json_parent],
+        help="Diagnostics for plan/probe/render/trace workflows.",
     )
     diagnose_sub = diagnose.add_subparsers(dest="diagnose_command", required=True)
     plan = diagnose_sub.add_parser(
         "plan",
+        parents=[json_parent],
         help="Render the route segment plan from a flight_search_request.v1 file without provider calls.",
     )
     plan.add_argument(
@@ -259,7 +91,9 @@ def _register_diagnose_commands(sub) -> None:
         **_catalog_read_defaults(),
     )
     probe = diagnose_sub.add_parser(
-        "probe", help="Run a single provider probe from a probe JSON file."
+        "probe",
+        parents=[json_parent],
+        help="Run a single provider probe from a probe JSON file.",
     )
     probe.add_argument(
         "--provider", required=True, choices=["kupibilet", "fli", "tutu"]
@@ -269,7 +103,9 @@ def _register_diagnose_commands(sub) -> None:
     )
     probe.set_defaults(func=command_diagnose_probe, command_name="diagnose probe")
     render = diagnose_sub.add_parser(
-        "render", help="Render human-answer diagnostics from an agent_report JSON file."
+        "render",
+        parents=[json_parent],
+        help="Validate and render user_answer from an agent_report JSON file.",
     )
     render.add_argument(
         "--input",
@@ -277,58 +113,31 @@ def _register_diagnose_commands(sub) -> None:
         help="agent_report JSON file, output envelope, or - for stdin.",
     )
     render.set_defaults(func=command_diagnose_render, command_name="diagnose render")
-
-    kb_search = diagnose_sub.add_parser(
-        "kb-search",
-        help="Kupibilet live aggregate diagnostic; use --only-carrier SU for Aeroflot-marketed flights.",
+    trace = diagnose_sub.add_parser(
+        "trace",
+        parents=[json_parent],
+        help="Run search and return the full route/live diagnostic trace.",
     )
-    _add_kb_search_flags(kb_search)
-    kb_search.set_defaults(func=command_kb_search, command_name="diagnose kb-search")
-
-    kb_roundtrip = diagnose_sub.add_parser(
-        "kb-roundtrip",
-        help="Kupibilet live round-trip aggregate diagnostic using a two-trip frontend_search request.",
+    trace.add_argument(
+        "--request",
+        required=True,
+        help="flight_search_request.v1 JSON file, or - for stdin.",
     )
-    _add_kb_roundtrip_flags(kb_roundtrip)
-    kb_roundtrip.set_defaults(
-        func=command_kb_roundtrip, command_name="diagnose kb-roundtrip"
-    )
-
-    tutu_search = diagnose_sub.add_parser(
-        "tutu-search",
-        help="Tutu MCP live aggregate diagnostic; supports one-way and round-trip search_avia probes.",
-    )
-    _add_tutu_search_flags(tutu_search)
-    tutu_search.set_defaults(
-        func=command_tutu_search,
-        command_name="diagnose tutu-search",
+    trace.set_defaults(
+        func=command_diagnose_trace,
+        command_name="diagnose trace",
         **_catalog_read_defaults(),
     )
 
-    fli_search = diagnose_sub.add_parser(
-        "fli-search",
-        help="FLI MCP live Google Flights diagnostic through a self-hosted MCP HTTP server.",
-    )
-    _add_fli_search_flags(fli_search)
-    fli_search.set_defaults(
-        func=command_fli_search,
-        command_name="diagnose fli-search",
-        **_catalog_read_defaults(),
-    )
 
-    fli_dates = diagnose_sub.add_parser(
-        "fli-dates",
-        help="FLI MCP flexible-date diagnostic through a self-hosted MCP HTTP server.",
+def _register_maint_commands(sub, json_parent: argparse.ArgumentParser) -> None:
+    maint = sub.add_parser(
+        "maint", parents=[json_parent], help="Primary maintenance namespace."
     )
-    _add_fli_dates_flags(fli_dates)
-    fli_dates.set_defaults(func=command_fli_dates, command_name="diagnose fli-dates")
-
-
-def _register_maint_commands(sub) -> None:
-    maint = sub.add_parser("maint", help="Primary maintenance namespace.")
     maint_sub = maint.add_subparsers(dest="maint_command", required=True)
     check = maint_sub.add_parser(
         "check",
+        parents=[json_parent],
         help="Report source/runtime provenance and local maintenance status without network calls.",
     )
     check.add_argument(
@@ -338,19 +147,28 @@ def _register_maint_commands(sub) -> None:
     check.set_defaults(func=command_maintenance_check, command_name="maint check")
     doctor = maint_sub.add_parser(
         "doctor",
+        parents=[json_parent],
         help="Check local caches and static catalog status without provider calls.",
     )
     doctor.set_defaults(func=command_maint_doctor, command_name="maint doctor")
-    catalog = maint_sub.add_parser("catalog", help="Static catalog maintenance.")
+    catalog = maint_sub.add_parser(
+        "catalog",
+        parents=[json_parent],
+        help="Static catalog maintenance.",
+    )
     catalog_sub = catalog.add_subparsers(dest="maint_catalog_command", required=True)
     manifest = catalog_sub.add_parser(
-        "manifest", help="Show the local static catalog manifest."
+        "manifest",
+        parents=[json_parent],
+        help="Show the local static catalog manifest.",
     )
     manifest.set_defaults(
         func=command_maint_catalog_manifest, command_name="maint catalog manifest"
     )
     refresh = catalog_sub.add_parser(
-        "refresh", help="Download public static catalog JSON files explicitly."
+        "refresh",
+        parents=[json_parent],
+        help="Download public static catalog JSON files explicitly.",
     )
     refresh.add_argument(
         "--only",
@@ -372,11 +190,15 @@ def _register_maint_commands(sub) -> None:
     )
 
 
-def _register_metadata_commands(sub) -> None:
-    cities = sub.add_parser("cities", help="City lookup commands.")
+def _register_metadata_commands(sub, json_parent: argparse.ArgumentParser) -> None:
+    cities = sub.add_parser(
+        "cities", parents=[json_parent], help="City lookup commands."
+    )
     cities_sub = cities.add_subparsers(dest="cities_command", required=True)
     cities_search = cities_sub.add_parser(
-        "search", help="Search city name or IATA code in local cache."
+        "search",
+        parents=[json_parent],
+        help="Search city name or IATA code in local cache.",
     )
     cities_search.add_argument("query")
     cities_search.add_argument("--limit", type=int, default=5)
@@ -386,10 +208,14 @@ def _register_metadata_commands(sub) -> None:
         **_catalog_read_defaults(),
     )
 
-    airports = sub.add_parser("airports", help="Airport rule lookup commands.")
+    airports = sub.add_parser(
+        "airports", parents=[json_parent], help="Airport rule lookup commands."
+    )
     airports_sub = airports.add_subparsers(dest="airports_command", required=True)
     airports_explain = airports_sub.add_parser(
-        "explain", help="Explain airport and multi-airport risk rules."
+        "explain",
+        parents=[json_parent],
+        help="Explain airport and multi-airport risk rules.",
     )
     airports_explain.add_argument("code", nargs="+")
     airports_explain.set_defaults(
@@ -397,224 +223,6 @@ def _register_metadata_commands(sub) -> None:
         command_name="airports explain",
         **_catalog_read_defaults(),
     )
-
-
-def _add_kb_search_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("origin", help="Origin IATA code (e.g. SVX).")
-    parser.add_argument(
-        "destination", help="Destination city/airport IATA code (e.g. MOW or SVO)."
-    )
-    parser.add_argument(
-        "--depart-date", required=True, help="Departure date YYYY-MM-DD."
-    )
-    parser.add_argument(
-        "--currency", default=DEFAULT_CURRENCY, help="Currency code (default: RUB)."
-    )
-    parser.add_argument(
-        "--only-carrier",
-        action="append",
-        help="Require each flight leg to match this marketing or operating carrier. Repeatable.",
-    )
-    parser.add_argument(
-        "--direct-only", action="store_true", help="Only direct one-leg offers."
-    )
-    parser.add_argument(
-        "--limit", type=int, default=20, help="Maximum normalized offers to show."
-    )
-    parser.add_argument("--timeout", type=int, default=60, help="HTTP timeout seconds.")
-    add_provider_cache_flags(parser)
-
-
-def _add_kb_roundtrip_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("origin", help="Origin IATA code (e.g. SVX).")
-    parser.add_argument(
-        "destination", help="Destination city/airport IATA code (e.g. BJS or PKX)."
-    )
-    parser.add_argument(
-        "--depart-date", required=True, help="Outbound date YYYY-MM-DD."
-    )
-    parser.add_argument("--return-date", required=True, help="Return date YYYY-MM-DD.")
-    parser.add_argument(
-        "--currency", default=DEFAULT_CURRENCY, help="Currency code (default: RUB)."
-    )
-    parser.add_argument(
-        "--only-carrier",
-        action="append",
-        help="Require every outbound/return flight leg to match this marketing or operating carrier. Repeatable.",
-    )
-    parser.add_argument(
-        "--direct-only",
-        action="store_true",
-        help="Only direct one-leg outbound and direct one-leg return offers.",
-    )
-    parser.add_argument(
-        "--limit",
-        type=int,
-        default=20,
-        help="Maximum normalized round-trip fare packages to show.",
-    )
-    parser.add_argument("--timeout", type=int, default=60, help="HTTP timeout seconds.")
-    add_provider_cache_flags(parser)
-
-
-def _add_tutu_search_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("origin", help="Origin city/airport IATA code (e.g. SVX).")
-    parser.add_argument(
-        "destination", help="Destination city/airport IATA code (e.g. AER)."
-    )
-    parser.add_argument(
-        "--depart-date", required=True, help="Departure date YYYY-MM-DD."
-    )
-    parser.add_argument(
-        "--return-date",
-        default=None,
-        help="Return date YYYY-MM-DD for round-trip Tutu search_avia.",
-    )
-    parser.add_argument(
-        "--currency", default=DEFAULT_CURRENCY, help="Currency code (default: RUB)."
-    )
-    parser.add_argument(
-        "--only-carrier",
-        action="append",
-        help="Require each flight leg to match this carrier code. Repeatable.",
-    )
-    parser.add_argument(
-        "--direct-only", action="store_true", help="Only direct one-leg offers."
-    )
-    parser.add_argument(
-        "--limit", type=int, default=20, help="Maximum normalized offers to show."
-    )
-    parser.add_argument("--timeout", type=int, default=60, help="HTTP timeout seconds.")
-    parser.add_argument(
-        "--tutu-mcp-url",
-        default=os.getenv("FLIGHTS_TUTU_MCP_URL", TUTU_MCP_DEFAULT_URL),
-        help="Tutu MCP HTTP URL. Default from FLIGHTS_TUTU_MCP_URL or tutu.ru.",
-    )
-    add_provider_cache_flags(parser)
-
-
-def _add_fli_search_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("origin", help="Origin airport IATA code (e.g. IST).")
-    parser.add_argument("destination", help="Destination airport IATA code (e.g. LHR).")
-    parser.add_argument(
-        "--depart-date", required=True, help="Departure date YYYY-MM-DD."
-    )
-    parser.add_argument(
-        "--currency",
-        default=DEFAULT_CURRENCY,
-        help="Fallback currency code when FLI omits one (default: RUB).",
-    )
-    parser.add_argument(
-        "--only-carrier",
-        action="append",
-        help="Filter by airline IATA code. Repeatable.",
-    )
-    parser.add_argument(
-        "--direct-only", action="store_true", help="Request non-stop results only."
-    )
-    parser.add_argument(
-        "--max-stops",
-        choices=["ANY", "NON_STOP", "ONE_STOP", "TWO_PLUS_STOPS"],
-        default="ANY",
-    )
-    parser.add_argument(
-        "--cabin-class",
-        choices=["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS", "FIRST"],
-        default="ECONOMY",
-    )
-    parser.add_argument(
-        "--sort-by",
-        choices=[
-            "TOP_FLIGHTS",
-            "BEST",
-            "CHEAPEST",
-            "DEPARTURE_TIME",
-            "ARRIVAL_TIME",
-            "DURATION",
-            "EMISSIONS",
-        ],
-        default="CHEAPEST",
-    )
-    parser.add_argument("--passengers", type=int, default=1)
-    parser.add_argument(
-        "--limit", type=int, default=20, help="Maximum normalized offers to show."
-    )
-    add_fli_mcp_flags(parser)
-    add_provider_cache_flags(parser)
-
-
-def _add_fli_dates_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("origin", help="Origin airport IATA code (e.g. IST).")
-    parser.add_argument("destination", help="Destination airport IATA code (e.g. LHR).")
-    parser.add_argument("--from-date", required=True, help="Start date YYYY-MM-DD.")
-    parser.add_argument("--to-date", required=True, help="End date YYYY-MM-DD.")
-    parser.add_argument(
-        "--trip-duration",
-        type=int,
-        default=3,
-        help="Trip duration in days for round-trip date search.",
-    )
-    parser.add_argument(
-        "--round-trip", action="store_true", help="Search round-trip date prices."
-    )
-    parser.add_argument(
-        "--only-carrier",
-        action="append",
-        help="Filter by airline IATA code. Repeatable.",
-    )
-    parser.add_argument(
-        "--direct-only", action="store_true", help="Request non-stop results only."
-    )
-    parser.add_argument(
-        "--max-stops",
-        choices=["ANY", "NON_STOP", "ONE_STOP", "TWO_PLUS_STOPS"],
-        default="ANY",
-    )
-    parser.add_argument(
-        "--cabin-class",
-        choices=["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS", "FIRST"],
-        default="ECONOMY",
-    )
-    parser.add_argument(
-        "--sort-by-price", action="store_true", help="Sort dates by lowest price."
-    )
-    parser.add_argument("--passengers", type=int, default=1)
-    parser.add_argument("--limit", type=int, default=30)
-    add_fli_mcp_flags(parser)
-
-
-def _register_route_commands(sub) -> None:
-    route = sub.add_parser("route", help="Route planning and validation commands.")
-    route_sub = route.add_subparsers(dest="route_command", required=True)
-
-    route_validate = route_sub.add_parser(
-        "validate",
-        parents=[connection_policy_parent()],
-        help="Validate airport compatibility and connection windows from JSON.",
-    )
-    route_validate.add_argument(
-        "--input", default="-", help="Input JSON file, or - for stdin."
-    )
-    route_validate.set_defaults(
-        func=command_route_validate, command_name="route validate"
-    )
-
-    route_rank = route_sub.add_parser(
-        "rank",
-        parents=[
-            connection_policy_parent(),
-            carrier_selection_parent(),
-            stop_policy_parent(),
-        ],
-        help="Score and rank itinerary candidates from JSON.",
-    )
-    route_rank.add_argument(
-        "--input",
-        default="-",
-        help="Input JSON list, or object with itineraries/candidates.",
-    )
-    route_rank.add_argument("--max-reasons", type=int, default=5)
-    route_rank.set_defaults(func=command_route_rank, command_name="route rank")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -646,20 +254,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--version", action="version", version=f"%(prog)s {__version__}"
     )
     sub = parser.add_subparsers(dest="command", required=True)
+    json_parent = _json_parent()
 
-    _register_primary_search_commands(sub)
-    _register_diagnose_commands(sub)
-    _register_maint_commands(sub)
-    _register_metadata_commands(sub)
-    _register_route_commands(sub)
+    _register_primary_search_commands(sub, json_parent)
+    _register_diagnose_commands(sub, json_parent)
+    _register_maint_commands(sub, json_parent)
+    _register_metadata_commands(sub, json_parent)
 
     return parser
-
-
-def normalize_global_json(argv: list[str]) -> list[str]:
-    if "--json" not in argv[1:]:
-        return argv
-    return [argv[0], "--json"] + [item for item in argv[1:] if item != "--json"]
 
 
 def validate_cli_config(args: argparse.Namespace) -> None:
@@ -700,32 +302,17 @@ def auto_refresh_catalog(args: argparse.Namespace, store: Store) -> dict | None:
     return result
 
 
-def apply_agent_output_defaults(args: argparse.Namespace) -> None:
-    if bool(getattr(args, "agent_brief", False)):
-        args.agent_report = True
-
-
-def apply_agent_brief_output(args: argparse.Namespace, data: object) -> object:
-    if not bool(getattr(args, "agent_brief", False)):
-        return data
-    if isinstance(data, dict) and isinstance(data.get("agent_report"), dict):
-        return {"agent_report": data["agent_report"]}
-    return data
-
-
 def main(argv: list[str] | None = None) -> int:
-    argv = normalize_global_json(list(sys.argv if argv is None else argv))
+    argv = list(sys.argv if argv is None else argv)
     parser = build_parser()
     args = parser.parse_args(argv[1:])
     try:
         validate_cli_config(args)
-        apply_agent_output_defaults(args)
         store = Store()
         catalog_auto_refresh = auto_refresh_catalog(args, store)
         data = args.func(args, store)
         if catalog_auto_refresh is not None and isinstance(data, dict):
             data["catalog_auto_refresh"] = catalog_auto_refresh
-        data = apply_agent_brief_output(args, data)
     except CliError as exc:
         if args.json:
             emit_json(error_envelope(exc))
@@ -741,5 +328,5 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         emit_json(output_envelope(args.command_name, data))
     else:
-        print(render_human(args.command_name, data))
+        print(render_user_text(args.command_name, data))
     return 0

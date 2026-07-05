@@ -11,7 +11,7 @@ from ..domain.stop_policy import (
     decide_stop_policy,
 )
 from .formatting import price_label
-from .option_projector import segment_summary
+from .decision_options import segment_summary
 
 
 def aggregate_offer_with_stop_metrics(offer: dict[str, Any]) -> dict[str, Any]:

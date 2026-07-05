@@ -4,6 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..config import SPECIAL_CITY_AIRPORTS
 from ..domain.gateway_discovery import GatewayDiscoveryService
 from ..domain.normalize import normalize_carrier_code
 from ..domain.vocabulary import Direction, Leg, RouteFamily
@@ -34,8 +35,7 @@ from ..pipeline.offer_graph import (
 )
 from ..pipeline.options import LiveAssemblyOptions
 from ..pipeline.search_pipeline import LiveRouteSearchFlow, build_live_route_search_flow
-from ..reporting.date_window_projector import build_date_window_inventory
-from ..services.agent_report import AgentReportOptions, attach_agent_report
+from ..reporting.date_window_inventory import build_date_window_inventory
 from ..store import Store
 from .search_plan_builder import build_runtime_route_plan, build_search_plan
 
@@ -60,6 +60,12 @@ class LiveAssemblyState:
     direct_inventory_results: list[dict[str, Any]] = field(default_factory=list)
     failures: list[dict[str, Any]] = field(default_factory=list)
     probe_ledger: ProbeExecutionLedger = field(default_factory=ProbeExecutionLedger)
+    planned_gateway_leg_queries: list[dict[str, Any]] = field(default_factory=list)
+    direct_mode: dict[str, bool] = field(default_factory=dict)
+    direct_presence_gate: dict[str, Any] = field(default_factory=dict)
+    direct_mode_max_connections_by_direction: dict[str, int] = field(
+        default_factory=dict
+    )
 
 
 def hub_viability_summary(
@@ -75,9 +81,7 @@ def hub_viability_summary(
     gateway_rows = [item for item in gateways or [] if isinstance(item, dict)]
     return {
         "hubs": list(plan.get("hubs") or []),
-        "searched_gateways": int(
-            gateway_leg_results.get("searched_gateways") or 0
-        )
+        "searched_gateways": int(gateway_leg_results.get("searched_gateways") or 0)
         if isinstance(gateway_leg_results, dict)
         else 0,
         "viable_gateways": int(gateway_leg_results.get("viable_gateways") or 0)
@@ -142,7 +146,9 @@ def search_plan_with_gateway_discovery_output(
 
 
 def _direct_leg_for_direction(direction: Any) -> str:
-    return Leg.DIRECT_RETURN if str(direction) == Direction.RETURN else Leg.DIRECT_OUTBOUND
+    return (
+        Leg.DIRECT_RETURN if str(direction) == Direction.RETURN else Leg.DIRECT_OUTBOUND
+    )
 
 
 def _primary_direct_inventory_searches(
@@ -152,7 +158,9 @@ def _primary_direct_inventory_searches(
     for result in primary_offer_results:
         if not isinstance(result, dict):
             continue
-        filters = result.get("filters") if isinstance(result.get("filters"), dict) else {}
+        filters = (
+            result.get("filters") if isinstance(result.get("filters"), dict) else {}
+        )
         if not bool(filters.get("direct_only")) and not bool(result.get("direct_only")):
             continue
         searches.append(
@@ -181,10 +189,14 @@ def _primary_direct_inventory_results(
     for result in primary_offer_results:
         if not isinstance(result, dict):
             continue
-        filters = result.get("filters") if isinstance(result.get("filters"), dict) else {}
+        filters = (
+            result.get("filters") if isinstance(result.get("filters"), dict) else {}
+        )
         if not bool(filters.get("direct_only")) and not bool(result.get("direct_only")):
             continue
-        offers = [offer for offer in result.get("top_offers") or [] if isinstance(offer, dict)]
+        offers = [
+            offer for offer in result.get("top_offers") or [] if isinstance(offer, dict)
+        ]
         segment_results.append(
             {
                 "role": RouteFamily.DIRECT_INVENTORY,
@@ -208,15 +220,284 @@ def _decision_options(decision_frontier: dict[str, Any]) -> list[dict[str, Any]]
     ]
 
 
-def _all_direct_inventory(
-    flow: LiveRouteSearchFlow, decision_frontier: dict[str, Any]
+def _candidate_ids(candidate_envelope: dict[str, Any]) -> list[str]:
+    return [
+        str(candidate.get("id"))
+        for candidate in candidate_envelope.get("candidates") or []
+        if isinstance(candidate, dict) and candidate.get("id")
+    ]
+
+
+def _normalize_direction(value: Any) -> str:
+    direction = str(value or Direction.OUTBOUND).strip().lower()
+    return Direction.RETURN if direction == Direction.RETURN else Direction.OUTBOUND
+
+
+def _airport_set(*values: Any) -> set[str]:
+    airports: set[str] = set()
+    for value in values:
+        code = str(value or "").strip().upper()
+        if not code:
+            continue
+        airports.add(code)
+        airports.update(
+            str(item).upper() for item in SPECIAL_CITY_AIRPORTS.get(code, [])
+        )
+    return airports
+
+
+def _requested_airport_pair(
+    plan: dict[str, Any], direction: str
+) -> tuple[set[str], set[str]]:
+    origin = plan.get("origin")
+    destination = plan.get("destination")
+    origin_airports = (
+        plan.get("origin_airports")
+        if isinstance(plan.get("origin_airports"), list)
+        else []
+    )
+    destination_airports = (
+        plan.get("destination_airports")
+        if isinstance(plan.get("destination_airports"), list)
+        else []
+    )
+    if _normalize_direction(direction) == Direction.RETURN:
+        return (
+            _airport_set(destination, *destination_airports),
+            _airport_set(origin, *origin_airports),
+        )
+    return (
+        _airport_set(origin, *origin_airports),
+        _airport_set(destination, *destination_airports),
+    )
+
+
+def _provider_result_offers(result: dict[str, Any]) -> list[Any]:
+    for key in ("top_offers", "normalized_offers", "offers"):
+        offers = result.get(key)
+        if isinstance(offers, list):
+            return offers
+    normalized_result = result.get("normalized_result")
+    if isinstance(normalized_result, dict):
+        return _provider_result_offers(normalized_result)
+    return []
+
+
+def _offer_paths(
+    offer: dict[str, Any], *, fallback_direction: str
+) -> list[dict[str, Any]]:
+    journeys = offer.get("journeys")
+    paths: list[dict[str, Any]] = []
+    if isinstance(journeys, list):
+        for journey in journeys:
+            if not isinstance(journey, dict):
+                continue
+            journey_segments = _segment_dicts(journey.get("segments"))
+            if not journey_segments:
+                continue
+            paths.append(
+                {
+                    "direction": _normalize_direction(
+                        journey.get("direction") or fallback_direction
+                    ),
+                    "segments": journey_segments,
+                }
+            )
+    if paths:
+        return paths
+    segments = _segment_dicts(offer.get("segments"))
+    if segments:
+        return [
+            {
+                "direction": _normalize_direction(
+                    offer.get("direction") or fallback_direction
+                ),
+                "segments": segments,
+            }
+        ]
+    return []
+
+
+def _segment_dicts(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [segment for segment in value if isinstance(segment, dict)]
+
+
+def _segment_origin(segment: dict[str, Any]) -> str:
+    return str(
+        segment.get("origin")
+        or segment.get("departure")
+        or segment.get("from")
+        or segment.get("departure_airport")
+        or ""
+    ).upper()
+
+
+def _segment_destination(segment: dict[str, Any]) -> str:
+    return str(
+        segment.get("destination")
+        or segment.get("arrival")
+        or segment.get("to")
+        or segment.get("arrival_airport")
+        or ""
+    ).upper()
+
+
+def _path_has_requested_direct_segment(
+    path: dict[str, Any],
+    *,
+    requested_origins: set[str],
+    requested_destinations: set[str],
 ) -> bool:
-    if not flow.evidence_plan.direct_only:
+    segments = path["segments"]
+    if len(segments) != 1:
         return False
-    options = _decision_options(decision_frontier)
-    if not options:
-        return True
-    return all(int(item.get("connection_count") or 0) == 0 for item in options)
+    segment = segments[0]
+    return (
+        _segment_origin(segment) in requested_origins
+        and _segment_destination(segment) in requested_destinations
+    )
+
+
+def _direct_evidence_by_direction(
+    plan: dict[str, Any], primary_offer_results: list[dict[str, Any]]
+) -> dict[str, bool]:
+    evidence = {Direction.OUTBOUND: False}
+    if (plan.get("dates") or {}).get("return"):
+        evidence[Direction.RETURN] = False
+    for result in primary_offer_results:
+        if not isinstance(result, dict):
+            continue
+        direction = _normalize_direction(result.get("direction"))
+        for offer in _provider_result_offers(result):
+            if not isinstance(offer, dict):
+                continue
+            for path in _offer_paths(offer, fallback_direction=direction):
+                path_direction = _normalize_direction(path.get("direction"))
+                if path_direction not in evidence:
+                    continue
+                requested_origins, requested_destinations = _requested_airport_pair(
+                    plan, path_direction
+                )
+                if path_direction == direction:
+                    requested_origins.update(_airport_set(result.get("origin")))
+                    requested_destinations.update(
+                        _airport_set(result.get("destination"))
+                    )
+                if _path_has_requested_direct_segment(
+                    path,
+                    requested_origins=requested_origins,
+                    requested_destinations=requested_destinations,
+                ):
+                    evidence[path_direction] = True
+    return evidence
+
+
+def _direct_mode_disabled_reason(options: LiveAssemblyOptions) -> str | None:
+    if (
+        options.route.max_connections is not None
+        and int(options.route.max_connections) >= 1
+    ):
+        return "max_connections_override"
+    return None
+
+
+def _direct_mode_from_primary_results(
+    options: LiveAssemblyOptions,
+    plan: dict[str, Any],
+    primary_offer_results: list[dict[str, Any]],
+) -> tuple[dict[str, bool], dict[str, Any]]:
+    evidence = _direct_evidence_by_direction(plan, primary_offer_results)
+    disabled_reason = _direct_mode_disabled_reason(options)
+    if disabled_reason:
+        direct_mode = {direction: False for direction in evidence}
+    else:
+        direct_mode = {
+            direction: bool(present) for direction, present in evidence.items()
+        }
+    return direct_mode, {
+        "schema_version": "flight_direct_presence_gate.v1",
+        "direct_evidence_present": dict(evidence),
+        "direct_mode": dict(direct_mode),
+        "disabled_reason": disabled_reason,
+        "source": "wave0_primary_offer_results",
+    }
+
+
+def _query_in_direct_mode(query: dict[str, Any], direct_mode: dict[str, bool]) -> bool:
+    direction = _normalize_direction(query.get("direction"))
+    return bool(direct_mode.get(direction))
+
+
+def _filter_gateway_queries_for_direct_mode(
+    queries: list[dict[str, Any]],
+    direct_mode: dict[str, bool],
+    probe_ledger: ProbeExecutionLedger,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    kept: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    for query in queries:
+        if not isinstance(query, dict):
+            continue
+        if _query_in_direct_mode(query, direct_mode):
+            skipped.append(query)
+            probe_ledger.record_skipped(query, reason="direct_mode")
+            continue
+        kept.append(query)
+    return kept, skipped
+
+
+def _fallback_directions_from_frontier(
+    decision_frontier: dict[str, Any], direct_mode: dict[str, bool]
+) -> list[str]:
+    coverage = (
+        decision_frontier.get("coverage_summary")
+        if isinstance(decision_frontier.get("coverage_summary"), dict)
+        else {}
+    )
+    if int(coverage.get("acceptable_count") or 0) > 0:
+        return []
+    if int(coverage.get("direct_option_count") or 0) <= 0:
+        return []
+    by_direction = (
+        coverage.get("direct_option_count_by_direction")
+        if isinstance(coverage.get("direct_option_count_by_direction"), dict)
+        else {}
+    )
+    return [
+        direction
+        for direction, enabled in direct_mode.items()
+        if enabled and int(by_direction.get(direction) or 0) > 0
+    ]
+
+
+def _merge_gateway_leg_results(
+    base: dict[str, Any], fallback: dict[str, Any]
+) -> dict[str, Any]:
+    if not base:
+        return fallback
+    if not fallback:
+        return base
+    merged = deepcopy(base)
+    merged["gateways"] = [
+        *(base.get("gateways") or []),
+        *(fallback.get("gateways") or []),
+    ]
+    for key in (
+        "searched_gateways",
+        "viable_gateways",
+        "failed_gateways",
+        "not_searched_budget",
+    ):
+        merged[key] = int(base.get(key) or 0) + int(fallback.get(key) or 0)
+    diagnostics = deepcopy(base.get("wave_diagnostics") or {})
+    fallback_diagnostics = fallback.get("wave_diagnostics")
+    if isinstance(fallback_diagnostics, dict):
+        diagnostics["direct_mode_fallback"] = fallback_diagnostics
+    if diagnostics:
+        merged["wave_diagnostics"] = diagnostics
+    return merged
 
 
 def _effective_hard_max_connections(options: LiveAssemblyOptions) -> int:
@@ -246,10 +527,13 @@ class LiveSearchResultBuilder:
         self.store = store
         self.provider_policy = provider_policy
 
-    def build(self, state: LiveAssemblyState) -> dict[str, Any]:
+    def build_route_trace(self, state: LiveAssemblyState) -> dict[str, Any]:
         offer_graph = build_pipeline_offer_graph(
             primary_offer_results=state.primary_offer_results,
             gateway_leg_results=state.gateway_leg_results,
+            direct_mode=state.direct_mode,
+            requested_origin=str(state.plan.get("origin") or ""),
+            requested_destination=str(state.plan.get("destination") or ""),
         )
         aggregate_controls = run_aggregate_controls(
             AggregateControlOptions(
@@ -282,6 +566,7 @@ class LiveSearchResultBuilder:
         offer_candidates = materialize_offer_graph_candidates(
             offer_graph,
             direct_only=bool(state.flow.evidence_plan.direct_only),
+            direct_mode=state.direct_mode,
             requested_origin=str(state.plan.get("origin") or ""),
             requested_destination=str(state.plan.get("destination") or ""),
         )
@@ -291,13 +576,15 @@ class LiveSearchResultBuilder:
                 max_connections_per_journey=_effective_hard_max_connections(
                     self.options
                 ),
+                max_connections_per_direction=(
+                    state.direct_mode_max_connections_by_direction
+                ),
                 preferred_connections=_preferred_max_connections(self.options),
                 min_same_airport_connection_min=self.options.route.min_same_airport_min,
                 min_cross_airport_connection_min=self.options.route.min_cross_airport_min,
             )
         ).score(
             offer_candidates,
-            constraints=self.options.constraints.to_dict(),
             controls=[*graph_controls, *aggregate_controls],
         )
         decision_frontier = scored_decisions["decision_frontier"]
@@ -318,20 +605,17 @@ class LiveSearchResultBuilder:
             if isinstance(decision_frontier.get("coverage_summary"), dict)
             else {}
         )
-        route_result: dict[str, Any] = {
-            "schema_version": "flight_route_result.v3",
+        route_trace: dict[str, Any] = {
+            "schema_version": "flight_route_trace_diagnostic.v1",
             "origin": state.plan.get("origin"),
             "destination": state.plan.get("destination"),
             "dates": deepcopy(state.plan.get("dates") or {}),
             "currency": state.plan.get("currency"),
             "count": len(_decision_options(decision_frontier)),
             "decision_frontier": decision_frontier,
-            "segment_results": [],
             "assembly": {
                 "source": "decision_frontier",
-                "all_direct_inventory": _all_direct_inventory(
-                    state.flow, decision_frontier
-                ),
+                "direct_mode": dict(state.direct_mode),
                 "candidate_count": int(coverage.get("candidate_count") or 0),
                 "ranked_total_count": int(coverage.get("candidate_count") or 0),
                 "ranked_output_count": len(_decision_options(decision_frontier)),
@@ -342,10 +626,11 @@ class LiveSearchResultBuilder:
                 "provider_policy": self.provider_policy,
                 "note": "Provider offers are shopping evidence; verify final fare, baggage, and ticket protection on the booking screen.",
                 "plan": deepcopy(state.plan),
+                "output": {
+                    "catalog_limit": self.options.output.catalog_limit,
+                    "direct_catalog_limit": self.options.output.direct_catalog_limit,
+                },
                 "segment_searches": state.direct_inventory_searches,
-                "direct_inventory_results": state.direct_inventory_results[
-                    : self.options.output.include_segment_results
-                ],
                 "hub_viability": hub_viability_summary(
                     state.plan,
                     state.direct_inventory_searches,
@@ -354,16 +639,13 @@ class LiveSearchResultBuilder:
                 "primary_offer_results": state.primary_offer_results,
                 "gateway_leg_results": state.gateway_leg_results,
                 "offer_graph": offer_graph,
-                "offer_candidates": offer_candidates,
+                "candidate_input_ids": _candidate_ids(offer_candidates),
                 "decision_scorer": scored_decisions["scorer"],
                 "mixed_candidate_ranking": mixed_candidate_ranking,
                 "policy_controls": graph_controls,
                 "aggregate_controls": aggregate_controls,
                 "probe_ledger": state.probe_ledger.to_coverage_diagnostics(state.plan),
-                "direct_route_intelligence": {
-                    "available": False,
-                    "reason": "route_specific_direct_intel_removed_from_runtime",
-                },
+                "direct_presence_gate": deepcopy(state.direct_presence_gate),
                 "diagnostics": {
                     "search_plan": search_plan_with_gateway_discovery_output(
                         state.search_plan, gateway_discovery_diagnostics
@@ -372,19 +654,14 @@ class LiveSearchResultBuilder:
                 },
                 "failure_count": len(state.failures),
                 "failures": state.failures,
-                "included_segment_result_count": min(
-                    len(state.direct_inventory_results),
-                    self.options.output.include_segment_results,
-                ),
             },
         }
         if date_window_inventory is not None:
-            route_result["live_search"]["date_window_inventory"] = date_window_inventory
-        return attach_agent_report(
-            route_result,
-            AgentReportOptions(agent_report=self.options.output.agent_report),
-            self.store,
-        )
+            route_trace["live_search"]["date_window_inventory"] = date_window_inventory
+        return route_trace
+
+    def build(self, state: LiveAssemblyState) -> dict[str, Any]:
+        return self.build_route_trace(state)
 
 
 class LiveAssemblyRunner:
@@ -421,11 +698,101 @@ class LiveAssemblyRunner:
             kupibilet_fetcher=fetch_kupibilet_search,
             probe_ledger=state.probe_ledger,
         )
+        state.direct_mode, state.direct_presence_gate = (
+            _direct_mode_from_primary_results(
+                self.options,
+                state.plan,
+                state.primary_offer_results,
+            )
+        )
+        gateway_queries, skipped_gateway_queries = (
+            _filter_gateway_queries_for_direct_mode(
+                list(state.planned_gateway_leg_queries),
+                state.direct_mode,
+                state.probe_ledger,
+            )
+        )
+        state.search_plan["gateway_leg_queries"] = gateway_queries
+        state.direct_presence_gate["skipped_gateway_probe_count"] = len(
+            skipped_gateway_queries
+        )
         if self.search_wave_planner is not None:
             state.gateway_leg_results = self.search_wave_planner.run(
-                list(state.search_plan.get("gateway_leg_queries") or []),
+                gateway_queries,
                 state.plan,
             )
+        preliminary = self.result_builder.build_route_trace(state)
+        fallback_directions = _fallback_directions_from_frontier(
+            preliminary.get("decision_frontier")
+            if isinstance(preliminary.get("decision_frontier"), dict)
+            else {},
+            state.direct_mode,
+        )
+        if fallback_directions and self.gateway_leg_probe_executor is not None:
+            fallback_queries = [
+                query
+                for query in state.planned_gateway_leg_queries
+                if _normalize_direction(query.get("direction"))
+                in set(fallback_directions)
+            ]
+            if fallback_queries:
+                for direction in fallback_directions:
+                    state.direct_mode[direction] = False
+                    state.direct_mode_max_connections_by_direction[direction] = 1
+                for query in fallback_queries:
+                    state.probe_ledger.reopen_for_execution(query)
+                remaining_budget = max(
+                    0,
+                    self.max_searches
+                    - len(state.search_plan.get("primary_offer_queries") or []),
+                )
+                fallback_planner = SearchWavePlanner(
+                    options=SearchWavePlannerOptions(
+                        max_waves=1,
+                        probes_per_wave=min(
+                            max(1, self.options.evidence.search_wave_probe_limit),
+                            max(1, remaining_budget),
+                        ),
+                        max_segment_searches=remaining_budget,
+                        top_k_partial_paths=self.options.evidence.search_wave_top_k,
+                        timeout_seconds=self.options.evidence.timeout,
+                    ),
+                    executor=self.gateway_leg_probe_executor,
+                )
+                fallback_results = fallback_planner.run(fallback_queries, state.plan)
+                state.gateway_leg_results = _merge_gateway_leg_results(
+                    state.gateway_leg_results, fallback_results
+                )
+                state.direct_presence_gate["fallback"] = {
+                    "status": "executed",
+                    "reason": "direct_mode_no_acceptable_candidates",
+                    "directions": fallback_directions,
+                    "max_connections_per_journey": 1,
+                    "max_connections_per_direction": {
+                        direction: 1 for direction in fallback_directions
+                    },
+                    "wave_count": 1,
+                }
+            else:
+                state.direct_presence_gate["fallback"] = {
+                    "status": "no_gateway_leg_queries",
+                    "reason": "direct_mode_no_acceptable_candidates",
+                    "directions": fallback_directions,
+                    "max_connections_per_journey": 1,
+                    "max_connections_per_direction": {
+                        direction: 1 for direction in fallback_directions
+                    },
+                }
+        elif fallback_directions:
+            state.direct_presence_gate["fallback"] = {
+                "status": "not_executed",
+                "reason": "direct_mode_no_acceptable_candidates",
+                "directions": fallback_directions,
+                "max_connections_per_journey": 1,
+                "max_connections_per_direction": {
+                    direction: 1 for direction in fallback_directions
+                },
+            }
         return self.result_builder.build(state)
 
     def initialize_state(self) -> LiveAssemblyState:
@@ -456,7 +823,14 @@ class LiveAssemblyRunner:
         plan["metrics"]["gateway_leg_query_count"] = len(
             search_plan.get("gateway_leg_queries") or []
         )
-        self.state = LiveAssemblyState(flow=flow, plan=plan, search_plan=search_plan)
+        self.state = LiveAssemblyState(
+            flow=flow,
+            plan=plan,
+            search_plan=search_plan,
+            planned_gateway_leg_queries=list(
+                search_plan.get("gateway_leg_queries") or []
+            ),
+        )
         self.only_carriers = [
             normalize_carrier_code(code, "only-carrier")
             for code in self.options.effective_only_carriers()

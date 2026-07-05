@@ -4,9 +4,12 @@ import json
 import unittest
 from unittest.mock import patch
 
+from flights_cli.config import DEFAULT_DIRECT_CATALOG_LIMIT
 from flights_cli.execution.probe_dispatcher import SegmentProbeOutcome
+from flights_cli.orchestrators.live_assembly_runner import _direct_evidence_by_direction
 from flights_cli.orchestrators.live_route_assembly import run_live_route_assembly
 from flights_cli.pipeline.search_pipeline import build_live_route_search_flow
+from flights_cli.services.agent_report import build_validated_agent_report
 from flights_cli.store import Store
 from helpers import live_assembly_args
 
@@ -22,14 +25,9 @@ def live_args(**overrides: object):
         "max_segment_searches": 10,
         "live_cache_ttl_seconds": 0,
         "no_live_cache": True,
-        "direct_route_index_ttl_seconds": 0,
-        "no_direct_route_intel": True,
-        "include_segment_results": 0,
         "aggregate_control_limit": 0,
         "coverage_mode": "targeted",
         "coverage_control_limit": 12,
-        "agent_report": False,
-        "agent_brief": False,
     }
     defaults.update(overrides)
     return live_assembly_args(**defaults)
@@ -90,6 +88,41 @@ def count_key(payload: object, key: str) -> int:
 
 
 class LiveRoutePipelineTests(unittest.TestCase):
+    def test_direct_evidence_uses_round_trip_journey_directions(self) -> None:
+        plan = minimal_route_plan("LED")
+        plan["dates"] = {"depart": "2026-09-05", "return": "2026-09-12"}
+        primary_results = [
+            {
+                "role": "primary_offer_collection",
+                "source_type": "provider_full_route",
+                "provider": "tutu",
+                "direction": "outbound",
+                "origin": "SVX",
+                "destination": "LED",
+                "top_offers": [
+                    {
+                        "id": "tutu-rt-1",
+                        "segments": [{"origin": "SVX", "destination": "LED"}],
+                        "journeys": [
+                            {
+                                "direction": "outbound",
+                                "segments": [{"origin": "SVX", "destination": "LED"}],
+                            },
+                            {
+                                "direction": "return",
+                                "segments": [{"origin": "LED", "destination": "SVX"}],
+                            },
+                        ],
+                    }
+                ],
+            }
+        ]
+
+        self.assertEqual(
+            _direct_evidence_by_direction(plan, primary_results),
+            {"outbound": True, "return": True},
+        )
+
     def test_live_route_args_adapt_to_typed_search_flow(self) -> None:
         args = live_assembly_args(
             origin="SVX",
@@ -97,9 +130,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
             depart_date="2026-08-16",
             return_date="2026-08-20",
             profile="business",
-            agent_brief=True,
             no_live_cache=True,
-            no_direct_route_intel=True,
         )
 
         flow = build_live_route_search_flow(args)
@@ -112,11 +143,13 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertEqual(flow.request.currency, "RUB")
         self.assertEqual(flow.request.profile, "business")
         self.assertEqual(flow.request.provider_policy, "auto")
+        self.assertIs(flow.request._options, args)
+        with self.assertRaises(AttributeError):
+            flow.request.origin = "LED"
         self.assertEqual(flow.flow_decision.intent_class, "route_recommendation")
         self.assertEqual(flow.flow_decision.evidence_class, "shopping_advisory")
         self.assertEqual(flow.flow_decision.provider_policy, "auto")
         self.assertFalse(flow.evidence_plan.live_cache_enabled)
-        self.assertFalse(flow.evidence_plan.direct_route_intel_enabled)
         self.assertEqual(flow.evidence_plan.max_segment_searches, 300)
 
     def test_live_assembly_runner_uses_typed_flow_without_public_report_shape_change(
@@ -184,7 +217,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                     "date": "2026-08-16",
                     "currency": "RUB",
                     "direct_only": False,
-                    "limit": 10,
+                    "limit": DEFAULT_DIRECT_CATALOG_LIMIT,
                     "route_family": "ru_to_western_europe_bridge",
                 }
             ],
@@ -219,7 +252,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 "status": "ok",
                 "top_offers": [
                     {
-                        "id": "legacy-aggregate-1",
+                        "id": "aggregate-1",
                         "segments": [
                             {"origin": "SVX", "destination": "BEG"},
                             {"origin": "BEG", "destination": "CDG"},
@@ -265,24 +298,25 @@ class LiveRoutePipelineTests(unittest.TestCase):
             [(edge["origin"], edge["destination"]) for edge in offer_graph["edges"]],
             [("SVX", "IST"), ("IST", "CDG")],
         )
-        offer_candidates = result["live_search"]["offer_candidates"]
-        self.assertEqual(
-            offer_candidates["schema_version"],
-            "flight_offer_candidate_envelope.v1",
-        )
-        self.assertEqual(
-            offer_candidates["candidates"][0]["source_type"],
-            "provider_full_route",
-        )
-        self.assertIsNone(offer_candidates["candidates"][0]["price"])
-        self.assertIsNone(offer_candidates["candidates"][0]["currency"])
-        self.assertEqual(offer_candidates["candidates"][0]["price_basis"], "unknown")
         mixed_ranking = result["live_search"]["mixed_candidate_ranking"]
         self.assertEqual(
             mixed_ranking["schema_version"],
             "flight_mixed_candidate_ranking.v1",
         )
         self.assertEqual(mixed_ranking["ranked_candidates"][0]["rank"], 1)
+        self.assertEqual(
+            set(result["live_search"]["candidate_input_ids"]),
+            {candidate["id"] for candidate in mixed_ranking["ranked_candidates"]},
+        )
+        self.assertEqual(
+            mixed_ranking["ranked_candidates"][0]["source_type"],
+            "provider_full_route",
+        )
+        self.assertIsNone(mixed_ranking["ranked_candidates"][0]["price"])
+        self.assertIsNone(mixed_ranking["ranked_candidates"][0]["currency"])
+        self.assertEqual(
+            mixed_ranking["ranked_candidates"][0]["price_basis"], "unknown"
+        )
         frontier = result["decision_frontier"]
         self.assertEqual(frontier["schema_version"], "flight_decision_frontier.v1")
         self.assertNotIn("rank_components", frontier["options"][0])
@@ -327,6 +361,115 @@ class LiveRoutePipelineTests(unittest.TestCase):
         )
         self.assertEqual(search_plan_gateway_discovery["candidate_count"], 3)
 
+    def test_direct_presence_gate_skips_gateway_queries_after_wave0_evidence(
+        self,
+    ) -> None:
+        search_plan = {
+            "schema_version": "flight_search_plan.v1",
+            "primary_offer_queries": [
+                {
+                    "role": "primary_offer_collection",
+                    "source_type": "provider_full_route",
+                    "probe_type": "full_route_aggregate",
+                    "provider": "kupibilet",
+                    "direction": "outbound",
+                    "origin": "SVX",
+                    "destination": "CDG",
+                    "date": "2026-08-16",
+                    "currency": "RUB",
+                    "direct_only": False,
+                    "limit": DEFAULT_DIRECT_CATALOG_LIMIT,
+                }
+            ],
+            "mandatory_controls": [],
+            "gateway_discovery": {"enabled": True, "reason": "fixture"},
+            "gateway_leg_queries": [
+                {
+                    "role": "gateway_leg_probe",
+                    "source_type": "gateway_discovery_candidate",
+                    "probe_type": "segment_hub_leg",
+                    "direction": "outbound",
+                    "leg": "origin_to_gateway",
+                    "origin": "SVX",
+                    "destination": "IST",
+                    "date": "2026-08-16",
+                    "currency": "RUB",
+                    "direct_only": False,
+                    "gateway": "IST",
+                    "provider": "kupibilet",
+                    "execution_state": "not_executed",
+                }
+            ],
+            "fallback_segment_plan": {"segments": []},
+            "coverage_expectations": [],
+        }
+        primary_results = [
+            {
+                "role": "primary_offer_collection",
+                "source_type": "provider_full_route",
+                "provider": "kupibilet",
+                "direction": "outbound",
+                "origin": "SVX",
+                "destination": "CDG",
+                "status": "ok",
+                "execution_state": "searched",
+                "offer_count": 1,
+                "top_offers": [
+                    {
+                        "id": "kb-direct",
+                        "price": 22000,
+                        "currency": "RUB",
+                        "segments": [{"origin": "SVX", "destination": "CDG"}],
+                    }
+                ],
+            }
+        ]
+
+        with (
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.build_search_plan",
+                return_value=search_plan,
+            ),
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.run_primary_offer_queries",
+                return_value=primary_results,
+            ),
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.run_aggregate_controls",
+                return_value=[],
+            ),
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.SearchWavePlanner.run",
+                return_value={
+                    "searched_gateways": 0,
+                    "viable_gateways": 0,
+                    "failed_gateways": 0,
+                    "not_searched_budget": 0,
+                    "gateways": [],
+                    "wave_diagnostics": {
+                        "schema_version": "flight_search_wave_diagnostics.v1",
+                        "stop_reason": "no_gateway_leg_queries",
+                    },
+                },
+            ) as wave_run,
+            patch(
+                "flights_cli.orchestrators.live_assembly_runner.hub_viability_summary",
+                return_value=[],
+            ),
+        ):
+            result = run_live_route_assembly(
+                live_args(provider_policy="kupibilet"), Store()
+            )
+
+        wave_run.assert_called_once()
+        self.assertEqual(wave_run.call_args.args[0], [])
+        gate = result["live_search"]["direct_presence_gate"]
+        self.assertEqual(gate["direct_evidence_present"], {"outbound": True})
+        self.assertEqual(gate["direct_mode"], {"outbound": True})
+        self.assertEqual(gate["skipped_gateway_probe_count"], 1)
+        skipped = result["live_search"]["probe_ledger"]["skipped_controls"]
+        self.assertTrue(any(item.get("reason") == "direct_mode" for item in skipped))
+
     def test_live_search_payload_is_deduplicated(self) -> None:
         search_plan = {
             "schema_version": "flight_search_plan.v1",
@@ -342,7 +485,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                     "date": "2026-08-16",
                     "currency": "RUB",
                     "direct_only": False,
-                    "limit": 10,
+                    "limit": DEFAULT_DIRECT_CATALOG_LIMIT,
                 }
             ],
             "mandatory_controls": [],
@@ -376,7 +519,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
 
         serialized = json.dumps(result, sort_keys=True, separators=(",", ":"))
         self.assertLess(len(serialized.encode("utf-8")), 80_000)
-        self.assertEqual(result["schema_version"], "flight_route_result.v3")
+        self.assertEqual(result["schema_version"], "flight_route_trace_diagnostic.v1")
         self.assertEqual(count_key(result, "decision_frontier"), 1)
         self.assertIn("decision_frontier", result)
         self.assertNotIn("decision_frontier", result["live_search"])
@@ -400,7 +543,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                     "date": "2026-08-16",
                     "currency": "RUB",
                     "direct_only": False,
-                    "limit": 10,
+                    "limit": DEFAULT_DIRECT_CATALOG_LIMIT,
                 }
             ],
             "mandatory_controls": [],
@@ -455,7 +598,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                     tier2_max_connections=2,
                 ),
                 Store(),
-        )
+            )
 
         coverage = result["live_search"]["mixed_candidate_ranking"]["coverage"]
         ranked = result["live_search"]["mixed_candidate_ranking"]["ranked_candidates"][
@@ -463,9 +606,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
         ]
         self.assertEqual(coverage["max_connections_per_journey"], 2)
         self.assertEqual(coverage["preferred_connections_per_journey"], 1)
-        self.assertEqual(
-            ranked["rank_components"]["max_connections_per_journey"], 0
-        )
+        self.assertEqual(ranked["rank_components"]["max_connections_per_journey"], 0)
         self.assertEqual(
             ranked["rank_components"]["preferred_connections_per_journey"], 1
         )
@@ -568,17 +709,15 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertEqual(offer_graph["schema_version"], "flight_offer_graph.v1")
         self.assertEqual(len(offer_graph["edges"]), 2)
         self.assertEqual(len(offer_graph["connections"]), 1)
-        offer_candidates = result["live_search"]["offer_candidates"]
-        self.assertEqual(
-            offer_candidates["candidates"][0]["source_type"],
-            "gateway_separate_ticket",
-        )
         mixed_ranking = result["live_search"]["mixed_candidate_ranking"]
         self.assertEqual(
             mixed_ranking["ranked_candidates"][0]["source_type"],
             "gateway_separate_ticket",
         )
-        self.assertEqual(result.get("segment_results"), [])
+        self.assertEqual(
+            set(result["live_search"]["candidate_input_ids"]),
+            {candidate["id"] for candidate in mixed_ranking["ranked_candidates"]},
+        )
 
     def test_restricted_route_discovery_does_not_leak_raw_diagnostics_to_rendered_text(
         self,
@@ -586,7 +725,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
         for destination in ("AMS", "FRA", "LON"):
             with self.subTest(destination=destination):
                 plan = minimal_route_plan(destination)
-                route_results = provider_returned_route(destination)
+                provider_results = provider_returned_route(destination)
 
                 def run_with_primary(
                     primary_results: list[dict[str, object]],
@@ -631,12 +770,16 @@ class LiveRoutePipelineTests(unittest.TestCase):
                         ),
                     ):
                         return run_live_route_assembly(
-                            live_args(destination=destination, agent_report=True),
+                            live_args(destination=destination),
                             Store(),
                         )
 
                 baseline = run_with_primary([])
-                with_provider_route = run_with_primary(route_results)
+                with_provider_route = run_with_primary(provider_results)
+                baseline_report = build_validated_agent_report(baseline, Store())
+                provider_route_report = build_validated_agent_report(
+                    with_provider_route, Store()
+                )
 
                 search_plan = with_provider_route["live_search"]["diagnostics"][
                     "search_plan"
@@ -672,18 +815,13 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 self.assertEqual(gateway_plan["skipped_reasons"], [])
                 self.assertIsNone(gateway_plan["empty_reason"])
 
-                baseline_text = baseline["agent_report"]["user_answer"]["rendered_text"]
-                with_provider_text = with_provider_route["agent_report"]["user_answer"][
-                    "rendered_text"
-                ]
-                self.assertTrue(baseline_text)
-                self.assertIn("Проверил 1 gateway: IST.", baseline_text)
-                self.assertIn(
-                    "Проверил KupiBilet по всему маршруту и 1 gateway: IST.",
-                    with_provider_text,
+                self.assertEqual(
+                    set(baseline_report["frontier"]), {"decision_frontier"}
                 )
-                self.assertNotIn("provider_returned_route", with_provider_text)
-                self.assertNotIn("restricted_bridge_gateways", with_provider_text)
+                self.assertEqual(
+                    set(provider_route_report["frontier"]),
+                    {"decision_frontier"},
+                )
 
 
 if __name__ == "__main__":

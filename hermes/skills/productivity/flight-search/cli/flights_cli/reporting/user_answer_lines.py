@@ -44,15 +44,6 @@ def catalog_display_time(value: Any) -> str:
     return value.split("T", 1)[1][:5]
 
 
-def catalog_display_time_compact(value: Any) -> str:
-    rendered = catalog_display_time(value)
-    return (
-        rendered.replace(":", "")
-        if re.fullmatch(r"\d{2}:\d{2}", rendered)
-        else rendered
-    )
-
-
 def catalog_route_code(code: Any) -> str:
     normalized = str(code or "").strip().upper()
     return normalized or "???"

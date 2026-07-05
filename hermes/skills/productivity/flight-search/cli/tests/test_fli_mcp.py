@@ -4,7 +4,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from flights_cli.cli import build_parser
 from flights_cli.errors import CliError
 from flights_cli.adapters.providers.registry import providers_for_segment
 from flights_cli.providers.fli_mcp import (
@@ -42,27 +41,6 @@ def store_with_airports(test_case: unittest.TestCase) -> Store:
 
 
 class FliMcpTests(unittest.TestCase):
-    def test_fli_search_parser_defaults_to_self_hosted_mcp_url(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "diagnose",
-                "fli-search",
-                "IST",
-                "LHR",
-                "--depart-date",
-                "2026-08-15",
-                "--direct-only",
-                "--only-carrier",
-                "TK",
-            ]
-        )
-
-        self.assertEqual(args.command_name, "diagnose fli-search")
-        self.assertEqual(args.mcp_url, "http://127.0.0.1:8000/mcp")
-        self.assertTrue(args.direct_only)
-        self.assertEqual(args.only_carrier, ["TK"])
-        self.assertEqual(args.cache_ttl_seconds, 30 * 60)
-
     def test_normalize_mcp_url_allows_loopback_http_and_remote_https(self) -> None:
         cases = {
             "http://localhost:8000/mcp": "http://localhost:8000/mcp",

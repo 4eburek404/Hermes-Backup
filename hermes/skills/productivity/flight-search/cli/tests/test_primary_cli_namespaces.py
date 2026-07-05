@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import subprocess
 import sys
@@ -104,11 +106,10 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
         Draft202012Validator(request_schema).validate(MINIMAL_SEARCH_REQUEST)
         Draft202012Validator(result_schema).validate(
             {
-                "schema_version": "flight_search_result.v2",
-                "wire_version": "flight_search_result.v2",
+                "schema_version": "flight_search_result.v5",
+                "wire_version": "flight_search_result.v5",
                 "request": MINIMAL_SEARCH_REQUEST,
-                "agent_report": {"schema_version": "agent_report.v3"},
-                "route_result": {"agent_report": {"schema_version": "agent_report.v3"}},
+                "agent_report": {"schema_version": "agent_report.v5"},
             }
         )
 
@@ -129,15 +130,27 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
                 captured["origin"] = live_assembly_options.route.origin
                 captured["destination"] = live_assembly_options.route.destination
                 captured["command_name"] = live_assembly_options.command_name
-                captured["agent_brief"] = live_assembly_options.output.agent_brief
+                captured["catalog_limit"] = live_assembly_options.output.catalog_limit
+                captured["direct_catalog_limit"] = (
+                    live_assembly_options.output.direct_catalog_limit
+                )
                 return {
-                    "agent_report": {"schema_version": "agent_report.v3"},
+                    "schema_version": "flight_route_trace_diagnostic.v1",
+                    "live_search": {
+                        "offer_graph": {"schema_version": "flight_offer_graph.v1"}
+                    },
                     "assembly": True,
                 }
 
-            with patch(
-                "flights_cli.commands.search.run_live_route_assembly",
-                side_effect=fake_run,
+            with (
+                patch(
+                    "flights_cli.commands.search.run_live_route_assembly",
+                    side_effect=fake_run,
+                ),
+                patch(
+                    "flights_cli.commands.search.build_validated_agent_report",
+                    return_value={"schema_version": "agent_report.v5"},
+                ),
             ):
                 result = command_search(args, Store())
 
@@ -147,14 +160,52 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
                 "origin": "SVX",
                 "destination": "LON",
                 "command_name": "search",
-                "agent_brief": True,
+                "catalog_limit": 10,
+                "direct_catalog_limit": 30,
             },
         )
-        self.assertEqual(result["schema_version"], "flight_search_result.v2")
-        self.assertEqual(result["wire_version"], "flight_search_result.v2")
+        self.assertEqual(result["schema_version"], "flight_search_result.v5")
+        self.assertEqual(result["wire_version"], "flight_search_result.v5")
         self.assertEqual(result["request"], MINIMAL_SEARCH_REQUEST)
-        self.assertEqual(result["agent_report"], {"schema_version": "agent_report.v3"})
-        self.assertTrue(result["route_result"]["assembly"])
+        self.assertEqual(result["agent_report"], {"schema_version": "agent_report.v5"})
+        self.assertEqual(
+            set(result), {"schema_version", "wire_version", "request", "agent_report"}
+        )
+
+    def test_diagnose_trace_exposes_route_trace_and_agent_report(self) -> None:
+        from flights_cli.commands.diagnose import command_diagnose_trace
+
+        route_trace = {
+            "schema_version": "flight_route_trace_diagnostic.v1",
+            "live_search": {
+                "offer_graph": {"schema_version": "flight_offer_graph.v1"},
+                "diagnostics": {"search_plan": {}, "wave_diagnostics": {}},
+            },
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            request_path = Path(tmp_dir) / "request.json"
+            request_path.write_text(
+                json.dumps(MINIMAL_SEARCH_REQUEST), encoding="utf-8"
+            )
+            args = argparse.Namespace(
+                request=str(request_path), command_name="diagnose trace"
+            )
+            with (
+                patch(
+                    "flights_cli.commands.search.run_live_route_assembly",
+                    return_value=route_trace,
+                ),
+                patch(
+                    "flights_cli.commands.search.build_validated_agent_report",
+                    return_value={"schema_version": "agent_report.v5"},
+                ),
+            ):
+                result = command_diagnose_trace(args, Store())
+
+        self.assertEqual(result["schema_version"], "flight_route_trace_diagnostic.v1")
+        self.assertEqual(result["request"], MINIMAL_SEARCH_REQUEST)
+        self.assertEqual(result["route_trace"], route_trace)
+        self.assertEqual(result["agent_report"], {"schema_version": "agent_report.v5"})
 
     def test_search_json_errors_are_machine_parseable_on_stdout(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -183,6 +234,79 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["error"]["type"], "validation_error")
         self.assertEqual(proc.stderr, "")
+
+    def test_search_json_wraps_tutu_transport_failure_without_traceback(self) -> None:
+        from flights_cli.cli import main
+
+        route_trace = {
+            "schema_version": "flight_route_trace_diagnostic.v1",
+            "live_search": {
+                "failures": [
+                    {
+                        "provider": "tutu",
+                        "tool": "search_avia",
+                        "reason": "incomplete_read",
+                    }
+                ]
+            },
+        }
+        agent_report = {
+            "schema_version": "agent_report.v5",
+            "evidence": {
+                "provider_failures": [
+                    {
+                        "provider": "tutu",
+                        "tool": "search_avia",
+                        "reason": "incomplete_read",
+                    }
+                ]
+            },
+            "user_answer": {"rendered_text": "Provider failure captured."},
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            request_path = Path(tmp_dir) / "request.json"
+            request_path.write_text(
+                json.dumps({**MINIMAL_SEARCH_REQUEST, "provider_policy": "tutu"}),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with (
+                patch(
+                    "flights_cli.commands.search.run_live_route_assembly",
+                    return_value=route_trace,
+                ),
+                patch(
+                    "flights_cli.commands.search.build_validated_agent_report",
+                    return_value=agent_report,
+                ),
+                contextlib.redirect_stdout(stdout),
+                contextlib.redirect_stderr(stderr),
+            ):
+                code = main(
+                    [
+                        "flights",
+                        "--json",
+                        "--catalog-refresh",
+                        "never",
+                        "search",
+                        "--request",
+                        str(request_path),
+                    ]
+                )
+
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertTrue(payload["ok"])
+        data = payload["data"]
+        self.assertEqual(data["schema_version"], "flight_search_result.v5")
+        self.assertNotIn("route_result", data)
+        self.assertEqual(
+            data["agent_report"]["evidence"]["provider_failures"][0]["reason"],
+            "incomplete_read",
+        )
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertNotIn("Traceback", stdout.getvalue())
 
 
 if __name__ == "__main__":

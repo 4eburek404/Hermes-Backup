@@ -56,7 +56,6 @@ class RouteAccessProfileTests(unittest.TestCase):
                 destination=destination,
                 return_date=None,
                 no_live_cache=True,
-                no_direct_route_intel=True,
             ),
             store or Store(),
         ).flow_decision

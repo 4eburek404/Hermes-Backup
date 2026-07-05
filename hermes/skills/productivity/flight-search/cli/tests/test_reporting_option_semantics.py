@@ -5,22 +5,17 @@ import unittest
 from flights_cli.reporting.option_semantics import (
     direction_segments,
     option_direction,
-    report_requested_round_trip,
     route_requested_round_trip,
 )
 
 
 class ReportingOptionSemanticsTests(unittest.TestCase):
-    def test_round_trip_detection_has_route_and_report_entrypoints(self) -> None:
+    def test_round_trip_detection_uses_route_dates(self) -> None:
         route = {"dates": {"depart": "2026-08-01", "return_date": "2026-08-08"}}
 
         self.assertTrue(route_requested_round_trip(route))
-        self.assertTrue(report_requested_round_trip({"route": route}))
         self.assertFalse(
             route_requested_round_trip({"dates": {"depart": "2026-08-01"}})
-        )
-        self.assertFalse(
-            report_requested_round_trip({"route": {"dates": {"depart": "2026-08-01"}}})
         )
 
     def test_option_direction_uses_explicit_field_provider_aggregate_id_and_segment_fallback(

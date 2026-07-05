@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.client
 import json
 import tempfile
 import unittest
@@ -8,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from flights_cli.adapters.providers.tutu_adapter import TutuProviderAdapter
-from flights_cli.cli import build_parser
+from flights_cli.errors import CliError
 from flights_cli.providers.tutu_mcp import (
     MCP_PROTOCOL_VERSION,
     TUTU_MAX_PAGES,
@@ -56,8 +57,17 @@ def store_with_tutu_catalog(test_case: unittest.TestCase) -> Store:
     (cache / "airlines_en.json").write_text(
         """
         [
-          {"code": "SU", "name": "Aeroflot", "name_translations": {"ru": "Аэрофлот"}},
-          {"code": "TK", "name": "Turkish Airlines", "name_translations": {"ru": "Турецкие авиалинии"}}
+          {"code": "SU", "name": "Aeroflot", "name_translations": {"en": "Aeroflot"}},
+          {"code": "TK", "name": "Turkish Airlines", "name_translations": {"en": "Turkish Airlines"}}
+        ]
+        """,
+        encoding="utf-8",
+    )
+    (cache / "airlines_ru.json").write_text(
+        """
+        [
+          {"code": "SU", "name": "Аэрофлот", "name_translations": {"en": "Aeroflot"}},
+          {"code": "TK", "name": "Турецкие авиалинии", "name_translations": {"en": "Turkish Airlines"}}
         ]
         """,
         encoding="utf-8",
@@ -95,35 +105,9 @@ def tutu_offer(offer_id: str, legs: list[list[dict]], *, price: int = 10000) -> 
 
 
 class TutuMcpProviderTests(unittest.TestCase):
-    def test_tutu_search_parser_exposes_one_way_and_round_trip_command(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "diagnose",
-                "tutu-search",
-                "SVX",
-                "AER",
-                "--depart-date",
-                "2026-08-15",
-                "--return-date",
-                "2026-08-22",
-                "--direct-only",
-                "--only-carrier",
-                "U6",
-                "--limit",
-                "10",
-            ]
-        )
-
-        self.assertEqual(args.command_name, "diagnose tutu-search")
-        self.assertEqual(args.origin, "SVX")
-        self.assertEqual(args.destination, "AER")
-        self.assertEqual(args.depart_date, "2026-08-15")
-        self.assertEqual(args.return_date, "2026-08-22")
-        self.assertEqual(args.only_carrier, ["U6"])
-        self.assertTrue(args.direct_only)
-        self.assertEqual(args.limit, 10)
-
     def test_diagnose_probe_allows_tutu_provider(self) -> None:
+        from flights_cli.cli import build_parser
+
         args = build_parser().parse_args(
             [
                 "diagnose",
@@ -170,6 +154,87 @@ class TutuMcpProviderTests(unittest.TestCase):
         self.assertIn("application/json", captured["accept"])
         self.assertIn("text/event-stream", captured["accept"])
 
+    def test_http_post_retries_incomplete_read_once_and_succeeds(self) -> None:
+        calls = 0
+
+        class FakeResponse:
+            headers = {"Content-Type": "application/json"}
+
+            def __enter__(self) -> "FakeResponse":
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+            def read(self) -> bytes:
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    raise http.client.IncompleteRead(b'{"jsonrpc"', 20)
+                return b'{"jsonrpc":"2.0","result":{"ok":true}}'
+
+        with (
+            patch(
+                "flights_cli.providers.tutu_mcp.urllib.request.urlopen",
+                return_value=FakeResponse(),
+            ),
+            patch("flights_cli.providers.tutu_mcp.time.sleep") as sleep,
+        ):
+            response, session_id = tutu_mcp_http_post(
+                "https://mcp.tutu.ru/mcp",
+                {
+                    "jsonrpc": "2.0",
+                    "method": "tools/call",
+                    "params": {"name": "search_avia"},
+                },
+                timeout=10,
+            )
+
+        self.assertEqual(response["result"], {"ok": True})
+        self.assertIsNone(session_id)
+        self.assertEqual(calls, 2)
+        sleep.assert_called_once()
+
+    def test_http_post_reports_incomplete_read_after_retries(self) -> None:
+        class FakeResponse:
+            headers = {"Content-Type": "application/json"}
+
+            def __enter__(self) -> "FakeResponse":
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+            def read(self) -> bytes:
+                raise http.client.IncompleteRead(b"partial", 10)
+
+        with (
+            patch(
+                "flights_cli.providers.tutu_mcp.urllib.request.urlopen",
+                return_value=FakeResponse(),
+            ),
+            patch("flights_cli.providers.tutu_mcp.time.sleep"),
+            self.assertRaises(CliError) as error,
+        ):
+            tutu_mcp_http_post(
+                "https://mcp.tutu.ru/mcp",
+                {
+                    "jsonrpc": "2.0",
+                    "method": "tools/call",
+                    "params": {"name": "search_avia"},
+                },
+                timeout=10,
+            )
+
+        self.assertEqual(error.exception.error_type, "upstream_incomplete_read")
+        self.assertEqual(error.exception.details["failure_reason"], "incomplete_read")
+        self.assertEqual(error.exception.details["tool"], "search_avia")
+        self.assertEqual(error.exception.details["bytes_read"], len(b"partial"))
+        self.assertEqual(error.exception.details["bytes_missing"], 10)
+        self.assertEqual(
+            error.exception.details["bytes_expected"], len(b"partial") + 10
+        )
+
     def test_fetch_paginates_before_applying_display_limit(self) -> None:
         store = store_with_tutu_catalog(self)
         calls: list[dict] = []
@@ -215,6 +280,46 @@ class TutuMcpProviderTests(unittest.TestCase):
         self.assertEqual(result["offer_count"], 1)
         self.assertEqual(result["pagination"]["pages_fetched"], 2)
         self.assertFalse(result["pagination"]["not_fetched_due_to_page_budget"])
+
+    def test_parser_keeps_provider_inventory_when_limit_covers_catalog(self) -> None:
+        store = store_with_tutu_catalog(self)
+        raw = {
+            "offers": [
+                tutu_offer(
+                    f"offer-{index}",
+                    [
+                        [
+                            tutu_segment(
+                                "SVX",
+                                "AMS",
+                                f"SU{100 + index}",
+                                depart=f"2026-08-15T10:{index:02d}:00+05:00",
+                                arrive=f"2026-08-15T12:{index:02d}:00+03:00",
+                            )
+                        ]
+                    ],
+                    price=10000 + index,
+                )
+                for index in range(22)
+            ]
+        }
+
+        result = parse_tutu_avia_search(
+            raw,
+            origin="SVX",
+            destination="AMS",
+            depart_date="2026-08-15",
+            currency="RUB",
+            direct_only=True,
+            limit=30,
+            store=store,
+        )
+
+        self.assertEqual(result["raw_count"], 22)
+        self.assertEqual(result["unique_flight_count"], 22)
+        self.assertEqual(result["offer_count"], 22)
+        self.assertEqual(result["omitted_offer_count"], 0)
+        self.assertEqual(len(result["offers"]), 22)
 
     def test_fetch_marks_remaining_pages_when_page_budget_is_exhausted(self) -> None:
         store = store_with_tutu_catalog(self)
@@ -301,6 +406,38 @@ class TutuMcpProviderTests(unittest.TestCase):
         self.assertEqual([offer["id"] for offer in result["offers"]], ["su"])
         self.assertEqual(result["skipped"]["carrier"], 1)
         self.assertEqual(result["filters"]["only_carriers"], ["SU"])
+
+    def test_carrier_filter_matches_tutu_localized_name_without_flight_number(
+        self,
+    ) -> None:
+        store = store_with_tutu_catalog(self)
+        raw = {
+            "offers": [
+                tutu_offer(
+                    "su-name",
+                    [[tutu_segment("SVX", "AMS", "", carrier="Аэрофлот")]],
+                ),
+                tutu_offer(
+                    "tk-name",
+                    [[tutu_segment("SVX", "AMS", "", carrier="Турецкие авиалинии")]],
+                ),
+            ]
+        }
+
+        result = parse_tutu_avia_search(
+            raw,
+            origin="SVX",
+            destination="AMS",
+            depart_date="2026-08-15",
+            currency="RUB",
+            only_carriers=["SU"],
+            store=store,
+        )
+
+        self.assertEqual([offer["id"] for offer in result["offers"]], ["su-name"])
+        self.assertEqual(result["offers"][0]["flight_numbers"], [])
+        self.assertEqual(result["offers"][0]["marketing_carriers"], ["SU"])
+        self.assertEqual(result["skipped"]["carrier"], 1)
 
     def test_airport_scope_keeps_airports_distinct_from_city_scope(self) -> None:
         store = store_with_tutu_catalog(self)
@@ -446,12 +583,14 @@ class TutuMcpProviderTests(unittest.TestCase):
                 "currency": "RUB",
                 "only_carriers": ["SU"],
                 "direct_only": True,
+                "limit": 17,
                 "use_cache": False,
             }
         )
 
         self.assertTrue(calls[0]["direct_only"])
         self.assertEqual(calls[0]["only_carriers"], ["SU"])
+        self.assertEqual(calls[0]["limit"], 17)
         self.assertIsNone(calls[0]["return_date"])
 
     def test_aggregate_adapter_passes_return_date_and_keeps_round_trip_capability(
@@ -494,12 +633,14 @@ class TutuMcpProviderTests(unittest.TestCase):
                 "currency": "RUB",
                 "only_carriers": ["SU"],
                 "direct_only": True,
+                "limit": 23,
                 "use_cache": False,
             }
         )
 
         self.assertEqual(calls[0]["return_date"], date(2026, 8, 22))
         self.assertTrue(calls[0]["direct_only"])
+        self.assertEqual(calls[0]["limit"], 23)
         self.assertTrue(adapter.capabilities.supports_round_trip)
         self.assertEqual(result.query["return_date"], "2026-08-22")
 

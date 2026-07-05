@@ -28,16 +28,6 @@ def provider_result(
     return payload
 
 
-def legacy_aggregate_result(
-    *offers: dict[str, Any], provider: str = "kupibilet"
-) -> dict[str, Any]:
-    return {
-        "provider": provider,
-        "status": "ok",
-        "top_offers": list(offers),
-    }
-
-
 def offer(
     offer_id: str,
     segments: list[dict[str, Any]] | None = None,
@@ -417,28 +407,6 @@ markets:
         self.assertEqual(signal.direction, "return")
         self.assertEqual(signal.debug["source_path"], "journeys")
         self.assertEqual(signal.debug["journey_index"], 0)
-
-    def test_legacy_aggregate_controls_are_provider_signal_sources(self) -> None:
-        service = GatewayDiscoveryService(self.store_with_priors())
-
-        candidates = service.discover(
-            "global_non_ru",
-            provider_results=[
-                legacy_aggregate_result(
-                    offer(
-                        "legacy-aggregate",
-                        [
-                            {"origin": "SVX", "destination": "TAS"},
-                            {"origin": "TAS", "destination": "BKK"},
-                        ],
-                    ),
-                    provider="fli",
-                )
-            ],
-        )
-
-        self.assertEqual([candidate.code for candidate in candidates], ["TAS"])
-        self.assertEqual(candidates[0].signals[0].provider, "fli")
 
     def test_airport_mismatch_is_not_normal_gateway_and_is_diagnostic(self) -> None:
         diagnostics: dict[str, Any] = {}

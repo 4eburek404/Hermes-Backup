@@ -1,60 +1,37 @@
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
 from .. import __version__
 from ..config import (
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
-    SUPPORTED_CURRENCIES,
     TUTU_MCP_DEFAULT_URL,
 )
-from ..domain.normalize import (
-    normalize_carrier_code,
-    normalize_iata,
-    parse_iso_date,
-    price_value,
-)
+from ..domain.normalize import price_value
 from ..domain.offer_order import provider_offer_business_key
 from ..domain.provider_offer_filter import filter_provider_offers
 from ..errors import CliError
 from ..store import Store
 from .live_cache import live_cache_key, read_live_cache, write_live_cache
-from .segment_normalization import (
-    provider_offer_to_segment_offer,
-    provider_result_to_segment_result,
-)
+from .segment_normalization import provider_result_to_segment_result
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
 TUTU_NORMALIZER_VERSION = "tutu-avia-v2"
 TUTU_PAGE_SIZE = 30
 TUTU_MAX_PAGES = 3
+TUTU_MCP_INCOMPLETE_READ_RETRIES = 2
 
 # Matches a 3-letter IATA code in parentheses at end of string: "Тулуза — Тулуза-Бланьяк (TLS)" -> TLS
 _IATA_RE = re.compile(r"\(([A-Z]{3})\)\s*(?:,\s*терм\.\s*\S+)?\s*$")
-
-
-@dataclass(frozen=True)
-class TutuSearchOptions:
-    origin: str
-    destination: str
-    depart_date: str
-    currency: str
-    return_date: str | None = None
-    only_carrier: list[str] | None = None
-    direct_only: bool = False
-    limit: int = 20
-    timeout: int = 60
-    tutu_mcp_url: str | None = None
-    cache_ttl_seconds: int = DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
-    no_cache: bool = False
 
 
 def default_tutu_mcp_url() -> str:
@@ -125,6 +102,42 @@ def decode_mcp_response(raw: bytes, content_type: str | None) -> dict[str, Any]:
     return data
 
 
+def _mcp_payload_context(payload: dict[str, Any]) -> dict[str, Any]:
+    method = str(payload.get("method") or "")
+    params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
+    tool = params.get("name") if isinstance(params, dict) else None
+    return {
+        "provider": "tutu",
+        "method": method or None,
+        "tool": str(tool) if tool else method or None,
+    }
+
+
+def _incomplete_read_details(
+    exc: http.client.IncompleteRead,
+    *,
+    payload: dict[str, Any],
+    attempts: int,
+) -> dict[str, Any]:
+    partial = exc.partial
+    bytes_read = len(partial) if isinstance(partial, bytes) else None
+    bytes_missing = exc.expected if isinstance(exc.expected, int) else None
+    bytes_expected = (
+        bytes_read + bytes_missing
+        if bytes_read is not None and bytes_missing is not None
+        else None
+    )
+    details = {
+        **_mcp_payload_context(payload),
+        "failure_reason": "incomplete_read",
+        "bytes_read": bytes_read,
+        "bytes_missing": bytes_missing,
+        "bytes_expected": bytes_expected,
+        "attempts": attempts,
+    }
+    return {key: value for key, value in details.items() if value is not None}
+
+
 def tutu_mcp_http_post(
     url: str,
     payload: dict[str, Any],
@@ -140,37 +153,58 @@ def tutu_mcp_http_post(
     }
     if session_id:
         headers["Mcp-Session-Id"] = session_id
-    request = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers=headers,
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            raw = response.read()
-            content_type = response.headers.get("Content-Type")
-            next_session_id = (
-                response.headers.get("Mcp-Session-Id")
-                or response.headers.get("mcp-session-id")
-                or session_id
+    data = json.dumps(payload).encode("utf-8")
+    attempts = TUTU_MCP_INCOMPLETE_READ_RETRIES + 1
+    for attempt in range(1, attempts + 1):
+        request = urllib.request.Request(
+            url,
+            data=data,
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                raw = response.read()
+                content_type = response.headers.get("Content-Type")
+                next_session_id = (
+                    response.headers.get("Mcp-Session-Id")
+                    or response.headers.get("mcp-session-id")
+                    or session_id
+                )
+                return decode_mcp_response(raw, content_type), next_session_id
+        except http.client.IncompleteRead as exc:
+            details = _incomplete_read_details(
+                exc,
+                payload=payload,
+                attempts=attempt,
             )
-            return decode_mcp_response(raw, content_type), next_session_id
-    except urllib.error.HTTPError as exc:
-        body_text = exc.read().decode("utf-8", errors="replace")[:1000]
-        raise CliError(
-            f"Tutu MCP HTTP {exc.code}: {body_text}",
-            error_type="upstream_error",
-            details={
-                "http_status": exc.code,
-                "retry_after": exc.headers.get("Retry-After"),
-            },
-        ) from exc
-    except (urllib.error.URLError, TimeoutError) as exc:
-        raise CliError(
-            f"Tutu MCP request failed: {type(exc).__name__}: {exc}",
-            error_type="upstream_error",
-        ) from exc
+            if attempt < attempts:
+                time.sleep(0.2 * attempt)
+                continue
+            read = details.get("bytes_read", "unknown")
+            expected = details.get("bytes_expected", "unknown")
+            tool = details.get("tool") or details.get("method") or "request"
+            raise CliError(
+                f"Tutu MCP incomplete HTTP response while calling {tool}: read {read} of {expected} bytes",
+                error_type="upstream_incomplete_read",
+                details=details,
+            ) from exc
+        except urllib.error.HTTPError as exc:
+            body_text = exc.read().decode("utf-8", errors="replace")[:1000]
+            raise CliError(
+                f"Tutu MCP HTTP {exc.code}: {body_text}",
+                error_type="upstream_error",
+                details={
+                    "http_status": exc.code,
+                    "retry_after": exc.headers.get("Retry-After"),
+                },
+            ) from exc
+        except (urllib.error.URLError, TimeoutError) as exc:
+            raise CliError(
+                f"Tutu MCP request failed: {type(exc).__name__}: {exc}",
+                error_type="upstream_error",
+            ) from exc
+    raise CliError("Tutu MCP request failed", error_type="upstream_error")
 
 
 def ensure_jsonrpc_ok(response: dict[str, Any], context: str) -> dict[str, Any]:
@@ -296,21 +330,33 @@ def extract_iata_from_airport_string(text: str) -> str | None:
 # --- Carrier name → IATA code resolution ---
 
 
+def _carrier_name_key(value: str) -> str:
+    text = str(value or "").replace("\u00a0", " ").strip().casefold()
+    text = text.replace("ё", "е")
+    return re.sub(r"\s+", " ", text)
+
+
+def _carrier_catalog_rows(store: Store) -> list[dict[str, Any]]:
+    rows = list(store.airlines)
+    rows.extend(store.load_json("airlines_ru.json"))
+    return rows
+
+
 def _build_carrier_name_index(store: Store | None) -> dict[str, str]:
     if store is None:
         return {}
     index: dict[str, str] = {}
-    for airline in store.airlines:
+    for airline in _carrier_catalog_rows(store):
         code = str(airline.get("code") or "").upper()
         if not code:
             continue
-        name = str(airline.get("name") or "").strip().lower()
+        name = _carrier_name_key(str(airline.get("name") or ""))
         if name:
             index[name] = code
         translations = airline.get("name_translations")
         if isinstance(translations, dict):
             for tr_name in translations.values():
-                tr = str(tr_name or "").strip().lower()
+                tr = _carrier_name_key(str(tr_name or ""))
                 if tr:
                     index[tr] = code
     return index
@@ -328,7 +374,7 @@ def resolve_carrier_code(
     if re.fullmatch(r"[A-Z0-9]{2,3}", text.upper()):
         return text.upper()
     if name_index:
-        key = text.lower()
+        key = _carrier_name_key(text)
         if key in name_index:
             return name_index[key]
     return None
@@ -743,7 +789,10 @@ def parse_tutu_avia_search(
             deduped[key] = offer_obj
 
     filtered_offers, filter_stats = filter_provider_offers(list(deduped.values()))
-    offers = sorted(filtered_offers, key=provider_offer_business_key)[: max(0, limit)]
+    sorted_offers = sorted(filtered_offers, key=provider_offer_business_key)
+    normalized_limit = max(0, int(limit))
+    offers = sorted_offers[:normalized_limit] if normalized_limit else sorted_offers
+    omitted_offer_count = max(0, len(sorted_offers) - len(offers))
     return {
         "origin": origin,
         "destination": destination,
@@ -762,6 +811,7 @@ def parse_tutu_avia_search(
         "skipped": skipped,
         "offer_count": len(offers),
         "unique_flight_count": len(filtered_offers),
+        "omitted_offer_count": omitted_offer_count,
         **filter_stats,
         "offers": offers,
     }
@@ -910,31 +960,6 @@ def cached_tutu_avia_search(
     return result
 
 
-def tutu_offer_to_segment_offer(
-    offer: dict[str, Any],
-    *,
-    direction: str,
-    leg: str,
-    query_origin: str,
-    query_destination: str,
-    query_date: str,
-    currency: str,
-    index: int,
-) -> dict[str, Any] | None:
-    return provider_offer_to_segment_offer(
-        offer,
-        provider_prefix="tutu",
-        source_label="Tutu MCP search_avia",
-        direction=direction,
-        leg=leg,
-        query_origin=query_origin,
-        query_destination=query_destination,
-        query_date=query_date,
-        currency=currency,
-        index=index,
-    )
-
-
 def tutu_result_to_segment_result(
     result: dict[str, Any], *, direction: str, leg: str
 ) -> dict[str, Any]:
@@ -964,42 +989,3 @@ def tutu_segment_search_summary(
         "skipped": result.get("skipped", {}),
         "cache": result.get("cache", {"hit": False}),
     }
-
-
-def run_tutu_search(
-    args: TutuSearchOptions, store: Store | None = None
-) -> dict[str, Any]:
-    origin = normalize_iata(args.origin, "origin")
-    destination = normalize_iata(args.destination, "destination")
-    depart = parse_iso_date(args.depart_date, "depart-date")
-    return_date_text = getattr(args, "return_date", None)
-    return_date = (
-        parse_iso_date(return_date_text, "return-date") if return_date_text else None
-    )
-    currency = args.currency.upper()
-    if currency not in SUPPORTED_CURRENCIES:
-        raise CliError(
-            f"currency must be one of {', '.join(sorted(SUPPORTED_CURRENCIES))}",
-            error_type="validation_error",
-        )
-    only_carriers = [
-        normalize_carrier_code(code, "only-carrier")
-        for code in (getattr(args, "only_carrier", None) or [])
-    ]
-    return cached_tutu_avia_search(
-        origin,
-        destination,
-        depart,
-        currency=currency,
-        only_carriers=only_carriers,
-        direct_only=getattr(args, "direct_only", False),
-        limit=getattr(args, "limit", 20),
-        timeout=getattr(args, "timeout", 60),
-        mcp_url=getattr(args, "tutu_mcp_url", None),
-        cache_ttl_seconds=int(
-            getattr(args, "cache_ttl_seconds", DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS)
-        ),
-        use_cache=not bool(getattr(args, "no_cache", False)),
-        store=store,
-        return_date=return_date,
-    )

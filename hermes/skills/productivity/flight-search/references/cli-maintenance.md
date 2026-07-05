@@ -11,7 +11,6 @@ Important UX boundary: the flight-search CLI is an agent-facing implementation t
 - Work offline by default unless live provider access is the subject of the task.
 - For behavior changes, add/update a focused failing test before implementation.
 - Test parser/subprocess CLI contract and internal helpers. A test that instantiates `argparse.Namespace` does not prove the CLI accepts the flag.
-- Preserve `--json --agent-brief` as JSON-clean stdout.
 - Keep search behavior limited to current live provider assembly and documented targeted probes.
 - Static catalogs are metadata only; flight options come from live provider assembly.
 - Historical audit/session/proposal notes should not remain active references. Distill durable rules into this file, the other canonical references, executable report fields, or tests; leave raw history to session search.
@@ -27,7 +26,7 @@ Important UX boundary: the flight-search CLI is an agent-facing implementation t
 
 ## Source, Runtime, and Mirror Validation
 
-Current source edits happen under `/home/konstantin/src/Hermes-Backup/hermes/skills/productivity/flight-search`. Runtime state lives under `$HERMES_HOME/skills/productivity/flight-search` (usually `$HOME/.hermes/skills/productivity/flight-search`) and is a separate deployment/sync surface. The active Hermes release path may intentionally exclude this runtime/user skill. Do not recreate the retired distribution mirror formerly known as `skill-clis/flights`.
+Source edits happen in the active Git checkout that contains `hermes/skills/productivity/flight-search`; do not assume a fixed machine path. Runtime state lives under `$HERMES_HOME/skills/productivity/flight-search` (usually `$HOME/.hermes/skills/productivity/flight-search`) and is a separate deployment/sync surface. The active Hermes release path may intentionally exclude this runtime/user skill. Do not recreate the retired distribution mirror formerly known as `skill-clis/flights`.
 
 Before saying which version is current, run the compact local maintenance report when the CLI is available:
 
@@ -40,7 +39,7 @@ Then check separately when deeper evidence is required:
 - runtime skill `SKILL.md` version, bytes, and SHA-256;
 - runtime CLI markers: `cli/pyproject.toml`, `cli/flights_cli/__init__.py`, and `python3 -m flights_cli --version` from runtime `cli/`;
 - active Hermes release: whether `~/.hermes/hermes-agent/skills/productivity/flight-search` exists;
-- local source checkout: `/home/konstantin/src/Hermes-Backup/hermes`, branch, HEAD, dirty state, and ahead/behind status;
+- local source checkout: repository root, branch, HEAD, dirty state, origin URL, and ahead/behind status;
 - GitHub publication state only when asked for published link/current remote version.
 
 If runtime is newer than source/GitHub, say so explicitly: operationally loaded runtime may be ahead of published source until source changes are committed and pushed.
@@ -78,7 +77,7 @@ The current report/user-answer registry lives in `references/report-contract.md`
 
 Before adding or documenting another final-answer/report surface, classify every touched surface as current, retired/projection, shadow, or proposed according to `references/report-contract.md`. Do not introduce another v1/v2/v3 layer until the ownership map is clear.
 
-Public JSON tests should assert nested `agent_report.v3` paths such as `report["frontier"]["decision_frontier"]["options"]`, not top-level legacy aliases.
+Public JSON tests should assert `agent_report.v5` paths such as `report["frontier"]["decision_frontier"]["options"]` and `report["user_answer"]["rendered_text"]`, not removed flat aliases.
 
 ## CLI Surface and Contract Simplification
 
@@ -86,15 +85,15 @@ Use this when the user asks whether flags, schemas, commands, or agent/user path
 
 Parser registration in `cli.py` owns the runtime command tree. `command_surface.py` is policy/contract metadata for manifest, maintenance, diagnostics, live-provider, and catalog-refresh classification; it must not grow into a second parser registry. Tests that need command coverage should inspect the built `argparse` tree and compare policy metadata against real leaf commands instead of keeping parallel active-command argv maps.
 
-When the user is confused by contract versions, `user_answer`, `user_output`, `final_answer`, `human_answer`, `display`, or `answer_lines`, first audit whether this is a real multi-version implementation or only misleading names. Current durable finding: the active public line is single-path (`agent_report.v3` → `flight_search_user_answer.v5` → `user_answer.rendered_text`); `user_output` and `flight_search_final_answer` are not active code contracts. The confusing surfaces are diagnostics only: `flight_human_answer.v1` is a mirror-only diagnostic projection, `flight_display.v1` is itinerary diagnostics, and diagnostic `answer_lines` are summary lines. Before adding new schemas, add/update a contract registry with logical names (`search_request`, `search_result`, `agent_report`, `user_answer`) and statuses (`current`, `diagnostic_mirror_only`, `diagnostic_projection`, `retired/rejected`, `proposed`) so agents do not reason directly in raw version labels.
+When the user is confused by contract versions or final-answer names, first audit the registry and emitted JSON. Current durable finding: the active public line is single-path (`flight_search_result.v5` → `agent_report.v5` → `flight_search_user_answer.v7` → `user_answer.rendered_text`); `user_output` and `flight_search_final_answer` are not active code contracts. Route debug traces remain explicit under `diagnose trace`, not inside the public report.
 
-Prefer internal intent-name cleanup before wire-version bumps: canonical user-answer code lives in `reporting/user_answer.py`; diagnostic human-answer mirror code lives in `reporting/projections/human_answer_mirror.py` and must not render independently; diagnostic `answer_lines` are summary lines; `display` is itinerary diagnostics. Do not bump `agent_report.v3` or `flight_search_user_answer.v5` merely to rename Python modules. Bump wire versions only when emitted JSON changes incompatibly.
+Prefer internal intent-name cleanup before wire-version bumps: canonical user-answer code lives in `reporting/user_answer.py`, and route debug traces live under `diagnose trace` as `data.route_trace.live_search`. Bump wire versions only when emitted JSON changes incompatibly.
 
 Separate three concerns before removals:
 
 1. Search/evidence semantics — provider calls, probes, coverage controls.
 2. Decision semantics — assembly, ranking, stop policy, frontier.
-3. Output semantics — JSON size, `agent_report`, `human_answer`, brief rendering.
+3. Output semantics — JSON size, `agent_report`, canonical rendered text, brief rendering.
 
 External CLI practice anchors for this decision:
 
@@ -108,8 +107,8 @@ External CLI practice anchors for this decision:
 
 Rules:
 
-- When the user is already confused by current structure, prioritize **structural cleanup planning before adversarial future-breakage**. A good plan first states the current canonical path, identifies misleading names, and gives a concrete merge/split/rename order. For this CLI, the current canonical cleanup order is: contract registry → `reporting/user_answer.py` owns `flight_search_user_answer.v5` → diagnostic projections live under `reporting/projections/` → `agent_report_projector.py` owns `agent_report.v3` projection without changing the wire version → typed `SearchRequest`/`FlowDecision`/`EvidencePlan` behind `search --request`.
-- For flight-search structural plans, keep one implementation binary first (`flights`) with role namespaces (`flights search`, `flights diagnose`, `flights maint`). Separate executable names such as `flights-diagnose`/`flights-maint` may be aliases later, but should not introduce separate implementation trees. Do not switch parser frameworks or delete `agent_report.v3` just to simplify the plan; retain compatibility until migration tests prove consumers moved.
+- When the user is already confused by current structure, prioritize **structural cleanup planning before adversarial future-breakage**. A good plan first states the current canonical path, identifies misleading names, and gives a concrete merge/split/rename order. For this CLI, the current path is: contract registry → compact `agent_report.v5` builder → `reporting/user_answer.py` owns `flight_search_user_answer.v7` → typed `SearchRequest`/`FlowDecision`/`EvidencePlan` behind `search --request`.
+- For flight-search structural plans, keep one implementation binary first (`flights`) with role namespaces (`flights search`, `flights diagnose`, `flights maint`). Separate executable names such as `flights-diagnose`/`flights-maint` may be aliases later, but should not introduce separate implementation trees.
 - Before approving or implementing a CLI-surface refactor plan, do an adversarial architecture pass **after** the structural cleanup order is clear: try to break it through version/name drift, multiple final-text sources, stdout/stderr error ambiguity, JSON-as-flag-zoo, misclassified `flow_decision`, provider-port bypasses, diagnostic commands becoming production answers, hidden maintenance side effects, source/runtime overwrites, `$ref` packaging failures, schema meta-validation without subprocess output validation, round-trip capability gaps, stale cache caveats, secret/log leakage, executable drift, and premature legacy removal. Label each item as observed seam, existing guardrail, refactor hazard, or current bug; do not present hazards as code facts without provenance. For each break scenario, record the concrete closing rule/test before implementation.
 - Before approving or implementing a CLI-surface refactor plan, audit the dependency order explicitly: source/runtime ownership gate → contract registry/naming cleanup → request/result schema foundation → flow decision/evidence plan → new production `flights search` entrypoint → provider/evidence boundary cleanup → diagnostics/maintenance executable split → legacy removal → skill docs update. Do not delete legacy commands/flags before replacement contracts and migration tests exist.
 - Treat `flow_decision` as a first-class contract seam, not prose: classify `intent_class`, `market_class`, `evidence_class`, routing strategy, provider plan, and limitations before command/provider reasoning. A JSON request without this normalized decision layer only moves the old flag/command ambiguity into JSON.
@@ -118,14 +117,11 @@ Rules:
 - Context7/CPython argparse guidance: keep `add_subparsers(required=True)` at every command level, attach leaf handlers with `set_defaults(func=...)`, and use parent parsers with `add_help=False` for shared option groups instead of copy-pasting flags.
 - Do not treat “agent mode” as one design primitive. It can conflate report attachment, output shape, and evidence budget.
 - Do not solve overload by adding a larger public taxonomy (`none/user/agent/debug/human/json`, `--format`, `--report`, `--evidence`) without a concrete consumer and contract.
-- For agent-only CLI refactors, design the production path as strict machine contract first: `flights search --request request.json --json`, with `flight_search_request.v1` validated before provider calls and a single stdout JSON result envelope validated before printing. Keep `agent_report.v3` and `flight_search_user_answer.v5` as nested active contracts; do not create another independent final-answer prose layer.
+- For agent-only CLI refactors, design the production path as strict machine contract first: `flights search --request request.json --json`, with `flight_search_request.v1` validated before provider calls and a single stdout JSON result envelope validated before printing. Keep `agent_report.v5` and `flight_search_user_answer.v7` as nested active contracts; do not create another independent final-answer prose layer.
 - Keep the canonical user answer path explicit: `data.agent_report.user_answer.rendered_text`. If a result envelope exposes a derived `rendered_text` mirror, tests must prove exact equality with that canonical field.
-- Split agent-facing surfaces by operational role: production live search (`flights`), diagnostics/evidence/raw probes (`flights-diagnose`), and maintenance/source-runtime/catalog/cleanup (`flights-maint`). Provider-specific probes, raw candidates, rejected pairs, trace, coverage controls, and offline route internals belong in diagnostics, not ordinary search.
-- `--agent-report` should be a thin wrapper that attaches/validates `data.agent_report` without changing search budget.
-- `--agent-brief` should trim output only; if it implies legacy `agent_mode`, call out inherited evidence/budget side effects in audits and tests.
-- `--agent-mode` is a legacy compatibility preset, not a new design surface; remove it after replacement production/diagnostic contracts exist.
-- Keep ordinary user commands narrow. Hide or classify as advanced/debug the knobs for candidate pool limits, raw/ranked/rejected bodies, live-cache TTL, direct-route-intel TTL, fail-fast, day-offset fanout, coverage-control internals, and aggregate-control internals.
-- Prefer one public route-search wrapper over parallel user-facing variants. Provider-specific commands, `diagnose plan --request`, and offline `route validate/rank` are diagnostics/development surfaces unless the user explicitly asks for provider-level proof.
+- Split agent-facing surfaces by operational role: production live search (`search --request`), generic diagnostics (`diagnose plan|probe|render`), and maintenance/source-runtime/catalog/cleanup (`maint`). Provider-specific raw searches, raw candidates, rejected pairs, trace, coverage controls, and offline route internals belong in route diagnostics, not ordinary search.
+- Keep ordinary user commands narrow. Hide or classify as advanced/debug the knobs for raw provider bodies, live-cache TTL, fail-fast, day-offset fanout, coverage-control internals, and aggregate-control internals.
+- Prefer one public route-search wrapper over parallel user-facing variants. `diagnose plan --request` and `diagnose probe --provider ...` are diagnostics/development surfaces unless the user explicitly asks for provider-level proof.
 - Do not preserve compatibility aliases just because older tests referenced them; production search and diagnostic provider override surfaces are already separate.
 
 ## Provider Port Rule
@@ -139,8 +135,8 @@ Do not remove the provider port abstraction. Complete it:
 - provider policy owns mapping from route segment + request evidence policy to eligible providers using capabilities and airport/route policy.
 - `execution/probe_dispatcher.py` loops over provider adapters and translates `ProviderProbeResult` into probe ledger/outcome types.
 - aggregate controls call provider adapter `search_aggregate(...)` or receive structured `not_supported`; they must not contain provider-only algorithm branches.
-- production orchestration must not call provider-specific functions such as `fetch_kupibilet_search` directly. Keep provider-specific commands and human renderers in diagnostics or adapter-owned projections, not in the production answer path.
-- If KupiBilet round-trip remains outside the port while `diagnose kb-roundtrip` exists, document that capability boundary explicitly; otherwise model it as a typed provider-port method with tests.
+- production orchestration must not call provider-specific functions such as `fetch_kupibilet_search` directly. Keep provider-specific human renderers out of the production answer path.
+- If KupiBilet round-trip support is needed, model it as a typed provider-port method with tests rather than adding a parallel CLI command.
 
 Pitfalls:
 
@@ -152,7 +148,7 @@ Pitfalls:
 
 ## Provider and Airport Policy Coupling
 
-The authoritative rules live in `references/provider-aware-airport-priority.md`; do not duplicate them here. When maintaining the CLI, tests, or docs, read that file for city/airport dispatch invariants, KupiBilet MOW city-code behavior, FLI exact-airport policy, and airport interchangeability rules.
+The authoritative dispatch rules live in `references/pipeline-reference.md`; confidence/source wording lives in `references/source-boundaries.md`. Do not duplicate them here. When maintaining the CLI, tests, or docs, read those files for city/airport dispatch invariants, KupiBilet MOW city-code behavior, FLI exact-airport policy, Tutu city-name behavior, and airport interchangeability rules.
 
 ## Route-Family and Coverage-Control Rules
 
@@ -177,9 +173,9 @@ Use this when operational logic in `SKILL.md` starts compensating for determinis
 
 ## Human/User Answer Renderer Maintenance
 
-Use this when improving final user-visible flight output. The current seam is `data.agent_report.user_answer` → `flight_search_user_answer.v5` → `user_answer.rendered_text` → final Telegram/Markdown answer. `diagnostics.human_answer` is a mirror-only diagnostic projection and must not render, fallback, or be used as an alternative final-prose source.
+Use this when improving final user-visible flight output. The current seam is `data.agent_report.user_answer` → `flight_search_user_answer.v7` → `user_answer.rendered_text` → final Telegram/Markdown answer.
 
-- Implement user-answer contract changes in `cli/flights_cli/reporting/user_answer.py`; `reporting/projections/human_answer_mirror.py` and `output.py` may only mirror or select `user_answer.rendered_text`.
+- Implement user-answer contract changes in `cli/flights_cli/reporting/user_answer.py`; output selection may only use `user_answer.rendered_text`.
 - Preserve provider neutrality: renderer input is normalized report fields, not provider client objects, booking URLs, cache semantics, or provider caveat text.
 - Test negative format guarantees: no `agent report:`, `Best CLI-ranked option`, `Coverage diagnostics`, `provider_aggregate_candidate`, `provider-aggregate:`, pipe tables, raw `probe_id`, raw risk badges (`single_pnr_unproven`, `baggage_unknown`), or English caveats (`single PNR`, `through fare`, `booking screen`) in user-facing text.
 - For every positive catalog answer, use one deterministic compact multiline shape from `catalog.items[*].agent_display`: first line is `N. FLIGHT DD.MM Origin city - Destination city HH:MM HH:MM (arrival DD.MM when different) AIRCRAFT в пути H:MM`; continuation segment lines and the price line are indented by four spaces. Do not create a second compact pipe renderer in diagnostics.
@@ -189,7 +185,7 @@ Use this when improving final user-visible flight output. The current seam is `d
 Focused renderer/contract suite after renderer changes:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests:. python3 -m pytest   tests/test_human_answer_mirror.py   tests/test_agent_report_contract.py   tests/test_user_answer_contract.py   tests/test_catalog_answer_contract.py   tests/test_flight_display.py   tests/test_provider_aggregate_candidates.py -q
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests:. python3 -m pytest   tests/test_agent_report_contract.py   tests/test_user_answer_contract.py   tests/test_catalog_answer_contract.py   tests/test_coverage_diagnostics.py   tests/test_provider_aggregate_candidates.py -q
 ```
 
 Then run the full flight-search suite before reporting completion when behavior changed.
@@ -198,10 +194,9 @@ Then run the full flight-search suite before reporting completion when behavior 
 
 - Mixing source, runtime, and temporary checkouts without naming the evidence layer.
 - Calling a refactor “complete” while source/runtime parity still has semantic diffs.
-- Letting `--agent-*` compatibility flags become a larger public flag matrix instead of separating search/evidence, decision, and output concerns internally.
-- Treating MCP `outputSchema`, prompt text, or debug mirrors (`diagnostics.human_answer`, `diagnostics.display`, `diagnostics.answer_lines`) as the domain contract; the enforceable layer lives in `references/report-contract.md` plus schema/builder/validator/tests.
+- Letting output compatibility flags become a larger public flag matrix instead of separating search/evidence, decision, and output concerns internally.
+- Treating MCP `outputSchema`, prompt text, or route debug traces as the domain contract; the enforceable layer lives in `references/report-contract.md` plus schema/builder/validator/tests.
 - Reintroducing provider execution shortcuts: segment and aggregate probes should go through provider adapters/ports, not direct provider-specific branches in `execution/*`.
-- Treating `--agent-brief` as permission to narrow evidence scope. It may trim output only; explicit evidence/search controls must still be honored.
 - During dead-code cleanup, classify `Protocol` ellipsis methods as interface declarations, not runtime stubs; use layer-specific names for helpers with different responsibilities.
 
 ## Version Bump Checklist
@@ -238,24 +233,21 @@ Generated artifacts must be intentionally cleaned or reported. Prefer `PYTHONDON
 
 ## Markdown Reference Governance
 
-Canonical active references are the index plus eight owner files:
+Canonical active references are the index plus five owner files:
 
 0. `references/index.md` — canonical reference owner map and routing hub from `SKILL.md`.
 1. `references/report-contract.md` — how to read `agent_report`, contract lifecycle, and renderer contract.
-2. `references/source-boundaries.md` — evidence classes, absence, airports, connections, ticketing, OTA/smart-route semantics.
-3. `references/provider-aware-airport-priority.md` — provider/airport dispatch and city-code policy.
-4. `references/pipeline-reference.md` — current data flow, flow decision, evidence plan, direct-priority/all-direct mechanics, reporting projection, and data artifacts.
-5. `references/debug-playbook.md` — targeted probes and bounded exception/debug patterns.
-6. `references/direct-date-window.md` — direct/nonstop inventory over a bounded date range.
-7. `references/rail-rzd-live-pricing.md` — bounded official-RZD train-price comparison after a flight search.
-8. `references/cli-maintenance.md` — source/runtime, schema/tests, provider ports, CLI-surface simplification, generated artifacts, dead-code/duplicate cleanup, and this reference lifecycle.
+2. `references/source-boundaries.md` — evidence classes, absence, airports, connections, ticketing, adjacent source boundaries, OTA/smart-route semantics.
+3. `references/pipeline-reference.md` — current data flow, flow decision, evidence plan, provider/gateway routing, provider/airport scope, Tutu MCP facts, direct-first/date-window mechanics, reporting projection, and data artifacts.
+4. `references/debug-playbook.md` — targeted probes and bounded exception/debug patterns.
+5. `references/cli-maintenance.md` — source/runtime, schema/tests, provider ports, CLI-surface simplification, generated artifacts, dead-code/duplicate cleanup, and this reference lifecycle.
 
-Do not add a new active reference for every incident, smoke run, audit, handoff, route example, migration note, or implementation report. First extract durable rules into the appropriate canonical reference or test; leave raw history to session search. Add another active reference only when a new stable direction cannot be expressed in the canonical files.
+Do not add a new active reference for every incident, smoke run, audit, handoff, route example, migration note, or implementation report. First verify the rule against current code/schema/tests, then extract durable behavior into the appropriate canonical reference or test; leave raw history to session search. Add another active reference only when a new stable direction cannot be expressed in the canonical files.
 
 Before final reporting after Markdown consolidation:
 
 - Confirm the canonical Markdown set explicitly.
 - Confirm no new incident, runbook, audit, handoff, smoke, or implementation-report Markdown was added.
 - Link from `SKILL.md` to `references/index.md` for reference routing; direct links to specific references are allowed only for hot-path invariants.
-- Keep provider/airport policy in `references/provider-aware-airport-priority.md`; cross-reference it instead of duplicating provider-specific rules across docs.
+- Keep provider/airport policy in `references/pipeline-reference.md` and source caveats in `references/source-boundaries.md`; cross-reference them instead of duplicating provider-specific rules across docs.
 - Verify noncanonical runtime-only Markdown files are gone and source/runtime Markdown parity holds after sync when runtime sync is in scope.

@@ -54,10 +54,6 @@ def isolate_flights_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(
         config, "LIVE_SEARCH_CACHE_DIR", cache_dir / "live_search", raising=False
     )
-    monkeypatch.setattr(
-        config, "ROUTE_INTEL_CACHE_DIR", cache_dir / "route_intel", raising=False
-    )
-
     try:
         import helpers
     except ImportError:

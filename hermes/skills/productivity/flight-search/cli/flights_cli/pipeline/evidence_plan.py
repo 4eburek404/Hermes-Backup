@@ -31,17 +31,15 @@ class EvidencePlan:
     """Typed evidence policy derived from the flow decision and search options."""
 
     provider_policy: str
+    primary_offer_limit: int
     max_segment_searches: int
     live_cache_enabled: bool
     live_cache_ttl_seconds: int
-    direct_route_intel_enabled: bool
-    direct_route_index_ttl_seconds: int
     aggregate_control_limit: int
     aggregate_control_carriers: tuple[Any, ...]
     coverage_mode: str
     coverage_controls: tuple[Any, ...]
     coverage_control_limit: int
-    include_segment_results: int
     evidence_class: str
     direct_only: bool
     required_controls: tuple[str, ...]
@@ -57,17 +55,15 @@ class EvidencePlan:
     def to_dict(self) -> dict[str, Any]:
         return {
             "provider_policy": self.provider_policy,
+            "primary_offer_limit": self.primary_offer_limit,
             "max_segment_searches": self.max_segment_searches,
             "live_cache_enabled": self.live_cache_enabled,
             "live_cache_ttl_seconds": self.live_cache_ttl_seconds,
-            "direct_route_intel_enabled": self.direct_route_intel_enabled,
-            "direct_route_index_ttl_seconds": self.direct_route_index_ttl_seconds,
             "aggregate_control_limit": self.aggregate_control_limit,
             "aggregate_control_carriers": list(self.aggregate_control_carriers),
             "coverage_mode": self.coverage_mode,
             "coverage_controls": list(self.coverage_controls),
             "coverage_control_limit": self.coverage_control_limit,
-            "include_segment_results": self.include_segment_results,
             "evidence_class": self.evidence_class,
             "direct_only": self.direct_only,
             "required_controls": list(self.required_controls),
@@ -108,8 +104,6 @@ def _required_controls(
         decision.intent_class == IntentClass.CARRIER_OR_AIRPORT_SCOPE
         or request.only_carriers
         or request.exclude_carriers
-        or request.constraint_only_carriers
-        or request.constraint_preferred_carriers
         or request.aggregate_control_carriers
     ):
         controls.append(RequiredControl.CARRIER_AGGREGATE)
@@ -168,7 +162,6 @@ def plan_evidence(
     *,
     today_provider: Callable[[], date] | None = None,
 ) -> EvidencePlan:
-    direct_route_ttl = request.direct_route_index_ttl_seconds
     direct_only = _is_direct_only(request)
     freshness_policy = _freshness_policy(
         request, decision, today_provider=today_provider
@@ -181,18 +174,15 @@ def plan_evidence(
     required_controls = _required_controls(request, decision, direct_only)
     return EvidencePlan(
         provider_policy=request.provider_policy,
+        primary_offer_limit=request.primary_offer_limit,
         max_segment_searches=request.max_segment_searches,
         live_cache_enabled=cache_enabled,
         live_cache_ttl_seconds=cache_ttl,
-        direct_route_intel_enabled=not request.no_direct_route_intel
-        and direct_route_ttl > 0,
-        direct_route_index_ttl_seconds=direct_route_ttl,
         aggregate_control_limit=request.aggregate_control_limit,
         aggregate_control_carriers=request.aggregate_control_carriers,
         coverage_mode=request.coverage_mode,
         coverage_controls=request.coverage_controls,
         coverage_control_limit=request.coverage_control_limit,
-        include_segment_results=request.include_segment_results,
         evidence_class=decision.evidence_class,
         direct_only=direct_only,
         required_controls=required_controls,

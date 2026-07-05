@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from .candidate_ranker import build_decision_frontier, rank_mixed_candidates
@@ -14,6 +14,7 @@ DECISION_SCORER_SCHEMA_VERSION = "flight_decision_scorer.v1"
 class DecisionScorerOptions:
     round_trip: bool = False
     max_connections_per_journey: int = 2
+    max_connections_per_direction: dict[str, int] = field(default_factory=dict)
     preferred_connections: int = 1
     min_same_airport_connection_min: int = 120
     min_cross_airport_connection_min: int = 300
@@ -35,17 +36,14 @@ class DecisionScorer:
         self,
         candidate_envelope: dict[str, Any],
         *,
-        legacy_candidates: list[dict[str, Any]] | None = None,
-        constraints: dict[str, Any] | None = None,
         controls: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         prepared_envelope = self._prepare_candidate_envelope(candidate_envelope)
         ranking = rank_mixed_candidates(
             prepared_envelope,
-            legacy_candidates=legacy_candidates,
             max_connections_per_journey=self.options.max_connections_per_journey,
+            max_connections_per_direction=self.options.max_connections_per_direction,
             preferred_connections_per_journey=self.options.preferred_connections,
-            constraints=constraints,
             min_same_airport_connection_min=(
                 self.options.min_same_airport_connection_min
             ),
@@ -66,6 +64,9 @@ class DecisionScorer:
                 "round_trip": bool(self.options.round_trip),
                 "max_connections_per_journey": max(
                     0, int(self.options.max_connections_per_journey)
+                ),
+                "max_connections_per_direction": dict(
+                    self.options.max_connections_per_direction
                 ),
                 "preferred_connections": max(
                     0, int(self.options.preferred_connections)

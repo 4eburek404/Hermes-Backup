@@ -50,6 +50,13 @@ def classify_failure(
     elif original_type == "timeout" or "timeout" in lower or "timed out" in lower:
         classification = "timeout"
         retryable = True
+    elif (
+        original_type == "upstream_incomplete_read"
+        or "incomplete http response" in lower
+        or "incompleteread" in lower
+    ):
+        classification = "incomplete_read"
+        retryable = True
     elif original_type == "provider_unavailable" or any(
         token in lower
         for token in (
@@ -110,8 +117,23 @@ def classify_failure(
 
 
 def error_payload_from_cli_error(exc: CliError) -> dict[str, Any]:
-    return {
+    payload = {
         "type": exc.error_type,
         "message": exc.message,
         **classify_failure(exc.error_type, exc.message, details=exc.details),
     }
+    if isinstance(exc.details, dict):
+        detail_keys = {
+            "provider",
+            "method",
+            "tool",
+            "failure_reason",
+            "bytes_read",
+            "bytes_missing",
+            "bytes_expected",
+            "attempts",
+        }
+        details = {key: exc.details[key] for key in detail_keys if key in exc.details}
+        if details:
+            payload["details"] = details
+    return payload

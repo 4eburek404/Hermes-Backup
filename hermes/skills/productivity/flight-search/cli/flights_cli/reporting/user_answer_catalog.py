@@ -501,6 +501,9 @@ def risk_badges(
         and int(option.get("max_connections_per_journey") or 0) >= 2
     ):
         badges.append("two_stop_or_more")
+    badges.extend(
+        str(value) for value in option.get("option_badges") or [] if str(value).strip()
+    )
     return list(dict.fromkeys(badges))
 
 
@@ -602,7 +605,7 @@ def catalog_options(
     recommended: list[Any],
     priority: list[Any],
     *,
-    limit: int = 10,
+    limit: int,
     is_round_trip_request: bool = False,
 ) -> list[dict[str, Any]]:
     return ordered_user_options(
@@ -626,13 +629,15 @@ def build_catalog_contract(
     priority: list[Any],
     *,
     is_round_trip_request: bool,
-    all_direct_inventory: bool = False,
+    catalog_limit: int,
+    direct_mode: bool = False,
 ) -> dict[str, Any]:
-    # When the entire displayed set is direct flights, expand the catalog limit
-    # so that every direct flight appears in the user-facing answer.
-    # The flag is computed in assemble_direction and propagated through
-    # report["status"]["all_direct_inventory"].
-    catalog_limit = max(1, len(recommended)) if all_direct_inventory else 10
+    requested_limit = max(1, int(catalog_limit))
+    catalog_limit = (
+        max(1, len(recommended))
+        if direct_mode
+        else max(requested_limit, len(recommended))
+    )
     options = catalog_options(
         recommended,
         priority,
@@ -669,7 +674,6 @@ def render_catalog_answer(
     catalog: dict[str, Any],
     *,
     caveat_context: dict[str, Any],
-    direct_omitted: int = 0,
     gateway_summary: str | None = None,
 ) -> str:
     origin = route.get("origin") or "???"
@@ -683,19 +687,8 @@ def render_catalog_answer(
     for rendered_item in rendered_items:
         lines.append(rendered_item)
     has_rendered_options = bool(rendered_items)
-    if direct_omitted > 0:
-        if rendered_items:
-            lines.append("")
-        word = (
-            "рейс"
-            if direct_omitted == 1
-            else "рейса"
-            if 2 <= direct_omitted <= 4
-            else "рейсов"
-        )
-        lines.append(f"и ещё {direct_omitted} прямых {word}")
     if gateway_summary:
-        if rendered_items or direct_omitted > 0:
+        if rendered_items:
             lines.append("")
         lines.append(gateway_summary)
     negative_wording = str(caveat_context.get("negative_wording") or "").strip()
@@ -711,7 +704,7 @@ def render_catalog_answer(
         checks.append(
             "часть live-проверок упала — повторить, если это влияет на выбор."
         )
-    if checks and (rendered_items or direct_omitted > 0 or gateway_summary):
+    if checks and (rendered_items or gateway_summary):
         lines.append("")
     lines.extend(checks)
     return "\n".join(lines).strip()

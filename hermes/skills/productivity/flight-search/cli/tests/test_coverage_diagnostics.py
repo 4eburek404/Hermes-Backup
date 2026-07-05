@@ -4,7 +4,7 @@ import unittest
 
 from flights_cli.services.agent_report import build_agent_report
 from flights_cli.services.agent_report_contract import validate_agent_report
-from flights_cli.reporting.coverage_projector import build_coverage_diagnostics
+from flights_cli.reporting.coverage import build_coverage_diagnostics
 
 
 def base_payload() -> dict:
@@ -145,52 +145,27 @@ class CoverageDiagnosticsTests(unittest.TestCase):
             diagnostics["completeness"]["all_planned_controls_have_terminal_state"]
         )
 
-    def test_agent_report_has_machine_readable_coverage_diagnostics(self) -> None:
+    def test_agent_report_has_compact_machine_readable_coverage(self) -> None:
         report = build_agent_report(base_payload())
         validate_agent_report(report)
 
-        diagnostics = report["evidence"]["coverage_diagnostics"]
-        self.assertEqual(diagnostics["coverage_mode"], "targeted")
+        coverage = report["evidence"]["coverage"]
+        self.assertEqual(coverage["coverage_mode"], "targeted")
         self.assertEqual(
-            diagnostics["negative_evidence_type"], "bounded_live_controls_only"
+            coverage["negative_evidence_type"], "bounded_live_controls_only"
         )
         self.assertIn(
-            "segment_absence_is_not_route_absence", diagnostics["coverage_warnings"]
+            "segment_absence_is_not_route_absence", coverage["coverage_warnings"]
         )
-        searched_types = {item["type"] for item in diagnostics["searched_controls"]}
-        self.assertIn("exact_airport_direct", searched_types)
-        self.assertIn("full_route_aggregate", searched_types)
-        searched_direct = [
-            item
-            for item in diagnostics["searched_controls"]
-            if item["type"] == "exact_airport_direct"
-        ][0]
-        self.assertEqual(searched_direct["cache_status"], "live")
-        skipped = diagnostics["skipped_controls"]
-        self.assertEqual(skipped[0]["reason"], "priority_route_viable")
-        not_executed_types = {
-            item["type"] for item in diagnostics["not_executed_controls"]
-        }
-        self.assertIn("carrier_aggregate", not_executed_types)
+        self.assertIn("searched_controls", coverage["counts"])
+        self.assertIn("not_executed_controls", coverage["counts"])
         self.assertEqual(
-            diagnostics["completeness"]["planned_count"],
-            diagnostics["completeness"]["terminal_count"],
+            coverage["completeness"]["planned_count"],
+            coverage["completeness"]["terminal_count"],
         )
         self.assertTrue(
-            diagnostics["completeness"]["all_planned_controls_have_terminal_state"]
+            coverage["completeness"]["all_planned_controls_have_terminal_state"]
         )
-
-    def test_answer_lines_do_not_dump_coverage_control_lists(self) -> None:
-        report = build_agent_report(base_payload())
-        joined = " ".join(report["diagnostics"]["answer_lines"])
-        diagnostics = report["evidence"]["coverage_diagnostics"]
-
-        self.assertEqual(len(diagnostics["not_executed_controls"]), 1)
-        self.assertTrue(
-            diagnostics["completeness"]["all_planned_controls_have_terminal_state"]
-        )
-        self.assertNotIn("searched_controls", joined)
-        self.assertNotIn("skipped_controls", joined)
 
 
 if __name__ == "__main__":

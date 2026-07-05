@@ -57,8 +57,6 @@ class Store:
         self._route_access_profile_catalog: RouteAccessProfileCatalog | None = None
         self._city_by_code: dict[str, dict[str, Any]] | None = None
         self._airport_by_code: dict[str, dict[str, Any]] | None = None
-        self._airline_by_code: dict[str, dict[str, Any]] | None = None
-        self._alliances_by_airline: dict[str, list[str]] | None = None
         self._airports_by_city: dict[str, list[dict[str, Any]]] | None = None
 
     def load_json(self, filename: str) -> list[dict[str, Any]]:
@@ -168,34 +166,6 @@ class Store:
                 if airport.get("code")
             }
         return self._airport_by_code
-
-    @property
-    def airline_by_code(self) -> dict[str, dict[str, Any]]:
-        if self._airline_by_code is None:
-            self._airline_by_code = {
-                str(airline.get("code", "")).upper(): airline
-                for airline in self.airlines
-                if airline.get("code")
-            }
-        return self._airline_by_code
-
-    @property
-    def alliances_by_airline(self) -> dict[str, list[str]]:
-        if self._alliances_by_airline is None:
-            grouped: dict[str, list[str]] = defaultdict(list)
-            for alliance in self.alliances:
-                name = str(alliance.get("name") or "").strip()
-                airlines = alliance.get("airlines")
-                if not name or not isinstance(airlines, list):
-                    continue
-                for airline in airlines:
-                    code = str(airline or "").upper()
-                    if code:
-                        grouped[code].append(name)
-            self._alliances_by_airline = {
-                code: sorted(names) for code, names in grouped.items()
-            }
-        return self._alliances_by_airline
 
     @property
     def airports_by_city(self) -> dict[str, list[dict[str, Any]]]:
