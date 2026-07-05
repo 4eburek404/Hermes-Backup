@@ -198,6 +198,49 @@ class OfferGraphTests(unittest.TestCase):
             [("SVX", "IST"), ("IST", "AMS")],
         )
 
+    def test_city_destination_request_accepts_matching_airport_offer(self) -> None:
+        graph = build_offer_graph(
+            primary_offer_results=[
+                {
+                    "role": "primary_offer_collection",
+                    "source_type": "provider_full_route",
+                    "provider": "tutu",
+                    "origin": "SVX",
+                    "destination": "MOW",
+                    "top_offers": [
+                        {
+                            "id": "tutu-direct-dme",
+                            "price": 9461,
+                            "currency": "RUB",
+                            "journeys": [
+                                {
+                                    "direction": "outbound",
+                                    "segments": [
+                                        {
+                                            "origin": "SVX",
+                                            "destination": "DME",
+                                            "departure_at": "2026-10-09T06:30:00+05:00",
+                                            "arrival_at": "2026-10-09T07:15:00+03:00",
+                                        }
+                                    ],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+            gateway_leg_results={},
+        )
+
+        envelope = materialize_offer_graph_candidates(
+            graph,
+            requested_origin="SVX",
+            requested_destination="MOW",
+        )
+
+        self.assertEqual(len(envelope["candidates"]), 1)
+        self.assertTrue(envelope["candidates"][0]["covers_requested_trip"])
+
     def test_tutu_round_trip_offer_uses_journeys_atomically(self) -> None:
         graph = build_offer_graph(
             primary_offer_results=[

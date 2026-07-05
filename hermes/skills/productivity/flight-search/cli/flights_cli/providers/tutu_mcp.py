@@ -732,7 +732,10 @@ def parse_tutu_avia_search(
             deduped[key] = offer_obj
 
     filtered_offers, filter_stats = filter_provider_offers(list(deduped.values()))
-    offers = sorted(filtered_offers, key=provider_offer_business_key)[: max(0, limit)]
+    sorted_offers = sorted(filtered_offers, key=provider_offer_business_key)
+    normalized_limit = max(0, int(limit))
+    offers = sorted_offers[:normalized_limit] if normalized_limit else sorted_offers
+    omitted_offer_count = max(0, len(sorted_offers) - len(offers))
     return {
         "origin": origin,
         "destination": destination,
@@ -751,6 +754,7 @@ def parse_tutu_avia_search(
         "skipped": skipped,
         "offer_count": len(offers),
         "unique_flight_count": len(filtered_offers),
+        "omitted_offer_count": omitted_offer_count,
         **filter_stats,
         "offers": offers,
     }

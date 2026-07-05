@@ -25,7 +25,7 @@ from .commands.metadata import (
 )
 from .commands.search import command_search
 from .errors import CliError
-from .output import emit_json, error_envelope, output_envelope, render_human
+from .output import emit_json, error_envelope, output_envelope, render_user_text
 from .providers.static_catalog import (
     DEFAULT_AUTO_REFRESH_MAX_AGE_SECONDS,
     parse_ttl_seconds,
@@ -276,5 +276,5 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         emit_json(output_envelope(args.command_name, data))
     else:
-        print(render_human(args.command_name, data))
+        print(render_user_text(args.command_name, data))
     return 0

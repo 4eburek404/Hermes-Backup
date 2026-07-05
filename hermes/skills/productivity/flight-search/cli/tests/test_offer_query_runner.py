@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+from flights_cli.config import DEFAULT_DIRECT_CATALOG_LIMIT
 from flights_cli.errors import CliError
 from flights_cli.execution.offer_query_runner import (
     PrimaryOfferQueryOptions,
@@ -44,7 +45,7 @@ def primary_query(**overrides: Any) -> dict[str, Any]:
         "date": "2026-08-16",
         "currency": "RUB",
         "direct_only": False,
-        "limit": 10,
+        "limit": DEFAULT_DIRECT_CATALOG_LIMIT,
     }
     query.update(overrides)
     return query
@@ -111,6 +112,20 @@ class OfferQueryRunnerTests(unittest.TestCase):
             [item["provider"] for item in diagnostics["failed_controls"]],
             ["kupibilet"],
         )
+
+    def test_missing_primary_offer_limit_is_validation_error(self) -> None:
+        query = primary_query(probe_id="missing-limit")
+        del query["limit"]
+
+        with self.assertRaises(CliError) as ctx:
+            run_primary_offer_queries(
+                [query],
+                PrimaryOfferQueryOptions(no_live_cache=True),
+                store=store_with_airports(self),
+            )
+
+        self.assertEqual(ctx.exception.error_type, "validation_error")
+        self.assertEqual(ctx.exception.details["field"], "limit")
 
     def test_not_supported_provider_result_is_recorded_in_ledger(self) -> None:
         ledger = ProbeExecutionLedger()

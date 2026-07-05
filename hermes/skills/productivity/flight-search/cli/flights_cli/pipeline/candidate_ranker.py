@@ -3,7 +3,6 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Iterable
 
-from ..domain.carriers import carrier_from_flight_number
 from ..domain.time import minutes_between
 from ..domain.vocabulary import IntentClass, RouteFamily
 
@@ -22,11 +21,9 @@ def rank_mixed_candidates(
     max_connections_per_journey: int = 2,
     max_connections_per_direction: dict[str, int] | None = None,
     preferred_connections_per_journey: int = 1,
-    constraints: dict[str, Any] | None = None,
     min_same_airport_connection_min: int = 120,
     min_cross_airport_connection_min: int = 300,
 ) -> dict[str, Any]:
-    normalized_constraints = _normalize_constraints(constraints)
     directional_max_connections = _normalize_connection_caps(
         max_connections_per_direction
     )
@@ -45,7 +42,6 @@ def rank_mixed_candidates(
             max_connections_per_journey=max_connections_per_journey,
             max_connections_per_direction=directional_max_connections,
             preferred_connections_per_journey=preferred_connections_per_journey,
-            constraints=normalized_constraints,
             min_same_airport_connection_min=mct_settings["min_same_airport_min"],
             min_cross_airport_connection_min=mct_settings["min_cross_airport_min"],
         )
@@ -72,7 +68,6 @@ def rank_mixed_candidates(
             "preferred_connections_per_journey": max(
                 0, int(preferred_connections_per_journey)
             ),
-            "constraints": normalized_constraints,
             "mct_settings": mct_settings,
             "source_types": sorted(
                 {
@@ -186,7 +181,6 @@ def _candidate_with_rank_diagnostics(
     max_connections_per_journey: int,
     max_connections_per_direction: dict[str, int],
     preferred_connections_per_journey: int,
-    constraints: dict[str, Any],
     min_same_airport_connection_min: int,
     min_cross_airport_connection_min: int,
 ) -> dict[str, Any]:
@@ -198,22 +192,12 @@ def _candidate_with_rank_diagnostics(
         min_same_airport_connection_min=min_same_airport_connection_min,
         min_cross_airport_connection_min=min_cross_airport_connection_min,
     )
-    constraint_violations = _constraint_violations(candidate, constraints)
-    existing_violations = item.get("hard_constraint_violations")
-    all_constraint_violations = [
-        *(existing_violations if isinstance(existing_violations, list) else []),
-        *constraint_violations,
-    ]
-    if all_constraint_violations:
-        item["hard_constraint_violation"] = True
-        item["hard_constraint_violations"] = all_constraint_violations
     impossible_connection = (
         _has_impossible_connection(candidate)
         or bool(chronology_violations)
         or bool(mct_violations)
     )
     rank_components = {
-        "hard_constraint_violation": 1 if _has_hard_constraint_violation(item) else 0,
         "not_covers_requested_trip": 0
         if bool(candidate.get("covers_requested_trip"))
         else 1,
@@ -230,7 +214,6 @@ def _candidate_with_rank_diagnostics(
             0,
             max_connections - max(0, int(preferred_connections_per_journey)),
         ),
-        "preferred_carrier_miss": _preferred_carrier_miss(candidate, constraints),
         "ticketing_risk_tier": _ticketing_risk_tier(candidate),
         "connection_risk_score": _connection_risk_score(candidate),
         "source_confidence_penalty": _source_confidence_penalty(candidate),
@@ -253,12 +236,10 @@ def _candidate_with_rank_diagnostics(
         item["direction_pairing"] = journey_pairing
     item["rank_components"] = rank_components
     item["rank_key"] = [
-        rank_components["hard_constraint_violation"],
         rank_components["not_covers_requested_trip"],
         rank_components["rejected_or_impossible_connection"],
         rank_components["max_connections_per_journey"],
         rank_components["preferred_connections_per_journey"],
-        rank_components["preferred_carrier_miss"],
         rank_components["ticketing_risk_tier"],
         rank_components["connection_risk_score"],
         rank_components["source_confidence_penalty"],
@@ -294,29 +275,6 @@ def _has_ticketing_proof(candidate: dict[str, Any]) -> bool:
     )
 
 
-def _normalize_constraints(constraints: dict[str, Any] | None) -> dict[str, Any]:
-    payload = constraints if isinstance(constraints, dict) else {}
-    return {
-        "first_departure_after": str(payload.get("first_departure_after") or "")
-        or None,
-        "must_include_airports": _ordered_unique(
-            str(code).strip().upper()
-            for code in payload.get("must_include_airports") or []
-            if str(code).strip()
-        ),
-        "only_carriers": _ordered_unique(
-            str(code).strip().upper()
-            for code in payload.get("only_carriers") or []
-            if str(code).strip()
-        ),
-        "preferred_carriers": _ordered_unique(
-            str(code).strip().upper()
-            for code in payload.get("preferred_carriers") or []
-            if str(code).strip()
-        ),
-    }
-
-
 def _normalize_connection_caps(caps: dict[str, int] | None) -> dict[str, int]:
     payload = caps if isinstance(caps, dict) else {}
     normalized: dict[str, int] = {}
@@ -329,92 +287,6 @@ def _normalize_connection_caps(caps: dict[str, int] | None) -> dict[str, int]:
         except (TypeError, ValueError):
             continue
     return normalized
-
-
-def _constraint_violations(
-    candidate: dict[str, Any], constraints: dict[str, Any]
-) -> list[dict[str, Any]]:
-    violations: list[dict[str, Any]] = []
-    missing_airports = [
-        code
-        for code in constraints.get("must_include_airports") or []
-        if code not in _candidate_airports(candidate)
-    ]
-    if missing_airports:
-        violations.append(
-            {
-                "reason": "missing_required_airport",
-                "must_include_airports": missing_airports,
-            }
-        )
-
-    first_departure_after = constraints.get("first_departure_after")
-    if first_departure_after:
-        threshold = _hhmm_to_minutes(str(first_departure_after))
-        actual = _first_outbound_departure_minutes(candidate)
-        if actual is None:
-            violations.append(
-                {
-                    "reason": "missing_first_departure_time",
-                    "first_departure_after": first_departure_after,
-                }
-            )
-        elif threshold is not None and actual < threshold:
-            violations.append(
-                {
-                    "reason": "first_departure_before_requested_time",
-                    "first_departure_after": first_departure_after,
-                    "actual_first_departure": _minutes_to_hhmm(actual),
-                }
-            )
-
-    only_carriers = set(constraints.get("only_carriers") or [])
-    if only_carriers:
-        segment_groups = _candidate_segment_groups(candidate)
-        if not segment_groups:
-            violations.append(
-                {
-                    "reason": "missing_carrier_evidence",
-                    "only_carriers": sorted(only_carriers),
-                }
-            )
-        for journey_index, direction, segments in segment_groups:
-            for segment_index, segment in enumerate(segments):
-                if _segment_matches_carrier_constraint(segment, only_carriers):
-                    continue
-                violations.append(
-                    {
-                        "reason": "carrier_not_allowed",
-                        "journey_index": journey_index,
-                        "journey_direction": direction,
-                        "segment_index": segment_index,
-                        "only_carriers": sorted(only_carriers),
-                        "segment_carriers": sorted(_segment_carrier_values(segment)),
-                    }
-                )
-    return violations
-
-
-def _preferred_carrier_miss(
-    candidate: dict[str, Any], constraints: dict[str, Any]
-) -> int:
-    preferred = set(constraints.get("preferred_carriers") or [])
-    if not preferred:
-        return 0
-    for _, _, segments in _candidate_segment_groups(candidate):
-        if any(
-            _segment_matches_carrier_constraint(segment, preferred)
-            for segment in segments
-        ):
-            return 0
-    return 1
-
-
-def _has_hard_constraint_violation(candidate: dict[str, Any]) -> bool:
-    if bool(candidate.get("hard_constraint_violation")):
-        return True
-    violations = candidate.get("hard_constraint_violations")
-    return isinstance(violations, list) and bool(violations)
 
 
 def _has_impossible_connection(candidate: dict[str, Any]) -> bool:
@@ -664,119 +536,6 @@ def _round_trip_ticketing_model(candidate: dict[str, Any]) -> str:
     return model or "unknown"
 
 
-def _candidate_airports(candidate: dict[str, Any]) -> set[str]:
-    airports: set[str] = set()
-    for key in ("origin", "destination", "gateway"):
-        value = str(candidate.get(key) or "").strip().upper()
-        if value:
-            airports.add(value)
-    for _, _, segments in _candidate_segment_groups(candidate):
-        for segment in segments:
-            for key in ("origin", "destination"):
-                value = str(segment.get(key) or "").strip().upper()
-                if value:
-                    airports.add(value)
-    return airports
-
-
-def _first_outbound_departure_minutes(candidate: dict[str, Any]) -> int | None:
-    groups = _candidate_segment_groups(candidate)
-    if not groups:
-        return None
-    selected_segments = groups[0][2]
-    for _, direction, segments in groups:
-        if direction == "outbound":
-            selected_segments = segments
-            break
-    if not selected_segments:
-        return None
-    first = selected_segments[0]
-    return _time_text_to_minutes(str(first.get("departure_at") or ""))
-
-
-def _time_text_to_minutes(value: str) -> int | None:
-    text = str(value or "").strip()
-    if not text:
-        return None
-    if "T" in text:
-        text = text.split("T", 1)[1]
-    return _hhmm_to_minutes(text[:5])
-
-
-def _hhmm_to_minutes(value: str) -> int | None:
-    parts = str(value or "").strip().split(":")
-    if len(parts) != 2:
-        return None
-    try:
-        hour = int(parts[0])
-        minute = int(parts[1])
-    except ValueError:
-        return None
-    if hour < 0 or hour > 23 or minute < 0 or minute > 59:
-        return None
-    return hour * 60 + minute
-
-
-def _minutes_to_hhmm(value: int) -> str:
-    minute_value = max(0, int(value))
-    return f"{minute_value // 60:02d}:{minute_value % 60:02d}"
-
-
-def _segment_matches_carrier_constraint(
-    segment: dict[str, Any], allowed_carriers: set[str]
-) -> bool:
-    allowed = {str(code).strip().upper() for code in allowed_carriers if str(code)}
-    if not allowed:
-        return True
-    values = _segment_carrier_values(segment)
-    return any(
-        value == code or (len(code) in {2, 3} and value.startswith(code))
-        for code in allowed
-        for value in values
-    )
-
-
-def _segment_carrier_values(segment: dict[str, Any]) -> set[str]:
-    values: set[str] = set()
-    for key in (
-        "carrier",
-        "airline",
-        "main_airline",
-        "marketing_carrier",
-        "operating_carrier",
-        "carrier_name",
-        "airline_name",
-        "marketing_carrier_name",
-        "operating_carrier_name",
-    ):
-        _add_carrier_name_values(values, segment.get(key))
-    flight_number = segment.get("flight_number")
-    if flight_number:
-        code = carrier_from_flight_number(str(flight_number))
-        if code:
-            values.add(code)
-    return values
-
-
-def _add_carrier_name_values(values: set[str], raw_value: Any) -> None:
-    raw = str(raw_value or "").strip()
-    if not raw:
-        return
-    upper = raw.upper()
-    values.add(upper)
-    compact = "".join(ch for ch in upper if ch.isalnum())
-    if compact:
-        values.add(compact)
-    normalized = "".join(ch if ch.isalnum() else " " for ch in upper)
-    words = [word for word in normalized.split() if word]
-    if not words:
-        return
-    values.add(words[0])
-    initials = "".join(word[0] for word in words if word[0].isalpha())
-    if initials:
-        values.add(initials)
-
-
 def _ticketing_risk_tier(candidate: dict[str, Any]) -> int:
     model = str(candidate.get("ticketing_model") or "unknown")
     source_type = str(candidate.get("source_type") or "")
@@ -881,8 +640,6 @@ def _ranking_reasons(
     rank_components: dict[str, Any],
 ) -> list[str]:
     reasons: list[str] = []
-    if rank_components["hard_constraint_violation"]:
-        reasons.append("hard_constraint_violation")
     if rank_components["not_covers_requested_trip"]:
         reasons.append("does_not_cover_requested_trip")
     if rank_components["rejected_or_impossible_connection"]:
@@ -915,7 +672,6 @@ def _frontier_acceptable(candidate: dict[str, Any]) -> bool:
     components = candidate.get("rank_components")
     if isinstance(components, dict):
         blocking_keys = (
-            "hard_constraint_violation",
             "not_covers_requested_trip",
             "rejected_or_impossible_connection",
             "max_connections_per_journey",

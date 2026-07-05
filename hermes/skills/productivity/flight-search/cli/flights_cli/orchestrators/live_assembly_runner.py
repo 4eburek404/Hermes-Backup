@@ -387,8 +387,6 @@ def _direct_evidence_by_direction(
 
 
 def _direct_mode_disabled_reason(options: LiveAssemblyOptions) -> str | None:
-    if options.constraints.must_include_airports:
-        return "must_include_airports"
     if (
         options.route.max_connections is not None
         and int(options.route.max_connections) >= 1
@@ -579,7 +577,6 @@ class LiveSearchResultBuilder:
             )
         ).score(
             offer_candidates,
-            constraints=self.options.constraints.to_dict(),
             controls=[*graph_controls, *aggregate_controls],
         )
         decision_frontier = scored_decisions["decision_frontier"]
@@ -768,7 +765,7 @@ class LiveAssemblyRunner:
                 )
                 state.direct_presence_gate["fallback"] = {
                     "status": "executed",
-                    "reason": "constraints_emptied_direct_set",
+                    "reason": "direct_mode_no_acceptable_candidates",
                     "directions": fallback_directions,
                     "max_connections_per_journey": 1,
                     "max_connections_per_direction": {
@@ -779,7 +776,7 @@ class LiveAssemblyRunner:
             else:
                 state.direct_presence_gate["fallback"] = {
                     "status": "no_gateway_leg_queries",
-                    "reason": "constraints_emptied_direct_set",
+                    "reason": "direct_mode_no_acceptable_candidates",
                     "directions": fallback_directions,
                     "max_connections_per_journey": 1,
                     "max_connections_per_direction": {
@@ -789,7 +786,7 @@ class LiveAssemblyRunner:
         elif fallback_directions:
             state.direct_presence_gate["fallback"] = {
                 "status": "not_executed",
-                "reason": "constraints_emptied_direct_set",
+                "reason": "direct_mode_no_acceptable_candidates",
                 "directions": fallback_directions,
                 "max_connections_per_journey": 1,
                 "max_connections_per_direction": {

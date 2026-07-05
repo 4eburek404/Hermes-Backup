@@ -192,6 +192,8 @@ def _graph_derived_control(
         )
     if not matches:
         return None
+    limit_value = base_query.get("limit")
+    top_offer_limit = int(limit_value) if limit_value is not None else 3
     return {
         "direction": direction,
         "origin": origin,
@@ -205,7 +207,7 @@ def _graph_derived_control(
         "suppressed_three_plus_count": 0,
         "suppressed_airport_change_count": 0,
         "cache_status": "graph",
-        "top_offers": matches[: int(base_query.get("limit") or 3)],
+        "top_offers": matches[:top_offer_limit],
         "source_type": "graph_derived_control",
         "source_providers": sorted(source_providers),
         "graph_derived": True,

@@ -58,7 +58,7 @@ class FliProviderAdapter:
             currency=str(query["currency"]).upper(),
             only_carriers=list(query.get("only_carriers") or []),
             direct_only=bool(query.get("direct_only", True)),
-            limit=int(query.get("limit") or 30),
+            limit=int(query["limit"]),
             timeout=int(query.get("timeout") or 60),
             mcp_url=query.get("mcp_url"),
             cache_ttl_seconds=int(query.get("cache_ttl_seconds") or 0),

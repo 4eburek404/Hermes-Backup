@@ -22,6 +22,7 @@ class SearchRequest:
     profile: str
     ticketing: str
     provider_policy: str
+    primary_offer_limit: int
     routing_strategy: str
     hubs: tuple[str, ...] = field(default_factory=tuple)
     origin_airports: tuple[str, ...] = field(default_factory=tuple)
@@ -42,10 +43,6 @@ class SearchRequest:
     gateway_discovery_limit: int = 3
     gateway_probe_batch_size: int = 2
     gateway_probe_max_batches: int = 2
-    first_departure_after: str | None = None
-    must_include_airports: tuple[str, ...] = field(default_factory=tuple)
-    constraint_only_carriers: tuple[str, ...] = field(default_factory=tuple)
-    constraint_preferred_carriers: tuple[str, ...] = field(default_factory=tuple)
     only_carriers: tuple[str, ...] = field(default_factory=tuple)
     exclude_carriers: tuple[str, ...] = field(default_factory=tuple)
 
@@ -61,6 +58,7 @@ def search_request_from_options(options: LiveAssemblyOptions) -> SearchRequest:
         profile=options.profile,
         ticketing=options.ticketing,
         provider_policy=options.evidence.provider_policy,
+        primary_offer_limit=options.evidence.primary_offer_limit,
         routing_strategy=options.route.routing_strategy,
         hubs=options.route.hubs,
         origin_airports=options.route.origin_airports,
@@ -83,10 +81,6 @@ def search_request_from_options(options: LiveAssemblyOptions) -> SearchRequest:
         gateway_discovery_limit=options.route.gateway_discovery_limit,
         gateway_probe_batch_size=options.route.gateway_probe_batch_size,
         gateway_probe_max_batches=options.route.gateway_probe_max_batches,
-        first_departure_after=options.constraints.first_departure_after,
-        must_include_airports=options.constraints.must_include_airports,
-        constraint_only_carriers=options.constraints.only_carriers,
-        constraint_preferred_carriers=options.constraints.preferred_carriers,
         only_carriers=options.filters.only_carriers,
         exclude_carriers=options.filters.exclude_carriers,
     )

@@ -4,9 +4,7 @@ COMMAND_SURFACE_VERSION = "command_surface.v1"
 
 PRIMARY_ROUTE_COMMAND = "search"
 AGENT_COMMANDS = (PRIMARY_ROUTE_COMMAND,)
-DIAGNOSTIC_PROBE_COMMANDS = (
-    "diagnose probe",
-)
+DIAGNOSTIC_PROBE_COMMANDS = ("diagnose probe",)
 DIAGNOSTIC_COMMANDS = (
     "diagnose plan",
     "diagnose render",

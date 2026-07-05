@@ -23,7 +23,7 @@ def emit_json(data: Any) -> None:
     print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
 
 
-def render_agent_report_human(report: dict[str, Any]) -> str:
+def render_agent_report_user_text(report: dict[str, Any]) -> str:
     raw_user_answer = report.get("user_answer")
     user_answer: dict[str, Any] = (
         raw_user_answer if isinstance(raw_user_answer, dict) else {}
@@ -32,9 +32,9 @@ def render_agent_report_human(report: dict[str, Any]) -> str:
     return str(user_answer["rendered_text"])
 
 
-def render_human(command: str, data: Any) -> str:
+def render_user_text(command: str, data: Any) -> str:
     if isinstance(data, dict) and isinstance(data.get("agent_report"), dict):
-        return render_agent_report_human(data["agent_report"])
+        return render_agent_report_user_text(data["agent_report"])
     if command == "maint doctor":
         counts = data["cache_counts"]
         policy = data["catalog_auto_refresh_policy"]

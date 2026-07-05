@@ -1418,6 +1418,8 @@ def _covers_requested_trip(
         return False
     origin = _normalize_code(requested_origin)
     destination = _normalize_code(requested_destination)
+    origin_codes = _requested_codes(origin)
+    destination_codes = _requested_codes(destination)
     if origin and destination and journeys:
         by_direction: dict[str, list[dict[str, Any]]] = {}
         for journey in journeys:
@@ -1431,10 +1433,11 @@ def _covers_requested_trip(
         inbound = by_direction.get("return") or []
         if outbound and inbound:
             return (
-                _normalize_code(outbound[0].get("origin")) == origin
-                and _normalize_code(outbound[-1].get("destination")) == destination
-                and _normalize_code(inbound[0].get("origin")) == destination
-                and _normalize_code(inbound[-1].get("destination")) == origin
+                _normalize_code(outbound[0].get("origin")) in origin_codes
+                and _normalize_code(outbound[-1].get("destination"))
+                in destination_codes
+                and _normalize_code(inbound[0].get("origin")) in destination_codes
+                and _normalize_code(inbound[-1].get("destination")) in origin_codes
             )
     if not origin and not destination:
         return bool(segments)
@@ -1448,9 +1451,9 @@ def _covers_requested_trip(
         if segments
         else _normalize_code(offer.get("destination"))
     )
-    if origin and route_origin != origin:
+    if origin and route_origin not in origin_codes:
         return False
-    if destination and route_destination != destination:
+    if destination and route_destination not in destination_codes:
         return False
     return bool(route_origin and route_destination)
 

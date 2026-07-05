@@ -32,6 +32,17 @@ def _probe_id(query: Mapping[str, Any], provider: str) -> str:
     return f"primary_offer:{provider}:{direction}:{origin}-{destination}:{date_text}"
 
 
+def _required_int(query: Mapping[str, Any], name: str) -> int:
+    value = query.get(name)
+    if value is None:
+        raise CliError(
+            f"primary offer query missing required {name}",
+            error_type="validation_error",
+            details={"field": name, "role": query.get("role")},
+        )
+    return int(value)
+
+
 def _normalized_query(
     query: Mapping[str, Any],
     *,
@@ -55,7 +66,7 @@ def _normalized_query(
         "currency": str(query.get("currency") or "RUB").upper(),
         "only_carriers": only_carriers,
         "direct_only": bool(query.get("direct_only", False)),
-        "limit": int(query.get("limit") or 10),
+        "limit": _required_int(query, "limit"),
         "timeout": int(query.get("timeout") or options.timeout),
         "cache_ttl_seconds": int(
             query.get("cache_ttl_seconds") or options.live_cache_ttl_seconds
@@ -101,6 +112,7 @@ def _result_from_provider_result(
         },
         "offer_count": summary.get("offer_count", len(result.normalized_offers or [])),
         "raw_offer_count": summary.get("raw_offer_count"),
+        "omitted_offer_count": summary.get("omitted_offer_count"),
         "top_offers": summary.get("top_offers", result.normalized_offers or []),
         "source_boundary": result.source_boundary,
     }

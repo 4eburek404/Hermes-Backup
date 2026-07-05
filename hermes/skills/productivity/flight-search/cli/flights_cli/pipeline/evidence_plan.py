@@ -31,6 +31,7 @@ class EvidencePlan:
     """Typed evidence policy derived from the flow decision and search options."""
 
     provider_policy: str
+    primary_offer_limit: int
     max_segment_searches: int
     live_cache_enabled: bool
     live_cache_ttl_seconds: int
@@ -55,6 +56,7 @@ class EvidencePlan:
     def to_dict(self) -> dict[str, Any]:
         return {
             "provider_policy": self.provider_policy,
+            "primary_offer_limit": self.primary_offer_limit,
             "max_segment_searches": self.max_segment_searches,
             "live_cache_enabled": self.live_cache_enabled,
             "live_cache_ttl_seconds": self.live_cache_ttl_seconds,
@@ -104,8 +106,6 @@ def _required_controls(
         decision.intent_class == IntentClass.CARRIER_OR_AIRPORT_SCOPE
         or request.only_carriers
         or request.exclude_carriers
-        or request.constraint_only_carriers
-        or request.constraint_preferred_carriers
         or request.aggregate_control_carriers
     ):
         controls.append(RequiredControl.CARRIER_AGGREGATE)
@@ -176,6 +176,7 @@ def plan_evidence(
     required_controls = _required_controls(request, decision, direct_only)
     return EvidencePlan(
         provider_policy=request.provider_policy,
+        primary_offer_limit=request.primary_offer_limit,
         max_segment_searches=request.max_segment_searches,
         live_cache_enabled=cache_enabled,
         live_cache_ttl_seconds=cache_ttl,

@@ -267,7 +267,7 @@ class CliContractTests(unittest.TestCase):
             {"airlines", "airports", "alliances", "cities", "countries", "planes"},
         )
 
-        human_proc = subprocess.run(
+        user_text_proc = subprocess.run(
             [sys.executable, "-m", "flights_cli", "maint", "doctor"],
             cwd=PROJECT,
             env=TEST_ENV,
@@ -276,10 +276,11 @@ class CliContractTests(unittest.TestCase):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        self.assertEqual(human_proc.stderr, "")
-        self.assertFalse(human_proc.stdout.lstrip().startswith("{"))
+        self.assertEqual(user_text_proc.stderr, "")
+        self.assertFalse(user_text_proc.stdout.lstrip().startswith("{"))
         self.assertLessEqual(
-            len([line for line in human_proc.stdout.splitlines() if line.strip()]), 12
+            len([line for line in user_text_proc.stdout.splitlines() if line.strip()]),
+            12,
         )
 
     def test_invalid_catalog_refresh_env_is_json_validation_error_for_all_commands(

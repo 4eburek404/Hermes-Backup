@@ -4,6 +4,7 @@ import json
 import unittest
 from unittest.mock import patch
 
+from flights_cli.config import DEFAULT_DIRECT_CATALOG_LIMIT
 from flights_cli.execution.probe_dispatcher import SegmentProbeOutcome
 from flights_cli.orchestrators.live_assembly_runner import _direct_evidence_by_direction
 from flights_cli.orchestrators.live_route_assembly import run_live_route_assembly
@@ -214,7 +215,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                     "date": "2026-08-16",
                     "currency": "RUB",
                     "direct_only": False,
-                    "limit": 10,
+                    "limit": DEFAULT_DIRECT_CATALOG_LIMIT,
                     "route_family": "ru_to_western_europe_bridge",
                 }
             ],
@@ -374,7 +375,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                     "date": "2026-08-16",
                     "currency": "RUB",
                     "direct_only": False,
-                    "limit": 10,
+                    "limit": DEFAULT_DIRECT_CATALOG_LIMIT,
                 }
             ],
             "mandatory_controls": [],
@@ -481,7 +482,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                     "date": "2026-08-16",
                     "currency": "RUB",
                     "direct_only": False,
-                    "limit": 10,
+                    "limit": DEFAULT_DIRECT_CATALOG_LIMIT,
                 }
             ],
             "mandatory_controls": [],
@@ -539,7 +540,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                     "date": "2026-08-16",
                     "currency": "RUB",
                     "direct_only": False,
-                    "limit": 10,
+                    "limit": DEFAULT_DIRECT_CATALOG_LIMIT,
                 }
             ],
             "mandatory_controls": [],

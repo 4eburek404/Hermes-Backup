@@ -95,7 +95,7 @@ class MaintenanceCheckTests(unittest.TestCase):
         self.assertIn("source_count", data["generated_artifacts"])
         self.assertIn("runtime_count", data["generated_artifacts"])
 
-    def test_human_maintenance_check_is_compact_summary(self) -> None:
+    def test_user_text_maintenance_check_is_compact_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             missing_runtime = Path(tmp_dir) / "missing-runtime-flight-search"
             proc = subprocess.run(

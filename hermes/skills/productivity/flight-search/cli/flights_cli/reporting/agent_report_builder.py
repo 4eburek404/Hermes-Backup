@@ -286,7 +286,9 @@ def build_agent_guidance(
                 "reason": "not_executed_controls",
                 "request_patch": {
                     "evidence": {
-                        "max_segment_searches": max(current_limit * 2, current_limit + 1),
+                        "max_segment_searches": max(
+                            current_limit * 2, current_limit + 1
+                        ),
                         "no_live_cache": True,
                     }
                 },
@@ -850,7 +852,6 @@ def _ranked_candidate_acceptable(candidate: dict[str, Any]) -> bool:
         else {}
     )
     for key in (
-        "hard_constraint_violation",
         "not_covers_requested_trip",
         "rejected_or_impossible_connection",
         "max_connections_per_journey",
@@ -858,13 +859,6 @@ def _ranked_candidate_acceptable(candidate: dict[str, Any]) -> bool:
         if int(components.get(key) or 0) > 0:
             return False
     return bool(candidate.get("covers_requested_trip", True))
-
-
-def _ranked_candidate_hard_constraint_violations(
-    candidate: dict[str, Any],
-) -> list[dict[str, Any]]:
-    violations = candidate.get("hard_constraint_violations")
-    return [item for item in violations or [] if isinstance(item, dict)]
 
 
 def _candidate_direction_segments(
@@ -968,170 +962,6 @@ def annotate_schedule_options(options: list[dict[str, Any]]) -> list[dict[str, A
             item["option_badges"] = list(dict.fromkeys(badges))
         annotated.append(item)
     return annotated
-
-
-def _direct_mode_fallback(live: dict[str, Any]) -> dict[str, Any]:
-    gate = (
-        live.get("direct_presence_gate")
-        if isinstance(live.get("direct_presence_gate"), dict)
-        else {}
-    )
-    fallback = gate.get("fallback") if isinstance(gate.get("fallback"), dict) else {}
-    if fallback.get("reason") != "constraints_emptied_direct_set":
-        return {}
-    return fallback
-
-
-def _conflict_directions(live: dict[str, Any]) -> list[str]:
-    fallback = _direct_mode_fallback(live)
-    return [
-        direction
-        for direction in fallback.get("directions") or []
-        if direction in ("outbound", "return")
-    ]
-
-
-def _constraint_type_and_value(violation: dict[str, Any]) -> tuple[str, Any] | None:
-    reason = str(violation.get("reason") or "")
-    if reason in (
-        "first_departure_before_requested_time",
-        "missing_first_departure_time",
-    ):
-        return ("first_departure_after", violation.get("first_departure_after"))
-    if reason in ("carrier_not_allowed", "missing_carrier_evidence"):
-        return ("only_carriers", violation.get("only_carriers") or [])
-    if reason == "missing_required_airport":
-        return ("must_include_airports", violation.get("must_include_airports") or [])
-    return None
-
-
-def _candidate_conflict_constraints(
-    candidate: dict[str, Any],
-) -> list[dict[str, Any]]:
-    constraints: list[dict[str, Any]] = []
-    seen: set[tuple[str, str]] = set()
-    for violation in _ranked_candidate_hard_constraint_violations(candidate):
-        parsed = _constraint_type_and_value(violation)
-        if parsed is None:
-            continue
-        constraint_type, value = parsed
-        value_key = (
-            ",".join(str(item) for item in value)
-            if isinstance(value, list)
-            else str(value)
-        )
-        key = (constraint_type, value_key)
-        if key in seen:
-            continue
-        seen.add(key)
-        constraints.append(
-            {
-                "type": constraint_type,
-                "value": value,
-                "reason": violation.get("reason"),
-            }
-        )
-    return constraints
-
-
-def _direct_schedule_option_from_candidate(
-    candidate: dict[str, Any],
-    *,
-    direction: str,
-    constraints: list[dict[str, Any]],
-) -> dict[str, Any]:
-    segments = _candidate_direction_segments(candidate, direction)
-    item = {
-        **candidate,
-        "journeys": [{"direction": direction, "segments": segments}],
-        "selection_reasons": ["constraint_conflict_direct_schedule"],
-        "connection_count": 0,
-        "max_connections_per_journey": 0,
-        "journey_scope": "one_way",
-        "covers_requested_trip": False,
-    }
-    option = option_from_decision_frontier_item(item)
-    option["category"] = "constraint_conflict_direct_schedule"
-    option["constraint_violations"] = _ranked_candidate_hard_constraint_violations(
-        candidate
-    )
-    option["conflicting_constraints"] = constraints
-    return option
-
-
-def direct_conflict_schedule_options(
-    data: dict[str, Any],
-    direction: str,
-    *,
-    limit: int,
-) -> list[dict[str, Any]]:
-    options: list[dict[str, Any]] = []
-    for candidate in _ranked_candidates(data):
-        constraints = _candidate_conflict_constraints(candidate)
-        if not constraints:
-            continue
-        if not _candidate_matches_direct_mode(candidate, [direction]):
-            continue
-        options.append(
-            _direct_schedule_option_from_candidate(
-                candidate,
-                direction=direction,
-                constraints=constraints,
-            )
-        )
-    options.sort(key=lambda item: _direct_mode_departure_key(item, [direction]))
-    return annotate_schedule_options(options[:limit])
-
-
-def constraint_conflict_report(
-    data: dict[str, Any],
-    live: dict[str, Any],
-    primary_options: list[dict[str, Any]],
-    alternative_options: list[dict[str, Any]],
-    *,
-    direct_schedule_limit: int,
-) -> dict[str, Any] | None:
-    fallback = _direct_mode_fallback(live)
-    directions = _conflict_directions(live)
-    if not fallback or not directions:
-        return None
-    visible_fallback_options = [
-        option
-        for option in [*primary_options, *alternative_options]
-        if int(option.get("max_connections_per_journey") or 0) <= 1
-    ]
-    fallback_payload = {
-        "status": fallback.get("status"),
-        "reason": fallback.get("reason"),
-        "max_connections_per_journey": int(
-            fallback.get("max_connections_per_journey") or 1
-        ),
-        "acceptable_count": len(visible_fallback_options),
-    }
-    conflict_directions: list[dict[str, Any]] = []
-    for direction in directions:
-        direct_schedule = direct_conflict_schedule_options(
-            data, direction, limit=direct_schedule_limit
-        )
-        constraints: list[dict[str, Any]] = []
-        for option in direct_schedule:
-            for constraint in option.get("conflicting_constraints") or []:
-                if isinstance(constraint, dict) and constraint not in constraints:
-                    constraints.append(constraint)
-        conflict_directions.append(
-            {
-                "direction": direction,
-                "constraints": constraints,
-                "direct_schedule": direct_schedule,
-                "fallback": fallback_payload,
-            }
-        )
-    return {
-        "schema_version": "flight_constraint_conflict.v1",
-        "present": True,
-        "directions": conflict_directions,
-        "fallback": fallback_payload,
-    }
 
 
 def has_lower_stop_viable_option(
@@ -1404,7 +1234,9 @@ def build_agent_report(
         )
         options = frontier_ordered[:1]
         alternative_options = frontier_ordered[1:catalog_limit]
-    selected_stop_policy = frontier_stop_policy_selection([*options, *alternative_options])
+    selected_stop_policy = frontier_stop_policy_selection(
+        [*options, *alternative_options]
+    )
     preferred_available = has_preferred_option(
         options + alternative_options
     ) or aggregate_has_preferred_offer(raw_aggregate_controls, stop_policy)
@@ -1429,13 +1261,6 @@ def build_agent_report(
     )
     if ru_priority_alternative_options:
         alternative_options = ru_priority_alternative_options + alternative_options
-    constraint_conflict = constraint_conflict_report(
-        data,
-        live,
-        options,
-        alternative_options,
-        direct_schedule_limit=direct_catalog_limit,
-    )
     stop_policy_diagnostics = merge_stop_policy_diagnostics(
         data,
         raw_aggregate_controls,
@@ -1483,7 +1308,9 @@ def build_agent_report(
         "direct_mode": {direction: True for direction in direct_mode_directions},
         "output_limits": output_limits.to_dict(),
     }
-    offer_graph = live.get("offer_graph") if isinstance(live.get("offer_graph"), dict) else {}
+    offer_graph = (
+        live.get("offer_graph") if isinstance(live.get("offer_graph"), dict) else {}
+    )
     truth_language = (
         offer_graph.get("truth_language")
         if isinstance(offer_graph.get("truth_language"), dict)
@@ -1500,11 +1327,8 @@ def build_agent_report(
         stop_policy=stop_policy_payload(stop_policy),
         stop_policy_status=stop_policy_diagnostics,
         through_fare_checks=through_fare_check_items,
-        constraint_conflict=constraint_conflict,
         truth_language=truth_language,
     )
-    if constraint_conflict is not None:
-        status["constraint_conflict"] = constraint_conflict
     date_window_inventory = live.get("date_window_inventory")
     evidence: dict[str, Any] = {
         "source_boundaries": answer_input.source_boundaries,

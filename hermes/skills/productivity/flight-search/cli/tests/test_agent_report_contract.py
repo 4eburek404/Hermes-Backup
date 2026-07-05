@@ -7,6 +7,7 @@ from importlib import resources
 from jsonschema import Draft202012Validator
 
 from flights_cli.errors import CliError
+from flights_cli.output import render_agent_report_user_text
 from flights_cli.reporting.user_answer import validate_user_answer
 from flights_cli.services.agent_report import build_agent_report
 from flights_cli.services.agent_report_contract import (
@@ -101,12 +102,24 @@ class AgentReportContractTests(unittest.TestCase):
                 "alternatives",
                 "evidence_status",
                 "required_caveats",
-                "constraint_conflict",
                 "stop_policy_status",
                 "rendered_text",
                 "answer_lines",
             },
         )
+
+    def test_user_text_report_renderer_preserves_canonical_answer_lines(self) -> None:
+        report = build_agent_report(provider_report_payload())
+        user_answer = report["user_answer"]
+
+        rendered = render_agent_report_user_text(report)
+
+        self.assertEqual(rendered, user_answer["rendered_text"])
+        self.assertEqual(
+            [line for line in rendered.splitlines() if line.strip()],
+            user_answer["answer_lines"],
+        )
+        self.assertGreater(len(user_answer["answer_lines"]), 1)
 
     def test_agent_guidance_matches_compact_coverage(self) -> None:
         payload = provider_report_payload()

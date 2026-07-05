@@ -21,14 +21,14 @@ flight_search_request.v1
 
 | Layer | Owner | Responsibility |
 | --- | --- | --- |
-| Request/options | `pipeline/options.py`, `pipeline/search_request.py` | Convert JSON/CLI fields into typed route, evidence, filter, and constraint options. |
+| Request/options | `pipeline/options.py`, `pipeline/search_request.py` | Convert JSON/CLI fields into typed route, evidence, filter, and output options. |
 | Flow decision | `pipeline/search_pipeline.py`, `pipeline/flow_decision.py`, `pipeline/evidence_plan.py` | Classify intent, market, provider policy, evidence requirements, freshness, and required controls. |
-| Planning | `orchestrators/search_plan_builder.py` | Seed constraints into primary and gateway probes; produce search-plan diagnostics and planned provider work. |
+| Planning | `orchestrators/search_plan_builder.py` | Build primary and gateway probes from route, evidence, and filters; produce search-plan diagnostics and planned provider work. |
 | Provider routing | `adapters/providers/registry.py` | Choose providers per probe by policy, market, and capability. Tutu is primary; KupiBilet and FLI are fallback-only when Tutu is unavailable, fails, or does not support the probe. |
 | Probe execution | `execution/offer_query_runner.py`, `execution/search_wave_planner.py`, `execution/gateway_leg_probe_executor.py`, `execution/aggregate_control_runner.py` | Execute bounded provider probes and record ledger evidence. |
 | Graph/materialization | `pipeline/offer_graph.py` | Build provider-provenance edges and materialize N-leg/cross-day candidates. |
-| Ranking/frontier | `pipeline/decision_scorer.py`, `pipeline/candidate_ranker.py` | Apply chronology, constraint, MCT, direct-first gate outcomes, round-trip pairing, and scoring policy. |
-| Reporting | `services/agent_report.py`, `reporting/agent_report_builder.py`, `reporting/user_answer.py` | Assemble compact `agent_report.v4`, `flight_search_user_answer.v6`, and final traveler text from DecisionFrontier only. |
+| Ranking/frontier | `pipeline/decision_scorer.py`, `pipeline/candidate_ranker.py` | Apply chronology, MCT, direct-first gate outcomes, round-trip pairing, and scoring policy. |
+| Reporting | `services/agent_report.py`, `reporting/agent_report_builder.py`, `reporting/user_answer.py` | Assemble compact `agent_report.v4`, `flight_search_user_answer.v7`, and final traveler text from DecisionFrontier only. |
 
 ## Provider Policy
 
@@ -68,28 +68,26 @@ RU-priority controls remain structured report fields, not prose-only rules: `dir
 
 Gateway selection is policy/config driven, not route-specific Python branching.
 
-- Default bridge hints may seed gateway discovery only when the user did not constrain the route.
-- `constraints.must_include_airports` is an explicit gateway/path request and becomes both planner seed and scorer gate.
+- Default bridge hints may seed gateway discovery through route policy/config.
 - Provider-returned full-route offers can add gateway evidence through gateway discovery.
 - Coverage controls are evaluated from existing graph evidence before spending provider budget.
 - Route-specific provider data belongs in fixtures, policy/config, or live provider evidence, not hardcoded origin/destination/carrier branches.
 
 ## Direct-First Gate
 
-After wave-0 primary offer queries, `LiveAssemblyRunner` computes direct evidence per direction. If direct evidence is present and not disabled by explicit route constraints, that direction enters `direct_mode`.
+After wave-0 primary offer queries, `LiveAssemblyRunner` computes direct evidence per direction. If direct evidence is present and route options do not explicitly allow connected alternatives, that direction enters `direct_mode`.
 
 - `direct_mode` skips gateway leg probes for that direction with ledger reason `direct_mode`.
 - Connected primary paths for a `direct_mode` direction are rejected with `direct_mode_gate`.
-- `constraints.must_include_airports` and explicit `route_options.max_connections >= 1` disable the gate because user constraints are stronger than default direct preference.
-- If direct options exist but explicit constraints leave no acceptable candidate, one fallback wave may run with hard cap one connection; this does not apply to routes with no direct evidence.
+- Explicit `route_options.max_connections >= 1` disables the gate because the request allows connected alternatives.
+- If direct options exist but no acceptable candidate remains, one fallback wave may run with hard cap one connection; this does not apply to routes with no direct evidence.
 
-## Constraints
+## Filters
 
-Constraints are planner inputs and scorer gates:
+Carrier filters are provider-query inputs:
 
-- `must_include_airports` seeds gateway/path probes and rejects candidates missing the airport.
-- `first_departure_after` filters first outbound departure before frontier selection.
-- `only_carriers` is hard; `preferred_carriers` is soft scoring input.
+- `filters.only_carriers` narrows provider/search queries where supported.
+- `filters.prefer_carriers` is a provider-query preference and RU-priority seed; it is not a hidden scorer gate.
 - Carrier matching uses normalized codes and raw provider names.
 
 ## Direct Date Window

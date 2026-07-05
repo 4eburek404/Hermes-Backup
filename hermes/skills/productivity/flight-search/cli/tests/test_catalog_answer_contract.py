@@ -125,12 +125,12 @@ class CatalogAnswerContractTests(unittest.TestCase):
         parsed = json.loads(text)
 
         Draft202012Validator.check_schema(schema)
-        self.assertEqual(USER_ANSWER_SCHEMA_VERSION, "flight_search_user_answer.v6")
+        self.assertEqual(USER_ANSWER_SCHEMA_VERSION, "flight_search_user_answer.v7")
         self.assertEqual(
-            USER_ANSWER_SCHEMA_RESOURCE, "flight_search_user_answer.v6.schema.json"
+            USER_ANSWER_SCHEMA_RESOURCE, "flight_search_user_answer.v7.schema.json"
         )
         self.assertEqual(
-            parsed["$id"], "urn:hermes:flights-cli:flight-search-user-answer:v6"
+            parsed["$id"], "urn:hermes:flights-cli:flight-search-user-answer:v7"
         )
         expected_keys = {
             "schema_version",
@@ -144,7 +144,6 @@ class CatalogAnswerContractTests(unittest.TestCase):
             "rendered_text",
             "answer_lines",
             "stop_policy_status",
-            "constraint_conflict",
         }
         self.assertEqual(set(schema["required"]), expected_keys)
         self.assertEqual(set(schema["properties"]), expected_keys)
@@ -163,7 +162,9 @@ class CatalogAnswerContractTests(unittest.TestCase):
             }.get(code, code),
             create=True,
         ):
-            answer = build_user_answer(answer_input_from_fixture(self._round_trip_report()))
+            answer = build_user_answer(
+                answer_input_from_fixture(self._round_trip_report())
+            )
 
         validate_user_answer(answer)
         expected_keys = {
@@ -178,10 +179,9 @@ class CatalogAnswerContractTests(unittest.TestCase):
             "rendered_text",
             "answer_lines",
             "stop_policy_status",
-            "constraint_conflict",
         }
         self.assertEqual(set(answer), expected_keys)
-        self.assertEqual(answer["schema_version"], "flight_search_user_answer.v6")
+        self.assertEqual(answer["schema_version"], "flight_search_user_answer.v7")
         self.assertEqual(answer["answer_mode"], "catalog")
         self.assertEqual(
             answer["catalog"]["presentation"],

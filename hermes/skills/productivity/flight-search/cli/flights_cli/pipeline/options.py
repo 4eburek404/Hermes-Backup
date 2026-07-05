@@ -54,24 +54,9 @@ class FilterOptions:
 
 
 @dataclass(frozen=True, slots=True)
-class RequestConstraints:
-    first_departure_after: str | None = None
-    must_include_airports: tuple[str, ...] = ()
-    only_carriers: tuple[str, ...] = ()
-    preferred_carriers: tuple[str, ...] = ()
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "first_departure_after": self.first_departure_after,
-            "must_include_airports": list(self.must_include_airports),
-            "only_carriers": list(self.only_carriers),
-            "preferred_carriers": list(self.preferred_carriers),
-        }
-
-
-@dataclass(frozen=True, slots=True)
 class EvidenceOptions:
     provider_policy: str
+    primary_offer_limit: int
     coverage_mode: str
     coverage_controls: tuple[str, ...]
     coverage_control_limit: int
@@ -103,7 +88,6 @@ class LiveAssemblyOptions:
     command_name: str
     route: RouteOptions
     filters: FilterOptions
-    constraints: RequestConstraints
     evidence: EvidenceOptions
     output: OutputOptions
     profile: str
@@ -111,16 +95,12 @@ class LiveAssemblyOptions:
     currency: str
 
     def effective_only_carriers(self) -> tuple[str, ...]:
-        return _unique_strs(self.filters.only_carriers, self.constraints.only_carriers)
+        return _unique_strs(self.filters.only_carriers)
 
     def effective_prefer_carriers(
         self, routing_strategy: str | None = None
     ) -> tuple[str, ...]:
-        carriers = list(
-            _unique_strs(
-                self.filters.prefer_carriers, self.constraints.preferred_carriers
-            )
-        )
+        carriers = list(_unique_strs(self.filters.prefer_carriers))
         if (
             str(routing_strategy or self.route.routing_strategy or "").lower()
             == RoutingStrategy.RU_PRIORITY
@@ -197,7 +177,6 @@ def search_request_to_options(payload: dict[str, Any]) -> LiveAssemblyOptions:
     route = _mapping(payload.get("route_options"))
     evidence = _mapping(payload.get("evidence"))
     filters = _mapping(payload.get("filters"))
-    constraints = _mapping(payload.get("constraints"))
     output = _mapping(payload.get("output"))
     output_limits = catalog_output_limits_from_mapping(output)
     return LiveAssemblyOptions(
@@ -249,18 +228,11 @@ def search_request_to_options(payload: dict[str, Any]) -> LiveAssemblyOptions:
             prefer_carriers=_str_tuple(filters.get("prefer_carriers")),
             avoid_carriers=_str_tuple(filters.get("avoid_carriers")),
         ),
-        constraints=RequestConstraints(
-            first_departure_after=str(constraints.get("first_departure_after"))
-            if constraints.get("first_departure_after")
-            else None,
-            must_include_airports=_upper_str_tuple(
-                constraints.get("must_include_airports")
-            ),
-            only_carriers=_upper_str_tuple(constraints.get("only_carriers")),
-            preferred_carriers=_upper_str_tuple(constraints.get("preferred_carriers")),
-        ),
         evidence=EvidenceOptions(
             provider_policy=str(payload.get("provider_policy") or "auto").lower(),
+            primary_offer_limit=max(
+                output_limits.catalog_limit, output_limits.direct_catalog_limit
+            ),
             coverage_mode=str(route.get("coverage_mode") or "targeted"),
             coverage_controls=_str_tuple(route.get("coverage_controls")),
             coverage_control_limit=_int_option(

@@ -36,7 +36,6 @@ class DecisionScorer:
         self,
         candidate_envelope: dict[str, Any],
         *,
-        constraints: dict[str, Any] | None = None,
         controls: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         prepared_envelope = self._prepare_candidate_envelope(candidate_envelope)
@@ -45,7 +44,6 @@ class DecisionScorer:
             max_connections_per_journey=self.options.max_connections_per_journey,
             max_connections_per_direction=self.options.max_connections_per_direction,
             preferred_connections_per_journey=self.options.preferred_connections,
-            constraints=constraints,
             min_same_airport_connection_min=(
                 self.options.min_same_airport_connection_min
             ),

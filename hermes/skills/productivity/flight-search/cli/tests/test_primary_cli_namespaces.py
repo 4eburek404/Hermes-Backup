@@ -140,12 +140,15 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
                     "assembly": True,
                 }
 
-            with patch(
-                "flights_cli.commands.search.run_live_route_assembly",
-                side_effect=fake_run,
-            ), patch(
-                "flights_cli.commands.search.build_validated_agent_report",
-                return_value={"schema_version": "agent_report.v4"},
+            with (
+                patch(
+                    "flights_cli.commands.search.run_live_route_assembly",
+                    side_effect=fake_run,
+                ),
+                patch(
+                    "flights_cli.commands.search.build_validated_agent_report",
+                    return_value={"schema_version": "agent_report.v4"},
+                ),
             ):
                 result = command_search(args, Store())
 

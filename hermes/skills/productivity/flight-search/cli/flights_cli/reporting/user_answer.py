@@ -18,10 +18,6 @@ from .user_answer_catalog import (
     render_catalog_answer,
     rendered_answer_lines,
 )
-from .user_answer_conflict import (
-    build_constraint_conflict_payload,
-    render_constraint_conflict_answer,
-)
 from .user_answer_contracts import (
     USER_ANSWER_SCHEMA_PACKAGE,
     USER_ANSWER_SCHEMA_RESOURCE,
@@ -96,7 +92,6 @@ class UserAnswerInput:
     stop_policy: dict[str, Any]
     stop_policy_status: dict[str, Any]
     through_fare_checks: list[dict[str, Any]]
-    constraint_conflict: dict[str, Any] | None = None
     truth_language: dict[str, Any] = field(default_factory=dict)
 
 
@@ -126,9 +121,7 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
     two_stop_tier_used = bool(stop_diagnostics.get("used_two_stop_tier"))
 
     is_round_trip_request = route_requested_round_trip(route)
-    status = (
-        answer_input.status if isinstance(answer_input.status, dict) else {}
-    )
+    status = answer_input.status if isinstance(answer_input.status, dict) else {}
     direct_mode = (
         status.get("direct_mode") if isinstance(status.get("direct_mode"), dict) else {}
     )
@@ -146,10 +139,6 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
         if direct_mode_active
         else output_limits.catalog_limit,
         direct_mode=direct_mode_active,
-    )
-    constraint_conflict = build_constraint_conflict_payload(
-        answer_input.constraint_conflict,
-        is_round_trip_request=is_round_trip_request,
     )
     answer_mode = infer_answer_mode(
         is_round_trip_request=is_round_trip_request, options=catalog.get("items") or []
@@ -177,15 +166,7 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
         "provider_failures": provider_failures,
         "negative_wording": truth_language.get("negative_wording"),
     }
-    if constraint_conflict is not None:
-        answer_text = render_constraint_conflict_answer(
-            route_contract,
-            catalog,
-            constraint_conflict,
-            caveat_context=caveat_context,
-            gateway_summary=gateway_summary,
-        )
-    elif answer_mode == "catalog":
+    if answer_mode == "catalog":
         answer_text = render_catalog_answer(
             route_contract,
             catalog,
@@ -213,9 +194,7 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
     non_blocking_boundaries = ["not_supported_controls"] if not_supported else []
     evidence_complete = execution_complete and not blocking_evidence
     answerability = (
-        "answerable_with_caveats"
-        if constraint_conflict is not None
-        else "answerable"
+        "answerable"
         if evidence_complete
         else "answerable_with_caveats"
         if execution_complete
@@ -225,7 +204,6 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
     return {
         "schema_version": USER_ANSWER_SCHEMA_VERSION,
         "answer_mode": answer_mode,
-        "constraint_conflict": constraint_conflict,
         "route": route_contract,
         "catalog": catalog,
         "primary_recommendation": option_summary(
@@ -275,9 +253,7 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
             "non_blocking_boundaries": non_blocking_boundaries,
         },
         "required_caveats": {
-            "source_boundaries_included": not bool(
-                answer_input.source_boundaries
-            )
+            "source_boundaries_included": not bool(answer_input.source_boundaries)
             or has_any_signal(
                 answer_text_lower,
                 (
@@ -329,4 +305,4 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
         "rendered_text": answer_text,
         "answer_lines": answer_lines,
     }
-    "UserAnswerInput",
+    ("UserAnswerInput",)

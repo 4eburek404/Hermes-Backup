@@ -36,8 +36,7 @@ Common options:
 - Direct only: `"route_options":{"max_connections":0,"tier2_max_connections":0}`
 - Date window: add `"date_window_end":"YYYY-MM-DD"` inside `route_options`; omit `return_date`.
 - Return trip: `"return_date":"YYYY-MM-DD"`
-- Hard constraints: `"constraints":{"must_include_airports":["AMS"],"first_departure_after":"15:00","only_carriers":["KL"]}`
-- Soft carrier preference: `"constraints":{"preferred_carriers":["KL"]}`
+- Carrier filters: `"filters":{"only_carriers":["KL"],"prefer_carriers":["KL"]}`
 - Provider override only when needed: `"provider_policy":"tutu"`, `"kupibilet"`, or `"fli"`
 
 ## Pipeline
@@ -48,13 +47,13 @@ Runtime flow:
 request
   -> normalize and validate flight_search_request.v1
   -> FlowDecision + EvidencePlan
-  -> SearchPlanBuilder seeds constraints into provider probes
+  -> SearchPlanBuilder builds provider probes from route, evidence, and filters
   -> per-probe provider router
   -> primary offer queries + bounded gateway waves
   -> OfferGraph
   -> DecisionScorer
   -> DecisionFrontier
-  -> flight_search_result.v3 + agent_report.v4 + user_answer.v6
+  -> flight_search_result.v3 + agent_report.v4 + user_answer.v7
 ```
 
 There is no legacy assembly fallback. `RoutePlanBuilder`, old `services/assembly`, synthetic controls, and old `ranked_candidates/frontier_candidates` answer paths are not runtime sources.
@@ -71,18 +70,17 @@ Provider routing is per probe, not per whole search.
 
 Tutu returns shopping evidence. It can return connected offers and supports pagination through the adapter. Carrier names are resolved through localized airline catalogs into canonical carrier codes, not route-specific code.
 
-When wave-0 primary offers prove direct flights for a direction, the direct-first gate suppresses connected options for that direction unless explicit route constraints override it.
+When wave-0 primary offers prove direct flights for a direction, the direct-first gate suppresses connected options for that direction unless route options explicitly allow connected alternatives.
 
-## Constraints
+## Filters
 
-User constraints are planner inputs before ranking:
+Carrier filters are provider-query inputs:
 
-- `must_include_airports` seeds gateway/path probes and rejects options without the required airport.
-- `first_departure_after` applies to the first outbound departure in origin-local time; it does not filter return departures.
-- `only_carriers` is hard; `preferred_carriers` is scoring preference.
+- `filters.only_carriers` narrows provider/search queries to the requested carriers where supported.
+- `filters.prefer_carriers` is a provider-query preference and RU-priority seed; it is not a hidden scorer gate.
 - Carrier matching uses normalized codes and raw provider names.
 
-If the user says "through AMS" or "KLM after 15:00", do not let default bridge policy outrank that request. Defaults live in policy/config and only fill gaps when the user did not constrain the route.
+Do not reintroduce request `constraints`; route shape belongs in `route_options`, carrier scope belongs in `filters`, and final selection belongs in the decision frontier.
 
 ## Evidence Boundaries
 

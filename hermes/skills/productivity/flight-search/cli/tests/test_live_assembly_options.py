@@ -104,6 +104,7 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.evidence.search_wave_max_waves, 4)
         self.assertEqual(options.evidence.search_wave_probe_limit, 8)
         self.assertEqual(options.evidence.search_wave_top_k, 6)
+        self.assertEqual(options.evidence.primary_offer_limit, 35)
         self.assertEqual(options.output.catalog_limit, 12)
         self.assertEqual(options.output.direct_catalog_limit, 35)
 
@@ -117,29 +118,19 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         with self.assertRaises(CliError):
             live_assembly_options_from_search_request({**REQUEST, "profile": "safe"})
 
-    def test_search_request_maps_request_constraints(self) -> None:
+    def test_search_request_maps_carrier_filters(self) -> None:
         request = {
             "schema_version": "flight_search_request.v1",
             "origin": "nte",
             "destination": "svx",
             "depart_date": "2026-07-09",
             "filters": {"only_carriers": ["AF"], "prefer_carriers": ["TK"]},
-            "constraints": {
-                "first_departure_after": "15:00",
-                "must_include_airports": ["ams"],
-                "only_carriers": ["kl"],
-                "preferred_carriers": ["af"],
-            },
         }
         options = search_request_to_options(request)
 
-        self.assertEqual(options.constraints.first_departure_after, "15:00")
-        self.assertEqual(options.constraints.must_include_airports, ("AMS",))
-        self.assertEqual(options.constraints.only_carriers, ("KL",))
-        self.assertEqual(options.constraints.preferred_carriers, ("AF",))
         self.assertEqual(options.filters.only_carriers, ("AF",))
-        self.assertEqual(options.effective_only_carriers(), ("AF", "KL"))
-        self.assertEqual(options.effective_prefer_carriers(), ("TK", "AF"))
+        self.assertEqual(options.effective_only_carriers(), ("AF",))
+        self.assertEqual(options.effective_prefer_carriers(), ("TK",))
         self.assertEqual(live_assembly_options_from_search_request(request), options)
 
     def test_search_request_defaults_are_explicit_in_typed_options(self) -> None:
@@ -159,6 +150,9 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.profile, "business")
         self.assertEqual(options.ticketing, "separate")
         self.assertEqual(options.evidence.provider_policy, "auto")
+        self.assertEqual(
+            options.evidence.primary_offer_limit, DEFAULT_DIRECT_CATALOG_LIMIT
+        )
         self.assertEqual(options.output.catalog_limit, DEFAULT_CATALOG_LIMIT)
         self.assertEqual(
             options.output.direct_catalog_limit, DEFAULT_DIRECT_CATALOG_LIMIT
@@ -203,6 +197,7 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         self.assertEqual(options.evidence.coverage_control_limit, 0)
         self.assertEqual(options.evidence.aggregate_control_limit, 0)
         self.assertEqual(options.evidence.live_cache_ttl_seconds, 0)
+        self.assertEqual(options.evidence.primary_offer_limit, 1)
         self.assertEqual(options.output.include_segment_results, 0)
         self.assertEqual(options.output.catalog_limit, 1)
         self.assertEqual(options.output.direct_catalog_limit, 1)

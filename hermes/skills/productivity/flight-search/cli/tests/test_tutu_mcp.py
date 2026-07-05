@@ -198,6 +198,46 @@ class TutuMcpProviderTests(unittest.TestCase):
         self.assertEqual(result["pagination"]["pages_fetched"], 2)
         self.assertFalse(result["pagination"]["not_fetched_due_to_page_budget"])
 
+    def test_parser_keeps_provider_inventory_when_limit_covers_catalog(self) -> None:
+        store = store_with_tutu_catalog(self)
+        raw = {
+            "offers": [
+                tutu_offer(
+                    f"offer-{index}",
+                    [
+                        [
+                            tutu_segment(
+                                "SVX",
+                                "AMS",
+                                f"SU{100 + index}",
+                                depart=f"2026-08-15T10:{index:02d}:00+05:00",
+                                arrive=f"2026-08-15T12:{index:02d}:00+03:00",
+                            )
+                        ]
+                    ],
+                    price=10000 + index,
+                )
+                for index in range(22)
+            ]
+        }
+
+        result = parse_tutu_avia_search(
+            raw,
+            origin="SVX",
+            destination="AMS",
+            depart_date="2026-08-15",
+            currency="RUB",
+            direct_only=True,
+            limit=30,
+            store=store,
+        )
+
+        self.assertEqual(result["raw_count"], 22)
+        self.assertEqual(result["unique_flight_count"], 22)
+        self.assertEqual(result["offer_count"], 22)
+        self.assertEqual(result["omitted_offer_count"], 0)
+        self.assertEqual(len(result["offers"]), 22)
+
     def test_fetch_marks_remaining_pages_when_page_budget_is_exhausted(self) -> None:
         store = store_with_tutu_catalog(self)
         calls: list[dict] = []
@@ -460,12 +500,14 @@ class TutuMcpProviderTests(unittest.TestCase):
                 "currency": "RUB",
                 "only_carriers": ["SU"],
                 "direct_only": True,
+                "limit": 17,
                 "use_cache": False,
             }
         )
 
         self.assertTrue(calls[0]["direct_only"])
         self.assertEqual(calls[0]["only_carriers"], ["SU"])
+        self.assertEqual(calls[0]["limit"], 17)
         self.assertIsNone(calls[0]["return_date"])
 
     def test_aggregate_adapter_passes_return_date_and_keeps_round_trip_capability(
@@ -508,12 +550,14 @@ class TutuMcpProviderTests(unittest.TestCase):
                 "currency": "RUB",
                 "only_carriers": ["SU"],
                 "direct_only": True,
+                "limit": 23,
                 "use_cache": False,
             }
         )
 
         self.assertEqual(calls[0]["return_date"], date(2026, 8, 22))
         self.assertTrue(calls[0]["direct_only"])
+        self.assertEqual(calls[0]["limit"], 23)
         self.assertTrue(adapter.capabilities.supports_round_trip)
         self.assertEqual(result.query["return_date"], "2026-08-22")
 

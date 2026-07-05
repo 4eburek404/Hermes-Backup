@@ -11,8 +11,8 @@ _CURRENT_CONTRACTS: dict[str, dict[str, str]] = {
         "status": "current_public_contract",
     },
     "user_answer": {
-        "schema_version": "flight_search_user_answer.v6",
-        "schema_resource": "flight_search_user_answer.v6.schema.json",
+        "schema_version": "flight_search_user_answer.v7",
+        "schema_resource": "flight_search_user_answer.v7.schema.json",
         "public_path": "data.agent_report.user_answer",
         "canonical_text_path": "data.agent_report.user_answer.rendered_text",
         "status": "current_canonical_answer",

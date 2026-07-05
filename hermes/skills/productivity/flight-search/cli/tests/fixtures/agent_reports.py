@@ -274,7 +274,6 @@ def answer_input_from_fixture(report: dict) -> UserAnswerInput:
         stop_policy=report["stop_policy"],
         stop_policy_status=report["stop_policy_status"],
         through_fare_checks=report["through_fare_checks"],
-        constraint_conflict=report.get("constraint_conflict"),
         truth_language=report["truth_language"],
     )
 

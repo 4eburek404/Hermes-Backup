@@ -6,7 +6,7 @@ Use this when reading `data.agent_report` or deciding what to show the traveler.
 
 - `flight_search_result.v3` is the public search envelope. It carries `data.agent_report` at the root and `data.route_result` without a nested report copy.
 - `agent_report.v4` is the public agent report. Its only top-level layers are `route`, `evidence`, `frontier`, `user_answer`, and `agent_guidance`.
-- `flight_search_user_answer.v6` is the canonical user-facing answer. `data.agent_report.user_answer.rendered_text` is the only final prose source.
+- `flight_search_user_answer.v7` is the canonical user-facing answer. `data.agent_report.user_answer.rendered_text` is the only final prose source.
 - `flight_offer_graph.v1` remains active only as route-result diagnostic data at `data.route_result.live_search.offer_graph`.
 
 There is no runtime adapter for previous agent-report or search-result envelopes.
@@ -41,7 +41,7 @@ The `route_result` object must not contain a report copy. Consumers should read 
 
 ## Answer Rules
 
-`rendered_text` is derived from the structured `flight_search_user_answer.v6` object. Do not create another final-answer source or copy route diagnostics as prose.
+`rendered_text` is derived from the structured `flight_search_user_answer.v7` object. Do not create another final-answer source or copy route diagnostics as prose.
 
 For catalog answers:
 

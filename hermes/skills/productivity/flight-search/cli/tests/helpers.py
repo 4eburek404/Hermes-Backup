@@ -173,16 +173,6 @@ def live_assembly_args(**overrides: Any) -> Any:
         "avoid_carriers": "avoid_carriers",
         "avoid_carrier": "avoid_carriers",
     }
-    constraint_keys = {
-        "first_departure_after": "first_departure_after",
-        "must_include_airports": "must_include_airports",
-        "must_include_airport": "must_include_airports",
-        "constraint_only_carriers": "only_carriers",
-        "constraint_only_carrier": "only_carriers",
-        "preferred_carriers": "preferred_carriers",
-        "preferred_carrier": "preferred_carriers",
-    }
-
     values = dict(overrides)
     request: dict[str, Any] = {
         "schema_version": "flight_search_request.v1",
@@ -202,7 +192,6 @@ def live_assembly_args(**overrides: Any) -> Any:
     evidence: dict[str, Any] = {}
     output: dict[str, Any] = {}
     filters: dict[str, Any] = {}
-    constraints: dict[str, Any] = {}
     for key, target in route_option_keys.items():
         if key in values:
             value = values.pop(key)
@@ -230,16 +219,6 @@ def live_assembly_args(**overrides: Any) -> Any:
     for key, target in filter_keys.items():
         if key in values:
             filters[target] = as_list(values.pop(key))
-    for key, target in constraint_keys.items():
-        if key in values:
-            value = values.pop(key)
-            if target in {
-                "must_include_airports",
-                "only_carriers",
-                "preferred_carriers",
-            }:
-                value = as_list(value)
-            constraints[target] = value
     if route_options:
         request["route_options"] = route_options
     if evidence:
@@ -248,8 +227,6 @@ def live_assembly_args(**overrides: Any) -> Any:
         request["output"] = output
     if filters:
         request["filters"] = filters
-    if constraints:
-        request["constraints"] = constraints
 
     if values:
         unknown = ", ".join(sorted(values))
