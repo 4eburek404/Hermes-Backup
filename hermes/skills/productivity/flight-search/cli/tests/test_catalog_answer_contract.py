@@ -152,6 +152,30 @@ class CatalogAnswerContractTests(unittest.TestCase):
         )
         self.assertLessEqual(len(text.encode("utf-8")), 20000)
 
+    def test_default_primary_label_is_not_called_alternative(self) -> None:
+        report = valid_report()
+        alternative = copy.deepcopy(valid_option())
+        alternative.update(
+            {
+                "id": "assembled-alt",
+                "rank": 2,
+                "price": {"amount": 12345, "currency": "RUB"},
+                "price_text": "12 345 RUB",
+            }
+        )
+        report["alternative_options"] = [alternative]
+
+        answer = build_user_answer(answer_input_from_fixture(report))
+
+        self.assertEqual(
+            answer["primary_recommendation"]["user_facing_label"],
+            "One-way recommendation SVO→DEL: 10 000 RUB.",
+        )
+        self.assertEqual(
+            answer["alternatives"][0]["user_facing_label"],
+            "One-way alternative SVO→DEL: 12 345 RUB.",
+        )
+
     def test_round_trip_options_render_as_numbered_catalog_contract(self) -> None:
         with patch(
             "flights_cli.reporting.user_answer.airport_city_label",

@@ -209,6 +209,7 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
         "primary_recommendation": option_summary(
             recommended[0] if recommended else None,
             is_round_trip_request=is_round_trip_request,
+            is_primary=True,
         ),
         "alternatives": [
             summary

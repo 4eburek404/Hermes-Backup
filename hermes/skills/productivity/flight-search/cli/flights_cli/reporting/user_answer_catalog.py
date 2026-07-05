@@ -187,21 +187,22 @@ def infer_journey_scope(option: dict[str, Any], *, is_round_trip_request: bool) 
 
 
 def default_label(
-    option: dict[str, Any], *, journey_scope: str, direction: str | None
+    option: dict[str, Any], *, journey_scope: str, direction: str | None, is_primary: bool
 ) -> str:
     price = str(option.get("price_text") or "price n/a")
     route = route_label(option)
+    label_kind = "recommendation" if is_primary else "alternative"
     if journey_scope == "outbound_only":
-        return f"One-way outbound alternative{route}: {price}. Does not cover requested round trip."
+        return f"One-way outbound {label_kind}{route}: {price}. Does not cover requested round trip."
     if journey_scope == "return_only":
-        return f"One-way return alternative{route}: {price}. Does not cover requested round trip."
+        return f"One-way return {label_kind}{route}: {price}. Does not cover requested round trip."
     if journey_scope == "two_one_way_pair":
         return f"Two separate one-way offers{route}: {price}."
     if journey_scope == "round_trip":
-        return f"Round-trip alternative{route}: {price}."
+        return f"Round-trip {label_kind}{route}: {price}."
     if direction == "return":
-        return f"One-way return alternative{route}: {price}."
-    return f"One-way alternative{route}: {price}."
+        return f"One-way return {label_kind}{route}: {price}."
+    return f"One-way {label_kind}{route}: {price}."
 
 
 def default_disclaimer(option: dict[str, Any], *, journey_scope: str) -> str | None:
@@ -217,7 +218,10 @@ def default_disclaimer(option: dict[str, Any], *, journey_scope: str) -> str | N
 
 
 def option_summary(
-    option: dict[str, Any] | None, *, is_round_trip_request: bool = False
+    option: dict[str, Any] | None,
+    *,
+    is_round_trip_request: bool = False,
+    is_primary: bool = False,
 ) -> dict[str, Any] | None:
     if not isinstance(option, dict):
         return None
@@ -267,7 +271,12 @@ def option_summary(
     user_facing_label = str(
         option.get("user_facing_label")
         or option.get("label")
-        or default_label(option, journey_scope=journey_scope, direction=direction)
+        or default_label(
+            option,
+            journey_scope=journey_scope,
+            direction=direction,
+            is_primary=is_primary,
+        )
     )
     disclaimer = option.get("disclaimer") or default_disclaimer(
         option, journey_scope=journey_scope
