@@ -16,7 +16,7 @@ sys.path.insert(0, str(SCRIPTS))
 
 class ExplodingUrlFile:
     def read_text(
-        self, encoding: str = "utf-8"
+        self, *_args: object, **_kwargs: object
     ) -> str:  # pragma: no cover - must not be called
         raise AssertionError("url_file was read despite url_override")
 

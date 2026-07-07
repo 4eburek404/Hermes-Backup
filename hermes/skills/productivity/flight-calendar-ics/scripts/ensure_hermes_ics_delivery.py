@@ -68,16 +68,6 @@ def _default_hermes_root() -> Path:
     return hermes_home / "hermes-agent"
 
 
-def _replace_section(text: str, start_marker: str, end_marker: str, body: str) -> str:
-    start = text.find(start_marker)
-    if start == -1:
-        raise PatchError(f"Could not find start marker: {start_marker!r}")
-    end = text.find(end_marker, start)
-    if end == -1:
-        raise PatchError(f"Could not find end marker after {start_marker!r}")
-    return text[:start] + body + text[end:]
-
-
 def patch_gateway_base(base_path: Path) -> bool:
     text = base_path.read_text(encoding="utf-8")
     original = text
