@@ -25,10 +25,11 @@ from .live_cache import live_cache_key, read_live_cache, write_live_cache
 from .segment_normalization import provider_result_to_segment_result
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
-TUTU_NORMALIZER_VERSION = "tutu-avia-v2"
+TUTU_NORMALIZER_VERSION = "tutu-avia-v3"
 TUTU_PAGE_SIZE = 30
 TUTU_MAX_PAGES = 3
 TUTU_MCP_INCOMPLETE_READ_RETRIES = 2
+TutuToolPayload = dict[str, Any] | list[Any] | str
 
 # Matches a 3-letter IATA code in parentheses at end of string: "Тулуза — Тулуза-Бланьяк (TLS)" -> TLS
 _IATA_RE = re.compile(r"\(([A-Z]{3})\)\s*(?:,\s*терм\.\s*\S+)?\s*$")
@@ -227,7 +228,7 @@ def ensure_jsonrpc_ok(response: dict[str, Any], context: str) -> dict[str, Any]:
     )
 
 
-def extract_tool_payload(result: dict[str, Any]) -> dict[str, Any]:
+def extract_tool_payload(result: dict[str, Any]) -> TutuToolPayload:
     if result.get("isError"):
         messages = []
         for item in result.get("content") or []:
@@ -239,31 +240,39 @@ def extract_tool_payload(result: dict[str, Any]) -> dict[str, Any]:
         )
     structured = result.get("structuredContent")
     if isinstance(structured, dict):
-        if isinstance(structured.get("result"), dict):
+        if isinstance(structured.get("result"), (dict, list, str)):
             return structured["result"]
         return structured
+    if isinstance(structured, list):
+        return structured
+
+    first_text: str | None = None
     for item in result.get("content") or []:
         if not isinstance(item, dict):
             continue
         text = item.get("text")
         if not isinstance(text, str):
             continue
+        if first_text is None:
+            first_text = text
         try:
             parsed = json.loads(text)
         except json.JSONDecodeError:
             continue
-        if isinstance(parsed, dict):
+        if isinstance(parsed, (dict, list, str)):
             # Tutu MCP wraps the payload in a {"result": "..."} string
-            if isinstance(parsed.get("result"), str):
+            if isinstance(parsed, dict) and isinstance(parsed.get("result"), str):
                 try:
                     inner = json.loads(parsed["result"])
-                    if isinstance(inner, dict):
+                    if isinstance(inner, (dict, list, str)):
                         return inner
                 except json.JSONDecodeError:
-                    pass
+                    return parsed["result"]
             return parsed
+    if first_text is not None:
+        return first_text
     raise CliError(
-        "Tutu MCP tool response did not include a JSON payload",
+        "Tutu MCP tool response did not include a content payload",
         error_type="upstream_error",
     )
 
@@ -274,7 +283,7 @@ def call_tutu_mcp_tool(
     *,
     mcp_url: str | None = None,
     timeout: int = 60,
-) -> dict[str, Any]:
+) -> TutuToolPayload:
     url = normalize_tutu_mcp_url(mcp_url)
     init_payload = {
         "jsonrpc": "2.0",
@@ -307,6 +316,16 @@ def call_tutu_mcp_tool(
     )
     return extract_tool_payload(
         ensure_jsonrpc_ok(call_response, f"tools/call {tool_name}")
+    )
+
+
+def require_tutu_tool_object(payload: TutuToolPayload, tool_name: str) -> dict[str, Any]:
+    if isinstance(payload, dict):
+        return payload
+    raise CliError(
+        f"Tutu MCP tool {tool_name} returned a non-JSON payload",
+        error_type="upstream_error",
+        details={"tool": tool_name, "payload_type": type(payload).__name__},
     )
 
 
@@ -360,6 +379,63 @@ def _build_carrier_name_index(store: Store | None) -> dict[str, str]:
                 if tr:
                     index[tr] = code
     return index
+
+
+def _carrier_display_names_by_code(store: Store | None) -> dict[str, list[str]]:
+    if store is None:
+        return {}
+    names_by_code: dict[str, list[str]] = {}
+    seen_by_code: dict[str, set[str]] = {}
+
+    def add_name(code: str, name: str) -> None:
+        display_name = str(name or "").strip()
+        if not display_name:
+            return
+        key = _carrier_name_key(display_name)
+        seen = seen_by_code.setdefault(code, set())
+        if key in seen:
+            return
+        seen.add(key)
+        names_by_code.setdefault(code, []).append(display_name)
+
+    # Tutu currently exposes Russian display names for many carriers, so prefer
+    # the RU catalog row while still sending EN aliases as fallbacks.
+    rows = list(store.load_json("airlines_ru.json"))
+    rows.extend(store.airlines)
+    for airline in rows:
+        code = str(airline.get("code") or "").upper()
+        if not code:
+            continue
+        add_name(code, str(airline.get("name") or ""))
+        translations = airline.get("name_translations")
+        if isinstance(translations, dict):
+            for tr_name in translations.values():
+                add_name(code, str(tr_name or ""))
+    return names_by_code
+
+
+def resolve_tutu_carrier_filters(
+    only_carriers: list[str] | None,
+    *,
+    store: Store | None,
+) -> list[str]:
+    name_index = _build_carrier_name_index(store)
+    display_names_by_code = _carrier_display_names_by_code(store)
+    resolved: list[str] = []
+    seen: set[str] = set()
+
+    for raw_value in only_carriers or []:
+        value = str(raw_value or "").strip()
+        if not value:
+            continue
+        code = resolve_carrier_code(value, name_index=name_index)
+        candidates = display_names_by_code.get(code or "", []) or [value]
+        for candidate in candidates:
+            key = _carrier_name_key(candidate)
+            if key and key not in seen:
+                seen.add(key)
+                resolved.append(candidate)
+    return resolved
 
 
 def resolve_carrier_code(
@@ -583,32 +659,6 @@ def _matches_airport_scope(
     return True
 
 
-def _matches_direct_only(journeys: list[dict[str, Any]]) -> bool:
-    return all(len(_journey_segments(journey)) == 1 for journey in journeys)
-
-
-def _segment_carrier_codes(segment: dict[str, Any]) -> set[str]:
-    codes = {
-        str(segment.get("marketing_carrier") or "").upper(),
-        str(segment.get("operating_carrier") or "").upper(),
-    }
-    flight_number = str(segment.get("flight_number") or "").upper()
-    if re.match(r"^[A-Z0-9]{2,3}", flight_number):
-        codes.add(flight_number[:2])
-    return {code for code in codes if code}
-
-
-def _matches_carrier_filter(
-    journeys: list[dict[str, Any]], carrier_filter: set[str]
-) -> bool:
-    if not carrier_filter:
-        return True
-    for segment in _all_journey_segments(journeys):
-        if not (_segment_carrier_codes(segment) & carrier_filter):
-            return False
-    return True
-
-
 def _normalize_tutu_journeys(
     offer: dict[str, Any],
     *,
@@ -689,7 +739,7 @@ def parse_tutu_avia_search(
         )
 
     carrier_name_index = _build_carrier_name_index(store)
-    carrier_filter = {
+    requested_carriers = {
         str(code).strip().upper() for code in (only_carriers or []) if str(code).strip()
     }
     deduped: dict[tuple[str, ...], dict[str, Any]] = {}
@@ -723,13 +773,6 @@ def parse_tutu_avia_search(
             skipped=skipped,
         ):
             continue
-        if direct_only and not _matches_direct_only(journeys):
-            _increment(skipped, "not_direct")
-            continue
-        if carrier_filter and not _matches_carrier_filter(journeys, carrier_filter):
-            _increment(skipped, "carrier")
-            continue
-
         price_data = offer.get("price")
         if isinstance(price_data, dict):
             amount = price_value({"price": price_data.get("amount")})
@@ -803,7 +846,7 @@ def parse_tutu_avia_search(
         "note": "Tutu.ru aggregate source; recheck final fare and seat availability before ticketing.",
         "filters": {
             "direct_only": bool(direct_only),
-            "only_carriers": sorted(carrier_filter),
+            "only_carriers": sorted(requested_carriers),
         },
         "return_date": return_date,
         "pagination": raw.get("meta") if isinstance(raw.get("meta"), dict) else {},
@@ -847,9 +890,17 @@ def fetch_tutu_avia_search(
     }
     if return_date is not None:
         arguments["return_date"] = return_date.isoformat()
+    if direct_only:
+        arguments["direct_only"] = True
+    mcp_carriers = resolve_tutu_carrier_filters(only_carriers, store=store)
+    if mcp_carriers:
+        arguments["carriers"] = mcp_carriers
 
     # Fetch first page
-    raw = call_tutu_mcp_tool("search_avia", arguments, mcp_url=mcp_url, timeout=timeout)
+    raw = require_tutu_tool_object(
+        call_tutu_mcp_tool("search_avia", arguments, mcp_url=mcp_url, timeout=timeout),
+        "search_avia",
+    )
 
     all_offers = list(raw.get("offers") or [])
     meta = raw.get("meta") or {}
@@ -861,8 +912,11 @@ def fetch_tutu_avia_search(
         page += 1
         page_args = dict(arguments)
         page_args["page"] = page
-        page_raw = call_tutu_mcp_tool(
-            "search_avia", page_args, mcp_url=mcp_url, timeout=timeout
+        page_raw = require_tutu_tool_object(
+            call_tutu_mcp_tool(
+                "search_avia", page_args, mcp_url=mcp_url, timeout=timeout
+            ),
+            "search_avia",
         )
         pages_fetched += 1
         page_offers = list(page_raw.get("offers") or [])
