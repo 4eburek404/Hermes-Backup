@@ -26,16 +26,8 @@ class RouteDetectionContractTests(unittest.TestCase):
         from flight_calendar.route_detection import infer_build_route
 
         args = argparse.Namespace(
-            input=None,
             url=None,
             url_file=ExplodingUrlFile(),
-            pnr_locator=None,
-            pnr_key=None,
-            pnr=None,
-            rloc=None,
-            last_name=None,
-            first_name=None,
-            access_code=None,
         )
 
         route = infer_build_route(
@@ -54,16 +46,8 @@ class RouteDetectionContractTests(unittest.TestCase):
         from flight_calendar.route_detection import infer_build_route
 
         args = argparse.Namespace(
-            input=None,
             url=None,
             url_file=ExplodingUrlFile(),
-            pnr_locator=None,
-            pnr_key=None,
-            pnr=None,
-            rloc=None,
-            last_name=None,
-            first_name=None,
-            access_code=None,
         )
 
         route = infer_build_route(
@@ -85,16 +69,8 @@ class RouteDetectionContractTests(unittest.TestCase):
         from flight_calendar.route_detection import infer_build_route
 
         args = argparse.Namespace(
-            input=None,
             url=None,
             url_file=ExplodingUrlFile(),
-            pnr_locator=None,
-            pnr_key=None,
-            pnr=None,
-            rloc=None,
-            last_name=None,
-            first_name=None,
-            access_code=None,
         )
 
         with self.assertRaises(CliFailure) as ctx:
@@ -107,6 +83,24 @@ class RouteDetectionContractTests(unittest.TestCase):
         self.assertEqual(ctx.exception.details.get("route"), "s7")
         self.assertNotIn("ABC123", str(ctx.exception))
         self.assertNotIn("bookingId=", str(ctx.exception))
+
+    def test_credential_only_args_do_not_select_route(self) -> None:
+        from flight_calendar.errors import CliFailure
+        from flight_calendar.route_detection import infer_build_route
+
+        args = argparse.Namespace(
+            url=None,
+            url_file=None,
+            pnr="ABC123",
+            rloc="ABC123",
+            last_name="IVANOV",
+            access_code="SECRET",
+        )
+
+        with self.assertRaises(CliFailure) as ctx:
+            infer_build_route(args)
+
+        self.assertEqual(ctx.exception.code, "route_unknown")
 
     def test_click_mail_utair_is_not_a_route_detection_host(self) -> None:
         import flight_calendar.route_detection as route_detection
