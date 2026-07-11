@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from functools import lru_cache
 import re
 from typing import Any
 
@@ -68,30 +67,6 @@ def answer_endpoint_display_label(
     if label.strip().upper() == normalized:
         return f"({code_label})"
     return f"{label} ({code_label})"
-
-
-@lru_cache(maxsize=512)
-def aircraft_display_label(code: str | None) -> str | None:
-    raw = str(code or "").strip().upper()
-    if not raw:
-        return None
-    if raw == "737" or raw.startswith(("73", "7M")):
-        return "B737"
-    if raw in {"318", "319", "320", "321"}:
-        return f"A{raw}"
-    if raw in {"32A", "32B", "32N", "32Q"} or raw.startswith("A32"):
-        return "A320"
-    if raw.startswith("32") and len(raw) >= 3:
-        return "A320"
-    if raw.startswith("33") or raw.startswith("A33"):
-        return "A330"
-    if raw.startswith("35") or raw.startswith("A35"):
-        return "A350"
-    if raw.startswith("77") or raw.startswith("B77"):
-        return "B777"
-    if raw.startswith("78") or raw.startswith("B78"):
-        return "B787"
-    return raw
 
 
 def _segment_duration_minutes(segment: dict[str, Any]) -> int | None:

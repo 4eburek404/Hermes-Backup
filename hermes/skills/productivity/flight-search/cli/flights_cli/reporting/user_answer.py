@@ -1,39 +1,23 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from .option_semantics import route_requested_round_trip
-from .user_answer_absence import (
-    gateway_coverage_summary,
-    render_no_viable_answer,
-)
 from .user_answer_catalog import (
     build_catalog_contract,
     infer_answer_mode,
     render_catalog_answer,
 )
 from .user_answer_contracts import (
-    USER_ANSWER_SCHEMA_PACKAGE,
-    USER_ANSWER_SCHEMA_RESOURCE,
     USER_ANSWER_SCHEMA_VERSION,
-    load_user_answer_schema,
-    user_answer_contract_semantic_errors,
-    user_answer_validator,
     validate_user_answer,
 )
-from .user_answer_lines import aircraft_display_label
 
 __all__ = (
-    "USER_ANSWER_SCHEMA_PACKAGE",
-    "USER_ANSWER_SCHEMA_RESOURCE",
-    "USER_ANSWER_SCHEMA_VERSION",
-    "aircraft_display_label",
+    "UserAnswerInput",
     "build_user_answer",
     "render_user_answer",
-    "load_user_answer_schema",
-    "user_answer_contract_semantic_errors",
-    "user_answer_validator",
     "validate_user_answer",
 )
 
@@ -50,7 +34,28 @@ class UserAnswerInput:
     stop_policy: dict[str, Any]
     stop_policy_status: dict[str, Any]
     through_fare_checks: list[dict[str, Any]]
-    truth_language: dict[str, Any] = field(default_factory=dict)
+
+
+def _render_no_viable_answer(
+    route: dict[str, Any], *, caveat_context: dict[str, Any]
+) -> str:
+    origin = route.get("origin") or "???"
+    destination = route.get("destination") or "???"
+    lines = [f"Не нашёл пригодных вариантов {origin}→{destination}."]
+    checks = [
+        "не нашёл в выполненных live/probe источниках; это не доказательство отсутствия вне границ источника",
+        "финальную цену, тариф, багаж и правила проверить на booking screen.",
+    ]
+    if caveat_context.get("not_executed"):
+        checks.append("coverage неполное: не все live-проверки выполнены.")
+    if caveat_context.get("provider_failures"):
+        checks.append(
+            "часть live-проверок упала — если это влияет на выбор, повторить поиск перед покупкой."
+        )
+    lines.append("")
+    lines.append("**Проверить перед покупкой**")
+    lines.extend(f"- {line}" for line in checks)
+    return "\n".join(lines).strip()
 
 
 def render_user_answer(answer: dict[str, Any], route: dict[str, Any]) -> str:
@@ -92,7 +97,7 @@ def render_user_answer(answer: dict[str, Any], route: dict[str, Any]) -> str:
             catalog,
             caveat_context=caveat_context,
         )
-    return render_no_viable_answer(route_contract, caveat_context=caveat_context)
+    return _render_no_viable_answer(route_contract, caveat_context=caveat_context)
 
 
 def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
@@ -117,7 +122,6 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
     route = answer_input.route
     stop_policy = answer_input.stop_policy
     stop_diagnostics = answer_input.stop_policy_status
-    truth_language = answer_input.truth_language
     two_stop_tier_used = bool(stop_diagnostics.get("used_two_stop_tier"))
 
     is_round_trip_request = route_requested_round_trip(route)
@@ -141,27 +145,6 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
         "destination": route.get("destination"),
         "dates": route.get("dates") if isinstance(route.get("dates"), dict) else {},
     }
-    gateway_summary = gateway_coverage_summary(diagnostics)
-    caveat_context = {
-        "not_executed": not_executed,
-        "provider_failures": provider_failures,
-        "source_boundaries": answer_input.source_boundaries,
-        "through_fare_checks": through_fare_checks,
-        "negative_wording": truth_language.get("negative_wording"),
-    }
-    if answer_mode == "catalog":
-        answer_text = render_catalog_answer(
-            route_contract,
-            catalog,
-            caveat_context=caveat_context,
-            gateway_summary=gateway_summary,
-        )
-    else:
-        answer_text = render_no_viable_answer(
-            route_contract,
-            caveat_context=caveat_context,
-            gateway_summary=gateway_summary,
-        )
     execution_complete = bool(
         completeness.get("all_planned_controls_have_terminal_state")
     )
@@ -232,7 +215,6 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
             "through_fare_verification_required": True,
             "purchase_screen_verification_required": True,
         },
-        "rendered_text": answer_text,
     }
     answer["rendered_text"] = render_user_answer(answer, route_contract)
     return answer

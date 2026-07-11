@@ -590,7 +590,6 @@ def render_catalog_answer(
     catalog: dict[str, Any],
     *,
     caveat_context: dict[str, Any],
-    gateway_summary: str | None = None,
 ) -> str:
     origin = route.get("origin") or "???"
     destination = route.get("destination") or "???"
@@ -606,11 +605,6 @@ def render_catalog_answer(
             lines.append("")
         lines.extend(rendered_item)
     has_rendered_options = bool(rendered_items)
-    if gateway_summary:
-        if has_rendered_options:
-            lines.append("")
-        lines.append(gateway_summary)
-    negative_wording = str(caveat_context.get("negative_wording") or "").strip()
     if has_rendered_options:
         check_parts = [
             "Перед оплатой проверьте багаж, финальный тариф и правила обмена/возврата"
@@ -629,15 +623,13 @@ def render_catalog_answer(
             "Перед оплатой проверить багаж, финальный тариф и правила обмена/возврата.",
             "Единый тариф/сквозной багаж не подтверждены; текущий результат поставщика не доказывает наличие или отсутствие защищённого билета.",
         ]
-        if negative_wording and negative_wording not in checks:
-            checks.append(negative_wording)
         if caveat_context.get("not_executed"):
             checks.append("Coverage неполное: не все live-проверки выполнены.")
         if caveat_context.get("provider_failures"):
             checks.append(
                 "часть live-проверок упала — повторить, если это влияет на выбор."
             )
-    if checks and (rendered_items or gateway_summary):
+    if checks and rendered_items:
         lines.append("")
     lines.extend(checks)
     return "\n".join(lines).strip()

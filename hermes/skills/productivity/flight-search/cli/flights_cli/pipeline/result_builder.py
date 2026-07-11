@@ -166,14 +166,6 @@ def build_result_projection(
         "routing_strategy": plan.get("routing_strategy"),
         "provider_policy": live.get("provider_policy"),
     }
-    offer_graph = (
-        live.get("offer_graph") if isinstance(live.get("offer_graph"), dict) else {}
-    )
-    truth_language = (
-        offer_graph.get("truth_language")
-        if isinstance(offer_graph.get("truth_language"), dict)
-        else {}
-    )
     answer_input = UserAnswerInput(
         route=route,
         status={
@@ -187,7 +179,6 @@ def build_result_projection(
         stop_policy=stop_policy_payload(BUSINESS_DEFAULT_STOP_POLICY),
         stop_policy_status=_stop_policy_status(frontier_options),
         through_fare_checks=through_fare_check_items,
-        truth_language=truth_language,
     )
     evidence: dict[str, Any] = {
         "source_boundaries": answer_input.source_boundaries,

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://hermes.local/flights/flight_search_user_answer.v9.schema.json",
-  "title": "Flight Search User Answer v8",
+  "title": "Flight Search User Answer v9",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -21,7 +21,6 @@
     },
     "answer_mode": {
       "enum": [
-        "recommendation",
         "catalog",
         "no_viable_options"
       ]

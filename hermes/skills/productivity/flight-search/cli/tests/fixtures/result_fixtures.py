@@ -257,11 +257,6 @@ def valid_report() -> dict:
                 "all_planned_controls_have_terminal_state": True,
             },
         },
-        "truth_language": {
-            "inventory_scope": "live_provider_returned_inventory",
-            "absence_claim": "bounded_live_controls_only",
-            "negative_wording": "not no-flight evidence",
-        },
         "through_fare_checks": [],
         "stop_policy": {"name": "business_default", "preferred_max_connections": 1},
         "stop_policy_status": {
@@ -287,7 +282,6 @@ def answer_input_from_fixture(report: dict) -> UserAnswerInput:
         stop_policy=report["stop_policy"],
         stop_policy_status=report["stop_policy_status"],
         through_fare_checks=report["through_fare_checks"],
-        truth_language=report["truth_language"],
     )
 
 
