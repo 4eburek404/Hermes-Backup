@@ -135,7 +135,7 @@ Do not remove the provider port abstraction. Complete it:
 - provider policy owns mapping from route segment + request evidence policy to eligible providers using capabilities and airport/route policy.
 - `execution/probe_dispatcher.py` loops over provider adapters and translates `ProviderProbeResult` into probe ledger/outcome types.
 - aggregate controls call provider adapter `search_aggregate(...)` or receive structured `not_supported`; they must not contain provider-only algorithm branches.
-- production orchestration must not call provider-specific functions such as `fetch_kupibilet_search` directly. Keep provider-specific human renderers out of the production answer path.
+- production orchestration must not call provider-specific functions such as `fetch_kupibilet_search` directly. Keep provider-specific output formatting out of the production answer path.
 - If KupiBilet round-trip support is needed, model it as a typed provider-port method with tests rather than adding a parallel CLI command.
 
 Pitfalls:
@@ -171,14 +171,14 @@ Use this when operational logic in `SKILL.md` starts compensating for determinis
 - Absence language belongs in structured evidence: distinguish “all direct offers returned by live provider under request X” from “all possible flights”.
 - Add RED tests before promotion: trigger/no-trigger cases, mocked provider evidence projection, executable coverage/aggregate controls, `offer_graph.frontier` visibility, material-delta prioritization, renderer baggage wording, source-boundary caveats, and schema validation.
 
-## Human/User Answer Renderer Maintenance
+## User Answer Renderer Maintenance
 
 Use this when improving final user-visible flight output. The current seam is `data.agent_report.user_answer` → `flight_search_user_answer.v7` → `user_answer.rendered_text` → final Telegram/Markdown answer.
 
 - Implement user-answer contract changes in `cli/flights_cli/reporting/user_answer.py`; output selection may only use `user_answer.rendered_text`.
 - Preserve provider neutrality: renderer input is normalized report fields, not provider client objects, booking URLs, cache semantics, or provider caveat text.
 - Test negative format guarantees: no `agent report:`, `Best CLI-ranked option`, `Coverage diagnostics`, `provider_aggregate_candidate`, `provider-aggregate:`, pipe tables, raw `probe_id`, raw risk badges (`single_pnr_unproven`, `baggage_unknown`), or English caveats (`single PNR`, `through fare`, `booking screen`) in user-facing text.
-- For every positive catalog answer, use one deterministic compact multiline shape from `catalog.items[*].agent_display`: first line is `N. FLIGHT DD.MM Origin city - Destination city HH:MM HH:MM (arrival DD.MM when different) AIRCRAFT в пути H:MM`; continuation segment lines and the price line are indented by four spaces. Do not create a second compact pipe renderer in diagnostics.
+- For every positive catalog answer, `user_answer.rendered_text` uses readable numbered blocks: first segment line starts with `N. DD.MM Origin-Destination (AIRPORT,TERMINAL) HHMM HHMM (arrival DD.MM when different) в пути H:MM`; connection lines stay inside the same block with `пересадка Hч MMмин`; price is the final indented line. Keep detailed `catalog.items[*].agent_display` for JSON diagnostics.
 - Do not append absence/negative-evidence wording such as “не нашёл в выполненных live/probe источниках…” to a positive answer that already lists viable options. Reserve `truth_language.negative_wording` for no-viable-options / absence-scope answers; positive catalogs should keep only actionable purchase checks and source-boundary caveats that affect booking.
 - For connected itineraries, tests must assert per-segment flight times, reject collapsed whole-journey ranges, and cover overnight/multi-day layovers where a later segment date must be visible inline.
 

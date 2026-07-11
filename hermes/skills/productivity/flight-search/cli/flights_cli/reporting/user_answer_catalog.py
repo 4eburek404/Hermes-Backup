@@ -14,6 +14,7 @@ from .user_answer_lines import (
     AGENT_DISPLAY_STYLE,
     agent_display_contract,
     agent_display_lines_for_item,
+    answer_display_lines_for_item,
     numeric_or_none,
     render_direction_for_catalog,
 )
@@ -728,30 +729,47 @@ def render_catalog_answer(
     destination = route.get("destination") or "???"
     lines = [f"Нашёл варианты {origin}→{destination}."]
     rendered_items = [
-        str(item.get("render_line") or "")
+        answer_display_lines_for_item(item)
         for item in catalog.get("items") or []
-        if isinstance(item, dict) and item.get("render_line")
+        if isinstance(item, dict)
     ]
-    for rendered_item in rendered_items:
-        lines.append(rendered_item)
+    rendered_items = [item_lines for item_lines in rendered_items if item_lines]
+    for index, rendered_item in enumerate(rendered_items):
+        if index > 0:
+            lines.append("")
+        lines.extend(rendered_item)
     has_rendered_options = bool(rendered_items)
     if gateway_summary:
-        if rendered_items:
+        if has_rendered_options:
             lines.append("")
         lines.append(gateway_summary)
     negative_wording = str(caveat_context.get("negative_wording") or "").strip()
-    checks: list[str] = [
-        "Перед оплатой проверить багаж, финальный тариф и правила обмена/возврата.",
-        "Единый тариф/сквозной багаж не подтверждены; текущий результат поставщика не доказывает наличие или отсутствие защищённого билета.",
-    ]
-    if negative_wording and not has_rendered_options and negative_wording not in checks:
-        checks.append(negative_wording)
-    if caveat_context.get("not_executed"):
-        checks.append("Coverage неполное: не все live-проверки выполнены.")
-    if caveat_context.get("provider_failures"):
-        checks.append(
-            "часть live-проверок упала — повторить, если это влияет на выбор."
-        )
+    if has_rendered_options:
+        check_parts = [
+            "Перед оплатой проверьте багаж, финальный тариф и правила обмена/возврата"
+        ]
+        if caveat_context.get("not_executed"):
+            check_parts.append("покрытие неполное: не все live-проверки выполнены")
+        if caveat_context.get("provider_failures"):
+            check_parts.append("часть live-проверок упала")
+        if caveat_context.get("source_boundaries"):
+            check_parts.append("результат не доказывает варианты вне границ источников")
+        if caveat_context.get("through_fare_checks"):
+            check_parts.append("единый тариф проверить отдельно")
+        checks = ["; ".join(check_parts) + "."]
+    else:
+        checks = [
+            "Перед оплатой проверить багаж, финальный тариф и правила обмена/возврата.",
+            "Единый тариф/сквозной багаж не подтверждены; текущий результат поставщика не доказывает наличие или отсутствие защищённого билета.",
+        ]
+        if negative_wording and negative_wording not in checks:
+            checks.append(negative_wording)
+        if caveat_context.get("not_executed"):
+            checks.append("Coverage неполное: не все live-проверки выполнены.")
+        if caveat_context.get("provider_failures"):
+            checks.append(
+                "часть live-проверок упала — повторить, если это влияет на выбор."
+            )
     if checks and (rendered_items or gateway_summary):
         lines.append("")
     lines.extend(checks)

@@ -176,6 +176,141 @@ class CatalogAnswerContractTests(unittest.TestCase):
             "One-way alternative SVO→DEL: 12 345 RUB.",
         )
 
+    def test_rendered_text_uses_readable_direct_blocks(self) -> None:
+        report = valid_report()
+        report["route"] = {
+            **report["route"],
+            "origin": "SVX",
+            "destination": "LED",
+            "dates": {"depart_date": "2026-09-06"},
+        }
+        first = copy.deepcopy(valid_option())
+        first.update(
+            {
+                "id": "direct-early",
+                "price": {"amount": 8173, "currency": "RUB"},
+                "price_text": "8 173 RUB",
+                "journey_scope": "one_way",
+                "covers_requested_trip": True,
+                "segments": [
+                    {
+                        "direction": "outbound",
+                        "origin": "SVX",
+                        "destination": "LED",
+                        "departure_at": "2026-09-06T05:40:00+05:00",
+                        "arrival_at": "2026-09-06T06:35:00+03:00",
+                        "duration_min": 175,
+                    }
+                ],
+            }
+        )
+        second = copy.deepcopy(first)
+        second.update(
+            {
+                "id": "direct-midday",
+                "rank": 2,
+                "price": {"amount": 8367, "currency": "RUB"},
+                "price_text": "8 367 RUB",
+                "segments": [
+                    {
+                        "direction": "outbound",
+                        "origin": "SVX",
+                        "destination": "LED",
+                        "departure_at": "2026-09-06T07:15:00+05:00",
+                        "arrival_at": "2026-09-06T08:05:00+03:00",
+                        "duration_min": 170,
+                    }
+                ],
+            }
+        )
+        report["primary_options"] = [first]
+        report["alternative_options"] = [second]
+
+        with patch(
+            "flights_cli.reporting.user_answer_lines.airport_city_label",
+            side_effect=lambda code: {
+                "SVX": "Екатеринбург",
+                "LED": "Санкт-Петербург",
+            }.get(code, code),
+        ):
+            answer = build_user_answer(answer_input_from_fixture(report))
+
+        validate_user_answer(answer)
+        self.assertIn(
+            "1. 06.09 Екатеринбург-Санкт-Петербург (LED) 0540 0635 в пути 2:55\n"
+            "    8 173 рублей",
+            answer["rendered_text"],
+        )
+        self.assertIn(
+            "2. 06.09 Екатеринбург-Санкт-Петербург (LED) 0715 0805 в пути 2:50\n"
+            "    8 367 рублей",
+            answer["rendered_text"],
+        )
+        self.assertNotIn("борт н/д", answer["rendered_text"])
+        self.assertNotIn("источник:", answer["rendered_text"])
+        self.assertNotIn("единый PNR", answer["rendered_text"])
+        self.assertNotIn("сквозной багаж", answer["rendered_text"])
+
+    def test_rendered_text_uses_readable_connecting_blocks(self) -> None:
+        report = valid_report()
+        report["route"] = {
+            **report["route"],
+            "origin": "SVX",
+            "destination": "PKX",
+            "dates": {"depart_date": "2026-09-06"},
+        }
+        option = copy.deepcopy(valid_option())
+        option.update(
+            {
+                "id": "svx-pkx-via-svo",
+                "price": {"amount": 77000, "currency": "RUB"},
+                "price_text": "77 000 RUB",
+                "journey_scope": "one_way",
+                "covers_requested_trip": True,
+                "segments": [
+                    {
+                        "direction": "outbound",
+                        "origin": "SVX",
+                        "destination": "SVO",
+                        "arrival_terminal": "B",
+                        "departure_at": "2026-09-06T15:00:00+05:00",
+                        "arrival_at": "2026-09-06T15:30:00+03:00",
+                        "duration_min": 150,
+                    },
+                    {
+                        "direction": "outbound",
+                        "origin": "SVO",
+                        "destination": "PKX",
+                        "departure_terminal": "C",
+                        "departure_at": "2026-09-06T19:00:00+03:00",
+                        "arrival_at": "2026-09-07T09:00:00+08:00",
+                        "duration_min": 570,
+                    },
+                ],
+            }
+        )
+        report["primary_options"] = [option]
+        report["alternative_options"] = []
+
+        with patch(
+            "flights_cli.reporting.user_answer_lines.airport_city_label",
+            side_effect=lambda code: {
+                "SVX": "Екатеринбург",
+                "SVO": "Москва",
+                "PKX": "Пекин",
+            }.get(code, code),
+        ):
+            answer = build_user_answer(answer_input_from_fixture(report))
+
+        validate_user_answer(answer)
+        self.assertIn(
+            "1. 06.09 Екатеринбург-Москва (SVO,B) 1500 1530 в пути 2:30\n"
+            "    пересадка 3ч 30мин\n"
+            "   06.09 Москва (SVO,C)-Пекин (PKX) 1900 0900 (07.09) в пути 9:30\n"
+            "    77 000 рублей",
+            answer["rendered_text"],
+        )
+
     def test_round_trip_options_render_as_numbered_catalog_contract(self) -> None:
         with patch(
             "flights_cli.reporting.user_answer.airport_city_label",

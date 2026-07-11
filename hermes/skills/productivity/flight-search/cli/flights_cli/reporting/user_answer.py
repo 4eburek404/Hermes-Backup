@@ -164,6 +164,8 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
     caveat_context = {
         "not_executed": not_executed,
         "provider_failures": provider_failures,
+        "source_boundaries": answer_input.source_boundaries,
+        "through_fare_checks": through_fare_checks,
         "negative_wording": truth_language.get("negative_wording"),
     }
     if answer_mode == "catalog":

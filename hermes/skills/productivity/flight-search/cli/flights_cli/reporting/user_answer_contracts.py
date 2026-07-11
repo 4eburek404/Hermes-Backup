@@ -15,6 +15,7 @@ from .option_semantics import option_direction, route_requested_round_trip
 from .user_answer_catalog import is_provider_aggregate_option
 from .user_answer_lines import (
     agent_display_lines_for_item,
+    answer_display_lines_for_item,
     catalog_segment_count,
     has_agent_display_segment_suffix,
     is_agent_display_layover_line,
@@ -244,6 +245,15 @@ def validate_catalog_semantics(
                     "validator": "semantic",
                 }
             )
+        expected_answer_text = "\n".join(answer_display_lines_for_item(item))
+        if expected_answer_text and expected_answer_text not in rendered_text:
+            errors.append(
+                {
+                    "path": "$.rendered_text",
+                    "message": "rendered_text must include the deterministic user answer block for each catalog item",
+                    "validator": "semantic",
+                }
+            )
         number_prefix = f"{item.get('number')}. "
         if agent_lines and not str(agent_lines[0]).startswith(number_prefix):
             errors.append(
@@ -324,14 +334,6 @@ def validate_catalog_semantics(
                         }
                     )
                     break
-        if agent_text and agent_text not in rendered_text:
-            errors.append(
-                {
-                    "path": "$.rendered_text",
-                    "message": "rendered_text must include each catalog agent_display block verbatim",
-                    "validator": "semantic",
-                }
-            )
         if is_round_trip_request and item.get("covers_requested_trip") is True:
             if not isinstance(directions.get("outbound"), dict) or not isinstance(
                 directions.get("return"), dict
