@@ -1,0 +1,662 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermes.local/flights/flight_search_result.v7.schema.json",
+  "title": "Flight Search Result v6",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request",
+    "route",
+    "evidence",
+    "frontier",
+    "answer"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "flight_search_result.v7"
+    },
+    "request": {
+      "$ref": "flight_search_request.v1.schema.json"
+    },
+    "route": {
+      "$ref": "#/$defs/route"
+    },
+    "evidence": {
+      "$ref": "#/$defs/evidence"
+    },
+    "frontier": {
+      "$ref": "#/$defs/frontier"
+    },
+    "answer": {
+      "$ref": "flight_search_user_answer.v9.schema.json"
+    }
+  },
+  "$defs": {
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "destination",
+        "origin_airports",
+        "destination_airports",
+        "dates",
+        "profile",
+        "routing_strategy",
+        "provider_policy"
+      ],
+      "properties": {
+        "origin": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "destination": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "origin_airports": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          }
+        },
+        "destination_airports": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          }
+        },
+        "dates": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "depart",
+            "return"
+          ],
+          "properties": {
+            "depart": {
+              "type": "string",
+              "format": "date"
+            },
+            "return": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date"
+            },
+            "window_end": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        },
+        "profile": {
+          "type": "string"
+        },
+        "routing_strategy": {
+          "type": "string"
+        },
+        "provider_policy": {
+          "type": "string"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_boundaries",
+        "coverage",
+        "provider_failures",
+        "through_fare_checks",
+        "catalog_refresh"
+      ],
+      "properties": {
+        "source_boundaries": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "coverage": {
+          "$ref": "#/$defs/coverage"
+        },
+        "provider_failures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/provider_failure"
+          }
+        },
+        "through_fare_checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/through_fare_check"
+          }
+        },
+        "date_window_inventory": {
+          "$ref": "#/$defs/date_window_inventory"
+        },
+        "catalog_refresh": {
+          "$ref": "#/$defs/catalog_refresh"
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coverage_mode",
+        "negative_evidence_type",
+        "coverage_warnings",
+        "counts",
+        "completeness",
+        "blocking_evidence",
+        "non_blocking_boundaries"
+      ],
+      "properties": {
+        "coverage_mode": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "negative_evidence_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "coverage_warnings": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "planned_controls",
+            "searched_controls",
+            "skipped_controls",
+            "failed_controls",
+            "not_supported_controls",
+            "not_executed_controls",
+            "deduped_controls"
+          ],
+          "properties": {
+            "planned_controls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "searched_controls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "skipped_controls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failed_controls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "not_supported_controls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "not_executed_controls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "deduped_controls": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "completeness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "planned_count",
+            "terminal_count",
+            "all_planned_controls_have_terminal_state"
+          ],
+          "properties": {
+            "planned_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "terminal_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "all_planned_controls_have_terminal_state": {
+              "type": "boolean"
+            }
+          }
+        },
+        "blocking_evidence": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "non_blocking_boundaries": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "provider_failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "direction",
+        "leg",
+        "origin",
+        "destination",
+        "date",
+        "provider",
+        "cache_status",
+        "probe_id",
+        "error"
+      ],
+      "properties": {
+        "direction": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "leg": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "origin": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "destination": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "date": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cache_status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "probe_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "message"
+          ],
+          "properties": {
+            "type": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "message": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "classification": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retryable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "retry_after_seconds": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "retry_after_parse_error": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "http_status": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "through_fare_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "direction",
+        "route",
+        "date",
+        "carrier",
+        "reason",
+        "verify_with"
+      ],
+      "properties": {
+        "direction": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "route": {
+          "type": "string"
+        },
+        "date": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "carrier": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "verify_with": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "date_window_inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "boundary",
+        "negative_evidence",
+        "window",
+        "dates"
+      ],
+      "properties": {
+        "boundary": {
+          "const": "provider_live_only"
+        },
+        "negative_evidence": {
+          "const": "provider_empty_only_not_route_absence"
+        },
+        "window": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "start",
+            "end",
+            "days"
+          ],
+          "properties": {
+            "start": {
+              "type": "string",
+              "format": "date"
+            },
+            "end": {
+              "type": "string",
+              "format": "date"
+            },
+            "days": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "dates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/date_window_entry"
+          }
+        }
+      }
+    },
+    "date_window_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "date",
+        "status",
+        "offer_count",
+        "probe_count",
+        "failed_probe_count",
+        "offers"
+      ],
+      "properties": {
+        "date": {
+          "type": "string",
+          "format": "date"
+        },
+        "status": {
+          "enum": [
+            "direct_offers",
+            "no_direct_offers",
+            "no_direct_offers_with_failures",
+            "probe_failed",
+            "not_probed"
+          ]
+        },
+        "offer_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "probe_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed_probe_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "omitted_offer_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "skip_reasons": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "offers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/date_window_offer"
+          }
+        }
+      }
+    },
+    "date_window_offer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "carrier": {
+          "type": "string"
+        },
+        "flight_number": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "origin": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "destination": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "departure_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "arrival_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_min": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "price": {
+          "type": "number",
+          "minimum": 0
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "provider": {
+          "type": "string"
+        }
+      }
+    },
+    "catalog_refresh": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "refreshed",
+        "reason",
+        "checked_count",
+        "stale_count",
+        "updated_count"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "refreshed": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "checked_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stale_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "updated_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "frontier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "option_ids",
+        "coverage_summary"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "flight_decision_frontier.result.v1"
+        },
+        "option_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "coverage_summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "candidate_count",
+            "acceptable_count",
+            "selected_count",
+            "rejected_count",
+            "control_count"
+          ],
+          "properties": {
+            "candidate_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "acceptable_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "selected_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rejected_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "control_count": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    }
+  }
+}

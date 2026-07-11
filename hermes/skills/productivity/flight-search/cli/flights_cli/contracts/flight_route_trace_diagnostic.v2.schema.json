@@ -38,6 +38,6 @@
         "frontier": {"type": "object"}
       }
     },
-    "answer": {"$ref": "flight_search_user_answer.v8.schema.json"}
+    "answer": {"$ref": "flight_search_user_answer.v9.schema.json"}
   }
 }

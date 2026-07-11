@@ -1,6 +1,6 @@
 # Flight Search Result Contract
 
-The public search boundary is `flight_search_result.v6`. It contains exactly:
+The public search boundary is `flight_search_result.v7`. It contains exactly:
 
 ```text
 schema_version
@@ -11,7 +11,7 @@ frontier
 answer
 ```
 
-`flight_search_user_answer.v8` lives at `data.answer`. Its only prose field is
+`flight_search_user_answer.v9` lives at `data.answer`. Its only prose field is
 `rendered_text`; text-mode stdout is exactly that value plus one terminal
 newline. Catalog items contain structured segments, layovers, price, baggage,
 protection, risk, and caveat facts. They do not serialize display mirrors.

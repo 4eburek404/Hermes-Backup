@@ -13,6 +13,8 @@ UNKNOWN_RANK_NUMERIC = 999_999_999
 MATERIAL_PRICE_DELTA_RATIO = 0.05
 MATERIAL_PRICE_DELTA_ABSOLUTE = 5_000
 MATERIAL_ELAPSED_DELTA_MIN = 60
+MAX_GATEWAY_LAYOVER_MIN = 24 * 60
+PREFERRED_LAYOVER_MAX_MIN = 8 * 60
 
 
 def rank_mixed_candidates(
@@ -193,6 +195,7 @@ def _candidate_with_rank_diagnostics(
     item = deepcopy(candidate)
     max_connections = _max_connections(candidate)
     chronology_violations = _chronology_violations(candidate)
+    airport_mismatch_violations = _airport_mismatch_violations(candidate)
     mct_violations = _cross_ticket_mct_violations(
         candidate,
         min_same_airport_connection_min=min_same_airport_connection_min,
@@ -201,8 +204,17 @@ def _candidate_with_rank_diagnostics(
     impossible_connection = (
         _has_impossible_connection(candidate)
         or bool(chronology_violations)
+        or bool(airport_mismatch_violations)
         or bool(mct_violations)
     )
+    connection_assessment = _connection_assessment(
+        candidate,
+        min_same_airport_connection_min=min_same_airport_connection_min,
+        airport_mismatch_violations=airport_mismatch_violations,
+        chronology_violations=chronology_violations,
+        mct_violations=mct_violations,
+    )
+    ticket_protection = _ticket_protection(candidate)
     rank_components = {
         "not_covers_requested_trip": 0
         if bool(candidate.get("covers_requested_trip"))
@@ -221,16 +233,20 @@ def _candidate_with_rank_diagnostics(
             max_connections - max(0, int(preferred_connections_per_journey)),
         ),
         "ticketing_risk_tier": _ticketing_risk_tier(candidate),
-        "connection_risk_score": _connection_risk_score(candidate),
+        "connection_risk_score": _connection_risk_score(
+            candidate, connection_assessment
+        ),
         "source_confidence_penalty": _source_confidence_penalty(candidate),
         "price": _price_for_rank(candidate),
         "elapsed_time": _elapsed_time_for_rank(candidate),
     }
-    if chronology_violations or mct_violations:
+    if chronology_violations or airport_mismatch_violations or mct_violations:
         item["candidate_status"] = "impossible"
         item["connection_status"] = "impossible"
     if chronology_violations:
         item["chronology_violations"] = chronology_violations
+    if airport_mismatch_violations:
+        item["airport_mismatch_violations"] = airport_mismatch_violations
     if mct_violations:
         item["mct_violations"] = mct_violations
     journey_pairing = _journey_pairing_metadata(
@@ -241,16 +257,18 @@ def _candidate_with_rank_diagnostics(
         item["journey_pairing_model"] = journey_pairing["ticketing_model"]
         item["direction_pairing"] = journey_pairing
     item["rank_components"] = rank_components
+    item["connection_assessment"] = connection_assessment
+    item["ticket_protection"] = ticket_protection
     item["rank_key"] = [
         rank_components["not_covers_requested_trip"],
         rank_components["rejected_or_impossible_connection"],
         rank_components["max_connections_per_journey"],
-        rank_components["preferred_connections_per_journey"],
-        rank_components["ticketing_risk_tier"],
         rank_components["connection_risk_score"],
-        rank_components["source_confidence_penalty"],
-        rank_components["price"],
+        rank_components["preferred_connections_per_journey"],
         rank_components["elapsed_time"],
+        rank_components["price"],
+        rank_components["ticketing_risk_tier"],
+        rank_components["source_confidence_penalty"],
     ]
     item["ranking_reasons"] = _ranking_reasons(item, rank_components)
     return item
@@ -439,6 +457,146 @@ def _cross_ticket_mct_violations(
     return violations
 
 
+def _airport_mismatch_violations(candidate: dict[str, Any]) -> list[dict[str, Any]]:
+    violations: list[dict[str, Any]] = []
+    for journey_index, direction, segments in _candidate_segment_groups(candidate):
+        for segment_index, (previous, current) in enumerate(
+            zip(segments, segments[1:])
+        ):
+            previous_destination = str(previous.get("destination") or "").upper()
+            next_origin = str(current.get("origin") or "").upper()
+            if not previous_destination or not next_origin:
+                continue
+            if previous_destination == next_origin:
+                continue
+            violations.append(
+                {
+                    "reason": "airport_change_forbidden",
+                    "message": "connections requiring an airport change are forbidden",
+                    "journey_index": journey_index,
+                    "journey_direction": direction,
+                    "between_segments": [segment_index, segment_index + 1],
+                    "previous_destination": previous_destination,
+                    "next_origin": next_origin,
+                }
+            )
+    return violations
+
+
+def _connection_assessment(
+    candidate: dict[str, Any],
+    *,
+    min_same_airport_connection_min: int,
+    airport_mismatch_violations: list[dict[str, Any]],
+    chronology_violations: list[dict[str, Any]],
+    mct_violations: list[dict[str, Any]],
+) -> dict[str, Any]:
+    connections: list[dict[str, Any]] = []
+    comfort_scores = {
+        "comfortable": 0,
+        "acceptable": 1,
+        "long": 2,
+        "tight": 3,
+        "unknown": 4,
+        "invalid": 5,
+    }
+    for journey_index, direction, segments in _candidate_segment_groups(candidate):
+        for segment_index, (previous, current) in enumerate(
+            zip(segments, segments[1:])
+        ):
+            arrival_airport = str(previous.get("destination") or "").upper()
+            departure_airport = str(current.get("origin") or "").upper()
+            actual = minutes_between(
+                str(previous.get("arrival_at") or ""),
+                str(current.get("departure_at") or ""),
+            )
+            cross_ticket = _is_cross_ticket_boundary(candidate, previous, current)
+            required = max(0, int(min_same_airport_connection_min))
+            status = "valid"
+            if not arrival_airport or not departure_airport or actual is None:
+                status = "unknown"
+                comfort = "unknown"
+            elif arrival_airport != departure_airport or actual < 0:
+                status = "invalid"
+                comfort = "invalid"
+            elif actual > MAX_GATEWAY_LAYOVER_MIN:
+                status = "invalid"
+                comfort = "invalid"
+            elif cross_ticket and actual < required:
+                status = "invalid"
+                comfort = "invalid"
+            elif actual < required + 60:
+                comfort = "tight"
+            elif actual < required + 120:
+                comfort = "acceptable"
+            elif actual <= PREFERRED_LAYOVER_MAX_MIN:
+                comfort = "comfortable"
+            else:
+                comfort = "long"
+            connections.append(
+                {
+                    "journey_index": journey_index,
+                    "journey_direction": direction,
+                    "between_segments": [segment_index, segment_index + 1],
+                    "airport": arrival_airport or None,
+                    "same_airport": bool(
+                        arrival_airport and arrival_airport == departure_airport
+                    ),
+                    "actual_min": actual,
+                    "required_min": required,
+                    "margin_min": actual - required if actual is not None else None,
+                    "cross_ticket": cross_ticket,
+                    "status": status,
+                    "comfort": comfort,
+                }
+            )
+    comfort = max(
+        (entry["comfort"] for entry in connections),
+        key=lambda value: comfort_scores[value],
+        default="comfortable",
+    )
+    status = (
+        "invalid"
+        if comfort == "invalid"
+        or airport_mismatch_violations
+        or chronology_violations
+        or mct_violations
+        else "unknown"
+        if comfort == "unknown"
+        else "valid"
+    )
+    return {"status": status, "comfort": comfort, "connections": connections}
+
+
+def _ticket_protection(candidate: dict[str, Any]) -> dict[str, Any]:
+    model = str(candidate.get("ticketing_model") or "unknown")
+    source_type = str(candidate.get("source_type") or "")
+    protected_models = {
+        "single_pnr_proven",
+        "single_ticket_proven",
+        "protected_provider_order",
+        "round_trip_single_ticket",
+    }
+    separate_models = {"separate_ticket_sum", "one_way_sum"}
+    if model in protected_models and _has_ticketing_proof(candidate):
+        return {"status": "protected", "source": "provider_proof", "reasons": []}
+    if (
+        candidate.get("self_transfer") is True
+        or model in separate_models
+        or source_type in {"gateway_separate_ticket", "assembled_separate_ticket"}
+    ):
+        return {
+            "status": "unprotected",
+            "source": "separate_ticket_boundary",
+            "reasons": ["separate_tickets"],
+        }
+    return {
+        "status": "unknown",
+        "source": "provider_evidence_incomplete",
+        "reasons": ["ticket_protection_unproven"],
+    }
+
+
 def _is_cross_ticket_boundary(
     candidate: dict[str, Any],
     previous: dict[str, Any],
@@ -543,44 +701,22 @@ def _round_trip_ticketing_model(candidate: dict[str, Any]) -> str:
 
 
 def _ticketing_risk_tier(candidate: dict[str, Any]) -> int:
-    model = str(candidate.get("ticketing_model") or "unknown")
-    source_type = str(candidate.get("source_type") or "")
-    if candidate.get("self_transfer") is True:
-        return 3
-    if model in {
-        "single_pnr_proven",
-        "single_ticket_proven",
-        "protected_provider_order",
-        "round_trip_single_ticket",
-    }:
-        return 0
-    if source_type == RouteFamily.DIRECT_INVENTORY:
-        return 0
-    if model == "one_way_sum":
-        return 3
-    if source_type == "provider_full_route":
-        return 1
-    if model in {"metasearch_redirect_unknown", "provider_order_unverified"}:
-        return 2
-    if source_type == "gateway_separate_ticket" or model == "separate_ticket_sum":
-        return 4
-    if source_type == "assembled_separate_ticket":
-        return 5
-    return 6
+    status = _ticket_protection(candidate)["status"]
+    return {"protected": 0, "unknown": 1, "unprotected": 2}[status]
 
 
-def _connection_risk_score(candidate: dict[str, Any]) -> int | float:
-    explicit = _numeric_or_none(candidate.get("connection_risk_score"))
-    if explicit is not None:
-        return explicit
-    risk = candidate.get("connection_risk")
-    if isinstance(risk, dict):
-        explicit = _numeric_or_none(risk.get("score"))
-        if explicit is not None:
-            return explicit
-    if candidate.get("source_type") == "gateway_separate_ticket":
-        return 30
-    return 0
+def _connection_risk_score(
+    candidate: dict[str, Any], assessment: dict[str, Any] | None = None
+) -> int | float:
+    payload = assessment if isinstance(assessment, dict) else {}
+    return {
+        "comfortable": 0,
+        "acceptable": 10,
+        "long": 15,
+        "tight": 20,
+        "unknown": 30,
+        "invalid": 100,
+    }.get(str(payload.get("comfort") or "unknown"), 30)
 
 
 def _source_confidence_penalty(candidate: dict[str, Any]) -> int:
@@ -604,6 +740,21 @@ def _elapsed_time_for_rank(candidate: dict[str, Any]) -> int | float:
         amount = _numeric_or_none(candidate.get(key))
         if amount is not None:
             return amount
+    elapsed = 0
+    found = False
+    for _, _direction, segments in _candidate_segment_groups(candidate):
+        if not segments:
+            continue
+        minutes = minutes_between(
+            str(segments[0].get("departure_at") or ""),
+            str(segments[-1].get("arrival_at") or ""),
+        )
+        if minutes is None or minutes < 0:
+            continue
+        elapsed += minutes
+        found = True
+    if found:
+        return elapsed
     return UNKNOWN_RANK_NUMERIC
 
 
@@ -663,12 +814,12 @@ def _ranking_reasons(
             reasons.append(reason)
     if candidate.get("mct_violations"):
         reasons.append("cross_ticket_mct_violation")
+    if candidate.get("airport_mismatch_violations"):
+        reasons.append("airport_change_forbidden")
     if rank_components["max_connections_per_journey"]:
         reasons.append("exceeds_max_connections_per_journey")
     if rank_components.get("preferred_connections_per_journey"):
         reasons.append("exceeds_preferred_connections_per_journey")
-    if candidate.get("source_type") == "gateway_separate_ticket":
-        reasons.append("separate_ticket_ranked_after_provider_route_evidence")
     if "provider_ticketing_protection_unverified" in set(
         candidate.get("warnings") or []
     ):
@@ -738,6 +889,8 @@ def _frontier_option(candidate: dict[str, Any], role: str) -> dict[str, Any]:
         "duration_min",
         "total_duration_min",
         "connection_risk_score",
+        "connection_assessment",
+        "ticket_protection",
         "price_comparison",
     )
     option = {key: deepcopy(candidate.get(key)) for key in allowed if key in candidate}

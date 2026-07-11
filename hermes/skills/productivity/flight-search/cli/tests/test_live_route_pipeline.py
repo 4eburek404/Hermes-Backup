@@ -408,7 +408,11 @@ class LiveRoutePipelineTests(unittest.TestCase):
                     "limit": DEFAULT_DIRECT_CATALOG_LIMIT,
                 }
             ],
-            "gateway_discovery": {"enabled": True, "reason": "fixture"},
+            "gateway_discovery": {
+                "enabled": True,
+                "reason": "fixture",
+                "mode": "optional_after_provider_failure",
+            },
             "conditional_gateway_queries": [
                 {
                     "role": "gateway_leg_probe",

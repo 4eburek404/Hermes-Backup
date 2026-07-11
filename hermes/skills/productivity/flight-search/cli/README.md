@@ -9,7 +9,7 @@ Concise manual for the flight-search skill-owned CLI. The skill's Golden Path is
 - Candidate generation, scoring, one decision frontier, and result projection.
 - Direct, carrier, aggregate, and coverage controls when the current provider policy calls for them.
 - Static metadata lookup for city, airport, country/region, airline, alliance, and aircraft labels.
-- A compact `flight_search_result.v6` with `route`, `evidence`, `frontier`, and the canonical `answer`.
+- A compact `flight_search_result.v7` with `route`, `evidence`, `frontier`, and the canonical `answer`.
 
 The CLI does not book, buy, or write to Hermes runtime state.
 

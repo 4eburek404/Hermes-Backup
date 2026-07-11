@@ -13,7 +13,7 @@ version parity, and generated-artifact state separately.
 ## Public boundaries
 
 - Input: `flight_search_request.v1`.
-- Output: `flight_search_result.v6`.
+- Output: `flight_search_result.v7`.
 - Canonical text: `data.answer.rendered_text`.
 - Diagnostic trace: `flight_route_trace_diagnostic.v2`.
 

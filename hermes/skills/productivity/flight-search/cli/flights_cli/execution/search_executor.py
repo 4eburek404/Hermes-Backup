@@ -766,6 +766,22 @@ class SearchExecutor:
             state.primary_offer_results,
             state.direct_mode,
         )
+        gateway_discovery = state.search_plan.get("gateway_discovery")
+        if isinstance(gateway_discovery, dict) and str(
+            gateway_discovery.get("mode") or ""
+        ) == "required":
+            fallback_directions = list(
+                dict.fromkeys(
+                    [
+                        *fallback_directions,
+                        *(
+                            _normalize_direction(query.get("direction"))
+                            for query in state.planned_gateway_leg_queries
+                            if isinstance(query, dict)
+                        ),
+                    ]
+                )
+            )
         gateway_queries, skipped_gateway_queries = _partition_gateway_queries(
             list(state.planned_gateway_leg_queries), fallback_directions
         )

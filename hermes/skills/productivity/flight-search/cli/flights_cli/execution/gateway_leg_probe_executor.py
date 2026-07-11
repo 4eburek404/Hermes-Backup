@@ -109,7 +109,7 @@ class GatewayLegProbeExecutor:
         return _coverage(gateways, evaluations=evaluations)
 
     def _eligible_gateways(
-        self, grouped: "OrderedDict[str, dict[str, dict[str, Any]]]"
+        self, grouped: "OrderedDict[str, dict[str, list[dict[str, Any]]]]"
     ) -> list[str]:
         candidate_limit = max(0, int(self.options.gateway_discovery_limit))
         batch_size = max(0, int(self.options.gateway_probe_batch_size))
@@ -123,30 +123,32 @@ class GatewayLegProbeExecutor:
     def _execute_gateway(
         self,
         gateway: str,
-        gateway_queries: dict[str, dict[str, Any]],
+        gateway_queries: dict[str, list[dict[str, Any]]],
         plan: dict[str, Any],
     ) -> dict[str, Any]:
         item = _gateway_result(gateway, searched=True)
         for leg_key in ("origin_leg", "destination_leg"):
-            query = gateway_queries.get(leg_key)
-            if not query:
+            queries = gateway_queries.get(leg_key) or []
+            if not queries:
                 item["skipped_reasons"].append(f"{leg_key}_query_missing")
                 item["missing_legs"].append(leg_key)
                 item[leg_key] = _missing_leg_result(leg_key)
                 continue
-            leg_result = self._execute_leg(query, plan)
+            leg_results = [self._execute_leg(query, plan) for query in queries]
+            leg_result = _merge_leg_results(leg_results)
             item[leg_key] = leg_result
-            if leg_result.get("failure"):
-                item["provider_failures"].append(leg_result["failure"])
-            if leg_result.get("skipped_reason"):
+            item["provider_failures"].extend(
+                result["failure"]
+                for result in leg_results
+                if isinstance(result.get("failure"), dict)
+            )
+            if int(leg_result.get("offer_count") or 0) <= 0 and leg_result.get(
+                "skipped_reason"
+            ):
                 item["skipped_reasons"].append(str(leg_result["skipped_reason"]))
             if int(leg_result.get("offer_count") or 0) <= 0:
                 item["missing_legs"].append(leg_key)
-        item["viable"] = (
-            not item["provider_failures"]
-            and not item["missing_legs"]
-            and not item["skipped_reasons"]
-        )
+        item["viable"] = not item["missing_legs"] and not item["skipped_reasons"]
         return item
 
     def _execute_leg(
@@ -248,7 +250,7 @@ class GatewayLegProbeExecutor:
 
 def _gateway_query_groups(
     queries: list[dict[str, Any]],
-) -> "OrderedDict[str, dict[str, dict[str, Any]]]":
+) -> "OrderedDict[str, dict[str, list[dict[str, Any]]]]":
     rows = [
         query
         for query in queries
@@ -261,17 +263,18 @@ def _gateway_query_groups(
             int(query.get("gateway_rank") or 0),
             str(query.get("gateway") or "").upper(),
             0 if str(query.get("leg") or "") == "origin_to_gateway" else 1,
+            str(query.get("date") or ""),
         )
     )
-    grouped: "OrderedDict[str, dict[str, dict[str, Any]]]" = OrderedDict()
+    grouped: "OrderedDict[str, dict[str, list[dict[str, Any]]]]" = OrderedDict()
     for query in rows:
         gateway = str(query.get("gateway") or "").upper()
         group = grouped.setdefault(gateway, {})
         leg = str(query.get("leg") or "")
         if leg == "origin_to_gateway":
-            group.setdefault("origin_leg", query)
+            group.setdefault("origin_leg", []).append(query)
         elif leg == "gateway_to_destination":
-            group.setdefault("destination_leg", query)
+            group.setdefault("destination_leg", []).append(query)
     return grouped
 
 
@@ -316,16 +319,16 @@ def _gateway_result(gateway: str, *, searched: bool) -> dict[str, Any]:
 
 def _not_searched_gateway(
     gateway: str,
-    gateway_queries: dict[str, dict[str, Any]],
+    gateway_queries: dict[str, list[dict[str, Any]]],
     reason: str = "gateway_probe_budget_exhausted",
 ) -> dict[str, Any]:
     item = _gateway_result(gateway, searched=False)
     item["skipped_reasons"] = [reason]
     item["origin_leg"] = _not_searched_leg_result(
-        gateway_queries.get("origin_leg"), reason
+        (gateway_queries.get("origin_leg") or [None])[0], reason
     )
     item["destination_leg"] = _not_searched_leg_result(
-        gateway_queries.get("destination_leg"), reason
+        (gateway_queries.get("destination_leg") or [None])[0], reason
     )
     return item
 
@@ -423,3 +426,32 @@ def _leg_result_from_outcomes(
     if result["status"] in {"skipped", "not_supported"}:
         result["skipped_reason"] = summary.get("reason") or result["status"]
     return {key: value for key, value in result.items() if value is not None}
+
+
+def _merge_leg_results(results: list[dict[str, Any]]) -> dict[str, Any]:
+    if not results:
+        return _missing_leg_result("unknown_leg")
+    merged = dict(results[0])
+    offers = [
+        offer
+        for result in results
+        for offer in result.get("offers") or []
+        if isinstance(offer, dict)
+    ]
+    merged["offers"] = offers
+    merged["offer_count"] = len(offers)
+    merged["searched_dates"] = list(
+        dict.fromkeys(
+            str(result.get("date") or "")
+            for result in results
+            if str(result.get("date") or "")
+        )
+    )
+    if offers:
+        merged["status"] = "ok"
+        merged["execution_state"] = "searched"
+        merged.pop("failure", None)
+        merged.pop("skipped_reason", None)
+    elif all(result.get("skipped_reason") for result in results):
+        merged["skipped_reason"] = "all_gateway_leg_dates_skipped"
+    return merged

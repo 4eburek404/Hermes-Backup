@@ -103,7 +103,7 @@ When the report shows fewer direct flights than expected:
    - `data.evidence.primary_offer_results`;
    - `data.frontier.option_ids`;
    - `data.agent_guidance`.
-5. The pipeline computes the direct-first gate from primary evidence before `flight_search_result.v6` and `flight_search_user_answer.v8` construction. If direct offers vanish after that point, inspect decision projection, not provider availability.
+5. The pipeline computes the direct-first gate from primary evidence before `flight_search_result.v7` and `flight_search_user_answer.v9` construction. If direct offers vanish after that point, inspect decision projection, not provider availability.
 
 Do not claim “provider did not return prices” when a narrow direct probe shows priced direct offers.
 

@@ -95,13 +95,13 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
                 ),
                 patch(
                     "flights_cli.commands.search.build_search_result",
-                    return_value={"schema_version": "flight_search_result.v6"},
+                    return_value={"schema_version": "flight_search_result.v7"},
                 ),
             ):
                 result = command_search(args, Store())
 
         self.assertEqual(captured, {"origin": "SVX", "destination": "LON"})
-        self.assertEqual(result["schema_version"], "flight_search_result.v6")
+        self.assertEqual(result["schema_version"], "flight_search_result.v7")
 
     def test_diagnose_trace_serializes_existing_artifacts_once(self) -> None:
         from flights_cli.commands.diagnose import command_diagnose_trace

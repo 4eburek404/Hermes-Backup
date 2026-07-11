@@ -154,6 +154,8 @@ def option_from_decision_frontier_item(item: dict[str, Any]) -> dict[str, Any]:
         "self_transfer",
         "self_transfer_note",
         "self_transfer_source",
+        "connection_assessment",
+        "ticket_protection",
         "journey_pairing_model",
         "direction_pairing",
         "warnings",

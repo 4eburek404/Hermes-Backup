@@ -11,7 +11,7 @@ raw JSON
   -> OfferGraph + candidate envelope
   -> DecisionScorer + DecisionFrontier
   -> result projection
-  -> flight_search_user_answer.v8
+  -> flight_search_user_answer.v9
   -> pure renderer
   -> stdout
 ```

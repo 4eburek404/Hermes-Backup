@@ -174,12 +174,18 @@ def _self_transfer_warning(item: dict[str, Any]) -> str | None:
     protection = (
         item.get("protection") if isinstance(item.get("protection"), dict) else {}
     )
+    ticket_protection = (
+        item.get("ticket_protection")
+        if isinstance(item.get("ticket_protection"), dict)
+        else {}
+    )
     risk = item.get("risk") if isinstance(item.get("risk"), dict) else {}
-    if protection.get("self_transfer") is True and (
-        risk.get("self_transfer_source") or risk.get("self_transfer_note")
+    if ticket_protection.get("status") == "unprotected" or (
+        protection.get("self_transfer") is True
+        and (risk.get("self_transfer_source") or risk.get("self_transfer_note"))
     ):
         return (
-            "Самостоятельная пересадка: единый PNR и защита стыковки не подтверждены."
+            "Отдельные билеты: при задержке первого рейса следующий сегмент не защищён."
         )
     return None
 

@@ -172,7 +172,7 @@ class SearchPlanContractTests(unittest.TestCase):
                     "SVX",
                     "IST",
                     "tutu",
-                    True,
+                    False,
                     "restricted_ru_bridge_control",
                 ),
                 (
@@ -277,7 +277,7 @@ class SearchPlanContractTests(unittest.TestCase):
                 if destination == "PEK":
                     self.assertNotEqual(gateway_discovery["mode"], "required")
                     self.assertEqual(search_plan["coverage_expectations"], [])
-                    self.assertEqual(search_plan["conditional_gateway_queries"], [])
+                    self.assertTrue(search_plan["conditional_gateway_queries"])
                 else:
                     self.assertEqual(
                         search_plan["primary_offer_queries"][0]["route_access_profile"],
@@ -348,15 +348,16 @@ class SearchPlanContractTests(unittest.TestCase):
         search_plan = build_search_plan(options, store, flow=flow)
 
         validate_contract_payload("search_plan", search_plan)
-        self.assertEqual(len(search_plan["conditional_gateway_queries"]), 2)
+        self.assertEqual(len(search_plan["conditional_gateway_queries"]), 3)
         self.assertEqual(
             [
-                (query["leg"], query["gateway"], query["provider"])
+                (query["leg"], query["gateway"], query["provider"], query["date"])
                 for query in search_plan["conditional_gateway_queries"]
             ],
             [
-                ("origin_to_gateway", "IST", "tutu"),
-                ("gateway_to_destination", "IST", "tutu"),
+                ("origin_to_gateway", "IST", "tutu", "2026-08-15"),
+                ("gateway_to_destination", "IST", "tutu", "2026-08-15"),
+                ("gateway_to_destination", "IST", "tutu", "2026-08-16"),
             ],
         )
 
@@ -412,10 +413,20 @@ class SearchPlanContractTests(unittest.TestCase):
                     "IST",
                     "SVX",
                     "tutu",
-                    True,
-                    "segment_direct",
-                    "restricted_ru_bridge_control",
                     False,
+                    "segment_hub_leg",
+                    "restricted_ru_bridge_control",
+                    True,
+                ),
+                (
+                    "gateway_to_destination",
+                    "IST",
+                    "SVX",
+                    "tutu",
+                    False,
+                    "segment_hub_leg",
+                    "restricted_ru_bridge_control",
+                    True,
                 ),
             ],
         )
@@ -426,6 +437,25 @@ class SearchPlanContractTests(unittest.TestCase):
                 for query in search_plan["conditional_gateway_queries"]
             },
         )
+
+    def test_optional_gateway_queries_are_preplanned_for_runtime_fallback(self) -> None:
+        store = Store()
+        options = live_assembly_args(
+            origin="ALA",
+            destination="SVX",
+            depart_date="2026-09-17",
+            return_date=None,
+            provider_policy="tutu",
+            no_live_cache=True,
+        )
+
+        search_plan = build_search_plan(options, store)
+
+        self.assertEqual(
+            search_plan["gateway_discovery"]["mode"],
+            "optional_after_provider_failure",
+        )
+        self.assertEqual(len(search_plan["conditional_gateway_queries"]), 3)
 
     def test_builder_uses_tutu_primary_for_ru_touching_auto_full_route(
         self,

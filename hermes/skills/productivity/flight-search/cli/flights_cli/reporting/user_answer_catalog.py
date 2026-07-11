@@ -404,6 +404,11 @@ def risk_badges(
 
 def catalog_caveats(option: dict[str, Any], *, badges: list[str]) -> list[str]:
     caveats: list[str] = []
+    ticket_protection = (
+        option.get("ticket_protection")
+        if isinstance(option.get("ticket_protection"), dict)
+        else {}
+    )
     disclaimer = option.get("disclaimer") or option.get("ticketing_note")
     if disclaimer:
         caveats.append(str(disclaimer))
@@ -413,10 +418,14 @@ def catalog_caveats(option: dict[str, Any], *, badges: list[str]) -> list[str]:
         caveats.append("baggage unknown until fare/package verification")
     if "self_transfer" in badges:
         caveats.append(
-            "Самостоятельная пересадка: единый PNR и защита стыковки не подтверждены."
+            "Отдельные билеты: при задержке первого рейса следующий сегмент не защищён."
         )
         if option.get("self_transfer_note"):
             caveats.append(str(option["self_transfer_note"]))
+    elif ticket_protection.get("status") == "unprotected":
+        caveats.append(
+            "Отдельные билеты: при задержке первого рейса следующий сегмент не защищён."
+        )
     return list(dict.fromkeys(caveats))
 
 
@@ -486,6 +495,20 @@ def catalog_item(
         "directions": {"outbound": outbound, "return": inbound},
         "baggage": baggage,
         "protection": protection,
+        "connection_assessment": (
+            dict(option["connection_assessment"])
+            if isinstance(option.get("connection_assessment"), dict)
+            else {"status": "unknown", "comfort": "unknown", "connections": []}
+        ),
+        "ticket_protection": (
+            dict(option["ticket_protection"])
+            if isinstance(option.get("ticket_protection"), dict)
+            else {
+                "status": "unknown",
+                "source": "provider_evidence_incomplete",
+                "reasons": ["ticket_protection_unproven"],
+            }
+        ),
         "risk": {
             **(option.get("risk") if isinstance(option.get("risk"), dict) else {}),
             **(

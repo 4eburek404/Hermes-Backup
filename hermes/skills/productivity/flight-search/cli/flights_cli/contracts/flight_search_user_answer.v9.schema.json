@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://hermes.local/flights/flight_search_user_answer.v8.schema.json",
+  "$id": "https://hermes.local/flights/flight_search_user_answer.v9.schema.json",
   "title": "Flight Search User Answer v8",
   "type": "object",
   "additionalProperties": false,
@@ -17,7 +17,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "flight_search_user_answer.v8"
+      "const": "flight_search_user_answer.v9"
     },
     "answer_mode": {
       "enum": [
@@ -267,7 +267,9 @@
         "protection",
         "badges",
         "caveats",
-        "evidence_refs"
+        "evidence_refs",
+        "connection_assessment",
+        "ticket_protection"
       ],
       "properties": {
         "number": {
@@ -403,6 +405,67 @@
           "type": "array",
           "items": {
             "type": "string"
+          }
+        },
+        "connection_assessment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "comfort",
+            "connections"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "valid",
+                "invalid",
+                "unknown"
+              ]
+            },
+            "comfort": {
+              "enum": [
+                "comfortable",
+                "acceptable",
+                "long",
+                "tight",
+                "unknown",
+                "invalid"
+              ]
+            },
+            "connections": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "ticket_protection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "source",
+            "reasons"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "protected",
+                "unprotected",
+                "unknown"
+              ]
+            },
+            "source": {
+              "type": "string"
+            },
+            "reasons": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           }
         }
       }

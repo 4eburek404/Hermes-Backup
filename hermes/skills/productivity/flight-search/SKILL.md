@@ -51,7 +51,7 @@ raw JSON
   -> SearchExecutor
   -> SearchEvidence
   -> SearchDecision
-  -> flight_search_result.v6
+  -> flight_search_result.v7
   -> pure render
   -> stdout
 ```
