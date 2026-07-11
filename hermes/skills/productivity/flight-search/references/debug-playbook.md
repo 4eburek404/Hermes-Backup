@@ -15,7 +15,10 @@ Start from the canonical command in `SKILL.md`. Enter debug only when one of the
 - date horizon, airport continuity, stop-policy tiering, cache state, or ranking profile could hide a viable option;
 - the user asks for narrower proof than the report already contains.
 
-Do not expose diagnostic JSON or probe logs as the traveler answer. Final prose still comes from `data.answer.rendered_text` unless you are explicitly explaining a debug/RCA task.
+Do not expose diagnostic JSON or probe logs as the traveler answer. For a normal
+traveler request, return text-mode search stdout verbatim; in JSON mode, return
+`data.answer.rendered_text` verbatim. Do not summarize, reformat, correct, or
+otherwise improve it. Debug/RCA explanations are a separate task.
 
 ## Runtime provenance
 
@@ -67,6 +70,13 @@ Main report:
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request request.json
 ```
 
+Planned probes without provider execution:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose plan \
+  --request request.json
+```
+
 Full route/live trace:
 
 ```bash
@@ -79,6 +89,13 @@ Provider-port diagnostic:
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose probe \
   --provider tutu \
   --request probe.json
+```
+
+Pure renderer diagnostic for an existing result:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose render \
+  --input flight-search-result.json
 ```
 
 Probe shapes:
