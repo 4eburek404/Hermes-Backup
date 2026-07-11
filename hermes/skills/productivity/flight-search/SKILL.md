@@ -1,6 +1,6 @@
 ---
 name: flight-search
-version: 0.11.2
+version: 0.11.3
 description: Use when finding, comparing, assembling, or diagnosing live flight options with the bundled flights CLI, including direct, round-trip, open-jaw leg, and RU-gateway searches; assumes one adult in economy and never books tickets.
 metadata:
   hermes:
@@ -23,9 +23,19 @@ cd "$HERMES_HOME"/skills/productivity/flight-search/cli
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli search --request "$HOME/flight-search-request.json"
 ```
 
-For a normal traveler request, return text-mode CLI stdout to the user verbatim.
-Do not summarize, reformat, reorder, annotate, correct, or otherwise improve it.
-In JSON mode, return `data.answer.rendered_text` verbatim.
+For a normal traveler request, preserve the canonical CLI itinerary content, values, warnings, and option order. Do not manually assemble, supplement, remove, rerank, correct, or add advice.
+
+Presentation depends on the chat surface:
+
+- **Telegram / CLI:** return text-mode CLI stdout verbatim; those surfaces preserve its line breaks.
+- **Hermes Desktop:** do not paste multiline stdout as an ordinary paragraph and do not use a fenced `text` block. Render the same facts as native Markdown lists so Desktop creates real block elements:
+  - one numbered heading per CLI option;
+  - every flight segment is one separate nested `- Рейс ...` item;
+  - every layover is one separate nested `- Пересадка ...` item immediately after the arriving segment;
+  - price and protection warning are separate nested items;
+  - never put two flights, or a flight and its layover, in the same item.
+
+This is presentation-only: preserve every source value and warning, and never change option order or itinerary meaning. In JSON mode, use `data.answer.rendered_text` and the matching structured catalog item as the canonical sources.
 
 Minimal request:
 
