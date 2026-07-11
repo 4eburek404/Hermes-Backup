@@ -16,8 +16,6 @@ def resolve_cache_dir() -> Path:
     return DEFAULT_CACHE_DIR
 
 
-CACHE_DIR = resolve_cache_dir()
-
 MAX_DATE_WINDOW_DAYS = 14
 
 KUPIBILET_FRONTEND_SEARCH_URL = "https://api-rs-lb.kupibilet.ru/frontend_search"

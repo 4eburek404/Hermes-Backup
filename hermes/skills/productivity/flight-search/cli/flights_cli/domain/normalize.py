@@ -77,15 +77,6 @@ def price_value(data: dict[str, Any]) -> int | None:
         return None
 
 
-def currency_value(data: dict[str, Any]) -> str | None:
-    if isinstance(data.get("currency"), str):
-        return data["currency"]
-    pricing = data.get("pricing")
-    if isinstance(pricing, dict) and isinstance(pricing.get("currency"), str):
-        return pricing["currency"]
-    return None
-
-
 def numeric_or_none(value: Any) -> int | float | None:
     """Return a finite non-negative number, or ``None`` for unsafe input.
 

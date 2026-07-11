@@ -117,12 +117,6 @@ def _policy_candidates(
         for provider in PROVIDER_ROUTING_ORDER
         if _provider_supports_market(provider, query, store)
     ]
-def providers_for_route_query(
-    query: dict[str, Any], store: Store, provider_policy: str
-) -> list[ProviderName]:
-    """Return route-level providers by market applicability, not probe capability."""
-
-    return _policy_candidates(query, store, provider_policy)
 
 
 def route_query_provider_skip_reasons(
@@ -273,7 +267,6 @@ __all__ = [
     "provider_adapter",
     "provider_adapters_for_segment",
     "providers_for_offer_query",
-    "providers_for_route_query",
     "providers_for_segment",
     "route_query_provider_skip_reasons",
     "route_touches_ru",
