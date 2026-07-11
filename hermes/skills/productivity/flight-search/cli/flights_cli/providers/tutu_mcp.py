@@ -25,9 +25,10 @@ from .live_cache import live_cache_key, read_live_cache, write_live_cache
 from .segment_normalization import provider_result_to_segment_result
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
-TUTU_NORMALIZER_VERSION = "tutu-avia-v3"
+TUTU_NORMALIZER_VERSION = "tutu-avia-v4"
 TUTU_PAGE_SIZE = 30
 TUTU_MAX_PAGES = 3
+TUTU_MAX_SCOPE_PAGES = 10
 TUTU_MCP_INCOMPLETE_READ_RETRIES = 2
 TutuToolPayload = dict[str, Any] | list[Any] | str
 
@@ -355,6 +356,15 @@ def _carrier_name_key(value: str) -> str:
     return re.sub(r"\s+", " ", text)
 
 
+def _carrier_match_key(value: str) -> str:
+    return "".join(character for character in _carrier_name_key(value) if character.isalnum())
+
+
+def _valid_carrier_code(value: str) -> str | None:
+    code = str(value or "").strip().upper()
+    return code if re.fullmatch(r"[A-Z0-9]{2,3}", code) else None
+
+
 def _carrier_catalog_rows(store: Store) -> list[dict[str, Any]]:
     rows = list(store.airlines)
     rows.extend(store.load_json("airlines_ru.json"))
@@ -366,18 +376,18 @@ def _build_carrier_name_index(store: Store | None) -> dict[str, str]:
         return {}
     index: dict[str, str] = {}
     for airline in _carrier_catalog_rows(store):
-        code = str(airline.get("code") or "").upper()
+        code = _valid_carrier_code(str(airline.get("code") or ""))
         if not code:
             continue
         name = _carrier_name_key(str(airline.get("name") or ""))
         if name:
-            index[name] = code
+            index.setdefault(name, code)
         translations = airline.get("name_translations")
         if isinstance(translations, dict):
             for tr_name in translations.values():
                 tr = _carrier_name_key(str(tr_name or ""))
                 if tr:
-                    index[tr] = code
+                    index.setdefault(tr, code)
     return index
 
 
@@ -403,7 +413,7 @@ def _carrier_display_names_by_code(store: Store | None) -> dict[str, list[str]]:
     rows = list(store.load_json("airlines_ru.json"))
     rows.extend(store.airlines)
     for airline in rows:
-        code = str(airline.get("code") or "").upper()
+        code = _valid_carrier_code(str(airline.get("code") or ""))
         if not code:
             continue
         add_name(code, str(airline.get("name") or ""))
@@ -414,15 +424,53 @@ def _carrier_display_names_by_code(store: Store | None) -> dict[str, list[str]]:
     return names_by_code
 
 
-def resolve_tutu_carrier_filters(
+def _carrier_facets(raw: dict[str, Any]) -> list[str]:
+    meta = raw.get("meta") if isinstance(raw.get("meta"), dict) else {}
+    facets = meta.get("carriers_available") if isinstance(meta, dict) else None
+    names: list[str] = []
+    for item in facets or []:
+        value = item.get("name") if isinstance(item, dict) else item
+        name = str(value or "").strip()
+        if name and name not in names:
+            names.append(name)
+    return names
+
+
+def _match_carrier_facet(candidates: list[str], facets: list[str]) -> str | None:
+    candidate_keys = [_carrier_match_key(item) for item in candidates]
+    for facet in facets:
+        facet_key = _carrier_match_key(facet)
+        if facet_key and facet_key in candidate_keys:
+            return facet
+    for facet in facets:
+        facet_key = _carrier_match_key(facet)
+        for candidate_key in candidate_keys:
+            if len(candidate_key) >= 4 and facet_key.startswith(candidate_key):
+                return facet
+    return None
+
+
+def resolve_tutu_carrier_facets(
     only_carriers: list[str] | None,
     *,
+    facets: list[str],
     store: Store | None,
-) -> list[str]:
+) -> tuple[list[str], dict[str, str], list[str]]:
     name_index = _build_carrier_name_index(store)
     display_names_by_code = _carrier_display_names_by_code(store)
     resolved: list[str] = []
-    seen: set[str] = set()
+    overrides: dict[str, str] = {}
+    unmatched: list[str] = []
+
+    for facet in facets:
+        code = resolve_carrier_code(facet, name_index=name_index)
+        if code:
+            overrides[_carrier_name_key(facet)] = code
+            continue
+        for candidate_code, candidates in display_names_by_code.items():
+            if _match_carrier_facet(candidates, [facet]):
+                overrides[_carrier_name_key(facet)] = candidate_code
+                break
 
     for raw_value in only_carriers or []:
         value = str(raw_value or "").strip()
@@ -430,12 +478,22 @@ def resolve_tutu_carrier_filters(
             continue
         code = resolve_carrier_code(value, name_index=name_index)
         candidates = display_names_by_code.get(code or "", []) or [value]
-        for candidate in candidates:
-            key = _carrier_name_key(candidate)
-            if key and key not in seen:
-                seen.add(key)
-                resolved.append(candidate)
-    return resolved
+        matched = _match_carrier_facet(candidates, facets)
+        if matched:
+            if matched not in resolved:
+                resolved.append(matched)
+            if code:
+                overrides[_carrier_name_key(matched)] = code
+            continue
+        if code:
+            unmatched.append(value)
+            continue
+        raise CliError(
+            f"Tutu carrier filter could not be resolved: {value}",
+            error_type="carrier_filter_unresolved",
+            details={"carrier": value, "carriers_available": facets},
+        )
+    return resolved, overrides, unmatched
 
 
 def resolve_carrier_code(
@@ -456,11 +514,10 @@ def resolve_carrier_code(
     return None
 
 
-# --- IATA → city name resolution for Tutu API calls ---
+# --- Planner-owned airport scope → Tutu location resolution ---
 
 
-def iata_to_city_name(iata_code: str, store: Store | None) -> str | None:
-    """Resolve IATA code to Russian city name for Tutu search_avia."""
+def _iata_to_city_name(iata_code: str, store: Store | None) -> str | None:
     if store is None:
         return None
     code = iata_code.upper()
@@ -477,6 +534,47 @@ def iata_to_city_name(iata_code: str, store: Store | None) -> str | None:
             if city and city.get("name"):
                 return str(city["name"])
     return None
+
+
+def _normalized_airport_scope(
+    location_code: str,
+    airport_scope: list[str] | None,
+    store: Store | None,
+) -> list[str]:
+    explicit = sorted(
+        {
+            str(code).strip().upper()
+            for code in (airport_scope or [])
+            if str(code).strip()
+        }
+    )
+    if explicit:
+        return explicit
+    if store is not None:
+        try:
+            location = store.resolve_location(location_code.upper())
+        except CliError:
+            pass
+        else:
+            resolved = sorted(
+                {str(code).upper() for code in (location.airports or []) if code}
+            )
+            if resolved:
+                return resolved
+    return [location_code.upper()]
+
+
+def _tutu_location_input(
+    location_code: str,
+    airport_scope: list[str],
+    store: Store | None,
+) -> tuple[str, str]:
+    if len(airport_scope) == 1:
+        return airport_scope[0], "airport"
+    city_name = _iata_to_city_name(location_code, store)
+    if city_name is None and airport_scope:
+        city_name = _iata_to_city_name(airport_scope[0], store)
+    return city_name or location_code, "city"
 
 
 # --- Normalization ---
@@ -523,6 +621,7 @@ def normalize_tutu_segment(
         "flight_number": flight_number or None,
         "marketing_carrier": carrier_code or "",
         "operating_carrier": carrier_code or "",
+        "carrier_name": carrier_name or None,
         "origin": origin.upper(),
         "destination": destination.upper(),
         "departure_terminal": departure_terminal,
@@ -588,22 +687,6 @@ def _tutu_journey_key(journeys: list[dict[str, Any]]) -> tuple[str, ...]:
     return tuple(parts)
 
 
-def _location_scope_codes(
-    code: str, store: Store | None
-) -> tuple[str, set[str], str | None]:
-    normalized = code.upper()
-    if store is None:
-        return "unknown", {normalized}, None
-    try:
-        location = store.resolve_location(normalized)
-    except CliError as exc:
-        return "unknown", {normalized}, exc.error_type
-    airports = {str(item).upper() for item in (location.airports or []) if item}
-    if not airports:
-        airports = {location.code.upper()}
-    return location.kind, airports, None
-
-
 def _journey_endpoint_codes(
     journey: dict[str, Any],
 ) -> tuple[str | None, str | None]:
@@ -615,21 +698,15 @@ def _journey_endpoint_codes(
     return origin, destination
 
 
-def _matches_airport_scope(
+def _matches_allowed_airport_scope(
     journeys: list[dict[str, Any]],
     *,
-    origin: str,
-    destination: str,
-    store: Store | None,
+    origin_airports: list[str],
+    destination_airports: list[str],
     skipped: dict[str, int],
 ) -> bool:
-    origin_kind, origin_codes, _origin_scope_error = _location_scope_codes(
-        origin, store
-    )
-    destination_kind, destination_codes, _destination_scope_error = (
-        _location_scope_codes(destination, store)
-    )
-
+    origin_codes = set(origin_airports)
+    destination_codes = set(destination_airports)
     expected = [(origin_codes, destination_codes, "outbound")]
     if len(journeys) > 1:
         expected.append((destination_codes, origin_codes, "return"))
@@ -642,16 +719,12 @@ def _matches_airport_scope(
             journey_origin not in allowed_origins
             or journey_destination not in allowed_destinations
         ):
-            _increment(skipped, "airport_scope")
+            _increment(skipped, "outside_airport_scope")
             debug = journey.setdefault("debug", {})
             debug["airport_scope_mismatch"] = {
                 "direction": direction,
-                "origin_scope": origin_kind
-                if direction == "outbound"
-                else destination_kind,
-                "destination_scope": destination_kind
-                if direction == "outbound"
-                else origin_kind,
+                "allowed_origins": sorted(allowed_origins),
+                "allowed_destinations": sorted(allowed_destinations),
                 "actual_origin": journey_origin,
                 "actual_destination": journey_destination,
             }
@@ -730,6 +803,9 @@ def parse_tutu_avia_search(
     limit: int = 20,
     store: Store | None = None,
     source_url: str | None = None,
+    origin_airports: list[str] | None = None,
+    destination_airports: list[str] | None = None,
+    carrier_name_overrides: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     offers_raw = raw.get("offers")
     if not isinstance(offers_raw, list):
@@ -738,7 +814,12 @@ def parse_tutu_avia_search(
             error_type="upstream_error",
         )
 
+    allowed_origins = _normalized_airport_scope(origin, origin_airports, store)
+    allowed_destinations = _normalized_airport_scope(
+        destination, destination_airports, store
+    )
     carrier_name_index = _build_carrier_name_index(store)
+    carrier_name_index.update(carrier_name_overrides or {})
     requested_carriers = {
         str(code).strip().upper() for code in (only_carriers or []) if str(code).strip()
     }
@@ -765,11 +846,10 @@ def parse_tutu_avia_search(
         if _journeys_have_airport_change(journeys):
             _increment(skipped, "airport_change")
             continue
-        if not _matches_airport_scope(
+        if not _matches_allowed_airport_scope(
             journeys,
-            origin=origin,
-            destination=destination,
-            store=store,
+            origin_airports=allowed_origins,
+            destination_airports=allowed_destinations,
             skipped=skipped,
         ):
             continue
@@ -787,6 +867,14 @@ def parse_tutu_avia_search(
             continue
         all_segments = _all_journey_segments(journeys)
         key = _tutu_journey_key(journeys)
+        has_self_transfer_field = any(
+            key in offer for key in ("is_multi_pnr", "has_self_transfer")
+        )
+        self_transfer = (
+            bool(offer.get("is_multi_pnr") or offer.get("has_self_transfer"))
+            if has_self_transfer_field
+            else None
+        )
         offer_obj = {
             "id": str(offer.get("offer_id") or f"tutu:{index}"),
             "price": amount,
@@ -818,6 +906,9 @@ def parse_tutu_avia_search(
             "journeys": journeys,
             "journey_scope": "round_trip" if len(journeys) == 2 else "one_way",
             "ticketing_model": "provider_order_unverified",
+            "self_transfer": self_transfer,
+            "self_transfer_note": offer.get("multi_pnr_note"),
+            "self_transfer_source": "tutu" if has_self_transfer_field else None,
         }
         if len(journeys) == 2:
             return_segments = _journey_segments(journeys[1])
@@ -847,6 +938,8 @@ def parse_tutu_avia_search(
         "filters": {
             "direct_only": bool(direct_only),
             "only_carriers": sorted(requested_carriers),
+            "origin_airports": allowed_origins,
+            "destination_airports": allowed_destinations,
         },
         "return_date": return_date,
         "pagination": raw.get("meta") if isinstance(raw.get("meta"), dict) else {},
@@ -873,15 +966,24 @@ def fetch_tutu_avia_search(
     mcp_url: str | None = None,
     store: Store | None = None,
     return_date: date | None = None,
+    origin_airports: list[str] | None = None,
+    destination_airports: list[str] | None = None,
 ) -> dict[str, Any]:
     """Call Tutu MCP search_avia and normalize results."""
-    # Resolve IATA codes to city names for Tutu API
-    origin_city = iata_to_city_name(origin, store) or origin
-    destination_city = iata_to_city_name(destination, store) or destination
+    allowed_origins = _normalized_airport_scope(origin, origin_airports, store)
+    allowed_destinations = _normalized_airport_scope(
+        destination, destination_airports, store
+    )
+    origin_input, origin_input_kind = _tutu_location_input(
+        origin, allowed_origins, store
+    )
+    destination_input, destination_input_kind = _tutu_location_input(
+        destination, allowed_destinations, store
+    )
 
     arguments: dict[str, Any] = {
-        "origin": origin_city,
-        "destination": destination_city,
+        "origin": origin_input,
+        "destination": destination_input,
         "departure_date": depart_date.isoformat(),
         "adults": 1,
         "view": "compact",
@@ -892,8 +994,67 @@ def fetch_tutu_avia_search(
         arguments["return_date"] = return_date.isoformat()
     if direct_only:
         arguments["direct_only"] = True
-    mcp_carriers = resolve_tutu_carrier_filters(only_carriers, store=store)
-    if mcp_carriers:
+
+    carrier_name_overrides: dict[str, str] = {}
+    unmatched_carriers: list[str] = []
+    carrier_facets: list[str] = []
+    if only_carriers:
+        discovery_arguments = {**arguments, "page_size": 1}
+        discovery_raw = require_tutu_tool_object(
+            call_tutu_mcp_tool(
+                "search_avia",
+                discovery_arguments,
+                mcp_url=mcp_url,
+                timeout=timeout,
+            ),
+            "search_avia",
+        )
+        carrier_facets = _carrier_facets(discovery_raw)
+        mcp_carriers, carrier_name_overrides, unmatched_carriers = (
+            resolve_tutu_carrier_facets(
+                only_carriers,
+                facets=carrier_facets,
+                store=store,
+            )
+        )
+        if not mcp_carriers:
+            discovery_meta = (
+                discovery_raw.get("meta")
+                if isinstance(discovery_raw.get("meta"), dict)
+                else {}
+            )
+            empty_raw = {
+                "offers": [],
+                "meta": {
+                    **discovery_meta,
+                    "carrier_filter_unmatched": unmatched_carriers,
+                    "carrier_facets_discovered": carrier_facets,
+                    "pages_fetched": 1,
+                    "total_returned": 0,
+                    "origin_input": origin_input,
+                    "origin_input_kind": origin_input_kind,
+                    "origin_airports": allowed_origins,
+                    "destination_input": destination_input,
+                    "destination_input_kind": destination_input_kind,
+                    "destination_airports": allowed_destinations,
+                },
+            }
+            return parse_tutu_avia_search(
+                empty_raw,
+                origin=origin.upper(),
+                destination=destination.upper(),
+                depart_date=depart_date.isoformat(),
+                currency=currency,
+                only_carriers=only_carriers,
+                direct_only=direct_only,
+                return_date=return_date.isoformat() if return_date else None,
+                limit=limit,
+                store=store,
+                source_url=normalize_tutu_mcp_url(mcp_url),
+                origin_airports=allowed_origins,
+                destination_airports=allowed_destinations,
+                carrier_name_overrides=carrier_name_overrides,
+            )
         arguments["carriers"] = mcp_carriers
 
     # Fetch first page
@@ -901,6 +1062,11 @@ def fetch_tutu_avia_search(
         call_tutu_mcp_tool("search_avia", arguments, mcp_url=mcp_url, timeout=timeout),
         "search_avia",
     )
+    if not carrier_facets:
+        carrier_facets = _carrier_facets(raw)
+        _, carrier_name_overrides, _ = resolve_tutu_carrier_facets(
+            [], facets=carrier_facets, store=store
+        )
 
     all_offers = list(raw.get("offers") or [])
     meta = raw.get("meta") or {}
@@ -908,7 +1074,12 @@ def fetch_tutu_avia_search(
     pages_fetched = 1
     page_budget_exhausted = False
     empty_page_seen = False
-    while meta.get("has_more") and page < TUTU_MAX_PAGES:
+    max_pages = (
+        TUTU_MAX_SCOPE_PAGES
+        if len(allowed_origins) > 1 or len(allowed_destinations) > 1
+        else TUTU_MAX_PAGES
+    )
+    while meta.get("has_more") and page < max_pages:
         page += 1
         page_args = dict(arguments)
         page_args["page"] = page
@@ -926,7 +1097,7 @@ def fetch_tutu_avia_search(
             break
         all_offers.extend(page_offers)
         meta = page_raw.get("meta") or {}
-    if meta.get("has_more") and page >= TUTU_MAX_PAGES:
+    if meta.get("has_more") and page >= max_pages:
         page_budget_exhausted = True
 
     raw["offers"] = all_offers
@@ -937,12 +1108,22 @@ def fetch_tutu_avia_search(
         "page_size": TUTU_PAGE_SIZE,
         "pages_fetched": pages_fetched,
         "total_returned": len(all_offers),
-        "max_pages": TUTU_MAX_PAGES,
+        "max_pages": max_pages,
         "has_more_after_fetch": bool(meta.get("has_more"))
         if isinstance(meta, dict)
         else False,
         "not_fetched_due_to_page_budget": page_budget_exhausted,
+        "airport_scope_incomplete": page_budget_exhausted
+        and (len(allowed_origins) > 1 or len(allowed_destinations) > 1),
         "empty_page_seen": empty_page_seen,
+        "origin_input": origin_input,
+        "origin_input_kind": origin_input_kind,
+        "origin_airports": allowed_origins,
+        "destination_input": destination_input,
+        "destination_input_kind": destination_input_kind,
+        "destination_airports": allowed_destinations,
+        "carrier_facets_discovered": carrier_facets,
+        "carrier_filter_unmatched": unmatched_carriers,
     }
 
     return parse_tutu_avia_search(
@@ -957,6 +1138,9 @@ def fetch_tutu_avia_search(
         limit=limit,
         store=store,
         source_url=normalize_tutu_mcp_url(mcp_url),
+        origin_airports=allowed_origins,
+        destination_airports=allowed_destinations,
+        carrier_name_overrides=carrier_name_overrides,
     )
 
 
@@ -976,11 +1160,15 @@ def cached_tutu_avia_search(
     fetcher: Any = fetch_tutu_avia_search,
     store: Store | None = None,
     return_date: date | None = None,
+    origin_airports: list[str] | None = None,
+    destination_airports: list[str] | None = None,
 ) -> dict[str, Any]:
     url = normalize_tutu_mcp_url(mcp_url)
     params = {
         "origin": origin,
         "destination": destination,
+        "origin_airports": sorted(origin_airports or []),
+        "destination_airports": sorted(destination_airports or []),
         "depart_date": depart_date.isoformat(),
         "return_date": return_date.isoformat() if return_date else None,
         "currency": currency,
@@ -1007,6 +1195,8 @@ def cached_tutu_avia_search(
         mcp_url=url,
         store=store,
         return_date=return_date,
+        origin_airports=origin_airports,
+        destination_airports=destination_airports,
     )
     if use_cache and int(cache_ttl_seconds) > 0:
         return write_live_cache(key, result)

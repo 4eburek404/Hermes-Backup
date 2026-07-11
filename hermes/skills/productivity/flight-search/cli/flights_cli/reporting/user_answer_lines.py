@@ -276,6 +276,17 @@ def agent_display_lines_for_item(item: dict[str, Any]) -> list[str]:
     )
     if source_note:
         price_line = f"{price_line} · {source_note}"
+    self_transfer_warning = ""
+    protection = (
+        item.get("protection")
+        if isinstance(item.get("protection"), dict)
+        else {}
+    )
+    if protection.get("self_transfer") is True:
+        self_transfer_warning = (
+            "Самостоятельная пересадка: единый PNR и защита стыковки не подтверждены."
+        )
+        price_line = f"{price_line} · {self_transfer_warning}"
     if body_lines:
         first, *rest = body_lines
         return [
@@ -283,7 +294,10 @@ def agent_display_lines_for_item(item: dict[str, Any]) -> list[str]:
             *(f"    {line}" for line in rest),
             f"    {price_line}",
         ]
-    return [f"{item.get('number')}. вариант без детализации", f"    {price_line}"]
+    return [
+        f"{item.get('number')}. вариант без детализации",
+        f"    {price_line}",
+    ]
 
 
 def agent_display_contract(item: dict[str, Any]) -> dict[str, Any]:

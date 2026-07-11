@@ -121,6 +121,9 @@ class OfferGraphTests(unittest.TestCase):
                             "id": "kb-full-1",
                             "price": 42000,
                             "currency": "RUB",
+                            "self_transfer": True,
+                            "self_transfer_note": "Collect baggage and check in again.",
+                            "self_transfer_source": "tutu",
                             "segments": [
                                 {"origin": "SVX", "destination": "IST"},
                                 {"origin": "IST", "destination": "AMS"},
@@ -162,6 +165,9 @@ class OfferGraphTests(unittest.TestCase):
                             "id": "kb-full-1",
                             "price": 42000,
                             "currency": "RUB",
+                            "self_transfer": True,
+                            "self_transfer_note": "Collect baggage and check in again.",
+                            "self_transfer_source": "tutu",
                             "segments": [
                                 {"origin": "SVX", "destination": "IST"},
                                 {"origin": "IST", "destination": "AMS"},
@@ -192,6 +198,11 @@ class OfferGraphTests(unittest.TestCase):
         self.assertEqual(candidate["currency"], "RUB")
         self.assertEqual(candidate["price_basis"], "provider_offer_price")
         self.assertEqual(candidate["ticketing_model"], "provider_order_unverified")
+        self.assertIs(candidate["self_transfer"], True)
+        self.assertEqual(candidate["self_transfer_source"], "tutu")
+        self.assertEqual(
+            candidate["self_transfer_note"], "Collect baggage and check in again."
+        )
         self.assertEqual(candidate["detail_status"], "full")
         self.assertEqual(candidate["warnings"], [])
         self.assertEqual(

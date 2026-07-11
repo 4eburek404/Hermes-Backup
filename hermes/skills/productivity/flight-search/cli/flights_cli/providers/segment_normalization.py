@@ -28,6 +28,7 @@ def normalize_segment_flight(flight: dict[str, Any]) -> dict[str, Any] | None:
         "flight_number": flight_number or None,
         "marketing_carrier": marketing or None,
         "operating_carrier": operating or None,
+        "carrier_name": str(flight.get("carrier_name") or "").strip() or None,
         "aircraft_code": flight.get("aircraft"),
         "duration_min": flight.get("duration"),
     }
@@ -85,6 +86,16 @@ def provider_offer_to_segment_offer(
         "segments": segments,
         "transfers": [],
         "internal_connection_count": max(0, len(segments) - 1),
+        **{
+            key: offer.get(key)
+            for key in (
+                "ticketing_model",
+                "self_transfer",
+                "self_transfer_note",
+                "self_transfer_source",
+            )
+            if key in offer
+        },
     }
 
 

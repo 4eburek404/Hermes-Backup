@@ -13,6 +13,7 @@ from flights_cli.errors import CliError
 from flights_cli.providers.tutu_mcp import (
     MCP_PROTOCOL_VERSION,
     TUTU_MAX_PAGES,
+    TUTU_MAX_SCOPE_PAGES,
     TUTU_PAGE_SIZE,
     extract_tool_payload,
     fetch_tutu_avia_search,
@@ -59,7 +60,10 @@ def store_with_tutu_catalog(test_case: unittest.TestCase) -> Store:
         """
         [
           {"code": "SU", "name": "Aeroflot", "name_translations": {"en": "Aeroflot"}},
-          {"code": "TK", "name": "Turkish Airlines", "name_translations": {"en": "Turkish Airlines"}}
+          {"code": "TK", "name": "Turkish Airlines", "name_translations": {"en": "Turkish Airlines"}},
+          {"code": "LO", "name": "LOT Polish", "name_translations": {"en": "LOT Polish"}},
+          {"code": "UT", "name": "Utair", "name_translations": {"en": "Utair"}},
+          {"code": "ЮЭ", "name": "Utair", "name_translations": {"en": "Utair"}}
         ]
         """,
         encoding="utf-8",
@@ -68,7 +72,9 @@ def store_with_tutu_catalog(test_case: unittest.TestCase) -> Store:
         """
         [
           {"code": "SU", "name": "Аэрофлот", "name_translations": {"en": "Aeroflot"}},
-          {"code": "TK", "name": "Турецкие авиалинии", "name_translations": {"en": "Turkish Airlines"}}
+          {"code": "TK", "name": "Турецкие авиалинии", "name_translations": {"en": "Turkish Airlines"}},
+          {"code": "LO", "name": "LOT Polish", "name_translations": {"en": "LOT Polish"}},
+          {"code": "UT", "name": "ЮТэйр", "name_translations": {"en": "Utair"}}
         ]
         """,
         encoding="utf-8",
@@ -96,12 +102,15 @@ def tutu_segment(
     }
 
 
-def tutu_offer(offer_id: str, legs: list[list[dict]], *, price: int = 10000) -> dict:
+def tutu_offer(
+    offer_id: str, legs: list[list[dict]], *, price: int = 10000, **extra: object
+) -> dict:
     return {
         "offer_id": offer_id,
         "price": {"amount": price, "currency": "RUB"},
         "duration_min": 180,
         "legs": [{"segments": segments} for segments in legs],
+        **extra,
     }
 
 
@@ -326,7 +335,13 @@ class TutuMcpProviderTests(unittest.TestCase):
         def fake_call(tool_name: str, arguments: dict, **kwargs: object) -> dict:
             self.assertEqual(tool_name, "search_avia")
             calls.append(arguments)
-            return {"offers": [], "meta": {"has_more": False}}
+            return {
+                "offers": [],
+                "meta": {
+                    "has_more": False,
+                    "carriers_available": ["Аэрофлот"],
+                },
+            }
 
         with patch("flights_cli.providers.tutu_mcp.call_tutu_mcp_tool", fake_call):
             fetch_tutu_avia_search(
@@ -339,10 +354,13 @@ class TutuMcpProviderTests(unittest.TestCase):
                 store=store,
             )
 
+        self.assertEqual(len(calls), 2)
         self.assertTrue(calls[0]["direct_only"])
-        self.assertEqual(calls[0]["carriers"], ["Аэрофлот", "Aeroflot"])
+        self.assertNotIn("carriers", calls[0])
+        self.assertEqual(calls[0]["page_size"], 1)
+        self.assertEqual(calls[1]["carriers"], ["Аэрофлот"])
 
-    def test_fetch_omits_false_direct_only_and_keeps_unknown_carrier_name(
+    def test_fetch_omits_false_direct_only_and_uses_exact_unknown_carrier_facet(
         self,
     ) -> None:
         store = store_with_tutu_catalog(self)
@@ -350,7 +368,13 @@ class TutuMcpProviderTests(unittest.TestCase):
 
         def fake_call(tool_name: str, arguments: dict, **kwargs: object) -> dict:
             calls.append(arguments)
-            return {"offers": [], "meta": {"has_more": False}}
+            return {
+                "offers": [],
+                "meta": {
+                    "has_more": False,
+                    "carriers_available": ["Unknown Air"],
+                },
+            }
 
         with patch("flights_cli.providers.tutu_mcp.call_tutu_mcp_tool", fake_call):
             fetch_tutu_avia_search(
@@ -364,7 +388,116 @@ class TutuMcpProviderTests(unittest.TestCase):
             )
 
         self.assertNotIn("direct_only", calls[0])
-        self.assertEqual(calls[0]["carriers"], ["Unknown Air"])
+        self.assertEqual(calls[1]["carriers"], ["Unknown Air"])
+
+    def test_fetch_resolves_lo_facet_and_ignores_invalid_duplicate_code(self) -> None:
+        store = store_with_tutu_catalog(self)
+        calls: list[dict] = []
+
+        def fake_call(tool_name: str, arguments: dict, **kwargs: object) -> dict:
+            calls.append(arguments)
+            carrier = "LOT - Polish Airlines" if len(calls) == 1 else "Utair"
+            return {
+                "offers": [],
+                "meta": {
+                    "has_more": False,
+                    "carriers_available": [
+                        {"name": carrier, "offers_count": 12, "price_from": 8195.0}
+                    ],
+                },
+            }
+
+        with patch("flights_cli.providers.tutu_mcp.call_tutu_mcp_tool", fake_call):
+            fetch_tutu_avia_search(
+                "SVX",
+                "AMS",
+                date(2026, 8, 15),
+                currency="RUB",
+                only_carriers=["LO"],
+                store=store,
+            )
+
+        self.assertEqual(calls[1]["carriers"], ["LOT - Polish Airlines"])
+
+        segment = tutu_segment("SVX", "AMS", "100", carrier="Utair")
+        result = parse_tutu_avia_search(
+            {"offers": [tutu_offer("ut", [[segment]])]},
+            origin="SVX",
+            destination="AMS",
+            depart_date="2026-08-15",
+            currency="RUB",
+            store=store,
+            carrier_name_overrides={"utair": "UT"},
+        )
+        self.assertEqual(result["offers"][0]["marketing_carriers"], ["UT"])
+
+    def test_fetch_uses_exact_iata_for_single_airport_scope(self) -> None:
+        store = store_with_tutu_catalog(self)
+        calls: list[dict] = []
+
+        def fake_call(tool_name: str, arguments: dict, **kwargs: object) -> dict:
+            calls.append(arguments)
+            return {"offers": [], "meta": {"has_more": False}}
+
+        with patch("flights_cli.providers.tutu_mcp.call_tutu_mcp_tool", fake_call):
+            result = fetch_tutu_avia_search(
+                "SVX",
+                "LON",
+                date(2026, 8, 15),
+                currency="RUB",
+                origin_airports=["SVX"],
+                destination_airports=["LHR"],
+                store=store,
+            )
+
+        self.assertEqual(calls[0]["origin"], "SVX")
+        self.assertEqual(calls[0]["destination"], "LHR")
+        self.assertEqual(result["pagination"]["destination_input_kind"], "airport")
+
+    def test_fetch_uses_city_query_and_larger_budget_for_multi_airport_scope(
+        self,
+    ) -> None:
+        store = store_with_tutu_catalog(self)
+        calls: list[dict] = []
+
+        def fake_call(tool_name: str, arguments: dict, **kwargs: object) -> dict:
+            calls.append(arguments)
+            page = int(arguments.get("page") or 1)
+            return {
+                "offers": [
+                    tutu_offer(
+                        f"page-{page}",
+                        [
+                            [
+                                tutu_segment(
+                                    "SVX",
+                                    "LHR",
+                                    str(100 + page),
+                                    depart=f"2026-08-15T{page:02d}:00:00+05:00",
+                                    arrive=f"2026-08-15T{page + 2:02d}:00:00+03:00",
+                                )
+                            ]
+                        ],
+                    )
+                ],
+                "meta": {"has_more": True},
+            }
+
+        with patch("flights_cli.providers.tutu_mcp.call_tutu_mcp_tool", fake_call):
+            result = fetch_tutu_avia_search(
+                "SVX",
+                "LON",
+                date(2026, 8, 15),
+                currency="RUB",
+                origin_airports=["SVX"],
+                destination_airports=["LHR", "LGW"],
+                store=store,
+            )
+
+        self.assertEqual(calls[0]["destination"], "Лондон")
+        self.assertEqual(len(calls), TUTU_MAX_SCOPE_PAGES)
+        self.assertEqual(result["pagination"]["max_pages"], TUTU_MAX_SCOPE_PAGES)
+        self.assertTrue(result["pagination"]["airport_scope_incomplete"])
 
     def test_fetch_rejects_plain_text_payload_for_search(self) -> None:
         store = store_with_tutu_catalog(self)
@@ -574,7 +707,7 @@ class TutuMcpProviderTests(unittest.TestCase):
         )
 
         self.assertEqual([offer["id"] for offer in exact["offers"]], ["exact-airport"])
-        self.assertEqual(exact["skipped"]["airport_scope"], 1)
+        self.assertEqual(exact["skipped"]["outside_airport_scope"], 1)
         self.assertEqual(
             sorted(offer["id"] for offer in city["offers"]),
             ["exact-airport", "wrong-airport"],
@@ -623,6 +756,36 @@ class TutuMcpProviderTests(unittest.TestCase):
         )
         self.assertEqual(offer["number_of_changes"], 0)
         self.assertEqual(result["return_date"], "2026-08-22")
+
+    def test_parser_preserves_tutu_self_transfer_evidence(self) -> None:
+        store = store_with_tutu_catalog(self)
+        raw = {
+            "offers": [
+                tutu_offer(
+                    "multi-pnr",
+                    [[tutu_segment("SVX", "AMS", "100")]],
+                    is_multi_pnr=True,
+                    has_self_transfer=True,
+                    multi_pnr_note="Collect baggage and check in again.",
+                )
+            ]
+        }
+
+        result = parse_tutu_avia_search(
+            raw,
+            origin="SVX",
+            destination="AMS",
+            depart_date="2026-08-15",
+            currency="RUB",
+            store=store,
+        )
+
+        offer = result["offers"][0]
+        self.assertIs(offer["self_transfer"], True)
+        self.assertEqual(offer["self_transfer_source"], "tutu")
+        self.assertEqual(
+            offer["self_transfer_note"], "Collect baggage and check in again."
+        )
 
     def test_round_trip_fixture_normalizes_provider_offer(self) -> None:
         payload = json.loads(
