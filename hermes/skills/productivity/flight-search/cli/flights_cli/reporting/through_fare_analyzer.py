@@ -68,6 +68,8 @@ def through_fare_checks(
         for offer in control.get("top_offers") or []:
             if not isinstance(offer, dict):
                 continue
+            if offer.get("self_transfer") is True:
+                continue
             if (
                 offer.get("stop_tier") == "T3_THREE_PLUS"
                 or offer.get("reportable_by_stop_policy") is False
@@ -87,6 +89,8 @@ def through_fare_checks(
             )
 
     for option in priority_options or []:
+        if option.get("self_transfer") is True:
+            continue
         for direction, segments in grouped_option_segments(option).items():
             if len(segments) < 2:
                 continue

@@ -539,6 +539,8 @@ def _round_trip_ticketing_model(candidate: dict[str, Any]) -> str:
 def _ticketing_risk_tier(candidate: dict[str, Any]) -> int:
     model = str(candidate.get("ticketing_model") or "unknown")
     source_type = str(candidate.get("source_type") or "")
+    if candidate.get("self_transfer") is True:
+        return 3
     if model in {
         "single_pnr_proven",
         "single_ticket_proven",
@@ -718,6 +720,9 @@ def _frontier_option(candidate: dict[str, Any], role: str) -> dict[str, Any]:
         "currency",
         "price_basis",
         "ticketing_model",
+        "self_transfer",
+        "self_transfer_note",
+        "self_transfer_source",
         "journey_pairing_model",
         "direction_pairing",
         "detail_status",

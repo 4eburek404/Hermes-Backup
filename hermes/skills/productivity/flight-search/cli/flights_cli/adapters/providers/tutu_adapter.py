@@ -66,6 +66,8 @@ class TutuProviderAdapter:
             depart_date,
             currency=str(query["currency"]).upper(),
             only_carriers=list(query.get("only_carriers") or []),
+            origin_airports=list(query.get("origin_airports") or []),
+            destination_airports=list(query.get("destination_airports") or []),
             direct_only=direct_only,
             limit=int(query["limit"]),
             timeout=int(query.get("timeout") or 60),
@@ -98,6 +100,10 @@ class TutuProviderAdapter:
                 "date": depart_date_text,
                 "currency": str(query["currency"]).upper(),
                 "only_carriers": list(query.get("only_carriers") or []),
+                "origin_airports": list(query.get("origin_airports") or []),
+                "destination_airports": list(
+                    query.get("destination_airports") or []
+                ),
                 "direct_only": direct_only,
                 "mcp_url": query.get("tutu_mcp_url"),
             },
@@ -139,6 +145,8 @@ class TutuProviderAdapter:
             depart_date,
             currency=str(query["currency"]).upper(),
             only_carriers=list(query.get("only_carriers") or []),
+            origin_airports=list(query.get("origin_airports") or []),
+            destination_airports=list(query.get("destination_airports") or []),
             direct_only=direct_only,
             limit=int(query["limit"]),
             timeout=int(query.get("timeout") or 60),
@@ -205,6 +213,10 @@ class TutuProviderAdapter:
                 "return_date": return_date.isoformat() if return_date else None,
                 "currency": str(query["currency"]).upper(),
                 "only_carriers": list(query.get("only_carriers") or []),
+                "origin_airports": list(query.get("origin_airports") or []),
+                "destination_airports": list(
+                    query.get("destination_airports") or []
+                ),
                 "direct_only": direct_only,
             },
             execution_state="searched",

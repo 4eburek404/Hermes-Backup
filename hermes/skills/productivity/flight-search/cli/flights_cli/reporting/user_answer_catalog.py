@@ -14,6 +14,7 @@ from .user_answer_lines import (
     AGENT_DISPLAY_STYLE,
     agent_display_contract,
     agent_display_lines_for_item,
+    answer_display_lines_for_item,
     numeric_or_none,
     render_direction_for_catalog,
 )
@@ -379,6 +380,20 @@ def baggage_contract(option: dict[str, Any]) -> dict[str, str]:
 
 
 def protection_contract(option: dict[str, Any]) -> dict[str, Any]:
+    if option.get("self_transfer") is True:
+        return {
+            "single_pnr_status": "unproven",
+            "through_baggage_status": "unproven",
+            "self_transfer": True,
+            "purchase_screen_verification_required": True,
+        }
+    if option.get("self_transfer") is False:
+        return {
+            "single_pnr_status": "unknown",
+            "through_baggage_status": "unknown",
+            "self_transfer": False,
+            "purchase_screen_verification_required": True,
+        }
     ticketing_model = str(
         option.get("ticketing_model")
         or (
@@ -415,7 +430,12 @@ def catalog_segment(segment: dict[str, Any]) -> dict[str, Any]:
             segment.get("flight_number") or segment.get("carrier") or ""
         )
         or None,
-        "carrier": str(segment.get("carrier") or segment.get("marketing_carrier") or "")
+        "carrier": str(
+            segment.get("carrier")
+            or segment.get("marketing_carrier")
+            or segment.get("carrier_name")
+            or ""
+        )
         or None,
         "origin": str(segment.get("origin") or "") or None,
         "destination": str(segment.get("destination") or "") or None,
@@ -501,6 +521,8 @@ def risk_badges(
         badges.append("single_pnr_unproven")
     if protection.get("through_baggage_status") != "proven":
         badges.append("through_baggage_unproven")
+    if protection.get("self_transfer") is True:
+        badges.append("self_transfer")
     if baggage.get("checked") == "unknown":
         badges.append("baggage_unknown")
     if option.get("directional_only") is True:
@@ -525,6 +547,12 @@ def catalog_caveats(option: dict[str, Any], *, badges: list[str]) -> list[str]:
         caveats.append("single PNR/protection not proven; verify on booking screen")
     if "baggage_unknown" in badges:
         caveats.append("baggage unknown until fare/package verification")
+    if "self_transfer" in badges:
+        caveats.append(
+            "Самостоятельная пересадка: единый PNR и защита стыковки не подтверждены."
+        )
+        if option.get("self_transfer_note"):
+            caveats.append(str(option["self_transfer_note"]))
     return list(dict.fromkeys(caveats))
 
 
@@ -594,7 +622,19 @@ def catalog_item(
         "directions": {"outbound": outbound, "return": inbound},
         "baggage": baggage,
         "protection": protection,
-        "risk": option.get("risk") if isinstance(option.get("risk"), dict) else {},
+        "risk": {
+            **(option.get("risk") if isinstance(option.get("risk"), dict) else {}),
+            **(
+                {"self_transfer_source": option.get("self_transfer_source")}
+                if option.get("self_transfer_source")
+                else {}
+            ),
+            **(
+                {"self_transfer_note": option.get("self_transfer_note")}
+                if option.get("self_transfer_note")
+                else {}
+            ),
+        },
         "badges": badges,
         "caveats": caveats,
         "agent_display": {
@@ -689,30 +729,47 @@ def render_catalog_answer(
     destination = route.get("destination") or "???"
     lines = [f"Нашёл варианты {origin}→{destination}."]
     rendered_items = [
-        str(item.get("render_line") or "")
+        answer_display_lines_for_item(item)
         for item in catalog.get("items") or []
-        if isinstance(item, dict) and item.get("render_line")
+        if isinstance(item, dict)
     ]
-    for rendered_item in rendered_items:
-        lines.append(rendered_item)
+    rendered_items = [item_lines for item_lines in rendered_items if item_lines]
+    for index, rendered_item in enumerate(rendered_items):
+        if index > 0:
+            lines.append("")
+        lines.extend(rendered_item)
     has_rendered_options = bool(rendered_items)
     if gateway_summary:
-        if rendered_items:
+        if has_rendered_options:
             lines.append("")
         lines.append(gateway_summary)
     negative_wording = str(caveat_context.get("negative_wording") or "").strip()
-    checks: list[str] = [
-        "Перед оплатой проверить багаж, финальный тариф и правила обмена/возврата.",
-        "Единый тариф/сквозной багаж не подтверждены; текущий результат поставщика не доказывает наличие или отсутствие защищённого билета.",
-    ]
-    if negative_wording and not has_rendered_options and negative_wording not in checks:
-        checks.append(negative_wording)
-    if caveat_context.get("not_executed"):
-        checks.append("Coverage неполное: не все live-проверки выполнены.")
-    if caveat_context.get("provider_failures"):
-        checks.append(
-            "часть live-проверок упала — повторить, если это влияет на выбор."
-        )
+    if has_rendered_options:
+        check_parts = [
+            "Перед оплатой проверьте багаж, финальный тариф и правила обмена/возврата"
+        ]
+        if caveat_context.get("not_executed"):
+            check_parts.append("покрытие неполное: не все live-проверки выполнены")
+        if caveat_context.get("provider_failures"):
+            check_parts.append("часть live-проверок упала")
+        if caveat_context.get("source_boundaries"):
+            check_parts.append("результат не доказывает варианты вне границ источников")
+        if caveat_context.get("through_fare_checks"):
+            check_parts.append("единый тариф проверить отдельно")
+        checks = ["; ".join(check_parts) + "."]
+    else:
+        checks = [
+            "Перед оплатой проверить багаж, финальный тариф и правила обмена/возврата.",
+            "Единый тариф/сквозной багаж не подтверждены; текущий результат поставщика не доказывает наличие или отсутствие защищённого билета.",
+        ]
+        if negative_wording and negative_wording not in checks:
+            checks.append(negative_wording)
+        if caveat_context.get("not_executed"):
+            checks.append("Coverage неполное: не все live-проверки выполнены.")
+        if caveat_context.get("provider_failures"):
+            checks.append(
+                "часть live-проверок упала — повторить, если это влияет на выбор."
+            )
     if checks and (rendered_items or gateway_summary):
         lines.append("")
     lines.extend(checks)
