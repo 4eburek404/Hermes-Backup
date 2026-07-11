@@ -15,9 +15,7 @@ from ..store import Store
 from .metadata import metadata_evidence_scope
 from .search import (
     build_search_artifacts,
-    live_assembly_options_from_search_request,
-    normalize_search_request,
-    validate_search_request_dates,
+    prepare_search_request,
 )
 from .common import validate_contract_payload
 
@@ -31,9 +29,9 @@ def _agent_report_from_document(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def command_diagnose_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
-    request = normalize_search_request(read_json_object(args.request))
-    validate_search_request_dates(request)
-    live_assembly_options = live_assembly_options_from_search_request(request)
+    prepared = prepare_search_request(args.request)
+    request = prepared.request
+    live_assembly_options = prepared.options
     flow = build_live_route_search_flow(live_assembly_options, store)
     plan = build_live_route_segment_plan(live_assembly_options, store, flow=flow)
     search_plan = build_search_plan(
@@ -71,14 +69,13 @@ def command_diagnose_probe(args: argparse.Namespace, store: Store) -> dict[str, 
 
 
 def command_diagnose_trace(args: argparse.Namespace, store: Store) -> dict[str, Any]:
-    request = normalize_search_request(read_json_object(args.request))
-    validate_search_request_dates(request)
-    artifacts = build_search_artifacts(request, store)
+    prepared = prepare_search_request(args.request)
+    artifacts = build_search_artifacts(prepared, store)
     result = {
         "schema_version": "flight_route_trace_diagnostic.v1",
-        "request": artifacts["request"],
-        "route_trace": artifacts["route_trace"],
-        "agent_report": artifacts["agent_report"],
+        "request": artifacts.request,
+        "route_trace": artifacts.route_trace,
+        "agent_report": artifacts.agent_report,
     }
     validate_contract_payload("route_trace", result)
     return result

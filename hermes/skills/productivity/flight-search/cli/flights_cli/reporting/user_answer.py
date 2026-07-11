@@ -218,7 +218,9 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
             for summary in (
                 option_summary(item, is_round_trip_request=is_round_trip_request)
                 for item in priority_options_for_user_contract(
-                    priority, limit=alternative_limit
+                    priority,
+                    limit=alternative_limit,
+                    is_round_trip_request=is_round_trip_request,
                 )
             )
             if summary is not None

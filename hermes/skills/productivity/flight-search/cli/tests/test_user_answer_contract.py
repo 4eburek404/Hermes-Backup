@@ -768,7 +768,7 @@ class FinalAnswerContractTests(unittest.TestCase):
         alias["id"] = "ru-priority-moscow_gateway:assembled-cheap-svo"
         alias["category"] = "moscow_gateway_control"
         report["primary_options"] = [connected, direct, invalid]
-        report["alternative_options"] = [alias]
+        report["alternative_options"] = [alias, connected]
         report["status"] = {"direct_mode": {}}
 
         with patch(
@@ -799,6 +799,10 @@ class FinalAnswerContractTests(unittest.TestCase):
             ["SU1419", "SU2172"],
         )
         self.assertNotIn("assembled-invalid-svo", {item["option_id"] for item in items})
+        self.assertEqual(
+            [item["id"] for item in answer["alternatives"]],
+            ["ru-priority-moscow_gateway:assembled-cheap-svo"],
+        )
 
     def test_catalog_uses_business_rank_before_price_for_same_stop_count(self) -> None:
         base = copy.deepcopy(valid_option())

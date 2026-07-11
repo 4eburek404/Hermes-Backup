@@ -68,6 +68,24 @@ class LiveAssemblyState:
     )
 
 
+@dataclass(frozen=True, slots=True)
+class LiveSearchEvaluation:
+    """Derived search data shared by fallback selection and final rendering."""
+
+    offer_graph: dict[str, Any]
+    aggregate_controls: list[dict[str, Any]]
+    graph_controls: list[dict[str, Any]]
+    gateway_discovery_diagnostics: dict[str, Any]
+    offer_candidates: dict[str, Any]
+    scored_decisions: dict[str, Any]
+    date_window_inventory: dict[str, Any] | None
+
+    @property
+    def decision_frontier(self) -> dict[str, Any]:
+        frontier = self.scored_decisions.get("decision_frontier")
+        return frontier if isinstance(frontier, dict) else {}
+
+
 def hub_viability_summary(
     plan: dict[str, Any],
     searches: list[dict[str, Any]] | None = None,
@@ -527,7 +545,7 @@ class LiveSearchResultBuilder:
         self.store = store
         self.provider_policy = provider_policy
 
-    def build_route_trace(self, state: LiveAssemblyState) -> dict[str, Any]:
+    def evaluate(self, state: LiveAssemblyState) -> LiveSearchEvaluation:
         offer_graph = build_pipeline_offer_graph(
             primary_offer_results=state.primary_offer_results,
             gateway_leg_results=state.gateway_leg_results,
@@ -587,8 +605,6 @@ class LiveSearchResultBuilder:
             offer_candidates,
             controls=[*graph_controls, *aggregate_controls],
         )
-        decision_frontier = scored_decisions["decision_frontier"]
-        mixed_candidate_ranking = scored_decisions["mixed_candidate_ranking"]
         state.direct_inventory_searches = _primary_direct_inventory_searches(
             state.primary_offer_results
         )
@@ -600,6 +616,26 @@ class LiveSearchResultBuilder:
             state.direct_inventory_searches,
             state.direct_inventory_results,
         )
+        return LiveSearchEvaluation(
+            offer_graph=offer_graph,
+            aggregate_controls=aggregate_controls,
+            graph_controls=graph_controls,
+            gateway_discovery_diagnostics=gateway_discovery_diagnostics,
+            offer_candidates=offer_candidates,
+            scored_decisions=scored_decisions,
+            date_window_inventory=date_window_inventory,
+        )
+
+    def build_route_trace(
+        self,
+        state: LiveAssemblyState,
+        evaluation: LiveSearchEvaluation | None = None,
+    ) -> dict[str, Any]:
+        evaluated = evaluation or self.evaluate(state)
+        decision_frontier = evaluated.decision_frontier
+        mixed_candidate_ranking = evaluated.scored_decisions[
+            "mixed_candidate_ranking"
+        ]
         coverage = (
             decision_frontier.get("coverage_summary")
             if isinstance(decision_frontier.get("coverage_summary"), dict)
@@ -638,17 +674,18 @@ class LiveSearchResultBuilder:
                 ),
                 "primary_offer_results": state.primary_offer_results,
                 "gateway_leg_results": state.gateway_leg_results,
-                "offer_graph": offer_graph,
-                "candidate_input_ids": _candidate_ids(offer_candidates),
-                "decision_scorer": scored_decisions["scorer"],
+                "offer_graph": evaluated.offer_graph,
+                "candidate_input_ids": _candidate_ids(evaluated.offer_candidates),
+                "decision_scorer": evaluated.scored_decisions["scorer"],
                 "mixed_candidate_ranking": mixed_candidate_ranking,
-                "policy_controls": graph_controls,
-                "aggregate_controls": aggregate_controls,
+                "policy_controls": evaluated.graph_controls,
+                "aggregate_controls": evaluated.aggregate_controls,
                 "probe_ledger": state.probe_ledger.to_coverage_diagnostics(state.plan),
                 "direct_presence_gate": deepcopy(state.direct_presence_gate),
                 "diagnostics": {
                     "search_plan": search_plan_with_gateway_discovery_output(
-                        state.search_plan, gateway_discovery_diagnostics
+                        state.search_plan,
+                        evaluated.gateway_discovery_diagnostics,
                     ),
                     "wave_diagnostics": _wave_diagnostics(state.gateway_leg_results),
                 },
@@ -656,12 +693,18 @@ class LiveSearchResultBuilder:
                 "failures": state.failures,
             },
         }
-        if date_window_inventory is not None:
-            route_trace["live_search"]["date_window_inventory"] = date_window_inventory
+        if evaluated.date_window_inventory is not None:
+            route_trace["live_search"]["date_window_inventory"] = (
+                evaluated.date_window_inventory
+            )
         return route_trace
 
-    def build(self, state: LiveAssemblyState) -> dict[str, Any]:
-        return self.build_route_trace(state)
+    def build(
+        self,
+        state: LiveAssemblyState,
+        evaluation: LiveSearchEvaluation | None = None,
+    ) -> dict[str, Any]:
+        return self.build_route_trace(state, evaluation)
 
 
 class LiveAssemblyRunner:
@@ -721,11 +764,9 @@ class LiveAssemblyRunner:
                 gateway_queries,
                 state.plan,
             )
-        preliminary = self.result_builder.build_route_trace(state)
+        evaluation = self.result_builder.evaluate(state)
         fallback_directions = _fallback_directions_from_frontier(
-            preliminary.get("decision_frontier")
-            if isinstance(preliminary.get("decision_frontier"), dict)
-            else {},
+            evaluation.decision_frontier,
             state.direct_mode,
         )
         if fallback_directions and self.gateway_leg_probe_executor is not None:
@@ -763,6 +804,7 @@ class LiveAssemblyRunner:
                 state.gateway_leg_results = _merge_gateway_leg_results(
                     state.gateway_leg_results, fallback_results
                 )
+                evaluation = self.result_builder.evaluate(state)
                 state.direct_presence_gate["fallback"] = {
                     "status": "executed",
                     "reason": "direct_mode_no_acceptable_candidates",
@@ -793,7 +835,7 @@ class LiveAssemblyRunner:
                     direction: 1 for direction in fallback_directions
                 },
             }
-        return self.result_builder.build(state)
+        return self.result_builder.build(state, evaluation)
 
     def initialize_state(self) -> LiveAssemblyState:
         flow = build_live_route_search_flow(self.options, self.store)

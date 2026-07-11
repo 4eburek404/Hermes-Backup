@@ -167,7 +167,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
             patch(
                 "flights_cli.orchestrators.live_assembly_runner.run_aggregate_controls",
                 return_value=[],
-            ),
+            ) as run_aggregate,
             patch(
                 "flights_cli.orchestrators.live_assembly_runner.hub_viability_summary",
                 return_value=[],
@@ -176,6 +176,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
             result = run_live_route_assembly(live_args(), Store())
 
         self.assertEqual(build_flow.call_count, 1)
+        run_aggregate.assert_called_once()
         self.assertIn("live_search", result)
         self.assertEqual(result["live_search"]["provider_policy"], "auto")
         route_plan = result["live_search"]["plan"]

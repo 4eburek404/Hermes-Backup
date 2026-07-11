@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 from typing import Any
 
 from ..config import DEFAULT_CURRENCY, DEFAULT_PROFILE
@@ -15,6 +16,19 @@ from .common import validate_contract_payload
 
 _SEARCH_RESULT_CONTRACT = current_contract("search_result")
 SEARCH_RESULT_SCHEMA_VERSION = _SEARCH_RESULT_CONTRACT["schema_version"]
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedSearchRequest:
+    request: dict[str, Any]
+    options: LiveAssemblyOptions
+
+
+@dataclass(frozen=True, slots=True)
+class SearchArtifacts:
+    request: dict[str, Any]
+    route_trace: dict[str, Any]
+    agent_report: dict[str, Any]
 
 
 def normalize_search_request(payload: dict[str, Any]) -> dict[str, Any]:
@@ -46,17 +60,25 @@ def validate_search_request_dates(payload: dict[str, Any]) -> None:
         parse_iso_date(str(payload.get("return_date") or ""), "return-date")
 
 
+def prepare_search_request(request_path: str) -> PreparedSearchRequest:
+    request = normalize_search_request(read_json_object(request_path))
+    validate_search_request_dates(request)
+    return PreparedSearchRequest(
+        request=request,
+        options=live_assembly_options_from_search_request(request),
+    )
+
+
 def build_search_artifacts(
-    request: dict[str, Any], store: Store
-) -> dict[str, dict[str, Any]]:
-    live_assembly_options = live_assembly_options_from_search_request(request)
-    route_trace = run_live_route_assembly(live_assembly_options, store)
+    prepared: PreparedSearchRequest, store: Store
+) -> SearchArtifacts:
+    route_trace = run_live_route_assembly(prepared.options, store)
     agent_report = build_validated_agent_report(route_trace, store)
-    return {
-        "request": request,
-        "route_trace": route_trace,
-        "agent_report": agent_report,
-    }
+    return SearchArtifacts(
+        request=prepared.request,
+        route_trace=route_trace,
+        agent_report=agent_report,
+    )
 
 
 def build_search_result(
@@ -73,7 +95,6 @@ def build_search_result(
 
 
 def command_search(args: argparse.Namespace, store: Store) -> dict[str, Any]:
-    request = normalize_search_request(read_json_object(args.request))
-    validate_search_request_dates(request)
-    artifacts = build_search_artifacts(request, store)
-    return build_search_result(request, artifacts["agent_report"])
+    prepared = prepare_search_request(args.request)
+    artifacts = build_search_artifacts(prepared, store)
+    return build_search_result(artifacts.request, artifacts.agent_report)

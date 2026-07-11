@@ -659,7 +659,7 @@ def catalog_options(
 ) -> list[dict[str, Any]]:
     return ordered_user_options(
         recommended or [],
-        priority_options_for_user_contract(priority or [], limit=limit),
+        priority or [],
         limit=limit,
         is_round_trip_request=is_round_trip_request,
     )
@@ -784,15 +784,25 @@ def is_two_one_way_pair_option(option: dict[str, Any]) -> bool:
 
 
 def priority_options_for_user_contract(
-    priority: list[Any], *, limit: int = 5
+    priority: list[Any], *, limit: int = 5, is_round_trip_request: bool = False
 ) -> list[dict[str, Any]]:
     dict_priority = [item for item in priority if isinstance(item, dict)]
-    selected = dict_priority[: max(0, limit)]
+    selected = ordered_user_options(
+        [],
+        dict_priority,
+        limit=max(0, limit),
+        is_round_trip_request=is_round_trip_request,
+    )
     pair = next(
         (item for item in dict_priority if is_two_one_way_pair_option(item)), None
     )
-    if pair is not None and all(item.get("id") != pair.get("id") for item in selected):
-        selected.append(pair)
+    if pair is not None:
+        selected = ordered_user_options(
+            [],
+            [*selected, pair],
+            limit=len(selected) + 1,
+            is_round_trip_request=is_round_trip_request,
+        )
     return selected
 
 
