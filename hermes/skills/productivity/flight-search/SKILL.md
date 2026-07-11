@@ -1,6 +1,6 @@
 ---
 name: flight-search
-version: 0.11.3
+version: 0.11.4
 description: Use when finding, comparing, assembling, or diagnosing live flight options with the bundled flights CLI, including direct, round-trip, open-jaw leg, and RU-gateway searches; assumes one adult in economy and never books tickets.
 metadata:
   hermes:
@@ -24,6 +24,8 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli search --request "$HOME/flight-
 ```
 
 For a normal traveler request, preserve the canonical CLI itinerary content, values, warnings, and option order. Do not manually assemble, supplement, remove, rerank, correct, or add advice.
+
+Search is strict direct-first for every requested direction and every gateway leg. If the CLI finds a direct flight within the active route, date, airport, and carrier filters, it suppresses connected alternatives for that direction regardless of price or duration. Connected and gateway fallback is eligible only when no direct flight was found; `max_connections` is a ceiling for fallback, not a request to prefer connections.
 
 Presentation depends on the chat surface:
 

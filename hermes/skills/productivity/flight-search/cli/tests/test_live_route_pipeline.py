@@ -502,7 +502,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertEqual(gate["skipped_gateway_probe_count"], 1)
         skipped = result["live_search"]["probe_ledger"]["skipped_controls"]
         self.assertTrue(
-            any(item.get("reason") == "primary_candidate_usable" for item in skipped)
+            any(item.get("reason") == "direct_available" for item in skipped)
         )
 
     def test_live_search_payload_is_deduplicated(self) -> None:
@@ -775,6 +775,13 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 def run_with_primary(
                     primary_results: list[dict[str, object]],
                 ) -> dict[str, object]:
+                    def phased_primary(
+                        queries: list[dict[str, object]], *_: object, **__: object
+                    ) -> list[dict[str, object]]:
+                        if queries and bool(queries[0].get("direct_only")):
+                            return []
+                        return primary_results
+
                     gateway_leg_results = {
                         "searched_gateways": 1,
                         "viable_gateways": 0,
@@ -799,7 +806,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                         ),
                         patch(
                             "flights_cli.execution.search_executor.run_primary_offer_queries",
-                            return_value=primary_results,
+                            side_effect=phased_primary,
                         ),
                         patch(
                             "flights_cli.execution.search_executor.run_aggregate_controls",

@@ -20,10 +20,11 @@ Defaults are applied once by `SearchRequest`. Planning is pure with respect to
 providers. Gateway priors may schedule probes; gateways observed live are
 evidence and do not mutate the plan.
 
-Provider I/O belongs to execution. Primary probes run first, fallback is
-assessed from partial evidence without a graph, at most one bounded fallback
-wave may run, preplanned aggregate/evidence probes run once, then the ledger is finalized
-and frozen. Ledger terminal states cannot reopen; cache status is separate.
+Provider I/O belongs to execution. Direct-only primary probes run first for
+each direction. Broad primary and gateway probes are eligible only for
+directions with no direct result. At most one bounded fallback wave may run,
+preplanned aggregate/evidence probes run once, then the ledger is finalized and
+frozen. Ledger terminal states cannot reopen; cache status is separate.
 
 After evidence freeze, graph construction, candidate normalization, scoring,
 round-trip/two-one-way composition, and frontier selection run once. Provider
@@ -33,8 +34,10 @@ projection and rendering may not perform provider calls or option selection.
 ## Provider routing
 
 Provider routing is per logical probe, not per whole search. `tutu` is the
-default primary provider. In `auto`, a successful Tutu MCP probe stops fallback
-execution for the same logical probe.
+default primary provider. In `auto`, a successful Tutu MCP broad probe stops
+provider fallback for the same logical probe. Direct-only inventory is the
+exception: Tutu and KupiBilet are both queried so one provider's bounded result
+cannot hide direct flights exposed by the other.
 
 - `kupibilet` is fallback only when Tutu is unavailable, fails, or does not
   support the probe and KupiBilet capability and market fit it.
@@ -50,10 +53,18 @@ canonical carrier codes; route-specific carrier mappings are not allowed.
 
 ## Direct-first gate
 
-Direct-first is evaluated from primary evidence. A viable direct direction can
-suppress its planned gateway probes; if no acceptable direct candidate remains,
-one preplanned fallback wave may execute. Static catalogs, cached metadata, and
-provider-empty results retain their bounded evidence meaning.
+Direct-first is strict and directional. If any direct-only provider result
+contains a direct flight within the active date, airport, and restrictive
+carrier filters, broad and gateway alternatives for that direction are skipped.
+`max_connections` is only a fallback ceiling and never disables this gate.
+`prefer_carriers` does not narrow direct detection. Round-trip outbound and
+return directions are gated independently.
+
+The same rule applies inside gateway assembly per leg and date: execute the
+direct leg probe first, skip its broad variant when direct inventory exists,
+and permit intermediate hubs only after a direct-empty result. A provider
+failure is not proof that no direct flight exists; diagnostics record whether
+direct absence was confirmed by at least one completed source.
 
 ## Gateway discovery and assembly
 
@@ -61,8 +72,8 @@ provider-empty results retain their bounded evidence meaning.
 field:
 
 - `required` applies to configured restricted-access RU markets. Gateway
-  coverage is planned independently of provider failure, although viable direct
-  evidence may still stop unnecessary gateway probes.
+  fallback is mandatory when no direct flight exists, but direct evidence still
+  suppresses gateway probes for that direction.
 - `optional_after_provider_failure` applies to normal RU-touching and global
   markets. Conditional gateway probes run only when primary evidence is
   unavailable, unsupported, failed, or unusable.

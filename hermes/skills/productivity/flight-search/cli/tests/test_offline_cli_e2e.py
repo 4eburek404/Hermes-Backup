@@ -37,7 +37,7 @@ def segment(
 
 class TutuStub:
     def __init__(self) -> None:
-        self.tool_queries: list[tuple[str, str, str]] = []
+        self.tool_queries: list[tuple[str, str, str, bool]] = []
         owner = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -57,7 +57,9 @@ class TutuStub:
                     origin = str(arguments.get("origin") or "").upper()
                     destination = str(arguments.get("destination") or "").upper()
                     date = str(arguments.get("departure_date") or "")
-                    owner.tool_queries.append((origin, destination, date))
+                    owner.tool_queries.append(
+                        (origin, destination, date, bool(arguments.get("direct_only")))
+                    )
                     payload = owner.search_payload(origin, destination)
                     response["result"] = {
                         "content": [{"type": "text", "text": json.dumps(payload)}]

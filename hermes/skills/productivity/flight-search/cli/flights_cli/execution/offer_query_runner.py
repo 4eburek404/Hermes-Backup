@@ -29,7 +29,8 @@ def _probe_id(query: Mapping[str, Any], provider: str) -> str:
     origin = str(query.get("origin") or "").upper()
     destination = str(query.get("destination") or "").upper()
     date_text = str(query.get("date") or "")
-    return f"primary_offer:{provider}:{direction}:{origin}-{destination}:{date_text}"
+    phase = "direct" if bool(query.get("direct_only")) else "fallback"
+    return f"primary_offer:{provider}:{phase}:{direction}:{origin}-{destination}:{date_text}"
 
 
 def _required_int(query: Mapping[str, Any], name: str) -> int:
@@ -196,7 +197,11 @@ def run_primary_offer_queries(
         if probe_ledger is not None:
             probe_ledger.plan_intents([intent])
         fallback_group = _fallback_group_key(query)
-        if provider != "tutu" and fallback_group in tutu_available_groups:
+        if (
+            not bool(query.get("direct_only"))
+            and provider != "tutu"
+            and fallback_group in tutu_available_groups
+        ):
             if probe_ledger is not None:
                 probe_ledger.record_skipped(intent, reason="tutu_mcp_available")
             results.append(_skipped_result(query, "tutu_mcp_available"))

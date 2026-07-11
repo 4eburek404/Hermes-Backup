@@ -132,6 +132,11 @@ def build_decision_frontier(
         ):
             gateway_count += 1
 
+    if max_options is not None:
+        for candidate in acceptable:
+            if len(selected) >= max(0, int(max_options)):
+                break
+            _select_frontier_option(selected, candidate, "ranked_acceptable")
     selected_before_limit = len(selected)
     if max_options is not None:
         selected = selected[: max(0, int(max_options))]
@@ -214,6 +219,12 @@ def _candidate_with_rank_diagnostics(
         airport_mismatch_violations=airport_mismatch_violations,
         chronology_violations=chronology_violations,
         mct_violations=mct_violations,
+    )
+    impossible_connection = impossible_connection or (
+        connection_assessment.get("status") == "invalid"
+    )
+    impossible_connection = impossible_connection or (
+        connection_assessment.get("status") == "invalid"
     )
     ticket_protection = _ticket_protection(candidate)
     rank_components = {
@@ -842,6 +853,10 @@ def _frontier_acceptable(candidate: dict[str, Any]) -> bool:
         bool(candidate.get("covers_requested_trip"))
         and not _has_impossible_connection(candidate)
         and not _chronology_violations(candidate)
+        and (candidate.get("connection_assessment") or {}).get("status")
+        != "invalid"
+        and (candidate.get("connection_assessment") or {}).get("status")
+        != "invalid"
     )
 
 

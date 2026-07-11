@@ -213,10 +213,10 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(payload["command"], "maint doctor")
         self.assertEqual(payload["issues"], [])
         self.assertEqual(
-            payload["data"]["cli"], {"name": "flights-cli", "version": "0.8.0"}
+            payload["data"]["cli"], {"name": "flights-cli", "version": "0.8.1"}
         )
         self.assertEqual(
-            payload["data"]["skill"], {"name": "flight-search", "version": "0.11.3"}
+            payload["data"]["skill"], {"name": "flight-search", "version": "0.11.4"}
         )
         self.assertEqual(
             set(payload["data"]),

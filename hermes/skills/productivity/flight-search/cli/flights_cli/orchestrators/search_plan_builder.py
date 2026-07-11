@@ -49,10 +49,10 @@ def build_planning_state(
 
 
 def direct_inventory_dates(options: SearchRequest, flow: _PlanningState) -> list[str]:
-    depart = parse_iso_date(flow.request.depart_date, "depart-date")
     window_end_raw = options.route.date_window_end
     if not window_end_raw:
-        return [depart.isoformat()]
+        return [flow.request.depart_date]
+    depart = parse_iso_date(flow.request.depart_date, "depart-date")
     if not flow.evidence_plan.direct_only:
         raise CliError(
             "date_window_end requires direct-only route options: set route_options.max_connections=0 and route_options.tier2_max_connections=0",
@@ -522,10 +522,11 @@ class SearchPlanBuilder:
                 if next_date not in leg_dates:
                     leg_dates.append(next_date)
             for leg_date in leg_dates:
-                query = {
+                for direct_only in (True, False):
+                    query = {
                 "role": "gateway_leg_probe",
                 "source_type": "gateway_discovery_candidate",
-                "probe_type": "segment_hub_leg",
+                "probe_type": "segment_direct" if direct_only else "segment_hub_leg",
                 "direction": "outbound",
                 "leg": leg,
                 "origin": leg_origin,
@@ -534,11 +535,11 @@ class SearchPlanBuilder:
                 "destination_airports": [leg_destination],
                 "date": leg_date,
                 "currency": currency,
-                "direct_only": False,
+                "direct_only": direct_only,
                 "gateway": gateway,
                 "gateway_role": "bridge_gateway",
                 "connection_layer": connection_layer,
-                "allows_intermediate_hubs": True,
+                "allows_intermediate_hubs": not direct_only,
                 "date_strategy": (
                     "requested_day_and_next_day"
                     if leg == "gateway_to_destination"
@@ -551,17 +552,17 @@ class SearchPlanBuilder:
                 "gateway_discovery_mode": gateway_discovery_mode,
                 "execution_state": "not_executed",
                 }
-                self._apply_filters(query)
-                providers = providers_for_segment(
-                    query, self._store, flow.evidence_plan.provider_policy
-                )
-                if providers:
-                    query["provider"] = str(providers[0])
-                else:
-                    query["provider"] = None
-                    query["execution_state"] = "skipped"
-                    query["reason"] = "provider_not_applicable"
-                queries.append(query)
+                    self._apply_filters(query)
+                    providers = providers_for_segment(
+                        query, self._store, flow.evidence_plan.provider_policy
+                    )
+                    if providers:
+                        query["provider"] = str(providers[0])
+                    else:
+                        query["provider"] = None
+                        query["execution_state"] = "skipped"
+                        query["reason"] = "provider_not_applicable"
+                    queries.append(query)
         return queries
 
     def _primary_offer_queries(
@@ -588,15 +589,20 @@ class SearchPlanBuilder:
         access_profile = str(flow.flow_decision.route_access_profile or "")
         discovery_mode = str(flow.flow_decision.gateway_discovery_mode or "disabled")
 
+        direct_queries = self._direct_inventory_queries(
+            flow,
+            origin=origin,
+            destination=destination,
+            origin_airports=origin_airports,
+            destination_airports=destination_airports,
+            currency=currency,
+        )
+        if access_profile == PROFILE_RESTRICTED_ACCESS:
+            for query in direct_queries:
+                query["route_access_profile"] = access_profile
+                query["gateway_discovery_mode"] = discovery_mode
         if flow.evidence_plan.direct_only or flow.request.date_window_end:
-            return self._direct_inventory_queries(
-                flow,
-                origin=origin,
-                destination=destination,
-                origin_airports=origin_airports,
-                destination_airports=destination_airports,
-                currency=currency,
-            )
+            return direct_queries
 
         route_query: dict[str, Any] = {
             "probe_type": RequiredControl.FULL_ROUTE_AGGREGATE,
@@ -605,7 +611,7 @@ class SearchPlanBuilder:
             "direct_only": False,
         }
         self._apply_filters(route_query)
-        queries: list[dict[str, Any]] = []
+        queries: list[dict[str, Any]] = list(direct_queries)
         seen: set[str] = set()
         for provider_name in self._provider_names_for_primary_offers(flow, route_query):
             if not provider_name or provider_name in seen:
@@ -627,8 +633,6 @@ class SearchPlanBuilder:
                 "limit": flow.evidence_plan.primary_offer_limit,
                 "execution_state": "not_executed",
             }
-            if flow.request.return_date:
-                query["return_date"] = flow.request.return_date
             self._apply_filters(query)
             if access_profile == PROFILE_RESTRICTED_ACCESS:
                 query["route_family"] = PROFILE_RESTRICTED_ACCESS
@@ -639,6 +643,20 @@ class SearchPlanBuilder:
                     "restricted_access_market_requires_gateway_discovery"
                 )
             queries.append(query)
+        if flow.request.return_date:
+            queries.extend(
+                self._provider_offer_queries_for_route(
+                    flow,
+                    direction=Direction.RETURN,
+                    origin=destination,
+                    destination=origin,
+                    origin_airports=destination_airports,
+                    destination_airports=origin_airports,
+                    date_text=flow.request.return_date,
+                    currency=currency,
+                    direct_only=False,
+                )
+            )
         return queries
 
     def _direct_inventory_queries(
@@ -749,6 +767,8 @@ class SearchPlanBuilder:
         primary_offer_queries: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         if not primary_offer_queries:
+            return []
+        if all(bool(query.get("direct_only")) for query in primary_offer_queries):
             return []
         access_profile = str(primary_offer_queries[0].get("route_access_profile") or "")
         if access_profile != PROFILE_RESTRICTED_ACCESS:

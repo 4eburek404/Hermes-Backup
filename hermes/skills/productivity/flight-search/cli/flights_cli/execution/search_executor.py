@@ -24,6 +24,7 @@ from .offer_query_runner import (
     run_primary_offer_queries,
 )
 from .probe_ledger import ProbeExecutionLedger
+from .probe_intent import intent_from_aggregate_query
 from .request_deduper import RequestDeduper
 from .search_wave_planner import (
     SearchWavePlanner,
@@ -420,11 +421,6 @@ def _direct_evidence_by_direction(
 
 
 def _direct_mode_disabled_reason(options: SearchRequest) -> str | None:
-    if (
-        options.route.max_connections is not None
-        and int(options.route.max_connections) >= 1
-    ):
-        return "max_connections_override"
     return None
 
 
@@ -741,47 +737,87 @@ class SearchExecutor:
         """Execute one prebuilt SearchPlan without replanning."""
 
         state = self.initialize_state(plan)
-        state.primary_offer_results = run_primary_offer_queries(
-            [
+        planned_primary = list(state.search_plan.get("primary_offer_queries") or [])
+        query_options = PrimaryOfferQueryOptions(
+            live_cache_ttl_seconds=self.cache_ttl_seconds,
+            no_live_cache=not self.use_live_cache,
+            timeout=self.options.evidence.timeout,
+        )
+        direct_query_specs = [
                 {**query, "wave_index": 0}
-                for query in list(state.search_plan.get("primary_offer_queries") or [])
-            ],
-            PrimaryOfferQueryOptions(
-                live_cache_ttl_seconds=self.cache_ttl_seconds,
-                no_live_cache=not self.use_live_cache,
-                timeout=self.options.evidence.timeout,
-            ),
-            store=self.store,
-            kupibilet_fetcher=fetch_kupibilet_search,
-            probe_ledger=state.probe_ledger,
+                for query in planned_primary
+                if bool(query.get("direct_only"))
+        ]
+        direct_results = (
+            run_primary_offer_queries(
+                direct_query_specs,
+                query_options,
+                store=self.store,
+                kupibilet_fetcher=fetch_kupibilet_search,
+                probe_ledger=state.probe_ledger,
+            )
+            if direct_query_specs
+            else []
         )
         state.direct_mode, state.direct_presence_gate = (
             _direct_mode_from_primary_results(
                 self.options,
                 state.route_context,
-                state.primary_offer_results,
+                direct_results,
             )
         )
-        fallback_directions = assess_fallback(
-            state.primary_offer_results,
-            state.direct_mode,
+        fallback_directions = [
+            direction
+            for direction, direct_present in state.direct_mode.items()
+            if not direct_present
+        ]
+        fallback_queries = [
+            {**query, "wave_index": 1}
+            for query in planned_primary
+            if not bool(query.get("direct_only"))
+            and _normalize_direction(query.get("direction")) in fallback_directions
+        ]
+        for query in planned_primary:
+            if bool(query.get("direct_only")):
+                continue
+            if _normalize_direction(query.get("direction")) in fallback_directions:
+                continue
+            state.probe_ledger.record_skipped(
+                intent_from_aggregate_query(
+                    query, provider=str(query.get("provider") or "") or None
+                ),
+                reason="direct_available",
+            )
+        fallback_results = run_primary_offer_queries(
+            fallback_queries,
+            query_options,
+            store=self.store,
+            kupibilet_fetcher=fetch_kupibilet_search,
+            probe_ledger=state.probe_ledger,
         )
-        gateway_discovery = state.search_plan.get("gateway_discovery")
-        if isinstance(gateway_discovery, dict) and str(
-            gateway_discovery.get("mode") or ""
-        ) == "required":
-            fallback_directions = list(
-                dict.fromkeys(
-                    [
-                        *fallback_directions,
-                        *(
-                            _normalize_direction(query.get("direction"))
-                            for query in state.planned_gateway_leg_queries
-                            if isinstance(query, dict)
-                        ),
-                    ]
+        state.primary_offer_results = [*direct_results, *fallback_results]
+        if not direct_query_specs:
+            state.direct_mode, state.direct_presence_gate = (
+                _direct_mode_from_primary_results(
+                    self.options,
+                    state.route_context,
+                    fallback_results,
                 )
             )
+            fallback_directions = [
+                direction
+                for direction, direct_present in state.direct_mode.items()
+                if not direct_present
+            ]
+        successful_direct_directions = {
+            _normalize_direction(result.get("direction"))
+            for result in direct_results
+            if str(result.get("execution_state") or "") == "searched"
+        }
+        state.direct_presence_gate["direct_search_confirmed"] = {
+            direction: direction in successful_direct_directions
+            for direction in state.direct_mode
+        }
         gateway_queries, skipped_gateway_queries = _partition_gateway_queries(
             list(state.planned_gateway_leg_queries), fallback_directions
         )
@@ -790,10 +826,6 @@ class SearchExecutor:
         )
         if fallback_directions:
             if gateway_queries and self.search_wave_planner is not None:
-                for direction in fallback_directions:
-                    if state.direct_mode.get(direction):
-                        state.direct_mode[direction] = False
-                        state.direct_mode_max_connections_by_direction[direction] = 1
                 state.gateway_leg_results = self.search_wave_planner.run(
                     gateway_queries, state.route_context
                 )
@@ -826,7 +858,7 @@ class SearchExecutor:
                     ),
                 }
         for query in skipped_gateway_queries:
-            state.probe_ledger.record_skipped(query, reason="primary_candidate_usable")
+            state.probe_ledger.record_skipped(query, reason="direct_available")
 
         aggregate_controls = run_aggregate_controls(
             AggregateControlOptions(

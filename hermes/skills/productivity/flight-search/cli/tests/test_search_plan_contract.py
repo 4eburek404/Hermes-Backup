@@ -97,7 +97,11 @@ class SearchPlanContractTests(unittest.TestCase):
         self.assertEqual(search_plan["schema_version"], "flight_search_plan.v2")
         primary_queries = search_plan["primary_offer_queries"]
         self.assertEqual(
-            [query["provider"] for query in primary_queries], ["tutu", "kupibilet"]
+            [query["provider"] for query in primary_queries], ["tutu", "kupibilet", "tutu", "kupibilet"]
+        )
+        self.assertEqual(
+            [query["direct_only"] for query in primary_queries],
+            [True, True, False, False],
         )
         for query in primary_queries:
             with self.subTest(provider=query["provider"]):
@@ -111,19 +115,23 @@ class SearchPlanContractTests(unittest.TestCase):
                 self.assertEqual(query["destination"], "AMS")
                 self.assertEqual(query["date"], "2026-08-15")
                 self.assertEqual(query["currency"], "RUB")
-                self.assertFalse(query["direct_only"])
+                self.assertIn(query["direct_only"], (True, False))
                 self.assertEqual(query["limit"], options.evidence.primary_offer_limit)
                 self.assertEqual(query["execution_state"], "not_executed")
-                self.assertEqual(query["route_family"], "restricted_access_market")
                 self.assertEqual(
                     query["route_access_profile"], "restricted_access_market"
                 )
                 self.assertEqual(query["gateway_discovery_mode"], "required")
-                self.assertFalse(query["exhaustive"])
-                self.assertEqual(
-                    query["non_exhaustive_reason"],
-                    "restricted_access_market_requires_gateway_discovery",
-                )
+                if query["direct_only"]:
+                    self.assertEqual(query["route_family"], "direct_inventory")
+                    self.assertTrue(query["exhaustive"])
+                else:
+                    self.assertEqual(query["route_family"], "restricted_access_market")
+                    self.assertFalse(query["exhaustive"])
+                    self.assertEqual(
+                        query["non_exhaustive_reason"],
+                        "restricted_access_market_requires_gateway_discovery",
+                    )
         gateway_discovery = search_plan["gateway_discovery"]
         self.assertEqual(gateway_discovery["enabled"], True)
         self.assertEqual(
@@ -164,7 +172,8 @@ class SearchPlanContractTests(unittest.TestCase):
                     query["direct_only"],
                     query["connection_layer"],
                 )
-                for query in search_plan["conditional_gateway_queries"][:2]
+                for query in search_plan["conditional_gateway_queries"]
+                if not query["direct_only"]
             ],
             [
                 (
@@ -183,12 +192,21 @@ class SearchPlanContractTests(unittest.TestCase):
                     False,
                     "restricted_non_ru_access",
                 ),
+                (
+                    "gateway_to_destination",
+                    "IST",
+                    "AMS",
+                    "tutu",
+                    False,
+                    "restricted_non_ru_access",
+                ),
             ],
         )
         self.assertTrue(
             all(
                 query["execution_state"] == "not_executed"
                 for query in search_plan["conditional_gateway_queries"]
+                if not query["direct_only"]
             )
         )
         self.assertEqual(
@@ -272,7 +290,7 @@ class SearchPlanContractTests(unittest.TestCase):
                         query["provider"]
                         for query in search_plan["primary_offer_queries"]
                     ],
-                    ["tutu", "kupibilet"],
+                    ["tutu", "kupibilet", "tutu", "kupibilet"],
                 )
                 if destination == "PEK":
                     self.assertNotEqual(gateway_discovery["mode"], "required")
@@ -348,11 +366,12 @@ class SearchPlanContractTests(unittest.TestCase):
         search_plan = build_search_plan(options, store, flow=flow)
 
         validate_contract_payload("search_plan", search_plan)
-        self.assertEqual(len(search_plan["conditional_gateway_queries"]), 3)
+        self.assertEqual(len(search_plan["conditional_gateway_queries"]), 6)
         self.assertEqual(
             [
                 (query["leg"], query["gateway"], query["provider"], query["date"])
                 for query in search_plan["conditional_gateway_queries"]
+                if not query["direct_only"]
             ],
             [
                 ("origin_to_gateway", "IST", "tutu", "2026-08-15"),
@@ -396,6 +415,7 @@ class SearchPlanContractTests(unittest.TestCase):
                     query["allows_intermediate_hubs"],
                 )
                 for query in search_plan["conditional_gateway_queries"]
+                if not query["direct_only"]
             ],
             [
                 (
@@ -455,7 +475,7 @@ class SearchPlanContractTests(unittest.TestCase):
             search_plan["gateway_discovery"]["mode"],
             "optional_after_provider_failure",
         )
-        self.assertEqual(len(search_plan["conditional_gateway_queries"]), 3)
+        self.assertEqual(len(search_plan["conditional_gateway_queries"]), 6)
 
     def test_builder_uses_tutu_primary_for_ru_touching_auto_full_route(
         self,
@@ -479,7 +499,11 @@ class SearchPlanContractTests(unittest.TestCase):
         validate_contract_payload("search_plan", search_plan)
         self.assertEqual(
             [query["provider"] for query in search_plan["primary_offer_queries"]],
-            ["tutu", "kupibilet"],
+            ["tutu", "kupibilet", "tutu", "kupibilet"],
+        )
+        self.assertEqual(
+            [query["direct_only"] for query in search_plan["primary_offer_queries"]],
+            [True, True, False, False],
         )
 
     def test_builder_adds_direct_primary_queries_for_direct_inventory(
@@ -548,7 +572,7 @@ class SearchPlanContractTests(unittest.TestCase):
         validate_contract_payload("search_plan", search_plan)
         self.assertEqual(
             [query["provider"] for query in search_plan["primary_offer_queries"]],
-            ["tutu", "kupibilet"],
+            ["tutu", "kupibilet", "tutu", "kupibilet"],
         )
         for query in search_plan["primary_offer_queries"]:
             with self.subTest(provider=query["provider"]):
@@ -560,7 +584,7 @@ class SearchPlanContractTests(unittest.TestCase):
                 self.assertEqual(query["destination"], "AMS")
                 self.assertEqual(query["date"], "2026-08-15")
                 self.assertEqual(query["currency"], "RUB")
-                self.assertFalse(query["direct_only"])
+                self.assertIn(query["direct_only"], (True, False))
                 self.assertEqual(query["limit"], options.evidence.primary_offer_limit)
                 self.assertEqual(query["execution_state"], "not_executed")
         self.assertEqual(search_plan["coverage_expectations"], [])

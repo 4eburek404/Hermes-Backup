@@ -134,7 +134,28 @@ class GatewayLegProbeExecutor:
                 item["missing_legs"].append(leg_key)
                 item[leg_key] = _missing_leg_result(leg_key)
                 continue
-            leg_results = [self._execute_leg(query, plan) for query in queries]
+            direct_queries = [query for query in queries if query.get("direct_only")]
+            broad_queries = [query for query in queries if not query.get("direct_only")]
+            direct_results = [self._execute_leg(query, plan) for query in direct_queries]
+            direct_found = any(
+                int(result.get("offer_count") or 0) > 0 for result in direct_results
+            )
+            if direct_found:
+                for query in broad_queries:
+                    intent = intent_from_segment(
+                        query, provider=str(query.get("provider") or "") or None
+                    )
+                    if self.probe_ledger is not None:
+                        self.probe_ledger.plan_intents([intent])
+                        self.probe_ledger.record_skipped(
+                            intent, reason="direct_available"
+                        )
+                broad_results: list[dict[str, Any]] = []
+            else:
+                broad_results = [
+                    self._execute_leg(query, plan) for query in broad_queries
+                ]
+            leg_results = [*direct_results, *broad_results]
             leg_result = _merge_leg_results(leg_results)
             item[leg_key] = leg_result
             item["provider_failures"].extend(
