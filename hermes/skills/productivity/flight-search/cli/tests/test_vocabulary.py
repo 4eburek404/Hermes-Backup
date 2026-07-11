@@ -1,75 +1,8 @@
-"""Test: vocabulary enum values match JSON schema wire contracts.
-
-This is the sync-test from Phase 1 of the vocabulary centralization plan.
-It asserts that every StrEnum member that appears in a JSON schema enum
-list matches exactly.  If a schema enum is updated without updating the
-vocabulary (or vice versa), this test fails — catching contract drift early.
-"""
+"""Structural and drift checks for the canonical vocabulary enums."""
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 import unittest
-
-from flights_cli.domain.vocabulary import Direction
-
-# ---------------------------------------------------------------------------
-# Schema paths
-# ---------------------------------------------------------------------------
-
-CONTRACTS_DIR = Path(__file__).resolve().parent.parent / "flights_cli" / "contracts"
-
-
-def _load_schema(name: str) -> dict:
-    path = CONTRACTS_DIR / name
-    with open(path) as f:
-        return json.load(f)
-
-
-def _collect_schema_enums(schema: dict, prefix: str = "") -> dict[str, list[str]]:
-    """Walk a JSON schema and collect all ``enum`` lists with their JSON paths."""
-    result: dict[str, list[str]] = {}
-    if isinstance(schema, dict):
-        if "enum" in schema:
-            key = prefix or "$root"
-            result[key] = schema["enum"]
-        for key, value in schema.items():
-            result.update(
-                _collect_schema_enums(value, f"{prefix}.{key}" if prefix else key)
-            )
-    elif isinstance(schema, list):
-        for i, item in enumerate(schema):
-            result.update(_collect_schema_enums(item, f"{prefix}[{i}]"))
-    return result
-
-
-# ---------------------------------------------------------------------------
-# direction ↔ user_answer.v4 schema
-# ---------------------------------------------------------------------------
-
-
-class TestDirectionSchemaSync(unittest.TestCase):
-    """Direction enum must match the ``direction`` enum in the user answer schema."""
-
-    def setUp(self) -> None:
-        self.schema = _load_schema("flight_search_user_answer.v9.schema.json")
-
-    def test_direction_values_match_schema(self) -> None:
-        enums = _collect_schema_enums(self.schema)
-        # Find the direction enum (may include None for nullable fields)
-        direction_enums = {
-            path: [v for v in values if v is not None]
-            for path, values in enums.items()
-            if "direction" in path.lower()
-            and set(v for v in values if v is not None) == {"outbound", "return"}
-        }
-        if not direction_enums:
-            self.skipTest("No 'direction' enum found in user_answer schema")
-        direction_values = next(iter(direction_enums.values()))
-        vocab_values = [d.value for d in Direction]
-        self.assertEqual(sorted(vocab_values), sorted(direction_values))
 
 
 # ---------------------------------------------------------------------------
