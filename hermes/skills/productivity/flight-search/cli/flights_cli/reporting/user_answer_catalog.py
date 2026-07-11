@@ -188,7 +188,11 @@ def infer_journey_scope(option: dict[str, Any], *, is_round_trip_request: bool) 
 
 
 def default_label(
-    option: dict[str, Any], *, journey_scope: str, direction: str | None, is_primary: bool
+    option: dict[str, Any],
+    *,
+    journey_scope: str,
+    direction: str | None,
+    is_primary: bool,
 ) -> str:
     price = str(option.get("price_text") or "price n/a")
     route = route_label(option)

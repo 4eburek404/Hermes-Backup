@@ -295,7 +295,9 @@ def render_answer_display_segment(
     origin = answer_endpoint_display_label(
         segment, "origin", include_code=include_origin_code
     )
-    destination = answer_endpoint_display_label(segment, "destination", include_code=True)
+    destination = answer_endpoint_display_label(
+        segment, "destination", include_code=True
+    )
     return (
         f"{prefix}{catalog_display_date(departure_at)} {origin}-{destination} "
         f"{answer_display_time(departure_at)} {answer_display_time(arrival_at)}"
@@ -306,9 +308,7 @@ def render_answer_display_segment(
 
 def self_transfer_warning(item: dict[str, Any]) -> str | None:
     protection = (
-        item.get("protection")
-        if isinstance(item.get("protection"), dict)
-        else {}
+        item.get("protection") if isinstance(item.get("protection"), dict) else {}
     )
     risk = item.get("risk") if isinstance(item.get("risk"), dict) else {}
     has_provider_evidence = bool(

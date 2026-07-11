@@ -1463,6 +1463,8 @@ def build_agent_report(
             route=route,
             coverage=coverage,
             through_fare_check_items=through_fare_check_items,
-            evidence_plan=plan_evidence_plan if isinstance(plan_evidence_plan, dict) else {},
+            evidence_plan=plan_evidence_plan
+            if isinstance(plan_evidence_plan, dict)
+            else {},
         ),
     }

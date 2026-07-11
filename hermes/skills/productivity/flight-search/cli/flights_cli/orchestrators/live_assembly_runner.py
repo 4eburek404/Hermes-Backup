@@ -633,9 +633,7 @@ class LiveSearchResultBuilder:
     ) -> dict[str, Any]:
         evaluated = evaluation or self.evaluate(state)
         decision_frontier = evaluated.decision_frontier
-        mixed_candidate_ranking = evaluated.scored_decisions[
-            "mixed_candidate_ranking"
-        ]
+        mixed_candidate_ranking = evaluated.scored_decisions["mixed_candidate_ranking"]
         coverage = (
             decision_frontier.get("coverage_summary")
             if isinstance(decision_frontier.get("coverage_summary"), dict)

@@ -320,7 +320,9 @@ def call_tutu_mcp_tool(
     )
 
 
-def require_tutu_tool_object(payload: TutuToolPayload, tool_name: str) -> dict[str, Any]:
+def require_tutu_tool_object(
+    payload: TutuToolPayload, tool_name: str
+) -> dict[str, Any]:
     if isinstance(payload, dict):
         return payload
     raise CliError(
@@ -357,7 +359,9 @@ def _carrier_name_key(value: str) -> str:
 
 
 def _carrier_match_key(value: str) -> str:
-    return "".join(character for character in _carrier_name_key(value) if character.isalnum())
+    return "".join(
+        character for character in _carrier_name_key(value) if character.isalnum()
+    )
 
 
 def _valid_carrier_code(value: str) -> str | None:

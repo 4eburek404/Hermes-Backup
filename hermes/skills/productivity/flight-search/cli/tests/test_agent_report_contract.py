@@ -193,7 +193,9 @@ class AgentReportContractTests(unittest.TestCase):
         frontier = report["frontier"]["decision_frontier"]
         option = frontier["options"][0]
         control = frontier["controls"][0]
-        self.assertEqual(frontier["schema_version"], "flight_decision_frontier.public.v1")
+        self.assertEqual(
+            frontier["schema_version"], "flight_decision_frontier.public.v1"
+        )
         self.assertEqual(option["id"], "frontier-1")
         self.assertEqual(option["catalog_item_number"], 1)
         self.assertEqual(

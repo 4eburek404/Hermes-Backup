@@ -494,8 +494,7 @@ class SearchPlanBuilder:
         ]
         destination_airports = [
             str(code).upper()
-            for code in fallback_route_plan.get("destination_airports")
-            or [destination]
+            for code in fallback_route_plan.get("destination_airports") or [destination]
             if str(code).strip()
         ]
         access_profile = str(flow.flow_decision.route_access_profile or "")

@@ -265,7 +265,11 @@ class TutuMcpProviderTests(unittest.TestCase):
 
     def test_extract_tool_payload_accepts_plain_text(self) -> None:
         payload = extract_tool_payload(
-            {"content": [{"type": "text", "text": "# Avia instructions\nUse search_avia."}]}
+            {
+                "content": [
+                    {"type": "text", "text": "# Avia instructions\nUse search_avia."}
+                ]
+            }
         )
 
         self.assertEqual(payload, "# Avia instructions\nUse search_avia.")
