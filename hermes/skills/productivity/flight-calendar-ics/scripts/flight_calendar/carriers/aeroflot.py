@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 """Fetch Aeroflot manage-booking data and convert it to flight-calendar-ics JSON.
 
-Input can be a direct/manage URL containing pnrKey/pnrLocator, the two values
-passed explicitly, or a booking locator plus passenger surname so the script can
-programmatically perform the same name search as the Aeroflot SPA and derive the
-pnr_key deep link. The script does not print PNR, passenger names, ticket
-numbers, or full source URLs. It always writes the Aeroflot booking URL into the
-requested JSON/ICS output so imported calendar events retain a direct booking
-link on any device.
+Input can be a direct/manage URL containing pnrKey/pnrLocator or those two
+values passed explicitly by internal callers. The script does not print PNR,
+passenger names, ticket numbers, or full source URLs. It always writes the
+Aeroflot booking URL into the requested JSON/ICS output so imported calendar
+events retain a direct booking link on any device.
 """
 
 from __future__ import annotations
@@ -23,9 +21,7 @@ from flight_calendar.common import die
 
 AEROFLOT_BASE = "https://www.aeroflot.ru"
 AEROFLOT_APP_URL = AEROFLOT_BASE + "/sb/pnr/app/ru-ru"
-AEROFLOT_SEARCH_URL = AEROFLOT_APP_URL + "#/search"
 AEROFLOT_PNR_API = AEROFLOT_BASE + "/se/api/app/pnr/view/v3"
-AMBIGUOUS_PNR_ERROR_TYPES = {"PassengerAmbiguous", "SabrePNRAmbiguousException"}
 
 
 def pnr_query_params_from_url(booking_url: str) -> dict[str, list[str]]:
@@ -132,61 +128,6 @@ def require_success_data(obj: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         die("Aeroflot PNR API response has no data object")
     return data
-
-
-def fetch_aeroflot_pnr_key_by_name(
-    locator: str,
-    last_name: str,
-    *,
-    first_name: str | None = None,
-    timeout: int = 45,
-) -> tuple[str, str, str]:
-    locator = normalize_locator(locator)
-    last_name = (last_name or "").strip()
-    fallback_first_name = (first_name or "").strip()
-    if not last_name:
-        die("passenger surname is required to generate an Aeroflot PNR deep link")
-
-    def request(name: str) -> dict[str, Any]:
-        return post_aeroflot_pnr_json(
-            {
-                "pnr_locator": locator,
-                "last_name": last_name,
-                "first_name": name,
-                "lang": "ru",
-                "country": "ru",
-            },
-            timeout=timeout,
-            referer=AEROFLOT_SEARCH_URL,
-        )
-
-    obj = request("")
-    if not obj.get("success") and pnr_api_error_type(obj) in AMBIGUOUS_PNR_ERROR_TYPES:
-        if not fallback_first_name:
-            die("Aeroflot PNR search is ambiguous; retry with passenger first name")
-        obj = request(fallback_first_name)
-
-    data = require_success_data(obj)
-    key = normalize_pnr_key(str(data.get("pnr_key") or ""))
-    returned_locator = normalize_locator(str(data.get("pnr_locator") or locator))
-    return returned_locator, key, build_aeroflot_booking_url(returned_locator, key)
-
-
-def resolve_pnr_source(
-    url: str | None,
-    locator: str | None,
-    key: str | None,
-    last_name: str | None = None,
-    first_name: str | None = None,
-) -> tuple[str, str, str]:
-    if url or key:
-        return parse_pnr_source(url, locator, key)
-    if locator and last_name:
-        return fetch_aeroflot_pnr_key_by_name(locator, last_name, first_name=first_name)
-    die(
-        "provide --url containing pnrKey/pnrLocator, both --pnr-locator and --pnr-key, "
-        "or --pnr-locator with --last-name to generate the key"
-    )
 
 
 def fetch_aeroflot_pnr(locator: str, key: str, *, timeout: int = 45) -> dict[str, Any]:

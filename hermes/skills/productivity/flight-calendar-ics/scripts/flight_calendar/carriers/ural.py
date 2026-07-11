@@ -23,11 +23,9 @@ from flight_calendar.common import die
 
 
 URAL_SERVICE_BASE = "https://service.uralairlines.ru/"
-DEFAULT_ENV_PATH = "/<version>/env/env.json"
 
 
 class FrontendAssets(NamedTuple):
-    base_url: str
     env_url: str
     helper_js_url: str
     app_js_url: str
@@ -139,7 +137,6 @@ def discover_frontend_assets(
         die("could not find Ural Airlines frontend API-key helper script in shell HTML")
 
     return FrontendAssets(
-        base_url=base,
         env_url=urljoin(base, f"/{version}/env/env.json"),
         helper_js_url=urljoin(base, helper_path.split("?", 1)[0]),
         app_js_url=urljoin(base, app_path.split("?", 1)[0]),

@@ -258,25 +258,6 @@ def _detection(route: str, confidence: float, evidence: list[str]) -> dict[str, 
     }
 
 
-def _explicit_arg_route_evidence(args: argparse.Namespace) -> dict[str, list[str]]:
-    candidates: dict[str, list[str]] = {}
-    if getattr(args, "pnr_locator", None) and (
-        getattr(args, "pnr_key", None) or getattr(args, "last_name", None)
-    ):
-        _merge_evidence(
-            candidates, "aeroflot", ["arg:pnr_locator", "arg:pnr_key_or_last_name"]
-        )
-    if getattr(args, "pnr", None) and getattr(args, "access_code", None):
-        _merge_evidence(candidates, "redwings", ["arg:pnr", "arg:access_key"])
-    if getattr(args, "rloc", None) and getattr(args, "last_name", None):
-        _merge_evidence(candidates, "utair", ["arg:rloc", "arg:last_name"])
-    if getattr(args, "pnr", None) and getattr(args, "last_name", None):
-        _merge_evidence(candidates, "ural", ["arg:pnr", "arg:last_name"])
-        if not getattr(args, "access_code", None):
-            _merge_evidence(candidates, "utair", ["arg:pnr", "arg:last_name"])
-    return candidates
-
-
 def _global_url_route_evidence(
     fingerprints: list[dict[str, Any]],
 ) -> dict[str, list[str]]:
@@ -314,9 +295,6 @@ def _global_url_route_evidence(
 def infer_build_route(
     args: argparse.Namespace, *, url_override: str | None = None
 ) -> dict[str, Any]:
-    if getattr(args, "input", None) is not None:
-        return _detection("make", 1.0, ["input_kind:canonical_itinerary_json"])
-
     url = url_override if url_override is not None else first_url_from_args(args)
     fingerprints = _url_fingerprints(url) if url else []
     known_host_evidence: dict[str, list[str]] = {}
@@ -348,12 +326,10 @@ def infer_build_route(
 
     if len(known_host_evidence) == 1:
         route = next(iter(known_host_evidence))
-        explicit_evidence = _explicit_arg_route_evidence(args).get(route, [])
-        if route in known_complete or explicit_evidence:
+        if route in known_complete:
             evidence = [
                 *known_host_evidence[route],
                 *known_complete.get(route, []),
-                *explicit_evidence,
             ]
             return _detection(route, 1.0, evidence)
         if route == "redwings" and route in redwings_order_routes:
@@ -364,9 +340,6 @@ def infer_build_route(
         raise _route_input_insufficient(route)
 
     candidates = _global_url_route_evidence(fingerprints)
-    for route, evidence in _explicit_arg_route_evidence(args).items():
-        _merge_evidence(candidates, route, evidence)
-
     if len(candidates) == 1:
         route, evidence = next(iter(candidates.items()))
         return _detection(route, 0.9, evidence)

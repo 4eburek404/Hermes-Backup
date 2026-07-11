@@ -74,18 +74,7 @@ def _load_input_itinerary(input_path: Path) -> dict[str, Any]:
 
 
 def _source_args_for_url_file(url_file: Path) -> argparse.Namespace:
-    return argparse.Namespace(
-        input=None,
-        url=None,
-        url_file=url_file,
-        pnr_locator=None,
-        pnr_key=None,
-        pnr=None,
-        rloc=None,
-        last_name=None,
-        first_name=None,
-        access_code=None,
-    )
+    return argparse.Namespace(url=None, url_file=url_file)
 
 
 def _build_itinerary_from_url_file(
@@ -230,8 +219,6 @@ def main(argv: list[str] | None = None) -> int:
         _reject_removed_options(argv_list)
         parser = build_parser()
         args = parser.parse_args(argv_list)
-        if args.command != "build":
-            raise CliFailure(PUBLIC_USAGE, code="usage_error")
         with contextlib.redirect_stderr(stderr_buffer):
             payload = command_build(args)
         _emit_json(payload)

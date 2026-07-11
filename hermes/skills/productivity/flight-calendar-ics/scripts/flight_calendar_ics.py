@@ -7,19 +7,11 @@ exposes the public CLI hooks and forwards execution.
 
 from __future__ import annotations
 
-from typing import Any
-
 from flight_calendar import parser as _parser
 
 build_parser = _parser.build_parser
 main = _parser.main
 
 __all__ = ["build_parser", "main"]
-
-
-def __getattr__(name: str) -> Any:
-    return getattr(_parser, name)
-
-
 if __name__ == "__main__":
     raise SystemExit(main())
