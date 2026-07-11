@@ -5,8 +5,11 @@ import json
 import subprocess
 import sys
 import tempfile
+import unittest
 from pathlib import Path
 from typing import Any
+
+from flights_cli.store import Store
 
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -17,6 +20,20 @@ TEST_ENV = {
     "FLIGHTS_CACHE_DIR": str(TEST_CACHE_DIR),
     "PYTHONDONTWRITEBYTECODE": "1",
 }
+
+
+def store_with_airports(test_case: unittest.TestCase) -> Store:
+    tmp_dir = tempfile.TemporaryDirectory()
+    test_case.addCleanup(tmp_dir.cleanup)
+    cache = Path(tmp_dir.name)
+    airports = [
+        {"code": "SVX", "country_code": "RU", "flightable": True},
+        {"code": "CDG", "country_code": "FR", "flightable": True},
+        {"code": "IST", "country_code": "TR", "flightable": True},
+        {"code": "LHR", "country_code": "GB", "flightable": True},
+    ]
+    (cache / "airports_en.json").write_text(json.dumps(airports), encoding="utf-8")
+    return Store(cache)
 
 
 def decision_frontier_from_details(
@@ -132,9 +149,6 @@ def live_assembly_args(**overrides: Any) -> Any:
         "date_window_end": "date_window_end",
         "max_connections": "max_connections",
         "tier2_max_connections": "tier2_max_connections",
-        "use_gateway_discovery_for_fallback_hubs": (
-            "use_gateway_discovery_for_fallback_hubs"
-        ),
         "gateway_discovery_limit": "gateway_discovery_limit",
         "gateway_probe_batch_size": "gateway_probe_batch_size",
         "gateway_probe_max_batches": "gateway_probe_max_batches",

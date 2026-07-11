@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import unittest
-import tempfile
-from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
@@ -14,7 +12,7 @@ from flights_cli.execution.aggregate_control_runner import (
 from flights_cli.execution.probe_ledger import ProbeExecutionLedger
 from flights_cli.errors import CliError
 from flights_cli.ports.providers import ProviderProbeResult
-from flights_cli.store import Store
+from helpers import store_with_airports
 
 
 def aggregate_options(**overrides: object) -> AggregateControlOptions:
@@ -65,24 +63,6 @@ def run_aggregate_controls(
         planned_queries=planned_aggregate_queries(options, plan),
         **kwargs,
     )
-
-
-def store_with_airports(test_case: unittest.TestCase) -> Store:
-    tmp_dir = tempfile.TemporaryDirectory()
-    test_case.addCleanup(tmp_dir.cleanup)
-    cache = Path(tmp_dir.name)
-    (cache / "airports_en.json").write_text(
-        """
-        [
-          {"code": "SVX", "country_code": "RU", "flightable": true},
-          {"code": "CDG", "country_code": "FR", "flightable": true},
-          {"code": "IST", "country_code": "TR", "flightable": true},
-          {"code": "LHR", "country_code": "GB", "flightable": true}
-        ]
-        """,
-        encoding="utf-8",
-    )
-    return Store(cache)
 
 
 class FakeAggregateAdapter:

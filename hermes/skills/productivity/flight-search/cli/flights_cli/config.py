@@ -20,8 +20,6 @@ CACHE_DIR = resolve_cache_dir()
 
 MAX_DATE_WINDOW_DAYS = 14
 
-LIVE_SEARCH_CACHE_DIR = CACHE_DIR / "live_search"
-
 KUPIBILET_FRONTEND_SEARCH_URL = "https://api-rs-lb.kupibilet.ru/frontend_search"
 
 FLI_MCP_DEFAULT_URL = "http://127.0.0.1:8000/mcp"

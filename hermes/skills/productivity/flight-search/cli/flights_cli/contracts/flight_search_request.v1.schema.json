@@ -33,7 +33,6 @@
         "date_window_end": {"type": ["string", "null"], "format": "date"},
         "max_connections": {"type": ["integer", "null"], "minimum": 0},
         "tier2_max_connections": {"type": ["integer", "null"], "minimum": 0},
-        "use_gateway_discovery_for_fallback_hubs": {"type": "boolean"},
         "gateway_discovery_limit": {"type": "integer", "minimum": 0},
         "gateway_probe_batch_size": {"type": "integer", "minimum": 0},
         "gateway_probe_max_batches": {"type": "integer", "minimum": 0}

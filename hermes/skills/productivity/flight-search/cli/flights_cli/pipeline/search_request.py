@@ -39,7 +39,6 @@ class RouteOptions:
     stop_policy: str
     min_same_airport_min: int
     min_cross_airport_min: int
-    use_gateway_discovery_for_fallback_hubs: bool
     gateway_discovery_limit: int
     gateway_probe_batch_size: int
     gateway_probe_max_batches: int
@@ -131,9 +130,6 @@ class SearchRequest:
                 stop_policy=str(route.get("stop_policy") or "business-default"),
                 min_same_airport_min=_int_option(route, "min_same_airport_min", 120),
                 min_cross_airport_min=_int_option(route, "min_cross_airport_min", 300),
-                use_gateway_discovery_for_fallback_hubs=_bool_option(
-                    route, "use_gateway_discovery_for_fallback_hubs", False
-                ),
                 gateway_discovery_limit=_int_option(
                     route,
                     "gateway_discovery_limit",
@@ -235,9 +231,6 @@ class SearchRequest:
                 "stop_policy": self.route.stop_policy,
                 "min_same_airport_min": self.route.min_same_airport_min,
                 "min_cross_airport_min": self.route.min_cross_airport_min,
-                "use_gateway_discovery_for_fallback_hubs": (
-                    self.route.use_gateway_discovery_for_fallback_hubs
-                ),
                 "gateway_discovery_limit": self.route.gateway_discovery_limit,
                 "gateway_probe_batch_size": self.route.gateway_probe_batch_size,
                 "gateway_probe_max_batches": self.route.gateway_probe_max_batches,
@@ -378,10 +371,6 @@ class SearchRequest:
     @property
     def coverage_control_limit(self) -> int:
         return self.evidence.coverage_control_limit
-
-    @property
-    def use_gateway_discovery_for_fallback_hubs(self) -> bool:
-        return self.route.use_gateway_discovery_for_fallback_hubs
 
     @property
     def gateway_discovery_limit(self) -> int:

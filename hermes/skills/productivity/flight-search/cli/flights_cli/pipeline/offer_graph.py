@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..config import SPECIAL_CITY_AIRPORTS
+from ..domain.normalize import numeric_or_none
 from ..domain.vocabulary import RouteFamily
 
 
@@ -1492,15 +1493,15 @@ def _price_amount(*sources: dict[str, Any]) -> int | float | None:
             continue
         price = source.get("price")
         if isinstance(price, dict):
-            amount = _numeric_or_none(
+            amount = numeric_or_none(
                 price.get("amount") or price.get("value") or price.get("total")
             )
             if amount is not None:
                 return amount
-        amount = _numeric_or_none(price)
+        amount = numeric_or_none(price)
         if amount is not None:
             return amount
-        amount = _numeric_or_none(
+        amount = numeric_or_none(
             source.get("amount") or source.get("total_price") or source.get("value")
         )
         if amount is not None:
@@ -1521,21 +1522,6 @@ def _currency(*sources: dict[str, Any]) -> str | None:
         if currency:
             return currency
     return None
-
-
-def _numeric_or_none(value: Any) -> int | float | None:
-    if isinstance(value, bool) or value is None:
-        return None
-    if isinstance(value, int | float):
-        return value
-    text = str(value).strip().replace(" ", "").replace(",", ".")
-    if not text:
-        return None
-    try:
-        parsed = float(text)
-    except ValueError:
-        return None
-    return int(parsed) if parsed.is_integer() else parsed
 
 
 def _detail_status(offer: dict[str, Any], *, has_edges: bool) -> str:

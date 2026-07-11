@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import tempfile
 import unittest
-from pathlib import Path
 
 from flights_cli.adapters.providers.registry import (
     PROVIDER_REGISTRY,
@@ -25,25 +23,7 @@ from flights_cli.ports.providers import (
     ProviderCapabilities,
     ProviderProbeResult,
 )
-from flights_cli.store import Store
-
-
-def store_with_airports(test_case: unittest.TestCase) -> Store:
-    tmp_dir = tempfile.TemporaryDirectory()
-    test_case.addCleanup(tmp_dir.cleanup)
-    cache = Path(tmp_dir.name)
-    (cache / "airports_en.json").write_text(
-        """
-        [
-          {"code": "SVX", "country_code": "RU", "flightable": true},
-          {"code": "CDG", "country_code": "FR", "flightable": true},
-          {"code": "IST", "country_code": "TR", "flightable": true},
-          {"code": "LHR", "country_code": "GB", "flightable": true}
-        ]
-        """,
-        encoding="utf-8",
-    )
-    return Store(cache)
+from helpers import store_with_airports
 
 
 class ProviderCapabilitiesTests(unittest.TestCase):

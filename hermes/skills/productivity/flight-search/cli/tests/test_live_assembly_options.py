@@ -33,7 +33,6 @@ REQUEST = {
         "date_window_end": "2026-07-22",
         "max_connections": 0,
         "tier2_max_connections": 0,
-        "use_gateway_discovery_for_fallback_hubs": True,
         "gateway_discovery_limit": 5,
         "gateway_probe_batch_size": 2,
         "gateway_probe_max_batches": 3,
@@ -88,7 +87,6 @@ class SearchRequestTests(unittest.TestCase):
         self.assertEqual(options.route.depart_date, expected["depart_date"])
         self.assertEqual(options.route.return_date, expected["return_date"])
         self.assertEqual(options.route.hubs, expected["hubs"])
-        self.assertTrue(options.route.use_gateway_discovery_for_fallback_hubs)
         self.assertEqual(options.route.gateway_discovery_limit, 5)
         self.assertEqual(options.route.gateway_probe_batch_size, 2)
         self.assertEqual(options.route.gateway_probe_max_batches, 3)

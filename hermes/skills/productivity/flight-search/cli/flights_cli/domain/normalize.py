@@ -82,3 +82,18 @@ def currency_value(data: dict[str, Any]) -> str | None:
     if isinstance(pricing, dict) and isinstance(pricing.get("currency"), str):
         return pricing["currency"]
     return None
+
+
+def numeric_or_none(value: Any) -> int | float | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int | float):
+        return value
+    text = str(value).strip().replace(" ", "").replace(",", ".")
+    if not text:
+        return None
+    try:
+        parsed = float(text)
+    except ValueError:
+        return None
+    return int(parsed) if parsed.is_integer() else parsed

@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Iterable
 
+from ..domain.normalize import numeric_or_none
 from ..domain.time import minutes_between
 from ..domain.vocabulary import IntentClass, RouteFamily
 
@@ -731,13 +732,13 @@ def _source_confidence_penalty(candidate: dict[str, Any]) -> int:
 
 
 def _price_for_rank(candidate: dict[str, Any]) -> int | float:
-    amount = _numeric_or_none(candidate.get("price"))
+    amount = numeric_or_none(candidate.get("price"))
     return amount if amount is not None else UNKNOWN_RANK_NUMERIC
 
 
 def _elapsed_time_for_rank(candidate: dict[str, Any]) -> int | float:
     for key in ("elapsed_min", "elapsed_time", "duration_min", "total_duration_min"):
-        amount = _numeric_or_none(candidate.get(key))
+        amount = numeric_or_none(candidate.get(key))
         if amount is not None:
             return amount
     elapsed = 0
@@ -761,7 +762,7 @@ def _elapsed_time_for_rank(candidate: dict[str, Any]) -> int | float:
 def _max_connections(candidate: dict[str, Any]) -> int:
     journeys = candidate.get("journeys")
     if not isinstance(journeys, list):
-        return int(_numeric_or_none(candidate.get("connection_count")) or 0)
+        return int(numeric_or_none(candidate.get("connection_count")) or 0)
     max_connections = 0
     for journey in journeys:
         if not isinstance(journey, dict):
@@ -785,7 +786,7 @@ def _max_connections_over_limit(
     over_limit = 0
     groups = _candidate_segment_groups(candidate)
     if not groups:
-        connection_count = int(_numeric_or_none(candidate.get("connection_count")) or 0)
+        connection_count = int(numeric_or_none(candidate.get("connection_count")) or 0)
         return connection_count - default_cap
     for _, direction, segments in groups:
         normalized_direction = _normalized_direction(direction)
@@ -1104,21 +1105,6 @@ def _best_gateway_alternatives(
         by_gateway.values(),
         key=lambda candidate: int(candidate.get("rank") or 0),
     )
-
-
-def _numeric_or_none(value: Any) -> int | float | None:
-    if isinstance(value, bool) or value is None:
-        return None
-    if isinstance(value, int | float):
-        return value
-    text = str(value).strip().replace(" ", "").replace(",", ".")
-    if not text:
-        return None
-    try:
-        parsed = float(text)
-    except ValueError:
-        return None
-    return int(parsed) if parsed.is_integer() else parsed
 
 
 def _ordered_unique(items: Iterable[Any]) -> list[str]:
