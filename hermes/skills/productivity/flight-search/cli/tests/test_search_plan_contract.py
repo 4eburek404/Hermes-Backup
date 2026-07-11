@@ -78,6 +78,8 @@ class SearchPlanContractTests(unittest.TestCase):
             with self.subTest(provider=query["provider"]):
                 self.assertEqual(query["role"], "primary_offer_collection")
                 self.assertEqual(query["source_type"], "provider_full_route")
+                self.assertEqual(query["origin_airports"], ["SVX"])
+                self.assertEqual(query["destination_airports"], ["AMS"])
                 self.assertEqual(query["probe_type"], "full_route_aggregate")
                 self.assertEqual(query["direction"], "outbound")
                 self.assertEqual(query["origin"], "SVX")
@@ -557,6 +559,59 @@ class SearchPlanContractTests(unittest.TestCase):
             with self.subTest(role=query["role"], leg=query.get("leg")):
                 self.assertEqual(query["only_carriers"], ["KL"])
                 self.assertEqual(query["preferred_carriers"], ["AF"])
+
+    def test_explicit_airport_scope_flows_to_primary_queries(self) -> None:
+        store = Store()
+        options = live_assembly_args(
+            origin="MOW",
+            destination="LON",
+            origin_airports=["SVO"],
+            destination_airports=["LHR", "LGW"],
+            depart_date="2026-08-15",
+            return_date=None,
+            provider_policy="tutu",
+            no_live_cache=True,
+        )
+        flow = build_live_route_search_flow(options, store)
+        route_plan = build_live_route_segment_plan(options, store, flow=flow)
+
+        search_plan = build_search_plan(
+            options, store, flow=flow, fallback_route_plan=route_plan
+        )
+
+        self.assertTrue(search_plan["primary_offer_queries"])
+        for query in search_plan["primary_offer_queries"]:
+            self.assertEqual(query["origin_airports"], ["SVO"])
+            self.assertEqual(query["destination_airports"], ["LHR", "LGW"])
+
+    def test_return_direct_inventory_swaps_airport_scope(self) -> None:
+        store = Store()
+        options = live_assembly_args(
+            origin="MOW",
+            destination="LON",
+            origin_airports=["SVO"],
+            destination_airports=["LHR"],
+            depart_date="2026-08-15",
+            return_date="2026-08-22",
+            max_connections=0,
+            tier2_max_connections=0,
+            provider_policy="tutu",
+            no_live_cache=True,
+        )
+        flow = build_live_route_search_flow(options, store)
+        route_plan = build_live_route_segment_plan(options, store, flow=flow)
+
+        search_plan = build_search_plan(
+            options, store, flow=flow, fallback_route_plan=route_plan
+        )
+
+        queries = search_plan["primary_offer_queries"]
+        outbound = next(query for query in queries if query["direction"] == "outbound")
+        inbound = next(query for query in queries if query["direction"] == "return")
+        self.assertEqual(outbound["origin_airports"], ["SVO"])
+        self.assertEqual(outbound["destination_airports"], ["LHR"])
+        self.assertEqual(inbound["origin_airports"], ["LHR"])
+        self.assertEqual(inbound["destination_airports"], ["SVO"])
 
     def test_builder_does_not_emit_fallback_segment_state(self) -> None:
         store = Store()

@@ -256,6 +256,7 @@ class OfferGraphBuilder:
                                     has_edges=bool(edge_ids),
                                 ),
                                 "warnings": _warnings(offer),
+                                **_self_transfer_fields(offer),
                                 "source_ref": {
                                     "result_index": result_index,
                                     "offer_index": offer_index,
@@ -329,6 +330,7 @@ class OfferGraphBuilder:
                                     has_edges=bool(edge_ids),
                                 ),
                                 "warnings": _warnings(offer),
+                                **_self_transfer_fields(offer),
                                 "source_ref": {
                                     "result_index": result_index,
                                     "offer_index": offer_index,
@@ -385,6 +387,7 @@ class OfferGraphBuilder:
                         *_warnings(offer),
                         "summary_only_offer_details",
                     ],
+                    **_self_transfer_fields(offer),
                     "source_ref": {
                         "result_index": result_index,
                         "offer_index": offer_index,
@@ -561,6 +564,7 @@ class OfferGraphBuilder:
                                     has_edges=bool(edge_ids),
                                 ),
                                 "warnings": _warnings(offer),
+                                **_self_transfer_fields(offer),
                                 "source_ref": {
                                     "gateway_index": gateway_index,
                                     "leg_role": leg_role,
@@ -666,6 +670,7 @@ class OfferGraphBuilder:
                         "currency": _currency(offer, leg_result),
                         "detail_status": _detail_status(offer, has_edges=True),
                         "warnings": _warnings(offer),
+                        **_self_transfer_fields(offer),
                         "source_ref": {
                             "gateway_index": gateway_index,
                             "leg_role": leg_role,
@@ -848,6 +853,7 @@ def _candidate_from_offer(
         "ticketing_model": str(
             offer.get("ticketing_model") or "provider_order_unverified"
         ),
+        **_self_transfer_fields(offer),
         "detail_status": detail_status,
         "journeys": journeys,
         "warnings": warnings,
@@ -1544,6 +1550,18 @@ def _warnings(offer: dict[str, Any]) -> list[str]:
     if isinstance(warnings, list):
         return [str(item) for item in warnings if item]
     return []
+
+
+def _self_transfer_fields(offer: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: offer.get(key)
+        for key in (
+            "self_transfer",
+            "self_transfer_note",
+            "self_transfer_source",
+        )
+        if key in offer
+    }
 
 
 def _flight_number(*sources: dict[str, Any]) -> str | None:

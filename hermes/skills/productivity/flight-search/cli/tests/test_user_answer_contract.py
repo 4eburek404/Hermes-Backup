@@ -555,6 +555,35 @@ class FinalAnswerContractTests(unittest.TestCase):
         self.assertEqual(item["protection"]["through_baggage_status"], "unknown")
         self.assertIn("provider_aggregate", item["badges"])
 
+    def test_tutu_self_transfer_is_structured_and_visible(self) -> None:
+        option = self._source_label_option(
+            "tutu-self-transfer",
+            source_type="provider_full_route",
+            ticketing_model="provider_order_unverified",
+            price_basis="provider_offer_price",
+            source_providers=["tutu"],
+            gateway="IST",
+        )
+        option.update(
+            {
+                "self_transfer": True,
+                "self_transfer_source": "tutu",
+                "self_transfer_note": "Получите багаж и зарегистрируйтесь снова.",
+            }
+        )
+
+        answer = self._source_label_answer(option)
+
+        validate_user_answer(answer)
+        item = answer["catalog"]["items"][0]
+        self.assertIs(item["protection"]["self_transfer"], True)
+        self.assertEqual(item["protection"]["single_pnr_status"], "unproven")
+        self.assertIn("self_transfer", item["badges"])
+        self.assertEqual(item["risk"]["self_transfer_source"], "tutu")
+        self.assertIn("Получите багаж", item["risk"]["self_transfer_note"])
+        self.assertIn("Самостоятельная пересадка", item["render_line"])
+        self.assertIn("Самостоятельная пересадка", answer["rendered_text"])
+
     def test_rendered_text_labels_gateway_separate_ticket_price_sum_and_fli_leg(
         self,
     ) -> None:

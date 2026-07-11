@@ -304,6 +304,23 @@ def render_answer_display_segment(
     )
 
 
+def self_transfer_warning(item: dict[str, Any]) -> str | None:
+    protection = (
+        item.get("protection")
+        if isinstance(item.get("protection"), dict)
+        else {}
+    )
+    risk = item.get("risk") if isinstance(item.get("risk"), dict) else {}
+    has_provider_evidence = bool(
+        risk.get("self_transfer_source") or risk.get("self_transfer_note")
+    )
+    if protection.get("self_transfer") is True and has_provider_evidence:
+        return (
+            "Самостоятельная пересадка: единый PNR и защита стыковки не подтверждены."
+        )
+    return None
+
+
 def answer_display_lines_for_item(item: dict[str, Any]) -> list[str]:
     body_lines: list[str] = []
     directions = (
@@ -342,6 +359,9 @@ def answer_display_lines_for_item(item: dict[str, Any]) -> list[str]:
     price_line = catalog_price_for_agent_display(
         item["total_price"] if isinstance(item.get("total_price"), dict) else {}
     )
+    warning = self_transfer_warning(item)
+    if warning:
+        price_line = f"{price_line} · {warning}"
     if body_lines:
         return [*body_lines, f"    {price_line}"]
     return [f"{item.get('number')}. вариант без детализации", f"    {price_line}"]
@@ -390,6 +410,9 @@ def agent_display_lines_for_item(item: dict[str, Any]) -> list[str]:
     )
     if source_note:
         price_line = f"{price_line} · {source_note}"
+    warning = self_transfer_warning(item)
+    if warning:
+        price_line = f"{price_line} · {warning}"
     if body_lines:
         first, *rest = body_lines
         return [
@@ -397,7 +420,10 @@ def agent_display_lines_for_item(item: dict[str, Any]) -> list[str]:
             *(f"    {line}" for line in rest),
             f"    {price_line}",
         ]
-    return [f"{item.get('number')}. вариант без детализации", f"    {price_line}"]
+    return [
+        f"{item.get('number')}. вариант без детализации",
+        f"    {price_line}",
+    ]
 
 
 def agent_display_contract(item: dict[str, Any]) -> dict[str, Any]:

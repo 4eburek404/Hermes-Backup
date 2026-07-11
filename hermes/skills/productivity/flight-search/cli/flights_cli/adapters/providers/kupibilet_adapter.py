@@ -165,6 +165,7 @@ def aggregate_offer_summary(offer: dict[str, Any]) -> dict[str, Any]:
                 "carrier": carrier or None,
                 "marketing_carrier": marketing or None,
                 "operating_carrier": operating or None,
+                "carrier_name": flight.get("carrier_name"),
                 "origin": flight.get("origin"),
                 "destination": flight.get("destination"),
                 "departure_terminal": flight.get("departure_terminal"),
@@ -211,6 +212,16 @@ def aggregate_offer_summary(offer: dict[str, Any]) -> dict[str, Any]:
         "airport_mismatch_count": len(airport_mismatches),
         "airport_mismatches": airport_mismatches,
         "ticketing_note": "Provider-assembled route offer; verify single-PNR/protection, baggage, and final fare on the booking screen.",
+        **{
+            key: offer.get(key)
+            for key in (
+                "ticketing_model",
+                "self_transfer",
+                "self_transfer_note",
+                "self_transfer_source",
+            )
+            if key in offer
+        },
     }
 
 

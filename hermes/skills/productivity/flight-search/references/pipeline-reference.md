@@ -42,19 +42,19 @@ Tutu MCP facts:
 
 - endpoint: `https://mcp.tutu.ru/mcp` by default, overridden by `FLIGHTS_TUTU_MCP_URL`;
 - tool: `search_avia`, JSON-RPC over Streamable HTTP;
-- input: Russian city names, not IATA codes; the adapter resolves IATA through `Store.city_by_code`;
+- input: an exact IATA code when the planner allows one airport; for a multi-airport scope the adapter sends the localized city name and retains the planner-owned allowed airport list;
 - output: shopping offers, not booking or purchase proof;
-- capabilities: RU-touching and global markets, segment and full-route aggregate probes, direct-only and carrier post-filtering, carrier aggregate, round-trip input, and cache;
+- capabilities: RU-touching and global markets, segment and full-route aggregate probes, server-side `direct_only` and `carriers` filters, carrier aggregate, round-trip input, and cache;
 - pagination: `TUTU_PAGE_SIZE = 30`, `TUTU_MAX_PAGES = 3`, `sort=departure_asc`, with `pages_fetched`, `has_more_after_fetch`, and `not_fetched_due_to_page_budget` metadata.
 
-Tutu normalization extracts IATA from parenthesized airport strings, resolves carrier display names through localized airline catalogs (`airlines_en.json` and `airlines_ru.json`) where possible, maps `segments_count - 1` to connection count, and keeps provider-returned round-trip outbound/return journeys instead of flattening them into fake one-way connections. Carrier filtering must use normalized carrier identity, not depend on `voyage_no` or flight-number prefixes being present.
+Tutu normalization extracts IATA from parenthesized airport strings, resolves exact server carrier facets from `meta.carriers_available` against localized airline catalogs (`airlines_en.json` and `airlines_ru.json`), maps `segments_count - 1` to connection count, and keeps provider-returned round-trip outbound/return journeys instead of flattening them into fake one-way connections. The adapter does not reapply direct/carrier filtering after the MCP response. Explicit multi-PNR/self-transfer evidence remains attached to the offer through ranking and user-answer rendering.
 
 ## Airport and Provider Scope
 
 City codes describe request scope; normalized offers and reports must show actual airport codes.
 
 - Exact airport requests stay exact unless the user allows city scope.
-- Tutu searches by city name, then post-filters exact-airport requests against normalized first/last airports; mismatches are skipped with `airport_scope`.
+- Tutu receives the exact IATA for a single-airport scope. For a planner-approved multi-airport subset it searches by city name, reads up to 10 pages, and keeps only normalized offers whose endpoints belong to the approved subset; a remaining page budget is reported as incomplete scope coverage.
 - KupiBilet uses `MOW` city-code first; exact `SVO`/`DME`/`VKO` deferred probes are not executed in parallel when city-code results have accepted offers.
 - FLI is exact-airport only and must not receive `LON` city-code queries by default.
 - IST means exact `IST`; do not add `SAW` unless requested.

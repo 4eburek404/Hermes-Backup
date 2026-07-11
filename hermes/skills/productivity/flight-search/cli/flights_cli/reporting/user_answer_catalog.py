@@ -380,6 +380,20 @@ def baggage_contract(option: dict[str, Any]) -> dict[str, str]:
 
 
 def protection_contract(option: dict[str, Any]) -> dict[str, Any]:
+    if option.get("self_transfer") is True:
+        return {
+            "single_pnr_status": "unproven",
+            "through_baggage_status": "unproven",
+            "self_transfer": True,
+            "purchase_screen_verification_required": True,
+        }
+    if option.get("self_transfer") is False:
+        return {
+            "single_pnr_status": "unknown",
+            "through_baggage_status": "unknown",
+            "self_transfer": False,
+            "purchase_screen_verification_required": True,
+        }
     ticketing_model = str(
         option.get("ticketing_model")
         or (
@@ -416,7 +430,12 @@ def catalog_segment(segment: dict[str, Any]) -> dict[str, Any]:
             segment.get("flight_number") or segment.get("carrier") or ""
         )
         or None,
-        "carrier": str(segment.get("carrier") or segment.get("marketing_carrier") or "")
+        "carrier": str(
+            segment.get("carrier")
+            or segment.get("marketing_carrier")
+            or segment.get("carrier_name")
+            or ""
+        )
         or None,
         "origin": str(segment.get("origin") or "") or None,
         "destination": str(segment.get("destination") or "") or None,
@@ -502,6 +521,8 @@ def risk_badges(
         badges.append("single_pnr_unproven")
     if protection.get("through_baggage_status") != "proven":
         badges.append("through_baggage_unproven")
+    if protection.get("self_transfer") is True:
+        badges.append("self_transfer")
     if baggage.get("checked") == "unknown":
         badges.append("baggage_unknown")
     if option.get("directional_only") is True:
@@ -526,6 +547,12 @@ def catalog_caveats(option: dict[str, Any], *, badges: list[str]) -> list[str]:
         caveats.append("single PNR/protection not proven; verify on booking screen")
     if "baggage_unknown" in badges:
         caveats.append("baggage unknown until fare/package verification")
+    if "self_transfer" in badges:
+        caveats.append(
+            "Самостоятельная пересадка: единый PNR и защита стыковки не подтверждены."
+        )
+        if option.get("self_transfer_note"):
+            caveats.append(str(option["self_transfer_note"]))
     return list(dict.fromkeys(caveats))
 
 
@@ -595,7 +622,19 @@ def catalog_item(
         "directions": {"outbound": outbound, "return": inbound},
         "baggage": baggage,
         "protection": protection,
-        "risk": option.get("risk") if isinstance(option.get("risk"), dict) else {},
+        "risk": {
+            **(option.get("risk") if isinstance(option.get("risk"), dict) else {}),
+            **(
+                {"self_transfer_source": option.get("self_transfer_source")}
+                if option.get("self_transfer_source")
+                else {}
+            ),
+            **(
+                {"self_transfer_note": option.get("self_transfer_note")}
+                if option.get("self_transfer_note")
+                else {}
+            ),
+        },
         "badges": badges,
         "caveats": caveats,
         "agent_display": {

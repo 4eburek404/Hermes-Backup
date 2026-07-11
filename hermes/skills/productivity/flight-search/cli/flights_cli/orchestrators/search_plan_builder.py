@@ -443,6 +443,8 @@ class SearchPlanBuilder:
                 "leg": leg,
                 "origin": leg_origin,
                 "destination": leg_destination,
+                "origin_airports": [leg_origin],
+                "destination_airports": [leg_destination],
                 "date": date_text,
                 "currency": currency,
                 "direct_only": direct_only,
@@ -485,6 +487,17 @@ class SearchPlanBuilder:
         currency = str(
             fallback_route_plan.get("currency") or flow.request.currency
         ).upper()
+        origin_airports = [
+            str(code).upper()
+            for code in fallback_route_plan.get("origin_airports") or [origin]
+            if str(code).strip()
+        ]
+        destination_airports = [
+            str(code).upper()
+            for code in fallback_route_plan.get("destination_airports")
+            or [destination]
+            if str(code).strip()
+        ]
         access_profile = str(flow.flow_decision.route_access_profile or "")
         discovery_mode = str(flow.flow_decision.gateway_discovery_mode or "disabled")
 
@@ -493,6 +506,8 @@ class SearchPlanBuilder:
                 flow,
                 origin=origin,
                 destination=destination,
+                origin_airports=origin_airports,
+                destination_airports=destination_airports,
                 currency=currency,
             )
 
@@ -517,6 +532,8 @@ class SearchPlanBuilder:
                 "direction": "outbound",
                 "origin": origin,
                 "destination": destination,
+                "origin_airports": origin_airports,
+                "destination_airports": destination_airports,
                 "date": date_text,
                 "currency": currency,
                 "direct_only": False,
@@ -543,6 +560,8 @@ class SearchPlanBuilder:
         *,
         origin: str,
         destination: str,
+        origin_airports: list[str],
+        destination_airports: list[str],
         currency: str,
     ) -> list[dict[str, Any]]:
         queries: list[dict[str, Any]] = []
@@ -554,6 +573,8 @@ class SearchPlanBuilder:
                     direction=Direction.OUTBOUND,
                     origin=origin,
                     destination=destination,
+                    origin_airports=origin_airports,
+                    destination_airports=destination_airports,
                     date_text=date_text,
                     currency=currency,
                     direct_only=True,
@@ -567,6 +588,8 @@ class SearchPlanBuilder:
                     direction=Direction.RETURN,
                     origin=destination,
                     destination=origin,
+                    origin_airports=destination_airports,
+                    destination_airports=origin_airports,
                     date_text=flow.request.return_date,
                     currency=currency,
                     direct_only=True,
@@ -582,6 +605,8 @@ class SearchPlanBuilder:
         direction: str,
         origin: str,
         destination: str,
+        origin_airports: list[str],
+        destination_airports: list[str],
         date_text: str,
         currency: str,
         direct_only: bool,
@@ -608,6 +633,8 @@ class SearchPlanBuilder:
                 "direction": str(direction),
                 "origin": origin,
                 "destination": destination,
+                "origin_airports": list(origin_airports),
+                "destination_airports": list(destination_airports),
                 "date": date_text,
                 "currency": currency,
                 "direct_only": direct_only,

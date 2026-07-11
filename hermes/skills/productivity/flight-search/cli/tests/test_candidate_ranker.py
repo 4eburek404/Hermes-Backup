@@ -120,6 +120,36 @@ class CandidateRankerTests(unittest.TestCase):
             ranked["ranking_reasons"],
         )
 
+    def test_explicit_self_transfer_ranks_as_higher_ticketing_risk(self) -> None:
+        protected = candidate(
+            "protected",
+            source_type="provider_full_route",
+            price=50000,
+            ticketing_model="provider_order_unverified",
+            segments=[segment("SVX", "IST"), segment("IST", "AMS")],
+        )
+        self_transfer = candidate(
+            "self-transfer",
+            source_type="provider_full_route",
+            price=30000,
+            ticketing_model="provider_order_unverified",
+            segments=[segment("SVX", "IST"), segment("IST", "AMS")],
+        )
+        self_transfer["self_transfer"] = True
+
+        ranking = rank_mixed_candidates({"candidates": [self_transfer, protected]})
+
+        by_id = {item["id"]: item for item in ranking["ranked_candidates"]}
+        self.assertLess(
+            by_id["protected"]["rank_components"]["ticketing_risk_tier"],
+            by_id["self-transfer"]["rank_components"]["ticketing_risk_tier"],
+        )
+        frontier = build_decision_frontier(ranking)
+        exposed = next(
+            item for item in frontier["options"] if item["id"] == "self-transfer"
+        )
+        self.assertIs(exposed["self_transfer"], True)
+
     def test_direct_inventory_provider_and_gateway_are_all_visible(self) -> None:
         direct = candidate(
             "direct",
