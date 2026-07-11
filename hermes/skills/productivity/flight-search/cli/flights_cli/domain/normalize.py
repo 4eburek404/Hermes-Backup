@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import date
+import math
+import re
 from typing import Any
 
 from ..config import CARRIER_RE, IATA_RE
@@ -85,15 +87,46 @@ def currency_value(data: dict[str, Any]) -> str | None:
 
 
 def numeric_or_none(value: Any) -> int | float | None:
+    """Return a finite non-negative number, or ``None`` for unsafe input.
+
+    Whitespace is accepted as a thousands separator. A dot is a decimal
+    separator. A single comma is accepted as a decimal separator unless the
+    spelling is ambiguous with a three-digit thousands group (for example,
+    ``1,000``).
+    """
     if isinstance(value, bool) or value is None:
         return None
-    if isinstance(value, int | float):
-        return value
-    text = str(value).strip().replace(" ", "").replace(",", ".")
+    if isinstance(value, int):
+        return value if value >= 0 else None
+    if isinstance(value, float):
+        if not math.isfinite(value) or value < 0:
+            return None
+        return int(value) if value.is_integer() else value
+
+    text = "".join(str(value).split())
     if not text:
         return None
+    if text.startswith("+"):
+        text = text[1:]
+    if not text or text.startswith("-"):
+        return None
+    if "," in text:
+        if text.count(",") != 1 or "." in text:
+            return None
+        whole, fraction = text.split(",")
+        if not whole.isdigit() or not fraction.isdigit():
+            return None
+        if 1 <= len(whole) <= 3 and len(fraction) == 3:
+            return None
+        text = f"{whole}.{fraction}"
+    if re.fullmatch(r"\d+(?:\.\d+)?", text) is None:
+        return None
+    if "." not in text:
+        return int(text)
     try:
         parsed = float(text)
-    except ValueError:
+    except (OverflowError, ValueError):
+        return None
+    if not math.isfinite(parsed) or parsed < 0:
         return None
     return int(parsed) if parsed.is_integer() else parsed

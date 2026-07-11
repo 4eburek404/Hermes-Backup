@@ -12,7 +12,15 @@ from flights_cli.execution.aggregate_control_runner import (
 from flights_cli.execution.probe_ledger import ProbeExecutionLedger
 from flights_cli.errors import CliError
 from flights_cli.ports.providers import ProviderProbeResult
-from helpers import store_with_airports
+from helpers import make_test_store
+
+
+TEST_AIRPORTS = [
+    {"code": "SVX", "country_code": "RU", "flightable": True},
+    {"code": "CDG", "country_code": "FR", "flightable": True},
+    {"code": "IST", "country_code": "TR", "flightable": True},
+    {"code": "LHR", "country_code": "GB", "flightable": True},
+]
 
 
 def aggregate_options(**overrides: object) -> AggregateControlOptions:
@@ -133,7 +141,7 @@ class AggregateControlRunnerTests(unittest.TestCase):
             aggregate_options(),
             plan,
             probe_ledger=ledger,
-            store=store_with_airports(self),
+            store=make_test_store(self, TEST_AIRPORTS),
         )
 
         diagnostics = ledger.to_coverage_diagnostics(
@@ -178,7 +186,7 @@ class AggregateControlRunnerTests(unittest.TestCase):
             controls = run_aggregate_controls(
                 aggregate_options(provider_policy="kupibilet"),
                 plan,
-                store=store_with_airports(self),
+                store=make_test_store(self, TEST_AIRPORTS),
             )
 
         self.assertEqual(len(controls), 1)
@@ -227,7 +235,7 @@ class AggregateControlRunnerTests(unittest.TestCase):
                 aggregate_options(provider_policy="kupibilet", only_carriers=("SU",)),
                 plan,
                 probe_ledger=ledger,
-                store=store_with_airports(self),
+                store=make_test_store(self, TEST_AIRPORTS),
                 offer_graph=offer_graph,
             )
 
@@ -310,7 +318,7 @@ class AggregateControlRunnerTests(unittest.TestCase):
             controls = run_aggregate_controls(
                 aggregate_options(provider_policy="auto"),
                 plan,
-                store=store_with_airports(self),
+                store=make_test_store(self, TEST_AIRPORTS),
             )
 
         self.assertEqual(
@@ -352,7 +360,7 @@ class AggregateControlRunnerTests(unittest.TestCase):
             controls = run_aggregate_controls(
                 aggregate_options(provider_policy="auto"),
                 plan,
-                store=store_with_airports(self),
+                store=make_test_store(self, TEST_AIRPORTS),
             )
 
         self.assertEqual(
@@ -374,7 +382,7 @@ class AggregateControlRunnerTests(unittest.TestCase):
             run_aggregate_controls(
                 aggregate_options(provider_policy="both"),
                 plan,
-                store=store_with_airports(self),
+                store=make_test_store(self, TEST_AIRPORTS),
             )
 
     def test_fli_policy_routes_non_ru_aggregate_to_not_supported(self) -> None:
@@ -388,7 +396,7 @@ class AggregateControlRunnerTests(unittest.TestCase):
         controls = run_aggregate_controls(
             aggregate_options(provider_policy="fli"),
             plan,
-            store=store_with_airports(self),
+            store=make_test_store(self, TEST_AIRPORTS),
         )
 
         self.assertEqual(len(controls), 1)

@@ -4,6 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..domain.normalize import numeric_or_none
 from .candidate_ranker import build_decision_frontier, rank_mixed_candidates
 
 
@@ -254,8 +255,8 @@ def _journeys_for_direction(
 def _summed_price(
     outbound: dict[str, Any], inbound: dict[str, Any]
 ) -> tuple[int | float | None, str | None]:
-    outbound_price = _numeric_or_none(outbound.get("price"))
-    inbound_price = _numeric_or_none(inbound.get("price"))
+    outbound_price = numeric_or_none(outbound.get("price"))
+    inbound_price = numeric_or_none(inbound.get("price"))
     outbound_currency = str(outbound.get("currency") or "").strip()
     inbound_currency = str(inbound.get("currency") or "").strip()
     if outbound_price is None or inbound_price is None:
@@ -291,17 +292,6 @@ def _combined_detail_status(outbound: dict[str, Any], inbound: dict[str, Any]) -
     if "summary_only" in statuses:
         return "summary_only"
     return "full"
-
-
-def _numeric_or_none(value: Any) -> int | float | None:
-    if isinstance(value, bool) or value is None:
-        return None
-    if isinstance(value, (int, float)):
-        return value
-    try:
-        return float(str(value).replace(" ", ""))
-    except ValueError:
-        return None
 
 
 def _ordered_unique(items: list[Any]) -> list[Any]:

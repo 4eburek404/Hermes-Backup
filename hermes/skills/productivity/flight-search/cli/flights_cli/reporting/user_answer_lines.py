@@ -4,17 +4,8 @@ from functools import lru_cache
 import re
 from typing import Any
 
+from ..domain.normalize import numeric_or_none
 from .time_utils import integer_or_none as int_or_none
-
-
-def numeric_or_none(value: Any) -> int | float | None:
-    if value is None or isinstance(value, bool):
-        return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    return int(number) if number.is_integer() else number
 
 
 def _iso_date(value: Any) -> str | None:

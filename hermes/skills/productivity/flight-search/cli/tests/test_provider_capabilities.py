@@ -23,7 +23,15 @@ from flights_cli.ports.providers import (
     ProviderCapabilities,
     ProviderProbeResult,
 )
-from helpers import store_with_airports
+from helpers import make_test_store
+
+
+TEST_AIRPORTS = [
+    {"code": "SVX", "country_code": "RU", "flightable": True},
+    {"code": "CDG", "country_code": "FR", "flightable": True},
+    {"code": "IST", "country_code": "TR", "flightable": True},
+    {"code": "LHR", "country_code": "GB", "flightable": True},
+]
 
 
 class ProviderCapabilitiesTests(unittest.TestCase):
@@ -61,7 +69,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self.assertIsInstance(adapter, FlightProviderPort)
 
     def test_policy_can_return_adapter_objects_for_execution(self) -> None:
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
 
         adapters = provider_adapters_for_segment(
             {"origin": "IST", "destination": "LHR"}, store, "auto"
@@ -77,7 +85,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
     def test_auto_policy_uses_capability_registry_for_ru_touching_and_global_segments(
         self,
     ) -> None:
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
 
         self.assertEqual(
             providers_for_segment(
@@ -99,7 +107,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         )
 
     def test_both_policy_is_rejected(self) -> None:
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
 
         with self.assertRaises(CliError):
             providers_for_segment(
@@ -107,7 +115,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
             )
 
     def test_offer_query_policy_uses_full_route_aggregate_capabilities(self) -> None:
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
         query = {
             "probe_type": "full_route_aggregate",
             "origin": "SVX",
@@ -122,7 +130,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self.assertEqual(providers_for_offer_query(query, store, "tutu"), ["tutu"])
 
     def test_auto_offer_query_uses_market_and_capability_routing(self) -> None:
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
 
         self.assertEqual(
             providers_for_offer_query(
@@ -150,7 +158,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         )
 
     def test_auto_carrier_aggregate_keeps_tutu_primary(self) -> None:
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
 
         self.assertEqual(
             providers_for_offer_query(
@@ -167,7 +175,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         )
 
     def test_route_query_routing_reuses_ru_touching_market_boundary(self) -> None:
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
 
         ru_route = {
             "probe_type": "full_route_aggregate",
@@ -196,7 +204,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         )
 
     def test_gateway_segments_follow_existing_ru_non_ru_provider_split(self) -> None:
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
 
         self.assertEqual(
             providers_for_segment(
@@ -248,7 +256,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
 
     def test_provider_adapter_returns_same_instance_for_same_store(self) -> None:
         """provider_adapter with same (name, store) returns cached instance."""
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
         a1 = provider_adapter("kupibilet", store=store)
         a2 = provider_adapter("kupibilet", store=store)
         self.assertIs(a1, a2)
@@ -257,8 +265,8 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self,
     ) -> None:
         """provider_adapter with different store returns different instance."""
-        store_a = store_with_airports(self)
-        store_b = store_with_airports(self)
+        store_a = make_test_store(self, TEST_AIRPORTS)
+        store_b = make_test_store(self, TEST_AIRPORTS)
         a1 = provider_adapter("kupibilet", store=store_a)
         a2 = provider_adapter("kupibilet", store=store_b)
         self.assertIsNot(a1, a2)
@@ -270,7 +278,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
 
     def test_provider_adapter_custom_fetcher_bypasses_cache(self) -> None:
         """provider_adapter with custom fetcher returns a new instance every time."""
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
         a1 = provider_adapter("kupibilet", store=store, kupibilet_fetcher=lambda: None)
         a2 = provider_adapter("kupibilet", store=store, kupibilet_fetcher=lambda: None)
         self.assertIsNot(a1, a2)

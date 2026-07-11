@@ -14,30 +14,20 @@ from flights_cli.providers.fli_mcp import (
     resolve_fli_airport,
 )
 from flights_cli.store import Store
-from helpers import live_assembly_args
+from helpers import live_assembly_args, make_test_store
 
 
-def store_with_airports(test_case: unittest.TestCase) -> Store:
-    tmp_dir = tempfile.TemporaryDirectory()
-    test_case.addCleanup(tmp_dir.cleanup)
-    cache = Path(tmp_dir.name)
-    (cache / "airports_en.json").write_text(
-        """
-        [
-          {"code": "IST", "country_code": "TR", "flightable": true, "name": "Istanbul New Airport", "name_translations": {"en": "Istanbul New Airport"}},
-          {"code": "ISL", "country_code": "TR", "flightable": false, "name": "Istanbul Ataturk Airport", "name_translations": {"en": "Istanbul Ataturk Airport"}},
-          {"code": "SAW", "country_code": "TR", "flightable": true, "name": "Sabiha Gokcen International Airport", "name_translations": {"en": "Sabiha Gokcen International Airport"}},
-          {"code": "CDG", "country_code": "FR", "flightable": true, "name": "Charles de Gaulle Airport", "name_translations": {"en": "Charles de Gaulle Airport"}},
-          {"code": "LHR", "country_code": "GB", "flightable": true, "name": "London Heathrow Airport", "name_translations": {"en": "London Heathrow Airport"}},
-          {"code": "DXB", "country_code": "AE", "flightable": true, "name": "Dubai Airport", "name_translations": {"en": "Dubai Airport"}},
-          {"code": "AMS", "country_code": "NL", "flightable": true, "name": "Amsterdam Airport Schiphol", "name_translations": {"en": "Amsterdam Airport Schiphol"}},
-          {"code": "BCN", "city_code": "BCN", "country_code": "ES", "flightable": true, "name": "Barcelona-El Prat Airport", "name_translations": {"en": "Barcelona-El Prat Airport"}},
-          {"code": "XJB", "city_code": "BCN", "country_code": "ES", "flightable": true, "name": "Barcelona Bus Station", "name_translations": {"en": "Barcelona Bus Station"}}
-        ]
-        """,
-        encoding="utf-8",
-    )
-    return Store(cache)
+TEST_AIRPORTS = [
+    {"code": "IST", "country_code": "TR", "flightable": True, "name": "Istanbul New Airport", "name_translations": {"en": "Istanbul New Airport"}},
+    {"code": "ISL", "country_code": "TR", "flightable": False, "name": "Istanbul Ataturk Airport", "name_translations": {"en": "Istanbul Ataturk Airport"}},
+    {"code": "SAW", "country_code": "TR", "flightable": True, "name": "Sabiha Gokcen International Airport", "name_translations": {"en": "Sabiha Gokcen International Airport"}},
+    {"code": "CDG", "country_code": "FR", "flightable": True, "name": "Charles de Gaulle Airport", "name_translations": {"en": "Charles de Gaulle Airport"}},
+    {"code": "LHR", "country_code": "GB", "flightable": True, "name": "London Heathrow Airport", "name_translations": {"en": "London Heathrow Airport"}},
+    {"code": "DXB", "country_code": "AE", "flightable": True, "name": "Dubai Airport", "name_translations": {"en": "Dubai Airport"}},
+    {"code": "AMS", "country_code": "NL", "flightable": True, "name": "Amsterdam Airport Schiphol", "name_translations": {"en": "Amsterdam Airport Schiphol"}},
+    {"code": "BCN", "city_code": "BCN", "country_code": "ES", "flightable": True, "name": "Barcelona-El Prat Airport", "name_translations": {"en": "Barcelona-El Prat Airport"}},
+    {"code": "XJB", "city_code": "BCN", "country_code": "ES", "flightable": True, "name": "Barcelona Bus Station", "name_translations": {"en": "Barcelona Bus Station"}},
+]
 
 
 class FliMcpTests(unittest.TestCase):
@@ -111,7 +101,7 @@ class FliMcpTests(unittest.TestCase):
             depart_date="2026-08-15",
             currency="RUB",
             mcp_url="http://127.0.0.1:8000/mcp",
-            store=store_with_airports(self),
+            store=make_test_store(self, TEST_AIRPORTS),
         )
         segment = fli_result_to_segment_result(
             result, direction="outbound", leg="hub_to_destination"
@@ -211,7 +201,7 @@ class FliMcpTests(unittest.TestCase):
             depart_date="2026-08-15",
             currency="RUB",
             mcp_url="http://127.0.0.1:8000/mcp",
-            store=store_with_airports(self),
+            store=make_test_store(self, TEST_AIRPORTS),
             limit=1,
         )
 
@@ -222,7 +212,7 @@ class FliMcpTests(unittest.TestCase):
         self.assertEqual(result["offers"][0]["id"], "good-one-stop")
 
     def test_resolve_fli_airport_maps_observed_airport_names(self) -> None:
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
 
         cases = {
             "Istanbul Airport": "IST",
@@ -241,7 +231,7 @@ class FliMcpTests(unittest.TestCase):
     def test_resolve_fli_airport_prefers_query_code_for_ambiguous_fli_name(
         self,
     ) -> None:
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
 
         with self.assertRaises(CliError):
             resolve_fli_airport(
@@ -292,7 +282,7 @@ class FliMcpTests(unittest.TestCase):
             depart_date="2026-08-16",
             currency="RUB",
             mcp_url="http://127.0.0.1:8000/mcp",
-            store=store_with_airports(self),
+            store=make_test_store(self, TEST_AIRPORTS),
         )
 
         offer = result["offers"][0]
@@ -333,7 +323,7 @@ class FliMcpTests(unittest.TestCase):
             depart_date="2026-07-19",
             currency="RUB",
             mcp_url="http://127.0.0.1:8000/mcp",
-            store=store_with_airports(self),
+            store=make_test_store(self, TEST_AIRPORTS),
         )
 
         offer = result["offers"][0]

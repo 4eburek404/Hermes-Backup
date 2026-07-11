@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import tempfile
 import unittest
-from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
@@ -14,23 +12,13 @@ from flights_cli.execution.offer_query_runner import (
 )
 from flights_cli.execution.probe_ledger import ProbeExecutionLedger
 from flights_cli.ports.providers import ProviderProbeResult
-from flights_cli.store import Store
+from helpers import make_test_store
 
 
-def store_with_airports(test_case: unittest.TestCase) -> Store:
-    tmp_dir = tempfile.TemporaryDirectory()
-    test_case.addCleanup(tmp_dir.cleanup)
-    cache = Path(tmp_dir.name)
-    (cache / "airports_en.json").write_text(
-        """
-        [
-          {"code": "SVX", "country_code": "RU", "flightable": true},
-          {"code": "CDG", "country_code": "FR", "flightable": true}
-        ]
-        """,
-        encoding="utf-8",
-    )
-    return Store(cache)
+TEST_AIRPORTS = [
+    {"code": "SVX", "country_code": "RU", "flightable": True},
+    {"code": "CDG", "country_code": "FR", "flightable": True},
+]
 
 
 def primary_query(**overrides: Any) -> dict[str, Any]:
@@ -118,7 +106,7 @@ class OfferQueryRunnerTests(unittest.TestCase):
             results = run_primary_offer_queries(
                 [primary_query(probe_id="primary-1")],
                 PrimaryOfferQueryOptions(no_live_cache=True),
-                store=store_with_airports(self),
+                store=make_test_store(self, TEST_AIRPORTS),
                 probe_ledger=ledger,
             )
 
@@ -140,7 +128,7 @@ class OfferQueryRunnerTests(unittest.TestCase):
             run_primary_offer_queries(
                 [query],
                 PrimaryOfferQueryOptions(no_live_cache=True),
-                store=store_with_airports(self),
+                store=make_test_store(self, TEST_AIRPORTS),
             )
 
         self.assertEqual(ctx.exception.error_type, "validation_error")
@@ -152,7 +140,7 @@ class OfferQueryRunnerTests(unittest.TestCase):
         results = run_primary_offer_queries(
             [primary_query(provider="fli", probe_id="primary-fli")],
             PrimaryOfferQueryOptions(no_live_cache=True),
-            store=store_with_airports(self),
+            store=make_test_store(self, TEST_AIRPORTS),
             probe_ledger=ledger,
         )
 
@@ -171,7 +159,7 @@ class OfferQueryRunnerTests(unittest.TestCase):
         results = run_primary_offer_queries(
             [primary_query(role="mandatory_control", probe_id="skip-1")],
             PrimaryOfferQueryOptions(no_live_cache=True),
-            store=store_with_airports(self),
+            store=make_test_store(self, TEST_AIRPORTS),
             probe_ledger=ledger,
         )
 
@@ -189,7 +177,7 @@ class OfferQueryRunnerTests(unittest.TestCase):
         results = run_primary_offer_queries(
             [primary_query(provider="fli", probe_id="primary-fli", wave_index=0)],
             PrimaryOfferQueryOptions(no_live_cache=True),
-            store=store_with_airports(self),
+            store=make_test_store(self, TEST_AIRPORTS),
             probe_ledger=ledger,
         )
 
@@ -215,7 +203,7 @@ class OfferQueryRunnerTests(unittest.TestCase):
                     primary_query(provider="kupibilet", probe_id="primary-kupibilet"),
                 ],
                 PrimaryOfferQueryOptions(no_live_cache=True),
-                store=store_with_airports(self),
+                store=make_test_store(self, TEST_AIRPORTS),
                 probe_ledger=ledger,
             )
 
@@ -248,7 +236,7 @@ class OfferQueryRunnerTests(unittest.TestCase):
                     primary_query(provider="kupibilet", probe_id="primary-kupibilet"),
                 ],
                 PrimaryOfferQueryOptions(no_live_cache=True),
-                store=store_with_airports(self),
+                store=make_test_store(self, TEST_AIRPORTS),
             )
 
         self.assertEqual(
@@ -273,7 +261,7 @@ class OfferQueryRunnerTests(unittest.TestCase):
                     primary_query(provider="kupibilet", probe_id="primary-kupibilet"),
                 ],
                 PrimaryOfferQueryOptions(no_live_cache=True),
-                store=store_with_airports(self),
+                store=make_test_store(self, TEST_AIRPORTS),
             )
 
         self.assertEqual(results[0]["status"], "error")

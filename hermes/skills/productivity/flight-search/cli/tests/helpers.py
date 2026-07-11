@@ -22,16 +22,12 @@ TEST_ENV = {
 }
 
 
-def store_with_airports(test_case: unittest.TestCase) -> Store:
+def make_test_store(
+    test_case: unittest.TestCase, airports: list[dict[str, Any]]
+) -> Store:
     tmp_dir = tempfile.TemporaryDirectory()
     test_case.addCleanup(tmp_dir.cleanup)
     cache = Path(tmp_dir.name)
-    airports = [
-        {"code": "SVX", "country_code": "RU", "flightable": True},
-        {"code": "CDG", "country_code": "FR", "flightable": True},
-        {"code": "IST", "country_code": "TR", "flightable": True},
-        {"code": "LHR", "country_code": "GB", "flightable": True},
-    ]
     (cache / "airports_en.json").write_text(json.dumps(airports), encoding="utf-8")
     return Store(cache)
 

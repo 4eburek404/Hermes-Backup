@@ -4,13 +4,14 @@ import re
 from datetime import datetime
 from typing import Any
 
+from ..domain.normalize import numeric_or_none
 from ..domain.vocabulary import RouteFamily
 from .option_semantics import direction_segments, option_direction
 from .time_utils import (
     display_minutes_between as minutes_between_iso,
     integer_or_none as int_or_none,
 )
-from .user_answer_lines import answer_display_lines_for_item, numeric_or_none
+from .user_answer_lines import answer_display_lines_for_item
 
 
 def is_provider_aggregate_option(option: dict[str, Any]) -> bool:
