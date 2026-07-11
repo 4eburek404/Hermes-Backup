@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import Any, TypedDict
 
 from ..errors import CliError
-from ..reporting.user_answer import render_user_answer, validate_user_answer
+from ..reporting.user_answer import render_user_answer
+from ..reporting.user_answer_contracts import user_answer_contract_semantic_errors
 
 
 class FlightSearchResult(TypedDict):
@@ -177,10 +178,11 @@ def flight_search_result_semantic_errors(
 
 
 def validate_flight_search_result(result: dict[str, Any]) -> None:
-    validate_user_answer(
-        result.get("answer") if isinstance(result.get("answer"), dict) else {}
+    answer = result.get("answer") if isinstance(result.get("answer"), dict) else {}
+    errors = user_answer_contract_semantic_errors(answer)
+    errors.extend(
+        flight_search_result_semantic_errors(result)
     )
-    errors = flight_search_result_semantic_errors(result)
     if errors:
         raise CliError(
             "flight_search_result failed semantic validation",

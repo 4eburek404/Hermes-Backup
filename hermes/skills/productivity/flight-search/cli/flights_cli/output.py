@@ -5,7 +5,6 @@ from typing import Any
 
 from .domain.vocabulary import RoutingStrategy
 from .errors import CliError
-from .reporting.user_answer import validate_user_answer
 
 
 def output_envelope(command: str, data: Any) -> dict[str, Any]:
@@ -34,7 +33,6 @@ def emit_json(data: Any) -> None:
 def render_search_user_text(result: dict[str, Any]) -> str:
     raw_user_answer = result.get("answer")
     user_answer = raw_user_answer if isinstance(raw_user_answer, dict) else {}
-    validate_user_answer(user_answer)
     return str(user_answer["rendered_text"])
 
 
