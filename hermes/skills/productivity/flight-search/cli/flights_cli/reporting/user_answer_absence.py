@@ -176,8 +176,3 @@ def render_no_viable_answer(
         lines.append("**Проверить перед покупкой**")
         lines.extend(f"- {line}" for line in checks)
     return "\n".join(lines).strip()
-
-
-def has_any_signal(text: str, signals: tuple[str, ...]) -> bool:
-    lowered = text.lower()
-    return any(signal in lowered for signal in signals)

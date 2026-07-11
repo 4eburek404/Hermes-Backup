@@ -1629,13 +1629,10 @@ def _ordered_unique(items: list[Any]) -> list[str]:
 
 
 def _provider_result_offers(result: dict[str, Any]) -> list[Any] | None:
-    for key in ("top_offers", "normalized_offers", "offers"):
+    for key in ("offers", "top_offers"):
         offers = result.get(key)
         if isinstance(offers, list):
             return offers
-    normalized_result = result.get("normalized_result")
-    if isinstance(normalized_result, dict):
-        return _provider_result_offers(normalized_result)
     return None
 
 

@@ -544,6 +544,29 @@ class CandidateRankerTests(unittest.TestCase):
         self.assertEqual(summary["selected_count"], 1)
         self.assertEqual(summary["selection_roles"], ["best_viable"])
 
+    def test_output_limit_is_applied_by_decision_frontier(self) -> None:
+        candidates = [
+            candidate(
+                f"direct-{index}",
+                source_type="direct_inventory",
+                price=50_000 + index,
+                ticketing_model="provider_order_unverified",
+                segments=[segment("SVX", "CDG")],
+            )
+            for index in range(3)
+        ]
+
+        frontier = build_decision_frontier(
+            rank_mixed_candidates({"candidates": candidates}),
+            max_options=2,
+        )
+
+        self.assertEqual(len(frontier["options"]), 2)
+        self.assertEqual(frontier["coverage_summary"]["selected_count"], 2)
+        self.assertEqual(
+            frontier["coverage_summary"]["suppressed_by_output_limit_count"], 1
+        )
+
     def test_frontier_exposes_controls_separately_from_route_options(self) -> None:
         provider = candidate(
             "provider",

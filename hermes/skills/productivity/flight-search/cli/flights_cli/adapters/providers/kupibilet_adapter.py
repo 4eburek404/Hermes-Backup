@@ -342,8 +342,7 @@ class KupibiletProviderAdapter:
                 offer_count=offer_count, cache_status=cache_status
             ),
             result_summary=summary,
-            normalized_offers=list(segment_result.get("offers") or []),
-            normalized_result=segment_result,
+            offers=tuple(segment_result.get("offers") or []),
             source_boundary={
                 "provider": "kupibilet",
                 "source_key": segment_result.get("source_key"),
@@ -400,8 +399,7 @@ class KupibiletProviderAdapter:
                 offer_count=offer_count, cache_status=cache_status
             ),
             result_summary=summary,
-            normalized_offers=list(summary.get("top_offers") or []),
-            normalized_result={"top_offers": list(summary.get("top_offers") or [])},
+            offers=tuple(summary.get("top_offers") or []),
             source_boundary={
                 "provider": "kupibilet",
                 "source": result.get("source"),

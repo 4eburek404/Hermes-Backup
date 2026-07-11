@@ -7,9 +7,7 @@ from flights_cli.execution.probe_dispatcher import (
     SegmentProbeOptions,
     dispatch_segment_probe,
 )
-from flights_cli.orchestrators.live_route_assembly import (
-    build_live_route_segment_plan,
-)
+from flights_cli.orchestrators.search_plan_builder import build_route_context
 from flights_cli.store import Store
 from helpers import live_assembly_args
 
@@ -62,15 +60,6 @@ def dispatcher_options(**overrides: object) -> SegmentProbeOptions:
     }
     values.update(overrides)
     return SegmentProbeOptions(**values)
-
-
-def non_direct_segments(plan: dict[str, object]) -> list[dict[str, object]]:
-    return [
-        segment
-        for segment in plan["segments"]  # type: ignore[index]
-        if isinstance(segment, dict)
-        and segment.get("leg") not in {"direct_outbound", "direct_return"}
-    ]
 
 
 def kupibilet_result(
@@ -139,12 +128,12 @@ class AirportPriorityPolicyTests(unittest.TestCase):
     def test_domestic_mow_round_trip_does_not_add_intra_moscow_hub_fallback(
         self,
     ) -> None:
-        plan = build_live_route_segment_plan(
+        plan = build_route_context(
             live_args(origin="SVX", destination="MOW", return_date="2026-08-19"),
             Store(),
         )
 
-        self.assertEqual(non_direct_segments(plan), [])
+        self.assertNotIn("segments", plan)
 
     def test_kupibilet_city_code_post_validation_accepts_moscow_actual_airport(
         self,

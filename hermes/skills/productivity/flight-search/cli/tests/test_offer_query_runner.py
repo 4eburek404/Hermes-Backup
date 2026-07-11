@@ -103,7 +103,7 @@ class SuccessfulAggregateAdapter:
                 "offer_count": 1,
                 "top_offers": [{"id": f"{self.name}-offer"}],
             },
-            normalized_offers=[{"id": f"{self.name}-offer"}],
+            offers=({"id": f"{self.name}-offer"},),
         )
 
 

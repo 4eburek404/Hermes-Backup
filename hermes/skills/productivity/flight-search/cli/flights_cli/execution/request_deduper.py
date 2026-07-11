@@ -8,6 +8,35 @@ from ..domain.normalize import normalize_carrier_code
 SegmentProbeKey = tuple[Any, ...]
 
 
+_NON_LOGICAL_QUERY_FIELDS = frozenset(
+    {
+        "probe_id",
+        "execution_state",
+        "status",
+        "reason",
+        "wave_index",
+    }
+)
+
+
+def _freeze_key(value: Any) -> Any:
+    if isinstance(value, dict):
+        return tuple(
+            (key, _freeze_key(item))
+            for key, item in sorted(value.items())
+            if key not in _NON_LOGICAL_QUERY_FIELDS
+        )
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return tuple(_freeze_key(item) for item in value)
+    return value
+
+
+def logical_query_key(query: dict[str, Any]) -> SegmentProbeKey:
+    """Return the complete provider-query identity, excluding runtime metadata."""
+
+    return ("logical-query", _freeze_key(query))
+
+
 @dataclass(frozen=True)
 class DeduperClaim:
     key: SegmentProbeKey

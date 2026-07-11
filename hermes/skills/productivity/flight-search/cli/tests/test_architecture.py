@@ -78,10 +78,6 @@ class ArchitectureTests(unittest.TestCase):
     ) -> None:
         manifest = self.version_manifest()
         self.assertEqual(
-            manifest["contracts"]["agent_report"],
-            current_contract("agent_report")["schema_version"],
-        )
-        self.assertEqual(
             manifest["contracts"]["user_answer"],
             current_contract("user_answer")["schema_version"],
         )
@@ -142,7 +138,7 @@ class ArchitectureTests(unittest.TestCase):
 
     def test_report_contract_primary_fields_exist(self) -> None:
         # Runtime offer_graph stays under diagnose trace; public
-        # agent_report exposes decision_frontier and canonical rendered_text only.
+        # Result projection exposes one frontier order and one canonical text.
         from flights_cli.reporting.user_answer import build_user_answer
         from flights_cli.pipeline.offer_graph import build_offer_graph
 
@@ -150,20 +146,9 @@ class ArchitectureTests(unittest.TestCase):
         self.assertTrue(callable(build_user_answer))
         self.assertTrue(callable(build_offer_graph))
 
-    def test_direct_destination_control_is_branch_type(self) -> None:
-        # direct_destination_control maps to "direct_destination" in the contract,
-        # confirming it is a search branch type, not a nonstop claim.
-        from flights_cli.services.agent_report_contract import RU_PRIORITY_BRANCHES
-
-        self.assertIn("direct_destination_control", RU_PRIORITY_BRANCHES)
-        self.assertEqual(
-            RU_PRIORITY_BRANCHES["direct_destination_control"], "direct_destination"
-        )
-
     def test_active_contract_schema_resources_match_registry_versions(self) -> None:
         contracts = PROJECT / "flights_cli" / "contracts"
         for contract_name in (
-            "agent_report",
             "user_answer",
             "search_request",
             "search_result",
@@ -279,20 +264,15 @@ class ArchitectureTests(unittest.TestCase):
         root = PROJECT / "flights_cli"
         probe_dispatcher = root / "execution" / "probe_dispatcher.py"
         aggregate_runner = root / "execution" / "aggregate_control_runner.py"
-        live_route_assembly = root / "orchestrators" / "live_route_assembly.py"
+        search_executor = root / "execution" / "search_executor.py"
 
-        for path in (probe_dispatcher, aggregate_runner):
+        for path in (probe_dispatcher, aggregate_runner, search_executor):
             with self.subTest(path=path.name):
                 self.assertFalse("argparse" in import_targets(path))
 
-        tree = ast.parse(live_route_assembly.read_text(encoding="utf-8"))
+        tree = ast.parse(search_executor.read_text(encoding="utf-8"))
         annotations = function_annotations(tree)
-        for name in ("build_live_route_segment_plan", "run_live_route_assembly"):
-            with self.subTest(function=name):
-                self.assertEqual(
-                    next(iter(annotations[name].values())),
-                    "LiveAssemblyOptions",
-                )
+        self.assertEqual(annotations["execute_search"]["request"], "SearchRequest")
 
     def test_provider_runtime_does_not_accept_argparse_namespace(self) -> None:
         provider_root = PROJECT / "flights_cli" / "providers"

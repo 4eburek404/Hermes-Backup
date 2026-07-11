@@ -110,10 +110,10 @@ def _result_from_provider_result(
             "direct_only": bool(query.get("direct_only", False)),
             "only_carriers": list(query.get("only_carriers") or []),
         },
-        "offer_count": summary.get("offer_count", len(result.normalized_offers or [])),
+        "offer_count": summary.get("offer_count", len(result.offers)),
         "raw_offer_count": summary.get("raw_offer_count"),
         "omitted_offer_count": summary.get("omitted_offer_count"),
-        "top_offers": summary.get("top_offers", result.normalized_offers or []),
+        "top_offers": summary.get("top_offers", list(result.offers)),
         "source_boundary": result.source_boundary,
     }
     if result.errors:

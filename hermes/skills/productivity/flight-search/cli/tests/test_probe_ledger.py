@@ -162,14 +162,13 @@ class ProbeExecutionLedgerTests(unittest.TestCase):
             diagnostics["completeness"]["terminal_count"],
         )
 
-    def test_reopen_for_execution_supersedes_skipped_probe(self) -> None:
+    def test_terminal_skipped_probe_cannot_be_reopened(self) -> None:
         item = control(type="segment_hub_leg", leg="origin_to_gateway", provider="tutu")
         ledger = ProbeExecutionLedger()
         ledger.plan_controls([item])
         ledger.record_skipped(item, reason="direct_mode")
         ledger.finalize_unexecuted()
 
-        ledger.reopen_for_execution(item)
         ledger.plan_controls([item])
         ledger.record_searched(
             item,
@@ -181,24 +180,20 @@ class ProbeExecutionLedgerTests(unittest.TestCase):
         ledger.finalize_unexecuted()
         diagnostics = ledger.to_coverage_diagnostics({"coverage_mode": "targeted"})
 
-        self.assertEqual(len(diagnostics["searched_controls"]), 1)
-        self.assertEqual(
-            diagnostics["searched_controls"][0]["execution_state"], "searched"
-        )
-        self.assertEqual(diagnostics["skipped_controls"], [])
+        self.assertEqual(diagnostics["searched_controls"], [])
+        self.assertEqual(len(diagnostics["skipped_controls"]), 1)
         self.assertEqual(diagnostics["not_executed_controls"], [])
-        self.assertEqual(diagnostics["deduped_controls"], [])
+        self.assertEqual(len(diagnostics["deduped_controls"]), 2)
         self.assertTrue(
             diagnostics["completeness"]["all_planned_controls_have_terminal_state"]
         )
 
-    def test_reopen_for_execution_supersedes_not_executed_probe(self) -> None:
+    def test_terminal_not_executed_probe_cannot_be_reopened(self) -> None:
         item = control(type="segment_hub_leg", leg="gateway_to_destination")
         ledger = ProbeExecutionLedger()
         ledger.plan_controls([item])
         ledger.finalize_unexecuted()
 
-        ledger.reopen_for_execution(item)
         ledger.record_searched(
             item,
             status="ok",
@@ -209,9 +204,9 @@ class ProbeExecutionLedgerTests(unittest.TestCase):
         ledger.finalize_unexecuted()
         diagnostics = ledger.to_coverage_diagnostics({"coverage_mode": "targeted"})
 
-        self.assertEqual(len(diagnostics["searched_controls"]), 1)
-        self.assertEqual(diagnostics["not_executed_controls"], [])
-        self.assertEqual(diagnostics["deduped_controls"], [])
+        self.assertEqual(diagnostics["searched_controls"], [])
+        self.assertEqual(len(diagnostics["not_executed_controls"]), 1)
+        self.assertEqual(len(diagnostics["deduped_controls"]), 1)
         self.assertTrue(
             diagnostics["completeness"]["all_planned_controls_have_terminal_state"]
         )

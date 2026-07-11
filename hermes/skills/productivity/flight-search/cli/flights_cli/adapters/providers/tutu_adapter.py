@@ -111,8 +111,7 @@ class TutuProviderAdapter:
                 offer_count=offer_count, cache_status=cache_status
             ),
             result_summary=summary,
-            normalized_offers=list(segment_result.get("offers") or []),
-            normalized_result=segment_result,
+            offers=tuple(segment_result.get("offers") or []),
             source_boundary={
                 "provider": "tutu",
                 "source_key": segment_result.get("source_key"),
@@ -221,8 +220,7 @@ class TutuProviderAdapter:
                 offer_count=offer_count, cache_status=cache_status
             ),
             result_summary=summary,
-            normalized_offers=top_offers,
-            normalized_result={"top_offers": top_offers},
+            offers=tuple(top_offers),
             source_boundary={
                 "provider": "tutu",
                 "source": result.get("source"),

@@ -45,10 +45,10 @@ def live_search_args(**overrides: object) -> argparse.Namespace:
             "aggregate_control_limit": overrides.pop("aggregate_control_limit", 0),
         },
     }
-    adapter = getattr(search_app, "live_assembly_options_from_search_request", None)
+    adapter = getattr(search_app, "search_request_from_payload", None)
     if not callable(adapter):
         raise AssertionError(
-            "search app must expose live_assembly_options_from_search_request as the canonical search adapter"
+            "search app must expose search_request_from_payload as the canonical search adapter"
         )
     options = adapter(request)
     args = argparse.Namespace(
@@ -213,10 +213,10 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(payload["command"], "maint doctor")
         self.assertEqual(payload["issues"], [])
         self.assertEqual(
-            payload["data"]["cli"], {"name": "flights-cli", "version": "0.7.0"}
+            payload["data"]["cli"], {"name": "flights-cli", "version": "0.8.0"}
         )
         self.assertEqual(
-            payload["data"]["skill"], {"name": "flight-search", "version": "0.10.0"}
+            payload["data"]["skill"], {"name": "flight-search", "version": "0.11.0"}
         )
         self.assertEqual(
             set(payload["data"]),
@@ -343,13 +343,11 @@ class CliContractTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["command"], "diagnose plan")
         self.assertEqual(
-            payload["data"]["schema_version"], "flight_search_plan_diagnostic.v1"
+            payload["data"]["schema_version"], "flight_search_plan_diagnostic.v2"
         )
         self.assert_metadata_only_evidence_scope(payload["data"]["evidence_scope"])
         data = payload["data"]["plan"]
-        self.assertEqual(len(payload["data"]["segments"]), len(data["segments"]))
-        self.assertEqual(len(payload["data"]["probe_specs"]), len(data["segments"]))
-        provider_queries = payload["data"]["provider_queries"]
+        provider_queries = data["primary_offer_queries"]
         self.assertTrue(provider_queries)
         first_query = provider_queries[0]
         self.assertEqual(first_query["role"], "primary_offer_collection")
@@ -357,15 +355,13 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(first_query["probe_type"], "full_route_aggregate")
         self.assertEqual(first_query["currency"], "RUB")
         self.assertNotIn("command", first_query)
-        self.assertEqual(data["hubs"], ["IST", "DXB"])
-        self.assertEqual(data["destination_airports"], ["LHR", "LGW"])
+        route = data["route_context"]
+        self.assertEqual(route["hubs"], ["IST", "DXB"])
+        self.assertEqual(route["destination_airports"], ["LHR", "LGW"])
         self.assertEqual(
-            data["airport_scope"]["destination"]["excluded_by_default"], ["STN", "LTN"]
+            route["airport_scope"]["destination"]["excluded_by_default"], ["STN", "LTN"]
         )
-        self.assertEqual(data["metrics"]["segment_search_count"], 0)
-        self.assertEqual(
-            payload["data"]["search_plan"]["schema_version"], "flight_search_plan.v1"
-        )
+        self.assertEqual(data["schema_version"], "flight_search_plan.v2")
 
     def test_leaf_json_flag_is_accepted_without_argv_rewrite(self) -> None:
         parser = build_parser()

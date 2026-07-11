@@ -50,47 +50,6 @@ def probe_type_from_segment(spec: Mapping[str, Any]) -> str:
     return "segment_direct" if "direct" in leg else "segment_hub_leg"
 
 
-def intent_from_control(
-    control: Mapping[str, Any], *, provider: Any = None, probe_id: Any = None
-) -> ProbeIntent:
-    filters = (
-        control.get("filters") if isinstance(control.get("filters"), Mapping) else None
-    )
-    metadata = {
-        key: value
-        for key, value in dict(control).items()
-        if key
-        not in {
-            "type",
-            "probe_type",
-            "direction",
-            "origin",
-            "destination",
-            "date",
-            "provider",
-            "carrier",
-            "leg",
-            "probe_id",
-            "negative_evidence",
-            "filters",
-        }
-    }
-    return ProbeIntent(
-        probe_type=str(control.get("probe_type") or control.get("type") or ""),
-        direction=str(control.get("direction") or ""),
-        origin=str(control.get("origin") or "").upper(),
-        destination=str(control.get("destination") or "").upper(),
-        date=str(control.get("date") or ""),
-        provider=str(provider or control.get("provider") or "") or None,
-        carrier=str(control.get("carrier") or "").upper() or None,
-        leg=str(control.get("leg") or "") or None,
-        probe_id=str(probe_id or control.get("probe_id") or "") or None,
-        negative_evidence=str(control.get("negative_evidence") or "") or None,
-        filters=filters,
-        metadata=metadata,
-    )
-
-
 def intent_from_segment(
     spec: Mapping[str, Any], *, provider: Any = None, probe_id: Any = None
 ) -> ProbeIntent:

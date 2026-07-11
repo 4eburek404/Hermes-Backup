@@ -164,10 +164,10 @@ def dispatch_segment_probe(
             summary = outcome_summary_from_provider_result(
                 result, delegated_probe_id=claim.probe_id
             )
-            segment_result = result.normalized_result or {
+            segment_result = {
                 "direction": spec.get("direction"),
                 "leg": spec.get("leg"),
-                "offers": result.normalized_offers,
+                "offers": list(result.offers),
             }
         except CliError as exc:
             failure = {

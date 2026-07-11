@@ -18,10 +18,9 @@ def display_minutes_between(start: Any, end: Any) -> int | None:
     second = parse_iso(end)
     if first is None or second is None:
         return None
-    if (first.tzinfo is None) != (second.tzinfo is None):
-        first = first.replace(tzinfo=None)
-        second = second.replace(tzinfo=None)
-    return max(0, int((second - first).total_seconds() // 60))
+    if first.tzinfo is None or second.tzinfo is None:
+        return None
+    return int((second - first).total_seconds() // 60)
 
 
 def integer_or_none(value: Any) -> int | None:

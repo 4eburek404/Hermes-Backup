@@ -6,54 +6,54 @@ from typing import Any
 
 from ..config import SPECIAL_CITY_AIRPORTS
 from ..domain.gateway_discovery import GatewayDiscoveryService
+from ..domain.immutable import thaw
 from ..domain.normalize import normalize_carrier_code
 from ..domain.vocabulary import Direction, Leg, RouteFamily
 from ..errors import CliError
-from ..execution.aggregate_control_runner import (
+from .aggregate_control_runner import (
     AggregateControlOptions,
     evaluate_graph_coverage_controls,
     run_aggregate_controls,
 )
-from ..execution.gateway_leg_probe_executor import (
+from .gateway_leg_probe_executor import (
     GatewayLegProbeExecutor,
     GatewayLegProbeOptions,
 )
-from ..execution.offer_query_runner import (
+from .offer_query_runner import (
     PrimaryOfferQueryOptions,
     run_primary_offer_queries,
 )
-from ..execution.probe_ledger import ProbeExecutionLedger
-from ..execution.request_deduper import RequestDeduper
-from ..execution.search_wave_planner import (
+from .probe_ledger import ProbeExecutionLedger
+from .request_deduper import RequestDeduper
+from .search_wave_planner import (
     SearchWavePlanner,
     SearchWavePlannerOptions,
 )
+from .search_evidence import SearchEvidence
 from ..pipeline.decision_scorer import DecisionScorer, DecisionScorerOptions
 from ..pipeline.offer_graph import (
     build_offer_graph as build_pipeline_offer_graph,
     materialize_offer_graph_candidates,
 )
-from ..pipeline.options import LiveAssemblyOptions
-from ..pipeline.search_pipeline import LiveRouteSearchFlow, build_live_route_search_flow
+from ..pipeline.search_request import SearchRequest
 from ..reporting.date_window_inventory import build_date_window_inventory
 from ..store import Store
-from .search_plan_builder import build_runtime_route_plan, build_search_plan
+from ..orchestrators.search_plan_builder import (
+    build_planning_state,
+    build_search_plan,
+)
 
 
-# Compatibility injection hook for tests and callers that patch
-# ``flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search``.
-# Production keeps this as None so provider calls are resolved through the
+# Test injection hook. Production provider calls are resolved through the
 # provider-port registry in ``execution.*``.
 fetch_kupibilet_search: Any | None = None
 
 
 @dataclass
-class LiveAssemblyState:
+class SearchExecutionState:
     """Mutable state for one frontier-first live search run."""
 
-    flow: LiveRouteSearchFlow
-    plan: dict[str, Any]
-    search_plan: dict[str, Any] = field(default_factory=dict)
+    search_plan: dict[str, Any]
     primary_offer_results: list[dict[str, Any]] = field(default_factory=list)
     gateway_leg_results: dict[str, Any] = field(default_factory=dict)
     direct_inventory_searches: list[dict[str, Any]] = field(default_factory=list)
@@ -67,23 +67,33 @@ class LiveAssemblyState:
         default_factory=dict
     )
 
+    @property
+    def route_context(self) -> dict[str, Any]:
+        context = self.search_plan.get("route_context")
+        return context if isinstance(context, dict) else {}
+
 
 @dataclass(frozen=True, slots=True)
-class LiveSearchEvaluation:
-    """Derived search data shared by fallback selection and final rendering."""
+class SearchDecision:
+    """Pure decision artifacts derived after evidence freeze."""
 
     offer_graph: dict[str, Any]
-    aggregate_controls: list[dict[str, Any]]
     graph_controls: list[dict[str, Any]]
-    gateway_discovery_diagnostics: dict[str, Any]
     offer_candidates: dict[str, Any]
     scored_decisions: dict[str, Any]
-    date_window_inventory: dict[str, Any] | None
 
     @property
     def decision_frontier(self) -> dict[str, Any]:
         frontier = self.scored_decisions.get("decision_frontier")
         return frontier if isinstance(frontier, dict) else {}
+
+
+@dataclass(frozen=True, slots=True)
+class SearchRunArtifacts:
+    plan: dict[str, Any]
+    evidence: SearchEvidence
+    decision: SearchDecision
+    projection_input: dict[str, Any]
 
 
 def hub_viability_summary(
@@ -110,14 +120,14 @@ def hub_viability_summary(
     }
 
 
-def gateway_discovery_market_key(state: LiveAssemblyState) -> str:
+def gateway_discovery_market_key(state: SearchExecutionState) -> str:
     discovery = state.search_plan.get("gateway_discovery")
     if isinstance(discovery, dict) and discovery.get("prior_set"):
         return str(discovery.get("prior_set") or "")
     for query in state.search_plan.get("primary_offer_queries") or []:
         if isinstance(query, dict) and query.get("route_family"):
             return str(query.get("route_family") or "")
-    for family in state.plan.get("route_families") or []:
+    for family in state.route_context.get("route_families") or []:
         if isinstance(family, dict) and family.get("id"):
             return str(family.get("id") or "")
     return ""
@@ -126,7 +136,7 @@ def gateway_discovery_market_key(state: LiveAssemblyState) -> str:
 def search_plan_with_gateway_discovery_output(
     search_plan: dict[str, Any], gateway_discovery_diagnostics: dict[str, Any]
 ) -> dict[str, Any]:
-    diagnostics_plan = deepcopy(search_plan)
+    diagnostics_plan = thaw(search_plan)
     discovery = (
         dict(diagnostics_plan.get("gateway_discovery"))
         if isinstance(diagnostics_plan.get("gateway_discovery"), dict)
@@ -291,13 +301,10 @@ def _requested_airport_pair(
 
 
 def _provider_result_offers(result: dict[str, Any]) -> list[Any]:
-    for key in ("top_offers", "normalized_offers", "offers"):
+    for key in ("offers", "top_offers"):
         offers = result.get(key)
         if isinstance(offers, list):
             return offers
-    normalized_result = result.get("normalized_result")
-    if isinstance(normalized_result, dict):
-        return _provider_result_offers(normalized_result)
     return []
 
 
@@ -412,7 +419,7 @@ def _direct_evidence_by_direction(
     return evidence
 
 
-def _direct_mode_disabled_reason(options: LiveAssemblyOptions) -> str | None:
+def _direct_mode_disabled_reason(options: SearchRequest) -> str | None:
     if (
         options.route.max_connections is not None
         and int(options.route.max_connections) >= 1
@@ -422,7 +429,7 @@ def _direct_mode_disabled_reason(options: LiveAssemblyOptions) -> str | None:
 
 
 def _direct_mode_from_primary_results(
-    options: LiveAssemblyOptions,
+    options: SearchRequest,
     plan: dict[str, Any],
     primary_offer_results: list[dict[str, Any]],
 ) -> tuple[dict[str, bool], dict[str, Any]]:
@@ -443,82 +450,61 @@ def _direct_mode_from_primary_results(
     }
 
 
-def _query_in_direct_mode(query: dict[str, Any], direct_mode: dict[str, bool]) -> bool:
-    direction = _normalize_direction(query.get("direction"))
-    return bool(direct_mode.get(direction))
-
-
-def _filter_gateway_queries_for_direct_mode(
+def _partition_gateway_queries(
     queries: list[dict[str, Any]],
-    direct_mode: dict[str, bool],
-    probe_ledger: ProbeExecutionLedger,
+    fallback_directions: list[str],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    fallback = set(fallback_directions)
     kept: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
     for query in queries:
         if not isinstance(query, dict):
             continue
-        if _query_in_direct_mode(query, direct_mode):
-            skipped.append(query)
-            probe_ledger.record_skipped(query, reason="direct_mode")
-            continue
-        kept.append(query)
+        target = (
+            kept
+            if _normalize_direction(query.get("direction")) in fallback
+            else skipped
+        )
+        target.append(query)
     return kept, skipped
 
 
-def _fallback_directions_from_frontier(
-    decision_frontier: dict[str, Any], direct_mode: dict[str, bool]
+def assess_fallback(
+    primary_offer_results: list[dict[str, Any]],
+    direct_mode: dict[str, bool],
 ) -> list[str]:
-    coverage = (
-        decision_frontier.get("coverage_summary")
-        if isinstance(decision_frontier.get("coverage_summary"), dict)
-        else {}
-    )
-    if int(coverage.get("acceptable_count") or 0) > 0:
-        return []
-    if int(coverage.get("direct_option_count") or 0) <= 0:
-        return []
-    by_direction = (
-        coverage.get("direct_option_count_by_direction")
-        if isinstance(coverage.get("direct_option_count_by_direction"), dict)
-        else {}
-    )
+    """Assess fallback from primary evidence without graph/scoring side effects."""
+
+    evidence_directions: set[str] = set()
+    for result in primary_offer_results:
+        if not isinstance(result, dict):
+            continue
+        fallback_direction = _normalize_direction(result.get("direction"))
+        for offer in _provider_result_offers(result):
+            if not isinstance(offer, dict):
+                continue
+            for path in _offer_paths(offer, fallback_direction=fallback_direction):
+                segments = path.get("segments") or []
+                if segments and all(
+                    all(
+                        segment.get(field)
+                        for field in (
+                            "origin",
+                            "destination",
+                            "departure_at",
+                            "arrival_at",
+                        )
+                    )
+                    for segment in segments
+                    if isinstance(segment, dict)
+                ):
+                    evidence_directions.add(_normalize_direction(path.get("direction")))
     return [
-        direction
-        for direction, enabled in direct_mode.items()
-        if enabled and int(by_direction.get(direction) or 0) > 0
+        direction for direction in direct_mode if direction not in evidence_directions
     ]
 
 
-def _merge_gateway_leg_results(
-    base: dict[str, Any], fallback: dict[str, Any]
-) -> dict[str, Any]:
-    if not base:
-        return fallback
-    if not fallback:
-        return base
-    merged = deepcopy(base)
-    merged["gateways"] = [
-        *(base.get("gateways") or []),
-        *(fallback.get("gateways") or []),
-    ]
-    for key in (
-        "searched_gateways",
-        "viable_gateways",
-        "failed_gateways",
-        "not_searched_budget",
-    ):
-        merged[key] = int(base.get(key) or 0) + int(fallback.get(key) or 0)
-    diagnostics = deepcopy(base.get("wave_diagnostics") or {})
-    fallback_diagnostics = fallback.get("wave_diagnostics")
-    if isinstance(fallback_diagnostics, dict):
-        diagnostics["direct_mode_fallback"] = fallback_diagnostics
-    if diagnostics:
-        merged["wave_diagnostics"] = diagnostics
-    return merged
-
-
-def _effective_hard_max_connections(options: LiveAssemblyOptions) -> int:
+def _effective_hard_max_connections(options: SearchRequest) -> int:
     if options.route.tier2_max_connections is not None:
         return max(0, int(options.route.tier2_max_connections))
     if options.route.max_connections is not None:
@@ -526,7 +512,7 @@ def _effective_hard_max_connections(options: LiveAssemblyOptions) -> int:
     return 2
 
 
-def _preferred_max_connections(options: LiveAssemblyOptions) -> int:
+def _preferred_max_connections(options: SearchRequest) -> int:
     if options.route.max_connections is not None:
         return max(0, int(options.route.max_connections))
     return 1
@@ -537,119 +523,155 @@ def _wave_diagnostics(gateway_leg_results: dict[str, Any]) -> dict[str, Any]:
     return deepcopy(diagnostics) if isinstance(diagnostics, dict) else {}
 
 
-class LiveSearchResultBuilder:
-    def __init__(
-        self, *, options: LiveAssemblyOptions, store: Store, provider_policy: str
-    ) -> None:
-        self.options = options
-        self.store = store
-        self.provider_policy = provider_policy
+def _aggregate_candidates(
+    controls: tuple[dict[str, Any], ...], *, round_trip: bool
+) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    for control_index, control in enumerate(controls):
+        direction = _normalize_direction(control.get("direction")) or "outbound"
+        provider = str(control.get("provider") or "provider")
+        for offer_index, offer in enumerate(control.get("top_offers") or []):
+            if not isinstance(offer, dict):
+                continue
+            segments = [
+                {**segment, "direction": segment.get("direction") or direction}
+                for segment in offer.get("segments") or []
+                if isinstance(segment, dict)
+            ]
+            journeys = [
+                journey
+                for journey in offer.get("journeys") or []
+                if isinstance(journey, dict)
+            ]
+            if not journeys and segments:
+                journeys = [{"direction": direction, "segments": segments}]
+            directions = {
+                _normalize_direction(journey.get("direction")) for journey in journeys
+            }
+            covers_requested_trip = not round_trip or {
+                "outbound",
+                "return",
+            }.issubset(directions)
+            candidate = {
+                **deepcopy(offer),
+                "id": str(offer.get("id") or "")
+                or f"aggregate:{provider}:{control_index}:{offer_index}",
+                "source_type": "provider_full_route",
+                "provider": provider,
+                "source_providers": [provider],
+                "journeys": journeys,
+                "segments": segments,
+                "covers_requested_trip": covers_requested_trip,
+                "journey_scope": "round_trip"
+                if covers_requested_trip and round_trip
+                else "one_way",
+                "price": offer.get("price"),
+                "currency": offer.get("currency"),
+                "price_basis": "provider_offer_price"
+                if offer.get("price") is not None
+                else "unknown",
+                "elapsed_min": offer.get("duration_min"),
+                "ticketing_model": offer.get("ticketing_model") or "unknown",
+                "evidence_sources": [
+                    {
+                        "provider": provider,
+                        "probe_id": control.get("probe_id"),
+                        "source_type": "provider_full_route",
+                    }
+                ],
+            }
+            candidates.append(candidate)
+    return candidates
 
-    def evaluate(self, state: LiveAssemblyState) -> LiveSearchEvaluation:
+
+class SearchDecisionBuilder:
+    def __init__(self, *, options: SearchRequest) -> None:
+        self.options = options
+
+    def evaluate(self, evidence: SearchEvidence) -> SearchDecision:
         offer_graph = build_pipeline_offer_graph(
-            primary_offer_results=state.primary_offer_results,
-            gateway_leg_results=state.gateway_leg_results,
-            direct_mode=state.direct_mode,
-            requested_origin=str(state.plan.get("origin") or ""),
-            requested_destination=str(state.plan.get("destination") or ""),
-        )
-        aggregate_controls = run_aggregate_controls(
-            AggregateControlOptions(
-                provider_policy=self.provider_policy,
-                aggregate_control_limit=self.options.evidence.aggregate_control_limit,
-                only_carriers=self.options.effective_only_carriers(),
-                aggregate_control_carriers=self.options.evidence.aggregate_control_carriers,
-                live_cache_ttl_seconds=self.options.evidence.live_cache_ttl_seconds,
-                no_live_cache=self.options.evidence.no_live_cache,
-                timeout=self.options.evidence.timeout,
-            ),
-            state.plan,
-            kupibilet_fetcher=fetch_kupibilet_search,
-            probe_ledger=state.probe_ledger,
-            store=self.store,
-            offer_graph=offer_graph,
+            primary_offer_results=list(evidence.primary_offer_results),
+            gateway_leg_results=evidence.gateway_leg_results,
+            direct_mode=evidence.direct_mode,
+            requested_origin=str(evidence.route_context.get("origin") or ""),
+            requested_destination=str(evidence.route_context.get("destination") or ""),
         )
         graph_controls = evaluate_graph_coverage_controls(
-            state.plan,
+            evidence.route_context,
             offer_graph,
-            probe_ledger=state.probe_ledger,
         )
-        gateway_discovery_diagnostics: dict[str, Any] = {}
-        GatewayDiscoveryService(self.store).discover(
-            gateway_discovery_market_key(state),
-            provider_results=[*state.primary_offer_results, *aggregate_controls],
-            diagnostics=gateway_discovery_diagnostics,
-        )
-        state.probe_ledger.finalize_unexecuted()
         offer_candidates = materialize_offer_graph_candidates(
             offer_graph,
-            direct_only=bool(state.flow.evidence_plan.direct_only),
-            direct_mode=state.direct_mode,
-            requested_origin=str(state.plan.get("origin") or ""),
-            requested_destination=str(state.plan.get("destination") or ""),
+            direct_only=bool(evidence.route_context.get("direct_only")),
+            direct_mode=evidence.direct_mode,
+            requested_origin=str(evidence.route_context.get("origin") or ""),
+            requested_destination=str(evidence.route_context.get("destination") or ""),
         )
+        offer_candidates["candidates"] = [
+            *(
+                candidate
+                for candidate in offer_candidates.get("candidates") or []
+                if isinstance(candidate, dict)
+            ),
+            *_aggregate_candidates(
+                evidence.aggregate_controls,
+                round_trip=bool(
+                    (evidence.route_context.get("dates") or {}).get("return")
+                ),
+            ),
+        ]
         scored_decisions = DecisionScorer(
             DecisionScorerOptions(
-                round_trip=bool((state.plan.get("dates") or {}).get("return")),
+                round_trip=bool(
+                    (evidence.route_context.get("dates") or {}).get("return")
+                ),
                 max_connections_per_journey=_effective_hard_max_connections(
                     self.options
                 ),
-                max_connections_per_direction=(
-                    state.direct_mode_max_connections_by_direction
-                ),
+                max_connections_per_direction=evidence.max_connections_by_direction,
                 preferred_connections=_preferred_max_connections(self.options),
                 min_same_airport_connection_min=self.options.route.min_same_airport_min,
                 min_cross_airport_connection_min=self.options.route.min_cross_airport_min,
+                max_options=(
+                    self.options.output.direct_catalog_limit
+                    if any(bool(value) for value in evidence.direct_mode.values())
+                    else self.options.output.catalog_limit
+                ),
             )
         ).score(
             offer_candidates,
-            controls=[*graph_controls, *aggregate_controls],
+            controls=[*graph_controls, *evidence.aggregate_controls],
         )
-        state.direct_inventory_searches = _primary_direct_inventory_searches(
-            state.primary_offer_results
-        )
-        state.direct_inventory_results = _primary_direct_inventory_results(
-            state.primary_offer_results
-        )
-        date_window_inventory = build_date_window_inventory(
-            state.plan,
-            state.direct_inventory_searches,
-            state.direct_inventory_results,
-        )
-        return LiveSearchEvaluation(
+        return SearchDecision(
             offer_graph=offer_graph,
-            aggregate_controls=aggregate_controls,
             graph_controls=graph_controls,
-            gateway_discovery_diagnostics=gateway_discovery_diagnostics,
             offer_candidates=offer_candidates,
             scored_decisions=scored_decisions,
-            date_window_inventory=date_window_inventory,
         )
 
-    def build_route_trace(
+    def build_projection_input(
         self,
-        state: LiveAssemblyState,
-        evaluation: LiveSearchEvaluation | None = None,
+        evidence: SearchEvidence,
+        decision: SearchDecision,
     ) -> dict[str, Any]:
-        evaluated = evaluation or self.evaluate(state)
-        decision_frontier = evaluated.decision_frontier
-        mixed_candidate_ranking = evaluated.scored_decisions["mixed_candidate_ranking"]
+        decision_frontier = decision.decision_frontier
+        mixed_candidate_ranking = decision.scored_decisions["mixed_candidate_ranking"]
         coverage = (
             decision_frontier.get("coverage_summary")
             if isinstance(decision_frontier.get("coverage_summary"), dict)
             else {}
         )
         route_trace: dict[str, Any] = {
-            "schema_version": "flight_route_trace_diagnostic.v1",
-            "origin": state.plan.get("origin"),
-            "destination": state.plan.get("destination"),
-            "dates": deepcopy(state.plan.get("dates") or {}),
-            "currency": state.plan.get("currency"),
+            "schema_version": "flight_decision_projection_input.v1",
+            "origin": evidence.route_context.get("origin"),
+            "destination": evidence.route_context.get("destination"),
+            "dates": thaw(evidence.route_context.get("dates") or {}),
+            "currency": evidence.route_context.get("currency"),
             "count": len(_decision_options(decision_frontier)),
-            "decision_frontier": decision_frontier,
+            "decision_frontier": thaw(decision_frontier),
             "assembly": {
                 "source": "decision_frontier",
-                "direct_mode": dict(state.direct_mode),
+                "direct_mode": dict(evidence.direct_mode),
                 "candidate_count": int(coverage.get("candidate_count") or 0),
                 "ranked_total_count": int(coverage.get("candidate_count") or 0),
                 "ranked_output_count": len(_decision_options(decision_frontier)),
@@ -657,61 +679,54 @@ class LiveSearchResultBuilder:
             },
             "live_search": {
                 "source": "frontier-first provider search",
-                "provider_policy": self.provider_policy,
+                "provider_policy": evidence.provider_policy,
                 "note": "Provider offers are shopping evidence; verify final fare, baggage, and ticket protection on the booking screen.",
-                "plan": deepcopy(state.plan),
+                "plan": thaw(evidence.route_context),
                 "output": {
                     "catalog_limit": self.options.output.catalog_limit,
                     "direct_catalog_limit": self.options.output.direct_catalog_limit,
                 },
-                "segment_searches": state.direct_inventory_searches,
+                "segment_searches": thaw(evidence.direct_inventory_searches),
                 "hub_viability": hub_viability_summary(
-                    state.plan,
-                    state.direct_inventory_searches,
-                    state.gateway_leg_results,
+                    evidence.route_context,
+                    list(evidence.direct_inventory_searches),
+                    evidence.gateway_leg_results,
                 ),
-                "primary_offer_results": state.primary_offer_results,
-                "gateway_leg_results": state.gateway_leg_results,
-                "offer_graph": evaluated.offer_graph,
-                "candidate_input_ids": _candidate_ids(evaluated.offer_candidates),
-                "decision_scorer": evaluated.scored_decisions["scorer"],
-                "mixed_candidate_ranking": mixed_candidate_ranking,
-                "policy_controls": evaluated.graph_controls,
-                "aggregate_controls": evaluated.aggregate_controls,
-                "probe_ledger": state.probe_ledger.to_coverage_diagnostics(state.plan),
-                "direct_presence_gate": deepcopy(state.direct_presence_gate),
+                "primary_offer_results": thaw(evidence.primary_offer_results),
+                "gateway_leg_results": thaw(evidence.gateway_leg_results),
+                "offer_graph": thaw(decision.offer_graph),
+                "candidate_input_ids": _candidate_ids(decision.offer_candidates),
+                "decision_scorer": thaw(decision.scored_decisions["scorer"]),
+                "mixed_candidate_ranking": thaw(mixed_candidate_ranking),
+                "policy_controls": thaw(decision.graph_controls),
+                "aggregate_controls": thaw(evidence.aggregate_controls),
+                "probe_ledger": thaw(evidence.probe_ledger),
+                "direct_presence_gate": thaw(evidence.direct_presence_gate),
                 "diagnostics": {
                     "search_plan": search_plan_with_gateway_discovery_output(
-                        state.search_plan,
-                        evaluated.gateway_discovery_diagnostics,
+                        evidence.search_plan,
+                        evidence.observed_gateway_diagnostics,
                     ),
-                    "wave_diagnostics": _wave_diagnostics(state.gateway_leg_results),
+                    "wave_diagnostics": _wave_diagnostics(evidence.gateway_leg_results),
                 },
-                "failure_count": len(state.failures),
-                "failures": state.failures,
+                "failure_count": len(evidence.failures),
+                "failures": thaw(evidence.failures),
             },
         }
-        if evaluated.date_window_inventory is not None:
-            route_trace["live_search"]["date_window_inventory"] = (
-                evaluated.date_window_inventory
+        if evidence.date_window_inventory is not None:
+            route_trace["live_search"]["date_window_inventory"] = thaw(
+                evidence.date_window_inventory
             )
         return route_trace
 
-    def build(
-        self,
-        state: LiveAssemblyState,
-        evaluation: LiveSearchEvaluation | None = None,
-    ) -> dict[str, Any]:
-        return self.build_route_trace(state, evaluation)
 
-
-class LiveAssemblyRunner:
+class SearchExecutor:
     """Frontier-first live search orchestrator."""
 
-    def __init__(self, options: LiveAssemblyOptions, store: Store) -> None:
+    def __init__(self, options: SearchRequest, store: Store) -> None:
         self.options = options
         self.store = store
-        self.state: LiveAssemblyState | None = None
+        self.state: SearchExecutionState | None = None
         self.max_searches: int = 0
         self.only_carriers: list[str] = []
         self.cache_ttl_seconds: int = 0
@@ -720,11 +735,12 @@ class LiveAssemblyRunner:
         self.request_deduper = RequestDeduper()
         self.gateway_leg_probe_executor: GatewayLegProbeExecutor | None = None
         self.search_wave_planner: SearchWavePlanner | None = None
-        self.result_builder: LiveSearchResultBuilder | None = None
+        self.decision_builder = SearchDecisionBuilder(options=options)
 
-    def run(self) -> dict[str, Any]:
-        state = self.initialize_state()
-        assert self.result_builder is not None
+    def execute(self, plan: dict[str, Any]) -> SearchRunArtifacts:
+        """Execute one prebuilt SearchPlan without replanning."""
+
+        state = self.initialize_state(plan)
         state.primary_offer_results = run_primary_offer_queries(
             [
                 {**query, "wave_index": 0}
@@ -742,112 +758,140 @@ class LiveAssemblyRunner:
         state.direct_mode, state.direct_presence_gate = (
             _direct_mode_from_primary_results(
                 self.options,
-                state.plan,
+                state.route_context,
                 state.primary_offer_results,
             )
         )
-        gateway_queries, skipped_gateway_queries = (
-            _filter_gateway_queries_for_direct_mode(
-                list(state.planned_gateway_leg_queries),
-                state.direct_mode,
-                state.probe_ledger,
-            )
+        fallback_directions = assess_fallback(
+            state.primary_offer_results,
+            state.direct_mode,
         )
-        state.search_plan["gateway_leg_queries"] = gateway_queries
+        gateway_queries, skipped_gateway_queries = _partition_gateway_queries(
+            list(state.planned_gateway_leg_queries), fallback_directions
+        )
         state.direct_presence_gate["skipped_gateway_probe_count"] = len(
             skipped_gateway_queries
         )
-        if self.search_wave_planner is not None:
-            state.gateway_leg_results = self.search_wave_planner.run(
-                gateway_queries,
-                state.plan,
-            )
-        evaluation = self.result_builder.evaluate(state)
-        fallback_directions = _fallback_directions_from_frontier(
-            evaluation.decision_frontier,
-            state.direct_mode,
-        )
-        if fallback_directions and self.gateway_leg_probe_executor is not None:
-            fallback_queries = [
-                query
-                for query in state.planned_gateway_leg_queries
-                if _normalize_direction(query.get("direction"))
-                in set(fallback_directions)
-            ]
-            if fallback_queries:
+        if fallback_directions:
+            if gateway_queries and self.search_wave_planner is not None:
                 for direction in fallback_directions:
-                    state.direct_mode[direction] = False
-                    state.direct_mode_max_connections_by_direction[direction] = 1
-                for query in fallback_queries:
-                    state.probe_ledger.reopen_for_execution(query)
-                remaining_budget = max(
-                    0,
-                    self.max_searches
-                    - len(state.search_plan.get("primary_offer_queries") or []),
+                    if state.direct_mode.get(direction):
+                        state.direct_mode[direction] = False
+                        state.direct_mode_max_connections_by_direction[direction] = 1
+                state.gateway_leg_results = self.search_wave_planner.run(
+                    gateway_queries, state.route_context
                 )
-                fallback_planner = SearchWavePlanner(
-                    options=SearchWavePlannerOptions(
-                        max_waves=1,
-                        probes_per_wave=min(
-                            max(1, self.options.evidence.search_wave_probe_limit),
-                            max(1, remaining_budget),
-                        ),
-                        max_segment_searches=remaining_budget,
-                        top_k_partial_paths=self.options.evidence.search_wave_top_k,
-                        timeout_seconds=self.options.evidence.timeout,
-                    ),
-                    executor=self.gateway_leg_probe_executor,
-                )
-                fallback_results = fallback_planner.run(fallback_queries, state.plan)
-                state.gateway_leg_results = _merge_gateway_leg_results(
-                    state.gateway_leg_results, fallback_results
-                )
-                evaluation = self.result_builder.evaluate(state)
                 state.direct_presence_gate["fallback"] = {
                     "status": "executed",
                     "reason": "direct_mode_no_acceptable_candidates",
                     "directions": fallback_directions,
-                    "max_connections_per_journey": 1,
-                    "max_connections_per_direction": {
-                        direction: 1 for direction in fallback_directions
-                    },
+                    "max_connections_per_journey": (
+                        1
+                        if state.direct_mode_max_connections_by_direction
+                        else _effective_hard_max_connections(self.options)
+                    ),
+                    "max_connections_per_direction": dict(
+                        state.direct_mode_max_connections_by_direction
+                    ),
                     "wave_count": 1,
                 }
-            else:
+            elif not gateway_queries:
                 state.direct_presence_gate["fallback"] = {
                     "status": "no_gateway_leg_queries",
                     "reason": "direct_mode_no_acceptable_candidates",
                     "directions": fallback_directions,
-                    "max_connections_per_journey": 1,
-                    "max_connections_per_direction": {
-                        direction: 1 for direction in fallback_directions
-                    },
+                    "max_connections_per_journey": (
+                        1
+                        if state.direct_mode_max_connections_by_direction
+                        else _effective_hard_max_connections(self.options)
+                    ),
+                    "max_connections_per_direction": dict(
+                        state.direct_mode_max_connections_by_direction
+                    ),
                 }
-        elif fallback_directions:
-            state.direct_presence_gate["fallback"] = {
-                "status": "not_executed",
-                "reason": "direct_mode_no_acceptable_candidates",
-                "directions": fallback_directions,
-                "max_connections_per_journey": 1,
-                "max_connections_per_direction": {
-                    direction: 1 for direction in fallback_directions
-                },
-            }
-        return self.result_builder.build(state, evaluation)
+        for query in skipped_gateway_queries:
+            state.probe_ledger.record_skipped(query, reason="primary_candidate_usable")
 
-    def initialize_state(self) -> LiveAssemblyState:
-        flow = build_live_route_search_flow(self.options, self.store)
-        plan = build_runtime_route_plan(self.options, flow, self.store)
-        search_plan = build_search_plan(
-            self.options,
-            self.store,
-            flow=flow,
-            fallback_route_plan=plan,
+        aggregate_controls = run_aggregate_controls(
+            AggregateControlOptions(
+                provider_policy=self.provider_policy,
+                aggregate_control_limit=self.options.evidence.aggregate_control_limit,
+                only_carriers=self.options.effective_only_carriers(),
+                aggregate_control_carriers=self.options.evidence.aggregate_control_carriers,
+                live_cache_ttl_seconds=self.options.evidence.live_cache_ttl_seconds,
+                no_live_cache=self.options.evidence.no_live_cache,
+                timeout=self.options.evidence.timeout,
+            ),
+            state.route_context,
+            planned_queries=list(state.search_plan.get("aggregate_queries") or []),
+            kupibilet_fetcher=fetch_kupibilet_search,
+            probe_ledger=state.probe_ledger,
+            store=self.store,
+            offer_graph=None,
+        )
+        observed_gateway_diagnostics: dict[str, Any] = {}
+        GatewayDiscoveryService(self.store).discover(
+            gateway_discovery_market_key(state),
+            provider_results=[*state.primary_offer_results, *aggregate_controls],
+            diagnostics=observed_gateway_diagnostics,
+        )
+        state.direct_inventory_searches = _primary_direct_inventory_searches(
+            state.primary_offer_results
+        )
+        state.direct_inventory_results = _primary_direct_inventory_results(
+            state.primary_offer_results
+        )
+        date_window_inventory = build_date_window_inventory(
+            state.route_context,
+            state.direct_inventory_searches,
+            state.direct_inventory_results,
+        )
+        state.probe_ledger.finalize_unexecuted()
+        evidence = SearchEvidence.freeze(
+            search_plan=state.search_plan,
+            provider_policy=self.provider_policy,
+            primary_offer_results=state.primary_offer_results,
+            gateway_leg_results=state.gateway_leg_results,
+            aggregate_controls=aggregate_controls,
+            observed_gateway_diagnostics=observed_gateway_diagnostics,
+            probe_ledger=state.probe_ledger.to_coverage_diagnostics(
+                state.route_context
+            ),
+            failures=state.failures,
+            direct_mode=state.direct_mode,
+            max_connections_by_direction=(
+                state.direct_mode_max_connections_by_direction
+            ),
+            direct_presence_gate=state.direct_presence_gate,
+            direct_inventory_searches=state.direct_inventory_searches,
+            direct_inventory_results=state.direct_inventory_results,
+            date_window_inventory=date_window_inventory,
+        )
+        decision = self.decision_builder.evaluate(evidence)
+        return SearchRunArtifacts(
+            plan=evidence.search_plan,
+            evidence=evidence,
+            decision=decision,
+            projection_input=self.decision_builder.build_projection_input(
+                evidence, decision
+            ),
+        )
+
+    def initialize_state(self, search_plan: dict[str, Any]) -> SearchExecutionState:
+        limits = (
+            search_plan.get("execution_limits")
+            if isinstance(search_plan.get("execution_limits"), dict)
+            else {}
+        )
+        route_context = (
+            search_plan.get("route_context")
+            if isinstance(search_plan.get("route_context"), dict)
+            else {}
         )
         planned_probe_count = len(search_plan.get("primary_offer_queries") or []) + len(
-            search_plan.get("gateway_leg_queries") or []
+            search_plan.get("conditional_gateway_queries") or []
         )
-        self.max_searches = max(1, int(flow.evidence_plan.max_segment_searches))
+        self.max_searches = max(1, int(limits.get("max_segment_searches") or 1))
         if planned_probe_count > self.max_searches:
             raise CliError(
                 f"planned {planned_probe_count} provider probes exceeds --max-segment-searches {self.max_searches}",
@@ -857,27 +901,19 @@ class LiveAssemblyRunner:
                     "max_segment_searches": self.max_searches,
                 },
             )
-        plan["metrics"]["primary_offer_query_count"] = len(
-            search_plan.get("primary_offer_queries") or []
-        )
-        plan["metrics"]["gateway_leg_query_count"] = len(
-            search_plan.get("gateway_leg_queries") or []
-        )
-        self.state = LiveAssemblyState(
-            flow=flow,
-            plan=plan,
+        self.state = SearchExecutionState(
             search_plan=search_plan,
             planned_gateway_leg_queries=list(
-                search_plan.get("gateway_leg_queries") or []
+                search_plan.get("conditional_gateway_queries") or []
             ),
         )
         self.only_carriers = [
             normalize_carrier_code(code, "only-carrier")
             for code in self.options.effective_only_carriers()
         ]
-        self.cache_ttl_seconds = int(flow.evidence_plan.live_cache_ttl_seconds)
-        self.use_live_cache = bool(flow.evidence_plan.live_cache_enabled)
-        self.provider_policy = flow.evidence_plan.provider_policy
+        self.cache_ttl_seconds = int(limits.get("live_cache_ttl_seconds") or 0)
+        self.use_live_cache = bool(limits.get("live_cache_enabled"))
+        self.provider_policy = str(route_context.get("provider_policy") or "auto")
         self.request_deduper = RequestDeduper()
         self.gateway_leg_probe_executor = GatewayLegProbeExecutor(
             options=GatewayLegProbeOptions(
@@ -899,17 +935,18 @@ class LiveAssemblyRunner:
         )
         self.search_wave_planner = SearchWavePlanner(
             options=SearchWavePlannerOptions(
-                max_waves=self.options.evidence.search_wave_max_waves,
-                probes_per_wave=self.options.evidence.search_wave_probe_limit,
+                max_waves=1,
+                probes_per_wave=int(limits.get("search_wave_probe_limit") or 1),
                 max_segment_searches=self.max_searches,
-                top_k_partial_paths=self.options.evidence.search_wave_top_k,
-                timeout_seconds=self.options.evidence.timeout,
+                top_k_partial_paths=int(limits.get("search_wave_top_k") or 1),
+                timeout_seconds=int(limits.get("timeout") or 60),
             ),
             executor=self.gateway_leg_probe_executor,
         )
-        self.result_builder = LiveSearchResultBuilder(
-            options=self.options,
-            store=self.store,
-            provider_policy=self.provider_policy,
-        )
         return self.state
+
+
+def execute_search(request: SearchRequest, store: Store) -> SearchRunArtifacts:
+    flow = build_planning_state(request, store)
+    plan = build_search_plan(request, store, flow=flow)
+    return SearchExecutor(request, store).execute(plan)

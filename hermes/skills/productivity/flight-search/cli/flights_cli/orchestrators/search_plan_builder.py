@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import dataclass
+from datetime import date
 from datetime import timedelta
-from typing import Any
+from typing import Any, Callable
 
 from ..adapters.providers.registry import (
     providers_for_offer_query,
@@ -16,15 +18,37 @@ from ..domain.normalize import parse_iso_date
 from ..domain.route_access_profiles import MODE_REQUIRED, PROFILE_RESTRICTED_ACCESS
 from ..domain.vocabulary import Direction, RequiredControl, RouteFamily
 from ..errors import CliError
-from ..pipeline.options import LiveAssemblyOptions
-from ..pipeline.search_pipeline import LiveRouteSearchFlow, build_live_route_search_flow
-from ..pipeline.search_plan import FallbackSegmentPlan, GatewayDiscovery, SearchPlan
+from ..pipeline.search_request import SearchRequest
+from ..pipeline.evidence_plan import EvidencePlan, plan_evidence
+from ..pipeline.flow_decision import FlowDecision, decide_flow
+from ..pipeline.search_plan import GatewayDiscovery, SearchPlan
 from ..store import Store
 
 
-def direct_inventory_dates(
-    options: LiveAssemblyOptions, flow: LiveRouteSearchFlow
-) -> list[str]:
+@dataclass(frozen=True, slots=True)
+class _PlanningState:
+    request: SearchRequest
+    flow_decision: FlowDecision
+    evidence_plan: EvidencePlan
+
+
+def build_planning_state(
+    request: SearchRequest,
+    store: Store | None = None,
+    *,
+    today_provider: Callable[[], date] | None = None,
+) -> _PlanningState:
+    flow_decision = decide_flow(request, store)
+    return _PlanningState(
+        request=request,
+        flow_decision=flow_decision,
+        evidence_plan=plan_evidence(
+            request, flow_decision, today_provider=today_provider
+        ),
+    )
+
+
+def direct_inventory_dates(options: SearchRequest, flow: _PlanningState) -> list[str]:
     depart = parse_iso_date(flow.request.depart_date, "depart-date")
     window_end_raw = options.route.date_window_end
     if not window_end_raw:
@@ -58,7 +82,7 @@ def direct_inventory_dates(
 
 
 def _city_pair_direct_controls(
-    options: LiveAssemblyOptions, flow: LiveRouteSearchFlow
+    options: SearchRequest, flow: _PlanningState
 ) -> list[dict[str, Any]]:
     controls: list[dict[str, Any]] = []
     if not flow.evidence_plan.direct_only and not flow.request.date_window_end:
@@ -92,11 +116,15 @@ def _city_pair_direct_controls(
     return controls
 
 
-def build_runtime_route_plan(
-    options: LiveAssemblyOptions,
-    flow: LiveRouteSearchFlow,
+def build_route_context(
+    request: SearchRequest,
     store: Store | None = None,
+    *,
+    flow: _PlanningState | None = None,
 ) -> dict[str, Any]:
+    planning = flow or build_planning_state(request, store)
+    options = request
+    flow = planning
     window_end = options.route.date_window_end
     dates: dict[str, Any] = {
         "depart": flow.request.depart_date,
@@ -111,7 +139,6 @@ def build_runtime_route_plan(
         options, flow, store
     )
     return {
-        "schema_version": "flight_runtime_plan.v1",
         "origin": flow.request.origin,
         "destination": flow.request.destination,
         "dates": dates,
@@ -129,21 +156,12 @@ def build_runtime_route_plan(
         "airport_scope": airport_scope,
         "direct_only": bool(flow.evidence_plan.direct_only),
         "coverage_controls": _city_pair_direct_controls(options, flow),
-        "segments": [],
-        "metrics": {
-            "segment_search_count": 0,
-            "primary_offer_query_count": 0,
-            "gateway_leg_query_count": 0,
-            "required_controls": list(flow.evidence_plan.required_controls),
-        },
-        "flow_decision": flow.flow_decision.to_dict(),
-        "evidence_plan": flow.evidence_plan.to_dict(),
     }
 
 
 def _resolved_airport_scope(
-    options: LiveAssemblyOptions,
-    flow: LiveRouteSearchFlow,
+    options: SearchRequest,
+    flow: _PlanningState,
     store: Store | None,
 ) -> tuple[list[str], list[str], dict[str, Any] | None]:
     if store is None:
@@ -192,43 +210,114 @@ def _resolved_airport_scope(
 
 
 class SearchPlanBuilder:
-    """Builds the diagnostic SearchPlan beside the executable fallback plan."""
+    """Pure builder for the single plan consumed by search execution."""
 
     def __init__(
         self,
-        options: LiveAssemblyOptions,
+        options: SearchRequest,
         store: Store,
         *,
-        flow: LiveRouteSearchFlow | None = None,
-        fallback_route_plan: dict[str, Any] | None = None,
+        flow: _PlanningState | None = None,
     ) -> None:
         self._options = options
         self._store = store
         self._flow = flow
-        self._fallback_route_plan = fallback_route_plan
 
     def build(self) -> SearchPlan:
-        flow = self._flow or build_live_route_search_flow(self._options, self._store)
-        runtime_plan = self._fallback_route_plan
-        if runtime_plan is None:
-            runtime_plan = build_runtime_route_plan(self._options, flow, self._store)
-        primary_offer_queries = self._primary_offer_queries(flow, runtime_plan)
-        gateway_discovery = self._gateway_discovery(flow, runtime_plan)
+        flow = self._flow or build_planning_state(self._options, self._store)
+        route_context = build_route_context(self._options, self._store, flow=flow)
+        primary_offer_queries = self._primary_offer_queries(flow, route_context)
+        gateway_discovery = self._gateway_discovery(flow, route_context)
         return SearchPlan(
-            primary_offer_queries=primary_offer_queries,
-            mandatory_controls=[],
+            route_context=route_context,
+            primary_offer_queries=tuple(primary_offer_queries),
             gateway_discovery=gateway_discovery,
-            gateway_leg_queries=self._gateway_leg_queries(
-                flow, runtime_plan, gateway_discovery
+            conditional_gateway_queries=tuple(
+                self._gateway_leg_queries(flow, route_context, gateway_discovery)
             ),
-            fallback_segment_plan=FallbackSegmentPlan(segments=[]),
-            coverage_expectations=self._coverage_expectations(
-                runtime_plan, primary_offer_queries
+            aggregate_queries=tuple(self._aggregate_queries(route_context)),
+            coverage_expectations=tuple(
+                self._coverage_expectations(route_context, primary_offer_queries)
+            ),
+            execution_limits={
+                "max_segment_searches": flow.evidence_plan.max_segment_searches,
+                "search_wave_max_waves": self._options.evidence.search_wave_max_waves,
+                "search_wave_probe_limit": self._options.evidence.search_wave_probe_limit,
+                "search_wave_top_k": self._options.evidence.search_wave_top_k,
+                "aggregate_control_limit": flow.evidence_plan.aggregate_control_limit,
+                "segment_limit": self._options.evidence.segment_limit,
+                "live_cache_ttl_seconds": flow.evidence_plan.live_cache_ttl_seconds,
+                "live_cache_enabled": flow.evidence_plan.live_cache_enabled,
+                "timeout": self._options.evidence.timeout,
+                "fail_fast": self._options.evidence.fail_fast,
+            },
+            output_limits={
+                "catalog_limit": self._options.output.catalog_limit,
+                "direct_catalog_limit": self._options.output.direct_catalog_limit,
+            },
+            planning_reasons=tuple(
+                dict.fromkeys(
+                    [
+                        *flow.flow_decision.route_access_reasons,
+                        *flow.flow_decision.limitations,
+                    ]
+                )
             ),
         )
 
+    def _aggregate_queries(self, route_context: dict[str, Any]) -> list[dict[str, Any]]:
+        limit = max(0, int(self._options.evidence.aggregate_control_limit))
+        if limit == 0:
+            return []
+        base_carriers = list(self._options.effective_only_carriers())
+        carrier_sets = [base_carriers] if base_carriers else []
+        for carrier in self._options.evidence.aggregate_control_carriers:
+            normalized = [str(carrier).upper()]
+            if normalized not in carrier_sets:
+                carrier_sets.append(normalized)
+        if not carrier_sets:
+            carrier_sets.append([])
+        directions = [
+            (
+                "outbound",
+                str(route_context["origin"]),
+                str(route_context["destination"]),
+                str(route_context["dates"]["depart"]),
+            )
+        ]
+        if route_context["dates"].get("return"):
+            directions.append(
+                (
+                    "return",
+                    str(route_context["destination"]),
+                    str(route_context["origin"]),
+                    str(route_context["dates"]["return"]),
+                )
+            )
+        return [
+            {
+                "role": "aggregate_evidence",
+                "source_type": "provider_full_route",
+                "probe_type": RequiredControl.CARRIER_AGGREGATE
+                if carriers
+                else RequiredControl.FULL_ROUTE_AGGREGATE,
+                "provider": None,
+                "direction": direction,
+                "origin": origin,
+                "destination": destination,
+                "date": date_text,
+                "currency": str(route_context["currency"]),
+                "direct_only": False,
+                "only_carriers": carriers,
+                "limit": limit,
+                "execution_state": "not_executed",
+            }
+            for direction, origin, destination, date_text in directions
+            for carriers in carrier_sets
+        ]
+
     def _gateway_discovery(
-        self, flow: LiveRouteSearchFlow, fallback_route_plan: dict[str, Any]
+        self, flow: _PlanningState, route_context: dict[str, Any]
     ) -> GatewayDiscovery:
         decision = flow.flow_decision
         mode = str(decision.gateway_discovery_mode or "disabled")
@@ -243,7 +332,7 @@ class SearchPlanBuilder:
         )
         diagnostics = self._gateway_discovery_diagnostics(
             str(decision.route_access_prior_set or ""),
-            fallback_route_plan,
+            route_context,
             enabled=enabled,
         )
         return GatewayDiscovery(
@@ -251,35 +340,35 @@ class SearchPlanBuilder:
             reason=reason,
             mode=mode,
             route_access_profile=decision.route_access_profile,
-            route_access_reasons=reasons,
+            route_access_reasons=tuple(reasons),
             candidate_count=int(diagnostics.get("candidate_count") or 0),
-            candidates=[
+            candidates=tuple(
                 dict(candidate)
                 for candidate in diagnostics.get("candidates") or []
                 if isinstance(candidate, dict)
-            ],
-            skipped_reasons=[
+            ),
+            skipped_reasons=tuple(
                 str(item) for item in diagnostics.get("skipped_reasons") or [] if item
-            ],
+            ),
             empty_reason=diagnostics.get("empty_reason"),
             prior_set=decision.route_access_prior_set,
             matched_rule_id=decision.route_access_rule_id,
             market=diagnostics.get("market"),
-            rejected_gateway_signals=[
+            rejected_gateway_signals=tuple(
                 dict(item)
                 for item in diagnostics.get("rejected_gateway_signals") or []
                 if isinstance(item, dict)
-            ],
+            ),
         )
 
     def _gateway_discovery_diagnostics(
         self,
         prior_set: str,
-        fallback_route_plan: dict[str, Any],
+        route_context: dict[str, Any],
         *,
         enabled: bool,
     ) -> dict[str, Any]:
-        market_key = prior_set or self._fallback_market_key(fallback_route_plan)
+        market_key = prior_set or self._fallback_market_key(route_context)
         if not enabled:
             return {
                 "market": market_key,
@@ -305,14 +394,14 @@ class SearchPlanBuilder:
         )
         return diagnostics
 
-    def _fallback_market_key(self, fallback_route_plan: dict[str, Any]) -> str:
-        for family in fallback_route_plan.get("route_families") or []:
+    def _fallback_market_key(self, route_context: dict[str, Any]) -> str:
+        for family in route_context.get("route_families") or []:
             if isinstance(family, dict) and family.get("id"):
                 return str(family.get("id") or "")
         return ""
 
     def _provider_names_for_primary_offers(
-        self, flow: LiveRouteSearchFlow, query: dict[str, Any]
+        self, flow: _PlanningState, query: dict[str, Any]
     ) -> list[str]:
         return [
             str(provider)
@@ -323,8 +412,8 @@ class SearchPlanBuilder:
 
     def _gateway_leg_queries(
         self,
-        flow: LiveRouteSearchFlow,
-        fallback_route_plan: dict[str, Any],
+        flow: _PlanningState,
+        route_context: dict[str, Any],
         gateway_discovery: GatewayDiscovery,
     ) -> list[dict[str, Any]]:
         discovery_payload = gateway_discovery.to_dict()
@@ -349,17 +438,14 @@ class SearchPlanBuilder:
             return []
         candidates = self._dedupe_gateway_candidates(candidates)
 
-        origin = str(fallback_route_plan.get("origin") or flow.request.origin).upper()
+        origin = str(route_context.get("origin") or flow.request.origin).upper()
         destination = str(
-            fallback_route_plan.get("destination") or flow.request.destination
+            route_context.get("destination") or flow.request.destination
         ).upper()
         date_text = str(
-            (fallback_route_plan.get("dates") or {}).get("depart")
-            or flow.request.depart_date
+            (route_context.get("dates") or {}).get("depart") or flow.request.depart_date
         )
-        currency = str(
-            fallback_route_plan.get("currency") or flow.request.currency
-        ).upper()
+        currency = str(route_context.get("currency") or flow.request.currency).upper()
 
         queries: list[dict[str, Any]] = []
         for rank, candidate in enumerate(candidates, start=1):
@@ -409,7 +495,7 @@ class SearchPlanBuilder:
 
     def _queries_for_gateway_candidate(
         self,
-        flow: LiveRouteSearchFlow,
+        flow: _PlanningState,
         *,
         origin: str,
         destination: str,
@@ -474,27 +560,24 @@ class SearchPlanBuilder:
         return queries
 
     def _primary_offer_queries(
-        self, flow: LiveRouteSearchFlow, fallback_route_plan: dict[str, Any]
+        self, flow: _PlanningState, route_context: dict[str, Any]
     ) -> list[dict[str, Any]]:
-        origin = str(fallback_route_plan.get("origin") or flow.request.origin).upper()
+        origin = str(route_context.get("origin") or flow.request.origin).upper()
         destination = str(
-            fallback_route_plan.get("destination") or flow.request.destination
+            route_context.get("destination") or flow.request.destination
         ).upper()
         date_text = str(
-            (fallback_route_plan.get("dates") or {}).get("depart")
-            or flow.request.depart_date
+            (route_context.get("dates") or {}).get("depart") or flow.request.depart_date
         )
-        currency = str(
-            fallback_route_plan.get("currency") or flow.request.currency
-        ).upper()
+        currency = str(route_context.get("currency") or flow.request.currency).upper()
         origin_airports = [
             str(code).upper()
-            for code in fallback_route_plan.get("origin_airports") or [origin]
+            for code in route_context.get("origin_airports") or [origin]
             if str(code).strip()
         ]
         destination_airports = [
             str(code).upper()
-            for code in fallback_route_plan.get("destination_airports") or [destination]
+            for code in route_context.get("destination_airports") or [destination]
             if str(code).strip()
         ]
         access_profile = str(flow.flow_decision.route_access_profile or "")
@@ -555,7 +638,7 @@ class SearchPlanBuilder:
 
     def _direct_inventory_queries(
         self,
-        flow: LiveRouteSearchFlow,
+        flow: _PlanningState,
         *,
         origin: str,
         destination: str,
@@ -599,7 +682,7 @@ class SearchPlanBuilder:
 
     def _provider_offer_queries_for_route(
         self,
-        flow: LiveRouteSearchFlow,
+        flow: _PlanningState,
         *,
         direction: str,
         origin: str,
@@ -657,7 +740,7 @@ class SearchPlanBuilder:
 
     def _coverage_expectations(
         self,
-        fallback_route_plan: dict[str, Any],
+        route_context: dict[str, Any],
         primary_offer_queries: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         if not primary_offer_queries:
@@ -677,18 +760,16 @@ class SearchPlanBuilder:
 
 
 def build_search_plan(
-    options: LiveAssemblyOptions,
+    options: SearchRequest,
     store: Store,
     *,
-    flow: LiveRouteSearchFlow | None = None,
-    fallback_route_plan: dict[str, Any] | None = None,
+    flow: _PlanningState | None = None,
 ) -> dict[str, Any]:
     return (
         SearchPlanBuilder(
             options,
             store,
             flow=flow,
-            fallback_route_plan=fallback_route_plan,
         )
         .build()
         .to_dict()

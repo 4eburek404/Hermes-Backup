@@ -65,7 +65,7 @@ class GatewayLegProbeExecutor:
             CoverageEvaluatorOptions(
                 min_gateways_searched=len(eligible_gateways),
                 min_viable_gateways=1,
-                mandatory_controls_terminal=True,
+                planned_probes_terminal=True,
             )
         )
         gateways: list[dict[str, Any]] = []

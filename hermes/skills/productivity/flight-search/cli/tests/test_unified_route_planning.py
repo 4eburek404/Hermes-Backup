@@ -8,42 +8,24 @@ from pathlib import Path
 
 from flights_cli.commands.diagnose import command_diagnose_plan
 from flights_cli.commands.search import (
-    live_assembly_options_from_search_request,
     normalize_search_request,
+    search_request_from_payload,
 )
-from flights_cli.orchestrators.live_route_assembly import build_live_route_segment_plan
+from flights_cli.orchestrators.search_plan_builder import build_search_plan
 from flights_cli.store import Store
 
 
 class UnifiedRoutePlanningTests(unittest.TestCase):
     def assert_diagnose_plan_matches_live_plan(self, request: dict) -> None:
         normalized = normalize_search_request(request)
-        expected = build_live_route_segment_plan(
-            live_assembly_options_from_search_request(normalized), Store()
-        )
+        expected = build_search_plan(search_request_from_payload(normalized), Store())
         with tempfile.TemporaryDirectory() as tmp_dir:
             request_path = Path(tmp_dir) / "request.json"
             request_path.write_text(json.dumps(request), encoding="utf-8")
             diagnostic = command_diagnose_plan(
                 argparse.Namespace(request=str(request_path)), Store()
             )
-            actual = diagnostic["plan"]
-
-        self.assertEqual(actual["routing_strategy"], expected["routing_strategy"])
-        self.assertEqual(actual["route_mode"], expected["route_mode"])
-        self.assertEqual(actual["market_class"], expected["market_class"])
-        self.assertEqual(actual["hubs"], expected["hubs"])
-        self.assertEqual(actual["metrics"], expected["metrics"])
-        self.assertEqual(actual["dates"], expected["dates"])
-        self.assertEqual(actual["origin_airports"], expected["origin_airports"])
-        self.assertEqual(
-            actual["destination_airports"], expected["destination_airports"]
-        )
-        self.assertEqual(actual["direct_only"], expected["direct_only"])
-        self.assertEqual(actual["segments"], [])
-        self.assertEqual(
-            diagnostic["search_plan"]["fallback_segment_plan"]["segments"], []
-        )
+        self.assertEqual(diagnostic["plan"], expected)
 
     def test_ru_domestic_one_way(self) -> None:
         self.assert_diagnose_plan_matches_live_plan(

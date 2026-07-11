@@ -6,7 +6,7 @@ from pathlib import Path
 
 from flights_cli.domain.route_access_profiles import load_route_access_profiles
 from flights_cli.errors import CliError
-from flights_cli.pipeline.search_pipeline import build_live_route_search_flow
+from flights_cli.orchestrators.search_plan_builder import build_planning_state
 from flights_cli.store import Store
 from helpers import live_assembly_args
 
@@ -50,7 +50,7 @@ class RouteAccessProfileTests(unittest.TestCase):
         return path
 
     def flow(self, origin: str, destination: str, store: Store | None = None):
-        return build_live_route_search_flow(
+        return build_planning_state(
             live_assembly_args(
                 origin=origin,
                 destination=destination,

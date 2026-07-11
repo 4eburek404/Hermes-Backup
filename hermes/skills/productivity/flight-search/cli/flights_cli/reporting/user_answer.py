@@ -3,47 +3,23 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..config import catalog_output_limits_from_mapping
 from .option_semantics import route_requested_round_trip
 from .user_answer_absence import (
     gateway_coverage_summary,
-    has_any_signal,
     render_no_viable_answer,
 )
 from .user_answer_catalog import (
     build_catalog_contract,
     infer_answer_mode,
-    option_summary,
-    priority_options_for_user_contract,
     render_catalog_answer,
-    rendered_answer_lines,
 )
 from .user_answer_contracts import (
     USER_ANSWER_SCHEMA_PACKAGE,
     USER_ANSWER_SCHEMA_RESOURCE,
     USER_ANSWER_SCHEMA_VERSION,
-    has_ambiguous_provider_time_wording,
-    has_combined_pair_time_fields,
-    has_metadata_availability_claim,
-    has_travel_time_without_itinerary_elapsed,
-    has_two_one_way_phrase,
-    has_unproven_ticketing_claim,
-    label_text,
     load_user_answer_schema,
-    normalized_ticketing_claim_text,
-    normalized_time_label,
-    summary_entries_for_answer,
-    summary_label_text,
     user_answer_contract_semantic_errors,
     user_answer_validator,
-    validate_catalog_semantics,
-    validate_evidence_semantics,
-    validate_metadata_availability_boundary,
-    validate_provider_aggregate_semantics,
-    validate_required_caveats,
-    validate_round_trip_semantics,
-    validate_stop_policy_semantics,
-    validate_two_one_way_pair_semantics,
     validate_user_answer,
 )
 from .user_answer_lines import aircraft_display_label
@@ -54,28 +30,10 @@ __all__ = (
     "USER_ANSWER_SCHEMA_VERSION",
     "aircraft_display_label",
     "build_user_answer",
-    "has_ambiguous_provider_time_wording",
-    "has_combined_pair_time_fields",
-    "has_metadata_availability_claim",
-    "has_travel_time_without_itinerary_elapsed",
-    "has_two_one_way_phrase",
-    "has_unproven_ticketing_claim",
-    "label_text",
+    "render_user_answer",
     "load_user_answer_schema",
-    "normalized_ticketing_claim_text",
-    "normalized_time_label",
-    "summary_entries_for_answer",
-    "summary_label_text",
     "user_answer_contract_semantic_errors",
     "user_answer_validator",
-    "validate_catalog_semantics",
-    "validate_evidence_semantics",
-    "validate_metadata_availability_boundary",
-    "validate_provider_aggregate_semantics",
-    "validate_required_caveats",
-    "validate_round_trip_semantics",
-    "validate_stop_policy_semantics",
-    "validate_two_one_way_pair_semantics",
     "validate_user_answer",
 )
 
@@ -93,6 +51,48 @@ class UserAnswerInput:
     stop_policy_status: dict[str, Any]
     through_fare_checks: list[dict[str, Any]]
     truth_language: dict[str, Any] = field(default_factory=dict)
+
+
+def render_user_answer(answer: dict[str, Any], route: dict[str, Any]) -> str:
+    """Pure rendering from the validated structured answer catalog."""
+
+    catalog = answer.get("catalog") if isinstance(answer.get("catalog"), dict) else {}
+    evidence = (
+        answer.get("evidence_status")
+        if isinstance(answer.get("evidence_status"), dict)
+        else {}
+    )
+    required = (
+        answer.get("required_caveats")
+        if isinstance(answer.get("required_caveats"), dict)
+        else {}
+    )
+    caveat_context = {
+        "not_executed": [True]
+        if int(evidence.get("not_executed_control_count") or 0)
+        else [],
+        "provider_failures": [True]
+        if int(evidence.get("provider_failure_count") or 0)
+        else [],
+        "source_boundaries": [True]
+        if required.get("source_boundaries_included")
+        else [],
+        "through_fare_checks": [True]
+        if int(evidence.get("through_fare_check_count") or 0)
+        else [],
+    }
+    route_contract = {
+        "origin": route.get("origin"),
+        "destination": route.get("destination"),
+        "dates": route.get("dates") if isinstance(route.get("dates"), dict) else {},
+    }
+    if answer.get("answer_mode") == "catalog":
+        return render_catalog_answer(
+            route_contract,
+            catalog,
+            caveat_context=caveat_context,
+        )
+    return render_no_viable_answer(route_contract, caveat_context=caveat_context)
 
 
 def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
@@ -125,36 +125,17 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
     direct_mode = (
         status.get("direct_mode") if isinstance(status.get("direct_mode"), dict) else {}
     )
-    output_limits = catalog_output_limits_from_mapping(
-        status.get("output_limits")
-        if isinstance(status.get("output_limits"), dict)
-        else None
-    )
-    direct_mode_active = any(bool(value) for value in direct_mode.values())
+    selected_option_count = len(recommended) + len(priority)
     catalog = build_catalog_contract(
         recommended,
         priority,
         is_round_trip_request=is_round_trip_request,
-        catalog_limit=output_limits.direct_catalog_limit
-        if direct_mode_active
-        else output_limits.catalog_limit,
-        direct_mode=direct_mode_active,
+        catalog_limit=max(1, selected_option_count),
+        direct_mode=any(bool(value) for value in direct_mode.values()),
     )
     answer_mode = infer_answer_mode(
         is_round_trip_request=is_round_trip_request, options=catalog.get("items") or []
     )
-    presentation = (
-        catalog.get("presentation")
-        if isinstance(catalog.get("presentation"), dict)
-        else {}
-    )
-    try:
-        catalog_max_items = int(
-            presentation.get("max_items") or output_limits.catalog_limit
-        )
-    except (TypeError, ValueError):
-        catalog_max_items = output_limits.catalog_limit
-    alternative_limit = max(0, catalog_max_items - (1 if recommended else 0))
     route_contract = {
         "origin": route.get("origin"),
         "destination": route.get("destination"),
@@ -181,8 +162,6 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
             caveat_context=caveat_context,
             gateway_summary=gateway_summary,
         )
-    answer_lines = rendered_answer_lines(answer_text)
-    answer_text_lower = answer_text.lower()
     execution_complete = bool(
         completeness.get("all_planned_controls_have_terminal_state")
     )
@@ -203,28 +182,17 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
         else "needs_more_evidence"
     )
 
-    return {
+    catalog_ids = [
+        str(item.get("option_id") or "")
+        for item in catalog.get("items") or []
+        if isinstance(item, dict) and str(item.get("option_id") or "")
+    ]
+    answer = {
         "schema_version": USER_ANSWER_SCHEMA_VERSION,
         "answer_mode": answer_mode,
-        "route": route_contract,
         "catalog": catalog,
-        "primary_recommendation": option_summary(
-            recommended[0] if recommended else None,
-            is_round_trip_request=is_round_trip_request,
-            is_primary=True,
-        ),
-        "alternatives": [
-            summary
-            for summary in (
-                option_summary(item, is_round_trip_request=is_round_trip_request)
-                for item in priority_options_for_user_contract(
-                    priority,
-                    limit=alternative_limit,
-                    is_round_trip_request=is_round_trip_request,
-                )
-            )
-            if summary is not None
-        ],
+        "primary_option_id": catalog_ids[0] if catalog_ids else None,
+        "alternative_option_ids": catalog_ids[1:],
         "stop_policy_status": {
             "policy": str(
                 stop_policy.get("name")
@@ -258,55 +226,13 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
             "non_blocking_boundaries": non_blocking_boundaries,
         },
         "required_caveats": {
-            "source_boundaries_included": not bool(answer_input.source_boundaries)
-            or has_any_signal(
-                answer_text_lower,
-                (
-                    "do not treat",
-                    "не доказывает",
-                    "не доказывают",
-                    "не доказательство",
-                    "not proof",
-                    "does not prove",
-                ),
-            ),
-            "coverage_incompleteness_acknowledged": not bool(not_executed)
-            or has_any_signal(
-                answer_text_lower,
-                (
-                    "coverage is incomplete",
-                    "coverage непол",
-                    "not_executed",
-                    "не все live-проверки",
-                    "неполное",
-                ),
-            ),
-            "provider_failures_acknowledged": not bool(provider_failures)
-            or has_any_signal(
-                answer_text_lower,
-                (
-                    "provider failure",
-                    "failed",
-                    "live-проверок упала",
-                    "live-проверки упали",
-                ),
-            ),
-            "through_fare_verification_required": not bool(through_fare_checks)
-            or has_any_signal(
-                answer_text_lower,
-                ("through-fare", "through fare", "сквозн", "единый тариф"),
-            ),
-            "purchase_screen_verification_required": has_any_signal(
-                answer_text_lower,
-                (
-                    "booking screen",
-                    "purchase-screen",
-                    "purchase screen",
-                    "final fare",
-                    "финальн",
-                ),
-            ),
+            "source_boundaries_included": True,
+            "coverage_incompleteness_acknowledged": True,
+            "provider_failures_acknowledged": True,
+            "through_fare_verification_required": True,
+            "purchase_screen_verification_required": True,
         },
         "rendered_text": answer_text,
-        "answer_lines": answer_lines,
     }
+    answer["rendered_text"] = render_user_answer(answer, route_contract)
+    return answer

@@ -20,6 +20,7 @@ class DecisionScorerOptions:
     min_cross_airport_connection_min: int = 300
     max_gateway_alternatives: int = 2
     max_round_trip_pairs: int = 12
+    max_options: int | None = None
 
 
 class DecisionScorer:
@@ -55,6 +56,7 @@ class DecisionScorer:
             ranking,
             controls=controls,
             max_gateway_alternatives=self.options.max_gateway_alternatives,
+            max_options=self.options.max_options,
         )
         return {
             "schema_version": DECISION_SCORER_SCHEMA_VERSION,
@@ -76,6 +78,7 @@ class DecisionScorer:
                     "frontier": "flight_decision_frontier.v1",
                 },
                 "round_trip_pairing": prepared_envelope.get("round_trip_pairing"),
+                "max_options": self.options.max_options,
             },
             "mixed_candidate_ranking": ranking,
             "decision_frontier": frontier,

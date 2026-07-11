@@ -6,9 +6,9 @@ from typing import Any
 from ..domain.vocabulary import AbsenceReason, ProbeStatus
 from ..ports.providers import ProviderProbeResult
 from .probe_intent import ProbeIntent
+from .request_deduper import logical_query_key
 
 
-ControlKey = tuple[Any, Any, Any, Any, Any, Any, Any, Any]
 ControlInput = dict[str, Any] | Mapping[str, Any] | ProbeIntent
 
 
@@ -18,55 +18,91 @@ def _control_dict(control: ControlInput) -> dict[str, Any]:
     return dict(control)
 
 
-def control_identity(control: ControlInput) -> ControlKey:
-    item = _control_dict(control)
-    return (
-        item.get("type") or item.get("probe_type"),
-        item.get("direction"),
-        item.get("leg"),
-        item.get("origin"),
-        item.get("destination"),
-        item.get("date"),
-        item.get("carrier"),
-        item.get("provider"),
-    )
+def control_identity(control: ControlInput) -> tuple[Any, ...]:
+    return logical_query_key(_control_dict(control))
 
 
 class ProbeExecutionLedger:
+    """Append-only execution ledger indexed by unique probe IDs."""
+
     def __init__(self) -> None:
-        self._planned: dict[ControlKey, dict[str, Any]] = {}
-        self._planned_order: list[ControlKey] = []
-        self._probe_ids: dict[ControlKey, str] = {}
-        self._terminal_keys: set[ControlKey] = set()
+        self._planned: dict[str, dict[str, Any]] = {}
+        self._planned_order: list[str] = []
+        self._logical_originals: dict[tuple[Any, ...], str] = {}
+        self._terminal_ids: set[str] = set()
         self._searched: list[dict[str, Any]] = []
         self._skipped: list[dict[str, Any]] = []
         self._failed: list[dict[str, Any]] = []
         self._not_supported: list[dict[str, Any]] = []
         self._not_executed: list[dict[str, Any]] = []
         self._deduped: list[dict[str, Any]] = []
-        self._reopened_keys: set[ControlKey] = set()
+        self._counter = 0
+
+    def _next_probe_id(self) -> str:
+        self._counter += 1
+        return f"probe-{self._counter:03d}"
+
+    def _new_probe_id(self, item: dict[str, Any]) -> str:
+        requested = str(item.get("probe_id") or "")
+        if requested and requested not in self._planned:
+            return requested
+        candidate = self._next_probe_id()
+        while candidate in self._planned:
+            candidate = self._next_probe_id()
+        return candidate
+
+    def _resolve_probe_id(self, item: dict[str, Any]) -> str:
+        explicit = str(item.get("probe_id") or "")
+        if explicit in self._planned:
+            return explicit
+        original = self._logical_originals.get(logical_query_key(item))
+        if original is not None:
+            return original
+        probe_id = self._new_probe_id(item)
+        planned = {**item, "probe_id": probe_id}
+        self._planned[probe_id] = planned
+        self._planned_order.append(probe_id)
+        self._logical_originals[logical_query_key(item)] = probe_id
+        return probe_id
 
     def plan_controls(self, controls: list[ControlInput]) -> None:
         for control in controls:
             item = _control_dict(control)
-            if not isinstance(item, dict):
+            key = logical_query_key(item)
+            original_probe_id = self._logical_originals.get(key)
+            probe_id = self._new_probe_id(item)
+            planned = {**item, "probe_id": probe_id}
+            self._planned[probe_id] = planned
+            self._planned_order.append(probe_id)
+            if original_probe_id is None:
+                self._logical_originals[key] = probe_id
                 continue
-            key = control_identity(item)
-            if key in self._planned:
-                if key in self._reopened_keys:
-                    self._reopened_keys.discard(key)
-                    self._planned[key] = {**self._planned[key], **item}
-                    continue
-                self.record_deduped(item, original_probe_id=self._probe_ids.get(key))
-                continue
-            self._planned[key] = item
-            self._planned_order.append(key)
-            self._probe_ids[key] = str(
-                item.get("probe_id") or f"probe-{len(self._planned_order):03d}"
+            self._terminal_ids.add(probe_id)
+            self._deduped.append(
+                self._diagnostic(
+                    planned,
+                    execution_state=ProbeStatus.DEDUPED,
+                    status=ProbeStatus.DEDUPED,
+                    original_probe_id=original_probe_id,
+                )
             )
 
     def plan_intents(self, intents: list[ProbeIntent]) -> None:
         self.plan_controls(list(intents))
+
+    def _record_terminal(
+        self,
+        control: ControlInput,
+        target: list[dict[str, Any]],
+        **extra: Any,
+    ) -> None:
+        item = _control_dict(control)
+        probe_id = self._resolve_probe_id(item)
+        if probe_id in self._terminal_ids:
+            self.record_deduped(item, original_probe_id=probe_id)
+            return
+        self._terminal_ids.add(probe_id)
+        target.append(self._diagnostic(self._planned[probe_id], **extra))
 
     def record_searched(
         self,
@@ -76,89 +112,54 @@ class ProbeExecutionLedger:
         offer_count: Any,
         cache_status: Any = None,
     ) -> None:
-        item = _control_dict(control)
-        key = control_identity(item)
-        if key in self._terminal_keys:
-            self.record_deduped(item, original_probe_id=self._probe_ids.get(key))
-            return
-        self._reopened_keys.discard(key)
-        self._terminal_keys.add(key)
-        self._searched.append(
-            self._diagnostic(
-                item,
-                execution_state=ProbeStatus.SEARCHED,
-                status=status,
-                provider=provider,
-                offer_count=offer_count,
-                cache_status=cache_status,
-            )
+        self._record_terminal(
+            control,
+            self._searched,
+            execution_state=ProbeStatus.SEARCHED,
+            status=status,
+            provider=provider,
+            offer_count=offer_count,
+            cache_status=cache_status,
         )
 
     def record_skipped(self, control: ControlInput, reason: Any) -> None:
-        item = _control_dict(control)
-        key = control_identity(item)
-        if key in self._terminal_keys:
-            self.record_deduped(item, original_probe_id=self._probe_ids.get(key))
-            return
-        self._reopened_keys.discard(key)
-        if key in self._planned:
-            self._terminal_keys.add(key)
-        self._skipped.append(
-            self._diagnostic(
-                item,
-                execution_state=ProbeStatus.SKIPPED,
-                status=ProbeStatus.SKIPPED,
-                reason=reason,
-            )
+        self._record_terminal(
+            control,
+            self._skipped,
+            execution_state=ProbeStatus.SKIPPED,
+            status=ProbeStatus.SKIPPED,
+            reason=reason,
         )
 
     def record_failed(self, control: ControlInput, provider: Any, error: Any) -> None:
-        item = _control_dict(control)
-        key = control_identity(item)
-        if key in self._terminal_keys:
-            self.record_deduped(item, original_probe_id=self._probe_ids.get(key))
-            return
-        self._reopened_keys.discard(key)
-        self._terminal_keys.add(key)
-        self._failed.append(
-            self._diagnostic(
-                item,
-                execution_state=ProbeStatus.FAILED,
-                status=ProbeStatus.FAILED,
-                provider=provider,
-                offer_count=0,
-                error=error,
-            )
+        self._record_terminal(
+            control,
+            self._failed,
+            execution_state=ProbeStatus.FAILED,
+            status=ProbeStatus.FAILED,
+            provider=provider,
+            offer_count=0,
+            error=error,
         )
 
     def record_not_supported(
         self, control: ControlInput, provider: Any, reason: Any
     ) -> None:
-        item = _control_dict(control)
-        key = control_identity(item)
-        if key in self._terminal_keys:
-            self.record_deduped(item, original_probe_id=self._probe_ids.get(key))
-            return
-        self._reopened_keys.discard(key)
-        self._terminal_keys.add(key)
-        self._not_supported.append(
-            self._diagnostic(
-                item,
-                execution_state=ProbeStatus.NOT_SUPPORTED,
-                status=ProbeStatus.NOT_SUPPORTED,
-                provider=provider,
-                offer_count=0,
-                reason=reason,
-            )
+        self._record_terminal(
+            control,
+            self._not_supported,
+            execution_state=ProbeStatus.NOT_SUPPORTED,
+            status=ProbeStatus.NOT_SUPPORTED,
+            provider=provider,
+            offer_count=0,
+            reason=reason,
         )
 
     def record_provider_result(
         self, control: ControlInput, result: ProviderProbeResult
     ) -> None:
         if result.execution_state == ProbeStatus.NOT_SUPPORTED:
-            reason = None
-            if result.result_summary:
-                reason = result.result_summary.get("reason")
+            reason = result.result_summary.get("reason")
             if reason is None and result.errors:
                 reason = result.errors[0].get("message")
             self.record_not_supported(control, provider=result.provider, reason=reason)
@@ -170,14 +171,11 @@ class ProbeExecutionLedger:
                 error=result.errors[0] if result.errors else None,
             )
             return
-        summary = (
-            result.result_summary if isinstance(result.result_summary, dict) else {}
-        )
         self.record_searched(
             control,
-            status=summary.get("status") or result.execution_state,
+            status=result.result_summary.get("status") or result.execution_state,
             provider=result.provider,
-            offer_count=summary.get("offer_count", len(result.normalized_offers or [])),
+            offer_count=result.result_summary.get("offer_count", len(result.offers)),
             cache_status=result.cache_status,
         )
 
@@ -185,75 +183,46 @@ class ProbeExecutionLedger:
         self, control: ControlInput, original_probe_id: Any = None
     ) -> None:
         item = _control_dict(control)
+        duplicate_id = self._new_probe_id(item)
+        original = original_probe_id or self._logical_originals.get(
+            logical_query_key(item)
+        )
         self._deduped.append(
             self._diagnostic(
-                item,
+                {**item, "probe_id": duplicate_id},
                 execution_state=ProbeStatus.DEDUPED,
                 status=ProbeStatus.DEDUPED,
-                original_probe_id=original_probe_id,
+                original_probe_id=original,
             )
         )
-
-    def reopen_for_execution(self, control: ControlInput) -> None:
-        item = _control_dict(control)
-        key = control_identity(item)
-        if key not in self._planned:
-            self._planned[key] = item
-            self._planned_order.append(key)
-            self._probe_ids[key] = str(
-                item.get("probe_id") or f"probe-{len(self._planned_order):03d}"
-            )
-        self._terminal_keys.discard(key)
-        self._remove_diagnostics_for_key(key)
-        self._reopened_keys.add(key)
 
     def finalize_unexecuted(
         self, reason: str = "not_reached_by_current_live_execution"
     ) -> None:
-        for key in self._planned_order:
-            if key in self._terminal_keys:
+        for probe_id in self._planned_order:
+            if probe_id in self._terminal_ids:
                 continue
-            self._reopened_keys.discard(key)
-            control = self._planned[key]
-            self._terminal_keys.add(key)
+            self._terminal_ids.add(probe_id)
             self._not_executed.append(
                 self._diagnostic(
-                    control,
+                    self._planned[probe_id],
                     execution_state=ProbeStatus.NOT_EXECUTED,
                     status=ProbeStatus.NOT_EXECUTED,
                     reason=reason,
                 )
             )
 
-    def _remove_diagnostics_for_key(self, key: ControlKey) -> None:
-        self._searched = [
-            item for item in self._searched if control_identity(item) != key
-        ]
-        self._skipped = [
-            item for item in self._skipped if control_identity(item) != key
-        ]
-        self._failed = [item for item in self._failed if control_identity(item) != key]
-        self._not_supported = [
-            item for item in self._not_supported if control_identity(item) != key
-        ]
-        self._not_executed = [
-            item for item in self._not_executed if control_identity(item) != key
-        ]
-        self._deduped = [
-            item for item in self._deduped if control_identity(item) != key
-        ]
-
     def to_coverage_diagnostics(self, plan: dict[str, Any]) -> dict[str, Any]:
-        terminal_count = len(self._terminal_keys)
         planned_count = len(self._planned_order)
+        terminal_count = len(self._terminal_ids)
         return {
             "coverage_mode": plan.get("coverage_mode") or "standard",
             "negative_evidence_type": "bounded_live_controls_only",
             "planned_controls": [
                 self._diagnostic(
-                    self._planned[key], execution_state=ProbeStatus.PLANNED
+                    self._planned[probe_id], execution_state=ProbeStatus.PLANNED
                 )
-                for key in self._planned_order
+                for probe_id in self._planned_order
             ],
             "searched_controls": self._searched,
             "skipped_controls": self._skipped,
@@ -270,14 +239,14 @@ class ProbeExecutionLedger:
             "completeness": {
                 "planned_count": planned_count,
                 "terminal_count": terminal_count,
-                "all_planned_controls_have_terminal_state": planned_count
-                == terminal_count,
+                "all_planned_controls_have_terminal_state": (
+                    planned_count == terminal_count
+                ),
             },
         }
 
     def _diagnostic(self, control: ControlInput, **extra: Any) -> dict[str, Any]:
         item_control = _control_dict(control)
-        key = control_identity(item_control)
         execution_state = extra.get("execution_state")
         offer_count = extra.get("offer_count")
         evidence_type, absence_class = self._evidence_classification(
@@ -295,7 +264,7 @@ class ProbeExecutionLedger:
             "negative_evidence": item_control.get("negative_evidence"),
             "evidence_type": evidence_type,
             "absence_class": absence_class,
-            "probe_id": self._probe_ids.get(key) or item_control.get("probe_id"),
+            "probe_id": item_control.get("probe_id"),
         }
         if "wave_index" in item_control:
             item["wave_index"] = item_control.get("wave_index")

@@ -85,6 +85,7 @@ def build_decision_frontier(
     *,
     controls: list[dict[str, Any]] | None = None,
     max_gateway_alternatives: int = 2,
+    max_options: int | None = None,
 ) -> dict[str, Any]:
     ranked = [
         candidate
@@ -128,6 +129,10 @@ def build_decision_frontier(
         ):
             gateway_count += 1
 
+    selected_before_limit = len(selected)
+    if max_options is not None:
+        selected = selected[: max(0, int(max_options))]
+
     return {
         "schema_version": DECISION_FRONTIER_SCHEMA_VERSION,
         "options": selected,
@@ -136,6 +141,7 @@ def build_decision_frontier(
             "candidate_count": len(ranked),
             "acceptable_count": len(acceptable),
             "selected_count": len(selected),
+            "suppressed_by_output_limit_count": selected_before_limit - len(selected),
             "rejected_count": len(mixed_candidate_ranking.get("rejected") or []),
             "control_count": len(controls or []),
             "direct_option_count": len(direct_ranked),

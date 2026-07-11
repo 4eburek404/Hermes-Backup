@@ -4,12 +4,12 @@ Concise manual for the flight-search skill-owned CLI. The skill's Golden Path is
 
 ## What It Automates
 
-- Route/date/IATA normalization and bounded live assembly.
+- Route/date/IATA normalization and bounded provider execution.
 - Airport compatibility checks for same-airport and cross-airport connections.
-- Candidate generation, stop-policy filtering, ranking, and compact report assembly.
+- Candidate generation, scoring, one decision frontier, and result projection.
 - Direct, carrier, aggregate, and coverage controls when the current provider policy calls for them.
 - Static metadata lookup for city, airport, country/region, airline, alliance, and aircraft labels.
-- A compact `data.agent_report` for agents, including `frontier.decision_frontier`, compact evidence, canonical `user_answer`, guidance, provider failures, through-fare checks, and source boundaries.
+- A compact `flight_search_result.v6` with `route`, `evidence`, `frontier`, and the canonical `answer`.
 
 The CLI does not book, buy, or write to Hermes runtime state.
 
@@ -94,22 +94,22 @@ cat > /tmp/flight-search-request.json <<'JSON'
   "provider_policy": "auto"
 }
 JSON
-python3 -m flights_cli --json search --request /tmp/flight-search-request.json
+python3 -m flights_cli search --request /tmp/flight-search-request.json
 ```
 
-Read only `data.agent_report` for the user answer. Primary serialized paths:
+Return this text stdout verbatim. With `--json`, the canonical serialized paths are:
 
-- `user_answer.rendered_text`
-- `user_answer.catalog.items`
-- `frontier.decision_frontier`
+- `answer.rendered_text`
+- `answer.catalog.items`
+- `frontier.option_ids`
 - `evidence.coverage`
 - `evidence.through_fare_checks`
 - `evidence.provider_failures`
 - `evidence.source_boundaries`
 
 Full graph/debug traces are excluded from default `search` output. Use
-`diagnose trace --request` and inspect `data.route_trace.live_search.offer_graph`
-or `data.route_trace.live_search.diagnostics` when you need the internal trace.
+`diagnose trace --request` and inspect `data.plan`, `data.evidence`, and
+`data.decision` when you need internal artifacts.
 
 `search --request` searches and compares route options for the default scope of one adult in economy. It does not buy or book tickets, and final fare, baggage-through, refund/change conditions, disruption protection, and single-PNR claims require purchase-screen, airline/GDS, seller, or explicit upstream proof.
 
@@ -141,7 +141,7 @@ Production search uses one ranking profile: `business`. It prioritizes visible n
 - `auto`: Tutu MCP runs first and, when available, stops fallback execution for the same logical probe.
 - `tutu`, `kupibilet`, `fli`: explicit diagnostic/provider override modes.
 
-Read provider policy, provider failures, coverage diagnostics, and source boundaries from `data.agent_report` before answering. Do not hardcode source assumptions outside what the report states.
+Read provider failures, coverage diagnostics, and source boundaries from `data.evidence`. Text-mode search stdout is already the validated answer and must be returned verbatim.
 
 Provider-aware airport priority is documented in `references/pipeline-reference.md`; use that contract for the active provider set, IST/LON/MOW airport priority, city-code post-validation, and dispatch boundaries. Do not duplicate those rules in CLI help or answer prose.
 
@@ -184,7 +184,7 @@ python3 -m flights_cli --json diagnose probe \
 ```
 
 For source-boundary investigations, run `diagnose trace --request` and inspect
-`data.route_trace.live_search`; use `diagnose probe` only for one explicit
+`data.evidence` and `data.decision`; use `diagnose probe` only for one explicit
 provider probe. Keep ordinary search work on `search --request`.
 
 Useful probe shapes:

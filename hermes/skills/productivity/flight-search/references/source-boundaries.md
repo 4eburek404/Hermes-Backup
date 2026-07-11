@@ -97,7 +97,7 @@ When the user reports a website-visible flight that the CLI did not find or time
 2. If the API returns the same value the CLI normalized, report provider-side data drift or provider coverage gap.
 3. If website evidence is more current for planning, use it as user-observed evidence and label the discrepancy.
 
-For non-RU or foreign-carrier routes, KupiBilet API gaps are a known source limitation. Empty KupiBilet output alone does not prove absence; prefer the assembled `agent_report`, Tutu-first provider evidence, and targeted provider comparisons before making a negative route claim.
+For non-RU or foreign-carrier routes, KupiBilet API gaps are a known source limitation. Empty KupiBilet output alone does not prove absence; prefer the assembled `search result`, Tutu-first provider evidence, and targeted provider comparisons before making a negative route claim.
 
 ### Live provider alternatives
 
@@ -137,7 +137,7 @@ Catalog-dependent CLI commands refresh missing or older-than-2-weeks static meta
 
 ## Live Provider Policy
 
-The live provider policy chooses the current source mix for each segment. Read policy, failures, coverage diagnostics, and source limits from `data.agent_report` instead of assuming a provider path.
+The live provider policy chooses the current source mix for each segment. Read policy, failures, coverage diagnostics, and source limits from `data` instead of assuming a provider path.
 
 ## Adjacent Source Boundaries
 

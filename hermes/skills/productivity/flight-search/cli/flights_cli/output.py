@@ -20,21 +20,27 @@ def error_envelope(exc: CliError) -> dict[str, Any]:
 
 
 def emit_json(data: Any) -> None:
-    print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
-
-
-def render_agent_report_user_text(report: dict[str, Any]) -> str:
-    raw_user_answer = report.get("user_answer")
-    user_answer: dict[str, Any] = (
-        raw_user_answer if isinstance(raw_user_answer, dict) else {}
+    print(
+        json.dumps(
+            data,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
     )
+
+
+def render_search_user_text(result: dict[str, Any]) -> str:
+    raw_user_answer = result.get("answer")
+    user_answer = raw_user_answer if isinstance(raw_user_answer, dict) else {}
     validate_user_answer(user_answer)
     return str(user_answer["rendered_text"])
 
 
 def render_user_text(command: str, data: Any) -> str:
-    if isinstance(data, dict) and isinstance(data.get("agent_report"), dict):
-        return render_agent_report_user_text(data["agent_report"])
+    if command == "search" and isinstance(data, dict):
+        return render_search_user_text(data)
     if command == "maint doctor":
         counts = data["cache_counts"]
         policy = data["catalog_auto_refresh_policy"]
@@ -138,13 +144,16 @@ def render_user_text(command: str, data: Any) -> str:
         return "\n".join(lines)
     if command == "diagnose plan":
         plan = data["plan"] if isinstance(data.get("plan"), dict) else data
-        metrics = plan["metrics"]
+        route = plan["route_context"]
+        primary = list(plan.get("primary_offer_queries") or [])
+        conditional = list(plan.get("conditional_gateway_queries") or [])
         lines = [
-            f"route: {','.join(plan['origin_airports'])} -> {','.join(plan['destination_airports'])}",
-            f"strategy: {plan.get('routing_strategy', RoutingStrategy.HUB_LIST)}",
-            f"hubs: {', '.join(plan['hubs'])} ({plan.get('hub_source', 'manual')})",
-            f"segment requests: {metrics.get('segment_request_count', metrics.get('segment_search_count', 0))}",
-            "first segments:",
+            f"route: {','.join(route['origin_airports'])} -> {','.join(route['destination_airports'])}",
+            f"strategy: {route.get('routing_strategy', RoutingStrategy.HUB_LIST)}",
+            f"hubs: {', '.join(route['hubs'])}",
+            f"primary probes: {len(primary)}",
+            f"conditional probes: {len(conditional)}",
+            "first probes:",
         ]
         refresh = data.get("catalog_auto_refresh")
         if refresh:
@@ -152,18 +161,15 @@ def render_user_text(command: str, data: Any) -> str:
                 2,
                 f"catalog refresh: {'updated' if refresh.get('refreshed') else refresh.get('reason')}",
             )
-        for segment in plan["segments"][:8]:
-            command = segment.get("command")
-            if command:
-                lines.append(f"  {command}")
-            else:
-                lines.append(
-                    f"  {segment['origin']} -> {segment['destination']} {segment['date']}"
-                )
-        if len(plan["segments"]) > 8:
-            lines.append(f"  ... {len(plan['segments']) - 8} more")
-        if plan["warnings"]:
-            lines.append("warnings:")
-            lines.extend(f"  - {warning}" for warning in plan["warnings"])
+        probes = [*primary, *conditional]
+        for probe in probes[:8]:
+            lines.append(
+                f"  {probe['origin']} -> {probe['destination']} {probe['date']} [{probe.get('provider') or 'none'}]"
+            )
+        if len(probes) > 8:
+            lines.append(f"  ... {len(probes) - 8} more")
+        if plan.get("planning_reasons"):
+            lines.append("planning reasons:")
+            lines.extend(f"  - {reason}" for reason in plan["planning_reasons"])
         return "\n".join(lines)
     return json.dumps(data, ensure_ascii=False, indent=2)

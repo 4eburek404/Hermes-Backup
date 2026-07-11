@@ -246,7 +246,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self.assertEqual(payload["provider"], "fli")
         self.assertEqual(payload["probe_id"], "probe-123")
         self.assertEqual(payload["errors"][0]["type"], "not_supported")
-        self.assertIn("normalized_result", payload)
+        self.assertIn("offers", payload)
 
     def test_fli_adapter_reports_aggregate_not_supported_through_common_result_shape(
         self,

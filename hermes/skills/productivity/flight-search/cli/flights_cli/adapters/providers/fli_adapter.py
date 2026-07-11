@@ -98,8 +98,7 @@ class FliProviderAdapter:
                 offer_count=offer_count, cache_status=cache_status
             ),
             result_summary=summary,
-            normalized_offers=list(segment_result.get("offers") or []),
-            normalized_result=segment_result,
+            offers=tuple(segment_result.get("offers") or []),
             source_boundary={
                 "provider": "fli",
                 "source_key": segment_result.get("source_key"),

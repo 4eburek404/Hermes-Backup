@@ -8,7 +8,7 @@ from flights_cli.reporting.user_answer import (
     build_user_answer,
     validate_user_answer,
 )
-from tests.fixtures.agent_reports import (
+from tests.fixtures.result_fixtures import (
     answer_input_from_fixture,
     report_with_required_caveats,
 )
@@ -29,20 +29,9 @@ class UserAnswerModuleTests(unittest.TestCase):
         )
         validate_user_answer(answer)
 
-    def test_user_answer_semantic_validators_are_split_by_concern(self) -> None:
-        validator_names = [
-            "validate_catalog_semantics",
-            "validate_evidence_semantics",
-            "validate_metadata_availability_boundary",
-            "validate_required_caveats",
-            "validate_provider_aggregate_semantics",
-            "validate_round_trip_semantics",
-            "validate_two_one_way_pair_semantics",
-            "validate_stop_policy_semantics",
-        ]
-
-        for name in validator_names:
-            self.assertTrue(callable(getattr(user_answer, name)))
+    def test_user_answer_has_one_semantic_validator_and_one_pure_renderer(self) -> None:
+        self.assertTrue(callable(user_answer.user_answer_contract_semantic_errors))
+        self.assertTrue(callable(user_answer.render_user_answer))
 
 
 if __name__ == "__main__":

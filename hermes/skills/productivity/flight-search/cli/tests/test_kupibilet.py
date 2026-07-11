@@ -7,7 +7,7 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
-from flights_cli.orchestrators.live_route_assembly import run_live_route_assembly
+from flights_cli.execution.search_executor import execute_search
 from flights_cli.providers.kupibilet import (
     build_kupibilet_payload,
     cached_kupibilet_search,
@@ -20,10 +20,14 @@ from flights_cli.providers.live_cache import (
     read_live_cache,
     write_live_cache,
 )
-from flights_cli.services.agent_report import build_validated_agent_report
+from flights_cli.pipeline.result_builder import build_result_projection
 from flights_cli.store import Store
 
 from helpers import CliSubprocessMixin, live_assembly_args
+
+
+def execute_projection(*args: object, **kwargs: object) -> dict:
+    return execute_search(*args, **kwargs).projection_input
 
 
 class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
@@ -444,10 +448,10 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             return kb_result(origin, destination, depart_date)
 
         with patch(
-            "flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search",
+            "flights_cli.execution.search_executor.fetch_kupibilet_search",
             side_effect=fake_fetch,
         ):
-            result = run_live_route_assembly(args, Store())
+            result = execute_projection(args, Store())
 
         direct_calls = {
             (origin, destination)
@@ -561,11 +565,11 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
                 return_value=date(2026, 5, 1),
             ),
             patch(
-                "flights_cli.orchestrators.live_assembly_runner.fetch_kupibilet_search",
+                "flights_cli.execution.search_executor.fetch_kupibilet_search",
                 side_effect=fake_fetch,
             ),
         ):
-            result = run_live_route_assembly(args, Store())
+            result = execute_projection(args, Store())
 
         self.assertIn(("SVX", "DEL", False, ("SU",)), calls)
         carrier_controls = [
@@ -586,7 +590,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             ledger["completeness"]["planned_count"],
             ledger["completeness"]["terminal_count"],
         )
-        report = build_validated_agent_report(result, Store())
+        report = build_result_projection(result, Store())
         self.assertEqual(
             report["evidence"]["coverage"]["counts"]["not_executed_controls"], 0
         )

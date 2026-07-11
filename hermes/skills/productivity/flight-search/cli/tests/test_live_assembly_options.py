@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import unittest
 
-from flights_cli.commands.search import live_assembly_options_from_search_request
+from flights_cli.commands.search import search_request_from_payload
 from flights_cli.config import DEFAULT_CATALOG_LIMIT, DEFAULT_DIRECT_CATALOG_LIMIT
 from flights_cli.errors import CliError
-from flights_cli.pipeline.options import search_request_to_options
+from flights_cli.pipeline.search_request import SearchRequest
 
 
 REQUEST = {
@@ -67,9 +67,9 @@ REQUEST = {
 }
 
 
-class LiveAssemblyOptionsTests(unittest.TestCase):
-    def test_search_request_to_options_maps_request_fields(self) -> None:
-        options = search_request_to_options(REQUEST)
+class SearchRequestTests(unittest.TestCase):
+    def test_search_request_maps_request_fields(self) -> None:
+        options = SearchRequest.from_payload(REQUEST)
 
         expected = {
             "origin": "SVX",
@@ -109,13 +109,13 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
 
     def test_search_app_adapter_matches_typed_request_adapter(self) -> None:
         self.assertEqual(
-            live_assembly_options_from_search_request(REQUEST),
-            search_request_to_options(REQUEST),
+            search_request_from_payload(REQUEST),
+            SearchRequest.from_payload(REQUEST),
         )
 
     def test_search_app_rejects_non_business_profile(self) -> None:
         with self.assertRaises(CliError):
-            live_assembly_options_from_search_request({**REQUEST, "profile": "safe"})
+            search_request_from_payload({**REQUEST, "profile": "safe"})
 
     def test_search_request_maps_carrier_filters(self) -> None:
         request = {
@@ -125,15 +125,15 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
             "depart_date": "2026-07-09",
             "filters": {"only_carriers": ["AF"], "prefer_carriers": ["TK"]},
         }
-        options = search_request_to_options(request)
+        options = SearchRequest.from_payload(request)
 
         self.assertEqual(options.filters.only_carriers, ("AF",))
         self.assertEqual(options.effective_only_carriers(), ("AF",))
         self.assertEqual(options.effective_prefer_carriers(), ("TK",))
-        self.assertEqual(live_assembly_options_from_search_request(request), options)
+        self.assertEqual(search_request_from_payload(request), options)
 
     def test_search_request_defaults_are_explicit_in_typed_options(self) -> None:
-        options = search_request_to_options(
+        options = SearchRequest.from_payload(
             {
                 "schema_version": "flight_search_request.v1",
                 "origin": "svx",
@@ -158,7 +158,7 @@ class LiveAssemblyOptionsTests(unittest.TestCase):
         )
 
     def test_search_request_preserves_explicit_zero_values(self) -> None:
-        options = search_request_to_options(
+        options = SearchRequest.from_payload(
             {
                 "schema_version": "flight_search_request.v1",
                 "origin": "svx",

@@ -1,6 +1,6 @@
 ---
 name: flight-search
-version: 0.10.0
+version: 0.11.0
 description: Use when finding, comparing, or diagnosing live flight route options with the bundled flights CLI; assumes one adult in economy and never books tickets.
 metadata:
   hermes:
@@ -20,10 +20,11 @@ Write a `flight_search_request.v1` JSON file and run:
 ```bash
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 cd "$HERMES_HOME"/skills/productivity/flight-search/cli
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request "$HOME/flight-search-request.json"
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli search --request "$HOME/flight-search-request.json"
 ```
 
-Use the rendered answer from `data.agent_report.user_answer.rendered_text`. Do not answer from raw provider JSON when the frontier/report is present.
+Return text-mode CLI stdout verbatim. In JSON mode the same canonical text is
+`data.answer.rendered_text`; do not rewrite it from provider payloads.
 
 Minimal request:
 
@@ -44,19 +45,19 @@ Common options:
 Runtime flow:
 
 ```text
-request
-  -> normalize and validate flight_search_request.v1
-  -> FlowDecision + EvidencePlan
-  -> SearchPlanBuilder builds provider probes from route, evidence, and filters
-  -> per-probe provider router
-  -> primary offer queries + bounded gateway waves
-  -> OfferGraph
-  -> DecisionScorer
-  -> DecisionFrontier
-  -> flight_search_result.v5 + agent_report.v5 + user_answer.v7
+raw JSON
+  -> SearchRequest
+  -> SearchPlan
+  -> SearchExecutor
+  -> SearchEvidence
+  -> SearchDecision
+  -> flight_search_result.v6
+  -> pure render
+  -> stdout
 ```
 
-There is no legacy assembly fallback. `RoutePlanBuilder`, old `services/assembly`, synthetic controls, and old `ranked_candidates/frontier_candidates` answer paths are not runtime sources.
+There is no legacy assembly or reporting fallback: the decision frontier is the
+only source of traveler-visible options.
 
 ## Providers
 
@@ -84,7 +85,7 @@ Do not reintroduce request `constraints`; route shape belongs in `route_options`
 
 ## Evidence Boundaries
 
-Use report fields for evidence and absence language:
+Use result fields for evidence and absence language:
 
 - Provider offers are shopping evidence, not booking proof.
 - Empty provider output is not proof that no flight exists outside executed probes.
@@ -106,7 +107,8 @@ python3 -m flights_cli --json diagnose trace --request "$HOME/flight-search-requ
 
 Provider-specific raw-search commands are intentionally absent from the agent
 surface. Use `search --request` and read
-`data.agent_report.user_answer.rendered_text`. Use `diagnose trace` only when
-you need the full internal route/live-search trace.
+`data.answer.rendered_text`. For a normal traveler request, return text-mode
+stdout without summarizing or reformatting it. Use `diagnose trace` only when
+you need the internal plan/evidence/decision artifacts.
 
 For CLI/debug ownership and source boundaries, start from `references/index.md`.

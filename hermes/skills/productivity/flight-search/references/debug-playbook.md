@@ -15,7 +15,7 @@ Start from the canonical command in `SKILL.md`. Enter debug only when one of the
 - date horizon, airport continuity, stop-policy tiering, cache state, or ranking profile could hide a viable option;
 - the user asks for narrower proof than the report already contains.
 
-Do not expose diagnostic JSON or probe logs as the traveler answer. Final prose still comes from `data.agent_report.user_answer.rendered_text` unless you are explicitly explaining a debug/RCA task.
+Do not expose diagnostic JSON or probe logs as the traveler answer. Final prose still comes from `data.answer.rendered_text` unless you are explicitly explaining a debug/RCA task.
 
 ## Runtime provenance
 
@@ -38,20 +38,20 @@ Record only decision-useful provenance:
 - runtime path, imported module path, CLI version, and live help;
 - source path, branch, HEAD, dirty state when source behavior is in scope;
 - request normalization: route/date/currency/profile, exact-airport vs city scope, filters, provider policy, stop policy, direct-only/date-window/ticketing fields;
-- whether the conclusion came from `data.agent_report`, a diagnostic probe, or external source evidence.
+- whether the conclusion came from `data`, a diagnostic probe, or external source evidence.
 
 Temp editable checkouts can shadow the permanent skill CLI; do not generalize traces until executable/import paths are known. `maint doctor` is environment/readiness evidence, not flight availability evidence.
 
 ## JSON extraction
 
-Read only JSON payloads for decisions. If logs surround JSON, extract the envelope first, then inspect `data.agent_report`.
+Read only JSON payloads for decisions. If logs surround JSON, extract the envelope first, then inspect `data`.
 
 Decision read order is in `report-contract.md`; compact debug order:
 
-1. `data.agent_report.agent_guidance` — command, answer path, readiness, blocking evidence.
-2. `data.route_trace.live_search.offer_graph` from `diagnose trace` — collection, evidence, missing evidence, truth language.
-3. `data.agent_report.user_answer.rendered_text` — canonical final rendering.
-4. `data.agent_report.user_answer.catalog.items` and `frontier.decision_frontier` — decision-critical options and controls.
+1. `data.agent_guidance` — command, answer path, readiness, blocking evidence.
+2. `data.decision.offer_graph` from `diagnose trace` — collection, evidence, missing evidence, truth language.
+3. `data.answer.rendered_text` — canonical final rendering.
+4. `data.answer.catalog.items` and `data.frontier.option_ids` — decision-critical options and order.
 5. `evidence.*` — through-fare checks, provider failures, source boundaries, coverage diagnostics.
 6. `diagnostics.*` — debug only.
 
@@ -98,12 +98,12 @@ When the report shows fewer direct flights than expected:
 2. Start with the canonical report, then run `diagnose trace` for the full assembled route/live-search trace because `auto` is Tutu-first. Use `diagnose probe` only when you need one explicit provider probe outside the assembled trace.
 3. If the provider probe returns all direct offers with prices, the provider is not the root cause; inspect display/report truncation.
 4. Inspect counts:
-   - `data.route_trace.live_search.decision_frontier.options`;
-   - `data.route_trace.live_search.offer_graph.edges`;
-   - `data.route_trace.live_search.primary_offer_results`;
-   - `data.agent_report.frontier.decision_frontier.options`;
-   - `data.agent_report.agent_guidance`.
-5. Current pipeline computes the direct-first gate from wave-0 offer evidence before `agent_report.v5` and `user_answer.v7` construction. If direct offers vanish after that point, debug report construction, not provider availability.
+   - `data.decision.frontier.options`;
+   - `data.decision.offer_graph.edges`;
+   - `data.evidence.primary_offer_results`;
+   - `data.frontier.option_ids`;
+   - `data.agent_guidance`.
+5. The pipeline computes the direct-first gate from primary evidence before `flight_search_result.v6` and `flight_search_user_answer.v8` construction. If direct offers vanish after that point, inspect decision projection, not provider availability.
 
 Do not claim “provider did not return prices” when a narrow direct probe shows priced direct offers.
 

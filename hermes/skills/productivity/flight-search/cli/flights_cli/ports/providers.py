@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol, runtime_checkable
 
+from ..domain.immutable import freeze, thaw
+
 
 ProviderName = Literal["kupibilet", "fli", "tutu"]
 ProbeType = Literal[
@@ -18,8 +20,6 @@ ExecutionState = Literal[
     "failed",
     "not_executed",
     "deduped",
-    "cache_hit",
-    "stale_cache_used",
     "not_supported",
 ]
 CacheStatus = Literal["live", "cache_hit", "stale_cache_used", "disabled", "unknown"]
@@ -31,7 +31,6 @@ EvidenceType = Literal[
     "provider_unavailable",
     "not_executed",
     "not_supported",
-    "synthetic_control",
 ]
 
 
@@ -58,26 +57,34 @@ class ProviderProbeResult:
     cache_status: CacheStatus = "unknown"
     evidence_type: EvidenceType = "not_executed"
     result_summary: dict[str, Any] = field(default_factory=dict)
-    normalized_offers: list[dict[str, Any]] = field(default_factory=list)
-    normalized_result: dict[str, Any] = field(default_factory=dict)
+    offers: tuple[dict[str, Any], ...] = ()
     source_boundary: dict[str, Any] = field(default_factory=dict)
-    errors: list[dict[str, Any]] = field(default_factory=list)
+    errors: tuple[dict[str, Any], ...] = ()
 
-    def as_dict(self) -> dict[str, Any]:
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "query", freeze(self.query))
+        object.__setattr__(self, "result_summary", freeze(self.result_summary))
+        object.__setattr__(self, "offers", tuple(freeze(self.offers)))
+        object.__setattr__(self, "source_boundary", freeze(self.source_boundary))
+        object.__setattr__(self, "errors", tuple(freeze(self.errors)))
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "probe_id": self.probe_id,
             "probe_type": self.probe_type,
             "provider": self.provider,
-            "query": self.query,
+            "query": thaw(self.query),
             "execution_state": self.execution_state,
             "cache_status": self.cache_status,
             "evidence_type": self.evidence_type,
-            "result_summary": self.result_summary,
-            "normalized_offers": self.normalized_offers,
-            "normalized_result": self.normalized_result,
-            "source_boundary": self.source_boundary,
-            "errors": self.errors,
+            "result_summary": thaw(self.result_summary),
+            "offers": thaw(self.offers),
+            "source_boundary": thaw(self.source_boundary),
+            "errors": thaw(self.errors),
         }
+
+    def as_dict(self) -> dict[str, Any]:
+        return self.to_dict()
 
 
 @runtime_checkable

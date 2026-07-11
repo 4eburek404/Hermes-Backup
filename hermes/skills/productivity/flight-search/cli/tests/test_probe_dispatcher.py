@@ -62,8 +62,7 @@ class FakeProviderAdapter:
                 "status": "ok",
                 "offer_count": 1,
             },
-            normalized_offers=segment_result["offers"],
-            normalized_result=segment_result,
+            offers=tuple(segment_result["offers"]),
         )
 
     def search_aggregate(self, query: dict[str, object]) -> ProviderProbeResult:

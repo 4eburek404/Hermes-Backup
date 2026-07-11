@@ -102,9 +102,9 @@ def parser_leaf_defaults(parser: argparse.ArgumentParser) -> dict[str, dict[str,
 
 
 def live_assembly_args(**overrides: Any) -> Any:
-    """Build typed live-assembly options through the canonical search request adapter."""
+    """Build the canonical typed search request used by pipeline tests."""
 
-    from flights_cli.commands.search import live_assembly_options_from_search_request
+    from flights_cli.commands.search import search_request_from_payload
 
     def as_list(value: Any) -> list[Any]:
         if value is None:
@@ -230,7 +230,7 @@ def live_assembly_args(**overrides: Any) -> Any:
     if values:
         unknown = ", ".join(sorted(values))
         raise AssertionError(f"unsupported live_assembly_args overrides: {unknown}")
-    return live_assembly_options_from_search_request(request)
+    return search_request_from_payload(request)
 
 
 class CliSubprocessMixin:
