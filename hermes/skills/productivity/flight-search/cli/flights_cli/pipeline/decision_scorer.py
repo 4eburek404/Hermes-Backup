@@ -20,8 +20,11 @@ class DecisionScorerOptions:
     min_same_airport_connection_min: int = 120
     min_cross_airport_connection_min: int = 300
     max_gateway_alternatives: int = 2
+    max_primary_gateway_options: int = 4
+    max_options_per_first_carrier: int = 2
+    preferred_layover_max_min: int = 6 * 60
     max_round_trip_pairs: int = 12
-    max_options: int | None = None
+    max_options: int | None = 6
 
 
 class DecisionScorer:
@@ -58,6 +61,11 @@ class DecisionScorer:
             controls=controls,
             max_gateway_alternatives=self.options.max_gateway_alternatives,
             max_options=self.options.max_options,
+            max_primary_gateway_options=self.options.max_primary_gateway_options,
+            max_options_per_first_carrier=(
+                self.options.max_options_per_first_carrier
+            ),
+            preferred_layover_max_min=self.options.preferred_layover_max_min,
         )
         return {
             "schema_version": DECISION_SCORER_SCHEMA_VERSION,
@@ -80,6 +88,18 @@ class DecisionScorer:
                 },
                 "round_trip_pairing": prepared_envelope.get("round_trip_pairing"),
                 "max_options": self.options.max_options,
+                "max_gateway_alternatives": max(
+                    0, int(self.options.max_gateway_alternatives)
+                ),
+                "max_primary_gateway_options": max(
+                    0, int(self.options.max_primary_gateway_options)
+                ),
+                "max_options_per_first_carrier": max(
+                    1, int(self.options.max_options_per_first_carrier)
+                ),
+                "preferred_layover_max_min": max(
+                    0, int(self.options.preferred_layover_max_min)
+                ),
             },
             "mixed_candidate_ranking": ranking,
             "decision_frontier": frontier,

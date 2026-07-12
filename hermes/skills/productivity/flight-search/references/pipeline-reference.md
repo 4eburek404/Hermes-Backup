@@ -31,6 +31,14 @@ round-trip/two-one-way composition, and frontier selection run once. Provider
 aggregate offers enter the same candidate envelope before scoring. Result
 projection and rendering may not perform provider calls or option selection.
 
+Business frontier selection first keeps the best available stop tier: two-stop
+options are eligible only when no direct or one-stop candidate exists. Normal
+answers prefer layovers of at most six hours, prune candidates dominated within
+the same gateway, keep one representative per carrier chain, and reserve room
+for different first-leg carriers and up to two alternative gateways. Cheapest,
+fastest, and safer labels annotate the selected frontier; they never force an
+otherwise low-ranked candidate into an early position.
+
 ## Provider routing
 
 Provider routing is per logical probe, not per whole search. `tutu` is the

@@ -15,7 +15,10 @@ MATERIAL_PRICE_DELTA_RATIO = 0.05
 MATERIAL_PRICE_DELTA_ABSOLUTE = 5_000
 MATERIAL_ELAPSED_DELTA_MIN = 60
 MAX_GATEWAY_LAYOVER_MIN = 24 * 60
-PREFERRED_LAYOVER_MAX_MIN = 8 * 60
+PREFERRED_LAYOVER_MAX_MIN = 6 * 60
+DEFAULT_FRONTIER_MAX_OPTIONS = 6
+DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS = 4
+DEFAULT_FIRST_CARRIER_MAX_OPTIONS = 2
 
 
 def rank_mixed_candidates(
@@ -50,13 +53,7 @@ def rank_mixed_candidates(
         )
         for candidate in candidates
     ]
-    ranked = sorted(
-        evaluated,
-        key=lambda candidate: (
-            tuple(candidate["rank_key"]),
-            str(candidate.get("id") or ""),
-        ),
-    )
+    ranked = _quality_ranked_candidates(evaluated)
     for index, candidate in enumerate(ranked, start=1):
         candidate["rank"] = index
     return {
@@ -88,7 +85,10 @@ def build_decision_frontier(
     *,
     controls: list[dict[str, Any]] | None = None,
     max_gateway_alternatives: int = 2,
-    max_options: int | None = None,
+    max_options: int | None = DEFAULT_FRONTIER_MAX_OPTIONS,
+    max_primary_gateway_options: int = DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS,
+    max_options_per_first_carrier: int = DEFAULT_FIRST_CARRIER_MAX_OPTIONS,
+    preferred_layover_max_min: int = PREFERRED_LAYOVER_MAX_MIN,
 ) -> dict[str, Any]:
     ranked = [
         candidate
@@ -100,46 +100,21 @@ def build_decision_frontier(
     direct_acceptable = [
         candidate for candidate in acceptable if _is_direct_control(candidate)
     ]
-    selected: list[dict[str, Any]] = []
-
-    best = acceptable[0] if acceptable else None
-    _select_frontier_option(selected, best, "best_viable")
-
-    cheapest = _min_finite(acceptable, _price_for_rank)
-    if _materially_cheaper(cheapest, selected):
-        _select_frontier_option(selected, cheapest, "cheapest_acceptable")
-
-    fastest = _min_finite(acceptable, _elapsed_time_for_rank)
-    if _materially_faster(fastest, selected):
-        _select_frontier_option(selected, fastest, "fastest_acceptable")
-
-    safer = _safest_candidate(acceptable)
-    if _materially_safer(safer, selected):
-        _select_frontier_option(selected, safer, "safer_ticketing")
-
-    for candidate in acceptable:
-        if _is_direct_control(candidate):
-            _select_frontier_option(selected, candidate, "direct_nonstop_control")
-
-    gateway_count = 0
-    for candidate in _best_gateway_alternatives(acceptable):
-        if gateway_count >= max(0, int(max_gateway_alternatives)):
-            break
-        if _select_frontier_option(
-            selected,
-            candidate,
-            "significant_gateway_alternative",
-        ):
-            gateway_count += 1
-
-    if max_options is not None:
-        for candidate in acceptable:
-            if len(selected) >= max(0, int(max_options)):
-                break
-            _select_frontier_option(selected, candidate, "ranked_acceptable")
-    selected_before_limit = len(selected)
-    if max_options is not None:
-        selected = selected[: max(0, int(max_options))]
+    selection_pool = _frontier_selection_pool(
+        acceptable,
+        preferred_layover_max_min=preferred_layover_max_min,
+    )
+    selected_candidates, selection_reasons = _select_diverse_frontier_candidates(
+        selection_pool,
+        max_options=max_options,
+        max_primary_gateway_options=max_primary_gateway_options,
+        max_gateway_alternatives=max_gateway_alternatives,
+        max_options_per_first_carrier=max_options_per_first_carrier,
+    )
+    selected = _frontier_options_with_roles(
+        selected_candidates,
+        selection_reasons=selection_reasons,
+    )
 
     return {
         "schema_version": DECISION_FRONTIER_SCHEMA_VERSION,
@@ -149,7 +124,9 @@ def build_decision_frontier(
             "candidate_count": len(ranked),
             "acceptable_count": len(acceptable),
             "selected_count": len(selected),
-            "suppressed_by_output_limit_count": selected_before_limit - len(selected),
+            "suppressed_by_output_limit_count": max(
+                0, len(selection_pool) - len(selected)
+            ),
             "rejected_count": len(mixed_candidate_ranking.get("rejected") or []),
             "control_count": len(controls or []),
             "direct_option_count": len(direct_ranked),
@@ -160,7 +137,7 @@ def build_decision_frontier(
             "acceptable_direct_option_count_by_direction": (
                 _direct_option_count_by_direction(direct_acceptable)
             ),
-            "gateway_alternative_count": len(_best_gateway_alternatives(acceptable)),
+            "gateway_alternative_count": _gateway_alternative_count(selection_pool),
             "source_types": sorted(
                 {
                     str(candidate.get("source_type"))
@@ -837,6 +814,384 @@ def _ranking_reasons(
     ):
         reasons.append("provider_ticketing_protection_unverified")
     return reasons
+
+
+def _quality_ranked_candidates(
+    candidates: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    fastest_by_quality: dict[tuple[int, ...], int | float] = {}
+    for candidate in candidates:
+        prefix = _quality_rank_prefix(candidate)
+        elapsed = _elapsed_time_for_rank(candidate)
+        fastest_by_quality[prefix] = min(
+            fastest_by_quality.get(prefix, UNKNOWN_RANK_NUMERIC),
+            elapsed,
+        )
+
+    for candidate in candidates:
+        components = candidate.get("rank_components")
+        if not isinstance(components, dict):
+            components = {}
+            candidate["rank_components"] = components
+        prefix = _quality_rank_prefix(candidate)
+        elapsed = _elapsed_time_for_rank(candidate)
+        fastest = fastest_by_quality.get(prefix, elapsed)
+        elapsed_band = (
+            0
+            if elapsed >= UNKNOWN_RANK_NUMERIC or fastest >= UNKNOWN_RANK_NUMERIC
+            else max(0, int(elapsed - fastest) // MATERIAL_ELAPSED_DELTA_MIN)
+        )
+        components["elapsed_time_band"] = elapsed_band
+        candidate["rank_key"] = [
+            *prefix,
+            elapsed_band,
+            _ticketing_risk_tier(candidate),
+            _source_confidence_penalty(candidate),
+            _price_for_rank(candidate),
+            elapsed,
+        ]
+
+    return sorted(
+        candidates,
+        key=lambda candidate: (
+            tuple(candidate.get("rank_key") or []),
+            str(candidate.get("id") or ""),
+        ),
+    )
+
+
+def _quality_rank_prefix(candidate: dict[str, Any]) -> tuple[int, ...]:
+    components = candidate.get("rank_components")
+    payload = components if isinstance(components, dict) else {}
+    return (
+        int(payload.get("not_covers_requested_trip") or 0),
+        int(payload.get("rejected_or_impossible_connection") or 0),
+        int(payload.get("max_connections_per_journey") or 0),
+        int(payload.get("preferred_connections_per_journey") or 0),
+        int(payload.get("connection_risk_score") or 0),
+    )
+
+
+def _frontier_selection_pool(
+    acceptable: list[dict[str, Any]],
+    *,
+    preferred_layover_max_min: int,
+) -> list[dict[str, Any]]:
+    if not acceptable:
+        return []
+
+    preferred = [
+        candidate
+        for candidate in acceptable
+        if int(
+            (candidate.get("rank_components") or {}).get(
+                "preferred_connections_per_journey"
+            )
+            or 0
+        )
+        == 0
+    ]
+    if preferred:
+        tier_pool = preferred
+    else:
+        minimum_connections = min(_max_connections(candidate) for candidate in acceptable)
+        tier_pool = [
+            candidate
+            for candidate in acceptable
+            if _max_connections(candidate) == minimum_connections
+        ]
+
+    layover_limit = max(0, int(preferred_layover_max_min))
+    preferred_layovers = [
+        candidate
+        for candidate in tier_pool
+        if _candidate_max_layover_min(candidate) <= layover_limit
+    ]
+    layover_pool = preferred_layovers or tier_pool
+
+    grouped: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
+    for candidate in layover_pool:
+        grouped.setdefault(_gateway_signature(candidate), []).append(candidate)
+
+    comfort_pool: list[dict[str, Any]] = []
+    for group in grouped.values():
+        normal = [
+            candidate
+            for candidate in group
+            if str(
+                (candidate.get("connection_assessment") or {}).get("comfort")
+                or "unknown"
+            )
+            in {"comfortable", "acceptable"}
+        ]
+        comfort_pool.extend(normal or group)
+
+    return sorted(
+        _pareto_prune_within_gateway(comfort_pool),
+        key=lambda candidate: (
+            int(candidate.get("rank") or UNKNOWN_RANK_NUMERIC),
+            str(candidate.get("id") or ""),
+        ),
+    )
+
+
+def _candidate_max_layover_min(candidate: dict[str, Any]) -> int | float:
+    assessment = candidate.get("connection_assessment")
+    connections = (
+        assessment.get("connections")
+        if isinstance(assessment, dict)
+        and isinstance(assessment.get("connections"), list)
+        else []
+    )
+    values = [
+        numeric_or_none(connection.get("actual_min"))
+        for connection in connections
+        if isinstance(connection, dict)
+    ]
+    finite = [value for value in values if value is not None]
+    if finite:
+        return max(finite)
+    return 0 if _max_connections(candidate) == 0 else UNKNOWN_RANK_NUMERIC
+
+
+def _pareto_prune_within_gateway(
+    candidates: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        candidate
+        for candidate in candidates
+        if not any(
+            other is not candidate and _dominates_within_gateway(other, candidate)
+            for other in candidates
+        )
+    ]
+
+
+def _dominates_within_gateway(
+    candidate: dict[str, Any], other: dict[str, Any]
+) -> bool:
+    if _gateway_signature(candidate) != _gateway_signature(other):
+        return False
+    candidate_values = _dominance_values(candidate)
+    other_values = _dominance_values(other)
+    return all(
+        candidate_value <= other_value
+        for candidate_value, other_value in zip(candidate_values, other_values)
+    ) and any(
+        candidate_value < other_value
+        for candidate_value, other_value in zip(candidate_values, other_values)
+    )
+
+
+def _dominance_values(candidate: dict[str, Any]) -> tuple[int | float, ...]:
+    return (
+        _connection_risk_score(candidate, candidate.get("connection_assessment")),
+        _ticketing_risk_tier(candidate),
+        _source_confidence_penalty(candidate),
+        _price_for_rank(candidate),
+        _elapsed_time_for_rank(candidate),
+    )
+
+
+def _gateway_signature(candidate: dict[str, Any]) -> tuple[Any, ...]:
+    signature: list[tuple[str, tuple[str, ...]]] = []
+    for _index, direction, segments in _candidate_segment_groups(candidate):
+        intermediate = tuple(
+            str(segment.get("destination") or "").strip().upper()
+            for segment in segments[:-1]
+            if str(segment.get("destination") or "").strip()
+        )
+        signature.append((_normalized_direction(direction), intermediate))
+    return tuple(signature)
+
+
+def _carrier_chain_signature(candidate: dict[str, Any]) -> tuple[Any, ...]:
+    signature: list[tuple[str, tuple[str, ...]]] = []
+    for _index, direction, segments in _candidate_segment_groups(candidate):
+        carriers = tuple(_segment_carrier(segment) for segment in segments)
+        if carriers and all(carrier == "UNKNOWN" for carrier in carriers):
+            carriers = (*carriers, str(candidate.get("id") or "UNKNOWN"))
+        signature.append((_normalized_direction(direction), carriers))
+    return tuple(signature)
+
+
+def _segment_carrier(segment: dict[str, Any]) -> str:
+    return str(
+        segment.get("marketing_carrier")
+        or segment.get("carrier")
+        or segment.get("operating_carrier")
+        or "UNKNOWN"
+    ).strip().upper()
+
+
+def _first_leg_carrier(candidate: dict[str, Any]) -> str:
+    groups = _candidate_segment_groups(candidate)
+    for _index, direction, segments in groups:
+        if _normalized_direction(direction) == "outbound" and segments:
+            carrier = _segment_carrier(segments[0])
+            return (
+                carrier
+                if carrier != "UNKNOWN"
+                else str(candidate.get("id") or "UNKNOWN")
+            )
+    for _index, _direction, segments in groups:
+        if segments:
+            carrier = _segment_carrier(segments[0])
+            return (
+                carrier
+                if carrier != "UNKNOWN"
+                else str(candidate.get("id") or "UNKNOWN")
+            )
+    return str(candidate.get("id") or "UNKNOWN")
+
+
+def _select_diverse_frontier_candidates(
+    candidates: list[dict[str, Any]],
+    *,
+    max_options: int | None,
+    max_primary_gateway_options: int,
+    max_gateway_alternatives: int,
+    max_options_per_first_carrier: int,
+) -> tuple[list[dict[str, Any]], dict[str, list[str]]]:
+    if not candidates:
+        return [], {}
+    total_limit = (
+        DEFAULT_FRONTIER_MAX_OPTIONS
+        if max_options is None
+        else max(0, int(max_options))
+    )
+    if total_limit == 0:
+        return [], {}
+
+    ordered = sorted(
+        candidates,
+        key=lambda candidate: (
+            int(candidate.get("rank") or UNKNOWN_RANK_NUMERIC),
+            str(candidate.get("id") or ""),
+        ),
+    )
+    primary_gateway = _gateway_signature(ordered[0])
+    primary_limit = min(total_limit, max(0, int(max_primary_gateway_options)))
+    alternative_limit = min(total_limit, max(0, int(max_gateway_alternatives)))
+    first_carrier_limit = max(1, int(max_options_per_first_carrier))
+    selected: list[dict[str, Any]] = []
+    reasons: dict[str, list[str]] = {}
+    seen_signatures: set[tuple[Any, ...]] = set()
+    first_carrier_counts: dict[str, int] = {}
+    selected_primary = 0
+    selected_alternatives = 0
+
+    def add(candidate: dict[str, Any], role: str) -> bool:
+        nonlocal selected_primary, selected_alternatives
+        if len(selected) >= total_limit:
+            return False
+        signature = (_gateway_signature(candidate), _carrier_chain_signature(candidate))
+        first_carrier = _first_leg_carrier(candidate)
+        if signature in seen_signatures:
+            return False
+        if first_carrier_counts.get(first_carrier, 0) >= first_carrier_limit:
+            return False
+        is_primary = _gateway_signature(candidate) == primary_gateway
+        if is_primary and selected_primary >= primary_limit:
+            return False
+        if not is_primary and selected_alternatives >= alternative_limit:
+            return False
+        selected.append(candidate)
+        seen_signatures.add(signature)
+        first_carrier_counts[first_carrier] = (
+            first_carrier_counts.get(first_carrier, 0) + 1
+        )
+        if is_primary:
+            selected_primary += 1
+        else:
+            selected_alternatives += 1
+        reasons[str(candidate.get("id") or "")] = [role]
+        return True
+
+    primary_candidates = [
+        candidate
+        for candidate in ordered
+        if _gateway_signature(candidate) == primary_gateway
+    ]
+    seen_primary_carriers: set[str] = set()
+    for candidate in primary_candidates:
+        first_carrier = _first_leg_carrier(candidate)
+        if first_carrier in seen_primary_carriers:
+            continue
+        if add(candidate, "carrier_diversity"):
+            seen_primary_carriers.add(first_carrier)
+
+    alternative_gateways: list[tuple[Any, ...]] = []
+    for candidate in ordered:
+        gateway = _gateway_signature(candidate)
+        if gateway == primary_gateway or gateway in alternative_gateways:
+            continue
+        alternative_gateways.append(gateway)
+    for gateway in alternative_gateways:
+        candidate = next(
+            item for item in ordered if _gateway_signature(item) == gateway
+        )
+        add(candidate, "gateway_alternative")
+
+    for candidate in primary_candidates:
+        add(candidate, "carrier_diversity")
+
+    selected.sort(
+        key=lambda candidate: (
+            int(candidate.get("rank") or UNKNOWN_RANK_NUMERIC),
+            str(candidate.get("id") or ""),
+        )
+    )
+    if selected:
+        best_id = str(selected[0].get("id") or "")
+        reasons[best_id] = (
+            ["best_viable"]
+            if len(selected) == 1
+            else _ordered_unique(["best_viable", *(reasons.get(best_id) or [])])
+        )
+    if len(selected) > 1:
+        cheapest = _min_finite(selected, _price_for_rank)
+        if cheapest is not None:
+            cheapest_id = str(cheapest.get("id") or "")
+            reasons[cheapest_id] = _ordered_unique(
+                [*(reasons.get(cheapest_id) or []), "cheapest_selected"]
+            )
+        fastest = _min_finite(selected, _elapsed_time_for_rank)
+        if fastest is not None:
+            fastest_id = str(fastest.get("id") or "")
+            reasons[fastest_id] = _ordered_unique(
+                [*(reasons.get(fastest_id) or []), "fastest_selected"]
+            )
+    return selected, reasons
+
+
+def _frontier_options_with_roles(
+    candidates: list[dict[str, Any]],
+    *,
+    selection_reasons: dict[str, list[str]],
+) -> list[dict[str, Any]]:
+    options: list[dict[str, Any]] = []
+    for candidate in candidates:
+        roles = selection_reasons.get(str(candidate.get("id") or "")) or [
+            "carrier_diversity"
+        ]
+        option = _frontier_option(candidate, roles[0])
+        option["selection_reasons"] = _ordered_unique(roles)
+        options.append(option)
+    return options
+
+
+def _gateway_alternative_count(candidates: list[dict[str, Any]]) -> int:
+    if not candidates:
+        return 0
+    primary = _gateway_signature(candidates[0])
+    return len(
+        {
+            _gateway_signature(candidate)
+            for candidate in candidates
+            if _gateway_signature(candidate) != primary
+        }
+    )
 
 
 def _frontier_acceptable(candidate: dict[str, Any]) -> bool:

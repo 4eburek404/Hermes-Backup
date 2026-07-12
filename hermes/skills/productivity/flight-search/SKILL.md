@@ -1,6 +1,6 @@
 ---
 name: flight-search
-version: 0.11.4
+version: 0.11.5
 description: Use when finding, comparing, assembling, or diagnosing live flight options with the bundled flights CLI, including direct, round-trip, open-jaw leg, and RU-gateway searches; assumes one adult in economy and never books tickets.
 metadata:
   hermes:
