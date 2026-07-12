@@ -13,13 +13,19 @@ metadata:
 
 Find, compare, or diagnose live flight options through the bundled CLI. One adult, economy. Never books or claims final fare, baggage, protected transfer, or single PNR unless the provider/booking screen proves it.
 
+## Path Resolution
+
+Treat the directory containing this `SKILL.md` as `<skill-root>`. Resolve every
+bundled path in this skill relative to that directory. Do not infer the location
+from a client-specific skills home or assume that a `SKILL_DIR` environment
+variable exists.
+
 ## Golden Path
 
-Write a `flight_search_request.v1` JSON file and run:
+Write a `flight_search_request.v1` JSON file. Resolve `cli/` from `<skill-root>`
+and use it as the command's working directory, then run:
 
 ```bash
-HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
-cd "$HERMES_HOME"/skills/productivity/flight-search/cli
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli search --request "$HOME/flight-search-request.json"
 ```
 

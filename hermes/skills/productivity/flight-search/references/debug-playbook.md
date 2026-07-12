@@ -22,11 +22,12 @@ otherwise improve it. Debug/RCA explanations are a separate task.
 
 ## Runtime provenance
 
-Before naming a provider/root cause or patching behavior, prove the runtime used for the probe:
+Before naming a provider/root cause or patching behavior, prove the runtime used
+for the probe. Resolve `cli/` relative to the directory containing the parent
+`SKILL.md` and use it as the command's working directory; do not infer the
+location from an agent-specific home directory:
 
 ```bash
-HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
-cd "$HERMES_HOME"/skills/productivity/flight-search/cli
 command -v flights || true
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --version
 PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY'

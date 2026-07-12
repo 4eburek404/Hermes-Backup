@@ -1,6 +1,9 @@
 # flights CLI
 
-Concise manual for the flight-search skill-owned CLI. The skill's Golden Path is `search --request`; other commands support setup, metadata, or targeted diagnostics.
+Concise manual for the flight-search skill-owned CLI. The skill's Golden Path is
+`search --request`; other commands support setup, metadata, or targeted
+diagnostics. Paths in this manual are relative to the skill root: the directory
+containing the parent `SKILL.md`.
 
 ## What It Automates
 
@@ -11,15 +14,16 @@ Concise manual for the flight-search skill-owned CLI. The skill's Golden Path is
 - Static metadata lookup for city, airport, country/region, airline, alliance, and aircraft labels.
 - A compact `flight_search_result.v7` with `route`, `evidence`, `frontier`, and the canonical `answer`.
 
-The CLI does not book, buy, or write to Hermes runtime state.
+The CLI does not book, buy, or write to agent runtime state.
 
 ## Install
 
-Normal one-off runs do not need installation. If you are explicitly setting up the runtime CLI entry point, install from the active runtime skill CLI and then check/report generated artifacts (`*.egg-info`, caches):
+Normal one-off runs do not need installation. If you are explicitly setting up
+the runtime CLI entry point, resolve `cli/` from the active skill root, use it as
+the command's working directory, and then check/report generated artifacts
+(`*.egg-info`, caches):
 
 ```bash
-HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
-cd "$HERMES_HOME"/skills/productivity/flight-search/cli
 python3 -m pip install -e .
 ```
 
@@ -57,7 +61,7 @@ Use `maint check` when auditing source/runtime provenance or debugging local rou
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json maint check
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli maint check --runtime-path "$HOME/.hermes/skills/productivity/flight-search"
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli maint check --runtime-path "<skill-root>"
 ```
 
 Missing runtime paths are reported as structured status, not treated as fatal CLI errors.
