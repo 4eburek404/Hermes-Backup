@@ -100,17 +100,27 @@ def build_decision_frontier(
     direct_acceptable = [
         candidate for candidate in acceptable if _is_direct_control(candidate)
     ]
-    selection_pool = _frontier_selection_pool(
-        acceptable,
-        preferred_layover_max_min=preferred_layover_max_min,
-    )
-    selected_candidates, selection_reasons = _select_diverse_frontier_candidates(
-        selection_pool,
-        max_options=max_options,
-        max_primary_gateway_options=max_primary_gateway_options,
-        max_gateway_alternatives=max_gateway_alternatives,
-        max_options_per_first_carrier=max_options_per_first_carrier,
-    )
+    if direct_acceptable:
+        selection_pool = direct_acceptable
+        selected_candidates = direct_acceptable
+        selection_reasons = {
+            str(candidate.get("id") or ""): [
+                "best_viable" if index == 0 else "ranked_acceptable"
+            ]
+            for index, candidate in enumerate(direct_acceptable)
+        }
+    else:
+        selection_pool = _frontier_selection_pool(
+            acceptable,
+            preferred_layover_max_min=preferred_layover_max_min,
+        )
+        selected_candidates, selection_reasons = _select_diverse_frontier_candidates(
+            selection_pool,
+            max_options=max_options,
+            max_primary_gateway_options=max_primary_gateway_options,
+            max_gateway_alternatives=max_gateway_alternatives,
+            max_options_per_first_carrier=max_options_per_first_carrier,
+        )
     selected = _frontier_options_with_roles(
         selected_candidates,
         selection_reasons=selection_reasons,

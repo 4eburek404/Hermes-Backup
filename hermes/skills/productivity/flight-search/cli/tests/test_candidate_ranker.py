@@ -540,7 +540,7 @@ class CandidateRankerTests(unittest.TestCase):
         self.assertEqual(summary["selected_count"], 1)
         self.assertEqual(summary["selection_roles"], ["best_viable"])
 
-    def test_output_limit_is_applied_by_decision_frontier(self) -> None:
+    def test_all_acceptable_direct_options_are_kept(self) -> None:
         candidates = [
             candidate(
                 f"direct-{index}",
@@ -557,8 +557,11 @@ class CandidateRankerTests(unittest.TestCase):
             max_options=2,
         )
 
-        self.assertEqual(len(frontier["options"]), 1)
-        self.assertEqual(frontier["coverage_summary"]["selected_count"], 1)
+        self.assertEqual(
+            [option["id"] for option in frontier["options"]],
+            ["direct-0", "direct-1", "direct-2"],
+        )
+        self.assertEqual(frontier["coverage_summary"]["selected_count"], 3)
         self.assertEqual(
             frontier["coverage_summary"]["suppressed_by_output_limit_count"], 0
         )
