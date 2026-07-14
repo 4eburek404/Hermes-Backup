@@ -5,6 +5,7 @@ from typing import Any, Mapping
 
 from ..adapters.providers.registry import provider_adapter
 from ..config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
+from ..domain.normalize import normalize_airport_scope
 from ..domain.vocabulary import RequiredControl
 from ..errors import CliError
 from ..ports.providers import ProviderProbeResult
@@ -53,6 +54,12 @@ def _normalized_query(
     only_carriers = [
         str(code).strip().upper() for code in (query.get("only_carriers") or []) if code
     ]
+    origin_airports = normalize_airport_scope(
+        list(query.get("origin_airports") or []), "origin-airport"
+    )
+    destination_airports = normalize_airport_scope(
+        list(query.get("destination_airports") or []), "destination-airport"
+    )
     return {
         **dict(query),
         "provider": provider,
@@ -66,6 +73,8 @@ def _normalized_query(
         "date": str(query.get("date") or ""),
         "currency": str(query.get("currency") or "RUB").upper(),
         "only_carriers": only_carriers,
+        "origin_airports": origin_airports,
+        "destination_airports": destination_airports,
         "direct_only": bool(query.get("direct_only", False)),
         "limit": _required_int(query, "limit"),
         "timeout": int(query.get("timeout") or options.timeout),
@@ -167,6 +176,8 @@ def _fallback_group_key(query: Mapping[str, Any]) -> tuple[Any, ...]:
         query.get("currency"),
         bool(query.get("direct_only", False)),
         tuple(query.get("only_carriers") or []),
+        tuple(query.get("origin_airports") or []),
+        tuple(query.get("destination_airports") or []),
     )
 
 

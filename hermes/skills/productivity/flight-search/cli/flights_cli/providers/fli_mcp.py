@@ -19,6 +19,7 @@ from ..config import (
 )
 from ..domain.carriers import carrier_from_flight_number
 from ..domain.normalize import (
+    normalize_airport_scope,
     normalize_carrier_code,
     price_value,
 )
@@ -30,7 +31,7 @@ from .live_cache import live_cache_key, read_live_cache, write_live_cache
 from .segment_normalization import provider_result_to_segment_result
 
 MCP_PROTOCOL_VERSION = "2025-03-26"
-FLI_NORMALIZER_VERSION = "airport-name-v2"
+FLI_NORMALIZER_VERSION = "airport-scope-v3"
 
 
 def default_fli_mcp_url() -> str:
@@ -445,6 +446,8 @@ def parse_fli_flight_search(
     mcp_url: str | None = None,
     filters: dict[str, Any] | None = None,
     store: Store | None = None,
+    origin_airports: list[str] | None = None,
+    destination_airports: list[str] | None = None,
 ) -> dict[str, Any]:
     if raw.get("success") is False:
         raise CliError(
@@ -460,6 +463,14 @@ def parse_fli_flight_search(
     deduped: dict[tuple[str, ...], dict[str, Any]] = {}
     skipped: dict[str, int] = {}
     airport_store = store or Store()
+    normalized_origin_airports = normalize_airport_scope(
+        origin_airports, "origin-airport"
+    )
+    normalized_destination_airports = normalize_airport_scope(
+        destination_airports, "destination-airport"
+    )
+    origin_scope = set(normalized_origin_airports)
+    destination_scope = set(normalized_destination_airports)
     for index, flight in enumerate(raw_flights):
         if not isinstance(flight, dict):
             skipped["bad_flight"] = skipped.get("bad_flight", 0) + 1
@@ -484,13 +495,27 @@ def parse_fli_flight_search(
         if not normalized_flights:
             skipped["bad_legs"] = skipped.get("bad_legs", 0) + 1
             continue
-        if (
-            normalized_flights[0]["origin"] != origin
-            or normalized_flights[-1]["destination"] != destination
+        actual_origin = str(normalized_flights[0].get("origin") or "").upper()
+        actual_destination = str(
+            normalized_flights[-1].get("destination") or ""
+        ).upper()
+        if not actual_origin or not actual_destination:
+            skipped["missing_airport"] = skipped.get("missing_airport", 0) + 1
+            continue
+        if origin_scope and actual_origin not in origin_scope:
+            skipped["origin_out_of_scope"] = skipped.get("origin_out_of_scope", 0) + 1
+            continue
+        if destination_scope and actual_destination not in destination_scope:
+            skipped["destination_out_of_scope"] = (
+                skipped.get("destination_out_of_scope", 0) + 1
+            )
+            continue
+        if (not origin_scope and actual_origin != origin) or (
+            not destination_scope and actual_destination != destination
         ):
             raise CliError(
                 "FLI normalized route does not match query: "
-                f"{normalized_flights[0]['origin']}-{normalized_flights[-1]['destination']} returned for {origin}-{destination}",
+                f"{actual_origin}-{actual_destination} returned for {origin}-{destination}",
                 error_type="upstream_error",
             )
         key = fli_offer_key(normalized_flights)
@@ -544,7 +569,11 @@ def parse_fli_flight_search(
         "source": "FLI MCP search_flights (Google Flights reverse-engineered)",
         "source_url": normalize_mcp_url(mcp_url),
         "note": "Self-hosted FLI MCP source; Google Flights data is advisory and must be rechecked before ticketing.",
-        "filters": filters or {},
+        "filters": {
+            **(filters or {}),
+            "origin_airports": normalized_origin_airports,
+            "destination_airports": normalized_destination_airports,
+        },
         "raw_count": raw.get("count", len(raw_flights)),
         "trip_type": raw.get("trip_type"),
         "skipped": skipped,
@@ -562,6 +591,8 @@ def fetch_fli_mcp_search(
     *,
     currency: str,
     only_carriers: list[str] | None = None,
+    origin_airports: list[str] | None = None,
+    destination_airports: list[str] | None = None,
     direct_only: bool = False,
     limit: int = 20,
     timeout: int = 60,
@@ -575,6 +606,12 @@ def fetch_fli_mcp_search(
     effective_max_stops = "NON_STOP" if direct_only else max_stops
     airlines = sorted(
         {normalize_carrier_code(code, "only-carrier") for code in (only_carriers or [])}
+    )
+    normalized_origin_airports = normalize_airport_scope(
+        origin_airports, "origin-airport"
+    )
+    normalized_destination_airports = normalize_airport_scope(
+        destination_airports, "destination-airport"
     )
     arguments: dict[str, Any] = {
         "origin": origin,
@@ -600,6 +637,8 @@ def fetch_fli_mcp_search(
         mcp_url=mcp_url,
         filters={
             "only_carriers": airlines,
+            "origin_airports": normalized_origin_airports,
+            "destination_airports": normalized_destination_airports,
             "direct_only": direct_only,
             "max_stops": effective_max_stops,
             "cabin_class": cabin_class,
@@ -607,6 +646,8 @@ def fetch_fli_mcp_search(
             "passengers": passengers,
         },
         store=store,
+        origin_airports=normalized_origin_airports,
+        destination_airports=normalized_destination_airports,
     )
 
 
@@ -621,6 +662,8 @@ def cached_fli_mcp_search(
     limit: int,
     timeout: int,
     mcp_url: str | None,
+    origin_airports: list[str] | None = None,
+    destination_airports: list[str] | None = None,
     cabin_class: str = "ECONOMY",
     max_stops: str = "ANY",
     sort_by: str = "CHEAPEST",
@@ -631,12 +674,20 @@ def cached_fli_mcp_search(
     store: Store | None = None,
 ) -> dict[str, Any]:
     url = normalize_mcp_url(mcp_url)
+    normalized_origin_airports = normalize_airport_scope(
+        origin_airports, "origin-airport"
+    )
+    normalized_destination_airports = normalize_airport_scope(
+        destination_airports, "destination-airport"
+    )
     params = {
         "origin": origin,
         "destination": destination,
         "depart_date": depart_date.isoformat(),
         "currency": currency,
         "only_carriers": sorted(only_carriers),
+        "origin_airports": normalized_origin_airports,
+        "destination_airports": normalized_destination_airports,
         "direct_only": bool(direct_only),
         "limit": int(limit),
         "mcp_url": url,
@@ -657,6 +708,8 @@ def cached_fli_mcp_search(
         depart_date,
         currency=currency,
         only_carriers=only_carriers,
+        origin_airports=normalized_origin_airports,
+        destination_airports=normalized_destination_airports,
         direct_only=direct_only,
         limit=limit,
         timeout=timeout,
@@ -698,5 +751,6 @@ def fli_segment_search_summary(
         "unique_flight_count": result.get("unique_flight_count"),
         "offer_count": len(segment_result.get("offers") or []),
         "skipped": result.get("skipped", {}),
+        "filters": result.get("filters", {}),
         "cache": result.get("cache", {"hit": False}),
     }

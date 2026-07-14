@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 
+from flights_cli.adapters.providers.fli_adapter import FliProviderAdapter
 from flights_cli.errors import CliError
 from flights_cli.adapters.providers.registry import providers_for_segment
 from flights_cli.providers.fli_mcp import (
+    cached_fli_mcp_search,
     decode_mcp_response,
     fli_result_to_segment_result,
     normalize_mcp_url,
@@ -82,6 +85,30 @@ TEST_AIRPORTS = [
         "flightable": True,
         "name": "Barcelona Bus Station",
         "name_translations": {"en": "Barcelona Bus Station"},
+    },
+    {
+        "code": "AAA",
+        "country_code": "ZZ",
+        "flightable": True,
+        "name": "Alpha Airport",
+    },
+    {
+        "code": "AAB",
+        "country_code": "ZZ",
+        "flightable": True,
+        "name": "Alpha Alternate Airport",
+    },
+    {
+        "code": "BBB",
+        "country_code": "YY",
+        "flightable": True,
+        "name": "Beta Airport",
+    },
+    {
+        "code": "BBC",
+        "country_code": "YY",
+        "flightable": True,
+        "name": "Beta Alternate Airport",
     },
 ]
 
@@ -168,6 +195,137 @@ class FliMcpTests(unittest.TestCase):
         self.assertEqual(result["offers"][0]["duration"], 250)
         self.assertEqual(segment["source_key"], "fli_mcp_search_flights")
         self.assertEqual(segment["offers"][0]["segments"][0]["carrier"], "TK")
+
+    def test_parse_fli_filters_exact_airport_scope_before_limit(self) -> None:
+        def flight(offer_id: str, origin: str, destination: str, price: int) -> dict:
+            return {
+                "id": offer_id,
+                "price": price,
+                "currency": "RUB",
+                "legs": [
+                    {
+                        "departure_airport": origin,
+                        "arrival_airport": destination,
+                        "departure_time": "2026-08-15T10:00:00+00:00",
+                        "arrival_time": "2026-08-15T12:00:00+00:00",
+                        "duration": 120,
+                        "airline_code": "ZZ",
+                        "flight_number": offer_id,
+                    }
+                ],
+            }
+
+        result = parse_fli_flight_search(
+            {
+                "success": True,
+                "count": 2,
+                "flights": [
+                    flight("wrong-cheap", "AAB", "BBB", 1000),
+                    flight("allowed", "AAA", "BBB", 5000),
+                ],
+            },
+            origin="ORG",
+            destination="DST",
+            depart_date="2026-08-15",
+            currency="RUB",
+            origin_airports=[" aaa ", "AAA"],
+            destination_airports=["bbb"],
+            limit=1,
+            store=make_test_store(self, TEST_AIRPORTS),
+        )
+
+        self.assertEqual([offer["id"] for offer in result["offers"]], ["allowed"])
+        self.assertEqual(result["skipped"], {"origin_out_of_scope": 1})
+        self.assertEqual(result["filters"]["origin_airports"], ["AAA"])
+        self.assertEqual(result["filters"]["destination_airports"], ["BBB"])
+
+    def test_fli_cache_and_adapter_preserve_normalized_airport_scope(self) -> None:
+        calls: list[dict[str, object]] = []
+
+        def fake_fetch(
+            origin: str, destination: str, depart_date: date, **kwargs: object
+        ) -> dict:
+            calls.append({"origin": origin, "destination": destination, **kwargs})
+            return {
+                "origin": origin,
+                "destination": destination,
+                "depart_date": depart_date.isoformat(),
+                "source": "fake",
+                "raw_count": 0,
+                "unique_flight_count": 0,
+                "offer_count": 0,
+                "skipped": {},
+                "filters": {
+                    "origin_airports": kwargs["origin_airports"],
+                    "destination_airports": kwargs["destination_airports"],
+                },
+                "offers": [],
+            }
+
+        common = {
+            "currency": "RUB",
+            "only_carriers": [],
+            "direct_only": True,
+            "limit": 20,
+            "timeout": 10,
+            "mcp_url": "http://127.0.0.1:8000/mcp",
+            "use_cache": False,
+            "fetcher": fake_fetch,
+        }
+        first = cached_fli_mcp_search(
+            "ORG",
+            "DST",
+            date(2026, 8, 15),
+            **common,
+            origin_airports=["AAB", "AAA", "aaa"],
+            destination_airports=["BBB"],
+        )
+        equivalent = cached_fli_mcp_search(
+            "ORG",
+            "DST",
+            date(2026, 8, 15),
+            **common,
+            origin_airports=["AAA", "AAB"],
+            destination_airports=["bbb"],
+        )
+        different = cached_fli_mcp_search(
+            "ORG",
+            "DST",
+            date(2026, 8, 15),
+            **common,
+            origin_airports=["AAA"],
+            destination_airports=["BBC"],
+        )
+
+        adapter = FliProviderAdapter(fetcher=fake_fetch)
+        provider_result = adapter.search_segment(
+            {
+                "probe_id": "fli-scope",
+                "direction": "outbound",
+                "leg": "direct",
+                "origin": "LON",
+                "destination": "PAR",
+                "origin_airports": [" lhr ", "LHR"],
+                "destination_airports": ["cdg"],
+                "date": "2026-08-15",
+                "currency": "RUB",
+                "only_carriers": [],
+                "direct_only": True,
+                "limit": 20,
+                "use_cache": False,
+                "mcp_url": "http://127.0.0.1:8000/mcp",
+            }
+        )
+
+        self.assertEqual(calls[0]["origin_airports"], ["AAA", "AAB"])
+        self.assertEqual(first["cache"]["key"], equivalent["cache"]["key"])
+        self.assertNotEqual(first["cache"]["key"], different["cache"]["key"])
+        self.assertEqual(calls[-1]["origin"], "LHR")
+        self.assertEqual(calls[-1]["destination"], "CDG")
+        self.assertEqual(provider_result.query["origin"], "LON")
+        self.assertEqual(provider_result.query["destination"], "PAR")
+        self.assertEqual(provider_result.query["origin_airports"], ["LHR"])
+        self.assertEqual(provider_result.query["destination_airports"], ["CDG"])
 
     def test_parse_fli_flight_search_filters_three_stop_and_airport_change_before_limit(
         self,

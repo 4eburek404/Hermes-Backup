@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 import unittest
+from pathlib import Path
 
 from flights_cli.adapters.providers.registry import (
     PROVIDER_REGISTRY,
@@ -34,6 +36,21 @@ TEST_AIRPORTS = [
 
 
 class ProviderCapabilitiesTests(unittest.TestCase):
+    def test_provider_adapters_do_not_import_other_provider_adapters(self) -> None:
+        adapter_dir = (
+            Path(__file__).parents[1] / "flights_cli" / "adapters" / "providers"
+        )
+        for filename in ("tutu_adapter.py", "kupibilet_adapter.py", "fli_adapter.py"):
+            tree = ast.parse((adapter_dir / filename).read_text(encoding="utf-8"))
+            imported_adapters = [
+                node.module
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom)
+                and node.module
+                and node.module.endswith("_adapter")
+            ]
+            self.assertEqual(imported_adapters, [], filename)
+
     def test_registry_exposes_expected_provider_capabilities(self) -> None:
         kupibilet = PROVIDER_REGISTRY["kupibilet"].capabilities
         fli = PROVIDER_REGISTRY["fli"].capabilities

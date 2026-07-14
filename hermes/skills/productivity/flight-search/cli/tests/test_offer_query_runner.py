@@ -220,6 +220,43 @@ class OfferQueryRunnerTests(unittest.TestCase):
             ["kupibilet"],
         )
 
+    def test_fallback_group_keeps_different_exact_airport_scopes_separate(self) -> None:
+        adapters = {
+            "tutu": SuccessfulAggregateAdapter("tutu"),
+            "kupibilet": SuccessfulAggregateAdapter("kupibilet"),
+        }
+
+        with patch(
+            "flights_cli.execution.offer_query_runner.provider_adapter",
+            side_effect=lambda name, **_: adapters[name],
+        ):
+            results = run_primary_offer_queries(
+                [
+                    primary_query(
+                        provider="tutu",
+                        origin_airports=[" aaa ", "AAB", "AAA"],
+                        destination_airports=["BBB"],
+                    ),
+                    primary_query(
+                        provider="kupibilet",
+                        origin_airports=["AAA"],
+                        destination_airports=["BBC"],
+                    ),
+                ],
+                PrimaryOfferQueryOptions(no_live_cache=True),
+                store=make_test_store(self, TEST_AIRPORTS),
+            )
+
+        self.assertEqual([item["status"] for item in results], ["ok", "ok"])
+        self.assertEqual(
+            adapters["tutu"].aggregate_queries[0]["origin_airports"],
+            ["AAA", "AAB"],
+        )
+        self.assertEqual(
+            adapters["kupibilet"].aggregate_queries[0]["destination_airports"],
+            ["BBC"],
+        )
+
     def test_tutu_failure_allows_primary_offer_fallback_provider(self) -> None:
         adapters = {
             "tutu": FailingAggregateAdapter("tutu"),

@@ -19,6 +19,19 @@ def normalize_iata(value: str, field: str = "IATA") -> str:
     return code
 
 
+def normalize_airport_scope(
+    values: list[str] | tuple[str, ...] | None,
+    field: str = "airport",
+) -> list[str]:
+    return sorted(
+        {
+            normalize_iata(str(value), field)
+            for value in (values or [])
+            if str(value).strip()
+        }
+    )
+
+
 def normalize_carrier_code(value: str, field: str = "carrier") -> str:
     code = str(value or "").strip().upper()
     if not CARRIER_RE.match(code):

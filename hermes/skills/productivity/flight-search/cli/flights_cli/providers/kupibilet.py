@@ -15,7 +15,7 @@ from ..config import (
     KUPIBILET_HEADERS,
 )
 from ..domain.carriers import carrier_from_flight_number
-from ..domain.normalize import price_value
+from ..domain.normalize import normalize_airport_scope, price_value
 from ..domain.offer_order import provider_offer_business_key
 from ..domain.provider_offer_filter import filter_provider_offers
 from ..errors import CliError
@@ -38,12 +38,6 @@ def build_kupibilet_payload(
         "sort_by": "price",
         "short_response": False,
     }
-
-
-def _normalized_airport_scope(codes: list[str] | None) -> list[str]:
-    return sorted(
-        {str(code).strip().upper() for code in (codes or []) if str(code).strip()}
-    )
 
 
 def decode_http_body(raw: bytes, content_encoding: str | None) -> bytes:
@@ -168,8 +162,12 @@ def parse_kupibilet_frontend_search(
     carrier_filter = {
         code.strip().upper() for code in (only_carriers or []) if code.strip()
     }
-    normalized_origin_airports = _normalized_airport_scope(origin_airports)
-    normalized_destination_airports = _normalized_airport_scope(destination_airports)
+    normalized_origin_airports = normalize_airport_scope(
+        origin_airports, "origin-airport"
+    )
+    normalized_destination_airports = normalize_airport_scope(
+        destination_airports, "destination-airport"
+    )
     origin_scope = set(normalized_origin_airports)
     destination_scope = set(normalized_destination_airports)
     deduped: dict[tuple[str, ...], dict[str, Any]] = {}
@@ -383,6 +381,7 @@ def kupibilet_segment_search_summary(
         "unique_flight_count": result.get("unique_flight_count"),
         "offer_count": len(segment_result.get("offers") or []),
         "skipped": result.get("skipped", {}),
+        "filters": result.get("filters", {}),
         "cache": result.get("cache", {"hit": False}),
     }
 
@@ -403,8 +402,12 @@ def cached_kupibilet_search(
     use_cache: bool = True,
     fetcher: Any = fetch_kupibilet_search,
 ) -> dict[str, Any]:
-    normalized_origin_airports = _normalized_airport_scope(origin_airports)
-    normalized_destination_airports = _normalized_airport_scope(destination_airports)
+    normalized_origin_airports = normalize_airport_scope(
+        origin_airports, "origin-airport"
+    )
+    normalized_destination_airports = normalize_airport_scope(
+        destination_airports, "destination-airport"
+    )
     params = {
         "origin": origin,
         "destination": destination,

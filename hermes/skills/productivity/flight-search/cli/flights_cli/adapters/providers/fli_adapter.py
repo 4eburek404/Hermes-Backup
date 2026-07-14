@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from ...domain.normalize import parse_iso_date
+from ...domain.normalize import normalize_airport_scope, parse_iso_date
 from ...ports.providers import (
     CacheStatus,
     ProviderCapabilities,
@@ -51,12 +51,24 @@ class FliProviderAdapter:
         kwargs: dict[str, Any] = {}
         if self.fetcher is not None:
             kwargs["fetcher"] = self.fetcher
+        origin_airports = normalize_airport_scope(
+            list(query.get("origin_airports") or []), "origin-airport"
+        )
+        destination_airports = normalize_airport_scope(
+            list(query.get("destination_airports") or []), "destination-airport"
+        )
+        request_origin = origin_airports[0] if len(origin_airports) == 1 else origin
+        request_destination = (
+            destination_airports[0] if len(destination_airports) == 1 else destination
+        )
         result = cached_fli_mcp_search(
-            origin,
-            destination,
+            request_origin,
+            request_destination,
             depart_date,
             currency=str(query["currency"]).upper(),
             only_carriers=list(query.get("only_carriers") or []),
+            origin_airports=origin_airports,
+            destination_airports=destination_airports,
             direct_only=bool(query.get("direct_only", True)),
             limit=int(query["limit"]),
             timeout=int(query.get("timeout") or 60),
@@ -65,6 +77,11 @@ class FliProviderAdapter:
             use_cache=bool(query.get("use_cache", True)),
             store=self.store,
             **kwargs,
+        )
+        result_filters = result.get("filters") or {}
+        origin_airports = list(result_filters.get("origin_airports") or origin_airports)
+        destination_airports = list(
+            result_filters.get("destination_airports") or destination_airports
         )
         segment_result = fli_result_to_segment_result(
             result, direction=direction, leg=leg
@@ -89,6 +106,8 @@ class FliProviderAdapter:
                 "date": depart_date_text,
                 "currency": str(query["currency"]).upper(),
                 "only_carriers": list(query.get("only_carriers") or []),
+                "origin_airports": origin_airports,
+                "destination_airports": destination_airports,
                 "direct_only": bool(query.get("direct_only", True)),
                 "mcp_url": query.get("mcp_url"),
             },
@@ -109,6 +128,12 @@ class FliProviderAdapter:
         )
 
     def search_aggregate(self, query: dict[str, Any]) -> ProviderProbeResult:
+        origin_airports = normalize_airport_scope(
+            list(query.get("origin_airports") or []), "origin-airport"
+        )
+        destination_airports = normalize_airport_scope(
+            list(query.get("destination_airports") or []), "destination-airport"
+        )
         probe_type: ProbeType = cast(
             ProbeType,
             query.get("probe_type")
@@ -124,6 +149,8 @@ class FliProviderAdapter:
                 "origin": str(query.get("origin") or "").upper(),
                 "destination": str(query.get("destination") or "").upper(),
                 "date": query.get("date"),
+                "origin_airports": origin_airports,
+                "destination_airports": destination_airports,
             },
             execution_state="not_supported",
             cache_status="unknown",

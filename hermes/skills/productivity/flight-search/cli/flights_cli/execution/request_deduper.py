@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from ..domain.normalize import normalize_carrier_code
+from ..domain.normalize import normalize_airport_scope, normalize_carrier_code
 
 SegmentProbeKey = tuple[Any, ...]
 
@@ -112,6 +112,16 @@ def segment_probe_key(
             for code in (spec.get("only_carriers") or only_carriers)
         )
     )
+    origin_airports = tuple(
+        normalize_airport_scope(
+            list(spec.get("origin_airports") or []), "origin-airport"
+        )
+    )
+    destination_airports = tuple(
+        normalize_airport_scope(
+            list(spec.get("destination_airports") or []), "destination-airport"
+        )
+    )
     return (
         "segment",
         str(provider or ""),
@@ -124,6 +134,8 @@ def segment_probe_key(
         str(plan.get("currency") or "").upper(),
         bool(direct_only),
         effective_carriers,
+        origin_airports,
+        destination_airports,
         int(limit),
         str(mcp_url or "") if provider == "fli" else "",
     )

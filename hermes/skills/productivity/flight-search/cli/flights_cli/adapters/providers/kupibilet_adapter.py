@@ -2,13 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...domain.carriers import carrier_from_flight_number
-from ...domain.normalize import parse_iso_date
-from ...domain.provider_offer_filter import (
-    MAX_MODEL_CONNECTIONS,
-    filter_provider_offers,
-)
-from ...domain.stop_metrics import offer_stop_metrics
+from ...domain.normalize import normalize_airport_scope, parse_iso_date
+from ...domain.provider_offer_filter import filter_provider_offers
 from ...ports.providers import (
     CacheStatus,
     ProviderCapabilities,
@@ -22,7 +17,11 @@ from ...providers.kupibilet import (
 )
 from ...store import Store
 from ...execution.cache_status import cache_status_from_result
-from .common import evidence_type_for_offer_count, segment_probe_type_from_query
+from .common import (
+    aggregate_offer_summary,
+    evidence_type_for_offer_count,
+    segment_probe_type_from_query,
+)
 
 
 KUPIBILET_CAPABILITIES = ProviderCapabilities(
@@ -44,85 +43,6 @@ KUPIBILET_CAPABILITIES = ProviderCapabilities(
         }
     ),
 )
-
-
-def aggregate_offer_summary(offer: dict[str, Any]) -> dict[str, Any]:
-    raw_segments = [
-        flight for flight in (offer.get("segments") or []) if isinstance(flight, dict)
-    ]
-    carriers: set[str] = set()
-    segments = []
-    for flight in raw_segments:
-        flight_number = str(flight.get("flight_number") or "")
-        marketing = str(flight.get("marketing_carrier") or "").upper()
-        operating = str(flight.get("operating_carrier") or "").upper()
-        carrier = operating or marketing or carrier_from_flight_number(flight_number)
-        if carrier:
-            carriers.add(carrier)
-        segments.append(
-            {
-                "flight_number": flight_number or None,
-                "carrier": carrier or None,
-                "marketing_carrier": marketing or None,
-                "operating_carrier": operating or None,
-                "carrier_name": flight.get("carrier_name"),
-                "origin": flight.get("origin"),
-                "destination": flight.get("destination"),
-                "departure_terminal": flight.get("departure_terminal"),
-                "arrival_terminal": flight.get("arrival_terminal"),
-                "departure_at": flight.get("departure_at"),
-                "arrival_at": flight.get("arrival_at"),
-            }
-        )
-    airport_mismatches = []
-    for previous, current in zip(segments, segments[1:]):
-        previous_arrival = str(previous.get("destination") or "").upper()
-        current_departure = str(current.get("origin") or "").upper()
-        if (
-            previous_arrival
-            and current_departure
-            and previous_arrival != current_departure
-        ):
-            airport_mismatches.append(
-                {
-                    "arrival_airport": previous_arrival,
-                    "departure_airport": current_departure,
-                    "warning": "provider aggregate offer changes airport between consecutive flights; verify ground transfer and ticket protection",
-                }
-            )
-    stop_metrics = offer_stop_metrics(offer)
-    return {
-        "id": offer.get("id"),
-        "price": offer.get("price"),
-        "currency": offer.get("currency"),
-        "change_count": offer.get("number_of_changes"),
-        "connection_count": stop_metrics["max_connections_per_journey"],
-        "stop_tier": stop_metrics["stop_tier"],
-        "reportable_by_stop_policy": stop_metrics["max_connections_per_journey"]
-        <= MAX_MODEL_CONNECTIONS,
-        "duration_min": offer.get("duration"),
-        "flight_numbers": offer.get("flight_numbers")
-        or [
-            segment.get("flight_number")
-            for segment in segments
-            if segment.get("flight_number")
-        ],
-        "carriers": sorted(carriers),
-        "segments": segments,
-        "airport_mismatch_count": len(airport_mismatches),
-        "airport_mismatches": airport_mismatches,
-        "ticketing_note": "Provider-assembled route offer; verify single-PNR/protection, baggage, and final fare on the booking screen.",
-        **{
-            key: offer.get(key)
-            for key in (
-                "ticketing_model",
-                "self_transfer",
-                "self_transfer_note",
-                "self_transfer_source",
-            )
-            if key in offer
-        },
-    }
 
 
 def kupibilet_aggregate_control_summary(
@@ -187,8 +107,12 @@ class KupibiletProviderAdapter:
         depart_date = parse_iso_date(depart_date_text, "segment-date")
         direction = str(query["direction"])
         leg = str(query["leg"])
-        origin_airports = list(query.get("origin_airports") or [])
-        destination_airports = list(query.get("destination_airports") or [])
+        origin_airports = normalize_airport_scope(
+            list(query.get("origin_airports") or []), "origin-airport"
+        )
+        destination_airports = normalize_airport_scope(
+            list(query.get("destination_airports") or []), "destination-airport"
+        )
         result = cached_kupibilet_search(
             origin,
             destination,
@@ -205,8 +129,10 @@ class KupibiletProviderAdapter:
             fetcher=self.fetcher,
         )
         result_filters = result.get("filters") or {}
-        origin_airports = list(result_filters.get("origin_airports") or [])
-        destination_airports = list(result_filters.get("destination_airports") or [])
+        origin_airports = list(result_filters.get("origin_airports") or origin_airports)
+        destination_airports = list(
+            result_filters.get("destination_airports") or destination_airports
+        )
         spec = {
             "direction": direction,
             "leg": leg,
@@ -259,8 +185,12 @@ class KupibiletProviderAdapter:
         depart_date_text = str(query["date"])
         depart_date = parse_iso_date(depart_date_text, "aggregate-control-date")
         carriers = list(query.get("only_carriers") or [])
-        origin_airports = list(query.get("origin_airports") or [])
-        destination_airports = list(query.get("destination_airports") or [])
+        origin_airports = normalize_airport_scope(
+            list(query.get("origin_airports") or []), "origin-airport"
+        )
+        destination_airports = normalize_airport_scope(
+            list(query.get("destination_airports") or []), "destination-airport"
+        )
         result = cached_kupibilet_search(
             origin,
             destination,
@@ -277,8 +207,10 @@ class KupibiletProviderAdapter:
             fetcher=self.fetcher,
         )
         result_filters = result.get("filters") or {}
-        origin_airports = list(result_filters.get("origin_airports") or [])
-        destination_airports = list(result_filters.get("destination_airports") or [])
+        origin_airports = list(result_filters.get("origin_airports") or origin_airports)
+        destination_airports = list(
+            result_filters.get("destination_airports") or destination_airports
+        )
         summary = kupibilet_aggregate_control_summary(
             direction=str(query["direction"]),
             origin=origin,

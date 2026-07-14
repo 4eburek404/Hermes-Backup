@@ -100,6 +100,50 @@ class RequestDeduperTests(unittest.TestCase):
             ),
         )
 
+    def test_airport_scope_is_normalized_and_part_of_probe_identity(self) -> None:
+        first = segment_probe_key(
+            spec={
+                **SPEC,
+                "origin_airports": [" aab ", "AAA", "aaa"],
+                "destination_airports": ["BBB"],
+            },
+            provider="kupibilet",
+            plan=PLAN,
+            only_carriers=[],
+            limit=5,
+            provider_policy="auto",
+            direct_only=True,
+        )
+        equivalent = segment_probe_key(
+            spec={
+                **SPEC,
+                "origin_airports": ["AAA", "AAB"],
+                "destination_airports": ["bbb"],
+            },
+            provider="kupibilet",
+            plan=PLAN,
+            only_carriers=[],
+            limit=5,
+            provider_policy="auto",
+            direct_only=True,
+        )
+        different = segment_probe_key(
+            spec={
+                **SPEC,
+                "origin_airports": ["AAA"],
+                "destination_airports": ["BBC"],
+            },
+            provider="kupibilet",
+            plan=PLAN,
+            only_carriers=[],
+            limit=5,
+            provider_policy="auto",
+            direct_only=True,
+        )
+
+        self.assertEqual(first, equivalent)
+        self.assertNotEqual(first, different)
+
 
 if __name__ == "__main__":
     unittest.main()
