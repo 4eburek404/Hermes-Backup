@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..adapters.providers.registry import provider_adapters_for_segment
-from ..domain.normalize import normalize_carrier_code
+from ..domain.normalize import normalize_airport_scope, normalize_carrier_code
 from ..errors import CliError
 from ..ports.providers import ProviderProbeResult
 from ..store import Store
@@ -49,6 +49,12 @@ def segment_query(
     probe_id: str,
 ) -> dict[str, Any]:
     direct_only = bool(spec.get("direct_only", True))
+    origin_airports = normalize_airport_scope(
+        list(spec.get("origin_airports") or []), "origin-airport"
+    )
+    destination_airports = normalize_airport_scope(
+        list(spec.get("destination_airports") or []), "destination-airport"
+    )
     return {
         "probe_id": probe_id,
         "probe_type": segment_probe_type(spec),
@@ -59,6 +65,8 @@ def segment_query(
         "date": str(spec["date"]),
         "currency": str(plan["currency"]).upper(),
         "only_carriers": only_carriers,
+        "origin_airports": origin_airports,
+        "destination_airports": destination_airports,
         "direct_only": direct_only,
         "limit": int(options.segment_limit),
         "timeout": int(options.timeout),
@@ -164,10 +172,10 @@ def dispatch_segment_probe(
             summary = outcome_summary_from_provider_result(
                 result, delegated_probe_id=claim.probe_id
             )
-            segment_result = result.normalized_result or {
+            segment_result = {
                 "direction": spec.get("direction"),
                 "leg": spec.get("leg"),
-                "offers": result.normalized_offers,
+                "offers": list(result.offers),
             }
         except CliError as exc:
             failure = {

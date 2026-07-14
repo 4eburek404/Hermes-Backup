@@ -152,13 +152,26 @@ def valid_option() -> dict:
         "ok": True,
         "price": {"amount": 10000, "currency": "RUB"},
         "price_text": "10 000 RUB",
-        "elapsed_min": 120,
-        "elapsed": "2h",
+        "elapsed_min": 1410,
+        "elapsed": "23h30m",
         "carriers": ["SU"],
         "risk": {"score": 1, "grade": "good", "reject": False, "top_reasons": []},
         "validation_summary": {"ok": True},
         "connections": [],
         "segments": [
+            {
+                "direction": "outbound",
+                "flight_number": "SU1419",
+                "carrier": "SU",
+                "marketing_carrier": "SU",
+                "operating_carrier": "SU",
+                "origin": "SVX",
+                "destination": "SVO",
+                "departure_at": "2026-06-01T06:00:00+05:00",
+                "arrival_at": "2026-06-01T06:40:00+03:00",
+                "aircraft_code": "738",
+                "duration_min": 160,
+            },
             {
                 "direction": "outbound",
                 "flight_number": "SU232",
@@ -170,8 +183,8 @@ def valid_option() -> dict:
                 "departure_at": "2026-06-01T21:20:00+03:00",
                 "arrival_at": "2026-06-02T06:00:00+05:30",
                 "aircraft_code": "333",
-                "duration_min": 310,
-            }
+                "duration_min": 370,
+            },
         ],
         "ticketing_note": "Assume separate/self-transfer until the booking screen confirms protected through-ticketing and baggage.",
     }
@@ -244,11 +257,6 @@ def valid_report() -> dict:
                 "all_planned_controls_have_terminal_state": True,
             },
         },
-        "truth_language": {
-            "inventory_scope": "live_provider_returned_inventory",
-            "absence_claim": "bounded_live_controls_only",
-            "negative_wording": "not no-flight evidence",
-        },
         "through_fare_checks": [],
         "stop_policy": {"name": "business_default", "preferred_max_connections": 1},
         "stop_policy_status": {
@@ -274,7 +282,6 @@ def answer_input_from_fixture(report: dict) -> UserAnswerInput:
         stop_policy=report["stop_policy"],
         stop_policy_status=report["stop_policy_status"],
         through_fare_checks=report["through_fare_checks"],
-        truth_language=report["truth_language"],
     )
 
 

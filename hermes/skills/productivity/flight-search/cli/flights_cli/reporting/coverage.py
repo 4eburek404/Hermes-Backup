@@ -227,7 +227,6 @@ def compact_coverage_summary(
         "coverage_mode": diagnostics.get("coverage_mode"),
         "negative_evidence_type": diagnostics.get("negative_evidence_type"),
         "coverage_warnings": diagnostics.get("coverage_warnings") or [],
-        "limits": diagnostics.get("limits") or {},
         "counts": counts,
         "completeness": {
             "planned_count": int(completeness.get("planned_count") or 0),

@@ -4,7 +4,7 @@ This file is the canonical map for `flight-search` support references. `SKILL.md
 
 ## Operating rule
 
-- Start with the Golden Path in `SKILL.md`: run `python3 -m flights_cli --json search --request ...` and answer from `data.agent_report.user_answer.rendered_text`.
+- Start with the Golden Path in `SKILL.md`: run `python3 -m flights_cli search --request ...` and return stdout verbatim. Use `--json` only when structured diagnostics are needed.
 - Load a reference only when the current task crosses its trigger below.
 - Before changing a reference, verify the rule against current code, schema, or tests. If a rule cannot be verified, keep it out of active docs or label it as a source-boundary caveat.
 - Do not create incident, audit, proposal, smoke, or handoff Markdown in `references/`. Distill durable behavior into the owner file below, CLI code/schema/tests, or session history.
@@ -14,10 +14,10 @@ This file is the canonical map for `flight-search` support references. `SKILL.md
 
 | File | Owns | Load when | Non-goals |
 |---|---|---|---|
-| `report-contract.md` | How to read `data.agent_report`; `agent_report.v5`; `flight_search_user_answer.v7`; canonical answer path; renderer guarantees. | You need to decide what to show the traveler, inspect report fields, or maintain report/user-answer schema/renderer behavior. | Provider dispatch, source/proof taxonomy, route-pipeline internals. |
+| `report-contract.md` | How to read `data`; `flight_search_result.v7`; `flight_search_user_answer.v9`; canonical answer path; renderer guarantees. | You need to decide what to show the traveler, inspect report fields, or maintain report/user-answer schema/renderer behavior. | Provider dispatch, source/proof taxonomy, route-pipeline internals. |
 | `source-boundaries.md` | Evidence classes, absence taxonomy, airport/city/ticketing boundaries, connection/MCT policy, adjacent non-flight source boundaries, static-catalog limits, provider/source caveats. | You need to phrase confidence/absence/ticketing claims, decide whether a caveat is decision-useful, or classify non-dated route-network/RZD comparison evidence. | Route planning mechanics and provider dispatch internals. |
-| `pipeline-reference.md` | Current data flow from `flight_search_request.v1` to `flight_search_result.v5`; flow decision, evidence plan, gateway discovery policy, provider/airport dispatch, Tutu MCP facts, direct-first gate, date-window mode, compact report assembly, data artifacts. | You need to debug or maintain how the CLI makes route decisions, how direct/connected options are assembled, how provider/airport scope is chosen, or how fields move between stages. | Targeted live-probe recipes and traveler-facing caveat wording. |
-| `debug-playbook.md` | Bounded diagnostic workflow: runtime provenance, JSON extraction, targeted provider probes, Moscow/direct/carrier controls, diagnostic split patterns. | The Golden Path report is inconsistent, sparse, degraded, or surprising, and a narrow probe could change the answer. | Normal route search; do not expose debug output as the traveler answer. |
+| `pipeline-reference.md` | Current data flow from `flight_search_request.v1` to `flight_search_result.v7`; flow decision, evidence plan, gateway discovery policy, provider/airport dispatch, Tutu MCP facts, direct-first gate, date-window mode, compact report assembly, data artifacts. | You need to debug or maintain how the CLI makes route decisions, how direct/connected options are assembled, how provider/airport scope is chosen, or how fields move between stages. | Targeted live-probe recipes and traveler-facing caveat wording. |
+| `debug-playbook.md` | Bounded diagnostic workflow: runtime provenance, JSON extraction, targeted provider probes, FLI MCP endpoint readiness, suppressed/missing gateway-chain triage, Moscow/direct/carrier controls, diagnostic split patterns. | The Golden Path report is inconsistent, sparse, degraded, or surprising, and a narrow probe could change the answer. | Normal route search; do not expose debug output as the traveler answer. |
 | `cli-maintenance.md` | Source/runtime governance, CLI JSON stdout/stderr rules, contract/schema lifecycle, provider-port maintenance, renderer tests, generated artifacts, reference lifecycle. | The task is inspect/debug/refactor/sync/version/test work on the skill or CLI. | Traveler-facing route search and provider-live evidence. |
 
 ## Routing examples

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from ...domain.normalize import parse_iso_date
+from ...domain.normalize import normalize_airport_scope, parse_iso_date
 from ...ports.providers import (
     CacheStatus,
     ProviderCapabilities,
@@ -17,7 +17,11 @@ from ...providers.tutu_mcp import (
 )
 from ...store import Store
 from ...execution.cache_status import cache_status_from_result
-from .common import evidence_type_for_offer_count, segment_probe_type_from_query
+from .common import (
+    aggregate_offer_summary,
+    evidence_type_for_offer_count,
+    segment_probe_type_from_query,
+)
 
 
 TUTU_CAPABILITIES = ProviderCapabilities(
@@ -60,14 +64,20 @@ class TutuProviderAdapter:
         if self.fetcher is not None:
             kwargs["fetcher"] = self.fetcher
         direct_only = bool(query.get("direct_only", True))
+        origin_airports = normalize_airport_scope(
+            list(query.get("origin_airports") or []), "origin-airport"
+        )
+        destination_airports = normalize_airport_scope(
+            list(query.get("destination_airports") or []), "destination-airport"
+        )
         result = cached_tutu_avia_search(
             origin,
             destination,
             depart_date,
             currency=str(query["currency"]).upper(),
             only_carriers=list(query.get("only_carriers") or []),
-            origin_airports=list(query.get("origin_airports") or []),
-            destination_airports=list(query.get("destination_airports") or []),
+            origin_airports=origin_airports,
+            destination_airports=destination_airports,
             direct_only=direct_only,
             limit=int(query["limit"]),
             timeout=int(query.get("timeout") or 60),
@@ -76,6 +86,11 @@ class TutuProviderAdapter:
             use_cache=bool(query.get("use_cache", True)),
             store=self.store,
             **kwargs,
+        )
+        result_filters = result.get("filters") or {}
+        origin_airports = list(result_filters.get("origin_airports") or origin_airports)
+        destination_airports = list(
+            result_filters.get("destination_airports") or destination_airports
         )
         segment_result = tutu_result_to_segment_result(
             result, direction=direction, leg=leg
@@ -100,10 +115,8 @@ class TutuProviderAdapter:
                 "date": depart_date_text,
                 "currency": str(query["currency"]).upper(),
                 "only_carriers": list(query.get("only_carriers") or []),
-                "origin_airports": list(query.get("origin_airports") or []),
-                "destination_airports": list(
-                    query.get("destination_airports") or []
-                ),
+                "origin_airports": origin_airports,
+                "destination_airports": destination_airports,
                 "direct_only": direct_only,
                 "mcp_url": query.get("tutu_mcp_url"),
             },
@@ -113,8 +126,7 @@ class TutuProviderAdapter:
                 offer_count=offer_count, cache_status=cache_status
             ),
             result_summary=summary,
-            normalized_offers=list(segment_result.get("offers") or []),
-            normalized_result=segment_result,
+            offers=tuple(segment_result.get("offers") or []),
             source_boundary={
                 "provider": "tutu",
                 "source_key": segment_result.get("source_key"),
@@ -139,14 +151,20 @@ class TutuProviderAdapter:
         kwargs: dict[str, Any] = {}
         if self.fetcher is not None:
             kwargs["fetcher"] = self.fetcher
+        origin_airports = normalize_airport_scope(
+            list(query.get("origin_airports") or []), "origin-airport"
+        )
+        destination_airports = normalize_airport_scope(
+            list(query.get("destination_airports") or []), "destination-airport"
+        )
         result = cached_tutu_avia_search(
             origin,
             destination,
             depart_date,
             currency=str(query["currency"]).upper(),
             only_carriers=list(query.get("only_carriers") or []),
-            origin_airports=list(query.get("origin_airports") or []),
-            destination_airports=list(query.get("destination_airports") or []),
+            origin_airports=origin_airports,
+            destination_airports=destination_airports,
             direct_only=direct_only,
             limit=int(query["limit"]),
             timeout=int(query.get("timeout") or 60),
@@ -157,7 +175,11 @@ class TutuProviderAdapter:
             return_date=return_date,
             **kwargs,
         )
-        from ...adapters.providers.kupibilet_adapter import aggregate_offer_summary
+        result_filters = result.get("filters") or {}
+        origin_airports = list(result_filters.get("origin_airports") or origin_airports)
+        destination_airports = list(
+            result_filters.get("destination_airports") or destination_airports
+        )
 
         offers = [
             offer for offer in (result.get("offers") or []) if isinstance(offer, dict)
@@ -190,6 +212,7 @@ class TutuProviderAdapter:
             "raw_offer_count": result.get("raw_count"),
             "omitted_offer_count": result.get("omitted_offer_count"),
             "pagination": result.get("pagination", {}),
+            "skipped": result.get("skipped", {}),
             "cache": result.get("cache", {"hit": False}),
             "cache_status": cache_status_from_result(result),
             "top_offers": top_offers,
@@ -213,10 +236,8 @@ class TutuProviderAdapter:
                 "return_date": return_date.isoformat() if return_date else None,
                 "currency": str(query["currency"]).upper(),
                 "only_carriers": list(query.get("only_carriers") or []),
-                "origin_airports": list(query.get("origin_airports") or []),
-                "destination_airports": list(
-                    query.get("destination_airports") or []
-                ),
+                "origin_airports": origin_airports,
+                "destination_airports": destination_airports,
                 "direct_only": direct_only,
             },
             execution_state="searched",
@@ -225,8 +246,7 @@ class TutuProviderAdapter:
                 offer_count=offer_count, cache_status=cache_status
             ),
             result_summary=summary,
-            normalized_offers=top_offers,
-            normalized_result={"top_offers": top_offers},
+            offers=tuple(top_offers),
             source_boundary={
                 "provider": "tutu",
                 "source": result.get("source"),

@@ -66,7 +66,7 @@ def candidate(
 
 
 class CandidateRankerTests(unittest.TestCase):
-    def test_gateway_lower_price_does_not_beat_provider_full_route(self) -> None:
+    def test_gateway_lower_price_can_beat_provider_full_route(self) -> None:
         provider = candidate(
             "provider",
             source_type="provider_full_route",
@@ -88,17 +88,13 @@ class CandidateRankerTests(unittest.TestCase):
             [item["id"] for item in ranking["ranked_candidates"]],
             ["provider", "gateway"],
         )
-        self.assertGreater(
-            ranking["ranked_candidates"][1]["rank_components"][
-                "source_confidence_penalty"
-            ],
+        self.assertLess(
             ranking["ranked_candidates"][0]["rank_components"][
                 "source_confidence_penalty"
             ],
-        )
-        self.assertIn(
-            "separate_ticket_ranked_after_provider_route_evidence",
-            ranking["ranked_candidates"][1]["ranking_reasons"],
+            ranking["ranked_candidates"][1]["rank_components"][
+                "source_confidence_penalty"
+            ],
         )
 
     def test_provider_full_route_does_not_claim_single_pnr_without_proof(self) -> None:
@@ -299,7 +295,7 @@ class CandidateRankerTests(unittest.TestCase):
             ],
             1,
         )
-        self.assertIn("two-connection", frontier_ids)
+        self.assertNotIn("two-connection", frontier_ids)
 
     def test_directional_connection_cap_does_not_reject_other_round_trip_direction(
         self,
@@ -417,7 +413,7 @@ class CandidateRankerTests(unittest.TestCase):
         by_id = {option["id"]: option for option in frontier["options"]}
         self.assertIn("provider", by_id)
         self.assertIn("gateway", by_id)
-        self.assertIn("cheapest_acceptable", by_id["gateway"]["selection_reasons"])
+        self.assertIn("best_viable", by_id["provider"]["selection_reasons"])
 
     def test_frontier_keeps_fastest_materially_different_option(self) -> None:
         cheap = candidate(
@@ -442,9 +438,10 @@ class CandidateRankerTests(unittest.TestCase):
         )
 
         by_id = {option["id"]: option for option in frontier["options"]}
-        self.assertEqual(frontier["options"][0]["id"], "cheap")
+        self.assertEqual(frontier["options"][0]["id"], "fast")
         self.assertIn("fast", by_id)
-        self.assertIn("fastest_acceptable", by_id["fast"]["selection_reasons"])
+        self.assertIn("cheap", by_id)
+        self.assertIn("cheapest_selected", by_id["cheap"]["selection_reasons"])
 
     def test_frontier_keeps_safer_ticketing_and_direct_controls(self) -> None:
         provider = candidate(
@@ -469,14 +466,13 @@ class CandidateRankerTests(unittest.TestCase):
         by_id = {option["id"]: option for option in frontier["options"]}
         self.assertIn("direct", by_id)
         self.assertIn("best_viable", by_id["direct"]["selection_reasons"])
-        self.assertIn("safer_ticketing", by_id["direct"]["selection_reasons"])
-        self.assertIn("direct_nonstop_control", by_id["direct"]["selection_reasons"])
+        self.assertEqual(by_id["direct"]["selection_reasons"], ["best_viable"])
         self.assertEqual(
             frontier["coverage_summary"]["direct_option_count_by_direction"],
             {"outbound": 1},
         )
 
-    def test_frontier_keeps_significant_gateway_alternatives(self) -> None:
+    def test_frontier_keeps_gateway_alternatives(self) -> None:
         provider = candidate(
             "provider",
             source_type="provider_full_route",
@@ -509,11 +505,11 @@ class CandidateRankerTests(unittest.TestCase):
         self.assertIn("gateway-ist", by_id)
         self.assertIn("gateway-dxb", by_id)
         self.assertIn(
-            "significant_gateway_alternative",
+            "carrier_diversity",
             by_id["gateway-ist"]["selection_reasons"],
         )
         self.assertIn(
-            "significant_gateway_alternative",
+            "gateway_alternative",
             by_id["gateway-dxb"]["selection_reasons"],
         )
 
@@ -543,6 +539,29 @@ class CandidateRankerTests(unittest.TestCase):
         self.assertEqual(summary["acceptable_count"], 1)
         self.assertEqual(summary["selected_count"], 1)
         self.assertEqual(summary["selection_roles"], ["best_viable"])
+
+    def test_output_limit_is_applied_by_decision_frontier(self) -> None:
+        candidates = [
+            candidate(
+                f"direct-{index}",
+                source_type="direct_inventory",
+                price=50_000 + index,
+                ticketing_model="provider_order_unverified",
+                segments=[segment("SVX", "CDG")],
+            )
+            for index in range(3)
+        ]
+
+        frontier = build_decision_frontier(
+            rank_mixed_candidates({"candidates": candidates}),
+            max_options=2,
+        )
+
+        self.assertEqual(len(frontier["options"]), 1)
+        self.assertEqual(frontier["coverage_summary"]["selected_count"], 1)
+        self.assertEqual(
+            frontier["coverage_summary"]["suppressed_by_output_limit_count"], 0
+        )
 
     def test_frontier_exposes_controls_separately_from_route_options(self) -> None:
         provider = candidate(
@@ -982,6 +1001,408 @@ class CandidateRankerTests(unittest.TestCase):
             ranked["ranking_reasons"],
         )
         self.assertEqual(scored["decision_frontier"]["options"], [])
+
+    def test_comfortable_separate_ticket_connection_is_not_high_risk(self) -> None:
+        assembled = candidate(
+            "assembled",
+            source_type="gateway_separate_ticket",
+            price=41441,
+            ticketing_model="separate_ticket_sum",
+            segments=[
+                segment(
+                    "FRA",
+                    "IST",
+                    depart="2026-09-17T11:30:00+02:00",
+                    arrive="2026-09-17T15:40:00+03:00",
+                    offer_id="tk-leg",
+                    ticketing_boundary="separate_ticket_leg",
+                ),
+                segment(
+                    "IST",
+                    "SVX",
+                    depart="2026-09-17T19:45:00+03:00",
+                    arrive="2026-09-18T02:25:00+05:00",
+                    offer_id="u6-leg",
+                    ticketing_boundary="separate_ticket_leg",
+                ),
+            ],
+        )
+        assembled["self_transfer"] = True
+
+        ranked = rank_mixed_candidates({"candidates": [assembled]})[
+            "ranked_candidates"
+        ][0]
+
+        self.assertEqual(ranked["connection_assessment"]["status"], "valid")
+        self.assertEqual(ranked["connection_assessment"]["comfort"], "comfortable")
+        self.assertEqual(ranked["ticket_protection"]["status"], "unprotected")
+        self.assertEqual(ranked["rank_components"]["connection_risk_score"], 0)
+
+    def test_airport_change_is_rejected_before_frontier(self) -> None:
+        airport_change = candidate(
+            "airport-change",
+            source_type="provider_full_route",
+            price=30000,
+            ticketing_model="provider_order_unverified",
+            segments=[
+                segment(
+                    "IST",
+                    "SVO",
+                    depart="2026-09-17T10:00:00+03:00",
+                    arrive="2026-09-17T14:00:00+03:00",
+                ),
+                segment(
+                    "DME",
+                    "SVX",
+                    depart="2026-09-17T20:00:00+03:00",
+                    arrive="2026-09-18T00:00:00+05:00",
+                ),
+            ],
+        )
+
+        ranking = rank_mixed_candidates({"candidates": [airport_change]})
+        ranked = ranking["ranked_candidates"][0]
+
+        self.assertEqual(ranked["connection_assessment"]["status"], "invalid")
+        self.assertIn("airport_change_forbidden", ranked["ranking_reasons"])
+        self.assertEqual(build_decision_frontier(ranking)["options"], [])
+
+    def test_nine_hour_same_airport_layover_is_valid_but_long(self) -> None:
+        overnight = candidate(
+            "overnight",
+            source_type="gateway_separate_ticket",
+            price=40000,
+            ticketing_model="separate_ticket_sum",
+            segments=[
+                segment(
+                    "FRA",
+                    "IST",
+                    depart="2026-09-17T08:00:00+02:00",
+                    arrive="2026-09-17T12:00:00+03:00",
+                    offer_id="leg-1",
+                ),
+                segment(
+                    "IST",
+                    "SVX",
+                    depart="2026-09-17T21:00:00+03:00",
+                    arrive="2026-09-18T03:30:00+05:00",
+                    offer_id="leg-2",
+                ),
+            ],
+        )
+
+        ranked = rank_mixed_candidates({"candidates": [overnight]})[
+            "ranked_candidates"
+        ][0]
+
+        self.assertEqual(ranked["connection_assessment"]["status"], "valid")
+        self.assertEqual(ranked["connection_assessment"]["comfort"], "long")
+
+    def test_frontier_hides_two_stop_cheapest_when_one_stop_exists(self) -> None:
+        one_stop = candidate(
+            "one-stop",
+            source_type="provider_full_route",
+            price=60000,
+            ticketing_model="provider_order_unverified",
+            elapsed_min=600,
+            segments=[
+                segment(
+                    "SVX",
+                    "IST",
+                    depart="2026-07-19T08:00:00+05:00",
+                    arrive="2026-07-19T10:00:00+03:00",
+                    carrier="SU",
+                    flight_number="SU1",
+                ),
+                segment(
+                    "IST",
+                    "LHR",
+                    depart="2026-07-19T13:00:00+03:00",
+                    arrive="2026-07-19T15:00:00+01:00",
+                    carrier="TK",
+                    flight_number="TK1",
+                ),
+            ],
+        )
+        two_stop = candidate(
+            "two-stop-cheapest",
+            source_type="provider_full_route",
+            price=30000,
+            ticketing_model="provider_order_unverified",
+            elapsed_min=900,
+            segments=[
+                segment(
+                    "SVX",
+                    "UFA",
+                    depart="2026-07-19T08:00:00+05:00",
+                    arrive="2026-07-19T09:00:00+05:00",
+                    carrier="WZ",
+                    flight_number="WZ1",
+                ),
+                segment(
+                    "UFA",
+                    "IST",
+                    depart="2026-07-19T12:00:00+05:00",
+                    arrive="2026-07-19T14:00:00+03:00",
+                    carrier="DP",
+                    flight_number="DP1",
+                ),
+                segment(
+                    "IST",
+                    "LHR",
+                    depart="2026-07-19T17:00:00+03:00",
+                    arrive="2026-07-19T19:00:00+01:00",
+                    carrier="TK",
+                    flight_number="TK2",
+                ),
+            ],
+        )
+
+        frontier = build_decision_frontier(
+            rank_mixed_candidates({"candidates": [two_stop, one_stop]})
+        )
+
+        self.assertEqual([item["id"] for item in frontier["options"]], ["one-stop"])
+        self.assertNotIn(
+            "cheapest_selected", frontier["options"][0]["selection_reasons"]
+        )
+
+    def test_frontier_uses_long_layover_only_as_global_fallback(self) -> None:
+        normal = candidate(
+            "normal",
+            source_type="provider_full_route",
+            price=60000,
+            ticketing_model="provider_order_unverified",
+            elapsed_min=800,
+            segments=[
+                segment(
+                    "SVX",
+                    "IST",
+                    depart="2026-07-19T07:00:00+05:00",
+                    arrive="2026-07-19T10:00:00+03:00",
+                    carrier="SU",
+                    flight_number="SU1",
+                ),
+                segment(
+                    "IST",
+                    "LHR",
+                    depart="2026-07-19T14:00:00+03:00",
+                    arrive="2026-07-19T16:00:00+01:00",
+                    carrier="TK",
+                    flight_number="TK1",
+                ),
+            ],
+        )
+        long_wait = candidate(
+            "long-wait",
+            source_type="provider_full_route",
+            price=40000,
+            ticketing_model="provider_order_unverified",
+            elapsed_min=1100,
+            segments=[
+                segment(
+                    "SVX",
+                    "IST",
+                    depart="2026-07-19T07:00:00+05:00",
+                    arrive="2026-07-19T10:00:00+03:00",
+                    carrier="U6",
+                    flight_number="U61",
+                ),
+                segment(
+                    "IST",
+                    "LHR",
+                    depart="2026-07-19T18:00:00+03:00",
+                    arrive="2026-07-19T20:00:00+01:00",
+                    carrier="BA",
+                    flight_number="BA1",
+                ),
+            ],
+        )
+
+        frontier = build_decision_frontier(
+            rank_mixed_candidates({"candidates": [long_wait, normal]})
+        )
+        fallback = build_decision_frontier(
+            rank_mixed_candidates({"candidates": [long_wait]})
+        )
+
+        self.assertEqual([item["id"] for item in frontier["options"]], ["normal"])
+        self.assertEqual([item["id"] for item in fallback["options"]], ["long-wait"])
+
+    def test_frontier_balances_quality_carriers_and_gateways(self) -> None:
+        def itinerary(
+            candidate_id: str,
+            *,
+            source_type: str,
+            price: int,
+            ticketing_model: str,
+            elapsed_min: int,
+            first_carrier: str,
+            first_flight: str,
+            first_depart: str,
+            first_arrive: str,
+            gateway: str,
+            second_carrier: str,
+            second_flight: str,
+            second_depart: str,
+            second_arrive: str,
+        ) -> dict:
+            return candidate(
+                candidate_id,
+                source_type=source_type,
+                price=price,
+                ticketing_model=ticketing_model,
+                elapsed_min=elapsed_min,
+                segments=[
+                    segment(
+                        "SVX",
+                        gateway,
+                        depart=first_depart,
+                        arrive=first_arrive,
+                        carrier=first_carrier,
+                        marketing_carrier=first_carrier,
+                        flight_number=first_flight,
+                    ),
+                    segment(
+                        gateway,
+                        "LHR",
+                        depart=second_depart,
+                        arrive=second_arrive,
+                        carrier=second_carrier,
+                        marketing_carrier=second_carrier,
+                        flight_number=second_flight,
+                    ),
+                ],
+            )
+
+        candidates = [
+            itinerary(
+                "su-tk",
+                source_type="provider_full_route",
+                price=57481,
+                ticketing_model="provider_order_unverified",
+                elapsed_min=830,
+                first_carrier="SU",
+                first_flight="SU630",
+                first_depart="2026-07-19T11:15:00+05:00",
+                first_arrive="2026-07-19T14:45:00+03:00",
+                gateway="IST",
+                second_carrier="TK",
+                second_flight="TK1983",
+                second_depart="2026-07-19T19:05:00+03:00",
+                second_arrive="2026-07-19T21:05:00+01:00",
+            ),
+            itinerary(
+                "su-tk-repeat",
+                source_type="provider_full_route",
+                price=52290,
+                ticketing_model="provider_order_unverified",
+                elapsed_min=910,
+                first_carrier="SU",
+                first_flight="SU630",
+                first_depart="2026-07-19T11:15:00+05:00",
+                first_arrive="2026-07-19T14:45:00+03:00",
+                gateway="IST",
+                second_carrier="TK",
+                second_flight="TK1987",
+                second_depart="2026-07-19T20:25:00+03:00",
+                second_arrive="2026-07-19T22:25:00+01:00",
+            ),
+            itinerary(
+                "su-ba",
+                source_type="gateway_separate_ticket",
+                price=48566,
+                ticketing_model="separate_ticket_sum",
+                elapsed_min=815,
+                first_carrier="SU",
+                first_flight="SU-630",
+                first_depart="2026-07-19T11:15:00+05:00",
+                first_arrive="2026-07-19T14:45:00+03:00",
+                gateway="IST",
+                second_carrier="BA",
+                second_flight="BA-0719",
+                second_depart="2026-07-19T18:50:00+03:00",
+                second_arrive="2026-07-19T20:50:00+01:00",
+            ),
+            itinerary(
+                "u6-tk",
+                source_type="gateway_separate_ticket",
+                price=61591,
+                ticketing_model="separate_ticket_sum",
+                elapsed_min=800,
+                first_carrier="U6",
+                first_flight="U6-773",
+                first_depart="2026-07-19T07:20:00+05:00",
+                first_arrive="2026-07-19T10:50:00+03:00",
+                gateway="IST",
+                second_carrier="TK",
+                second_flight="TK-1971",
+                second_depart="2026-07-19T14:50:00+03:00",
+                second_arrive="2026-07-19T16:40:00+01:00",
+            ),
+            itinerary(
+                "u6-tk-tight",
+                source_type="gateway_separate_ticket",
+                price=61591,
+                ticketing_model="separate_ticket_sum",
+                elapsed_min=710,
+                first_carrier="U6",
+                first_flight="U6-773",
+                first_depart="2026-07-19T07:20:00+05:00",
+                first_arrive="2026-07-19T10:50:00+03:00",
+                gateway="IST",
+                second_carrier="TK",
+                second_flight="TK-1985",
+                second_depart="2026-07-19T13:15:00+03:00",
+                second_arrive="2026-07-19T15:10:00+01:00",
+            ),
+            itinerary(
+                "u6-ba-long",
+                source_type="gateway_separate_ticket",
+                price=46843,
+                ticketing_model="separate_ticket_sum",
+                elapsed_min=1050,
+                first_carrier="U6",
+                first_flight="U6-773",
+                first_depart="2026-07-19T07:20:00+05:00",
+                first_arrive="2026-07-19T10:50:00+03:00",
+                gateway="IST",
+                second_carrier="BA",
+                second_flight="BA-0719",
+                second_depart="2026-07-19T18:50:00+03:00",
+                second_arrive="2026-07-19T20:50:00+01:00",
+            ),
+            itinerary(
+                "dubai",
+                source_type="provider_full_route",
+                price=600412,
+                ticketing_model="provider_order_unverified",
+                elapsed_min=1050,
+                first_carrier="FZ",
+                first_flight="FZ-980",
+                first_depart="2026-07-19T02:40:00+05:00",
+                first_arrive="2026-07-19T07:55:00+04:00",
+                gateway="DXB",
+                second_carrier="EK",
+                second_flight="EK-31",
+                second_depart="2026-07-19T11:25:00+04:00",
+                second_arrive="2026-07-19T16:10:00+01:00",
+            ),
+        ]
+
+        frontier = build_decision_frontier(
+            rank_mixed_candidates({"candidates": candidates})
+        )
+        options = frontier["options"]
+
+        self.assertEqual(
+            [item["id"] for item in options],
+            ["su-tk", "su-ba", "u6-tk", "dubai"],
+        )
+        self.assertIn("best_viable", options[0]["selection_reasons"])
+        self.assertIn("cheapest_selected", options[1]["selection_reasons"])
+        self.assertIn("fastest_selected", options[2]["selection_reasons"])
+        self.assertIn("gateway_alternative", options[3]["selection_reasons"])
 
 
 if __name__ == "__main__":

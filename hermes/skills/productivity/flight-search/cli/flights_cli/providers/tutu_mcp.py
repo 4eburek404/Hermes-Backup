@@ -16,7 +16,7 @@ from ..config import (
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
     TUTU_MCP_DEFAULT_URL,
 )
-from ..domain.normalize import price_value
+from ..domain.normalize import normalize_airport_scope, price_value
 from ..domain.offer_order import provider_offer_business_key
 from ..domain.provider_offer_filter import filter_provider_offers
 from ..errors import CliError
@@ -25,7 +25,7 @@ from .live_cache import live_cache_key, read_live_cache, write_live_cache
 from .segment_normalization import provider_result_to_segment_result
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
-TUTU_NORMALIZER_VERSION = "tutu-avia-v4"
+TUTU_NORMALIZER_VERSION = "tutu-avia-v5"
 TUTU_PAGE_SIZE = 30
 TUTU_MAX_PAGES = 3
 TUTU_MAX_SCOPE_PAGES = 10
@@ -320,7 +320,9 @@ def call_tutu_mcp_tool(
     )
 
 
-def require_tutu_tool_object(payload: TutuToolPayload, tool_name: str) -> dict[str, Any]:
+def require_tutu_tool_object(
+    payload: TutuToolPayload, tool_name: str
+) -> dict[str, Any]:
     if isinstance(payload, dict):
         return payload
     raise CliError(
@@ -357,7 +359,9 @@ def _carrier_name_key(value: str) -> str:
 
 
 def _carrier_match_key(value: str) -> str:
-    return "".join(character for character in _carrier_name_key(value) if character.isalnum())
+    return "".join(
+        character for character in _carrier_name_key(value) if character.isalnum()
+    )
 
 
 def _valid_carrier_code(value: str) -> str | None:
@@ -541,13 +545,7 @@ def _normalized_airport_scope(
     airport_scope: list[str] | None,
     store: Store | None,
 ) -> list[str]:
-    explicit = sorted(
-        {
-            str(code).strip().upper()
-            for code in (airport_scope or [])
-            if str(code).strip()
-        }
-    )
+    explicit = normalize_airport_scope(airport_scope, "airport-scope")
     if explicit:
         return explicit
     if store is not None:
@@ -1164,11 +1162,15 @@ def cached_tutu_avia_search(
     destination_airports: list[str] | None = None,
 ) -> dict[str, Any]:
     url = normalize_tutu_mcp_url(mcp_url)
+    allowed_origins = _normalized_airport_scope(origin, origin_airports, store)
+    allowed_destinations = _normalized_airport_scope(
+        destination, destination_airports, store
+    )
     params = {
         "origin": origin,
         "destination": destination,
-        "origin_airports": sorted(origin_airports or []),
-        "destination_airports": sorted(destination_airports or []),
+        "origin_airports": allowed_origins,
+        "destination_airports": allowed_destinations,
         "depart_date": depart_date.isoformat(),
         "return_date": return_date.isoformat() if return_date else None,
         "currency": currency,
@@ -1195,8 +1197,8 @@ def cached_tutu_avia_search(
         mcp_url=url,
         store=store,
         return_date=return_date,
-        origin_airports=origin_airports,
-        destination_airports=destination_airports,
+        origin_airports=allowed_origins,
+        destination_airports=allowed_destinations,
     )
     if use_cache and int(cache_ttl_seconds) > 0:
         return write_live_cache(key, result)

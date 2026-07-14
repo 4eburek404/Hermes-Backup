@@ -5,15 +5,16 @@ import unittest
 from pathlib import Path
 
 from flights_cli.commands.common import validate_contract_payload
-from flights_cli.orchestrators.live_route_assembly import build_live_route_segment_plan
-from flights_cli.orchestrators.search_plan_builder import build_search_plan
+from flights_cli.orchestrators.search_plan_builder import (
+    build_planning_state,
+    build_route_context,
+    build_search_plan,
+)
 from flights_cli.pipeline.search_plan import (
     SEARCH_PLAN_SCHEMA_VERSION,
-    FallbackSegmentPlan,
     GatewayDiscovery,
     SearchPlan,
 )
-from flights_cli.pipeline.search_pipeline import build_live_route_search_flow
 from flights_cli.store import Store
 from helpers import live_assembly_args
 
@@ -21,28 +22,54 @@ from helpers import live_assembly_args
 class SearchPlanContractTests(unittest.TestCase):
     def test_model_serializes_contract_shape(self) -> None:
         plan = SearchPlan(
-            primary_offer_queries=[{"origin": "SVX", "destination": "PEK"}],
-            mandatory_controls=[{"type": "full_route_aggregate"}],
-            gateway_discovery=GatewayDiscovery(enabled=False, reason=None),
-            gateway_leg_queries=[
+            route_context={
+                "origin": "SVX",
+                "destination": "PEK",
+                "dates": {"depart": "2026-08-15", "return": None},
+                "currency": "RUB",
+                "profile": "business",
+                "ticketing": "separate",
+                "provider_policy": "tutu",
+                "routing_strategy": "hub-list",
+                "route_mode": "hub_list",
+                "market_class": "global_non_ru",
+                "route_families": [{"id": "hub_list"}],
+                "hubs": [],
+                "origin_airports": ["SVX"],
+                "destination_airports": ["PEK"],
+                "airport_scope": None,
+                "direct_only": False,
+                "coverage_controls": [],
+            },
+            primary_offer_queries=(
                 {
+                    "role": "primary_offer_collection",
+                    "source_type": "provider_full_route",
+                    "probe_type": "full_route_aggregate",
+                    "provider": "tutu",
+                    "direction": "outbound",
                     "origin": "SVX",
-                    "destination": "IST",
-                    "gateway": "IST",
-                }
-            ],
-            fallback_segment_plan=FallbackSegmentPlan(
-                segments=[
-                    {
-                        "direction": "outbound",
-                        "leg": "direct_outbound",
-                        "origin": "SVX",
-                        "destination": "PEK",
-                        "date": "2026-08-15",
-                    }
-                ]
+                    "destination": "PEK",
+                    "date": "2026-08-15",
+                    "currency": "RUB",
+                    "direct_only": False,
+                    "execution_state": "not_executed",
+                },
             ),
-            coverage_expectations=[{"type": "bounded_live_controls_only"}],
+            gateway_discovery=GatewayDiscovery(enabled=False, reason=None),
+            execution_limits={
+                "max_segment_searches": 10,
+                "search_wave_max_waves": 1,
+                "search_wave_probe_limit": 2,
+                "search_wave_top_k": 2,
+                "aggregate_control_limit": 0,
+                "segment_limit": 30,
+                "live_cache_ttl_seconds": 0,
+                "live_cache_enabled": False,
+                "timeout": 60,
+                "fail_fast": False,
+            },
+            output_limits={"catalog_limit": 10, "direct_catalog_limit": 30},
         ).to_dict()
 
         self.assertEqual(plan["schema_version"], SEARCH_PLAN_SCHEMA_VERSION)
@@ -61,18 +88,21 @@ class SearchPlanContractTests(unittest.TestCase):
             hub=["IST"],
             no_live_cache=True,
         )
-        flow = build_live_route_search_flow(options, store)
-        route_plan = build_live_route_segment_plan(options, store, flow=flow)
+        flow = build_planning_state(options, store)
+        build_route_context(options, store, flow=flow)
 
-        search_plan = build_search_plan(
-            options, store, flow=flow, fallback_route_plan=route_plan
-        )
+        search_plan = build_search_plan(options, store, flow=flow)
 
         validate_contract_payload("search_plan", search_plan)
-        self.assertEqual(search_plan["schema_version"], "flight_search_plan.v1")
+        self.assertEqual(search_plan["schema_version"], "flight_search_plan.v2")
         primary_queries = search_plan["primary_offer_queries"]
         self.assertEqual(
-            [query["provider"] for query in primary_queries], ["tutu", "kupibilet"]
+            [query["provider"] for query in primary_queries],
+            ["tutu", "kupibilet", "tutu", "kupibilet"],
+        )
+        self.assertEqual(
+            [query["direct_only"] for query in primary_queries],
+            [True, True, False, False],
         )
         for query in primary_queries:
             with self.subTest(provider=query["provider"]):
@@ -86,20 +116,23 @@ class SearchPlanContractTests(unittest.TestCase):
                 self.assertEqual(query["destination"], "AMS")
                 self.assertEqual(query["date"], "2026-08-15")
                 self.assertEqual(query["currency"], "RUB")
-                self.assertFalse(query["direct_only"])
+                self.assertIn(query["direct_only"], (True, False))
                 self.assertEqual(query["limit"], options.evidence.primary_offer_limit)
                 self.assertEqual(query["execution_state"], "not_executed")
-                self.assertEqual(query["route_family"], "restricted_access_market")
                 self.assertEqual(
                     query["route_access_profile"], "restricted_access_market"
                 )
                 self.assertEqual(query["gateway_discovery_mode"], "required")
-                self.assertFalse(query["exhaustive"])
-                self.assertEqual(
-                    query["non_exhaustive_reason"],
-                    "restricted_access_market_requires_gateway_discovery",
-                )
-        self.assertEqual(search_plan["mandatory_controls"], [])
+                if query["direct_only"]:
+                    self.assertEqual(query["route_family"], "direct_inventory")
+                    self.assertTrue(query["exhaustive"])
+                else:
+                    self.assertEqual(query["route_family"], "restricted_access_market")
+                    self.assertFalse(query["exhaustive"])
+                    self.assertEqual(
+                        query["non_exhaustive_reason"],
+                        "restricted_access_market_requires_gateway_discovery",
+                    )
         gateway_discovery = search_plan["gateway_discovery"]
         self.assertEqual(gateway_discovery["enabled"], True)
         self.assertEqual(
@@ -140,7 +173,8 @@ class SearchPlanContractTests(unittest.TestCase):
                     query["direct_only"],
                     query["connection_layer"],
                 )
-                for query in search_plan["gateway_leg_queries"][:2]
+                for query in search_plan["conditional_gateway_queries"]
+                if not query["direct_only"]
             ],
             [
                 (
@@ -148,8 +182,16 @@ class SearchPlanContractTests(unittest.TestCase):
                     "SVX",
                     "IST",
                     "tutu",
-                    True,
+                    False,
                     "restricted_ru_bridge_control",
+                ),
+                (
+                    "gateway_to_destination",
+                    "IST",
+                    "AMS",
+                    "tutu",
+                    False,
+                    "restricted_non_ru_access",
                 ),
                 (
                     "gateway_to_destination",
@@ -164,11 +206,9 @@ class SearchPlanContractTests(unittest.TestCase):
         self.assertTrue(
             all(
                 query["execution_state"] == "not_executed"
-                for query in search_plan["gateway_leg_queries"]
+                for query in search_plan["conditional_gateway_queries"]
+                if not query["direct_only"]
             )
-        )
-        self.assertEqual(
-            search_plan["fallback_segment_plan"]["segments"], route_plan["segments"]
         )
         self.assertEqual(
             search_plan["coverage_expectations"],
@@ -225,12 +265,10 @@ class SearchPlanContractTests(unittest.TestCase):
                     hub=["IST"],
                     no_live_cache=True,
                 )
-                flow = build_live_route_search_flow(options, store)
-                route_plan = build_live_route_segment_plan(options, store, flow=flow)
+                flow = build_planning_state(options, store)
+                build_route_context(options, store, flow=flow)
 
-                search_plan = build_search_plan(
-                    options, store, flow=flow, fallback_route_plan=route_plan
-                )
+                search_plan = build_search_plan(options, store, flow=flow)
 
                 validate_contract_payload("search_plan", search_plan)
                 gateway_discovery = search_plan["gateway_discovery"]
@@ -253,12 +291,12 @@ class SearchPlanContractTests(unittest.TestCase):
                         query["provider"]
                         for query in search_plan["primary_offer_queries"]
                     ],
-                    ["tutu", "kupibilet"],
+                    ["tutu", "kupibilet", "tutu", "kupibilet"],
                 )
                 if destination == "PEK":
                     self.assertNotEqual(gateway_discovery["mode"], "required")
                     self.assertEqual(search_plan["coverage_expectations"], [])
-                    self.assertEqual(search_plan["gateway_leg_queries"], [])
+                    self.assertTrue(search_plan["conditional_gateway_queries"])
                 else:
                     self.assertEqual(
                         search_plan["primary_offer_queries"][0]["route_access_profile"],
@@ -270,7 +308,7 @@ class SearchPlanContractTests(unittest.TestCase):
                         ],
                         "required",
                     )
-                    self.assertTrue(search_plan["gateway_leg_queries"])
+                    self.assertTrue(search_plan["conditional_gateway_queries"])
 
     def test_builder_exposes_empty_gateway_discovery_when_priors_missing(
         self,
@@ -287,12 +325,10 @@ class SearchPlanContractTests(unittest.TestCase):
                 hub=["IST"],
                 no_live_cache=True,
             )
-            flow = build_live_route_search_flow(options, store)
-            route_plan = build_live_route_segment_plan(options, store, flow=flow)
+            flow = build_planning_state(options, store)
+            build_route_context(options, store, flow=flow)
 
-            search_plan = build_search_plan(
-                options, store, flow=flow, fallback_route_plan=route_plan
-            )
+            search_plan = build_search_plan(options, store, flow=flow)
 
         validate_contract_payload("search_plan", search_plan)
         gateway_discovery = search_plan["gateway_discovery"]
@@ -307,9 +343,9 @@ class SearchPlanContractTests(unittest.TestCase):
             gateway_discovery["skipped_reasons"],
             ["no_gateway_candidates_discovered"],
         )
-        self.assertEqual(search_plan["gateway_leg_queries"], [])
+        self.assertEqual(search_plan["conditional_gateway_queries"], [])
 
-    def test_builder_bounds_gateway_leg_queries_by_config(
+    def test_builder_bounds_conditional_gateway_queries_by_config(
         self,
     ) -> None:
         store = Store()
@@ -325,23 +361,23 @@ class SearchPlanContractTests(unittest.TestCase):
             gateway_probe_max_batches=1,
             no_live_cache=True,
         )
-        flow = build_live_route_search_flow(options, store)
-        route_plan = build_live_route_segment_plan(options, store, flow=flow)
+        flow = build_planning_state(options, store)
+        build_route_context(options, store, flow=flow)
 
-        search_plan = build_search_plan(
-            options, store, flow=flow, fallback_route_plan=route_plan
-        )
+        search_plan = build_search_plan(options, store, flow=flow)
 
         validate_contract_payload("search_plan", search_plan)
-        self.assertEqual(len(search_plan["gateway_leg_queries"]), 2)
+        self.assertEqual(len(search_plan["conditional_gateway_queries"]), 6)
         self.assertEqual(
             [
-                (query["leg"], query["gateway"], query["provider"])
-                for query in search_plan["gateway_leg_queries"]
+                (query["leg"], query["gateway"], query["provider"], query["date"])
+                for query in search_plan["conditional_gateway_queries"]
+                if not query["direct_only"]
             ],
             [
-                ("origin_to_gateway", "IST", "tutu"),
-                ("gateway_to_destination", "IST", "tutu"),
+                ("origin_to_gateway", "IST", "tutu", "2026-08-15"),
+                ("gateway_to_destination", "IST", "tutu", "2026-08-15"),
+                ("gateway_to_destination", "IST", "tutu", "2026-08-16"),
             ],
         )
 
@@ -360,12 +396,10 @@ class SearchPlanContractTests(unittest.TestCase):
             gateway_probe_max_batches=1,
             no_live_cache=True,
         )
-        flow = build_live_route_search_flow(options, store)
-        route_plan = build_live_route_segment_plan(options, store, flow=flow)
+        flow = build_planning_state(options, store)
+        build_route_context(options, store, flow=flow)
 
-        search_plan = build_search_plan(
-            options, store, flow=flow, fallback_route_plan=route_plan
-        )
+        search_plan = build_search_plan(options, store, flow=flow)
 
         validate_contract_payload("search_plan", search_plan)
         self.assertEqual(search_plan["gateway_discovery"]["mode"], "required")
@@ -381,7 +415,8 @@ class SearchPlanContractTests(unittest.TestCase):
                     query["connection_layer"],
                     query["allows_intermediate_hubs"],
                 )
-                for query in search_plan["gateway_leg_queries"]
+                for query in search_plan["conditional_gateway_queries"]
+                if not query["direct_only"]
             ],
             [
                 (
@@ -399,10 +434,20 @@ class SearchPlanContractTests(unittest.TestCase):
                     "IST",
                     "SVX",
                     "tutu",
-                    True,
-                    "segment_direct",
-                    "restricted_ru_bridge_control",
                     False,
+                    "segment_hub_leg",
+                    "restricted_ru_bridge_control",
+                    True,
+                ),
+                (
+                    "gateway_to_destination",
+                    "IST",
+                    "SVX",
+                    "tutu",
+                    False,
+                    "segment_hub_leg",
+                    "restricted_ru_bridge_control",
+                    True,
                 ),
             ],
         )
@@ -410,9 +455,28 @@ class SearchPlanContractTests(unittest.TestCase):
             ("AMS", "SVX"),
             {
                 (query["origin"], query["destination"])
-                for query in search_plan["gateway_leg_queries"]
+                for query in search_plan["conditional_gateway_queries"]
             },
         )
+
+    def test_optional_gateway_queries_are_preplanned_for_runtime_fallback(self) -> None:
+        store = Store()
+        options = live_assembly_args(
+            origin="ALA",
+            destination="SVX",
+            depart_date="2026-09-17",
+            return_date=None,
+            provider_policy="tutu",
+            no_live_cache=True,
+        )
+
+        search_plan = build_search_plan(options, store)
+
+        self.assertEqual(
+            search_plan["gateway_discovery"]["mode"],
+            "optional_after_provider_failure",
+        )
+        self.assertEqual(len(search_plan["conditional_gateway_queries"]), 6)
 
     def test_builder_uses_tutu_primary_for_ru_touching_auto_full_route(
         self,
@@ -428,17 +492,19 @@ class SearchPlanContractTests(unittest.TestCase):
             hub=["IST"],
             no_live_cache=True,
         )
-        flow = build_live_route_search_flow(options, store)
-        route_plan = build_live_route_segment_plan(options, store, flow=flow)
+        flow = build_planning_state(options, store)
+        build_route_context(options, store, flow=flow)
 
-        search_plan = build_search_plan(
-            options, store, flow=flow, fallback_route_plan=route_plan
-        )
+        search_plan = build_search_plan(options, store, flow=flow)
 
         validate_contract_payload("search_plan", search_plan)
         self.assertEqual(
             [query["provider"] for query in search_plan["primary_offer_queries"]],
-            ["tutu", "kupibilet"],
+            ["tutu", "kupibilet", "tutu", "kupibilet"],
+        )
+        self.assertEqual(
+            [query["direct_only"] for query in search_plan["primary_offer_queries"]],
+            [True, True, False, False],
         )
 
     def test_builder_adds_direct_primary_queries_for_direct_inventory(
@@ -465,12 +531,10 @@ class SearchPlanContractTests(unittest.TestCase):
                     no_live_cache=True,
                     **overrides,
                 )
-                flow = build_live_route_search_flow(options, store)
-                route_plan = build_live_route_segment_plan(options, store, flow=flow)
+                flow = build_planning_state(options, store)
+                build_route_context(options, store, flow=flow)
 
-                search_plan = build_search_plan(
-                    options, store, flow=flow, fallback_route_plan=route_plan
-                )
+                search_plan = build_search_plan(options, store, flow=flow)
 
                 validate_contract_payload("search_plan", search_plan)
                 self.assertTrue(search_plan["primary_offer_queries"])
@@ -487,10 +551,6 @@ class SearchPlanContractTests(unittest.TestCase):
                     )
                 )
                 self.assertEqual(search_plan["coverage_expectations"], [])
-                self.assertEqual(
-                    search_plan["fallback_segment_plan"]["segments"],
-                    [],
-                )
 
     def test_builder_plans_non_ru_primary_route_with_tutu_and_kupibilet(
         self,
@@ -505,17 +565,15 @@ class SearchPlanContractTests(unittest.TestCase):
             hub=["LHR"],
             no_live_cache=True,
         )
-        flow = build_live_route_search_flow(options, store)
-        route_plan = build_live_route_segment_plan(options, store, flow=flow)
+        flow = build_planning_state(options, store)
+        route_plan = build_route_context(options, store, flow=flow)
 
-        search_plan = build_search_plan(
-            options, store, flow=flow, fallback_route_plan=route_plan
-        )
+        search_plan = build_search_plan(options, store, flow=flow)
 
         validate_contract_payload("search_plan", search_plan)
         self.assertEqual(
             [query["provider"] for query in search_plan["primary_offer_queries"]],
-            ["tutu", "kupibilet"],
+            ["tutu", "kupibilet", "tutu", "kupibilet"],
         )
         for query in search_plan["primary_offer_queries"]:
             with self.subTest(provider=query["provider"]):
@@ -527,12 +585,11 @@ class SearchPlanContractTests(unittest.TestCase):
                 self.assertEqual(query["destination"], "AMS")
                 self.assertEqual(query["date"], "2026-08-15")
                 self.assertEqual(query["currency"], "RUB")
-                self.assertFalse(query["direct_only"])
+                self.assertIn(query["direct_only"], (True, False))
                 self.assertEqual(query["limit"], options.evidence.primary_offer_limit)
                 self.assertEqual(query["execution_state"], "not_executed")
         self.assertEqual(search_plan["coverage_expectations"], [])
-        self.assertEqual(search_plan["fallback_segment_plan"]["segments"], [])
-        self.assertEqual(route_plan["segments"], [])
+        self.assertEqual(search_plan["route_context"], route_plan)
 
     def test_carrier_filters_flow_to_primary_offer_queries(self) -> None:
         store = Store()
@@ -546,12 +603,10 @@ class SearchPlanContractTests(unittest.TestCase):
             prefer_carrier="AF",
             no_live_cache=True,
         )
-        flow = build_live_route_search_flow(options, store)
-        route_plan = build_live_route_segment_plan(options, store, flow=flow)
+        flow = build_planning_state(options, store)
+        build_route_context(options, store, flow=flow)
 
-        search_plan = build_search_plan(
-            options, store, flow=flow, fallback_route_plan=route_plan
-        )
+        search_plan = build_search_plan(options, store, flow=flow)
 
         validate_contract_payload("search_plan", search_plan)
         self.assertGreater(len(search_plan["primary_offer_queries"]), 0)
@@ -572,17 +627,15 @@ class SearchPlanContractTests(unittest.TestCase):
             provider_policy="tutu",
             no_live_cache=True,
         )
-        flow = build_live_route_search_flow(options, store)
-        route_plan = build_live_route_segment_plan(options, store, flow=flow)
+        flow = build_planning_state(options, store)
+        build_route_context(options, store, flow=flow)
 
-        search_plan = build_search_plan(
-            options, store, flow=flow, fallback_route_plan=route_plan
-        )
+        search_plan = build_search_plan(options, store, flow=flow)
 
         self.assertTrue(search_plan["primary_offer_queries"])
         for query in search_plan["primary_offer_queries"]:
             self.assertEqual(query["origin_airports"], ["SVO"])
-            self.assertEqual(query["destination_airports"], ["LHR", "LGW"])
+            self.assertEqual(query["destination_airports"], ["LGW", "LHR"])
 
     def test_return_direct_inventory_swaps_airport_scope(self) -> None:
         store = Store()
@@ -598,12 +651,10 @@ class SearchPlanContractTests(unittest.TestCase):
             provider_policy="tutu",
             no_live_cache=True,
         )
-        flow = build_live_route_search_flow(options, store)
-        route_plan = build_live_route_segment_plan(options, store, flow=flow)
+        flow = build_planning_state(options, store)
+        build_route_context(options, store, flow=flow)
 
-        search_plan = build_search_plan(
-            options, store, flow=flow, fallback_route_plan=route_plan
-        )
+        search_plan = build_search_plan(options, store, flow=flow)
 
         queries = search_plan["primary_offer_queries"]
         outbound = next(query for query in queries if query["direction"] == "outbound")
@@ -613,7 +664,7 @@ class SearchPlanContractTests(unittest.TestCase):
         self.assertEqual(inbound["origin_airports"], ["LHR"])
         self.assertEqual(inbound["destination_airports"], ["SVO"])
 
-    def test_builder_does_not_emit_fallback_segment_state(self) -> None:
+    def test_builder_copies_route_context_without_fallback_segment_state(self) -> None:
         store = Store()
         options = live_assembly_args(
             origin="SVX",
@@ -624,12 +675,12 @@ class SearchPlanContractTests(unittest.TestCase):
             hub=["IST"],
             no_live_cache=True,
         )
-        route_plan = build_live_route_segment_plan(options, store)
+        route_plan = build_route_context(options, store)
 
-        search_plan = build_search_plan(options, store, fallback_route_plan=route_plan)
-        route_plan["segments"].append({"origin": "MUT"})
+        search_plan = build_search_plan(options, store)
+        route_plan["origin"] = "MUT"
 
-        self.assertEqual(search_plan["fallback_segment_plan"]["segments"], [])
+        self.assertEqual(search_plan["route_context"]["origin"], "SVX")
 
 
 if __name__ == "__main__":

@@ -5,8 +5,11 @@ import json
 import subprocess
 import sys
 import tempfile
+import unittest
 from pathlib import Path
 from typing import Any
+
+from flights_cli.store import Store
 
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -17,6 +20,16 @@ TEST_ENV = {
     "FLIGHTS_CACHE_DIR": str(TEST_CACHE_DIR),
     "PYTHONDONTWRITEBYTECODE": "1",
 }
+
+
+def make_test_store(
+    test_case: unittest.TestCase, airports: list[dict[str, Any]]
+) -> Store:
+    tmp_dir = tempfile.TemporaryDirectory()
+    test_case.addCleanup(tmp_dir.cleanup)
+    cache = Path(tmp_dir.name)
+    (cache / "airports_en.json").write_text(json.dumps(airports), encoding="utf-8")
+    return Store(cache)
 
 
 def decision_frontier_from_details(
@@ -102,9 +115,9 @@ def parser_leaf_defaults(parser: argparse.ArgumentParser) -> dict[str, dict[str,
 
 
 def live_assembly_args(**overrides: Any) -> Any:
-    """Build typed live-assembly options through the canonical search request adapter."""
+    """Build the canonical typed search request used by pipeline tests."""
 
-    from flights_cli.commands.search import live_assembly_options_from_search_request
+    from flights_cli.commands.search import search_request_from_payload
 
     def as_list(value: Any) -> list[Any]:
         if value is None:
@@ -132,9 +145,6 @@ def live_assembly_args(**overrides: Any) -> Any:
         "date_window_end": "date_window_end",
         "max_connections": "max_connections",
         "tier2_max_connections": "tier2_max_connections",
-        "use_gateway_discovery_for_fallback_hubs": (
-            "use_gateway_discovery_for_fallback_hubs"
-        ),
         "gateway_discovery_limit": "gateway_discovery_limit",
         "gateway_probe_batch_size": "gateway_probe_batch_size",
         "gateway_probe_max_batches": "gateway_probe_max_batches",
@@ -230,7 +240,7 @@ def live_assembly_args(**overrides: Any) -> Any:
     if values:
         unknown = ", ".join(sorted(values))
         raise AssertionError(f"unsupported live_assembly_args overrides: {unknown}")
-    return live_assembly_options_from_search_request(request)
+    return search_request_from_payload(request)
 
 
 class CliSubprocessMixin:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .formatting import minutes_label, price_label
+from ..reporting.formatting import minutes_label, price_label
 
 
 def segment_summary(
@@ -48,7 +48,7 @@ def connection_summary(connection: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def decision_frontier_options(data: dict[str, Any], limit: int) -> list[dict[str, Any]]:
+def decision_frontier_options(data: dict[str, Any]) -> list[dict[str, Any]]:
     live = data.get("live_search") if isinstance(data.get("live_search"), dict) else {}
     frontier = (
         live.get("decision_frontier")
@@ -62,7 +62,7 @@ def decision_frontier_options(data: dict[str, Any], limit: int) -> list[dict[str
     )
     return [
         option_from_decision_frontier_item(item)
-        for item in options[: max(0, limit)]
+        for item in options
         if isinstance(item, dict)
     ]
 
@@ -154,6 +154,8 @@ def option_from_decision_frontier_item(item: dict[str, Any]) -> dict[str, Any]:
         "self_transfer",
         "self_transfer_note",
         "self_transfer_source",
+        "connection_assessment",
+        "ticket_protection",
         "journey_pairing_model",
         "direction_pairing",
         "warnings",

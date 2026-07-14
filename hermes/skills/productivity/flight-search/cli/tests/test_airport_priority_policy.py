@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+import json
+import tempfile
 import unittest
-from unittest.mock import patch
+from pathlib import Path
 
-from flights_cli.execution.probe_dispatcher import (
-    SegmentProbeOptions,
-    dispatch_segment_probe,
+from flights_cli.orchestrators.search_plan_builder import (
+    build_route_context,
+    build_search_plan,
 )
-from flights_cli.orchestrators.live_route_assembly import (
-    build_live_route_segment_plan,
-)
+from flights_cli.domain.airports import explicit_or_resolved_airports
 from flights_cli.store import Store
 from helpers import live_assembly_args
 
@@ -53,220 +53,153 @@ def live_args(**overrides: object):
     return live_assembly_args(**defaults)
 
 
-def dispatcher_options(**overrides: object) -> SegmentProbeOptions:
-    values = {
-        "segment_limit": 10,
-        "timeout": 10,
-        "fli_mcp_url": None,
-        "fail_fast": False,
-    }
-    values.update(overrides)
-    return SegmentProbeOptions(**values)
-
-
-def non_direct_segments(plan: dict[str, object]) -> list[dict[str, object]]:
-    return [
-        segment
-        for segment in plan["segments"]  # type: ignore[index]
-        if isinstance(segment, dict)
-        and segment.get("leg") not in {"direct_outbound", "direct_return"}
+def catalog_store(test_case: unittest.TestCase) -> Store:
+    tmp_dir = tempfile.TemporaryDirectory()
+    test_case.addCleanup(tmp_dir.cleanup)
+    cache = Path(tmp_dir.name)
+    cities = [
+        {
+            "code": "AAA",
+            "name": "Город отправления",
+            "country_code": "TR",
+            "has_flightable_airport": True,
+        },
+        {
+            "code": "BBB",
+            "name": "Город назначения",
+            "country_code": "GB",
+            "has_flightable_airport": True,
+        },
     ]
-
-
-def kupibilet_result(
-    query_origin: str,
-    query_destination: str,
-    actual_origin: str,
-    actual_destination: str,
-) -> dict[str, object]:
-    return {
-        "origin": query_origin,
-        "destination": query_destination,
-        "depart_date": "2026-08-12",
-        "currency": "RUB",
-        "source": "Kupibilet frontend_search (live aggregate)",
-        "raw_variant_count": 1,
-        "unique_flight_count": 1,
-        "skipped": {},
-        "offers": [
-            {
-                "id": "offer-1",
-                "price": 10000,
-                "currency": "RUB",
-                "number_of_changes": 0,
-                "duration": 120,
-                "departure_at": "2026-08-12T10:00:00+03:00",
-                "arrival_at": "2026-08-12T12:00:00+05:00",
-                "segments": [
-                    {
-                        "origin": actual_origin,
-                        "destination": actual_destination,
-                        "departure_at": "2026-08-12T10:00:00+03:00",
-                        "arrival_at": "2026-08-12T12:00:00+05:00",
-                        "flight_number": "SU1400",
-                        "marketing_carrier": "SU",
-                        "operating_carrier": "SU",
-                        "duration": 120,
-                    }
-                ],
-            }
-        ],
-    }
-
-
-def empty_kupibilet_result(
-    query_origin: str, query_destination: str, depart_date: object
-) -> dict[str, object]:
-    depart = (
-        depart_date.isoformat()
-        if hasattr(depart_date, "isoformat")
-        else str(depart_date)
-    )
-    return {
-        "origin": query_origin,
-        "destination": query_destination,
-        "depart_date": depart,
-        "currency": "RUB",
-        "source": "Kupibilet frontend_search (live aggregate)",
-        "raw_variant_count": 0,
-        "unique_flight_count": 0,
-        "skipped": {},
-        "offers": [],
-    }
+    airports = [
+        {
+            "code": "AAA",
+            "city_code": "AAA",
+            "country_code": "TR",
+            "flightable": True,
+            "iata_type": "airport",
+        },
+        {
+            "code": "AAB",
+            "city_code": "AAA",
+            "country_code": "TR",
+            "flightable": True,
+            "iata_type": "airport",
+        },
+        {
+            "code": "AAC",
+            "city_code": "AAA",
+            "country_code": "TR",
+            "flightable": True,
+            "iata_type": "railway",
+        },
+        {
+            "code": "BBA",
+            "city_code": "BBB",
+            "country_code": "GB",
+            "flightable": True,
+            "iata_type": "airport",
+        },
+        {
+            "code": "BBB",
+            "city_code": "BBB",
+            "country_code": "GB",
+            "flightable": True,
+            "iata_type": "airport",
+        },
+        {
+            "code": "BBC",
+            "city_code": "BBB",
+            "country_code": "GB",
+            "flightable": True,
+            "iata_type": "airport",
+        },
+    ]
+    (cache / "cities_ru.json").write_text(json.dumps(cities), encoding="utf-8")
+    (cache / "airports_en.json").write_text(json.dumps(airports), encoding="utf-8")
+    return Store(cache)
 
 
 class AirportPriorityPolicyTests(unittest.TestCase):
+    def test_city_scope_comes_from_catalog_and_excludes_non_airports(self) -> None:
+        store = catalog_store(self)
+
+        origin = store.resolve_location("Город отправления")
+        destination = store.resolve_location("Город назначения")
+
+        self.assertEqual(origin.kind, "city")
+        self.assertEqual(origin.airports, ["AAA", "AAB"])
+        self.assertEqual(destination.airports, ["BBA", "BBB", "BBC"])
+
+    def test_explicit_airport_scope_remains_exact_when_city_code_is_the_same(
+        self,
+    ) -> None:
+        store = catalog_store(self)
+
+        location = store.resolve_location("AAA")
+        airports = explicit_or_resolved_airports(
+            store,
+            location,
+            ["AAA"],
+            role="origin",
+            max_airports=6,
+        )
+
+        self.assertEqual(location.kind, "city")
+        self.assertEqual(location.airports, ["AAA", "AAB"])
+        self.assertEqual(airports, ["AAA"])
+
+    def test_aggregate_provider_plans_preserve_city_scope_in_both_directions(
+        self,
+    ) -> None:
+        store = catalog_store(self)
+        expected_outbound = (["AAA", "AAB"], ["BBA", "BBB", "BBC"])
+
+        for provider in ("tutu", "kupibilet"):
+            with self.subTest(provider=provider):
+                plan = build_search_plan(
+                    live_args(
+                        origin="AAA",
+                        destination="BBB",
+                        return_date="2026-08-19",
+                        provider_policy=provider,
+                    ),
+                    store,
+                )
+                queries = [
+                    query
+                    for query in plan["primary_offer_queries"]
+                    if query["provider"] == provider
+                ]
+                outbound = next(
+                    query for query in queries if query["direction"] == "outbound"
+                )
+                inbound = next(
+                    query for query in queries if query["direction"] == "return"
+                )
+                self.assertEqual(
+                    (outbound["origin_airports"], outbound["destination_airports"]),
+                    expected_outbound,
+                )
+                self.assertEqual(
+                    (inbound["origin_airports"], inbound["destination_airports"]),
+                    tuple(reversed(expected_outbound)),
+                )
+
     def test_domestic_mow_round_trip_does_not_add_intra_moscow_hub_fallback(
         self,
     ) -> None:
-        plan = build_live_route_segment_plan(
-            live_args(origin="SVX", destination="MOW", return_date="2026-08-19"),
+        plan = build_route_context(
+            live_args(
+                origin="SVX",
+                destination="MOW",
+                return_date="2026-08-19",
+                destination_airports=["DME", "SVO", "VKO"],
+            ),
             Store(),
         )
 
-        self.assertEqual(non_direct_segments(plan), [])
-
-    def test_kupibilet_city_code_post_validation_accepts_moscow_actual_airport(
-        self,
-    ) -> None:
-        spec = {
-            "direction": "outbound",
-            "leg": "direct_outbound",
-            "origin": "MOW",
-            "destination": "SVX",
-            "date": "2026-08-12",
-        }
-        with (
-            patch(
-                "flights_cli.adapters.providers.registry.providers_for_segment",
-                return_value=["kupibilet"],
-            ),
-            patch(
-                "flights_cli.adapters.providers.kupibilet_adapter.cached_kupibilet_search",
-                return_value=kupibilet_result("MOW", "SVX", "SVO", "SVX"),
-            ),
-        ):
-            outcomes = dispatch_segment_probe(
-                spec=spec,
-                plan={"currency": "RUB"},
-                options=dispatcher_options(),
-                store=Store(),
-                only_carriers=[],
-                cache_ttl_seconds=0,
-                use_live_cache=False,
-                provider_policy="kupibilet",
-            )
-
-        self.assertEqual(outcomes[0].summary["status"], "ok")
-        self.assertEqual(
-            outcomes[0].summary["city_code_validation"]["accepted_offer_count"], 1
-        )
-        self.assertEqual(
-            outcomes[0].segment_result["offers"][0]["departure_airport"], "SVO"
-        )
-
-    def test_kupibilet_city_code_post_validation_rejects_out_of_scope_airport(
-        self,
-    ) -> None:
-        spec = {
-            "direction": "outbound",
-            "leg": "direct_outbound",
-            "origin": "MOW",
-            "destination": "SVX",
-            "date": "2026-08-12",
-        }
-        with (
-            patch(
-                "flights_cli.adapters.providers.registry.providers_for_segment",
-                return_value=["kupibilet"],
-            ),
-            patch(
-                "flights_cli.adapters.providers.kupibilet_adapter.cached_kupibilet_search",
-                return_value=kupibilet_result("MOW", "SVX", "ZIA", "SVX"),
-            ),
-        ):
-            outcomes = dispatch_segment_probe(
-                spec=spec,
-                plan={"currency": "RUB"},
-                options=dispatcher_options(),
-                store=Store(),
-                only_carriers=[],
-                cache_ttl_seconds=0,
-                use_live_cache=False,
-                provider_policy="kupibilet",
-            )
-
-        self.assertEqual(outcomes[0].summary["status"], "invalid")
-        self.assertEqual(
-            outcomes[0].summary["reason"], "city_code_scope_validation_failed"
-        )
-        self.assertEqual(outcomes[0].summary["offer_count"], 0)
-        self.assertEqual(
-            outcomes[0].summary["city_code_validation"]["rejected_reasons"],
-            {"origin_out_of_scope": 1},
-        )
-        self.assertEqual(outcomes[0].segment_result["offers"], [])
-
-    def test_kupibilet_city_code_post_validation_marks_missing_actual_airport_fields_invalid(
-        self,
-    ) -> None:
-        spec = {
-            "direction": "outbound",
-            "leg": "direct_outbound",
-            "origin": "SVX",
-            "destination": "MOW",
-            "date": "2026-08-12",
-        }
-        result = kupibilet_result("SVX", "MOW", "SVX", "")
-        with (
-            patch(
-                "flights_cli.adapters.providers.registry.providers_for_segment",
-                return_value=["kupibilet"],
-            ),
-            patch(
-                "flights_cli.adapters.providers.kupibilet_adapter.cached_kupibilet_search",
-                return_value=result,
-            ),
-        ):
-            outcomes = dispatch_segment_probe(
-                spec=spec,
-                plan={"currency": "RUB"},
-                options=dispatcher_options(),
-                store=Store(),
-                only_carriers=[],
-                cache_ttl_seconds=0,
-                use_live_cache=False,
-                provider_policy="kupibilet",
-            )
-
-        self.assertEqual(outcomes[0].summary["status"], "invalid")
-        self.assertEqual(
-            outcomes[0].summary["reason"], "city_code_scope_validation_failed"
-        )
-        self.assertEqual(
-            outcomes[0].summary["city_code_validation"]["rejected_reasons"],
-            {"missing_actual_airport_fields": 1},
-        )
+        self.assertNotIn("segments", plan)
 
 
 if __name__ == "__main__":

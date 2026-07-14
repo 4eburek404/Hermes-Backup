@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .config import IATA_RE, SPECIAL_CITY_AIRPORTS, resolve_cache_dir
+from .config import IATA_RE, resolve_cache_dir
 from .domain.gateway_priors import GatewayPriorCatalog, load_gateway_priors
 from .domain.route_access_profiles import (
     RouteAccessDecision,
@@ -249,8 +249,10 @@ class Store:
             return sorted(
                 bucket,
                 key=lambda city: (
-                    str(city.get("code") or "").upper() not in SPECIAL_CITY_AIRPORTS,
                     not bool(city.get("has_flightable_airport")),
+                    -len(
+                        self.flightable_airports_for_city(str(city.get("code") or ""))
+                    ),
                     str(city.get("country_code") or ""),
                     str(city.get("code") or ""),
                 ),
@@ -280,35 +282,17 @@ class Store:
         if IATA_RE.match(code):
             airport = self.airport_by_code.get(code)
             city = self.city_by_code.get(code)
-            if code in SPECIAL_CITY_AIRPORTS and city:
-                airports = SPECIAL_CITY_AIRPORTS[code]
-                return Location(
-                    input=raw,
-                    code=code,
-                    kind="city",
-                    name=str(city.get("name") or code),
-                    country_code=str(city.get("country_code") or "") or None,
-                    airports=airports,
-                )
-            if airport:
-                return Location(
-                    input=raw,
-                    code=code,
-                    kind="airport",
-                    name=str(airport.get("name") or code),
-                    country_code=str(airport.get("country_code") or "") or None,
-                    airports=[code],
-                )
             if city:
                 airports = [a["code"] for a in self.flightable_airports_for_city(code)]
-                return Location(
-                    input=raw,
-                    code=code,
-                    kind="city",
-                    name=str(city.get("name") or code),
-                    country_code=str(city.get("country_code") or "") or None,
-                    airports=airports,
-                )
+                if airports:
+                    return Location(
+                        input=raw,
+                        code=code,
+                        kind="city",
+                        name=str(city.get("name") or code),
+                        country_code=str(city.get("country_code") or "") or None,
+                        airports=airports,
+                    )
             if airport:
                 return Location(
                     input=raw,
@@ -328,8 +312,6 @@ class Store:
             city = flightable[0]
             city_code = str(city.get("code") or "").upper()
             airports = [a["code"] for a in self.flightable_airports_for_city(city_code)]
-            if city_code in SPECIAL_CITY_AIRPORTS:
-                airports = SPECIAL_CITY_AIRPORTS[city_code]
             return Location(
                 input=raw,
                 code=city_code,
@@ -338,13 +320,16 @@ class Store:
                 country_code=str(city.get("country_code") or "") or None,
                 airports=airports,
             )
-        preferred_special = [
-            city
+        airport_counts = [
+            (city, len(self.flightable_airports_for_city(str(city.get("code") or ""))))
             for city in flightable
-            if str(city.get("code") or "").upper() in SPECIAL_CITY_AIRPORTS
         ]
-        if len(preferred_special) == 1:
-            city = preferred_special[0]
+        max_airport_count = max((count for _, count in airport_counts), default=0)
+        best_supported = [
+            city for city, count in airport_counts if count == max_airport_count
+        ]
+        if max_airport_count and len(best_supported) == 1:
+            city = best_supported[0]
             city_code = str(city.get("code") or "").upper()
             return Location(
                 input=raw,
@@ -352,7 +337,10 @@ class Store:
                 kind="city",
                 name=str(city.get("name") or city_code),
                 country_code=str(city.get("country_code") or "") or None,
-                airports=SPECIAL_CITY_AIRPORTS[city_code],
+                airports=[
+                    airport["code"]
+                    for airport in self.flightable_airports_for_city(city_code)
+                ],
             )
         if not matches:
             raise CliError(
@@ -372,7 +360,8 @@ class Store:
             airport
             for airport in airports
             if airport.get("flightable", True)
-            and str(airport.get("code") or "").isalpha()
+            and str(airport.get("iata_type") or "").lower() in {"", "airport"}
+            and IATA_RE.fullmatch(str(airport.get("code") or "").upper())
         ]
         return sorted(flightable, key=lambda item: str(item.get("code") or ""))
 
@@ -380,8 +369,6 @@ class Store:
 def city_to_output(store: Store, city: dict[str, Any]) -> dict[str, Any]:
     code = str(city.get("code") or "").upper()
     airports = [a["code"] for a in store.flightable_airports_for_city(code)]
-    if code in SPECIAL_CITY_AIRPORTS:
-        airports = SPECIAL_CITY_AIRPORTS[code]
     translations = (
         city.get("name_translations")
         if isinstance(city.get("name_translations"), dict)

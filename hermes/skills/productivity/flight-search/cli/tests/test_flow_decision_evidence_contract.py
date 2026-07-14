@@ -4,8 +4,11 @@ from datetime import date
 import unittest
 
 from flights_cli.execution.probe_ledger import ProbeExecutionLedger
-from flights_cli.orchestrators.live_route_assembly import build_live_route_segment_plan
-from flights_cli.pipeline.search_pipeline import build_live_route_search_flow
+from flights_cli.orchestrators.search_plan_builder import (
+    build_planning_state,
+    build_route_context,
+    build_search_plan,
+)
 from flights_cli.store import Store
 from tests.helpers import live_assembly_args
 
@@ -16,15 +19,15 @@ class FlowDecisionEvidenceContractTests(unittest.TestCase):
 
     def flow_for(self, **overrides: object):
         args = live_assembly_args(**overrides)
-        return build_live_route_search_flow(args)
+        return build_planning_state(args)
 
     def flow_for_today(self, today: date, **overrides: object):
         args = live_assembly_args(**overrides)
-        return build_live_route_search_flow(args, today_provider=lambda: today)
+        return build_planning_state(args, today_provider=lambda: today)
 
     def plan_for(self, **overrides: object) -> dict:
         args = live_assembly_args(**overrides)
-        return build_live_route_segment_plan(args, self.store)
+        return build_route_context(args, self.store)
 
     def test_global_non_ru_auto_does_not_inherit_ru_priority_or_moscow_controls(
         self,
@@ -45,11 +48,7 @@ class FlowDecisionEvidenceContractTests(unittest.TestCase):
             {family.get("id") for family in plan.get("route_families") or []},
         )
         self.assertFalse({"SVO", "DME", "VKO"} & set(plan.get("hubs") or []))
-        self.assertNotIn(
-            "moscow_gateway_control",
-            {segment.get("route_family") for segment in plan.get("segments") or []},
-        )
-        self.assertEqual(plan["flow_decision"]["market_class"], "global_non_ru")
+        self.assertNotIn("flow_decision", plan)
 
     def test_ru_domestic_auto_gets_domestic_ru_route_mode(self) -> None:
         flow = self.flow_for(
@@ -84,26 +83,19 @@ class FlowDecisionEvidenceContractTests(unittest.TestCase):
             "ru_touching_market_uses_ru_priority_controls",
             flow.flow_decision.limitations,
         )
-        self.assertEqual(
-            plan["flow_decision"]["market_class"], "ru_touching_international"
-        )
-        self.assertIn(
-            "ru_touching_market_uses_ru_priority_controls",
-            plan["flow_decision"]["limitations"],
-        )
+        self.assertEqual(plan["market_class"], "ru_touching_international")
 
-    def test_flow_decision_plan_output_uses_canonical_class_fields_only(self) -> None:
-        plan = self.plan_for(
+    def test_search_plan_exposes_reasons_without_embedding_flow_decision(self) -> None:
+        args = live_assembly_args(
             origin="SVX", destination="IST", provider_policy="auto", return_date=None
         )
+        plan = build_search_plan(args, self.store)
 
-        flow_decision = plan["flow_decision"]
-        self.assertEqual(flow_decision["intent_class"], "route_recommendation")
-        self.assertEqual(flow_decision["market_class"], "ru_touching_international")
-        self.assertEqual(flow_decision["evidence_class"], "shopping_advisory")
-        self.assertNotIn("intent", flow_decision)
-        self.assertNotIn("market", flow_decision)
-        self.assertNotIn("evidence_requirement", flow_decision)
+        self.assertNotIn("flow_decision", plan["route_context"])
+        self.assertIn(
+            "ru_touching_market_uses_ru_priority_controls",
+            plan["planning_reasons"],
+        )
 
     def test_direct_inventory_request_compiles_to_direct_only_flow_and_controls(
         self,
@@ -129,7 +121,6 @@ class FlowDecisionEvidenceContractTests(unittest.TestCase):
         self.assertTrue(flow.evidence_plan.direct_only)
         self.assertIn("exact_airport_direct", flow.evidence_plan.required_controls)
         self.assertTrue(plan["direct_only"])
-        self.assertEqual(plan["segments"], [])
         self.assertTrue(
             all(
                 control.get("type") == "city_pair_direct"

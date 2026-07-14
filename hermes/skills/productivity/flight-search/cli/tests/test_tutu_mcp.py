@@ -15,6 +15,7 @@ from flights_cli.providers.tutu_mcp import (
     TUTU_MAX_PAGES,
     TUTU_MAX_SCOPE_PAGES,
     TUTU_PAGE_SIZE,
+    cached_tutu_avia_search,
     extract_tool_payload,
     fetch_tutu_avia_search,
     parse_tutu_avia_search,
@@ -265,7 +266,11 @@ class TutuMcpProviderTests(unittest.TestCase):
 
     def test_extract_tool_payload_accepts_plain_text(self) -> None:
         payload = extract_tool_payload(
-            {"content": [{"type": "text", "text": "# Avia instructions\nUse search_avia."}]}
+            {
+                "content": [
+                    {"type": "text", "text": "# Avia instructions\nUse search_avia."}
+                ]
+            }
         )
 
         self.assertEqual(payload, "# Avia instructions\nUse search_avia.")
@@ -453,6 +458,53 @@ class TutuMcpProviderTests(unittest.TestCase):
         self.assertEqual(calls[0]["origin"], "SVX")
         self.assertEqual(calls[0]["destination"], "LHR")
         self.assertEqual(result["pagination"]["destination_input_kind"], "airport")
+
+    def test_cached_tutu_search_normalizes_scopes_in_key_and_fetch(self) -> None:
+        calls: list[dict[str, object]] = []
+
+        def fake_fetch(
+            origin: str, destination: str, depart_date: date, **kwargs: object
+        ) -> dict:
+            calls.append(dict(kwargs))
+            return {"offers": []}
+
+        common = {
+            "currency": "RUB",
+            "only_carriers": [],
+            "direct_only": False,
+            "limit": 20,
+            "timeout": 10,
+            "use_cache": False,
+            "fetcher": fake_fetch,
+        }
+        first = cached_tutu_avia_search(
+            "ORG",
+            "DST",
+            date(2026, 8, 15),
+            **common,
+            origin_airports=["AAB", "AAA", "aaa"],
+            destination_airports=["BBB"],
+        )
+        equivalent = cached_tutu_avia_search(
+            "ORG",
+            "DST",
+            date(2026, 8, 15),
+            **common,
+            origin_airports=["AAA", "AAB"],
+            destination_airports=["bbb"],
+        )
+        different = cached_tutu_avia_search(
+            "ORG",
+            "DST",
+            date(2026, 8, 15),
+            **common,
+            origin_airports=["AAA"],
+            destination_airports=["BBC"],
+        )
+
+        self.assertEqual(calls[0]["origin_airports"], ["AAA", "AAB"])
+        self.assertEqual(first["cache"]["key"], equivalent["cache"]["key"])
+        self.assertNotEqual(first["cache"]["key"], different["cache"]["key"])
 
     def test_fetch_uses_city_query_and_larger_budget_for_multi_airport_scope(
         self,
@@ -853,6 +905,8 @@ class TutuMcpProviderTests(unittest.TestCase):
                 "date": "2026-08-15",
                 "currency": "RUB",
                 "only_carriers": ["SU"],
+                "origin_airports": [" svx ", "SVX"],
+                "destination_airports": ["ams"],
                 "direct_only": True,
                 "limit": 17,
                 "use_cache": False,
@@ -863,6 +917,8 @@ class TutuMcpProviderTests(unittest.TestCase):
         self.assertEqual(calls[0]["only_carriers"], ["SU"])
         self.assertEqual(calls[0]["limit"], 17)
         self.assertIsNone(calls[0]["return_date"])
+        self.assertEqual(calls[0]["origin_airports"], ["SVX"])
+        self.assertEqual(calls[0]["destination_airports"], ["AMS"])
 
     def test_aggregate_adapter_passes_return_date_and_keeps_round_trip_capability(
         self,
@@ -903,6 +959,8 @@ class TutuMcpProviderTests(unittest.TestCase):
                 "return_date": "2026-08-22",
                 "currency": "RUB",
                 "only_carriers": ["SU"],
+                "origin_airports": ["svx"],
+                "destination_airports": [" aer ", "AER"],
                 "direct_only": True,
                 "limit": 23,
                 "use_cache": False,
@@ -914,6 +972,8 @@ class TutuMcpProviderTests(unittest.TestCase):
         self.assertEqual(calls[0]["limit"], 23)
         self.assertTrue(adapter.capabilities.supports_round_trip)
         self.assertEqual(result.query["return_date"], "2026-08-22")
+        self.assertEqual(result.query["origin_airports"], ["SVX"])
+        self.assertEqual(result.query["destination_airports"], ["AER"])
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..config import SPECIAL_CITY_AIRPORTS
+from ..domain.normalize import numeric_or_none
 from ..domain.vocabulary import RouteFamily
 
 
@@ -37,11 +37,15 @@ def build_offer_graph(
     direct_mode: dict[str, bool] | None = None,
     requested_origin: str | None = None,
     requested_destination: str | None = None,
+    requested_origin_airports: list[str] | None = None,
+    requested_destination_airports: list[str] | None = None,
 ) -> dict[str, Any]:
     builder = OfferGraphBuilder(
         direct_mode=direct_mode,
         requested_origin=requested_origin,
         requested_destination=requested_destination,
+        requested_origin_airports=requested_origin_airports,
+        requested_destination_airports=requested_destination_airports,
     )
     builder.add_primary_offer_results(primary_offer_results or [])
     builder.add_gateway_leg_results(gateway_leg_results or {})
@@ -55,6 +59,8 @@ def materialize_offer_graph_candidates(
     direct_mode: dict[str, bool] | None = None,
     requested_origin: str | None = None,
     requested_destination: str | None = None,
+    requested_origin_airports: list[str] | None = None,
+    requested_destination_airports: list[str] | None = None,
     max_path_offers: int = 3,
 ) -> dict[str, Any]:
     """Project graph evidence into a unified, unranked candidate envelope."""
@@ -76,6 +82,8 @@ def materialize_offer_graph_candidates(
             edges_by_id,
             requested_origin=requested_origin,
             requested_destination=requested_destination,
+            requested_origin_airports=requested_origin_airports,
+            requested_destination_airports=requested_destination_airports,
         )
         _accept_or_reject_candidate(
             candidate,
@@ -90,6 +98,8 @@ def materialize_offer_graph_candidates(
         edges_by_id,
         requested_origin=requested_origin,
         requested_destination=requested_destination,
+        requested_origin_airports=requested_origin_airports,
+        requested_destination_airports=requested_destination_airports,
         max_path_offers=max_path_offers,
     ):
         _accept_or_reject_candidate(
@@ -134,6 +144,8 @@ class OfferGraphBuilder:
         direct_mode: dict[str, bool] | None = None,
         requested_origin: str | None = None,
         requested_destination: str | None = None,
+        requested_origin_airports: list[str] | None = None,
+        requested_destination_airports: list[str] | None = None,
     ) -> None:
         self.edges: list[dict[str, Any]] = []
         self.offers: list[dict[str, Any]] = []
@@ -146,6 +158,12 @@ class OfferGraphBuilder:
         }
         self.requested_origin = _normalize_code(requested_origin)
         self.requested_destination = _normalize_code(requested_destination)
+        self.requested_origin_airports = _requested_codes(
+            self.requested_origin, requested_origin_airports
+        )
+        self.requested_destination_airports = _requested_codes(
+            self.requested_destination, requested_destination_airports
+        )
         self.coverage: dict[str, Any] = {
             "primary_offer_result_count": 0,
             "gateway_count": 0,
@@ -781,15 +799,15 @@ class OfferGraphBuilder:
         normalized_direction = _normalize_direction(direction)
         if not self.direct_mode.get(normalized_direction):
             return False
-        requested_origin, requested_destination = _requested_pair_for_direction(
-            self.requested_origin,
-            self.requested_destination,
+        requested_origins, requested_destinations = _requested_scope_pair_for_direction(
+            self.requested_origin_airports,
+            self.requested_destination_airports,
             normalized_direction,
         )
         return not _segments_are_requested_direct_path(
             segments,
-            requested_origin=requested_origin,
-            requested_destination=requested_destination,
+            requested_origins=requested_origins,
+            requested_destinations=requested_destinations,
         )
 
 
@@ -813,6 +831,8 @@ def _candidate_from_offer(
     *,
     requested_origin: str | None,
     requested_destination: str | None,
+    requested_origin_airports: list[str] | None,
+    requested_destination_airports: list[str] | None,
 ) -> dict[str, Any]:
     source_type = str(offer.get("source_type") or "provider_full_route")
     candidate_source_type = source_type
@@ -844,6 +864,8 @@ def _candidate_from_offer(
             journeys=journeys,
             requested_origin=requested_origin,
             requested_destination=requested_destination,
+            requested_origin_airports=requested_origin_airports,
+            requested_destination_airports=requested_destination_airports,
             detail_status=detail_status,
         ),
         "journey_scope": str(offer.get("journey_scope") or "one_way"),
@@ -868,11 +890,15 @@ def _candidates_from_gateway_offer_paths(
     *,
     requested_origin: str | None,
     requested_destination: str | None,
+    requested_origin_airports: list[str] | None,
+    requested_destination_airports: list[str] | None,
     max_path_offers: int,
 ) -> list[dict[str, Any]]:
-    origin = _normalize_code(requested_origin)
-    destination = _normalize_code(requested_destination)
-    if not origin or not destination:
+    origin_codes = _requested_codes(requested_origin, requested_origin_airports)
+    destination_codes = _requested_codes(
+        requested_destination, requested_destination_airports
+    )
+    if not origin_codes or not destination_codes:
         return []
     max_offers = max(1, int(max_path_offers))
     gateway_offers = [
@@ -890,22 +916,25 @@ def _candidates_from_gateway_offer_paths(
 
     candidates: list[dict[str, Any]] = []
     queue: list[tuple[list[dict[str, Any]], set[str]]] = []
-    for offer in by_origin.get(origin, []):
-        offer_destination = _normalize_code(offer.get("destination"))
-        if not offer_destination:
-            continue
-        queue.append(([offer], {origin, offer_destination}))
+    for origin in sorted(origin_codes):
+        for offer in by_origin.get(origin, []):
+            offer_destination = _normalize_code(offer.get("destination"))
+            if not offer_destination:
+                continue
+            queue.append(([offer], {origin, offer_destination}))
 
     while queue:
         path, visited_airports = queue.pop(0)
         last_destination = _normalize_code(path[-1].get("destination"))
-        if last_destination == destination and len(path) >= 2:
+        if last_destination in destination_codes and len(path) >= 2:
             candidates.append(
                 _candidate_from_offer_path(
                     path,
                     edges_by_id,
                     requested_origin=requested_origin,
                     requested_destination=requested_destination,
+                    requested_origin_airports=requested_origin_airports,
+                    requested_destination_airports=requested_destination_airports,
                 )
             )
             continue
@@ -919,7 +948,10 @@ def _candidates_from_gateway_offer_paths(
             next_destination = _normalize_code(next_offer.get("destination"))
             if not next_destination:
                 continue
-            if next_destination in visited_airports and next_destination != destination:
+            if (
+                next_destination in visited_airports
+                and next_destination not in destination_codes
+            ):
                 continue
             queue.append(
                 (
@@ -936,6 +968,8 @@ def _candidate_from_offer_path(
     *,
     requested_origin: str | None,
     requested_destination: str | None,
+    requested_origin_airports: list[str] | None,
+    requested_destination_airports: list[str] | None,
 ) -> dict[str, Any]:
     edge_ids = [
         str(edge_id)
@@ -978,6 +1012,8 @@ def _candidate_from_offer_path(
             journeys=None,
             requested_origin=requested_origin,
             requested_destination=requested_destination,
+            requested_origin_airports=requested_origin_airports,
+            requested_destination_airports=requested_destination_airports,
             detail_status=detail_status,
         ),
         "journey_scope": "one_way",
@@ -1085,8 +1121,8 @@ def _candidate_direct_mode_violation(
 def _segments_are_requested_direct_path(
     segments: list[Any],
     *,
-    requested_origin: str,
-    requested_destination: str,
+    requested_origins: set[str],
+    requested_destinations: set[str],
 ) -> bool:
     rows = [segment for segment in segments if isinstance(segment, dict)]
     if len(rows) != 1:
@@ -1094,28 +1130,33 @@ def _segments_are_requested_direct_path(
     segment = rows[0]
     origin = _normalize_code(_segment_origin(segment))
     destination = _normalize_code(_segment_destination(segment))
-    origin_codes = _requested_codes(requested_origin)
-    destination_codes = _requested_codes(requested_destination)
-    if origin_codes and origin not in origin_codes:
+    if requested_origins and origin not in requested_origins:
         return False
-    if destination_codes and destination not in destination_codes:
+    if requested_destinations and destination not in requested_destinations:
         return False
     return bool(origin and destination)
 
 
-def _requested_pair_for_direction(
-    requested_origin: str, requested_destination: str, direction: str | None
-) -> tuple[str, str]:
+def _requested_scope_pair_for_direction(
+    requested_origins: set[str],
+    requested_destinations: set[str],
+    direction: str | None,
+) -> tuple[set[str], set[str]]:
     if _normalize_direction(direction) == "return":
-        return requested_destination, requested_origin
-    return requested_origin, requested_destination
+        return requested_destinations, requested_origins
+    return requested_origins, requested_destinations
 
 
-def _requested_codes(value: str) -> set[str]:
+def _requested_codes(
+    value: str | None, airport_scope: list[str] | None = None
+) -> set[str]:
+    scoped = {code for item in airport_scope or [] if (code := _normalize_code(item))}
+    if scoped:
+        return scoped
     code = _normalize_code(value)
     if not code:
         return set()
-    return {code, *(str(item).upper() for item in SPECIAL_CITY_AIRPORTS.get(code, []))}
+    return {code}
 
 
 def _dedupe_candidates(
@@ -1417,15 +1458,17 @@ def _covers_requested_trip(
     journeys: list[dict[str, Any]] | None,
     requested_origin: str | None,
     requested_destination: str | None,
+    requested_origin_airports: list[str] | None,
+    requested_destination_airports: list[str] | None,
     detail_status: str,
 ) -> bool:
     if detail_status != "full":
         return False
     origin = _normalize_code(requested_origin)
     destination = _normalize_code(requested_destination)
-    origin_codes = _requested_codes(origin)
-    destination_codes = _requested_codes(destination)
-    if origin and destination and journeys:
+    origin_codes = _requested_codes(origin, requested_origin_airports)
+    destination_codes = _requested_codes(destination, requested_destination_airports)
+    if origin_codes and destination_codes and journeys:
         by_direction: dict[str, list[dict[str, Any]]] = {}
         for journey in journeys:
             if not isinstance(journey, dict):
@@ -1444,7 +1487,7 @@ def _covers_requested_trip(
                 and _normalize_code(inbound[0].get("origin")) in destination_codes
                 and _normalize_code(inbound[-1].get("destination")) in origin_codes
             )
-    if not origin and not destination:
+    if not origin_codes and not destination_codes:
         return bool(segments)
     route_origin = (
         _normalize_code(segments[0].get("origin"))
@@ -1456,9 +1499,9 @@ def _covers_requested_trip(
         if segments
         else _normalize_code(offer.get("destination"))
     )
-    if origin and route_origin not in origin_codes:
+    if origin_codes and route_origin not in origin_codes:
         return False
-    if destination and route_destination not in destination_codes:
+    if destination_codes and route_destination not in destination_codes:
         return False
     return bool(route_origin and route_destination)
 
@@ -1492,15 +1535,15 @@ def _price_amount(*sources: dict[str, Any]) -> int | float | None:
             continue
         price = source.get("price")
         if isinstance(price, dict):
-            amount = _numeric_or_none(
+            amount = numeric_or_none(
                 price.get("amount") or price.get("value") or price.get("total")
             )
             if amount is not None:
                 return amount
-        amount = _numeric_or_none(price)
+        amount = numeric_or_none(price)
         if amount is not None:
             return amount
-        amount = _numeric_or_none(
+        amount = numeric_or_none(
             source.get("amount") or source.get("total_price") or source.get("value")
         )
         if amount is not None:
@@ -1521,21 +1564,6 @@ def _currency(*sources: dict[str, Any]) -> str | None:
         if currency:
             return currency
     return None
-
-
-def _numeric_or_none(value: Any) -> int | float | None:
-    if isinstance(value, bool) or value is None:
-        return None
-    if isinstance(value, int | float):
-        return value
-    text = str(value).strip().replace(" ", "").replace(",", ".")
-    if not text:
-        return None
-    try:
-        parsed = float(text)
-    except ValueError:
-        return None
-    return int(parsed) if parsed.is_integer() else parsed
 
 
 def _detail_status(offer: dict[str, Any], *, has_edges: bool) -> str:
@@ -1629,13 +1657,10 @@ def _ordered_unique(items: list[Any]) -> list[str]:
 
 
 def _provider_result_offers(result: dict[str, Any]) -> list[Any] | None:
-    for key in ("top_offers", "normalized_offers", "offers"):
+    for key in ("offers", "top_offers"):
         offers = result.get(key)
         if isinstance(offers, list):
             return offers
-    normalized_result = result.get("normalized_result")
-    if isinstance(normalized_result, dict):
-        return _provider_result_offers(normalized_result)
     return None
 
 

@@ -62,8 +62,7 @@ class FakeProviderAdapter:
                 "status": "ok",
                 "offer_count": 1,
             },
-            normalized_offers=segment_result["offers"],
-            normalized_result=segment_result,
+            offers=tuple(segment_result["offers"]),
         )
 
     def search_aggregate(self, query: dict[str, object]) -> ProviderProbeResult:
@@ -235,6 +234,40 @@ class ProbeDispatcherTests(unittest.TestCase):
         self.assertEqual(len(outcomes), 1)
         self.assertFalse(adapter.segment_queries[0]["direct_only"])
         self.assertEqual(adapter.segment_queries[0]["probe_type"], "segment_hub_leg")
+
+    def test_dispatcher_preserves_and_normalizes_exact_airport_scope(self) -> None:
+        spec = {
+            "direction": "outbound",
+            "leg": "origin_to_gateway",
+            "origin": "ORG",
+            "destination": "DST",
+            "origin_airports": [" aab ", "AAA", "aaa"],
+            "destination_airports": ["bbb"],
+            "date": "2026-08-12",
+            "direct_only": False,
+            "probe_type": "segment_hub_leg",
+        }
+        adapter = FakeProviderAdapter()
+
+        with patch(
+            "flights_cli.execution.probe_dispatcher.provider_adapters_for_segment",
+            return_value=[adapter],
+            create=True,
+        ):
+            dispatch_segment_probe(
+                spec=spec,
+                plan={"currency": "RUB"},
+                options=dispatcher_options(),
+                store=Store(),
+                only_carriers=[],
+                cache_ttl_seconds=0,
+                use_live_cache=False,
+                provider_policy="kupibilet",
+                request_deduper=RequestDeduper(),
+            )
+
+        self.assertEqual(adapter.segment_queries[0]["origin_airports"], ["AAA", "AAB"])
+        self.assertEqual(adapter.segment_queries[0]["destination_airports"], ["BBB"])
 
     def test_provider_error_returns_failure_outcome_without_raising_when_not_fail_fast(
         self,

@@ -5,6 +5,7 @@ from typing import Any, Mapping
 
 from ..adapters.providers.registry import provider_adapter
 from ..config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
+from ..domain.normalize import normalize_airport_scope
 from ..domain.vocabulary import RequiredControl
 from ..errors import CliError
 from ..ports.providers import ProviderProbeResult
@@ -29,7 +30,8 @@ def _probe_id(query: Mapping[str, Any], provider: str) -> str:
     origin = str(query.get("origin") or "").upper()
     destination = str(query.get("destination") or "").upper()
     date_text = str(query.get("date") or "")
-    return f"primary_offer:{provider}:{direction}:{origin}-{destination}:{date_text}"
+    phase = "direct" if bool(query.get("direct_only")) else "fallback"
+    return f"primary_offer:{provider}:{phase}:{direction}:{origin}-{destination}:{date_text}"
 
 
 def _required_int(query: Mapping[str, Any], name: str) -> int:
@@ -52,6 +54,12 @@ def _normalized_query(
     only_carriers = [
         str(code).strip().upper() for code in (query.get("only_carriers") or []) if code
     ]
+    origin_airports = normalize_airport_scope(
+        list(query.get("origin_airports") or []), "origin-airport"
+    )
+    destination_airports = normalize_airport_scope(
+        list(query.get("destination_airports") or []), "destination-airport"
+    )
     return {
         **dict(query),
         "provider": provider,
@@ -65,6 +73,8 @@ def _normalized_query(
         "date": str(query.get("date") or ""),
         "currency": str(query.get("currency") or "RUB").upper(),
         "only_carriers": only_carriers,
+        "origin_airports": origin_airports,
+        "destination_airports": destination_airports,
         "direct_only": bool(query.get("direct_only", False)),
         "limit": _required_int(query, "limit"),
         "timeout": int(query.get("timeout") or options.timeout),
@@ -110,10 +120,10 @@ def _result_from_provider_result(
             "direct_only": bool(query.get("direct_only", False)),
             "only_carriers": list(query.get("only_carriers") or []),
         },
-        "offer_count": summary.get("offer_count", len(result.normalized_offers or [])),
+        "offer_count": summary.get("offer_count", len(result.offers)),
         "raw_offer_count": summary.get("raw_offer_count"),
         "omitted_offer_count": summary.get("omitted_offer_count"),
-        "top_offers": summary.get("top_offers", result.normalized_offers or []),
+        "top_offers": summary.get("top_offers", list(result.offers)),
         "source_boundary": result.source_boundary,
     }
     if result.errors:
@@ -166,6 +176,8 @@ def _fallback_group_key(query: Mapping[str, Any]) -> tuple[Any, ...]:
         query.get("currency"),
         bool(query.get("direct_only", False)),
         tuple(query.get("only_carriers") or []),
+        tuple(query.get("origin_airports") or []),
+        tuple(query.get("destination_airports") or []),
     )
 
 
@@ -196,7 +208,11 @@ def run_primary_offer_queries(
         if probe_ledger is not None:
             probe_ledger.plan_intents([intent])
         fallback_group = _fallback_group_key(query)
-        if provider != "tutu" and fallback_group in tutu_available_groups:
+        if (
+            not bool(query.get("direct_only"))
+            and provider != "tutu"
+            and fallback_group in tutu_available_groups
+        ):
             if probe_ledger is not None:
                 probe_ledger.record_skipped(intent, reason="tutu_mcp_available")
             results.append(_skipped_result(query, "tutu_mcp_available"))

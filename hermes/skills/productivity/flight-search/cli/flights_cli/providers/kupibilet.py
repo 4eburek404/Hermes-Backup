@@ -15,7 +15,7 @@ from ..config import (
     KUPIBILET_HEADERS,
 )
 from ..domain.carriers import carrier_from_flight_number
-from ..domain.normalize import price_value
+from ..domain.normalize import normalize_airport_scope, price_value
 from ..domain.offer_order import provider_offer_business_key
 from ..domain.provider_offer_filter import filter_provider_offers
 from ..errors import CliError
@@ -146,6 +146,8 @@ def parse_kupibilet_frontend_search(
     depart_date: str,
     currency: str,
     only_carriers: list[str] | None = None,
+    origin_airports: list[str] | None = None,
+    destination_airports: list[str] | None = None,
     direct_only: bool = False,
     limit: int = 20,
 ) -> dict[str, Any]:
@@ -160,6 +162,14 @@ def parse_kupibilet_frontend_search(
     carrier_filter = {
         code.strip().upper() for code in (only_carriers or []) if code.strip()
     }
+    normalized_origin_airports = normalize_airport_scope(
+        origin_airports, "origin-airport"
+    )
+    normalized_destination_airports = normalize_airport_scope(
+        destination_airports, "destination-airport"
+    )
+    origin_scope = set(normalized_origin_airports)
+    destination_scope = set(normalized_destination_airports)
     deduped: dict[tuple[str, ...], dict[str, Any]] = {}
     skipped = defaultdict(int)
 
@@ -194,6 +204,19 @@ def parse_kupibilet_frontend_search(
         normalized_flights = [
             normalize_kupibilet_flight(flight) for flight in raw_flights
         ]
+        actual_origin = str(normalized_flights[0].get("origin") or "").upper()
+        actual_destination = str(
+            normalized_flights[-1].get("destination") or ""
+        ).upper()
+        if not actual_origin or not actual_destination:
+            skipped["missing_airport"] += 1
+            continue
+        if origin_scope and actual_origin not in origin_scope:
+            skipped["origin_out_of_scope"] += 1
+            continue
+        if destination_scope and actual_destination not in destination_scope:
+            skipped["destination_out_of_scope"] += 1
+            continue
         key = kupibilet_offer_key(normalized_flights)
         if not key:
             skipped["empty_key"] += 1
@@ -247,6 +270,8 @@ def parse_kupibilet_frontend_search(
         "note": "Live aggregate source, not official aeroflot.ru; recheck final fare and seat availability before ticketing.",
         "filters": {
             "only_carriers": sorted(carrier_filter),
+            "origin_airports": normalized_origin_airports,
+            "destination_airports": normalized_destination_airports,
             "direct_only": direct_only,
             "dedupe": "flight_numbers+times",
         },
@@ -266,6 +291,8 @@ def fetch_kupibilet_search(
     *,
     currency: str,
     only_carriers: list[str] | None = None,
+    origin_airports: list[str] | None = None,
+    destination_airports: list[str] | None = None,
     direct_only: bool = False,
     limit: int = 20,
     timeout: int = 60,
@@ -310,6 +337,8 @@ def fetch_kupibilet_search(
         depart_date=depart_date.isoformat(),
         currency=currency,
         only_carriers=only_carriers,
+        origin_airports=origin_airports,
+        destination_airports=destination_airports,
         direct_only=direct_only,
         limit=limit,
     )
@@ -352,6 +381,7 @@ def kupibilet_segment_search_summary(
         "unique_flight_count": result.get("unique_flight_count"),
         "offer_count": len(segment_result.get("offers") or []),
         "skipped": result.get("skipped", {}),
+        "filters": result.get("filters", {}),
         "cache": result.get("cache", {"hit": False}),
     }
 
@@ -366,16 +396,26 @@ def cached_kupibilet_search(
     direct_only: bool,
     limit: int,
     timeout: int,
+    origin_airports: list[str] | None = None,
+    destination_airports: list[str] | None = None,
     cache_ttl_seconds: int = DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
     use_cache: bool = True,
     fetcher: Any = fetch_kupibilet_search,
 ) -> dict[str, Any]:
+    normalized_origin_airports = normalize_airport_scope(
+        origin_airports, "origin-airport"
+    )
+    normalized_destination_airports = normalize_airport_scope(
+        destination_airports, "destination-airport"
+    )
     params = {
         "origin": origin,
         "destination": destination,
         "depart_date": depart_date.isoformat(),
         "currency": currency,
         "only_carriers": sorted(only_carriers),
+        "origin_airports": normalized_origin_airports,
+        "destination_airports": normalized_destination_airports,
         "direct_only": bool(direct_only),
         "limit": int(limit),
     }
@@ -392,6 +432,8 @@ def cached_kupibilet_search(
         depart_date,
         currency=currency,
         only_carriers=only_carriers,
+        origin_airports=normalized_origin_airports,
+        destination_airports=normalized_destination_airports,
         direct_only=direct_only,
         limit=limit,
         timeout=timeout,

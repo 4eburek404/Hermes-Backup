@@ -15,15 +15,19 @@ Start from the canonical command in `SKILL.md`. Enter debug only when one of the
 - date horizon, airport continuity, stop-policy tiering, cache state, or ranking profile could hide a viable option;
 - the user asks for narrower proof than the report already contains.
 
-Do not expose diagnostic JSON or probe logs as the traveler answer. Final prose still comes from `data.agent_report.user_answer.rendered_text` unless you are explicitly explaining a debug/RCA task.
+Do not expose diagnostic JSON or probe logs as the traveler answer. For a normal
+traveler request, return text-mode search stdout verbatim; in JSON mode, return
+`data.answer.rendered_text` verbatim. Do not summarize, reformat, correct, or
+otherwise improve it. Debug/RCA explanations are a separate task.
 
 ## Runtime provenance
 
-Before naming a provider/root cause or patching behavior, prove the runtime used for the probe:
+Before naming a provider/root cause or patching behavior, prove the runtime used
+for the probe. Resolve `cli/` relative to the directory containing the parent
+`SKILL.md` and use it as the command's working directory; do not infer the
+location from an agent-specific home directory:
 
 ```bash
-HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
-cd "$HERMES_HOME"/skills/productivity/flight-search/cli
 command -v flights || true
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --version
 PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY'
@@ -38,20 +42,20 @@ Record only decision-useful provenance:
 - runtime path, imported module path, CLI version, and live help;
 - source path, branch, HEAD, dirty state when source behavior is in scope;
 - request normalization: route/date/currency/profile, exact-airport vs city scope, filters, provider policy, stop policy, direct-only/date-window/ticketing fields;
-- whether the conclusion came from `data.agent_report`, a diagnostic probe, or external source evidence.
+- whether the conclusion came from `data`, a diagnostic probe, or external source evidence.
 
 Temp editable checkouts can shadow the permanent skill CLI; do not generalize traces until executable/import paths are known. `maint doctor` is environment/readiness evidence, not flight availability evidence.
 
 ## JSON extraction
 
-Read only JSON payloads for decisions. If logs surround JSON, extract the envelope first, then inspect `data.agent_report`.
+Read only JSON payloads for decisions. If logs surround JSON, extract the envelope first, then inspect `data`.
 
 Decision read order is in `report-contract.md`; compact debug order:
 
-1. `data.agent_report.agent_guidance` — command, answer path, readiness, blocking evidence.
-2. `data.route_trace.live_search.offer_graph` from `diagnose trace` — collection, evidence, missing evidence, truth language.
-3. `data.agent_report.user_answer.rendered_text` — canonical final rendering.
-4. `data.agent_report.user_answer.catalog.items` and `frontier.decision_frontier` — decision-critical options and controls.
+1. `data.agent_guidance` — command, answer path, readiness, blocking evidence.
+2. `data.decision.offer_graph` from `diagnose trace` — collection, evidence, missing evidence, truth language.
+3. `data.answer.rendered_text` — canonical final rendering.
+4. `data.answer.catalog.items` and `data.frontier.option_ids` — decision-critical options and order.
 5. `evidence.*` — through-fare checks, provider failures, source boundaries, coverage diagnostics.
 6. `diagnostics.*` — debug only.
 
@@ -65,6 +69,13 @@ Main report:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request request.json
+```
+
+Planned probes without provider execution:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose plan \
+  --request request.json
 ```
 
 Full route/live trace:
@@ -81,6 +92,59 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose probe \
   --request probe.json
 ```
 
+### FLI MCP readiness
+
+Use this only to determine whether the FLI provider endpoint is reachable or
+to isolate an FLI-specific failure. The CLI contacts FLI MCP directly. A clean
+`hermes mcp list` is therefore not evidence that FLI is unavailable, and a
+configured Hermes MCP entry is not evidence that the CLI can reach it.
+
+The effective endpoint is `FLIGHTS_FLI_MCP_URL` when set; otherwise it is
+`http://127.0.0.1:8000/mcp`. `maint doctor` checks the local CLI, dependencies,
+contracts, and static catalogs without a live provider call. An `ok: true`
+doctor result does not prove FLI readiness.
+
+Use the current provider-port command, not the removed `diagnose fli-search`
+surface. Write a minimal segment probe:
+
+```json
+{
+  "origin": "AMS",
+  "destination": "LHR",
+  "date": "YYYY-MM-DD",
+  "limit": 20,
+  "timeout": 5,
+  "use_cache": false,
+  "direct_only": true
+}
+```
+
+Then run from `cli/`:
+
+```bash
+printf 'FLIGHTS_FLI_MCP_URL=%s\n' \
+  "${FLIGHTS_FLI_MCP_URL:-<unset; default=http://127.0.0.1:8000/mcp>}"
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose probe \
+  --provider fli \
+  --request /tmp/fli-probe.json
+```
+
+Attribute the result to the exact layer:
+
+- malformed URL or disallowed cleartext host: FLI endpoint configuration;
+- connection refused on the default loopback URL: no FLI MCP listener in the
+  current environment, not a failure of the main flight-search CLI;
+- timeout, blocked response, or upstream error: FLI provider/upstream failure;
+- successful probe with zero offers: current FLI route/date inventory, not
+  endpoint unavailability.
+
+Pure renderer diagnostic for an existing result:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose render \
+  --input flight-search-result.json
+```
+
 Probe shapes:
 
 - exact-airport direct-only;
@@ -90,6 +154,46 @@ Probe shapes:
 - round-trip provider aggregate when the user asks for one order/single checkout;
 - nearby in-horizon control date to split horizon uncertainty from route coverage.
 
+### Suppressed or missing gateway chain
+
+When a requested or expected hub chain is absent, start with the baseline
+`diagnose trace`; do not replace the canonical search with manual leg searches.
+Inspect these fields together:
+
+- `data.plan.conditional_gateway_queries`;
+- `data.evidence.direct_mode` and `data.evidence.direct_presence_gate`;
+- `data.evidence.probe_ledger.skipped_controls` and `searched_controls`;
+- `data.evidence.gateway_leg_results.wave_diagnostics`;
+- `data.decision.offer_graph` and `data.decision.frontier`.
+
+Interpret the first matching state:
+
+1. **No planned chain:** inspect gateway-discovery enablement, prior-set/candidate
+   selection, candidate caps, rejected gateway signals, and provider
+   applicability. A requested `hubs` value does not by itself prove that a
+   conditional query reached the plan.
+2. **Planned then suppressed:** `direct_mode[direction]=true` together with a
+   matching skipped control whose `reason` is `direct_available` proves the
+   production direct-first partition suppressed that direction.
+3. **Searched but no candidate:** inspect provider offers, chronology/MCT
+   pairing, OfferGraph rejection, connection caps, and frontier projection;
+   this is not direct-first suppression.
+4. **Unexpected wave count:** compare runtime
+   `wave_diagnostics.{max_waves,wave_count,stop_reason}` with production
+   `SearchWavePlannerOptions` wiring. The current executor wires `max_waves=1`,
+   so generic planner tests with several waves do not prove live multi-wave
+   execution.
+5. **Strict direct-only request:** zero connection caps can still coexist with
+   planned or executed route-access gateway probes when direct evidence is
+   empty, while connected candidates remain non-reportable. Distinguish probe
+   execution from catalog eligibility.
+
+The current request schema has no `force_gateway_probe` or `gateway_chain`
+field. Do not add either key to a traveler request, and do not externally merge
+manual segment searches into a replacement answer. Such behavior requires an
+explicit schema/executor change with tests; it is not an existing runtime mode.
+The uncalled `assess_fallback()` helper is not evidence of production behavior.
+
 ## Short or missing direct set
 
 When the report shows fewer direct flights than expected:
@@ -98,12 +202,12 @@ When the report shows fewer direct flights than expected:
 2. Start with the canonical report, then run `diagnose trace` for the full assembled route/live-search trace because `auto` is Tutu-first. Use `diagnose probe` only when you need one explicit provider probe outside the assembled trace.
 3. If the provider probe returns all direct offers with prices, the provider is not the root cause; inspect display/report truncation.
 4. Inspect counts:
-   - `data.route_trace.live_search.decision_frontier.options`;
-   - `data.route_trace.live_search.offer_graph.edges`;
-   - `data.route_trace.live_search.primary_offer_results`;
-   - `data.agent_report.frontier.decision_frontier.options`;
-   - `data.agent_report.agent_guidance`.
-5. Current pipeline computes the direct-first gate from wave-0 offer evidence before `agent_report.v5` and `user_answer.v7` construction. If direct offers vanish after that point, debug report construction, not provider availability.
+   - `data.decision.frontier.options`;
+   - `data.decision.offer_graph.edges`;
+   - `data.evidence.primary_offer_results`;
+   - `data.frontier.option_ids`;
+   - `data.agent_guidance`.
+5. The pipeline computes the direct-first gate from primary evidence before `flight_search_result.v7` and `flight_search_user_answer.v9` construction. If direct offers vanish after that point, inspect decision projection, not provider availability.
 
 Do not claim “provider did not return prices” when a narrow direct probe shows priced direct offers.
 

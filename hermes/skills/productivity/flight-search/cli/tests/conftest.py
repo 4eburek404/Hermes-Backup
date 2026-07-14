@@ -47,13 +47,6 @@ def isolate_flights_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
         shutil.copy2(fixture, cache_dir / fixture.name)
 
     monkeypatch.setenv("FLIGHTS_CACHE_DIR", str(cache_dir))
-
-    import flights_cli.config as config
-
-    monkeypatch.setattr(config, "CACHE_DIR", cache_dir, raising=False)
-    monkeypatch.setattr(
-        config, "LIVE_SEARCH_CACHE_DIR", cache_dir / "live_search", raising=False
-    )
     try:
         import helpers
     except ImportError:

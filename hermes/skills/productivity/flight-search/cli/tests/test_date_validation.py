@@ -8,7 +8,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 
-from flights_cli.domain.normalize import parse_iso_date
+from flights_cli.domain.normalize import numeric_or_none, parse_iso_date
 from flights_cli.errors import CliError
 from helpers import PROJECT, TEST_ENV
 
@@ -78,6 +78,48 @@ class DateValidationTests(unittest.TestCase):
         self.assertEqual(payload["error"]["type"], "validation_error")
         self.assertEqual(payload["error"]["details"]["reason"], "past_date")
         self.assertEqual(payload["error"]["details"]["value"], "2000-09-17")
+
+
+class NumericNormalizationTests(unittest.TestCase):
+    def test_accepts_finite_non_negative_numbers(self) -> None:
+        cases = [
+            (41441, 41441),
+            (41441.0, 41441),
+            (41441.5, 41441.5),
+            ("41 441", 41441),
+            ("41\u00a0441", 41441),
+            ("41\u202f441", 41441),
+            ("41441.50", 41441.5),
+            ("41441,50", 41441.5),
+            ("+41441", 41441),
+        ]
+        for value, expected in cases:
+            with self.subTest(value=value):
+                self.assertEqual(numeric_or_none(value), expected)
+
+    def test_rejects_unsafe_or_ambiguous_values(self) -> None:
+        values = [
+            None,
+            True,
+            False,
+            -1,
+            -0.5,
+            "-1",
+            "",
+            "not-a-number",
+            "1,000",
+            "1.2.3",
+            "1,2.3",
+            "NaN",
+            "Infinity",
+            float("nan"),
+            float("inf"),
+            {},
+            [],
+        ]
+        for value in values:
+            with self.subTest(value=value):
+                self.assertIsNone(numeric_or_none(value))
 
 
 if __name__ == "__main__":

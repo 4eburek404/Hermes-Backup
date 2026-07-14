@@ -4,6 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..domain.normalize import numeric_or_none
 from .candidate_ranker import build_decision_frontier, rank_mixed_candidates
 
 
@@ -19,7 +20,11 @@ class DecisionScorerOptions:
     min_same_airport_connection_min: int = 120
     min_cross_airport_connection_min: int = 300
     max_gateway_alternatives: int = 2
+    max_primary_gateway_options: int = 4
+    max_options_per_first_carrier: int = 2
+    preferred_layover_max_min: int = 6 * 60
     max_round_trip_pairs: int = 12
+    max_options: int | None = 6
 
 
 class DecisionScorer:
@@ -55,6 +60,10 @@ class DecisionScorer:
             ranking,
             controls=controls,
             max_gateway_alternatives=self.options.max_gateway_alternatives,
+            max_options=self.options.max_options,
+            max_primary_gateway_options=self.options.max_primary_gateway_options,
+            max_options_per_first_carrier=(self.options.max_options_per_first_carrier),
+            preferred_layover_max_min=self.options.preferred_layover_max_min,
         )
         return {
             "schema_version": DECISION_SCORER_SCHEMA_VERSION,
@@ -76,6 +85,19 @@ class DecisionScorer:
                     "frontier": "flight_decision_frontier.v1",
                 },
                 "round_trip_pairing": prepared_envelope.get("round_trip_pairing"),
+                "max_options": self.options.max_options,
+                "max_gateway_alternatives": max(
+                    0, int(self.options.max_gateway_alternatives)
+                ),
+                "max_primary_gateway_options": max(
+                    0, int(self.options.max_primary_gateway_options)
+                ),
+                "max_options_per_first_carrier": max(
+                    1, int(self.options.max_options_per_first_carrier)
+                ),
+                "preferred_layover_max_min": max(
+                    0, int(self.options.preferred_layover_max_min)
+                ),
             },
             "mixed_candidate_ranking": ranking,
             "decision_frontier": frontier,
@@ -251,8 +273,8 @@ def _journeys_for_direction(
 def _summed_price(
     outbound: dict[str, Any], inbound: dict[str, Any]
 ) -> tuple[int | float | None, str | None]:
-    outbound_price = _numeric_or_none(outbound.get("price"))
-    inbound_price = _numeric_or_none(inbound.get("price"))
+    outbound_price = numeric_or_none(outbound.get("price"))
+    inbound_price = numeric_or_none(inbound.get("price"))
     outbound_currency = str(outbound.get("currency") or "").strip()
     inbound_currency = str(inbound.get("currency") or "").strip()
     if outbound_price is None or inbound_price is None:
@@ -288,17 +310,6 @@ def _combined_detail_status(outbound: dict[str, Any], inbound: dict[str, Any]) -
     if "summary_only" in statuses:
         return "summary_only"
     return "full"
-
-
-def _numeric_or_none(value: Any) -> int | float | None:
-    if isinstance(value, bool) or value is None:
-        return None
-    if isinstance(value, (int, float)):
-        return value
-    try:
-        return float(str(value).replace(" ", ""))
-    except ValueError:
-        return None
 
 
 def _ordered_unique(items: list[Any]) -> list[Any]:

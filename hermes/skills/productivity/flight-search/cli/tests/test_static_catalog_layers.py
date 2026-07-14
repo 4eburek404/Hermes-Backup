@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
-from flights_cli.config import CACHE_DIR, DEFAULT_CACHE_DIR, resolve_cache_dir
+from flights_cli.config import DEFAULT_CACHE_DIR, resolve_cache_dir
 from flights_cli.providers.static_catalog import (
     STATIC_CATALOG_BY_NAME,
     STATIC_CATALOG_SCHEMA_VERSION,
@@ -135,7 +135,6 @@ class StaticCatalogLayerTests(unittest.TestCase):
         self.assertEqual(
             DEFAULT_CACHE_DIR, Path.home() / ".hermes" / "cache" / "flight-search"
         )
-        self.assertEqual(CACHE_DIR, DEFAULT_CACHE_DIR)
 
     def test_cache_path_can_be_overridden_by_env(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

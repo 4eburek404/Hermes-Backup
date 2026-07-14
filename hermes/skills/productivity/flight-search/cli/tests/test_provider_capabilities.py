@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import tempfile
+import ast
 import unittest
 from pathlib import Path
 
@@ -10,7 +10,6 @@ from flights_cli.adapters.providers.registry import (
     provider_adapter,
     provider_adapters_for_segment,
     providers_for_offer_query,
-    providers_for_route_query,
     providers_for_segment,
     route_query_provider_skip_reasons,
     route_touches_ru,
@@ -25,28 +24,33 @@ from flights_cli.ports.providers import (
     ProviderCapabilities,
     ProviderProbeResult,
 )
-from flights_cli.store import Store
+from helpers import make_test_store
 
 
-def store_with_airports(test_case: unittest.TestCase) -> Store:
-    tmp_dir = tempfile.TemporaryDirectory()
-    test_case.addCleanup(tmp_dir.cleanup)
-    cache = Path(tmp_dir.name)
-    (cache / "airports_en.json").write_text(
-        """
-        [
-          {"code": "SVX", "country_code": "RU", "flightable": true},
-          {"code": "CDG", "country_code": "FR", "flightable": true},
-          {"code": "IST", "country_code": "TR", "flightable": true},
-          {"code": "LHR", "country_code": "GB", "flightable": true}
-        ]
-        """,
-        encoding="utf-8",
-    )
-    return Store(cache)
+TEST_AIRPORTS = [
+    {"code": "SVX", "country_code": "RU", "flightable": True},
+    {"code": "CDG", "country_code": "FR", "flightable": True},
+    {"code": "IST", "country_code": "TR", "flightable": True},
+    {"code": "LHR", "country_code": "GB", "flightable": True},
+]
 
 
 class ProviderCapabilitiesTests(unittest.TestCase):
+    def test_provider_adapters_do_not_import_other_provider_adapters(self) -> None:
+        adapter_dir = (
+            Path(__file__).parents[1] / "flights_cli" / "adapters" / "providers"
+        )
+        for filename in ("tutu_adapter.py", "kupibilet_adapter.py", "fli_adapter.py"):
+            tree = ast.parse((adapter_dir / filename).read_text(encoding="utf-8"))
+            imported_adapters = [
+                node.module
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom)
+                and node.module
+                and node.module.endswith("_adapter")
+            ]
+            self.assertEqual(imported_adapters, [], filename)
+
     def test_registry_exposes_expected_provider_capabilities(self) -> None:
         kupibilet = PROVIDER_REGISTRY["kupibilet"].capabilities
         fli = PROVIDER_REGISTRY["fli"].capabilities
@@ -81,7 +85,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self.assertIsInstance(adapter, FlightProviderPort)
 
     def test_policy_can_return_adapter_objects_for_execution(self) -> None:
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
 
         adapters = provider_adapters_for_segment(
             {"origin": "IST", "destination": "LHR"}, store, "auto"
@@ -97,7 +101,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
     def test_auto_policy_uses_capability_registry_for_ru_touching_and_global_segments(
         self,
     ) -> None:
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
 
         self.assertEqual(
             providers_for_segment(
@@ -119,7 +123,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         )
 
     def test_both_policy_is_rejected(self) -> None:
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
 
         with self.assertRaises(CliError):
             providers_for_segment(
@@ -127,7 +131,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
             )
 
     def test_offer_query_policy_uses_full_route_aggregate_capabilities(self) -> None:
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
         query = {
             "probe_type": "full_route_aggregate",
             "origin": "SVX",
@@ -142,7 +146,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self.assertEqual(providers_for_offer_query(query, store, "tutu"), ["tutu"])
 
     def test_auto_offer_query_uses_market_and_capability_routing(self) -> None:
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
 
         self.assertEqual(
             providers_for_offer_query(
@@ -170,7 +174,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         )
 
     def test_auto_carrier_aggregate_keeps_tutu_primary(self) -> None:
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
 
         self.assertEqual(
             providers_for_offer_query(
@@ -186,37 +190,24 @@ class ProviderCapabilitiesTests(unittest.TestCase):
             ["tutu", "kupibilet"],
         )
 
-    def test_route_query_routing_reuses_ru_touching_market_boundary(self) -> None:
-        store = store_with_airports(self)
+    def test_route_query_ru_boundary_and_skip_reason(self) -> None:
+        store = make_test_store(self, TEST_AIRPORTS)
 
         ru_route = {
             "probe_type": "full_route_aggregate",
             "origin": "SVX",
             "destination": "CDG",
         }
-        non_ru_route = {
-            "probe_type": "full_route_aggregate",
-            "origin": "IST",
-            "destination": "LHR",
-        }
 
         self.assertTrue(route_touches_ru("SVX", "CDG", store))
         self.assertFalse(route_touches_ru("IST", "LHR", store))
         self.assertEqual(
-            providers_for_route_query(ru_route, store, "auto"), ["tutu", "kupibilet"]
-        )
-        self.assertEqual(providers_for_route_query(ru_route, store, "fli"), [])
-        self.assertEqual(
             route_query_provider_skip_reasons(ru_route, store, "fli"),
             {"fli": "route_touches_ru"},
         )
-        self.assertEqual(
-            providers_for_route_query(non_ru_route, store, "auto"),
-            ["tutu", "kupibilet", "fli"],
-        )
 
     def test_gateway_segments_follow_existing_ru_non_ru_provider_split(self) -> None:
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
 
         self.assertEqual(
             providers_for_segment(
@@ -246,7 +237,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self.assertEqual(payload["provider"], "fli")
         self.assertEqual(payload["probe_id"], "probe-123")
         self.assertEqual(payload["errors"][0]["type"], "not_supported")
-        self.assertIn("normalized_result", payload)
+        self.assertIn("offers", payload)
 
     def test_fli_adapter_reports_aggregate_not_supported_through_common_result_shape(
         self,
@@ -268,7 +259,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
 
     def test_provider_adapter_returns_same_instance_for_same_store(self) -> None:
         """provider_adapter with same (name, store) returns cached instance."""
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
         a1 = provider_adapter("kupibilet", store=store)
         a2 = provider_adapter("kupibilet", store=store)
         self.assertIs(a1, a2)
@@ -277,8 +268,8 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self,
     ) -> None:
         """provider_adapter with different store returns different instance."""
-        store_a = store_with_airports(self)
-        store_b = store_with_airports(self)
+        store_a = make_test_store(self, TEST_AIRPORTS)
+        store_b = make_test_store(self, TEST_AIRPORTS)
         a1 = provider_adapter("kupibilet", store=store_a)
         a2 = provider_adapter("kupibilet", store=store_b)
         self.assertIsNot(a1, a2)
@@ -290,7 +281,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
 
     def test_provider_adapter_custom_fetcher_bypasses_cache(self) -> None:
         """provider_adapter with custom fetcher returns a new instance every time."""
-        store = store_with_airports(self)
+        store = make_test_store(self, TEST_AIRPORTS)
         a1 = provider_adapter("kupibilet", store=store, kupibilet_fetcher=lambda: None)
         a2 = provider_adapter("kupibilet", store=store, kupibilet_fetcher=lambda: None)
         self.assertIsNot(a1, a2)

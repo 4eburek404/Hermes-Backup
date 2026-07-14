@@ -7,7 +7,7 @@ from flights_cli.execution.aggregate_control_runner import (
     AggregateControlOptions,
     run_aggregate_controls,
 )
-from flights_cli.orchestrators.live_route_assembly import run_live_route_assembly
+from flights_cli.execution.search_executor import execute_search
 from flights_cli.ports.providers import ProviderCapabilities, ProviderProbeResult
 from flights_cli.store import Store
 from helpers import live_assembly_args
@@ -58,12 +58,12 @@ class FakeAggregateAdapter:
                 "cache_status": "disabled",
                 "top_offers": [{"id": "agg-adapter-offer"}],
             },
-            normalized_offers=[{"id": "agg-adapter-offer"}],
+            offers=({"id": "agg-adapter-offer"},),
         )
 
 
 class ProviderPortDispatchTests(unittest.TestCase):
-    def test_live_route_assembly_dispatches_primary_offer_through_provider_port(
+    def test_search_executor_dispatches_primary_offer_through_provider_port(
         self,
     ) -> None:
         args = live_assembly_args(
@@ -84,11 +84,11 @@ class ProviderPortDispatchTests(unittest.TestCase):
                 create=True,
             ),
             patch(
-                "flights_cli.orchestrators.live_assembly_runner.SearchWavePlanner.run",
+                "flights_cli.execution.search_executor.SearchWavePlanner.run",
                 return_value={},
             ),
         ):
-            result = run_live_route_assembly(args, Store())
+            result = execute_search(args, Store()).projection_input
 
         self.assertGreaterEqual(len(adapter.aggregate_queries), 1)
         self.assertEqual(
@@ -118,7 +118,27 @@ class ProviderPortDispatchTests(unittest.TestCase):
             return_value=adapter,
             create=True,
         ):
-            controls = run_aggregate_controls(options, plan)
+            controls = run_aggregate_controls(
+                options,
+                plan,
+                planned_queries=[
+                    {
+                        "role": "aggregate_evidence",
+                        "source_type": "provider_full_route",
+                        "probe_type": "carrier_aggregate",
+                        "provider": None,
+                        "direction": "outbound",
+                        "origin": "SVX",
+                        "destination": "DEL",
+                        "date": "2026-08-12",
+                        "currency": "RUB",
+                        "direct_only": False,
+                        "only_carriers": ["SU"],
+                        "limit": 3,
+                        "execution_state": "not_executed",
+                    }
+                ],
+            )
 
         self.assertEqual(len(controls), 1)
         self.assertEqual(controls[0]["provider"], "kupibilet")

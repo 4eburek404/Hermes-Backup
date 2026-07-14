@@ -6,7 +6,7 @@ from pathlib import Path
 
 from flights_cli.domain.gateway_priors import load_gateway_priors
 from flights_cli.errors import CliError
-from flights_cli.orchestrators.live_route_assembly import build_live_route_segment_plan
+from flights_cli.orchestrators.search_plan_builder import build_route_context
 from flights_cli.store import Store
 from helpers import live_assembly_args
 
@@ -153,11 +153,11 @@ markets:
             ],
         )
 
-    def test_gateway_priors_do_not_change_route_plan_shape_yet(self) -> None:
+    def test_gateway_priors_do_not_leak_into_route_context(self) -> None:
         path = self.write_file("gateway_priors.yaml", VALID_GATEWAY_PRIORS_YAML)
         store = Store(gateway_priors_path=path)
 
-        plan = build_live_route_segment_plan(
+        plan = build_route_context(
             live_assembly_args(
                 origin="SVX",
                 destination="CDG",
@@ -170,9 +170,7 @@ markets:
         )
 
         self.assertNotIn("gateway_priors", plan)
-        self.assertFalse(
-            any("gateway_priors" in segment for segment in plan.get("segments") or [])
-        )
+        self.assertNotIn("segments", plan)
 
 
 if __name__ == "__main__":

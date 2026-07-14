@@ -3,9 +3,38 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from ..domain.normalize import normalize_carrier_code
+from ..domain.normalize import normalize_airport_scope, normalize_carrier_code
 
 SegmentProbeKey = tuple[Any, ...]
+
+
+_NON_LOGICAL_QUERY_FIELDS = frozenset(
+    {
+        "probe_id",
+        "execution_state",
+        "status",
+        "reason",
+        "wave_index",
+    }
+)
+
+
+def _freeze_key(value: Any) -> Any:
+    if isinstance(value, dict):
+        return tuple(
+            (key, _freeze_key(item))
+            for key, item in sorted(value.items())
+            if key not in _NON_LOGICAL_QUERY_FIELDS
+        )
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return tuple(_freeze_key(item) for item in value)
+    return value
+
+
+def logical_query_key(query: dict[str, Any]) -> SegmentProbeKey:
+    """Return the complete provider-query identity, excluding runtime metadata."""
+
+    return ("logical-query", _freeze_key(query))
 
 
 @dataclass(frozen=True)
@@ -83,6 +112,16 @@ def segment_probe_key(
             for code in (spec.get("only_carriers") or only_carriers)
         )
     )
+    origin_airports = tuple(
+        normalize_airport_scope(
+            list(spec.get("origin_airports") or []), "origin-airport"
+        )
+    )
+    destination_airports = tuple(
+        normalize_airport_scope(
+            list(spec.get("destination_airports") or []), "destination-airport"
+        )
+    )
     return (
         "segment",
         str(provider or ""),
@@ -95,6 +134,8 @@ def segment_probe_key(
         str(plan.get("currency") or "").upper(),
         bool(direct_only),
         effective_carriers,
+        origin_airports,
+        destination_airports,
         int(limit),
         str(mcp_url or "") if provider == "fli" else "",
     )

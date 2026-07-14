@@ -4,15 +4,10 @@ from typing import TYPE_CHECKING, Any
 
 from ..config import (
     AIRPORT_TO_GROUP,
-    CITY_AIRPORTS_EXCLUDED_BY_DEFAULT,
-    DUBAI_DEFAULT_AIRPORTS,
-    DUBAI_EXCLUDED_BY_DEFAULT,
     MULTI_AIRPORT_GROUPS,
-    PREFERRED_AIRPORT_TIERS,
     SINGLE_AIRPORT_NOTES,
-    SPECIAL_CITY_AIRPORTS,
 )
-from ..domain.normalize import normalize_iata
+from ..domain.normalize import normalize_airport_scope, normalize_iata
 from ..errors import CliError
 
 if TYPE_CHECKING:
@@ -60,37 +55,6 @@ def explain_airport(store: Store, code: str) -> dict[str, Any]:
     return data
 
 
-def is_dubai_city_location(location: Location) -> bool:
-    text = str(location.input or "").strip().lower()
-    return (
-        location.kind == "city"
-        and str(location.country_code or "").upper() == "AE"
-        and str(location.code or "").upper() == "DXB"
-        and text not in {"dxb", "dwc", "shj"}
-    )
-
-
-def preferred_airport_tiers_for_city(city_code: str | None) -> list[dict[str, Any]]:
-    tiers = PREFERRED_AIRPORT_TIERS.get(str(city_code or "").upper(), [])
-    return [
-        {
-            "tier": int(tier["tier"]),
-            "airports": [str(code).upper() for code in tier.get("airports", [])],
-            "role": str(tier.get("role") or "preferred"),
-        }
-        for tier in tiers
-    ]
-
-
-def preferred_airports_for_city(city_code: str | None) -> list[str]:
-    airports: list[str] = []
-    for tier in preferred_airport_tiers_for_city(city_code):
-        for code in tier["airports"]:
-            if code not in airports:
-                airports.append(code)
-    return airports
-
-
 def explicit_or_resolved_airports(
     store: Store,
     location: Location,
@@ -100,18 +64,10 @@ def explicit_or_resolved_airports(
     max_airports: int,
 ) -> list[str]:
     if explicit:
-        return [normalize_iata(code, f"{role}-airport") for code in explicit]
-    if is_dubai_city_location(location) and role in {"origin", "destination"}:
-        return list(DUBAI_DEFAULT_AIRPORTS)[: max(1, max_airports)]
-    airports = list(location.airports or [])
-    location_code = str(location.code or "").upper()
-    preferred_airports = preferred_airports_for_city(location_code)
-    if preferred_airports and role in {"origin", "destination"}:
-        airports = preferred_airports
-    elif location_code in SPECIAL_CITY_AIRPORTS and role in {"origin", "destination"}:
-        airports = SPECIAL_CITY_AIRPORTS[location_code]
+        return normalize_airport_scope(explicit, f"{role}-airport")
+    airports = normalize_airport_scope(list(location.airports or []), f"{role}-airport")
     if not airports and location.kind in {"airport", "iata"}:
-        airports = [location.code]
+        airports = [normalize_iata(location.code, f"{role}-airport")]
     if not airports:
         raise CliError(
             f"no flightable airports found for {location.input!r}",
@@ -124,46 +80,18 @@ def airport_scope_summary(
     location: Location, airports: list[str], explicit: list[str] | None, *, role: str
 ) -> dict[str, Any]:
     normalized_airports = [str(code).upper() for code in airports]
-    location_code = str(location.code or "").upper()
-    preferred_tiers = (
-        preferred_airport_tiers_for_city(location_code) if not explicit else []
-    )
     if explicit:
-        scope = "explicit_or_single_airport"
-        excluded: list[str] = []
+        scope = "explicit_airports"
         note = f"{role} airport scope was explicitly constrained."
-    elif preferred_tiers:
-        scope = "preferred_city_airports"
-        excluded = [
-            code
-            for code in CITY_AIRPORTS_EXCLUDED_BY_DEFAULT.get(location_code, [])
-            if code not in normalized_airports
-        ]
-        note = f"{role} resolved to preferred city-airport tiers; excluded airports are not searched by default."
-    elif is_dubai_city_location(location):
-        scope = "dubai_default"
-        excluded = [
-            code
-            for code in DUBAI_EXCLUDED_BY_DEFAULT
-            if code not in normalized_airports
-        ]
-        note = "Dubai defaults to DXB primary + DWC secondary; SHJ is Sharjah and is excluded unless explicitly requested or returned by a provider."
+    elif location.kind == "city":
+        scope = "city_airports"
+        note = f"{role} resolved from the static catalog's flightable airports."
     elif len(normalized_airports) == 1:
-        scope = "explicit_or_single_airport"
-        excluded = [
-            code
-            for code in CITY_AIRPORTS_EXCLUDED_BY_DEFAULT.get(location_code, [])
-            if code not in normalized_airports
-        ]
+        scope = "single_airport"
         note = f"{role} resolved to a single flightable airport."
     else:
         scope = "city_airports"
-        excluded = [
-            code
-            for code in CITY_AIRPORTS_EXCLUDED_BY_DEFAULT.get(location_code, [])
-            if code not in normalized_airports
-        ]
-        note = f"{role} resolved to the city's flightable airports within max-airports-per-city."
+        note = f"{role} resolved from the static airport catalog."
     summary = {
         "role": role,
         "input": location.input,
@@ -172,9 +100,7 @@ def airport_scope_summary(
         "scope": scope,
         "airports": normalized_airports,
         "primary": normalized_airports[0] if normalized_airports else None,
-        "excluded_by_default": excluded,
+        "excluded_by_default": [],
         "note": note,
     }
-    if preferred_tiers:
-        summary["preferred_airport_tiers"] = preferred_tiers
     return summary

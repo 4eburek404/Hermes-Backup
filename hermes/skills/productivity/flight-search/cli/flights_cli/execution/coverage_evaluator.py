@@ -28,7 +28,7 @@ class CoverageEvaluation:
 class CoverageEvaluatorOptions:
     min_gateways_searched: int
     min_viable_gateways: int = 1
-    mandatory_controls_terminal: bool = True
+    planned_probes_terminal: bool = True
 
 
 class CoverageEvaluator:
@@ -52,8 +52,8 @@ class CoverageEvaluator:
         not_searched_budget = max(0, int(total_gateway_count) - searched_count)
         reasons: list[str] = []
 
-        if not self.options.mandatory_controls_terminal:
-            reasons.append("mandatory_controls_not_terminal")
+        if not self.options.planned_probes_terminal:
+            reasons.append("planned_probes_not_terminal")
             return CoverageEvaluation(
                 continue_search=not self._max_batches_reached(batch_index, max_batches),
                 reasons=reasons,
@@ -62,7 +62,7 @@ class CoverageEvaluator:
                 failed_gateways=failed_count,
                 not_searched_budget=not_searched_budget,
             )
-        reasons.append("mandatory_controls_terminal")
+        reasons.append("planned_probes_terminal")
 
         blocking_provider_failure = failed_count > 0 and viable_count == 0
         if blocking_provider_failure:

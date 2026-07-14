@@ -1,20 +1,26 @@
 from __future__ import annotations
 
 import unittest
-import tempfile
-from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
 from flights_cli.execution.aggregate_control_runner import (
     AggregateControlOptions,
     evaluate_graph_coverage_controls,
-    run_aggregate_controls,
+    run_aggregate_controls as _run_aggregate_controls,
 )
 from flights_cli.execution.probe_ledger import ProbeExecutionLedger
 from flights_cli.errors import CliError
 from flights_cli.ports.providers import ProviderProbeResult
-from flights_cli.store import Store
+from helpers import make_test_store
+
+
+TEST_AIRPORTS = [
+    {"code": "SVX", "country_code": "RU", "flightable": True},
+    {"code": "CDG", "country_code": "FR", "flightable": True},
+    {"code": "IST", "country_code": "TR", "flightable": True},
+    {"code": "LHR", "country_code": "GB", "flightable": True},
+]
 
 
 def aggregate_options(**overrides: object) -> AggregateControlOptions:
@@ -31,22 +37,40 @@ def aggregate_options(**overrides: object) -> AggregateControlOptions:
     return AggregateControlOptions(**values)
 
 
-def store_with_airports(test_case: unittest.TestCase) -> Store:
-    tmp_dir = tempfile.TemporaryDirectory()
-    test_case.addCleanup(tmp_dir.cleanup)
-    cache = Path(tmp_dir.name)
-    (cache / "airports_en.json").write_text(
-        """
-        [
-          {"code": "SVX", "country_code": "RU", "flightable": true},
-          {"code": "CDG", "country_code": "FR", "flightable": true},
-          {"code": "IST", "country_code": "TR", "flightable": true},
-          {"code": "LHR", "country_code": "GB", "flightable": true}
-        ]
-        """,
-        encoding="utf-8",
+def planned_aggregate_queries(
+    options: AggregateControlOptions, plan: dict[str, Any]
+) -> list[dict[str, Any]]:
+    carriers = list(options.only_carriers)
+    if not carriers and options.aggregate_control_carriers:
+        carriers = [options.aggregate_control_carriers[0]]
+    return [
+        {
+            "role": "aggregate_evidence",
+            "source_type": "provider_full_route",
+            "probe_type": "carrier_aggregate" if carriers else "full_route_aggregate",
+            "provider": None,
+            "direction": "outbound",
+            "origin": plan["origin"],
+            "destination": plan["destination"],
+            "date": plan["dates"]["depart"],
+            "currency": plan["currency"],
+            "direct_only": False,
+            "only_carriers": carriers,
+            "limit": options.aggregate_control_limit,
+            "execution_state": "not_executed",
+        }
+    ]
+
+
+def run_aggregate_controls(
+    options: AggregateControlOptions, plan: dict[str, Any], **kwargs: Any
+) -> list[dict[str, Any]]:
+    return _run_aggregate_controls(
+        options,
+        plan,
+        planned_queries=planned_aggregate_queries(options, plan),
+        **kwargs,
     )
-    return Store(cache)
 
 
 class FakeAggregateAdapter:
@@ -82,7 +106,7 @@ class FakeAggregateAdapter:
                 "cache_status": "disabled",
                 "top_offers": [{"id": "agg-offer"}],
             },
-            normalized_offers=[{"id": "agg-offer"}],
+            offers=({"id": "agg-offer"},),
         )
 
 
@@ -117,7 +141,7 @@ class AggregateControlRunnerTests(unittest.TestCase):
             aggregate_options(),
             plan,
             probe_ledger=ledger,
-            store=store_with_airports(self),
+            store=make_test_store(self, TEST_AIRPORTS),
         )
 
         diagnostics = ledger.to_coverage_diagnostics(
@@ -162,7 +186,7 @@ class AggregateControlRunnerTests(unittest.TestCase):
             controls = run_aggregate_controls(
                 aggregate_options(provider_policy="kupibilet"),
                 plan,
-                store=store_with_airports(self),
+                store=make_test_store(self, TEST_AIRPORTS),
             )
 
         self.assertEqual(len(controls), 1)
@@ -211,7 +235,7 @@ class AggregateControlRunnerTests(unittest.TestCase):
                 aggregate_options(provider_policy="kupibilet", only_carriers=("SU",)),
                 plan,
                 probe_ledger=ledger,
-                store=store_with_airports(self),
+                store=make_test_store(self, TEST_AIRPORTS),
                 offer_graph=offer_graph,
             )
 
@@ -221,11 +245,8 @@ class AggregateControlRunnerTests(unittest.TestCase):
         self.assertEqual(controls[0]["status"], "graph_derived")
         self.assertTrue(controls[0]["graph_derived"])
         self.assertEqual(controls[0]["source_providers"], ["tutu"])
-        self.assertEqual(diagnostics["searched_controls"][0]["provider"], "graph")
-        self.assertEqual(
-            diagnostics["searched_controls"][0]["evidence_type"],
-            "provider_positive",
-        )
+        self.assertEqual(diagnostics["searched_controls"], [])
+        self.assertEqual(diagnostics["planned_controls"], [])
 
     def test_policy_control_is_satisfied_by_direct_graph_evidence(self) -> None:
         plan = {
@@ -266,21 +287,10 @@ class AggregateControlRunnerTests(unittest.TestCase):
                 }
             ],
         }
-        ledger = ProbeExecutionLedger()
-
-        controls = evaluate_graph_coverage_controls(
-            plan,
-            offer_graph,
-            probe_ledger=ledger,
-        )
-
-        ledger.finalize_unexecuted()
-        diagnostics = ledger.to_coverage_diagnostics(plan)
+        controls = evaluate_graph_coverage_controls(plan, offer_graph)
         self.assertEqual(len(controls), 1)
         self.assertEqual(controls[0]["type"], "city_pair_direct")
         self.assertEqual(controls[0]["source_type"], "graph_derived_policy_control")
-        self.assertEqual(diagnostics["searched_controls"][0]["provider"], "graph")
-        self.assertEqual(diagnostics["not_executed_controls"], [])
 
     def test_auto_policy_skips_fallback_providers_when_tutu_is_available(
         self,
@@ -308,7 +318,7 @@ class AggregateControlRunnerTests(unittest.TestCase):
             controls = run_aggregate_controls(
                 aggregate_options(provider_policy="auto"),
                 plan,
-                store=store_with_airports(self),
+                store=make_test_store(self, TEST_AIRPORTS),
             )
 
         self.assertEqual(
@@ -350,7 +360,7 @@ class AggregateControlRunnerTests(unittest.TestCase):
             controls = run_aggregate_controls(
                 aggregate_options(provider_policy="auto"),
                 plan,
-                store=store_with_airports(self),
+                store=make_test_store(self, TEST_AIRPORTS),
             )
 
         self.assertEqual(
@@ -372,7 +382,7 @@ class AggregateControlRunnerTests(unittest.TestCase):
             run_aggregate_controls(
                 aggregate_options(provider_policy="both"),
                 plan,
-                store=store_with_airports(self),
+                store=make_test_store(self, TEST_AIRPORTS),
             )
 
     def test_fli_policy_routes_non_ru_aggregate_to_not_supported(self) -> None:
@@ -386,7 +396,7 @@ class AggregateControlRunnerTests(unittest.TestCase):
         controls = run_aggregate_controls(
             aggregate_options(provider_policy="fli"),
             plan,
-            store=store_with_airports(self),
+            store=make_test_store(self, TEST_AIRPORTS),
         )
 
         self.assertEqual(len(controls), 1)

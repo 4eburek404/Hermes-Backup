@@ -16,11 +16,7 @@ def resolve_cache_dir() -> Path:
     return DEFAULT_CACHE_DIR
 
 
-CACHE_DIR = resolve_cache_dir()
-
 MAX_DATE_WINDOW_DAYS = 14
-
-LIVE_SEARCH_CACHE_DIR = CACHE_DIR / "live_search"
 
 KUPIBILET_FRONTEND_SEARCH_URL = "https://api-rs-lb.kupibilet.ru/frontend_search"
 
@@ -100,9 +96,6 @@ def catalog_output_limits_from_mapping(
 
 DEFAULT_ROUTE_HUBS = ("IST",)
 
-DUBAI_DEFAULT_AIRPORTS = ("DXB", "DWC")
-DUBAI_EXCLUDED_BY_DEFAULT = ("SHJ",)
-
 DEFAULT_ROUTING_STRATEGY = "auto"
 
 PRIORITY_ROUTE_CARRIERS = ("U6", "SU", "TK")
@@ -137,30 +130,6 @@ MULTI_AIRPORT_GROUPS: dict[str, dict[str, Any]] = {
         "min_cross_connection_min": 300,
         "note": "London airports are separate; acceptable for a stay in London, risky for same-day self-transfer.",
     },
-}
-
-PREFERRED_AIRPORT_TIERS = {
-    "LON": [
-        {"tier": 1, "airports": ["LHR"], "role": "preferred"},
-        {"tier": 2, "airports": ["LGW"], "role": "deferred"},
-    ],
-}
-
-CITY_AIRPORTS_EXCLUDED_BY_DEFAULT = {
-    "LON": ["STN", "LTN"],
-    "IST": ["SAW"],
-}
-
-KUPIBILET_CITY_CODE_FIRST_AIRPORTS = {
-    "MOW": ["SVO", "DME", "VKO"],
-}
-
-SPECIAL_CITY_AIRPORTS = {
-    "LON": ["LHR", "LGW"],
-    "MOW": ["SVO", "DME", "VKO"],
-    "IST": ["IST"],
-    "PAR": ["CDG", "ORY"],
-    "BJS": ["PEK", "PKX"],
 }
 
 AIRPORT_TO_GROUP: dict[str, str] = {}

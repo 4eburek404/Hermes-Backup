@@ -353,6 +353,22 @@ class GatewayLegProbeExecutorTests(unittest.TestCase):
             ["gateway_probe_budget_exhausted"],
         )
 
+    def test_multiple_destination_dates_are_merged_into_one_gateway_leg(self) -> None:
+        queries = gateway_queries("IST")
+        next_day = dict(queries[1])
+        next_day["date"] = "2026-08-16"
+        result, calls = self.run_executor(
+            [*queries, next_day],
+            offers_by_pair={("SVX", "IST"): 1, ("IST", "AMS"): 1},
+        )
+
+        self.assertEqual(len(calls), 3)
+        destination_leg = result["gateways"][0]["destination_leg"]
+        self.assertEqual(destination_leg["offer_count"], 2)
+        self.assertEqual(
+            destination_leg["searched_dates"], ["2026-08-15", "2026-08-16"]
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

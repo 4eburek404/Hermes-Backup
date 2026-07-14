@@ -105,7 +105,7 @@ def _provider_supports_market(
     )
 
 
-def _offer_query_policy_candidates(
+def _policy_candidates(
     query: dict[str, Any], store: Store, policy: str
 ) -> list[ProviderName]:
     normalized_policy = _normalize_provider_policy(policy)
@@ -117,42 +117,6 @@ def _offer_query_policy_candidates(
         for provider in PROVIDER_ROUTING_ORDER
         if _provider_supports_market(provider, query, store)
     ]
-
-
-def _segment_policy_candidates(
-    spec: dict[str, Any], store: Store, policy: str
-) -> list[ProviderName]:
-    normalized_policy = _normalize_provider_policy(policy)
-    if normalized_policy in {"kupibilet", "fli", "tutu"}:
-        provider = cast(ProviderName, normalized_policy)
-        return [provider] if _provider_supports_market(provider, spec, store) else []
-    return [
-        provider
-        for provider in PROVIDER_ROUTING_ORDER
-        if _provider_supports_market(provider, spec, store)
-    ]
-
-
-def _route_query_policy_candidates(
-    query: dict[str, Any], store: Store, policy: str
-) -> list[ProviderName]:
-    normalized_policy = _normalize_provider_policy(policy)
-    if normalized_policy in {"kupibilet", "fli", "tutu"}:
-        provider = cast(ProviderName, normalized_policy)
-        return [provider] if _provider_supports_market(provider, query, store) else []
-    return [
-        provider
-        for provider in PROVIDER_ROUTING_ORDER
-        if _provider_supports_market(provider, query, store)
-    ]
-
-
-def providers_for_route_query(
-    query: dict[str, Any], store: Store, provider_policy: str
-) -> list[ProviderName]:
-    """Return route-level providers by market applicability, not probe capability."""
-
-    return _route_query_policy_candidates(query, store, provider_policy)
 
 
 def route_query_provider_skip_reasons(
@@ -173,7 +137,7 @@ def providers_for_offer_query(
 
     return [
         provider
-        for provider in _offer_query_policy_candidates(query, store, provider_policy)
+        for provider in _policy_candidates(query, store, provider_policy)
         if _provider_supports_offer_query(provider, query, store)
     ]
 
@@ -184,7 +148,7 @@ def unsupported_providers_for_offer_query(
     supported = set(providers_for_offer_query(query, store, provider_policy))
     return [
         provider
-        for provider in _offer_query_policy_candidates(query, store, provider_policy)
+        for provider in _policy_candidates(query, store, provider_policy)
         if provider not in supported
     ]
 
@@ -234,7 +198,7 @@ def provider_adapter(
 def providers_for_segment(
     spec: dict[str, Any], store: Store, policy: str
 ) -> list[ProviderName]:
-    return _segment_policy_candidates(spec, store, policy)
+    return _policy_candidates(spec, store, policy)
 
 
 def provider_adapters_for_segment(
@@ -303,7 +267,6 @@ __all__ = [
     "provider_adapter",
     "provider_adapters_for_segment",
     "providers_for_offer_query",
-    "providers_for_route_query",
     "providers_for_segment",
     "route_query_provider_skip_reasons",
     "route_touches_ru",

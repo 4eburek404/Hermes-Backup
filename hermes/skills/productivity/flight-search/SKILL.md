@@ -1,7 +1,7 @@
 ---
 name: flight-search
-version: 0.10.0
-description: Use when finding, comparing, or diagnosing live flight route options with the bundled flights CLI; assumes one adult in economy and never books tickets.
+version: 0.11.7
+description: Use when finding, comparing, assembling, or diagnosing live flight options with the bundled flights CLI, including direct, round-trip, open-jaw leg, and RU-gateway searches; assumes one adult in economy and never books tickets.
 metadata:
   hermes:
     category: productivity
@@ -13,17 +13,37 @@ metadata:
 
 Find, compare, or diagnose live flight options through the bundled CLI. One adult, economy. Never books or claims final fare, baggage, protected transfer, or single PNR unless the provider/booking screen proves it.
 
-## Canonical Run
+## Path Resolution
 
-Write a `flight_search_request.v1` JSON file and run:
+Treat the directory containing this `SKILL.md` as `<skill-root>`. Resolve every
+bundled path in this skill relative to that directory. Do not infer the location
+from a client-specific skills home or assume that a `SKILL_DIR` environment
+variable exists.
+
+## Golden Path
+
+Write a `flight_search_request.v1` JSON file. Resolve `cli/` from `<skill-root>`
+and use it as the command's working directory, then run:
 
 ```bash
-HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
-cd "$HERMES_HOME"/skills/productivity/flight-search/cli
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request "$HOME/flight-search-request.json"
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli search --request "$HOME/flight-search-request.json"
 ```
 
-Use the rendered answer from `data.agent_report.user_answer.rendered_text`. Do not answer from raw provider JSON when the frontier/report is present.
+For a normal traveler request, preserve the canonical CLI itinerary content, values, warnings, and option order. Do not manually assemble, supplement, remove, rerank, correct, or add advice.
+
+Search is strict direct-first for every requested direction and every gateway leg. If the CLI finds a direct flight within the active route, date, airport, and carrier filters, it suppresses connected alternatives for that direction regardless of price or duration. Connected and gateway fallback is eligible only when no direct flight was found; `max_connections` is a ceiling for fallback, not a request to prefer connections.
+
+Presentation depends on the chat surface:
+
+- **Telegram / CLI:** return text-mode CLI stdout verbatim; those surfaces preserve its line breaks.
+- **Hermes Desktop:** do not paste multiline stdout as an ordinary paragraph and do not use a fenced `text` block. Render the same facts as native Markdown lists so Desktop creates real block elements:
+  - one numbered heading per CLI option;
+  - every flight segment is one separate nested `- Рейс ...` item;
+  - every layover is one separate nested `- Пересадка ...` item immediately after the arriving segment;
+  - price and protection warning are separate nested items;
+  - never put two flights, or a flight and its layover, in the same item.
+
+This is presentation-only: preserve every source value and warning, and never change option order or itinerary meaning. In JSON mode, use `data.answer.rendered_text` and the matching structured catalog item as the canonical sources.
 
 Minimal request:
 
@@ -39,74 +59,24 @@ Common options:
 - Carrier filters: `"filters":{"only_carriers":["KL"],"prefer_carriers":["KL"]}`
 - Provider override only when needed: `"provider_policy":"tutu"`, `"kupibilet"`, or `"fli"`
 
-## Pipeline
+Request shaping:
 
-Runtime flow:
+- For one requested origin-to-destination journey, run one search request first. Do not replace it with manual leg searches; the CLI owns connected and gateway assembly.
+- For a true multi-city or open-jaw trip, run one request per independent leg and group the canonical outputs. Do not invent a through fare, protected connection, single PNR, or price for an unsearched surface sector.
+- Preserve an exact airport request. Use a city code only when the user asks for city scope; airports in the same city are not interchangeable for connection continuity.
+- Do not manually assemble, supplement, remove, rerank, or rewrite connected or gateway options. Same-day, overnight, and multi-hop gateway discovery belong to the CLI.
+- An adjacent cross-airport connection is invalid. If the CLI emits one, do not silently repair or present it as valid; run diagnostics and report the pipeline defect.
 
-```text
-request
-  -> normalize and validate flight_search_request.v1
-  -> FlowDecision + EvidencePlan
-  -> SearchPlanBuilder builds provider probes from route, evidence, and filters
-  -> per-probe provider router
-  -> primary offer queries + bounded gateway waves
-  -> OfferGraph
-  -> DecisionScorer
-  -> DecisionFrontier
-  -> flight_search_result.v5 + agent_report.v5 + user_answer.v7
-```
+## Failure and Diagnostics
 
-There is no legacy assembly fallback. `RoutePlanBuilder`, old `services/assembly`, synthetic controls, and old `ranked_candidates/frontier_candidates` answer paths are not runtime sources.
+If canonical search fails or produces no traveler answer, report that failure instead of fabricating or manually reconstructing an itinerary. Diagnostics may explain the failure, but diagnostic JSON and probe logs are not traveler-facing answers.
 
-## Providers
+Read `references/debug-playbook.md` for `diagnose plan`, `probe`, `render`, and `trace` commands.
 
-Provider routing is per probe, not per whole search.
+## Reference Routing
 
-- `tutu` is the default primary provider.
-- In `auto`, a successful Tutu MCP probe stops fallback execution for the same logical probe.
-- `kupibilet` is fallback only when Tutu is unavailable, fails, or does not support the probe and KupiBilet capability/market fit it.
-- `fli` is fallback only for non-RU probes when Tutu is unavailable, fails, or does not support the probe.
-- `provider_policy=both` is invalid.
-
-Tutu returns shopping evidence. It can return connected offers and supports pagination through the adapter. Carrier names are resolved through localized airline catalogs into canonical carrier codes, not route-specific code.
-
-When wave-0 primary offers prove direct flights for a direction, the direct-first gate suppresses connected options for that direction unless route options explicitly allow connected alternatives.
-
-## Filters
-
-Carrier filters are provider-query inputs:
-
-- `filters.only_carriers` narrows provider/search queries to the requested carriers where supported.
-- `filters.prefer_carriers` is a provider-query preference and RU-priority seed; it is not a hidden scorer gate.
-- Carrier matching uses normalized codes and raw provider names.
-
-Do not reintroduce request `constraints`; route shape belongs in `route_options`, carrier scope belongs in `filters`, and final selection belongs in the decision frontier.
-
-## Evidence Boundaries
-
-Use report fields for evidence and absence language:
-
-- Provider offers are shopping evidence, not booking proof.
-- Empty provider output is not proof that no flight exists outside executed probes.
-- Static catalogs, cached metadata, and diagnostics do not prove availability.
-- Named airports are not city scope unless the request or report explicitly broadens scope.
-- For round trips, frontier options are outbound+return pairs; unpaired directional evidence stays in route diagnostics, not in the public answer.
-
-Details: `references/report-contract.md`, `references/source-boundaries.md`, and `references/pipeline-reference.md`.
-
-## Diagnostics
-
-Use diagnostics to inspect the pipeline, not as traveler-facing answers:
-
-```bash
-python3 -m flights_cli --json diagnose plan --request "$HOME/flight-search-request.json"
-python3 -m flights_cli --json diagnose probe --provider tutu --request "$HOME/probe.json"
-python3 -m flights_cli --json diagnose trace --request "$HOME/flight-search-request.json"
-```
-
-Provider-specific raw-search commands are intentionally absent from the agent
-surface. Use `search --request` and read
-`data.agent_report.user_answer.rendered_text`. Use `diagnose trace` only when
-you need the full internal route/live-search trace.
-
-For CLI/debug ownership and source boundaries, start from `references/index.md`.
+- Read `references/report-contract.md` when inspecting answer fields, frontier order, or renderer behavior.
+- Read `references/pipeline-reference.md` for provider dispatch, direct-first, gateway modes, next-day/multi-hop assembly, and filter mechanics.
+- Read `references/source-boundaries.md` for availability, airport continuity, MCT, ticketing, protection, and risk claims.
+- Read `references/cli-maintenance.md` only for source, schema, version, test, or release work.
+- Start from `references/index.md` when ownership is unclear.

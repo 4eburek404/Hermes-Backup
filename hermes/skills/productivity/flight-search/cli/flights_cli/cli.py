@@ -105,12 +105,12 @@ def _register_diagnose_commands(sub, json_parent: argparse.ArgumentParser) -> No
     render = diagnose_sub.add_parser(
         "render",
         parents=[json_parent],
-        help="Validate and render user_answer from an agent_report JSON file.",
+        help="Validate and render answer from a flight-search result JSON file.",
     )
     render.add_argument(
         "--input",
         required=True,
-        help="agent_report JSON file, output envelope, or - for stdin.",
+        help="flight-search result JSON file, output envelope, or - for stdin.",
     )
     render.set_defaults(func=command_diagnose_render, command_name="diagnose render")
     trace = diagnose_sub.add_parser(
@@ -310,8 +310,14 @@ def main(argv: list[str] | None = None) -> int:
         validate_cli_config(args)
         store = Store()
         catalog_auto_refresh = auto_refresh_catalog(args, store)
+        if args.command_name == "search":
+            args.catalog_refresh_metadata = catalog_auto_refresh
         data = args.func(args, store)
-        if catalog_auto_refresh is not None and isinstance(data, dict):
+        if (
+            args.command_name != "search"
+            and catalog_auto_refresh is not None
+            and isinstance(data, dict)
+        ):
             data["catalog_auto_refresh"] = catalog_auto_refresh
     except CliError as exc:
         if args.json:

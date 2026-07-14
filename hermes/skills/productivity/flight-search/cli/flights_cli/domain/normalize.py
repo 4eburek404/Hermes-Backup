@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import date
+import math
+import re
 from typing import Any
 
 from ..config import CARRIER_RE, IATA_RE
@@ -15,6 +17,19 @@ def normalize_iata(value: str, field: str = "IATA") -> str:
             error_type="validation_error",
         )
     return code
+
+
+def normalize_airport_scope(
+    values: list[str] | tuple[str, ...] | None,
+    field: str = "airport",
+) -> list[str]:
+    return sorted(
+        {
+            normalize_iata(str(value), field)
+            for value in (values or [])
+            if str(value).strip()
+        }
+    )
 
 
 def normalize_carrier_code(value: str, field: str = "carrier") -> str:
@@ -75,10 +90,47 @@ def price_value(data: dict[str, Any]) -> int | None:
         return None
 
 
-def currency_value(data: dict[str, Any]) -> str | None:
-    if isinstance(data.get("currency"), str):
-        return data["currency"]
-    pricing = data.get("pricing")
-    if isinstance(pricing, dict) and isinstance(pricing.get("currency"), str):
-        return pricing["currency"]
-    return None
+def numeric_or_none(value: Any) -> int | float | None:
+    """Return a finite non-negative number, or ``None`` for unsafe input.
+
+    Whitespace is accepted as a thousands separator. A dot is a decimal
+    separator. A single comma is accepted as a decimal separator unless the
+    spelling is ambiguous with a three-digit thousands group (for example,
+    ``1,000``).
+    """
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int):
+        return value if value >= 0 else None
+    if isinstance(value, float):
+        if not math.isfinite(value) or value < 0:
+            return None
+        return int(value) if value.is_integer() else value
+
+    text = "".join(str(value).split())
+    if not text:
+        return None
+    if text.startswith("+"):
+        text = text[1:]
+    if not text or text.startswith("-"):
+        return None
+    if "," in text:
+        if text.count(",") != 1 or "." in text:
+            return None
+        whole, fraction = text.split(",")
+        if not whole.isdigit() or not fraction.isdigit():
+            return None
+        if 1 <= len(whole) <= 3 and len(fraction) == 3:
+            return None
+        text = f"{whole}.{fraction}"
+    if re.fullmatch(r"\d+(?:\.\d+)?", text) is None:
+        return None
+    if "." not in text:
+        return int(text)
+    try:
+        parsed = float(text)
+    except (OverflowError, ValueError):
+        return None
+    if not math.isfinite(parsed) or parsed < 0:
+        return None
+    return int(parsed) if parsed.is_integer() else parsed
