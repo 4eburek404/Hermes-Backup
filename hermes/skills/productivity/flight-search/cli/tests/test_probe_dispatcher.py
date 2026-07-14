@@ -18,7 +18,6 @@ def dispatcher_options(**overrides: object) -> SegmentProbeOptions:
     values = {
         "segment_limit": 3,
         "timeout": 10,
-        "fli_mcp_url": None,
         "fail_fast": False,
     }
     values.update(overrides)
@@ -73,6 +72,11 @@ class NamedFakeProviderAdapter(FakeProviderAdapter):
     def __init__(self, name: str) -> None:
         self.name = name
         self.segment_queries: list[dict[str, object]] = []
+
+
+class FailingProviderAdapter(FakeProviderAdapter):
+    def search_segment(self, query: dict[str, object]) -> ProviderProbeResult:
+        raise CliError("provider down", error_type="provider_unavailable")
 
 
 class ProbeDispatcherTests(unittest.TestCase):
@@ -281,17 +285,9 @@ class ProbeDispatcherTests(unittest.TestCase):
         }
         plan = {"currency": "RUB"}
 
-        with (
-            patch(
-                "flights_cli.adapters.providers.registry.providers_for_segment",
-                return_value=["fli"],
-            ),
-            patch(
-                "flights_cli.adapters.providers.fli_adapter.cached_fli_mcp_search",
-                side_effect=CliError(
-                    "provider down", error_type="provider_unavailable"
-                ),
-            ),
+        with patch(
+            "flights_cli.execution.probe_dispatcher.provider_adapters_for_segment",
+            return_value=[FailingProviderAdapter()],
         ):
             outcomes = dispatch_segment_probe(
                 spec=spec,
@@ -301,13 +297,13 @@ class ProbeDispatcherTests(unittest.TestCase):
                 only_carriers=[],
                 cache_ttl_seconds=0,
                 use_live_cache=False,
-                provider_policy="fli",
+                provider_policy="kupibilet",
             )
 
         self.assertEqual(len(outcomes), 1)
         self.assertEqual(outcomes[0].summary["status"], "error")
         self.assertEqual(outcomes[0].failure, outcomes[0].summary)
-        self.assertEqual(outcomes[0].failure["provider"], "fli")
+        self.assertEqual(outcomes[0].failure["provider"], "kupibilet")
         self.assertEqual(outcomes[0].failure["error"]["type"], "provider_unavailable")
         self.assertEqual(
             outcomes[0].failure["error"]["classification"], "provider_unavailable"
@@ -323,17 +319,9 @@ class ProbeDispatcherTests(unittest.TestCase):
         }
         plan = {"currency": "RUB"}
 
-        with (
-            patch(
-                "flights_cli.adapters.providers.registry.providers_for_segment",
-                return_value=["fli"],
-            ),
-            patch(
-                "flights_cli.adapters.providers.fli_adapter.cached_fli_mcp_search",
-                side_effect=CliError(
-                    "provider down", error_type="provider_unavailable"
-                ),
-            ),
+        with patch(
+            "flights_cli.execution.probe_dispatcher.provider_adapters_for_segment",
+            return_value=[FailingProviderAdapter()],
         ):
             with self.assertRaises(CliError):
                 dispatch_segment_probe(
@@ -344,7 +332,7 @@ class ProbeDispatcherTests(unittest.TestCase):
                     only_carriers=[],
                     cache_ttl_seconds=0,
                     use_live_cache=False,
-                    provider_policy="fli",
+                    provider_policy="kupibilet",
                 )
 
     def test_duplicate_segment_probe_reuses_original_result_without_second_provider_call(

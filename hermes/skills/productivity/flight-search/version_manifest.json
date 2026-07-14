@@ -1,16 +1,16 @@
 {
   "skill": {
     "name": "flight-search",
-    "version": "0.12.0"
+    "version": "0.13.0"
   },
   "cli": {
     "package": "flights-cli",
-    "version": "0.9.0"
+    "version": "0.10.0"
   },
   "contracts": {
-    "flight_search_request": "flight_search_request.v2",
-    "flight_search_result": "flight_search_result.v8",
-    "user_answer": "flight_search_user_answer.v10"
+    "flight_search_request": "flight_search_request.v3",
+    "flight_search_result": "flight_search_result.v9",
+    "user_answer": "flight_search_user_answer.v11"
   },
   "command_surface": {
     "version": "command_surface.v2",

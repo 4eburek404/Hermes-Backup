@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
-SEARCH_PLAN_SCHEMA_VERSION = "flight_search_plan.v3"
+SEARCH_PLAN_SCHEMA_VERSION = "flight_search_plan.v4"
 
 
 @dataclass(frozen=True, slots=True)

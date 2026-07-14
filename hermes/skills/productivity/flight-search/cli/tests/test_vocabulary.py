@@ -21,11 +21,8 @@ class TestVocabularyWellFormed(unittest.TestCase):
             v.Direction,
             v.StopBucket,
             v.MarketClass,
-            v.IntentClass,
-            v.EvidenceClass,
             v.RoutingStrategy,
             v.RouteFamily,
-            v.RequiredControl,
             v.AbsenceReason,
             v.ProbeStatus,
         ]
@@ -50,11 +47,8 @@ class TestVocabularyWellFormed(unittest.TestCase):
             v.Direction,
             v.StopBucket,
             v.MarketClass,
-            v.IntentClass,
-            v.EvidenceClass,
             v.RoutingStrategy,
             v.RouteFamily,
-            v.RequiredControl,
             v.AbsenceReason,
             v.ProbeStatus,
         ]
@@ -76,11 +70,8 @@ class TestVocabularyWellFormed(unittest.TestCase):
             v.Direction,
             v.StopBucket,
             v.MarketClass,
-            v.IntentClass,
-            v.EvidenceClass,
             v.RoutingStrategy,
             v.RouteFamily,
-            v.RequiredControl,
             v.AbsenceReason,
             v.ProbeStatus,
         ]
@@ -142,11 +133,8 @@ class TestVocabularyDriftLint(unittest.TestCase):
         cls.VOCABULARY_FAMILIES = {
             "Leg": {m.value for m in v.Leg},
             "MarketClass": {m.value for m in v.MarketClass},
-            "IntentClass": {m.value for m in v.IntentClass},
-            "EvidenceClass": {m.value for m in v.EvidenceClass},
             "RoutingStrategy": {m.value for m in v.RoutingStrategy},
             "RouteFamily": {m.value for m in v.RouteFamily},
-            "RequiredControl": {m.value for m in v.RequiredControl},
             "AbsenceReason": {m.value for m in v.AbsenceReason},
             "StopBucket": {m.value for m in v.StopBucket},
         }

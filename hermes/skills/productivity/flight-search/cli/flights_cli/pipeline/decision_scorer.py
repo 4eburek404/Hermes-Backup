@@ -37,12 +37,7 @@ class DecisionScorer:
     def __init__(self, options: DecisionScorerOptions | None = None) -> None:
         self.options = options or DecisionScorerOptions()
 
-    def score(
-        self,
-        candidate_envelope: dict[str, Any],
-        *,
-        controls: list[dict[str, Any]] | None = None,
-    ) -> dict[str, Any]:
+    def score(self, candidate_envelope: dict[str, Any]) -> dict[str, Any]:
         prepared_envelope = self._prepare_candidate_envelope(candidate_envelope)
         ranking = rank_mixed_candidates(
             prepared_envelope,
@@ -58,7 +53,6 @@ class DecisionScorer:
         )
         frontier = build_decision_frontier(
             ranking,
-            controls=controls,
             max_gateway_alternatives=self.options.max_gateway_alternatives,
             max_options=self.options.max_options,
             max_primary_gateway_options=self.options.max_primary_gateway_options,
@@ -131,39 +125,54 @@ class DecisionScorer:
             if not _has_outbound_and_return(candidate)
             and _candidate_direction(candidate) == "return"
         ]
-        paired = _round_trip_one_way_pairs(
-            outbound,
-            returns,
-            max_pairs=self.options.max_round_trip_pairs,
-        )
+        pair_limit = max(0, int(self.options.max_round_trip_pairs))
+        ranked_outbound = self._rank_candidates(outbound)[:pair_limit]
+        ranked_returns = self._rank_candidates(returns)[:pair_limit]
+        pair_pool = _round_trip_one_way_pair_pool(ranked_outbound, ranked_returns)
+        paired = self._rank_candidates(pair_pool)[:pair_limit]
         envelope["candidates"] = [*ready_round_trip, *paired]
         envelope["round_trip_pairing"] = {
             "input_candidate_count": len(candidates),
             "provider_round_trip_candidate_count": len(ready_round_trip),
             "outbound_one_way_candidate_count": len(outbound),
             "return_one_way_candidate_count": len(returns),
+            "one_way_pair_pool_count": len(pair_pool),
             "one_way_pair_candidate_count": len(paired),
-            "max_round_trip_pairs": max(0, int(self.options.max_round_trip_pairs)),
+            "max_round_trip_pairs": pair_limit,
         }
         return envelope
 
+    def _rank_candidates(
+        self, candidates: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        ranking = rank_mixed_candidates(
+            {"candidates": candidates, "rejected": []},
+            max_connections_per_journey=self.options.max_connections_per_journey,
+            max_connections_per_direction=self.options.max_connections_per_direction,
+            preferred_connections_per_journey=self.options.preferred_connections,
+            min_same_airport_connection_min=(
+                self.options.min_same_airport_connection_min
+            ),
+            min_cross_airport_connection_min=(
+                self.options.min_cross_airport_connection_min
+            ),
+        )
+        return [
+            candidate
+            for candidate in ranking.get("ranked_candidates") or []
+            if isinstance(candidate, dict)
+        ]
 
-def _round_trip_one_way_pairs(
+
+def _round_trip_one_way_pair_pool(
     outbound_candidates: list[dict[str, Any]],
     return_candidates: list[dict[str, Any]],
-    *,
-    max_pairs: int,
 ) -> list[dict[str, Any]]:
-    pairs: list[dict[str, Any]] = []
-    cap = max(0, int(max_pairs))
-    if cap == 0:
-        return pairs
-    for outbound in outbound_candidates:
-        for inbound in return_candidates:
-            pairs.append(_one_way_sum_candidate(outbound, inbound))
-            if len(pairs) >= cap:
-                return pairs
-    return pairs
+    return [
+        _one_way_sum_candidate(outbound, inbound)
+        for outbound in outbound_candidates
+        for inbound in return_candidates
+    ]
 
 
 def _one_way_sum_candidate(

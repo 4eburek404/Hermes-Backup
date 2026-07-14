@@ -443,7 +443,7 @@ class CandidateRankerTests(unittest.TestCase):
         self.assertIn("cheap", by_id)
         self.assertIn("cheapest_selected", by_id["cheap"]["selection_reasons"])
 
-    def test_frontier_keeps_safer_ticketing_and_direct_controls(self) -> None:
+    def test_frontier_keeps_safer_ticketing_and_direct_inventory(self) -> None:
         provider = candidate(
             "provider",
             source_type="provider_full_route",
@@ -470,6 +470,32 @@ class CandidateRankerTests(unittest.TestCase):
         self.assertEqual(
             frontier["coverage_summary"]["direct_option_count_by_direction"],
             {"outbound": 1},
+        )
+
+    def test_direct_inventory_respects_shared_output_limit_after_merge(self) -> None:
+        direct = [
+            candidate(
+                f"direct-{index}",
+                source_type=RouteFamily.DIRECT_INVENTORY,
+                price=10000 + index,
+                ticketing_model="provider_order_unverified",
+                segments=[segment("SVX", "AMS")],
+            )
+            for index in range(3)
+        ]
+
+        frontier = build_decision_frontier(
+            rank_mixed_candidates({"candidates": list(reversed(direct))}),
+            max_options=2,
+        )
+
+        self.assertEqual(
+            [option["id"] for option in frontier["options"]],
+            ["direct-0", "direct-1"],
+        )
+        self.assertEqual(frontier["coverage_summary"]["selected_count"], 2)
+        self.assertEqual(
+            frontier["coverage_summary"]["suppressed_by_output_limit_count"], 1
         )
 
     def test_frontier_keeps_gateway_alternatives(self) -> None:
@@ -540,7 +566,7 @@ class CandidateRankerTests(unittest.TestCase):
         self.assertEqual(summary["selected_count"], 1)
         self.assertEqual(summary["selection_roles"], ["best_viable"])
 
-    def test_all_acceptable_direct_options_are_kept(self) -> None:
+    def test_direct_output_limit_reports_suppressed_count(self) -> None:
         candidates = [
             candidate(
                 f"direct-{index}",
@@ -559,49 +585,12 @@ class CandidateRankerTests(unittest.TestCase):
 
         self.assertEqual(
             [option["id"] for option in frontier["options"]],
-            ["direct-0", "direct-1", "direct-2"],
+            ["direct-0", "direct-1"],
         )
-        self.assertEqual(frontier["coverage_summary"]["selected_count"], 3)
+        self.assertEqual(frontier["coverage_summary"]["selected_count"], 2)
         self.assertEqual(
-            frontier["coverage_summary"]["suppressed_by_output_limit_count"], 0
+            frontier["coverage_summary"]["suppressed_by_output_limit_count"], 1
         )
-
-    def test_frontier_exposes_controls_separately_from_route_options(self) -> None:
-        provider = candidate(
-            "provider",
-            source_type="provider_full_route",
-            price=50000,
-            ticketing_model="provider_order_unverified",
-            segments=[segment("SVX", "CDG")],
-        )
-        ranking = rank_mixed_candidates({"candidates": [provider]})
-
-        frontier = build_decision_frontier(
-            ranking,
-            controls=[
-                {
-                    "direction": "outbound",
-                    "origin": "SVX",
-                    "destination": "CDG",
-                    "date": "2026-08-16",
-                    "status": "graph_derived",
-                    "provider": "graph",
-                    "offer_count": 1,
-                    "raw_offer_count": 1,
-                    "cache_status": "graph",
-                    "top_offers": [{"id": "graph-offer"}],
-                    "source_type": "graph_derived_control",
-                    "source_providers": ["tutu"],
-                    "graph_derived": True,
-                }
-            ],
-        )
-
-        self.assertEqual([option["id"] for option in frontier["options"]], ["provider"])
-        self.assertEqual(len(frontier["controls"]), 1)
-        self.assertEqual(frontier["controls"][0]["provider"], "graph")
-        self.assertEqual(frontier["controls"][0]["top_offer_count"], 1)
-        self.assertEqual(frontier["coverage_summary"]["control_count"], 1)
 
     def test_invalid_chronology_is_rejected_before_frontier(self) -> None:
         viable = candidate(
@@ -956,6 +945,48 @@ class CandidateRankerTests(unittest.TestCase):
                 "provider_round_trip_candidate_count"
             ],
             1,
+        )
+
+    def test_round_trip_pairing_ranks_legs_before_applying_pair_limit(self) -> None:
+        outbound = [
+            candidate(
+                f"outbound-{index}",
+                source_type="provider_full_route",
+                price=price,
+                ticketing_model="provider_order_unverified",
+                segments=[segment("SVX", "IST")],
+            )
+            for index, price in enumerate((90_000, 80_000, 10_000))
+        ]
+        returns = [
+            candidate(
+                f"return-{index}",
+                source_type="provider_full_route",
+                price=price,
+                ticketing_model="provider_order_unverified",
+                segments=[segment("IST", "SVX")],
+                direction="return",
+            )
+            for index, price in enumerate((20_000, 30_000, 40_000))
+        ]
+
+        scored = DecisionScorer(
+            DecisionScorerOptions(
+                round_trip=True,
+                max_round_trip_pairs=2,
+                max_options=10,
+            )
+        ).score({"candidates": [*outbound, *returns]})
+        ranked_ids = {
+            item["id"]
+            for item in scored["mixed_candidate_ranking"]["ranked_candidates"]
+        }
+
+        self.assertTrue(any("outbound-2" in item for item in ranked_ids))
+        self.assertFalse(any("outbound-0" in item for item in ranked_ids))
+        self.assertEqual(
+            scored["scorer"]["round_trip_pairing"]["one_way_pair_pool_count"],
+            4,
         )
 
     def test_decision_scorer_rejects_return_before_outbound_arrival(self) -> None:

@@ -39,7 +39,6 @@ TUTU_CAPABILITIES = ProviderCapabilities(
             "segment_hub_leg",
             "full_route_aggregate",
             "carrier_aggregate",
-            "city_pair_direct",
         }
     ),
 )
@@ -81,7 +80,7 @@ class TutuProviderAdapter:
             direct_only=direct_only,
             limit=int(query["limit"]),
             timeout=int(query.get("timeout") or 60),
-            mcp_url=query.get("tutu_mcp_url"),  # Tutu-specific URL, not fli_mcp_url
+            mcp_url=query.get("tutu_mcp_url"),
             cache_ttl_seconds=int(query.get("cache_ttl_seconds") or 0),
             use_cache=bool(query.get("use_cache", True)),
             store=self.store,
@@ -140,7 +139,7 @@ class TutuProviderAdapter:
         origin = str(query["origin"]).upper()
         destination = str(query["destination"]).upper()
         depart_date_text = str(query["date"])
-        depart_date = parse_iso_date(depart_date_text, "aggregate-control-date")
+        depart_date = parse_iso_date(depart_date_text, "aggregate-probe-date")
         return_date_text = query.get("return_date")
         return_date = (
             parse_iso_date(return_date_text, "return-date")

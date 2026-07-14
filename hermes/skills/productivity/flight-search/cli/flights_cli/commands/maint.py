@@ -375,7 +375,6 @@ def _branch_workflow_summary(
         parity_status in {"same_path", "equal"} and not manifest_mismatch_keys
     )
     return {
-        "development_branch": "refactor_flights-search",
         "source": {
             "path": str(source_path),
             "branch": source_git.get("branch"),

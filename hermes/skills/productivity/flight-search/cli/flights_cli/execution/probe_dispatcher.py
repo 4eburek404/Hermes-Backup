@@ -25,7 +25,6 @@ class SegmentProbeOutcome:
 class SegmentProbeOptions:
     segment_limit: int
     timeout: int
-    fli_mcp_url: str
     fail_fast: bool
 
 
@@ -73,7 +72,6 @@ def segment_query(
         "cache_ttl_seconds": cache_ttl_seconds,
         "use_cache": use_live_cache,
         "provider_policy": provider_policy,
-        "mcp_url": options.fli_mcp_url,
     }
 
 
@@ -130,7 +128,6 @@ def dispatch_segment_probe(
                 limit=options.segment_limit,
                 provider_policy=provider_policy,
                 direct_only=bool(spec.get("direct_only", True)),
-                mcp_url=options.fli_mcp_url,
             )
             if request_deduper is not None
             else DeduperClaim(key=(), probe_id="")

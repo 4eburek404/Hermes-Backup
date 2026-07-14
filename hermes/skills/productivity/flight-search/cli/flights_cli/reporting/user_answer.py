@@ -73,7 +73,7 @@ def render_user_answer(answer: dict[str, Any], route: dict[str, Any]) -> str:
     )
     caveat_context = {
         "not_executed": [True]
-        if int(evidence.get("not_executed_control_count") or 0)
+        if int(evidence.get("not_executed_probe_count") or 0)
         else [],
         "provider_failures": [True]
         if int(evidence.get("provider_failure_count") or 0)
@@ -103,13 +103,11 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
         if isinstance(diagnostics.get("completeness"), dict)
         else {}
     )
-    not_executed_raw = diagnostics.get("not_executed_controls")
+    not_executed_raw = diagnostics.get("not_executed_probes")
     not_executed = not_executed_raw if isinstance(not_executed_raw, list) else []
-    failed_controls_raw = diagnostics.get("failed_controls")
-    failed_controls = (
-        failed_controls_raw if isinstance(failed_controls_raw, list) else []
-    )
-    not_supported_raw = diagnostics.get("not_supported_controls")
+    failed_probes_raw = diagnostics.get("failed_probes")
+    failed_probes = failed_probes_raw if isinstance(failed_probes_raw, list) else []
+    not_supported_raw = diagnostics.get("unsupported_probes")
     not_supported = not_supported_raw if isinstance(not_supported_raw, list) else []
     provider_failures = answer_input.provider_failures
     recommended = answer_input.primary_options
@@ -141,16 +139,16 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
         "dates": route.get("dates") if isinstance(route.get("dates"), dict) else {},
     }
     execution_complete = bool(
-        completeness.get("all_planned_controls_have_terminal_state")
+        completeness.get("all_planned_probes_have_terminal_state")
     )
     blocking_evidence = []
     if not_executed:
-        blocking_evidence.append("not_executed_controls")
-    if failed_controls:
-        blocking_evidence.append("failed_controls")
+        blocking_evidence.append("not_executed_probes")
+    if failed_probes:
+        blocking_evidence.append("failed_probes")
     if provider_failures:
         blocking_evidence.append("provider_failures")
-    non_blocking_boundaries = ["not_supported_controls"] if not_supported else []
+    non_blocking_boundaries = ["unsupported_probes"] if not_supported else []
     evidence_complete = execution_complete and not blocking_evidence
     answerability = (
         "answerable"
@@ -193,11 +191,11 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
             "execution_complete": execution_complete,
             "evidence_complete": evidence_complete,
             "answerability": answerability,
-            "planned_control_count": int(completeness.get("planned_count") or 0),
-            "terminal_control_count": int(completeness.get("terminal_count") or 0),
-            "not_executed_control_count": len(not_executed),
-            "failed_control_count": len(failed_controls),
-            "not_supported_control_count": len(not_supported),
+            "planned_probe_count": int(completeness.get("planned_count") or 0),
+            "terminal_probe_count": int(completeness.get("terminal_count") or 0),
+            "not_executed_probe_count": len(not_executed),
+            "failed_probe_count": len(failed_probes),
+            "unsupported_probe_count": len(not_supported),
             "provider_failure_count": len(provider_failures),
             "blocking_evidence": blocking_evidence,
             "non_blocking_boundaries": non_blocking_boundaries,

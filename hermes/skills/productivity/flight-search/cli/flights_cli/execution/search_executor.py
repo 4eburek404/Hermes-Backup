@@ -6,9 +6,14 @@ from typing import Any
 from ..domain.gateway_discovery import GatewayDiscoveryService
 from ..domain.immutable import thaw
 from ..domain.normalize import normalize_carrier_code
+from ..domain.offer_paths import (
+    offer_segment_paths as _offer_paths,
+    provider_result_offers,
+    segment_destination as _segment_destination,
+    segment_origin as _segment_origin,
+)
 from ..domain.vocabulary import Direction, Leg, RouteFamily
 from ..errors import CliError
-from .coverage_evaluator import evaluate_graph_coverage_controls
 from .gateway_leg_probe_executor import (
     GatewayLegProbeExecutor,
     GatewayLegProbeOptions,
@@ -69,7 +74,6 @@ class SearchDecision:
     """Pure decision artifacts derived after evidence freeze."""
 
     offer_graph: dict[str, Any]
-    graph_controls: list[dict[str, Any]]
     offer_candidates: dict[str, Any]
     scored_decisions: dict[str, Any]
 
@@ -288,75 +292,6 @@ def _requested_airport_pair(
     )
 
 
-def _provider_result_offers(result: dict[str, Any]) -> list[Any]:
-    for key in ("offers", "top_offers"):
-        offers = result.get(key)
-        if isinstance(offers, list):
-            return offers
-    return []
-
-
-def _offer_paths(
-    offer: dict[str, Any], *, fallback_direction: str
-) -> list[dict[str, Any]]:
-    journeys = offer.get("journeys")
-    paths: list[dict[str, Any]] = []
-    if isinstance(journeys, list):
-        for journey in journeys:
-            if not isinstance(journey, dict):
-                continue
-            journey_segments = _segment_dicts(journey.get("segments"))
-            if not journey_segments:
-                continue
-            paths.append(
-                {
-                    "direction": _normalize_direction(
-                        journey.get("direction") or fallback_direction
-                    ),
-                    "segments": journey_segments,
-                }
-            )
-    if paths:
-        return paths
-    segments = _segment_dicts(offer.get("segments"))
-    if segments:
-        return [
-            {
-                "direction": _normalize_direction(
-                    offer.get("direction") or fallback_direction
-                ),
-                "segments": segments,
-            }
-        ]
-    return []
-
-
-def _segment_dicts(value: Any) -> list[dict[str, Any]]:
-    if not isinstance(value, list):
-        return []
-    return [segment for segment in value if isinstance(segment, dict)]
-
-
-def _segment_origin(segment: dict[str, Any]) -> str:
-    return str(
-        segment.get("origin")
-        or segment.get("departure")
-        or segment.get("from")
-        or segment.get("departure_airport")
-        or ""
-    ).upper()
-
-
-def _segment_destination(segment: dict[str, Any]) -> str:
-    return str(
-        segment.get("destination")
-        or segment.get("arrival")
-        or segment.get("to")
-        or segment.get("arrival_airport")
-        or ""
-    ).upper()
-
-
 def _path_has_requested_direct_segment(
     path: dict[str, Any],
     *,
@@ -383,7 +318,7 @@ def _direct_evidence_by_direction(
         if not isinstance(result, dict):
             continue
         direction = _normalize_direction(result.get("direction"))
-        for offer in _provider_result_offers(result):
+        for offer in provider_result_offers(result) or []:
             if not isinstance(offer, dict):
                 continue
             for path in _offer_paths(offer, fallback_direction=direction):
@@ -463,7 +398,7 @@ def assess_fallback(
         if not isinstance(result, dict):
             continue
         fallback_direction = _normalize_direction(result.get("direction"))
-        for offer in _provider_result_offers(result):
+        for offer in provider_result_offers(result) or []:
             if not isinstance(offer, dict):
                 continue
             for path in _offer_paths(offer, fallback_direction=fallback_direction):
@@ -519,10 +454,6 @@ class SearchDecisionBuilder:
                 evidence.route_context.get("destination_airports") or []
             ),
         )
-        graph_controls = evaluate_graph_coverage_controls(
-            evidence.route_context,
-            offer_graph,
-        )
         offer_candidates = materialize_offer_graph_candidates(
             offer_graph,
             direct_only=bool(evidence.route_context.get("direct_only")),
@@ -554,13 +485,9 @@ class SearchDecisionBuilder:
                     else self.options.output.catalog_limit
                 ),
             )
-        ).score(
-            offer_candidates,
-            controls=graph_controls,
-        )
+        ).score(offer_candidates)
         return SearchDecision(
             offer_graph=offer_graph,
-            graph_controls=graph_controls,
             offer_candidates=offer_candidates,
             scored_decisions=scored_decisions,
         )
@@ -591,7 +518,6 @@ class SearchDecisionBuilder:
                 "candidate_count": int(coverage.get("candidate_count") or 0),
                 "ranked_total_count": int(coverage.get("candidate_count") or 0),
                 "ranked_output_count": len(_decision_options(decision_frontier)),
-                "candidate_pool_truncated": False,
             },
             "live_search": {
                 "source": "frontier-first provider search",
@@ -614,7 +540,6 @@ class SearchDecisionBuilder:
                 "candidate_input_ids": _candidate_ids(decision.offer_candidates),
                 "decision_scorer": thaw(decision.scored_decisions["scorer"]),
                 "mixed_candidate_ranking": thaw(mixed_candidate_ranking),
-                "policy_controls": thaw(decision.graph_controls),
                 "probe_ledger": thaw(evidence.probe_ledger),
                 "direct_presence_gate": thaw(evidence.direct_presence_gate),
                 "diagnostics": {
@@ -798,9 +723,7 @@ class SearchExecutor:
             primary_offer_results=state.primary_offer_results,
             gateway_leg_results=state.gateway_leg_results,
             observed_gateway_diagnostics=observed_gateway_diagnostics,
-            probe_ledger=state.probe_ledger.to_coverage_diagnostics(
-                state.route_context
-            ),
+            probe_ledger=state.probe_ledger.to_diagnostics(),
             failures=state.failures,
             direct_mode=state.direct_mode,
             max_connections_by_direction=(
@@ -866,7 +789,6 @@ class SearchExecutor:
                 gateway_probe_max_batches=self.options.route.gateway_probe_max_batches,
                 segment_limit=self.options.evidence.segment_limit,
                 timeout=self.options.evidence.timeout,
-                fli_mcp_url=self.options.evidence.fli_mcp_url,
                 fail_fast=self.options.evidence.fail_fast,
             ),
             store=self.store,

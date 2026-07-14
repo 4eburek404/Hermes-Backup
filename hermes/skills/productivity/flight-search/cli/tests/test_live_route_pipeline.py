@@ -32,8 +32,6 @@ def live_args(**overrides: object):
         "max_segment_searches": 10,
         "live_cache_ttl_seconds": 0,
         "no_live_cache": True,
-        "coverage_mode": "targeted",
-        "coverage_control_limit": 12,
     }
     defaults.update(overrides)
     return live_assembly_args(**defaults)
@@ -46,7 +44,6 @@ def minimal_route_plan(destination: str) -> dict[str, object]:
         "dates": {"depart": "2026-08-16", "return": None},
         "currency": "RUB",
         "profile": "business",
-        "ticketing": "separate",
         "provider_policy": "auto",
         "routing_strategy": "auto",
         "route_mode": "hub_list",
@@ -57,9 +54,6 @@ def minimal_route_plan(destination: str) -> dict[str, object]:
         "destination_airports": [destination],
         "airport_scope": None,
         "direct_only": False,
-        "coverage_mode": "targeted",
-        "coverage_limits": {},
-        "coverage_controls": [],
     }
 
 
@@ -156,7 +150,6 @@ class LiveRoutePipelineTests(unittest.TestCase):
 
         flow = build_planning_state(args)
 
-        self.assertEqual(flow.request.command_name, "search")
         self.assertEqual(flow.request.origin, "SVX")
         self.assertEqual(flow.request.destination, "CDG")
         self.assertEqual(flow.request.depart_date, "2026-08-16")
@@ -167,11 +160,9 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertIs(flow.request, args)
         with self.assertRaises(AttributeError):
             flow.request.route.origin = "LED"
-        self.assertEqual(flow.flow_decision.intent_class, "route_recommendation")
-        self.assertEqual(flow.flow_decision.evidence_class, "shopping_advisory")
-        self.assertEqual(flow.flow_decision.provider_policy, "auto")
-        self.assertFalse(flow.evidence_plan.live_cache_enabled)
-        self.assertEqual(flow.evidence_plan.max_segment_searches, 300)
+        self.assertEqual(flow.flow_decision.market_class, "ru_touching_international")
+        self.assertEqual(flow.flow_decision.routing_strategy, "ru-priority")
+        self.assertEqual(flow.request.max_segment_searches, 300)
 
     def test_search_executor_uses_typed_request(
         self,
@@ -204,21 +195,19 @@ class LiveRoutePipelineTests(unittest.TestCase):
             set(result["live_search"]["diagnostics"]),
             {"search_plan"},
         )
-        self.assertEqual(search_plan["schema_version"], "flight_search_plan.v3")
+        self.assertEqual(search_plan["schema_version"], "flight_search_plan.v4")
         self.assertIn("candidate_count", search_plan["gateway_discovery"])
         self.assertIn("candidates", search_plan["gateway_discovery"])
         self.assertEqual(result["live_search"]["segment_searches"], [])
         self.assertNotIn("flow_decision", result)
-        self.assertNotIn("evidence_plan", result)
         self.assertNotIn("search_request", result)
         self.assertNotIn("flow_decision", result["live_search"])
-        self.assertNotIn("evidence_plan", result["live_search"])
         self.assertNotIn("search_request", result["live_search"])
 
     def test_primary_offer_queries_execute_before_frontier_scoring(self) -> None:
         events: list[str] = []
         search_plan = {
-            "schema_version": "flight_search_plan.v3",
+            "schema_version": "flight_search_plan.v4",
             "execution_limits": execution_limits(),
             "route_context": minimal_route_plan("CDG"),
             "primary_offer_queries": [
@@ -350,7 +339,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self,
     ) -> None:
         search_plan = {
-            "schema_version": "flight_search_plan.v3",
+            "schema_version": "flight_search_plan.v4",
             "execution_limits": execution_limits(),
             "route_context": minimal_route_plan("CDG"),
             "primary_offer_queries": [
@@ -441,14 +430,14 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertEqual(gate["direct_evidence_present"], {"outbound": True})
         self.assertEqual(gate["direct_mode"], {"outbound": True})
         self.assertEqual(gate["skipped_gateway_probe_count"], 1)
-        skipped = result["live_search"]["probe_ledger"]["skipped_controls"]
+        skipped = result["live_search"]["probe_ledger"]["skipped_probes"]
         self.assertTrue(
             any(item.get("reason") == "direct_available" for item in skipped)
         )
 
     def test_live_search_payload_is_deduplicated(self) -> None:
         search_plan = {
-            "schema_version": "flight_search_plan.v3",
+            "schema_version": "flight_search_plan.v4",
             "execution_limits": execution_limits(),
             "route_context": minimal_route_plan("CDG"),
             "primary_offer_queries": [
@@ -502,7 +491,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
 
     def test_route_connection_options_flow_into_decision_scorer(self) -> None:
         search_plan = {
-            "schema_version": "flight_search_plan.v3",
+            "schema_version": "flight_search_plan.v4",
             "execution_limits": execution_limits(),
             "route_context": build_route_context(
                 live_args(
@@ -589,7 +578,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
     def test_gateway_leg_results_are_returned_top_level_only(self) -> None:
         plan = minimal_route_plan("AMS")
         search_plan = {
-            "schema_version": "flight_search_plan.v3",
+            "schema_version": "flight_search_plan.v4",
             "execution_limits": execution_limits(),
             "route_context": minimal_route_plan("AMS"),
             "primary_offer_queries": [],
@@ -624,7 +613,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                     }
                     for leg, origin, destination, provider in (
                         ("origin_to_gateway", "SVX", "IST", "kupibilet"),
-                        ("gateway_to_destination", "IST", "AMS", "fli"),
+                        ("gateway_to_destination", "IST", "AMS", "tutu"),
                     )
                 ]
             ],
@@ -719,7 +708,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                                 "viable": False,
                                 "origin_leg": {"provider": "tutu", "offer_count": 0},
                                 "destination_leg": {
-                                    "provider": "fli",
+                                    "provider": "tutu",
                                     "offer_count": 0,
                                 },
                             }

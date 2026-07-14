@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://hermes.local/flights/flight_search_plan.v3.schema.json",
-  "title": "Flight Search Plan v3",
+  "$id": "https://hermes.local/flights/flight_search_plan.v4.schema.json",
+  "title": "Flight Search Plan v4",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -17,7 +17,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "flight_search_plan.v3"
+      "const": "flight_search_plan.v4"
     },
     "route_context": {
       "$ref": "#/$defs/route_context"
@@ -115,7 +115,6 @@
         "dates",
         "currency",
         "profile",
-        "ticketing",
         "provider_policy",
         "routing_strategy",
         "route_mode",
@@ -124,8 +123,7 @@
         "hubs",
         "origin_airports",
         "destination_airports",
-        "direct_only",
-        "coverage_controls"
+        "direct_only"
       ],
       "properties": {
         "origin": {
@@ -163,9 +161,6 @@
           "type": "string"
         },
         "profile": {
-          "type": "string"
-        },
-        "ticketing": {
           "type": "string"
         },
         "provider_policy": {
@@ -222,12 +217,6 @@
         },
         "direct_only": {
           "type": "boolean"
-        },
-        "coverage_controls": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/coverage_control"
-          }
         }
       }
     },
@@ -323,12 +312,6 @@
           "type": "string"
         },
         "only_carriers": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "preferred_carriers": {
           "type": "array",
           "items": {
             "type": "string"
@@ -469,52 +452,6 @@
           "type": "string"
         },
         "reason": {
-          "type": "string"
-        }
-      }
-    },
-    "coverage_control": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "type",
-        "probe_type",
-        "direction",
-        "origin",
-        "destination",
-        "date",
-        "negative_evidence",
-        "source"
-      ],
-      "properties": {
-        "type": {
-          "type": "string"
-        },
-        "probe_type": {
-          "type": "string"
-        },
-        "direction": {
-          "enum": [
-            "outbound",
-            "return"
-          ]
-        },
-        "origin": {
-          "type": "string",
-          "pattern": "^[A-Z]{3}$"
-        },
-        "destination": {
-          "type": "string",
-          "pattern": "^[A-Z]{3}$"
-        },
-        "date": {
-          "type": "string",
-          "format": "date"
-        },
-        "negative_evidence": {
-          "type": "string"
-        },
-        "source": {
           "type": "string"
         }
       }

@@ -47,16 +47,16 @@ class MaintenanceCheckTests(unittest.TestCase):
 
         self.assertEqual(data["runtime"]["skill_path"], str(missing_runtime))
         self.assertFalse(data["runtime"]["exists"])
-        self.assertEqual(data["versions"], {"skill_md": "0.12.0", "cli": "0.9.0"})
+        self.assertEqual(data["versions"], {"skill_md": "0.13.0", "cli": "0.10.0"})
         self.assertTrue(data["version_manifest"]["exists"])
         self.assertEqual(data["version_manifest"]["mismatches"], [])
         self.assertEqual(
             data["version_manifest"]["data"]["skill"],
-            {"name": "flight-search", "version": "0.12.0"},
+            {"name": "flight-search", "version": "0.13.0"},
         )
         self.assertEqual(
             data["version_manifest"]["data"]["cli"],
-            {"package": "flights-cli", "version": "0.9.0"},
+            {"package": "flights-cli", "version": "0.10.0"},
         )
         self.assertEqual(
             data["version_manifest"]["data"]["command_surface"]["version"],
@@ -64,15 +64,14 @@ class MaintenanceCheckTests(unittest.TestCase):
         )
         self.assertEqual(data["source_runtime_parity"]["status"], "runtime_missing")
         workflow = data["branch_workflow"]
-        self.assertEqual(workflow["development_branch"], "refactor_flights-search")
         self.assertEqual(workflow["source"]["path"], str(PROJECT.parent))
         self.assertEqual(workflow["source"]["branch"], data["source"]["git"]["branch"])
         self.assertEqual(workflow["source"]["head"], data["source"]["git"]["head"])
         self.assertEqual(workflow["source"]["dirty"], data["source"]["git"]["dirty"])
         self.assertEqual(workflow["runtime"]["path"], str(missing_runtime))
         self.assertFalse(workflow["runtime"]["exists"])
-        self.assertEqual(workflow["manifest"]["skill_version"], "0.12.0")
-        self.assertEqual(workflow["manifest"]["cli_version"], "0.9.0")
+        self.assertEqual(workflow["manifest"]["skill_version"], "0.13.0")
+        self.assertEqual(workflow["manifest"]["cli_version"], "0.10.0")
         self.assertEqual(
             workflow["manifest"]["command_surface_version"], "command_surface.v2"
         )

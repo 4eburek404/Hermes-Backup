@@ -6,13 +6,12 @@ from typing import Any, Literal, Protocol, runtime_checkable
 from ..domain.immutable import freeze, thaw
 
 
-ProviderName = Literal["kupibilet", "fli", "tutu"]
+ProviderName = Literal["kupibilet", "tutu"]
 ProbeType = Literal[
     "segment_direct",
     "segment_hub_leg",
     "full_route_aggregate",
     "carrier_aggregate",
-    "city_pair_direct",
 ]
 ExecutionState = Literal[
     "searched",

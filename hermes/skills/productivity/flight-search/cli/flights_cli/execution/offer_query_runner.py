@@ -7,7 +7,6 @@ from typing import Any, Mapping
 from ..adapters.providers.registry import provider_adapter
 from ..config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
 from ..domain.normalize import normalize_airport_scope
-from ..domain.vocabulary import RequiredControl
 from ..errors import CliError
 from ..ports.providers import ProviderProbeResult
 from ..store import Store
@@ -65,9 +64,7 @@ def _normalized_query(
         **dict(query),
         "provider": provider,
         "probe_id": _probe_id(query, provider),
-        "probe_type": str(
-            query.get("probe_type") or RequiredControl.FULL_ROUTE_AGGREGATE
-        ),
+        "probe_type": str(query.get("probe_type") or "full_route_aggregate"),
         "direction": str(query.get("direction") or "outbound"),
         "origin": str(query.get("origin") or "").upper(),
         "destination": str(query.get("destination") or "").upper(),
@@ -289,7 +286,6 @@ def run_primary_offer_queries(
                 except CliError as exc:
                     pair_outcomes[index] = exc
 
-        tutu_searched = False
         for index, query, provider, intent, _adapter in resolved:
             result = pair_outcomes[index]
             outcomes[index] = _record_query_outcome(
@@ -299,37 +295,4 @@ def run_primary_offer_queries(
                 outcome=result,
                 probe_ledger=probe_ledger,
             )
-            if (
-                provider == "tutu"
-                and isinstance(result, ProviderProbeResult)
-                and result.execution_state == "searched"
-            ):
-                tutu_searched = True
-
-        for index, query, provider, intent in runnable:
-            if provider in {"tutu", "kupibilet"}:
-                continue
-            if (
-                provider == "fli"
-                and not bool(query.get("direct_only"))
-                and tutu_searched
-            ):
-                reason = "provider_fallback_not_needed"
-                if probe_ledger is not None:
-                    probe_ledger.record_skipped(intent, reason=reason)
-                outcomes[index] = _skipped_result(query, reason)
-                continue
-            try:
-                adapter = provider_adapter(provider, store=store)
-                result: ProviderProbeResult | CliError = adapter.search_aggregate(query)
-            except CliError as exc:
-                result = exc
-            outcomes[index] = _record_query_outcome(
-                query=query,
-                provider=provider,
-                intent=intent,
-                outcome=result,
-                probe_ledger=probe_ledger,
-            )
-
     return [outcomes[index] for index, _query, _provider, _intent in prepared]

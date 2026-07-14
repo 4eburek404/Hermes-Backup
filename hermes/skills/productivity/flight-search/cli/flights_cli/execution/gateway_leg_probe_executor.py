@@ -24,7 +24,6 @@ class GatewayLegProbeOptions:
     gateway_probe_max_batches: int
     segment_limit: int
     timeout: int
-    fli_mcp_url: str
     fail_fast: bool
 
 
@@ -52,7 +51,6 @@ class GatewayLegProbeExecutor:
         self.segment_options = SegmentProbeOptions(
             segment_limit=options.segment_limit,
             timeout=options.timeout,
-            fli_mcp_url=options.fli_mcp_url,
             fail_fast=options.fail_fast,
         )
 

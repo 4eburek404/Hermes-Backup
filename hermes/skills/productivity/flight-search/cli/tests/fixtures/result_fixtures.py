@@ -68,7 +68,6 @@ def valid_report() -> dict:
             "ranked_output_count": 1,
             "ranked_total_count": 1,
             "candidate_count": 1,
-            "candidate_pool_truncated": False,
             "failure_count": 0,
             "direct_mode": {},
             "output_limits": {"catalog_limit": 10, "direct_catalog_limit": 30},
@@ -78,9 +77,8 @@ def valid_report() -> dict:
         "primary_options": [valid_option()],
         "alternative_options": [],
         "coverage_report": {
-            "coverage_mode": "targeted",
-            "negative_evidence_type": "bounded_live_controls_only",
-            "planned_controls": [
+            "negative_evidence_type": "bounded_live_probes_only",
+            "planned_probes": [
                 {
                     "type": "exact_airport_direct",
                     "direction": "outbound",
@@ -91,11 +89,11 @@ def valid_report() -> dict:
                     "probe_id": "probe-001",
                 }
             ],
-            "searched_controls": [],
-            "skipped_controls": [],
-            "failed_controls": [],
-            "not_supported_controls": [],
-            "not_executed_controls": [
+            "searched_probes": [],
+            "skipped_probes": [],
+            "failed_probes": [],
+            "unsupported_probes": [],
+            "not_executed_probes": [
                 {
                     "type": "exact_airport_direct",
                     "direction": "outbound",
@@ -109,13 +107,12 @@ def valid_report() -> dict:
                     "probe_id": "probe-001",
                 }
             ],
-            "deduped_controls": [],
+            "deduped_probes": [],
             "coverage_warnings": ["segment_absence_is_not_route_absence"],
-            "limits": {},
             "completeness": {
                 "planned_count": 1,
                 "terminal_count": 1,
-                "all_planned_controls_have_terminal_state": True,
+                "all_planned_probes_have_terminal_state": True,
             },
         },
         "stop_policy": {"name": "business_default", "preferred_max_connections": 1},
@@ -148,7 +145,7 @@ def report_with_required_caveats() -> dict:
     report = valid_report()
     priority = valid_option()
     priority["id"] = "priority-svo"
-    priority["category"] = "moscow_gateway_control"
+    priority["category"] = "moscow_gateway_option"
     report["alternative_options"] = [priority]
     report["provider_failures"] = [
         {
@@ -157,8 +154,10 @@ def report_with_required_caveats() -> dict:
             "origin": "IST",
             "destination": "LHR",
             "date": "2026-06-01",
-            "provider": "fli",
-            "error": {"type": "upstream_error", "message": "FLI MCP unavailable"},
+            "provider": "tutu",
+            "cache_status": "unknown",
+            "probe_id": "probe-tutu-failure",
+            "error": {"type": "upstream_error", "message": "Tutu unavailable"},
         }
     ]
     return report

@@ -189,7 +189,7 @@ markets:
   ru_touching_asia_oceania:
     - code: SVO
       prior_weight: 100
-      reason: Moscow/SVO control evidence, not an ordinary gateway.
+      reason: Moscow/SVO route evidence, not an ordinary gateway.
       source: static_prior
       control_layer: moscow_svo_control
     - code: IST
@@ -396,14 +396,14 @@ markets:
                             }
                         ],
                     ),
-                    provider="fli",
+                    provider="tutu",
                 )
             ],
         )
 
         self.assertEqual([candidate.code for candidate in candidates], ["DXB"])
         signal = candidates[0].signals[0]
-        self.assertEqual(signal.provider, "fli")
+        self.assertEqual(signal.provider, "tutu")
         self.assertEqual(signal.direction, "return")
         self.assertEqual(signal.debug["source_path"], "journeys")
         self.assertEqual(signal.debug["journey_index"], 0)
@@ -490,7 +490,7 @@ markets:
                     "source": "provider_returned_route",
                     "provider": "kupibilet",
                     "offer_id": "malformed",
-                    "segment_index": 0,
+                    "segment_index": 1,
                     "reason": "malformed_segments",
                     "debug": {"source_path": "segments"},
                 },

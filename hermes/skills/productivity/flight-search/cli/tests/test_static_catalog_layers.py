@@ -121,7 +121,6 @@ class StaticCatalogLayerTests(unittest.TestCase):
         provider_dir = PROJECT / "flights_cli" / "providers"
         allowed = {
             "__init__.py",
-            "fli_mcp.py",
             "kupibilet.py",
             "live_cache.py",
             "segment_normalization.py",

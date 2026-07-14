@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://hermes.local/flights/flight_route_trace_diagnostic.v3.schema.json",
-  "title": "Flight Route Trace Diagnostic v3",
+  "$id": "https://hermes.local/flights/flight_route_trace_diagnostic.v4.schema.json",
+  "title": "Flight Route Trace Diagnostic v4",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "request", "plan", "evidence", "decision", "answer"],
   "properties": {
-    "schema_version": {"const": "flight_route_trace_diagnostic.v3"},
-    "request": {"$ref": "flight_search_request.v2.schema.json"},
-    "plan": {"$ref": "flight_search_plan.v3.schema.json"},
+    "schema_version": {"const": "flight_route_trace_diagnostic.v4"},
+    "request": {"$ref": "flight_search_request.v3.schema.json"},
+    "plan": {"$ref": "flight_search_plan.v4.schema.json"},
     "evidence": {
       "type": "object",
       "additionalProperties": false,
@@ -37,6 +37,6 @@
         "frontier": {"type": "object"}
       }
     },
-    "answer": {"$ref": "flight_search_user_answer.v10.schema.json"}
+    "answer": {"$ref": "flight_search_user_answer.v11.schema.json"}
   }
 }

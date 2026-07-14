@@ -85,7 +85,7 @@ class OfferGraphTests(unittest.TestCase):
                             "leg": "gateway_to_destination",
                             "origin": "IST",
                             "destination": "AMS",
-                            "provider": "fli",
+                            "provider": "tutu",
                             "offer_count": 1,
                             "offers": [
                                 {
@@ -253,6 +253,52 @@ class OfferGraphTests(unittest.TestCase):
             requested_destination="MOW",
             requested_origin_airports=["SVX"],
             requested_destination_airports=["DME", "SVO", "VKO"],
+        )
+
+        self.assertEqual(len(envelope["candidates"]), 1)
+        self.assertTrue(envelope["candidates"][0]["covers_requested_trip"])
+
+    def test_return_one_way_uses_reversed_exact_airport_scope(self) -> None:
+        graph = build_offer_graph(
+            primary_offer_results=[
+                {
+                    "role": "primary_offer_collection",
+                    "source_type": "provider_full_route",
+                    "provider": "kupibilet",
+                    "direction": "return",
+                    "origin": "LON",
+                    "destination": "IST",
+                    "top_offers": [
+                        {
+                            "id": "return-ltn-ist",
+                            "price": 12000,
+                            "currency": "RUB",
+                            "journeys": [
+                                {
+                                    "direction": "return",
+                                    "segments": [
+                                        {
+                                            "origin": "LTN",
+                                            "destination": "IST",
+                                            "departure_at": "2026-08-22T10:00:00+01:00",
+                                            "arrival_at": "2026-08-22T16:00:00+03:00",
+                                        }
+                                    ],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+            gateway_leg_results={},
+        )
+
+        envelope = materialize_offer_graph_candidates(
+            graph,
+            requested_origin="IST",
+            requested_destination="LON",
+            requested_origin_airports=["IST", "SAW"],
+            requested_destination_airports=["LHR", "LGW", "STN", "LTN"],
         )
 
         self.assertEqual(len(envelope["candidates"]), 1)
@@ -441,7 +487,7 @@ class OfferGraphTests(unittest.TestCase):
                             "leg": "gateway_to_destination",
                             "origin": "IST",
                             "destination": "AMS",
-                            "provider": "fli",
+                            "provider": "tutu",
                             "status": "ok",
                             "execution_state": "searched",
                             "offer_count": 1,
@@ -470,7 +516,7 @@ class OfferGraphTests(unittest.TestCase):
                 (edge["origin"], edge["destination"], edge["provider"])
                 for edge in graph["edges"]
             ],
-            [("SVX", "IST", "kupibilet"), ("IST", "AMS", "fli")],
+            [("SVX", "IST", "kupibilet"), ("IST", "AMS", "tutu")],
         )
         self.assertEqual(
             {offer["ticketing_boundary"] for offer in graph["offers"]},
@@ -790,7 +836,7 @@ class OfferGraphTests(unittest.TestCase):
                             "leg": "gateway_to_destination",
                             "origin": "IST",
                             "destination": "AMS",
-                            "provider": "fli",
+                            "provider": "tutu",
                             "offer_count": 1,
                             "offers": [
                                 {
@@ -817,7 +863,7 @@ class OfferGraphTests(unittest.TestCase):
         self.assertEqual(len(envelope["candidates"]), 1)
         candidate = envelope["candidates"][0]
         self.assertEqual(candidate["source_type"], "gateway_separate_ticket")
-        self.assertEqual(candidate["source_providers"], ["kupibilet", "fli"])
+        self.assertEqual(candidate["source_providers"], ["kupibilet", "tutu"])
         self.assertEqual(candidate["gateway"], "IST")
         self.assertTrue(candidate["covers_requested_trip"])
         self.assertEqual(candidate["price"], 40000)
@@ -860,7 +906,7 @@ class OfferGraphTests(unittest.TestCase):
                             "leg": "gateway_to_destination",
                             "origin": "IST",
                             "destination": "AMS",
-                            "provider": "fli",
+                            "provider": "tutu",
                             "status": "ok",
                             "execution_state": "searched",
                             "offer_count": 0,
@@ -1186,7 +1232,7 @@ class OfferGraphTests(unittest.TestCase):
         self.assertEqual(candidate["price"], 39000)
         self.assertEqual(candidate["currency"], "RUB")
         self.assertEqual(candidate["price_basis"], "provider_offer_price")
-        self.assertEqual(candidate["source_providers"], ["kupibilet", "fli"])
+        self.assertEqual(candidate["source_providers"], ["kupibilet", "tutu"])
         self.assertEqual(len(candidate["alternate_sources"]), 1)
         alternate = candidate["alternate_sources"][0]
         self.assertEqual(alternate["source_type"], "gateway_separate_ticket")

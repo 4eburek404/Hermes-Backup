@@ -67,7 +67,6 @@ def result_frontier(decision_frontier: dict[str, Any]) -> dict[str, Any]:
                 "acceptable_count",
                 "selected_count",
                 "rejected_count",
-                "control_count",
             )
         },
     }

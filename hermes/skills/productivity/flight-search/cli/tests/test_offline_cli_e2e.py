@@ -164,14 +164,13 @@ class OfflineCliE2ETests(unittest.TestCase):
             request_path.write_text(
                 json.dumps(
                     {
-                        "schema_version": "flight_search_request.v2",
+                        "schema_version": "flight_search_request.v3",
                         "origin": "NTE",
                         "destination": "SVX",
                         "depart_date": "2026-07-23",
                         "return_date": None,
                         "currency": "RUB",
                         "profile": "business",
-                        "ticketing": "separate",
                         "provider_policy": "tutu",
                         "route_options": {
                             "routing_strategy": "hub-list",
@@ -237,7 +236,7 @@ class OfflineCliE2ETests(unittest.TestCase):
         self.assertEqual(text_queries, json_queries)
         envelope = json.loads(json_proc.stdout)
         result = envelope["data"]
-        self.assertEqual(result["schema_version"], "flight_search_result.v8")
+        self.assertEqual(result["schema_version"], "flight_search_result.v9")
         self.assertEqual(text_proc.stdout, result["answer"]["rendered_text"] + "\n")
         self.assertIn("KL1424", text_proc.stdout)
         self.assertIn("KL1959", text_proc.stdout)

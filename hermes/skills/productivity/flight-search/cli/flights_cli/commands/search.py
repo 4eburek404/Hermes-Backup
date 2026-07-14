@@ -57,12 +57,7 @@ def normalize_search_request(payload: dict[str, Any]) -> dict[str, Any]:
     filters_value = normalized.get("filters")
     if isinstance(filters_value, dict):
         filters = dict(filters_value)
-        for name in (
-            "only_carriers",
-            "exclude_carriers",
-            "prefer_carriers",
-            "avoid_carriers",
-        ):
+        for name in ("only_carriers",):
             if isinstance(filters.get(name), list):
                 filters[name] = [str(item).upper() for item in filters[name]]
         normalized["filters"] = filters
@@ -91,11 +86,6 @@ def validate_search_request_semantics(request: SearchRequest) -> None:
             raise ValueError("date-window-end must be on or after depart-date")
         if request.return_date:
             raise ValueError("date-window-end cannot be combined with return-date")
-    overlap = set(request.filters.only_carriers) & set(request.filters.exclude_carriers)
-    if overlap:
-        raise ValueError(
-            f"carrier cannot be both required and excluded: {', '.join(sorted(overlap))}"
-        )
     if (
         request.max_connections is not None
         and request.tier2_max_connections is not None

@@ -31,7 +31,7 @@ markets:
   moscow_control:
     - code: SVO
       prior_weight: 70
-      reason: Moscow control prior.
+      reason: Moscow gateway prior.
       source: static_prior
       control_layer: moscow_svo_control
     - code: SVO
@@ -139,7 +139,7 @@ markets:
                 {
                     "code": "SVO",
                     "prior_weight": 70,
-                    "reason": "Moscow control prior.",
+                    "reason": "Moscow gateway prior.",
                     "source": "static_prior",
                     "control_layer": "moscow_svo_control",
                 },

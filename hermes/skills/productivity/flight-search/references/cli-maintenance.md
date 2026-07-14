@@ -12,10 +12,10 @@ version parity, and generated-artifact state separately.
 
 ## Public boundaries
 
-- Input: `flight_search_request.v2`.
-- Output: `flight_search_result.v8`.
+- Input: `flight_search_request.v3`.
+- Output: `flight_search_result.v9`.
 - Canonical text: `data.answer.rendered_text`.
-- Diagnostic trace: `flight_route_trace_diagnostic.v3`.
+- Diagnostic trace: `flight_route_trace_diagnostic.v4`.
 
 JSON stdout is one envelope and one terminal newline. Text search stdout is the
 validated rendered text only. Successful commands leave stderr empty. The JSON
@@ -29,7 +29,7 @@ CLI envelope types.
 ## Change ownership
 
 - Request/defaults: `pipeline/search_request.py`.
-- Planning: `orchestrators/search_plan_builder.py` and plan v2 schema.
+- Planning: `orchestrators/search_plan_builder.py` and plan v4 schema.
 - Provider execution and ledger: `execution/`.
 - Graph/scoring/frontier: `pipeline/offer_graph.py`,
   `pipeline/decision_scorer.py`, and `pipeline/candidate_ranker.py`.

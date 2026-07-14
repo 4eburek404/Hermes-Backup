@@ -55,7 +55,7 @@ class RequestDeduperTests(unittest.TestCase):
             base,
             segment_probe_key(
                 spec=SPEC,
-                provider="fli",
+                provider="tutu",
                 plan=PLAN,
                 only_carriers=["SU"],
                 limit=5,

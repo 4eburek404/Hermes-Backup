@@ -10,7 +10,6 @@ _TRACE_PRIVATE_FIELDS = frozenset(
     {
         "endpoint",
         "endpoint_url",
-        "fli_mcp_url",
         "mcp_url",
         "provider_payload",
         "raw_payload",

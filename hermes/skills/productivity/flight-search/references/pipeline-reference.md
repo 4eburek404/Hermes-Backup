@@ -11,7 +11,7 @@ raw JSON
   -> OfferGraph + candidate envelope
   -> DecisionScorer + DecisionFrontier
   -> result projection
-  -> flight_search_user_answer.v10
+  -> flight_search_user_answer.v11
   -> pure renderer
   -> stdout
 ```
@@ -48,9 +48,6 @@ and are deduplicated before the shared output limit, so one provider cannot hide
 a cheaper or otherwise distinct itinerary from the other.
 
 - `kupibilet` is a primary peer of Tutu for direct and broad full-route search.
-- `fli` keeps its existing non-RU behavior: eligible direct probes still run,
-  while broad FLI fallback is skipped after a completed Tutu broad probe and is
-  available when Tutu is unavailable, fails, or does not support the probe.
 - `provider_policy=both` is invalid.
 
 Provider-query identity includes provider, route, direction, date, filters,
@@ -68,8 +65,7 @@ Direct-first is strict and directional. If any direct-only provider result
 contains a direct flight within the active date, airport, and restrictive
 carrier filters, broad and gateway alternatives for that direction are skipped.
 `max_connections` is only a fallback ceiling and never disables this gate.
-`prefer_carriers` does not narrow direct detection. Round-trip outbound and
-return directions are gated independently.
+Round-trip outbound and return directions are gated independently.
 
 The same rule applies inside gateway assembly per leg and date: execute the
 direct leg probe first, skip its broad variant when direct inventory exists,
@@ -79,7 +75,7 @@ direct absence was confirmed by at least one completed source.
 
 After direct evidence is collected, the executor partitions planned
 `conditional_gateway_queries` by direction. Queries for a direction with
-direct evidence are recorded in `probe_ledger.skipped_controls` with
+direct evidence are recorded in `probe_ledger.skipped_probes` with
 `reason="direct_available"`; only directions without direct evidence enter the
 gateway batch executor. This executor partition is the production policy. The
 unused `assess_fallback()` helper is not a second policy source.
@@ -119,8 +115,6 @@ Carrier filters are provider-query inputs:
 
 - `filters.only_carriers` narrows provider queries to the requested carriers
   where supported.
-- `filters.prefer_carriers` is a provider preference and RU-priority seed, not
-  a hidden scorer gate.
 - Matching uses normalized carrier codes and raw provider names.
 
 Do not reintroduce request `constraints`: route shape belongs in

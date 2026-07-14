@@ -20,7 +20,6 @@ def executor_options(**overrides: object) -> GatewayLegProbeOptions:
         "gateway_probe_max_batches": 1,
         "segment_limit": 3,
         "timeout": 10,
-        "fli_mcp_url": "http://127.0.0.1:8000/mcp",
         "fail_fast": False,
     }
     values.update(overrides)
@@ -69,7 +68,7 @@ def gateway_queries(
             "direct_only": destination_leg_direct_only,
             "gateway": gateway,
             "gateway_rank": rank,
-            "provider": "fli",
+            "provider": "tutu",
             "execution_state": "not_executed",
         },
     ]
@@ -137,7 +136,7 @@ class GatewayLegProbeExecutorTests(unittest.TestCase):
         self.assertEqual(gateway["origin_leg"]["offer_count"], 1)
         self.assertEqual(gateway["destination_leg"]["offer_count"], 1)
         self.assertEqual(
-            [call["provider_policy"] for call in calls], ["kupibilet", "fli"]
+            [call["provider_policy"] for call in calls], ["kupibilet", "tutu"]
         )
 
     def test_non_direct_access_leg_is_dispatched_without_rewriting_flag(self) -> None:

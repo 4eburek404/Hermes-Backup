@@ -5,6 +5,13 @@ import re
 from typing import Any, MutableMapping
 
 from .gateway_priors import normalize_market_key
+from .offer_paths import (
+    normalize_direction as _normalize_direction,
+    offer_segment_paths,
+    provider_result_offers as _provider_result_offers,
+    segment_destination as _segment_destination,
+    segment_origin as _segment_origin,
+)
 
 IATA_CODE_RE = re.compile(r"^[A-Z]{3}$")
 PROVIDER_RETURNED_ROUTE_WEIGHT = 200
@@ -235,14 +242,6 @@ def _collect_provider_returned_gateways(
             )
 
 
-def _provider_result_offers(result: dict[str, Any]) -> list[Any] | None:
-    for key in ("offers", "top_offers"):
-        offers = result.get(key)
-        if isinstance(offers, list):
-            return offers
-    return None
-
-
 def _offer_segment_paths(
     offer: dict[str, Any],
     *,
@@ -250,23 +249,9 @@ def _offer_segment_paths(
     offer_id: str | None,
     fallback_direction: str | None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    segments = offer.get("segments")
-    if isinstance(segments, list):
-        return (
-            [
-                {
-                    "segments": segments,
-                    "direction": fallback_direction,
-                    "debug": {"source_path": "segments"},
-                }
-            ],
-            [],
-        )
-
     journeys = offer.get("journeys")
+    rejected: list[dict[str, Any]] = []
     if isinstance(journeys, list):
-        paths: list[dict[str, Any]] = []
-        rejected: list[dict[str, Any]] = []
         for journey_index, journey in enumerate(journeys):
             if not isinstance(journey, dict):
                 rejected.append(
@@ -281,8 +266,7 @@ def _offer_segment_paths(
                     )
                 )
                 continue
-            journey_segments = journey.get("segments")
-            if not isinstance(journey_segments, list):
+            if not isinstance(journey.get("segments"), list):
                 rejected.append(
                     _rejection(
                         provider=provider,
@@ -295,29 +279,44 @@ def _offer_segment_paths(
                     )
                 )
                 continue
-            paths.append(
-                {
-                    "segments": journey_segments,
-                    "direction": _normalize_direction(journey.get("direction"))
-                    or fallback_direction,
-                    "debug": {
-                        "source_path": "journeys",
-                        "journey_index": journey_index,
-                    },
-                }
-            )
+            for segment_index, segment in enumerate(journey["segments"]):
+                if not isinstance(segment, dict):
+                    rejected.append(
+                        _rejection(
+                            provider=provider,
+                            offer_id=offer_id,
+                            reason="malformed_segments",
+                            segment_index=segment_index,
+                            debug={
+                                "source_path": "journeys",
+                                "journey_index": journey_index,
+                            },
+                        )
+                    )
+    raw_segments = offer.get("segments")
+    if isinstance(raw_segments, list):
+        for segment_index, segment in enumerate(raw_segments):
+            if not isinstance(segment, dict):
+                rejected.append(
+                    _rejection(
+                        provider=provider,
+                        offer_id=offer_id,
+                        reason="malformed_segments",
+                        segment_index=segment_index,
+                        debug={"source_path": "segments"},
+                    )
+                )
+    paths = offer_segment_paths(offer, fallback_direction=fallback_direction)
+    if paths:
         return paths, rejected
-
-    return (
-        [],
-        [
-            _rejection(
-                provider=provider,
-                offer_id=offer_id,
-                reason="missing_segments",
-            )
-        ],
+    rejected.append(
+        _rejection(
+            provider=provider,
+            offer_id=offer_id,
+            reason="missing_segments",
+        )
     )
+    return [], rejected
 
 
 def _collect_gateways_from_segments(
@@ -448,19 +447,6 @@ def _static_prior_debug(prior: dict[str, Any]) -> dict[str, Any]:
     if prior.get("allow_as_gateway") is True:
         debug["allow_as_gateway"] = True
     return debug
-
-
-def _normalize_direction(value: Any) -> str | None:
-    direction = str(value or "").strip().lower()
-    return direction or None
-
-
-def _segment_origin(segment: dict[str, Any]) -> Any:
-    return segment.get("origin") or segment.get("departure") or segment.get("from")
-
-
-def _segment_destination(segment: dict[str, Any]) -> Any:
-    return segment.get("destination") or segment.get("arrival") or segment.get("to")
 
 
 def _normalize_gateway_code(value: Any) -> str | None:

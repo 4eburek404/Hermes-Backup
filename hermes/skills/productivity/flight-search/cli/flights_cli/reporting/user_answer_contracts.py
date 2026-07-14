@@ -192,12 +192,12 @@ def user_answer_contract_semantic_errors(
         if isinstance(answer.get("evidence_status"), dict)
         else {}
     )
-    planned = int(evidence.get("planned_control_count") or 0)
-    terminal = int(evidence.get("terminal_control_count") or 0)
+    planned = int(evidence.get("planned_probe_count") or 0)
+    terminal = int(evidence.get("terminal_probe_count") or 0)
     if terminal > planned:
         errors.append(
             _error(
-                "$.evidence_status.terminal_control_count",
+                "$.evidence_status.terminal_probe_count",
                 "terminal count cannot exceed planned count",
             )
         )
@@ -214,7 +214,7 @@ def user_answer_contract_semantic_errors(
         else {}
     )
     required = ["source_boundaries_included", "purchase_screen_verification_required"]
-    if int(evidence.get("not_executed_control_count") or 0):
+    if int(evidence.get("not_executed_probe_count") or 0):
         required.append("coverage_incompleteness_acknowledged")
     if int(evidence.get("provider_failure_count") or 0):
         required.append("provider_failures_acknowledged")

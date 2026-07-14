@@ -28,7 +28,6 @@ class SearchPlanContractTests(unittest.TestCase):
                 "dates": {"depart": "2026-08-15", "return": None},
                 "currency": "RUB",
                 "profile": "business",
-                "ticketing": "separate",
                 "provider_policy": "tutu",
                 "routing_strategy": "hub-list",
                 "route_mode": "hub_list",
@@ -39,7 +38,6 @@ class SearchPlanContractTests(unittest.TestCase):
                 "destination_airports": ["PEK"],
                 "airport_scope": None,
                 "direct_only": False,
-                "coverage_controls": [],
             },
             primary_offer_queries=(
                 {
@@ -90,7 +88,7 @@ class SearchPlanContractTests(unittest.TestCase):
         search_plan = build_search_plan(options, store, flow=flow)
 
         validate_contract_payload("search_plan", search_plan)
-        self.assertEqual(search_plan["schema_version"], "flight_search_plan.v3")
+        self.assertEqual(search_plan["schema_version"], "flight_search_plan.v4")
         primary_queries = search_plan["primary_offer_queries"]
         self.assertEqual(
             [query["provider"] for query in primary_queries],
@@ -179,7 +177,7 @@ class SearchPlanContractTests(unittest.TestCase):
                     "IST",
                     "tutu",
                     False,
-                    "restricted_ru_bridge_control",
+                    "restricted_ru_bridge_probe",
                 ),
                 (
                     "gateway_to_destination",
@@ -432,7 +430,7 @@ class SearchPlanContractTests(unittest.TestCase):
                     "tutu",
                     False,
                     "segment_hub_leg",
-                    "restricted_ru_bridge_control",
+                    "restricted_ru_bridge_probe",
                     True,
                 ),
                 (
@@ -442,7 +440,7 @@ class SearchPlanContractTests(unittest.TestCase):
                     "tutu",
                     False,
                     "segment_hub_leg",
-                    "restricted_ru_bridge_control",
+                    "restricted_ru_bridge_probe",
                     True,
                 ),
             ],
@@ -596,7 +594,6 @@ class SearchPlanContractTests(unittest.TestCase):
             return_date=None,
             provider_policy="auto",
             only_carrier="KL",
-            prefer_carrier="AF",
             no_live_cache=True,
         )
         flow = build_planning_state(options, store)
@@ -609,7 +606,6 @@ class SearchPlanContractTests(unittest.TestCase):
         for query in search_plan["primary_offer_queries"]:
             with self.subTest(role=query["role"], leg=query.get("leg")):
                 self.assertEqual(query["only_carriers"], ["KL"])
-                self.assertEqual(query["preferred_carriers"], ["AF"])
 
     def test_explicit_airport_scope_flows_to_primary_queries(self) -> None:
         store = Store()

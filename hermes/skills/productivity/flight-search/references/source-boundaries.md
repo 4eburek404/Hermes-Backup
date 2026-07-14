@@ -5,7 +5,7 @@ Use this reference to classify what the live report can prove. Source boundaries
 ## Evidence Classes
 
 - Live provider report: current shopping/discovery evidence for the requested route/date, subject to provider coverage, runtime failures, cache state, and booking-screen changes.
-- Targeted live control: a narrow probe for a direct flight, exact airport, city code, carrier, alternate airport, round-trip checkout, or in-horizon control date.
+- Targeted live probe: a narrow query for a direct flight, exact airport, city code, carrier, alternate airport, round-trip checkout, or in-horizon comparison date.
 - Static catalog metadata: city, airport, country/region, airline, alliance, and aircraft labels used for normalization and scope only.
 - Structural route constraint: stable route-level or market-level facts that make a service practically unavailable in normal booking channels.
 - Purchase proof: booking-screen, airline, GDS, or seller evidence for final fare, seat, baggage, single PNR, missed-connection protection, refund, exchange, and fare rules.

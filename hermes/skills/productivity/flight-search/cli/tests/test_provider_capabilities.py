@@ -11,7 +11,6 @@ from flights_cli.adapters.providers.registry import (
     provider_adapters_for_segment,
     providers_for_offer_query,
     providers_for_segment,
-    route_query_provider_skip_reasons,
     route_touches_ru,
 )
 from flights_cli.adapters.providers.common import (
@@ -22,7 +21,6 @@ from flights_cli.errors import CliError
 from flights_cli.ports.providers import (
     FlightProviderPort,
     ProviderCapabilities,
-    ProviderProbeResult,
 )
 from helpers import make_test_store
 
@@ -40,7 +38,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         adapter_dir = (
             Path(__file__).parents[1] / "flights_cli" / "adapters" / "providers"
         )
-        for filename in ("tutu_adapter.py", "kupibilet_adapter.py", "fli_adapter.py"):
+        for filename in ("tutu_adapter.py", "kupibilet_adapter.py"):
             tree = ast.parse((adapter_dir / filename).read_text(encoding="utf-8"))
             imported_adapters = [
                 node.module
@@ -53,14 +51,11 @@ class ProviderCapabilitiesTests(unittest.TestCase):
 
     def test_registry_exposes_expected_provider_capabilities(self) -> None:
         kupibilet = PROVIDER_REGISTRY["kupibilet"].capabilities
-        fli = PROVIDER_REGISTRY["fli"].capabilities
         tutu = PROVIDER_REGISTRY["tutu"].capabilities
 
-        self.assertEqual(set(PROVIDER_REGISTRY), {"kupibilet", "fli", "tutu"})
+        self.assertEqual(set(PROVIDER_REGISTRY), {"kupibilet", "tutu"})
         self.assertTrue(kupibilet.supports_ru_touching)
         self.assertTrue(kupibilet.supports_full_route_aggregate)
-        self.assertTrue(fli.supports_global)
-        self.assertFalse(fli.supports_full_route_aggregate)
         self.assertTrue(tutu.supports_ru_touching)
         self.assertTrue(tutu.supports_global)
         self.assertTrue(tutu.supports_full_route_aggregate)
@@ -70,7 +65,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self.assertIn("carrier_aggregate", tutu.probe_types)
 
     def test_registry_values_are_concrete_provider_ports(self) -> None:
-        self.assertEqual(set(PROVIDER_REGISTRY), {"kupibilet", "fli", "tutu"})
+        self.assertEqual(set(PROVIDER_REGISTRY), {"kupibilet", "tutu"})
         for name, adapter in PROVIDER_REGISTRY.items():
             with self.subTest(provider=name):
                 self.assertIsInstance(adapter, FlightProviderPort)
@@ -91,9 +86,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
             {"origin": "IST", "destination": "LHR"}, store, "auto"
         )
 
-        self.assertEqual(
-            [adapter.name for adapter in adapters], ["tutu", "kupibilet", "fli"]
-        )
+        self.assertEqual([adapter.name for adapter in adapters], ["tutu", "kupibilet"])
         self.assertTrue(
             all(isinstance(adapter, FlightProviderPort) for adapter in adapters)
         )
@@ -113,14 +106,12 @@ class ProviderCapabilitiesTests(unittest.TestCase):
             providers_for_segment(
                 {"origin": "IST", "destination": "LHR"}, store, "auto"
             ),
-            ["tutu", "kupibilet", "fli"],
+            ["tutu", "kupibilet"],
         )
-        self.assertEqual(
+        with self.assertRaises(CliError):
             providers_for_segment(
-                {"origin": "SVX", "destination": "IST"}, store, "fli"
-            ),
-            [],
-        )
+                {"origin": "SVX", "destination": "IST"}, store, "unsupported"
+            )
 
     def test_both_policy_is_rejected(self) -> None:
         store = make_test_store(self, TEST_AIRPORTS)
@@ -142,7 +133,8 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self.assertEqual(
             providers_for_offer_query(query, store, "kupibilet"), ["kupibilet"]
         )
-        self.assertEqual(providers_for_offer_query(query, store, "fli"), [])
+        with self.assertRaises(CliError):
+            providers_for_offer_query(query, store, "unsupported")
         self.assertEqual(providers_for_offer_query(query, store, "tutu"), ["tutu"])
 
     def test_auto_offer_query_uses_market_and_capability_routing(self) -> None:
@@ -190,21 +182,11 @@ class ProviderCapabilitiesTests(unittest.TestCase):
             ["tutu", "kupibilet"],
         )
 
-    def test_route_query_ru_boundary_and_skip_reason(self) -> None:
+    def test_route_query_ru_boundary(self) -> None:
         store = make_test_store(self, TEST_AIRPORTS)
-
-        ru_route = {
-            "probe_type": "full_route_aggregate",
-            "origin": "SVX",
-            "destination": "CDG",
-        }
 
         self.assertTrue(route_touches_ru("SVX", "CDG", store))
         self.assertFalse(route_touches_ru("IST", "LHR", store))
-        self.assertEqual(
-            route_query_provider_skip_reasons(ru_route, store, "fli"),
-            {"fli": "route_touches_ru"},
-        )
 
     def test_gateway_segments_follow_existing_ru_non_ru_provider_split(self) -> None:
         store = make_test_store(self, TEST_AIRPORTS)
@@ -219,43 +201,25 @@ class ProviderCapabilitiesTests(unittest.TestCase):
             providers_for_segment(
                 {"origin": "IST", "destination": "LHR"}, store, "auto"
             ),
-            ["tutu", "kupibilet", "fli"],
+            ["tutu", "kupibilet"],
         )
 
     def test_unsupported_probe_result_is_explicit_not_supported_evidence(self) -> None:
         result = not_supported_probe_result(
-            provider="fli",
+            provider="tutu",
             probe_type="full_route_aggregate",
             query={"origin": "SVX", "destination": "DEL"},
-            reason="fli does not support full-route aggregate probes",
+            reason="provider does not support this probe",
             probe_id="probe-123",
         )
 
         payload = result.as_dict()
         self.assertEqual(payload["execution_state"], "not_supported")
         self.assertEqual(payload["evidence_type"], "not_supported")
-        self.assertEqual(payload["provider"], "fli")
+        self.assertEqual(payload["provider"], "tutu")
         self.assertEqual(payload["probe_id"], "probe-123")
         self.assertEqual(payload["errors"][0]["type"], "not_supported")
         self.assertIn("offers", payload)
-
-    def test_fli_adapter_reports_aggregate_not_supported_through_common_result_shape(
-        self,
-    ) -> None:
-        result = provider_adapter("fli").search_aggregate(
-            {
-                "probe_id": "agg-fli-1",
-                "probe_type": "full_route_aggregate",
-                "origin": "IST",
-                "destination": "LHR",
-                "date": "2026-08-12",
-            }
-        )
-
-        self.assertIsInstance(result, ProviderProbeResult)
-        self.assertEqual(result.execution_state, "not_supported")
-        self.assertEqual(result.evidence_type, "not_supported")
-        self.assertEqual(result.provider, "fli")
 
     def test_provider_adapter_returns_same_instance_for_same_store(self) -> None:
         """provider_adapter with same (name, store) returns cached instance."""
@@ -290,18 +254,18 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self,
     ) -> None:
         capabilities = ProviderCapabilities(
-            probe_types=frozenset({"segment_direct", "city_pair_direct"})
+            probe_types=frozenset({"segment_direct", "segment_hub_leg"})
         )
 
         self.assertEqual(
             segment_probe_type_from_query(
-                {"probe_type": "city_pair_direct", "leg": "hub"}, capabilities
+                {"probe_type": "segment_direct", "leg": "hub"}, capabilities
             ),
-            "city_pair_direct",
+            "segment_direct",
         )
         self.assertEqual(
             segment_probe_type_from_query(
-                {"leg": "direct_destination_control"}, capabilities
+                {"leg": "direct_destination_probe"}, capabilities
             ),
             "segment_direct",
         )

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from copy import deepcopy
 from dataclasses import dataclass
 from datetime import date
 from datetime import timedelta
@@ -16,10 +15,9 @@ from ..domain.airports import airport_scope_summary, explicit_or_resolved_airpor
 from ..domain.gateway_discovery import GatewayDiscoveryService
 from ..domain.normalize import parse_iso_date
 from ..domain.route_access_profiles import MODE_REQUIRED, PROFILE_RESTRICTED_ACCESS
-from ..domain.vocabulary import Direction, RequiredControl, RouteFamily
+from ..domain.vocabulary import Direction, RouteFamily
 from ..errors import CliError
 from ..pipeline.search_request import SearchRequest
-from ..pipeline.evidence_plan import EvidencePlan, plan_evidence
 from ..pipeline.flow_decision import FlowDecision, decide_flow
 from ..pipeline.search_plan import GatewayDiscovery, SearchPlan
 from ..store import Store
@@ -29,7 +27,7 @@ from ..store import Store
 class _PlanningState:
     request: SearchRequest
     flow_decision: FlowDecision
-    evidence_plan: EvidencePlan
+    today: date
 
 
 def build_planning_state(
@@ -42,10 +40,33 @@ def build_planning_state(
     return _PlanningState(
         request=request,
         flow_decision=flow_decision,
-        evidence_plan=plan_evidence(
-            request, flow_decision, today_provider=today_provider
-        ),
+        today=today_provider() if today_provider is not None else date.today(),
     )
+
+
+def _is_direct_only(request: SearchRequest) -> bool:
+    return request.max_connections == 0 and request.tier2_max_connections == 0
+
+
+def _live_cache_settings(flow: _PlanningState) -> tuple[bool, int]:
+    request = flow.request
+    try:
+        days_until_departure = (
+            date.fromisoformat(request.depart_date) - flow.today
+        ).days
+    except ValueError:
+        days_until_departure = None
+    requires_fresh_live = bool(
+        request.no_live_cache
+        or _is_direct_only(request)
+        or request.only_carriers
+        or request.origin_airports
+        or request.destination_airports
+        or (days_until_departure is not None and days_until_departure <= 2)
+    )
+    if requires_fresh_live:
+        return False, 0
+    return True, request.live_cache_ttl_seconds
 
 
 def direct_inventory_dates(options: SearchRequest, flow: _PlanningState) -> list[str]:
@@ -53,7 +74,7 @@ def direct_inventory_dates(options: SearchRequest, flow: _PlanningState) -> list
     if not window_end_raw:
         return [flow.request.depart_date]
     depart = parse_iso_date(flow.request.depart_date, "depart-date")
-    if not flow.evidence_plan.direct_only:
+    if not _is_direct_only(flow.request):
         raise CliError(
             "date_window_end requires direct-only route options: set route_options.max_connections=0 and route_options.tier2_max_connections=0",
             error_type="validation_error",
@@ -79,41 +100,6 @@ def direct_inventory_dates(options: SearchRequest, flow: _PlanningState) -> list
     return [
         (depart + timedelta(days=offset)).isoformat() for offset in range(window_days)
     ]
-
-
-def _city_pair_direct_controls(
-    options: SearchRequest, flow: _PlanningState
-) -> list[dict[str, Any]]:
-    controls: list[dict[str, Any]] = []
-    if not flow.evidence_plan.direct_only and not flow.request.date_window_end:
-        return controls
-    for date_text in direct_inventory_dates(options, flow):
-        controls.append(
-            {
-                "type": "city_pair_direct",
-                "probe_type": RequiredControl.EXACT_AIRPORT_DIRECT,
-                "direction": Direction.OUTBOUND,
-                "origin": flow.request.origin,
-                "destination": flow.request.destination,
-                "date": date_text,
-                "negative_evidence": "provider_empty_only_not_route_absence",
-                "source": "direct_inventory_policy",
-            }
-        )
-    if flow.request.return_date:
-        controls.append(
-            {
-                "type": "city_pair_direct",
-                "probe_type": RequiredControl.EXACT_AIRPORT_DIRECT,
-                "direction": Direction.RETURN,
-                "origin": flow.request.destination,
-                "destination": flow.request.origin,
-                "date": flow.request.return_date,
-                "negative_evidence": "provider_empty_only_not_route_absence",
-                "source": "direct_inventory_policy",
-            }
-        )
-    return controls
 
 
 def build_route_context(
@@ -144,8 +130,7 @@ def build_route_context(
         "dates": dates,
         "currency": flow.request.currency,
         "profile": flow.request.profile,
-        "ticketing": flow.request.ticketing,
-        "provider_policy": flow.evidence_plan.provider_policy,
+        "provider_policy": flow.request.provider_policy,
         "routing_strategy": flow.flow_decision.routing_strategy,
         "route_mode": flow.flow_decision.route_mode,
         "market_class": flow.flow_decision.market_class,
@@ -154,8 +139,7 @@ def build_route_context(
         "origin_airports": origin_airports,
         "destination_airports": destination_airports,
         "airport_scope": airport_scope,
-        "direct_only": bool(flow.evidence_plan.direct_only),
-        "coverage_controls": _city_pair_direct_controls(options, flow),
+        "direct_only": _is_direct_only(flow.request),
     }
 
 
@@ -168,9 +152,7 @@ def _resolved_airport_scope(
         return (
             list(flow.request.origin_airports),
             list(flow.request.destination_airports),
-            deepcopy(flow.flow_decision.airport_scope)
-            if flow.flow_decision.airport_scope is not None
-            else None,
+            None,
         )
 
     origin_location = store.resolve_location(flow.request.origin)
@@ -228,6 +210,7 @@ class SearchPlanBuilder:
         route_context = build_route_context(self._options, self._store, flow=flow)
         primary_offer_queries = self._primary_offer_queries(flow, route_context)
         gateway_discovery = self._gateway_discovery(flow, route_context)
+        live_cache_enabled, live_cache_ttl_seconds = _live_cache_settings(flow)
         return SearchPlan(
             route_context=route_context,
             primary_offer_queries=tuple(primary_offer_queries),
@@ -239,10 +222,10 @@ class SearchPlanBuilder:
                 self._coverage_expectations(route_context, primary_offer_queries)
             ),
             execution_limits={
-                "max_segment_searches": flow.evidence_plan.max_segment_searches,
+                "max_segment_searches": flow.request.max_segment_searches,
                 "segment_limit": self._options.evidence.segment_limit,
-                "live_cache_ttl_seconds": flow.evidence_plan.live_cache_ttl_seconds,
-                "live_cache_enabled": flow.evidence_plan.live_cache_enabled,
+                "live_cache_ttl_seconds": live_cache_ttl_seconds,
+                "live_cache_enabled": live_cache_enabled,
                 "timeout": self._options.evidence.timeout,
                 "fail_fast": self._options.evidence.fail_fast,
             },
@@ -350,7 +333,7 @@ class SearchPlanBuilder:
         return [
             str(provider)
             for provider in providers_for_offer_query(
-                query, self._store, flow.evidence_plan.provider_policy
+                query, self._store, flow.request.provider_policy
             )
         ]
 
@@ -456,7 +439,7 @@ class SearchPlanBuilder:
         for leg, leg_origin, leg_destination in legs:
             touches_ru = route_touches_ru(leg_origin, leg_destination, self._store)
             connection_layer = (
-                "restricted_ru_bridge_control"
+                "restricted_ru_bridge_probe"
                 if touches_ru
                 else "restricted_non_ru_access"
             )
@@ -502,7 +485,7 @@ class SearchPlanBuilder:
                     }
                     self._apply_filters(query)
                     providers = providers_for_segment(
-                        query, self._store, flow.evidence_plan.provider_policy
+                        query, self._store, flow.request.provider_policy
                     )
                     if providers:
                         query["provider"] = str(providers[0])
@@ -549,11 +532,11 @@ class SearchPlanBuilder:
             for query in direct_queries:
                 query["route_access_profile"] = access_profile
                 query["gateway_discovery_mode"] = discovery_mode
-        if flow.evidence_plan.direct_only or flow.request.date_window_end:
+        if _is_direct_only(flow.request) or flow.request.date_window_end:
             return direct_queries
 
         route_query: dict[str, Any] = {
-            "probe_type": RequiredControl.FULL_ROUTE_AGGREGATE,
+            "probe_type": "full_route_aggregate",
             "origin": origin,
             "destination": destination,
             "direct_only": False,
@@ -568,7 +551,7 @@ class SearchPlanBuilder:
             query: dict[str, Any] = {
                 "role": "primary_offer_collection",
                 "source_type": "provider_full_route",
-                "probe_type": RequiredControl.FULL_ROUTE_AGGREGATE,
+                "probe_type": "full_route_aggregate",
                 "provider": provider_name,
                 "direction": "outbound",
                 "origin": origin,
@@ -578,7 +561,7 @@ class SearchPlanBuilder:
                 "date": date_text,
                 "currency": currency,
                 "direct_only": False,
-                "limit": flow.evidence_plan.primary_offer_limit,
+                "limit": flow.request.primary_offer_limit,
                 "execution_state": "not_executed",
             }
             self._apply_filters(query)
@@ -666,7 +649,7 @@ class SearchPlanBuilder:
         route_family: str | None = None,
     ) -> list[dict[str, Any]]:
         route_query: dict[str, Any] = {
-            "probe_type": RequiredControl.FULL_ROUTE_AGGREGATE,
+            "probe_type": "full_route_aggregate",
             "origin": origin,
             "destination": destination,
             "direct_only": direct_only,
@@ -681,7 +664,7 @@ class SearchPlanBuilder:
             query: dict[str, Any] = {
                 "role": "primary_offer_collection",
                 "source_type": "provider_full_route",
-                "probe_type": RequiredControl.FULL_ROUTE_AGGREGATE,
+                "probe_type": "full_route_aggregate",
                 "provider": provider_name,
                 "direction": str(direction),
                 "origin": origin,
@@ -691,7 +674,7 @@ class SearchPlanBuilder:
                 "date": date_text,
                 "currency": currency,
                 "direct_only": direct_only,
-                "limit": flow.evidence_plan.primary_offer_limit,
+                "limit": flow.request.primary_offer_limit,
                 "execution_state": "not_executed",
                 "exhaustive": direct_only,
             }
@@ -703,11 +686,8 @@ class SearchPlanBuilder:
 
     def _apply_filters(self, query: dict[str, Any]) -> None:
         only_carriers = list(self._options.effective_only_carriers())
-        preferred_carriers = list(self._options.effective_prefer_carriers())
         if only_carriers:
             query["only_carriers"] = only_carriers
-        if preferred_carriers:
-            query["preferred_carriers"] = preferred_carriers
 
     def _coverage_expectations(
         self,

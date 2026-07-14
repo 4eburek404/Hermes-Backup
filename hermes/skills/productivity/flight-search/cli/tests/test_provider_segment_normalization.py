@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import unittest
 
-from flights_cli.providers.fli_mcp import fli_result_to_segment_result
 from flights_cli.providers.kupibilet import kupibilet_result_to_segment_result
 from flights_cli.providers.segment_normalization import normalize_segment_flight
 
@@ -66,18 +65,12 @@ class ProviderSegmentNormalizationTests(unittest.TestCase):
         self.assertEqual(normalized["carrier"], "TK")
         self.assertEqual(normalized["flight_number"], "TK1987")
 
-    def test_fli_and_kupibilet_segment_results_share_offer_shape(self) -> None:
+    def test_kupibilet_segment_result_uses_shared_offer_shape(self) -> None:
         kupibilet = kupibilet_result_to_segment_result(
             provider_result(source="kupibilet", raw_count_key="raw_variant_count"),
             direction="outbound",
             leg="direct_outbound",
         )
-        fli = fli_result_to_segment_result(
-            provider_result(source="fli", raw_count_key="raw_count"),
-            direction="outbound",
-            leg="direct_outbound",
-        )
-
         shared_offer_keys = {
             "id",
             "direction",
@@ -103,13 +96,7 @@ class ProviderSegmentNormalizationTests(unittest.TestCase):
             "internal_connection_count",
         }
         self.assertEqual(set(kupibilet["offers"][0]), shared_offer_keys)
-        self.assertEqual(set(fli["offers"][0]), shared_offer_keys)
-        self.assertEqual(
-            kupibilet["offers"][0]["segments"][0].keys(),
-            fli["offers"][0]["segments"][0].keys(),
-        )
         self.assertEqual(kupibilet["source_key"], "kupibilet_frontend_search")
-        self.assertEqual(fli["source_key"], "fli_mcp_search_flights")
 
 
 if __name__ == "__main__":

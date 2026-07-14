@@ -5,7 +5,7 @@ from typing import Any, Iterable
 
 from ..domain.normalize import numeric_or_none
 from ..domain.time import minutes_between
-from ..domain.vocabulary import IntentClass, RouteFamily
+from ..domain.vocabulary import RouteFamily
 
 
 MIXED_CANDIDATE_RANKING_SCHEMA_VERSION = "flight_mixed_candidate_ranking.v1"
@@ -83,7 +83,6 @@ def rank_mixed_candidates(
 def build_decision_frontier(
     mixed_candidate_ranking: dict[str, Any],
     *,
-    controls: list[dict[str, Any]] | None = None,
     max_gateway_alternatives: int = 2,
     max_options: int | None = DEFAULT_FRONTIER_MAX_OPTIONS,
     max_primary_gateway_options: int = DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS,
@@ -96,18 +95,23 @@ def build_decision_frontier(
         if isinstance(candidate, dict)
     ]
     acceptable = [candidate for candidate in ranked if _frontier_acceptable(candidate)]
-    direct_ranked = [candidate for candidate in ranked if _is_direct_control(candidate)]
+    direct_ranked = [
+        candidate for candidate in ranked if _is_direct_inventory(candidate)
+    ]
     direct_acceptable = [
-        candidate for candidate in acceptable if _is_direct_control(candidate)
+        candidate for candidate in acceptable if _is_direct_inventory(candidate)
     ]
     if direct_acceptable:
         selection_pool = direct_acceptable
-        selected_candidates = direct_acceptable
+        direct_limit = (
+            len(direct_acceptable) if max_options is None else max(0, int(max_options))
+        )
+        selected_candidates = direct_acceptable[:direct_limit]
         selection_reasons = {
             str(candidate.get("id") or ""): [
                 "best_viable" if index == 0 else "ranked_acceptable"
             ]
-            for index, candidate in enumerate(direct_acceptable)
+            for index, candidate in enumerate(selected_candidates)
         }
     else:
         selection_pool = _frontier_selection_pool(
@@ -129,7 +133,6 @@ def build_decision_frontier(
     return {
         "schema_version": DECISION_FRONTIER_SCHEMA_VERSION,
         "options": selected,
-        "controls": _frontier_controls(controls or []),
         "coverage_summary": {
             "candidate_count": len(ranked),
             "acceptable_count": len(acceptable),
@@ -138,7 +141,6 @@ def build_decision_frontier(
                 0, len(selection_pool) - len(selected)
             ),
             "rejected_count": len(mixed_candidate_ranking.get("rejected") or []),
-            "control_count": len(controls or []),
             "direct_option_count": len(direct_ranked),
             "acceptable_direct_option_count": len(direct_acceptable),
             "direct_option_count_by_direction": _direct_option_count_by_direction(
@@ -288,7 +290,7 @@ def _normalize_ticketing_model(candidate: dict[str, Any]) -> tuple[str, list[str
 
 
 def _has_ticketing_proof(candidate: dict[str, Any]) -> bool:
-    proof = candidate.get(IntentClass.TICKETING_PROOF)
+    proof = candidate.get("ticketing_proof")
     if isinstance(proof, dict) and bool(proof.get("proven")):
         return True
     return bool(
@@ -1285,39 +1287,6 @@ def _frontier_option(candidate: dict[str, Any], role: str) -> dict[str, Any]:
     return option
 
 
-def _frontier_controls(controls: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    allowed = (
-        "type",
-        "direction",
-        "origin",
-        "destination",
-        "date",
-        "status",
-        "provider",
-        "filters",
-        "offer_count",
-        "raw_offer_count",
-        "cache_status",
-        "source_type",
-        "control_policy",
-        "source_providers",
-        "graph_derived",
-        "negative_evidence",
-        "reason",
-        "error",
-    )
-    result: list[dict[str, Any]] = []
-    for control in controls:
-        if not isinstance(control, dict):
-            continue
-        item = {key: deepcopy(control.get(key)) for key in allowed if key in control}
-        top_offers = control.get("top_offers")
-        if isinstance(top_offers, list):
-            item["top_offer_count"] = len(top_offers)
-        result.append(item)
-    return result
-
-
 def _evidence_sources(candidate: dict[str, Any]) -> list[dict[str, Any]]:
     sources = [_evidence_source(candidate)]
     for source in candidate.get("alternate_sources") or []:
@@ -1435,7 +1404,7 @@ def _materially_safer(
     return candidate_risk < min(selected_risks)
 
 
-def _is_direct_control(candidate: dict[str, Any]) -> bool:
+def _is_direct_inventory(candidate: dict[str, Any]) -> bool:
     if str(candidate.get("source_type") or "") == RouteFamily.DIRECT_INVENTORY:
         return True
     journeys = candidate.get("journeys")
@@ -1454,7 +1423,7 @@ def _direct_option_count_by_direction(
 ) -> dict[str, int]:
     counts: dict[str, int] = {}
     for candidate in candidates:
-        if not _is_direct_control(candidate):
+        if not _is_direct_inventory(candidate):
             continue
         groups = _candidate_segment_groups(candidate)
         if not groups:

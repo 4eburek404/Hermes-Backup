@@ -96,10 +96,9 @@ class ArchitectureTests(unittest.TestCase):
             sorted(DIAGNOSTIC_COMMANDS),
         )
 
-    def test_active_provider_set_includes_opt_in_tutu_provider(self) -> None:
-        # Tutu is opt-in only, but it is part of the typed provider registry.
-        self.assertEqual(set(ProviderName.__args__), {"kupibilet", "fli", "tutu"})
-        self.assertEqual(set(PROVIDER_REGISTRY.keys()), {"kupibilet", "fli", "tutu"})
+    def test_active_provider_set_is_tutu_and_kupibilet(self) -> None:
+        self.assertEqual(set(ProviderName.__args__), {"kupibilet", "tutu"})
+        self.assertEqual(set(PROVIDER_REGISTRY.keys()), {"kupibilet", "tutu"})
 
     def test_moscow_airports_are_not_interchangeable(self) -> None:
         # SVO/DME/VKO are separate airports; not interchangeable for itinerary continuity.
@@ -207,9 +206,7 @@ class ArchitectureTests(unittest.TestCase):
             for source, targets in edges.items()
             for target in targets
             if source.startswith("flights_cli.orchestrators.")
-            and target.startswith(
-                ("flights_cli.providers.kupibilet", "flights_cli.providers.fli_mcp")
-            )
+            and target.startswith(("flights_cli.providers.kupibilet",))
         ]
         forbidden_output_edges = [
             (source, target)

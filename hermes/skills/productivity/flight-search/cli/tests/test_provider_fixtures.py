@@ -25,7 +25,7 @@ class ProviderFixtureTests(unittest.TestCase):
             self.assertIsInstance(payload.get("raw"), dict)
             self.assertIn(str(provider), path.name)
 
-        self.assertGreaterEqual(providers, {"tutu", "kupibilet", "fli"})
+        self.assertGreaterEqual(providers, {"tutu", "kupibilet"})
 
     def test_catalog_fixture_contains_required_store_files(self) -> None:
         required = {

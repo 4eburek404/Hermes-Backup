@@ -114,13 +114,13 @@ class OfferQueryRunnerTests(unittest.TestCase):
                 probe_ledger=ledger,
             )
 
-        diagnostics = ledger.to_coverage_diagnostics({"coverage_mode": "targeted"})
+        diagnostics = ledger.to_diagnostics()
         self.assertEqual(results[0]["status"], "error")
         self.assertEqual(results[0]["execution_state"], "failed")
         self.assertEqual(results[0]["error"]["classification"], "timeout")
         self.assertEqual(results[0]["probe_id"], "primary-1")
         self.assertEqual(
-            [item["provider"] for item in diagnostics["failed_controls"]],
+            [item["provider"] for item in diagnostics["failed_probes"]],
             ["kupibilet"],
         )
 
@@ -138,40 +138,21 @@ class OfferQueryRunnerTests(unittest.TestCase):
         self.assertEqual(ctx.exception.error_type, "validation_error")
         self.assertEqual(ctx.exception.details["field"], "limit")
 
-    def test_not_supported_provider_result_is_recorded_in_ledger(self) -> None:
-        ledger = ProbeExecutionLedger()
-
-        results = run_primary_offer_queries(
-            [primary_query(provider="fli", probe_id="primary-fli")],
-            PrimaryOfferQueryOptions(no_live_cache=True),
-            store=make_test_store(self, TEST_AIRPORTS),
-            probe_ledger=ledger,
-        )
-
-        diagnostics = ledger.to_coverage_diagnostics({"coverage_mode": "targeted"})
-        self.assertEqual(results[0]["status"], "not_supported")
-        self.assertEqual(results[0]["execution_state"], "not_supported")
-        self.assertEqual(results[0]["provider"], "fli")
-        self.assertEqual(
-            [item["probe_id"] for item in diagnostics["not_supported_controls"]],
-            ["primary-fli"],
-        )
-
     def test_non_primary_offer_query_is_skipped_and_recorded_in_ledger(self) -> None:
         ledger = ProbeExecutionLedger()
 
         results = run_primary_offer_queries(
-            [primary_query(role="mandatory_control", probe_id="skip-1")],
+            [primary_query(role="diagnostic_probe", probe_id="skip-1")],
             PrimaryOfferQueryOptions(no_live_cache=True),
             store=make_test_store(self, TEST_AIRPORTS),
             probe_ledger=ledger,
         )
 
-        diagnostics = ledger.to_coverage_diagnostics({"coverage_mode": "targeted"})
+        diagnostics = ledger.to_diagnostics()
         self.assertEqual(results[0]["status"], "skipped")
         self.assertEqual(results[0]["reason"], "not_primary_offer_collection")
         self.assertEqual(
-            [item["probe_id"] for item in diagnostics["skipped_controls"]],
+            [item["probe_id"] for item in diagnostics["skipped_probes"]],
             ["skip-1"],
         )
 
@@ -197,7 +178,7 @@ class OfferQueryRunnerTests(unittest.TestCase):
                 probe_ledger=ledger,
             )
 
-        diagnostics = ledger.to_coverage_diagnostics({"coverage_mode": "targeted"})
+        diagnostics = ledger.to_diagnostics()
         self.assertEqual(
             [(item["provider"], item["status"]) for item in results],
             [("tutu", "ok"), ("kupibilet", "ok")],
@@ -205,34 +186,9 @@ class OfferQueryRunnerTests(unittest.TestCase):
         self.assertEqual(len(adapters["tutu"].queries), 1)
         self.assertEqual(len(adapters["kupibilet"].queries), 1)
         self.assertEqual(
-            [item["provider"] for item in diagnostics["searched_controls"]],
+            [item["provider"] for item in diagnostics["searched_probes"]],
             ["tutu", "kupibilet"],
         )
-
-    def test_fli_broad_fallback_is_skipped_after_tutu_search(self) -> None:
-        adapters = {
-            "tutu": SuccessfulAggregateAdapter("tutu"),
-            "kupibilet": SuccessfulAggregateAdapter("kupibilet"),
-            "fli": SuccessfulAggregateAdapter("fli"),
-        }
-
-        with patch(
-            "flights_cli.execution.offer_query_runner.provider_adapter",
-            side_effect=lambda name, **_: adapters[name],
-        ):
-            results = run_primary_offer_queries(
-                [
-                    primary_query(provider="tutu"),
-                    primary_query(provider="kupibilet"),
-                    primary_query(provider="fli"),
-                ],
-                PrimaryOfferQueryOptions(no_live_cache=True),
-                store=make_test_store(self, TEST_AIRPORTS),
-            )
-
-        self.assertEqual([item["status"] for item in results], ["ok", "ok", "skipped"])
-        self.assertEqual(results[2]["reason"], "provider_fallback_not_needed")
-        self.assertEqual(adapters["fli"].queries, [])
 
     def test_kupibilet_fetch_hook_is_not_passed_to_tutu(self) -> None:
         adapters = {

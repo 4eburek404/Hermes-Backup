@@ -149,11 +149,11 @@ def flight_search_result_semantic_errors(
         else {}
     )
     expected_counts = {
-        "planned_control_count": completeness.get("planned_count"),
-        "terminal_control_count": completeness.get("terminal_count"),
-        "not_executed_control_count": counts.get("not_executed_controls"),
-        "failed_control_count": counts.get("failed_controls"),
-        "not_supported_control_count": counts.get("not_supported_controls"),
+        "planned_probe_count": completeness.get("planned_count"),
+        "terminal_probe_count": completeness.get("terminal_count"),
+        "not_executed_probe_count": counts.get("not_executed_probes"),
+        "failed_probe_count": counts.get("failed_probes"),
+        "unsupported_probe_count": counts.get("unsupported_probes"),
         "provider_failure_count": len(evidence.get("provider_failures") or []),
     }
     for field, expected in expected_counts.items():

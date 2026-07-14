@@ -61,8 +61,6 @@ def canonical_ticketing_model(
         return "provider_aggregate"
     if raw in ("separate_ticket_sum", "gateway_separate_ticket"):
         return "separate_segments"
-    if raw == "metasearch_redirect_unknown":
-        return "unknown"
     if provider_aggregate:
         return "provider_aggregate"
     return "separate_segments"
@@ -80,9 +78,6 @@ def source_ticketing_note(
     price_basis = str(option.get("price_basis") or "").strip()
     provider = provider_label(option)
     gateway = str(option.get("gateway") or "").strip()
-    has_fli_source = any(
-        item.lower() == "fli" for item in option_provider_labels(option)
-    )
 
     if (
         journey_scope == "two_one_way_pair"
@@ -99,23 +94,11 @@ def source_ticketing_note(
         or raw_ticketing == "separate_ticket_sum"
     ):
         gateway_text = f" через {gateway}" if gateway else ""
-        provider_text = (
-            f" ({provider}; FLI/metasearch для non-RU плеча)"
-            if has_fli_source
-            else f" ({provider})"
-        )
+        provider_text = f" ({provider})"
         return (
             f"источник: separate-ticket сборка{gateway_text}{provider_text}; "
             "цена - сумма отдельных плеч; "
             "единый PNR, сквозной багаж и защита пересадки не подтверждены"
-        )
-
-    if raw_ticketing == "metasearch_redirect_unknown" or (
-        has_fli_source and source_type != "provider_full_route"
-    ):
-        return (
-            f"источник: FLI/metasearch для non-RU плеча ({provider}); "
-            "финальный тариф и ticketing проверить у redirect-поставщика"
         )
 
     if source_type == "provider_full_route" or is_provider_aggregate_option(option):

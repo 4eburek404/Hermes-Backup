@@ -53,7 +53,7 @@ class StopBucket(StrEnum):
 
 
 # ---------------------------------------------------------------------------
-# Market / Intent / Evidence classification
+# Market classification
 # ---------------------------------------------------------------------------
 
 
@@ -62,21 +62,6 @@ class MarketClass(StrEnum):
     RU_TOUCHING_INTERNATIONAL = "ru_touching_international"
     GLOBAL_NON_RU = "global_non_ru"
     STRUCTURALLY_CONSTRAINED = "structurally_constrained"
-
-
-class IntentClass(StrEnum):
-    MAINTENANCE = "maintenance"
-    DIRECT_INVENTORY = "direct_inventory"
-    TICKETING_PROOF = "ticketing_proof"
-    CARRIER_OR_AIRPORT_SCOPE = "carrier_or_airport_scope"
-    ROUTE_RECOMMENDATION = "route_recommendation"
-
-
-class EvidenceClass(StrEnum):
-    DIAGNOSTIC_ONLY = "diagnostic_only"
-    TICKETING_REQUIRED = "ticketing_required"
-    ABSENCE_CLAIM = "absence_claim"
-    SHOPPING_ADVISORY = "shopping_advisory"
 
 
 # ---------------------------------------------------------------------------
@@ -100,19 +85,6 @@ class RouteFamily(StrEnum):
     DOMESTIC_RU = "domestic_ru"
     RU_PRIORITY = "ru_priority"
     HUB_LIST = "hub_list"
-
-
-# ---------------------------------------------------------------------------
-# Required controls (probe control types, not probe_type from ports)
-# ---------------------------------------------------------------------------
-
-
-class RequiredControl(StrEnum):
-    EXACT_AIRPORT_DIRECT = "exact_airport_direct"
-    DATE_WINDOW_DIRECT = "date_window_direct"
-    MOSCOW_GATEWAY_DIRECT = "moscow_gateway_direct"
-    CARRIER_AGGREGATE = "carrier_aggregate"
-    FULL_ROUTE_AGGREGATE = "full_route_aggregate"
 
 
 # ---------------------------------------------------------------------------

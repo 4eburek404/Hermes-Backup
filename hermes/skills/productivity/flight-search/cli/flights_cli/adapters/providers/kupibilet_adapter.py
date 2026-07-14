@@ -39,7 +39,6 @@ KUPIBILET_CAPABILITIES = ProviderCapabilities(
             "segment_hub_leg",
             "full_route_aggregate",
             "carrier_aggregate",
-            "city_pair_direct",
         }
     ),
 )

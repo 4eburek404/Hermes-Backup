@@ -30,24 +30,23 @@ def valid_result() -> dict:
         "evidence": {
             "source_boundaries": [],
             "coverage": {
-                "coverage_mode": "targeted",
-                "negative_evidence_type": "bounded_live_controls_only",
+                "negative_evidence_type": "bounded_live_probes_only",
                 "coverage_warnings": ["segment_absence_is_not_route_absence"],
                 "counts": {
-                    "planned_controls": 1,
-                    "searched_controls": 0,
-                    "skipped_controls": 0,
-                    "failed_controls": 0,
-                    "not_supported_controls": 0,
-                    "not_executed_controls": 1,
-                    "deduped_controls": 0,
+                    "planned_probes": 1,
+                    "searched_probes": 0,
+                    "skipped_probes": 0,
+                    "failed_probes": 0,
+                    "unsupported_probes": 0,
+                    "not_executed_probes": 1,
+                    "deduped_probes": 0,
                 },
                 "completeness": {
                     "planned_count": 1,
                     "terminal_count": 1,
-                    "all_planned_controls_have_terminal_state": True,
+                    "all_planned_probes_have_terminal_state": True,
                 },
-                "blocking_evidence": ["not_executed_controls"],
+                "blocking_evidence": ["not_executed_probes"],
                 "non_blocking_boundaries": [],
             },
             "provider_failures": [],
@@ -60,20 +59,18 @@ def valid_result() -> dict:
                 "acceptable_count": 1,
                 "selected_count": 1,
                 "rejected_count": 0,
-                "control_count": 1,
             },
         },
         "answer": answer,
     }
     request = {
-        "schema_version": "flight_search_request.v2",
+        "schema_version": "flight_search_request.v3",
         "origin": "SVX",
         "destination": "DEL",
         "depart_date": "2026-06-01",
         "return_date": None,
         "currency": "RUB",
         "profile": "business",
-        "ticketing": "separate",
         "provider_policy": "kupibilet",
     }
     return build_search_result(request, projection)
@@ -112,7 +109,7 @@ class ResultContractTests(unittest.TestCase):
         self.assertEqual(evidence.provider_policy, "tutu")
         self.assertEqual(trace["primary_offer_results"], [{"offer_count": 0}])
 
-    def test_result_v6_has_one_public_output_path(self) -> None:
+    def test_result_has_one_public_output_path(self) -> None:
         result = valid_result()
 
         self.assertEqual(
@@ -211,7 +208,7 @@ class ResultContractTests(unittest.TestCase):
 
     def test_evidence_count_and_required_caveat_drift_are_rejected(self) -> None:
         result = valid_result()
-        result["answer"]["evidence_status"]["terminal_control_count"] = 0
+        result["answer"]["evidence_status"]["terminal_probe_count"] = 0
         result["answer"]["required_caveats"]["source_boundaries_included"] = False
 
         with self.assertRaises(CliError):

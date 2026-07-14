@@ -5,6 +5,14 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..domain.normalize import numeric_or_none
+from ..domain.offer_paths import (
+    normalize_direction as _normalize_direction,
+    offer_segment_paths as _offer_segment_paths,
+    provider_result_offers as _provider_result_offers,
+    segment_destination as _segment_destination,
+    segment_dicts as _segment_dicts,
+    segment_origin as _segment_origin,
+)
 from ..domain.vocabulary import RouteFamily
 
 
@@ -1509,6 +1517,10 @@ def _covers_requested_trip(
                 and _normalize_code(inbound[0].get("origin")) in destination_codes
                 and _normalize_code(inbound[-1].get("destination")) in origin_codes
             )
+        if set(by_direction) == {"return"}:
+            origin_codes, destination_codes = destination_codes, origin_codes
+    elif _normalize_direction(offer.get("direction")) == "return":
+        origin_codes, destination_codes = destination_codes, origin_codes
     if not origin_codes and not destination_codes:
         return bool(segments)
     route_origin = (
@@ -1678,58 +1690,6 @@ def _ordered_unique(items: list[Any]) -> list[str]:
     return result
 
 
-def _provider_result_offers(result: dict[str, Any]) -> list[Any] | None:
-    for key in ("offers", "top_offers"):
-        offers = result.get(key)
-        if isinstance(offers, list):
-            return offers
-    return None
-
-
-def _offer_segment_paths(
-    offer: dict[str, Any], *, fallback_direction: str | None
-) -> list[dict[str, Any]]:
-    journeys = offer.get("journeys")
-    paths: list[dict[str, Any]] = []
-    if isinstance(journeys, list):
-        for journey_index, journey in enumerate(journeys):
-            if not isinstance(journey, dict):
-                continue
-            journey_segments = _segment_dicts(journey.get("segments"))
-            if not journey_segments:
-                continue
-            paths.append(
-                {
-                    "segments": journey_segments,
-                    "direction": _normalize_direction(journey.get("direction"))
-                    or fallback_direction,
-                    "debug": {
-                        "source_path": "journeys",
-                        "journey_index": journey_index,
-                    },
-                }
-            )
-    if paths:
-        return paths
-    segments = _segment_dicts(offer.get("segments"))
-    if segments:
-        return [
-            {
-                "segments": segments,
-                "direction": _normalize_direction(offer.get("direction"))
-                or fallback_direction,
-                "debug": {"source_path": "segments"},
-            }
-        ]
-    return []
-
-
-def _segment_dicts(value: Any) -> list[dict[str, Any]]:
-    if not isinstance(value, list):
-        return []
-    return [segment for segment in value if isinstance(segment, dict)]
-
-
 def _is_atomic_round_trip_offer(
     offer: dict[str, Any], paths: list[dict[str, Any]]
 ) -> bool:
@@ -1748,24 +1708,6 @@ def _is_atomic_round_trip_offer(
 def _offer_id(offer: dict[str, Any]) -> str | None:
     value = str(offer.get("id") or offer.get("offer_id") or "").strip()
     return value or None
-
-
-def _segment_origin(segment: dict[str, Any]) -> Any:
-    return (
-        segment.get("origin")
-        or segment.get("departure")
-        or segment.get("from")
-        or segment.get("departure_airport")
-    )
-
-
-def _segment_destination(segment: dict[str, Any]) -> Any:
-    return (
-        segment.get("destination")
-        or segment.get("arrival")
-        or segment.get("to")
-        or segment.get("arrival_airport")
-    )
 
 
 def _route_from_segments(segments: list[Any]) -> list[str]:
@@ -1793,11 +1735,6 @@ def _route_from_paths(paths: list[dict[str, Any]]) -> list[str]:
 
 def _normalize_code(value: Any) -> str:
     return str(value or "").strip().upper()
-
-
-def _normalize_direction(value: Any) -> str | None:
-    direction = str(value or "").strip().lower()
-    return direction or None
 
 
 def _stable_id(*parts: object, suffix: str | None = None) -> str:

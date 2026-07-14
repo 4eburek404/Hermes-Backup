@@ -63,7 +63,6 @@ class RequestDeduper:
         limit: int,
         provider_policy: str,
         direct_only: bool = True,
-        mcp_url: str | None = None,
     ) -> DeduperClaim:
         key = segment_probe_key(
             spec=spec,
@@ -73,7 +72,6 @@ class RequestDeduper:
             limit=limit,
             provider_policy=provider_policy,
             direct_only=direct_only,
-            mcp_url=mcp_url,
         )
         if key in self._records:
             original_probe_id, original = self._records[key]
@@ -103,7 +101,6 @@ def segment_probe_key(
     limit: int,
     provider_policy: str,
     direct_only: bool,
-    mcp_url: str | None = None,
 ) -> SegmentProbeKey:
     effective_carriers = tuple(
         sorted(
@@ -136,5 +133,4 @@ def segment_probe_key(
         origin_airports,
         destination_airports,
         int(limit),
-        str(mcp_url or "") if provider == "fli" else "",
     )

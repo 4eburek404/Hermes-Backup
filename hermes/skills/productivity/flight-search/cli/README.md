@@ -10,9 +10,9 @@ containing the parent `SKILL.md`.
 - Route/date/IATA normalization and bounded provider execution.
 - Airport compatibility checks for same-airport and cross-airport connections.
 - Candidate generation, scoring, one decision frontier, and result projection.
-- Direct, carrier, aggregate, and coverage controls when the current provider policy calls for them.
+- Direct, carrier-filtered, aggregate, and gateway probes when the current route calls for them.
 - Static metadata lookup for city, airport, country/region, airline, alliance, and aircraft labels.
-- A compact `flight_search_result.v8` with `route`, `evidence`, `frontier`, and the canonical `answer`.
+- A compact `flight_search_result.v9` with `route`, `evidence`, `frontier`, and the canonical `answer`.
 
 The CLI does not book, buy, or write to agent runtime state.
 
@@ -88,13 +88,12 @@ Primary agent command:
 ```bash
 cat > /tmp/flight-search-request.json <<'JSON'
 {
-  "schema_version": "flight_search_request.v2",
+  "schema_version": "flight_search_request.v3",
   "origin": "ORIGIN",
   "destination": "DEST",
   "depart_date": "YYYY-MM-DD",
   "currency": "RUB",
   "profile": "business",
-  "ticketing": "separate",
   "provider_policy": "auto"
 }
 JSON
@@ -120,11 +119,9 @@ Common request fields:
 
 - `return_date: "YYYY-MM-DD"`
 - `profile: "business"` is the only production search profile; omit it to use the default
-- `provider_policy: "auto"|"tutu"|"kupibilet"|"fli"`
-- `route_options.stop_policy: "business-default"|"strict-direct-one-stop"|"allow-two-stop-fallback"|"debug-all"`
+- `provider_policy: "auto"|"tutu"|"kupibilet"`
 - `route_options.date_window_end: "YYYY-MM-DD"` for bounded one-way direct-only inventory; request-only, no CLI flag
 - `filters.only_carriers: ["CODE"]`
-- `route_options.coverage_mode: "standard"|"targeted"|"full"`
 - `evidence.no_live_cache: true` for a fresh live probe when appropriate
 
 ## Ranking Profile
@@ -141,12 +138,12 @@ Production search uses one ranking profile: `business`. It prioritizes visible n
 
 `search --request` chooses a live source mix through `provider_policy`:
 
-- `auto`: Tutu MCP runs first and, when available, stops fallback execution for the same logical probe.
-- `tutu`, `kupibilet`, `fli`: explicit diagnostic/provider override modes.
+- `auto`: Tutu and KupiBilet run concurrently for the same direct or broad logical route probe. Their offers enter one graph, dedupe, ranking, and shared output limit.
+- `tutu`, `kupibilet`: explicit single-provider diagnostic modes.
 
 Read provider failures, coverage diagnostics, and source boundaries from `data.evidence`. Text-mode search stdout is already the validated answer and must be returned verbatim.
 
-Provider-aware airport priority is documented in `references/pipeline-reference.md`; use that contract for the active provider set, IST/LON/MOW airport priority, city-code post-validation, and dispatch boundaries. Do not duplicate those rules in CLI help or answer prose.
+Exact-airport propagation is documented in `references/pipeline-reference.md`. Both providers receive the same normalized airport scope, and accepted offers are checked against their actual first and last segment airports.
 
 ## Airport and Connection Risk
 
@@ -196,7 +193,7 @@ Useful probe shapes:
 - city-code direct-only when applicable;
 - alternate airport for multi-airport cities;
 - carrier-filtered direct or full-route probe;
-- nearby in-horizon control date for horizon/coverage splits.
+- nearby in-horizon comparison date for horizon/coverage splits.
 
 These probes are narrower evidence than the assembled report. Label the scope when using them in an answer.
 
