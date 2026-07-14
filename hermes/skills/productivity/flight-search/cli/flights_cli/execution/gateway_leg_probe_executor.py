@@ -136,7 +136,9 @@ class GatewayLegProbeExecutor:
                 continue
             direct_queries = [query for query in queries if query.get("direct_only")]
             broad_queries = [query for query in queries if not query.get("direct_only")]
-            direct_results = [self._execute_leg(query, plan) for query in direct_queries]
+            direct_results = [
+                self._execute_leg(query, plan) for query in direct_queries
+            ]
             direct_found = any(
                 int(result.get("offer_count") or 0) > 0 for result in direct_results
             )

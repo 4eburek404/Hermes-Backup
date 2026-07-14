@@ -1002,7 +1002,6 @@ class CandidateRankerTests(unittest.TestCase):
         )
         self.assertEqual(scored["decision_frontier"]["options"], [])
 
-
     def test_comfortable_separate_ticket_connection_is_not_high_risk(self) -> None:
         assembled = candidate(
             "assembled",
@@ -1034,12 +1033,8 @@ class CandidateRankerTests(unittest.TestCase):
             "ranked_candidates"
         ][0]
 
-        self.assertEqual(
-            ranked["connection_assessment"]["status"], "valid"
-        )
-        self.assertEqual(
-            ranked["connection_assessment"]["comfort"], "comfortable"
-        )
+        self.assertEqual(ranked["connection_assessment"]["status"], "valid")
+        self.assertEqual(ranked["connection_assessment"]["comfort"], "comfortable")
         self.assertEqual(ranked["ticket_protection"]["status"], "unprotected")
         self.assertEqual(ranked["rank_components"]["connection_risk_score"], 0)
 
@@ -1111,8 +1106,22 @@ class CandidateRankerTests(unittest.TestCase):
             ticketing_model="provider_order_unverified",
             elapsed_min=600,
             segments=[
-                segment("SVX", "IST", depart="2026-07-19T08:00:00+05:00", arrive="2026-07-19T10:00:00+03:00", carrier="SU", flight_number="SU1"),
-                segment("IST", "LHR", depart="2026-07-19T13:00:00+03:00", arrive="2026-07-19T15:00:00+01:00", carrier="TK", flight_number="TK1"),
+                segment(
+                    "SVX",
+                    "IST",
+                    depart="2026-07-19T08:00:00+05:00",
+                    arrive="2026-07-19T10:00:00+03:00",
+                    carrier="SU",
+                    flight_number="SU1",
+                ),
+                segment(
+                    "IST",
+                    "LHR",
+                    depart="2026-07-19T13:00:00+03:00",
+                    arrive="2026-07-19T15:00:00+01:00",
+                    carrier="TK",
+                    flight_number="TK1",
+                ),
             ],
         )
         two_stop = candidate(
@@ -1122,9 +1131,30 @@ class CandidateRankerTests(unittest.TestCase):
             ticketing_model="provider_order_unverified",
             elapsed_min=900,
             segments=[
-                segment("SVX", "UFA", depart="2026-07-19T08:00:00+05:00", arrive="2026-07-19T09:00:00+05:00", carrier="WZ", flight_number="WZ1"),
-                segment("UFA", "IST", depart="2026-07-19T12:00:00+05:00", arrive="2026-07-19T14:00:00+03:00", carrier="DP", flight_number="DP1"),
-                segment("IST", "LHR", depart="2026-07-19T17:00:00+03:00", arrive="2026-07-19T19:00:00+01:00", carrier="TK", flight_number="TK2"),
+                segment(
+                    "SVX",
+                    "UFA",
+                    depart="2026-07-19T08:00:00+05:00",
+                    arrive="2026-07-19T09:00:00+05:00",
+                    carrier="WZ",
+                    flight_number="WZ1",
+                ),
+                segment(
+                    "UFA",
+                    "IST",
+                    depart="2026-07-19T12:00:00+05:00",
+                    arrive="2026-07-19T14:00:00+03:00",
+                    carrier="DP",
+                    flight_number="DP1",
+                ),
+                segment(
+                    "IST",
+                    "LHR",
+                    depart="2026-07-19T17:00:00+03:00",
+                    arrive="2026-07-19T19:00:00+01:00",
+                    carrier="TK",
+                    flight_number="TK2",
+                ),
             ],
         )
 
@@ -1145,8 +1175,22 @@ class CandidateRankerTests(unittest.TestCase):
             ticketing_model="provider_order_unverified",
             elapsed_min=800,
             segments=[
-                segment("SVX", "IST", depart="2026-07-19T07:00:00+05:00", arrive="2026-07-19T10:00:00+03:00", carrier="SU", flight_number="SU1"),
-                segment("IST", "LHR", depart="2026-07-19T14:00:00+03:00", arrive="2026-07-19T16:00:00+01:00", carrier="TK", flight_number="TK1"),
+                segment(
+                    "SVX",
+                    "IST",
+                    depart="2026-07-19T07:00:00+05:00",
+                    arrive="2026-07-19T10:00:00+03:00",
+                    carrier="SU",
+                    flight_number="SU1",
+                ),
+                segment(
+                    "IST",
+                    "LHR",
+                    depart="2026-07-19T14:00:00+03:00",
+                    arrive="2026-07-19T16:00:00+01:00",
+                    carrier="TK",
+                    flight_number="TK1",
+                ),
             ],
         )
         long_wait = candidate(
@@ -1156,8 +1200,22 @@ class CandidateRankerTests(unittest.TestCase):
             ticketing_model="provider_order_unverified",
             elapsed_min=1100,
             segments=[
-                segment("SVX", "IST", depart="2026-07-19T07:00:00+05:00", arrive="2026-07-19T10:00:00+03:00", carrier="U6", flight_number="U61"),
-                segment("IST", "LHR", depart="2026-07-19T18:00:00+03:00", arrive="2026-07-19T20:00:00+01:00", carrier="BA", flight_number="BA1"),
+                segment(
+                    "SVX",
+                    "IST",
+                    depart="2026-07-19T07:00:00+05:00",
+                    arrive="2026-07-19T10:00:00+03:00",
+                    carrier="U6",
+                    flight_number="U61",
+                ),
+                segment(
+                    "IST",
+                    "LHR",
+                    depart="2026-07-19T18:00:00+03:00",
+                    arrive="2026-07-19T20:00:00+01:00",
+                    carrier="BA",
+                    flight_number="BA1",
+                ),
             ],
         )
 
@@ -1196,19 +1254,140 @@ class CandidateRankerTests(unittest.TestCase):
                 ticketing_model=ticketing_model,
                 elapsed_min=elapsed_min,
                 segments=[
-                    segment("SVX", gateway, depart=first_depart, arrive=first_arrive, carrier=first_carrier, marketing_carrier=first_carrier, flight_number=first_flight),
-                    segment(gateway, "LHR", depart=second_depart, arrive=second_arrive, carrier=second_carrier, marketing_carrier=second_carrier, flight_number=second_flight),
+                    segment(
+                        "SVX",
+                        gateway,
+                        depart=first_depart,
+                        arrive=first_arrive,
+                        carrier=first_carrier,
+                        marketing_carrier=first_carrier,
+                        flight_number=first_flight,
+                    ),
+                    segment(
+                        gateway,
+                        "LHR",
+                        depart=second_depart,
+                        arrive=second_arrive,
+                        carrier=second_carrier,
+                        marketing_carrier=second_carrier,
+                        flight_number=second_flight,
+                    ),
                 ],
             )
 
         candidates = [
-            itinerary("su-tk", source_type="provider_full_route", price=57481, ticketing_model="provider_order_unverified", elapsed_min=830, first_carrier="SU", first_flight="SU630", first_depart="2026-07-19T11:15:00+05:00", first_arrive="2026-07-19T14:45:00+03:00", gateway="IST", second_carrier="TK", second_flight="TK1983", second_depart="2026-07-19T19:05:00+03:00", second_arrive="2026-07-19T21:05:00+01:00"),
-            itinerary("su-tk-repeat", source_type="provider_full_route", price=52290, ticketing_model="provider_order_unverified", elapsed_min=910, first_carrier="SU", first_flight="SU630", first_depart="2026-07-19T11:15:00+05:00", first_arrive="2026-07-19T14:45:00+03:00", gateway="IST", second_carrier="TK", second_flight="TK1987", second_depart="2026-07-19T20:25:00+03:00", second_arrive="2026-07-19T22:25:00+01:00"),
-            itinerary("su-ba", source_type="gateway_separate_ticket", price=48566, ticketing_model="separate_ticket_sum", elapsed_min=815, first_carrier="SU", first_flight="SU-630", first_depart="2026-07-19T11:15:00+05:00", first_arrive="2026-07-19T14:45:00+03:00", gateway="IST", second_carrier="BA", second_flight="BA-0719", second_depart="2026-07-19T18:50:00+03:00", second_arrive="2026-07-19T20:50:00+01:00"),
-            itinerary("u6-tk", source_type="gateway_separate_ticket", price=61591, ticketing_model="separate_ticket_sum", elapsed_min=800, first_carrier="U6", first_flight="U6-773", first_depart="2026-07-19T07:20:00+05:00", first_arrive="2026-07-19T10:50:00+03:00", gateway="IST", second_carrier="TK", second_flight="TK-1971", second_depart="2026-07-19T14:50:00+03:00", second_arrive="2026-07-19T16:40:00+01:00"),
-            itinerary("u6-tk-tight", source_type="gateway_separate_ticket", price=61591, ticketing_model="separate_ticket_sum", elapsed_min=710, first_carrier="U6", first_flight="U6-773", first_depart="2026-07-19T07:20:00+05:00", first_arrive="2026-07-19T10:50:00+03:00", gateway="IST", second_carrier="TK", second_flight="TK-1985", second_depart="2026-07-19T13:15:00+03:00", second_arrive="2026-07-19T15:10:00+01:00"),
-            itinerary("u6-ba-long", source_type="gateway_separate_ticket", price=46843, ticketing_model="separate_ticket_sum", elapsed_min=1050, first_carrier="U6", first_flight="U6-773", first_depart="2026-07-19T07:20:00+05:00", first_arrive="2026-07-19T10:50:00+03:00", gateway="IST", second_carrier="BA", second_flight="BA-0719", second_depart="2026-07-19T18:50:00+03:00", second_arrive="2026-07-19T20:50:00+01:00"),
-            itinerary("dubai", source_type="provider_full_route", price=600412, ticketing_model="provider_order_unverified", elapsed_min=1050, first_carrier="FZ", first_flight="FZ-980", first_depart="2026-07-19T02:40:00+05:00", first_arrive="2026-07-19T07:55:00+04:00", gateway="DXB", second_carrier="EK", second_flight="EK-31", second_depart="2026-07-19T11:25:00+04:00", second_arrive="2026-07-19T16:10:00+01:00"),
+            itinerary(
+                "su-tk",
+                source_type="provider_full_route",
+                price=57481,
+                ticketing_model="provider_order_unverified",
+                elapsed_min=830,
+                first_carrier="SU",
+                first_flight="SU630",
+                first_depart="2026-07-19T11:15:00+05:00",
+                first_arrive="2026-07-19T14:45:00+03:00",
+                gateway="IST",
+                second_carrier="TK",
+                second_flight="TK1983",
+                second_depart="2026-07-19T19:05:00+03:00",
+                second_arrive="2026-07-19T21:05:00+01:00",
+            ),
+            itinerary(
+                "su-tk-repeat",
+                source_type="provider_full_route",
+                price=52290,
+                ticketing_model="provider_order_unverified",
+                elapsed_min=910,
+                first_carrier="SU",
+                first_flight="SU630",
+                first_depart="2026-07-19T11:15:00+05:00",
+                first_arrive="2026-07-19T14:45:00+03:00",
+                gateway="IST",
+                second_carrier="TK",
+                second_flight="TK1987",
+                second_depart="2026-07-19T20:25:00+03:00",
+                second_arrive="2026-07-19T22:25:00+01:00",
+            ),
+            itinerary(
+                "su-ba",
+                source_type="gateway_separate_ticket",
+                price=48566,
+                ticketing_model="separate_ticket_sum",
+                elapsed_min=815,
+                first_carrier="SU",
+                first_flight="SU-630",
+                first_depart="2026-07-19T11:15:00+05:00",
+                first_arrive="2026-07-19T14:45:00+03:00",
+                gateway="IST",
+                second_carrier="BA",
+                second_flight="BA-0719",
+                second_depart="2026-07-19T18:50:00+03:00",
+                second_arrive="2026-07-19T20:50:00+01:00",
+            ),
+            itinerary(
+                "u6-tk",
+                source_type="gateway_separate_ticket",
+                price=61591,
+                ticketing_model="separate_ticket_sum",
+                elapsed_min=800,
+                first_carrier="U6",
+                first_flight="U6-773",
+                first_depart="2026-07-19T07:20:00+05:00",
+                first_arrive="2026-07-19T10:50:00+03:00",
+                gateway="IST",
+                second_carrier="TK",
+                second_flight="TK-1971",
+                second_depart="2026-07-19T14:50:00+03:00",
+                second_arrive="2026-07-19T16:40:00+01:00",
+            ),
+            itinerary(
+                "u6-tk-tight",
+                source_type="gateway_separate_ticket",
+                price=61591,
+                ticketing_model="separate_ticket_sum",
+                elapsed_min=710,
+                first_carrier="U6",
+                first_flight="U6-773",
+                first_depart="2026-07-19T07:20:00+05:00",
+                first_arrive="2026-07-19T10:50:00+03:00",
+                gateway="IST",
+                second_carrier="TK",
+                second_flight="TK-1985",
+                second_depart="2026-07-19T13:15:00+03:00",
+                second_arrive="2026-07-19T15:10:00+01:00",
+            ),
+            itinerary(
+                "u6-ba-long",
+                source_type="gateway_separate_ticket",
+                price=46843,
+                ticketing_model="separate_ticket_sum",
+                elapsed_min=1050,
+                first_carrier="U6",
+                first_flight="U6-773",
+                first_depart="2026-07-19T07:20:00+05:00",
+                first_arrive="2026-07-19T10:50:00+03:00",
+                gateway="IST",
+                second_carrier="BA",
+                second_flight="BA-0719",
+                second_depart="2026-07-19T18:50:00+03:00",
+                second_arrive="2026-07-19T20:50:00+01:00",
+            ),
+            itinerary(
+                "dubai",
+                source_type="provider_full_route",
+                price=600412,
+                ticketing_model="provider_order_unverified",
+                elapsed_min=1050,
+                first_carrier="FZ",
+                first_flight="FZ-980",
+                first_depart="2026-07-19T02:40:00+05:00",
+                first_arrive="2026-07-19T07:55:00+04:00",
+                gateway="DXB",
+                second_carrier="EK",
+                second_flight="EK-31",
+                second_depart="2026-07-19T11:25:00+04:00",
+                second_arrive="2026-07-19T16:10:00+01:00",
+            ),
         ]
 
         frontier = build_decision_frontier(

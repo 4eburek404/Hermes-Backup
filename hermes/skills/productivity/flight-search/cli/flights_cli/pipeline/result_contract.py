@@ -180,9 +180,7 @@ def flight_search_result_semantic_errors(
 def validate_flight_search_result(result: dict[str, Any]) -> None:
     answer = result.get("answer") if isinstance(result.get("answer"), dict) else {}
     errors = user_answer_contract_semantic_errors(answer)
-    errors.extend(
-        flight_search_result_semantic_errors(result)
-    )
+    errors.extend(flight_search_result_semantic_errors(result))
     if errors:
         raise CliError(
             "flight_search_result failed semantic validation",

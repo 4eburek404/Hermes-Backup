@@ -18,15 +18,71 @@ from helpers import live_assembly_args, make_test_store
 
 
 TEST_AIRPORTS = [
-    {"code": "IST", "country_code": "TR", "flightable": True, "name": "Istanbul New Airport", "name_translations": {"en": "Istanbul New Airport"}},
-    {"code": "ISL", "country_code": "TR", "flightable": False, "name": "Istanbul Ataturk Airport", "name_translations": {"en": "Istanbul Ataturk Airport"}},
-    {"code": "SAW", "country_code": "TR", "flightable": True, "name": "Sabiha Gokcen International Airport", "name_translations": {"en": "Sabiha Gokcen International Airport"}},
-    {"code": "CDG", "country_code": "FR", "flightable": True, "name": "Charles de Gaulle Airport", "name_translations": {"en": "Charles de Gaulle Airport"}},
-    {"code": "LHR", "country_code": "GB", "flightable": True, "name": "London Heathrow Airport", "name_translations": {"en": "London Heathrow Airport"}},
-    {"code": "DXB", "country_code": "AE", "flightable": True, "name": "Dubai Airport", "name_translations": {"en": "Dubai Airport"}},
-    {"code": "AMS", "country_code": "NL", "flightable": True, "name": "Amsterdam Airport Schiphol", "name_translations": {"en": "Amsterdam Airport Schiphol"}},
-    {"code": "BCN", "city_code": "BCN", "country_code": "ES", "flightable": True, "name": "Barcelona-El Prat Airport", "name_translations": {"en": "Barcelona-El Prat Airport"}},
-    {"code": "XJB", "city_code": "BCN", "country_code": "ES", "flightable": True, "name": "Barcelona Bus Station", "name_translations": {"en": "Barcelona Bus Station"}},
+    {
+        "code": "IST",
+        "country_code": "TR",
+        "flightable": True,
+        "name": "Istanbul New Airport",
+        "name_translations": {"en": "Istanbul New Airport"},
+    },
+    {
+        "code": "ISL",
+        "country_code": "TR",
+        "flightable": False,
+        "name": "Istanbul Ataturk Airport",
+        "name_translations": {"en": "Istanbul Ataturk Airport"},
+    },
+    {
+        "code": "SAW",
+        "country_code": "TR",
+        "flightable": True,
+        "name": "Sabiha Gokcen International Airport",
+        "name_translations": {"en": "Sabiha Gokcen International Airport"},
+    },
+    {
+        "code": "CDG",
+        "country_code": "FR",
+        "flightable": True,
+        "name": "Charles de Gaulle Airport",
+        "name_translations": {"en": "Charles de Gaulle Airport"},
+    },
+    {
+        "code": "LHR",
+        "country_code": "GB",
+        "flightable": True,
+        "name": "London Heathrow Airport",
+        "name_translations": {"en": "London Heathrow Airport"},
+    },
+    {
+        "code": "DXB",
+        "country_code": "AE",
+        "flightable": True,
+        "name": "Dubai Airport",
+        "name_translations": {"en": "Dubai Airport"},
+    },
+    {
+        "code": "AMS",
+        "country_code": "NL",
+        "flightable": True,
+        "name": "Amsterdam Airport Schiphol",
+        "name_translations": {"en": "Amsterdam Airport Schiphol"},
+    },
+    {
+        "code": "BCN",
+        "city_code": "BCN",
+        "country_code": "ES",
+        "flightable": True,
+        "name": "Barcelona-El Prat Airport",
+        "name_translations": {"en": "Barcelona-El Prat Airport"},
+    },
+    {
+        "code": "XJB",
+        "city_code": "BCN",
+        "country_code": "ES",
+        "flightable": True,
+        "name": "Barcelona Bus Station",
+        "name_translations": {"en": "Barcelona Bus Station"},
+    },
 ]
 
 

@@ -894,7 +894,9 @@ def _frontier_selection_pool(
     if preferred:
         tier_pool = preferred
     else:
-        minimum_connections = min(_max_connections(candidate) for candidate in acceptable)
+        minimum_connections = min(
+            _max_connections(candidate) for candidate in acceptable
+        )
         tier_pool = [
             candidate
             for candidate in acceptable
@@ -967,9 +969,7 @@ def _pareto_prune_within_gateway(
     ]
 
 
-def _dominates_within_gateway(
-    candidate: dict[str, Any], other: dict[str, Any]
-) -> bool:
+def _dominates_within_gateway(candidate: dict[str, Any], other: dict[str, Any]) -> bool:
     if _gateway_signature(candidate) != _gateway_signature(other):
         return False
     candidate_values = _dominance_values(candidate)
@@ -1016,12 +1016,16 @@ def _carrier_chain_signature(candidate: dict[str, Any]) -> tuple[Any, ...]:
 
 
 def _segment_carrier(segment: dict[str, Any]) -> str:
-    return str(
-        segment.get("marketing_carrier")
-        or segment.get("carrier")
-        or segment.get("operating_carrier")
-        or "UNKNOWN"
-    ).strip().upper()
+    return (
+        str(
+            segment.get("marketing_carrier")
+            or segment.get("carrier")
+            or segment.get("operating_carrier")
+            or "UNKNOWN"
+        )
+        .strip()
+        .upper()
+    )
 
 
 def _first_leg_carrier(candidate: dict[str, Any]) -> str:
@@ -1208,10 +1212,8 @@ def _frontier_acceptable(candidate: dict[str, Any]) -> bool:
         bool(candidate.get("covers_requested_trip"))
         and not _has_impossible_connection(candidate)
         and not _chronology_violations(candidate)
-        and (candidate.get("connection_assessment") or {}).get("status")
-        != "invalid"
-        and (candidate.get("connection_assessment") or {}).get("status")
-        != "invalid"
+        and (candidate.get("connection_assessment") or {}).get("status") != "invalid"
+        and (candidate.get("connection_assessment") or {}).get("status") != "invalid"
     )
 
 

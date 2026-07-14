@@ -518,40 +518,44 @@ class SearchPlanBuilder:
             )
             leg_dates = [date_text]
             if leg == "gateway_to_destination":
-                next_date = (date.fromisoformat(date_text) + timedelta(days=1)).isoformat()
+                next_date = (
+                    date.fromisoformat(date_text) + timedelta(days=1)
+                ).isoformat()
                 if next_date not in leg_dates:
                     leg_dates.append(next_date)
             for leg_date in leg_dates:
                 for direct_only in (True, False):
                     query = {
-                "role": "gateway_leg_probe",
-                "source_type": "gateway_discovery_candidate",
-                "probe_type": "segment_direct" if direct_only else "segment_hub_leg",
-                "direction": "outbound",
-                "leg": leg,
-                "origin": leg_origin,
-                "destination": leg_destination,
-                "origin_airports": [leg_origin],
-                "destination_airports": [leg_destination],
-                "date": leg_date,
-                "currency": currency,
-                "direct_only": direct_only,
-                "gateway": gateway,
-                "gateway_role": "bridge_gateway",
-                "connection_layer": connection_layer,
-                "allows_intermediate_hubs": not direct_only,
-                "date_strategy": (
-                    "requested_day_and_next_day"
-                    if leg == "gateway_to_destination"
-                    else "requested_departure_date_only"
-                ),
-                "gateway_rank": rank,
-                "gateway_source": gateway_source,
-                "candidate_score": score,
-                "route_access_profile": route_access_profile,
-                "gateway_discovery_mode": gateway_discovery_mode,
-                "execution_state": "not_executed",
-                }
+                        "role": "gateway_leg_probe",
+                        "source_type": "gateway_discovery_candidate",
+                        "probe_type": "segment_direct"
+                        if direct_only
+                        else "segment_hub_leg",
+                        "direction": "outbound",
+                        "leg": leg,
+                        "origin": leg_origin,
+                        "destination": leg_destination,
+                        "origin_airports": [leg_origin],
+                        "destination_airports": [leg_destination],
+                        "date": leg_date,
+                        "currency": currency,
+                        "direct_only": direct_only,
+                        "gateway": gateway,
+                        "gateway_role": "bridge_gateway",
+                        "connection_layer": connection_layer,
+                        "allows_intermediate_hubs": not direct_only,
+                        "date_strategy": (
+                            "requested_day_and_next_day"
+                            if leg == "gateway_to_destination"
+                            else "requested_departure_date_only"
+                        ),
+                        "gateway_rank": rank,
+                        "gateway_source": gateway_source,
+                        "candidate_score": score,
+                        "route_access_profile": route_access_profile,
+                        "gateway_discovery_mode": gateway_discovery_mode,
+                        "execution_state": "not_executed",
+                    }
                     self._apply_filters(query)
                     providers = providers_for_segment(
                         query, self._store, flow.evidence_plan.provider_policy

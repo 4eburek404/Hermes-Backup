@@ -744,9 +744,9 @@ class SearchExecutor:
             timeout=self.options.evidence.timeout,
         )
         direct_query_specs = [
-                {**query, "wave_index": 0}
-                for query in planned_primary
-                if bool(query.get("direct_only"))
+            {**query, "wave_index": 0}
+            for query in planned_primary
+            if bool(query.get("direct_only"))
         ]
         direct_results = (
             run_primary_offer_queries(

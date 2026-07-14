@@ -97,7 +97,8 @@ class SearchPlanContractTests(unittest.TestCase):
         self.assertEqual(search_plan["schema_version"], "flight_search_plan.v2")
         primary_queries = search_plan["primary_offer_queries"]
         self.assertEqual(
-            [query["provider"] for query in primary_queries], ["tutu", "kupibilet", "tutu", "kupibilet"]
+            [query["provider"] for query in primary_queries],
+            ["tutu", "kupibilet", "tutu", "kupibilet"],
         )
         self.assertEqual(
             [query["direct_only"] for query in primary_queries],

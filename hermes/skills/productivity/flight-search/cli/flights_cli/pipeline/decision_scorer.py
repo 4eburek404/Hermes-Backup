@@ -62,9 +62,7 @@ class DecisionScorer:
             max_gateway_alternatives=self.options.max_gateway_alternatives,
             max_options=self.options.max_options,
             max_primary_gateway_options=self.options.max_primary_gateway_options,
-            max_options_per_first_carrier=(
-                self.options.max_options_per_first_carrier
-            ),
+            max_options_per_first_carrier=(self.options.max_options_per_first_carrier),
             preferred_layover_max_min=self.options.preferred_layover_max_min,
         )
         return {
