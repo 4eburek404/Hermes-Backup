@@ -1,7 +1,7 @@
 ---
 name: flight-status
 description: Use when checking the current operational status of a flight or airport board, including delays, cancellations, revised times, terminals, gates, check-in desks, arrivals, departures, or conflicts between live status sources; not for fare search.
-version: 1.0.0
+version: 1.1.0
 author: Hermes Agent
 license: MIT
 metadata:
@@ -9,7 +9,7 @@ metadata:
     category: travel
     tags: [travel, flights, status, airport, delays, gates]
     related_skills: [flight-search]
-    requires_toolsets: [web]
+    requires_toolsets: [web, terminal]
 ---
 
 # Flight Status
@@ -26,6 +26,31 @@ Answer operational flight-status questions from current, source-labelled evidenc
 4. **Match the source to the field.** Use the departure airport board for gate and check-in desks; the relevant airport board for terminal and local status; the airline for passenger instructions; a tracker only for movement/history when operational sources do not expose it. Never infer a gate, desk, terminal, or cancellation from route history.
 5. **Reconcile conflicts explicitly.** Preserve each source's local time and status wording, record when it was observed, and state the disagreement. Do not silently merge different scheduled, estimated, and actual times. For gate/desks, the airport board has priority; for carrier instructions, the airline has priority. A third-party tracker does not override an official operational display without explaining the conflict.
 6. **Report status first.** Give one compact status line, then scheduled versus updated times, airport/terminal/gate/desks when present, source names with observation time, and a short uncertainty note only when evidence is incomplete or conflicting.
+
+## Trip.com Airport Board
+
+For a current Trip.com airport-board fallback, resolve `<skill-root>` as the
+directory containing this `SKILL.md` and run the bundled read-only script:
+
+```bash
+python3 "<skill-root>/scripts/trip_board.py" SVO --direction arrivals
+python3 "<skill-root>/scripts/trip_board.py" SVO --direction departures
+```
+
+The same Python environment must provide `curl_cffi`; otherwise the script
+returns `missing_dependency: curl_cffi`. It does not require BeautifulSoup or a
+headless browser.
+
+Add `--json` for structured output. The script returns Trip.com's current
+date/time slice and first 24 rows with time, flight number, origin/destination,
+airline, terminal, and status. It performs public GET requests only and labels
+the result as `Trip.com` with data supplied by `VariFlight`; this is a
+third-party airport-board aggregator, not official airport confirmation.
+
+If the script reports `trip_antibot_challenge`, `trip_parser_changed`, or another
+named error, report that access/parser limitation. Do not turn it into an empty
+board or claim that there are no flights. Arbitrary dates, time windows,
+pagination, and polling are outside this first version.
 
 ## Input
 
@@ -67,4 +92,5 @@ Omit unavailable fields rather than filling them from general knowledge. Keep lo
 
 ## References
 
-None. Provider URLs and board identifiers are discovered live so stale hardcoded route and station lists do not become a second source of truth.
+- `scripts/trip_board.py` — read-only Trip.com airport arrivals/departures board.
+- Other provider URLs and board identifiers are discovered live so stale hardcoded route and station lists do not become a second source of truth.
