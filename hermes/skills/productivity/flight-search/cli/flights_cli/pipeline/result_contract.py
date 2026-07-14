@@ -155,7 +155,6 @@ def flight_search_result_semantic_errors(
         "failed_control_count": counts.get("failed_controls"),
         "not_supported_control_count": counts.get("not_supported_controls"),
         "provider_failure_count": len(evidence.get("provider_failures") or []),
-        "through_fare_check_count": len(evidence.get("through_fare_checks") or []),
     }
     for field, expected in expected_counts.items():
         if evidence_status.get(field) != expected:

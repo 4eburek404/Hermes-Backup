@@ -42,7 +42,6 @@ class SearchEvidence:
     provider_policy: str
     primary_offer_results: tuple[dict[str, Any], ...]
     gateway_leg_results: dict[str, Any]
-    aggregate_controls: tuple[dict[str, Any], ...]
     observed_gateway_diagnostics: dict[str, Any]
     probe_ledger: dict[str, Any]
     failures: tuple[dict[str, Any], ...]
@@ -66,7 +65,6 @@ class SearchEvidence:
         provider_policy: str,
         primary_offer_results: list[dict[str, Any]],
         gateway_leg_results: dict[str, Any],
-        aggregate_controls: list[dict[str, Any]],
         observed_gateway_diagnostics: dict[str, Any],
         probe_ledger: dict[str, Any],
         failures: list[dict[str, Any]],
@@ -82,7 +80,6 @@ class SearchEvidence:
             provider_policy=str(provider_policy),
             primary_offer_results=tuple(freeze(primary_offer_results)),
             gateway_leg_results=freeze(gateway_leg_results),
-            aggregate_controls=tuple(freeze(aggregate_controls)),
             observed_gateway_diagnostics=freeze(observed_gateway_diagnostics),
             probe_ledger=freeze(probe_ledger),
             failures=tuple(freeze(failures)),
@@ -99,7 +96,6 @@ class SearchEvidence:
             "provider_policy": self.provider_policy,
             "primary_offer_results": thaw(self.primary_offer_results),
             "gateway_leg_results": thaw(self.gateway_leg_results),
-            "aggregate_controls": thaw(self.aggregate_controls),
             "observed_gateway_diagnostics": thaw(self.observed_gateway_diagnostics),
             "probe_ledger": thaw(self.probe_ledger),
             "failures": thaw(self.failures),

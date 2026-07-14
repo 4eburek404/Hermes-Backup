@@ -61,7 +61,7 @@ def _register_primary_search_commands(
     search.add_argument(
         "--request",
         required=True,
-        help="flight_search_request.v1 JSON file, or - for stdin.",
+        help="flight_search_request.v2 JSON file, or - for stdin.",
     )
     search.set_defaults(
         func=command_search, command_name="search", **_catalog_read_defaults()
@@ -78,12 +78,12 @@ def _register_diagnose_commands(sub, json_parent: argparse.ArgumentParser) -> No
     plan = diagnose_sub.add_parser(
         "plan",
         parents=[json_parent],
-        help="Render the route segment plan from a flight_search_request.v1 file without provider calls.",
+        help="Render the route segment plan from a flight_search_request.v2 file without provider calls.",
     )
     plan.add_argument(
         "--request",
         required=True,
-        help="flight_search_request.v1 JSON file, or - for stdin.",
+        help="flight_search_request.v2 JSON file, or - for stdin.",
     )
     plan.set_defaults(
         func=command_diagnose_plan,
@@ -121,7 +121,7 @@ def _register_diagnose_commands(sub, json_parent: argparse.ArgumentParser) -> No
     trace.add_argument(
         "--request",
         required=True,
-        help="flight_search_request.v1 JSON file, or - for stdin.",
+        help="flight_search_request.v2 JSON file, or - for stdin.",
     )
     trace.set_defaults(
         func=command_diagnose_trace,

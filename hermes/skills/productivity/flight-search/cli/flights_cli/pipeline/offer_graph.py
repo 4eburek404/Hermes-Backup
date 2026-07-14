@@ -1217,7 +1217,7 @@ def _merge_duplicate_candidates(
     existing: dict[str, Any],
     incoming: dict[str, Any],
 ) -> dict[str, Any]:
-    if _candidate_preference(incoming) > _candidate_preference(existing):
+    if _prefer_incoming_duplicate(existing, incoming):
         primary = deepcopy(incoming)
         alternate = existing
     else:
@@ -1265,6 +1265,28 @@ def _candidate_preference(candidate: dict[str, Any]) -> tuple[int, int, int]:
         1 if candidate.get("source_type") == "provider_full_route" else 0,
         1 if candidate.get("price_basis") == "provider_offer_price" else 0,
         1 if candidate.get("price") is not None else 0,
+    )
+
+
+def _prefer_incoming_duplicate(
+    existing: dict[str, Any], incoming: dict[str, Any]
+) -> bool:
+    existing_preference = _candidate_preference(existing)
+    incoming_preference = _candidate_preference(incoming)
+    if incoming_preference != existing_preference:
+        return incoming_preference > existing_preference
+    if (
+        existing.get("price_basis") != incoming.get("price_basis")
+        or str(existing.get("currency") or "").upper()
+        != str(incoming.get("currency") or "").upper()
+    ):
+        return False
+    existing_price = numeric_or_none(existing.get("price"))
+    incoming_price = numeric_or_none(incoming.get("price"))
+    return (
+        existing_price is not None
+        and incoming_price is not None
+        and incoming_price < existing_price
     )
 
 

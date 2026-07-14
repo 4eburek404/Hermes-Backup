@@ -32,7 +32,6 @@ def live_args(**overrides: object):
         "max_segment_searches": 10,
         "live_cache_ttl_seconds": 0,
         "no_live_cache": True,
-        "aggregate_control_limit": 0,
         "coverage_mode": "targeted",
         "coverage_control_limit": 12,
     }
@@ -67,10 +66,6 @@ def minimal_route_plan(destination: str) -> dict[str, object]:
 def execution_limits() -> dict[str, object]:
     return {
         "max_segment_searches": 10,
-        "search_wave_max_waves": 2,
-        "search_wave_probe_limit": 4,
-        "search_wave_top_k": 3,
-        "aggregate_control_limit": 0,
         "segment_limit": 30,
         "live_cache_ttl_seconds": 0,
         "live_cache_enabled": False,
@@ -191,10 +186,6 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 return_value=[],
             ),
             patch(
-                "flights_cli.execution.search_executor.run_aggregate_controls",
-                return_value=[],
-            ) as run_aggregate,
-            patch(
                 "flights_cli.execution.search_executor.hub_viability_summary",
                 return_value=[],
             ),
@@ -202,7 +193,6 @@ class LiveRoutePipelineTests(unittest.TestCase):
             result = execute_projection(live_args(), Store())
 
         self.assertEqual(build_flow.call_count, 1)
-        run_aggregate.assert_called_once()
         self.assertIn("live_search", result)
         self.assertEqual(result["live_search"]["provider_policy"], "auto")
         route_plan = result["live_search"]["plan"]
@@ -212,13 +202,12 @@ class LiveRoutePipelineTests(unittest.TestCase):
         search_plan = result["live_search"]["diagnostics"]["search_plan"]
         self.assertEqual(
             set(result["live_search"]["diagnostics"]),
-            {"search_plan", "wave_diagnostics"},
+            {"search_plan"},
         )
-        self.assertEqual(search_plan["schema_version"], "flight_search_plan.v2")
+        self.assertEqual(search_plan["schema_version"], "flight_search_plan.v3")
         self.assertIn("candidate_count", search_plan["gateway_discovery"])
         self.assertIn("candidates", search_plan["gateway_discovery"])
         self.assertEqual(result["live_search"]["segment_searches"], [])
-        self.assertEqual(result["live_search"]["aggregate_controls"], [])
         self.assertNotIn("flow_decision", result)
         self.assertNotIn("evidence_plan", result)
         self.assertNotIn("search_request", result)
@@ -229,8 +218,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
     def test_primary_offer_queries_execute_before_frontier_scoring(self) -> None:
         events: list[str] = []
         search_plan = {
-            "schema_version": "flight_search_plan.v2",
-            "aggregate_queries": [],
+            "schema_version": "flight_search_plan.v3",
             "execution_limits": execution_limits(),
             "route_context": minimal_route_plan("CDG"),
             "primary_offer_queries": [
@@ -272,21 +260,6 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 ],
             }
         ]
-        aggregate_results = [
-            {
-                "provider": "kupibilet",
-                "status": "ok",
-                "top_offers": [
-                    {
-                        "id": "aggregate-1",
-                        "segments": [
-                            {"origin": "SVX", "destination": "BEG"},
-                            {"origin": "BEG", "destination": "CDG"},
-                        ],
-                    }
-                ],
-            }
-        ]
 
         def run_primary(*_: object, **__: object) -> list[dict[str, object]]:
             events.append("primary")
@@ -300,10 +273,6 @@ class LiveRoutePipelineTests(unittest.TestCase):
             patch(
                 "flights_cli.execution.search_executor.run_primary_offer_queries",
                 side_effect=run_primary,
-            ),
-            patch(
-                "flights_cli.execution.search_executor.run_aggregate_controls",
-                return_value=aggregate_results,
             ),
             patch(
                 "flights_cli.execution.search_executor.hub_viability_summary",
@@ -347,10 +316,9 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertNotIn("rank_key", frontier["options"][0])
         self.assertNotIn("decision_frontier", result["live_search"])
         self.assertIn("gateway_leg_results", result["live_search"])
-        self.assertEqual(result["live_search"]["aggregate_controls"], aggregate_results)
         self.assertEqual(
             set(result["live_search"]["diagnostics"]),
-            {"search_plan", "wave_diagnostics"},
+            {"search_plan"},
         )
         self.assertEqual(
             result["live_search"]["primary_offer_results"],
@@ -367,7 +335,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 candidate["code"]
                 for candidate in search_plan_gateway_discovery["candidates"][:2]
             ],
-            ["IST", "BEG"],
+            ["IST", "DXB"],
         )
         self.assertEqual(
             [
@@ -376,21 +344,13 @@ class LiveRoutePipelineTests(unittest.TestCase):
             ],
             ["static_prior", "provider_returned_route"],
         )
-        self.assertEqual(
-            [
-                candidate["code"]
-                for candidate in search_plan_gateway_discovery["candidates"][:2]
-            ],
-            ["IST", "BEG"],
-        )
-        self.assertEqual(search_plan_gateway_discovery["candidate_count"], 3)
+        self.assertEqual(search_plan_gateway_discovery["candidate_count"], 2)
 
-    def test_direct_presence_gate_skips_gateway_queries_after_wave0_evidence(
+    def test_direct_presence_gate_skips_gateway_queries_after_direct_evidence(
         self,
     ) -> None:
         search_plan = {
-            "schema_version": "flight_search_plan.v2",
-            "aggregate_queries": [],
+            "schema_version": "flight_search_plan.v3",
             "execution_limits": execution_limits(),
             "route_context": minimal_route_plan("CDG"),
             "primary_offer_queries": [
@@ -471,31 +431,12 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 return_value=primary_results,
             ),
             patch(
-                "flights_cli.execution.search_executor.run_aggregate_controls",
-                return_value=[],
-            ),
-            patch(
-                "flights_cli.execution.search_executor.SearchWavePlanner.run",
-                return_value={
-                    "searched_gateways": 0,
-                    "viable_gateways": 0,
-                    "failed_gateways": 0,
-                    "not_searched_budget": 0,
-                    "gateways": [],
-                    "wave_diagnostics": {
-                        "schema_version": "flight_search_wave_diagnostics.v1",
-                        "stop_reason": "no_conditional_gateway_queries",
-                    },
-                },
-            ) as wave_run,
-            patch(
                 "flights_cli.execution.search_executor.hub_viability_summary",
                 return_value=[],
             ),
         ):
             result = execute_projection(live_args(provider_policy="kupibilet"), Store())
 
-        wave_run.assert_not_called()
         gate = result["live_search"]["direct_presence_gate"]
         self.assertEqual(gate["direct_evidence_present"], {"outbound": True})
         self.assertEqual(gate["direct_mode"], {"outbound": True})
@@ -507,8 +448,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
 
     def test_live_search_payload_is_deduplicated(self) -> None:
         search_plan = {
-            "schema_version": "flight_search_plan.v2",
-            "aggregate_queries": [],
+            "schema_version": "flight_search_plan.v3",
             "execution_limits": execution_limits(),
             "route_context": minimal_route_plan("CDG"),
             "primary_offer_queries": [
@@ -541,10 +481,6 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 return_value=provider_returned_route("CDG"),
             ),
             patch(
-                "flights_cli.execution.search_executor.run_aggregate_controls",
-                return_value=[],
-            ),
-            patch(
                 "flights_cli.execution.search_executor.hub_viability_summary",
                 return_value=[],
             ),
@@ -561,13 +497,12 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertNotIn("decision_frontier", result["live_search"])
         self.assertEqual(
             set(result["live_search"]["diagnostics"]),
-            {"search_plan", "wave_diagnostics"},
+            {"search_plan"},
         )
 
     def test_route_connection_options_flow_into_decision_scorer(self) -> None:
         search_plan = {
-            "schema_version": "flight_search_plan.v2",
-            "aggregate_queries": [],
+            "schema_version": "flight_search_plan.v3",
             "execution_limits": execution_limits(),
             "route_context": build_route_context(
                 live_args(
@@ -627,10 +562,6 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 return_value=primary_results,
             ),
             patch(
-                "flights_cli.execution.search_executor.run_aggregate_controls",
-                return_value=[],
-            ),
-            patch(
                 "flights_cli.execution.search_executor.hub_viability_summary",
                 return_value=[],
             ),
@@ -658,8 +589,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
     def test_gateway_leg_results_are_returned_top_level_only(self) -> None:
         plan = minimal_route_plan("AMS")
         search_plan = {
-            "schema_version": "flight_search_plan.v2",
-            "aggregate_queries": [],
+            "schema_version": "flight_search_plan.v3",
             "execution_limits": execution_limits(),
             "route_context": minimal_route_plan("AMS"),
             "primary_offer_queries": [],
@@ -733,10 +663,6 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 side_effect=dispatch_gateway,
             ),
             patch(
-                "flights_cli.execution.search_executor.run_aggregate_controls",
-                return_value=[],
-            ),
-            patch(
                 "flights_cli.execution.search_executor.hub_viability_summary",
                 return_value=[],
             ),
@@ -748,7 +674,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertEqual(gateway_results["viable_gateways"], 1)
         self.assertEqual(
             set(result["live_search"]["diagnostics"]),
-            {"search_plan", "wave_diagnostics"},
+            {"search_plan"},
         )
         offer_graph = result["live_search"]["offer_graph"]
         self.assertEqual(offer_graph["schema_version"], "flight_offer_graph.v1")
@@ -809,11 +735,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                             side_effect=phased_primary,
                         ),
                         patch(
-                            "flights_cli.execution.search_executor.run_aggregate_controls",
-                            return_value=[],
-                        ),
-                        patch(
-                            "flights_cli.execution.search_executor.SearchWavePlanner.run",
+                            "flights_cli.execution.search_executor.GatewayLegProbeExecutor.run",
                             return_value=gateway_leg_results,
                         ),
                         patch(
@@ -847,7 +769,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 self.assertEqual(gateway_plan["market"], "restricted_bridge_gateways")
                 self.assertEqual(
                     set(with_provider_route["live_search"]["diagnostics"]),
-                    {"search_plan", "wave_diagnostics"},
+                    {"search_plan"},
                 )
                 candidates = gateway_plan["candidates"]
                 self.assertEqual(gateway_plan["candidate_count"], len(candidates))

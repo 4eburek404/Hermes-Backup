@@ -14,7 +14,6 @@ _NON_LOGICAL_QUERY_FIELDS = frozenset(
         "execution_state",
         "status",
         "reason",
-        "wave_index",
     }
 )
 

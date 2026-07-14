@@ -66,14 +66,6 @@ def normalize_search_request(payload: dict[str, Any]) -> dict[str, Any]:
             if isinstance(filters.get(name), list):
                 filters[name] = [str(item).upper() for item in filters[name]]
         normalized["filters"] = filters
-    evidence_value = normalized.get("evidence")
-    if isinstance(evidence_value, dict):
-        evidence = dict(evidence_value)
-        if isinstance(evidence.get("aggregate_control_carriers"), list):
-            evidence["aggregate_control_carriers"] = [
-                str(item).upper() for item in evidence["aggregate_control_carriers"]
-            ]
-        normalized["evidence"] = evidence
     return normalized
 
 

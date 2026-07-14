@@ -12,7 +12,7 @@ containing the parent `SKILL.md`.
 - Candidate generation, scoring, one decision frontier, and result projection.
 - Direct, carrier, aggregate, and coverage controls when the current provider policy calls for them.
 - Static metadata lookup for city, airport, country/region, airline, alliance, and aircraft labels.
-- A compact `flight_search_result.v7` with `route`, `evidence`, `frontier`, and the canonical `answer`.
+- A compact `flight_search_result.v8` with `route`, `evidence`, `frontier`, and the canonical `answer`.
 
 The CLI does not book, buy, or write to agent runtime state.
 
@@ -88,7 +88,7 @@ Primary agent command:
 ```bash
 cat > /tmp/flight-search-request.json <<'JSON'
 {
-  "schema_version": "flight_search_request.v1",
+  "schema_version": "flight_search_request.v2",
   "origin": "ORIGIN",
   "destination": "DEST",
   "depart_date": "YYYY-MM-DD",
@@ -107,7 +107,6 @@ Return this text stdout verbatim. With `--json`, the canonical serialized paths 
 - `answer.catalog.items`
 - `frontier.option_ids`
 - `evidence.coverage`
-- `evidence.through_fare_checks`
 - `evidence.provider_failures`
 - `evidence.source_boundaries`
 
@@ -124,7 +123,7 @@ Common request fields:
 - `provider_policy: "auto"|"tutu"|"kupibilet"|"fli"`
 - `route_options.stop_policy: "business-default"|"strict-direct-one-stop"|"allow-two-stop-fallback"|"debug-all"`
 - `route_options.date_window_end: "YYYY-MM-DD"` for bounded one-way direct-only inventory; request-only, no CLI flag
-- `evidence.aggregate_control_carriers: ["CODE"]`
+- `filters.only_carriers: ["CODE"]`
 - `route_options.coverage_mode: "standard"|"targeted"|"full"`
 - `evidence.no_live_cache: true` for a fresh live probe when appropriate
 
@@ -196,14 +195,16 @@ Useful probe shapes:
 - exact-airport direct-only;
 - city-code direct-only when applicable;
 - alternate airport for multi-airport cities;
-- carrier-specific direct or aggregate control;
+- carrier-filtered direct or full-route probe;
 - nearby in-horizon control date for horizon/coverage splits.
 
 These probes are narrower evidence than the assembled report. Label the scope when using them in an answer.
 
 ## Price and Purchase Caveats
 
-Fares and availability are advisory until checked on the purchase screen. Through-fare, single-PNR, baggage, refund, and disruption-protection claims require explicit proof from `through_fare_checks` or the booking flow.
+Fares and availability are advisory until checked on the purchase screen.
+Through-fare, single-PNR, baggage, refund, and disruption-protection claims
+require explicit booking-flow, airline, seller, or GDS proof.
 
 ## Supporting-File Distillation Policy
 

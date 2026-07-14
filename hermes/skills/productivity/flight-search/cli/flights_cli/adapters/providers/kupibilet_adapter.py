@@ -45,13 +45,14 @@ KUPIBILET_CAPABILITIES = ProviderCapabilities(
 )
 
 
-def kupibilet_aggregate_control_summary(
+def kupibilet_aggregate_search_summary(
     *,
     direction: str,
     origin: str,
     destination: str,
     depart_date: str,
     carriers: list[str],
+    direct_only: bool,
     result: dict[str, Any],
 ) -> dict[str, Any]:
     offers = [
@@ -66,9 +67,11 @@ def kupibilet_aggregate_control_summary(
         "status": "ok",
         "provider": "kupibilet",
         "source": result.get("source"),
-        "filters": dict(
-            result.get("filters") or {"direct_only": False, "only_carriers": carriers}
-        ),
+        "filters": {
+            "direct_only": direct_only,
+            "only_carriers": carriers,
+            **dict(result.get("filters") or {}),
+        },
         "skipped": result.get("skipped", {}),
         "offer_count": len(filtered_offers),
         "raw_offer_count": result.get(
@@ -183,8 +186,9 @@ class KupibiletProviderAdapter:
         origin = str(query["origin"]).upper()
         destination = str(query["destination"]).upper()
         depart_date_text = str(query["date"])
-        depart_date = parse_iso_date(depart_date_text, "aggregate-control-date")
+        depart_date = parse_iso_date(depart_date_text, "aggregate-date")
         carriers = list(query.get("only_carriers") or [])
+        direct_only = bool(query.get("direct_only", False))
         origin_airports = normalize_airport_scope(
             list(query.get("origin_airports") or []), "origin-airport"
         )
@@ -199,7 +203,7 @@ class KupibiletProviderAdapter:
             only_carriers=carriers,
             origin_airports=origin_airports,
             destination_airports=destination_airports,
-            direct_only=False,
+            direct_only=direct_only,
             limit=int(query["limit"]),
             timeout=int(query.get("timeout") or 60),
             cache_ttl_seconds=int(query.get("cache_ttl_seconds") or 0),
@@ -211,12 +215,13 @@ class KupibiletProviderAdapter:
         destination_airports = list(
             result_filters.get("destination_airports") or destination_airports
         )
-        summary = kupibilet_aggregate_control_summary(
+        summary = kupibilet_aggregate_search_summary(
             direction=str(query["direction"]),
             origin=origin,
             destination=destination,
             depart_date=depart_date_text,
             carriers=carriers,
+            direct_only=direct_only,
             result=result,
         )
         cache_status: CacheStatus = cache_status_from_result(result)  # type: ignore[assignment]
@@ -233,7 +238,7 @@ class KupibiletProviderAdapter:
                 "only_carriers": carriers,
                 "origin_airports": origin_airports,
                 "destination_airports": destination_airports,
-                "direct_only": False,
+                "direct_only": direct_only,
             },
             execution_state="searched",
             cache_status=cache_status,

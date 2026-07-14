@@ -156,12 +156,6 @@ def live_assembly_args(**overrides: Any) -> Any:
         "outbound_second_leg_day_offset": "outbound_second_leg_day_offsets",
         "return_second_leg_day_offsets": "return_second_leg_day_offsets",
         "return_second_leg_day_offset": "return_second_leg_day_offsets",
-        "search_wave_max_waves": "search_wave_max_waves",
-        "search_wave_probe_limit": "search_wave_probe_limit",
-        "search_wave_top_k": "search_wave_top_k",
-        "aggregate_control_limit": "aggregate_control_limit",
-        "aggregate_control_carriers": "aggregate_control_carriers",
-        "aggregate_control_carrier": "aggregate_control_carriers",
         "max_segment_searches": "max_segment_searches",
         "fail_fast": "fail_fast",
         "live_cache_ttl_seconds": "live_cache_ttl_seconds",
@@ -184,7 +178,7 @@ def live_assembly_args(**overrides: Any) -> Any:
     }
     values = dict(overrides)
     request: dict[str, Any] = {
-        "schema_version": "flight_search_request.v1",
+        "schema_version": "flight_search_request.v2",
         "origin": values.pop("origin", "SVX"),
         "destination": values.pop("destination", "CDG"),
         "depart_date": values.pop("depart_date", "2026-08-15"),
@@ -218,7 +212,6 @@ def live_assembly_args(**overrides: Any) -> Any:
             if target in {
                 "outbound_second_leg_day_offsets",
                 "return_second_leg_day_offsets",
-                "aggregate_control_carriers",
             }:
                 value = as_list(value)
             evidence[target] = value

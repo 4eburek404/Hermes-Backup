@@ -26,7 +26,7 @@ from helpers import PROJECT, TEST_ENV, parser_leaf_defaults
 
 def live_search_args(**overrides: object) -> argparse.Namespace:
     request = {
-        "schema_version": "flight_search_request.v1",
+        "schema_version": "flight_search_request.v2",
         "origin": overrides.pop("origin", "SVX"),
         "destination": overrides.pop("destination", "DEL"),
         "depart_date": overrides.pop("depart_date", "2026-06-01"),
@@ -41,9 +41,7 @@ def live_search_args(**overrides: object) -> argparse.Namespace:
             "tier2_max_connections": overrides.pop("tier2_max_connections", None),
         },
         "output": {},
-        "evidence": {
-            "aggregate_control_limit": overrides.pop("aggregate_control_limit", 0),
-        },
+        "evidence": {},
     }
     adapter = getattr(search_app, "search_request_from_payload", None)
     if not callable(adapter):
@@ -54,7 +52,6 @@ def live_search_args(**overrides: object) -> argparse.Namespace:
     args = argparse.Namespace(
         command_name=options.command_name,
         provider_policy=options.evidence.provider_policy,
-        aggregate_control_limit=options.evidence.aggregate_control_limit,
         ticketing=options.ticketing,
         profile=options.profile,
         stop_policy=options.route.stop_policy,
@@ -213,10 +210,10 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(payload["command"], "maint doctor")
         self.assertEqual(payload["issues"], [])
         self.assertEqual(
-            payload["data"]["cli"], {"name": "flights-cli", "version": "0.8.1"}
+            payload["data"]["cli"], {"name": "flights-cli", "version": "0.9.0"}
         )
         self.assertEqual(
-            payload["data"]["skill"], {"name": "flight-search", "version": "0.11.7"}
+            payload["data"]["skill"], {"name": "flight-search", "version": "0.12.0"}
         )
         self.assertEqual(
             set(payload["data"]),
@@ -312,7 +309,7 @@ class CliContractTests(unittest.TestCase):
 
     def test_json_diagnose_plan_envelope_and_repeatable_hubs(self) -> None:
         request = {
-            "schema_version": "flight_search_request.v1",
+            "schema_version": "flight_search_request.v2",
             "origin": "SVX",
             "destination": "LON",
             "depart_date": "2026-07-20",
@@ -368,7 +365,7 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(
             route["airport_scope"]["destination"]["excluded_by_default"], []
         )
-        self.assertEqual(data["schema_version"], "flight_search_plan.v2")
+        self.assertEqual(data["schema_version"], "flight_search_plan.v3")
 
     def test_leaf_json_flag_is_accepted_without_argv_rewrite(self) -> None:
         parser = build_parser()

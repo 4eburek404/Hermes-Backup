@@ -74,11 +74,7 @@ def _has_airport_scope(request: SearchRequest) -> bool:
 
 
 def _has_carrier_scope(request: SearchRequest) -> bool:
-    return bool(
-        request.aggregate_control_carriers
-        or request.only_carriers
-        or request.exclude_carriers
-    )
+    return bool(request.only_carriers or request.exclude_carriers)
 
 
 def _location_country(store: Any, code: str) -> str | None:

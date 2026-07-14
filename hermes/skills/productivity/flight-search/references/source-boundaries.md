@@ -82,7 +82,9 @@ Generic connection time thresholds:
 
 ## Ticketing Evidence Hierarchy
 
-A combined itinerary in the report does not automatically prove a single ticket or single PNR. Use `through_fare_checks` for the current evidence level.
+A combined itinerary in the report does not automatically prove a single ticket
+or single PNR. Use explicit booking-screen, fare-rule, seller, airline, or GDS
+evidence for that claim.
 
 Hierarchy:
 

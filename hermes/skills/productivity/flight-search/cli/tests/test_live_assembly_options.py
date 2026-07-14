@@ -9,7 +9,7 @@ from flights_cli.pipeline.search_request import SearchRequest
 
 
 REQUEST = {
-    "schema_version": "flight_search_request.v1",
+    "schema_version": "flight_search_request.v2",
     "origin": "svx",
     "destination": "lon",
     "depart_date": "2026-07-20",
@@ -48,11 +48,6 @@ REQUEST = {
         "timeout": 42,
         "outbound_second_leg_day_offsets": [0, 1],
         "return_second_leg_day_offsets": [0, 2],
-        "search_wave_max_waves": 4,
-        "search_wave_probe_limit": 8,
-        "search_wave_top_k": 6,
-        "aggregate_control_limit": 4,
-        "aggregate_control_carriers": ["SU", "TK"],
         "max_segment_searches": 99,
         "fail_fast": True,
         "live_cache_ttl_seconds": 123,
@@ -80,7 +75,6 @@ class SearchRequestTests(unittest.TestCase):
             "profile": "business",
             "only_carriers": ("SU",),
             "prefer_carriers": ("TK",),
-            "aggregate_control_carriers": ("SU", "TK"),
         }
         self.assertEqual(options.route.origin, expected["origin"])
         self.assertEqual(options.route.destination, expected["destination"])
@@ -94,13 +88,6 @@ class SearchRequestTests(unittest.TestCase):
         self.assertEqual(options.profile, expected["profile"])
         self.assertEqual(options.filters.only_carriers, expected["only_carriers"])
         self.assertEqual(options.filters.prefer_carriers, expected["prefer_carriers"])
-        self.assertEqual(
-            options.evidence.aggregate_control_carriers,
-            expected["aggregate_control_carriers"],
-        )
-        self.assertEqual(options.evidence.search_wave_max_waves, 4)
-        self.assertEqual(options.evidence.search_wave_probe_limit, 8)
-        self.assertEqual(options.evidence.search_wave_top_k, 6)
         self.assertEqual(options.evidence.primary_offer_limit, 35)
         self.assertEqual(options.output.catalog_limit, 12)
         self.assertEqual(options.output.direct_catalog_limit, 35)
@@ -117,7 +104,7 @@ class SearchRequestTests(unittest.TestCase):
 
     def test_search_request_maps_carrier_filters(self) -> None:
         request = {
-            "schema_version": "flight_search_request.v1",
+            "schema_version": "flight_search_request.v2",
             "origin": "nte",
             "destination": "svx",
             "depart_date": "2026-07-09",
@@ -133,7 +120,7 @@ class SearchRequestTests(unittest.TestCase):
     def test_search_request_defaults_are_explicit_in_typed_options(self) -> None:
         options = SearchRequest.from_payload(
             {
-                "schema_version": "flight_search_request.v1",
+                "schema_version": "flight_search_request.v2",
                 "origin": "svx",
                 "destination": "lon",
                 "depart_date": "2026-07-20",
@@ -158,7 +145,7 @@ class SearchRequestTests(unittest.TestCase):
     def test_search_request_preserves_explicit_zero_values(self) -> None:
         options = SearchRequest.from_payload(
             {
-                "schema_version": "flight_search_request.v1",
+                "schema_version": "flight_search_request.v2",
                 "origin": "svx",
                 "destination": "dme",
                 "depart_date": "2026-08-15",
@@ -172,10 +159,7 @@ class SearchRequestTests(unittest.TestCase):
                     "gateway_probe_batch_size": 0,
                     "gateway_probe_max_batches": 0,
                 },
-                "evidence": {
-                    "aggregate_control_limit": 0,
-                    "live_cache_ttl_seconds": 0,
-                },
+                "evidence": {"live_cache_ttl_seconds": 0},
                 "output": {
                     "catalog_limit": 0,
                     "direct_catalog_limit": 0,
@@ -191,7 +175,6 @@ class SearchRequestTests(unittest.TestCase):
         self.assertEqual(options.route.gateway_probe_batch_size, 0)
         self.assertEqual(options.route.gateway_probe_max_batches, 0)
         self.assertEqual(options.evidence.coverage_control_limit, 0)
-        self.assertEqual(options.evidence.aggregate_control_limit, 0)
         self.assertEqual(options.evidence.live_cache_ttl_seconds, 0)
         self.assertEqual(options.evidence.primary_offer_limit, 1)
         self.assertEqual(options.output.catalog_limit, 1)

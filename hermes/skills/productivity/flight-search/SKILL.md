@@ -1,6 +1,6 @@
 ---
 name: flight-search
-version: 0.11.7
+version: 0.12.0
 description: Use when finding, comparing, assembling, or diagnosing live flight options with the bundled flights CLI, including direct, round-trip, open-jaw leg, and RU-gateway searches; assumes one adult in economy and never books tickets.
 metadata:
   hermes:
@@ -22,7 +22,7 @@ variable exists.
 
 ## Golden Path
 
-Write a `flight_search_request.v1` JSON file. Resolve `cli/` from `<skill-root>`
+Write a `flight_search_request.v2` JSON file. Resolve `cli/` from `<skill-root>`
 and use it as the command's working directory, then run:
 
 ```bash
@@ -48,7 +48,7 @@ This is presentation-only: preserve every source value and warning, and never ch
 Minimal request:
 
 ```json
-{"schema_version":"flight_search_request.v1","origin":"ORIGIN","destination":"DEST","depart_date":"YYYY-MM-DD","profile":"business"}
+{"schema_version":"flight_search_request.v2","origin":"ORIGIN","destination":"DEST","depart_date":"YYYY-MM-DD","profile":"business"}
 ```
 
 Common options:

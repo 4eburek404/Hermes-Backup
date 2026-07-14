@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -9,11 +8,7 @@ from ..domain.immutable import thaw
 from ..domain.normalize import normalize_carrier_code
 from ..domain.vocabulary import Direction, Leg, RouteFamily
 from ..errors import CliError
-from .aggregate_control_runner import (
-    AggregateControlOptions,
-    evaluate_graph_coverage_controls,
-    run_aggregate_controls,
-)
+from .coverage_evaluator import evaluate_graph_coverage_controls
 from .gateway_leg_probe_executor import (
     GatewayLegProbeExecutor,
     GatewayLegProbeOptions,
@@ -25,10 +20,6 @@ from .offer_query_runner import (
 from .probe_ledger import ProbeExecutionLedger
 from .probe_intent import intent_from_aggregate_query
 from .request_deduper import RequestDeduper
-from .search_wave_planner import (
-    SearchWavePlanner,
-    SearchWavePlannerOptions,
-)
 from .search_evidence import SearchEvidence
 from ..pipeline.decision_scorer import DecisionScorer, DecisionScorerOptions
 from ..pipeline.offer_graph import (
@@ -438,7 +429,7 @@ def _direct_mode_from_primary_results(
         "direct_evidence_present": dict(evidence),
         "direct_mode": dict(direct_mode),
         "disabled_reason": disabled_reason,
-        "source": "wave0_primary_offer_results",
+        "source": "direct_primary_offer_results",
     }
 
 
@@ -510,72 +501,6 @@ def _preferred_max_connections(options: SearchRequest) -> int:
     return 1
 
 
-def _wave_diagnostics(gateway_leg_results: dict[str, Any]) -> dict[str, Any]:
-    diagnostics = gateway_leg_results.get("wave_diagnostics")
-    return deepcopy(diagnostics) if isinstance(diagnostics, dict) else {}
-
-
-def _aggregate_candidates(
-    controls: tuple[dict[str, Any], ...], *, round_trip: bool
-) -> list[dict[str, Any]]:
-    candidates: list[dict[str, Any]] = []
-    for control_index, control in enumerate(controls):
-        direction = _normalize_direction(control.get("direction")) or "outbound"
-        provider = str(control.get("provider") or "provider")
-        for offer_index, offer in enumerate(control.get("top_offers") or []):
-            if not isinstance(offer, dict):
-                continue
-            segments = [
-                {**segment, "direction": segment.get("direction") or direction}
-                for segment in offer.get("segments") or []
-                if isinstance(segment, dict)
-            ]
-            journeys = [
-                journey
-                for journey in offer.get("journeys") or []
-                if isinstance(journey, dict)
-            ]
-            if not journeys and segments:
-                journeys = [{"direction": direction, "segments": segments}]
-            directions = {
-                _normalize_direction(journey.get("direction")) for journey in journeys
-            }
-            covers_requested_trip = not round_trip or {
-                "outbound",
-                "return",
-            }.issubset(directions)
-            candidate = {
-                **deepcopy(offer),
-                "id": str(offer.get("id") or "")
-                or f"aggregate:{provider}:{control_index}:{offer_index}",
-                "source_type": "provider_full_route",
-                "provider": provider,
-                "source_providers": [provider],
-                "journeys": journeys,
-                "segments": segments,
-                "covers_requested_trip": covers_requested_trip,
-                "journey_scope": "round_trip"
-                if covers_requested_trip and round_trip
-                else "one_way",
-                "price": offer.get("price"),
-                "currency": offer.get("currency"),
-                "price_basis": "provider_offer_price"
-                if offer.get("price") is not None
-                else "unknown",
-                "elapsed_min": offer.get("duration_min"),
-                "ticketing_model": offer.get("ticketing_model") or "unknown",
-                "evidence_sources": [
-                    {
-                        "provider": provider,
-                        "probe_id": control.get("probe_id"),
-                        "source_type": "provider_full_route",
-                    }
-                ],
-            }
-            candidates.append(candidate)
-    return candidates
-
-
 class SearchDecisionBuilder:
     def __init__(self, *, options: SearchRequest) -> None:
         self.options = options
@@ -611,19 +536,6 @@ class SearchDecisionBuilder:
                 evidence.route_context.get("destination_airports") or []
             ),
         )
-        offer_candidates["candidates"] = [
-            *(
-                candidate
-                for candidate in offer_candidates.get("candidates") or []
-                if isinstance(candidate, dict)
-            ),
-            *_aggregate_candidates(
-                evidence.aggregate_controls,
-                round_trip=bool(
-                    (evidence.route_context.get("dates") or {}).get("return")
-                ),
-            ),
-        ]
         scored_decisions = DecisionScorer(
             DecisionScorerOptions(
                 round_trip=bool(
@@ -644,7 +556,7 @@ class SearchDecisionBuilder:
             )
         ).score(
             offer_candidates,
-            controls=[*graph_controls, *evidence.aggregate_controls],
+            controls=graph_controls,
         )
         return SearchDecision(
             offer_graph=offer_graph,
@@ -703,7 +615,6 @@ class SearchDecisionBuilder:
                 "decision_scorer": thaw(decision.scored_decisions["scorer"]),
                 "mixed_candidate_ranking": thaw(mixed_candidate_ranking),
                 "policy_controls": thaw(decision.graph_controls),
-                "aggregate_controls": thaw(evidence.aggregate_controls),
                 "probe_ledger": thaw(evidence.probe_ledger),
                 "direct_presence_gate": thaw(evidence.direct_presence_gate),
                 "diagnostics": {
@@ -711,7 +622,6 @@ class SearchDecisionBuilder:
                         evidence.search_plan,
                         evidence.observed_gateway_diagnostics,
                     ),
-                    "wave_diagnostics": _wave_diagnostics(evidence.gateway_leg_results),
                 },
                 "failure_count": len(evidence.failures),
                 "failures": thaw(evidence.failures),
@@ -738,7 +648,6 @@ class SearchExecutor:
         self.provider_policy: str = ""
         self.request_deduper = RequestDeduper()
         self.gateway_leg_probe_executor: GatewayLegProbeExecutor | None = None
-        self.search_wave_planner: SearchWavePlanner | None = None
         self.decision_builder = SearchDecisionBuilder(options=options)
 
     def execute(self, plan: dict[str, Any]) -> SearchRunArtifacts:
@@ -752,9 +661,7 @@ class SearchExecutor:
             timeout=self.options.evidence.timeout,
         )
         direct_query_specs = [
-            {**query, "wave_index": 0}
-            for query in planned_primary
-            if bool(query.get("direct_only"))
+            query for query in planned_primary if bool(query.get("direct_only"))
         ]
         direct_results = (
             run_primary_offer_queries(
@@ -780,7 +687,7 @@ class SearchExecutor:
             if not direct_present
         ]
         fallback_queries = [
-            {**query, "wave_index": 1}
+            query
             for query in planned_primary
             if not bool(query.get("direct_only"))
             and _normalize_direction(query.get("direction")) in fallback_directions
@@ -833,8 +740,8 @@ class SearchExecutor:
             skipped_gateway_queries
         )
         if fallback_directions:
-            if gateway_queries and self.search_wave_planner is not None:
-                state.gateway_leg_results = self.search_wave_planner.run(
+            if gateway_queries and self.gateway_leg_probe_executor is not None:
+                state.gateway_leg_results = self.gateway_leg_probe_executor.run(
                     gateway_queries, state.route_context
                 )
                 state.direct_presence_gate["fallback"] = {
@@ -849,7 +756,6 @@ class SearchExecutor:
                     "max_connections_per_direction": dict(
                         state.direct_mode_max_connections_by_direction
                     ),
-                    "wave_count": 1,
                 }
             elif not gateway_queries:
                 state.direct_presence_gate["fallback"] = {
@@ -868,27 +774,10 @@ class SearchExecutor:
         for query in skipped_gateway_queries:
             state.probe_ledger.record_skipped(query, reason="direct_available")
 
-        aggregate_controls = run_aggregate_controls(
-            AggregateControlOptions(
-                provider_policy=self.provider_policy,
-                aggregate_control_limit=self.options.evidence.aggregate_control_limit,
-                only_carriers=self.options.effective_only_carriers(),
-                aggregate_control_carriers=self.options.evidence.aggregate_control_carriers,
-                live_cache_ttl_seconds=self.options.evidence.live_cache_ttl_seconds,
-                no_live_cache=self.options.evidence.no_live_cache,
-                timeout=self.options.evidence.timeout,
-            ),
-            state.route_context,
-            planned_queries=list(state.search_plan.get("aggregate_queries") or []),
-            kupibilet_fetcher=fetch_kupibilet_search,
-            probe_ledger=state.probe_ledger,
-            store=self.store,
-            offer_graph=None,
-        )
         observed_gateway_diagnostics: dict[str, Any] = {}
         GatewayDiscoveryService(self.store).discover(
             gateway_discovery_market_key(state),
-            provider_results=[*state.primary_offer_results, *aggregate_controls],
+            provider_results=state.primary_offer_results,
             diagnostics=observed_gateway_diagnostics,
         )
         state.direct_inventory_searches = _primary_direct_inventory_searches(
@@ -908,7 +797,6 @@ class SearchExecutor:
             provider_policy=self.provider_policy,
             primary_offer_results=state.primary_offer_results,
             gateway_leg_results=state.gateway_leg_results,
-            aggregate_controls=aggregate_controls,
             observed_gateway_diagnostics=observed_gateway_diagnostics,
             probe_ledger=state.probe_ledger.to_coverage_diagnostics(
                 state.route_context
@@ -988,16 +876,6 @@ class SearchExecutor:
             kupibilet_fetcher=fetch_kupibilet_search,
             request_deduper=self.request_deduper,
             probe_ledger=self.state.probe_ledger,
-        )
-        self.search_wave_planner = SearchWavePlanner(
-            options=SearchWavePlannerOptions(
-                max_waves=1,
-                probes_per_wave=int(limits.get("search_wave_probe_limit") or 1),
-                max_segment_searches=self.max_searches,
-                top_k_partial_paths=int(limits.get("search_wave_top_k") or 1),
-                timeout_seconds=int(limits.get("timeout") or 60),
-            ),
-            executor=self.gateway_leg_probe_executor,
         )
         return self.state
 

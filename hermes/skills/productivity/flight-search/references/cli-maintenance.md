@@ -12,10 +12,10 @@ version parity, and generated-artifact state separately.
 
 ## Public boundaries
 
-- Input: `flight_search_request.v1`.
-- Output: `flight_search_result.v7`.
+- Input: `flight_search_request.v2`.
+- Output: `flight_search_result.v8`.
 - Canonical text: `data.answer.rendered_text`.
-- Diagnostic trace: `flight_route_trace_diagnostic.v2`.
+- Diagnostic trace: `flight_route_trace_diagnostic.v3`.
 
 JSON stdout is one envelope and one terminal newline. Text search stdout is the
 validated rendered text only. Successful commands leave stderr empty. The JSON

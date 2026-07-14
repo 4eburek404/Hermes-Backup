@@ -51,7 +51,6 @@ def valid_result() -> dict:
                 "non_blocking_boundaries": [],
             },
             "provider_failures": [],
-            "through_fare_checks": [],
         },
         "frontier": {
             "schema_version": "flight_decision_frontier.result.v1",
@@ -67,7 +66,7 @@ def valid_result() -> dict:
         "answer": answer,
     }
     request = {
-        "schema_version": "flight_search_request.v1",
+        "schema_version": "flight_search_request.v2",
         "origin": "SVX",
         "destination": "DEL",
         "depart_date": "2026-06-01",
@@ -93,7 +92,6 @@ class ResultContractTests(unittest.TestCase):
                 }
             ],
             gateway_leg_results={},
-            aggregate_controls=[],
             observed_gateway_diagnostics={},
             probe_ledger={},
             failures=[],

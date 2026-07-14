@@ -45,7 +45,7 @@ def command_diagnose_trace(args: argparse.Namespace, store: Store) -> dict[str, 
     artifacts = build_search_artifacts(prepared, store)
     execution = artifacts.execution
     result = {
-        "schema_version": "flight_route_trace_diagnostic.v2",
+        "schema_version": "flight_route_trace_diagnostic.v3",
         "request": artifacts.request,
         "plan": execution.plan,
         "evidence": execution.evidence.to_trace_dict(),

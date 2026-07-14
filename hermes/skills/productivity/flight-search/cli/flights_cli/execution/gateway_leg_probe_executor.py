@@ -363,16 +363,13 @@ def _batches(items: list[str], size: int) -> list[list[str]]:
 
 
 def _leg_identity(query: dict[str, Any]) -> dict[str, Any]:
-    item = {
+    return {
         "leg": query.get("leg"),
         "origin": query.get("origin"),
         "destination": query.get("destination"),
         "date": query.get("date"),
         "gateway": query.get("gateway"),
     }
-    if "wave_index" in query:
-        item["wave_index"] = query.get("wave_index")
-    return item
 
 
 def _not_searched_leg_result(

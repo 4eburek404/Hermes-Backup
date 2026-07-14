@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://hermes.local/flights/flight_search_result.v7.schema.json",
-  "title": "Flight Search Result v6",
+  "$id": "https://hermes.local/flights/flight_search_result.v8.schema.json",
+  "title": "Flight Search Result v8",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -14,10 +14,10 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "flight_search_result.v7"
+      "const": "flight_search_result.v8"
     },
     "request": {
-      "$ref": "flight_search_request.v1.schema.json"
+      "$ref": "flight_search_request.v2.schema.json"
     },
     "route": {
       "$ref": "#/$defs/route"
@@ -29,7 +29,7 @@
       "$ref": "#/$defs/frontier"
     },
     "answer": {
-      "$ref": "flight_search_user_answer.v9.schema.json"
+      "$ref": "flight_search_user_answer.v10.schema.json"
     }
   },
   "$defs": {
@@ -114,7 +114,6 @@
         "source_boundaries",
         "coverage",
         "provider_failures",
-        "through_fare_checks",
         "catalog_refresh"
       ],
       "properties": {
@@ -132,12 +131,6 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/provider_failure"
-          }
-        },
-        "through_fare_checks": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/through_fare_check"
           }
         },
         "date_window_inventory": {
@@ -374,47 +367,6 @@
                 "null"
               ]
             }
-          }
-        }
-      }
-    },
-    "through_fare_check": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "direction",
-        "route",
-        "date",
-        "carrier",
-        "reason",
-        "verify_with"
-      ],
-      "properties": {
-        "direction": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "route": {
-          "type": "string"
-        },
-        "date": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "carrier": {
-          "type": "string"
-        },
-        "reason": {
-          "type": "string"
-        },
-        "verify_with": {
-          "type": "array",
-          "items": {
-            "type": "string"
           }
         }
       }

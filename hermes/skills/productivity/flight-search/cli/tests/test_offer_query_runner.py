@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from threading import Barrier
 from typing import Any
 from unittest.mock import patch
 
@@ -71,12 +72,15 @@ class IncompleteReadAggregateAdapter:
 
 
 class SuccessfulAggregateAdapter:
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, *, barrier: Barrier | None = None) -> None:
         self.name = name
-        self.aggregate_queries: list[dict[str, Any]] = []
+        self.queries: list[dict[str, Any]] = []
+        self.barrier = barrier
 
     def search_aggregate(self, query: dict[str, Any]) -> ProviderProbeResult:
-        self.aggregate_queries.append(query)
+        self.queries.append(query)
+        if self.barrier is not None:
+            self.barrier.wait(timeout=2)
         return ProviderProbeResult(
             probe_id=str(query.get("probe_id") or f"primary-{self.name}"),
             probe_type="full_route_aggregate",
@@ -171,26 +175,12 @@ class OfferQueryRunnerTests(unittest.TestCase):
             ["skip-1"],
         )
 
-    def test_primary_offer_query_wave_index_is_recorded_in_ledger(self) -> None:
+    def test_tutu_and_kupibilet_run_in_parallel_and_keep_plan_order(self) -> None:
         ledger = ProbeExecutionLedger()
-
-        results = run_primary_offer_queries(
-            [primary_query(provider="fli", probe_id="primary-fli", wave_index=0)],
-            PrimaryOfferQueryOptions(no_live_cache=True),
-            store=make_test_store(self, TEST_AIRPORTS),
-            probe_ledger=ledger,
-        )
-
-        diagnostics = ledger.to_coverage_diagnostics({"coverage_mode": "targeted"})
-        self.assertEqual(results[0]["status"], "not_supported")
-        self.assertEqual(diagnostics["planned_controls"][0]["wave_index"], 0)
-        self.assertEqual(diagnostics["not_supported_controls"][0]["wave_index"], 0)
-
-    def test_tutu_success_skips_primary_offer_fallback_providers(self) -> None:
-        ledger = ProbeExecutionLedger()
+        barrier = Barrier(2)
         adapters = {
-            "tutu": SuccessfulAggregateAdapter("tutu"),
-            "kupibilet": SuccessfulAggregateAdapter("kupibilet"),
+            "tutu": SuccessfulAggregateAdapter("tutu", barrier=barrier),
+            "kupibilet": SuccessfulAggregateAdapter("kupibilet", barrier=barrier),
         }
 
         with patch(
@@ -210,15 +200,68 @@ class OfferQueryRunnerTests(unittest.TestCase):
         diagnostics = ledger.to_coverage_diagnostics({"coverage_mode": "targeted"})
         self.assertEqual(
             [(item["provider"], item["status"]) for item in results],
-            [("tutu", "ok"), ("kupibilet", "skipped")],
+            [("tutu", "ok"), ("kupibilet", "ok")],
         )
-        self.assertEqual(results[1]["reason"], "tutu_mcp_available")
-        self.assertEqual(len(adapters["tutu"].aggregate_queries), 1)
-        self.assertEqual(len(adapters["kupibilet"].aggregate_queries), 0)
+        self.assertEqual(len(adapters["tutu"].queries), 1)
+        self.assertEqual(len(adapters["kupibilet"].queries), 1)
         self.assertEqual(
-            [item["provider"] for item in diagnostics["skipped_controls"]],
-            ["kupibilet"],
+            [item["provider"] for item in diagnostics["searched_controls"]],
+            ["tutu", "kupibilet"],
         )
+
+    def test_fli_broad_fallback_is_skipped_after_tutu_search(self) -> None:
+        adapters = {
+            "tutu": SuccessfulAggregateAdapter("tutu"),
+            "kupibilet": SuccessfulAggregateAdapter("kupibilet"),
+            "fli": SuccessfulAggregateAdapter("fli"),
+        }
+
+        with patch(
+            "flights_cli.execution.offer_query_runner.provider_adapter",
+            side_effect=lambda name, **_: adapters[name],
+        ):
+            results = run_primary_offer_queries(
+                [
+                    primary_query(provider="tutu"),
+                    primary_query(provider="kupibilet"),
+                    primary_query(provider="fli"),
+                ],
+                PrimaryOfferQueryOptions(no_live_cache=True),
+                store=make_test_store(self, TEST_AIRPORTS),
+            )
+
+        self.assertEqual([item["status"] for item in results], ["ok", "ok", "skipped"])
+        self.assertEqual(results[2]["reason"], "provider_fallback_not_needed")
+        self.assertEqual(adapters["fli"].queries, [])
+
+    def test_kupibilet_fetch_hook_is_not_passed_to_tutu(self) -> None:
+        adapters = {
+            "tutu": SuccessfulAggregateAdapter("tutu"),
+            "kupibilet": SuccessfulAggregateAdapter("kupibilet"),
+        }
+        fetch_hook = object()
+        received: dict[str, object | None] = {}
+
+        def resolve(name: str, **kwargs: object) -> SuccessfulAggregateAdapter:
+            received[name] = kwargs.get("kupibilet_fetcher")
+            return adapters[name]
+
+        with patch(
+            "flights_cli.execution.offer_query_runner.provider_adapter",
+            side_effect=resolve,
+        ):
+            run_primary_offer_queries(
+                [
+                    primary_query(provider="tutu"),
+                    primary_query(provider="kupibilet"),
+                ],
+                PrimaryOfferQueryOptions(no_live_cache=True),
+                store=make_test_store(self, TEST_AIRPORTS),
+                kupibilet_fetcher=fetch_hook,
+            )
+
+        self.assertIsNone(received["tutu"])
+        self.assertIs(received["kupibilet"], fetch_hook)
 
     def test_fallback_group_keeps_different_exact_airport_scopes_separate(self) -> None:
         adapters = {
@@ -249,11 +292,11 @@ class OfferQueryRunnerTests(unittest.TestCase):
 
         self.assertEqual([item["status"] for item in results], ["ok", "ok"])
         self.assertEqual(
-            adapters["tutu"].aggregate_queries[0]["origin_airports"],
+            adapters["tutu"].queries[0]["origin_airports"],
             ["AAA", "AAB"],
         )
         self.assertEqual(
-            adapters["kupibilet"].aggregate_queries[0]["destination_airports"],
+            adapters["kupibilet"].queries[0]["destination_airports"],
             ["BBC"],
         )
 
@@ -280,7 +323,7 @@ class OfferQueryRunnerTests(unittest.TestCase):
             [(item["provider"], item["status"]) for item in results],
             [("tutu", "error"), ("kupibilet", "ok")],
         )
-        self.assertEqual(len(adapters["kupibilet"].aggregate_queries), 1)
+        self.assertEqual(len(adapters["kupibilet"].queries), 1)
 
     def test_tutu_incomplete_read_failure_is_structured_and_falls_back(self) -> None:
         adapters = {

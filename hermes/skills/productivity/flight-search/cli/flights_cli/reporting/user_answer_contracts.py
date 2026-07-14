@@ -218,8 +218,6 @@ def user_answer_contract_semantic_errors(
         required.append("coverage_incompleteness_acknowledged")
     if int(evidence.get("provider_failure_count") or 0):
         required.append("provider_failures_acknowledged")
-    if int(evidence.get("through_fare_check_count") or 0):
-        required.append("through_fare_verification_required")
     for field in required:
         if caveats.get(field) is not True:
             errors.append(

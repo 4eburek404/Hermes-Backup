@@ -33,7 +33,6 @@ class UserAnswerInput:
     coverage_report: dict[str, Any]
     stop_policy: dict[str, Any]
     stop_policy_status: dict[str, Any]
-    through_fare_checks: list[dict[str, Any]]
 
 
 def _render_no_viable_answer(
@@ -82,9 +81,6 @@ def render_user_answer(answer: dict[str, Any], route: dict[str, Any]) -> str:
         "source_boundaries": [True]
         if required.get("source_boundaries_included")
         else [],
-        "through_fare_checks": [True]
-        if int(evidence.get("through_fare_check_count") or 0)
-        else [],
     }
     route_contract = {
         "origin": route.get("origin"),
@@ -116,7 +112,6 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
     not_supported_raw = diagnostics.get("not_supported_controls")
     not_supported = not_supported_raw if isinstance(not_supported_raw, list) else []
     provider_failures = answer_input.provider_failures
-    through_fare_checks = answer_input.through_fare_checks
     recommended = answer_input.primary_options
     priority = answer_input.alternative_options
     route = answer_input.route
@@ -204,7 +199,6 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
             "failed_control_count": len(failed_controls),
             "not_supported_control_count": len(not_supported),
             "provider_failure_count": len(provider_failures),
-            "through_fare_check_count": len(through_fare_checks),
             "blocking_evidence": blocking_evidence,
             "non_blocking_boundaries": non_blocking_boundaries,
         },
@@ -212,7 +206,6 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
             "source_boundaries_included": True,
             "coverage_incompleteness_acknowledged": True,
             "provider_failures_acknowledged": True,
-            "through_fare_verification_required": True,
             "purchase_screen_verification_required": True,
         },
     }

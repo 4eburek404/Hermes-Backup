@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://hermes.local/flights/flight_search_user_answer.v9.schema.json",
-  "title": "Flight Search User Answer v9",
+  "$id": "https://hermes.local/flights/flight_search_user_answer.v10.schema.json",
+  "title": "Flight Search User Answer v10",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -17,7 +17,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "flight_search_user_answer.v9"
+      "const": "flight_search_user_answer.v10"
     },
     "answer_mode": {
       "enum": [
@@ -91,7 +91,6 @@
         "failed_control_count",
         "not_supported_control_count",
         "provider_failure_count",
-        "through_fare_check_count",
         "blocking_evidence",
         "non_blocking_boundaries"
       ],
@@ -132,10 +131,6 @@
           "type": "integer",
           "minimum": 0
         },
-        "through_fare_check_count": {
-          "type": "integer",
-          "minimum": 0
-        },
         "not_supported_control_count": {
           "type": "integer",
           "minimum": 0
@@ -161,7 +156,6 @@
         "source_boundaries_included",
         "coverage_incompleteness_acknowledged",
         "provider_failures_acknowledged",
-        "through_fare_verification_required",
         "purchase_screen_verification_required"
       ],
       "properties": {
@@ -172,9 +166,6 @@
           "type": "boolean"
         },
         "provider_failures_acknowledged": {
-          "type": "boolean"
-        },
-        "through_fare_verification_required": {
           "type": "boolean"
         },
         "purchase_screen_verification_required": {

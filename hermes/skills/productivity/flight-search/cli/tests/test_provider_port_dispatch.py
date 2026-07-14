@@ -3,10 +3,6 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from flights_cli.execution.aggregate_control_runner import (
-    AggregateControlOptions,
-    run_aggregate_controls,
-)
 from flights_cli.execution.search_executor import execute_search
 from flights_cli.ports.providers import ProviderCapabilities, ProviderProbeResult
 from flights_cli.store import Store
@@ -21,13 +17,13 @@ class FakeAggregateAdapter:
     )
 
     def __init__(self) -> None:
-        self.aggregate_queries: list[dict[str, object]] = []
+        self.queries: list[dict[str, object]] = []
 
     def search_segment(self, query: dict[str, object]) -> ProviderProbeResult:
         raise AssertionError("not used by aggregate runner")
 
     def search_aggregate(self, query: dict[str, object]) -> ProviderProbeResult:
-        self.aggregate_queries.append(query)
+        self.queries.append(query)
         return ProviderProbeResult(
             probe_id=str(query.get("probe_id") or "aggregate-probe"),
             probe_type="full_route_aggregate",
@@ -72,79 +68,21 @@ class ProviderPortDispatchTests(unittest.TestCase):
             depart_date="2026-07-20",
             provider_policy="kupibilet",
             max_segment_searches=40,
-            aggregate_control_limit=0,
             no_live_cache=True,
         )
-        adapter = FakeAggregateAdapter()
-
-        with (
-            patch(
-                "flights_cli.execution.offer_query_runner.provider_adapter",
-                return_value=adapter,
-                create=True,
-            ),
-            patch(
-                "flights_cli.execution.search_executor.SearchWavePlanner.run",
-                return_value={},
-            ),
-        ):
-            result = execute_search(args, Store()).projection_input
-
-        self.assertGreaterEqual(len(adapter.aggregate_queries), 1)
-        self.assertEqual(
-            result["live_search"]["primary_offer_results"][0]["provider"], "kupibilet"
-        )
-
-    def test_aggregate_controls_execute_through_provider_port(self) -> None:
-        options = AggregateControlOptions(
-            aggregate_control_limit=3,
-            only_carriers=("SU",),
-            aggregate_control_carriers=(),
-            live_cache_ttl_seconds=0,
-            no_live_cache=True,
-            timeout=10,
-            provider_policy="kupibilet",
-        )
-        plan = {
-            "origin": "SVX",
-            "destination": "DEL",
-            "currency": "RUB",
-            "dates": {"depart": "2026-08-12", "return": None},
-        }
         adapter = FakeAggregateAdapter()
 
         with patch(
-            "flights_cli.execution.aggregate_control_runner.provider_adapter",
+            "flights_cli.execution.offer_query_runner.provider_adapter",
             return_value=adapter,
             create=True,
         ):
-            controls = run_aggregate_controls(
-                options,
-                plan,
-                planned_queries=[
-                    {
-                        "role": "aggregate_evidence",
-                        "source_type": "provider_full_route",
-                        "probe_type": "carrier_aggregate",
-                        "provider": None,
-                        "direction": "outbound",
-                        "origin": "SVX",
-                        "destination": "DEL",
-                        "date": "2026-08-12",
-                        "currency": "RUB",
-                        "direct_only": False,
-                        "only_carriers": ["SU"],
-                        "limit": 3,
-                        "execution_state": "not_executed",
-                    }
-                ],
-            )
+            result = execute_search(args, Store()).projection_input
 
-        self.assertEqual(len(controls), 1)
-        self.assertEqual(controls[0]["provider"], "kupibilet")
-        self.assertEqual(controls[0]["top_offers"], [{"id": "agg-adapter-offer"}])
-        self.assertEqual(adapter.aggregate_queries[0]["only_carriers"], ["SU"])
-        self.assertFalse(adapter.aggregate_queries[0]["direct_only"])
+        self.assertGreaterEqual(len(adapter.queries), 1)
+        self.assertEqual(
+            result["live_search"]["primary_offer_results"][0]["provider"], "kupibilet"
+        )
 
 
 if __name__ == "__main__":

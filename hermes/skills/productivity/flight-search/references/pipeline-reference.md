@@ -11,7 +11,7 @@ raw JSON
   -> OfferGraph + candidate envelope
   -> DecisionScorer + DecisionFrontier
   -> result projection
-  -> flight_search_user_answer.v9
+  -> flight_search_user_answer.v10
   -> pure renderer
   -> stdout
 ```
@@ -22,9 +22,9 @@ evidence and do not mutate the plan.
 
 Provider I/O belongs to execution. Direct-only primary probes run first for
 each direction. Broad primary and gateway probes are eligible only for
-directions with no direct result. At most one bounded fallback wave may run,
-preplanned aggregate/evidence probes run once, then the ledger is finalized and
-frozen. Ledger terminal states cannot reopen; cache status is separate.
+directions with no direct result. At most one bounded broad phase may run,
+then the ledger is finalized and frozen. Ledger terminal states cannot reopen;
+cache status is separate.
 
 After evidence freeze, graph construction, candidate normalization, scoring,
 round-trip/two-one-way composition, and frontier selection run once. Provider
@@ -41,23 +41,26 @@ otherwise low-ranked candidate into an early position.
 
 ## Provider routing
 
-Provider routing is per logical probe, not per whole search. `tutu` is the
-default primary provider. In `auto`, a successful Tutu MCP broad probe stops
-provider fallback for the same logical probe. Direct-only inventory is the
-exception: Tutu and KupiBilet are both queried so one provider's bounded result
-cannot hide direct flights exposed by the other.
+Provider routing is per logical probe, not per whole search. In `auto`, Tutu and
+KupiBilet execute concurrently for the same direct-only probe and, when the
+direct gate is empty, for the same broad probe. Both results enter one OfferGraph
+and are deduplicated before the shared output limit, so one provider cannot hide
+a cheaper or otherwise distinct itinerary from the other.
 
-- `kupibilet` is fallback only when Tutu is unavailable, fails, or does not
-  support the probe and KupiBilet capability and market fit it.
-- `fli` is fallback only for non-RU probes when Tutu is unavailable, fails, or
-  does not support the probe.
+- `kupibilet` is a primary peer of Tutu for direct and broad full-route search.
+- `fli` keeps its existing non-RU behavior: eligible direct probes still run,
+  while broad FLI fallback is skipped after a completed Tutu broad probe and is
+  available when Tutu is unavailable, fails, or does not support the probe.
 - `provider_policy=both` is invalid.
 
-The dedupe key includes provider, route, direction, date, filters, limits,
-direct mode, policy, and endpoint-specific inputs. Tutu offers are shopping
-evidence, may contain connected itineraries, and are paginated through the
-adapter. Localized airline names are resolved through the airline catalog into
-canonical carrier codes; route-specific carrier mappings are not allowed.
+Provider-query identity includes provider, route, direction, date, filters,
+limits, direct mode, policy, and endpoint-specific inputs. Candidate dedupe is
+provider-independent and uses the physical itinerary; equal-trust offers with
+the same price basis and currency retain the lower price while preserving every
+source provider. Tutu offers are shopping evidence, may contain connected
+itineraries, and are paginated through the adapter. Localized airline names are
+resolved through the airline catalog into canonical carrier codes;
+route-specific carrier mappings are not allowed.
 
 ## Direct-first gate
 
@@ -74,11 +77,11 @@ and permit intermediate hubs only after a direct-empty result. A provider
 failure is not proof that no direct flight exists; diagnostics record whether
 direct absence was confirmed by at least one completed source.
 
-After wave-0 direct evidence is collected, the executor partitions planned
+After direct evidence is collected, the executor partitions planned
 `conditional_gateway_queries` by direction. Queries for a direction with
 direct evidence are recorded in `probe_ledger.skipped_controls` with
 `reason="direct_available"`; only directions without direct evidence enter the
-gateway wave planner. This executor partition is the production policy. The
+gateway batch executor. This executor partition is the production policy. The
 unused `assess_fallback()` helper is not a second policy source.
 
 ## Gateway discovery and assembly
@@ -99,13 +102,12 @@ direct second leg: the planner searches the requested day and next day and may
 accept provider-returned intermediate hubs such as
 `GATEWAY -> HUB -> DESTINATION`. Valid overnight candidates remain eligible.
 
-The current production `SearchExecutor` instantiates `SearchWavePlannerOptions`
-with `max_waves=1`. A larger `execution_limits.search_wave_max_waves` value in
-the plan is therefore not proof that multiple waves executed; the authoritative
-runtime evidence is `gateway_leg_results.wave_diagnostics`. Also, strict
-`max_connections=0` plus `tier2_max_connections=0` constrains reportable
-candidates but does not by itself prove that route-access gateway probes were
-never planned or executed.
+The gateway executor owns continuation through `gateway_discovery_limit`,
+`gateway_probe_batch_size`, and `gateway_probe_max_batches`. It evaluates each
+completed batch and stops when a viable gateway is found or the batch budget is
+exhausted. Strict `max_connections=0` plus `tier2_max_connections=0` constrains
+reportable candidates but does not by itself prove that route-access gateway
+probes were never planned or executed.
 
 Candidate assembly requires airport continuity between every adjacent segment.
 An airport mismatch is rejected before ranking; same-city airports and a longer

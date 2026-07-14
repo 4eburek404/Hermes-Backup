@@ -59,10 +59,6 @@ class SearchPlanContractTests(unittest.TestCase):
             gateway_discovery=GatewayDiscovery(enabled=False, reason=None),
             execution_limits={
                 "max_segment_searches": 10,
-                "search_wave_max_waves": 1,
-                "search_wave_probe_limit": 2,
-                "search_wave_top_k": 2,
-                "aggregate_control_limit": 0,
                 "segment_limit": 30,
                 "live_cache_ttl_seconds": 0,
                 "live_cache_enabled": False,
@@ -94,7 +90,7 @@ class SearchPlanContractTests(unittest.TestCase):
         search_plan = build_search_plan(options, store, flow=flow)
 
         validate_contract_payload("search_plan", search_plan)
-        self.assertEqual(search_plan["schema_version"], "flight_search_plan.v2")
+        self.assertEqual(search_plan["schema_version"], "flight_search_plan.v3")
         primary_queries = search_plan["primary_offer_queries"]
         self.assertEqual(
             [query["provider"] for query in primary_queries],

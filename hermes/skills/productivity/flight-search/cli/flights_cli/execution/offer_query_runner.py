@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -191,6 +192,30 @@ def _should_execute_query(query: Mapping[str, Any]) -> tuple[bool, str | None]:
     return True, None
 
 
+def _execute_aggregate_query(
+    adapter: Any, query: dict[str, Any]
+) -> ProviderProbeResult:
+    return adapter.search_aggregate(query)
+
+
+def _record_query_outcome(
+    *,
+    query: dict[str, Any],
+    provider: str,
+    intent: Any,
+    outcome: ProviderProbeResult | CliError,
+    probe_ledger: ProbeExecutionLedger | None,
+) -> dict[str, Any]:
+    if isinstance(outcome, CliError):
+        error = error_payload_from_cli_error(outcome)
+        if probe_ledger is not None:
+            probe_ledger.record_failed(intent, provider=provider, error=error)
+        return _failed_result(query, provider=provider, error=error)
+    if probe_ledger is not None:
+        probe_ledger.record_provider_result(intent, outcome)
+    return _result_from_provider_result(query, outcome)
+
+
 def run_primary_offer_queries(
     queries: list[dict[str, Any]],
     options: PrimaryOfferQueryOptions,
@@ -199,49 +224,112 @@ def run_primary_offer_queries(
     kupibilet_fetcher: Any | None = None,
     probe_ledger: ProbeExecutionLedger | None = None,
 ) -> list[dict[str, Any]]:
-    results: list[dict[str, Any]] = []
-    tutu_available_groups: set[tuple[Any, ...]] = set()
-    for source_query in queries:
+    prepared: list[tuple[int, dict[str, Any], str, Any]] = []
+    groups: dict[tuple[Any, ...], list[tuple[int, dict[str, Any], str, Any]]] = {}
+    for index, source_query in enumerate(queries):
         provider = str(source_query.get("provider") or "").strip().lower()
         query = _normalized_query(source_query, provider=provider, options=options)
         intent = intent_from_aggregate_query(query, provider=provider)
         if probe_ledger is not None:
             probe_ledger.plan_intents([intent])
-        fallback_group = _fallback_group_key(query)
-        if (
-            not bool(query.get("direct_only"))
-            and provider != "tutu"
-            and fallback_group in tutu_available_groups
-        ):
-            if probe_ledger is not None:
-                probe_ledger.record_skipped(intent, reason="tutu_mcp_available")
-            results.append(_skipped_result(query, "tutu_mcp_available"))
-            continue
+        item = (index, query, provider, intent)
+        prepared.append(item)
+        groups.setdefault(_fallback_group_key(query), []).append(item)
 
-        should_execute, skip_reason = _should_execute_query(query)
-        if not should_execute:
+    outcomes: dict[int, dict[str, Any]] = {}
+    for group_items in groups.values():
+        runnable: list[tuple[int, dict[str, Any], str, Any]] = []
+        for index, query, provider, intent in group_items:
+            should_execute, skip_reason = _should_execute_query(query)
+            if should_execute:
+                runnable.append((index, query, provider, intent))
+                continue
             if probe_ledger is not None:
                 probe_ledger.record_skipped(intent, reason=skip_reason)
-            results.append(_skipped_result(query, str(skip_reason)))
-            continue
+            outcomes[index] = _skipped_result(query, str(skip_reason))
 
-        try:
-            adapter = provider_adapter(
-                provider,
-                store=store,
-                kupibilet_fetcher=kupibilet_fetcher,
+        primary_pair = [item for item in runnable if item[2] in {"tutu", "kupibilet"}]
+        resolved: list[tuple[int, dict[str, Any], str, Any, Any]] = []
+        for index, query, provider, intent in primary_pair:
+            try:
+                adapter = provider_adapter(
+                    provider,
+                    store=store,
+                    kupibilet_fetcher=(
+                        kupibilet_fetcher if provider == "kupibilet" else None
+                    ),
+                )
+            except CliError as exc:
+                outcomes[index] = _record_query_outcome(
+                    query=query,
+                    provider=provider,
+                    intent=intent,
+                    outcome=exc,
+                    probe_ledger=probe_ledger,
+                )
+            else:
+                resolved.append((index, query, provider, intent, adapter))
+
+        pair_outcomes: dict[int, ProviderProbeResult | CliError] = {}
+        if len(resolved) > 1:
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                futures = {
+                    index: executor.submit(_execute_aggregate_query, adapter, query)
+                    for index, query, _provider, _intent, adapter in resolved
+                }
+                for index, _query, _provider, _intent, _adapter in resolved:
+                    try:
+                        pair_outcomes[index] = futures[index].result()
+                    except CliError as exc:
+                        pair_outcomes[index] = exc
+        else:
+            for index, query, _provider, _intent, adapter in resolved:
+                try:
+                    pair_outcomes[index] = _execute_aggregate_query(adapter, query)
+                except CliError as exc:
+                    pair_outcomes[index] = exc
+
+        tutu_searched = False
+        for index, query, provider, intent, _adapter in resolved:
+            result = pair_outcomes[index]
+            outcomes[index] = _record_query_outcome(
+                query=query,
+                provider=provider,
+                intent=intent,
+                outcome=result,
+                probe_ledger=probe_ledger,
             )
-            result = adapter.search_aggregate(query)
-        except CliError as exc:
-            error = error_payload_from_cli_error(exc)
-            if probe_ledger is not None:
-                probe_ledger.record_failed(intent, provider=provider, error=error)
-            results.append(_failed_result(query, provider=provider, error=error))
-            continue
+            if (
+                provider == "tutu"
+                and isinstance(result, ProviderProbeResult)
+                and result.execution_state == "searched"
+            ):
+                tutu_searched = True
 
-        if probe_ledger is not None:
-            probe_ledger.record_provider_result(intent, result)
-        results.append(_result_from_provider_result(query, result))
-        if result.provider == "tutu" and result.execution_state == "searched":
-            tutu_available_groups.add(fallback_group)
-    return results
+        for index, query, provider, intent in runnable:
+            if provider in {"tutu", "kupibilet"}:
+                continue
+            if (
+                provider == "fli"
+                and not bool(query.get("direct_only"))
+                and tutu_searched
+            ):
+                reason = "provider_fallback_not_needed"
+                if probe_ledger is not None:
+                    probe_ledger.record_skipped(intent, reason=reason)
+                outcomes[index] = _skipped_result(query, reason)
+                continue
+            try:
+                adapter = provider_adapter(provider, store=store)
+                result: ProviderProbeResult | CliError = adapter.search_aggregate(query)
+            except CliError as exc:
+                result = exc
+            outcomes[index] = _record_query_outcome(
+                query=query,
+                provider=provider,
+                intent=intent,
+                outcome=result,
+                probe_ledger=probe_ledger,
+            )
+
+    return [outcomes[index] for index, _query, _provider, _intent in prepared]

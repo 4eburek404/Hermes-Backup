@@ -131,66 +131,6 @@ def build_coverage_diagnostics(
                 cache_status=item.get("cache_status"),
             )
 
-    for item in live.get("aggregate_controls") or []:
-        if not isinstance(item, dict):
-            continue
-        filters = item.get("filters") if isinstance(item.get("filters"), dict) else {}
-        carriers = [
-            str(code).upper() for code in filters.get("only_carriers") or [] if code
-        ]
-        if carriers:
-            for carrier in carriers:
-                key = control_identity(
-                    {
-                        "type": RequiredControl.CARRIER_AGGREGATE,
-                        "direction": item.get("direction"),
-                        "origin": item.get("origin"),
-                        "destination": item.get("destination"),
-                        "date": item.get("date"),
-                        "carrier": carrier,
-                    }
-                )
-                control = by_key.get(key)
-                if control:
-                    if item.get("status") == "error":
-                        ledger.record_failed(
-                            control,
-                            provider=item.get("provider"),
-                            error=item.get("error"),
-                        )
-                    else:
-                        ledger.record_searched(
-                            control,
-                            status=item.get("status"),
-                            provider=item.get("provider"),
-                            offer_count=item.get("offer_count"),
-                            cache_status=item.get("cache_status"),
-                        )
-        else:
-            key = control_identity(
-                {
-                    "type": RequiredControl.FULL_ROUTE_AGGREGATE,
-                    "direction": item.get("direction"),
-                    "origin": item.get("origin"),
-                    "destination": item.get("destination"),
-                    "date": item.get("date"),
-                }
-            )
-            control = by_key.get(key)
-            if control:
-                if item.get("status") == "error":
-                    ledger.record_failed(
-                        control, provider=item.get("provider"), error=item.get("error")
-                    )
-                else:
-                    ledger.record_searched(
-                        control,
-                        status=item.get("status"),
-                        provider=item.get("provider"),
-                        offer_count=item.get("offer_count"),
-                        cache_status=item.get("cache_status"),
-                    )
-
     ledger.finalize_unexecuted()
     return ledger.to_coverage_diagnostics(plan)
 

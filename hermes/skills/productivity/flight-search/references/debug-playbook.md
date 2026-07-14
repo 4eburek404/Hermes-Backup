@@ -56,7 +56,7 @@ Decision read order is in `report-contract.md`; compact debug order:
 2. `data.decision.offer_graph` from `diagnose trace` — collection, evidence, missing evidence, truth language.
 3. `data.answer.rendered_text` — canonical final rendering.
 4. `data.answer.catalog.items` and `data.frontier.option_ids` — decision-critical options and order.
-5. `evidence.*` — through-fare checks, provider failures, source boundaries, coverage diagnostics.
+5. `evidence.*` — provider failures, source boundaries, and coverage diagnostics.
 6. `diagnostics.*` — debug only.
 
 If JSON parsing or schema validation fails, report the parse/contract layer and rerun with JSON-clean stdout/stderr settings before making a travel claim.
@@ -150,7 +150,7 @@ Probe shapes:
 - exact-airport direct-only;
 - city-code direct-only when city scope is intended and the provider supports it;
 - alternate airport only when city-wide search is allowed;
-- carrier-specific direct or aggregate control for carrier questions;
+- carrier-filtered direct or full-route probe for carrier questions;
 - round-trip provider aggregate when the user asks for one order/single checkout;
 - nearby in-horizon control date to split horizon uncertainty from route coverage.
 
@@ -163,7 +163,7 @@ Inspect these fields together:
 - `data.plan.conditional_gateway_queries`;
 - `data.evidence.direct_mode` and `data.evidence.direct_presence_gate`;
 - `data.evidence.probe_ledger.skipped_controls` and `searched_controls`;
-- `data.evidence.gateway_leg_results.wave_diagnostics`;
+- `data.evidence.gateway_leg_results.gateways` and `evaluations`;
 - `data.decision.offer_graph` and `data.decision.frontier`.
 
 Interpret the first matching state:
@@ -178,11 +178,10 @@ Interpret the first matching state:
 3. **Searched but no candidate:** inspect provider offers, chronology/MCT
    pairing, OfferGraph rejection, connection caps, and frontier projection;
    this is not direct-first suppression.
-4. **Unexpected wave count:** compare runtime
-   `wave_diagnostics.{max_waves,wave_count,stop_reason}` with production
-   `SearchWavePlannerOptions` wiring. The current executor wires `max_waves=1`,
-   so generic planner tests with several waves do not prove live multi-wave
-   execution.
+4. **Unexpected gateway count:** compare `gateway_discovery_limit`,
+   `gateway_probe_batch_size`, and `gateway_probe_max_batches` with the runtime
+   `gateways` and `evaluations`. The gateway executor stops after finding a
+   viable gateway or exhausting the configured batch budget.
 5. **Strict direct-only request:** zero connection caps can still coexist with
    planned or executed route-access gateway probes when direct evidence is
    empty, while connected candidates remain non-reportable. Distinguish probe
@@ -207,7 +206,7 @@ When the report shows fewer direct flights than expected:
    - `data.evidence.primary_offer_results`;
    - `data.frontier.option_ids`;
    - `data.agent_guidance`.
-5. The pipeline computes the direct-first gate from primary evidence before `flight_search_result.v7` and `flight_search_user_answer.v9` construction. If direct offers vanish after that point, inspect decision projection, not provider availability.
+5. The pipeline computes the direct-first gate from primary evidence before `flight_search_result.v8` and `flight_search_user_answer.v10` construction. If direct offers vanish after that point, inspect decision projection, not provider availability.
 
 Do not claim “provider did not return prices” when a narrow direct probe shows priced direct offers.
 

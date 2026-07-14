@@ -233,10 +233,9 @@ class ArchitectureTests(unittest.TestCase):
     def test_live_assembly_core_has_no_args_like_adapter(self) -> None:
         root = PROJECT / "flights_cli"
         probe_dispatcher = root / "execution" / "probe_dispatcher.py"
-        aggregate_runner = root / "execution" / "aggregate_control_runner.py"
         search_executor = root / "execution" / "search_executor.py"
 
-        for path in (probe_dispatcher, aggregate_runner, search_executor):
+        for path in (probe_dispatcher, search_executor):
             with self.subTest(path=path.name):
                 self.assertFalse("argparse" in import_targets(path))
 

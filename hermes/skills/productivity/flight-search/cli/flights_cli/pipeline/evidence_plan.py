@@ -35,8 +35,6 @@ class EvidencePlan:
     max_segment_searches: int
     live_cache_enabled: bool
     live_cache_ttl_seconds: int
-    aggregate_control_limit: int
-    aggregate_control_carriers: tuple[Any, ...]
     coverage_mode: str
     coverage_controls: tuple[Any, ...]
     coverage_control_limit: int
@@ -59,8 +57,6 @@ class EvidencePlan:
             "max_segment_searches": self.max_segment_searches,
             "live_cache_enabled": self.live_cache_enabled,
             "live_cache_ttl_seconds": self.live_cache_ttl_seconds,
-            "aggregate_control_limit": self.aggregate_control_limit,
-            "aggregate_control_carriers": list(self.aggregate_control_carriers),
             "coverage_mode": self.coverage_mode,
             "coverage_controls": list(self.coverage_controls),
             "coverage_control_limit": self.coverage_control_limit,
@@ -104,7 +100,6 @@ def _required_controls(
         decision.intent_class == IntentClass.CARRIER_OR_AIRPORT_SCOPE
         or request.only_carriers
         or request.exclude_carriers
-        or request.aggregate_control_carriers
     ):
         controls.append(RequiredControl.CARRIER_AGGREGATE)
     if decision.evidence_class == EvidenceClass.TICKETING_REQUIRED:
@@ -178,8 +173,6 @@ def plan_evidence(
         max_segment_searches=request.max_segment_searches,
         live_cache_enabled=cache_enabled,
         live_cache_ttl_seconds=cache_ttl,
-        aggregate_control_limit=request.aggregate_control_limit,
-        aggregate_control_carriers=request.aggregate_control_carriers,
         coverage_mode=request.coverage_mode,
         coverage_controls=request.coverage_controls,
         coverage_control_limit=request.coverage_control_limit,

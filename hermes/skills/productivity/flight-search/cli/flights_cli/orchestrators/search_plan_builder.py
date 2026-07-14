@@ -235,16 +235,11 @@ class SearchPlanBuilder:
             conditional_gateway_queries=tuple(
                 self._gateway_leg_queries(flow, route_context, gateway_discovery)
             ),
-            aggregate_queries=tuple(self._aggregate_queries(route_context)),
             coverage_expectations=tuple(
                 self._coverage_expectations(route_context, primary_offer_queries)
             ),
             execution_limits={
                 "max_segment_searches": flow.evidence_plan.max_segment_searches,
-                "search_wave_max_waves": self._options.evidence.search_wave_max_waves,
-                "search_wave_probe_limit": self._options.evidence.search_wave_probe_limit,
-                "search_wave_top_k": self._options.evidence.search_wave_top_k,
-                "aggregate_control_limit": flow.evidence_plan.aggregate_control_limit,
                 "segment_limit": self._options.evidence.segment_limit,
                 "live_cache_ttl_seconds": flow.evidence_plan.live_cache_ttl_seconds,
                 "live_cache_enabled": flow.evidence_plan.live_cache_enabled,
@@ -264,57 +259,6 @@ class SearchPlanBuilder:
                 )
             ),
         )
-
-    def _aggregate_queries(self, route_context: dict[str, Any]) -> list[dict[str, Any]]:
-        limit = max(0, int(self._options.evidence.aggregate_control_limit))
-        if limit == 0:
-            return []
-        base_carriers = list(self._options.effective_only_carriers())
-        carrier_sets = [base_carriers] if base_carriers else []
-        for carrier in self._options.evidence.aggregate_control_carriers:
-            normalized = [str(carrier).upper()]
-            if normalized not in carrier_sets:
-                carrier_sets.append(normalized)
-        if not carrier_sets:
-            carrier_sets.append([])
-        directions = [
-            (
-                "outbound",
-                str(route_context["origin"]),
-                str(route_context["destination"]),
-                str(route_context["dates"]["depart"]),
-            )
-        ]
-        if route_context["dates"].get("return"):
-            directions.append(
-                (
-                    "return",
-                    str(route_context["destination"]),
-                    str(route_context["origin"]),
-                    str(route_context["dates"]["return"]),
-                )
-            )
-        return [
-            {
-                "role": "aggregate_evidence",
-                "source_type": "provider_full_route",
-                "probe_type": RequiredControl.CARRIER_AGGREGATE
-                if carriers
-                else RequiredControl.FULL_ROUTE_AGGREGATE,
-                "provider": None,
-                "direction": direction,
-                "origin": origin,
-                "destination": destination,
-                "date": date_text,
-                "currency": str(route_context["currency"]),
-                "direct_only": False,
-                "only_carriers": carriers,
-                "limit": limit,
-                "execution_state": "not_executed",
-            }
-            for direction, origin, destination, date_text in directions
-            for carriers in carrier_sets
-        ]
 
     def _gateway_discovery(
         self, flow: _PlanningState, route_context: dict[str, Any]

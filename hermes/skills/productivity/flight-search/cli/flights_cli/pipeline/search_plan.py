@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
-SEARCH_PLAN_SCHEMA_VERSION = "flight_search_plan.v2"
+SEARCH_PLAN_SCHEMA_VERSION = "flight_search_plan.v3"
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,7 +68,6 @@ class SearchPlan:
     primary_offer_queries: tuple[dict[str, Any], ...] = ()
     gateway_discovery: GatewayDiscovery = field(default_factory=GatewayDiscovery)
     conditional_gateway_queries: tuple[dict[str, Any], ...] = ()
-    aggregate_queries: tuple[dict[str, Any], ...] = ()
     coverage_expectations: tuple[dict[str, Any], ...] = ()
     execution_limits: dict[str, Any] = field(default_factory=dict)
     output_limits: dict[str, Any] = field(default_factory=dict)
@@ -86,7 +85,6 @@ class SearchPlan:
             "conditional_gateway_queries": [
                 deepcopy(item) for item in self.conditional_gateway_queries
             ],
-            "aggregate_queries": [deepcopy(item) for item in self.aggregate_queries],
             "coverage_expectations": [
                 deepcopy(item) for item in self.coverage_expectations
             ],

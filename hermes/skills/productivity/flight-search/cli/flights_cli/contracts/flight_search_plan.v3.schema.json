@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://hermes.local/flights/flight_search_plan.v2.schema.json",
-  "title": "Flight Search Plan v2",
+  "$id": "https://hermes.local/flights/flight_search_plan.v3.schema.json",
+  "title": "Flight Search Plan v3",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -10,7 +10,6 @@
     "primary_offer_queries",
     "gateway_discovery",
     "conditional_gateway_queries",
-    "aggregate_queries",
     "coverage_expectations",
     "execution_limits",
     "output_limits",
@@ -18,7 +17,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "flight_search_plan.v2"
+      "const": "flight_search_plan.v3"
     },
     "route_context": {
       "$ref": "#/$defs/route_context"
@@ -38,12 +37,6 @@
         "$ref": "#/$defs/probe_intent"
       }
     },
-    "aggregate_queries": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/probe_intent"
-      }
-    },
     "coverage_expectations": {
       "type": "array",
       "items": {
@@ -55,10 +48,6 @@
       "additionalProperties": false,
       "required": [
         "max_segment_searches",
-        "search_wave_max_waves",
-        "search_wave_probe_limit",
-        "search_wave_top_k",
-        "aggregate_control_limit",
         "segment_limit",
         "live_cache_ttl_seconds",
         "live_cache_enabled",
@@ -69,22 +58,6 @@
         "max_segment_searches": {
           "type": "integer",
           "minimum": 1
-        },
-        "search_wave_max_waves": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "search_wave_probe_limit": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "search_wave_top_k": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "aggregate_control_limit": {
-          "type": "integer",
-          "minimum": 0
         },
         "segment_limit": {
           "type": "integer",

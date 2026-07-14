@@ -177,7 +177,6 @@ class TestVocabularyDriftLint(unittest.TestCase):
             "config.py",  # airport tier "preferred" — different domain
             "airports.py",  # airport priority "preferred" role — different domain
             "stop_policy.py",  # stop_policy payload key "suppressed" — display dict
-            "aggregate_control_runner.py",  # probe_type — belongs to ports/providers.py
             "probe_intent.py",  # probe_type — belongs to ports/providers.py
             "diagnose.py",  # probe_type comparison — belongs to ports/providers.py
         }

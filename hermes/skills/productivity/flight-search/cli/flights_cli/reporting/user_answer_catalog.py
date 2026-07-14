@@ -615,8 +615,6 @@ def render_catalog_answer(
             check_parts.append("часть live-проверок упала")
         if caveat_context.get("source_boundaries"):
             check_parts.append("результат не доказывает варианты вне границ источников")
-        if caveat_context.get("through_fare_checks"):
-            check_parts.append("единый тариф проверить отдельно")
         checks = ["; ".join(check_parts) + "."]
     else:
         checks = [

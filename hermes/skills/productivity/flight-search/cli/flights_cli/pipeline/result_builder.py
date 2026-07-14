@@ -2,41 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..domain.offer_order import provider_offer_business_key
-from ..domain.stop_metrics import offer_stop_metrics
 from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY, stop_policy_payload
 from ..errors import CliError
 from ..reporting.coverage import build_coverage_diagnostics, compact_coverage_summary
 from ..reporting.source_boundaries import source_boundaries
-from ..reporting.through_fare_analyzer import through_fare_checks
 from ..reporting.user_answer import UserAnswerInput, build_user_answer
 from .decision_projection import decision_frontier_options
-
-
-def aggregate_control_summary(control: dict[str, Any]) -> dict[str, Any]:
-    offers: list[dict[str, Any]] = []
-    for raw_offer in control.get("top_offers") or []:
-        if not isinstance(raw_offer, dict):
-            continue
-        offer = dict(raw_offer)
-        metrics = offer_stop_metrics(offer)
-        offer.setdefault("connection_count", metrics["max_connections_per_journey"])
-        offer.setdefault("stop_tier", metrics["stop_tier"])
-        offers.append(offer)
-    offers.sort(key=provider_offer_business_key)
-    return {
-        "direction": control.get("direction"),
-        "origin": control.get("origin"),
-        "destination": control.get("destination"),
-        "date": control.get("date"),
-        "status": control.get("status"),
-        "provider": control.get("provider"),
-        "offer_count": control.get("offer_count"),
-        "raw_offer_count": control.get("raw_offer_count"),
-        "cache_status": control.get("cache_status"),
-        "top_offers": offers[:3],
-        "error": control.get("error"),
-    }
 
 
 def provider_failure_summary(failure: dict[str, Any]) -> dict[str, Any]:
@@ -147,15 +118,9 @@ def build_result_projection(
         )
     primary_options = frontier_options[:1]
     alternative_options = frontier_options[1:]
-    aggregate_controls = [
-        aggregate_control_summary(item)
-        for item in live.get("aggregate_controls") or []
-        if isinstance(item, dict)
-    ]
     compact_failures = provider_failures(live)
     coverage_diagnostics = build_coverage_diagnostics(plan, live)
     coverage = compact_coverage_summary(coverage_diagnostics, compact_failures)
-    through_fare_check_items = through_fare_checks(aggregate_controls, frontier_options)
     route = {
         "origin": plan.get("origin"),
         "destination": plan.get("destination"),
@@ -178,13 +143,11 @@ def build_result_projection(
         coverage_report=coverage_diagnostics,
         stop_policy=stop_policy_payload(BUSINESS_DEFAULT_STOP_POLICY),
         stop_policy_status=_stop_policy_status(frontier_options),
-        through_fare_checks=through_fare_check_items,
     )
     evidence: dict[str, Any] = {
         "source_boundaries": answer_input.source_boundaries,
         "coverage": coverage,
         "provider_failures": compact_failures,
-        "through_fare_checks": through_fare_check_items,
     }
     date_window_inventory = live.get("date_window_inventory")
     if isinstance(date_window_inventory, dict):

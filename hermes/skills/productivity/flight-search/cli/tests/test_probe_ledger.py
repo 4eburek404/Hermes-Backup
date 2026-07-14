@@ -116,7 +116,7 @@ class ProbeExecutionLedgerTests(unittest.TestCase):
             diagnostics["completeness"]["all_planned_controls_have_terminal_state"]
         )
 
-    def test_failed_aggregate_control_appears_in_failed_controls(self) -> None:
+    def test_failed_full_route_probe_appears_in_failed_controls(self) -> None:
         item = control(type="full_route_aggregate", carrier=None)
         ledger = ProbeExecutionLedger()
         ledger.plan_controls([item])
@@ -210,32 +210,6 @@ class ProbeExecutionLedgerTests(unittest.TestCase):
         self.assertTrue(
             diagnostics["completeness"]["all_planned_controls_have_terminal_state"]
         )
-
-    def test_wave_index_is_projected_into_diagnostics(self) -> None:
-        intent = ProbeIntent(
-            probe_type="segment_hub_leg",
-            direction="outbound",
-            leg="gateway_to_destination",
-            origin="IST",
-            destination="SVX",
-            date="2026-07-10",
-            provider="tutu",
-            metadata={"wave_index": 1},
-        )
-        ledger = ProbeExecutionLedger()
-        ledger.plan_intents([intent])
-        ledger.record_searched(
-            intent,
-            status="ok",
-            provider="tutu",
-            offer_count=1,
-            cache_status="disabled",
-        )
-
-        diagnostics = ledger.to_coverage_diagnostics({"coverage_mode": "targeted"})
-
-        self.assertEqual(diagnostics["planned_controls"][0]["wave_index"], 1)
-        self.assertEqual(diagnostics["searched_controls"][0]["wave_index"], 1)
 
 
 if __name__ == "__main__":

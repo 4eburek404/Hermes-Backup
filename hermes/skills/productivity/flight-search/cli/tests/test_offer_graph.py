@@ -1202,6 +1202,53 @@ class OfferGraphTests(unittest.TestCase):
             },
         )
 
+    def test_same_provider_itinerary_keeps_cheaper_offer_before_limit(self) -> None:
+        segments = [
+            {
+                "origin": "SVX",
+                "destination": "IST",
+                "departure_at": "2026-08-15T10:00:00+05:00",
+                "arrival_at": "2026-08-15T13:00:00+03:00",
+            },
+            {
+                "origin": "IST",
+                "destination": "AMS",
+                "departure_at": "2026-08-15T15:00:00+03:00",
+                "arrival_at": "2026-08-15T17:30:00+02:00",
+            },
+        ]
+        graph = build_offer_graph(
+            primary_offer_results=[
+                {
+                    "provider": provider,
+                    "top_offers": [
+                        {
+                            "id": f"{provider}-offer",
+                            "price": price,
+                            "currency": "RUB",
+                            "segments": segments,
+                        }
+                    ],
+                }
+                for provider, price in (("tutu", 45000), ("kupibilet", 39000))
+            ],
+            gateway_leg_results={},
+        )
+
+        envelope = materialize_offer_graph_candidates(
+            graph,
+            requested_origin="SVX",
+            requested_destination="AMS",
+        )
+
+        self.assertEqual(envelope["coverage"]["candidate_count"], 1)
+        self.assertEqual(envelope["coverage"]["deduped_count"], 1)
+        candidate = envelope["candidates"][0]
+        self.assertEqual(candidate["provider"], "kupibilet")
+        self.assertEqual(candidate["price"], 39000)
+        self.assertEqual(candidate["source_providers"], ["kupibilet", "tutu"])
+        self.assertEqual(candidate["alternate_sources"][0]["price"], 45000)
+
     def test_different_times_do_not_dedupe(self) -> None:
         envelope = materialize_offer_graph_candidates(
             self.graph_with_provider_and_gateway(

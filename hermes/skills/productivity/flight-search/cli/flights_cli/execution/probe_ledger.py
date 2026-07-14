@@ -266,8 +266,6 @@ class ProbeExecutionLedger:
             "absence_class": absence_class,
             "probe_id": item_control.get("probe_id"),
         }
-        if "wave_index" in item_control:
-            item["wave_index"] = item_control.get("wave_index")
         filters = item_control.get("filters")
         if isinstance(filters, dict) and filters:
             item["filters"] = filters

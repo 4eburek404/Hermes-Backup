@@ -164,7 +164,7 @@ class OfflineCliE2ETests(unittest.TestCase):
             request_path.write_text(
                 json.dumps(
                     {
-                        "schema_version": "flight_search_request.v1",
+                        "schema_version": "flight_search_request.v2",
                         "origin": "NTE",
                         "destination": "SVX",
                         "depart_date": "2026-07-23",
@@ -181,10 +181,7 @@ class OfflineCliE2ETests(unittest.TestCase):
                             "gateway_probe_max_batches": 1,
                         },
                         "evidence": {
-                            "aggregate_control_limit": 0,
                             "max_segment_searches": 20,
-                            "search_wave_max_waves": 1,
-                            "search_wave_probe_limit": 10,
                             "no_live_cache": True,
                             "live_cache_ttl_seconds": 0,
                             "timeout": 10,
@@ -240,7 +237,7 @@ class OfflineCliE2ETests(unittest.TestCase):
         self.assertEqual(text_queries, json_queries)
         envelope = json.loads(json_proc.stdout)
         result = envelope["data"]
-        self.assertEqual(result["schema_version"], "flight_search_result.v7")
+        self.assertEqual(result["schema_version"], "flight_search_result.v8")
         self.assertEqual(text_proc.stdout, result["answer"]["rendered_text"] + "\n")
         self.assertIn("KL1424", text_proc.stdout)
         self.assertIn("KL1959", text_proc.stdout)

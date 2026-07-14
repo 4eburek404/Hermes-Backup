@@ -12,9 +12,6 @@ from ..config import (
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
     DEFAULT_PROFILE,
     DEFAULT_ROUTING_STRATEGY,
-    DEFAULT_SEARCH_WAVE_MAX_WAVES,
-    DEFAULT_SEARCH_WAVE_PROBE_LIMIT,
-    DEFAULT_SEARCH_WAVE_TOP_K,
     FLI_MCP_DEFAULT_URL,
     PRIORITY_ROUTE_CARRIERS,
     catalog_output_limits_from_mapping,
@@ -59,8 +56,6 @@ class EvidenceOptions:
     coverage_mode: str
     coverage_controls: tuple[str, ...]
     coverage_control_limit: int
-    aggregate_control_limit: int
-    aggregate_control_carriers: tuple[str, ...]
     max_segment_searches: int
     live_cache_ttl_seconds: int
     no_live_cache: bool
@@ -68,9 +63,6 @@ class EvidenceOptions:
     timeout: int
     outbound_second_leg_day_offsets: tuple[int, ...]
     return_second_leg_day_offsets: tuple[int, ...]
-    search_wave_max_waves: int
-    search_wave_probe_limit: int
-    search_wave_top_k: int
     fail_fast: bool
     fli_mcp_url: str
 
@@ -162,12 +154,6 @@ class SearchRequest:
                 coverage_control_limit=_int_option(
                     route, "coverage_control_limit", DEFAULT_COVERAGE_CONTROL_LIMIT
                 ),
-                aggregate_control_limit=_int_option(
-                    evidence, "aggregate_control_limit", 0
-                ),
-                aggregate_control_carriers=_str_tuple(
-                    evidence.get("aggregate_control_carriers")
-                ),
                 max_segment_searches=_int_option(evidence, "max_segment_searches", 300),
                 live_cache_ttl_seconds=_int_option(
                     evidence,
@@ -182,17 +168,6 @@ class SearchRequest:
                 ),
                 return_second_leg_day_offsets=_int_tuple(
                     evidence.get("return_second_leg_day_offsets")
-                ),
-                search_wave_max_waves=_int_option(
-                    evidence, "search_wave_max_waves", DEFAULT_SEARCH_WAVE_MAX_WAVES
-                ),
-                search_wave_probe_limit=_int_option(
-                    evidence,
-                    "search_wave_probe_limit",
-                    DEFAULT_SEARCH_WAVE_PROBE_LIMIT,
-                ),
-                search_wave_top_k=_int_option(
-                    evidence, "search_wave_top_k", DEFAULT_SEARCH_WAVE_TOP_K
                 ),
                 fail_fast=_bool_option(evidence, "fail_fast", False),
                 fli_mcp_url=str(evidence.get("fli_mcp_url") or FLI_MCP_DEFAULT_URL),
@@ -210,7 +185,7 @@ class SearchRequest:
         """Return the canonical wire projection after Python defaults are applied."""
 
         return {
-            "schema_version": "flight_search_request.v1",
+            "schema_version": "flight_search_request.v2",
             "origin": self.route.origin,
             "destination": self.route.destination,
             "depart_date": self.route.depart_date,
@@ -252,13 +227,6 @@ class SearchRequest:
                 ),
                 "return_second_leg_day_offsets": list(
                     self.evidence.return_second_leg_day_offsets
-                ),
-                "search_wave_max_waves": self.evidence.search_wave_max_waves,
-                "search_wave_probe_limit": self.evidence.search_wave_probe_limit,
-                "search_wave_top_k": self.evidence.search_wave_top_k,
-                "aggregate_control_limit": self.evidence.aggregate_control_limit,
-                "aggregate_control_carriers": list(
-                    self.evidence.aggregate_control_carriers
                 ),
                 "max_segment_searches": self.evidence.max_segment_searches,
                 "fail_fast": self.evidence.fail_fast,
@@ -351,14 +319,6 @@ class SearchRequest:
     @property
     def no_live_cache(self) -> bool:
         return self.evidence.no_live_cache
-
-    @property
-    def aggregate_control_limit(self) -> int:
-        return self.evidence.aggregate_control_limit
-
-    @property
-    def aggregate_control_carriers(self) -> tuple[str, ...]:
-        return self.evidence.aggregate_control_carriers
 
     @property
     def coverage_mode(self) -> str:
