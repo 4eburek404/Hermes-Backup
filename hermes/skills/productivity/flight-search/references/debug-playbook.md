@@ -154,6 +154,46 @@ Probe shapes:
 - round-trip provider aggregate when the user asks for one order/single checkout;
 - nearby in-horizon control date to split horizon uncertainty from route coverage.
 
+### Suppressed or missing gateway chain
+
+When a requested or expected hub chain is absent, start with the baseline
+`diagnose trace`; do not replace the canonical search with manual leg searches.
+Inspect these fields together:
+
+- `data.plan.conditional_gateway_queries`;
+- `data.evidence.direct_mode` and `data.evidence.direct_presence_gate`;
+- `data.evidence.probe_ledger.skipped_controls` and `searched_controls`;
+- `data.evidence.gateway_leg_results.wave_diagnostics`;
+- `data.decision.offer_graph` and `data.decision.frontier`.
+
+Interpret the first matching state:
+
+1. **No planned chain:** inspect gateway-discovery enablement, prior-set/candidate
+   selection, candidate caps, rejected gateway signals, and provider
+   applicability. A requested `hubs` value does not by itself prove that a
+   conditional query reached the plan.
+2. **Planned then suppressed:** `direct_mode[direction]=true` together with a
+   matching skipped control whose `reason` is `direct_available` proves the
+   production direct-first partition suppressed that direction.
+3. **Searched but no candidate:** inspect provider offers, chronology/MCT
+   pairing, OfferGraph rejection, connection caps, and frontier projection;
+   this is not direct-first suppression.
+4. **Unexpected wave count:** compare runtime
+   `wave_diagnostics.{max_waves,wave_count,stop_reason}` with production
+   `SearchWavePlannerOptions` wiring. The current executor wires `max_waves=1`,
+   so generic planner tests with several waves do not prove live multi-wave
+   execution.
+5. **Strict direct-only request:** zero connection caps can still coexist with
+   planned or executed route-access gateway probes when direct evidence is
+   empty, while connected candidates remain non-reportable. Distinguish probe
+   execution from catalog eligibility.
+
+The current request schema has no `force_gateway_probe` or `gateway_chain`
+field. Do not add either key to a traveler request, and do not externally merge
+manual segment searches into a replacement answer. Such behavior requires an
+explicit schema/executor change with tests; it is not an existing runtime mode.
+The uncalled `assess_fallback()` helper is not evidence of production behavior.
+
 ## Short or missing direct set
 
 When the report shows fewer direct flights than expected:

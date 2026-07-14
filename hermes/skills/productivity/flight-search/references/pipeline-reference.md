@@ -74,6 +74,13 @@ and permit intermediate hubs only after a direct-empty result. A provider
 failure is not proof that no direct flight exists; diagnostics record whether
 direct absence was confirmed by at least one completed source.
 
+After wave-0 direct evidence is collected, the executor partitions planned
+`conditional_gateway_queries` by direction. Queries for a direction with
+direct evidence are recorded in `probe_ledger.skipped_controls` with
+`reason="direct_available"`; only directions without direct evidence enter the
+gateway wave planner. This executor partition is the production policy. The
+unused `assess_fallback()` helper is not a second policy source.
+
 ## Gateway discovery and assembly
 
 `gateway_discovery_mode` is an internal route-access decision, not a request
@@ -91,6 +98,14 @@ route-specific hub belongs in agent logic. Continuation is not limited to a
 direct second leg: the planner searches the requested day and next day and may
 accept provider-returned intermediate hubs such as
 `GATEWAY -> HUB -> DESTINATION`. Valid overnight candidates remain eligible.
+
+The current production `SearchExecutor` instantiates `SearchWavePlannerOptions`
+with `max_waves=1`. A larger `execution_limits.search_wave_max_waves` value in
+the plan is therefore not proof that multiple waves executed; the authoritative
+runtime evidence is `gateway_leg_results.wave_diagnostics`. Also, strict
+`max_connections=0` plus `tier2_max_connections=0` constrains reportable
+candidates but does not by itself prove that route-access gateway probes were
+never planned or executed.
 
 Candidate assembly requires airport continuity between every adjacent segment.
 An airport mismatch is rejected before ranking; same-city airports and a longer
