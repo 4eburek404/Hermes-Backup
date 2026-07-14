@@ -7,6 +7,7 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
+from flights_cli.adapters.providers.kupibilet_adapter import KupibiletProviderAdapter
 from flights_cli.execution.search_executor import execute_search
 from flights_cli.providers.kupibilet import (
     build_kupibilet_payload,
@@ -30,6 +31,32 @@ def execute_projection(*args: object, **kwargs: object) -> dict:
     return execute_search(*args, **kwargs).projection_input
 
 
+def airport_scope_raw(rows: list[tuple[str, str, str, int]]) -> dict:
+    variants = []
+    flights = {}
+    for index, (offer_id, origin, destination, price) in enumerate(rows):
+        flight_id = f"flight-{index}"
+        variants.append(
+            {
+                "id": offer_id,
+                "price": {"amount": str(price), "currency": "RUB"},
+                "segments": [{"flights": [flight_id]}],
+            }
+        )
+        flights[flight_id] = {
+            "marketing_carrier": "ZZ",
+            "operating_carrier": "ZZ",
+            "transport_number": str(index + 1),
+            "departure": origin,
+            "arrival": destination,
+            "departure_datetime": f"2026-08-12T{index:02d}:00:00+00:00",
+            "arrival_datetime": f"2026-08-12T{index + 1:02d}:00:00+00:00",
+            "duration": 60,
+            "transport_kind": "airplane",
+        }
+    return {"variants": variants, "flights": flights}
+
+
 class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
     def test_kupibilet_payload_uses_live_frontend_search_shape(self) -> None:
         payload = build_kupibilet_payload("SVX", "MOW", "2026-07-19", "RUB")
@@ -47,6 +74,199 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         raw = b'{"variants":[]}'
         self.assertEqual(decode_http_body(gzip.compress(raw), "gzip"), raw)
         self.assertEqual(decode_http_body(raw, None), raw)
+
+    def test_parse_kupibilet_filters_airport_scope_before_limit(self) -> None:
+        raw = airport_scope_raw(
+            [
+                ("wrong-cheap", "AAA", "BBC", 1000),
+                ("allowed", "AAA", "BBB", 5000),
+                ("missing-airport", "AAA", "", 500),
+            ]
+        )
+
+        result = parse_kupibilet_frontend_search(
+            raw,
+            origin="AAA",
+            destination="CTY",
+            depart_date="2026-08-12",
+            currency="RUB",
+            origin_airports=[" aaa ", "AAA"],
+            destination_airports=["BBB"],
+            limit=1,
+        )
+
+        self.assertEqual([offer["id"] for offer in result["offers"]], ["allowed"])
+        self.assertEqual(result["filters"]["origin_airports"], ["AAA"])
+        self.assertEqual(result["filters"]["destination_airports"], ["BBB"])
+        self.assertEqual(result["skipped"]["destination_out_of_scope"], 1)
+        self.assertEqual(result["skipped"]["missing_airport"], 1)
+
+    def test_parse_kupibilet_supports_independent_multi_airport_scopes(self) -> None:
+        raw = airport_scope_raw(
+            [
+                ("first", "AAA", "BBB", 1000),
+                ("second", "AAB", "BBC", 2000),
+                ("wrong-origin", "AAC", "BBB", 3000),
+                ("wrong-destination", "AAA", "BBD", 4000),
+            ]
+        )
+        common = {
+            "origin": "ORG",
+            "destination": "DST",
+            "depart_date": "2026-08-12",
+            "currency": "RUB",
+        }
+
+        both = parse_kupibilet_frontend_search(
+            raw,
+            **common,
+            origin_airports=["AAA", "AAB"],
+            destination_airports=["BBB", "BBC"],
+        )
+        origin_only = parse_kupibilet_frontend_search(
+            raw,
+            **common,
+            origin_airports=["AAA", "AAB"],
+        )
+        destination_only = parse_kupibilet_frontend_search(
+            raw,
+            **common,
+            destination_airports=["BBB", "BBC"],
+        )
+        unrestricted = parse_kupibilet_frontend_search(
+            raw,
+            **common,
+            origin_airports=[],
+            destination_airports=[],
+        )
+        all_out_of_scope = parse_kupibilet_frontend_search(
+            raw,
+            **common,
+            destination_airports=["ZZZ"],
+        )
+
+        self.assertEqual({offer["id"] for offer in both["offers"]}, {"first", "second"})
+        self.assertEqual(
+            {offer["id"] for offer in origin_only["offers"]},
+            {"first", "second", "wrong-destination"},
+        )
+        self.assertEqual(
+            {offer["id"] for offer in destination_only["offers"]},
+            {"first", "second", "wrong-origin"},
+        )
+        self.assertEqual(len(unrestricted["offers"]), 4)
+        self.assertEqual(all_out_of_scope["offers"], [])
+        self.assertEqual(all_out_of_scope["skipped"]["destination_out_of_scope"], 4)
+
+    def test_kupibilet_adapter_forwards_airport_scopes_for_both_probe_types(
+        self,
+    ) -> None:
+        calls: list[dict[str, object]] = []
+
+        def fake_fetch(
+            origin: str, destination: str, depart_date: object, **kwargs: object
+        ) -> dict:
+            calls.append(dict(kwargs))
+            return {
+                "origin": origin,
+                "destination": destination,
+                "depart_date": str(depart_date),
+                "currency": "RUB",
+                "source": "test",
+                "raw_variant_count": 0,
+                "unique_flight_count": 0,
+                "skipped": {"destination_out_of_scope": 1},
+                "filters": {
+                    "origin_airports": kwargs["origin_airports"],
+                    "destination_airports": kwargs["destination_airports"],
+                },
+                "offers": [],
+            }
+
+        adapter = KupibiletProviderAdapter(fetcher=fake_fetch)
+        query = {
+            "probe_id": "scope-probe",
+            "direction": "outbound",
+            "leg": "direct_outbound",
+            "origin": "ORG",
+            "destination": "DST",
+            "origin_airports": [" aab ", "AAA", "aaa"],
+            "destination_airports": ["bbb", ""],
+            "date": "2026-08-12",
+            "currency": "RUB",
+            "only_carriers": [],
+            "direct_only": True,
+            "limit": 10,
+            "timeout": 10,
+            "cache_ttl_seconds": 0,
+            "use_cache": False,
+        }
+
+        segment = adapter.search_segment(query)
+        aggregate = adapter.search_aggregate(query)
+
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(
+            all(call["origin_airports"] == ["AAA", "AAB"] for call in calls)
+        )
+        self.assertTrue(all(call["destination_airports"] == ["BBB"] for call in calls))
+        self.assertEqual(segment.query["origin_airports"], ["AAA", "AAB"])
+        self.assertEqual(segment.query["destination_airports"], ["BBB"])
+        self.assertEqual(aggregate.query["origin_airports"], ["AAA", "AAB"])
+        self.assertEqual(aggregate.query["destination_airports"], ["BBB"])
+        self.assertEqual(aggregate.execution_state, "searched")
+        self.assertEqual(aggregate.result_summary["status"], "ok")
+        self.assertEqual(aggregate.result_summary["offer_count"], 0)
+        self.assertEqual(
+            aggregate.result_summary["skipped"], {"destination_out_of_scope": 1}
+        )
+
+    def test_cached_kupibilet_search_normalizes_scopes_in_cache_key(self) -> None:
+        calls: list[dict[str, object]] = []
+
+        def fake_fetch(
+            origin: str, destination: str, depart_date: object, **kwargs: object
+        ) -> dict:
+            calls.append(dict(kwargs))
+            return {"offers": []}
+
+        common = {
+            "currency": "RUB",
+            "only_carriers": [],
+            "direct_only": False,
+            "limit": 20,
+            "timeout": 10,
+            "use_cache": False,
+            "fetcher": fake_fetch,
+        }
+        first = cached_kupibilet_search(
+            "ORG",
+            "DST",
+            date(2026, 8, 12),
+            **common,
+            origin_airports=["AAB", "AAA", "AAA"],
+            destination_airports=["BBB"],
+        )
+        equivalent = cached_kupibilet_search(
+            "ORG",
+            "DST",
+            date(2026, 8, 12),
+            **common,
+            origin_airports=["AAA", "AAB"],
+            destination_airports=["BBB"],
+        )
+        different = cached_kupibilet_search(
+            "ORG",
+            "DST",
+            date(2026, 8, 12),
+            **common,
+            origin_airports=["AAA"],
+            destination_airports=["BBC"],
+        )
+
+        self.assertEqual(calls[0]["origin_airports"], ["AAA", "AAB"])
+        self.assertEqual(first["cache"]["key"], equivalent["cache"]["key"])
+        self.assertNotEqual(first["cache"]["key"], different["cache"]["key"])
 
     def test_parse_kupibilet_dedupes_marketed_su_direct_flights(self) -> None:
         raw = {

@@ -14,7 +14,6 @@ from flights_cli.command_surface import (
 )
 from flights_cli.config import (
     CITY_AIRPORTS_EXCLUDED_BY_DEFAULT,
-    KUPIBILET_CITY_CODE_FIRST_AIRPORTS,
     MULTI_AIRPORT_GROUPS,
     PREFERRED_AIRPORT_TIERS,
 )
@@ -122,13 +121,6 @@ class ArchitectureTests(unittest.TestCase):
         self.assertEqual(lon_tiers[1]["role"], "deferred")
         self.assertEqual(
             sorted(CITY_AIRPORTS_EXCLUDED_BY_DEFAULT["LON"]), ["LTN", "STN"]
-        )
-
-    def test_kupibilet_mow_city_code_first_and_exact_deferred(self) -> None:
-        # KupiBilet uses MOW city-code first; SVO/DME/VKO are deferred probes.
-        self.assertIn("MOW", KUPIBILET_CITY_CODE_FIRST_AIRPORTS)
-        self.assertEqual(
-            sorted(KUPIBILET_CITY_CODE_FIRST_AIRPORTS["MOW"]), ["DME", "SVO", "VKO"]
         )
 
     def test_moscow_airports_are_not_interchangeable(self) -> None:

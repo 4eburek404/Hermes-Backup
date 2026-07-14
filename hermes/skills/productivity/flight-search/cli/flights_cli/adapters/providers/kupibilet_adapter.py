@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from collections import Counter
 from typing import Any
 
-from ...config import KUPIBILET_CITY_CODE_FIRST_AIRPORTS
 from ...domain.carriers import carrier_from_flight_number
 from ...domain.normalize import parse_iso_date
 from ...domain.provider_offer_filter import (
@@ -46,104 +44,6 @@ KUPIBILET_CAPABILITIES = ProviderCapabilities(
         }
     ),
 )
-
-
-def _raw_offer_actual_airports(offer: dict[str, Any]) -> tuple[str, str]:
-    segments = offer.get("segments") if isinstance(offer.get("segments"), list) else []
-    if not segments:
-        origin = str(
-            offer.get("origin") or offer.get("departure_airport") or ""
-        ).upper()
-        destination = str(
-            offer.get("destination") or offer.get("arrival_airport") or ""
-        ).upper()
-        return origin, destination
-    first = segments[0] if isinstance(segments[0], dict) else {}
-    last = segments[-1] if isinstance(segments[-1], dict) else {}
-    origin = str(first.get("origin") or first.get("departure_airport") or "").upper()
-    destination = str(
-        last.get("destination") or last.get("arrival_airport") or ""
-    ).upper()
-    return origin, destination
-
-
-def _city_code_offer_rejection_reason(
-    *,
-    actual_origin: str,
-    actual_destination: str,
-    origin_scope: set[str],
-    destination_scope: set[str],
-) -> str | None:
-    if not actual_origin or not actual_destination:
-        return "missing_actual_airport_fields"
-    if origin_scope and actual_origin not in origin_scope:
-        return "origin_out_of_scope"
-    if destination_scope and actual_destination not in destination_scope:
-        return "destination_out_of_scope"
-    return None
-
-
-def validate_kupibilet_city_code_scope(
-    spec: dict[str, Any], result: dict[str, Any], segment_result: dict[str, Any]
-) -> dict[str, Any] | None:
-    query_origin = str(spec.get("origin") or "").upper()
-    query_destination = str(spec.get("destination") or "").upper()
-    origin_scope = {
-        str(code).upper()
-        for code in KUPIBILET_CITY_CODE_FIRST_AIRPORTS.get(query_origin, [])
-    }
-    destination_scope = {
-        str(code).upper()
-        for code in KUPIBILET_CITY_CODE_FIRST_AIRPORTS.get(query_destination, [])
-    }
-    if not origin_scope and not destination_scope:
-        return None
-
-    rejected_reasons: Counter[str] = Counter()
-    raw_offers = [
-        offer for offer in (result.get("offers") or []) if isinstance(offer, dict)
-    ]
-    for raw_offer in raw_offers:
-        actual_origin, actual_destination = _raw_offer_actual_airports(raw_offer)
-        reason = _city_code_offer_rejection_reason(
-            actual_origin=actual_origin,
-            actual_destination=actual_destination,
-            origin_scope=origin_scope,
-            destination_scope=destination_scope,
-        )
-        if reason:
-            rejected_reasons[reason] += 1
-
-    accepted_offers: list[dict[str, Any]] = []
-    for offer in segment_result.get("offers") or []:
-        if not isinstance(offer, dict):
-            continue
-        actual_origin = str(
-            offer.get("departure_airport") or offer.get("origin") or ""
-        ).upper()
-        actual_destination = str(
-            offer.get("arrival_airport") or offer.get("destination") or ""
-        ).upper()
-        reason = _city_code_offer_rejection_reason(
-            actual_origin=actual_origin,
-            actual_destination=actual_destination,
-            origin_scope=origin_scope,
-            destination_scope=destination_scope,
-        )
-        if reason:
-            continue
-        accepted_offers.append(offer)
-
-    segment_result["offers"] = accepted_offers
-    return {
-        "query_origin": query_origin,
-        "query_destination": query_destination,
-        "origin_scope_airports": sorted(origin_scope),
-        "destination_scope_airports": sorted(destination_scope),
-        "accepted_offer_count": len(accepted_offers),
-        "rejected_offer_count": sum(rejected_reasons.values()),
-        "rejected_reasons": dict(rejected_reasons),
-    }
 
 
 def aggregate_offer_summary(offer: dict[str, Any]) -> dict[str, Any]:
@@ -246,7 +146,10 @@ def kupibilet_aggregate_control_summary(
         "status": "ok",
         "provider": "kupibilet",
         "source": result.get("source"),
-        "filters": {"direct_only": False, "only_carriers": carriers},
+        "filters": dict(
+            result.get("filters") or {"direct_only": False, "only_carriers": carriers}
+        ),
+        "skipped": result.get("skipped", {}),
         "offer_count": len(filtered_offers),
         "raw_offer_count": result.get(
             "raw_offer_count", filter_stats["raw_offer_count"]
@@ -284,12 +187,16 @@ class KupibiletProviderAdapter:
         depart_date = parse_iso_date(depart_date_text, "segment-date")
         direction = str(query["direction"])
         leg = str(query["leg"])
+        origin_airports = list(query.get("origin_airports") or [])
+        destination_airports = list(query.get("destination_airports") or [])
         result = cached_kupibilet_search(
             origin,
             destination,
             depart_date,
             currency=str(query["currency"]).upper(),
             only_carriers=list(query.get("only_carriers") or []),
+            origin_airports=origin_airports,
+            destination_airports=destination_airports,
             direct_only=bool(query.get("direct_only", True)),
             limit=int(query["limit"]),
             timeout=int(query.get("timeout") or 60),
@@ -297,6 +204,9 @@ class KupibiletProviderAdapter:
             use_cache=bool(query.get("use_cache", True)),
             fetcher=self.fetcher,
         )
+        result_filters = result.get("filters") or {}
+        origin_airports = list(result_filters.get("origin_airports") or [])
+        destination_airports = list(result_filters.get("destination_airports") or [])
         spec = {
             "direction": direction,
             "leg": leg,
@@ -307,21 +217,10 @@ class KupibiletProviderAdapter:
         segment_result = kupibilet_result_to_segment_result(
             result, direction=direction, leg=leg
         )
-        city_code_validation = validate_kupibilet_city_code_scope(
-            spec, result, segment_result
-        )
         summary = {
             **kupibilet_segment_search_summary(spec, result, segment_result),
             "provider": "kupibilet",
         }
-        if city_code_validation is not None:
-            summary["city_code_validation"] = city_code_validation
-            if (
-                city_code_validation["rejected_offer_count"]
-                and not city_code_validation["accepted_offer_count"]
-            ):
-                summary["status"] = "invalid"
-                summary["reason"] = "city_code_scope_validation_failed"
         cache_status: CacheStatus = cache_status_from_result(result)  # type: ignore[assignment]
         offer_count = len(segment_result.get("offers") or [])
         return ProviderProbeResult(
@@ -334,6 +233,8 @@ class KupibiletProviderAdapter:
                 "date": depart_date_text,
                 "currency": str(query["currency"]).upper(),
                 "only_carriers": list(query.get("only_carriers") or []),
+                "origin_airports": origin_airports,
+                "destination_airports": destination_airports,
                 "direct_only": bool(query.get("direct_only", True)),
             },
             execution_state="searched",
@@ -358,12 +259,16 @@ class KupibiletProviderAdapter:
         depart_date_text = str(query["date"])
         depart_date = parse_iso_date(depart_date_text, "aggregate-control-date")
         carriers = list(query.get("only_carriers") or [])
+        origin_airports = list(query.get("origin_airports") or [])
+        destination_airports = list(query.get("destination_airports") or [])
         result = cached_kupibilet_search(
             origin,
             destination,
             depart_date,
             currency=str(query["currency"]).upper(),
             only_carriers=carriers,
+            origin_airports=origin_airports,
+            destination_airports=destination_airports,
             direct_only=False,
             limit=int(query["limit"]),
             timeout=int(query.get("timeout") or 60),
@@ -371,6 +276,9 @@ class KupibiletProviderAdapter:
             use_cache=bool(query.get("use_cache", True)),
             fetcher=self.fetcher,
         )
+        result_filters = result.get("filters") or {}
+        origin_airports = list(result_filters.get("origin_airports") or [])
+        destination_airports = list(result_filters.get("destination_airports") or [])
         summary = kupibilet_aggregate_control_summary(
             direction=str(query["direction"]),
             origin=origin,
@@ -391,6 +299,8 @@ class KupibiletProviderAdapter:
                 "date": depart_date_text,
                 "currency": str(query["currency"]).upper(),
                 "only_carriers": carriers,
+                "origin_airports": origin_airports,
+                "destination_airports": destination_airports,
                 "direct_only": False,
             },
             execution_state="searched",

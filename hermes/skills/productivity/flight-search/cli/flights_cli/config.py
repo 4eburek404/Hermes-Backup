@@ -147,10 +147,6 @@ CITY_AIRPORTS_EXCLUDED_BY_DEFAULT = {
     "IST": ["SAW"],
 }
 
-KUPIBILET_CITY_CODE_FIRST_AIRPORTS = {
-    "MOW": ["SVO", "DME", "VKO"],
-}
-
 SPECIAL_CITY_AIRPORTS = {
     "LON": ["LHR", "LGW"],
     "MOW": ["SVO", "DME", "VKO"],
