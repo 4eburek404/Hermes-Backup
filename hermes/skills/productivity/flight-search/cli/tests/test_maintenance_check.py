@@ -47,12 +47,12 @@ class MaintenanceCheckTests(unittest.TestCase):
 
         self.assertEqual(data["runtime"]["skill_path"], str(missing_runtime))
         self.assertFalse(data["runtime"]["exists"])
-        self.assertEqual(data["versions"], {"skill_md": "0.11.5", "cli": "0.8.1"})
+        self.assertEqual(data["versions"], {"skill_md": "0.11.6", "cli": "0.8.1"})
         self.assertTrue(data["version_manifest"]["exists"])
         self.assertEqual(data["version_manifest"]["mismatches"], [])
         self.assertEqual(
             data["version_manifest"]["data"]["skill"],
-            {"name": "flight-search", "version": "0.11.5"},
+            {"name": "flight-search", "version": "0.11.6"},
         )
         self.assertEqual(
             data["version_manifest"]["data"]["cli"],
@@ -71,7 +71,7 @@ class MaintenanceCheckTests(unittest.TestCase):
         self.assertEqual(workflow["source"]["dirty"], data["source"]["git"]["dirty"])
         self.assertEqual(workflow["runtime"]["path"], str(missing_runtime))
         self.assertFalse(workflow["runtime"]["exists"])
-        self.assertEqual(workflow["manifest"]["skill_version"], "0.11.5")
+        self.assertEqual(workflow["manifest"]["skill_version"], "0.11.6")
         self.assertEqual(workflow["manifest"]["cli_version"], "0.8.1")
         self.assertEqual(
             workflow["manifest"]["command_surface_version"], "command_surface.v2"

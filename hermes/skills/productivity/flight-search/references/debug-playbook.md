@@ -92,6 +92,52 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose probe \
   --request probe.json
 ```
 
+### FLI MCP readiness
+
+Use this only to determine whether the FLI provider endpoint is reachable or
+to isolate an FLI-specific failure. The CLI contacts FLI MCP directly. A clean
+`hermes mcp list` is therefore not evidence that FLI is unavailable, and a
+configured Hermes MCP entry is not evidence that the CLI can reach it.
+
+The effective endpoint is `FLIGHTS_FLI_MCP_URL` when set; otherwise it is
+`http://127.0.0.1:8000/mcp`. `maint doctor` checks the local CLI, dependencies,
+contracts, and static catalogs without a live provider call. An `ok: true`
+doctor result does not prove FLI readiness.
+
+Use the current provider-port command, not the removed `diagnose fli-search`
+surface. Write a minimal segment probe:
+
+```json
+{
+  "origin": "AMS",
+  "destination": "LHR",
+  "date": "YYYY-MM-DD",
+  "limit": 20,
+  "timeout": 5,
+  "use_cache": false,
+  "direct_only": true
+}
+```
+
+Then run from `cli/`:
+
+```bash
+printf 'FLIGHTS_FLI_MCP_URL=%s\n' \
+  "${FLIGHTS_FLI_MCP_URL:-<unset; default=http://127.0.0.1:8000/mcp>}"
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose probe \
+  --provider fli \
+  --request /tmp/fli-probe.json
+```
+
+Attribute the result to the exact layer:
+
+- malformed URL or disallowed cleartext host: FLI endpoint configuration;
+- connection refused on the default loopback URL: no FLI MCP listener in the
+  current environment, not a failure of the main flight-search CLI;
+- timeout, blocked response, or upstream error: FLI provider/upstream failure;
+- successful probe with zero offers: current FLI route/date inventory, not
+  endpoint unavailability.
+
 Pure renderer diagnostic for an existing result:
 
 ```bash
