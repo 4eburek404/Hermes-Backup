@@ -16,6 +16,7 @@ from typing import Any
 
 TRIP_STATUS_URL = "https://www.trip.com/flights/status/{airport}/"
 PAGE_SIZE = 24
+MAX_JAVASCRIPT_TIMESTAMP_MS = 8_640_000_000_000_000
 
 _STATE_I18N_KEYS = {
     1: "Scheduled",
@@ -151,6 +152,44 @@ def _clean(value: Any) -> str | None:
     return text or None
 
 
+def _is_valid_timestamp(value: Any) -> bool:
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return 0 < value <= MAX_JAVASCRIPT_TIMESTAMP_MS
+    if isinstance(value, float):
+        return math.isfinite(value) and 0 < value <= MAX_JAVASCRIPT_TIMESTAMP_MS
+    return False
+
+
+def _system_local_midnight_ms(local_now: datetime) -> float:
+    target = (local_now.year, local_now.month, local_now.day, 0, 0, 0)
+    candidates: dict[float, tuple[int, ...]] = {}
+    for is_dst in (0, 1):
+        try:
+            epoch = time.mktime((*target, 0, 0, is_dst))
+            candidates[epoch] = time.localtime(epoch)[:6]
+        except (OverflowError, OSError, ValueError):
+            continue
+
+    exact = sorted(
+        epoch for epoch, wall_time in candidates.items() if wall_time == target
+    )
+    if exact:
+        # JavaScript's "compatible" disambiguation chooses the earlier fold.
+        return exact[0] * 1000
+
+    after_gap = sorted(
+        (wall_time, epoch)
+        for epoch, wall_time in candidates.items()
+        if wall_time > target
+    )
+    if after_gap:
+        # For a nonexistent midnight JavaScript advances by the transition gap.
+        return after_gap[0][1] * 1000
+    raise TripBoardError("trip_parser_changed")
+
+
 def _row_for_direction(
     row: dict[str, Any], direction: str, i18n: dict[str, Any]
 ) -> dict[str, str | None]:
@@ -212,17 +251,12 @@ def _trip_filter_values(
         timezone_offset_minutes = -int(utc_offset.total_seconds() // 60)
 
     if now is None:
-        # time.mktime resolves the system timezone's offset at local midnight,
-        # including a DST transition between midnight and parse time.
-        local_midnight_ms = (
-            time.mktime(
-                (local_now.year, local_now.month, local_now.day, 0, 0, 0, 0, 0, -1)
-            )
-            * 1000
-        )
+        local_midnight_ms = _system_local_midnight_ms(local_now)
     else:
         local_midnight_ms = (
-            local_now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+            local_now.replace(
+                hour=0, minute=0, second=0, microsecond=0, fold=0
+            ).timestamp()
             * 1000
         )
     cutoff_ms = local_midnight_ms + selected_minutes * 60_000
@@ -292,12 +326,7 @@ def parse_trip_board(
         ):
             raise TripBoardError("trip_parser_changed")
         planned_timestamp = raw_row.get(timestamp_key)
-        if (
-            isinstance(planned_timestamp, bool)
-            or not isinstance(planned_timestamp, (int, float))
-            or not math.isfinite(planned_timestamp)
-            or planned_timestamp <= 0
-        ):
+        if not _is_valid_timestamp(planned_timestamp):
             raise TripBoardError("trip_parser_changed")
 
     cutoff = _clean(data.get("defaultSelectedTime"))

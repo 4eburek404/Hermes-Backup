@@ -4,7 +4,9 @@ import base64
 from datetime import datetime, timedelta, timezone
 import importlib.util
 import json
+import os
 from pathlib import Path
+import time
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -361,36 +363,115 @@ def test_current_slice_includes_timestamp_equal_to_cutoff() -> None:
 
 
 @pytest.mark.parametrize(
-    ("now", "expected_midnight_utc"),
+    ("now", "expected_midnight_utc", "expected_adjustment_ms"),
     [
         (
             datetime(2026, 3, 8, 12, 0, tzinfo=ZoneInfo("America/New_York")),
             datetime(2026, 3, 8, 5, 0, tzinfo=timezone.utc),
+            43_200_000,
         ),
         (
             datetime(2026, 11, 1, 12, 0, tzinfo=ZoneInfo("America/New_York")),
             datetime(2026, 11, 1, 4, 0, tzinfo=timezone.utc),
+            46_800_000,
+        ),
+        (
+            datetime(
+                2026,
+                11,
+                1,
+                0,
+                30,
+                tzinfo=ZoneInfo("America/Havana"),
+                fold=0,
+            ),
+            datetime(2026, 11, 1, 4, 0, tzinfo=timezone.utc),
+            43_200_000,
+        ),
+        (
+            datetime(
+                2026,
+                11,
+                1,
+                0,
+                30,
+                tzinfo=ZoneInfo("America/Havana"),
+                fold=1,
+            ),
+            datetime(2026, 11, 1, 4, 0, tzinfo=timezone.utc),
+            46_800_000,
         ),
     ],
 )
-def test_trip_cutoff_uses_timezone_offset_at_local_midnight(
-    now: datetime, expected_midnight_utc: datetime
+def test_trip_cutoff_uses_javascript_dst_disambiguation(
+    now: datetime, expected_midnight_utc: datetime, expected_adjustment_ms: int
 ) -> None:
     trip_board = load_module()
     data = {
         "timeOptionsWithMinutes": [{"label": "00:00", "minutes": 0}],
     }
 
-    cutoff_ms, _ = trip_board._trip_filter_values(data, "00:00", None, now)
+    cutoff_ms, adjustment_ms = trip_board._trip_filter_values(data, "00:00", None, now)
 
     assert (
         datetime.fromtimestamp(cutoff_ms / 1000, timezone.utc) == expected_midnight_utc
     )
+    assert adjustment_ms == expected_adjustment_ms
+
+
+def test_runtime_clock_path_uses_javascript_dst_disambiguation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trip_board = load_module()
+    real_datetime = trip_board.datetime
+
+    class FrozenDateTime(real_datetime):
+        @classmethod
+        def now(cls, tz=None):
+            value = real_datetime.fromtimestamp(1_793_511_000, timezone.utc)
+            return value.astimezone(tz) if tz is not None else value.astimezone()
+
+    previous_tz = os.environ.get("TZ")
+    os.environ["TZ"] = "America/Havana"
+    time.tzset()
+    monkeypatch.setattr(trip_board, "datetime", FrozenDateTime)
+
+    try:
+        # Prime libc with the later midnight candidate: tm_isdst=-1 must not
+        # inherit that choice because JavaScript always selects the earlier fold.
+        time.mktime((2026, 11, 1, 0, 0, 0, 0, 0, 0))
+        cutoff_ms, adjustment_ms = trip_board._trip_filter_values(
+            {"timeOptionsWithMinutes": [{"label": "00:00", "minutes": 0}]},
+            "00:00",
+            None,
+            None,
+        )
+    finally:
+        if previous_tz is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = previous_tz
+        time.tzset()
+
+    assert cutoff_ms == 1_793_505_600_000
+    assert adjustment_ms == 46_800_000
 
 
 @pytest.mark.parametrize(
     "invalid_timestamp",
-    [True, "123", "NaN", "Infinity", float("nan"), float("inf"), None, 0, ""],
+    [
+        True,
+        "123",
+        "NaN",
+        "Infinity",
+        float("nan"),
+        float("inf"),
+        None,
+        0,
+        "",
+        10**1000,
+        -(10**1000),
+    ],
 )
 def test_timestamp_requires_a_positive_finite_number(invalid_timestamp: object) -> None:
     trip_board = load_module()
