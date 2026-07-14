@@ -12,11 +12,7 @@ from flights_cli.command_surface import (
     DIAGNOSTIC_COMMANDS,
     PRIMARY_ROUTE_COMMAND,
 )
-from flights_cli.config import (
-    CITY_AIRPORTS_EXCLUDED_BY_DEFAULT,
-    MULTI_AIRPORT_GROUPS,
-    PREFERRED_AIRPORT_TIERS,
-)
+from flights_cli.config import MULTI_AIRPORT_GROUPS
 from flights_cli.ports.providers import ProviderName
 from flights_cli.adapters.providers.registry import PROVIDER_REGISTRY
 from flights_cli.contracts.registry import current_contract
@@ -104,24 +100,6 @@ class ArchitectureTests(unittest.TestCase):
         # Tutu is opt-in only, but it is part of the typed provider registry.
         self.assertEqual(set(ProviderName.__args__), {"kupibilet", "fli", "tutu"})
         self.assertEqual(set(PROVIDER_REGISTRY.keys()), {"kupibilet", "fli", "tutu"})
-
-    def test_ist_resolves_to_exact_code_only(self) -> None:
-        # IST default scope is IST only; SAW requires explicit request.
-        self.assertIn("IST", CITY_AIRPORTS_EXCLUDED_BY_DEFAULT)
-        self.assertEqual(CITY_AIRPORTS_EXCLUDED_BY_DEFAULT["IST"], ["SAW"])
-
-    def test_lon_preferred_tier_lhr_then_lgw_excludes_stn_ltn(self) -> None:
-        # LHR tier 1 preferred, LGW tier 2 deferred; STN/LTN excluded by default.
-        lon_tiers = PREFERRED_AIRPORT_TIERS["LON"]
-        self.assertEqual(lon_tiers[0]["tier"], 1)
-        self.assertEqual(lon_tiers[0]["airports"], ["LHR"])
-        self.assertEqual(lon_tiers[0]["role"], "preferred")
-        self.assertEqual(lon_tiers[1]["tier"], 2)
-        self.assertEqual(lon_tiers[1]["airports"], ["LGW"])
-        self.assertEqual(lon_tiers[1]["role"], "deferred")
-        self.assertEqual(
-            sorted(CITY_AIRPORTS_EXCLUDED_BY_DEFAULT["LON"]), ["LTN", "STN"]
-        )
 
     def test_moscow_airports_are_not_interchangeable(self) -> None:
         # SVO/DME/VKO are separate airports; not interchangeable for itinerary continuity.

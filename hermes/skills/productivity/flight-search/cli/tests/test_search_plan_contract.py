@@ -635,7 +635,7 @@ class SearchPlanContractTests(unittest.TestCase):
         self.assertTrue(search_plan["primary_offer_queries"])
         for query in search_plan["primary_offer_queries"]:
             self.assertEqual(query["origin_airports"], ["SVO"])
-            self.assertEqual(query["destination_airports"], ["LHR", "LGW"])
+            self.assertEqual(query["destination_airports"], ["LGW", "LHR"])
 
     def test_return_direct_inventory_swaps_airport_scope(self) -> None:
         store = Store()

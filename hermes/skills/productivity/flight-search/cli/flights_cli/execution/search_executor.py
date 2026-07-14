@@ -4,7 +4,6 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..config import SPECIAL_CITY_AIRPORTS
 from ..domain.gateway_discovery import GatewayDiscoveryService
 from ..domain.immutable import thaw
 from ..domain.normalize import normalize_carrier_code
@@ -269,9 +268,6 @@ def _airport_set(*values: Any) -> set[str]:
         if not code:
             continue
         airports.add(code)
-        airports.update(
-            str(item).upper() for item in SPECIAL_CITY_AIRPORTS.get(code, [])
-        )
     return airports
 
 
@@ -591,6 +587,12 @@ class SearchDecisionBuilder:
             direct_mode=evidence.direct_mode,
             requested_origin=str(evidence.route_context.get("origin") or ""),
             requested_destination=str(evidence.route_context.get("destination") or ""),
+            requested_origin_airports=list(
+                evidence.route_context.get("origin_airports") or []
+            ),
+            requested_destination_airports=list(
+                evidence.route_context.get("destination_airports") or []
+            ),
         )
         graph_controls = evaluate_graph_coverage_controls(
             evidence.route_context,
@@ -602,6 +604,12 @@ class SearchDecisionBuilder:
             direct_mode=evidence.direct_mode,
             requested_origin=str(evidence.route_context.get("origin") or ""),
             requested_destination=str(evidence.route_context.get("destination") or ""),
+            requested_origin_airports=list(
+                evidence.route_context.get("origin_airports") or []
+            ),
+            requested_destination_airports=list(
+                evidence.route_context.get("destination_airports") or []
+            ),
         )
         offer_candidates["candidates"] = [
             *(

@@ -327,6 +327,155 @@ class FliMcpTests(unittest.TestCase):
         self.assertEqual(provider_result.query["origin_airports"], ["LHR"])
         self.assertEqual(provider_result.query["destination_airports"], ["CDG"])
 
+    def test_fli_adapter_fans_out_city_scope_in_both_directions(self) -> None:
+        calls: list[tuple[str, str]] = []
+
+        def fake_fetch(
+            origin: str, destination: str, depart_date: date, **kwargs: object
+        ) -> dict:
+            calls.append((origin, destination))
+            offer = {
+                "id": f"{origin}-{destination}",
+                "price": 1000,
+                "currency": "RUB",
+                "number_of_changes": 0,
+                "duration": 120,
+                "departure_at": f"{depart_date.isoformat()}T10:00:00+00:00",
+                "arrival_at": f"{depart_date.isoformat()}T12:00:00+00:00",
+                "origin": origin,
+                "destination": destination,
+                "flight_numbers": [f"ZZ{len(calls)}"],
+                "segments": [
+                    {
+                        "origin": origin,
+                        "destination": destination,
+                        "departure_at": f"{depart_date.isoformat()}T10:00:00+00:00",
+                        "arrival_at": f"{depart_date.isoformat()}T12:00:00+00:00",
+                        "flight_number": f"ZZ{len(calls)}",
+                    }
+                ],
+            }
+            return {
+                "origin": origin,
+                "destination": destination,
+                "depart_date": depart_date.isoformat(),
+                "source": "fake",
+                "raw_count": 1,
+                "unique_flight_count": 1,
+                "offer_count": 1,
+                "skipped": {},
+                "filters": {
+                    "origin_airports": kwargs["origin_airports"],
+                    "destination_airports": kwargs["destination_airports"],
+                },
+                "offers": [offer],
+            }
+
+        adapter = FliProviderAdapter(fetcher=fake_fetch)
+        base_query = {
+            "probe_id": "fli-city-scope",
+            "leg": "direct",
+            "date": "2026-08-15",
+            "currency": "RUB",
+            "only_carriers": [],
+            "direct_only": True,
+            "limit": 20,
+            "use_cache": False,
+        }
+        outbound = adapter.search_segment(
+            {
+                **base_query,
+                "direction": "outbound",
+                "origin": "AAA",
+                "destination": "BBB",
+                "origin_airports": ["AAA", "AAB"],
+                "destination_airports": ["BBA", "BBB"],
+            }
+        )
+        inbound = adapter.search_segment(
+            {
+                **base_query,
+                "direction": "return",
+                "origin": "BBB",
+                "destination": "AAA",
+                "origin_airports": ["BBA", "BBB"],
+                "destination_airports": ["AAA", "AAB"],
+            }
+        )
+
+        self.assertEqual(
+            calls[:4],
+            [("AAA", "BBA"), ("AAA", "BBB"), ("AAB", "BBA"), ("AAB", "BBB")],
+        )
+        self.assertEqual(
+            calls[4:],
+            [("BBA", "AAA"), ("BBA", "AAB"), ("BBB", "AAA"), ("BBB", "AAB")],
+        )
+        self.assertEqual(outbound.query["origin_airports"], ["AAA", "AAB"])
+        self.assertEqual(outbound.query["destination_airports"], ["BBA", "BBB"])
+        self.assertEqual(inbound.query["origin_airports"], ["BBA", "BBB"])
+        self.assertEqual(inbound.query["destination_airports"], ["AAA", "AAB"])
+        self.assertEqual(len(outbound.offers), 4)
+        self.assertEqual(len(inbound.offers), 4)
+
+    def test_fli_adapter_keeps_other_scope_pairs_when_one_pair_fails(self) -> None:
+        def fake_fetch(
+            origin: str, destination: str, depart_date: date, **kwargs: object
+        ) -> dict:
+            if (origin, destination) == ("AAA", "BBA"):
+                raise CliError("pair rejected", error_type="upstream_error")
+            return {
+                "origin": origin,
+                "destination": destination,
+                "depart_date": depart_date.isoformat(),
+                "source": "fake",
+                "raw_count": 0,
+                "unique_flight_count": 0,
+                "offer_count": 0,
+                "skipped": {},
+                "filters": {
+                    "origin_airports": kwargs["origin_airports"],
+                    "destination_airports": kwargs["destination_airports"],
+                },
+                "offers": [],
+            }
+
+        result = FliProviderAdapter(fetcher=fake_fetch).search_segment(
+            {
+                "probe_id": "fli-partial-scope",
+                "direction": "outbound",
+                "leg": "direct",
+                "origin": "AAA",
+                "destination": "BBB",
+                "origin_airports": ["AAA", "AAB"],
+                "destination_airports": ["BBA", "BBB"],
+                "date": "2026-08-15",
+                "currency": "RUB",
+                "only_carriers": [],
+                "direct_only": True,
+                "limit": 20,
+                "use_cache": False,
+            }
+        )
+
+        self.assertEqual(result.execution_state, "searched")
+        self.assertEqual(result.evidence_type, "provider_unavailable")
+        self.assertEqual(result.result_summary["scope_query_count"], 4)
+        self.assertEqual(
+            result.result_summary["scope_query_errors"],
+            [
+                {
+                    "origin": "AAA",
+                    "destination": "BBA",
+                    "type": "upstream_error",
+                    "message": "pair rejected",
+                }
+            ],
+        )
+        self.assertEqual(result.result_summary["skipped"]["scope_query_error"], 1)
+        self.assertFalse(result.source_boundary["scope_complete"])
+        self.assertEqual(len(result.errors), 1)
+
     def test_parse_fli_flight_search_filters_three_stop_and_airport_change_before_limit(
         self,
     ) -> None:

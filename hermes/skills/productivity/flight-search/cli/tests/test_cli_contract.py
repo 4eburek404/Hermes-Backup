@@ -316,7 +316,11 @@ class CliContractTests(unittest.TestCase):
             "origin": "SVX",
             "destination": "LON",
             "depart_date": "2026-07-20",
-            "route_options": {"hubs": ["IST", "DXB"], "routing_strategy": "hub-list"},
+            "route_options": {
+                "hubs": ["IST", "DXB"],
+                "routing_strategy": "hub-list",
+                "destination_airports": ["BBB", "BBA"],
+            },
         }
         with tempfile.TemporaryDirectory() as tmp_dir:
             request_path = Path(tmp_dir) / "flight-search-request.json"
@@ -357,9 +361,12 @@ class CliContractTests(unittest.TestCase):
         self.assertNotIn("command", first_query)
         route = data["route_context"]
         self.assertEqual(route["hubs"], ["IST", "DXB"])
-        self.assertEqual(route["destination_airports"], ["LHR", "LGW"])
+        self.assertEqual(route["destination_airports"], ["BBA", "BBB"])
         self.assertEqual(
-            route["airport_scope"]["destination"]["excluded_by_default"], ["STN", "LTN"]
+            route["airport_scope"]["destination"]["scope"], "explicit_airports"
+        )
+        self.assertEqual(
+            route["airport_scope"]["destination"]["excluded_by_default"], []
         )
         self.assertEqual(data["schema_version"], "flight_search_plan.v2")
 

@@ -251,6 +251,8 @@ class OfferGraphTests(unittest.TestCase):
             graph,
             requested_origin="SVX",
             requested_destination="MOW",
+            requested_origin_airports=["SVX"],
+            requested_destination_airports=["DME", "SVO", "VKO"],
         )
 
         self.assertEqual(len(envelope["candidates"]), 1)
@@ -1069,6 +1071,49 @@ class OfferGraphTests(unittest.TestCase):
             requested_destination="LED",
         )
         self.assertEqual(len(envelope["candidates"]), 1)
+
+    def test_direct_mode_uses_catalog_airport_scope_without_city_code_tables(
+        self,
+    ) -> None:
+        origin_airports = ["AAA", "AAB"]
+        destination_airports = ["BBA", "BBB", "BBC"]
+        graph = build_offer_graph(
+            primary_offer_results=[
+                {
+                    "role": "primary_offer_collection",
+                    "source_type": "provider_full_route",
+                    "provider": "tutu",
+                    "direction": "outbound",
+                    "origin": "AAA",
+                    "destination": "BBB",
+                    "top_offers": [
+                        {
+                            "id": "catalog-city-direct",
+                            "price": 100,
+                            "currency": "RUB",
+                            "segments": [{"origin": "AAB", "destination": "BBC"}],
+                        }
+                    ],
+                }
+            ],
+            direct_mode={"outbound": True},
+            requested_origin="AAA",
+            requested_destination="BBB",
+            requested_origin_airports=origin_airports,
+            requested_destination_airports=destination_airports,
+        )
+
+        self.assertEqual(len(graph["offers"]), 1)
+        envelope = materialize_offer_graph_candidates(
+            graph,
+            direct_mode={"outbound": True},
+            requested_origin="AAA",
+            requested_destination="BBB",
+            requested_origin_airports=origin_airports,
+            requested_destination_airports=destination_airports,
+        )
+        self.assertEqual(len(envelope["candidates"]), 1)
+        self.assertTrue(envelope["candidates"][0]["covers_requested_trip"])
 
     def test_direct_mode_gate_rejects_gateway_candidates_on_materialize(self) -> None:
         graph = self.graph_with_provider_and_gateway()
