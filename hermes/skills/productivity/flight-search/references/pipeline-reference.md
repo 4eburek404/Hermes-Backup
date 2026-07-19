@@ -4,27 +4,37 @@
 
 ```text
 raw JSON
-  -> SearchRequest.from_payload
+  -> search_request_from_payload -> SearchRequest v3
   -> SearchPlanBuilder
-  -> SearchExecutor.execute(plan)
-  -> immutable SearchEvidence
-  -> OfferGraph + candidate envelope
-  -> DecisionScorer + DecisionFrontier
-  -> result projection
+  -> SearchPlan v5
+  -> SearchExecutor.execute(plan) -> immutable SearchEvidence
+  -> OfferGraph -> validation -> scoring -> frontier
+  -> SearchDecision
+  -> result projection v9
   -> flight_search_user_answer.v11
   -> pure renderer
   -> stdout
 ```
 
-Defaults are applied once by `SearchRequest`. Planning is pure with respect to
+`SearchWorkflow` is the only production composition root. Defaults and
+normalization are applied once at the request boundary. After `SearchPlan v5`
+is built, execution reads only the plan. Planning is pure with respect to
 providers. Gateway priors may schedule probes; gateways observed live are
-evidence and do not mutate the plan.
+evidence and never mutate the active plan.
 
 Provider I/O belongs to execution. Direct-only primary probes run first for
 each direction. Broad primary and gateway probes are eligible only for
-directions with no direct result. At most one bounded broad phase may run,
-then the ledger is finalized and frozen. Ledger terminal states cannot reopen;
-cache status is separate.
+directions with no direct result. At most one bounded broad phase may run.
+`ProbeRunLedger` owns planned probes, claims, physical-query dedupe, failures,
+and terminal states. Before evidence is frozen, every planned probe must be
+`searched`, `failed`, `not_supported`, `skipped`, `not_executed`, or
+`deduped(original_probe_id)`. Terminal states cannot reopen; cache status is
+separate.
+
+Each `ProviderAttemptPlan` has canonical `provider`, `probe_type`, `direction`,
+`trigger`, and a nested provider `query`. The plan contains no
+`execution_state`: merely appearing in a phase means `planned`; every runtime
+state belongs to the ledger.
 
 After evidence freeze, graph construction, candidate normalization, scoring,
 round-trip/two-one-way composition, and frontier selection run once. Provider
@@ -41,18 +51,21 @@ otherwise low-ranked candidate into an early position.
 
 ## Provider routing
 
-Provider routing is per logical probe, not per whole search. In `auto`, Tutu and
-KupiBilet execute concurrently for the same direct-only probe and, when the
-direct gate is empty, for the same broad probe. Both results enter one OfferGraph
-and are deduplicated before the shared output limit, so one provider cannot hide
-a cheaper or otherwise distinct itinerary from the other.
+Provider routing is fixed in `SearchPlan`, per logical probe rather than per
+whole search. In `auto`, every compatible provider receives a planned primary
+attempt. Primary fanout executes all compatible providers; gateway fanout tries
+providers in plan order, continuing after failure, unsupported, or empty, and
+stopping after the first positive result. Every result enters one OfferGraph
+and is deduplicated before the shared output limit, so one provider cannot hide
+a cheaper or otherwise distinct itinerary from another.
 
 - `kupibilet` is a primary peer of Tutu for direct and broad full-route search.
 - `provider_policy=both` is invalid.
 
-Provider-query identity includes provider, route, direction, date, filters,
-limits, direct mode, policy, and endpoint-specific inputs. Candidate dedupe is
-provider-independent and uses the physical itinerary; equal-trust offers with
+Provider-query identity includes provider, probe type, route/date, currency,
+direct mode, airport/carrier filters, and limit. Diagnostic role, trigger, and
+other metadata do not participate in the physical-call key. Candidate dedupe
+is provider-independent and uses the physical itinerary; equal-trust offers with
 the same price basis and currency retain the lower price while preserving every
 source provider. Tutu offers are shopping evidence, may contain connected
 itineraries, and are paginated through the adapter. Localized airline names are
@@ -62,8 +75,10 @@ route-specific carrier mappings are not allowed.
 ## Direct-first gate
 
 Direct-first is strict and directional. If any direct-only provider result
-contains a direct flight within the active date, airport, and restrictive
-carrier filters, broad and gateway alternatives for that direction are skipped.
+contains a normalized valid direct flight within the active date, airport, and
+restrictive carrier filters, broad and gateway alternatives for that direction
+are skipped. Missing/malformed times, impossible chronology, wrong endpoints,
+or an out-of-scope carrier cannot suppress fallback.
 `max_connections` is only a fallback ceiling and never disables this gate.
 Round-trip outbound and return directions are gated independently.
 
@@ -82,15 +97,19 @@ unused `assess_fallback()` helper is not a second policy source.
 
 ## Gateway discovery and assembly
 
-`gateway_discovery_mode` is an internal route-access decision, not a request
-field:
+The active plan stores one of three gateway triggers; it is not a second
+runtime policy:
 
-- `required` applies to configured restricted-access RU markets. Gateway
+- `disabled` plans no gateway attempts.
+- `required_if_no_direct` applies to configured restricted-access RU markets. Gateway
   fallback is mandatory when no direct flight exists, but direct evidence still
   suppresses gateway probes for that direction.
-- `optional_after_provider_failure` applies to normal RU-touching and global
+- `on_primary_failure` applies to normal RU-touching and global
   markets. Conditional gateway probes run only when primary evidence is
   unavailable, unsupported, failed, or unusable.
+
+`direct_only=true` is an absolute planning constraint: it creates neither broad
+nor gateway attempts.
 
 Gateway candidates come from configured priors and live provider signals; no
 route-specific hub belongs in agent logic. Continuation is not limited to a
@@ -101,9 +120,9 @@ accept provider-returned intermediate hubs such as
 The gateway executor owns continuation through `gateway_discovery_limit`,
 `gateway_probe_batch_size`, and `gateway_probe_max_batches`. It evaluates each
 completed batch and stops when a viable gateway is found or the batch budget is
-exhausted. Strict `max_connections=0` plus `tier2_max_connections=0` constrains
-reportable candidates but does not by itself prove that route-access gateway
-probes were never planned or executed.
+exhausted. Strict direct-only planning creates zero gateway probes; stop limits
+otherwise constrain reportable candidates and do not create a parallel gateway
+policy.
 
 Candidate assembly requires airport continuity between every adjacent segment.
 An airport mismatch is rejected before ranking; same-city airports and a longer

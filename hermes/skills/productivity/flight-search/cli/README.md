@@ -8,7 +8,7 @@ containing the parent `SKILL.md`.
 ## What It Automates
 
 - Route/date/IATA normalization and bounded provider execution.
-- Airport compatibility checks for same-airport and cross-airport connections.
+- Same-airport continuity checks; cross-airport connections are rejected.
 - Candidate generation, scoring, one decision frontier, and result projection.
 - Direct, carrier-filtered, aggregate, and gateway probes when the current route calls for them.
 - Static metadata lookup for city, airport, country/region, airline, alliance, and aircraft labels.
@@ -119,7 +119,8 @@ Common request fields:
 
 - `return_date: "YYYY-MM-DD"`
 - `profile: "business"` is the only production search profile; omit it to use the default
-- `provider_policy: "auto"|"tutu"|"kupibilet"`
+- `provider_policy: "auto"` or one registry-validated provider name (currently
+  `tutu` and `kupibilet`)
 - `route_options.date_window_end: "YYYY-MM-DD"` for bounded one-way direct-only inventory; request-only, no CLI flag
 - `filters.only_carriers: ["CODE"]`
 - `evidence.no_live_cache: true` for a fresh live probe when appropriate
@@ -138,8 +139,9 @@ Production search uses one ranking profile: `business`. It prioritizes visible n
 
 `search --request` chooses a live source mix through `provider_policy`:
 
-- `auto`: Tutu and KupiBilet run concurrently for the same direct or broad logical route probe. Their offers enter one graph, dedupe, ranking, and shared output limit.
-- `tutu`, `kupibilet`: explicit single-provider diagnostic modes.
+- `auto`: every compatible planned provider is queried for primary direct/broad evidence. Their offers enter one graph, dedupe, ranking, and shared output limit. Gateway probes try compatible providers in plan order until one returns a positive result.
+- any registered provider name: an explicit single-provider mode; unsupported
+  route/probe capability is recorded as `not_supported`, not silently dropped.
 
 Read provider failures, coverage diagnostics, and source boundaries from `data.evidence`. Text-mode search stdout is already the validated answer and must be returned verbatim.
 
@@ -161,7 +163,7 @@ Default connection thresholds are maintained in `references/source-boundaries.md
 - protected/single-ticket international: MCT or at least 60 min, whichever is higher; label 60-89 min as tight unless airport evidence supports it;
 - same airport, separate/virtual/self-transfer without checked baggage: 120 min minimum;
 - same airport, separate/virtual/self-transfer with checked baggage: 180 min minimum, preferably 3-5h at high-friction airports;
-- cross-airport or airport mismatch: 300 min default and label as ground-transfer risk;
+- cross-airport or airport mismatch: invalid and rejected before ranking; the compatible `min_cross_airport_min` request field does not enable a second transfer mechanism;
 - protected ticket claims require ticketing/protection proof, not just segment timing.
 
 ## Targeted Debug Probes
