@@ -18,13 +18,13 @@ from .frontier_selection import (
     DEFAULT_FIRST_CARRIER_MAX_OPTIONS,
     DEFAULT_FRONTIER_MAX_OPTIONS,
     DEFAULT_GATEWAY_MAX_ALTERNATIVES,
+    DEFAULT_MAX_ROUND_TRIP_PAIRS,
     DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS,
     build_decision_frontier,
 )
 
 
 DECISION_SCORER_SCHEMA_VERSION = "flight_decision_scorer.v1"
-DEFAULT_MAX_ROUND_TRIP_PAIRS = 12
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,9 +75,29 @@ class DecisionScorer:
             max_options=self.options.max_options,
             max_primary_gateway_options=self.options.max_primary_gateway_options,
             max_options_per_first_carrier=(self.options.max_options_per_first_carrier),
+            max_round_trip_pairs=self.options.max_round_trip_pairs,
             preferred_connections_per_journey=self.options.preferred_connections,
             preferred_layover_max_min=self.options.preferred_layover_max_min,
         )
+        round_trip_pairing = prepared_envelope.get("round_trip_pairing")
+        if isinstance(round_trip_pairing, dict):
+            coverage = frontier.get("coverage_summary")
+            coverage = coverage if isinstance(coverage, dict) else {}
+            round_trip_pairing = {
+                **round_trip_pairing,
+                "one_way_pair_valid_count": int(
+                    coverage.get("acceptable_round_trip_pair_count") or 0
+                ),
+                "one_way_pair_candidate_count": int(
+                    coverage.get("eligible_round_trip_pair_count") or 0
+                ),
+                "one_way_pair_eligible_count": int(
+                    coverage.get("eligible_round_trip_pair_count") or 0
+                ),
+                "one_way_pair_selected_count": int(
+                    coverage.get("selected_round_trip_pair_count") or 0
+                ),
+            }
         return {
             "schema_version": DECISION_SCORER_SCHEMA_VERSION,
             "scorer": {
@@ -104,7 +124,7 @@ class DecisionScorer:
                     "candidate_ranking": "flight_mixed_candidate_ranking.v1",
                     "frontier": "flight_decision_frontier.v1",
                 },
-                "round_trip_pairing": prepared_envelope.get("round_trip_pairing"),
+                "round_trip_pairing": round_trip_pairing,
                 "max_options": self.options.max_options,
                 "max_gateway_alternatives": max(
                     0, int(self.options.max_gateway_alternatives)
@@ -153,31 +173,19 @@ class DecisionScorer:
             and _candidate_direction(candidate) == "return"
         ]
         pair_limit = max(0, int(self.options.max_round_trip_pairs))
-        ranked_outbound = self._rank_candidates(outbound)[:pair_limit]
-        ranked_returns = self._rank_candidates(returns)[:pair_limit]
-        pair_pool = _round_trip_one_way_pair_pool(ranked_outbound, ranked_returns)
-        paired = pair_pool[:pair_limit]
-        envelope["candidates"] = [*ready_round_trip, *paired]
+        pair_pool = (
+            _round_trip_one_way_pair_pool(outbound, returns) if pair_limit else []
+        )
+        envelope["candidates"] = [*ready_round_trip, *pair_pool]
         envelope["round_trip_pairing"] = {
             "input_candidate_count": len(candidates),
             "provider_round_trip_candidate_count": len(ready_round_trip),
             "outbound_one_way_candidate_count": len(outbound),
             "return_one_way_candidate_count": len(returns),
             "one_way_pair_pool_count": len(pair_pool),
-            "one_way_pair_candidate_count": len(paired),
             "max_round_trip_pairs": pair_limit,
         }
         return envelope
-
-    def _rank_candidates(
-        self, candidates: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
-        # Pairing only bounds the Cartesian product. Validation and scoring belong
-        # to the single final candidate pass below, so use raw stable facts here.
-        return sorted(
-            (deepcopy(candidate) for candidate in candidates),
-            key=_pairing_seed_key,
-        )
 
 
 def _round_trip_one_way_pair_pool(
@@ -189,22 +197,6 @@ def _round_trip_one_way_pair_pool(
         for outbound in outbound_candidates
         for inbound in return_candidates
     ]
-
-
-def _pairing_seed_key(candidate: dict[str, Any]) -> tuple[Any, ...]:
-    price = numeric_or_none(candidate.get("price"))
-    elapsed = numeric_or_none(
-        candidate.get("elapsed_min")
-        or candidate.get("duration_min")
-        or candidate.get("total_duration_min")
-    )
-    return (
-        price is None,
-        price if price is not None else float("inf"),
-        elapsed is None,
-        elapsed if elapsed is not None else float("inf"),
-        str(candidate.get("id") or ""),
-    )
 
 
 def _one_way_sum_candidate(

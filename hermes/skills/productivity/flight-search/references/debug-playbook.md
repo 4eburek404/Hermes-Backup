@@ -125,10 +125,15 @@ date.
 
 ## Round-trip ordering
 
-For a round trip, verify outbound and return one-way candidates are ranked
-independently before pair construction. The trace scorer metadata reports input
-counts, pair-pool size, and retained pair count. Reordering equivalent provider
-inputs must not change the selected best pair.
+For a round trip with `max_round_trip_pairs > 0`, verify every outbound/return
+one-way combination enters the single validation and scoring pass before the
+limit is applied. At `max_round_trip_pairs = 0`, synthesized pairs are not
+created.
+The frontier limits only valid, globally ranked synthesized pairs; provider
+round-trip offers remain atomic and do not consume that limit. The trace scorer
+metadata reports input counts, full pair-pool size, valid, eligible, and selected
+pair counts. Reordering equivalent provider inputs must not change the ranked
+or selected pair order.
 
 ## KupiBilet API versus website
 

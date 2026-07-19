@@ -40,6 +40,10 @@ After evidence freeze, graph construction, candidate normalization, scoring,
 round-trip/two-one-way composition, and frontier selection run once. Provider
 aggregate offers enter the same candidate envelope before scoring. Result
 projection and rendering may not perform provider calls or option selection.
+For round trips assembled from one-way offers and a positive
+`max_round_trip_pairs`, every outbound/return pair is validated and scored
+before the frontier applies the limit; it never truncates raw legs or
+unvalidated pair order. At zero, synthesized pairs are not created.
 
 Business frontier selection first keeps the best available stop tier: two-stop
 options are eligible only when no direct or one-stop candidate exists. Normal

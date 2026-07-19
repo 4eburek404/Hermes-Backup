@@ -22,14 +22,14 @@ from ..domain.route_access_profiles import MODE_REQUIRED, PROFILE_RESTRICTED_ACC
 from ..domain.stop_policy import resolve_stop_policy
 from ..domain.vocabulary import Direction, RouteFamily
 from ..errors import CliError
-from ..pipeline.search_request import SearchRequest
-from ..pipeline.decision_scorer import DEFAULT_MAX_ROUND_TRIP_PAIRS
 from ..pipeline.frontier_selection import (
     DEFAULT_FIRST_CARRIER_MAX_OPTIONS,
     DEFAULT_GATEWAY_MAX_ALTERNATIVES,
+    DEFAULT_MAX_ROUND_TRIP_PAIRS,
     DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS,
 )
 from ..pipeline.flow_decision import FlowDecision, decide_flow
+from ..pipeline.search_request import SearchRequest
 from ..pipeline.direct_gate import is_direct_only
 from ..pipeline.search_plan import (
     GATEWAY_TRIGGER_DISABLED,
