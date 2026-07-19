@@ -1,7 +1,7 @@
 """Central vocabulary — single source of truth for all string constants used as
 semantic identifiers across the flights CLI.
 
-Every member is a StrEnum: ``Leg.ORIGIN_TO_HUB == "origin_to_hub"``, serialises
+Every member is a StrEnum: ``Leg.DIRECT_OUTBOUND == "direct_outbound"``, serialises
 to the same JSON string, works as a dict key and in sets.  This makes migration
 incremental and safe: existing JSON output is byte-identical, and test fixtures
 comparing against plain strings continue to pass without changes.
@@ -23,10 +23,6 @@ from enum import StrEnum
 
 
 class Leg(StrEnum):
-    ORIGIN_TO_HUB = "origin_to_hub"
-    HUB_TO_DESTINATION = "hub_to_destination"
-    DESTINATION_TO_HUB = "destination_to_hub"
-    HUB_TO_ORIGIN = "hub_to_origin"
     DIRECT_OUTBOUND = "direct_outbound"
     DIRECT_RETURN = "direct_return"
 
@@ -39,17 +35,6 @@ class Leg(StrEnum):
 class Direction(StrEnum):
     OUTBOUND = "outbound"
     RETURN = "return"
-
-
-# ---------------------------------------------------------------------------
-# Stop-policy buckets
-# ---------------------------------------------------------------------------
-
-
-class StopBucket(StrEnum):
-    PREFERRED = "preferred"
-    TIER2 = "tier2"
-    SUPPRESSED = "suppressed"
 
 
 # ---------------------------------------------------------------------------
@@ -94,12 +79,9 @@ class RouteFamily(StrEnum):
 
 class AbsenceReason(StrEnum):
     PROVIDER_EMPTY = "provider_empty"
-    PROVIDER_HORIZON_UNCERTAINTY = "provider_horizon_uncertainty"
     PROVIDER_COVERAGE_GAP = "provider_coverage_gap"
     CONSTRAINT_MISMATCH = "constraint_mismatch"
     RUNTIME_PROVIDER_FAILURE = "runtime_provider_failure"
-    STRUCTURAL_UNAVAILABILITY = "structural_unavailability"
-    TICKETING_PROTECTION_UNCERTAINTY = "ticketing_protection_uncertainty"
 
 
 # ---------------------------------------------------------------------------
@@ -116,5 +98,3 @@ class ProbeStatus(StrEnum):
     NOT_EXECUTED = "not_executed"
     DEDUPED = "deduped"
     PLANNED = "planned"
-    CACHE_HIT = "cache_hit"
-    STALE_CACHE_USED = "stale_cache_used"

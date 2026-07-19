@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .. import __version__
+from ..catalog_storage import CatalogStorage
 from ..errors import CliError
 
 STATIC_CATALOG_SCHEMA_VERSION = "static-catalog-v1"
@@ -83,8 +84,6 @@ STATIC_CATALOG_SPECS: tuple[StaticCatalogSpec, ...] = (
 )
 
 STATIC_CATALOG_BY_NAME = {spec.name: spec for spec in STATIC_CATALOG_SPECS}
-MANIFEST_FILENAME = "catalog_manifest.json"
-
 FetchUrl = Callable[[str, int], bytes]
 
 
@@ -166,30 +165,6 @@ def parse_catalog_payload(raw: bytes, spec: StaticCatalogSpec) -> tuple[Any, int
     return data, len(data)
 
 
-def canonical_json_bytes(data: Any) -> bytes:
-    return (
-        json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
-    ).encode("utf-8")
-
-
-def atomic_write_bytes(path: Path, content: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(f".{path.name}.tmp")
-    temp_path.write_bytes(content)
-    temp_path.replace(path)
-
-
-def read_catalog_manifest(cache_dir: Path) -> dict[str, Any]:
-    path = cache_dir / MANIFEST_FILENAME
-    if not path.exists():
-        return {}
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
 def active_catalog_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
     entries = (
         manifest.get("entries") if isinstance(manifest.get("entries"), dict) else None
@@ -226,7 +201,8 @@ def catalog_staleness(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     specs = selected_static_specs(names)
-    manifest = read_catalog_manifest(cache_dir)
+    storage = CatalogStorage(cache_dir)
+    manifest = storage.read_manifest()
     entries = (
         manifest.get("entries") if isinstance(manifest.get("entries"), dict) else {}
     )
@@ -235,10 +211,9 @@ def catalog_staleness(
     fresh: list[str] = []
 
     for spec in specs:
-        path = cache_dir / spec.filename
         entry = entries.get(spec.name) if isinstance(entries, dict) else None
         reasons: list[str] = []
-        if not path.exists():
+        if not storage.exists(spec.filename):
             reasons.append("missing_file")
         if not isinstance(entry, dict):
             reasons.append("missing_manifest_entry")
@@ -251,11 +226,12 @@ def catalog_staleness(
                 if age_seconds > max_age_seconds:
                     reasons.append("expired")
             expected_sha = entry.get("sha256")
-            if path.exists() and isinstance(expected_sha, str) and expected_sha:
-                try:
-                    actual_sha = hashlib.sha256(path.read_bytes()).hexdigest()
-                except OSError:
-                    actual_sha = None
+            if (
+                storage.exists(spec.filename)
+                and isinstance(expected_sha, str)
+                and expected_sha
+            ):
+                actual_sha = storage.sha256(spec.filename)
                 if actual_sha != expected_sha:
                     reasons.append("sha256_mismatch")
         if reasons:
@@ -292,6 +268,7 @@ def download_static_catalog(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     specs = selected_static_specs(names)
+    storage = CatalogStorage(cache_dir)
     downloaded_at = (
         (now or datetime.now(timezone.utc)).replace(microsecond=0).isoformat()
     )
@@ -310,10 +287,10 @@ def download_static_catalog(
             "cache_dir": str(cache_dir),
             "planned": planned,
             "updated": [],
-            "manifest": active_catalog_manifest(read_catalog_manifest(cache_dir)),
+            "manifest": active_catalog_manifest(storage.read_manifest()),
         }
 
-    existing_manifest = read_catalog_manifest(cache_dir)
+    existing_manifest = storage.read_manifest()
     existing_entries = (
         existing_manifest.get("entries")
         if isinstance(existing_manifest.get("entries"), dict)
@@ -329,10 +306,8 @@ def download_static_catalog(
     for spec in specs:
         raw = fetch_url(spec.url, timeout)
         data, count = parse_catalog_payload(raw, spec)
-        content = canonical_json_bytes(data)
+        content = storage.write_json(spec.filename, data)
         digest = hashlib.sha256(content).hexdigest()
-        path = cache_dir / spec.filename
-        atomic_write_bytes(path, content)
         entry = {
             "schema_version": STATIC_CATALOG_SCHEMA_VERSION,
             "source": STATIC_CATALOG_SOURCE,
@@ -353,7 +328,7 @@ def download_static_catalog(
         "cache_dir": str(cache_dir),
         "entries": entries,
     }
-    atomic_write_bytes(cache_dir / MANIFEST_FILENAME, canonical_json_bytes(manifest))
+    storage.write_manifest(manifest)
     return {
         "dry_run": False,
         "cache_dir": str(cache_dir),

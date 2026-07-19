@@ -13,6 +13,13 @@ from ..config import (
     DEFAULT_ROUTING_STRATEGY,
     catalog_output_limits_from_mapping,
 )
+from ..domain.connection_policy import (
+    DEFAULT_MIN_CROSS_AIRPORT_CONNECTION_MIN,
+    DEFAULT_MIN_SAME_AIRPORT_CONNECTION_MIN,
+)
+from ..domain.normalize import parse_iso_date
+from ..contracts.validation import validate_contract_payload
+from ..errors import CliError
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,7 +68,7 @@ class OutputOptions:
 
 @dataclass(frozen=True, slots=True)
 class SearchRequest:
-    """Canonical immutable request used by planning and execution."""
+    """Canonical immutable input consumed only by SearchPlanBuilder."""
 
     route: RouteOptions
     filters: FilterOptions
@@ -71,7 +78,9 @@ class SearchRequest:
     currency: str
 
     @classmethod
-    def from_payload(cls, payload: dict[str, Any]) -> SearchRequest:
+    def _from_normalized_payload(cls, payload: dict[str, Any]) -> SearchRequest:
+        """Build from a payload already normalized at the input boundary."""
+
         route = _mapping(payload.get("route_options"))
         evidence = _mapping(payload.get("evidence"))
         filters = _mapping(payload.get("filters"))
@@ -79,8 +88,8 @@ class SearchRequest:
         output_limits = catalog_output_limits_from_mapping(output)
         return cls(
             route=RouteOptions(
-                origin=str(payload.get("origin") or "").upper(),
-                destination=str(payload.get("destination") or "").upper(),
+                origin=str(payload.get("origin") or ""),
+                destination=str(payload.get("destination") or ""),
                 depart_date=str(payload.get("depart_date") or ""),
                 return_date=(
                     str(payload.get("return_date"))
@@ -103,8 +112,16 @@ class SearchRequest:
                     if route.get("date_window_end")
                     else None
                 ),
-                min_same_airport_min=_int_option(route, "min_same_airport_min", 120),
-                min_cross_airport_min=_int_option(route, "min_cross_airport_min", 300),
+                min_same_airport_min=_int_option(
+                    route,
+                    "min_same_airport_min",
+                    DEFAULT_MIN_SAME_AIRPORT_CONNECTION_MIN,
+                ),
+                min_cross_airport_min=_int_option(
+                    route,
+                    "min_cross_airport_min",
+                    DEFAULT_MIN_CROSS_AIRPORT_CONNECTION_MIN,
+                ),
                 gateway_discovery_limit=_int_option(
                     route,
                     "gateway_discovery_limit",
@@ -125,7 +142,7 @@ class SearchRequest:
                 only_carriers=_str_tuple(filters.get("only_carriers")),
             ),
             evidence=EvidenceOptions(
-                provider_policy=str(payload.get("provider_policy") or "auto").lower(),
+                provider_policy=str(payload.get("provider_policy") or "auto"),
                 primary_offer_limit=max(
                     output_limits.catalog_limit, output_limits.direct_catalog_limit
                 ),
@@ -145,7 +162,7 @@ class SearchRequest:
                 direct_catalog_limit=output_limits.direct_catalog_limit,
             ),
             profile=str(payload.get("profile") or DEFAULT_PROFILE),
-            currency=str(payload.get("currency") or DEFAULT_CURRENCY).upper(),
+            currency=str(payload.get("currency") or DEFAULT_CURRENCY),
         )
 
     def to_payload(self) -> dict[str, Any]:
@@ -322,3 +339,68 @@ def _bool_option(container: dict[str, Any], name: str, default: bool = False) ->
 
 def _mapping(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+def normalize_search_request_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Canonical casing/default normalization for the public request payload."""
+
+    normalized = dict(payload)
+    normalized.setdefault("schema_version", "flight_search_request.v3")
+    for name in ("origin", "destination", "currency"):
+        if name in normalized:
+            normalized[name] = str(normalized[name]).upper()
+    if "provider_policy" in normalized:
+        normalized["provider_policy"] = str(normalized["provider_policy"]).lower()
+    route_value = normalized.get("route_options")
+    if isinstance(route_value, dict):
+        route = dict(route_value)
+        for name in ("hubs", "origin_airports", "destination_airports"):
+            if isinstance(route.get(name), list):
+                route[name] = [str(item).upper() for item in route[name]]
+        if "routing_strategy" in route:
+            route["routing_strategy"] = str(route["routing_strategy"]).lower()
+        normalized["route_options"] = route
+    filters_value = normalized.get("filters")
+    if isinstance(filters_value, dict):
+        filters = dict(filters_value)
+        if isinstance(filters.get("only_carriers"), list):
+            filters["only_carriers"] = [
+                str(item).upper() for item in filters["only_carriers"]
+            ]
+        normalized["filters"] = filters
+    return normalized
+
+
+def validate_search_request_semantics(request: SearchRequest) -> None:
+    depart = parse_iso_date(request.depart_date, "depart-date")
+    if request.origin == request.destination:
+        raise ValueError("origin and destination must differ")
+    if request.return_date:
+        return_date = parse_iso_date(request.return_date, "return-date")
+        if return_date < depart:
+            raise ValueError("return-date must be on or after depart-date")
+    if request.date_window_end:
+        window_end = parse_iso_date(request.date_window_end, "date-window-end")
+        if window_end < depart:
+            raise ValueError("date-window-end must be on or after depart-date")
+        if request.return_date:
+            raise ValueError("date-window-end cannot be combined with return-date")
+    if (
+        request.max_connections is not None
+        and request.tier2_max_connections is not None
+        and request.tier2_max_connections < request.max_connections
+    ):
+        raise ValueError("tier2-max-connections must not be below max-connections")
+
+
+def search_request_from_payload(payload: dict[str, Any]) -> SearchRequest:
+    normalized = normalize_search_request_payload(payload)
+    validate_contract_payload(
+        "search_request", normalized, error_type="validation_error"
+    )
+    request = SearchRequest._from_normalized_payload(normalized)
+    try:
+        validate_search_request_semantics(request)
+    except ValueError as exc:
+        raise CliError(str(exc), error_type="validation_error") from exc
+    return request

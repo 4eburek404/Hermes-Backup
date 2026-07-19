@@ -4,52 +4,70 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..domain.normalize import numeric_or_none
-from .candidate_ranker import build_decision_frontier, rank_mixed_candidates
+from ..domain.connection_policy import (
+    DEFAULT_MAX_LAYOVER_MIN,
+    DEFAULT_MIN_CROSS_AIRPORT_CONNECTION_MIN,
+    DEFAULT_MIN_SAME_AIRPORT_CONNECTION_MIN,
+    DEFAULT_PREFERRED_LAYOVER_MAX_MIN,
+)
+from ..domain.normalize import numeric_or_none, ordered_unique as _ordered_unique
+from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY
+from .candidate_scoring import score_validated_candidates
+from .candidate_validation import validate_candidate_envelope
+from .frontier_selection import (
+    DEFAULT_FIRST_CARRIER_MAX_OPTIONS,
+    DEFAULT_FRONTIER_MAX_OPTIONS,
+    DEFAULT_GATEWAY_MAX_ALTERNATIVES,
+    DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS,
+    build_decision_frontier,
+)
 
 
 DECISION_SCORER_SCHEMA_VERSION = "flight_decision_scorer.v1"
+DEFAULT_MAX_ROUND_TRIP_PAIRS = 12
 
 
 @dataclass(frozen=True, slots=True)
 class DecisionScorerOptions:
     round_trip: bool = False
-    max_connections_per_journey: int = 2
+    max_connections_per_journey: int = BUSINESS_DEFAULT_STOP_POLICY.hard_max_connections
     max_connections_per_direction: dict[str, int] = field(default_factory=dict)
-    preferred_connections: int = 1
-    min_same_airport_connection_min: int = 120
-    min_cross_airport_connection_min: int = 300
-    max_gateway_alternatives: int = 2
-    max_primary_gateway_options: int = 4
-    max_options_per_first_carrier: int = 2
-    preferred_layover_max_min: int = 6 * 60
-    max_round_trip_pairs: int = 12
-    max_options: int | None = 6
+    preferred_connections: int = BUSINESS_DEFAULT_STOP_POLICY.preferred_max_connections
+    min_same_airport_connection_min: int = DEFAULT_MIN_SAME_AIRPORT_CONNECTION_MIN
+    min_cross_airport_connection_min: int = DEFAULT_MIN_CROSS_AIRPORT_CONNECTION_MIN
+    max_layover_min: int = DEFAULT_MAX_LAYOVER_MIN
+    preferred_layover_max_min: int = DEFAULT_PREFERRED_LAYOVER_MAX_MIN
+    max_gateway_alternatives: int = DEFAULT_GATEWAY_MAX_ALTERNATIVES
+    max_primary_gateway_options: int = DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS
+    max_options_per_first_carrier: int = DEFAULT_FIRST_CARRIER_MAX_OPTIONS
+    max_round_trip_pairs: int = DEFAULT_MAX_ROUND_TRIP_PAIRS
+    max_options: int | None = DEFAULT_FRONTIER_MAX_OPTIONS
 
 
 class DecisionScorer:
-    """Single owner for candidate evaluation and frontier selection.
+    """Compose candidate validation, scoring, and frontier selection once."""
 
-    The current ranker/frontier functions remain as adapters while the runtime
-    moves to one scoring entrypoint.
-    """
-
-    def __init__(self, options: DecisionScorerOptions | None = None) -> None:
-        self.options = options or DecisionScorerOptions()
+    def __init__(self, options: DecisionScorerOptions) -> None:
+        self.options = options
 
     def score(self, candidate_envelope: dict[str, Any]) -> dict[str, Any]:
         prepared_envelope = self._prepare_candidate_envelope(candidate_envelope)
-        ranking = rank_mixed_candidates(
+        validation = validate_candidate_envelope(
             prepared_envelope,
             max_connections_per_journey=self.options.max_connections_per_journey,
             max_connections_per_direction=self.options.max_connections_per_direction,
-            preferred_connections_per_journey=self.options.preferred_connections,
             min_same_airport_connection_min=(
                 self.options.min_same_airport_connection_min
             ),
             min_cross_airport_connection_min=(
                 self.options.min_cross_airport_connection_min
             ),
+            max_layover_min=self.options.max_layover_min,
+            preferred_layover_max_min=self.options.preferred_layover_max_min,
+        )
+        ranking = score_validated_candidates(
+            validation,
+            preferred_connections_per_journey=self.options.preferred_connections,
         )
         frontier = build_decision_frontier(
             ranking,
@@ -57,6 +75,7 @@ class DecisionScorer:
             max_options=self.options.max_options,
             max_primary_gateway_options=self.options.max_primary_gateway_options,
             max_options_per_first_carrier=(self.options.max_options_per_first_carrier),
+            preferred_connections_per_journey=self.options.preferred_connections,
             preferred_layover_max_min=self.options.preferred_layover_max_min,
         )
         return {
@@ -74,6 +93,13 @@ class DecisionScorer:
                 "preferred_connections": max(
                     0, int(self.options.preferred_connections)
                 ),
+                "min_same_airport_connection_min": max(
+                    0, int(self.options.min_same_airport_connection_min)
+                ),
+                "min_cross_airport_connection_min": max(
+                    0, int(self.options.min_cross_airport_connection_min)
+                ),
+                "max_layover_min": max(0, int(self.options.max_layover_min)),
                 "adapters": {
                     "candidate_ranking": "flight_mixed_candidate_ranking.v1",
                     "frontier": "flight_decision_frontier.v1",
@@ -92,6 +118,7 @@ class DecisionScorer:
                 "preferred_layover_max_min": max(
                     0, int(self.options.preferred_layover_max_min)
                 ),
+                "max_round_trip_pairs": max(0, int(self.options.max_round_trip_pairs)),
             },
             "mixed_candidate_ranking": ranking,
             "decision_frontier": frontier,
@@ -129,7 +156,7 @@ class DecisionScorer:
         ranked_outbound = self._rank_candidates(outbound)[:pair_limit]
         ranked_returns = self._rank_candidates(returns)[:pair_limit]
         pair_pool = _round_trip_one_way_pair_pool(ranked_outbound, ranked_returns)
-        paired = self._rank_candidates(pair_pool)[:pair_limit]
+        paired = pair_pool[:pair_limit]
         envelope["candidates"] = [*ready_round_trip, *paired]
         envelope["round_trip_pairing"] = {
             "input_candidate_count": len(candidates),
@@ -145,23 +172,12 @@ class DecisionScorer:
     def _rank_candidates(
         self, candidates: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        ranking = rank_mixed_candidates(
-            {"candidates": candidates, "rejected": []},
-            max_connections_per_journey=self.options.max_connections_per_journey,
-            max_connections_per_direction=self.options.max_connections_per_direction,
-            preferred_connections_per_journey=self.options.preferred_connections,
-            min_same_airport_connection_min=(
-                self.options.min_same_airport_connection_min
-            ),
-            min_cross_airport_connection_min=(
-                self.options.min_cross_airport_connection_min
-            ),
+        # Pairing only bounds the Cartesian product. Validation and scoring belong
+        # to the single final candidate pass below, so use raw stable facts here.
+        return sorted(
+            (deepcopy(candidate) for candidate in candidates),
+            key=_pairing_seed_key,
         )
-        return [
-            candidate
-            for candidate in ranking.get("ranked_candidates") or []
-            if isinstance(candidate, dict)
-        ]
 
 
 def _round_trip_one_way_pair_pool(
@@ -173,6 +189,22 @@ def _round_trip_one_way_pair_pool(
         for outbound in outbound_candidates
         for inbound in return_candidates
     ]
+
+
+def _pairing_seed_key(candidate: dict[str, Any]) -> tuple[Any, ...]:
+    price = numeric_or_none(candidate.get("price"))
+    elapsed = numeric_or_none(
+        candidate.get("elapsed_min")
+        or candidate.get("duration_min")
+        or candidate.get("total_duration_min")
+    )
+    return (
+        price is None,
+        price if price is not None else float("inf"),
+        elapsed is None,
+        elapsed if elapsed is not None else float("inf"),
+        str(candidate.get("id") or ""),
+    )
 
 
 def _one_way_sum_candidate(
@@ -319,18 +351,6 @@ def _combined_detail_status(outbound: dict[str, Any], inbound: dict[str, Any]) -
     if "summary_only" in statuses:
         return "summary_only"
     return "full"
-
-
-def _ordered_unique(items: list[Any]) -> list[Any]:
-    values: list[Any] = []
-    seen: set[str] = set()
-    for item in items:
-        value = str(item or "").strip()
-        if not value or value in seen:
-            continue
-        seen.add(value)
-        values.append(item)
-    return values
 
 
 __all__ = [

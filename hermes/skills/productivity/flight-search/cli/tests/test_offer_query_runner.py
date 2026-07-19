@@ -11,7 +11,7 @@ from flights_cli.execution.offer_query_runner import (
     PrimaryOfferQueryOptions,
     run_primary_offer_queries,
 )
-from flights_cli.execution.probe_ledger import ProbeExecutionLedger
+from flights_cli.execution.probe_ledger import ProbeRunLedger
 from flights_cli.ports.providers import ProviderProbeResult
 from helpers import make_test_store
 
@@ -99,9 +99,44 @@ class SuccessfulAggregateAdapter:
         )
 
 
+class ReturnedFailureAggregateAdapter:
+    name = "kupibilet"
+
+    def search_aggregate(self, query: dict[str, Any]) -> ProviderProbeResult:
+        return ProviderProbeResult(
+            probe_id=str(query["probe_id"]),
+            probe_type="full_route_aggregate",
+            provider=self.name,
+            query=query,
+            execution_state="failed",
+            evidence_type="provider_unavailable",
+            errors=({"type": "timeout", "message": "provider timed out"},),
+        )
+
+
 class OfferQueryRunnerTests(unittest.TestCase):
+    def test_returned_failed_state_obeys_fail_fast_and_records_ledger(self) -> None:
+        ledger = ProbeRunLedger()
+
+        with patch(
+            "flights_cli.execution.offer_query_runner.provider_adapter",
+            return_value=ReturnedFailureAggregateAdapter(),
+        ):
+            with self.assertRaises(CliError) as raised:
+                run_primary_offer_queries(
+                    [primary_query(probe_id="returned-failure")],
+                    PrimaryOfferQueryOptions(no_live_cache=True, fail_fast=True),
+                    store=make_test_store(self, TEST_AIRPORTS),
+                    probe_ledger=ledger,
+                )
+
+        self.assertEqual(raised.exception.error_type, "timeout")
+        failed = ledger.to_diagnostics()["failed_probes"]
+        self.assertEqual(len(failed), 1)
+        self.assertEqual(failed[0]["error"]["classification"], "timeout")
+
     def test_provider_failure_is_structured_and_recorded_in_ledger(self) -> None:
-        ledger = ProbeExecutionLedger()
+        ledger = ProbeRunLedger()
 
         with patch(
             "flights_cli.execution.offer_query_runner.provider_adapter",
@@ -139,7 +174,7 @@ class OfferQueryRunnerTests(unittest.TestCase):
         self.assertEqual(ctx.exception.details["field"], "limit")
 
     def test_non_primary_offer_query_is_skipped_and_recorded_in_ledger(self) -> None:
-        ledger = ProbeExecutionLedger()
+        ledger = ProbeRunLedger()
 
         results = run_primary_offer_queries(
             [primary_query(role="diagnostic_probe", probe_id="skip-1")],
@@ -157,7 +192,7 @@ class OfferQueryRunnerTests(unittest.TestCase):
         )
 
     def test_tutu_and_kupibilet_run_in_parallel_and_keep_plan_order(self) -> None:
-        ledger = ProbeExecutionLedger()
+        ledger = ProbeRunLedger()
         barrier = Barrier(2)
         adapters = {
             "tutu": SuccessfulAggregateAdapter("tutu", barrier=barrier),
@@ -190,16 +225,37 @@ class OfferQueryRunnerTests(unittest.TestCase):
             ["tutu", "kupibilet"],
         )
 
-    def test_kupibilet_fetch_hook_is_not_passed_to_tutu(self) -> None:
+    def test_third_provider_runs_without_runner_changes(self) -> None:
+        ledger = ProbeRunLedger()
+        adapter = SuccessfulAggregateAdapter("third")
+
+        with patch(
+            "flights_cli.execution.offer_query_runner.provider_adapter",
+            return_value=adapter,
+        ) as resolve:
+            results = run_primary_offer_queries(
+                [primary_query(provider="third", probe_id="primary-third")],
+                PrimaryOfferQueryOptions(no_live_cache=True),
+                store=make_test_store(self, TEST_AIRPORTS),
+                probe_ledger=ledger,
+            )
+
+        self.assertEqual(results[0]["provider"], "third")
+        self.assertEqual(results[0]["status"], "ok")
+        self.assertEqual(len(adapter.queries), 1)
+        resolve.assert_called_once()
+        self.assertEqual(resolve.call_args.args[0], "third")
+
+    def test_generic_adapter_resolver_handles_every_provider(self) -> None:
         adapters = {
             "tutu": SuccessfulAggregateAdapter("tutu"),
             "kupibilet": SuccessfulAggregateAdapter("kupibilet"),
         }
-        fetch_hook = object()
-        received: dict[str, object | None] = {}
+        received: list[str] = []
 
         def resolve(name: str, **kwargs: object) -> SuccessfulAggregateAdapter:
-            received[name] = kwargs.get("kupibilet_fetcher")
+            self.assertIn("store", kwargs)
+            received.append(name)
             return adapters[name]
 
         with patch(
@@ -213,11 +269,10 @@ class OfferQueryRunnerTests(unittest.TestCase):
                 ],
                 PrimaryOfferQueryOptions(no_live_cache=True),
                 store=make_test_store(self, TEST_AIRPORTS),
-                kupibilet_fetcher=fetch_hook,
+                adapter_resolver=resolve,
             )
 
-        self.assertIsNone(received["tutu"])
-        self.assertIs(received["kupibilet"], fetch_hook)
+        self.assertEqual(received, ["tutu", "kupibilet"])
 
     def test_fallback_group_keeps_different_exact_airport_scopes_separate(self) -> None:
         adapters = {

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from flights_cli.commands.common import validate_contract_payload
+from flights_cli.contracts.validation import validate_contract_payload
 from flights_cli.pipeline.offer_graph import (
     OFFER_GRAPH_SCHEMA_VERSION,
     build_offer_graph,
@@ -436,9 +436,6 @@ class OfferGraphTests(unittest.TestCase):
                 }
             ],
             gateway_leg_results={},
-            direct_mode={"outbound": True, "return": True},
-            requested_origin="SVX",
-            requested_destination="LED",
         )
 
         self.assertEqual(len(graph["offers"]), 1)
@@ -974,7 +971,9 @@ class OfferGraphTests(unittest.TestCase):
             "direct_only_hard_constraint",
         )
 
-    def test_direct_mode_gate_rejects_connected_primary_path_at_ingest(self) -> None:
+    def test_direct_mode_gate_rejects_connected_primary_path_at_materialize(
+        self,
+    ) -> None:
         graph = build_offer_graph(
             primary_offer_results=[
                 {
@@ -1004,14 +1003,23 @@ class OfferGraphTests(unittest.TestCase):
                 }
             ],
             gateway_leg_results={},
+        )
+
+        self.assertEqual(len(graph["offers"]), 2)
+        self.assertNotIn(
+            "direct_mode_gate", graph["coverage"].get("skipped_reasons", [])
+        )
+        envelope = materialize_offer_graph_candidates(
+            graph,
             direct_mode={"outbound": True},
             requested_origin="SVX",
             requested_destination="AMS",
         )
-
-        self.assertEqual(len(graph["offers"]), 1)
-        self.assertEqual(graph["offers"][0]["id"], "primary_offer:kupibilet:kb-direct")
-        self.assertIn("direct_mode_gate", graph["coverage"]["skipped_reasons"])
+        self.assertEqual(
+            [candidate["id"] for candidate in envelope["candidates"]],
+            ["candidate:primary_offer:kupibilet:kb-direct"],
+        )
+        self.assertEqual(envelope["rejected"][0]["reason"], "direct_mode_gate")
 
     def test_direct_mode_gate_rejects_atomic_round_trip_when_gated_journey_connected(
         self,
@@ -1055,14 +1063,18 @@ class OfferGraphTests(unittest.TestCase):
                 }
             ],
             gateway_leg_results={},
+        )
+
+        self.assertEqual(len(graph["offers"]), 1)
+        self.assertEqual(len(graph["edges"]), 3)
+        envelope = materialize_offer_graph_candidates(
+            graph,
             direct_mode={"outbound": True},
             requested_origin="SVX",
             requested_destination="LED",
         )
-
-        self.assertEqual(graph["offers"], [])
-        self.assertEqual(graph["edges"], [])
-        self.assertIn("direct_mode_gate", graph["coverage"]["skipped_reasons"])
+        self.assertEqual(envelope["candidates"], [])
+        self.assertEqual(envelope["rejected"][0]["reason"], "direct_mode_gate")
 
     def test_direct_mode_gate_allows_atomic_round_trip_connected_other_direction(
         self,
@@ -1103,9 +1115,6 @@ class OfferGraphTests(unittest.TestCase):
                 }
             ],
             gateway_leg_results={},
-            direct_mode={"outbound": True},
-            requested_origin="SVX",
-            requested_destination="LED",
         )
 
         self.assertEqual(len(graph["offers"]), 1)
@@ -1142,11 +1151,6 @@ class OfferGraphTests(unittest.TestCase):
                     ],
                 }
             ],
-            direct_mode={"outbound": True},
-            requested_origin="AAA",
-            requested_destination="BBB",
-            requested_origin_airports=origin_airports,
-            requested_destination_airports=destination_airports,
         )
 
         self.assertEqual(len(graph["offers"]), 1)

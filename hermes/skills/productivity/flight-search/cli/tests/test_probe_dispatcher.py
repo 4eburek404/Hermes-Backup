@@ -9,9 +9,10 @@ from flights_cli.execution.probe_dispatcher import (
     SegmentProbeOptions,
     dispatch_segment_probe,
 )
-from flights_cli.execution.request_deduper import RequestDeduper
+from flights_cli.execution.probe_ledger import ProbeRunLedger
 from flights_cli.ports.providers import ProviderCapabilities, ProviderProbeResult
 from flights_cli.store import Store
+from helpers import coverage_completeness
 
 
 def dispatcher_options(**overrides: object) -> SegmentProbeOptions:
@@ -232,7 +233,7 @@ class ProbeDispatcherTests(unittest.TestCase):
                 cache_ttl_seconds=0,
                 use_live_cache=False,
                 provider_policy="tutu",
-                request_deduper=RequestDeduper(),
+                probe_ledger=ProbeRunLedger(),
             )
 
         self.assertEqual(len(outcomes), 1)
@@ -267,7 +268,7 @@ class ProbeDispatcherTests(unittest.TestCase):
                 cache_ttl_seconds=0,
                 use_live_cache=False,
                 provider_policy="kupibilet",
-                request_deduper=RequestDeduper(),
+                probe_ledger=ProbeRunLedger(),
             )
 
         self.assertEqual(adapter.segment_queries[0]["origin_airports"], ["AAA", "AAB"])
@@ -318,6 +319,7 @@ class ProbeDispatcherTests(unittest.TestCase):
             "date": "2026-08-12",
         }
         plan = {"currency": "RUB"}
+        ledger = ProbeRunLedger()
 
         with patch(
             "flights_cli.execution.probe_dispatcher.provider_adapters_for_segment",
@@ -333,7 +335,20 @@ class ProbeDispatcherTests(unittest.TestCase):
                     cache_ttl_seconds=0,
                     use_live_cache=False,
                     provider_policy="kupibilet",
+                    probe_ledger=ledger,
                 )
+
+        diagnostics = ledger.to_diagnostics()
+        self.assertEqual(len(diagnostics["failed_probes"]), 1)
+        self.assertEqual(diagnostics["failed_probes"][0]["provider"], "kupibilet")
+        self.assertEqual(
+            diagnostics["failed_probes"][0]["error"]["classification"],
+            "provider_unavailable",
+        )
+        self.assertEqual(
+            coverage_completeness(diagnostics)["planned_count"],
+            coverage_completeness(diagnostics)["terminal_count"],
+        )
 
     def test_duplicate_segment_probe_reuses_original_result_without_second_provider_call(
         self,
@@ -346,7 +361,7 @@ class ProbeDispatcherTests(unittest.TestCase):
             "date": "2026-08-12",
         }
         plan = {"currency": "RUB"}
-        deduper = RequestDeduper()
+        ledger = ProbeRunLedger()
         segment_result = {
             "direction": "outbound",
             "leg": "origin_to_hub",
@@ -380,7 +395,7 @@ class ProbeDispatcherTests(unittest.TestCase):
                 cache_ttl_seconds=30,
                 use_live_cache=True,
                 provider_policy="kupibilet",
-                request_deduper=deduper,
+                probe_ledger=ledger,
             )
             second = dispatch_segment_probe(
                 spec=spec,
@@ -391,7 +406,7 @@ class ProbeDispatcherTests(unittest.TestCase):
                 cache_ttl_seconds=30,
                 use_live_cache=True,
                 provider_policy="kupibilet",
-                request_deduper=deduper,
+                probe_ledger=ledger,
             )
 
         self.assertEqual(search.call_count, 1)
@@ -400,8 +415,7 @@ class ProbeDispatcherTests(unittest.TestCase):
         self.assertEqual(
             second[0].summary["original_probe_id"], first[0].summary["probe_id"]
         )
-        self.assertEqual(second[0].segment_result, segment_result)
-        self.assertFalse(second[0].include_segment_result)
+        self.assertIsNone(second[0].segment_result)
 
 
 if __name__ == "__main__":

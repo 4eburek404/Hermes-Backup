@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from ..data.config_loader import load_yaml_mapping
 from ..errors import CliError
 from .vocabulary import MarketClass
 
@@ -166,109 +167,15 @@ def load_route_access_profiles(
     path: str | Path | None = None, *, strict: bool = False
 ) -> RouteAccessProfileCatalog:
     source_path = Path(path) if path is not None else DEFAULT_ROUTE_ACCESS_PROFILES_PATH
-    if not source_path.exists():
-        if strict:
-            raise CliError(
-                f"route access profiles file not found: {source_path}",
-                error_type="configuration_error",
-            )
+    raw = load_yaml_mapping(
+        source_path,
+        source_name="route access profiles",
+        strict=strict,
+        empty_is_missing=True,
+    )
+    if raw is None:
         return RouteAccessProfileCatalog(region_groups={}, rules=())
-    try:
-        text = source_path.read_text(encoding="utf-8")
-    except OSError as exc:
-        if not strict:
-            return RouteAccessProfileCatalog(region_groups={}, rules=())
-        raise CliError(
-            f"could not read route access profiles file {source_path}: {exc}",
-            error_type="configuration_error",
-        ) from exc
-    if not text.strip():
-        return RouteAccessProfileCatalog(region_groups={}, rules=())
-    raw = _parse_route_access_yaml(text, source_path)
     return _catalog_from_raw(raw, source_path)
-
-
-def _parse_route_access_yaml(text: str, path: Path) -> dict[str, Any]:
-    root: dict[str, Any] = {}
-    region_groups: dict[str, list[str]] | None = None
-    rules: list[dict[str, Any]] | None = None
-    current_rule: dict[str, Any] | None = None
-    current_map: dict[str, Any] | None = None
-    current_list: list[str] | None = None
-
-    for line_no, raw_line in enumerate(text.splitlines(), 1):
-        if "\t" in raw_line[: len(raw_line) - len(raw_line.lstrip())]:
-            _yaml_error(path, line_no, "tabs are not supported")
-        stripped = raw_line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        indent = len(raw_line) - len(raw_line.lstrip(" "))
-        if indent == 0:
-            key, value = _yaml_key_value(stripped, path, line_no)
-            current_rule = None
-            current_map = None
-            current_list = None
-            if key == "schema_version":
-                root[key] = _yaml_scalar(value, path, line_no)
-            elif key == "region_groups":
-                if value:
-                    _yaml_error(path, line_no, "region_groups must be a mapping")
-                region_groups = {}
-                root["region_groups"] = region_groups
-            elif key == "route_access_rules":
-                if value:
-                    _yaml_error(path, line_no, "route_access_rules must be a list")
-                rules = []
-                root["route_access_rules"] = rules
-            else:
-                _yaml_error(path, line_no, f"unsupported top-level key {key!r}")
-            continue
-        if indent == 2 and region_groups is not None and rules is None:
-            key, value = _yaml_key_value(stripped, path, line_no)
-            region_groups[_normalize_key(key)] = _yaml_string_list(value, path, line_no)
-            continue
-        if indent == 2 and rules is not None:
-            if not stripped.startswith("- "):
-                _yaml_error(path, line_no, "route access rules must use '- id: value'")
-            current_rule = {}
-            rules.append(current_rule)
-            current_map = None
-            current_list = None
-            rest = stripped[2:].strip()
-            if rest:
-                key, value = _yaml_key_value(rest, path, line_no)
-                current_rule[key] = _yaml_scalar(value, path, line_no)
-            continue
-        if indent == 4 and current_rule is not None:
-            key, value = _yaml_key_value(stripped, path, line_no)
-            if key == "when":
-                if value:
-                    _yaml_error(path, line_no, "when must be a mapping")
-                current_map = {}
-                current_rule["when"] = current_map
-                current_list = None
-            elif key == "reasons":
-                current_map = None
-                current_list = []
-                current_rule["reasons"] = current_list
-                if value:
-                    current_list.extend(_yaml_string_list(value, path, line_no))
-            else:
-                current_map = None
-                current_list = None
-                current_rule[key] = _yaml_scalar(value, path, line_no)
-            continue
-        if indent == 6 and current_map is not None:
-            key, value = _yaml_key_value(stripped, path, line_no)
-            current_map[key] = _yaml_scalar_or_list(value, path, line_no)
-            continue
-        if indent == 6 and current_list is not None:
-            if not stripped.startswith("- "):
-                _yaml_error(path, line_no, "list values must use '- value'")
-            current_list.append(str(_yaml_scalar(stripped[2:].strip(), path, line_no)))
-            continue
-        _yaml_error(path, line_no, f"unsupported indentation level {indent}")
-    return root
 
 
 def _catalog_from_raw(raw: dict[str, Any], path: Path) -> RouteAccessProfileCatalog:
@@ -304,7 +211,7 @@ def _catalog_from_raw(raw: dict[str, Any], path: Path) -> RouteAccessProfileCata
 def _normalize_rule(item: dict[str, Any], path: Path, index: int) -> RouteAccessRule:
     if not isinstance(item, dict):
         raise CliError(
-            f"invalid route access profiles YAML {path}: rule {index} must be a mapping",
+            f"invalid route access profiles YAML {path}: rule {index} must be a mapping; expected key: value",
             error_type="configuration_error",
         )
     rule_id = str(item.get("id") or "").strip()
@@ -343,48 +250,6 @@ def _normalize_rule(item: dict[str, Any], path: Path, index: int) -> RouteAccess
     )
 
 
-def _yaml_key_value(text: str, path: Path, line_no: int) -> tuple[str, str]:
-    if ":" not in text:
-        _yaml_error(path, line_no, "expected key: value")
-    key, value = text.split(":", 1)
-    key = key.strip()
-    if not key:
-        _yaml_error(path, line_no, "key is required")
-    return key, value.strip()
-
-
-def _yaml_scalar_or_list(value: str, path: Path, line_no: int) -> Any:
-    if value.startswith("["):
-        return _yaml_string_list(value, path, line_no)
-    return _yaml_scalar(value, path, line_no)
-
-
-def _yaml_string_list(value: str, path: Path, line_no: int) -> list[str]:
-    text = value.strip()
-    if not text.startswith("[") or not text.endswith("]"):
-        scalar = str(_yaml_scalar(text, path, line_no)).strip()
-        return [scalar] if scalar else []
-    body = text[1:-1].strip()
-    if not body:
-        return []
-    return [
-        str(_yaml_scalar(part.strip(), path, line_no)).strip()
-        for part in body.split(",")
-        if part.strip()
-    ]
-
-
-def _yaml_scalar(value: str, path: Path, line_no: int) -> Any:
-    if not value:
-        return ""
-    if value[0] in {'"', "'"}:
-        quote = value[0]
-        if len(value) < 2 or value[-1] != quote:
-            _yaml_error(path, line_no, "unterminated quoted string")
-        return value[1:-1]
-    return value
-
-
 def _normalize_key(value: Any) -> str:
     return str(value or "").strip().lower().replace("-", "_")
 
@@ -403,13 +268,6 @@ def _string_set(value: Any) -> set[str | None]:
 
 def _key_set(value: Any) -> set[str]:
     return {_normalize_key(item) for item in _string_set(value)}
-
-
-def _yaml_error(path: Path, line_no: int, message: str) -> None:
-    raise CliError(
-        f"invalid route access profiles YAML {path}:{line_no}: {message}",
-        error_type="configuration_error",
-    )
 
 
 __all__ = [

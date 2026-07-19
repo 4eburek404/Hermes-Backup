@@ -96,9 +96,20 @@ class ArchitectureTests(unittest.TestCase):
             sorted(DIAGNOSTIC_COMMANDS),
         )
 
-    def test_active_provider_set_is_tutu_and_kupibilet(self) -> None:
-        self.assertEqual(set(ProviderName.__args__), {"kupibilet", "tutu"})
+    def test_provider_names_are_registry_validated_strings(self) -> None:
+        self.assertIs(ProviderName, str)
         self.assertEqual(set(PROVIDER_REGISTRY.keys()), {"kupibilet", "tutu"})
+
+    def test_kupibilet_transport_is_separate_from_fetch_orchestration(self) -> None:
+        from pathlib import Path
+
+        provider_source = Path("flights_cli/providers/kupibilet.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertNotIn("urllib.request", provider_source)
+        self.assertNotIn("urllib.error", provider_source)
+        self.assertIn("post_kupibilet_search", provider_source)
 
     def test_moscow_airports_are_not_interchangeable(self) -> None:
         # SVO/DME/VKO are separate airports; not interchangeable for itinerary continuity.
@@ -227,6 +238,40 @@ class ArchitectureTests(unittest.TestCase):
         self.assertEqual(forbidden_orchestrator_provider_edges, [])
         self.assertEqual(forbidden_output_edges, [])
 
+    def test_catalog_semantics_contains_no_human_text_projection(self) -> None:
+        semantics = (
+            PROJECT / "flights_cli" / "reporting" / "catalog_semantics.py"
+        ).read_text(encoding="utf-8")
+        tree = ast.parse(semantics)
+        function_names = {
+            node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
+        }
+
+        self.assertTrue(
+            {
+                "baggage_piece_text",
+                "catalog_caveats",
+                "compact_price_text",
+                "provider_label",
+                "source_ticketing_note",
+            }.isdisjoint(function_names)
+        )
+        self.assertIsNone(re.search(r"[А-Яа-яЁё]", semantics))
+
+    def test_catalog_rendering_is_the_only_user_answer_text_owner(self) -> None:
+        reporting = PROJECT / "flights_cli" / "reporting"
+        user_answer = (reporting / "user_answer.py").read_text(encoding="utf-8")
+        rendering = (reporting / "catalog_rendering.py").read_text(encoding="utf-8")
+
+        self.assertIsNone(re.search(r"[А-Яа-яЁё]", user_answer))
+        self.assertNotIn("def render_user_answer(", user_answer)
+        self.assertIn("def render_user_answer(", rendering)
+        self.assertIn("def source_boundaries(", rendering)
+        self.assertNotIn(
+            "def source_boundaries(",
+            (reporting / "coverage.py").read_text(encoding="utf-8"),
+        )
+
     def test_live_assembly_core_has_no_args_like_adapter(self) -> None:
         root = PROJECT / "flights_cli"
         probe_dispatcher = root / "execution" / "probe_dispatcher.py"
@@ -236,9 +281,43 @@ class ArchitectureTests(unittest.TestCase):
             with self.subTest(path=path.name):
                 self.assertFalse("argparse" in import_targets(path))
 
-        tree = ast.parse(search_executor.read_text(encoding="utf-8"))
-        annotations = function_annotations(tree)
-        self.assertEqual(annotations["execute_search"]["request"], "SearchRequest")
+        executor_annotations = function_annotations(
+            ast.parse(search_executor.read_text(encoding="utf-8"))
+        )
+        self.assertEqual(executor_annotations["execute"]["plan"], "SearchPlan")
+        executor_tree = ast.parse(search_executor.read_text(encoding="utf-8"))
+        execute = next(
+            node
+            for node in ast.walk(executor_tree)
+            if isinstance(node, ast.FunctionDef) and node.name == "execute"
+        )
+        self.assertIsNotNone(execute.returns)
+        self.assertEqual(ast.unparse(execute.returns), "SearchEvidence")
+        workflow = root / "orchestrators" / "search_workflow.py"
+        workflow_annotations = function_annotations(
+            ast.parse(workflow.read_text(encoding="utf-8"))
+        )
+        self.assertEqual(workflow_annotations["run"]["request"], "SearchRequest")
+        workflow_tree = ast.parse(workflow.read_text(encoding="utf-8"))
+        run = next(
+            node
+            for node in ast.walk(workflow_tree)
+            if isinstance(node, ast.FunctionDef) and node.name == "run"
+        )
+        self.assertEqual(ast.unparse(run.returns), "FlightSearchResult")
+        plan_builder = root / "orchestrators" / "search_plan_builder.py"
+        builder_annotations = function_annotations(
+            ast.parse(plan_builder.read_text(encoding="utf-8"))
+        )
+        self.assertEqual(builder_annotations["build"]["request"], "SearchRequest")
+
+    def test_search_workflow_is_the_only_production_executor_composition(self) -> None:
+        root = PROJECT / "flights_cli"
+        callers = []
+        for path in root.rglob("*.py"):
+            if "SearchExecutor(" in path.read_text(encoding="utf-8"):
+                callers.append(path.relative_to(root).as_posix())
+        self.assertEqual(callers, ["orchestrators/search_workflow.py"])
 
     def test_provider_runtime_does_not_accept_argparse_namespace(self) -> None:
         provider_root = PROJECT / "flights_cli" / "providers"
@@ -257,6 +336,41 @@ class ArchitectureTests(unittest.TestCase):
                     flattened.isdisjoint({"argparse.Namespace", "Namespace"})
                 )
 
+    def test_tutu_parser_owns_normalization_without_transport_or_cache(self) -> None:
+        provider_root = PROJECT / "flights_cli" / "providers"
+        parser_path = provider_root / "tutu_parser.py"
+        facade_path = provider_root / "tutu_mcp.py"
+        parser_tree = ast.parse(parser_path.read_text(encoding="utf-8"))
+        facade_tree = ast.parse(facade_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(
+            {
+                "re",
+                "typing",
+                "config",
+                "domain.normalize",
+                "domain.offer_order",
+            }.issubset(import_targets(parser_path))
+        )
+        self.assertTrue(
+            import_targets(parser_path).isdisjoint(
+                {"live_cache", "tutu_transport", "urllib", "urllib.request"}
+            )
+        )
+
+        parser_functions = {
+            node.name
+            for node in ast.walk(parser_tree)
+            if isinstance(node, ast.FunctionDef)
+        }
+        facade_functions = {
+            node.name
+            for node in ast.walk(facade_tree)
+            if isinstance(node, ast.FunctionDef)
+        }
+        self.assertIn("parse_tutu_avia_search", parser_functions)
+        self.assertNotIn("parse_tutu_avia_search", facade_functions)
+
     def test_reporting_does_not_import_orchestrators(self) -> None:
         reporting_root = PROJECT / "flights_cli" / "reporting"
         for path in sorted(reporting_root.rglob("*.py")):
@@ -268,6 +382,258 @@ class ArchitectureTests(unittest.TestCase):
                         for target in import_targets(path)
                     )
                 )
+
+    def test_execution_does_not_import_reporting(self) -> None:
+        execution_root = PROJECT / "flights_cli" / "execution"
+        for path in sorted(execution_root.rglob("*.py")):
+            with self.subTest(path=path.relative_to(execution_root)):
+                self.assertFalse(
+                    any(
+                        target.startswith(("reporting", "flights_cli.reporting"))
+                        or ".reporting" in target
+                        for target in import_targets(path)
+                    )
+                )
+
+    def test_coverage_snapshot_is_the_only_coverage_semantics_owner(self) -> None:
+        root = PROJECT / "flights_cli"
+        ledger = (root / "execution" / "probe_ledger.py").read_text(encoding="utf-8")
+        coverage = (root / "reporting" / "coverage.py").read_text(encoding="utf-8")
+
+        for forbidden in (
+            "coverage_warnings",
+            "negative_evidence_type",
+            '"completeness"',
+            "absence_class",
+            "_evidence_classification",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, ledger)
+        self.assertIn("def _coverage_diagnostics_from_ledger(", coverage)
+        self.assertIn("if bucket not in ledger", coverage)
+        self.assertNotIn('ledger.get("completeness")', coverage)
+        self.assertNotIn('ledger.get("coverage_warnings")', coverage)
+
+    def test_contract_validation_owns_all_semantic_validators(self) -> None:
+        root = PROJECT / "flights_cli"
+        validation_path = root / "contracts" / "validation.py"
+        validation_tree = ast.parse(validation_path.read_text(encoding="utf-8"))
+        validation_functions = {
+            node.name
+            for node in validation_tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        self.assertTrue(
+            {
+                "flight_search_result_semantic_errors",
+                "user_answer_contract_semantic_errors",
+                "validate_flight_search_result",
+                "validate_user_answer",
+            }.issubset(validation_functions)
+        )
+
+        for relative in (
+            "pipeline/result_contract.py",
+            "reporting/user_answer_contracts.py",
+        ):
+            path = root / relative
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            with self.subTest(relative=relative):
+                self.assertEqual(
+                    [
+                        node.name
+                        for node in tree.body
+                        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    ],
+                    [],
+                )
+                self.assertIn("contracts.validation", import_targets(path))
+
+    def test_domain_and_reporting_dependency_direction(self) -> None:
+        domain_root = PROJECT / "flights_cli" / "domain"
+        for path in sorted(domain_root.rglob("*.py")):
+            with self.subTest(layer="domain", path=path.relative_to(domain_root)):
+                self.assertFalse(
+                    any(
+                        target.startswith(("execution", "reporting"))
+                        or ".execution" in target
+                        or ".reporting" in target
+                        for target in import_targets(path)
+                    )
+                )
+
+        reporting_root = PROJECT / "flights_cli" / "reporting"
+        for path in sorted(reporting_root.rglob("*.py")):
+            with self.subTest(layer="reporting", path=path.relative_to(reporting_root)):
+                self.assertFalse(
+                    any(
+                        target.startswith(("execution", "orchestrators"))
+                        or ".execution" in target
+                        or ".orchestrators" in target
+                        for target in import_targets(path)
+                    )
+                )
+
+    def test_compatibility_facades_contain_no_policy_logic(self) -> None:
+        root = PROJECT / "flights_cli"
+        facades = (
+            root / "domain" / "provider_offer_filter.py",
+            root / "pipeline" / "candidate_ranker.py",
+            root / "pipeline" / "offer_graph.py",
+        )
+        for path in facades:
+            with self.subTest(path=path.relative_to(root)):
+                tree = ast.parse(path.read_text(encoding="utf-8"))
+                definitions = [
+                    node
+                    for node in tree.body
+                    if isinstance(
+                        node,
+                        (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef),
+                    )
+                ]
+                self.assertEqual(definitions, [])
+
+    def test_stop_policy_is_the_only_owner_of_stop_defaults_and_filtering(self) -> None:
+        root = PROJECT / "flights_cli"
+        stop_policy = (root / "domain" / "stop_policy.py").read_text(encoding="utf-8")
+        provider_filter = (root / "domain" / "provider_offer_filter.py").read_text(
+            encoding="utf-8"
+        )
+        kupibilet_adapter = (
+            root / "adapters" / "providers" / "kupibilet_adapter.py"
+        ).read_text(encoding="utf-8")
+        kupibilet_parser = (root / "providers" / "kupibilet_parser.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("def filter_provider_offers(", stop_policy)
+        self.assertNotIn("connection_policy", stop_policy)
+        self.assertIn(
+            "from .stop_policy import filter_provider_offers", provider_filter
+        )
+        self.assertNotIn("filter_provider_offers", kupibilet_adapter)
+        self.assertIn("airport_mismatch_violations", kupibilet_parser)
+        self.assertIn("chronology_violations", kupibilet_parser)
+        self.assertIn(
+            "chronology_violations",
+            (root / "providers" / "tutu_parser.py").read_text(encoding="utf-8"),
+        )
+        self.assertFalse(
+            any(
+                "reportable_by_stop_policy" in path.read_text(encoding="utf-8")
+                for path in root.rglob("*.py")
+            )
+        )
+        user_answer = (root / "reporting" / "user_answer.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('stop_diagnostics["max_reported_connections"]', user_answer)
+        builder = (root / "orchestrators" / "search_plan_builder.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("resolve_stop_policy", builder)
+        for relative in (
+            "pipeline/candidate_validation.py",
+            "pipeline/candidate_scoring.py",
+            "pipeline/decision_scorer.py",
+            "pipeline/frontier_selection.py",
+        ):
+            with self.subTest(relative=relative):
+                self.assertIn(
+                    "BUSINESS_DEFAULT_STOP_POLICY",
+                    (root / relative).read_text(encoding="utf-8"),
+                )
+
+    def test_stop_math_is_delegated_to_stop_policy(self) -> None:
+        root = PROJECT / "flights_cli"
+        forbidden_snippets = {
+            "providers/kupibilet_parser.py": ("max(0, len(normalized_flights) - 1)",),
+            "providers/tutu_parser.py": (
+                "def _journey_connection_count",
+                "def _journeys_have_airport_change",
+            ),
+            "providers/segment_normalization.py": ("max(0, len(segments) - 1)",),
+            "domain/offer_order.py": ("max(0, len(segments) - 1)",),
+            "reporting/frontier_projection.py": ("max(0, len(journey_segments) - 1)",),
+            "reporting/catalog_projection.py": ("max_direction_segments",),
+            "reporting/user_answer_contracts.py": ("max(0, len(segments) - 1)",),
+        }
+        for relative, snippets in forbidden_snippets.items():
+            source = (root / relative).read_text(encoding="utf-8")
+            for snippet in snippets:
+                with self.subTest(relative=relative, snippet=snippet):
+                    self.assertNotIn(snippet, source)
+
+        stop_tier_owners = [
+            path.relative_to(root).as_posix()
+            for path in root.rglob("*.py")
+            if "def stop_tier(" in path.read_text(encoding="utf-8")
+        ]
+        self.assertEqual(stop_tier_owners, ["domain/stop_policy.py"])
+
+    def test_only_preexisting_public_facades_remain(self) -> None:
+        root = PROJECT / "flights_cli"
+        for relative in (
+            "commands/common.py",
+            "contracts/schema_errors.py",
+            "domain/stop_metrics.py",
+        ):
+            self.assertFalse((root / relative).exists(), relative)
+
+    def test_direct_candidate_policy_has_one_owner(self) -> None:
+        root = PROJECT / "flights_cli" / "pipeline"
+        frontier = (root / "frontier_selection.py").read_text(encoding="utf-8")
+        builder = (root / "offer_graph_builder.py").read_text(encoding="utf-8")
+        self.assertIn("from .direct_gate import candidate_is_direct", frontier)
+        self.assertIn("select_best_stop_tier", frontier)
+        self.assertIn(
+            "domain.stop_policy", import_targets(root / "frontier_selection.py")
+        )
+        self.assertNotIn("def _is_direct_inventory", frontier)
+        self.assertNotIn("direct_mode", builder)
+        self.assertNotIn("direct_gate", import_targets(root / "offer_graph_builder.py"))
+
+    def test_candidate_validation_is_authoritative_for_frontier(self) -> None:
+        root = PROJECT / "flights_cli" / "pipeline"
+        scoring = (root / "candidate_scoring.py").read_text(encoding="utf-8")
+        frontier = (root / "frontier_selection.py").read_text(encoding="utf-8")
+        self.assertNotIn("chronology_violations", scoring)
+        self.assertNotIn("airport_mismatch_violations", scoring)
+        self.assertNotIn("cross_ticket_mct_violations", scoring)
+        self.assertIn('validation.get("status") == "valid"', frontier)
+
+    def test_cross_airport_minimum_is_reserved_not_an_acceptance_rule(self) -> None:
+        path = PROJECT / "flights_cli" / "domain" / "connection_policy.py"
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        function = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "cross_ticket_mct_violations"
+        )
+        referenced_attributes = {
+            node.attr for node in ast.walk(function) if isinstance(node, ast.Attribute)
+        }
+
+        self.assertNotIn("min_cross_airport_min", referenced_attributes)
+        self.assertNotIn("required_min(same_airport", source)
+
+    def test_offer_graph_model_only_models_and_serializes(self) -> None:
+        path = PROJECT / "flights_cli" / "pipeline" / "offer_graph_model.py"
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        top_level_definitions = [
+            node.name
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        ]
+        self.assertEqual(top_level_definitions, ["OfferGraph"])
+
+    def test_store_exposes_semantic_catalog_queries_only(self) -> None:
+        from flights_cli.store import Store
+
+        self.assertFalse(hasattr(Store, "load_json"))
 
 
 if __name__ == "__main__":

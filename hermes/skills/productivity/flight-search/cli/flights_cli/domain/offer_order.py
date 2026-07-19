@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .stop_policy import connection_count_for_segments
+
 
 def _int_or_none(value: Any) -> int | None:
     if value is None:
@@ -14,7 +16,7 @@ def _int_or_none(value: Any) -> int | None:
 
 def provider_offer_business_key(
     offer: dict[str, Any],
-) -> tuple[int, int, int, int, str, str]:
+) -> tuple[int, int, int, str, str]:
     connections = _int_or_none(offer.get("connection_count"))
     if connections is None:
         connections = _int_or_none(offer.get("number_of_changes"))
@@ -22,9 +24,8 @@ def provider_offer_business_key(
         segments = (
             offer.get("segments") if isinstance(offer.get("segments"), list) else []
         )
-        connections = max(0, len(segments) - 1) if segments else 10**6
+        connections = connection_count_for_segments(segments) if segments else 10**6
 
-    airport_mismatch = _int_or_none(offer.get("airport_mismatch_count"))
     duration = _int_or_none(offer.get("duration"))
     price = _int_or_none(offer.get("price"))
     flight_numbers = "-".join(
@@ -33,7 +34,6 @@ def provider_offer_business_key(
     stable_id = flight_numbers or str(offer.get("id") or "")
     return (
         connections,
-        airport_mismatch if airport_mismatch is not None else 0,
         duration if duration is not None else 10**9,
         price if price is not None else 10**12,
         str(offer.get("departure_at") or ""),

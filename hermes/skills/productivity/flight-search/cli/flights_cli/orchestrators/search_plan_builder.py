@@ -13,13 +13,38 @@ from ..adapters.providers.registry import (
 from ..config import MAX_DATE_WINDOW_DAYS
 from ..domain.airports import airport_scope_summary, explicit_or_resolved_airports
 from ..domain.gateway_discovery import GatewayDiscoveryService
+from ..domain.connection_policy import (
+    DEFAULT_MAX_LAYOVER_MIN,
+    DEFAULT_PREFERRED_LAYOVER_MAX_MIN,
+)
 from ..domain.normalize import parse_iso_date
 from ..domain.route_access_profiles import MODE_REQUIRED, PROFILE_RESTRICTED_ACCESS
+from ..domain.stop_policy import resolve_stop_policy
 from ..domain.vocabulary import Direction, RouteFamily
 from ..errors import CliError
 from ..pipeline.search_request import SearchRequest
+from ..pipeline.decision_scorer import DEFAULT_MAX_ROUND_TRIP_PAIRS
+from ..pipeline.frontier_selection import (
+    DEFAULT_FIRST_CARRIER_MAX_OPTIONS,
+    DEFAULT_GATEWAY_MAX_ALTERNATIVES,
+    DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS,
+)
 from ..pipeline.flow_decision import FlowDecision, decide_flow
-from ..pipeline.search_plan import GatewayDiscovery, SearchPlan
+from ..pipeline.direct_gate import is_direct_only
+from ..pipeline.search_plan import (
+    GATEWAY_TRIGGER_DISABLED,
+    GATEWAY_TRIGGER_ON_PRIMARY_FAILURE,
+    GATEWAY_TRIGGER_REQUIRED_IF_NO_DIRECT,
+    DecisionPolicy,
+    ExecutionPolicy,
+    GatewayDiscovery,
+    GatewayPolicy,
+    OutputPolicy,
+    ProviderAttemptPlan,
+    RoutePlan,
+    SearchPhases,
+    SearchPlan,
+)
 from ..store import Store
 
 
@@ -44,10 +69,6 @@ def build_planning_state(
     )
 
 
-def _is_direct_only(request: SearchRequest) -> bool:
-    return request.max_connections == 0 and request.tier2_max_connections == 0
-
-
 def _live_cache_settings(flow: _PlanningState) -> tuple[bool, int]:
     request = flow.request
     try:
@@ -58,7 +79,7 @@ def _live_cache_settings(flow: _PlanningState) -> tuple[bool, int]:
         days_until_departure = None
     requires_fresh_live = bool(
         request.no_live_cache
-        or _is_direct_only(request)
+        or is_direct_only(request)
         or request.only_carriers
         or request.origin_airports
         or request.destination_airports
@@ -74,7 +95,7 @@ def direct_inventory_dates(options: SearchRequest, flow: _PlanningState) -> list
     if not window_end_raw:
         return [flow.request.depart_date]
     depart = parse_iso_date(flow.request.depart_date, "depart-date")
-    if not _is_direct_only(flow.request):
+    if not is_direct_only(flow.request):
         raise CliError(
             "date_window_end requires direct-only route options: set route_options.max_connections=0 and route_options.tier2_max_connections=0",
             error_type="validation_error",
@@ -139,7 +160,7 @@ def build_route_context(
         "origin_airports": origin_airports,
         "destination_airports": destination_airports,
         "airport_scope": airport_scope,
-        "direct_only": _is_direct_only(flow.request),
+        "direct_only": is_direct_only(flow.request),
     }
 
 
@@ -158,14 +179,12 @@ def _resolved_airport_scope(
     origin_location = store.resolve_location(flow.request.origin)
     destination_location = store.resolve_location(flow.request.destination)
     origin_airports = explicit_or_resolved_airports(
-        store,
         origin_location,
         list(options.route.origin_airports),
         role="origin",
         max_airports=options.route.max_airports_per_city,
     )
     destination_airports = explicit_or_resolved_airports(
-        store,
         destination_location,
         list(options.route.destination_airports),
         role="destination",
@@ -194,45 +213,75 @@ def _resolved_airport_scope(
 class SearchPlanBuilder:
     """Pure builder for the single plan consumed by search execution."""
 
-    def __init__(
-        self,
-        options: SearchRequest,
-        store: Store,
-        *,
-        flow: _PlanningState | None = None,
-    ) -> None:
-        self._options = options
+    def __init__(self, store: Store) -> None:
         self._store = store
-        self._flow = flow
+        self._options: SearchRequest
 
-    def build(self) -> SearchPlan:
-        flow = self._flow or build_planning_state(self._options, self._store)
+    def build(self, request: SearchRequest) -> SearchPlan:
+        self._options = request
+        flow = build_planning_state(self._options, self._store)
         route_context = build_route_context(self._options, self._store, flow=flow)
         primary_offer_queries = self._primary_offer_queries(flow, route_context)
         gateway_discovery = self._gateway_discovery(flow, route_context)
+        gateway_trigger = self._gateway_trigger(flow, gateway_discovery)
+        gateway_queries = self._gateway_leg_queries(
+            flow, route_context, gateway_discovery
+        )
         live_cache_enabled, live_cache_ttl_seconds = _live_cache_settings(flow)
+        stop_policy = resolve_stop_policy(
+            max_connections=self._options.route.max_connections,
+            tier2_max_connections=self._options.route.tier2_max_connections,
+        )
         return SearchPlan(
-            route_context=route_context,
-            primary_offer_queries=tuple(primary_offer_queries),
-            gateway_discovery=gateway_discovery,
-            conditional_gateway_queries=tuple(
-                self._gateway_leg_queries(flow, route_context, gateway_discovery)
+            route=RoutePlan.from_dict(route_context),
+            phases=SearchPhases(
+                primary=self._attempts(
+                    primary_offer_queries,
+                    phase="primary",
+                    conditional_trigger="no_direct",
+                ),
+                gateway=self._attempts(
+                    gateway_queries,
+                    phase="gateway",
+                    conditional_trigger=gateway_trigger,
+                ),
             ),
-            coverage_expectations=tuple(
-                self._coverage_expectations(route_context, primary_offer_queries)
+            gateway_policy=GatewayPolicy(
+                trigger=gateway_trigger,
+                discovery=gateway_discovery,
             ),
-            execution_limits={
-                "max_segment_searches": flow.request.max_segment_searches,
-                "segment_limit": self._options.evidence.segment_limit,
-                "live_cache_ttl_seconds": live_cache_ttl_seconds,
-                "live_cache_enabled": live_cache_enabled,
-                "timeout": self._options.evidence.timeout,
-                "fail_fast": self._options.evidence.fail_fast,
-            },
-            output_limits={
-                "catalog_limit": self._options.output.catalog_limit,
-                "direct_catalog_limit": self._options.output.direct_catalog_limit,
-            },
+            execution_policy=ExecutionPolicy(
+                max_provider_attempts=flow.request.max_segment_searches,
+                segment_limit=self._options.evidence.segment_limit,
+                live_cache_ttl_seconds=live_cache_ttl_seconds,
+                live_cache_enabled=live_cache_enabled,
+                timeout=self._options.evidence.timeout,
+                fail_fast=self._options.evidence.fail_fast,
+                gateway_discovery_limit=self._options.route.gateway_discovery_limit,
+                gateway_probe_batch_size=self._options.route.gateway_probe_batch_size,
+                gateway_probe_max_batches=self._options.route.gateway_probe_max_batches,
+                only_carriers=self._options.effective_only_carriers(),
+            ),
+            decision_policy=DecisionPolicy(
+                max_connections_per_journey=stop_policy.hard_max_connections,
+                preferred_connections=stop_policy.preferred_max_connections,
+                min_same_airport_connection_min=(
+                    self._options.route.min_same_airport_min
+                ),
+                min_cross_airport_connection_min=(
+                    self._options.route.min_cross_airport_min
+                ),
+                max_layover_min=DEFAULT_MAX_LAYOVER_MIN,
+                preferred_layover_max_min=DEFAULT_PREFERRED_LAYOVER_MAX_MIN,
+            ),
+            output_policy=OutputPolicy(
+                catalog_limit=self._options.output.catalog_limit,
+                direct_catalog_limit=self._options.output.direct_catalog_limit,
+                max_gateway_alternatives=DEFAULT_GATEWAY_MAX_ALTERNATIVES,
+                max_primary_gateway_options=DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS,
+                max_options_per_first_carrier=DEFAULT_FIRST_CARRIER_MAX_OPTIONS,
+                max_round_trip_pairs=DEFAULT_MAX_ROUND_TRIP_PAIRS,
+            ),
             planning_reasons=tuple(
                 dict.fromkeys(
                     [
@@ -243,11 +292,55 @@ class SearchPlanBuilder:
             ),
         )
 
+    def _attempts(
+        self,
+        queries: list[dict[str, Any]],
+        *,
+        phase: str,
+        conditional_trigger: str,
+    ) -> tuple[ProviderAttemptPlan, ...]:
+        attempts: list[ProviderAttemptPlan] = []
+        for index, query in enumerate(queries, start=1):
+            trigger = (
+                "always"
+                if phase == "primary" and bool(query.get("direct_only"))
+                else conditional_trigger
+            )
+            execution_query = dict(query)
+            provider = str(execution_query.pop("provider", "")).strip().lower()
+            probe_type = str(execution_query.pop("probe_type", "")).strip()
+            direction = str(execution_query.pop("direction", "")).strip()
+            attempts.append(
+                ProviderAttemptPlan(
+                    probe_id=f"{phase}-{index:03d}",
+                    phase=phase,
+                    trigger=trigger,
+                    provider=provider,
+                    probe_type=probe_type,
+                    direction=direction,
+                    query=execution_query,
+                )
+            )
+        return tuple(attempts)
+
+    def _gateway_trigger(
+        self, flow: _PlanningState, discovery: GatewayDiscovery
+    ) -> str:
+        if is_direct_only(flow.request) or not discovery.enabled:
+            return GATEWAY_TRIGGER_DISABLED
+        if discovery.mode in {MODE_REQUIRED, "diagnostic_required"}:
+            return GATEWAY_TRIGGER_REQUIRED_IF_NO_DIRECT
+        return GATEWAY_TRIGGER_ON_PRIMARY_FAILURE
+
     def _gateway_discovery(
         self, flow: _PlanningState, route_context: dict[str, Any]
     ) -> GatewayDiscovery:
         decision = flow.flow_decision
-        mode = str(decision.gateway_discovery_mode or "disabled")
+        mode = (
+            "disabled"
+            if is_direct_only(flow.request)
+            else str(decision.gateway_discovery_mode or "disabled")
+        )
         enabled = mode != "disabled"
         reasons = list(decision.route_access_reasons or [])
         reason = (
@@ -481,19 +574,13 @@ class SearchPlanBuilder:
                         "candidate_score": score,
                         "route_access_profile": route_access_profile,
                         "gateway_discovery_mode": gateway_discovery_mode,
-                        "execution_state": "not_executed",
                     }
                     self._apply_filters(query)
                     providers = providers_for_segment(
                         query, self._store, flow.request.provider_policy
                     )
-                    if providers:
-                        query["provider"] = str(providers[0])
-                    else:
-                        query["provider"] = None
-                        query["execution_state"] = "skipped"
-                        query["reason"] = "provider_not_applicable"
-                    queries.append(query)
+                    for provider in providers:
+                        queries.append({**query, "provider": str(provider)})
         return queries
 
     def _primary_offer_queries(
@@ -532,7 +619,7 @@ class SearchPlanBuilder:
             for query in direct_queries:
                 query["route_access_profile"] = access_profile
                 query["gateway_discovery_mode"] = discovery_mode
-        if _is_direct_only(flow.request) or flow.request.date_window_end:
+        if is_direct_only(flow.request) or flow.request.date_window_end:
             return direct_queries
 
         route_query: dict[str, Any] = {
@@ -562,7 +649,6 @@ class SearchPlanBuilder:
                 "currency": currency,
                 "direct_only": False,
                 "limit": flow.request.primary_offer_limit,
-                "execution_state": "not_executed",
             }
             self._apply_filters(query)
             if access_profile == PROFILE_RESTRICTED_ACCESS:
@@ -675,7 +761,6 @@ class SearchPlanBuilder:
                 "currency": currency,
                 "direct_only": direct_only,
                 "limit": flow.request.primary_offer_limit,
-                "execution_state": "not_executed",
                 "exhaustive": direct_only,
             }
             if route_family:
@@ -688,42 +773,3 @@ class SearchPlanBuilder:
         only_carriers = list(self._options.effective_only_carriers())
         if only_carriers:
             query["only_carriers"] = only_carriers
-
-    def _coverage_expectations(
-        self,
-        route_context: dict[str, Any],
-        primary_offer_queries: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
-        if not primary_offer_queries:
-            return []
-        if all(bool(query.get("direct_only")) for query in primary_offer_queries):
-            return []
-        access_profile = str(primary_offer_queries[0].get("route_access_profile") or "")
-        if access_profile != PROFILE_RESTRICTED_ACCESS:
-            return []
-        return [
-            {
-                "type": "gateway_discovery_required",
-                "route_access_profile": PROFILE_RESTRICTED_ACCESS,
-                "gateway_discovery_mode": MODE_REQUIRED,
-                "source_type": "provider_full_route",
-                "reason": "restricted access markets keep segment fallback coverage and gateway discovery diagnostics",
-            }
-        ]
-
-
-def build_search_plan(
-    options: SearchRequest,
-    store: Store,
-    *,
-    flow: _PlanningState | None = None,
-) -> dict[str, Any]:
-    return (
-        SearchPlanBuilder(
-            options,
-            store,
-            flow=flow,
-        )
-        .build()
-        .to_dict()
-    )

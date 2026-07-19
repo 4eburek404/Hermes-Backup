@@ -22,6 +22,22 @@ TEST_ENV = {
 }
 
 
+def coverage_completeness(probe_ledger: dict[str, Any]) -> dict[str, Any]:
+    """Project raw ledger facts through the production coverage owner."""
+
+    from flights_cli.reporting.coverage import CoverageSnapshot
+
+    return CoverageSnapshot.from_diagnostics(probe_ledger).summary["completeness"]
+
+
+def build_search_plan(request: Any, store: Store) -> dict[str, Any]:
+    """Test-only adapter around the typed planning interface."""
+
+    from flights_cli.orchestrators.search_plan_builder import SearchPlanBuilder
+
+    return SearchPlanBuilder(store).build(request).to_dict()
+
+
 def make_test_store(
     test_case: unittest.TestCase, airports: list[dict[str, Any]]
 ) -> Store:
@@ -115,7 +131,7 @@ def parser_leaf_defaults(parser: argparse.ArgumentParser) -> dict[str, dict[str,
 def live_assembly_args(**overrides: Any) -> Any:
     """Build the canonical typed search request used by pipeline tests."""
 
-    from flights_cli.commands.search import search_request_from_payload
+    from flights_cli.pipeline.search_request import search_request_from_payload
 
     def as_list(value: Any) -> list[Any]:
         if value is None:

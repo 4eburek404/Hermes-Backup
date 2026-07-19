@@ -15,13 +15,111 @@ from flights_cli.command_surface import (
     CATALOG_AUTO_REFRESH_COMMANDS,
     CATALOG_READ_COMMANDS,
     CATALOG_REFRESH_COMMANDS,
+    COMMAND_SPECS,
     DIAGNOSTIC_COMMANDS,
     DIAGNOSTIC_PROBE_COMMANDS,
     PRIMARY_ROUTE_COMMAND,
 )
 from flights_cli.config import DEFAULT_ROUTE_HUBS
+from tests.fixtures.result_fixtures import valid_report
 
 from helpers import PROJECT, TEST_ENV, parser_leaf_defaults
+
+
+HELP_GOLDENS = {
+    ("search",): """usage: flights search [-h] --request REQUEST
+
+options:
+  -h, --help         show this help message and exit
+  --request REQUEST  flight_search_request.v3 JSON file, or - for stdin.
+""",
+    ("diagnose", "plan"): """usage: flights diagnose plan [-h] --request REQUEST
+
+options:
+  -h, --help         show this help message and exit
+  --request REQUEST  flight_search_request.v3 JSON file, or - for stdin.
+""",
+    (
+        "diagnose",
+        "probe",
+    ): """usage: flights diagnose probe [-h] --provider PROVIDER --request REQUEST
+
+options:
+  -h, --help           show this help message and exit
+  --provider PROVIDER
+  --request REQUEST    Probe JSON file, or - for stdin.
+""",
+    (
+        "diagnose",
+        "render",
+    ): """usage: flights diagnose render [-h] --input INPUT
+
+options:
+  -h, --help     show this help message and exit
+  --input INPUT  flight-search result JSON file, output envelope, or - for
+                 stdin.
+""",
+    ("diagnose", "trace"): """usage: flights diagnose trace [-h] --request REQUEST
+
+options:
+  -h, --help         show this help message and exit
+  --request REQUEST  flight_search_request.v3 JSON file, or - for stdin.
+""",
+    (
+        "maint",
+        "check",
+    ): """usage: flights maint check [-h] [--runtime-path RUNTIME_PATH]
+
+options:
+  -h, --help            show this help message and exit
+  --runtime-path RUNTIME_PATH
+                        Runtime flight-search skill path to compare against.
+                        Defaults to ~/.hermes/skills/productivity/flight-
+                        search.
+""",
+    ("maint", "doctor"): """usage: flights maint doctor [-h]
+
+options:
+  -h, --help  show this help message and exit
+""",
+    ("maint", "catalog", "manifest"): """usage: flights maint catalog manifest [-h]
+
+options:
+  -h, --help  show this help message and exit
+""",
+    (
+        "maint",
+        "catalog",
+        "refresh",
+    ): """usage: flights maint catalog refresh [-h] [--only ONLY] [--timeout TIMEOUT]
+                                     [--dry-run]
+
+options:
+  -h, --help         show this help message and exit
+  --only ONLY        Catalog item name. Repeatable; defaults to all static
+                     files.
+  --timeout TIMEOUT  HTTP timeout seconds per static file.
+  --dry-run          Show files that would be downloaded without writing
+                     cache.
+""",
+    ("cities", "search"): """usage: flights cities search [-h] [--limit LIMIT] query
+
+positional arguments:
+  query
+
+options:
+  -h, --help     show this help message and exit
+  --limit LIMIT
+""",
+    ("airports", "explain"): """usage: flights airports explain [-h] code [code ...]
+
+positional arguments:
+  code
+
+options:
+  -h, --help  show this help message and exit
+""",
+}
 
 
 def live_search_args(**overrides: object) -> argparse.Namespace:
@@ -73,6 +171,9 @@ class CliContractTests(unittest.TestCase):
 
     def test_active_command_surface_is_registered_with_leaf_dispatch(self) -> None:
         leaves = parser_leaf_defaults(build_parser())
+        specs_by_name = {spec.name: spec for spec in COMMAND_SPECS}
+        self.assertEqual(len(COMMAND_SPECS), 11)
+        self.assertEqual(set(leaves), set(specs_by_name))
         policy_commands = (
             set(AGENT_COMMANDS)
             | set(DIAGNOSTIC_COMMANDS)
@@ -83,8 +184,13 @@ class CliContractTests(unittest.TestCase):
         self.assertIn(PRIMARY_ROUTE_COMMAND, leaves)
         for command_name, defaults in leaves.items():
             with self.subTest(command_name=command_name):
+                spec = specs_by_name[command_name]
                 self.assertEqual(defaults.get("command_name"), command_name)
                 self.assertTrue(callable(defaults.get("func")))
+                self.assertEqual(defaults.get("catalog_access"), spec.catalog_access)
+                self.assertEqual(
+                    defaults.get("requires_catalog", False), spec.requires_catalog
+                )
 
     def test_docs_smoke_commands_parse(self) -> None:
         parser = build_parser()
@@ -118,8 +224,28 @@ class CliContractTests(unittest.TestCase):
                 "--request",
                 "/tmp/flight-search-request.json",
             ],
+            "diagnose render --input": [
+                "--json",
+                "diagnose",
+                "render",
+                "--input",
+                "/tmp/flight-search-result.json",
+            ],
             "maint doctor": ["--json", "maint", "doctor"],
             "maint check": ["--json", "maint", "check"],
+            "maint catalog manifest": [
+                "--json",
+                "maint",
+                "catalog",
+                "manifest",
+            ],
+            "maint catalog refresh": [
+                "--json",
+                "maint",
+                "catalog",
+                "refresh",
+                "--dry-run",
+            ],
             "cities search": ["--json", "cities", "search", "Yekaterinburg"],
             "airports explain": ["--json", "airports", "explain", "SVX", "MOW"],
         }
@@ -127,6 +253,45 @@ class CliContractTests(unittest.TestCase):
         for label, argv in docs_argv.items():
             with self.subTest(label=label):
                 self.assertTrue(callable(parser.parse_args(argv).func))
+
+    def test_all_leaf_help_output_matches_goldens(self) -> None:
+        self.assertEqual(
+            set(HELP_GOLDENS),
+            {spec.path for spec in COMMAND_SPECS},
+        )
+        env = {**TEST_ENV, "COLUMNS": "80"}
+        for command_path, expected in HELP_GOLDENS.items():
+            with self.subTest(command=" ".join(command_path)):
+                proc = subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "flights_cli",
+                        *command_path,
+                        "--help",
+                    ],
+                    cwd=PROJECT,
+                    env=env,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                self.assertEqual(proc.returncode, 0)
+                self.assertEqual(proc.stderr, "")
+                self.assertEqual(proc.stdout, expected)
+
+    def test_diagnostic_provider_is_registry_validated_after_parsing(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "diagnose",
+                "probe",
+                "--provider",
+                "future-provider",
+                "--request",
+                "/tmp/probe.json",
+            ]
+        )
+        self.assertEqual(args.provider, "future-provider")
 
     def test_catalog_refresh_surface_matches_registered_catalog_commands(self) -> None:
         leaves = parser_leaf_defaults(build_parser())
@@ -343,15 +508,16 @@ class CliContractTests(unittest.TestCase):
         )
         self.assert_metadata_only_evidence_scope(payload["data"]["evidence_scope"])
         data = payload["data"]["plan"]
-        provider_queries = data["primary_offer_queries"]
+        provider_queries = data["phases"]["primary"]
         self.assertTrue(provider_queries)
-        first_query = provider_queries[0]
+        first_attempt = provider_queries[0]
+        first_query = first_attempt["query"]
         self.assertEqual(first_query["role"], "primary_offer_collection")
         self.assertEqual(first_query["source_type"], "provider_full_route")
-        self.assertEqual(first_query["probe_type"], "full_route_aggregate")
+        self.assertEqual(first_attempt["probe_type"], "full_route_aggregate")
         self.assertEqual(first_query["currency"], "RUB")
         self.assertNotIn("command", first_query)
-        route = data["route_context"]
+        route = data["route"]
         self.assertEqual(route["hubs"], ["IST", "DXB"])
         self.assertEqual(route["destination_airports"], ["BBA", "BBB"])
         self.assertEqual(
@@ -360,7 +526,118 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(
             route["airport_scope"]["destination"]["excluded_by_default"], []
         )
-        self.assertEqual(data["schema_version"], "flight_search_plan.v4")
+        self.assertEqual(data["schema_version"], "flight_search_plan.v5")
+
+    def test_diagnose_render_subprocess_success_json_boundary(self) -> None:
+        answer = valid_report()["user_answer"]
+        result = {
+            "schema_version": "flight_search_result.v9",
+            "answer": answer,
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            result_path = Path(tmp_dir) / "flight-search-result.json"
+            result_path.write_text(json.dumps(result), encoding="utf-8")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "flights_cli",
+                    "--json",
+                    "diagnose",
+                    "render",
+                    "--input",
+                    str(result_path),
+                ],
+                cwd=PROJECT,
+                env=TEST_ENV,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+        self.assertEqual(proc.returncode, 0)
+        self.assertEqual(proc.stderr, "")
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["command"], "diagnose render")
+        self.assertEqual(payload["issues"], [])
+        self.assertEqual(
+            payload["data"]["schema_version"],
+            "flight_search_render_diagnostic.v1",
+        )
+        self.assertEqual(
+            payload["data"]["search_result_schema_version"],
+            "flight_search_result.v9",
+        )
+        self.assertEqual(payload["data"]["validation"], {"ok": True, "errors": []})
+        self.assertEqual(payload["data"]["user_answer"], answer)
+
+    def test_diagnose_probe_subprocess_registry_error_json_boundary(self) -> None:
+        request = {
+            "origin": "SVX",
+            "destination": "DME",
+            "date": "2026-08-15",
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            request_path = Path(tmp_dir) / "probe.json"
+            request_path.write_text(json.dumps(request), encoding="utf-8")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "flights_cli",
+                    "--json",
+                    "diagnose",
+                    "probe",
+                    "--provider",
+                    "future-provider",
+                    "--request",
+                    str(request_path),
+                ],
+                cwd=PROJECT,
+                env=TEST_ENV,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+        self.assertEqual(proc.returncode, 1)
+        self.assertEqual(proc.stderr, "")
+        payload = json.loads(proc.stdout)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["type"], "validation_error")
+        self.assertIn("future-provider", payload["error"]["message"])
+        self.assertNotIn("Traceback", proc.stdout)
+
+    def test_diagnose_trace_subprocess_contract_error_json_boundary(self) -> None:
+        request = {"schema_version": "flight_search_request.v3"}
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            request_path = Path(tmp_dir) / "invalid-request.json"
+            request_path.write_text(json.dumps(request), encoding="utf-8")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "flights_cli",
+                    "--json",
+                    "diagnose",
+                    "trace",
+                    "--request",
+                    str(request_path),
+                ],
+                cwd=PROJECT,
+                env=TEST_ENV,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+        self.assertEqual(proc.returncode, 1)
+        self.assertEqual(proc.stderr, "")
+        payload = json.loads(proc.stdout)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["type"], "validation_error")
+        self.assertNotIn("Traceback", proc.stdout)
 
     def test_leaf_json_flag_is_accepted_without_argv_rewrite(self) -> None:
         parser = build_parser()

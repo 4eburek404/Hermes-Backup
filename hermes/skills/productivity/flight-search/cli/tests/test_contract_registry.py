@@ -7,11 +7,11 @@ from urllib.parse import urljoin
 
 from jsonschema import Draft202012Validator
 
-from flights_cli.commands.common import packaged_schema_registry
 from flights_cli.contracts.registry import (
     CURRENT_CONTRACTS,
     current_contract,
 )
+from flights_cli.contracts.validation import packaged_schema_registry
 
 
 class ContractRegistryTest(unittest.TestCase):

@@ -19,7 +19,6 @@ class TestVocabularyWellFormed(unittest.TestCase):
         enums = [
             v.Leg,
             v.Direction,
-            v.StopBucket,
             v.MarketClass,
             v.RoutingStrategy,
             v.RouteFamily,
@@ -45,7 +44,6 @@ class TestVocabularyWellFormed(unittest.TestCase):
         enums = [
             v.Leg,
             v.Direction,
-            v.StopBucket,
             v.MarketClass,
             v.RoutingStrategy,
             v.RouteFamily,
@@ -68,7 +66,6 @@ class TestVocabularyWellFormed(unittest.TestCase):
         enums = [
             v.Leg,
             v.Direction,
-            v.StopBucket,
             v.MarketClass,
             v.RoutingStrategy,
             v.RouteFamily,
@@ -136,7 +133,6 @@ class TestVocabularyDriftLint(unittest.TestCase):
             "RoutingStrategy": {m.value for m in v.RoutingStrategy},
             "RouteFamily": {m.value for m in v.RouteFamily},
             "AbsenceReason": {m.value for m in v.AbsenceReason},
-            "StopBucket": {m.value for m in v.StopBucket},
         }
         return cls.VOCABULARY_FAMILIES
 

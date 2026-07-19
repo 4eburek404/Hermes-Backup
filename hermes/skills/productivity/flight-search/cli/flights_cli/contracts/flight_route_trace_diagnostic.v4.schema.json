@@ -8,7 +8,7 @@
   "properties": {
     "schema_version": {"const": "flight_route_trace_diagnostic.v4"},
     "request": {"$ref": "flight_search_request.v3.schema.json"},
-    "plan": {"$ref": "flight_search_plan.v4.schema.json"},
+    "plan": {"$ref": "flight_search_plan.v5.schema.json"},
     "evidence": {
       "type": "object",
       "additionalProperties": false,

@@ -7,19 +7,19 @@ from unittest.mock import patch
 
 from flights_cli.cli import build_parser
 from flights_cli.errors import CliError
-from flights_cli.execution.search_executor import execute_search
+from flights_cli.orchestrators.search_workflow import SearchWorkflow
 from flights_cli.orchestrators.search_plan_builder import (
     build_planning_state,
     build_route_context,
-    build_search_plan,
 )
 from flights_cli.pipeline.result_builder import build_result_projection
 from flights_cli.store import Store
-from helpers import live_assembly_args
+from helpers import build_search_plan, live_assembly_args
 
 
 def execute_projection(*args: object, **kwargs: object) -> dict:
-    return execute_search(*args, **kwargs).projection_input
+    request, store = args
+    return SearchWorkflow(store).run_artifacts(request).projection_input
 
 
 def window_args(**overrides: object):
@@ -164,24 +164,26 @@ class DateWindowPlanTests(unittest.TestCase):
 
     def test_window_expands_into_per_date_direct_provider_queries(self) -> None:
         args = window_args()
-        flow = build_planning_state(args, Store())
         plan = build_route_context(args, Store())
-        search_plan = build_search_plan(args, Store(), flow=flow)
+        search_plan = build_search_plan(args, Store())
 
         query_dates = sorted(
-            {str(query.get("date")) for query in search_plan["primary_offer_queries"]}
+            {
+                str(attempt["query"].get("date"))
+                for attempt in search_plan["phases"]["primary"]
+            }
         )
         self.assertEqual(query_dates, ["2026-08-16", "2026-08-17", "2026-08-18"])
         self.assertTrue(
             all(
-                query.get("direct_only")
-                for query in search_plan["primary_offer_queries"]
+                attempt["query"].get("direct_only")
+                for attempt in search_plan["phases"]["primary"]
             )
         )
         self.assertTrue(
             all(
-                query.get("route_family") == "direct_inventory"
-                for query in search_plan["primary_offer_queries"]
+                attempt["query"].get("route_family") == "direct_inventory"
+                for attempt in search_plan["phases"]["primary"]
             )
         )
         self.assertEqual(plan["dates"].get("window_end"), "2026-08-18")
@@ -232,7 +234,7 @@ class DateWindowInventoryProjectionTests(unittest.TestCase):
         self.assertEqual(entries["2026-08-18"]["status"], "probe_failed")
         self.assertEqual(inventory.get("boundary"), "provider_live_only")
 
-        report = build_result_projection(result, Store())
+        report = build_result_projection(result)
         self.assertIsInstance(report, dict)
         self.assertIn("date_window_inventory", report["evidence"])
         report_dates = [

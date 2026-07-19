@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from flights_cli.reporting.coverage import CoverageSnapshot
 from flights_cli.reporting.user_answer import UserAnswerInput, build_user_answer
 
 
@@ -73,7 +74,6 @@ def valid_report() -> dict:
             "output_limits": {"catalog_limit": 10, "direct_catalog_limit": 30},
         },
         "source_boundaries": [],
-        "provider_failures": [],
         "primary_options": [valid_option()],
         "alternative_options": [],
         "coverage_report": {
@@ -118,6 +118,7 @@ def valid_report() -> dict:
         "stop_policy": {"name": "business_default", "preferred_max_connections": 1},
         "stop_policy_status": {
             "policy": "business_default",
+            "max_reported_connections": 1,
             "used_two_stop_tier": False,
             "three_plus_suppressed_count": 0,
             "garbage_options_hidden_from_answer": False,
@@ -130,12 +131,10 @@ def valid_report() -> dict:
 def answer_input_from_fixture(report: dict) -> UserAnswerInput:
     return UserAnswerInput(
         route=report["route"],
-        status=report["status"],
         source_boundaries=report["source_boundaries"],
-        provider_failures=report["provider_failures"],
+        coverage_snapshot=CoverageSnapshot.from_diagnostics(report["coverage_report"]),
         primary_options=report["primary_options"],
         alternative_options=report["alternative_options"],
-        coverage_report=report["coverage_report"],
         stop_policy=report["stop_policy"],
         stop_policy_status=report["stop_policy_status"],
     )
@@ -147,7 +146,14 @@ def report_with_required_caveats() -> dict:
     priority["id"] = "priority-svo"
     priority["category"] = "moscow_gateway_option"
     report["alternative_options"] = [priority]
-    report["provider_failures"] = [
+    report["coverage_report"]["planned_probes"].append(
+        {
+            "probe_id": "probe-tutu-failure",
+            "provider": "tutu",
+            "execution_state": "planned",
+        }
+    )
+    report["coverage_report"]["failed_probes"] = [
         {
             "direction": "outbound",
             "leg": "hub_to_destination",
@@ -160,4 +166,9 @@ def report_with_required_caveats() -> dict:
             "error": {"type": "upstream_error", "message": "Tutu unavailable"},
         }
     ]
+    report["coverage_report"]["completeness"] = {
+        "planned_count": 2,
+        "terminal_count": 2,
+        "all_planned_probes_have_terminal_state": True,
+    }
     return report

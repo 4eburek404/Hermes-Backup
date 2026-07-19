@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
-from ..reporting.formatting import minutes_label, price_label
+from .catalog_rendering import FRONTIER_TICKETING_NOTE, minutes_label, price_label
 
 
 def segment_summary(
@@ -48,28 +49,57 @@ def connection_summary(connection: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def decision_frontier_options(data: dict[str, Any]) -> list[dict[str, Any]]:
-    live = data.get("live_search") if isinstance(data.get("live_search"), dict) else {}
-    frontier = (
-        live.get("decision_frontier")
-        if isinstance(live.get("decision_frontier"), dict)
+@dataclass(frozen=True, slots=True)
+class FrontierProjection:
+    options: tuple[dict[str, Any], ...]
+    decision_option_ids: tuple[str, ...]
+    result_contract: dict[str, Any]
+
+
+def project_decision_frontier(
+    decision_frontier: dict[str, Any],
+) -> FrontierProjection:
+    raw_options = [
+        item
+        for item in decision_frontier.get("options") or []
+        if isinstance(item, dict) and str(item.get("id") or "")
+    ]
+    projected = tuple(option_from_decision_frontier_item(item) for item in raw_options)
+    coverage = (
+        decision_frontier.get("coverage_summary")
+        if isinstance(decision_frontier.get("coverage_summary"), dict)
         else {}
     )
-    if not frontier and isinstance(data.get("decision_frontier"), dict):
-        frontier = data["decision_frontier"]
-    options = (
-        frontier.get("options") if isinstance(frontier.get("options"), list) else []
+    option_ids = tuple(str(item["id"]) for item in raw_options)
+    return FrontierProjection(
+        options=projected,
+        decision_option_ids=option_ids,
+        result_contract={
+            "schema_version": "flight_decision_frontier.result.v1",
+            "option_ids": list(option_ids),
+            "coverage_summary": {
+                key: int(coverage.get(key) or 0)
+                for key in (
+                    "candidate_count",
+                    "acceptable_count",
+                    "selected_count",
+                    "rejected_count",
+                )
+            },
+        },
     )
-    return [
-        option_from_decision_frontier_item(item)
-        for item in options
-        if isinstance(item, dict)
-    ]
 
 
 def option_from_decision_frontier_item(item: dict[str, Any]) -> dict[str, Any]:
     segments: list[dict[str, Any]] = []
-    max_connections = int(item.get("connection_count") or 0)
+    max_connections = max(
+        0,
+        int(
+            item.get("max_connections_per_journey")
+            if item.get("max_connections_per_journey") is not None
+            else item.get("connection_count") or 0
+        ),
+    )
     for journey in item.get("journeys") or []:
         if not isinstance(journey, dict):
             continue
@@ -79,7 +109,6 @@ def option_from_decision_frontier_item(item: dict[str, Any]) -> dict[str, Any]:
             for segment in journey.get("segments") or []
             if isinstance(segment, dict)
         ]
-        max_connections = max(max_connections, max(0, len(journey_segments) - 1))
         for segment in journey_segments:
             segments.append(segment_summary(segment, direction))
 
@@ -127,11 +156,7 @@ def option_from_decision_frontier_item(item: dict[str, Any]) -> dict[str, Any]:
                 else {}
             ),
         },
-        "stop_tier": (
-            item.get("validation_summary", {}).get("stop_tier")
-            if isinstance(item.get("validation_summary"), dict)
-            else None
-        ),
+        "stop_tier": item.get("stop_tier"),
         "max_connections_per_journey": max_connections,
         "connections": [
             connection_summary(connection)
@@ -139,7 +164,7 @@ def option_from_decision_frontier_item(item: dict[str, Any]) -> dict[str, Any]:
             if isinstance(connection, dict)
         ],
         "segments": segments,
-        "ticketing_note": "Verify final fare, baggage, ticket protection, and purchase-screen rules before booking.",
+        "ticketing_note": FRONTIER_TICKETING_NOTE,
     }
     for key in (
         "source_type",
@@ -165,3 +190,12 @@ def option_from_decision_frontier_item(item: dict[str, Any]) -> dict[str, Any]:
         if key in item:
             option[key] = item.get(key)
     return option
+
+
+__all__ = [
+    "FrontierProjection",
+    "connection_summary",
+    "option_from_decision_frontier_item",
+    "project_decision_frontier",
+    "segment_summary",
+]

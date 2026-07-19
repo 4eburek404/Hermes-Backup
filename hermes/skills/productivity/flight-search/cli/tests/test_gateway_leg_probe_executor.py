@@ -10,7 +10,10 @@ from flights_cli.execution.gateway_leg_probe_executor import (
     GatewayLegProbeOptions,
 )
 from flights_cli.execution.probe_dispatcher import SegmentProbeOutcome
+from flights_cli.execution.probe_ledger import ProbeRunLedger
+from flights_cli.ports.providers import ProviderProbeResult
 from flights_cli.store import Store
+from helpers import coverage_completeness
 
 
 def executor_options(**overrides: object) -> GatewayLegProbeOptions:
@@ -75,7 +78,21 @@ def gateway_queries(
 
 
 def outcome_for(spec: dict[str, Any], *, offer_count: int) -> SegmentProbeOutcome:
-    offers = [{"id": f"offer-{index}"} for index in range(offer_count)]
+    offers = [
+        {
+            "id": f"offer-{index}",
+            "covers_requested_trip": True,
+            "segments": [
+                {
+                    "origin": spec["origin"],
+                    "destination": spec["destination"],
+                    "departure_at": f"{spec['date']}T08:00:00+00:00",
+                    "arrival_at": f"{spec['date']}T10:00:00+00:00",
+                }
+            ],
+        }
+        for index in range(offer_count)
+    ]
     return SegmentProbeOutcome(
         summary={
             "status": "ok",
@@ -130,7 +147,7 @@ class GatewayLegProbeExecutorTests(unittest.TestCase):
 
         self.assertEqual(result["searched_gateways"], 1)
         self.assertEqual(result["viable_gateways"], 1)
-        self.assertEqual(result["failed_gateways"], 0)
+        self.assertNotIn("failed_gateways", result)
         gateway = result["gateways"][0]
         self.assertTrue(gateway["viable"])
         self.assertEqual(gateway["origin_leg"]["offer_count"], 1)
@@ -173,17 +190,150 @@ class GatewayLegProbeExecutorTests(unittest.TestCase):
         self.assertEqual(gateway["missing_legs"], ["destination_leg"])
         self.assertEqual(result["viable_gateways"], 0)
 
-    def test_provider_failure_does_not_stop_other_gateways_without_fail_fast(
+    def test_provider_failure_falls_back_to_next_provider_without_parallel_failure_truth(
         self,
     ) -> None:
-        calls: list[tuple[str, str]] = []
+        calls: list[str] = []
 
         def dispatch(**kwargs: Any) -> list[SegmentProbeOutcome]:
             spec = kwargs["spec"]
-            pair = (str(spec["origin"]), str(spec["destination"]))
-            calls.append(pair)
-            if pair == ("IST", "AMS"):
+            provider = str(spec["provider"])
+            calls.append(provider)
+            if provider == "tutu" and spec["leg"] == "origin_to_gateway":
                 raise CliError("provider down", error_type="provider_unavailable")
+            return [outcome_for(spec, offer_count=1)]
+
+        ledger = ProbeRunLedger()
+        executor = GatewayLegProbeExecutor(
+            options=executor_options(),
+            store=Store(),
+            only_carriers=[],
+            cache_ttl_seconds=0,
+            use_live_cache=False,
+            probe_ledger=ledger,
+        )
+        base_queries = gateway_queries("IST", rank=1)
+        first_provider = {**base_queries[0], "provider": "tutu"}
+        fallback_provider = {**base_queries[0], "provider": "kupibilet"}
+        queries = [first_provider, fallback_provider, base_queries[1]]
+        with patch(
+            "flights_cli.execution.gateway_leg_probe_executor.dispatch_segment_probe",
+            side_effect=dispatch,
+        ):
+            result = executor.run(queries, {"currency": "RUB"})
+
+        self.assertEqual(result["searched_gateways"], 1)
+        self.assertEqual(result["viable_gateways"], 1)
+        self.assertEqual(calls, ["tutu", "kupibilet", "tutu"])
+        self.assertNotIn("failed_gateways", result)
+        gateway = result["gateways"][0]
+        self.assertNotIn("provider_failures", gateway)
+        self.assertNotIn("failure", gateway["origin_leg"])
+        diagnostics = ledger.to_diagnostics()
+        self.assertEqual(
+            diagnostics["failed_probes"][0]["error"]["classification"],
+            "provider_unavailable",
+        )
+        self.assertTrue(
+            coverage_completeness(diagnostics)["all_planned_probes_have_terminal_state"]
+        )
+
+    def test_returned_failed_state_is_failed_and_falls_back(self) -> None:
+        calls: list[str] = []
+        ledger = ProbeRunLedger()
+        base_queries = gateway_queries("IST")
+        first = {**base_queries[0], "provider": "tutu"}
+        fallback = {**base_queries[0], "provider": "kupibilet"}
+
+        def dispatch(**kwargs: Any) -> list[SegmentProbeOutcome]:
+            spec = kwargs["spec"]
+            calls.append(str(spec["provider"]))
+            if spec["provider"] == "tutu" and spec["leg"] == "origin_to_gateway":
+                provider_result = ProviderProbeResult(
+                    probe_id=str(spec.get("probe_id") or "returned-failure"),
+                    probe_type="segment_direct",
+                    provider="tutu",
+                    query=spec,
+                    execution_state="failed",
+                    evidence_type="provider_unavailable",
+                    errors=({"type": "timeout", "message": "provider timed out"},),
+                )
+                return [
+                    SegmentProbeOutcome(
+                        summary={
+                            "provider": "tutu",
+                            "status": "error",
+                            "execution_state": "failed",
+                            "offer_count": 0,
+                        },
+                        provider_result=provider_result,
+                    )
+                ]
+            return [outcome_for(spec, offer_count=1)]
+
+        executor = GatewayLegProbeExecutor(
+            options=executor_options(),
+            store=Store(),
+            only_carriers=[],
+            cache_ttl_seconds=0,
+            use_live_cache=False,
+            probe_ledger=ledger,
+        )
+        with patch(
+            "flights_cli.execution.gateway_leg_probe_executor.dispatch_segment_probe",
+            side_effect=dispatch,
+        ):
+            result = executor.run(
+                [first, fallback, base_queries[1]], {"currency": "RUB"}
+            )
+
+        self.assertEqual(calls, ["tutu", "kupibilet", "tutu"])
+        self.assertTrue(result["gateways"][0]["viable"])
+        failed = ledger.to_diagnostics()["failed_probes"]
+        self.assertEqual(len(failed), 1)
+        self.assertEqual(failed[0]["error"]["classification"], "timeout")
+
+    def test_malformed_direct_does_not_suppress_broad_probe(self) -> None:
+        calls: list[tuple[str, bool]] = []
+        base_queries = gateway_queries("IST")
+        direct_origin = {**base_queries[0], "provider": "tutu"}
+        broad_origin = {
+            **base_queries[0],
+            "provider": "kupibilet",
+            "probe_type": "segment_hub_leg",
+            "direct_only": False,
+        }
+
+        def dispatch(**kwargs: Any) -> list[SegmentProbeOutcome]:
+            spec = kwargs["spec"]
+            calls.append((str(spec["provider"]), bool(spec["direct_only"])))
+            if spec is direct_origin or (
+                spec["provider"] == "tutu" and spec["leg"] == "origin_to_gateway"
+            ):
+                return [
+                    SegmentProbeOutcome(
+                        summary={
+                            "status": "ok",
+                            "provider": "tutu",
+                            "offer_count": 1,
+                        },
+                        segment_result={
+                            "offers": [
+                                {
+                                    "covers_requested_trip": True,
+                                    "segments": [
+                                        {
+                                            "origin": spec["origin"],
+                                            "destination": spec["destination"],
+                                            "departure_at": f"{spec['date']}T08:00:00+00:00",
+                                            "arrival_at": None,
+                                        }
+                                    ],
+                                }
+                            ]
+                        },
+                    )
+                ]
             return [outcome_for(spec, offer_count=1)]
 
         executor = GatewayLegProbeExecutor(
@@ -193,34 +343,36 @@ class GatewayLegProbeExecutorTests(unittest.TestCase):
             cache_ttl_seconds=0,
             use_live_cache=False,
         )
-        queries = [
-            *gateway_queries("IST", rank=1),
-            *gateway_queries("DXB", rank=2),
-        ]
         with patch(
             "flights_cli.execution.gateway_leg_probe_executor.dispatch_segment_probe",
             side_effect=dispatch,
         ):
-            result = executor.run(queries, {"currency": "RUB"})
+            result = executor.run(
+                [direct_origin, broad_origin, base_queries[1]], {"currency": "RUB"}
+            )
 
-        self.assertEqual(result["searched_gateways"], 2)
-        self.assertEqual(result["viable_gateways"], 1)
-        self.assertEqual(result["failed_gateways"], 1)
-        self.assertIn(("DXB", "AMS"), calls)
-        ist = result["gateways"][0]
-        self.assertEqual(ist["gateway"], "IST")
-        self.assertFalse(ist["viable"])
-        self.assertEqual(
-            ist["provider_failures"][0]["error"]["classification"],
-            "provider_unavailable",
-        )
+        self.assertIn(("kupibilet", False), calls)
+        self.assertTrue(result["gateways"][0]["viable"])
 
-    def test_provider_failure_raises_when_fail_fast_enabled(self) -> None:
-        def dispatch(**_: Any) -> list[SegmentProbeOutcome]:
-            raise CliError("provider down", error_type="provider_unavailable")
+    def test_malformed_result_falls_through_provider_chain(self) -> None:
+        calls: list[str] = []
+        base_queries = gateway_queries("IST")
+        first = {**base_queries[0], "provider": "tutu"}
+        fallback = {**base_queries[0], "provider": "kupibilet"}
+
+        def dispatch(**kwargs: Any) -> list[SegmentProbeOutcome]:
+            spec = kwargs["spec"]
+            calls.append(str(spec["provider"]))
+            if spec["provider"] == "tutu" and spec["leg"] == "origin_to_gateway":
+                malformed = outcome_for(spec, offer_count=1)
+                malformed.segment_result["offers"][0]["segments"][0]["arrival_at"] = (
+                    "not-a-time"
+                )
+                return [malformed]
+            return [outcome_for(spec, offer_count=1)]
 
         executor = GatewayLegProbeExecutor(
-            options=executor_options(fail_fast=True),
+            options=executor_options(),
             store=Store(),
             only_carriers=[],
             cache_ttl_seconds=0,
@@ -230,8 +382,39 @@ class GatewayLegProbeExecutorTests(unittest.TestCase):
             "flights_cli.execution.gateway_leg_probe_executor.dispatch_segment_probe",
             side_effect=dispatch,
         ):
+            result = executor.run(
+                [first, fallback, base_queries[1]], {"currency": "RUB"}
+            )
+
+        self.assertEqual(calls, ["tutu", "kupibilet", "tutu"])
+        self.assertTrue(result["gateways"][0]["viable"])
+
+    def test_provider_failure_raises_when_fail_fast_enabled(self) -> None:
+        def dispatch(**_: Any) -> list[SegmentProbeOutcome]:
+            raise CliError("provider down", error_type="provider_unavailable")
+
+        ledger = ProbeRunLedger()
+        executor = GatewayLegProbeExecutor(
+            options=executor_options(fail_fast=True),
+            store=Store(),
+            only_carriers=[],
+            cache_ttl_seconds=0,
+            use_live_cache=False,
+            probe_ledger=ledger,
+        )
+        with patch(
+            "flights_cli.execution.gateway_leg_probe_executor.dispatch_segment_probe",
+            side_effect=dispatch,
+        ):
             with self.assertRaises(CliError):
                 executor.run(gateway_queries("IST"), {"currency": "RUB"})
+
+        diagnostics = ledger.to_diagnostics()
+        self.assertEqual(len(diagnostics["failed_probes"]), 1)
+        self.assertEqual(
+            diagnostics["failed_probes"][0]["error"]["classification"],
+            "provider_unavailable",
+        )
 
     def test_stop_after_viable_first_batch(self) -> None:
         queries = [

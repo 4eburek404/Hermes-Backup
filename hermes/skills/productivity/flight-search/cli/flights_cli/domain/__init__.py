@@ -8,7 +8,6 @@ from .vocabulary import (
     ProbeStatus,
     RouteFamily,
     RoutingStrategy,
-    StopBucket,
 )
 
 __all__ = [
@@ -19,5 +18,4 @@ __all__ = [
     "ProbeStatus",
     "RouteFamily",
     "RoutingStrategy",
-    "StopBucket",
 ]

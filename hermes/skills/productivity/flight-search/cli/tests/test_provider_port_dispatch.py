@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from flights_cli.execution.search_executor import execute_search
+from flights_cli.orchestrators.search_workflow import SearchWorkflow
 from flights_cli.ports.providers import ProviderCapabilities, ProviderProbeResult
 from flights_cli.store import Store
 from helpers import live_assembly_args
@@ -77,7 +77,7 @@ class ProviderPortDispatchTests(unittest.TestCase):
             return_value=adapter,
             create=True,
         ):
-            result = execute_search(args, Store()).projection_input
+            result = SearchWorkflow(Store()).run_artifacts(args).projection_input
 
         self.assertGreaterEqual(len(adapter.queries), 1)
         self.assertEqual(

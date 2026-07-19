@@ -29,8 +29,8 @@ _CURRENT_CONTRACTS: dict[str, dict[str, str]] = {
         "status": "diagnostic_trace_contract",
     },
     "search_plan": {
-        "schema_version": "flight_search_plan.v4",
-        "schema_resource": "flight_search_plan.v4.schema.json",
+        "schema_version": "flight_search_plan.v5",
+        "schema_resource": "flight_search_plan.v5.schema.json",
         "public_path": "data.plan",
         "status": "diagnostic_plan_contract",
     },
@@ -43,6 +43,7 @@ _CURRENT_CONTRACTS: dict[str, dict[str, str]] = {
 }
 
 CURRENT_CONTRACTS = MappingProxyType(_CURRENT_CONTRACTS)
+ROUTE_TRACE_SCHEMA_VERSION = _CURRENT_CONTRACTS["route_trace"]["schema_version"]
 
 
 def current_contract(name: str) -> dict[str, Any]:

@@ -7,6 +7,20 @@ import sys
 from typing import Any
 
 from . import __version__
+from .command_surface import (
+    AIRPORTS_EXPLAIN_COMMAND,
+    CITIES_SEARCH_COMMAND,
+    DIAGNOSE_PLAN_COMMAND,
+    DIAGNOSE_PROBE_COMMAND,
+    DIAGNOSE_RENDER_COMMAND,
+    DIAGNOSE_TRACE_COMMAND,
+    MAINT_CATALOG_MANIFEST_COMMAND,
+    MAINT_CATALOG_REFRESH_COMMAND,
+    MAINT_CHECK_COMMAND,
+    MAINT_DOCTOR_COMMAND,
+    SEARCH_COMMAND,
+    CommandSpec,
+)
 from .commands.maint import (
     command_maint_catalog_manifest,
     command_maint_catalog_refresh,
@@ -35,8 +49,15 @@ from .providers.static_catalog import (
 from .store import Store
 
 
-def _catalog_read_defaults(**kwargs: Any) -> dict[str, Any]:
-    return {"catalog_access": "auto_refresh", "requires_catalog": True, **kwargs}
+def _set_leaf_defaults(
+    parser: argparse.ArgumentParser, spec: CommandSpec, handler: Any
+) -> None:
+    defaults: dict[str, Any] = {"func": handler, "command_name": spec.name}
+    if spec.catalog_access is not None:
+        defaults["catalog_access"] = spec.catalog_access
+    if spec.requires_catalog:
+        defaults["requires_catalog"] = True
+    parser.set_defaults(**defaults)
 
 
 def _json_parent() -> argparse.ArgumentParser:
@@ -54,119 +75,111 @@ def _register_primary_search_commands(
     sub, json_parent: argparse.ArgumentParser
 ) -> None:
     search = sub.add_parser(
-        "search",
+        SEARCH_COMMAND.path[0],
         parents=[json_parent],
-        help="Primary request-file route search; JSON output keeps compact flight_search_result envelope.",
+        help=SEARCH_COMMAND.help,
     )
     search.add_argument(
         "--request",
         required=True,
         help="flight_search_request.v3 JSON file, or - for stdin.",
     )
-    search.set_defaults(
-        func=command_search, command_name="search", **_catalog_read_defaults()
-    )
+    _set_leaf_defaults(search, SEARCH_COMMAND, command_search)
 
 
 def _register_diagnose_commands(sub, json_parent: argparse.ArgumentParser) -> None:
     diagnose = sub.add_parser(
-        "diagnose",
+        DIAGNOSE_PLAN_COMMAND.path[0],
         parents=[json_parent],
         help="Diagnostics for plan/probe/render/trace workflows.",
     )
     diagnose_sub = diagnose.add_subparsers(dest="diagnose_command", required=True)
     plan = diagnose_sub.add_parser(
-        "plan",
+        DIAGNOSE_PLAN_COMMAND.leaf,
         parents=[json_parent],
-        help="Render the route segment plan from a flight_search_request.v3 file without provider calls.",
+        help=DIAGNOSE_PLAN_COMMAND.help,
     )
     plan.add_argument(
         "--request",
         required=True,
         help="flight_search_request.v3 JSON file, or - for stdin.",
     )
-    plan.set_defaults(
-        func=command_diagnose_plan,
-        command_name="diagnose plan",
-        **_catalog_read_defaults(),
-    )
+    _set_leaf_defaults(plan, DIAGNOSE_PLAN_COMMAND, command_diagnose_plan)
     probe = diagnose_sub.add_parser(
-        "probe",
+        DIAGNOSE_PROBE_COMMAND.leaf,
         parents=[json_parent],
-        help="Run a single provider probe from a probe JSON file.",
+        help=DIAGNOSE_PROBE_COMMAND.help,
     )
-    probe.add_argument("--provider", required=True, choices=["kupibilet", "tutu"])
+    probe.add_argument("--provider", required=True)
     probe.add_argument(
         "--request", required=True, help="Probe JSON file, or - for stdin."
     )
-    probe.set_defaults(func=command_diagnose_probe, command_name="diagnose probe")
+    _set_leaf_defaults(probe, DIAGNOSE_PROBE_COMMAND, command_diagnose_probe)
     render = diagnose_sub.add_parser(
-        "render",
+        DIAGNOSE_RENDER_COMMAND.leaf,
         parents=[json_parent],
-        help="Validate and render answer from a flight-search result JSON file.",
+        help=DIAGNOSE_RENDER_COMMAND.help,
     )
     render.add_argument(
         "--input",
         required=True,
         help="flight-search result JSON file, output envelope, or - for stdin.",
     )
-    render.set_defaults(func=command_diagnose_render, command_name="diagnose render")
+    _set_leaf_defaults(render, DIAGNOSE_RENDER_COMMAND, command_diagnose_render)
     trace = diagnose_sub.add_parser(
-        "trace",
+        DIAGNOSE_TRACE_COMMAND.leaf,
         parents=[json_parent],
-        help="Run search and return the full route/live diagnostic trace.",
+        help=DIAGNOSE_TRACE_COMMAND.help,
     )
     trace.add_argument(
         "--request",
         required=True,
         help="flight_search_request.v3 JSON file, or - for stdin.",
     )
-    trace.set_defaults(
-        func=command_diagnose_trace,
-        command_name="diagnose trace",
-        **_catalog_read_defaults(),
-    )
+    _set_leaf_defaults(trace, DIAGNOSE_TRACE_COMMAND, command_diagnose_trace)
 
 
 def _register_maint_commands(sub, json_parent: argparse.ArgumentParser) -> None:
     maint = sub.add_parser(
-        "maint", parents=[json_parent], help="Primary maintenance namespace."
+        MAINT_CHECK_COMMAND.path[0],
+        parents=[json_parent],
+        help="Primary maintenance namespace.",
     )
     maint_sub = maint.add_subparsers(dest="maint_command", required=True)
     check = maint_sub.add_parser(
-        "check",
+        MAINT_CHECK_COMMAND.leaf,
         parents=[json_parent],
-        help="Report source/runtime provenance and local maintenance status without network calls.",
+        help=MAINT_CHECK_COMMAND.help,
     )
     check.add_argument(
         "--runtime-path",
         help="Runtime flight-search skill path to compare against. Defaults to ~/.hermes/skills/productivity/flight-search.",
     )
-    check.set_defaults(func=command_maintenance_check, command_name="maint check")
+    _set_leaf_defaults(check, MAINT_CHECK_COMMAND, command_maintenance_check)
     doctor = maint_sub.add_parser(
-        "doctor",
+        MAINT_DOCTOR_COMMAND.leaf,
         parents=[json_parent],
-        help="Check local caches and static catalog status without provider calls.",
+        help=MAINT_DOCTOR_COMMAND.help,
     )
-    doctor.set_defaults(func=command_maint_doctor, command_name="maint doctor")
+    _set_leaf_defaults(doctor, MAINT_DOCTOR_COMMAND, command_maint_doctor)
     catalog = maint_sub.add_parser(
-        "catalog",
+        MAINT_CATALOG_MANIFEST_COMMAND.path[1],
         parents=[json_parent],
         help="Static catalog maintenance.",
     )
     catalog_sub = catalog.add_subparsers(dest="maint_catalog_command", required=True)
     manifest = catalog_sub.add_parser(
-        "manifest",
+        MAINT_CATALOG_MANIFEST_COMMAND.leaf,
         parents=[json_parent],
-        help="Show the local static catalog manifest.",
+        help=MAINT_CATALOG_MANIFEST_COMMAND.help,
     )
-    manifest.set_defaults(
-        func=command_maint_catalog_manifest, command_name="maint catalog manifest"
+    _set_leaf_defaults(
+        manifest, MAINT_CATALOG_MANIFEST_COMMAND, command_maint_catalog_manifest
     )
     refresh = catalog_sub.add_parser(
-        "refresh",
+        MAINT_CATALOG_REFRESH_COMMAND.leaf,
         parents=[json_parent],
-        help="Download public static catalog JSON files explicitly.",
+        help=MAINT_CATALOG_REFRESH_COMMAND.help,
     )
     refresh.add_argument(
         "--only",
@@ -181,45 +194,41 @@ def _register_maint_commands(sub, json_parent: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Show files that would be downloaded without writing cache.",
     )
-    refresh.set_defaults(
-        func=command_maint_catalog_refresh,
-        command_name="maint catalog refresh",
-        catalog_access="refresh_explicit",
+    _set_leaf_defaults(
+        refresh, MAINT_CATALOG_REFRESH_COMMAND, command_maint_catalog_refresh
     )
 
 
 def _register_metadata_commands(sub, json_parent: argparse.ArgumentParser) -> None:
     cities = sub.add_parser(
-        "cities", parents=[json_parent], help="City lookup commands."
+        CITIES_SEARCH_COMMAND.path[0],
+        parents=[json_parent],
+        help="City lookup commands.",
     )
     cities_sub = cities.add_subparsers(dest="cities_command", required=True)
     cities_search = cities_sub.add_parser(
-        "search",
+        CITIES_SEARCH_COMMAND.leaf,
         parents=[json_parent],
-        help="Search city name or IATA code in local cache.",
+        help=CITIES_SEARCH_COMMAND.help,
     )
     cities_search.add_argument("query")
     cities_search.add_argument("--limit", type=int, default=5)
-    cities_search.set_defaults(
-        func=command_cities_search,
-        command_name="cities search",
-        **_catalog_read_defaults(),
-    )
+    _set_leaf_defaults(cities_search, CITIES_SEARCH_COMMAND, command_cities_search)
 
     airports = sub.add_parser(
-        "airports", parents=[json_parent], help="Airport rule lookup commands."
+        AIRPORTS_EXPLAIN_COMMAND.path[0],
+        parents=[json_parent],
+        help="Airport rule lookup commands.",
     )
     airports_sub = airports.add_subparsers(dest="airports_command", required=True)
     airports_explain = airports_sub.add_parser(
-        "explain",
+        AIRPORTS_EXPLAIN_COMMAND.leaf,
         parents=[json_parent],
-        help="Explain airport and multi-airport risk rules.",
+        help=AIRPORTS_EXPLAIN_COMMAND.help,
     )
     airports_explain.add_argument("code", nargs="+")
-    airports_explain.set_defaults(
-        func=command_airports_explain,
-        command_name="airports explain",
-        **_catalog_read_defaults(),
+    _set_leaf_defaults(
+        airports_explain, AIRPORTS_EXPLAIN_COMMAND, command_airports_explain
     )
 
 
@@ -308,11 +317,11 @@ def main(argv: list[str] | None = None) -> int:
         validate_cli_config(args)
         store = Store()
         catalog_auto_refresh = auto_refresh_catalog(args, store)
-        if args.command_name == "search":
+        if args.command_name == SEARCH_COMMAND.name:
             args.catalog_refresh_metadata = catalog_auto_refresh
         data = args.func(args, store)
         if (
-            args.command_name != "search"
+            args.command_name != SEARCH_COMMAND.name
             and catalog_auto_refresh is not None
             and isinstance(data, dict)
         ):

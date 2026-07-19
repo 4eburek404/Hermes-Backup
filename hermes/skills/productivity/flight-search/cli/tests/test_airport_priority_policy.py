@@ -7,11 +7,10 @@ from pathlib import Path
 
 from flights_cli.orchestrators.search_plan_builder import (
     build_route_context,
-    build_search_plan,
 )
 from flights_cli.domain.airports import explicit_or_resolved_airports
 from flights_cli.store import Store
-from helpers import live_assembly_args
+from helpers import build_search_plan, live_assembly_args
 
 
 def live_args(**overrides: object):
@@ -127,7 +126,6 @@ class AirportPriorityPolicyTests(unittest.TestCase):
 
         location = store.resolve_location("AAA")
         airports = explicit_or_resolved_airports(
-            store,
             location,
             ["AAA"],
             role="origin",
@@ -157,7 +155,7 @@ class AirportPriorityPolicyTests(unittest.TestCase):
                 )
                 queries = [
                     query
-                    for query in plan["primary_offer_queries"]
+                    for query in plan["phases"]["primary"]
                     if query["provider"] == provider
                 ]
                 outbound = next(
@@ -167,11 +165,17 @@ class AirportPriorityPolicyTests(unittest.TestCase):
                     query for query in queries if query["direction"] == "return"
                 )
                 self.assertEqual(
-                    (outbound["origin_airports"], outbound["destination_airports"]),
+                    (
+                        outbound["query"]["origin_airports"],
+                        outbound["query"]["destination_airports"],
+                    ),
                     expected_outbound,
                 )
                 self.assertEqual(
-                    (inbound["origin_airports"], inbound["destination_airports"]),
+                    (
+                        inbound["query"]["origin_airports"],
+                        inbound["query"]["destination_airports"],
+                    ),
                     tuple(reversed(expected_outbound)),
                 )
 

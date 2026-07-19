@@ -7,18 +7,14 @@ import unittest
 from pathlib import Path
 
 from flights_cli.commands.diagnose import command_diagnose_plan
-from flights_cli.commands.search import (
-    normalize_search_request,
-    search_request_from_payload,
-)
-from flights_cli.orchestrators.search_plan_builder import build_search_plan
+from flights_cli.pipeline.search_request import search_request_from_payload
 from flights_cli.store import Store
+from helpers import build_search_plan
 
 
 class UnifiedRoutePlanningTests(unittest.TestCase):
     def assert_diagnose_plan_matches_live_plan(self, request: dict) -> None:
-        normalized = normalize_search_request(request)
-        expected = build_search_plan(search_request_from_payload(normalized), Store())
+        expected = build_search_plan(search_request_from_payload(request), Store())
         with tempfile.TemporaryDirectory() as tmp_dir:
             request_path = Path(tmp_dir) / "request.json"
             request_path.write_text(json.dumps(request), encoding="utf-8")

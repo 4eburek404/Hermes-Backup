@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from datetime import date
 import unittest
+from unittest.mock import patch
 
 from flights_cli.orchestrators.search_plan_builder import (
     build_planning_state,
     build_route_context,
-    build_search_plan,
 )
 from flights_cli.store import Store
-from tests.helpers import live_assembly_args
+from tests.helpers import build_search_plan, live_assembly_args
 
 
 class FlowDecisionContractTests(unittest.TestCase):
@@ -64,18 +64,20 @@ class FlowDecisionContractTests(unittest.TestCase):
             return_date=None,
         )
         flow = build_planning_state(request, self.store)
-        plan = build_search_plan(request, self.store, flow=flow)
+        plan = build_search_plan(request, self.store)
 
         self.assertEqual(flow.flow_decision.route_mode, "direct_inventory")
-        self.assertTrue(plan["route_context"]["direct_only"])
-        self.assertTrue(plan["primary_offer_queries"])
+        self.assertTrue(plan["route"]["direct_only"])
+        self.assertTrue(plan["phases"]["primary"])
         self.assertTrue(
-            all(query["direct_only"] for query in plan["primary_offer_queries"])
+            all(
+                attempt["query"]["direct_only"] for attempt in plan["phases"]["primary"]
+            )
         )
         self.assertTrue(
             all(
                 query["probe_type"] == "full_route_aggregate"
-                for query in plan["primary_offer_queries"]
+                for query in plan["phases"]["primary"]
             )
         )
 
@@ -107,8 +109,8 @@ class FlowDecisionContractTests(unittest.TestCase):
         exact_plan = self.plan_for(origin_airport=["SVX"], return_date=None)
 
         for plan in (direct_plan, exact_plan):
-            self.assertFalse(plan["execution_limits"]["live_cache_enabled"])
-            self.assertEqual(plan["execution_limits"]["live_cache_ttl_seconds"], 0)
+            self.assertFalse(plan["execution_policy"]["live_cache_enabled"])
+            self.assertEqual(plan["execution_policy"]["live_cache_ttl_seconds"], 0)
 
     def test_near_departure_uses_injected_today_and_disables_cache(self) -> None:
         request = live_assembly_args(
@@ -123,11 +125,15 @@ class FlowDecisionContractTests(unittest.TestCase):
             self.store,
             today_provider=lambda: date(2026, 8, 10),
         )
-        plan = build_search_plan(request, self.store, flow=flow)
+        with patch(
+            "flights_cli.orchestrators.search_plan_builder.build_planning_state",
+            return_value=flow,
+        ):
+            plan = build_search_plan(request, self.store)
 
         self.assertEqual(flow.today, date(2026, 8, 10))
-        self.assertFalse(plan["execution_limits"]["live_cache_enabled"])
-        self.assertEqual(plan["execution_limits"]["live_cache_ttl_seconds"], 0)
+        self.assertFalse(plan["execution_policy"]["live_cache_enabled"])
+        self.assertEqual(plan["execution_policy"]["live_cache_ttl_seconds"], 0)
 
 
 if __name__ == "__main__":

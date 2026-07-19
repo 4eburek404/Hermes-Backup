@@ -4,15 +4,25 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from ..adapters.providers.registry import provider_adapter
+from ..adapters.providers.registry import (
+    PROVIDER_REGISTRY,
+    not_supported_probe_result,
+    offer_query_probe_type,
+    provider_adapter,
+    provider_supports_offer_query,
+)
 from ..config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
 from ..domain.normalize import normalize_airport_scope
 from ..errors import CliError
 from ..ports.providers import ProviderProbeResult
 from ..store import Store
-from .failure_classifier import error_payload_from_cli_error
+from .failure_classifier import (
+    cli_error_from_provider_result,
+    error_payload_from_cli_error,
+    error_payload_from_provider_result,
+)
 from .probe_intent import intent_from_aggregate_query
-from .probe_ledger import ProbeExecutionLedger
+from .probe_ledger import ProbeRunLedger
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,6 +30,7 @@ class PrimaryOfferQueryOptions:
     live_cache_ttl_seconds: int = DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
     no_live_cache: bool = False
     timeout: int = 60
+    fail_fast: bool = False
 
 
 def _probe_id(query: Mapping[str, Any], provider: str) -> str:
@@ -125,7 +136,11 @@ def _result_from_provider_result(
         "source_boundary": result.source_boundary,
     }
     if result.errors:
-        payload["error"] = result.errors[0]
+        payload["error"] = (
+            error_payload_from_provider_result(result)
+            if result.execution_state == "failed"
+            else dict(result.errors[0])
+        )
     return {key: value for key, value in payload.items() if value is not None}
 
 
@@ -158,6 +173,41 @@ def _failed_result(
         "top_offers": [],
         "cache_status": "unknown",
         "error": error,
+    }
+
+
+def _deduped_result(
+    query: Mapping[str, Any], *, provider: str, original_probe_id: str | None
+) -> dict[str, Any]:
+    return {
+        **_base_result(query),
+        "provider": provider,
+        "probe_id": query.get("probe_id"),
+        "status": "deduped",
+        "execution_state": "deduped",
+        "reason": "duplicate_provider_query",
+        "original_probe_id": original_probe_id,
+        "offer_count": 0,
+        "raw_offer_count": 0,
+        "top_offers": [],
+        "cache_status": "unknown",
+    }
+
+
+def _not_executed_result(
+    query: Mapping[str, Any], *, provider: str, reason: str
+) -> dict[str, Any]:
+    return {
+        **_base_result(query),
+        "provider": provider,
+        "probe_id": query.get("probe_id"),
+        "status": "not_executed",
+        "execution_state": "not_executed",
+        "reason": reason,
+        "offer_count": 0,
+        "raw_offer_count": 0,
+        "top_offers": [],
+        "cache_status": "unknown",
     }
 
 
@@ -201,7 +251,7 @@ def _record_query_outcome(
     provider: str,
     intent: Any,
     outcome: ProviderProbeResult | CliError,
-    probe_ledger: ProbeExecutionLedger | None,
+    probe_ledger: ProbeRunLedger | None,
 ) -> dict[str, Any]:
     if isinstance(outcome, CliError):
         error = error_payload_from_cli_error(outcome)
@@ -218,44 +268,55 @@ def run_primary_offer_queries(
     options: PrimaryOfferQueryOptions,
     *,
     store: Store,
-    kupibilet_fetcher: Any | None = None,
-    probe_ledger: ProbeExecutionLedger | None = None,
+    adapter_resolver: Any | None = None,
+    probe_ledger: ProbeRunLedger | None = None,
 ) -> list[dict[str, Any]]:
-    prepared: list[tuple[int, dict[str, Any], str, Any]] = []
-    groups: dict[tuple[Any, ...], list[tuple[int, dict[str, Any], str, Any]]] = {}
+    prepared: list[tuple[int, dict[str, Any], str, Any, Any]] = []
+    groups: dict[tuple[Any, ...], list[tuple[int, dict[str, Any], str, Any, Any]]] = {}
     for index, source_query in enumerate(queries):
         provider = str(source_query.get("provider") or "").strip().lower()
         query = _normalized_query(source_query, provider=provider, options=options)
         intent = intent_from_aggregate_query(query, provider=provider)
         if probe_ledger is not None:
             probe_ledger.plan_intents([intent])
-        item = (index, query, provider, intent)
+            claim = probe_ledger.claim_probe(intent)
+        else:
+            claim = None
+        item = (index, query, provider, intent, claim)
         prepared.append(item)
         groups.setdefault(_fallback_group_key(query), []).append(item)
 
     outcomes: dict[int, dict[str, Any]] = {}
     for group_items in groups.values():
-        runnable: list[tuple[int, dict[str, Any], str, Any]] = []
-        for index, query, provider, intent in group_items:
+        runnable: list[tuple[int, dict[str, Any], str, Any, Any]] = []
+        for index, query, provider, intent, claim in group_items:
+            if claim is not None and not claim.execution_allowed:
+                outcomes[index] = _not_executed_result(
+                    query,
+                    provider=provider,
+                    reason=str(claim.blocked_reason or "not_executed"),
+                )
+                continue
+            if claim is not None and claim.is_duplicate:
+                outcomes[index] = _deduped_result(
+                    query,
+                    provider=provider,
+                    original_probe_id=claim.original_probe_id,
+                )
+                continue
             should_execute, skip_reason = _should_execute_query(query)
             if should_execute:
-                runnable.append((index, query, provider, intent))
+                runnable.append((index, query, provider, intent, claim))
                 continue
             if probe_ledger is not None:
                 probe_ledger.record_skipped(intent, reason=skip_reason)
             outcomes[index] = _skipped_result(query, str(skip_reason))
 
-        primary_pair = [item for item in runnable if item[2] in {"tutu", "kupibilet"}]
-        resolved: list[tuple[int, dict[str, Any], str, Any, Any]] = []
-        for index, query, provider, intent in primary_pair:
+        resolved: list[tuple[int, dict[str, Any], str, Any, Any, Any]] = []
+        for index, query, provider, intent, claim in runnable:
             try:
-                adapter = provider_adapter(
-                    provider,
-                    store=store,
-                    kupibilet_fetcher=(
-                        kupibilet_fetcher if provider == "kupibilet" else None
-                    ),
-                )
+                resolver = adapter_resolver or provider_adapter
+                adapter = resolver(provider, store=store)
             except CliError as exc:
                 outcomes[index] = _record_query_outcome(
                     query=query,
@@ -264,29 +325,64 @@ def run_primary_offer_queries(
                     outcome=exc,
                     probe_ledger=probe_ledger,
                 )
+                if probe_ledger is not None and claim is not None:
+                    probe_ledger.record_claim(claim, outcomes[index])
+                if options.fail_fast:
+                    raise
             else:
-                resolved.append((index, query, provider, intent, adapter))
+                if provider in PROVIDER_REGISTRY and not provider_supports_offer_query(
+                    provider, query, store
+                ):
+                    unsupported = not_supported_probe_result(
+                        provider=provider,
+                        probe_type=offer_query_probe_type(query),
+                        query=query,
+                        reason="provider_capability_not_supported",
+                        probe_id=str(query.get("probe_id") or ""),
+                    )
+                    outcomes[index] = _record_query_outcome(
+                        query=query,
+                        provider=provider,
+                        intent=intent,
+                        outcome=unsupported,
+                        probe_ledger=probe_ledger,
+                    )
+                    if probe_ledger is not None and claim is not None:
+                        probe_ledger.record_claim(claim, outcomes[index])
+                    continue
+                resolved.append((index, query, provider, intent, claim, adapter))
 
         pair_outcomes: dict[int, ProviderProbeResult | CliError] = {}
-        if len(resolved) > 1:
-            with ThreadPoolExecutor(max_workers=2) as executor:
+        if len(resolved) > 1 and not options.fail_fast:
+            with ThreadPoolExecutor(max_workers=len(resolved)) as executor:
                 futures = {
                     index: executor.submit(_execute_aggregate_query, adapter, query)
-                    for index, query, _provider, _intent, adapter in resolved
+                    for index, query, _provider, _intent, _claim, adapter in resolved
                 }
-                for index, _query, _provider, _intent, _adapter in resolved:
+                for index, _query, _provider, _intent, _claim, _adapter in resolved:
                     try:
                         pair_outcomes[index] = futures[index].result()
                     except CliError as exc:
                         pair_outcomes[index] = exc
         else:
-            for index, query, _provider, _intent, adapter in resolved:
+            for index, query, provider, intent, claim, adapter in resolved:
                 try:
                     pair_outcomes[index] = _execute_aggregate_query(adapter, query)
                 except CliError as exc:
                     pair_outcomes[index] = exc
+                    if options.fail_fast:
+                        outcomes[index] = _record_query_outcome(
+                            query=query,
+                            provider=provider,
+                            intent=intent,
+                            outcome=exc,
+                            probe_ledger=probe_ledger,
+                        )
+                        if probe_ledger is not None and claim is not None:
+                            probe_ledger.record_claim(claim, outcomes[index])
+                        raise
 
-        for index, query, provider, intent, _adapter in resolved:
+        for index, query, provider, intent, claim, _adapter in resolved:
             result = pair_outcomes[index]
             outcomes[index] = _record_query_outcome(
                 query=query,
@@ -295,4 +391,12 @@ def run_primary_offer_queries(
                 outcome=result,
                 probe_ledger=probe_ledger,
             )
-    return [outcomes[index] for index, _query, _provider, _intent in prepared]
+            if probe_ledger is not None and claim is not None:
+                probe_ledger.record_claim(claim, outcomes[index])
+            if (
+                options.fail_fast
+                and isinstance(result, ProviderProbeResult)
+                and result.execution_state == "failed"
+            ):
+                raise cli_error_from_provider_result(result)
+    return [outcomes[index] for index, _query, _provider, _intent, _claim in prepared]

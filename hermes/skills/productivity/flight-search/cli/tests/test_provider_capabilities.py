@@ -18,11 +18,16 @@ from flights_cli.adapters.providers.common import (
     segment_probe_type_from_query,
 )
 from flights_cli.errors import CliError
+from flights_cli.execution.search_executor import SearchExecutor
+from flights_cli.orchestrators.search_plan_builder import SearchPlanBuilder
 from flights_cli.ports.providers import (
     FlightProviderPort,
     ProviderCapabilities,
+    ProviderProbeResult,
 )
-from helpers import make_test_store
+from flights_cli.pipeline.search_request import search_request_from_payload
+from flights_cli.store import Store
+from helpers import coverage_completeness, live_assembly_args, make_test_store
 
 
 TEST_AIRPORTS = [
@@ -33,7 +38,51 @@ TEST_AIRPORTS = [
 ]
 
 
+class RecordingProvider:
+    def __init__(self, name: str, capabilities: ProviderCapabilities) -> None:
+        self.name = name
+        self.capabilities = capabilities
+        self.calls = 0
+
+    def search_segment(self, query: dict[str, object]) -> ProviderProbeResult:
+        self.calls += 1
+        raise AssertionError("unsupported provider must not be called")
+
+    def search_aggregate(self, query: dict[str, object]) -> ProviderProbeResult:
+        self.calls += 1
+        raise AssertionError("unsupported provider must not be called")
+
+
 class ProviderCapabilitiesTests(unittest.TestCase):
+    def test_request_provider_name_is_validated_by_registry_at_runtime(self) -> None:
+        request = search_request_from_payload(
+            {
+                "schema_version": "flight_search_request.v3",
+                "origin": "SVX",
+                "destination": "CDG",
+                "depart_date": "2026-08-15",
+                "provider_policy": "future_provider",
+            }
+        )
+        store = make_test_store(self, TEST_AIRPORTS)
+
+        with self.assertRaises(CliError) as caught:
+            providers_for_offer_query(
+                {
+                    "probe_type": "full_route_aggregate",
+                    "origin": "SVX",
+                    "destination": "CDG",
+                },
+                store,
+                request.provider_policy,
+            )
+
+        self.assertEqual(caught.exception.error_type, "validation_error")
+        self.assertEqual(
+            set(caught.exception.details["registered_providers"]),
+            {"tutu", "kupibilet"},
+        )
+
     def test_provider_adapters_do_not_import_other_provider_adapters(self) -> None:
         adapter_dir = (
             Path(__file__).parents[1] / "flights_cli" / "adapters" / "providers"
@@ -61,7 +110,6 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self.assertTrue(tutu.supports_full_route_aggregate)
         self.assertTrue(tutu.supports_direct_only)
         self.assertTrue(tutu.supports_carrier_filter)
-        self.assertTrue(tutu.supports_round_trip)
         self.assertIn("carrier_aggregate", tutu.probe_types)
 
     def test_registry_values_are_concrete_provider_ports(self) -> None:
@@ -221,6 +269,77 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self.assertEqual(payload["errors"][0]["type"], "not_supported")
         self.assertIn("offers", payload)
 
+    def test_explicit_unsupported_provider_is_planned_and_terminalized(self) -> None:
+        provider = RecordingProvider("limited", ProviderCapabilities())
+        PROVIDER_REGISTRY[provider.name] = provider
+        try:
+            store = Store()
+            request = live_assembly_args(
+                origin="SVX",
+                destination="CDG",
+                depart_date="2026-08-15",
+                return_date=None,
+                provider_policy=provider.name,
+                max_connections=0,
+                tier2_max_connections=0,
+                no_live_cache=True,
+            )
+            plan = SearchPlanBuilder(store).build(request)
+
+            self.assertEqual(len(plan.all_attempts), 1)
+            self.assertEqual(plan.all_attempts[0].provider, provider.name)
+            evidence = SearchExecutor(store).execute(plan)
+        finally:
+            PROVIDER_REGISTRY.pop(provider.name, None)
+
+        ledger = evidence.probe_ledger
+        self.assertEqual(provider.calls, 0)
+        self.assertEqual(len(ledger["unsupported_probes"]), 1)
+        self.assertEqual(ledger["unsupported_probes"][0]["provider"], provider.name)
+        self.assertEqual(
+            coverage_completeness(ledger)["planned_count"],
+            coverage_completeness(ledger)["terminal_count"],
+        )
+
+    def test_auto_plan_fans_out_to_registered_third_provider(self) -> None:
+        capabilities = ProviderCapabilities(
+            supports_ru_touching=True,
+            supports_global=True,
+            supports_direct_only=True,
+            supports_carrier_filter=True,
+            supports_full_route_aggregate=True,
+            probe_types=frozenset(
+                {
+                    "segment_direct",
+                    "segment_hub_leg",
+                    "full_route_aggregate",
+                    "carrier_aggregate",
+                }
+            ),
+        )
+        provider = RecordingProvider("third", capabilities)
+        PROVIDER_REGISTRY[provider.name] = provider
+        try:
+            plan = SearchPlanBuilder(Store()).build(
+                live_assembly_args(
+                    origin="SVX",
+                    destination="CDG",
+                    depart_date="2026-08-15",
+                    return_date=None,
+                    provider_policy="auto",
+                    max_connections=0,
+                    tier2_max_connections=0,
+                    no_live_cache=True,
+                )
+            )
+        finally:
+            PROVIDER_REGISTRY.pop(provider.name, None)
+
+        self.assertEqual(
+            [attempt.provider for attempt in plan.phases.primary],
+            ["tutu", "kupibilet", "third"],
+        )
+
     def test_provider_adapter_returns_same_instance_for_same_store(self) -> None:
         """provider_adapter with same (name, store) returns cached instance."""
         store = make_test_store(self, TEST_AIRPORTS)
@@ -242,13 +361,6 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         """provider_adapter with store=None returns the registry singleton."""
         adapter = provider_adapter("kupibilet")
         self.assertIs(adapter, PROVIDER_REGISTRY["kupibilet"])
-
-    def test_provider_adapter_custom_fetcher_bypasses_cache(self) -> None:
-        """provider_adapter with custom fetcher returns a new instance every time."""
-        store = make_test_store(self, TEST_AIRPORTS)
-        a1 = provider_adapter("kupibilet", store=store, kupibilet_fetcher=lambda: None)
-        a2 = provider_adapter("kupibilet", store=store, kupibilet_fetcher=lambda: None)
-        self.assertIsNot(a1, a2)
 
     def test_segment_probe_and_evidence_projection_use_shared_provider_helpers(
         self,

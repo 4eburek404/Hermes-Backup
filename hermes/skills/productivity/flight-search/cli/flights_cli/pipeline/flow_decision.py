@@ -9,6 +9,7 @@ from ..domain.route_access_profiles import (
     default_route_access_decision,
 )
 from .search_request import SearchRequest
+from .direct_gate import is_direct_only
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,10 +25,6 @@ class FlowDecision:
     route_access_rule_id: str | None = None
     route_access_prior_set: str | None = None
     limitations: tuple[str, ...] = ()
-
-
-def _is_direct_only(request: SearchRequest) -> bool:
-    return request.max_connections == 0 and request.tier2_max_connections == 0
 
 
 def _has_airport_scope(request: SearchRequest) -> bool:
@@ -137,11 +134,6 @@ def _limitations(
         and routing_strategy == RoutingStrategy.RU_PRIORITY
     ):
         values.append("global_non_ru_ru_priority_probes_require_explicit_scope")
-    if (
-        market_class == MarketClass.GLOBAL_NON_RU
-        and request.provider_policy == "kupibilet"
-    ):
-        values.append("global_non_ru_with_ru_provider_override")
     if market_class == MarketClass.STRUCTURALLY_CONSTRAINED:
         values.append("catalog_country_metadata_incomplete")
     if _has_carrier_scope(request) or _has_airport_scope(request):
@@ -156,7 +148,7 @@ def decide_flow(request: SearchRequest, store: Any | None = None) -> FlowDecisio
         from ..store import Store
 
         store = Store()
-    direct_only = _is_direct_only(request)
+    direct_only = is_direct_only(request)
     market_class = market_class_for_codes(store, request.origin, request.destination)
     route_access = route_access_decision_for_codes(
         store, request.origin, request.destination, market_class

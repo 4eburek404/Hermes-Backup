@@ -3,11 +3,35 @@ from __future__ import annotations
 from typing import Any, Mapping, cast
 
 from ...domain.carriers import carrier_from_flight_number
-from ...domain.provider_offer_filter import MAX_MODEL_CONNECTIONS
-from ...domain.stop_metrics import offer_stop_metrics
+from ...domain.stop_policy import offer_stop_metrics
 from ...ports.providers import EvidenceType, ProviderCapabilities, ProbeType
 
 _CACHE_EVIDENCE_STATUSES = {"cache_hit", "stale_cache_used"}
+CACHE_STATUS_LIVE = "live"
+CACHE_STATUS_HIT = "cache_hit"
+CACHE_STATUS_STALE = "stale_cache_used"
+CACHE_STATUS_DISABLED = "disabled"
+CACHE_STATUS_UNKNOWN = "unknown"
+
+
+def cache_status_from_metadata(cache: Any) -> str:
+    if not isinstance(cache, dict):
+        return CACHE_STATUS_UNKNOWN
+    if cache.get("disabled") is True:
+        return CACHE_STATUS_DISABLED
+    if cache.get("stale") is True or cache.get("stale_used") is True:
+        return CACHE_STATUS_STALE
+    if cache.get("hit") is True:
+        return CACHE_STATUS_HIT
+    if cache.get("hit") is False:
+        return CACHE_STATUS_LIVE
+    return CACHE_STATUS_UNKNOWN
+
+
+def cache_status_from_result(result: dict[str, Any] | None) -> str:
+    if not isinstance(result, dict):
+        return CACHE_STATUS_UNKNOWN
+    return cache_status_from_metadata(result.get("cache"))
 
 
 def segment_probe_type_from_query(
@@ -64,22 +88,6 @@ def aggregate_offer_summary(offer: dict[str, Any]) -> dict[str, Any]:
                 "arrival_at": flight.get("arrival_at"),
             }
         )
-    airport_mismatches = []
-    for previous, current in zip(segments, segments[1:]):
-        previous_arrival = str(previous.get("destination") or "").upper()
-        current_departure = str(current.get("origin") or "").upper()
-        if (
-            previous_arrival
-            and current_departure
-            and previous_arrival != current_departure
-        ):
-            airport_mismatches.append(
-                {
-                    "arrival_airport": previous_arrival,
-                    "departure_airport": current_departure,
-                    "warning": "provider aggregate offer changes airport between consecutive flights; verify ground transfer and ticket protection",
-                }
-            )
     stop_metrics = offer_stop_metrics(offer)
     return {
         "id": offer.get("id"),
@@ -88,8 +96,6 @@ def aggregate_offer_summary(offer: dict[str, Any]) -> dict[str, Any]:
         "change_count": offer.get("number_of_changes"),
         "connection_count": stop_metrics["max_connections_per_journey"],
         "stop_tier": stop_metrics["stop_tier"],
-        "reportable_by_stop_policy": stop_metrics["max_connections_per_journey"]
-        <= MAX_MODEL_CONNECTIONS,
         "duration_min": offer.get("duration"),
         "flight_numbers": offer.get("flight_numbers")
         or [
@@ -99,9 +105,6 @@ def aggregate_offer_summary(offer: dict[str, Any]) -> dict[str, Any]:
         ],
         "carriers": sorted(carriers),
         "segments": segments,
-        "airport_mismatch_count": len(airport_mismatches),
-        "airport_mismatches": airport_mismatches,
-        "ticketing_note": "Provider-assembled route offer; verify single-PNR/protection, baggage, and final fare on the booking screen.",
         **{
             key: offer.get(key)
             for key in (

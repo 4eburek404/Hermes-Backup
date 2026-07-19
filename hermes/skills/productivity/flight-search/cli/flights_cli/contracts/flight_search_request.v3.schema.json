@@ -13,7 +13,7 @@
     "return_date": {"type": ["string", "null"], "format": "date"},
     "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
     "profile": {"type": "string", "const": "business"},
-    "provider_policy": {"type": "string", "enum": ["auto", "kupibilet", "tutu"]},
+    "provider_policy": {"type": "string", "minLength": 1},
     "route_options": {
       "type": "object",
       "additionalProperties": false,

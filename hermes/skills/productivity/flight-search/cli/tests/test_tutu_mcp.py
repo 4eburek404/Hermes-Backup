@@ -18,9 +18,10 @@ from flights_cli.providers.tutu_mcp import (
     cached_tutu_avia_search,
     extract_tool_payload,
     fetch_tutu_avia_search,
-    parse_tutu_avia_search,
+    parse_tutu_avia_search as compatibility_parse_tutu_avia_search,
     tutu_mcp_http_post,
 )
+from flights_cli.providers.tutu_parser import parse_tutu_avia_search
 from flights_cli.store import Store
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "providers"
@@ -116,6 +117,9 @@ def tutu_offer(
 
 
 class TutuMcpProviderTests(unittest.TestCase):
+    def test_tutu_mcp_reexports_canonical_parser(self) -> None:
+        self.assertIs(compatibility_parse_tutu_avia_search, parse_tutu_avia_search)
+
     def test_diagnose_probe_allows_tutu_provider(self) -> None:
         from flights_cli.cli import build_parser
 
@@ -809,6 +813,79 @@ class TutuMcpProviderTests(unittest.TestCase):
         self.assertEqual(offer["number_of_changes"], 0)
         self.assertEqual(result["return_date"], "2026-08-22")
 
+    def test_parser_rejects_cross_airport_connection_via_connection_policy(
+        self,
+    ) -> None:
+        store = store_with_tutu_catalog(self)
+        raw = {
+            "offers": [
+                tutu_offer(
+                    "cross-airport",
+                    [
+                        [
+                            tutu_segment("SVX", "IST", "100"),
+                            tutu_segment("SAW", "AMS", "101"),
+                        ]
+                    ],
+                )
+            ]
+        }
+
+        result = parse_tutu_avia_search(
+            raw,
+            origin="SVX",
+            destination="AMS",
+            depart_date="2026-08-15",
+            currency="RUB",
+            store=store,
+        )
+
+        self.assertEqual(result["offer_count"], 0)
+        self.assertEqual(result["skipped"]["airport_change"], 1)
+
+    def test_parser_rejects_missing_and_reversed_segment_times(self) -> None:
+        store = store_with_tutu_catalog(self)
+        raw = {
+            "offers": [
+                tutu_offer(
+                    "missing-departure",
+                    [[tutu_segment("SVX", "AMS", "100", depart="")]],
+                ),
+                tutu_offer(
+                    "missing-arrival",
+                    [[tutu_segment("SVX", "AMS", "101", arrive="")]],
+                ),
+                tutu_offer(
+                    "reversed",
+                    [
+                        [
+                            tutu_segment(
+                                "SVX",
+                                "AMS",
+                                "102",
+                                depart="2026-08-15T10:00:00+05:00",
+                                arrive="2026-08-15T09:00:00+05:00",
+                            )
+                        ]
+                    ],
+                ),
+                tutu_offer("valid", [[tutu_segment("SVX", "AMS", "103")]]),
+            ]
+        }
+
+        result = parse_tutu_avia_search(
+            raw,
+            origin="SVX",
+            destination="AMS",
+            depart_date="2026-08-15",
+            currency="RUB",
+            store=store,
+        )
+
+        self.assertEqual([offer["id"] for offer in result["offers"]], ["valid"])
+        self.assertEqual(result["skipped"]["missing_segment_time"], 2)
+        self.assertEqual(result["skipped"]["segment_arrival_before_departure"], 1)
+
     def test_parser_preserves_tutu_self_transfer_evidence(self) -> None:
         store = store_with_tutu_catalog(self)
         raw = {
@@ -970,7 +1047,6 @@ class TutuMcpProviderTests(unittest.TestCase):
         self.assertEqual(calls[0]["return_date"], date(2026, 8, 22))
         self.assertTrue(calls[0]["direct_only"])
         self.assertEqual(calls[0]["limit"], 23)
-        self.assertTrue(adapter.capabilities.supports_round_trip)
         self.assertEqual(result.query["return_date"], "2026-08-22")
         self.assertEqual(result.query["origin_airports"], ["SVX"])
         self.assertEqual(result.query["destination_airports"], ["AER"])

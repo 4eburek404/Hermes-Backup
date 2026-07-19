@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import json
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .catalog_storage import CatalogStorage
 from .config import IATA_RE, resolve_cache_dir
 from .domain.gateway_priors import GatewayPriorCatalog, load_gateway_priors
 from .domain.route_access_profiles import (
@@ -21,19 +21,8 @@ class Location:
     input: str
     code: str
     kind: str
-    name: str | None = None
     country_code: str | None = None
     airports: list[str] | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "input": self.input,
-            "code": self.code,
-            "kind": self.kind,
-            "name": self.name,
-            "country_code": self.country_code,
-            "airports": self.airports or [],
-        }
 
 
 class Store:
@@ -45,12 +34,14 @@ class Store:
         route_access_profiles_path: Path | None = None,
     ):
         self.cache_dir = cache_dir or resolve_cache_dir()
+        self.catalog_storage = CatalogStorage(self.cache_dir)
         self.gateway_priors_path = gateway_priors_path
         self.route_access_profiles_path = route_access_profiles_path
         self._countries: list[dict[str, Any]] | None = None
         self._cities: list[dict[str, Any]] | None = None
         self._airports: list[dict[str, Any]] | None = None
         self._airlines: list[dict[str, Any]] | None = None
+        self._localized_airlines: list[dict[str, Any]] | None = None
         self._alliances: list[dict[str, Any]] | None = None
         self._planes: list[dict[str, Any]] | None = None
         self._gateway_prior_catalog: GatewayPriorCatalog | None = None
@@ -58,28 +49,6 @@ class Store:
         self._city_by_code: dict[str, dict[str, Any]] | None = None
         self._airport_by_code: dict[str, dict[str, Any]] | None = None
         self._airports_by_city: dict[str, list[dict[str, Any]]] | None = None
-
-    def load_json(self, filename: str) -> list[dict[str, Any]]:
-        path = self.cache_dir / filename
-        if not path.exists():
-            return []
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return []
-        if not isinstance(data, list):
-            return []
-        return [item for item in data if isinstance(item, dict)]
-
-    def load_manifest(self, filename: str = "catalog_manifest.json") -> dict[str, Any]:
-        path = self.cache_dir / filename
-        if not path.exists():
-            return {}
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return {}
-        return data if isinstance(data, dict) else {}
 
     @property
     def gateway_prior_catalog(self) -> GatewayPriorCatalog:
@@ -114,37 +83,52 @@ class Store:
     @property
     def countries(self) -> list[dict[str, Any]]:
         if self._countries is None:
-            self._countries = self.load_json("countries.json")
+            self._countries = self.catalog_storage.read_rows("countries.json")
         return self._countries
 
     @property
     def cities(self) -> list[dict[str, Any]]:
         if self._cities is None:
-            self._cities = self.load_json("cities_ru.json")
+            self._cities = self.catalog_storage.read_rows("cities_ru.json")
         return self._cities
 
     @property
     def airports(self) -> list[dict[str, Any]]:
         if self._airports is None:
-            self._airports = self.load_json("airports_en.json")
+            self._airports = self.catalog_storage.read_rows("airports_en.json")
         return self._airports
 
     @property
     def airlines(self) -> list[dict[str, Any]]:
         if self._airlines is None:
-            self._airlines = self.load_json("airlines_en.json")
+            self._airlines = self.catalog_storage.read_rows("airlines_en.json")
         return self._airlines
+
+    @property
+    def localized_airlines(self) -> list[dict[str, Any]]:
+        if self._localized_airlines is None:
+            self._localized_airlines = self.catalog_storage.read_rows(
+                "airlines_ru.json"
+            )
+        return self._localized_airlines
+
+    def airline_rows(self, *, localized_first: bool = False) -> list[dict[str, Any]]:
+        """Return semantic airline metadata without exposing storage filenames."""
+
+        first = self.localized_airlines if localized_first else self.airlines
+        second = self.airlines if localized_first else self.localized_airlines
+        return [*first, *second]
 
     @property
     def alliances(self) -> list[dict[str, Any]]:
         if self._alliances is None:
-            self._alliances = self.load_json("alliances.json")
+            self._alliances = self.catalog_storage.read_rows("alliances.json")
         return self._alliances
 
     @property
     def planes(self) -> list[dict[str, Any]]:
         if self._planes is None:
-            self._planes = self.load_json("planes.json")
+            self._planes = self.catalog_storage.read_rows("planes.json")
         return self._planes
 
     @property
@@ -289,7 +273,6 @@ class Store:
                         input=raw,
                         code=code,
                         kind="city",
-                        name=str(city.get("name") or code),
                         country_code=str(city.get("country_code") or "") or None,
                         airports=airports,
                     )
@@ -298,13 +281,10 @@ class Store:
                     input=raw,
                     code=code,
                     kind="airport",
-                    name=str(airport.get("name") or code),
                     country_code=str(airport.get("country_code") or "") or None,
                     airports=[code],
                 )
-            return Location(
-                input=raw, code=code, kind="iata", name=None, airports=[code]
-            )
+            return Location(input=raw, code=code, kind="iata", airports=[code])
 
         matches = self.search_cities(raw, limit=6)
         flightable = [city for city in matches if city.get("has_flightable_airport")]
@@ -316,7 +296,6 @@ class Store:
                 input=raw,
                 code=city_code,
                 kind="city",
-                name=str(city.get("name") or city_code),
                 country_code=str(city.get("country_code") or "") or None,
                 airports=airports,
             )
@@ -335,7 +314,6 @@ class Store:
                 input=raw,
                 code=city_code,
                 kind="city",
-                name=str(city.get("name") or city_code),
                 country_code=str(city.get("country_code") or "") or None,
                 airports=[
                     airport["code"]
