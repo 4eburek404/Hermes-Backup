@@ -304,6 +304,55 @@ class OfferGraphTests(unittest.TestCase):
         self.assertEqual(len(envelope["candidates"]), 1)
         self.assertTrue(envelope["candidates"][0]["covers_requested_trip"])
 
+    def test_result_direction_overrides_provider_one_way_journey_label(self) -> None:
+        graph = build_offer_graph(
+            primary_offer_results=[
+                {
+                    "role": "primary_offer_collection",
+                    "source_type": "provider_full_route",
+                    "provider": "tutu",
+                    "direction": "return",
+                    "origin": "IST",
+                    "destination": "SVX",
+                    "top_offers": [
+                        {
+                            "id": "tutu-return-connected",
+                            "price": 12000,
+                            "currency": "RUB",
+                            "journey_scope": "one_way",
+                            "journeys": [
+                                {
+                                    "direction": "outbound",
+                                    "segments": [
+                                        {"origin": "IST", "destination": "AER"},
+                                        {"origin": "AER", "destination": "SVX"},
+                                    ],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+            gateway_leg_results={},
+        )
+
+        self.assertEqual(graph["offers"][0]["direction"], "return")
+        self.assertEqual(
+            [edge["direction"] for edge in graph["edges"]],
+            ["return", "return"],
+        )
+        envelope = materialize_offer_graph_candidates(
+            graph,
+            direct_mode={"outbound": True},
+            requested_origin="SVX",
+            requested_destination="IST",
+        )
+        self.assertEqual(len(envelope["candidates"]), 1)
+        candidate = envelope["candidates"][0]
+        self.assertEqual(candidate["journeys"][0]["direction"], "return")
+        self.assertTrue(candidate["covers_requested_trip"])
+        self.assertEqual(envelope["rejected"], [])
+
     def test_tutu_round_trip_offer_uses_journeys_atomically(self) -> None:
         graph = build_offer_graph(
             primary_offer_results=[

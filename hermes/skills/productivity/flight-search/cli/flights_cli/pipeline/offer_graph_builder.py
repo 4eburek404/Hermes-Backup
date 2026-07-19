@@ -193,9 +193,10 @@ class OfferGraphBuilder:
                 if not isinstance(offer, dict):
                     self._skip("malformed_primary_offer")
                     continue
+                result_direction = _normalize_direction(result.get("direction"))
                 paths = _offer_segment_paths(
                     offer,
-                    fallback_direction=_normalize_direction(result.get("direction")),
+                    fallback_direction=result_direction,
                 )
                 if not paths:
                     self._add_primary_summary_offer(
@@ -206,7 +207,11 @@ class OfferGraphBuilder:
                         offer_index=offer_index,
                     )
                     continue
-                if _is_atomic_round_trip_offer(offer, paths):
+                is_atomic_round_trip = _is_atomic_round_trip_offer(offer, paths)
+                if result_direction and not is_atomic_round_trip:
+                    for path in paths:
+                        path["direction"] = result_direction
+                if is_atomic_round_trip:
                     offer_id = self._unique_offer_id(
                         "primary_offer",
                         provider,
@@ -365,7 +370,7 @@ class OfferGraphBuilder:
             offer.get("destination") or result.get("destination")
         )
         direction = _normalize_direction(
-            offer.get("direction") or result.get("direction")
+            result.get("direction") or offer.get("direction")
         )
         self.offers.append(
             _compact(
