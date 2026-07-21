@@ -55,6 +55,95 @@ class FlowDecisionContractTests(unittest.TestCase):
             "ru_touching_market_uses_ru_priority_probes", plan["planning_reasons"]
         )
 
+    def test_round_trip_gateway_plan_mirrors_routes_dates_and_directions(self) -> None:
+        plan = self.plan_for(
+            origin="SVX",
+            destination="CDG",
+            depart_date="2026-09-10",
+            return_date="2026-09-20",
+        )
+
+        self.assertEqual(plan["schema_version"], "flight_search_plan.v5")
+        self.assertEqual(
+            set(plan),
+            {
+                "schema_version",
+                "route",
+                "phases",
+                "gateway_policy",
+                "execution_policy",
+                "decision_policy",
+                "output_policy",
+                "planning_reasons",
+            },
+        )
+        gateway_attempts = plan["phases"]["gateway"]
+        self.assertTrue(gateway_attempts)
+        self.assertEqual(
+            {attempt["direction"] for attempt in gateway_attempts},
+            {"outbound", "return"},
+        )
+        self.assertTrue(
+            all(
+                set(attempt)
+                == {
+                    "probe_id",
+                    "phase",
+                    "trigger",
+                    "provider",
+                    "probe_type",
+                    "direction",
+                    "query",
+                }
+                for attempt in gateway_attempts
+            )
+        )
+        self.assertEqual(
+            {
+                (
+                    attempt["direction"],
+                    attempt["query"]["leg"],
+                    attempt["query"]["origin"],
+                    attempt["query"]["destination"],
+                    attempt["query"]["date"],
+                )
+                for attempt in gateway_attempts
+                if attempt["query"]["gateway"] == "IST"
+            },
+            {
+                ("outbound", "origin_to_gateway", "SVX", "IST", "2026-09-10"),
+                (
+                    "outbound",
+                    "gateway_to_destination",
+                    "IST",
+                    "CDG",
+                    "2026-09-10",
+                ),
+                (
+                    "outbound",
+                    "gateway_to_destination",
+                    "IST",
+                    "CDG",
+                    "2026-09-11",
+                ),
+                ("return", "origin_to_gateway", "CDG", "IST", "2026-09-20"),
+                (
+                    "return",
+                    "gateway_to_destination",
+                    "IST",
+                    "SVX",
+                    "2026-09-20",
+                ),
+                (
+                    "return",
+                    "gateway_to_destination",
+                    "IST",
+                    "SVX",
+                    "2026-09-21",
+                ),
+            },
+        )
+
     def test_direct_inventory_is_expressed_by_route_and_provider_queries(self) -> None:
         request = live_assembly_args(
             origin="SVX",

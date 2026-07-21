@@ -88,7 +88,7 @@ Direct-first is directional. Inspect together:
 - `data.evidence.direct_presence_gate`;
 - `data.evidence.probe_ledger.searched_probes`;
 - `data.evidence.probe_ledger.skipped_probes`;
-- `data.plan.conditional_gateway_queries`.
+- `data.plan.phases.gateway`.
 
 If direct inventory exists for one direction, matching broad or gateway probes
 for that direction should be terminal `skipped` with
@@ -98,15 +98,20 @@ for that direction should be terminal `skipped` with
 
 For an expected but absent gateway chain:
 
-1. Confirm the gateway was present in `data.plan.gateway_discovery.candidates`.
+1. Confirm the gateway was present in
+   `data.plan.gateway_policy.discovery.candidates`.
 2. Check candidate and batch bounds:
    `gateway_discovery_limit`, `gateway_probe_batch_size`, and
    `gateway_probe_max_batches`.
-3. Check the probe ledger for planned, searched, skipped, failed, or unsupported
+3. For round trips, confirm `data.plan.phases.gateway` contains both directions:
+   outbound `ORIGIN -> GATEWAY -> DESTINATION` and return
+   `DESTINATION -> GATEWAY -> ORIGIN`, using their respective dates.
+4. Check the probe ledger for planned, searched, skipped, failed, or unsupported
    terminal states.
-4. Inspect `data.evidence.gateway_leg_results` for both legs and dates.
-5. Inspect `data.decision.offer_graph` for airport continuity, chronology, and
-   connection rejection.
+5. Inspect `data.evidence.gateway_leg_results` for both legs, dates, and
+   directions.
+6. Inspect `data.decision.offer_graph` for airport continuity, chronology,
+   direction, and connection rejection.
 
 Do not infer a partial route from the final airport of an incomplete offer.
 Provider full-route offers and gateway legs are separate explicit inputs.

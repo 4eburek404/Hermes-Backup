@@ -5,7 +5,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..errors import CliError
-from ..pipeline.direct_gate import provider_result_has_eligible_path
+from ..pipeline.direct_gate import (
+    normalize_direction,
+    provider_result_has_eligible_path,
+)
 from ..store import Store
 from .failure_classifier import error_payload_from_cli_error
 from .probe_dispatcher import (
@@ -55,8 +58,26 @@ class GatewayLegProbeExecutor:
     def run(
         self, queries: list[dict[str, Any]], plan: dict[str, Any]
     ) -> dict[str, Any]:
-        grouped = _gateway_query_groups(queries)
+        grouped_by_direction = _gateway_query_groups(queries)
         self.probe_ledger.plan_probes(queries)
+        gateways: list[dict[str, Any]] = []
+        evaluations: list[dict[str, Any]] = []
+        for direction, grouped in grouped_by_direction.items():
+            direction_gateways, direction_evaluations = self._run_direction(
+                direction,
+                grouped,
+                plan,
+            )
+            gateways.extend(direction_gateways)
+            evaluations.extend(direction_evaluations)
+        return _coverage(gateways, evaluations=evaluations)
+
+    def _run_direction(
+        self,
+        direction: str,
+        grouped: "OrderedDict[str, dict[str, list[dict[str, Any]]]]",
+        plan: dict[str, Any],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         eligible_gateways = self._eligible_gateways(grouped)
         gateways: list[dict[str, Any]] = []
         evaluations: list[dict[str, Any]] = []
@@ -70,7 +91,14 @@ class GatewayLegProbeExecutor:
             if batch_index > max_batches:
                 break
             for gateway in gateway_batch:
-                gateways.append(self._execute_gateway(gateway, grouped[gateway], plan))
+                gateways.append(
+                    self._execute_gateway(
+                        direction,
+                        gateway,
+                        grouped[gateway],
+                        plan,
+                    )
+                )
             evaluation = _gateway_batch_evaluation(
                 gateways,
                 total_gateway_count=len(grouped),
@@ -81,6 +109,7 @@ class GatewayLegProbeExecutor:
             evaluations.append(
                 {
                     **evaluation,
+                    "direction": direction,
                     "batch_index": batch_index,
                     "max_batches": max_batches,
                 }
@@ -95,9 +124,14 @@ class GatewayLegProbeExecutor:
             if gateway in searched_codes:
                 continue
             gateways.append(
-                _not_searched_gateway(gateway, gateway_queries, stop_reason)
+                _not_searched_gateway(
+                    direction,
+                    gateway,
+                    gateway_queries,
+                    stop_reason,
+                )
             )
-        return _coverage(gateways, evaluations=evaluations)
+        return gateways, evaluations
 
     def _eligible_gateways(
         self, grouped: "OrderedDict[str, dict[str, list[dict[str, Any]]]]"
@@ -113,11 +147,12 @@ class GatewayLegProbeExecutor:
 
     def _execute_gateway(
         self,
+        direction: str,
         gateway: str,
         gateway_queries: dict[str, list[dict[str, Any]]],
         plan: dict[str, Any],
     ) -> dict[str, Any]:
-        item = _gateway_result(gateway, searched=True)
+        item = _gateway_result(direction, gateway, searched=True)
         for leg_key in ("origin_leg", "destination_leg"):
             queries = gateway_queries.get(leg_key) or []
             if not queries:
@@ -282,7 +317,7 @@ class GatewayLegProbeExecutor:
 
 def _gateway_query_groups(
     queries: list[dict[str, Any]],
-) -> "OrderedDict[str, dict[str, list[dict[str, Any]]]]":
+) -> "OrderedDict[str, OrderedDict[str, dict[str, list[dict[str, Any]]]]]":
     rows = [
         query
         for query in queries
@@ -292,22 +327,32 @@ def _gateway_query_groups(
     ]
     rows.sort(
         key=lambda query: (
+            _direction_sort_key(query.get("direction")),
             int(query.get("gateway_rank") or 0),
             str(query.get("gateway") or "").upper(),
             0 if str(query.get("leg") or "") == "origin_to_gateway" else 1,
             str(query.get("date") or ""),
         )
     )
-    grouped: "OrderedDict[str, dict[str, list[dict[str, Any]]]]" = OrderedDict()
+    grouped: "OrderedDict[str, OrderedDict[str, dict[str, list[dict[str, Any]]]]]" = (
+        OrderedDict()
+    )
     for query in rows:
+        direction = normalize_direction(query.get("direction"))
         gateway = str(query.get("gateway") or "").upper()
-        group = grouped.setdefault(gateway, {})
+        direction_group = grouped.setdefault(direction, OrderedDict())
+        group = direction_group.setdefault(gateway, {})
         leg = str(query.get("leg") or "")
         if leg == "origin_to_gateway":
             group.setdefault("origin_leg", []).append(query)
         elif leg == "gateway_to_destination":
             group.setdefault("destination_leg", []).append(query)
     return grouped
+
+
+def _direction_sort_key(value: Any) -> tuple[int, str]:
+    direction = normalize_direction(value)
+    return (0 if direction == "outbound" else 1, direction)
 
 
 def _coverage(
@@ -364,8 +409,9 @@ def _gateway_batch_evaluation(
     }
 
 
-def _gateway_result(gateway: str, *, searched: bool) -> dict[str, Any]:
+def _gateway_result(direction: str, gateway: str, *, searched: bool) -> dict[str, Any]:
     return {
+        "direction": direction,
         "gateway": gateway,
         "searched": searched,
         "viable": False,
@@ -377,11 +423,12 @@ def _gateway_result(gateway: str, *, searched: bool) -> dict[str, Any]:
 
 
 def _not_searched_gateway(
+    direction: str,
     gateway: str,
     gateway_queries: dict[str, list[dict[str, Any]]],
     reason: str = "gateway_probe_budget_exhausted",
 ) -> dict[str, Any]:
-    item = _gateway_result(gateway, searched=False)
+    item = _gateway_result(direction, gateway, searched=False)
     item["skipped_reasons"] = [reason]
     item["origin_leg"] = _not_searched_leg_result(
         (gateway_queries.get("origin_leg") or [None])[0], reason
@@ -400,6 +447,7 @@ def _batches(items: list[str], size: int) -> list[list[str]]:
 
 def _leg_identity(query: dict[str, Any]) -> dict[str, Any]:
     return {
+        "direction": normalize_direction(query.get("direction")),
         "leg": query.get("leg"),
         "origin": query.get("origin"),
         "destination": query.get("destination"),

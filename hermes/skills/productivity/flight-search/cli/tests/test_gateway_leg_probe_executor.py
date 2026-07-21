@@ -551,6 +551,119 @@ class GatewayLegProbeExecutorTests(unittest.TestCase):
             destination_leg["searched_dates"], ["2026-08-15", "2026-08-16"]
         )
 
+    def test_same_gateway_is_executed_independently_for_round_trip_directions(
+        self,
+    ) -> None:
+        outbound_direct = gateway_queries("IST", destination="CDG")
+        return_direct = [
+            {
+                **outbound_direct[0],
+                "direction": "return",
+                "origin": "CDG",
+                "destination": "IST",
+                "date": "2026-08-22",
+                "provider": "tutu",
+            },
+            {
+                **outbound_direct[1],
+                "direction": "return",
+                "origin": "IST",
+                "destination": "SVX",
+                "date": "2026-08-22",
+                "provider": "tutu",
+            },
+        ]
+
+        def broad_copy(query: dict[str, Any]) -> dict[str, Any]:
+            return {
+                **query,
+                "probe_type": "segment_hub_leg",
+                "direct_only": False,
+            }
+
+        queries = [
+            outbound_direct[0],
+            broad_copy(outbound_direct[0]),
+            outbound_direct[1],
+            broad_copy(outbound_direct[1]),
+            return_direct[0],
+            broad_copy(return_direct[0]),
+            return_direct[1],
+            broad_copy(return_direct[1]),
+        ]
+        calls: list[tuple[str, str, bool]] = []
+        ledger = ProbeRunLedger()
+
+        def dispatch(**kwargs: Any) -> list[SegmentProbeOutcome]:
+            spec = kwargs["spec"]
+            direction = str(spec["direction"])
+            direct_only = bool(spec["direct_only"])
+            calls.append((direction, str(spec["leg"]), direct_only))
+            offer_count = 1 if direction == "outbound" or not direct_only else 0
+            return [outcome_for(spec, offer_count=offer_count)]
+
+        executor = GatewayLegProbeExecutor(
+            options=executor_options(
+                gateway_discovery_limit=1,
+                gateway_probe_batch_size=1,
+                gateway_probe_max_batches=1,
+            ),
+            store=Store(),
+            only_carriers=[],
+            cache_ttl_seconds=0,
+            use_live_cache=False,
+            probe_ledger=ledger,
+        )
+        with patch(
+            "flights_cli.execution.gateway_leg_probe_executor.dispatch_segment_probe",
+            side_effect=dispatch,
+        ):
+            result = executor.run(queries, {"currency": "RUB"})
+
+        self.assertEqual(result["searched_gateways"], 2)
+        self.assertEqual(result["viable_gateways"], 2)
+        self.assertEqual(
+            [
+                (gateway["direction"], gateway["gateway"])
+                for gateway in result["gateways"]
+            ],
+            [("outbound", "IST"), ("return", "IST")],
+        )
+        self.assertEqual(
+            [gateway["origin_leg"]["direction"] for gateway in result["gateways"]],
+            ["outbound", "return"],
+        )
+        self.assertEqual(
+            [gateway["destination_leg"]["direction"] for gateway in result["gateways"]],
+            ["outbound", "return"],
+        )
+        self.assertEqual(
+            [evaluation["direction"] for evaluation in result["coverage_evaluations"]],
+            ["outbound", "return"],
+        )
+        self.assertFalse(
+            any(
+                direction == "outbound" and not direct_only
+                for direction, _leg, direct_only in calls
+            )
+        )
+        self.assertEqual(
+            {
+                leg
+                for direction, leg, direct_only in calls
+                if direction == "return" and not direct_only
+            },
+            {"origin_to_gateway", "gateway_to_destination"},
+        )
+        diagnostics = ledger.to_diagnostics()
+        self.assertTrue(
+            coverage_completeness(diagnostics)["all_planned_probes_have_terminal_state"]
+        )
+        self.assertEqual(
+            coverage_completeness(diagnostics)["planned_count"],
+            coverage_completeness(diagnostics)["terminal_count"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

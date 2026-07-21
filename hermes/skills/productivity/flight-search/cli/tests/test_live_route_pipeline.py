@@ -900,6 +900,121 @@ class LiveRoutePipelineTests(unittest.TestCase):
             {candidate["id"] for candidate in mixed_ranking["ranked_candidates"]},
         )
 
+    def test_round_trip_gateway_flow_executes_and_pairs_both_directions(self) -> None:
+        requested_dates = {
+            "outbound": "2026-08-16",
+            "return": "2026-08-22",
+        }
+
+        def dispatch_gateway(**kwargs: object) -> list[SegmentProbeOutcome]:
+            spec = kwargs["spec"]
+            direction = str(spec["direction"])
+            service_date = str(spec["date"])
+            is_requested_date = service_date == requested_dates[direction]
+            offer_count = 1 if is_requested_date else 0
+            offers = []
+            if offer_count:
+                departure_hour, arrival_hour = (
+                    (5, 9) if spec["leg"] == "origin_to_gateway" else (12, 16)
+                )
+                offers.append(
+                    {
+                        "id": (f"{direction}-{spec['origin']}-{spec['destination']}"),
+                        "price": 10_000,
+                        "currency": "RUB",
+                        "segments": [
+                            {
+                                "origin": spec["origin"],
+                                "destination": spec["destination"],
+                                "departure_at": (
+                                    f"{service_date}T{departure_hour:02d}:00:00+00:00"
+                                ),
+                                "arrival_at": (
+                                    f"{service_date}T{arrival_hour:02d}:00:00+00:00"
+                                ),
+                            }
+                        ],
+                    }
+                )
+            return [
+                SegmentProbeOutcome(
+                    summary={
+                        "status": "ok",
+                        "provider": spec["provider"],
+                        "offer_count": offer_count,
+                        "probe_id": spec["probe_id"],
+                        "cache_status": "disabled",
+                    },
+                    segment_result={
+                        "direction": direction,
+                        "leg": spec["leg"],
+                        "offers": offers,
+                    },
+                )
+            ]
+
+        with (
+            patch(
+                "flights_cli.execution.search_executor.run_primary_offer_queries",
+                return_value=[],
+            ),
+            patch(
+                "flights_cli.execution.gateway_leg_probe_executor.dispatch_segment_probe",
+                side_effect=dispatch_gateway,
+            ),
+        ):
+            result = execute_projection(
+                live_args(
+                    destination="CDG",
+                    depart_date=requested_dates["outbound"],
+                    return_date=requested_dates["return"],
+                ),
+                Store(),
+            )
+
+        gateway_results = result["live_search"]["gateway_leg_results"]
+        self.assertEqual(gateway_results["searched_gateways"], 2)
+        self.assertEqual(gateway_results["viable_gateways"], 2)
+        self.assertEqual(
+            {
+                (gateway["direction"], gateway["gateway"])
+                for gateway in gateway_results["gateways"]
+                if gateway["searched"]
+            },
+            {("outbound", "IST"), ("return", "IST")},
+        )
+
+        ranked = result["live_search"]["mixed_candidate_ranking"]["ranked_candidates"]
+        valid_round_trips = [
+            candidate
+            for candidate in ranked
+            if candidate.get("validation", {}).get("status") == "valid"
+            and {
+                journey.get("direction") for journey in candidate.get("journeys") or []
+            }
+            == {"outbound", "return"}
+        ]
+        self.assertTrue(valid_round_trips)
+        self.assertGreater(
+            result["decision_frontier"]["coverage_summary"]["acceptable_count"],
+            0,
+        )
+        self.assertTrue(result["decision_frontier"]["options"])
+
+        ledger = result["live_search"]["probe_ledger"]
+        terminal_count = sum(
+            len(ledger[key])
+            for key in (
+                "searched_probes",
+                "skipped_probes",
+                "failed_probes",
+                "unsupported_probes",
+                "not_executed_probes",
+                "deduped_probes",
+            )
+        )
+        self.assertEqual(len(ledger["planned_probes"]), terminal_count)
+
     def test_restricted_route_discovery_does_not_leak_raw_diagnostics_to_rendered_text(
         self,
     ) -> None:

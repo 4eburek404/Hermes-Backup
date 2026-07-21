@@ -458,33 +458,46 @@ class SearchPlanBuilder:
         destination = str(
             route_context.get("destination") or flow.request.destination
         ).upper()
-        date_text = str(
+        depart_date = str(
             (route_context.get("dates") or {}).get("depart") or flow.request.depart_date
+        )
+        return_date = str(
+            (route_context.get("dates") or {}).get("return")
+            or flow.request.return_date
+            or ""
         )
         currency = str(route_context.get("currency") or flow.request.currency).upper()
 
+        routes = [
+            (Direction.OUTBOUND, origin, destination, depart_date),
+        ]
+        if return_date:
+            routes.append((Direction.RETURN, destination, origin, return_date))
+
         queries: list[dict[str, Any]] = []
-        for rank, candidate in enumerate(candidates, start=1):
-            gateway = str(candidate.get("code") or "").upper()
-            if not gateway:
-                continue
-            queries.extend(
-                self._queries_for_gateway_candidate(
-                    flow,
-                    origin=origin,
-                    destination=destination,
-                    gateway=gateway,
-                    date_text=date_text,
-                    currency=currency,
-                    rank=rank,
-                    score=candidate.get("score"),
-                    route_access_profile=str(
-                        discovery_payload.get("route_access_profile") or ""
-                    ),
-                    gateway_discovery_mode=str(discovery_payload.get("mode") or ""),
-                    gateway_source=str(candidate.get("source") or ""),
+        for direction, route_origin, route_destination, route_date in routes:
+            for rank, candidate in enumerate(candidates, start=1):
+                gateway = str(candidate.get("code") or "").upper()
+                if not gateway:
+                    continue
+                queries.extend(
+                    self._queries_for_gateway_candidate(
+                        flow,
+                        direction=direction,
+                        origin=route_origin,
+                        destination=route_destination,
+                        gateway=gateway,
+                        date_text=route_date,
+                        currency=currency,
+                        rank=rank,
+                        score=candidate.get("score"),
+                        route_access_profile=str(
+                            discovery_payload.get("route_access_profile") or ""
+                        ),
+                        gateway_discovery_mode=str(discovery_payload.get("mode") or ""),
+                        gateway_source=str(candidate.get("source") or ""),
+                    )
                 )
-            )
         return queries
 
     def _dedupe_gateway_candidates(
@@ -513,6 +526,7 @@ class SearchPlanBuilder:
         self,
         flow: _PlanningState,
         *,
+        direction: str,
         origin: str,
         destination: str,
         gateway: str,
@@ -551,7 +565,7 @@ class SearchPlanBuilder:
                         "probe_type": "segment_direct"
                         if direct_only
                         else "segment_hub_leg",
-                        "direction": "outbound",
+                        "direction": str(direction),
                         "leg": leg,
                         "origin": leg_origin,
                         "destination": leg_destination,

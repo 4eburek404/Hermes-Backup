@@ -10,6 +10,47 @@ from flights_cli.pipeline.offer_graph import (
 )
 
 
+def gateway_leg_result(
+    *,
+    leg: str,
+    origin: str,
+    destination: str,
+    offer_id: str,
+    departure_at: str,
+    arrival_at: str,
+) -> dict:
+    return {
+        "leg": leg,
+        "origin": origin,
+        "destination": destination,
+        "provider": "tutu",
+        "status": "ok",
+        "execution_state": "searched",
+        "offer_count": 1,
+        "offers": [
+            {
+                "id": offer_id,
+                "price": 10000,
+                "currency": "RUB",
+                "journeys": [
+                    {
+                        # A one-way provider labels every standalone query outbound.
+                        "direction": "outbound",
+                        "segments": [
+                            {
+                                "origin": origin,
+                                "destination": destination,
+                                "departure_at": departure_at,
+                                "arrival_at": arrival_at,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+
 class OfferGraphTests(unittest.TestCase):
     def graph_with_provider_and_gateway(
         self,
@@ -569,7 +610,9 @@ class OfferGraphTests(unittest.TestCase):
             {"separate_ticket_leg"},
         )
         connection = graph["connections"][0]
+        self.assertEqual(connection["id"], "connection:outbound:IST")
         self.assertEqual(connection["gateway"], "IST")
+        self.assertEqual(connection["direction"], "outbound")
         self.assertEqual(connection["ticketing_boundary"], "separate_ticket_candidate")
         self.assertEqual(
             connection["candidate_status"], "complete_gateway_legs_unranked"
@@ -577,6 +620,125 @@ class OfferGraphTests(unittest.TestCase):
         self.assertEqual(
             graph["coverage"]["assembled_separate_ticket_candidate_count"], 1
         )
+
+    def test_return_gateway_materialization_preserves_planned_direction(self) -> None:
+        graph = build_offer_graph(
+            primary_offer_results=[],
+            gateway_leg_results={
+                "searched_gateways": 1,
+                "viable_gateways": 1,
+                "not_searched_budget": 0,
+                "gateways": [
+                    {
+                        "gateway": "IST",
+                        "direction": "return",
+                        "searched": True,
+                        "viable": True,
+                        "origin_leg": gateway_leg_result(
+                            leg="origin_to_gateway",
+                            origin="CDG",
+                            destination="IST",
+                            offer_id="cdg-ist-return",
+                            departure_at="2026-09-20T10:00:00+02:00",
+                            arrival_at="2026-09-20T14:30:00+03:00",
+                        ),
+                        "destination_leg": gateway_leg_result(
+                            leg="gateway_to_destination",
+                            origin="IST",
+                            destination="SVX",
+                            offer_id="ist-svx-return",
+                            departure_at="2026-09-20T17:00:00+03:00",
+                            arrival_at="2026-09-20T23:30:00+05:00",
+                        ),
+                        "skipped_reasons": [],
+                        "missing_legs": [],
+                    }
+                ],
+            },
+        )
+
+        self.assertEqual(
+            [edge["direction"] for edge in graph["edges"]],
+            ["return", "return"],
+        )
+        self.assertEqual(
+            [offer["direction"] for offer in graph["offers"]],
+            ["return", "return"],
+        )
+        self.assertEqual(len(graph["connections"]), 1)
+        self.assertEqual(graph["connections"][0]["id"], "connection:return:IST")
+        self.assertEqual(graph["connections"][0]["direction"], "return")
+
+        envelope = materialize_offer_graph_candidates(
+            graph,
+            round_trip=True,
+            requested_origin="SVX",
+            requested_destination="CDG",
+        )
+
+        self.assertEqual(len(envelope["candidates"]), 1)
+        candidate = envelope["candidates"][0]
+        self.assertTrue(candidate["covers_requested_trip"])
+        self.assertEqual(candidate["journeys"][0]["direction"], "return")
+        self.assertEqual(
+            [
+                (segment["origin"], segment["destination"])
+                for segment in candidate["journeys"][0]["segments"]
+            ],
+            [("CDG", "IST"), ("IST", "SVX")],
+        )
+
+    def test_gateway_materialization_does_not_mix_directions(self) -> None:
+        graph = build_offer_graph(
+            primary_offer_results=[],
+            gateway_leg_results={
+                "searched_gateways": 2,
+                "viable_gateways": 0,
+                "not_searched_budget": 0,
+                "gateways": [
+                    {
+                        "gateway": "IST",
+                        "direction": "return",
+                        "searched": True,
+                        "viable": False,
+                        "origin_leg": gateway_leg_result(
+                            leg="origin_to_gateway",
+                            origin="CDG",
+                            destination="IST",
+                            offer_id="cdg-ist-return-only",
+                            departure_at="2026-09-20T10:00:00+02:00",
+                            arrival_at="2026-09-20T14:30:00+03:00",
+                        ),
+                        "destination_leg": None,
+                    },
+                    {
+                        "gateway": "IST",
+                        "direction": "outbound",
+                        "searched": True,
+                        "viable": False,
+                        "origin_leg": None,
+                        "destination_leg": gateway_leg_result(
+                            leg="gateway_to_destination",
+                            origin="IST",
+                            destination="SVX",
+                            offer_id="ist-svx-outbound-only",
+                            departure_at="2026-09-20T17:00:00+03:00",
+                            arrival_at="2026-09-20T23:30:00+05:00",
+                        ),
+                    },
+                ],
+            },
+        )
+
+        envelope = materialize_offer_graph_candidates(
+            graph,
+            round_trip=True,
+            requested_origin="SVX",
+            requested_destination="CDG",
+        )
+
+        self.assertEqual(envelope["candidates"], [])
+        self.assertEqual(graph["connections"], [])
 
     def test_gateway_access_leg_preserves_provider_returned_feeder_segments(
         self,

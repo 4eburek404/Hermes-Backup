@@ -57,6 +57,7 @@ class SearchDecisionBuilder:
         )
         offer_candidates = materialize_offer_graph_candidates(
             offer_graph,
+            round_trip=bool(plan.route.dates.get("return")),
             direct_only=bool(route.get("direct_only")),
             direct_mode=evidence.direct_mode,
             requested_origin=str(route.get("origin") or ""),

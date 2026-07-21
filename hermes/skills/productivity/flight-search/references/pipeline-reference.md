@@ -93,11 +93,12 @@ failure is not proof that no direct flight exists; diagnostics record whether
 direct absence was confirmed by at least one completed source.
 
 After direct evidence is collected, the executor partitions planned
-`conditional_gateway_queries` by direction. Queries for a direction with
+gateway attempts by direction. Queries for a direction with
 direct evidence are recorded in `probe_ledger.skipped_probes` with
 `reason="direct_available"`; only directions without direct evidence enter the
-gateway batch executor. This executor partition is the production policy. The
-unused `assess_fallback()` helper is not a second policy source.
+gateway batch executor. Gateway candidate limits, batches, direct-versus-broad
+leg suppression, viability, and stopping are evaluated independently for each
+direction.
 
 ## Gateway discovery and assembly
 
@@ -114,6 +115,13 @@ runtime policy:
 
 `direct_only=true` is an absolute planning constraint: it creates neither broad
 nor gateway attempts.
+
+Round-trip plans mirror every gateway candidate. Outbound attempts search
+`ORIGIN -> GATEWAY -> DESTINATION` from the departure date; return attempts
+search `DESTINATION -> GATEWAY -> ORIGIN` from the return date. In both
+directions the continuation leg also checks the next day. Direction remains
+authoritative through execution, offer-graph construction, and candidate
+materialization, so legs from opposite directions cannot form one path.
 
 Gateway candidates come from configured priors and live provider signals; no
 route-specific hub belongs in agent logic. Continuation is not limited to a

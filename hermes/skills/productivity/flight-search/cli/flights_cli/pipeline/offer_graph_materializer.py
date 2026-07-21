@@ -55,6 +55,7 @@ def _self_transfer_fields(offer: dict[str, Any]) -> dict[str, Any]:
 def materialize_offer_graph_candidates(
     offer_graph: dict[str, Any],
     *,
+    round_trip: bool = False,
     direct_only: bool = False,
     direct_mode: dict[str, bool] | None = None,
     requested_origin: str | None = None,
@@ -96,6 +97,7 @@ def materialize_offer_graph_candidates(
     for candidate in _candidates_from_gateway_offer_paths(
         offers,
         edges_by_id,
+        direction="outbound",
         requested_origin=requested_origin,
         requested_destination=requested_destination,
         requested_origin_airports=requested_origin_airports,
@@ -109,6 +111,25 @@ def materialize_offer_graph_candidates(
             direct_only=direct_only,
             direct_mode=direct_mode or {},
         )
+
+    if round_trip:
+        for candidate in _candidates_from_gateway_offer_paths(
+            offers,
+            edges_by_id,
+            direction="return",
+            requested_origin=requested_origin,
+            requested_destination=requested_destination,
+            requested_origin_airports=requested_origin_airports,
+            requested_destination_airports=requested_destination_airports,
+            max_path_offers=max_path_offers,
+        ):
+            _accept_or_reject_candidate(
+                candidate,
+                candidates,
+                rejected,
+                direct_only=direct_only,
+                direct_mode=direct_mode or {},
+            )
 
     candidates, deduped_count = _dedupe_candidates(candidates)
     return {
@@ -200,16 +221,25 @@ def _candidates_from_gateway_offer_paths(
     offers: list[dict[str, Any]],
     edges_by_id: dict[str, dict[str, Any]],
     *,
+    direction: str,
     requested_origin: str | None,
     requested_destination: str | None,
     requested_origin_airports: list[str] | None,
     requested_destination_airports: list[str] | None,
     max_path_offers: int,
 ) -> list[dict[str, Any]]:
-    origin_codes = _requested_codes(requested_origin, requested_origin_airports)
-    destination_codes = _requested_codes(
-        requested_destination, requested_destination_airports
-    )
+    if direction == "return":
+        origin_codes = _requested_codes(
+            requested_destination, requested_destination_airports
+        )
+        destination_codes = _requested_codes(
+            requested_origin, requested_origin_airports
+        )
+    else:
+        origin_codes = _requested_codes(requested_origin, requested_origin_airports)
+        destination_codes = _requested_codes(
+            requested_destination, requested_destination_airports
+        )
     if not origin_codes or not destination_codes:
         return []
     max_offers = max(1, int(max_path_offers))
@@ -217,6 +247,7 @@ def _candidates_from_gateway_offer_paths(
         offer
         for offer in offers
         if str(offer.get("source_type") or "") == "gateway_leg"
+        and (_normalize_direction(offer.get("direction")) or "outbound") == direction
         and _normalize_code(offer.get("origin"))
         and _normalize_code(offer.get("destination"))
     ]
@@ -243,6 +274,7 @@ def _candidates_from_gateway_offer_paths(
                 _candidate_from_offer_path(
                     path,
                     edges_by_id,
+                    direction=direction,
                     requested_origin=requested_origin,
                     requested_destination=requested_destination,
                     requested_origin_airports=requested_origin_airports,
@@ -278,6 +310,7 @@ def _candidate_from_offer_path(
     path: list[dict[str, Any]],
     edges_by_id: dict[str, dict[str, Any]],
     *,
+    direction: str,
     requested_origin: str | None,
     requested_destination: str | None,
     requested_origin_airports: list[str] | None,
@@ -295,6 +328,7 @@ def _candidate_from_offer_path(
     detail_status = _combined_detail_status(path)
     route = _route_from_segments(segments)
     gateways = _ordered_unique([offer.get("gateway") for offer in path])
+    journeys = _journeys_from_segments(segments, direction=direction)
     if not gateways and len(route) > 2:
         gateways = route[1:-1]
     warnings = [
@@ -321,7 +355,7 @@ def _candidate_from_offer_path(
         "covers_requested_trip": _covers_requested_trip(
             segments,
             {},
-            journeys=None,
+            journeys=journeys,
             requested_origin=requested_origin,
             requested_destination=requested_destination,
             requested_origin_airports=requested_origin_airports,
@@ -337,10 +371,7 @@ def _candidate_from_offer_path(
             [offer.get("ticketing_boundary") for offer in path]
         ),
         "detail_status": detail_status,
-        "journeys": _journeys_from_segments(
-            segments,
-            direction="outbound",
-        ),
+        "journeys": journeys,
         "warnings": _ordered_unique(warnings),
         "offer_ids": offer_ids,
         "edge_ids": edge_ids,

@@ -420,17 +420,35 @@ class OfferGraphBuilder:
                 self._skip("malformed_gateway_result")
                 continue
             gateway = str(gateway_result.get("gateway") or "").upper()
+            origin_leg_result = gateway_result.get("origin_leg")
+            destination_leg_result = gateway_result.get("destination_leg")
+            direction = (
+                _normalize_direction(gateway_result.get("direction"))
+                or _normalize_direction(
+                    origin_leg_result.get("direction")
+                    if isinstance(origin_leg_result, dict)
+                    else None
+                )
+                or _normalize_direction(
+                    destination_leg_result.get("direction")
+                    if isinstance(destination_leg_result, dict)
+                    else None
+                )
+                or "outbound"
+            )
             origin_leg = self._add_gateway_leg_offers(
-                gateway_result.get("origin_leg"),
+                origin_leg_result,
                 gateway=gateway,
                 leg_role="origin_leg",
                 gateway_index=gateway_index,
+                direction=direction,
             )
             destination_leg = self._add_gateway_leg_offers(
-                gateway_result.get("destination_leg"),
+                destination_leg_result,
                 gateway=gateway,
                 leg_role="destination_leg",
                 gateway_index=gateway_index,
+                direction=direction,
             )
             if not origin_leg or not destination_leg:
                 continue
@@ -446,10 +464,13 @@ class OfferGraphBuilder:
                 _compact(
                     {
                         "id": _stable_id(
-                            "connection", gateway or str(gateway_index + 1)
+                            "connection",
+                            direction,
+                            gateway or str(gateway_index + 1),
                         ),
                         "source_type": "gateway_leg_pair",
                         "gateway": gateway,
+                        "direction": direction,
                         "ticketing_boundary": "separate_ticket_candidate",
                         "candidate_status": "complete_gateway_legs_unranked",
                         "origin_leg_offer_ids": [
@@ -495,6 +516,7 @@ class OfferGraphBuilder:
         gateway: str,
         leg_role: str,
         gateway_index: int,
+        direction: str,
     ) -> list[dict[str, Any]]:
         if not isinstance(leg_result, dict):
             return []
@@ -515,6 +537,7 @@ class OfferGraphBuilder:
             )
             if paths:
                 for path_index, path in enumerate(paths):
+                    path["direction"] = direction
                     segments = path["segments"]
                     if not segments:
                         continue
@@ -619,7 +642,7 @@ class OfferGraphBuilder:
                         "destination": destination,
                         "gateway": gateway,
                         "leg_role": leg_role,
-                        "direction": _normalize_direction(leg_result.get("direction")),
+                        "direction": direction,
                         "sequence": 0,
                         "flight_number": _flight_number(offer, leg_result),
                         "marketing_carrier": _carrier_value(
@@ -669,7 +692,7 @@ class OfferGraphBuilder:
                         "destination": destination,
                         "gateway": gateway,
                         "leg_role": leg_role,
-                        "direction": _normalize_direction(leg_result.get("direction")),
+                        "direction": direction,
                         "edge_ids": [edge_id],
                         "route": [origin, destination],
                         "price": _price_amount(offer, leg_result),
