@@ -4,22 +4,16 @@ import argparse
 from typing import Any
 
 from ..contracts.registry import ROUTE_TRACE_SCHEMA_VERSION
-from ..contracts.validation import validate_contract_payload
+from ..contracts.validation import validate_contract_payload, validate_user_answer
 from ..errors import CliError
 from ..execution.diagnostic_probe_runner import run_diagnostic_probe
 from ..io import read_json_object
 from ..orchestrators.search_workflow import SearchWorkflow
 from ..pipeline.search_plan import SEARCH_PLAN_DIAGNOSTIC_SCHEMA_VERSION
-from ..reporting.user_answer import (
-    USER_ANSWER_RENDER_DIAGNOSTIC_SCHEMA_VERSION,
-    validate_user_answer,
-)
+from ..reporting.user_answer import USER_ANSWER_RENDER_DIAGNOSTIC_SCHEMA_VERSION
 from ..store import Store
 from .metadata import metadata_evidence_scope
-from .search import (
-    build_search_artifacts,
-    prepare_search_request,
-)
+from .search import prepare_search_request
 
 
 def _result_from_document(payload: dict[str, Any]) -> dict[str, Any]:
@@ -28,13 +22,12 @@ def _result_from_document(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def command_diagnose_plan(args: argparse.Namespace, store: Store) -> dict[str, Any]:
-    prepared = prepare_search_request(args.request)
-    request = prepared.request
-    search_plan = SearchWorkflow(store).plan(prepared.typed).to_dict()
+    request = prepare_search_request(args.request)
+    search_plan = SearchWorkflow(store).plan(request).to_dict()
     validate_contract_payload("search_plan", search_plan)
     return {
         "schema_version": SEARCH_PLAN_DIAGNOSTIC_SCHEMA_VERSION,
-        "request": request,
+        "request": request.to_payload(),
         "evidence_scope": metadata_evidence_scope("routing metadata"),
         "plan": search_plan,
     }
@@ -46,9 +39,8 @@ def command_diagnose_probe(args: argparse.Namespace, store: Store) -> dict[str, 
 
 
 def command_diagnose_trace(args: argparse.Namespace, store: Store) -> dict[str, Any]:
-    prepared = prepare_search_request(args.request)
-    artifacts = build_search_artifacts(prepared, store)
-    execution = artifacts.execution
+    request = prepare_search_request(args.request)
+    execution = SearchWorkflow(store).run_artifacts(request)
     evidence = execution.evidence.to_trace_dict()
     date_window_inventory = execution.projection_input.get("live_search", {}).get(
         "date_window_inventory"
@@ -57,7 +49,7 @@ def command_diagnose_trace(args: argparse.Namespace, store: Store) -> dict[str, 
         evidence["date_window_inventory"] = date_window_inventory
     result = {
         "schema_version": ROUTE_TRACE_SCHEMA_VERSION,
-        "request": artifacts.request,
+        "request": request.to_payload(),
         "plan": execution.plan,
         "evidence": evidence,
         "decision": {
@@ -66,7 +58,7 @@ def command_diagnose_trace(args: argparse.Namespace, store: Store) -> dict[str, 
             "scorer": execution.decision.scored_decisions.get("scorer") or {},
             "frontier": execution.decision.decision_frontier,
         },
-        "answer": artifacts.projection["answer"],
+        "answer": execution.projection["answer"],
     }
     validate_contract_payload("route_trace", result)
     return result

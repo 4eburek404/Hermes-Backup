@@ -101,27 +101,28 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
             scored_decisions={"scorer": {}},
             decision_frontier={},
         )
-        artifacts = SimpleNamespace(
-            request=MINIMAL_SEARCH_REQUEST,
-            execution=SimpleNamespace(
-                plan={},
-                evidence=evidence,
-                decision=decision,
-                projection_input={},
-            ),
+        request = SimpleNamespace(to_payload=lambda: MINIMAL_SEARCH_REQUEST)
+        execution = SimpleNamespace(
+            plan={},
+            evidence=evidence,
+            decision=decision,
+            projection_input={},
             projection={"answer": {}},
         )
         args = argparse.Namespace(request="unused.json", command_name="diagnose trace")
         with (
-            patch("flights_cli.commands.diagnose.prepare_search_request"),
             patch(
-                "flights_cli.commands.diagnose.build_search_artifacts",
-                return_value=artifacts,
+                "flights_cli.commands.diagnose.prepare_search_request",
+                return_value=request,
             ),
+            patch(
+                "flights_cli.commands.diagnose.SearchWorkflow"
+            ) as workflow,
             patch(
                 "flights_cli.commands.diagnose.validate_contract_payload"
             ) as validate,
         ):
+            workflow.return_value.run_artifacts.return_value = execution
             result = command_diagnose_trace(args, Store())
 
         self.assertEqual(result["schema_version"], "flight_route_trace_diagnostic.v4")
@@ -129,6 +130,7 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
             set(result),
             {"schema_version", "request", "plan", "evidence", "decision", "answer"},
         )
+        workflow.return_value.run_artifacts.assert_called_once_with(request)
         validate.assert_called_once_with("route_trace", result)
 
     def test_search_json_errors_are_machine_parseable_on_stdout(self) -> None:

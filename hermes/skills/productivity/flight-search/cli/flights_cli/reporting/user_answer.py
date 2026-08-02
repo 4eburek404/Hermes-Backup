@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from ..contracts.registry import current_contract
 from .catalog_projection import (
     build_catalog_contract,
     infer_answer_mode,
@@ -10,11 +11,8 @@ from .catalog_projection import (
 from .catalog_rendering import render_user_answer
 from .catalog_semantics import route_requested_round_trip
 from .coverage import CoverageSnapshot
-from .user_answer_contracts import (
-    USER_ANSWER_SCHEMA_VERSION,
-    validate_user_answer,
-)
 
+USER_ANSWER_SCHEMA_VERSION = current_contract("user_answer")["schema_version"]
 USER_ANSWER_RENDER_DIAGNOSTIC_SCHEMA_VERSION = "flight_search_render_diagnostic.v1"
 
 __all__ = (
@@ -22,7 +20,6 @@ __all__ = (
     "USER_ANSWER_RENDER_DIAGNOSTIC_SCHEMA_VERSION",
     "build_user_answer",
     "render_user_answer",
-    "validate_user_answer",
 )
 
 

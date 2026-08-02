@@ -120,7 +120,7 @@ class ArchitectureTests(unittest.TestCase):
         # Runtime offer_graph stays under diagnose trace; public
         # Result projection exposes one frontier order and one canonical text.
         from flights_cli.reporting.user_answer import build_user_answer
-        from flights_cli.pipeline.offer_graph import build_offer_graph
+        from flights_cli.pipeline.offer_graph_builder import build_offer_graph
 
         # Verify these are callable code-level functions, not just prose references.
         self.assertTrue(callable(build_user_answer))
@@ -438,22 +438,17 @@ class ArchitectureTests(unittest.TestCase):
             }.issubset(validation_functions)
         )
 
-        for relative in (
-            "pipeline/result_contract.py",
-            "reporting/user_answer_contracts.py",
-        ):
-            path = root / relative
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            with self.subTest(relative=relative):
-                self.assertEqual(
-                    [
-                        node.name
-                        for node in tree.body
-                        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                    ],
-                    [],
-                )
-                self.assertIn("contracts.validation", import_targets(path))
+        path = root / "pipeline" / "result_contract.py"
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            [
+                node.name
+                for node in tree.body
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            ],
+            [],
+        )
+        self.assertIn("contracts.validation", import_targets(path))
 
     def test_domain_and_reporting_dependency_direction(self) -> None:
         domain_root = PROJECT / "flights_cli" / "domain"
@@ -479,24 +474,6 @@ class ArchitectureTests(unittest.TestCase):
                         for target in import_targets(path)
                     )
                 )
-
-    def test_compatibility_facades_contain_no_policy_logic(self) -> None:
-        root = PROJECT / "flights_cli"
-        facades = (
-            root / "pipeline" / "offer_graph.py",
-        )
-        for path in facades:
-            with self.subTest(path=path.relative_to(root)):
-                tree = ast.parse(path.read_text(encoding="utf-8"))
-                definitions = [
-                    node
-                    for node in tree.body
-                    if isinstance(
-                        node,
-                        (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef),
-                    )
-                ]
-                self.assertEqual(definitions, [])
 
     def test_stop_policy_is_the_only_owner_of_stop_defaults_and_filtering(self) -> None:
         root = PROJECT / "flights_cli"
@@ -555,7 +532,7 @@ class ArchitectureTests(unittest.TestCase):
             "domain/offer_order.py": ("max(0, len(segments) - 1)",),
             "reporting/frontier_projection.py": ("max(0, len(journey_segments) - 1)",),
             "reporting/catalog_projection.py": ("max_direction_segments",),
-            "reporting/user_answer_contracts.py": ("max(0, len(segments) - 1)",),
+            "reporting/user_answer.py": ("max(0, len(segments) - 1)",),
         }
         for relative, snippets in forbidden_snippets.items():
             source = (root / relative).read_text(encoding="utf-8")
@@ -578,6 +555,8 @@ class ArchitectureTests(unittest.TestCase):
             "domain/provider_offer_filter.py",
             "domain/stop_metrics.py",
             "pipeline/candidate_ranker.py",
+            "pipeline/offer_graph.py",
+            "reporting/user_answer_contracts.py",
         ):
             self.assertFalse((root / relative).exists(), relative)
 
