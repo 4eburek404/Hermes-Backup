@@ -108,7 +108,17 @@ def command_maint_doctor(args: argparse.Namespace, store: Store) -> dict[str, An
                 "network_calls_for_duplicates": False,
             },
             "retry_policy": {
-                "active_retry": False,
+                "providers": {
+                    "tutu": {
+                        "active_retry": True,
+                        "max_attempts": 2,
+                        "scope": "transient_read_only_transport_failures",
+                    },
+                    "kupibilet": {
+                        "active_retry": False,
+                        "max_attempts": 1,
+                    },
+                },
                 "retry_after_is_classified_only": True,
             },
             "failure_classification": {

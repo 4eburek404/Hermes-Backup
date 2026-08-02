@@ -38,21 +38,103 @@ def segment(
 class TutuStub:
     def __init__(self) -> None:
         self.tool_queries: list[tuple[str, str, str, bool]] = []
+        self.method_counts: Counter[str] = Counter()
+        self.method_order: list[str] = []
+        self.session_method_order: dict[str, list[str]] = {}
+        self.protocol_versions: list[str] = []
+        self._session_counter = 0
+        self._lock = threading.Lock()
         owner = self
 
         class Handler(BaseHTTPRequestHandler):
+            def send_json(self, status: int, payload: dict | None = None) -> None:
+                body = (
+                    json.dumps(payload).encode("utf-8") if payload is not None else b""
+                )
+                self.send_response(status)
+                if payload is not None:
+                    self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                if body:
+                    self.wfile.write(body)
+
             def do_POST(self) -> None:  # noqa: N802
                 size = int(self.headers.get("Content-Length") or 0)
                 request = json.loads(self.rfile.read(size) or b"{}")
-                method = request.get("method")
+                method = str(request.get("method") or "")
+                with owner._lock:
+                    owner.method_counts[method] += 1
+                    owner.method_order.append(method)
+                    request_session = str(self.headers.get("Mcp-Session-Id") or "")
+                    if request_session:
+                        owner.session_method_order.setdefault(
+                            request_session, []
+                        ).append(method)
+                if method == "server/discover":
+                    self.send_json(
+                        400,
+                        {
+                            "jsonrpc": "2.0",
+                            "id": request.get("id"),
+                            "error": {"code": -32601, "message": "discover forbidden"},
+                        },
+                    )
+                    return
                 response: dict = {"jsonrpc": "2.0", "id": request.get("id")}
                 if method == "initialize":
+                    with owner._lock:
+                        owner._session_counter += 1
+                        session_id = f"test-session-{owner._session_counter}"
+                        owner.session_method_order[session_id] = ["initialize"]
                     response["result"] = {
-                        "protocolVersion": "2025-06-18",
-                        "capabilities": {},
-                        "serverInfo": {"name": "test-tutu", "version": "1"},
+                        "protocolVersion": "2025-11-25",
+                        "capabilities": {"tools": {}},
+                        "serverInfo": {"name": "tutu-mcp-server", "version": "1"},
+                    }
+                    body = json.dumps(response).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Mcp-Session-Id", session_id)
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                if method == "notifications/initialized":
+                    owner.protocol_versions.append(
+                        str(self.headers.get("MCP-Protocol-Version") or "")
+                    )
+                    self.send_json(202)
+                    return
+                if method == "tools/list":
+                    response["result"] = {
+                        "tools": [
+                            {
+                                "name": "get_avia_instructions",
+                                "description": "Return the Tutu flight-search playbook.",
+                                "inputSchema": {"type": "object"},
+                            },
+                            {
+                                "name": "search_avia",
+                                "description": "Search Tutu flight offers.",
+                                "inputSchema": {"type": "object"},
+                            },
+                        ]
                     }
                 elif method == "tools/call":
+                    tool_name = request["params"]["name"]
+                    if tool_name == "get_avia_instructions":
+                        response["result"] = {
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "# Test Tutu playbook\nUse search_avia.",
+                                }
+                            ]
+                        }
+                        self.send_json(200, response)
+                        return
+                    self.assert_search_tool(tool_name)
                     arguments = request["params"]["arguments"]
                     origin = str(arguments.get("origin") or "").upper()
                     destination = str(arguments.get("destination") or "").upper()
@@ -66,12 +148,14 @@ class TutuStub:
                     }
                 else:
                     response["result"] = {}
-                body = json.dumps(response).encode("utf-8")
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
+                self.send_json(200, response)
+
+            def assert_search_tool(self, tool_name: str) -> None:
+                if tool_name != "search_avia":
+                    raise AssertionError(f"unexpected MCP tool: {tool_name}")
+
+            def do_DELETE(self) -> None:  # noqa: N802
+                self.send_json(200, {})
 
             def log_message(self, *_: object) -> None:
                 return
@@ -107,16 +191,16 @@ class TutuStub:
                                     "NTE",
                                     "AMS",
                                     "KL1424",
-                                    "2026-07-23T06:05:00+02:00",
-                                    "2026-07-23T07:45:00+02:00",
+                                    "2026-09-23T06:05:00+02:00",
+                                    "2026-09-23T07:45:00+02:00",
                                     100,
                                 ),
                                 segment(
                                     "AMS",
                                     "IST",
                                     "KL1959",
-                                    "2026-07-23T11:35:00+02:00",
-                                    "2026-07-23T16:05:00+03:00",
+                                    "2026-09-23T11:35:00+02:00",
+                                    "2026-09-23T16:05:00+03:00",
                                     210,
                                 ),
                             ]
@@ -137,8 +221,8 @@ class TutuStub:
                                     "IST",
                                     "SVX",
                                     "TK475",
-                                    "2026-07-23T20:00:00+03:00",
-                                    "2026-07-24T02:45:00+05:00",
+                                    "2026-09-23T20:00:00+03:00",
+                                    "2026-09-24T02:45:00+05:00",
                                     285,
                                 )
                             ]
@@ -167,7 +251,7 @@ class OfflineCliE2ETests(unittest.TestCase):
                         "schema_version": "flight_search_request.v3",
                         "origin": "NTE",
                         "destination": "SVX",
-                        "depart_date": "2026-07-23",
+                        "depart_date": "2026-09-23",
                         "return_date": None,
                         "currency": "RUB",
                         "profile": "business",
@@ -215,7 +299,14 @@ class OfflineCliE2ETests(unittest.TestCase):
                 timeout=30,
             )
             text_queries = Counter(stub.tool_queries)
+            text_methods = Counter(stub.method_counts)
+            text_protocol_versions = list(stub.protocol_versions)
+            text_session_orders = list(stub.session_method_order.values())
             stub.tool_queries.clear()
+            stub.method_counts.clear()
+            stub.method_order.clear()
+            stub.protocol_versions.clear()
+            stub.session_method_order.clear()
             json_proc = subprocess.run(
                 [*base, "--json"],
                 cwd=Path(__file__).parent.parent,
@@ -226,6 +317,9 @@ class OfflineCliE2ETests(unittest.TestCase):
                 timeout=30,
             )
             json_queries = Counter(stub.tool_queries)
+            json_methods = Counter(stub.method_counts)
+            json_protocol_versions = list(stub.protocol_versions)
+            json_session_orders = list(stub.session_method_order.values())
 
         self.assertEqual(text_proc.returncode, 0, text_proc.stderr)
         self.assertEqual(json_proc.returncode, 0, json_proc.stderr)
@@ -234,6 +328,27 @@ class OfflineCliE2ETests(unittest.TestCase):
         self.assertTrue(text_queries)
         self.assertTrue(all(count == 1 for count in text_queries.values()))
         self.assertEqual(text_queries, json_queries)
+        for methods, protocols, queries, session_orders in (
+            (text_methods, text_protocol_versions, text_queries, text_session_orders),
+            (json_methods, json_protocol_versions, json_queries, json_session_orders),
+        ):
+            self.assertEqual(methods["server/discover"], 0)
+            self.assertEqual(methods["initialize"], len(queries))
+            self.assertEqual(methods["notifications/initialized"], len(queries))
+            self.assertEqual(methods["tools/call"], len(queries) * 2)
+            self.assertEqual(protocols, ["2025-11-25"] * len(queries))
+            self.assertEqual(len(session_orders), len(queries))
+            for order in session_orders:
+                self.assertEqual(
+                    order,
+                    [
+                        "initialize",
+                        "notifications/initialized",
+                        "tools/call",
+                        "tools/list",
+                        "tools/call",
+                    ],
+                )
         envelope = json.loads(json_proc.stdout)
         result = envelope["data"]
         self.assertEqual(result["schema_version"], "flight_search_result.v9")
@@ -243,11 +358,11 @@ class OfflineCliE2ETests(unittest.TestCase):
         self.assertEqual(
             text_proc.stdout,
             """Нашёл варианты NTE→SVX.
-1. KL1424 23.07 NTE-(AMS) 0605 0745 в пути 1:40
+1. KL1424 23.09 NTE-(AMS) 0605 0745 в пути 1:40
     пересадка 3ч 50мин
-   KL1959 23.07 (AMS)-(IST) 1135 1605 в пути 3:30
+   KL1959 23.09 (AMS)-(IST) 1135 1605 в пути 3:30
     пересадка 3ч 55мин
-   TK475 23.07 (IST)-(SVX) 2000 0245 (24.07) в пути 4:45
+   TK475 23.09 (IST)-(SVX) 2000 0245 (24.09) в пути 4:45
     40 000 рублей · Отдельные билеты: при задержке первого рейса следующий сегмент не защищён.
 
 Перед оплатой проверьте багаж, финальный тариф и правила обмена/возврата; результат не доказывает варианты вне границ источников.

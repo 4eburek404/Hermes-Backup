@@ -154,9 +154,9 @@ class StaticCatalogLayerTests(unittest.TestCase):
             "live_cache.py",
             "segment_normalization.py",
             "static_catalog.py",
+            "tutu_client.py",
             "tutu_mcp.py",
             "tutu_parser.py",
-            "tutu_transport.py",
         }
         modules = {path.name for path in provider_dir.glob("*.py")}
         self.assertEqual(modules, allowed)

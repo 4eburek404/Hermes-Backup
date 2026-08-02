@@ -427,6 +427,19 @@ class CliContractTests(unittest.TestCase):
             set(payload["data"]["cache_counts"]),
             {"airlines", "airports", "alliances", "cities", "countries", "planes"},
         )
+        retry_policy = payload["data"]["runtime_evidence_policy"]["retry_policy"]
+        self.assertEqual(
+            retry_policy["providers"]["tutu"],
+            {
+                "active_retry": True,
+                "max_attempts": 2,
+                "scope": "transient_read_only_transport_failures",
+            },
+        )
+        self.assertEqual(
+            retry_policy["providers"]["kupibilet"],
+            {"active_retry": False, "max_attempts": 1},
+        )
 
         user_text_proc = subprocess.run(
             [sys.executable, "-m", "flights_cli", "maint", "doctor"],

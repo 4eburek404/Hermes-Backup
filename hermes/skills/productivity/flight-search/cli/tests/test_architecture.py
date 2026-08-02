@@ -354,7 +354,13 @@ class ArchitectureTests(unittest.TestCase):
         )
         self.assertTrue(
             import_targets(parser_path).isdisjoint(
-                {"live_cache", "tutu_transport", "urllib", "urllib.request"}
+                {
+                    "live_cache",
+                    "tutu_client",
+                    "tutu_transport",
+                    "urllib",
+                    "urllib.request",
+                }
             )
         )
 

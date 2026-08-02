@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-import json
+import asyncio
 import time
-import urllib.request
 from datetime import date
 from typing import Any
 
-from .. import __version__
+import httpx2
+from mcp.shared.exceptions import MCPError
+from mcp.types import CONNECTION_CLOSED, REQUEST_TIMEOUT
+
 from ..config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
 from ..errors import CliError
 from ..store import Store
@@ -22,179 +24,115 @@ from .tutu_parser import (
     parse_tutu_avia_search as parse_tutu_avia_search,
     resolve_tutu_carrier_facets,
 )
-from .tutu_transport import (
-    MCP_PROTOCOL_VERSION,
-    normalize_tutu_mcp_url,
-    tutu_mcp_http_post as _transport_http_post,
-)
+from .tutu_client import TutuMcpClient, normalize_tutu_mcp_url
 
 TUTU_PAGE_SIZE = 30
 TUTU_MAX_PAGES = 3
 TUTU_MAX_SCOPE_PAGES = 10
-TutuToolPayload = dict[str, Any] | list[Any] | str
+TUTU_MAX_ATTEMPTS = 2
+TUTU_RETRY_BACKOFF_SECONDS = 0.25
 
 
-def tutu_mcp_http_post(
-    url: str,
-    payload: dict[str, Any],
-    *,
-    timeout: int,
-    session_id: str | None = None,
-) -> tuple[dict[str, Any], str | None]:
-    return _transport_http_post(
-        url,
-        payload,
-        timeout=timeout,
-        session_id=session_id,
-        urlopen=urllib.request.urlopen,
-        sleep=time.sleep,
+def _exception_leaves(exc: Exception) -> list[Exception]:
+    children = getattr(exc, "exceptions", None)
+    if isinstance(children, (tuple, list)) and children:
+        leaves: list[Exception] = []
+        for child in children:
+            if isinstance(child, Exception):
+                leaves.extend(_exception_leaves(child))
+            else:
+                return [exc]
+        return leaves
+    return [exc]
+
+
+def _is_retryable_transport_failure(exc: Exception) -> bool:
+    leaves = _exception_leaves(exc)
+    return bool(leaves) and all(
+        isinstance(
+            leaf,
+            (httpx2.TransportError, TimeoutError, asyncio.TimeoutError),
+        )
+        or (
+            isinstance(leaf, MCPError)
+            and leaf.code in {CONNECTION_CLOSED, REQUEST_TIMEOUT}
+        )
+        for leaf in leaves
     )
 
 
-def ensure_jsonrpc_ok(response: dict[str, Any], context: str) -> dict[str, Any]:
-    error = response.get("error")
-    if isinstance(error, dict):
-        message = error.get("message") or json.dumps(
-            error, ensure_ascii=False, sort_keys=True
-        )
-        raise CliError(
-            f"Tutu MCP {context} failed: {message}", error_type="upstream_error"
-        )
-    result = response.get("result")
-    if isinstance(result, dict):
-        return result
-    if result is None:
-        return {}
-    raise CliError(
-        f"Tutu MCP {context} returned an unsupported result",
-        error_type="upstream_error",
+def _terminal_error_types(exc: Exception) -> list[str]:
+    return sorted({type(leaf).__name__ for leaf in _exception_leaves(exc)})
+
+
+def _has_timeout_leaf(exc: Exception) -> bool:
+    return any(
+        isinstance(leaf, (TimeoutError, asyncio.TimeoutError))
+        or (isinstance(leaf, MCPError) and leaf.code == REQUEST_TIMEOUT)
+        for leaf in _exception_leaves(exc)
     )
 
 
-def extract_tool_payload(result: dict[str, Any]) -> TutuToolPayload:
-    if result.get("isError"):
-        messages = []
-        for item in result.get("content") or []:
-            if isinstance(item, dict) and item.get("text"):
-                messages.append(str(item["text"]))
-        raise CliError(
-            "Tutu MCP tool error: " + ("; ".join(messages) or "unknown error"),
-            error_type="upstream_error",
-        )
-    structured = result.get("structuredContent")
-    if isinstance(structured, dict):
-        if isinstance(structured.get("result"), (dict, list, str)):
-            return structured["result"]
-        return structured
-    if isinstance(structured, list):
-        return structured
-
-    first_text: str | None = None
-    for item in result.get("content") or []:
-        if not isinstance(item, dict):
-            continue
-        text = item.get("text")
-        if not isinstance(text, str):
-            continue
-        if first_text is None:
-            first_text = text
+async def _cancel_and_drain_task(task: asyncio.Task[Any]) -> None:
+    task.cancel()
+    while not task.done():
         try:
-            parsed = json.loads(text)
-        except json.JSONDecodeError:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
             continue
-        if isinstance(parsed, (dict, list, str)):
-            # Tutu MCP wraps the payload in a {"result": "..."} string
-            if isinstance(parsed, dict) and isinstance(parsed.get("result"), str):
-                try:
-                    inner = json.loads(parsed["result"])
-                    if isinstance(inner, (dict, list, str)):
-                        return inner
-                except json.JSONDecodeError:
-                    return parsed["result"]
-            return parsed
-    if first_text is not None:
-        return first_text
-    raise CliError(
-        "Tutu MCP tool response did not include a content payload",
-        error_type="upstream_error",
-    )
+        except BaseException:
+            break
+    try:
+        task.result()
+    except BaseException:
+        pass
 
 
-def call_tutu_mcp_tool(
-    tool_name: str,
-    arguments: dict[str, Any],
+def _final_tutu_error(
+    exc: Exception,
     *,
-    mcp_url: str | None = None,
-    timeout: int = 60,
-) -> TutuToolPayload:
-    url = normalize_tutu_mcp_url(mcp_url)
-    init_payload = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "initialize",
-        "params": {
-            "protocolVersion": MCP_PROTOCOL_VERSION,
-            "capabilities": {},
-            "clientInfo": {"name": "hermes-flights-cli", "version": __version__},
+    operation: str,
+    attempts: int,
+    timeout: float,
+    timed_out: bool = False,
+) -> CliError:
+    error_types = _terminal_error_types(exc)
+    message = (
+        f"Tutu MCP {operation} failed after {attempts} attempt(s) "
+        f"within {timeout:g}s deadline: {', '.join(error_types)}"
+    )
+    return CliError(
+        message,
+        error_type="timeout" if timed_out else "upstream_error",
+        details={
+            "provider": "tutu",
+            "operation": operation,
+            "tool": operation
+            if operation in {"get_avia_instructions", "search_avia"}
+            else None,
+            "attempts": attempts,
+            "deadline_seconds": timeout,
+            "terminal_error_types": error_types,
         },
-    }
-    init_response, session_id = tutu_mcp_http_post(url, init_payload, timeout=timeout)
-    ensure_jsonrpc_ok(init_response, "initialize")
-
-    initialized_payload = {
-        "jsonrpc": "2.0",
-        "method": "notifications/initialized",
-        "params": {},
-    }
-    tutu_mcp_http_post(url, initialized_payload, timeout=timeout, session_id=session_id)
-
-    call_payload = {
-        "jsonrpc": "2.0",
-        "id": 2,
-        "method": "tools/call",
-        "params": {"name": tool_name, "arguments": arguments},
-    }
-    call_response, _ = tutu_mcp_http_post(
-        url, call_payload, timeout=timeout, session_id=session_id
-    )
-    return extract_tool_payload(
-        ensure_jsonrpc_ok(call_response, f"tools/call {tool_name}")
     )
 
 
-def require_tutu_tool_object(
-    payload: TutuToolPayload, tool_name: str
-) -> dict[str, Any]:
-    if isinstance(payload, dict):
-        return payload
-    raise CliError(
-        f"Tutu MCP tool {tool_name} returned a non-JSON payload",
-        error_type="upstream_error",
-        details={"tool": tool_name, "payload_type": type(payload).__name__},
-    )
-
-
-def fetch_tutu_avia_search(
+async def _fetch_tutu_avia_search_attempt(
     origin: str,
     destination: str,
     depart_date: date,
     *,
     currency: str,
-    only_carriers: list[str] | None = None,
-    direct_only: bool = False,
-    limit: int = 20,
-    timeout: int = 60,
-    mcp_url: str | None = None,
-    store: Store | None = None,
-    return_date: date | None = None,
-    origin_airports: list[str] | None = None,
-    destination_airports: list[str] | None = None,
+    only_carriers: list[str] | None,
+    direct_only: bool,
+    limit: int,
+    mcp_url: str,
+    store: Store | None,
+    return_date: date | None,
+    allowed_origins: list[str],
+    allowed_destinations: list[str],
+    deadline: float,
 ) -> dict[str, Any]:
-    """Call Tutu MCP search_avia and normalize results."""
-    allowed_origins = _normalized_airport_scope(origin, origin_airports, store)
-    allowed_destinations = _normalized_airport_scope(
-        destination, destination_airports, store
-    )
     origin_input, origin_input_kind = _tutu_location_input(
         origin, allowed_origins, store
     )
@@ -219,133 +157,114 @@ def fetch_tutu_avia_search(
     carrier_name_overrides: dict[str, str] = {}
     unmatched_carriers: list[str] = []
     carrier_facets: list[str] = []
-    if only_carriers:
-        discovery_arguments = {**arguments, "page_size": 1}
-        discovery_raw = require_tutu_tool_object(
-            call_tutu_mcp_tool(
-                "search_avia",
-                discovery_arguments,
-                mcp_url=mcp_url,
-                timeout=timeout,
-            ),
-            "search_avia",
-        )
-        carrier_facets = _carrier_facets(discovery_raw)
-        mcp_carriers, carrier_name_overrides, unmatched_carriers = (
-            resolve_tutu_carrier_facets(
-                only_carriers,
-                facets=carrier_facets,
-                store=store,
+    async with TutuMcpClient(url=mcp_url, deadline=deadline) as client:
+        if only_carriers:
+            discovery_raw = await client.search_avia({**arguments, "page_size": 1})
+            carrier_facets = _carrier_facets(discovery_raw)
+            mcp_carriers, carrier_name_overrides, unmatched_carriers = (
+                resolve_tutu_carrier_facets(
+                    only_carriers,
+                    facets=carrier_facets,
+                    store=store,
+                )
             )
-        )
-        if not mcp_carriers:
-            discovery_meta = (
-                discovery_raw.get("meta")
-                if isinstance(discovery_raw.get("meta"), dict)
-                else {}
+            if not mcp_carriers:
+                discovery_meta = (
+                    discovery_raw.get("meta")
+                    if isinstance(discovery_raw.get("meta"), dict)
+                    else {}
+                )
+                empty_raw = {
+                    "offers": [],
+                    "meta": {
+                        **discovery_meta,
+                        "carrier_filter_unmatched": unmatched_carriers,
+                        "carrier_facets_discovered": carrier_facets,
+                        "pages_fetched": 1,
+                        "total_returned": 0,
+                        "origin_input": origin_input,
+                        "origin_input_kind": origin_input_kind,
+                        "origin_airports": allowed_origins,
+                        "destination_input": destination_input,
+                        "destination_input_kind": destination_input_kind,
+                        "destination_airports": allowed_destinations,
+                    },
+                }
+                return parse_tutu_avia_search(
+                    empty_raw,
+                    origin=origin.upper(),
+                    destination=destination.upper(),
+                    depart_date=depart_date.isoformat(),
+                    currency=currency,
+                    only_carriers=only_carriers,
+                    direct_only=direct_only,
+                    return_date=return_date.isoformat() if return_date else None,
+                    limit=limit,
+                    store=store,
+                    source_url=mcp_url,
+                    origin_airports=allowed_origins,
+                    destination_airports=allowed_destinations,
+                    carrier_name_overrides=carrier_name_overrides,
+                )
+            arguments["carriers"] = mcp_carriers
+
+        raw = await client.search_avia(arguments)
+        if not carrier_facets:
+            carrier_facets = _carrier_facets(raw)
+            _, carrier_name_overrides, _ = resolve_tutu_carrier_facets(
+                [], facets=carrier_facets, store=store
             )
-            empty_raw = {
-                "offers": [],
-                "meta": {
-                    **discovery_meta,
-                    "carrier_filter_unmatched": unmatched_carriers,
-                    "carrier_facets_discovered": carrier_facets,
-                    "pages_fetched": 1,
-                    "total_returned": 0,
-                    "origin_input": origin_input,
-                    "origin_input_kind": origin_input_kind,
-                    "origin_airports": allowed_origins,
-                    "destination_input": destination_input,
-                    "destination_input_kind": destination_input_kind,
-                    "destination_airports": allowed_destinations,
-                },
-            }
-            return parse_tutu_avia_search(
-                empty_raw,
-                origin=origin.upper(),
-                destination=destination.upper(),
-                depart_date=depart_date.isoformat(),
-                currency=currency,
-                only_carriers=only_carriers,
-                direct_only=direct_only,
-                return_date=return_date.isoformat() if return_date else None,
-                limit=limit,
-                store=store,
-                source_url=normalize_tutu_mcp_url(mcp_url),
-                origin_airports=allowed_origins,
-                destination_airports=allowed_destinations,
-                carrier_name_overrides=carrier_name_overrides,
-            )
-        arguments["carriers"] = mcp_carriers
 
-    # Fetch first page
-    raw = require_tutu_tool_object(
-        call_tutu_mcp_tool("search_avia", arguments, mcp_url=mcp_url, timeout=timeout),
-        "search_avia",
-    )
-    if not carrier_facets:
-        carrier_facets = _carrier_facets(raw)
-        _, carrier_name_overrides, _ = resolve_tutu_carrier_facets(
-            [], facets=carrier_facets, store=store
+        all_offers = list(raw.get("offers") or [])
+        meta = raw.get("meta") or {}
+        page = 1
+        pages_fetched = 1
+        page_budget_exhausted = False
+        empty_page_seen = False
+        max_pages = (
+            TUTU_MAX_SCOPE_PAGES
+            if len(allowed_origins) > 1 or len(allowed_destinations) > 1
+            else TUTU_MAX_PAGES
         )
+        while meta.get("has_more") and page < max_pages:
+            page += 1
+            page_raw = await client.search_avia({**arguments, "page": page})
+            pages_fetched += 1
+            page_offers = list(page_raw.get("offers") or [])
+            if not page_offers:
+                empty_page_seen = True
+                meta = page_raw.get("meta") or meta
+                break
+            all_offers.extend(page_offers)
+            meta = page_raw.get("meta") or {}
+        if meta.get("has_more") and page >= max_pages:
+            page_budget_exhausted = True
 
-    all_offers = list(raw.get("offers") or [])
-    meta = raw.get("meta") or {}
-    page = 1
-    pages_fetched = 1
-    page_budget_exhausted = False
-    empty_page_seen = False
-    max_pages = (
-        TUTU_MAX_SCOPE_PAGES
-        if len(allowed_origins) > 1 or len(allowed_destinations) > 1
-        else TUTU_MAX_PAGES
-    )
-    while meta.get("has_more") and page < max_pages:
-        page += 1
-        page_args = dict(arguments)
-        page_args["page"] = page
-        page_raw = require_tutu_tool_object(
-            call_tutu_mcp_tool(
-                "search_avia", page_args, mcp_url=mcp_url, timeout=timeout
-            ),
-            "search_avia",
-        )
-        pages_fetched += 1
-        page_offers = list(page_raw.get("offers") or [])
-        if not page_offers:
-            empty_page_seen = True
-            meta = page_raw.get("meta") or meta
-            break
-        all_offers.extend(page_offers)
-        meta = page_raw.get("meta") or {}
-    if meta.get("has_more") and page >= max_pages:
-        page_budget_exhausted = True
-
-    raw["offers"] = all_offers
-    raw_meta = raw.get("meta") if isinstance(raw.get("meta"), dict) else {}
-    raw["meta"] = {
-        **raw_meta,
-        **(meta if isinstance(meta, dict) else {}),
-        "page_size": TUTU_PAGE_SIZE,
-        "pages_fetched": pages_fetched,
-        "total_returned": len(all_offers),
-        "max_pages": max_pages,
-        "has_more_after_fetch": bool(meta.get("has_more"))
-        if isinstance(meta, dict)
-        else False,
-        "not_fetched_due_to_page_budget": page_budget_exhausted,
-        "airport_scope_incomplete": page_budget_exhausted
-        and (len(allowed_origins) > 1 or len(allowed_destinations) > 1),
-        "empty_page_seen": empty_page_seen,
-        "origin_input": origin_input,
-        "origin_input_kind": origin_input_kind,
-        "origin_airports": allowed_origins,
-        "destination_input": destination_input,
-        "destination_input_kind": destination_input_kind,
-        "destination_airports": allowed_destinations,
-        "carrier_facets_discovered": carrier_facets,
-        "carrier_filter_unmatched": unmatched_carriers,
-    }
+        raw["offers"] = all_offers
+        raw_meta = raw.get("meta") if isinstance(raw.get("meta"), dict) else {}
+        raw["meta"] = {
+            **raw_meta,
+            **(meta if isinstance(meta, dict) else {}),
+            "page_size": TUTU_PAGE_SIZE,
+            "pages_fetched": pages_fetched,
+            "total_returned": len(all_offers),
+            "max_pages": max_pages,
+            "has_more_after_fetch": bool(meta.get("has_more"))
+            if isinstance(meta, dict)
+            else False,
+            "not_fetched_due_to_page_budget": page_budget_exhausted,
+            "airport_scope_incomplete": page_budget_exhausted
+            and (len(allowed_origins) > 1 or len(allowed_destinations) > 1),
+            "empty_page_seen": empty_page_seen,
+            "origin_input": origin_input,
+            "origin_input_kind": origin_input_kind,
+            "origin_airports": allowed_origins,
+            "destination_input": destination_input,
+            "destination_input_kind": destination_input_kind,
+            "destination_airports": allowed_destinations,
+            "carrier_facets_discovered": carrier_facets,
+            "carrier_filter_unmatched": unmatched_carriers,
+        }
 
     return parse_tutu_avia_search(
         raw,
@@ -358,10 +277,153 @@ def fetch_tutu_avia_search(
         return_date=return_date.isoformat() if return_date else None,
         limit=limit,
         store=store,
-        source_url=normalize_tutu_mcp_url(mcp_url),
+        source_url=mcp_url,
         origin_airports=allowed_origins,
         destination_airports=allowed_destinations,
         carrier_name_overrides=carrier_name_overrides,
+    )
+
+
+async def _fetch_tutu_avia_search_async(
+    origin: str,
+    destination: str,
+    depart_date: date,
+    *,
+    currency: str,
+    only_carriers: list[str] | None,
+    direct_only: bool,
+    limit: int,
+    timeout: float,
+    mcp_url: str,
+    store: Store | None,
+    return_date: date | None,
+    origin_airports: list[str] | None,
+    destination_airports: list[str] | None,
+    deadline: float,
+) -> dict[str, Any]:
+    allowed_origins = _normalized_airport_scope(origin, origin_airports, store)
+    allowed_destinations = _normalized_airport_scope(
+        destination, destination_airports, store
+    )
+    last_error: Exception | None = None
+    for attempt in range(1, TUTU_MAX_ATTEMPTS + 1):
+        if deadline <= time.monotonic():
+            timeout_error = TimeoutError("Tutu MCP deadline exhausted")
+            raise _final_tutu_error(
+                timeout_error,
+                operation="mcp_session",
+                attempts=attempt - 1,
+                timeout=timeout,
+                timed_out=True,
+            ) from timeout_error
+        try:
+            attempt_task = asyncio.create_task(
+                _fetch_tutu_avia_search_attempt(
+                    origin,
+                    destination,
+                    depart_date,
+                    currency=currency,
+                    only_carriers=only_carriers,
+                    direct_only=direct_only,
+                    limit=limit,
+                    mcp_url=mcp_url,
+                    store=store,
+                    return_date=return_date,
+                    allowed_origins=allowed_origins,
+                    allowed_destinations=allowed_destinations,
+                    deadline=deadline,
+                )
+            )
+            try:
+                return await asyncio.shield(attempt_task)
+            except asyncio.CancelledError:
+                await _cancel_and_drain_task(attempt_task)
+                raise
+        except Exception as exc:
+            if isinstance(exc, CliError):
+                raise
+            last_error = exc
+            operation = str(getattr(exc, "_tutu_operation", "mcp_session"))
+            if not _is_retryable_transport_failure(exc):
+                raise _final_tutu_error(
+                    exc,
+                    operation=operation,
+                    attempts=attempt,
+                    timeout=timeout,
+                ) from exc
+            if attempt == TUTU_MAX_ATTEMPTS:
+                raise _final_tutu_error(
+                    exc,
+                    operation=operation,
+                    attempts=attempt,
+                    timeout=timeout,
+                    timed_out=_has_timeout_leaf(exc),
+                ) from exc
+            if deadline - time.monotonic() <= TUTU_RETRY_BACKOFF_SECONDS:
+                raise _final_tutu_error(
+                    exc,
+                    operation=operation,
+                    attempts=attempt,
+                    timeout=timeout,
+                    timed_out=True,
+                ) from exc
+            await asyncio.sleep(TUTU_RETRY_BACKOFF_SECONDS)
+    assert last_error is not None
+    raise _final_tutu_error(
+        last_error,
+        operation="mcp_session",
+        attempts=TUTU_MAX_ATTEMPTS,
+        timeout=timeout,
+    )
+
+
+def fetch_tutu_avia_search(
+    origin: str,
+    destination: str,
+    depart_date: date,
+    *,
+    currency: str,
+    only_carriers: list[str] | None = None,
+    direct_only: bool = False,
+    limit: int = 20,
+    timeout: int = 60,
+    mcp_url: str | None = None,
+    store: Store | None = None,
+    return_date: date | None = None,
+    origin_airports: list[str] | None = None,
+    destination_airports: list[str] | None = None,
+) -> dict[str, Any]:
+    """Call Tutu MCP search_avia and normalize results."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+    else:
+        raise CliError(
+            "Tutu synchronous provider contract cannot run inside an active event loop",
+            error_type="sync_contract_error",
+            details={"provider": "tutu", "operation": "fetch_tutu_avia_search"},
+        )
+    timeout_seconds = float(timeout)
+    url = normalize_tutu_mcp_url(mcp_url)
+    deadline = time.monotonic() + timeout_seconds
+    return asyncio.run(
+        _fetch_tutu_avia_search_async(
+            origin,
+            destination,
+            depart_date,
+            currency=currency,
+            only_carriers=only_carriers,
+            direct_only=direct_only,
+            limit=limit,
+            timeout=timeout_seconds,
+            mcp_url=url,
+            store=store,
+            return_date=return_date,
+            origin_airports=origin_airports,
+            destination_airports=destination_airports,
+            deadline=deadline,
+        )
     )
 
 
