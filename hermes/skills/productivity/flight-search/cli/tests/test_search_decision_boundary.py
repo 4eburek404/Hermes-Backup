@@ -15,7 +15,7 @@ from helpers import live_assembly_args
 
 def _plan() -> SimpleNamespace:
     return SimpleNamespace(
-        route=SimpleNamespace(dates={"depart": "2026-08-01", "return": None}),
+        route=SimpleNamespace(dates={"depart": "2099-08-01", "return": None}),
         decision_policy=SimpleNamespace(
             max_connections_per_journey=2,
             preferred_connections=1,
@@ -41,7 +41,7 @@ def _evidence() -> SimpleNamespace:
         "destination": "LED",
         "origin_airports": ["SVX"],
         "destination_airports": ["LED"],
-        "dates": {"depart": "2026-08-01", "return": None},
+        "dates": {"depart": "2099-08-01", "return": None},
         "currency": "RUB",
         "direct_only": False,
         "hubs": [],
@@ -61,8 +61,8 @@ def _evidence() -> SimpleNamespace:
                     {
                         "origin": "SVX",
                         "destination": "LED",
-                        "departure_at": "2026-08-01T08:00:00+05:00",
-                        "arrival_at": "2026-08-01T10:30:00+03:00",
+                        "departure_at": "2099-08-01T08:00:00+05:00",
+                        "arrival_at": "2099-08-01T10:30:00+03:00",
                     }
                 ],
             }
@@ -109,7 +109,7 @@ def test_search_decision_uses_plan_limits_when_request_limits_conflict() -> None
     request = live_assembly_args(
         origin="SVX",
         destination="LED",
-        depart_date="2026-08-01",
+        depart_date="2099-08-01",
         return_date=None,
     )
     built = SearchPlanBuilder(Store()).build(request)
@@ -143,8 +143,8 @@ def test_search_decision_uses_plan_limits_when_request_limits_conflict() -> None
                 {
                     "origin": "SVX",
                     "destination": "LED",
-                    "departure_at": "2026-08-01T11:00:00+05:00",
-                    "arrival_at": "2026-08-01T13:30:00+03:00",
+                    "departure_at": "2099-08-01T11:00:00+05:00",
+                    "arrival_at": "2099-08-01T13:30:00+03:00",
                 }
             ],
         }

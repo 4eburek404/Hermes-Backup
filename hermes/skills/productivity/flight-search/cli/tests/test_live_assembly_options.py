@@ -11,8 +11,8 @@ REQUEST = {
     "schema_version": "flight_search_request.v3",
     "origin": "svx",
     "destination": "lon",
-    "depart_date": "2026-07-20",
-    "return_date": "2026-07-27",
+    "depart_date": "2099-07-20",
+    "return_date": "2099-07-27",
     "currency": "rub",
     "profile": "business",
     "provider_policy": "auto",
@@ -64,8 +64,8 @@ class SearchRequestTests(unittest.TestCase):
         expected = {
             "origin": "SVX",
             "destination": "LON",
-            "depart_date": "2026-07-20",
-            "return_date": "2026-07-27",
+            "depart_date": "2099-07-20",
+            "return_date": "2099-07-27",
             "hubs": ("IST", "DXB"),
             "profile": "business",
             "only_carriers": ("SU",),
@@ -108,7 +108,7 @@ class SearchRequestTests(unittest.TestCase):
                 "schema_version": "flight_search_request.v3",
                 "origin": "svx",
                 "destination": "lon",
-                "depart_date": "2026-07-20",
+                "depart_date": "2099-07-20",
             }
         )
 

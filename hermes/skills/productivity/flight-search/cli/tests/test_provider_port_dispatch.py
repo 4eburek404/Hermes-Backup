@@ -65,7 +65,7 @@ class ProviderPortDispatchTests(unittest.TestCase):
         args = live_assembly_args(
             origin="SVX",
             destination="LON",
-            depart_date="2026-07-20",
+            depart_date="2099-07-20",
             provider_policy="kupibilet",
             max_segment_searches=40,
             no_live_cache=True,
