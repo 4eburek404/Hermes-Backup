@@ -151,7 +151,7 @@ route_access_rules:
 
         self.assertEqual(caught.exception.error_type, "configuration_error")
         self.assertIn("invalid route access profiles YAML", caught.exception.message)
-        self.assertIn("expected key: value", caught.exception.message)
+        self.assertIn(str(path), caught.exception.message)
 
 
 if __name__ == "__main__":

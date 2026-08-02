@@ -3,8 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from ..errors import CliError
-from .yaml_subset import YamlSubsetError, parse_yaml_subset
 
 
 def load_yaml_mapping(
@@ -35,13 +36,24 @@ def load_yaml_mapping(
         ) from exc
     if empty_is_missing and not text.strip():
         return None
+    if not any(
+        line.strip() and not line.lstrip().startswith("#")
+        for line in text.splitlines()
+    ):
+        return {}
     try:
-        return parse_yaml_subset(text, source_path)
-    except YamlSubsetError as exc:
+        value = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
         raise CliError(
-            f"invalid {source_name} YAML {exc}",
+            f"invalid {source_name} YAML {source_path}: {exc}",
             error_type="configuration_error",
         ) from exc
+    if not isinstance(value, dict):
+        raise CliError(
+            f"invalid {source_name} YAML {source_path}: top-level value must be a mapping",
+            error_type="configuration_error",
+        )
+    return value
 
 
 __all__ = ["load_yaml_mapping"]
