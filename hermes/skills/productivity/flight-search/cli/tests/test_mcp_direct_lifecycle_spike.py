@@ -3,31 +3,28 @@ from __future__ import annotations
 import asyncio
 import time
 import unittest
+from contextlib import contextmanager
+from datetime import date, timedelta
 from importlib.metadata import version
-from typing import Any
+from typing import Any, Iterator
+from unittest.mock import patch
 
-import anyio
 import httpx2
+import pytest
 try:
     from builtins import ExceptionGroup
 except ImportError:  # pragma: no cover - Python 3.10 compatibility
     from exceptiongroup import ExceptionGroup
 
-from mcp import Client
+from mcp import Client as OfficialClient
 from mcp.client._memory import InMemoryTransport
 from mcp.server.mcpserver import MCPServer
 from mcp.shared.exceptions import MCPError
-from mcp.types import INVALID_PARAMS, Implementation
+from mcp.types import INVALID_PARAMS
 
-from flights_cli import __version__
 from flights_cli.errors import CliError
-from flights_cli.providers.tutu_client import _extract_tool_payload
-from flights_cli.providers.tutu_mcp import (
-    _exception_leaves,
-    _final_tutu_error,
-    _has_timeout_leaf,
-    _is_retryable_transport_failure,
-)
+from flights_cli.providers.tutu_client import TutuMcpClient
+from flights_cli.providers.tutu_mcp import _fetch_tutu_avia_search_async
 
 
 class TrackingTransport:
@@ -82,7 +79,6 @@ class FailingTransport:
     def __init__(self, failure: Exception) -> None:
         self.failure = failure
         self.entered = 0
-        self.closed = True
 
     async def __aenter__(self):  # type: ignore[no-untyped-def]
         self.entered += 1
@@ -98,125 +94,84 @@ def tutu_server(
     search_started: asyncio.Event | None = None,
     block_search: bool = False,
 ) -> MCPServer[Any]:
-    server = MCPServer("tutu-direct-lifecycle-spike")
+    server = MCPServer("tutu-direct-lifecycle")
 
     @server.tool(name="get_avia_instructions")
     async def get_avia_instructions() -> Any:
         return playbook
 
     @server.tool(name="search_avia")
-    async def search_avia(origin: str = "SVX") -> dict[str, object]:
+    async def search_avia(
+        origin: str = "SVX",
+        destination: str = "AMS",
+        departure_date: str = "2026-08-15",
+        adults: int = 1,
+        view: str = "compact",
+        sort: str = "departure_asc",
+        page_size: int = 30,
+        page: int | None = None,
+    ) -> dict[str, object]:
+        del destination, departure_date, adults, view, sort, page_size, page
         if search_started is not None:
             search_started.set()
         if block_search:
             await asyncio.Event().wait()
-        return {"offers": [], "origin": origin}
+        return {"offers": [], "meta": {"has_more": False}, "origin": origin}
 
     return server
 
 
-async def direct_sdk_search(
+@contextmanager
+def production_clients(transports: list[Any]) -> Iterator[None]:
+    pending = iter(transports)
+
+    def build_client(server: object, **kwargs: object) -> OfficialClient:
+        if server != "https://mcp.tutu.ru/mcp":
+            raise AssertionError(f"unexpected MCP URL: {server!r}")
+        return OfficialClient(next(pending), **kwargs)
+
+    with patch("flights_cli.providers.tutu_client.Client", side_effect=build_client):
+        yield
+
+
+async def production_client_search(
     transport: Any,
     *,
-    deadline: float,
-) -> dict[str, Any]:
-    operation = "initialize"
-    remaining = max(0.0, deadline - time.monotonic())
-    try:
-        with anyio.fail_after(remaining):
-            async with Client(
-                transport,
-                mode="legacy",
-                client_info=Implementation(
-                    name="hermes-flights-cli",
-                    version=__version__,
-                ),
-                read_timeout_seconds=remaining,
-                cache=None,
-            ) as client:
-                operation = "get_avia_instructions"
-                playbook = _extract_tool_payload(
-                    await client.call_tool(
-                        "get_avia_instructions",
-                        {},
-                        read_timeout_seconds=max(
-                            0.0, deadline - time.monotonic()
-                        ),
-                    ),
-                    "get_avia_instructions",
-                )
-                if not isinstance(playbook, str) or not playbook.strip():
-                    raise CliError(
-                        "Tutu MCP get_avia_instructions returned an empty or unsupported playbook",
-                        error_type="upstream_error",
-                        details={
-                            "provider": "tutu",
-                            "tool": "get_avia_instructions",
-                        },
-                    )
-
-                operation = "search_avia"
-                payload = _extract_tool_payload(
-                    await client.call_tool(
-                        "search_avia",
-                        {"origin": "SVX"},
-                        read_timeout_seconds=max(
-                            0.0, deadline - time.monotonic()
-                        ),
-                    ),
-                    "search_avia",
-                )
-                if not isinstance(payload, dict):
-                    raise CliError(
-                        "Tutu MCP search_avia returned a non-object payload",
-                        error_type="upstream_error",
-                        details={
-                            "provider": "tutu",
-                            "tool": "search_avia",
-                            "payload_type": type(payload).__name__,
-                        },
-                    )
-                operation = "close"
-                return payload
-    except asyncio.CancelledError:
-        raise
-    except CliError:
-        raise
-    except Exception as exc:
-        leaves = _exception_leaves(exc)
-        if len(leaves) == 1 and isinstance(leaves[0], CliError):
-            raise leaves[0] from exc
-        setattr(exc, "_tutu_operation", operation)
-        raise
+    timeout: float = 5.0,
+) -> tuple[TutuMcpClient, dict[str, Any]]:
+    client = TutuMcpClient(
+        url="https://mcp.tutu.ru/mcp",
+        deadline=time.monotonic() + timeout,
+    )
+    with production_clients([transport]):
+        async with client:
+            result = await client.search_avia({"origin": "SVX"})
+    return client, result
 
 
-async def direct_provider_search(
+async def production_provider_search(
     transports: list[Any],
     *,
     timeout: float = 5.0,
 ) -> dict[str, Any]:
     deadline = time.monotonic() + timeout
-    for attempt, transport in enumerate(transports, start=1):
-        try:
-            return await direct_sdk_search(transport, deadline=deadline)
-        except CliError:
-            raise
-        except Exception as exc:
-            operation = str(getattr(exc, "_tutu_operation", "mcp_session"))
-            timed_out = _has_timeout_leaf(exc)
-            if (
-                not _is_retryable_transport_failure(exc)
-                or attempt == len(transports)
-                or deadline <= time.monotonic()
-            ):
-                raise _final_tutu_error(
-                    exc,
-                    operation=operation,
-                    attempts=attempt,
-                    timeout=timeout,
-                    timed_out=timed_out,
-                ) from exc
-    raise AssertionError("at least one direct MCP transport is required")
+    with production_clients(transports):
+        return await _fetch_tutu_avia_search_async(
+            "SVX",
+            "AMS",
+            date(2026, 8, 15),
+            currency="RUB",
+            only_carriers=None,
+            direct_only=False,
+            limit=20,
+            timeout=timeout,
+            mcp_url="https://mcp.tutu.ru/mcp",
+            store=None,
+            return_date=None,
+            origin_airports=None,
+            destination_airports=None,
+            deadline=deadline,
+        )
 
 
 class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
@@ -249,11 +204,68 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(version("mcp"), "2.0.0")
         transport = TrackingTransport(tutu_server())
 
-        result = await direct_provider_search([transport])
+        client, result = await production_client_search(transport)
 
-        self.assertEqual(result, {"offers": [], "origin": "SVX"})
+        self.assertEqual(result["offers"], [])
+        self.assertEqual(client.playbook, "# Tutu playbook")
+        self.assertIsNone(client.protocol_version)
+        self.assertIsNone(client.server_info)
         self.assertTrue(transport.entered)
         self.assertTrue(transport.closed)
+
+    @pytest.mark.live_provider
+    async def test_live_tutu_initialize_playbook_search_close_has_no_leaks(
+        self,
+    ) -> None:
+        current = asyncio.current_task()
+        baseline = {
+            task
+            for task in asyncio.all_tasks()
+            if task is not current and not task.done()
+        }
+        client = TutuMcpClient(
+            url=None,
+            deadline=time.monotonic() + 60,
+        )
+        departure_date = date.today() + timedelta(days=45)
+
+        async with client:
+            self.assertIsInstance(client.playbook, str)
+            self.assertTrue(client.playbook.strip())
+            result = await client.search_avia(
+                {
+                    "origin": "Москва",
+                    "destination": "Санкт-Петербург",
+                    "departure_date": departure_date.isoformat(),
+                    "adults": 1,
+                    "view": "compact",
+                    "sort": "departure_asc",
+                    "page_size": 1,
+                }
+            )
+
+        self.assertIsInstance(result, dict)
+        self.assertIsNone(client._client)
+        self.assertIsNone(client._session_context)
+        self.assertIsNone(client.protocol_version)
+        self.assertIsNone(client.server_info)
+
+        leaked: set[asyncio.Task[Any]] = set()
+        for _ in range(20):
+            leaked = {
+                task
+                for task in asyncio.all_tasks()
+                if task is not current
+                and task not in baseline
+                and not task.done()
+            }
+            if not leaked:
+                break
+            await asyncio.sleep(0)
+        self.assertEqual(
+            [(task.get_name(), repr(task.get_coro())) for task in leaked],
+            [],
+        )
 
     async def test_empty_and_invalid_playbook_preserve_cli_error(self) -> None:
         for playbook in ("   ", {"not": "text"}):
@@ -261,7 +273,7 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(playbook=playbook), self.assertRaises(
                 CliError
             ) as error:
-                await direct_provider_search([transport])
+                await production_client_search(transport)
 
             self.assertEqual(error.exception.error_type, "upstream_error")
             self.assertEqual(
@@ -270,39 +282,16 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
             )
             self.assertTrue(transport.closed)
 
-    async def test_raw_sdk_context_wraps_application_error_on_close(self) -> None:
-        transport = TrackingTransport(tutu_server())
-        original = CliError(
-            "invalid playbook",
-            error_type="upstream_error",
-            details={"provider": "tutu", "tool": "get_avia_instructions"},
-        )
-
-        with self.assertRaises(ExceptionGroup) as error:
-            async with Client(transport, mode="legacy", cache=None):
-                raise original
-
-        self.assertEqual(_exception_leaves(error.exception), [original])
-        self.assertTrue(transport.closed)
-
     async def test_initialize_timeout_preserves_boundary_error_and_closes(self) -> None:
         transport = BlockingInitializeTransport()
 
         with self.assertRaises(CliError) as error:
-            await direct_provider_search([transport], timeout=0.02)
+            await production_provider_search([transport], timeout=0.02)
 
         self.assertEqual(error.exception.error_type, "timeout")
-        self.assertEqual(
-            error.exception.details,
-            {
-                "provider": "tutu",
-                "operation": "initialize",
-                "tool": None,
-                "attempts": 1,
-                "deadline_seconds": 0.02,
-                "terminal_error_types": ["TimeoutError"],
-            },
-        )
+        self.assertEqual(error.exception.details["operation"], "initialize")
+        self.assertEqual(error.exception.details["attempts"], 1)
+        self.assertEqual(error.exception.details["terminal_error_types"], ["TimeoutError"])
         self.assertTrue(transport.entered.is_set())
         self.assertTrue(transport.closed)
 
@@ -313,21 +302,12 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with self.assertRaises(CliError) as error:
-            await direct_provider_search([transport], timeout=1.0)
+            await production_provider_search([transport], timeout=1.0)
 
         self.assertTrue(started.is_set())
         self.assertEqual(error.exception.error_type, "timeout")
-        self.assertEqual(
-            error.exception.details,
-            {
-                "provider": "tutu",
-                "operation": "search_avia",
-                "tool": "search_avia",
-                "attempts": 1,
-                "deadline_seconds": 1.0,
-                "terminal_error_types": ["TimeoutError"],
-            },
-        )
+        self.assertEqual(error.exception.details["operation"], "search_avia")
+        self.assertEqual(error.exception.details["tool"], "search_avia")
         self.assertTrue(transport.closed)
 
     async def test_close_timeout_preserves_boundary_error_and_closes(self) -> None:
@@ -339,21 +319,12 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with self.assertRaises(CliError) as error:
-            await direct_provider_search([transport], timeout=0.1)
+            await production_provider_search([transport], timeout=0.1)
 
         self.assertTrue(close_started.is_set())
         self.assertEqual(error.exception.error_type, "timeout")
-        self.assertEqual(
-            error.exception.details,
-            {
-                "provider": "tutu",
-                "operation": "close",
-                "tool": None,
-                "attempts": 1,
-                "deadline_seconds": 0.1,
-                "terminal_error_types": ["TimeoutError"],
-            },
-        )
+        self.assertEqual(error.exception.details["operation"], "close")
+        self.assertIsNone(error.exception.details["tool"])
         self.assertTrue(transport.closed)
 
     async def test_external_cancellation_during_call_closes_without_remapping(
@@ -363,12 +334,14 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
         transport = TrackingTransport(
             tutu_server(search_started=started, block_search=True)
         )
-        task = asyncio.create_task(direct_provider_search([transport]))
-        await started.wait()
-
-        task.cancel()
-        with self.assertRaises(asyncio.CancelledError) as error:
-            await task
+        with production_clients([transport]):
+            task = asyncio.create_task(
+                production_client_search_in_current_patch(started)
+            )
+            await started.wait()
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError) as error:
+                await task
 
         self.assertIsNone(getattr(error.exception, "_tutu_operation", None))
         self.assertTrue(task.cancelled())
@@ -378,12 +351,7 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
         def nested_failure() -> ExceptionGroup:
             return ExceptionGroup(
                 "transport task group",
-                [
-                    ExceptionGroup(
-                        "stream failure",
-                        [httpx2.ConnectError("offline")],
-                    )
-                ],
+                [ExceptionGroup("stream failure", [httpx2.ConnectError("offline")])],
             )
 
         transports = [
@@ -392,20 +360,12 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
         ]
 
         with self.assertRaises(CliError) as error:
-            await direct_provider_search(transports)
+            await production_provider_search(transports)
 
         self.assertEqual(error.exception.error_type, "upstream_error")
-        self.assertEqual(
-            error.exception.details,
-            {
-                "provider": "tutu",
-                "operation": "initialize",
-                "tool": None,
-                "attempts": 2,
-                "deadline_seconds": 5.0,
-                "terminal_error_types": ["ConnectError"],
-            },
-        )
+        self.assertEqual(error.exception.details["operation"], "initialize")
+        self.assertEqual(error.exception.details["attempts"], 2)
+        self.assertEqual(error.exception.details["terminal_error_types"], ["ConnectError"])
         self.assertEqual([transport.entered for transport in transports], [1, 1])
 
     async def test_first_nested_transport_failure_then_success_retries_once(
@@ -419,9 +379,9 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
         )
         success = TrackingTransport(tutu_server())
 
-        result = await direct_provider_search([failure, success])
+        result = await production_provider_search([failure, success])
 
-        self.assertEqual(result["offers"], [])
+        self.assertEqual(result["offer_count"], 0)
         self.assertEqual(failure.entered, 1)
         self.assertTrue(success.closed)
 
@@ -430,22 +390,26 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
         unused = TrackingTransport(tutu_server())
 
         with self.assertRaises(CliError) as error:
-            await direct_provider_search([terminal, unused])
+            await production_provider_search([terminal, unused])
 
         self.assertEqual(error.exception.error_type, "upstream_error")
-        self.assertEqual(
-            error.exception.details,
-            {
-                "provider": "tutu",
-                "operation": "initialize",
-                "tool": None,
-                "attempts": 1,
-                "deadline_seconds": 5.0,
-                "terminal_error_types": ["MCPError"],
-            },
-        )
+        self.assertEqual(error.exception.details["operation"], "initialize")
+        self.assertEqual(error.exception.details["attempts"], 1)
+        self.assertEqual(error.exception.details["terminal_error_types"], ["MCPError"])
         self.assertEqual(terminal.entered, 1)
         self.assertFalse(unused.entered)
+
+
+async def production_client_search_in_current_patch(
+    started: asyncio.Event,
+) -> dict[str, Any]:
+    del started
+    client = TutuMcpClient(
+        url="https://mcp.tutu.ru/mcp",
+        deadline=time.monotonic() + 5,
+    )
+    async with client:
+        return await client.search_avia({"origin": "SVX"})
 
 
 if __name__ == "__main__":

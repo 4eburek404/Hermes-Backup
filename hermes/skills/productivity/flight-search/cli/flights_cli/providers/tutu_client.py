@@ -6,13 +6,12 @@ import asyncio
 import json
 import os
 import time
-from contextlib import AsyncExitStack
-from typing import Any, TypeAlias
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from typing import Any, AsyncIterator, TypeAlias
 
 import httpx2
 from anyio import fail_after, get_cancelled_exc_class
 from mcp import Client
-from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, Implementation, TextContent
 
 from .. import __version__
@@ -105,28 +104,15 @@ def _extract_tool_payload(result: CallToolResult, tool_name: str) -> TutuToolPay
 
 
 class TutuMcpClient:
-    """A single deadline-bound Tutu MCP session."""
+    """A single deadline-bound direct official MCP SDK session."""
 
     def __init__(self, *, url: str | None, deadline: float) -> None:
         self.url = normalize_tutu_mcp_url(url)
         self.deadline = deadline
         self.playbook: str | None = None
         self._client: Client | None = None
-        self._http_client: httpx2.AsyncClient | None = None
         self._active_operation: str | None = None
-        self._deadline_scope: Any = None
-        self._external_cancellation_operation: str | None = None
-        self._session_task: asyncio.Task[None] | None = None
-        self._command_queue: (
-            asyncio.Queue[
-                tuple[
-                    str | None,
-                    dict[str, Any],
-                    asyncio.Future[TutuToolPayload | None],
-                ]
-            ]
-            | None
-        ) = None
+        self._session_context: AbstractAsyncContextManager[None] | None = None
 
     def remaining_timeout(self, operation: str) -> float:
         remaining = self.deadline - time.monotonic()
@@ -135,73 +121,6 @@ class TutuMcpClient:
             setattr(error, "_tutu_operation", operation)
             raise error
         return remaining
-
-    def _http_timeout(self, remaining: float) -> httpx2.Timeout:
-        return httpx2.Timeout(
-            remaining,
-            connect=min(6.0, remaining),
-            read=remaining,
-            write=remaining,
-            pool=remaining,
-        )
-
-    def _refresh_http_timeout(self, operation: str) -> float:
-        remaining = self.remaining_timeout(operation)
-        if self._http_client is not None:
-            self._http_client.timeout = self._http_timeout(remaining)
-        return remaining
-
-    async def _close_stack(
-        self,
-        stack: AsyncExitStack,
-        exc_type: type[BaseException] | None = None,
-        exc: BaseException | None = None,
-        traceback: Any = None,
-    ) -> bool:
-        operation = self._active_operation if exc is not None else "close"
-        refresh_error: TimeoutError | None = None
-        try:
-            self._refresh_http_timeout("close")
-        except TimeoutError as error:
-            refresh_error = error
-        effective_exc = exc if exc is not None else refresh_error
-        effective_type = (
-            exc_type
-            if exc is not None
-            else type(refresh_error)
-            if refresh_error is not None
-            else None
-        )
-        effective_traceback = (
-            traceback
-            if exc is not None
-            else getattr(effective_exc, "__traceback__", None)
-        )
-        try:
-            suppressed = await stack.__aexit__(
-                effective_type,
-                effective_exc,
-                effective_traceback,
-            )
-        except Exception as close_error:
-            if exc is not None:
-                internal_cancellation_exposed_root = (
-                    isinstance(exc, get_cancelled_exc_class())
-                    and self._external_cancellation_operation is None
-                    and not (
-                        self._deadline_scope is not None
-                        and self._deadline_scope.cancel_called
-                    )
-                    and bool(getattr(close_error, "exceptions", None))
-                )
-                if not internal_cancellation_exposed_root:
-                    return False
-            setattr(close_error, "_tutu_operation", operation or "close")
-            raise
-        if refresh_error is not None and exc is None and not suppressed:
-            setattr(refresh_error, "_tutu_operation", "close")
-            raise refresh_error
-        return bool(suppressed)
 
     @property
     def protocol_version(self) -> str | None:
@@ -212,143 +131,59 @@ class TutuMcpClient:
         return self._client.server_info if self._client is not None else None
 
     @staticmethod
-    def _resolve_failure(
-        response: asyncio.Future[Any] | None,
-        failure: BaseException,
-    ) -> None:
-        if response is None or response.done():
-            return
-        if isinstance(failure, get_cancelled_exc_class()):
-            response.cancel()
-        else:
-            response.set_exception(failure)
-
-    @staticmethod
-    async def _drain_task(task: asyncio.Task[Any]) -> None:
-        while not task.done():
-            try:
-                await asyncio.shield(task)
-            except asyncio.CancelledError:
-                continue
-            except BaseException:
-                break
-        try:
-            task.result()
-        except BaseException:
-            pass
-
-    def _reset_session(self) -> None:
-        self._client = None
-        self._http_client = None
-        self._active_operation = None
-        self._deadline_scope = None
-        self._external_cancellation_operation = None
-        self._session_task = None
-        self._command_queue = None
-
-    async def _await_response(
-        self,
-        response: asyncio.Future[TutuToolPayload | None],
-        *,
-        operation: str,
-    ) -> TutuToolPayload | None:
-        task = self._session_task
-        if task is None:
-            raise RuntimeError("Tutu MCP session worker is not running")
-        try:
-            done, _ = await asyncio.wait(
-                (response, task),
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-        except asyncio.CancelledError:
-            self._external_cancellation_operation = operation
-            if response.done():
-                try:
-                    response.result()
-                except BaseException:
-                    pass
+    def _sole_cli_error(exc: Exception) -> CliError | None:
+        children = getattr(exc, "exceptions", None)
+        if not isinstance(children, (tuple, list)) or not children:
+            return exc if isinstance(exc, CliError) else None
+        leaves: list[Exception] = []
+        pending = list(children)
+        while pending:
+            child = pending.pop()
+            if not isinstance(child, Exception):
+                return None
+            nested = getattr(child, "exceptions", None)
+            if isinstance(nested, (tuple, list)) and nested:
+                pending.extend(nested)
             else:
-                response.cancel()
-            if not task.done():
-                task.cancel()
-            await self._drain_task(task)
-            raise
-        if response in done:
-            return response.result()
-        response.cancel()
-        task.result()
-        raise RuntimeError(
-            f"Tutu MCP session worker exited before {operation} completed"
-        )
+                leaves.append(child)
+        if len(leaves) == 1 and isinstance(leaves[0], CliError):
+            return leaves[0]
+        return None
 
-    async def _call_tool_in_session(
+    async def _call_tool(
         self,
         tool_name: str,
         arguments: dict[str, Any],
     ) -> TutuToolPayload:
-        if self._client is None:
-            raise RuntimeError("Tutu MCP SDK client is not initialized")
-        remaining = self._refresh_http_timeout(tool_name)
+        client = self._client
+        if client is None:
+            raise RuntimeError("TutuMcpClient must be entered before calling tools")
+        remaining = self.remaining_timeout(tool_name)
         self._active_operation = tool_name
         try:
-            result = await self._client.call_tool(
+            result = await client.call_tool(
                 tool_name,
                 arguments,
                 read_timeout_seconds=remaining,
             )
+            payload = _extract_tool_payload(result, tool_name)
         except Exception as exc:
             setattr(exc, "_tutu_operation", tool_name)
             raise
-        payload = _extract_tool_payload(result, tool_name)
         self._active_operation = None
         return payload
 
-    async def _session_worker(
-        self,
-        ready: asyncio.Future[TutuToolPayload | None],
-        commands: asyncio.Queue[
-            tuple[
-                str | None,
-                dict[str, Any],
-                asyncio.Future[TutuToolPayload | None],
-            ]
-        ],
-    ) -> None:
-        response: asyncio.Future[TutuToolPayload | None] | None = ready
+    @asynccontextmanager
+    async def _direct_session(self) -> AsyncIterator[None]:
+        """Own the SDK context directly in the caller task."""
+
+        remaining = self.remaining_timeout("initialize")
+        self._active_operation = "initialize"
+        deadline_scope: Any = None
         try:
-            remaining = self.remaining_timeout("initialize")
-            async with AsyncExitStack() as stack:
-                self._deadline_scope = stack.enter_context(fail_after(remaining))
-                resources = AsyncExitStack()
-
-                async def close_resources(
-                    exc_type: type[BaseException] | None,
-                    exc: BaseException | None,
-                    traceback: Any,
-                ) -> bool:
-                    return await self._close_stack(
-                        resources,
-                        exc_type,
-                        exc,
-                        traceback,
-                    )
-
-                stack.push_async_exit(close_resources)
-                http_client = await resources.enter_async_context(
-                    httpx2.AsyncClient(
-                        http2=False,
-                        follow_redirects=True,
-                        timeout=self._http_timeout(remaining),
-                    )
-                )
-                self._http_client = http_client
-                transport = streamable_http_client(
+            with fail_after(remaining) as deadline_scope:
+                async with Client(
                     self.url,
-                    http_client=http_client,
-                    terminate_on_close=True,
-                )
-                client = Client(
-                    transport,
                     mode="legacy",
                     client_info=Implementation(
                         name="hermes-flights-cli",
@@ -356,98 +191,74 @@ class TutuMcpClient:
                     ),
                     read_timeout_seconds=remaining,
                     cache=None,
-                )
-                resources.push_async_exit(client.__aexit__)
-                self._refresh_http_timeout("initialize")
-                self._active_operation = "initialize"
-                try:
-                    await client.__aenter__()
-                except Exception as exc:
-                    setattr(exc, "_tutu_operation", "initialize")
-                    raise
-                self._active_operation = None
-                self._client = client
-                playbook_payload = await self._call_tool_in_session(
-                    "get_avia_instructions", {}
-                )
-                if (
-                    not isinstance(playbook_payload, str)
-                    or not playbook_payload.strip()
-                ):
-                    raise CliError(
-                        "Tutu MCP get_avia_instructions returned an empty or unsupported playbook",
-                        error_type="upstream_error",
-                        details={
-                            "provider": "tutu",
-                            "tool": "get_avia_instructions",
-                        },
+                ) as client:
+                    self._client = client
+                    self._active_operation = None
+                    playbook = await self._call_tool(
+                        "get_avia_instructions", {}
                     )
-                self.playbook = playbook_payload
-                ready.set_result(None)
-                response = None
-
-                while True:
-                    tool_name, arguments, response = await commands.get()
-                    if tool_name is None:
-                        self._active_operation = "close"
-                        break
-                    try:
-                        payload = await self._call_tool_in_session(
-                            tool_name,
-                            arguments,
+                    if not isinstance(playbook, str) or not playbook.strip():
+                        raise CliError(
+                            "Tutu MCP get_avia_instructions returned an empty or unsupported playbook",
+                            error_type="upstream_error",
+                            details={
+                                "provider": "tutu",
+                                "tool": "get_avia_instructions",
+                            },
                         )
-                    except Exception as failure:
-                        response.set_exception(failure)
+                    self.playbook = playbook
+                    self._active_operation = None
+                    try:
+                        yield
+                    except BaseException:
+                        raise
                     else:
-                        response.set_result(payload)
-                    response = None
-            if response is not None and not response.done():
-                response.set_result(None)
-        except BaseException as failure:
-            if not hasattr(failure, "_tutu_operation"):
-                is_external_cancellation = (
-                    isinstance(failure, get_cancelled_exc_class())
-                    and self._external_cancellation_operation is not None
+                        self._active_operation = "close"
+        except get_cancelled_exc_class():
+            raise
+        except Exception as exc:
+            task = asyncio.current_task()
+            if task is not None and task.cancelling():
+                raise get_cancelled_exc_class() from None
+            if deadline_scope is not None and deadline_scope.cancel_called:
+                operation = self._active_operation or "initialize"
+                timeout_error = TimeoutError(
+                    f"Tutu MCP deadline exhausted during {operation}"
                 )
-                if not is_external_cancellation:
-                    setattr(
-                        failure,
-                        "_tutu_operation",
-                        self._active_operation or "initialize",
-                    )
-            self._resolve_failure(response, failure)
+                setattr(timeout_error, "_tutu_operation", operation)
+                raise timeout_error from exc
+            cli_error = self._sole_cli_error(exc)
+            if cli_error is not None:
+                if cli_error is exc:
+                    raise
+                raise cli_error from exc
+            if not hasattr(exc, "_tutu_operation"):
+                setattr(
+                    exc,
+                    "_tutu_operation",
+                    self._active_operation or "initialize",
+                )
             raise
         finally:
             self._client = None
-            self._http_client = None
             self._active_operation = None
-            self._deadline_scope = None
 
     async def __aenter__(self) -> TutuMcpClient:
-        self.remaining_timeout("initialize")
-        if self._session_task is not None:
+        if self._session_context is not None:
             raise RuntimeError("TutuMcpClient cannot be entered more than once")
-        loop = asyncio.get_running_loop()
-        ready: asyncio.Future[TutuToolPayload | None] = loop.create_future()
-        commands: asyncio.Queue[
-            tuple[
-                str | None,
-                dict[str, Any],
-                asyncio.Future[TutuToolPayload | None],
-            ]
-        ] = asyncio.Queue()
-        self._command_queue = commands
-        self._session_task = asyncio.create_task(
-            self._session_worker(ready, commands),
-            name="tutu-mcp-session",
-        )
+        context = self._direct_session()
+        self._session_context = context
         try:
-            await self._await_response(ready, operation="initialize")
-        except BaseException:
-            task = self._session_task
-            if task is not None:
-                await self._drain_task(task)
-            self._reset_session()
+            await context.__aenter__()
+        except BaseException as failure:
+            self._session_context = None
+            task = asyncio.current_task()
+            if (
+                not isinstance(failure, get_cancelled_exc_class())
+                and task is not None
+                and task.cancelling()
+            ):
+                raise get_cancelled_exc_class() from None
             raise
         return self
 
@@ -457,60 +268,21 @@ class TutuMcpClient:
         exc: BaseException | None,
         traceback: Any,
     ) -> None:
-        task = self._session_task
-        commands = self._command_queue
-        if task is None:
+        context = self._session_context
+        if context is None:
             return
+        self._session_context = None
         try:
-            if task.done():
-                await self._drain_task(task)
-                if exc is None:
-                    task.result()
-                return
-            if isinstance(exc, get_cancelled_exc_class()):
-                self._external_cancellation_operation = (
-                    self._external_cancellation_operation
-                    or self._active_operation
-                    or "close"
-                )
-                task.cancel()
-                await self._drain_task(task)
-                return
-            if commands is None:
-                raise RuntimeError("Tutu MCP command queue is not available")
-            close_response: asyncio.Future[TutuToolPayload | None] = (
-                asyncio.get_running_loop().create_future()
-            )
-            commands.put_nowait((None, {}, close_response))
-            try:
-                await self._await_response(close_response, operation="close")
-                await self._drain_task(task)
-            except Exception:
-                await self._drain_task(task)
-                if exc is None:
-                    raise
-        finally:
-            self._reset_session()
-
-    async def _call_tool(
-        self, tool_name: str, arguments: dict[str, Any]
-    ) -> TutuToolPayload:
-        self.remaining_timeout(tool_name)
-        task = self._session_task
-        commands = self._command_queue
-        if task is None or commands is None:
-            raise RuntimeError("TutuMcpClient must be entered before calling tools")
-        if task.done():
-            await self._drain_task(task)
-            task.result()
-        response: asyncio.Future[TutuToolPayload | None] = (
-            asyncio.get_running_loop().create_future()
-        )
-        commands.put_nowait((tool_name, arguments, response))
-        payload = await self._await_response(response, operation=tool_name)
-        if payload is None:
-            raise RuntimeError(f"Tutu MCP tool {tool_name} returned no payload")
-        return payload
+            await context.__aexit__(exc_type, exc, traceback)
+        except BaseException:
+            task = asyncio.current_task()
+            if (
+                isinstance(exc, get_cancelled_exc_class())
+                and task is not None
+                and task.cancelling()
+            ):
+                raise exc.with_traceback(traceback)
+            raise
 
     async def search_avia(self, arguments: dict[str, Any]) -> dict[str, Any]:
         payload = await self._call_tool("search_avia", arguments)
