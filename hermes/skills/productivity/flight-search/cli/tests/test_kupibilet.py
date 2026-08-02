@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import gzip
 import tempfile
 import unittest
 from datetime import date
@@ -15,7 +14,6 @@ from flights_cli.orchestrators.search_workflow import SearchWorkflow
 from flights_cli.providers.kupibilet import (
     build_kupibilet_payload,
     cached_kupibilet_search,
-    decode_http_body,
     kupibilet_flight_number,
     parse_kupibilet_frontend_search,
 )
@@ -102,11 +100,6 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(payload["cabin"], "economy")
         self.assertEqual(payload["sort_by"], "price")
         self.assertFalse(payload["short_response"])
-
-    def test_decode_http_body_handles_gzip_for_kupibilet(self) -> None:
-        raw = b'{"variants":[]}'
-        self.assertEqual(decode_http_body(gzip.compress(raw), "gzip"), raw)
-        self.assertEqual(decode_http_body(raw, None), raw)
 
     def test_parse_kupibilet_filters_airport_scope_before_limit(self) -> None:
         raw = airport_scope_raw(

@@ -103,13 +103,17 @@ class ArchitectureTests(unittest.TestCase):
     def test_kupibilet_transport_is_separate_from_fetch_orchestration(self) -> None:
         from pathlib import Path
 
-        provider_source = Path("flights_cli/providers/kupibilet.py").read_text(
-            encoding="utf-8"
-        )
+        provider_root = Path("flights_cli/providers")
+        provider_sources = [
+            (provider_root / name).read_text(encoding="utf-8")
+            for name in ("kupibilet.py", "kupibilet_transport.py", "static_catalog.py")
+        ]
 
-        self.assertNotIn("urllib.request", provider_source)
-        self.assertNotIn("urllib.error", provider_source)
-        self.assertIn("post_kupibilet_search", provider_source)
+        for provider_source in provider_sources:
+            self.assertNotIn("urllib.request", provider_source)
+            self.assertNotIn("urllib.error", provider_source)
+            self.assertNotIn("decode_http_body", provider_source)
+        self.assertIn("post_kupibilet_search", provider_sources[0])
 
     def test_moscow_airports_are_not_interchangeable(self) -> None:
         # SVO/DME/VKO are separate airports; not interchangeable for itinerary continuity.
