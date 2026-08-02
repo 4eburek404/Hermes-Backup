@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..adapters.providers.registry import provider_adapter
-from ..domain.vocabulary import Leg, RequiredControl
+from ..domain.vocabulary import Leg
 from ..store import Store
 
 
@@ -24,8 +24,8 @@ def run_diagnostic_probe(
         request.get("probe_type") or query.get("probe_type") or "segment_direct"
     )
     if probe_type in {
-        RequiredControl.FULL_ROUTE_AGGREGATE,
-        RequiredControl.CARRIER_AGGREGATE,
+        "full_route_aggregate",
+        "carrier_aggregate",
     }:
         result = adapter.search_aggregate(query)
     else:

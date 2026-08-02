@@ -1,23 +1,23 @@
 from __future__ import annotations
 
+from copy import deepcopy
+from dataclasses import dataclass
 from typing import Any
 
-from ..domain.vocabulary import RequiredControl
-from ..execution.probe_ledger import ProbeExecutionLedger, control_identity
+
+PROBE_BUCKETS = (
+    "planned_probes",
+    "searched_probes",
+    "skipped_probes",
+    "failed_probes",
+    "unsupported_probes",
+    "not_executed_probes",
+    "deduped_probes",
+)
+TERMINAL_PROBE_BUCKETS = PROBE_BUCKETS[1:]
 
 
-CONTROL_BUCKETS = [
-    "planned_controls",
-    "searched_controls",
-    "skipped_controls",
-    "failed_controls",
-    "not_supported_controls",
-    "not_executed_controls",
-    "deduped_controls",
-]
-
-
-def _coverage_warnings() -> list[str]:
+def coverage_warnings() -> list[str]:
     return [
         "segment_absence_is_not_route_absence",
         "provider_empty_is_not_carrier_absence",
@@ -25,179 +25,90 @@ def _coverage_warnings() -> list[str]:
     ]
 
 
-def _runtime_ledger_diagnostics(
-    plan: dict[str, Any], ledger: dict[str, Any]
-) -> dict[str, Any]:
-    diagnostics: dict[str, Any] = {
-        "coverage_mode": ledger.get("coverage_mode")
-        or plan.get("coverage_mode")
-        or "standard",
-        "negative_evidence_type": ledger.get("negative_evidence_type")
-        or "bounded_live_controls_only",
-        "coverage_warnings": ledger.get("coverage_warnings") or _coverage_warnings(),
-        "limits": ledger.get("limits") or plan.get("coverage_limits") or {},
-    }
-    for bucket in CONTROL_BUCKETS:
-        values = ledger.get(bucket)
-        diagnostics[bucket] = values if isinstance(values, list) else []
-    completeness = (
-        ledger.get("completeness")
-        if isinstance(ledger.get("completeness"), dict)
-        else None
-    )
-    if completeness is None:
-        planned_count = len(diagnostics["planned_controls"])
-        terminal_count = sum(
-            len(diagnostics[bucket])
-            for bucket in (
-                "searched_controls",
-                "skipped_controls",
-                "failed_controls",
-                "not_supported_controls",
-                "not_executed_controls",
-            )
+def provider_failure_summary(failure: dict[str, Any]) -> dict[str, Any]:
+    error = failure.get("error") if isinstance(failure.get("error"), dict) else {}
+    error_summary = {
+        key: error.get(key)
+        for key in (
+            "type",
+            "message",
+            "classification",
+            "retryable",
+            "retry_after_seconds",
+            "retry_after_parse_error",
+            "http_status",
         )
-        completeness = {
-            "planned_count": planned_count,
-            "terminal_count": terminal_count,
-            "all_planned_controls_have_terminal_state": planned_count == terminal_count,
+        if key in error or key in {"type", "message"}
+    }
+    return {
+        "direction": failure.get("direction"),
+        "leg": failure.get("leg"),
+        "origin": failure.get("origin"),
+        "destination": failure.get("destination"),
+        "date": failure.get("date"),
+        "provider": failure.get("provider"),
+        "cache_status": failure.get("cache_status"),
+        "probe_id": failure.get("probe_id"),
+        "error": error_summary,
+    }
+
+
+def compact_provider_failures(
+    ledger: dict[str, Any], *, limit: int = 10
+) -> list[dict[str, Any]]:
+    return [
+        provider_failure_summary(item)
+        for item in failed_probes_from_ledger(ledger)[: max(0, limit)]
+    ]
+
+
+def failed_probes_from_ledger(ledger: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return defensive copies of the ledger-owned provider failures."""
+
+    return [
+        deepcopy(item)
+        for item in ledger.get("failed_probes") or []
+        if isinstance(item, dict)
+    ]
+
+
+def _coverage_diagnostics_from_ledger(ledger: dict[str, Any]) -> dict[str, Any]:
+    missing = [bucket for bucket in PROBE_BUCKETS if bucket not in ledger]
+    invalid = [
+        bucket
+        for bucket in PROBE_BUCKETS
+        if bucket in ledger and not isinstance(ledger[bucket], list)
+    ]
+    if missing or invalid:
+        details = []
+        if missing:
+            details.append(f"missing buckets: {', '.join(missing)}")
+        if invalid:
+            details.append(f"non-list buckets: {', '.join(invalid)}")
+        raise ValueError(
+            f"invalid production probe ledger shape ({'; '.join(details)})"
+        )
+
+    diagnostics = {bucket: deepcopy(ledger[bucket]) for bucket in PROBE_BUCKETS}
+    planned_count = len(diagnostics["planned_probes"])
+    terminal_count = sum(len(diagnostics[bucket]) for bucket in TERMINAL_PROBE_BUCKETS)
+    diagnostics.update(
+        {
+            "negative_evidence_type": "bounded_live_probes_only",
+            "coverage_warnings": coverage_warnings(),
+            "completeness": {
+                "planned_count": planned_count,
+                "terminal_count": terminal_count,
+                "all_planned_probes_have_terminal_state": (
+                    planned_count == terminal_count
+                ),
+            },
         }
-    diagnostics["completeness"] = completeness
+    )
     return diagnostics
 
 
-def build_coverage_diagnostics(
-    plan: dict[str, Any], live: dict[str, Any]
-) -> dict[str, Any]:
-    runtime_ledger = (
-        live.get("probe_ledger") if isinstance(live.get("probe_ledger"), dict) else None
-    )
-    if runtime_ledger is not None:
-        return _runtime_ledger_diagnostics(plan, runtime_ledger)
-
-    controls = [
-        item for item in plan.get("coverage_controls") or [] if isinstance(item, dict)
-    ]
-    ledger = ProbeExecutionLedger()
-    ledger.plan_controls(controls)
-    by_key = {control_identity(control): control for control in controls}
-
-    for item in live.get("segment_searches") or []:
-        if not isinstance(item, dict):
-            continue
-        if item.get("status") == "deduped":
-            ledger.record_deduped(
-                {
-                    "type": "route_segment",
-                    "direction": item.get("direction"),
-                    "leg": item.get("leg"),
-                    "origin": item.get("origin"),
-                    "destination": item.get("destination"),
-                    "date": item.get("date"),
-                    "probe_id": item.get("probe_id"),
-                },
-                original_probe_id=item.get("original_probe_id"),
-            )
-            continue
-        if item.get("status") == "skipped":
-            ledger.record_skipped(
-                {
-                    "type": "route_segment",
-                    "direction": item.get("direction"),
-                    "leg": item.get("leg"),
-                    "origin": item.get("origin"),
-                    "destination": item.get("destination"),
-                    "date": item.get("date"),
-                },
-                reason=item.get("reason"),
-            )
-            continue
-        key = control_identity(
-            {
-                "type": RequiredControl.EXACT_AIRPORT_DIRECT,
-                "direction": item.get("direction"),
-                "origin": item.get("origin"),
-                "destination": item.get("destination"),
-                "date": item.get("date"),
-            }
-        )
-        control = by_key.get(key)
-        if control:
-            ledger.record_searched(
-                control,
-                status=item.get("status"),
-                provider=item.get("provider"),
-                offer_count=item.get("offer_count"),
-                cache_status=item.get("cache_status"),
-            )
-
-    for item in live.get("aggregate_controls") or []:
-        if not isinstance(item, dict):
-            continue
-        filters = item.get("filters") if isinstance(item.get("filters"), dict) else {}
-        carriers = [
-            str(code).upper() for code in filters.get("only_carriers") or [] if code
-        ]
-        if carriers:
-            for carrier in carriers:
-                key = control_identity(
-                    {
-                        "type": RequiredControl.CARRIER_AGGREGATE,
-                        "direction": item.get("direction"),
-                        "origin": item.get("origin"),
-                        "destination": item.get("destination"),
-                        "date": item.get("date"),
-                        "carrier": carrier,
-                    }
-                )
-                control = by_key.get(key)
-                if control:
-                    if item.get("status") == "error":
-                        ledger.record_failed(
-                            control,
-                            provider=item.get("provider"),
-                            error=item.get("error"),
-                        )
-                    else:
-                        ledger.record_searched(
-                            control,
-                            status=item.get("status"),
-                            provider=item.get("provider"),
-                            offer_count=item.get("offer_count"),
-                            cache_status=item.get("cache_status"),
-                        )
-        else:
-            key = control_identity(
-                {
-                    "type": RequiredControl.FULL_ROUTE_AGGREGATE,
-                    "direction": item.get("direction"),
-                    "origin": item.get("origin"),
-                    "destination": item.get("destination"),
-                    "date": item.get("date"),
-                }
-            )
-            control = by_key.get(key)
-            if control:
-                if item.get("status") == "error":
-                    ledger.record_failed(
-                        control, provider=item.get("provider"), error=item.get("error")
-                    )
-                else:
-                    ledger.record_searched(
-                        control,
-                        status=item.get("status"),
-                        provider=item.get("provider"),
-                        offer_count=item.get("offer_count"),
-                        cache_status=item.get("cache_status"),
-                    )
-
-    ledger.finalize_unexecuted()
-    return ledger.to_coverage_diagnostics(plan)
-
-
-def compact_coverage_summary(
-    diagnostics: dict[str, Any], provider_failures: list[dict[str, Any]]
-) -> dict[str, Any]:
+def _compact_summary(diagnostics: dict[str, Any]) -> dict[str, Any]:
     completeness = (
         diagnostics.get("completeness")
         if isinstance(diagnostics.get("completeness"), dict)
@@ -205,36 +116,105 @@ def compact_coverage_summary(
     )
     counts = {
         bucket: len(diagnostics.get(bucket) or [])
-        for bucket in CONTROL_BUCKETS
+        for bucket in PROBE_BUCKETS
         if isinstance(diagnostics.get(bucket), list)
     }
-    not_executed = diagnostics.get("not_executed_controls")
-    failed = diagnostics.get("failed_controls")
-    not_supported = diagnostics.get("not_supported_controls")
     blocking_evidence: list[str] = []
-    if isinstance(not_executed, list) and not_executed:
-        blocking_evidence.append("not_executed_controls")
-    if isinstance(failed, list) and failed:
-        blocking_evidence.append("failed_controls")
-    if provider_failures:
-        blocking_evidence.append("provider_failures")
+    if diagnostics.get("not_executed_probes"):
+        blocking_evidence.append("not_executed_probes")
+    if diagnostics.get("failed_probes"):
+        blocking_evidence.append("failed_probes")
     non_blocking_boundaries = (
-        ["not_supported_controls"]
-        if isinstance(not_supported, list) and not_supported
-        else []
+        ["unsupported_probes"] if diagnostics.get("unsupported_probes") else []
     )
     return {
-        "coverage_mode": diagnostics.get("coverage_mode"),
         "negative_evidence_type": diagnostics.get("negative_evidence_type"),
         "coverage_warnings": diagnostics.get("coverage_warnings") or [],
         "counts": counts,
         "completeness": {
             "planned_count": int(completeness.get("planned_count") or 0),
             "terminal_count": int(completeness.get("terminal_count") or 0),
-            "all_planned_controls_have_terminal_state": bool(
-                completeness.get("all_planned_controls_have_terminal_state")
+            "all_planned_probes_have_terminal_state": bool(
+                completeness.get("all_planned_probes_have_terminal_state")
             ),
         },
         "blocking_evidence": blocking_evidence,
         "non_blocking_boundaries": non_blocking_boundaries,
     }
+
+
+def _answer_evidence_status(
+    diagnostics: dict[str, Any],
+    summary: dict[str, Any],
+) -> dict[str, Any]:
+    completeness = summary["completeness"]
+    execution_complete = bool(
+        completeness.get("all_planned_probes_have_terminal_state")
+    )
+    blocking_evidence = list(summary.get("blocking_evidence") or [])
+    evidence_complete = execution_complete and not blocking_evidence
+    return {
+        "coverage_complete": evidence_complete,
+        "execution_complete": execution_complete,
+        "evidence_complete": evidence_complete,
+        "answerability": (
+            "answerable"
+            if evidence_complete
+            else "answerable_with_caveats"
+            if execution_complete
+            else "needs_more_evidence"
+        ),
+        "planned_probe_count": int(completeness.get("planned_count") or 0),
+        "terminal_probe_count": int(completeness.get("terminal_count") or 0),
+        "not_executed_probe_count": len(diagnostics.get("not_executed_probes") or []),
+        "failed_probe_count": len(diagnostics.get("failed_probes") or []),
+        "unsupported_probe_count": len(diagnostics.get("unsupported_probes") or []),
+        "provider_failure_count": len(diagnostics.get("failed_probes") or []),
+        "blocking_evidence": blocking_evidence,
+        "non_blocking_boundaries": list(summary.get("non_blocking_boundaries") or []),
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class CoverageSnapshot:
+    diagnostics: dict[str, Any]
+    summary: dict[str, Any]
+    provider_failures: tuple[dict[str, Any], ...]
+    answer_evidence_status: dict[str, Any]
+
+    @classmethod
+    def from_live(
+        cls, live: dict[str, Any], *, failure_limit: int = 10
+    ) -> CoverageSnapshot:
+        ledger = live.get("probe_ledger")
+        if not isinstance(ledger, dict):
+            raise ValueError("live search output requires a production probe_ledger")
+        return cls.from_diagnostics(ledger, failure_limit=failure_limit)
+
+    @classmethod
+    def from_diagnostics(
+        cls,
+        diagnostics: dict[str, Any],
+        *,
+        failure_limit: int = 10,
+    ) -> CoverageSnapshot:
+        normalized = _coverage_diagnostics_from_ledger(diagnostics)
+        failures = compact_provider_failures(normalized, limit=failure_limit)
+        summary = _compact_summary(normalized)
+        return cls(
+            diagnostics=normalized,
+            summary=summary,
+            provider_failures=tuple(failures),
+            answer_evidence_status=_answer_evidence_status(normalized, summary),
+        )
+
+
+__all__ = [
+    "CoverageSnapshot",
+    "PROBE_BUCKETS",
+    "TERMINAL_PROBE_BUCKETS",
+    "compact_provider_failures",
+    "coverage_warnings",
+    "failed_probes_from_ledger",
+    "provider_failure_summary",
+]

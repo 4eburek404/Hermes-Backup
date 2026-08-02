@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermes.local/flights/flight_route_trace_diagnostic.v4.schema.json",
+  "title": "Flight Route Trace Diagnostic v4",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request", "plan", "evidence", "decision", "answer"],
+  "properties": {
+    "schema_version": {"const": "flight_route_trace_diagnostic.v4"},
+    "request": {"$ref": "flight_search_request.v3.schema.json"},
+    "plan": {"$ref": "flight_search_plan.v5.schema.json"},
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider_policy", "primary_offer_results", "gateway_leg_results", "observed_gateway_diagnostics", "probe_ledger", "failures", "direct_mode", "max_connections_by_direction", "direct_presence_gate"],
+      "properties": {
+        "provider_policy": {"type": "string"},
+        "primary_offer_results": {"type": "array", "items": {"type": "object"}},
+        "gateway_leg_results": {"type": "object"},
+        "observed_gateway_diagnostics": {"type": "object"},
+        "probe_ledger": {"type": "object"},
+        "failures": {"type": "array", "items": {"type": "object"}},
+        "direct_mode": {"type": "object", "additionalProperties": {"type": "boolean"}},
+        "max_connections_by_direction": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+        "direct_presence_gate": {"type": "object"},
+        "date_window_inventory": {"type": "object"}
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["offer_graph", "candidate_envelope", "scorer", "frontier"],
+      "properties": {
+        "offer_graph": {"$ref": "flight_offer_graph.v1.schema.json"},
+        "candidate_envelope": {"type": "object"},
+        "scorer": {"type": "object"},
+        "frontier": {"type": "object"}
+      }
+    },
+    "answer": {"$ref": "flight_search_user_answer.v11.schema.json"}
+  }
+}

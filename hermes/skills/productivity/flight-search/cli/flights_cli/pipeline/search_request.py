@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..config import (
-    DEFAULT_COVERAGE_CONTROL_LIMIT,
     DEFAULT_CURRENCY,
     DEFAULT_GATEWAY_DISCOVERY_LIMIT,
     DEFAULT_GATEWAY_PROBE_BATCH_SIZE,
@@ -12,14 +11,15 @@ from ..config import (
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
     DEFAULT_PROFILE,
     DEFAULT_ROUTING_STRATEGY,
-    DEFAULT_SEARCH_WAVE_MAX_WAVES,
-    DEFAULT_SEARCH_WAVE_PROBE_LIMIT,
-    DEFAULT_SEARCH_WAVE_TOP_K,
-    FLI_MCP_DEFAULT_URL,
-    PRIORITY_ROUTE_CARRIERS,
     catalog_output_limits_from_mapping,
 )
-from ..domain.vocabulary import RoutingStrategy
+from ..domain.connection_policy import (
+    DEFAULT_MIN_CROSS_AIRPORT_CONNECTION_MIN,
+    DEFAULT_MIN_SAME_AIRPORT_CONNECTION_MIN,
+)
+from ..domain.normalize import parse_iso_date
+from ..contracts.validation import validate_contract_payload
+from ..errors import CliError
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,7 +36,6 @@ class RouteOptions:
     max_connections: int | None
     tier2_max_connections: int | None
     date_window_end: str | None
-    stop_policy: str
     min_same_airport_min: int
     min_cross_airport_min: int
     gateway_discovery_limit: int
@@ -47,32 +46,18 @@ class RouteOptions:
 @dataclass(frozen=True, slots=True)
 class FilterOptions:
     only_carriers: tuple[str, ...]
-    exclude_carriers: tuple[str, ...]
-    prefer_carriers: tuple[str, ...]
-    avoid_carriers: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
 class EvidenceOptions:
     provider_policy: str
     primary_offer_limit: int
-    coverage_mode: str
-    coverage_controls: tuple[str, ...]
-    coverage_control_limit: int
-    aggregate_control_limit: int
-    aggregate_control_carriers: tuple[str, ...]
     max_segment_searches: int
     live_cache_ttl_seconds: int
     no_live_cache: bool
     segment_limit: int
     timeout: int
-    outbound_second_leg_day_offsets: tuple[int, ...]
-    return_second_leg_day_offsets: tuple[int, ...]
-    search_wave_max_waves: int
-    search_wave_probe_limit: int
-    search_wave_top_k: int
     fail_fast: bool
-    fli_mcp_url: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,19 +68,19 @@ class OutputOptions:
 
 @dataclass(frozen=True, slots=True)
 class SearchRequest:
-    """Canonical immutable request used by planning and execution."""
+    """Canonical immutable input consumed only by SearchPlanBuilder."""
 
     route: RouteOptions
     filters: FilterOptions
     evidence: EvidenceOptions
     output: OutputOptions
     profile: str
-    ticketing: str
     currency: str
-    command_name: str = "search"
 
     @classmethod
-    def from_payload(cls, payload: dict[str, Any]) -> SearchRequest:
+    def _from_normalized_payload(cls, payload: dict[str, Any]) -> SearchRequest:
+        """Build from a payload already normalized at the input boundary."""
+
         route = _mapping(payload.get("route_options"))
         evidence = _mapping(payload.get("evidence"))
         filters = _mapping(payload.get("filters"))
@@ -103,8 +88,8 @@ class SearchRequest:
         output_limits = catalog_output_limits_from_mapping(output)
         return cls(
             route=RouteOptions(
-                origin=str(payload.get("origin") or "").upper(),
-                destination=str(payload.get("destination") or "").upper(),
+                origin=str(payload.get("origin") or ""),
+                destination=str(payload.get("destination") or ""),
                 depart_date=str(payload.get("depart_date") or ""),
                 return_date=(
                     str(payload.get("return_date"))
@@ -127,9 +112,16 @@ class SearchRequest:
                     if route.get("date_window_end")
                     else None
                 ),
-                stop_policy=str(route.get("stop_policy") or "business-default"),
-                min_same_airport_min=_int_option(route, "min_same_airport_min", 120),
-                min_cross_airport_min=_int_option(route, "min_cross_airport_min", 300),
+                min_same_airport_min=_int_option(
+                    route,
+                    "min_same_airport_min",
+                    DEFAULT_MIN_SAME_AIRPORT_CONNECTION_MIN,
+                ),
+                min_cross_airport_min=_int_option(
+                    route,
+                    "min_cross_airport_min",
+                    DEFAULT_MIN_CROSS_AIRPORT_CONNECTION_MIN,
+                ),
                 gateway_discovery_limit=_int_option(
                     route,
                     "gateway_discovery_limit",
@@ -148,25 +140,11 @@ class SearchRequest:
             ),
             filters=FilterOptions(
                 only_carriers=_str_tuple(filters.get("only_carriers")),
-                exclude_carriers=_str_tuple(filters.get("exclude_carriers")),
-                prefer_carriers=_str_tuple(filters.get("prefer_carriers")),
-                avoid_carriers=_str_tuple(filters.get("avoid_carriers")),
             ),
             evidence=EvidenceOptions(
-                provider_policy=str(payload.get("provider_policy") or "auto").lower(),
+                provider_policy=str(payload.get("provider_policy") or "auto"),
                 primary_offer_limit=max(
                     output_limits.catalog_limit, output_limits.direct_catalog_limit
-                ),
-                coverage_mode=str(route.get("coverage_mode") or "targeted"),
-                coverage_controls=_str_tuple(route.get("coverage_controls")),
-                coverage_control_limit=_int_option(
-                    route, "coverage_control_limit", DEFAULT_COVERAGE_CONTROL_LIMIT
-                ),
-                aggregate_control_limit=_int_option(
-                    evidence, "aggregate_control_limit", 0
-                ),
-                aggregate_control_carriers=_str_tuple(
-                    evidence.get("aggregate_control_carriers")
                 ),
                 max_segment_searches=_int_option(evidence, "max_segment_searches", 300),
                 live_cache_ttl_seconds=_int_option(
@@ -177,47 +155,27 @@ class SearchRequest:
                 no_live_cache=_bool_option(evidence, "no_live_cache", False),
                 segment_limit=_int_option(evidence, "segment_limit", 30),
                 timeout=_int_option(evidence, "timeout", 60),
-                outbound_second_leg_day_offsets=_int_tuple(
-                    evidence.get("outbound_second_leg_day_offsets")
-                ),
-                return_second_leg_day_offsets=_int_tuple(
-                    evidence.get("return_second_leg_day_offsets")
-                ),
-                search_wave_max_waves=_int_option(
-                    evidence, "search_wave_max_waves", DEFAULT_SEARCH_WAVE_MAX_WAVES
-                ),
-                search_wave_probe_limit=_int_option(
-                    evidence,
-                    "search_wave_probe_limit",
-                    DEFAULT_SEARCH_WAVE_PROBE_LIMIT,
-                ),
-                search_wave_top_k=_int_option(
-                    evidence, "search_wave_top_k", DEFAULT_SEARCH_WAVE_TOP_K
-                ),
                 fail_fast=_bool_option(evidence, "fail_fast", False),
-                fli_mcp_url=str(evidence.get("fli_mcp_url") or FLI_MCP_DEFAULT_URL),
             ),
             output=OutputOptions(
                 catalog_limit=output_limits.catalog_limit,
                 direct_catalog_limit=output_limits.direct_catalog_limit,
             ),
             profile=str(payload.get("profile") or DEFAULT_PROFILE),
-            ticketing=str(payload.get("ticketing") or "separate"),
-            currency=str(payload.get("currency") or DEFAULT_CURRENCY).upper(),
+            currency=str(payload.get("currency") or DEFAULT_CURRENCY),
         )
 
     def to_payload(self) -> dict[str, Any]:
         """Return the canonical wire projection after Python defaults are applied."""
 
         return {
-            "schema_version": "flight_search_request.v1",
+            "schema_version": "flight_search_request.v3",
             "origin": self.route.origin,
             "destination": self.route.destination,
             "depart_date": self.route.depart_date,
             "return_date": self.route.return_date,
             "currency": self.currency,
             "profile": self.profile,
-            "ticketing": self.ticketing,
             "provider_policy": self.evidence.provider_policy,
             "route_options": {
                 "routing_strategy": self.route.routing_strategy,
@@ -228,43 +186,22 @@ class SearchRequest:
                 "max_connections": self.route.max_connections,
                 "tier2_max_connections": self.route.tier2_max_connections,
                 "date_window_end": self.route.date_window_end,
-                "stop_policy": self.route.stop_policy,
                 "min_same_airport_min": self.route.min_same_airport_min,
                 "min_cross_airport_min": self.route.min_cross_airport_min,
                 "gateway_discovery_limit": self.route.gateway_discovery_limit,
                 "gateway_probe_batch_size": self.route.gateway_probe_batch_size,
                 "gateway_probe_max_batches": self.route.gateway_probe_max_batches,
-                "coverage_mode": self.evidence.coverage_mode,
-                "coverage_controls": list(self.evidence.coverage_controls),
-                "coverage_control_limit": self.evidence.coverage_control_limit,
             },
             "filters": {
                 "only_carriers": list(self.filters.only_carriers),
-                "exclude_carriers": list(self.filters.exclude_carriers),
-                "prefer_carriers": list(self.filters.prefer_carriers),
-                "avoid_carriers": list(self.filters.avoid_carriers),
             },
             "evidence": {
                 "segment_limit": self.evidence.segment_limit,
                 "timeout": self.evidence.timeout,
-                "outbound_second_leg_day_offsets": list(
-                    self.evidence.outbound_second_leg_day_offsets
-                ),
-                "return_second_leg_day_offsets": list(
-                    self.evidence.return_second_leg_day_offsets
-                ),
-                "search_wave_max_waves": self.evidence.search_wave_max_waves,
-                "search_wave_probe_limit": self.evidence.search_wave_probe_limit,
-                "search_wave_top_k": self.evidence.search_wave_top_k,
-                "aggregate_control_limit": self.evidence.aggregate_control_limit,
-                "aggregate_control_carriers": list(
-                    self.evidence.aggregate_control_carriers
-                ),
                 "max_segment_searches": self.evidence.max_segment_searches,
                 "fail_fast": self.evidence.fail_fast,
                 "live_cache_ttl_seconds": self.evidence.live_cache_ttl_seconds,
                 "no_live_cache": self.evidence.no_live_cache,
-                "fli_mcp_url": self.evidence.fli_mcp_url,
             },
             "output": {
                 "catalog_limit": self.output.catalog_limit,
@@ -274,19 +211,6 @@ class SearchRequest:
 
     def effective_only_carriers(self) -> tuple[str, ...]:
         return _unique_strs(self.filters.only_carriers)
-
-    def effective_prefer_carriers(
-        self, routing_strategy: str | None = None
-    ) -> tuple[str, ...]:
-        carriers = list(_unique_strs(self.filters.prefer_carriers))
-        if (
-            str(routing_strategy or self.route.routing_strategy or "").lower()
-            == RoutingStrategy.RU_PRIORITY
-        ):
-            for carrier in PRIORITY_ROUTE_CARRIERS:
-                if carrier not in carriers:
-                    carriers.append(carrier)
-        return tuple(carriers)
 
     @property
     def origin(self) -> str:
@@ -353,26 +277,6 @@ class SearchRequest:
         return self.evidence.no_live_cache
 
     @property
-    def aggregate_control_limit(self) -> int:
-        return self.evidence.aggregate_control_limit
-
-    @property
-    def aggregate_control_carriers(self) -> tuple[str, ...]:
-        return self.evidence.aggregate_control_carriers
-
-    @property
-    def coverage_mode(self) -> str:
-        return self.evidence.coverage_mode
-
-    @property
-    def coverage_controls(self) -> tuple[str, ...]:
-        return self.evidence.coverage_controls
-
-    @property
-    def coverage_control_limit(self) -> int:
-        return self.evidence.coverage_control_limit
-
-    @property
     def gateway_discovery_limit(self) -> int:
         return self.route.gateway_discovery_limit
 
@@ -387,10 +291,6 @@ class SearchRequest:
     @property
     def only_carriers(self) -> tuple[str, ...]:
         return self.filters.only_carriers
-
-    @property
-    def exclude_carriers(self) -> tuple[str, ...]:
-        return self.filters.exclude_carriers
 
 
 def _as_tuple(value: object) -> tuple[Any, ...]:
@@ -420,10 +320,6 @@ def _unique_strs(*values: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(result)
 
 
-def _int_tuple(value: object) -> tuple[int, ...]:
-    return tuple(int(item) for item in _as_tuple(value))
-
-
 def _int_option(container: dict[str, Any], name: str, default: int) -> int:
     value = container.get(name)
     return default if value is None else int(value)
@@ -443,3 +339,68 @@ def _bool_option(container: dict[str, Any], name: str, default: bool = False) ->
 
 def _mapping(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+def normalize_search_request_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Canonical casing/default normalization for the public request payload."""
+
+    normalized = dict(payload)
+    normalized.setdefault("schema_version", "flight_search_request.v3")
+    for name in ("origin", "destination", "currency"):
+        if name in normalized:
+            normalized[name] = str(normalized[name]).upper()
+    if "provider_policy" in normalized:
+        normalized["provider_policy"] = str(normalized["provider_policy"]).lower()
+    route_value = normalized.get("route_options")
+    if isinstance(route_value, dict):
+        route = dict(route_value)
+        for name in ("hubs", "origin_airports", "destination_airports"):
+            if isinstance(route.get(name), list):
+                route[name] = [str(item).upper() for item in route[name]]
+        if "routing_strategy" in route:
+            route["routing_strategy"] = str(route["routing_strategy"]).lower()
+        normalized["route_options"] = route
+    filters_value = normalized.get("filters")
+    if isinstance(filters_value, dict):
+        filters = dict(filters_value)
+        if isinstance(filters.get("only_carriers"), list):
+            filters["only_carriers"] = [
+                str(item).upper() for item in filters["only_carriers"]
+            ]
+        normalized["filters"] = filters
+    return normalized
+
+
+def validate_search_request_semantics(request: SearchRequest) -> None:
+    depart = parse_iso_date(request.depart_date, "depart-date")
+    if request.origin == request.destination:
+        raise ValueError("origin and destination must differ")
+    if request.return_date:
+        return_date = parse_iso_date(request.return_date, "return-date")
+        if return_date < depart:
+            raise ValueError("return-date must be on or after depart-date")
+    if request.date_window_end:
+        window_end = parse_iso_date(request.date_window_end, "date-window-end")
+        if window_end < depart:
+            raise ValueError("date-window-end must be on or after depart-date")
+        if request.return_date:
+            raise ValueError("date-window-end cannot be combined with return-date")
+    if (
+        request.max_connections is not None
+        and request.tier2_max_connections is not None
+        and request.tier2_max_connections < request.max_connections
+    ):
+        raise ValueError("tier2-max-connections must not be below max-connections")
+
+
+def search_request_from_payload(payload: dict[str, Any]) -> SearchRequest:
+    normalized = normalize_search_request_payload(payload)
+    validate_contract_payload(
+        "search_request", normalized, error_type="validation_error"
+    )
+    request = SearchRequest._from_normalized_payload(normalized)
+    try:
+        validate_search_request_semantics(request)
+    except ValueError as exc:
+        raise CliError(str(exc), error_type="validation_error") from exc
+    return request

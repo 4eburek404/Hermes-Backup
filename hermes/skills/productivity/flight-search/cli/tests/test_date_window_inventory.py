@@ -7,19 +7,19 @@ from unittest.mock import patch
 
 from flights_cli.cli import build_parser
 from flights_cli.errors import CliError
-from flights_cli.execution.search_executor import execute_search
+from flights_cli.orchestrators.search_workflow import SearchWorkflow
 from flights_cli.orchestrators.search_plan_builder import (
     build_planning_state,
     build_route_context,
-    build_search_plan,
 )
 from flights_cli.pipeline.result_builder import build_result_projection
 from flights_cli.store import Store
-from helpers import live_assembly_args
+from helpers import build_search_plan, live_assembly_args
 
 
 def execute_projection(*args: object, **kwargs: object) -> dict:
-    return execute_search(*args, **kwargs).projection_input
+    request, store = args
+    return SearchWorkflow(store).run_artifacts(request).projection_input
 
 
 def window_args(**overrides: object):
@@ -33,7 +33,6 @@ def window_args(**overrides: object):
         "max_connections": 0,
         "tier2_max_connections": 0,
         "no_live_cache": True,
-        "coverage_mode": "targeted",
     }
     values.update(overrides)
     return live_assembly_args(**values)
@@ -163,62 +162,53 @@ class DateWindowPlanTests(unittest.TestCase):
                 ):
                     build_parser().parse_args(argv)
 
-    def test_window_expands_into_per_date_direct_segments_and_controls(self) -> None:
+    def test_window_expands_into_per_date_direct_provider_queries(self) -> None:
         args = window_args()
-        flow = build_planning_state(args, Store())
         plan = build_route_context(args, Store())
-        search_plan = build_search_plan(args, Store(), flow=flow)
+        search_plan = build_search_plan(args, Store())
 
         query_dates = sorted(
-            {str(query.get("date")) for query in search_plan["primary_offer_queries"]}
+            {
+                str(attempt["query"].get("date"))
+                for attempt in search_plan["phases"]["primary"]
+            }
         )
         self.assertEqual(query_dates, ["2026-08-16", "2026-08-17", "2026-08-18"])
         self.assertTrue(
             all(
-                query.get("direct_only")
-                for query in search_plan["primary_offer_queries"]
+                attempt["query"].get("direct_only")
+                for attempt in search_plan["phases"]["primary"]
             )
         )
         self.assertTrue(
             all(
-                query.get("route_family") == "direct_inventory"
-                for query in search_plan["primary_offer_queries"]
+                attempt["query"].get("route_family") == "direct_inventory"
+                for attempt in search_plan["phases"]["primary"]
             )
         )
         self.assertEqual(plan["dates"].get("window_end"), "2026-08-18")
 
-        control_dates = sorted(
-            {
-                str(control.get("date"))
-                for control in plan["coverage_controls"]
-                if control.get("type") == "city_pair_direct"
-                and control.get("direction") == "outbound"
-            }
-        )
-        self.assertEqual(control_dates, ["2026-08-16", "2026-08-17", "2026-08-18"])
-
     def test_window_requires_direct_only_route_options(self) -> None:
         with self.assertRaises(CliError):
-            build_route_context(
+            build_search_plan(
                 window_args(max_connections=None, tier2_max_connections=None), Store()
             )
 
     def test_window_rejects_return_date(self) -> None:
         with self.assertRaises(CliError):
-            build_route_context(window_args(return_date="2026-08-20"), Store())
+            build_search_plan(window_args(return_date="2026-08-20"), Store())
 
     def test_window_end_must_not_precede_depart_date(self) -> None:
         with self.assertRaises(CliError):
-            build_route_context(window_args(date_window_end="2026-08-15"), Store())
+            build_search_plan(window_args(date_window_end="2026-08-15"), Store())
 
     def test_window_is_bounded(self) -> None:
         with self.assertRaises(CliError):
-            build_route_context(window_args(date_window_end="2026-09-30"), Store())
+            build_search_plan(window_args(date_window_end="2026-09-30"), Store())
 
-    def test_required_controls_include_date_window_direct(self) -> None:
+    def test_date_window_uses_direct_inventory_route_mode(self) -> None:
         flow = build_planning_state(window_args())
-        self.assertIn("date_window_direct", flow.evidence_plan.required_controls)
-        self.assertEqual(flow.flow_decision.intent_class, "direct_inventory")
+        self.assertEqual(flow.flow_decision.route_mode, "direct_inventory")
 
 
 class DateWindowInventoryProjectionTests(unittest.TestCase):
@@ -244,7 +234,7 @@ class DateWindowInventoryProjectionTests(unittest.TestCase):
         self.assertEqual(entries["2026-08-18"]["status"], "probe_failed")
         self.assertEqual(inventory.get("boundary"), "provider_live_only")
 
-        report = build_result_projection(result, Store())
+        report = build_result_projection(result)
         self.assertIsInstance(report, dict)
         self.assertIn("date_window_inventory", report["evidence"])
         report_dates = [

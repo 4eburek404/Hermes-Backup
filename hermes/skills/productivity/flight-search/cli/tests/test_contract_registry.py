@@ -7,11 +7,11 @@ from urllib.parse import urljoin
 
 from jsonschema import Draft202012Validator
 
-from flights_cli.commands.common import packaged_schema_registry
 from flights_cli.contracts.registry import (
     CURRENT_CONTRACTS,
     current_contract,
 )
+from flights_cli.contracts.validation import packaged_schema_registry
 
 
 class ContractRegistryTest(unittest.TestCase):
@@ -31,15 +31,15 @@ class ContractRegistryTest(unittest.TestCase):
         )
         self.assertEqual(
             current_contract("search_result")["schema_version"],
-            "flight_search_result.v7",
+            "flight_search_result.v9",
         )
         self.assertEqual(
             current_contract("route_trace")["schema_version"],
-            "flight_route_trace_diagnostic.v2",
+            "flight_route_trace_diagnostic.v4",
         )
         self.assertEqual(
             current_contract("user_answer")["schema_version"],
-            "flight_search_user_answer.v9",
+            "flight_search_user_answer.v11",
         )
         self.assertEqual(
             current_contract("search_result")["status"], "current_public_contract"

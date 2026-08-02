@@ -20,8 +20,6 @@ MAX_DATE_WINDOW_DAYS = 14
 
 KUPIBILET_FRONTEND_SEARCH_URL = "https://api-rs-lb.kupibilet.ru/frontend_search"
 
-FLI_MCP_DEFAULT_URL = "http://127.0.0.1:8000/mcp"
-
 TUTU_MCP_DEFAULT_URL = "https://mcp.tutu.ru/mcp"
 
 KUPIBILET_HEADERS = {
@@ -41,21 +39,11 @@ DEFAULT_CATALOG_LIMIT = 10
 
 DEFAULT_DIRECT_CATALOG_LIMIT = 30
 
-DEFAULT_COVERAGE_CONTROL_LIMIT = 12
-
 DEFAULT_GATEWAY_DISCOVERY_LIMIT = 1
 
 DEFAULT_GATEWAY_PROBE_BATCH_SIZE = 1
 
 DEFAULT_GATEWAY_PROBE_MAX_BATCHES = 1
-
-DEFAULT_SEARCH_WAVE_MAX_WAVES = 3
-
-DEFAULT_SEARCH_WAVE_PROBE_LIMIT = 6
-
-DEFAULT_SEARCH_WAVE_TOP_K = 5
-
-LATE_ARRIVAL_NEXT_DAY_THRESHOLD_HOUR = 20
 
 DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS = 30 * 60
 
@@ -64,12 +52,6 @@ DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS = 30 * 60
 class CatalogOutputLimits:
     catalog_limit: int = DEFAULT_CATALOG_LIMIT
     direct_catalog_limit: int = DEFAULT_DIRECT_CATALOG_LIMIT
-
-    def to_dict(self) -> dict[str, int]:
-        return {
-            "catalog_limit": self.catalog_limit,
-            "direct_catalog_limit": self.direct_catalog_limit,
-        }
 
 
 def _positive_int(value: Any, default: int) -> int:
@@ -98,8 +80,6 @@ DEFAULT_ROUTE_HUBS = ("IST",)
 
 DEFAULT_ROUTING_STRATEGY = "auto"
 
-PRIORITY_ROUTE_CARRIERS = ("U6", "SU", "TK")
-
 DEFAULT_ROUTE_HUB_NOTES = {
     "IST": "Broadest Russia-origin hub.",
 }
@@ -112,23 +92,17 @@ MULTI_AIRPORT_GROUPS: dict[str, dict[str, Any]] = {
     "istanbul": {
         "label": "Istanbul",
         "airports": ["IST", "SAW"],
-        "cross_transfer_min": 90,
-        "min_cross_connection_min": 300,
-        "note": "IST and SAW are separate airports; separate-ticket transfer needs border, bags, and ground transfer.",
+        "note": "IST and SAW are separate airports and cannot form one connection in this workflow.",
     },
     "moscow": {
         "label": "Moscow",
         "airports": ["SVO", "DME", "VKO"],
-        "cross_transfer_min": 90,
-        "min_cross_connection_min": 300,
-        "note": "SVO, DME, and VKO are separate airports; cross-airport transfer is a high-risk self-transfer.",
+        "note": "SVO, DME, and VKO are separate airports and cannot form one connection in this workflow.",
     },
     "london": {
         "label": "London",
         "airports": ["LHR", "LGW", "STN", "LTN"],
-        "cross_transfer_min": 75,
-        "min_cross_connection_min": 300,
-        "note": "London airports are separate; acceptable for a stay in London, risky for same-day self-transfer.",
+        "note": "London airports are separate and cannot form one connection in this workflow.",
     },
 }
 
@@ -149,64 +123,24 @@ RISK_PROFILES: dict[str, dict[str, Any]] = {
         "description": "Risk first, then price and total elapsed time.",
         "ideal_same_min": 180,
         "ideal_same_max": 420,
-        "cross_airport_base": 32,
-        "too_short_penalty": 76,
-        "missing_time_penalty": 12,
-        "night_penalty": 8,
-        "api_night_transfer_penalty": 7,
-        "visa_transfer_penalty": 52,
-        "long_internal_transfer_penalty": 6,
-        "leisure_hub_penalty": 7,
-        "lowcost_penalty": 4,
-        "unpreferred_airport_penalty": {"LTN": 4, "STN": 3},
         "rank_order": ["reject", "risk", "price", "elapsed"],
     },
     "safe": {
         "description": "Best connection quality first; price is secondary.",
         "ideal_same_min": 210,
         "ideal_same_max": 480,
-        "cross_airport_base": 42,
-        "too_short_penalty": 86,
-        "missing_time_penalty": 18,
-        "night_penalty": 12,
-        "api_night_transfer_penalty": 12,
-        "visa_transfer_penalty": 72,
-        "long_internal_transfer_penalty": 9,
-        "leisure_hub_penalty": 12,
-        "lowcost_penalty": 7,
-        "unpreferred_airport_penalty": {"LTN": 7, "STN": 6, "SAW": 4},
         "rank_order": ["reject", "risk", "elapsed", "price"],
     },
     "cheap": {
         "description": "Lowest price first among non-rejected itineraries; still demotes unsafe transfers.",
         "ideal_same_min": 150,
         "ideal_same_max": 540,
-        "cross_airport_base": 26,
-        "too_short_penalty": 72,
-        "missing_time_penalty": 10,
-        "night_penalty": 5,
-        "api_night_transfer_penalty": 4,
-        "visa_transfer_penalty": 40,
-        "long_internal_transfer_penalty": 3,
-        "leisure_hub_penalty": 3,
-        "lowcost_penalty": 1,
-        "unpreferred_airport_penalty": {},
         "rank_order": ["reject", "price", "risk", "elapsed"],
     },
     "business": {
         "description": "Same-airport, predictable, shorter elapsed time; penalizes budget airports/carriers.",
         "ideal_same_min": 180,
         "ideal_same_max": 360,
-        "cross_airport_base": 48,
-        "too_short_penalty": 88,
-        "missing_time_penalty": 18,
-        "night_penalty": 14,
-        "api_night_transfer_penalty": 14,
-        "visa_transfer_penalty": 76,
-        "long_internal_transfer_penalty": 10,
-        "leisure_hub_penalty": 13,
-        "lowcost_penalty": 9,
-        "unpreferred_airport_penalty": {"LTN": 12, "STN": 10, "LGW": 4, "SAW": 5},
         "rank_order": ["reject", "risk", "elapsed", "price"],
     },
 }

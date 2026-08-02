@@ -8,11 +8,11 @@ containing the parent `SKILL.md`.
 ## What It Automates
 
 - Route/date/IATA normalization and bounded provider execution.
-- Airport compatibility checks for same-airport and cross-airport connections.
+- Same-airport continuity checks; cross-airport connections are rejected.
 - Candidate generation, scoring, one decision frontier, and result projection.
-- Direct, carrier, aggregate, and coverage controls when the current provider policy calls for them.
+- Direct, carrier-filtered, aggregate, and gateway probes when the current route calls for them.
 - Static metadata lookup for city, airport, country/region, airline, alliance, and aircraft labels.
-- A compact `flight_search_result.v7` with `route`, `evidence`, `frontier`, and the canonical `answer`.
+- A compact `flight_search_result.v9` with `route`, `evidence`, `frontier`, and the canonical `answer`.
 
 The CLI does not book, buy, or write to agent runtime state.
 
@@ -37,7 +37,9 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json maint doctor
 
 ## Dependencies
 
-Runtime dependency: `jsonschema>=4.22,<5` as declared in `pyproject.toml`. The package also uses Python standard-library modules and local CLI package modules.
+Runtime dependencies are `jsonschema>=4.22,<5`, `mcp==2.0.0`, and
+`httpx2==2.9.1`, as declared in `pyproject.toml`. The package also uses Python
+standard-library modules and local CLI package modules.
 
 ## JSON Envelope
 
@@ -88,13 +90,12 @@ Primary agent command:
 ```bash
 cat > /tmp/flight-search-request.json <<'JSON'
 {
-  "schema_version": "flight_search_request.v1",
+  "schema_version": "flight_search_request.v3",
   "origin": "ORIGIN",
   "destination": "DEST",
   "depart_date": "YYYY-MM-DD",
   "currency": "RUB",
   "profile": "business",
-  "ticketing": "separate",
   "provider_policy": "auto"
 }
 JSON
@@ -107,7 +108,6 @@ Return this text stdout verbatim. With `--json`, the canonical serialized paths 
 - `answer.catalog.items`
 - `frontier.option_ids`
 - `evidence.coverage`
-- `evidence.through_fare_checks`
 - `evidence.provider_failures`
 - `evidence.source_boundaries`
 
@@ -121,11 +121,10 @@ Common request fields:
 
 - `return_date: "YYYY-MM-DD"`
 - `profile: "business"` is the only production search profile; omit it to use the default
-- `provider_policy: "auto"|"tutu"|"kupibilet"|"fli"`
-- `route_options.stop_policy: "business-default"|"strict-direct-one-stop"|"allow-two-stop-fallback"|"debug-all"`
+- `provider_policy: "auto"` or one registry-validated provider name (currently
+  `tutu` and `kupibilet`)
 - `route_options.date_window_end: "YYYY-MM-DD"` for bounded one-way direct-only inventory; request-only, no CLI flag
-- `evidence.aggregate_control_carriers: ["CODE"]`
-- `route_options.coverage_mode: "standard"|"targeted"|"full"`
+- `filters.only_carriers: ["CODE"]`
 - `evidence.no_live_cache: true` for a fresh live probe when appropriate
 
 ## Ranking Profile
@@ -142,12 +141,13 @@ Production search uses one ranking profile: `business`. It prioritizes visible n
 
 `search --request` chooses a live source mix through `provider_policy`:
 
-- `auto`: Tutu MCP runs first and, when available, stops fallback execution for the same logical probe.
-- `tutu`, `kupibilet`, `fli`: explicit diagnostic/provider override modes.
+- `auto`: every compatible planned provider is queried for primary direct/broad evidence. Their offers enter one graph, dedupe, ranking, and shared output limit. Gateway probes try compatible providers in plan order until one returns a positive result.
+- any registered provider name: an explicit single-provider mode; unsupported
+  route/probe capability is recorded as `not_supported`, not silently dropped.
 
 Read provider failures, coverage diagnostics, and source boundaries from `data.evidence`. Text-mode search stdout is already the validated answer and must be returned verbatim.
 
-Provider-aware airport priority is documented in `references/pipeline-reference.md`; use that contract for the active provider set, IST/LON/MOW airport priority, city-code post-validation, and dispatch boundaries. Do not duplicate those rules in CLI help or answer prose.
+Exact-airport propagation is documented in `references/pipeline-reference.md`. Both providers receive the same normalized airport scope, and accepted offers are checked against their actual first and last segment airports.
 
 ## Airport and Connection Risk
 
@@ -165,7 +165,7 @@ Default connection thresholds are maintained in `references/source-boundaries.md
 - protected/single-ticket international: MCT or at least 60 min, whichever is higher; label 60-89 min as tight unless airport evidence supports it;
 - same airport, separate/virtual/self-transfer without checked baggage: 120 min minimum;
 - same airport, separate/virtual/self-transfer with checked baggage: 180 min minimum, preferably 3-5h at high-friction airports;
-- cross-airport or airport mismatch: 300 min default and label as ground-transfer risk;
+- cross-airport or airport mismatch: invalid and rejected before ranking; the compatible `min_cross_airport_min` request field does not enable a second transfer mechanism;
 - protected ticket claims require ticketing/protection proof, not just segment timing.
 
 ## Targeted Debug Probes
@@ -196,14 +196,16 @@ Useful probe shapes:
 - exact-airport direct-only;
 - city-code direct-only when applicable;
 - alternate airport for multi-airport cities;
-- carrier-specific direct or aggregate control;
-- nearby in-horizon control date for horizon/coverage splits.
+- carrier-filtered direct or full-route probe;
+- nearby in-horizon comparison date for horizon/coverage splits.
 
 These probes are narrower evidence than the assembled report. Label the scope when using them in an answer.
 
 ## Price and Purchase Caveats
 
-Fares and availability are advisory until checked on the purchase screen. Through-fare, single-PNR, baggage, refund, and disruption-protection claims require explicit proof from `through_fare_checks` or the booking flow.
+Fares and availability are advisory until checked on the purchase screen.
+Through-fare, single-PNR, baggage, refund, and disruption-protection claims
+require explicit booking-flow, airline, seller, or GDS proof.
 
 ## Supporting-File Distillation Policy
 

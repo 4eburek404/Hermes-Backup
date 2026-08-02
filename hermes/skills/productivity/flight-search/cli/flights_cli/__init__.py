@@ -1,3 +1,3 @@
-__version__ = "0.8.1"
+__version__ = "0.10.0"
 __skill_name__ = "flight-search"
-__skill_version__ = "0.11.7"
+__skill_version__ = "0.13.0"

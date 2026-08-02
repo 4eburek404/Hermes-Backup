@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from flights_cli.reporting.option_semantics import (
+from flights_cli.reporting.catalog_semantics import (
     direction_segments,
     option_direction,
     route_requested_round_trip,

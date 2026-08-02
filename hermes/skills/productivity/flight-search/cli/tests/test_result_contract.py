@@ -3,10 +3,10 @@ from __future__ import annotations
 from copy import deepcopy
 import unittest
 
-from flights_cli.commands.search import build_search_result
-from flights_cli.commands.common import validate_contract_payload
+from flights_cli.contracts.validation import validate_contract_payload
 from flights_cli.errors import CliError
 from flights_cli.execution.search_evidence import SearchEvidence
+from flights_cli.pipeline.result_builder import build_flight_search_result
 from flights_cli.pipeline.result_contract import validate_flight_search_result
 from flights_cli.reporting.user_answer import render_user_answer
 from tests.fixtures.result_fixtures import valid_report
@@ -30,28 +30,26 @@ def valid_result() -> dict:
         "evidence": {
             "source_boundaries": [],
             "coverage": {
-                "coverage_mode": "targeted",
-                "negative_evidence_type": "bounded_live_controls_only",
+                "negative_evidence_type": "bounded_live_probes_only",
                 "coverage_warnings": ["segment_absence_is_not_route_absence"],
                 "counts": {
-                    "planned_controls": 1,
-                    "searched_controls": 0,
-                    "skipped_controls": 0,
-                    "failed_controls": 0,
-                    "not_supported_controls": 0,
-                    "not_executed_controls": 1,
-                    "deduped_controls": 0,
+                    "planned_probes": 1,
+                    "searched_probes": 0,
+                    "skipped_probes": 0,
+                    "failed_probes": 0,
+                    "unsupported_probes": 0,
+                    "not_executed_probes": 1,
+                    "deduped_probes": 0,
                 },
                 "completeness": {
                     "planned_count": 1,
                     "terminal_count": 1,
-                    "all_planned_controls_have_terminal_state": True,
+                    "all_planned_probes_have_terminal_state": True,
                 },
-                "blocking_evidence": ["not_executed_controls"],
+                "blocking_evidence": ["not_executed_probes"],
                 "non_blocking_boundaries": [],
             },
             "provider_failures": [],
-            "through_fare_checks": [],
         },
         "frontier": {
             "schema_version": "flight_decision_frontier.result.v1",
@@ -61,29 +59,27 @@ def valid_result() -> dict:
                 "acceptable_count": 1,
                 "selected_count": 1,
                 "rejected_count": 0,
-                "control_count": 1,
             },
         },
         "answer": answer,
     }
     request = {
-        "schema_version": "flight_search_request.v1",
+        "schema_version": "flight_search_request.v3",
         "origin": "SVX",
         "destination": "DEL",
         "depart_date": "2026-06-01",
         "return_date": None,
         "currency": "RUB",
         "profile": "business",
-        "ticketing": "separate",
         "provider_policy": "kupibilet",
     }
-    return build_search_result(request, projection)
+    return build_flight_search_result(request, projection)
 
 
 class ResultContractTests(unittest.TestCase):
     def test_search_evidence_is_deeply_frozen_and_trace_is_defensive(self) -> None:
         evidence = SearchEvidence.freeze(
-            search_plan={"route_context": {"origin": "SVX", "nested": {"items": [1]}}},
+            search_plan={"route": {"origin": "SVX", "nested": {"items": [1]}}},
             provider_policy="tutu",
             primary_offer_results=[
                 {
@@ -93,16 +89,21 @@ class ResultContractTests(unittest.TestCase):
                 }
             ],
             gateway_leg_results={},
-            aggregate_controls=[],
             observed_gateway_diagnostics={},
-            probe_ledger={},
-            failures=[],
+            probe_ledger={
+                "failed_probes": [
+                    {
+                        "probe_id": "probe-failed",
+                        "provider": "tutu",
+                        "error": {"type": "upstream_error", "message": "offline"},
+                    }
+                ]
+            },
             direct_mode={},
             max_connections_by_direction={},
             direct_presence_gate={},
             direct_inventory_searches=[],
             direct_inventory_results=[],
-            date_window_inventory=None,
         )
 
         with self.assertRaises(TypeError):
@@ -113,8 +114,9 @@ class ResultContractTests(unittest.TestCase):
         trace["provider_policy"] = "changed"
         self.assertEqual(evidence.provider_policy, "tutu")
         self.assertEqual(trace["primary_offer_results"], [{"offer_count": 0}])
+        self.assertEqual(trace["failures"], trace["probe_ledger"]["failed_probes"])
 
-    def test_result_v6_has_one_public_output_path(self) -> None:
+    def test_result_has_one_public_output_path(self) -> None:
         result = valid_result()
 
         self.assertEqual(
@@ -213,7 +215,7 @@ class ResultContractTests(unittest.TestCase):
 
     def test_evidence_count_and_required_caveat_drift_are_rejected(self) -> None:
         result = valid_result()
-        result["answer"]["evidence_status"]["terminal_control_count"] = 0
+        result["answer"]["evidence_status"]["terminal_probe_count"] = 0
         result["answer"]["required_caveats"]["source_boundaries_included"] = False
 
         with self.assertRaises(CliError):

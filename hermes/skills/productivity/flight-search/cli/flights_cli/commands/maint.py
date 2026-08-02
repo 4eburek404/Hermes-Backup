@@ -55,8 +55,11 @@ def command_maint_doctor(args: argparse.Namespace, store: Store) -> dict[str, An
         "planes.json",
         "catalog_manifest.json",
     ]:
-        path = store.cache_dir / name
-        cache_files[name] = {"exists": path.exists(), "path": str(path)}
+        path = store.catalog_storage.path(name)
+        cache_files[name] = {
+            "exists": store.catalog_storage.exists(name),
+            "path": str(path),
+        }
     max_age_seconds = parse_ttl_seconds(args.catalog_max_age)
     skill_path = source_skill_path()
     manifest = load_version_manifest(skill_path)
@@ -84,7 +87,7 @@ def command_maint_doctor(args: argparse.Namespace, store: Store) -> dict[str, An
             "auto_refresh_commands": list(CATALOG_AUTO_REFRESH_COMMANDS),
             "catalog_read_commands": list(CATALOG_READ_COMMANDS),
             "manual_refresh_commands": list(CATALOG_REFRESH_COMMANDS),
-            "explicit_refresh_command": "maint catalog refresh",
+            "explicit_refresh_command": CATALOG_REFRESH_COMMANDS[0],
         },
         "catalog_staleness": catalog_staleness(
             store.cache_dir, max_age_seconds=max_age_seconds
@@ -105,7 +108,17 @@ def command_maint_doctor(args: argparse.Namespace, store: Store) -> dict[str, An
                 "network_calls_for_duplicates": False,
             },
             "retry_policy": {
-                "active_retry": False,
+                "providers": {
+                    "tutu": {
+                        "active_retry": True,
+                        "max_attempts": 2,
+                        "scope": "transient_read_only_transport_failures",
+                    },
+                    "kupibilet": {
+                        "active_retry": False,
+                        "max_attempts": 1,
+                    },
+                },
                 "retry_after_is_classified_only": True,
             },
             "failure_classification": {
@@ -162,7 +175,7 @@ def command_maint_catalog_manifest(
     args: argparse.Namespace, store: Store
 ) -> dict[str, Any]:
     max_age_seconds = parse_ttl_seconds(args.catalog_max_age)
-    manifest = active_catalog_manifest(store.load_manifest())
+    manifest = active_catalog_manifest(store.catalog_storage.read_manifest())
     return {
         "cache_dir": str(store.cache_dir),
         "evidence_scope": metadata_evidence_scope("maint catalog manifest"),
@@ -375,7 +388,6 @@ def _branch_workflow_summary(
         parity_status in {"same_path", "equal"} and not manifest_mismatch_keys
     )
     return {
-        "development_branch": "refactor_flights-search",
         "source": {
             "path": str(source_path),
             "branch": source_git.get("branch"),

@@ -5,6 +5,7 @@ from typing import Any
 from ..config import DEFAULT_CURRENCY
 from ..domain.carriers import carrier_from_flight_number
 from ..domain.normalize import price_value
+from ..domain.stop_policy import connection_count_for_segments
 
 
 def normalize_segment_flight(flight: dict[str, Any]) -> dict[str, Any] | None:
@@ -85,7 +86,7 @@ def provider_offer_to_segment_offer(
         "source": source_label,
         "segments": segments,
         "transfers": [],
-        "internal_connection_count": max(0, len(segments) - 1),
+        "internal_connection_count": connection_count_for_segments(segments),
         **{
             key: offer.get(key)
             for key in (

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
+from flights_cli.catalog_storage import CatalogStorage
 from flights_cli.config import DEFAULT_CACHE_DIR, resolve_cache_dir
 from flights_cli.providers.static_catalog import (
     STATIC_CATALOG_BY_NAME,
@@ -20,6 +21,32 @@ from helpers import PROJECT
 
 
 class StaticCatalogLayerTests(unittest.TestCase):
+    def test_catalog_storage_owns_file_and_manifest_io(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            cache_dir = Path(tmp_dir)
+            storage = CatalogStorage(cache_dir)
+            storage.write_json("countries.json", [{"code": "AE"}, "ignored"])
+            storage.write_manifest(
+                {"schema_version": "static-catalog-v1", "entries": {}}
+            )
+
+            self.assertEqual(storage.read_rows("countries.json"), [{"code": "AE"}])
+            self.assertEqual(
+                storage.read_manifest()["schema_version"], "static-catalog-v1"
+            )
+
+        store_source = (PROJECT / "flights_cli" / "store.py").read_text(
+            encoding="utf-8"
+        )
+        static_source = (
+            PROJECT / "flights_cli" / "providers" / "static_catalog.py"
+        ).read_text(encoding="utf-8")
+        for source in (store_source, static_source):
+            self.assertNotIn(".read_text(", source)
+            self.assertNotIn(".read_bytes(", source)
+            self.assertNotIn(".write_text(", source)
+            self.assertNotIn(".write_bytes(", source)
+
     def test_static_catalog_update_writes_canonical_files_and_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             cache_dir = Path(tmp_dir)
@@ -121,12 +148,15 @@ class StaticCatalogLayerTests(unittest.TestCase):
         provider_dir = PROJECT / "flights_cli" / "providers"
         allowed = {
             "__init__.py",
-            "fli_mcp.py",
             "kupibilet.py",
+            "kupibilet_parser.py",
+            "kupibilet_transport.py",
             "live_cache.py",
             "segment_normalization.py",
             "static_catalog.py",
+            "tutu_client.py",
             "tutu_mcp.py",
+            "tutu_parser.py",
         }
         modules = {path.name for path in provider_dir.glob("*.py")}
         self.assertEqual(modules, allowed)

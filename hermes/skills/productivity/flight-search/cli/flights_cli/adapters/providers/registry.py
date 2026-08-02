@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, cast
 
 from ...errors import CliError
@@ -11,24 +12,25 @@ from ...ports.providers import (
     ProviderProbeResult,
 )
 from ...store import Store
-from .fli_adapter import FLI_CAPABILITIES, FliProviderAdapter
 from .kupibilet_adapter import KUPIBILET_CAPABILITIES, KupibiletProviderAdapter
 from .tutu_adapter import TUTU_CAPABILITIES, TutuProviderAdapter
 
-PROVIDER_REGISTRY: dict[ProviderName, FlightProviderPort] = {
-    "kupibilet": KupibiletProviderAdapter(),
-    "fli": FliProviderAdapter(),
+PROVIDER_REGISTRY: dict[str, FlightProviderPort] = {
     "tutu": TutuProviderAdapter(),
+    "kupibilet": KupibiletProviderAdapter(),
 }
-PROVIDER_ROUTING_ORDER: tuple[ProviderName, ...] = ("tutu", "kupibilet", "fli")
 
 # Cache keyed by (name, id(store)). Grows to at most 2×N where N is the number of
 # distinct Store instances (typically 1 per CLI invocation). Custom fetcher calls
 # bypass this cache entirely.
 _adapter_cache: dict[tuple[str, int | None], FlightProviderPort] = {}
+_PROVIDER_FACTORIES: dict[str, Callable[[Store | None], FlightProviderPort]] = {
+    "tutu": lambda store: TutuProviderAdapter(store=store),
+    "kupibilet": lambda store: KupibiletProviderAdapter(store=store),
+}
 
 
-def location_country_code(store: Store, code: str) -> str | None:
+def airport_country_code(store: Store, code: str) -> str | None:
     normalized = code.upper()
     airport = store.airport_by_code.get(normalized)
     if airport and airport.get("country_code"):
@@ -37,10 +39,6 @@ def location_country_code(store: Store, code: str) -> str | None:
     if city and city.get("country_code"):
         return str(city.get("country_code") or "").upper()
     return None
-
-
-def airport_country_code(store: Store, code: str) -> str | None:
-    return location_country_code(store, code)
 
 
 def route_touches_ru(origin: Any, destination: Any, store: Store) -> bool:
@@ -55,15 +53,16 @@ def is_ru_touching_segment(spec: dict[str, Any], store: Store) -> bool:
 
 def _normalize_provider_policy(policy: str) -> str:
     normalized_policy = str(policy or "auto").strip().lower()
-    if normalized_policy not in {"auto", "kupibilet", "fli", "tutu"}:
+    if normalized_policy != "auto" and normalized_policy not in PROVIDER_REGISTRY:
         raise CliError(
-            "provider policy must be one of auto, kupibilet, fli, tutu",
+            "provider policy must be auto or a registered provider name",
             error_type="validation_error",
+            details={"registered_providers": list(PROVIDER_REGISTRY)},
         )
     return normalized_policy
 
 
-def _offer_query_probe_type(query: dict[str, Any]) -> ProbeType:
+def offer_query_probe_type(query: dict[str, Any]) -> ProbeType:
     probe_type = str(query.get("probe_type") or "")
     if probe_type in {"full_route_aggregate", "carrier_aggregate"}:
         return cast(ProbeType, probe_type)
@@ -72,11 +71,13 @@ def _offer_query_probe_type(query: dict[str, Any]) -> ProbeType:
     return "full_route_aggregate"
 
 
-def _provider_supports_offer_query(
-    provider: ProviderName, query: dict[str, Any], store: Store
+def provider_supports_offer_query(
+    provider: str, query: dict[str, Any], store: Store
 ) -> bool:
+    if provider not in PROVIDER_REGISTRY:
+        return False
     capabilities = PROVIDER_REGISTRY[provider].capabilities
-    probe_type = _offer_query_probe_type(query)
+    probe_type = offer_query_probe_type(query)
     if probe_type not in capabilities.probe_types:
         return False
     if probe_type in {"full_route_aggregate", "carrier_aggregate"}:
@@ -98,58 +99,36 @@ def _provider_supports_offer_market(
 
 
 def _provider_supports_market(
-    provider: ProviderName, query: dict[str, Any], store: Store
+    provider: str, query: dict[str, Any], store: Store
 ) -> bool:
     return _provider_supports_offer_market(
         PROVIDER_REGISTRY[provider].capabilities, query, store
     )
 
 
-def _policy_candidates(
-    query: dict[str, Any], store: Store, policy: str
-) -> list[ProviderName]:
+def _policy_candidates(query: dict[str, Any], store: Store, policy: str) -> list[str]:
     normalized_policy = _normalize_provider_policy(policy)
-    if normalized_policy in {"kupibilet", "fli", "tutu"}:
-        provider = cast(ProviderName, normalized_policy)
-        return [provider] if _provider_supports_market(provider, query, store) else []
+    if normalized_policy != "auto":
+        return [normalized_policy]
     return [
         provider
-        for provider in PROVIDER_ROUTING_ORDER
+        for provider in PROVIDER_REGISTRY
         if _provider_supports_market(provider, query, store)
     ]
 
 
-def route_query_provider_skip_reasons(
-    query: dict[str, Any], store: Store, provider_policy: str
-) -> dict[ProviderName, str]:
-    normalized_policy = _normalize_provider_policy(provider_policy)
-    if not route_touches_ru(query.get("origin"), query.get("destination"), store):
-        return {}
-    if normalized_policy == "fli":
-        return {"fli": "route_touches_ru"}
-    return {}
-
-
 def providers_for_offer_query(
     query: dict[str, Any], store: Store, provider_policy: str
-) -> list[ProviderName]:
+) -> list[str]:
     """Return providers capable of running the requested full-route offer probe."""
 
+    normalized_policy = _normalize_provider_policy(provider_policy)
+    if normalized_policy != "auto":
+        return [normalized_policy]
     return [
         provider
-        for provider in _policy_candidates(query, store, provider_policy)
-        if _provider_supports_offer_query(provider, query, store)
-    ]
-
-
-def unsupported_providers_for_offer_query(
-    query: dict[str, Any], store: Store, provider_policy: str
-) -> list[ProviderName]:
-    supported = set(providers_for_offer_query(query, store, provider_policy))
-    return [
-        provider
-        for provider in _policy_candidates(query, store, provider_policy)
-        if provider not in supported
+        for provider in _policy_candidates(query, store, normalized_policy)
+        if provider_supports_offer_query(provider, query, store)
     ]
 
 
@@ -157,48 +136,51 @@ def provider_adapter(
     name: str,
     *,
     store: Store | None = None,
-    kupibilet_fetcher: Any | None = None,
-    fli_fetcher: Any | None = None,
 ) -> FlightProviderPort:
     normalized = name.strip().lower()
-    # Custom fetcher = bespoke instance, never cached
-    if kupibilet_fetcher is not None or fli_fetcher is not None:
-        if normalized == "kupibilet":
-            return KupibiletProviderAdapter(store=store, fetcher=kupibilet_fetcher)
-        if normalized == "fli":
-            return FliProviderAdapter(store=store, fetcher=fli_fetcher)
-        raise CliError(f"unsupported provider {name!r}", error_type="validation_error")
     # Cache lookup
     cache_key = (normalized, id(store) if store is not None else None)
     cached = _adapter_cache.get(cache_key)
     if cached is not None:
         return cached
     # Construct and cache
-    if normalized == "kupibilet":
-        if store is None:
-            result = PROVIDER_REGISTRY["kupibilet"]
-        else:
-            result = KupibiletProviderAdapter(store=store)
-    elif normalized == "fli":
-        if store is None:
-            result = PROVIDER_REGISTRY["fli"]
-        else:
-            result = FliProviderAdapter(store=store)
-    elif normalized == "tutu":
-        if store is None:
-            result = PROVIDER_REGISTRY["tutu"]
-        else:
-            result = TutuProviderAdapter(store=store)
-    else:
+    if normalized not in PROVIDER_REGISTRY:
         raise CliError(f"unsupported provider {name!r}", error_type="validation_error")
+    if store is None:
+        result = PROVIDER_REGISTRY[normalized]
+    else:
+        factory = _PROVIDER_FACTORIES.get(normalized)
+        result = (
+            factory(store) if factory is not None else PROVIDER_REGISTRY[normalized]
+        )
     _adapter_cache[cache_key] = result
     return result
 
 
-def providers_for_segment(
-    spec: dict[str, Any], store: Store, policy: str
-) -> list[ProviderName]:
-    return _policy_candidates(spec, store, policy)
+def provider_supports_segment(
+    provider: str, spec: dict[str, Any], store: Store
+) -> bool:
+    if provider not in PROVIDER_REGISTRY:
+        return False
+    probe_type = str(spec.get("probe_type") or "segment_direct")
+    capabilities = PROVIDER_REGISTRY[provider].capabilities
+    return bool(
+        probe_type in capabilities.probe_types
+        and (not bool(spec.get("direct_only")) or capabilities.supports_direct_only)
+        and (not spec.get("only_carriers") or capabilities.supports_carrier_filter)
+        and _provider_supports_market(provider, spec, store)
+    )
+
+
+def providers_for_segment(spec: dict[str, Any], store: Store, policy: str) -> list[str]:
+    normalized_policy = _normalize_provider_policy(policy)
+    if normalized_policy != "auto":
+        return [normalized_policy]
+    return [
+        provider
+        for provider in _policy_candidates(spec, store, normalized_policy)
+        if provider_supports_segment(provider, spec, store)
+    ]
 
 
 def provider_adapters_for_segment(
@@ -206,28 +188,13 @@ def provider_adapters_for_segment(
     store: Store,
     policy: str,
     *,
-    kupibilet_fetcher: Any | None = None,
-    fli_fetcher: Any | None = None,
-    tutu_fetcher: Any | None = None,
+    adapter_resolver: Callable[..., FlightProviderPort] | None = None,
 ) -> list[FlightProviderPort]:
-    adapters: list[FlightProviderPort] = []
-    for name in providers_for_segment(spec, store, policy):
-        if name == "kupibilet":
-            adapters.append(
-                provider_adapter(name, store=store, kupibilet_fetcher=kupibilet_fetcher)
-            )
-        elif name == "fli":
-            adapters.append(
-                provider_adapter(name, store=store, fli_fetcher=fli_fetcher)
-            )
-        elif name == "tutu":
-            if tutu_fetcher is not None:
-                adapters.append(TutuProviderAdapter(store=store, fetcher=tutu_fetcher))
-            else:
-                adapters.append(provider_adapter(name, store=store))
-        else:
-            adapters.append(provider_adapter(name, store=store))
-    return adapters
+    resolver = adapter_resolver or provider_adapter
+    return [
+        resolver(name, store=store)
+        for name in providers_for_segment(spec, store, policy)
+    ]
 
 
 def not_supported_probe_result(
@@ -255,20 +222,18 @@ def not_supported_probe_result(
 
 
 __all__ = [
-    "FLI_CAPABILITIES",
     "KUPIBILET_CAPABILITIES",
     "TUTU_CAPABILITIES",
     "PROVIDER_REGISTRY",
-    "PROVIDER_ROUTING_ORDER",
     "airport_country_code",
     "is_ru_touching_segment",
-    "location_country_code",
     "not_supported_probe_result",
+    "offer_query_probe_type",
     "provider_adapter",
     "provider_adapters_for_segment",
+    "provider_supports_offer_query",
+    "provider_supports_segment",
     "providers_for_offer_query",
     "providers_for_segment",
-    "route_query_provider_skip_reasons",
     "route_touches_ru",
-    "unsupported_providers_for_offer_query",
 ]

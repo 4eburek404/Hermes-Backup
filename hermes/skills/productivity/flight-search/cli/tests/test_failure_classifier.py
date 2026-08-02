@@ -22,7 +22,7 @@ class FailureClassifierTests(unittest.TestCase):
 
     def test_malformed_retry_after_does_not_crash(self) -> None:
         result = classify_failure(
-            "upstream_error", "FLI MCP HTTP 429", details={"retry_after": "later"}
+            "upstream_error", "Tutu HTTP 429", details={"retry_after": "later"}
         )
         self.assertEqual(result["classification"], "rate_limited")
         self.assertEqual(result["retry_after_parse_error"], "ValueError")

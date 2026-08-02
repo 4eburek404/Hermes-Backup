@@ -46,8 +46,6 @@ def explain_airport(store: Store, code: str) -> dict[str, Any]:
             "key": group["key"],
             "label": group["label"],
             "airports": group["airports"],
-            "cross_transfer_min": group["cross_transfer_min"],
-            "min_cross_connection_min": group["min_cross_connection_min"],
         }
         notes.append(group["note"])
     if normalized in SINGLE_AIRPORT_NOTES:
@@ -56,7 +54,6 @@ def explain_airport(store: Store, code: str) -> dict[str, Any]:
 
 
 def explicit_or_resolved_airports(
-    store: Store,
     location: Location,
     explicit: list[str] | None,
     *,

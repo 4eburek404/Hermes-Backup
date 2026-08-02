@@ -7,18 +7,14 @@ import unittest
 from pathlib import Path
 
 from flights_cli.commands.diagnose import command_diagnose_plan
-from flights_cli.commands.search import (
-    normalize_search_request,
-    search_request_from_payload,
-)
-from flights_cli.orchestrators.search_plan_builder import build_search_plan
+from flights_cli.pipeline.search_request import search_request_from_payload
 from flights_cli.store import Store
+from helpers import build_search_plan
 
 
 class UnifiedRoutePlanningTests(unittest.TestCase):
     def assert_diagnose_plan_matches_live_plan(self, request: dict) -> None:
-        normalized = normalize_search_request(request)
-        expected = build_search_plan(search_request_from_payload(normalized), Store())
+        expected = build_search_plan(search_request_from_payload(request), Store())
         with tempfile.TemporaryDirectory() as tmp_dir:
             request_path = Path(tmp_dir) / "request.json"
             request_path.write_text(json.dumps(request), encoding="utf-8")
@@ -30,7 +26,7 @@ class UnifiedRoutePlanningTests(unittest.TestCase):
     def test_ru_domestic_one_way(self) -> None:
         self.assert_diagnose_plan_matches_live_plan(
             {
-                "schema_version": "flight_search_request.v1",
+                "schema_version": "flight_search_request.v3",
                 "origin": "SVX",
                 "destination": "KUF",
                 "depart_date": "2026-08-15",
@@ -40,7 +36,7 @@ class UnifiedRoutePlanningTests(unittest.TestCase):
     def test_ru_touching_international_return_trip(self) -> None:
         self.assert_diagnose_plan_matches_live_plan(
             {
-                "schema_version": "flight_search_request.v1",
+                "schema_version": "flight_search_request.v3",
                 "origin": "SVX",
                 "destination": "CDG",
                 "depart_date": "2026-08-15",
@@ -51,7 +47,7 @@ class UnifiedRoutePlanningTests(unittest.TestCase):
     def test_global_non_ru(self) -> None:
         self.assert_diagnose_plan_matches_live_plan(
             {
-                "schema_version": "flight_search_request.v1",
+                "schema_version": "flight_search_request.v3",
                 "origin": "BER",
                 "destination": "MAD",
                 "depart_date": "2026-08-15",
@@ -61,7 +57,7 @@ class UnifiedRoutePlanningTests(unittest.TestCase):
     def test_direct_only(self) -> None:
         self.assert_diagnose_plan_matches_live_plan(
             {
-                "schema_version": "flight_search_request.v1",
+                "schema_version": "flight_search_request.v3",
                 "origin": "SVX",
                 "destination": "KUF",
                 "depart_date": "2026-08-15",
@@ -72,7 +68,7 @@ class UnifiedRoutePlanningTests(unittest.TestCase):
     def test_manual_hubs(self) -> None:
         self.assert_diagnose_plan_matches_live_plan(
             {
-                "schema_version": "flight_search_request.v1",
+                "schema_version": "flight_search_request.v3",
                 "origin": "SVX",
                 "destination": "LON",
                 "depart_date": "2026-08-15",
@@ -86,7 +82,7 @@ class UnifiedRoutePlanningTests(unittest.TestCase):
     def test_city_code_first(self) -> None:
         self.assert_diagnose_plan_matches_live_plan(
             {
-                "schema_version": "flight_search_request.v1",
+                "schema_version": "flight_search_request.v3",
                 "origin": "SVX",
                 "destination": "MOW",
                 "depart_date": "2026-08-15",
@@ -96,7 +92,7 @@ class UnifiedRoutePlanningTests(unittest.TestCase):
     def test_date_window(self) -> None:
         self.assert_diagnose_plan_matches_live_plan(
             {
-                "schema_version": "flight_search_request.v1",
+                "schema_version": "flight_search_request.v3",
                 "origin": "SVX",
                 "destination": "KUF",
                 "depart_date": "2026-08-15",

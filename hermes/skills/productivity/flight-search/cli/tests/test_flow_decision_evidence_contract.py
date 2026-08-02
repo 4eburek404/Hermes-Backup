@@ -2,250 +2,227 @@ from __future__ import annotations
 
 from datetime import date
 import unittest
+from unittest.mock import patch
 
-from flights_cli.execution.probe_ledger import ProbeExecutionLedger
 from flights_cli.orchestrators.search_plan_builder import (
     build_planning_state,
     build_route_context,
-    build_search_plan,
 )
 from flights_cli.store import Store
-from tests.helpers import live_assembly_args
+from tests.helpers import build_search_plan, live_assembly_args
 
 
-class FlowDecisionEvidenceContractTests(unittest.TestCase):
+class FlowDecisionContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.store = Store()
 
     def flow_for(self, **overrides: object):
-        args = live_assembly_args(**overrides)
-        return build_planning_state(args)
-
-    def flow_for_today(self, today: date, **overrides: object):
-        args = live_assembly_args(**overrides)
-        return build_planning_state(args, today_provider=lambda: today)
+        return build_planning_state(live_assembly_args(**overrides), self.store)
 
     def plan_for(self, **overrides: object) -> dict:
-        args = live_assembly_args(**overrides)
-        return build_route_context(args, self.store)
+        request = live_assembly_args(**overrides)
+        return build_search_plan(request, self.store)
 
-    def test_global_non_ru_auto_does_not_inherit_ru_priority_or_moscow_controls(
-        self,
-    ) -> None:
+    def test_global_non_ru_auto_uses_plain_hub_list_routing(self) -> None:
         flow = self.flow_for(
             origin="BER", destination="MAD", provider_policy="auto", return_date=None
         )
-        plan = self.plan_for(
-            origin="BER", destination="MAD", provider_policy="auto", return_date=None
-        )
+        route = build_route_context(flow.request, self.store, flow=flow)
 
         self.assertEqual(flow.flow_decision.market_class, "global_non_ru")
         self.assertEqual(flow.flow_decision.routing_strategy, "hub-list")
-        self.assertEqual(flow.flow_decision.provider_plan["default_provider"], "tutu")
-        self.assertEqual(plan["routing_strategy"], "hub-list")
-        self.assertNotIn(
-            "ru-priority",
-            {family.get("id") for family in plan.get("route_families") or []},
-        )
-        self.assertFalse({"SVO", "DME", "VKO"} & set(plan.get("hubs") or []))
-        self.assertNotIn("flow_decision", plan)
+        self.assertEqual(route["routing_strategy"], "hub-list")
+        self.assertFalse({"SVO", "DME", "VKO"} & set(route.get("hubs") or []))
 
     def test_ru_domestic_auto_gets_domestic_ru_route_mode(self) -> None:
-        flow = self.flow_for(
-            origin="SVX", destination="KUF", provider_policy="auto", return_date=None
-        )
-        plan = self.plan_for(
-            origin="SVX", destination="KUF", provider_policy="auto", return_date=None
-        )
+        flow = self.flow_for(origin="SVX", destination="KUF", return_date=None)
 
         self.assertEqual(flow.flow_decision.market_class, "ru_domestic")
         self.assertEqual(flow.flow_decision.routing_strategy, "domestic-ru")
         self.assertEqual(flow.flow_decision.route_mode, "domestic_ru")
-        self.assertEqual(plan["routing_strategy"], "domestic-ru")
-        self.assertIn(
-            "domestic_ru",
-            {family.get("id") for family in plan.get("route_families") or []},
-        )
 
-    def test_ru_touching_international_auto_uses_ru_priority_with_structured_reason(
-        self,
-    ) -> None:
-        flow = self.flow_for(
-            origin="SVX", destination="IST", provider_policy="auto", return_date=None
-        )
-        plan = self.plan_for(
-            origin="SVX", destination="IST", provider_policy="auto", return_date=None
-        )
+    def test_ru_touching_auto_uses_ru_priority_with_probe_reason(self) -> None:
+        flow = self.flow_for(origin="SVX", destination="IST", return_date=None)
+        plan = self.plan_for(origin="SVX", destination="IST", return_date=None)
 
         self.assertEqual(flow.flow_decision.market_class, "ru_touching_international")
         self.assertEqual(flow.flow_decision.routing_strategy, "ru-priority")
         self.assertIn(
-            "ru_touching_market_uses_ru_priority_controls",
+            "ru_touching_market_uses_ru_priority_probes",
             flow.flow_decision.limitations,
         )
-        self.assertEqual(plan["market_class"], "ru_touching_international")
-
-    def test_search_plan_exposes_reasons_without_embedding_flow_decision(self) -> None:
-        args = live_assembly_args(
-            origin="SVX", destination="IST", provider_policy="auto", return_date=None
-        )
-        plan = build_search_plan(args, self.store)
-
-        self.assertNotIn("flow_decision", plan["route_context"])
         self.assertIn(
-            "ru_touching_market_uses_ru_priority_controls",
-            plan["planning_reasons"],
+            "ru_touching_market_uses_ru_priority_probes", plan["planning_reasons"]
         )
 
-    def test_direct_inventory_request_compiles_to_direct_only_flow_and_controls(
-        self,
-    ) -> None:
-        flow = self.flow_for(
-            origin="SVX",
-            destination="KUF",
-            max_connections=0,
-            tier2_max_connections=0,
-            return_date=None,
-        )
+    def test_round_trip_gateway_plan_mirrors_routes_dates_and_directions(self) -> None:
         plan = self.plan_for(
             origin="SVX",
+            destination="CDG",
+            depart_date="2026-09-10",
+            return_date="2026-09-20",
+        )
+
+        self.assertEqual(plan["schema_version"], "flight_search_plan.v5")
+        self.assertEqual(
+            set(plan),
+            {
+                "schema_version",
+                "route",
+                "phases",
+                "gateway_policy",
+                "execution_policy",
+                "decision_policy",
+                "output_policy",
+                "planning_reasons",
+            },
+        )
+        gateway_attempts = plan["phases"]["gateway"]
+        self.assertTrue(gateway_attempts)
+        self.assertEqual(
+            {attempt["direction"] for attempt in gateway_attempts},
+            {"outbound", "return"},
+        )
+        self.assertTrue(
+            all(
+                set(attempt)
+                == {
+                    "probe_id",
+                    "phase",
+                    "trigger",
+                    "provider",
+                    "probe_type",
+                    "direction",
+                    "query",
+                }
+                for attempt in gateway_attempts
+            )
+        )
+        self.assertEqual(
+            {
+                (
+                    attempt["direction"],
+                    attempt["query"]["leg"],
+                    attempt["query"]["origin"],
+                    attempt["query"]["destination"],
+                    attempt["query"]["date"],
+                )
+                for attempt in gateway_attempts
+                if attempt["query"]["gateway"] == "IST"
+            },
+            {
+                ("outbound", "origin_to_gateway", "SVX", "IST", "2026-09-10"),
+                (
+                    "outbound",
+                    "gateway_to_destination",
+                    "IST",
+                    "CDG",
+                    "2026-09-10",
+                ),
+                (
+                    "outbound",
+                    "gateway_to_destination",
+                    "IST",
+                    "CDG",
+                    "2026-09-11",
+                ),
+                ("return", "origin_to_gateway", "CDG", "IST", "2026-09-20"),
+                (
+                    "return",
+                    "gateway_to_destination",
+                    "IST",
+                    "SVX",
+                    "2026-09-20",
+                ),
+                (
+                    "return",
+                    "gateway_to_destination",
+                    "IST",
+                    "SVX",
+                    "2026-09-21",
+                ),
+            },
+        )
+
+    def test_direct_inventory_is_expressed_by_route_and_provider_queries(self) -> None:
+        request = live_assembly_args(
+            origin="SVX",
             destination="KUF",
             max_connections=0,
             tier2_max_connections=0,
             return_date=None,
         )
+        flow = build_planning_state(request, self.store)
+        plan = build_search_plan(request, self.store)
 
-        self.assertEqual(flow.flow_decision.intent_class, "direct_inventory")
-        self.assertEqual(flow.flow_decision.evidence_class, "absence_claim")
         self.assertEqual(flow.flow_decision.route_mode, "direct_inventory")
-        self.assertTrue(flow.evidence_plan.direct_only)
-        self.assertIn("exact_airport_direct", flow.evidence_plan.required_controls)
-        self.assertTrue(plan["direct_only"])
+        self.assertTrue(plan["route"]["direct_only"])
+        self.assertTrue(plan["phases"]["primary"])
         self.assertTrue(
             all(
-                control.get("type") == "city_pair_direct"
-                for control in plan["coverage_controls"]
+                attempt["query"]["direct_only"] for attempt in plan["phases"]["primary"]
+            )
+        )
+        self.assertTrue(
+            all(
+                query["probe_type"] == "full_route_aggregate"
+                for query in plan["phases"]["primary"]
             )
         )
 
-    def test_carrier_specific_request_compiles_to_carrier_scope_and_required_controls(
-        self,
-    ) -> None:
-        flow = self.flow_for(
-            origin="SVX", destination="IST", only_carrier=["SU"], return_date=None
+    def test_exact_carrier_and_airport_scopes_require_live_probes(self) -> None:
+        carrier_flow = self.flow_for(
+            origin="BER", destination="MAD", only_carrier=["LH"], return_date=None
         )
-
-        self.assertEqual(flow.flow_decision.intent_class, "carrier_or_airport_scope")
-        self.assertEqual(flow.flow_decision.evidence_class, "absence_claim")
-        self.assertIn("carrier_aggregate", flow.evidence_plan.required_controls)
-        self.assertIn(
-            "carrier_scope_requires_targeted_controls", flow.flow_decision.limitations
-        )
-
-    def test_exclude_carrier_is_hard_scope_and_required_control(self) -> None:
-        flow = self.flow_for(
-            origin="BER", destination="MAD", exclude_carrier=["XX"], return_date=None
-        )
-
-        self.assertEqual(flow.flow_decision.intent_class, "carrier_or_airport_scope")
-        self.assertEqual(flow.flow_decision.evidence_class, "absence_claim")
-        self.assertIn("carrier_aggregate", flow.evidence_plan.required_controls)
-
-    def test_prefer_carrier_is_soft_ranking_preference_not_absence_scope(self) -> None:
-        flow = self.flow_for(
-            origin="BER", destination="MAD", prefer_carrier=["LH"], return_date=None
-        )
-
-        self.assertEqual(flow.flow_decision.intent_class, "route_recommendation")
-        self.assertEqual(flow.flow_decision.evidence_class, "shopping_advisory")
-        self.assertNotIn("carrier_aggregate", flow.evidence_plan.required_controls)
-        self.assertNotIn(
-            "absence_claim_requires_live_freshness",
-            flow.evidence_plan.freshness_policy["reasons"],
-        )
-
-    def test_avoid_carrier_is_soft_ranking_preference_not_absence_scope(self) -> None:
-        flow = self.flow_for(
-            origin="BER", destination="MAD", avoid_carrier=["FR"], return_date=None
-        )
-
-        self.assertEqual(flow.flow_decision.intent_class, "route_recommendation")
-        self.assertEqual(flow.flow_decision.evidence_class, "shopping_advisory")
-        self.assertNotIn("carrier_aggregate", flow.evidence_plan.required_controls)
-
-    def test_mixed_hard_and_soft_carrier_filters_keep_hard_evidence_scope(self) -> None:
-        flow = self.flow_for(
+        airport_flow = self.flow_for(
             origin="BER",
             destination="MAD",
-            only_carrier=["LH"],
-            prefer_carrier=["IB"],
+            origin_airport=["BER"],
+            destination_airport=["MAD"],
             return_date=None,
         )
 
-        self.assertEqual(flow.flow_decision.intent_class, "carrier_or_airport_scope")
-        self.assertEqual(flow.flow_decision.evidence_class, "absence_claim")
-        self.assertIn("carrier_aggregate", flow.evidence_plan.required_controls)
-
-    def test_empty_provider_output_is_provider_empty_not_structural_absence(
-        self,
-    ) -> None:
-        ledger = ProbeExecutionLedger()
-        control = {
-            "type": "exact_airport_direct",
-            "direction": "outbound",
-            "origin": "BER",
-            "destination": "MAD",
-            "date": "2026-08-12",
-            "negative_evidence": "provider_empty_only_not_route_absence",
-        }
-        ledger.plan_controls([control])
-        ledger.record_searched(
-            control, status="ok", provider="fli", offer_count=0, cache_status="live"
+        self.assertIn(
+            "exact_scope_requires_live_probes", carrier_flow.flow_decision.limitations
+        )
+        self.assertIn(
+            "exact_scope_requires_live_probes", airport_flow.flow_decision.limitations
         )
 
-        diagnostics = ledger.to_coverage_diagnostics(
-            {"coverage_mode": "targeted", "coverage_limits": {}}
-        )
-        searched = diagnostics["searched_controls"][0]
-        self.assertEqual(searched["evidence_type"], "provider_empty")
-        self.assertEqual(
-            searched["absence_class"], "provider_empty_not_structural_absence"
-        )
-        self.assertNotEqual(searched.get("absence_class"), "structural_unavailability")
-
-    def test_cache_freshness_policy_is_represented_for_absence_claims(self) -> None:
-        flow = self.flow_for(
-            origin="SVX",
-            destination="KUF",
+    def test_direct_only_and_exact_scopes_disable_live_cache(self) -> None:
+        direct_plan = self.plan_for(
             max_connections=0,
             tier2_max_connections=0,
             return_date=None,
         )
+        exact_plan = self.plan_for(origin_airport=["SVX"], return_date=None)
 
-        self.assertFalse(flow.evidence_plan.live_cache_enabled)
-        self.assertEqual(flow.evidence_plan.live_cache_ttl_seconds, 0)
-        self.assertTrue(flow.evidence_plan.freshness_policy["requires_fresh_live"])
-        self.assertIn(
-            "absence_claim_requires_live_freshness",
-            flow.evidence_plan.freshness_policy["reasons"],
-        )
-        self.assertIn("provider_empty", flow.evidence_plan.absence_taxonomy)
+        for plan in (direct_plan, exact_plan):
+            self.assertFalse(plan["execution_policy"]["live_cache_enabled"])
+            self.assertEqual(plan["execution_policy"]["live_cache_ttl_seconds"], 0)
 
-    def test_freshness_policy_uses_injected_today_provider(self) -> None:
-        flow = self.flow_for_today(
-            date(2026, 8, 10),
+    def test_near_departure_uses_injected_today_and_disables_cache(self) -> None:
+        request = live_assembly_args(
             origin="BER",
             destination="MAD",
             depart_date="2026-08-12",
+            live_cache_ttl_seconds=1800,
             return_date=None,
         )
+        flow = build_planning_state(
+            request,
+            self.store,
+            today_provider=lambda: date(2026, 8, 10),
+        )
+        with patch(
+            "flights_cli.orchestrators.search_plan_builder.build_planning_state",
+            return_value=flow,
+        ):
+            plan = build_search_plan(request, self.store)
 
-        freshness = flow.evidence_plan.freshness_policy
-        self.assertEqual(freshness["today"], "2026-08-10")
-        self.assertEqual(freshness["depart_date"], "2026-08-12")
-        self.assertEqual(freshness["days_until_departure"], 2)
-        self.assertTrue(freshness["requires_fresh_live"])
-        self.assertIn("near_departure_requires_live_freshness", freshness["reasons"])
+        self.assertEqual(flow.today, date(2026, 8, 10))
+        self.assertFalse(plan["execution_policy"]["live_cache_enabled"])
+        self.assertEqual(plan["execution_policy"]["live_cache_ttl_seconds"], 0)
 
 
 if __name__ == "__main__":

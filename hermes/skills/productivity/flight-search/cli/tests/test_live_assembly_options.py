@@ -2,21 +2,19 @@ from __future__ import annotations
 
 import unittest
 
-from flights_cli.commands.search import search_request_from_payload
 from flights_cli.config import DEFAULT_CATALOG_LIMIT, DEFAULT_DIRECT_CATALOG_LIMIT
 from flights_cli.errors import CliError
-from flights_cli.pipeline.search_request import SearchRequest
+from flights_cli.pipeline.search_request import search_request_from_payload
 
 
 REQUEST = {
-    "schema_version": "flight_search_request.v1",
+    "schema_version": "flight_search_request.v3",
     "origin": "svx",
     "destination": "lon",
     "depart_date": "2026-07-20",
     "return_date": "2026-07-27",
     "currency": "rub",
     "profile": "business",
-    "ticketing": "single",
     "provider_policy": "auto",
     "route_options": {
         "routing_strategy": "hub-list",
@@ -24,13 +22,8 @@ REQUEST = {
         "origin_airports": ["SVX"],
         "destination_airports": ["LHR"],
         "max_airports_per_city": 3,
-        "coverage_mode": "full",
-        "coverage_controls": ["exact_airport_direct"],
-        "coverage_control_limit": 7,
         "min_same_airport_min": 150,
         "min_cross_airport_min": 360,
-        "stop_policy": "debug-all",
-        "date_window_end": "2026-07-22",
         "max_connections": 0,
         "tier2_max_connections": 0,
         "gateway_discovery_limit": 5,
@@ -39,25 +32,14 @@ REQUEST = {
     },
     "filters": {
         "only_carriers": ["SU"],
-        "exclude_carriers": ["ZZ"],
-        "prefer_carriers": ["TK"],
-        "avoid_carriers": ["XX"],
     },
     "evidence": {
         "segment_limit": 11,
         "timeout": 42,
-        "outbound_second_leg_day_offsets": [0, 1],
-        "return_second_leg_day_offsets": [0, 2],
-        "search_wave_max_waves": 4,
-        "search_wave_probe_limit": 8,
-        "search_wave_top_k": 6,
-        "aggregate_control_limit": 4,
-        "aggregate_control_carriers": ["SU", "TK"],
         "max_segment_searches": 99,
         "fail_fast": True,
         "live_cache_ttl_seconds": 123,
         "no_live_cache": True,
-        "fli_mcp_url": "http://127.0.0.1:9999/mcp",
     },
     "output": {
         "catalog_limit": 12,
@@ -67,8 +49,17 @@ REQUEST = {
 
 
 class SearchRequestTests(unittest.TestCase):
+    def test_provider_policy_schema_defers_nonempty_names_to_registry(self) -> None:
+        options = search_request_from_payload(
+            {**REQUEST, "provider_policy": "future_provider"}
+        )
+
+        self.assertEqual(options.provider_policy, "future_provider")
+        with self.assertRaises(CliError):
+            search_request_from_payload({**REQUEST, "provider_policy": ""})
+
     def test_search_request_maps_request_fields(self) -> None:
-        options = SearchRequest.from_payload(REQUEST)
+        options = search_request_from_payload(REQUEST)
 
         expected = {
             "origin": "SVX",
@@ -76,11 +67,8 @@ class SearchRequestTests(unittest.TestCase):
             "depart_date": "2026-07-20",
             "return_date": "2026-07-27",
             "hubs": ("IST", "DXB"),
-            "ticketing": "single",
             "profile": "business",
             "only_carriers": ("SU",),
-            "prefer_carriers": ("TK",),
-            "aggregate_control_carriers": ("SU", "TK"),
         }
         self.assertEqual(options.route.origin, expected["origin"])
         self.assertEqual(options.route.destination, expected["destination"])
@@ -90,26 +78,11 @@ class SearchRequestTests(unittest.TestCase):
         self.assertEqual(options.route.gateway_discovery_limit, 5)
         self.assertEqual(options.route.gateway_probe_batch_size, 2)
         self.assertEqual(options.route.gateway_probe_max_batches, 3)
-        self.assertEqual(options.ticketing, expected["ticketing"])
         self.assertEqual(options.profile, expected["profile"])
         self.assertEqual(options.filters.only_carriers, expected["only_carriers"])
-        self.assertEqual(options.filters.prefer_carriers, expected["prefer_carriers"])
-        self.assertEqual(
-            options.evidence.aggregate_control_carriers,
-            expected["aggregate_control_carriers"],
-        )
-        self.assertEqual(options.evidence.search_wave_max_waves, 4)
-        self.assertEqual(options.evidence.search_wave_probe_limit, 8)
-        self.assertEqual(options.evidence.search_wave_top_k, 6)
         self.assertEqual(options.evidence.primary_offer_limit, 35)
         self.assertEqual(options.output.catalog_limit, 12)
         self.assertEqual(options.output.direct_catalog_limit, 35)
-
-    def test_search_app_adapter_matches_typed_request_adapter(self) -> None:
-        self.assertEqual(
-            search_request_from_payload(REQUEST),
-            SearchRequest.from_payload(REQUEST),
-        )
 
     def test_search_app_rejects_non_business_profile(self) -> None:
         with self.assertRaises(CliError):
@@ -117,35 +90,32 @@ class SearchRequestTests(unittest.TestCase):
 
     def test_search_request_maps_carrier_filters(self) -> None:
         request = {
-            "schema_version": "flight_search_request.v1",
+            "schema_version": "flight_search_request.v3",
             "origin": "nte",
             "destination": "svx",
-            "depart_date": "2026-07-09",
-            "filters": {"only_carriers": ["AF"], "prefer_carriers": ["TK"]},
+            "depart_date": "2026-08-09",
+            "filters": {"only_carriers": ["AF"]},
         }
-        options = SearchRequest.from_payload(request)
+        options = search_request_from_payload(request)
 
         self.assertEqual(options.filters.only_carriers, ("AF",))
         self.assertEqual(options.effective_only_carriers(), ("AF",))
-        self.assertEqual(options.effective_prefer_carriers(), ("TK",))
         self.assertEqual(search_request_from_payload(request), options)
 
     def test_search_request_defaults_are_explicit_in_typed_options(self) -> None:
-        options = SearchRequest.from_payload(
+        options = search_request_from_payload(
             {
-                "schema_version": "flight_search_request.v1",
+                "schema_version": "flight_search_request.v3",
                 "origin": "svx",
                 "destination": "lon",
                 "depart_date": "2026-07-20",
             }
         )
 
-        self.assertEqual(options.command_name, "search")
         self.assertEqual(options.route.origin, "SVX")
         self.assertEqual(options.route.destination, "LON")
         self.assertEqual(options.currency, "RUB")
         self.assertEqual(options.profile, "business")
-        self.assertEqual(options.ticketing, "separate")
         self.assertEqual(options.evidence.provider_policy, "auto")
         self.assertEqual(
             options.evidence.primary_offer_limit, DEFAULT_DIRECT_CATALOG_LIMIT
@@ -155,15 +125,14 @@ class SearchRequestTests(unittest.TestCase):
             options.output.direct_catalog_limit, DEFAULT_DIRECT_CATALOG_LIMIT
         )
 
-    def test_search_request_preserves_explicit_zero_values(self) -> None:
-        options = SearchRequest.from_payload(
+    def test_search_request_preserves_contract_allowed_zero_values(self) -> None:
+        options = search_request_from_payload(
             {
-                "schema_version": "flight_search_request.v1",
+                "schema_version": "flight_search_request.v3",
                 "origin": "svx",
                 "destination": "dme",
                 "depart_date": "2026-08-15",
                 "route_options": {
-                    "coverage_control_limit": 0,
                     "min_same_airport_min": 0,
                     "min_cross_airport_min": 0,
                     "max_connections": 0,
@@ -172,13 +141,10 @@ class SearchRequestTests(unittest.TestCase):
                     "gateway_probe_batch_size": 0,
                     "gateway_probe_max_batches": 0,
                 },
-                "evidence": {
-                    "aggregate_control_limit": 0,
-                    "live_cache_ttl_seconds": 0,
-                },
+                "evidence": {"live_cache_ttl_seconds": 0},
                 "output": {
-                    "catalog_limit": 0,
-                    "direct_catalog_limit": 0,
+                    "catalog_limit": 1,
+                    "direct_catalog_limit": 1,
                 },
             }
         )
@@ -190,8 +156,6 @@ class SearchRequestTests(unittest.TestCase):
         self.assertEqual(options.route.gateway_discovery_limit, 0)
         self.assertEqual(options.route.gateway_probe_batch_size, 0)
         self.assertEqual(options.route.gateway_probe_max_batches, 0)
-        self.assertEqual(options.evidence.coverage_control_limit, 0)
-        self.assertEqual(options.evidence.aggregate_control_limit, 0)
         self.assertEqual(options.evidence.live_cache_ttl_seconds, 0)
         self.assertEqual(options.evidence.primary_offer_limit, 1)
         self.assertEqual(options.output.catalog_limit, 1)

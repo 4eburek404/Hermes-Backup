@@ -22,6 +22,22 @@ TEST_ENV = {
 }
 
 
+def coverage_completeness(probe_ledger: dict[str, Any]) -> dict[str, Any]:
+    """Project raw ledger facts through the production coverage owner."""
+
+    from flights_cli.reporting.coverage import CoverageSnapshot
+
+    return CoverageSnapshot.from_diagnostics(probe_ledger).summary["completeness"]
+
+
+def build_search_plan(request: Any, store: Store) -> dict[str, Any]:
+    """Test-only adapter around the typed planning interface."""
+
+    from flights_cli.orchestrators.search_plan_builder import SearchPlanBuilder
+
+    return SearchPlanBuilder(store).build(request).to_dict()
+
+
 def make_test_store(
     test_case: unittest.TestCase, airports: list[dict[str, Any]]
 ) -> Store:
@@ -79,13 +95,11 @@ def decision_frontier_from_details(
     return {
         "schema_version": "flight_decision_frontier.v1",
         "options": options,
-        "controls": [],
         "coverage_summary": {
             "candidate_count": len(options),
             "acceptable_count": len(options),
             "selected_count": len(options),
             "rejected_count": 0,
-            "control_count": 0,
         },
     }
 
@@ -117,7 +131,7 @@ def parser_leaf_defaults(parser: argparse.ArgumentParser) -> dict[str, dict[str,
 def live_assembly_args(**overrides: Any) -> Any:
     """Build the canonical typed search request used by pipeline tests."""
 
-    from flights_cli.commands.search import search_request_from_payload
+    from flights_cli.pipeline.search_request import search_request_from_payload
 
     def as_list(value: Any) -> list[Any]:
         if value is None:
@@ -135,13 +149,8 @@ def live_assembly_args(**overrides: Any) -> Any:
         "destination_airports": "destination_airports",
         "destination_airport": "destination_airports",
         "max_airports_per_city": "max_airports_per_city",
-        "coverage_mode": "coverage_mode",
-        "coverage_controls": "coverage_controls",
-        "coverage_control": "coverage_controls",
-        "coverage_control_limit": "coverage_control_limit",
         "min_same_airport_min": "min_same_airport_min",
         "min_cross_airport_min": "min_cross_airport_min",
-        "stop_policy": "stop_policy",
         "date_window_end": "date_window_end",
         "max_connections": "max_connections",
         "tier2_max_connections": "tier2_max_connections",
@@ -152,21 +161,10 @@ def live_assembly_args(**overrides: Any) -> Any:
     evidence_keys = {
         "segment_limit": "segment_limit",
         "timeout": "timeout",
-        "outbound_second_leg_day_offsets": "outbound_second_leg_day_offsets",
-        "outbound_second_leg_day_offset": "outbound_second_leg_day_offsets",
-        "return_second_leg_day_offsets": "return_second_leg_day_offsets",
-        "return_second_leg_day_offset": "return_second_leg_day_offsets",
-        "search_wave_max_waves": "search_wave_max_waves",
-        "search_wave_probe_limit": "search_wave_probe_limit",
-        "search_wave_top_k": "search_wave_top_k",
-        "aggregate_control_limit": "aggregate_control_limit",
-        "aggregate_control_carriers": "aggregate_control_carriers",
-        "aggregate_control_carrier": "aggregate_control_carriers",
         "max_segment_searches": "max_segment_searches",
         "fail_fast": "fail_fast",
         "live_cache_ttl_seconds": "live_cache_ttl_seconds",
         "no_live_cache": "no_live_cache",
-        "fli_mcp_url": "fli_mcp_url",
     }
     output_keys = {
         "catalog_limit": "catalog_limit",
@@ -175,22 +173,15 @@ def live_assembly_args(**overrides: Any) -> Any:
     filter_keys = {
         "only_carriers": "only_carriers",
         "only_carrier": "only_carriers",
-        "exclude_carriers": "exclude_carriers",
-        "exclude_carrier": "exclude_carriers",
-        "prefer_carriers": "prefer_carriers",
-        "prefer_carrier": "prefer_carriers",
-        "avoid_carriers": "avoid_carriers",
-        "avoid_carrier": "avoid_carriers",
     }
     values = dict(overrides)
     request: dict[str, Any] = {
-        "schema_version": "flight_search_request.v1",
+        "schema_version": "flight_search_request.v3",
         "origin": values.pop("origin", "SVX"),
         "destination": values.pop("destination", "CDG"),
         "depart_date": values.pop("depart_date", "2026-08-15"),
         "currency": values.pop("currency", "RUB"),
         "profile": values.pop("profile", "business"),
-        "ticketing": values.pop("ticketing", "separate"),
         "provider_policy": values.pop("provider_policy", "auto"),
     }
     return_date = values.pop("return_date", None)
@@ -208,19 +199,12 @@ def live_assembly_args(**overrides: Any) -> Any:
                 "hubs",
                 "origin_airports",
                 "destination_airports",
-                "coverage_controls",
             }:
                 value = as_list(value)
             route_options[target] = value
     for key, target in evidence_keys.items():
         if key in values:
             value = values.pop(key)
-            if target in {
-                "outbound_second_leg_day_offsets",
-                "return_second_leg_day_offsets",
-                "aggregate_control_carriers",
-            }:
-                value = as_list(value)
             evidence[target] = value
     for key, target in output_keys.items():
         if key in values:

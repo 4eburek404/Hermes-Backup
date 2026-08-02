@@ -5,6 +5,7 @@ from email.utils import parsedate_to_datetime
 from typing import Any
 
 from ..errors import CliError
+from ..ports.providers import ProviderProbeResult
 
 
 def parse_retry_after_seconds(
@@ -137,3 +138,28 @@ def error_payload_from_cli_error(exc: CliError) -> dict[str, Any]:
         if details:
             payload["details"] = details
     return payload
+
+
+def error_payload_from_provider_result(result: ProviderProbeResult) -> dict[str, Any]:
+    raw = dict(result.errors[0]) if result.errors else {}
+    error_type = str(raw.get("type") or "provider_unavailable")
+    message = str(
+        raw.get("message")
+        or result.result_summary.get("reason")
+        or f"provider {result.provider} returned failed state"
+    )
+    return {
+        **raw,
+        "type": error_type,
+        "message": message,
+        **classify_failure(error_type, message, details=raw),
+    }
+
+
+def cli_error_from_provider_result(result: ProviderProbeResult) -> CliError:
+    error = error_payload_from_provider_result(result)
+    return CliError(
+        str(error["message"]),
+        error_type=str(error["type"]),
+        details={"provider": result.provider, "probe_id": result.probe_id},
+    )

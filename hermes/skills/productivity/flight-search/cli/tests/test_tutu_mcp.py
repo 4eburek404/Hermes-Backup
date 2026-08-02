@@ -1,26 +1,40 @@
 from __future__ import annotations
 
-import http.client
+import asyncio
+import gc
 import json
 import tempfile
+import threading
+import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
+import anyio
+import httpx2
+from mcp.shared.exceptions import MCPError
+from mcp.types import (
+    CONNECTION_CLOSED,
+    INVALID_PARAMS,
+    CallToolResult,
+    TextContent,
+)
+
 from flights_cli.adapters.providers.tutu_adapter import TutuProviderAdapter
 from flights_cli.errors import CliError
+from flights_cli.providers import tutu_mcp as tutu_mcp_module
+from flights_cli.providers.tutu_client import TutuMcpClient
 from flights_cli.providers.tutu_mcp import (
-    MCP_PROTOCOL_VERSION,
     TUTU_MAX_PAGES,
     TUTU_MAX_SCOPE_PAGES,
     TUTU_PAGE_SIZE,
     cached_tutu_avia_search,
-    extract_tool_payload,
     fetch_tutu_avia_search,
-    parse_tutu_avia_search,
-    tutu_mcp_http_post,
+    parse_tutu_avia_search as compatibility_parse_tutu_avia_search,
 )
+from flights_cli.providers.tutu_parser import parse_tutu_avia_search
 from flights_cli.store import Store
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "providers"
@@ -115,7 +129,27 @@ def tutu_offer(
     }
 
 
+def fake_tutu_client(handler):  # type: ignore[no-untyped-def]
+    class FakeTutuMcpClient:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+        async def __aenter__(self) -> "FakeTutuMcpClient":
+            return self
+
+        async def __aexit__(self, *args: object) -> None:
+            return None
+
+        async def search_avia(self, arguments: dict) -> dict:
+            return handler("search_avia", arguments)
+
+    return patch("flights_cli.providers.tutu_mcp.TutuMcpClient", FakeTutuMcpClient)
+
+
 class TutuMcpProviderTests(unittest.TestCase):
+    def test_tutu_mcp_reexports_canonical_parser(self) -> None:
+        self.assertIs(compatibility_parse_tutu_avia_search, parse_tutu_avia_search)
+
     def test_diagnose_probe_allows_tutu_provider(self) -> None:
         from flights_cli.cli import build_parser
 
@@ -132,160 +166,6 @@ class TutuMcpProviderTests(unittest.TestCase):
 
         self.assertEqual(args.command_name, "diagnose probe")
         self.assertEqual(args.provider, "tutu")
-
-    def test_http_post_sends_mcp_protocol_version_header(self) -> None:
-        captured: dict[str, str] = {}
-
-        class FakeResponse:
-            headers = {"Content-Type": "application/json"}
-
-            def __enter__(self) -> "FakeResponse":
-                return self
-
-            def __exit__(self, *args: object) -> None:
-                return None
-
-            def read(self) -> bytes:
-                return b'{"jsonrpc":"2.0","result":{}}'
-
-        def fake_urlopen(request, *, timeout: int):  # type: ignore[no-untyped-def]
-            captured.update(
-                {key.lower(): value for key, value in request.header_items()}
-            )
-            return FakeResponse()
-
-        with patch(
-            "flights_cli.providers.tutu_mcp.urllib.request.urlopen", fake_urlopen
-        ):
-            tutu_mcp_http_post(
-                "https://mcp.tutu.ru/mcp", {"jsonrpc": "2.0"}, timeout=10
-            )
-
-        self.assertEqual(captured["mcp-protocol-version"], MCP_PROTOCOL_VERSION)
-        self.assertIn("application/json", captured["accept"])
-        self.assertIn("text/event-stream", captured["accept"])
-
-    def test_http_post_retries_incomplete_read_once_and_succeeds(self) -> None:
-        calls = 0
-
-        class FakeResponse:
-            headers = {"Content-Type": "application/json"}
-
-            def __enter__(self) -> "FakeResponse":
-                return self
-
-            def __exit__(self, *args: object) -> None:
-                return None
-
-            def read(self) -> bytes:
-                nonlocal calls
-                calls += 1
-                if calls == 1:
-                    raise http.client.IncompleteRead(b'{"jsonrpc"', 20)
-                return b'{"jsonrpc":"2.0","result":{"ok":true}}'
-
-        with (
-            patch(
-                "flights_cli.providers.tutu_mcp.urllib.request.urlopen",
-                return_value=FakeResponse(),
-            ),
-            patch("flights_cli.providers.tutu_mcp.time.sleep") as sleep,
-        ):
-            response, session_id = tutu_mcp_http_post(
-                "https://mcp.tutu.ru/mcp",
-                {
-                    "jsonrpc": "2.0",
-                    "method": "tools/call",
-                    "params": {"name": "search_avia"},
-                },
-                timeout=10,
-            )
-
-        self.assertEqual(response["result"], {"ok": True})
-        self.assertIsNone(session_id)
-        self.assertEqual(calls, 2)
-        sleep.assert_called_once()
-
-    def test_http_post_reports_incomplete_read_after_retries(self) -> None:
-        class FakeResponse:
-            headers = {"Content-Type": "application/json"}
-
-            def __enter__(self) -> "FakeResponse":
-                return self
-
-            def __exit__(self, *args: object) -> None:
-                return None
-
-            def read(self) -> bytes:
-                raise http.client.IncompleteRead(b"partial", 10)
-
-        with (
-            patch(
-                "flights_cli.providers.tutu_mcp.urllib.request.urlopen",
-                return_value=FakeResponse(),
-            ),
-            patch("flights_cli.providers.tutu_mcp.time.sleep"),
-            self.assertRaises(CliError) as error,
-        ):
-            tutu_mcp_http_post(
-                "https://mcp.tutu.ru/mcp",
-                {
-                    "jsonrpc": "2.0",
-                    "method": "tools/call",
-                    "params": {"name": "search_avia"},
-                },
-                timeout=10,
-            )
-
-        self.assertEqual(error.exception.error_type, "upstream_incomplete_read")
-        self.assertEqual(error.exception.details["failure_reason"], "incomplete_read")
-        self.assertEqual(error.exception.details["tool"], "search_avia")
-        self.assertEqual(error.exception.details["bytes_read"], len(b"partial"))
-        self.assertEqual(error.exception.details["bytes_missing"], 10)
-        self.assertEqual(
-            error.exception.details["bytes_expected"], len(b"partial") + 10
-        )
-
-    def test_extract_tool_payload_accepts_structured_json(self) -> None:
-        payload = extract_tool_payload(
-            {"structuredContent": {"result": {"offers": []}}}
-        )
-
-        self.assertEqual(payload, {"offers": []})
-
-    def test_extract_tool_payload_accepts_text_wrapped_json(self) -> None:
-        payload = extract_tool_payload(
-            {
-                "content": [
-                    {"type": "text", "text": json.dumps({"result": '{"offers":[]}'})}
-                ]
-            }
-        )
-
-        self.assertEqual(payload, {"offers": []})
-
-    def test_extract_tool_payload_accepts_plain_text(self) -> None:
-        payload = extract_tool_payload(
-            {
-                "content": [
-                    {"type": "text", "text": "# Avia instructions\nUse search_avia."}
-                ]
-            }
-        )
-
-        self.assertEqual(payload, "# Avia instructions\nUse search_avia.")
-
-    def test_extract_tool_payload_preserves_tool_errors(self) -> None:
-        with self.assertRaises(CliError) as error:
-            extract_tool_payload(
-                {
-                    "isError": True,
-                    "content": [{"type": "text", "text": "bad request"}],
-                }
-            )
-
-        self.assertEqual(error.exception.error_type, "upstream_error")
-        self.assertIn("bad request", str(error.exception))
 
     def test_fetch_paginates_before_applying_display_limit(self) -> None:
         store = store_with_tutu_catalog(self)
@@ -316,7 +196,7 @@ class TutuMcpProviderTests(unittest.TestCase):
                 "meta": {"has_more": False},
             }
 
-        with patch("flights_cli.providers.tutu_mcp.call_tutu_mcp_tool", fake_call):
+        with fake_tutu_client(fake_call):
             result = fetch_tutu_avia_search(
                 "SVX",
                 "AMS",
@@ -348,7 +228,7 @@ class TutuMcpProviderTests(unittest.TestCase):
                 },
             }
 
-        with patch("flights_cli.providers.tutu_mcp.call_tutu_mcp_tool", fake_call):
+        with fake_tutu_client(fake_call):
             fetch_tutu_avia_search(
                 "SVX",
                 "AMS",
@@ -381,7 +261,7 @@ class TutuMcpProviderTests(unittest.TestCase):
                 },
             }
 
-        with patch("flights_cli.providers.tutu_mcp.call_tutu_mcp_tool", fake_call):
+        with fake_tutu_client(fake_call):
             fetch_tutu_avia_search(
                 "SVX",
                 "AMS",
@@ -412,7 +292,7 @@ class TutuMcpProviderTests(unittest.TestCase):
                 },
             }
 
-        with patch("flights_cli.providers.tutu_mcp.call_tutu_mcp_tool", fake_call):
+        with fake_tutu_client(fake_call):
             fetch_tutu_avia_search(
                 "SVX",
                 "AMS",
@@ -444,7 +324,7 @@ class TutuMcpProviderTests(unittest.TestCase):
             calls.append(arguments)
             return {"offers": [], "meta": {"has_more": False}}
 
-        with patch("flights_cli.providers.tutu_mcp.call_tutu_mcp_tool", fake_call):
+        with fake_tutu_client(fake_call):
             result = fetch_tutu_avia_search(
                 "SVX",
                 "LON",
@@ -535,7 +415,7 @@ class TutuMcpProviderTests(unittest.TestCase):
                 "meta": {"has_more": True},
             }
 
-        with patch("flights_cli.providers.tutu_mcp.call_tutu_mcp_tool", fake_call):
+        with fake_tutu_client(fake_call):
             result = fetch_tutu_avia_search(
                 "SVX",
                 "LON",
@@ -550,27 +430,6 @@ class TutuMcpProviderTests(unittest.TestCase):
         self.assertEqual(len(calls), TUTU_MAX_SCOPE_PAGES)
         self.assertEqual(result["pagination"]["max_pages"], TUTU_MAX_SCOPE_PAGES)
         self.assertTrue(result["pagination"]["airport_scope_incomplete"])
-
-    def test_fetch_rejects_plain_text_payload_for_search(self) -> None:
-        store = store_with_tutu_catalog(self)
-
-        with (
-            patch(
-                "flights_cli.providers.tutu_mcp.call_tutu_mcp_tool",
-                return_value="# Avia instructions",
-            ),
-            self.assertRaises(CliError) as error,
-        ):
-            fetch_tutu_avia_search(
-                "SVX",
-                "AMS",
-                date(2026, 8, 15),
-                currency="RUB",
-                store=store,
-            )
-
-        self.assertEqual(error.exception.error_type, "upstream_error")
-        self.assertEqual(error.exception.details["tool"], "search_avia")
 
     def test_parser_keeps_provider_inventory_when_limit_covers_catalog(self) -> None:
         store = store_with_tutu_catalog(self)
@@ -630,7 +489,7 @@ class TutuMcpProviderTests(unittest.TestCase):
                 "meta": {"has_more": True},
             }
 
-        with patch("flights_cli.providers.tutu_mcp.call_tutu_mcp_tool", fake_call):
+        with fake_tutu_client(fake_call):
             result = fetch_tutu_avia_search(
                 "SVX",
                 "AMS",
@@ -643,6 +502,791 @@ class TutuMcpProviderTests(unittest.TestCase):
         self.assertEqual(len(calls), TUTU_MAX_PAGES)
         self.assertEqual(result["pagination"]["pages_fetched"], TUTU_MAX_PAGES)
         self.assertTrue(result["pagination"]["not_fetched_due_to_page_budget"])
+
+    def test_transient_page_failure_retries_whole_workflow_in_new_session(
+        self,
+    ) -> None:
+        sessions: list[list[int]] = []
+        deadlines: list[float] = []
+
+        class FakeClient:
+            def __init__(self, **kwargs: object) -> None:
+                self.calls: list[int] = []
+                sessions.append(self.calls)
+                deadlines.append(float(kwargs["deadline"]))
+
+            async def __aenter__(self) -> "FakeClient":
+                return self
+
+            async def __aexit__(self, *args: object) -> None:
+                return None
+
+            async def search_avia(self, arguments: dict) -> dict:
+                page = int(arguments.get("page") or 1)
+                self.calls.append(page)
+                if len(sessions) == 1 and page == 2:
+                    raise httpx2.ReadError("truncated response")
+                return {
+                    "offers": [
+                        tutu_offer(
+                            f"session-{len(sessions)}-page-{page}",
+                            [[tutu_segment("SVX", "AMS", str(page))]],
+                        )
+                    ],
+                    "meta": {"has_more": page == 1},
+                }
+
+        async def no_wait(delay: float) -> None:
+            self.assertEqual(delay, 0.25)
+
+        with (
+            patch("flights_cli.providers.tutu_mcp.TutuMcpClient", FakeClient),
+            patch("flights_cli.providers.tutu_mcp.asyncio.sleep", no_wait),
+        ):
+            result = fetch_tutu_avia_search(
+                "SVX",
+                "AMS",
+                date(2026, 8, 15),
+                currency="RUB",
+                timeout=5,
+            )
+
+        self.assertEqual(sessions, [[1, 2], [1, 2]])
+        self.assertEqual(len(set(deadlines)), 1)
+        self.assertEqual(result["pagination"]["pages_fetched"], 2)
+
+    def test_sdk_task_group_connect_timeout_retries_in_new_session(self) -> None:
+        sessions = 0
+
+        class FakeHttpClient:
+            def __init__(self, **kwargs: object) -> None:
+                self.timeout = kwargs["timeout"]
+
+            async def __aenter__(self) -> "FakeHttpClient":
+                return self
+
+            async def __aexit__(self, *args: object) -> None:
+                return None
+
+        class TaskGroupSdkClient:
+            protocol_version = "2025-11-25"
+            server_info = None
+
+            def __init__(self, server: object, **kwargs: object) -> None:
+                nonlocal sessions
+                sessions += 1
+                self.session_number = sessions
+
+            async def __aenter__(self) -> "TaskGroupSdkClient":
+                self.task_group = anyio.create_task_group()
+                await self.task_group.__aenter__()
+                return self
+
+            async def __aexit__(
+                self,
+                exc_type: type[BaseException] | None,
+                exc: BaseException | None,
+                traceback: object,
+            ) -> object:
+                self.task_group.cancel_scope.cancel()
+                return await self.task_group.__aexit__(exc_type, exc, traceback)
+
+            async def call_tool(
+                self,
+                name: str,
+                arguments: dict[str, object],
+                **kwargs: object,
+            ) -> CallToolResult:
+                if name == "get_avia_instructions":
+                    return CallToolResult(
+                        content=[TextContent(type="text", text="# Playbook")]
+                    )
+                if self.session_number == 1:
+
+                    async def fail_post() -> None:
+                        await anyio.sleep(0)
+                        raise httpx2.ConnectTimeout("POST connect timed out")
+
+                    self.task_group.start_soon(fail_post)
+                    await anyio.sleep_forever()
+                return CallToolResult(
+                    content=[
+                        TextContent(
+                            type="text",
+                            text='{"offers": [], "meta": {"has_more": false}}',
+                        )
+                    ]
+                )
+
+        async def no_wait(delay: float) -> None:
+            self.assertEqual(delay, 0.25)
+
+        with (
+            patch(
+                "flights_cli.providers.tutu_client.httpx2.AsyncClient",
+                FakeHttpClient,
+            ),
+            patch(
+                "flights_cli.providers.tutu_client.streamable_http_client",
+                return_value=object(),
+            ),
+            patch(
+                "flights_cli.providers.tutu_client.Client",
+                TaskGroupSdkClient,
+            ),
+            patch("flights_cli.providers.tutu_mcp.asyncio.sleep", no_wait),
+        ):
+            result = fetch_tutu_avia_search(
+                "SVX",
+                "AMS",
+                date(2026, 8, 15),
+                currency="RUB",
+                timeout=5,
+            )
+
+        self.assertEqual(sessions, 2)
+        self.assertEqual(result["offer_count"], 0)
+
+    def test_two_transient_failures_return_bounded_cli_error(self) -> None:
+        sessions = 0
+
+        class FakeClient:
+            def __init__(self, **kwargs: object) -> None:
+                nonlocal sessions
+                sessions += 1
+
+            async def __aenter__(self) -> "FakeClient":
+                error = httpx2.ConnectError("offline")
+                error._tutu_operation = "initialize"  # type: ignore[attr-defined]
+                raise error
+
+            async def __aexit__(self, *args: object) -> None:
+                return None
+
+        async def no_wait(delay: float) -> None:
+            return None
+
+        with (
+            patch("flights_cli.providers.tutu_mcp.TutuMcpClient", FakeClient),
+            patch("flights_cli.providers.tutu_mcp.asyncio.sleep", no_wait),
+            self.assertRaises(CliError) as error,
+        ):
+            fetch_tutu_avia_search(
+                "SVX",
+                "AMS",
+                date(2026, 8, 15),
+                currency="RUB",
+                timeout=5,
+            )
+
+        self.assertEqual(sessions, 2)
+        self.assertEqual(error.exception.details["provider"], "tutu")
+        self.assertEqual(error.exception.details["attempts"], 2)
+        self.assertEqual(error.exception.details["deadline_seconds"], 5.0)
+        self.assertEqual(
+            error.exception.details["terminal_error_types"], ["ConnectError"]
+        )
+
+    def test_exhausted_backoff_budget_prevents_second_session(self) -> None:
+        sessions = 0
+
+        class FakeClient:
+            def __init__(self, **kwargs: object) -> None:
+                nonlocal sessions
+                sessions += 1
+
+            async def __aenter__(self) -> "FakeClient":
+                error = httpx2.ConnectError("offline")
+                error._tutu_operation = "initialize"  # type: ignore[attr-defined]
+                raise error
+
+            async def __aexit__(self, *args: object) -> None:
+                return None
+
+        with (
+            patch("flights_cli.providers.tutu_mcp.TutuMcpClient", FakeClient),
+            self.assertRaises(CliError) as error,
+        ):
+            fetch_tutu_avia_search(
+                "SVX",
+                "AMS",
+                date(2026, 8, 15),
+                currency="RUB",
+                timeout=0.1,  # type: ignore[arg-type]
+            )
+
+        self.assertEqual(sessions, 1)
+        self.assertEqual(error.exception.error_type, "timeout")
+        self.assertEqual(error.exception.details["operation"], "initialize")
+
+    def test_search_timeout_keeps_tool_when_budget_prevents_retry(self) -> None:
+        sessions = 0
+
+        class FakeClient:
+            def __init__(self, **kwargs: object) -> None:
+                nonlocal sessions
+                sessions += 1
+
+            async def __aenter__(self) -> "FakeClient":
+                return self
+
+            async def __aexit__(self, *args: object) -> None:
+                return None
+
+            async def search_avia(self, arguments: dict) -> dict:
+                error = TimeoutError("search deadline")
+                error._tutu_operation = "search_avia"  # type: ignore[attr-defined]
+                raise error
+
+        with (
+            patch("flights_cli.providers.tutu_mcp.TutuMcpClient", FakeClient),
+            self.assertRaises(CliError) as error,
+        ):
+            fetch_tutu_avia_search(
+                "SVX",
+                "AMS",
+                date(2026, 8, 15),
+                currency="RUB",
+                timeout=0.1,  # type: ignore[arg-type]
+            )
+
+        self.assertEqual(sessions, 1)
+        self.assertEqual(error.exception.error_type, "timeout")
+        self.assertEqual(error.exception.details["operation"], "search_avia")
+        self.assertEqual(error.exception.details["tool"], "search_avia")
+
+    def test_expired_client_deadline_retains_final_operation_and_tool(self) -> None:
+        for operation in ("initialize", "search_avia"):
+            sessions = 0
+
+            class ExpiredDeadlineClient:
+                def __init__(self, **kwargs: object) -> None:
+                    nonlocal sessions
+                    sessions += 1
+
+                async def __aenter__(self) -> "ExpiredDeadlineClient":
+                    if operation == "initialize":
+                        self._expire(operation)
+                    return self
+
+                async def __aexit__(self, *args: object) -> None:
+                    return None
+
+                async def search_avia(self, arguments: dict) -> dict:
+                    self._expire("search_avia")
+                    raise AssertionError("unreachable")
+
+                @staticmethod
+                def _expire(active_operation: str) -> None:
+                    TutuMcpClient(
+                        url="https://mcp.tutu.ru/mcp",
+                        deadline=time.monotonic() - 1,
+                    ).remaining_timeout(active_operation)
+
+            with (
+                self.subTest(operation=operation),
+                patch(
+                    "flights_cli.providers.tutu_mcp.TutuMcpClient",
+                    ExpiredDeadlineClient,
+                ),
+                self.assertRaises(CliError) as error,
+            ):
+                fetch_tutu_avia_search(
+                    "SVX",
+                    "AMS",
+                    date(2026, 8, 15),
+                    currency="RUB",
+                    timeout=0.1,  # type: ignore[arg-type]
+                )
+
+            self.assertEqual(sessions, 1)
+            self.assertEqual(error.exception.details["operation"], operation)
+            self.assertEqual(
+                error.exception.details["tool"],
+                "search_avia" if operation == "search_avia" else None,
+            )
+
+    def test_close_timeout_is_reported_as_close_operation(self) -> None:
+        class FakeClient:
+            def __init__(self, **kwargs: object) -> None:
+                pass
+
+            async def __aenter__(self) -> "FakeClient":
+                return self
+
+            async def __aexit__(self, *args: object) -> None:
+                error = TimeoutError("close timed out")
+                error._tutu_operation = "close"  # type: ignore[attr-defined]
+                raise error
+
+            async def search_avia(self, arguments: dict) -> dict:
+                return {"offers": [], "meta": {"has_more": False}}
+
+        async def no_wait(delay: float) -> None:
+            return None
+
+        with (
+            patch("flights_cli.providers.tutu_mcp.TutuMcpClient", FakeClient),
+            patch("flights_cli.providers.tutu_mcp.asyncio.sleep", no_wait),
+            self.assertRaises(CliError) as error,
+        ):
+            fetch_tutu_avia_search(
+                "SVX",
+                "AMS",
+                date(2026, 8, 15),
+                currency="RUB",
+                timeout=5,
+            )
+
+        self.assertEqual(error.exception.details["operation"], "close")
+        self.assertEqual(error.exception.details["attempts"], 2)
+
+    def test_distinct_asyncio_timeout_error_is_explicitly_retryable(self) -> None:
+        class SyntheticAsyncTimeout(Exception):
+            pass
+
+        with patch.object(
+            tutu_mcp_module.asyncio,
+            "TimeoutError",
+            SyntheticAsyncTimeout,
+        ):
+            self.assertTrue(
+                tutu_mcp_module._is_retryable_transport_failure(
+                    SyntheticAsyncTimeout("async timeout")
+                )
+            )
+            self.assertTrue(
+                tutu_mcp_module._has_timeout_leaf(
+                    SyntheticAsyncTimeout("async timeout")
+                )
+            )
+
+    def test_nonretryable_tool_error_does_not_open_second_session(self) -> None:
+        sessions = 0
+
+        class FakeClient:
+            def __init__(self, **kwargs: object) -> None:
+                nonlocal sessions
+                sessions += 1
+
+            async def __aenter__(self) -> "FakeClient":
+                return self
+
+            async def __aexit__(self, *args: object) -> None:
+                return None
+
+            async def search_avia(self, arguments: dict) -> dict:
+                raise CliError("bad tool arguments", error_type="upstream_error")
+
+        with (
+            patch("flights_cli.providers.tutu_mcp.TutuMcpClient", FakeClient),
+            self.assertRaises(CliError),
+        ):
+            fetch_tutu_avia_search(
+                "SVX",
+                "AMS",
+                date(2026, 8, 15),
+                currency="RUB",
+            )
+
+        self.assertEqual(sessions, 1)
+
+    def test_tool_error_survives_close_failure_without_retry(self) -> None:
+        sessions = 0
+        events: list[str] = []
+
+        class FakeHttpClient:
+            def __init__(self, **kwargs: object) -> None:
+                self.timeout = kwargs["timeout"]
+
+            async def __aenter__(self) -> "FakeHttpClient":
+                events.append("http_enter")
+                return self
+
+            async def __aexit__(self, *args: object) -> None:
+                events.append("http_exit")
+
+        class ToolErrorSdkClient:
+            protocol_version = "2025-11-25"
+            server_info = None
+
+            def __init__(self, server: object, **kwargs: object) -> None:
+                nonlocal sessions
+                sessions += 1
+
+            async def __aenter__(self) -> "ToolErrorSdkClient":
+                events.append("sdk_enter")
+                return self
+
+            async def __aexit__(self, *args: object) -> None:
+                events.append("sdk_exit")
+                raise httpx2.ReadError("close failed")
+
+            async def call_tool(
+                self,
+                name: str,
+                arguments: dict[str, object],
+                **kwargs: object,
+            ) -> CallToolResult:
+                if name == "get_avia_instructions":
+                    return CallToolResult(
+                        content=[TextContent(type="text", text="# Playbook")]
+                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type="text", text="bad request")],
+                )
+
+        with (
+            patch(
+                "flights_cli.providers.tutu_client.httpx2.AsyncClient",
+                FakeHttpClient,
+            ),
+            patch(
+                "flights_cli.providers.tutu_client.streamable_http_client",
+                return_value=object(),
+            ),
+            patch(
+                "flights_cli.providers.tutu_client.Client",
+                ToolErrorSdkClient,
+            ),
+            self.assertRaises(CliError) as error,
+        ):
+            fetch_tutu_avia_search(
+                "SVX",
+                "AMS",
+                date(2026, 8, 15),
+                currency="RUB",
+                timeout=5,
+            )
+
+        self.assertEqual(sessions, 1)
+        self.assertEqual(error.exception.details["tool"], "search_avia")
+        self.assertIn("bad request", str(error.exception))
+        self.assertEqual(
+            events,
+            ["http_enter", "sdk_enter", "sdk_exit", "http_exit"],
+        )
+
+    def test_protocol_payload_failures_never_retry(self) -> None:
+        failures = [
+            CliError("empty playbook", error_type="upstream_error"),
+            json.JSONDecodeError("malformed", "{", 1),
+            CliError("bad search shape", error_type="upstream_error"),
+        ]
+        for failure in failures:
+            sessions = 0
+
+            class FakeClient:
+                def __init__(self, **kwargs: object) -> None:
+                    nonlocal sessions
+                    sessions += 1
+
+                async def __aenter__(self) -> "FakeClient":
+                    if isinstance(failure, CliError) and "empty" in str(failure):
+                        raise failure
+                    return self
+
+                async def __aexit__(self, *args: object) -> None:
+                    return None
+
+                async def search_avia(self, arguments: dict) -> dict:
+                    raise failure
+
+            with (
+                self.subTest(failure=type(failure).__name__, message=str(failure)),
+                patch("flights_cli.providers.tutu_mcp.TutuMcpClient", FakeClient),
+                self.assertRaises(CliError),
+            ):
+                fetch_tutu_avia_search(
+                    "SVX",
+                    "AMS",
+                    date(2026, 8, 15),
+                    currency="RUB",
+                )
+            self.assertEqual(sessions, 1)
+
+    def test_nested_transient_group_retries_but_application_mcp_error_does_not(
+        self,
+    ) -> None:
+        class NestedError(Exception):
+            def __init__(self, *exceptions: Exception) -> None:
+                super().__init__("nested")
+                self.exceptions = exceptions
+
+        async def no_wait(delay: float) -> None:
+            return None
+
+        transient_sessions = 0
+
+        class TransientClient:
+            def __init__(self, **kwargs: object) -> None:
+                nonlocal transient_sessions
+                transient_sessions += 1
+
+            async def __aenter__(self) -> "TransientClient":
+                if transient_sessions == 1:
+                    raise NestedError(
+                        httpx2.ConnectError("offline"),
+                        NestedError(MCPError(CONNECTION_CLOSED, "connection closed")),
+                    )
+                return self
+
+            async def __aexit__(self, *args: object) -> None:
+                return None
+
+            async def search_avia(self, arguments: dict) -> dict:
+                return {"offers": [], "meta": {"has_more": False}}
+
+        with (
+            patch("flights_cli.providers.tutu_mcp.TutuMcpClient", TransientClient),
+            patch("flights_cli.providers.tutu_mcp.asyncio.sleep", no_wait),
+        ):
+            fetch_tutu_avia_search(
+                "SVX",
+                "AMS",
+                date(2026, 8, 15),
+                currency="RUB",
+            )
+        self.assertEqual(transient_sessions, 2)
+
+        application_sessions = 0
+
+        class ApplicationErrorClient:
+            def __init__(self, **kwargs: object) -> None:
+                nonlocal application_sessions
+                application_sessions += 1
+
+            async def __aenter__(self) -> "ApplicationErrorClient":
+                raise MCPError(INVALID_PARAMS, "invalid params")
+
+            async def __aexit__(self, *args: object) -> None:
+                return None
+
+        with (
+            patch(
+                "flights_cli.providers.tutu_mcp.TutuMcpClient",
+                ApplicationErrorClient,
+            ),
+            self.assertRaises(CliError),
+        ):
+            fetch_tutu_avia_search(
+                "SVX",
+                "AMS",
+                date(2026, 8, 15),
+                currency="RUB",
+            )
+        self.assertEqual(application_sessions, 1)
+
+    def test_parallel_sync_calls_use_independent_event_loops_and_sessions(self) -> None:
+        barrier = threading.Barrier(2)
+        loop_ids: list[int] = []
+        sessions: list[object] = []
+        lock = threading.Lock()
+
+        class FakeClient:
+            def __init__(self, **kwargs: object) -> None:
+                with lock:
+                    sessions.append(self)
+
+            async def __aenter__(self) -> "FakeClient":
+                with lock:
+                    loop_ids.append(id(asyncio.get_running_loop()))
+                barrier.wait(timeout=5)
+                return self
+
+            async def __aexit__(self, *args: object) -> None:
+                return None
+
+            async def search_avia(self, arguments: dict) -> dict:
+                return {"offers": [], "meta": {"has_more": False}}
+
+        def run_search() -> dict:
+            return fetch_tutu_avia_search(
+                "SVX",
+                "AMS",
+                date(2026, 8, 15),
+                currency="RUB",
+            )
+
+        with patch("flights_cli.providers.tutu_mcp.TutuMcpClient", FakeClient):
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                results = list(executor.map(lambda _: run_search(), range(2)))
+
+        self.assertEqual(len(results), 2)
+        self.assertEqual(len(sessions), 2)
+        self.assertEqual(len(set(loop_ids)), 2)
+
+
+class TutuMcpSyncContractTests(unittest.IsolatedAsyncioTestCase):
+    async def test_sync_provider_rejects_active_event_loop_before_coroutine(
+        self,
+    ) -> None:
+        with self.assertRaises(CliError) as error:
+            fetch_tutu_avia_search(
+                "SVX",
+                "AMS",
+                date(2026, 8, 15),
+                currency="RUB",
+            )
+
+        self.assertEqual(error.exception.error_type, "sync_contract_error")
+        self.assertIn("active event loop", str(error.exception))
+
+    async def test_parent_cancel_never_reaches_retry_classifier(self) -> None:
+        class CleanupError(Exception):
+            def __init__(self) -> None:
+                super().__init__("cleanup failed")
+                self.exceptions = (httpx2.ReadError("transport cleanup failed"),)
+
+        for operation in ("initialize", "search_avia"):
+            started = asyncio.Event()
+            sessions = 0
+            cleanup_attempts = 0
+
+            class CancelledClient:
+                def __init__(self, **kwargs: object) -> None:
+                    nonlocal sessions
+                    sessions += 1
+
+                async def __aenter__(self) -> "CancelledClient":
+                    nonlocal cleanup_attempts
+                    if sessions > 1:
+                        raise CliError(
+                            "caller cancellation reached retry",
+                            error_type="upstream_error",
+                        )
+                    if operation == "initialize":
+                        started.set()
+                        try:
+                            await asyncio.Event().wait()
+                        except BaseException:
+                            cleanup_attempts += 1
+                            raise CleanupError from None
+                    return self
+
+                async def __aexit__(self, *args: object) -> None:
+                    nonlocal cleanup_attempts
+                    cleanup_attempts += 1
+                    raise CleanupError
+
+                async def search_avia(self, arguments: dict) -> dict:
+                    started.set()
+                    await asyncio.Event().wait()
+                    raise AssertionError("unreachable")
+
+            with (
+                self.subTest(operation=operation),
+                patch(
+                    "flights_cli.providers.tutu_mcp.TutuMcpClient",
+                    CancelledClient,
+                ),
+            ):
+                task = asyncio.create_task(
+                    tutu_mcp_module._fetch_tutu_avia_search_async(
+                        "SVX",
+                        "AMS",
+                        date(2026, 8, 15),
+                        currency="RUB",
+                        only_carriers=None,
+                        direct_only=False,
+                        limit=20,
+                        timeout=5,
+                        mcp_url="https://mcp.tutu.ru/mcp",
+                        store=None,
+                        return_date=None,
+                        origin_airports=None,
+                        destination_airports=None,
+                        deadline=time.monotonic() + 5,
+                    )
+                )
+                await started.wait()
+                task.cancel()
+                with self.assertRaises(asyncio.CancelledError) as error:
+                    await task
+
+            self.assertIsNone(getattr(error.exception, "_tutu_operation", None))
+            self.assertTrue(task.cancelled())
+            self.assertEqual(sessions, 1)
+            self.assertEqual(cleanup_attempts, 1)
+
+    async def test_repeated_parent_cancel_drains_attempt_without_task_leak(
+        self,
+    ) -> None:
+        cleanup_started = asyncio.Event()
+        cleanup_release = asyncio.Event()
+        cleanup_finished = asyncio.Event()
+        loop_errors: list[dict[str, object]] = []
+
+        class CleanupError(Exception):
+            def __init__(self) -> None:
+                super().__init__("cleanup failed")
+                self.exceptions = (httpx2.ReadError("transport cleanup failed"),)
+
+        class CancelledClient:
+            def __init__(self, **kwargs: object) -> None:
+                pass
+
+            async def __aenter__(self) -> "CancelledClient":
+                return self
+
+            async def __aexit__(self, *args: object) -> None:
+                cleanup_started.set()
+                try:
+                    await cleanup_release.wait()
+                finally:
+                    cleanup_finished.set()
+                raise CleanupError
+
+            async def search_avia(self, arguments: dict) -> dict:
+                await asyncio.Event().wait()
+                raise AssertionError("unreachable")
+
+        loop = asyncio.get_running_loop()
+        previous_handler = loop.get_exception_handler()
+        loop.set_exception_handler(lambda _loop, context: loop_errors.append(context))
+        try:
+            with patch(
+                "flights_cli.providers.tutu_mcp.TutuMcpClient",
+                CancelledClient,
+            ):
+                task = asyncio.create_task(
+                    tutu_mcp_module._fetch_tutu_avia_search_async(
+                        "SVX",
+                        "AMS",
+                        date(2026, 8, 15),
+                        currency="RUB",
+                        only_carriers=None,
+                        direct_only=False,
+                        limit=20,
+                        timeout=5,
+                        mcp_url="https://mcp.tutu.ru/mcp",
+                        store=None,
+                        return_date=None,
+                        origin_airports=None,
+                        destination_airports=None,
+                        deadline=time.monotonic() + 5,
+                    )
+                )
+                await asyncio.sleep(0)
+                task.cancel()
+                await cleanup_started.wait()
+                task.cancel()
+                await asyncio.sleep(0)
+                parent_finished_before_cleanup = task.done()
+                cleanup_release.set()
+                with self.assertRaises(asyncio.CancelledError):
+                    await task
+                await asyncio.wait_for(cleanup_finished.wait(), timeout=1)
+                await asyncio.sleep(0)
+                gc.collect()
+                await asyncio.sleep(0)
+        finally:
+            cleanup_release.set()
+            loop.set_exception_handler(previous_handler)
+
+        self.assertFalse(parent_finished_before_cleanup)
+        self.assertEqual(loop_errors, [])
 
     def test_parser_does_not_apply_tutu_direct_or_carrier_postfilters(self) -> None:
         store = store_with_tutu_catalog(self)
@@ -809,6 +1453,79 @@ class TutuMcpProviderTests(unittest.TestCase):
         self.assertEqual(offer["number_of_changes"], 0)
         self.assertEqual(result["return_date"], "2026-08-22")
 
+    def test_parser_rejects_cross_airport_connection_via_connection_policy(
+        self,
+    ) -> None:
+        store = store_with_tutu_catalog(self)
+        raw = {
+            "offers": [
+                tutu_offer(
+                    "cross-airport",
+                    [
+                        [
+                            tutu_segment("SVX", "IST", "100"),
+                            tutu_segment("SAW", "AMS", "101"),
+                        ]
+                    ],
+                )
+            ]
+        }
+
+        result = parse_tutu_avia_search(
+            raw,
+            origin="SVX",
+            destination="AMS",
+            depart_date="2026-08-15",
+            currency="RUB",
+            store=store,
+        )
+
+        self.assertEqual(result["offer_count"], 0)
+        self.assertEqual(result["skipped"]["airport_change"], 1)
+
+    def test_parser_rejects_missing_and_reversed_segment_times(self) -> None:
+        store = store_with_tutu_catalog(self)
+        raw = {
+            "offers": [
+                tutu_offer(
+                    "missing-departure",
+                    [[tutu_segment("SVX", "AMS", "100", depart="")]],
+                ),
+                tutu_offer(
+                    "missing-arrival",
+                    [[tutu_segment("SVX", "AMS", "101", arrive="")]],
+                ),
+                tutu_offer(
+                    "reversed",
+                    [
+                        [
+                            tutu_segment(
+                                "SVX",
+                                "AMS",
+                                "102",
+                                depart="2026-08-15T10:00:00+05:00",
+                                arrive="2026-08-15T09:00:00+05:00",
+                            )
+                        ]
+                    ],
+                ),
+                tutu_offer("valid", [[tutu_segment("SVX", "AMS", "103")]]),
+            ]
+        }
+
+        result = parse_tutu_avia_search(
+            raw,
+            origin="SVX",
+            destination="AMS",
+            depart_date="2026-08-15",
+            currency="RUB",
+            store=store,
+        )
+
+        self.assertEqual([offer["id"] for offer in result["offers"]], ["valid"])
+        self.assertEqual(result["skipped"]["missing_segment_time"], 2)
+        self.assertEqual(result["skipped"]["segment_arrival_before_departure"], 1)
+
     def test_parser_preserves_tutu_self_transfer_evidence(self) -> None:
         store = store_with_tutu_catalog(self)
         raw = {
@@ -970,7 +1687,6 @@ class TutuMcpProviderTests(unittest.TestCase):
         self.assertEqual(calls[0]["return_date"], date(2026, 8, 22))
         self.assertTrue(calls[0]["direct_only"])
         self.assertEqual(calls[0]["limit"], 23)
-        self.assertTrue(adapter.capabilities.supports_round_trip)
         self.assertEqual(result.query["return_date"], "2026-08-22")
         self.assertEqual(result.query["origin_airports"], ["SVX"])
         self.assertEqual(result.query["destination_airports"], ["AER"])

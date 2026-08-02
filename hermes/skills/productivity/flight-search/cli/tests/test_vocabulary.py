@@ -19,13 +19,9 @@ class TestVocabularyWellFormed(unittest.TestCase):
         enums = [
             v.Leg,
             v.Direction,
-            v.StopBucket,
             v.MarketClass,
-            v.IntentClass,
-            v.EvidenceClass,
             v.RoutingStrategy,
             v.RouteFamily,
-            v.RequiredControl,
             v.AbsenceReason,
             v.ProbeStatus,
         ]
@@ -48,13 +44,9 @@ class TestVocabularyWellFormed(unittest.TestCase):
         enums = [
             v.Leg,
             v.Direction,
-            v.StopBucket,
             v.MarketClass,
-            v.IntentClass,
-            v.EvidenceClass,
             v.RoutingStrategy,
             v.RouteFamily,
-            v.RequiredControl,
             v.AbsenceReason,
             v.ProbeStatus,
         ]
@@ -74,13 +66,9 @@ class TestVocabularyWellFormed(unittest.TestCase):
         enums = [
             v.Leg,
             v.Direction,
-            v.StopBucket,
             v.MarketClass,
-            v.IntentClass,
-            v.EvidenceClass,
             v.RoutingStrategy,
             v.RouteFamily,
-            v.RequiredControl,
             v.AbsenceReason,
             v.ProbeStatus,
         ]
@@ -142,13 +130,9 @@ class TestVocabularyDriftLint(unittest.TestCase):
         cls.VOCABULARY_FAMILIES = {
             "Leg": {m.value for m in v.Leg},
             "MarketClass": {m.value for m in v.MarketClass},
-            "IntentClass": {m.value for m in v.IntentClass},
-            "EvidenceClass": {m.value for m in v.EvidenceClass},
             "RoutingStrategy": {m.value for m in v.RoutingStrategy},
             "RouteFamily": {m.value for m in v.RouteFamily},
-            "RequiredControl": {m.value for m in v.RequiredControl},
             "AbsenceReason": {m.value for m in v.AbsenceReason},
-            "StopBucket": {m.value for m in v.StopBucket},
         }
         return cls.VOCABULARY_FAMILIES
 
@@ -177,7 +161,6 @@ class TestVocabularyDriftLint(unittest.TestCase):
             "config.py",  # airport tier "preferred" — different domain
             "airports.py",  # airport priority "preferred" role — different domain
             "stop_policy.py",  # stop_policy payload key "suppressed" — display dict
-            "aggregate_control_runner.py",  # probe_type — belongs to ports/providers.py
             "probe_intent.py",  # probe_type — belongs to ports/providers.py
             "diagnose.py",  # probe_type comparison — belongs to ports/providers.py
         }

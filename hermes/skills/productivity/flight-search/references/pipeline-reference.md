@@ -4,32 +4,46 @@
 
 ```text
 raw JSON
-  -> SearchRequest.from_payload
+  -> search_request_from_payload -> SearchRequest v3
   -> SearchPlanBuilder
-  -> SearchExecutor.execute(plan)
-  -> immutable SearchEvidence
-  -> OfferGraph + candidate envelope
-  -> DecisionScorer + DecisionFrontier
-  -> result projection
-  -> flight_search_user_answer.v9
+  -> SearchPlan v5
+  -> SearchExecutor.execute(plan) -> immutable SearchEvidence
+  -> OfferGraph -> validation -> scoring -> frontier
+  -> SearchDecision
+  -> result projection v9
+  -> flight_search_user_answer.v11
   -> pure renderer
   -> stdout
 ```
 
-Defaults are applied once by `SearchRequest`. Planning is pure with respect to
+`SearchWorkflow` is the only production composition root. Defaults and
+normalization are applied once at the request boundary. After `SearchPlan v5`
+is built, execution reads only the plan. Planning is pure with respect to
 providers. Gateway priors may schedule probes; gateways observed live are
-evidence and do not mutate the plan.
+evidence and never mutate the active plan.
 
 Provider I/O belongs to execution. Direct-only primary probes run first for
 each direction. Broad primary and gateway probes are eligible only for
-directions with no direct result. At most one bounded fallback wave may run,
-preplanned aggregate/evidence probes run once, then the ledger is finalized and
-frozen. Ledger terminal states cannot reopen; cache status is separate.
+directions with no direct result. At most one bounded broad phase may run.
+`ProbeRunLedger` owns planned probes, claims, physical-query dedupe, failures,
+and terminal states. Before evidence is frozen, every planned probe must be
+`searched`, `failed`, `not_supported`, `skipped`, `not_executed`, or
+`deduped(original_probe_id)`. Terminal states cannot reopen; cache status is
+separate.
+
+Each `ProviderAttemptPlan` has canonical `provider`, `probe_type`, `direction`,
+`trigger`, and a nested provider `query`. The plan contains no
+`execution_state`: merely appearing in a phase means `planned`; every runtime
+state belongs to the ledger.
 
 After evidence freeze, graph construction, candidate normalization, scoring,
 round-trip/two-one-way composition, and frontier selection run once. Provider
 aggregate offers enter the same candidate envelope before scoring. Result
 projection and rendering may not perform provider calls or option selection.
+For round trips assembled from one-way offers and a positive
+`max_round_trip_pairs`, every outbound/return pair is validated and scored
+before the frontier applies the limit; it never truncates raw legs or
+unvalidated pair order. At zero, synthesized pairs are not created.
 
 Business frontier selection first keeps the best available stop tier: two-stop
 options are eligible only when no direct or one-stop candidate exists. Normal
@@ -41,32 +55,36 @@ otherwise low-ranked candidate into an early position.
 
 ## Provider routing
 
-Provider routing is per logical probe, not per whole search. `tutu` is the
-default primary provider. In `auto`, a successful Tutu MCP broad probe stops
-provider fallback for the same logical probe. Direct-only inventory is the
-exception: Tutu and KupiBilet are both queried so one provider's bounded result
-cannot hide direct flights exposed by the other.
+Provider routing is fixed in `SearchPlan`, per logical probe rather than per
+whole search. In `auto`, every compatible provider receives a planned primary
+attempt. Primary fanout executes all compatible providers; gateway fanout tries
+providers in plan order, continuing after failure, unsupported, or empty, and
+stopping after the first positive result. Every result enters one OfferGraph
+and is deduplicated before the shared output limit, so one provider cannot hide
+a cheaper or otherwise distinct itinerary from another.
 
-- `kupibilet` is fallback only when Tutu is unavailable, fails, or does not
-  support the probe and KupiBilet capability and market fit it.
-- `fli` is fallback only for non-RU probes when Tutu is unavailable, fails, or
-  does not support the probe.
+- `kupibilet` is a primary peer of Tutu for direct and broad full-route search.
 - `provider_policy=both` is invalid.
 
-The dedupe key includes provider, route, direction, date, filters, limits,
-direct mode, policy, and endpoint-specific inputs. Tutu offers are shopping
-evidence, may contain connected itineraries, and are paginated through the
-adapter. Localized airline names are resolved through the airline catalog into
-canonical carrier codes; route-specific carrier mappings are not allowed.
+Provider-query identity includes provider, probe type, route/date, currency,
+direct mode, airport/carrier filters, and limit. Diagnostic role, trigger, and
+other metadata do not participate in the physical-call key. Candidate dedupe
+is provider-independent and uses the physical itinerary; equal-trust offers with
+the same price basis and currency retain the lower price while preserving every
+source provider. Tutu offers are shopping evidence, may contain connected
+itineraries, and are paginated through the adapter. Localized airline names are
+resolved through the airline catalog into canonical carrier codes;
+route-specific carrier mappings are not allowed.
 
 ## Direct-first gate
 
 Direct-first is strict and directional. If any direct-only provider result
-contains a direct flight within the active date, airport, and restrictive
-carrier filters, broad and gateway alternatives for that direction are skipped.
+contains a normalized valid direct flight within the active date, airport, and
+restrictive carrier filters, broad and gateway alternatives for that direction
+are skipped. Missing/malformed times, impossible chronology, wrong endpoints,
+or an out-of-scope carrier cannot suppress fallback.
 `max_connections` is only a fallback ceiling and never disables this gate.
-`prefer_carriers` does not narrow direct detection. Round-trip outbound and
-return directions are gated independently.
+Round-trip outbound and return directions are gated independently.
 
 The same rule applies inside gateway assembly per leg and date: execute the
 direct leg probe first, skip its broad variant when direct inventory exists,
@@ -74,24 +92,36 @@ and permit intermediate hubs only after a direct-empty result. A provider
 failure is not proof that no direct flight exists; diagnostics record whether
 direct absence was confirmed by at least one completed source.
 
-After wave-0 direct evidence is collected, the executor partitions planned
-`conditional_gateway_queries` by direction. Queries for a direction with
-direct evidence are recorded in `probe_ledger.skipped_controls` with
+After direct evidence is collected, the executor partitions planned
+gateway attempts by direction. Queries for a direction with
+direct evidence are recorded in `probe_ledger.skipped_probes` with
 `reason="direct_available"`; only directions without direct evidence enter the
-gateway wave planner. This executor partition is the production policy. The
-unused `assess_fallback()` helper is not a second policy source.
+gateway batch executor. Gateway candidate limits, batches, direct-versus-broad
+leg suppression, viability, and stopping are evaluated independently for each
+direction.
 
 ## Gateway discovery and assembly
 
-`gateway_discovery_mode` is an internal route-access decision, not a request
-field:
+The active plan stores one of three gateway triggers; it is not a second
+runtime policy:
 
-- `required` applies to configured restricted-access RU markets. Gateway
+- `disabled` plans no gateway attempts.
+- `required_if_no_direct` applies to configured restricted-access RU markets. Gateway
   fallback is mandatory when no direct flight exists, but direct evidence still
   suppresses gateway probes for that direction.
-- `optional_after_provider_failure` applies to normal RU-touching and global
+- `on_primary_failure` applies to normal RU-touching and global
   markets. Conditional gateway probes run only when primary evidence is
   unavailable, unsupported, failed, or unusable.
+
+`direct_only=true` is an absolute planning constraint: it creates neither broad
+nor gateway attempts.
+
+Round-trip plans mirror every gateway candidate. Outbound attempts search
+`ORIGIN -> GATEWAY -> DESTINATION` from the departure date; return attempts
+search `DESTINATION -> GATEWAY -> ORIGIN` from the return date. In both
+directions the continuation leg also checks the next day. Direction remains
+authoritative through execution, offer-graph construction, and candidate
+materialization, so legs from opposite directions cannot form one path.
 
 Gateway candidates come from configured priors and live provider signals; no
 route-specific hub belongs in agent logic. Continuation is not limited to a
@@ -99,13 +129,12 @@ direct second leg: the planner searches the requested day and next day and may
 accept provider-returned intermediate hubs such as
 `GATEWAY -> HUB -> DESTINATION`. Valid overnight candidates remain eligible.
 
-The current production `SearchExecutor` instantiates `SearchWavePlannerOptions`
-with `max_waves=1`. A larger `execution_limits.search_wave_max_waves` value in
-the plan is therefore not proof that multiple waves executed; the authoritative
-runtime evidence is `gateway_leg_results.wave_diagnostics`. Also, strict
-`max_connections=0` plus `tier2_max_connections=0` constrains reportable
-candidates but does not by itself prove that route-access gateway probes were
-never planned or executed.
+The gateway executor owns continuation through `gateway_discovery_limit`,
+`gateway_probe_batch_size`, and `gateway_probe_max_batches`. It evaluates each
+completed batch and stops when a viable gateway is found or the batch budget is
+exhausted. Strict direct-only planning creates zero gateway probes; stop limits
+otherwise constrain reportable candidates and do not create a parallel gateway
+policy.
 
 Candidate assembly requires airport continuity between every adjacent segment.
 An airport mismatch is rejected before ranking; same-city airports and a longer
@@ -117,8 +146,6 @@ Carrier filters are provider-query inputs:
 
 - `filters.only_carriers` narrows provider queries to the requested carriers
   where supported.
-- `filters.prefer_carriers` is a provider preference and RU-priority seed, not
-  a hidden scorer gate.
 - Matching uses normalized carrier codes and raw provider names.
 
 Do not reintroduce request `constraints`: route shape belongs in

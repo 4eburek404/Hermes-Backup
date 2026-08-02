@@ -1,34 +1,15 @@
 # Debug and Exception Probe Playbook
 
-Use this playbook only when the Golden Path report is internally inconsistent, degraded, too sparse for the user constraint, or surprising enough that a narrow diagnostic probe could change the answer. Debugging supports `search --request`; it does not replace it.
-
-Reference map: `references/index.md`. Report reading contract: `references/report-contract.md`.
-
-## When to debug
-
-Start from the canonical command in `SKILL.md`. Enter debug only when one of these is true:
-
-- `agent_guidance.answer_readiness` says more evidence is needed;
-- `evidence.provider_failures`, `coverage_diagnostics.failed_controls`, or `not_executed_controls` changes confidence;
-- a direct, carrier, exact-airport, Moscow/SVO, cheapest, fastest, or safer-ticketing control is missing or summary-only;
-- provider output conflicts with source boundaries or route geography;
-- date horizon, airport continuity, stop-policy tiering, cache state, or ranking profile could hide a viable option;
-- the user asks for narrower proof than the report already contains.
-
-Do not expose diagnostic JSON or probe logs as the traveler answer. For a normal
-traveler request, return text-mode search stdout verbatim; in JSON mode, return
-`data.answer.rendered_text` verbatim. Do not summarize, reformat, correct, or
-otherwise improve it. Debug/RCA explanations are a separate task.
+Use diagnostics only when the Golden Path report is inconsistent, degraded, or
+too sparse for a decision-critical constraint. Diagnostics support
+`search --request`; they do not replace its canonical answer.
 
 ## Runtime provenance
 
-Before naming a provider/root cause or patching behavior, prove the runtime used
-for the probe. Resolve `cli/` relative to the directory containing the parent
-`SKILL.md` and use it as the command's working directory; do not infer the
-location from an agent-specific home directory:
+Resolve `cli/` relative to the active skill root and verify the imported code
+before attributing behavior to a provider:
 
 ```bash
-command -v flights || true
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --version
 PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY'
 import flights_cli, pathlib
@@ -37,33 +18,11 @@ PY
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli search --help
 ```
 
-Record only decision-useful provenance:
+Record the request route, dates, exact-airport versus city scope, carrier
+filter, provider policy, direct-only setting, cache setting, source path,
+branch, and commit. `maint doctor` proves local readiness, not live inventory.
 
-- runtime path, imported module path, CLI version, and live help;
-- source path, branch, HEAD, dirty state when source behavior is in scope;
-- request normalization: route/date/currency/profile, exact-airport vs city scope, filters, provider policy, stop policy, direct-only/date-window/ticketing fields;
-- whether the conclusion came from `data`, a diagnostic probe, or external source evidence.
-
-Temp editable checkouts can shadow the permanent skill CLI; do not generalize traces until executable/import paths are known. `maint doctor` is environment/readiness evidence, not flight availability evidence.
-
-## JSON extraction
-
-Read only JSON payloads for decisions. If logs surround JSON, extract the envelope first, then inspect `data`.
-
-Decision read order is in `report-contract.md`; compact debug order:
-
-1. `data.agent_guidance` — command, answer path, readiness, blocking evidence.
-2. `data.decision.offer_graph` from `diagnose trace` — collection, evidence, missing evidence, truth language.
-3. `data.answer.rendered_text` — canonical final rendering.
-4. `data.answer.catalog.items` and `data.frontier.option_ids` — decision-critical options and order.
-5. `evidence.*` — through-fare checks, provider failures, source boundaries, coverage diagnostics.
-6. `diagnostics.*` — debug only.
-
-If JSON parsing or schema validation fails, report the parse/contract layer and rerun with JSON-clean stdout/stderr settings before making a travel claim.
-
-## Targeted diagnostics
-
-Run the narrowest probe that answers the remaining uncertainty. Label probe results as narrower evidence than the assembled report unless you prove the main report missed a mandatory control.
+## Diagnostic commands
 
 Main report:
 
@@ -71,20 +30,21 @@ Main report:
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request request.json
 ```
 
-Planned probes without provider execution:
+Plan without provider execution:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose plan \
   --request request.json
 ```
 
-Full route/live trace:
+Full live trace:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose trace --request request.json
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose trace \
+  --request request.json
 ```
 
-Provider-port diagnostic:
+One provider probe:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose probe \
@@ -92,218 +52,114 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose probe \
   --request probe.json
 ```
 
-### FLI MCP readiness
-
-Use this only to determine whether the FLI provider endpoint is reachable or
-to isolate an FLI-specific failure. The CLI contacts FLI MCP directly. A clean
-`hermes mcp list` is therefore not evidence that FLI is unavailable, and a
-configured Hermes MCP entry is not evidence that the CLI can reach it.
-
-The effective endpoint is `FLIGHTS_FLI_MCP_URL` when set; otherwise it is
-`http://127.0.0.1:8000/mcp`. `maint doctor` checks the local CLI, dependencies,
-contracts, and static catalogs without a live provider call. An `ok: true`
-doctor result does not prove FLI readiness.
-
-Use the current provider-port command, not the removed `diagnose fli-search`
-surface. Write a minimal segment probe:
-
-```json
-{
-  "origin": "AMS",
-  "destination": "LHR",
-  "date": "YYYY-MM-DD",
-  "limit": 20,
-  "timeout": 5,
-  "use_cache": false,
-  "direct_only": true
-}
-```
-
-Then run from `cli/`:
-
-```bash
-printf 'FLIGHTS_FLI_MCP_URL=%s\n' \
-  "${FLIGHTS_FLI_MCP_URL:-<unset; default=http://127.0.0.1:8000/mcp>}"
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose probe \
-  --provider fli \
-  --request /tmp/fli-probe.json
-```
-
-Attribute the result to the exact layer:
-
-- malformed URL or disallowed cleartext host: FLI endpoint configuration;
-- connection refused on the default loopback URL: no FLI MCP listener in the
-  current environment, not a failure of the main flight-search CLI;
-- timeout, blocked response, or upstream error: FLI provider/upstream failure;
-- successful probe with zero offers: current FLI route/date inventory, not
-  endpoint unavailability.
-
-Pure renderer diagnostic for an existing result:
+Pure rendering check for an existing result:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose render \
   --input flight-search-result.json
 ```
 
-Probe shapes:
+Read `data.answer` for traveler-facing output. In a trace, use `data.plan`,
+`data.evidence`, and `data.decision` only for diagnosis. Never expose raw probe
+logs as a replacement traveler answer.
 
-- exact-airport direct-only;
-- city-code direct-only when city scope is intended and the provider supports it;
-- alternate airport only when city-wide search is allowed;
-- carrier-specific direct or aggregate control for carrier questions;
-- round-trip provider aggregate when the user asks for one order/single checkout;
-- nearby in-horizon control date to split horizon uncertainty from route coverage.
+## Provider fanout and airport scope
 
-### Suppressed or missing gateway chain
+With `provider_policy=auto`, Tutu and KupiBilet should have equivalent logical
+queries for every eligible direct or broad route probe. Check:
 
-When a requested or expected hub chain is absent, start with the baseline
-`diagnose trace`; do not replace the canonical search with manual leg searches.
-Inspect these fields together:
+- both providers appear in `data.evidence.primary_offer_results` and the probe
+  ledger unless a capability or market boundary explains otherwise;
+- `origin_airports` and `destination_airports` are normalized, preserved in
+  both provider queries, and reversed for the return direction;
+- every accepted path starts and ends inside the corresponding exact-airport
+  scope;
+- equal physical itineraries are deduplicated in the OfferGraph before shared
+  ranking and output limiting.
 
-- `data.plan.conditional_gateway_queries`;
-- `data.evidence.direct_mode` and `data.evidence.direct_presence_gate`;
-- `data.evidence.probe_ledger.skipped_controls` and `searched_controls`;
-- `data.evidence.gateway_leg_results.wave_diagnostics`;
-- `data.decision.offer_graph` and `data.decision.frontier`.
+A provider failure is not proof of route absence. A successful zero-offer
+probe is bounded provider evidence, not structural unavailability.
 
-Interpret the first matching state:
+## Direct-first gate
 
-1. **No planned chain:** inspect gateway-discovery enablement, prior-set/candidate
-   selection, candidate caps, rejected gateway signals, and provider
-   applicability. A requested `hubs` value does not by itself prove that a
-   conditional query reached the plan.
-2. **Planned then suppressed:** `direct_mode[direction]=true` together with a
-   matching skipped control whose `reason` is `direct_available` proves the
-   production direct-first partition suppressed that direction.
-3. **Searched but no candidate:** inspect provider offers, chronology/MCT
-   pairing, OfferGraph rejection, connection caps, and frontier projection;
-   this is not direct-first suppression.
-4. **Unexpected wave count:** compare runtime
-   `wave_diagnostics.{max_waves,wave_count,stop_reason}` with production
-   `SearchWavePlannerOptions` wiring. The current executor wires `max_waves=1`,
-   so generic planner tests with several waves do not prove live multi-wave
-   execution.
-5. **Strict direct-only request:** zero connection caps can still coexist with
-   planned or executed route-access gateway probes when direct evidence is
-   empty, while connected candidates remain non-reportable. Distinguish probe
-   execution from catalog eligibility.
+Direct-first is directional. Inspect together:
 
-The current request schema has no `force_gateway_probe` or `gateway_chain`
-field. Do not add either key to a traveler request, and do not externally merge
-manual segment searches into a replacement answer. Such behavior requires an
-explicit schema/executor change with tests; it is not an existing runtime mode.
-The uncalled `assess_fallback()` helper is not evidence of production behavior.
+- `data.evidence.direct_mode`;
+- `data.evidence.direct_presence_gate`;
+- `data.evidence.probe_ledger.searched_probes`;
+- `data.evidence.probe_ledger.skipped_probes`;
+- `data.plan.phases.gateway`.
+
+If direct inventory exists for one direction, matching broad or gateway probes
+for that direction should be terminal `skipped` with
+`reason="direct_available"`. The other direction remains independent.
+
+## Missing gateway chain
+
+For an expected but absent gateway chain:
+
+1. Confirm the gateway was present in
+   `data.plan.gateway_policy.discovery.candidates`.
+2. Check candidate and batch bounds:
+   `gateway_discovery_limit`, `gateway_probe_batch_size`, and
+   `gateway_probe_max_batches`.
+3. For round trips, confirm `data.plan.phases.gateway` contains both directions:
+   outbound `ORIGIN -> GATEWAY -> DESTINATION` and return
+   `DESTINATION -> GATEWAY -> ORIGIN`, using their respective dates.
+4. Check the probe ledger for planned, searched, skipped, failed, or unsupported
+   terminal states.
+5. Inspect `data.evidence.gateway_leg_results` for both legs, dates, and
+   directions.
+6. Inspect `data.decision.offer_graph` for airport continuity, chronology,
+   direction, and connection rejection.
+
+Do not infer a partial route from the final airport of an incomplete offer.
+Provider full-route offers and gateway legs are separate explicit inputs.
 
 ## Short or missing direct set
 
-When the report shows fewer direct flights than expected:
+Confirm exact-airport versus city scope, date, direction, carrier filter, and
+direct-only setting. Then compare provider result counts with OfferGraph edges,
+frontier options, and `data.answer.catalog.items`. If a provider returned a
+priced direct offer that disappeared later, the defect is in normalization,
+dedupe, ranking, or projection—not provider availability.
 
-1. Confirm the request scope: exact airport vs city, direct-only vs default recommendation, one-way vs return.
-2. Start with the canonical report, then run `diagnose trace` for the full assembled route/live-search trace because `auto` is Tutu-first. Use `diagnose probe` only when you need one explicit provider probe outside the assembled trace.
-3. If the provider probe returns all direct offers with prices, the provider is not the root cause; inspect display/report truncation.
-4. Inspect counts:
-   - `data.decision.frontier.options`;
-   - `data.decision.offer_graph.edges`;
-   - `data.evidence.primary_offer_results`;
-   - `data.frontier.option_ids`;
-   - `data.agent_guidance`.
-5. The pipeline computes the direct-first gate from primary evidence before `flight_search_result.v7` and `flight_search_user_answer.v9` construction. If direct offers vanish after that point, inspect decision projection, not provider availability.
+Use a nearby in-horizon comparison date only to distinguish search horizon from
+route coverage. Label it as a comparison, not as evidence for the requested
+date.
 
-Do not claim “provider did not return prices” when a narrow direct probe shows priced direct offers.
+## Round-trip ordering
 
-## Moscow controls for RU-touching international
+For a round trip with `max_round_trip_pairs > 0`, verify every outbound/return
+one-way combination enters the single validation and scoring pass before the
+limit is applied. At `max_round_trip_pairs = 0`, synthesized pairs are not
+created.
+The frontier limits only valid, globally ranked synthesized pairs; provider
+round-trip offers remain atomic and do not consume that limit. The trace scorer
+metadata reports input counts, full pair-pool size, valid, eligible, and selected
+pair counts. Reordering equivalent provider inputs must not change the ranked
+or selected pair order.
 
-Negative direct/carrier/one-stop claims on Russian-origin international routes need Moscow controls unless structural constraints already prove unavailability.
+## KupiBilet API versus website
 
-For `ru-priority`, current runtime plans these controls itself. Read terminal states from `evidence.coverage_diagnostics` and RU-priority fields before assuming anything is missing:
+If the KupiBilet website and CLI disagree, first run a narrow KupiBilet probe
+with the same route, date, direct flag, carrier filter, and airport scope.
+Inspect normalized first/last segment airports and the raw provider flight
+number/timestamps. If the raw API itself differs from the website, report
+provider-side data drift rather than blaming the parser.
 
-- `direct_destination_control`;
-- `ist_primary_hub_control`;
-- `moscow_gateway_control` with `gateway_to_destination` and mirrored return legs;
-- secondary controls when the priority route is not viable.
+## Connection and ticketing boundaries
 
-Manual leg probes are for degraded/legacy reports only. If a compact or old report lists Moscow/carrier controls as `not_executed`, first rerun canonical `search --request`; then use narrow direct leg controls only if needed:
+Airport continuity is mandatory between adjacent segments. Same-city airports
+are not interchangeable, and a longer layover does not repair an airport
+mismatch. Check terminals when inter-terminal transfer matters.
 
-- outbound date: `SVO|DME|VKO -> DEST --direct-only`;
-- return date: `DEST -> SVO|DME|VKO --direct-only`;
-- origin↔Moscow legs when the main report lacks them and they are decision-critical.
-
-If a wide live assembly fails validation, do not answer from the failed report. Use narrow controls and label them as control evidence, not full itinerary assembly.
-
-## Russia-origin routes with avoid-Moscow preference and arrival deadline
-
-Use this route-family pattern when the user asks for Russia-origin international flights, has an arrival-by deadline, and phrases Moscow avoidance as a preference rather than a hard constraint.
-
-Rules:
-
-1. Normalize named destination airports separately; do not collapse nearby destination airports unless the user allowed city/region scope.
-2. If departure date is absent, state the working assumption. Default “morning” to destination-local arrival before 12:00.
-3. Search latest plausible departure first, then previous date if needed.
-4. Run Golden Path for each serious airport/date pair.
-5. If non-Moscow is decision-critical, run narrow direct/carrier/leg controls and post-filter normalized segments.
-
-Post-filter:
-
-- reject Moscow airports (`SVO`, `DME`, `VKO`, `ZIA`, and `MOW` when present) only when the user’s preference is a hard filter or while comparing non-Moscow alternatives;
-- outbound must arrive before the destination-local cutoff;
-- separate one-stop from two-stop options; two-stop return is last resort for business travel unless no one-stop non-Moscow option exists;
-- elapsed time comes from ISO timestamps already in normalized offers.
-
-Wording:
-
-- “Желательно без Москвы” is a preference, not a hard filter unless the user says so.
-- Present the best viable non-Moscow option first, then a Moscow backup if materially cleaner.
-- Do not call separate outbound/return provider offers a protected round trip. Say “ориентир за пару one-way предложений” unless booking-screen/GDS/airline fare proves one protected round-trip order.
-
-### API vs website mismatch
-
-When the user reports a flight on the KupiBilet website that the CLI didn't find, or the CLI shows a different departure time than the website:
-
-1. First run the narrow KupiBilet diagnostic command for the same route/date/filter. If a raw adapter-level reproduction is still needed, call `api-rs-lb.kupibilet.ru/frontend_search` with the same route/date/filter and the CLI headers from `config.py::KUPIBILET_HEADERS`.
-2. Inspect the raw `flights` map: look for the flight by `number` field. The API uses `number` / `transport_number`; the CLI synthesizes the carrier-prefixed display identifier.
-3. Check `departure_datetime` in the raw response. If the API itself differs from website evidence, report provider-side data drift or coverage gap instead of blaming the parser.
-4. For itinerary planning, use the user's website-observed times if more reliable, but label the discrepancy.
-
-### Connection feasibility at major hubs
-
-When evaluating assembled connections, check terminal fields in the normalized offer segments. The CLI preserves `departure_terminal` and `arrival_terminal` from raw provider data when available. At airports where inter-terminal transfers are significant, a nominally adequate connection can still be impractical if terminals differ. Do not present a connection as feasible without checking terminals when the user has raised terminal concerns or the hub is known for inter-terminal friction.
-
-## Diagnostic splits
-
-### Horizon vs coverage
-
-If a date has no useful result, test whether the date is outside the provider’s searchable horizon before calling it a route gap. A nearby in-horizon control date can prove whether the route shape is discoverable.
-
-### Coverage vs source boundary
-
-`not_executed`/`failed` controls are missing or degraded evidence. `not_supported` is a terminal provider/source capability boundary. Do not mark evidence incomplete solely because a provider cannot support a probe type, but do mention it if it changes the decision.
-
-### Ranking vs physical possibility
-
-The production `business` ranking can demote late-night, cross-airport, low-confidence, baggage-risk, or long-wait options. When the user asks whether something is possible, distinguish physical possibility from operational recommendation and name the ranking field that caused demotion.
-
-### Overnight / long-wait avoidance
-
-If the recommended option has an overnight or very long wait, test whether same-day options were filtered by connection windows, airport continuity, provider failures, or ranking. Do not say the overnight is physically required unless targeted evidence supports it.
-
-### Ticketing proof vs shopping evidence
-
-A route option from the DecisionFrontier is shopping evidence. Single PNR, baggage-through, fare rules, refund/exchange, disruption protection, terminal certainty, and final fare require purchase-screen/airline/GDS/seller proof; see `source-boundaries.md`.
-
-## Internal fields for diagnosis
-
-Use these fields to diagnose, not to overrule the canonical rendered answer:
-
-- `agent_guidance`: readiness, blocking evidence, next-action request patches;
-- `coverage_diagnostics`: planned/searched/skipped/failed/not-supported/not-executed controls;
-- `segment_searches`: per-segment provider evidence and failures;
-- `hub_viability`: connection feasibility by hub;
-- `rejected_pair_warnings`: airport mismatch and connection filters;
-- `stop_policy` / `stop_policy_diagnostics`: preferred vs secondary tier behavior;
-- `omitted_counts`: truncation after budgeting.
-
-If preferred options are missing while segment evidence exists, inspect generation diagnostics. Do not compensate by adding public output knobs in normal flow; reproduce the specific generation/report contract issue.
+Provider offers are shopping evidence. Single PNR, through baggage, fare rules,
+refund/exchange terms, disruption protection, and final fare require explicit
+booking-screen, airline, seller, or GDS proof. See `source-boundaries.md`.
 
 ## Reference lifecycle
 
-Route-specific debug notes should not become new active references. After a case is understood, distill the durable rule into this playbook, `report-contract.md`, `source-boundaries.md`, `pipeline-reference.md`, `cli-maintenance.md`, or tests; leave raw incident history to session search.
+Do not create route-specific incident documents under `references/`. Distill a
+durable behavior into this playbook, the owning reference, code, or tests; keep
+raw incident history in the task record.

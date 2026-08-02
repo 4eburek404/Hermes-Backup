@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 import math
 import re
-from typing import Any
+from typing import Any, Iterable, Mapping
 
 from ..config import CARRIER_RE, IATA_RE
 from ..errors import CliError
@@ -134,3 +134,75 @@ def numeric_or_none(value: Any) -> int | float | None:
     if not math.isfinite(parsed) or parsed < 0:
         return None
     return int(parsed) if parsed.is_integer() else parsed
+
+
+def normalize_code(value: Any) -> str:
+    return str(value or "").strip().upper()
+
+
+def normalize_token(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def ordered_unique(items: Iterable[Any]) -> list[str]:
+    seen: set[str] = set()
+    values: list[str] = []
+    for item in items:
+        value = normalize_token(item)
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        values.append(value)
+    return values
+
+
+def compact_mapping(payload: Mapping[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in payload.items() if value is not None}
+
+
+def stable_id(*parts: object, suffix: str | None = None) -> str:
+    tokens = [
+        normalize_token(part).replace(" ", "_")
+        for part in parts
+        if normalize_token(part)
+    ]
+    if suffix:
+        tokens.append(normalize_token(suffix).replace(" ", "_"))
+    return ":".join(tokens)
+
+
+def price_amount(*sources: Mapping[str, Any]) -> int | float | None:
+    for source in sources:
+        if not isinstance(source, Mapping):
+            continue
+        price = source.get("price")
+        if isinstance(price, Mapping):
+            amount = numeric_or_none(
+                price.get("amount") or price.get("value") or price.get("total")
+            )
+            if amount is not None:
+                return amount
+        amount = numeric_or_none(price)
+        if amount is not None:
+            return amount
+        amount = numeric_or_none(
+            source.get("amount") or source.get("total_price") or source.get("value")
+        )
+        if amount is not None:
+            return amount
+    return None
+
+
+def currency_value(*sources: Mapping[str, Any]) -> str | None:
+    for source in sources:
+        if not isinstance(source, Mapping):
+            continue
+        price = source.get("price")
+        if isinstance(price, Mapping):
+            currency = normalize_code(price.get("currency"))
+            if currency:
+                return currency
+        currency = normalize_code(source.get("currency"))
+        if currency:
+            return currency
+    return None

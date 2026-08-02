@@ -14,10 +14,10 @@ This file is the canonical map for `flight-search` support references. `SKILL.md
 
 | File | Owns | Load when | Non-goals |
 |---|---|---|---|
-| `report-contract.md` | How to read `data`; `flight_search_result.v7`; `flight_search_user_answer.v9`; canonical answer path; renderer guarantees. | You need to decide what to show the traveler, inspect report fields, or maintain report/user-answer schema/renderer behavior. | Provider dispatch, source/proof taxonomy, route-pipeline internals. |
+| `report-contract.md` | How to read `data`; `flight_search_result.v9`; `flight_search_user_answer.v11`; canonical answer path; renderer guarantees. | You need to decide what to show the traveler, inspect report fields, or maintain report/user-answer schema/renderer behavior. | Provider dispatch, source/proof taxonomy, route-pipeline internals. |
 | `source-boundaries.md` | Evidence classes, absence taxonomy, airport/city/ticketing boundaries, connection/MCT policy, adjacent non-flight source boundaries, static-catalog limits, provider/source caveats. | You need to phrase confidence/absence/ticketing claims, decide whether a caveat is decision-useful, or classify non-dated route-network/RZD comparison evidence. | Route planning mechanics and provider dispatch internals. |
-| `pipeline-reference.md` | Current data flow from `flight_search_request.v1` to `flight_search_result.v7`; flow decision, evidence plan, gateway discovery policy, provider/airport dispatch, Tutu MCP facts, direct-first gate, date-window mode, compact report assembly, data artifacts. | You need to debug or maintain how the CLI makes route decisions, how direct/connected options are assembled, how provider/airport scope is chosen, or how fields move between stages. | Targeted live-probe recipes and traveler-facing caveat wording. |
-| `debug-playbook.md` | Bounded diagnostic workflow: runtime provenance, JSON extraction, targeted provider probes, FLI MCP endpoint readiness, suppressed/missing gateway-chain triage, Moscow/direct/carrier controls, diagnostic split patterns. | The Golden Path report is inconsistent, sparse, degraded, or surprising, and a narrow probe could change the answer. | Normal route search; do not expose debug output as the traveler answer. |
+| `pipeline-reference.md` | Current data flow from `flight_search_request.v3` to `flight_search_result.v9`; flow decision, gateway discovery policy, provider/airport dispatch, direct-first gate, date-window mode, compact report assembly, data artifacts. | You need to debug or maintain how the CLI makes route decisions, how direct/connected options are assembled, how provider/airport scope is chosen, or how fields move between stages. | Targeted live-probe recipes and traveler-facing caveat wording. |
+| `debug-playbook.md` | Bounded diagnostic workflow: runtime provenance, JSON extraction, targeted provider probes, suppressed/missing gateway-chain triage, and diagnostic split patterns. | The Golden Path report is inconsistent, sparse, degraded, or surprising, and a narrow probe could change the answer. | Normal route search; do not expose debug output as the traveler answer. |
 | `cli-maintenance.md` | Source/runtime governance, CLI JSON stdout/stderr rules, contract/schema lifecycle, provider-port maintenance, renderer tests, generated artifacts, reference lifecycle. | The task is inspect/debug/refactor/sync/version/test work on the skill or CLI. | Traveler-facing route search and provider-live evidence. |
 
 ## Routing examples
@@ -27,10 +27,10 @@ This file is the canonical map for `flight-search` support references. `SKILL.md
 | Report answer/read order, final answer source, renderer/schema change | `report-contract.md` |
 | Single PNR, baggage-through, refund/exchange/fare-rule proof | `source-boundaries.md` |
 | Empty provider output, absence language, structural vs provider/horizon uncertainty | `source-boundaries.md` |
-| Exact airport vs city scope, KupiBilet `MOW`, FLI exact airport, London/Dubai/IST defaults, Tutu city-name behavior | `pipeline-reference.md` for dispatch mechanics; `source-boundaries.md` for wording |
-| Global non-RU must not inherit RU/Moscow controls; market/intent/evidence classification | `pipeline-reference.md` |
+| Exact airport vs city scope and provider endpoint validation | `pipeline-reference.md` for dispatch mechanics; `source-boundaries.md` for wording |
+| Global non-RU must not inherit RU-specific routing; market classification | `pipeline-reference.md` |
 | Gateway defaults, provider-returned gateways, or hardcoded route/gateway audit | `pipeline-reference.md` |
-| Short/missing direct set, direct-first gate, connected suppression, output caps | `pipeline-reference.md` first; `debug-playbook.md` only if a narrow live control is needed |
+| Short/missing direct set, direct-first gate, connected suppression, output caps | `pipeline-reference.md` first; `debug-playbook.md` only if a narrow live probe is needed |
 | Direct/nonstop options across several dates | `pipeline-reference.md` |
 | Provider failure, suspected horizon/coverage gap, targeted carrier/direct probe | `debug-playbook.md` |
 | User specifies exact routing (via X→Y→Z), CLI doesn't assemble it | `pipeline-reference.md` for constraint/gateway mechanics; `debug-playbook.md` for narrow leg probes |

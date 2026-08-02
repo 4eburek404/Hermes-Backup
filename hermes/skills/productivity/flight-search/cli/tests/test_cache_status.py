@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from flights_cli.execution.cache_status import cache_status_from_result
+from flights_cli.adapters.providers.common import cache_status_from_result
 
 
 class CacheStatusTests(unittest.TestCase):

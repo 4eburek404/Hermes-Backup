@@ -3,70 +3,28 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from ..domain.vocabulary import (
-    EvidenceClass,
-    IntentClass,
-    MarketClass,
-    RoutingStrategy,
-    RouteFamily,
-)
+from ..domain.vocabulary import MarketClass, RoutingStrategy, RouteFamily
 from ..domain.route_access_profiles import (
     RouteAccessDecision,
     default_route_access_decision,
 )
 from .search_request import SearchRequest
+from .direct_gate import is_direct_only
 
 
 @dataclass(frozen=True, slots=True)
 class FlowDecision:
     """First-class runtime flow classification behind the canonical search path."""
 
-    intent_class: str
     market_class: str
-    evidence_class: str
-    command_name: str
     route_mode: str
-    provider_policy: str
     routing_strategy: str
-    provider_plan: dict[str, Any]
     route_access_profile: str
     gateway_discovery_mode: str
     route_access_reasons: tuple[str, ...] = ()
     route_access_rule_id: str | None = None
     route_access_prior_set: str | None = None
     limitations: tuple[str, ...] = ()
-    airport_scope: dict[str, Any] | None = None
-    source_boundaries: tuple[str, ...] = ()
-    notes: tuple[str, ...] = ()
-
-    def to_dict(self) -> dict[str, Any]:
-        payload = {
-            "intent_class": self.intent_class,
-            "market_class": self.market_class,
-            "evidence_class": self.evidence_class,
-            "command_name": self.command_name,
-            "route_mode": self.route_mode,
-            "provider_policy": self.provider_policy,
-            "routing_strategy": self.routing_strategy,
-            "provider_plan": self.provider_plan,
-            "route_access_profile": self.route_access_profile,
-            "gateway_discovery_mode": self.gateway_discovery_mode,
-            "route_access_reasons": list(self.route_access_reasons),
-            "limitations": list(self.limitations),
-            "source_boundaries": list(self.source_boundaries),
-            "notes": list(self.notes),
-        }
-        if self.route_access_rule_id:
-            payload["route_access_rule_id"] = self.route_access_rule_id
-        if self.route_access_prior_set:
-            payload["route_access_prior_set"] = self.route_access_prior_set
-        if self.airport_scope is not None:
-            payload["airport_scope"] = self.airport_scope
-        return payload
-
-
-def _is_direct_only(request: SearchRequest) -> bool:
-    return request.max_connections == 0 and request.tier2_max_connections == 0
 
 
 def _has_airport_scope(request: SearchRequest) -> bool:
@@ -74,11 +32,7 @@ def _has_airport_scope(request: SearchRequest) -> bool:
 
 
 def _has_carrier_scope(request: SearchRequest) -> bool:
-    return bool(
-        request.aggregate_control_carriers
-        or request.only_carriers
-        or request.exclude_carriers
-    )
+    return bool(request.only_carriers)
 
 
 def _location_country(store: Any, code: str) -> str | None:
@@ -135,32 +89,6 @@ def route_access_decision_for_codes(
     return default_route_access_decision(market_class)
 
 
-def _intent_for(request: SearchRequest) -> str:
-    command = request.command_name.replace("_", "-")
-    if command.startswith("maint"):
-        return IntentClass.MAINTENANCE
-    if _is_direct_only(request):
-        return IntentClass.DIRECT_INVENTORY
-    if str(request.ticketing or "").lower() == "single":
-        return IntentClass.TICKETING_PROOF
-    if _has_carrier_scope(request) or _has_airport_scope(request):
-        return IntentClass.CARRIER_OR_AIRPORT_SCOPE
-    return IntentClass.ROUTE_RECOMMENDATION
-
-
-def _evidence_class_for(intent_class: str) -> str:
-    if intent_class == IntentClass.MAINTENANCE:
-        return EvidenceClass.DIAGNOSTIC_ONLY
-    if intent_class == IntentClass.TICKETING_PROOF:
-        return EvidenceClass.TICKETING_REQUIRED
-    if intent_class in {
-        IntentClass.DIRECT_INVENTORY,
-        IntentClass.CARRIER_OR_AIRPORT_SCOPE,
-    }:
-        return EvidenceClass.ABSENCE_CLAIM
-    return EvidenceClass.SHOPPING_ADVISORY
-
-
 def routing_strategy_for_market(request: SearchRequest, market_class: str) -> str:
     raw = str(request.routing_strategy or "auto").strip().lower()
     has_manual_hubs = bool(request.hubs)
@@ -177,8 +105,8 @@ def routing_strategy_for_market(request: SearchRequest, market_class: str) -> st
     return RoutingStrategy.HUB_LIST
 
 
-def _route_mode(intent_class: str, market_class: str, routing_strategy: str) -> str:
-    if intent_class == IntentClass.DIRECT_INVENTORY:
+def _route_mode(direct_only: bool, market_class: str, routing_strategy: str) -> str:
+    if direct_only:
         return RouteFamily.DIRECT_INVENTORY
     if (
         market_class == MarketClass.RU_DOMESTIC
@@ -192,57 +120,26 @@ def _route_mode(intent_class: str, market_class: str, routing_strategy: str) -> 
     return routing_strategy.replace("-", "_")
 
 
-def _provider_plan(
-    request: SearchRequest, market_class: str, routing_strategy: str
-) -> dict[str, Any]:
-    policy = request.provider_policy
-    default_provider = policy if policy in {"fli", "kupibilet", "tutu"} else "tutu"
-    if policy == "auto":
-        ru_touching_segments: list[str] = ["tutu", "kupibilet"]
-        non_ru_segments: list[str] = ["tutu", "kupibilet", "fli"]
-    elif policy == "fli":
-        ru_touching_segments = []
-        non_ru_segments = ["fli"]
-    else:
-        ru_touching_segments = [policy]
-        non_ru_segments = [policy]
-    return {
-        "policy": policy,
-        "default_provider": default_provider,
-        "dispatch": {
-            "ru_touching_segments": ru_touching_segments,
-            "non_ru_segments": non_ru_segments,
-        },
-        "routing_strategy": routing_strategy,
-        "ru_priority_controls": routing_strategy == RoutingStrategy.RU_PRIORITY,
-    }
-
-
 def _limitations(
-    request: SearchRequest, intent_class: str, market_class: str, routing_strategy: str
+    request: SearchRequest, direct_only: bool, market_class: str, routing_strategy: str
 ) -> tuple[str, ...]:
     values: list[str] = []
     if (
         market_class == MarketClass.RU_TOUCHING_INTERNATIONAL
         and routing_strategy == RoutingStrategy.RU_PRIORITY
     ):
-        values.append("ru_touching_market_uses_ru_priority_controls")
+        values.append("ru_touching_market_uses_ru_priority_probes")
     if (
         market_class == MarketClass.GLOBAL_NON_RU
         and routing_strategy == RoutingStrategy.RU_PRIORITY
     ):
-        values.append("global_non_ru_ru_priority_controls_require_explicit_scope")
-    if (
-        market_class == MarketClass.GLOBAL_NON_RU
-        and request.provider_policy == "kupibilet"
-    ):
-        values.append("global_non_ru_with_ru_provider_override")
+        values.append("global_non_ru_ru_priority_probes_require_explicit_scope")
     if market_class == MarketClass.STRUCTURALLY_CONSTRAINED:
         values.append("catalog_country_metadata_incomplete")
-    if intent_class == IntentClass.CARRIER_OR_AIRPORT_SCOPE:
-        values.append("carrier_scope_requires_targeted_controls")
-    if intent_class == IntentClass.DIRECT_INVENTORY:
-        values.append("direct_inventory_requires_direct_only_controls")
+    if _has_carrier_scope(request) or _has_airport_scope(request):
+        values.append("exact_scope_requires_live_probes")
+    if direct_only:
+        values.append("direct_inventory_requires_direct_only_probes")
     return tuple(dict.fromkeys(values))
 
 
@@ -251,32 +148,21 @@ def decide_flow(request: SearchRequest, store: Any | None = None) -> FlowDecisio
         from ..store import Store
 
         store = Store()
-    intent_class = _intent_for(request)
+    direct_only = is_direct_only(request)
     market_class = market_class_for_codes(store, request.origin, request.destination)
     route_access = route_access_decision_for_codes(
         store, request.origin, request.destination, market_class
     )
-    evidence_class = _evidence_class_for(intent_class)
     routing_strategy = routing_strategy_for_market(request, market_class)
-    route_mode = _route_mode(intent_class, market_class, routing_strategy)
+    route_mode = _route_mode(direct_only, market_class, routing_strategy)
     return FlowDecision(
-        intent_class=intent_class,
         market_class=market_class,
-        evidence_class=evidence_class,
-        command_name=request.command_name,
         route_mode=route_mode,
-        provider_policy=request.provider_policy,
         routing_strategy=routing_strategy,
-        provider_plan=_provider_plan(request, market_class, routing_strategy),
         route_access_profile=route_access.route_access_profile,
         gateway_discovery_mode=route_access.gateway_discovery_mode,
         route_access_reasons=route_access.route_access_reasons,
         route_access_rule_id=route_access.matched_rule_id,
         route_access_prior_set=route_access.prior_set,
-        limitations=_limitations(request, intent_class, market_class, routing_strategy),
-        source_boundaries=(
-            "provider_empty_is_not_structural_absence",
-            "ticketing_protection_requires_purchase_screen_or_airline_gds_evidence",
-        ),
-        notes=("canonical_search_request_adapter",),
+        limitations=_limitations(request, direct_only, market_class, routing_strategy),
     )

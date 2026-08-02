@@ -3,6 +3,16 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from .command_surface import (
+    AIRPORTS_EXPLAIN_COMMAND,
+    CITIES_SEARCH_COMMAND,
+    DIAGNOSE_PLAN_COMMAND,
+    MAINT_CATALOG_MANIFEST_COMMAND,
+    MAINT_CATALOG_REFRESH_COMMAND,
+    MAINT_CHECK_COMMAND,
+    MAINT_DOCTOR_COMMAND,
+    SEARCH_COMMAND,
+)
 from .domain.vocabulary import RoutingStrategy
 from .errors import CliError
 
@@ -37,9 +47,9 @@ def render_search_user_text(result: dict[str, Any]) -> str:
 
 
 def render_user_text(command: str, data: Any) -> str:
-    if command == "search" and isinstance(data, dict):
+    if command == SEARCH_COMMAND.name and isinstance(data, dict):
         return render_search_user_text(data)
-    if command == "maint doctor":
+    if command == MAINT_DOCTOR_COMMAND.name:
         counts = data["cache_counts"]
         policy = data["catalog_auto_refresh_policy"]
         staleness = data["catalog_staleness"]
@@ -58,7 +68,7 @@ def render_user_text(command: str, data: Any) -> str:
                 f"diagnostic probe commands: {', '.join(data['safety']['diagnostic_probe_commands'])}",
             ]
         )
-    if command == "maint check":
+    if command == MAINT_CHECK_COMMAND.name:
         source = data["source"]
         runtime = data["runtime"]
         git = source.get("git") or {}
@@ -86,7 +96,7 @@ def render_user_text(command: str, data: Any) -> str:
                 f"generated artifacts: source={artifacts['source_count']} runtime={artifacts['runtime_count']}",
             ]
         )
-    if command == "maint catalog refresh":
+    if command == MAINT_CATALOG_REFRESH_COMMAND.name:
         if data.get("dry_run"):
             lines = [
                 f"catalog dry-run: {len(data.get('planned') or [])} files",
@@ -104,7 +114,7 @@ def render_user_text(command: str, data: Any) -> str:
                 f"  {item['name']}: count={item['count']} sha256={str(item['sha256'])[:12]}"
             )
         return "\n".join(lines)
-    if command == "maint catalog manifest":
+    if command == MAINT_CATALOG_MANIFEST_COMMAND.name:
         entries = (data.get("manifest") or {}).get("entries") or {}
         staleness = data.get("catalog_staleness") or {}
         lines = [
@@ -118,7 +128,7 @@ def render_user_text(command: str, data: Any) -> str:
                 f"  {name}: count={entry.get('count')} downloaded_at={entry.get('downloaded_at')}"
             )
         return "\n".join(lines)
-    if command == "cities search":
+    if command == CITIES_SEARCH_COMMAND.name:
         lines = [f"cities for {data['query']!r}: {len(data['cities'])}"]
         refresh = data.get("catalog_auto_refresh")
         if refresh:
@@ -131,7 +141,7 @@ def render_user_text(command: str, data: Any) -> str:
                 f"{city['code']}\t{city.get('name') or ''}\t{city.get('country_code') or ''}\t{airports}"
             )
         return "\n".join(lines)
-    if command == "airports explain":
+    if command == AIRPORTS_EXPLAIN_COMMAND.name:
         lines = []
         for airport in data["airports"]:
             lines.append(
@@ -140,11 +150,12 @@ def render_user_text(command: str, data: Any) -> str:
             for note in airport.get("notes") or []:
                 lines.append(f"  - {note}")
         return "\n".join(lines)
-    if command == "diagnose plan":
+    if command == DIAGNOSE_PLAN_COMMAND.name:
         plan = data["plan"] if isinstance(data.get("plan"), dict) else data
-        route = plan["route_context"]
-        primary = list(plan.get("primary_offer_queries") or [])
-        conditional = list(plan.get("conditional_gateway_queries") or [])
+        route = plan["route"]
+        phases = plan.get("phases") if isinstance(plan.get("phases"), dict) else {}
+        primary = list(phases.get("primary") or [])
+        conditional = list(phases.get("gateway") or [])
         lines = [
             f"route: {','.join(route['origin_airports'])} -> {','.join(route['destination_airports'])}",
             f"strategy: {route.get('routing_strategy', RoutingStrategy.HUB_LIST)}",
@@ -161,8 +172,9 @@ def render_user_text(command: str, data: Any) -> str:
             )
         probes = [*primary, *conditional]
         for probe in probes[:8]:
+            query = probe.get("query") if isinstance(probe.get("query"), dict) else {}
             lines.append(
-                f"  {probe['origin']} -> {probe['destination']} {probe['date']} [{probe.get('provider') or 'none'}]"
+                f"  {query['origin']} -> {query['destination']} {query['date']} [{probe.get('provider') or 'none'}]"
             )
         if len(probes) > 8:
             lines.append(f"  ... {len(probes) - 8} more")

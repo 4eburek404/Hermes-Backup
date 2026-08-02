@@ -4,8 +4,24 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..domain.normalize import numeric_or_none
-from .candidate_ranker import build_decision_frontier, rank_mixed_candidates
+from ..domain.connection_policy import (
+    DEFAULT_MAX_LAYOVER_MIN,
+    DEFAULT_MIN_CROSS_AIRPORT_CONNECTION_MIN,
+    DEFAULT_MIN_SAME_AIRPORT_CONNECTION_MIN,
+    DEFAULT_PREFERRED_LAYOVER_MAX_MIN,
+)
+from ..domain.normalize import numeric_or_none, ordered_unique as _ordered_unique
+from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY
+from .candidate_scoring import score_validated_candidates
+from .candidate_validation import validate_candidate_envelope
+from .frontier_selection import (
+    DEFAULT_FIRST_CARRIER_MAX_OPTIONS,
+    DEFAULT_FRONTIER_MAX_OPTIONS,
+    DEFAULT_GATEWAY_MAX_ALTERNATIVES,
+    DEFAULT_MAX_ROUND_TRIP_PAIRS,
+    DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS,
+    build_decision_frontier,
+)
 
 
 DECISION_SCORER_SCHEMA_VERSION = "flight_decision_scorer.v1"
@@ -14,57 +30,74 @@ DECISION_SCORER_SCHEMA_VERSION = "flight_decision_scorer.v1"
 @dataclass(frozen=True, slots=True)
 class DecisionScorerOptions:
     round_trip: bool = False
-    max_connections_per_journey: int = 2
+    max_connections_per_journey: int = BUSINESS_DEFAULT_STOP_POLICY.hard_max_connections
     max_connections_per_direction: dict[str, int] = field(default_factory=dict)
-    preferred_connections: int = 1
-    min_same_airport_connection_min: int = 120
-    min_cross_airport_connection_min: int = 300
-    max_gateway_alternatives: int = 2
-    max_primary_gateway_options: int = 4
-    max_options_per_first_carrier: int = 2
-    preferred_layover_max_min: int = 6 * 60
-    max_round_trip_pairs: int = 12
-    max_options: int | None = 6
+    preferred_connections: int = BUSINESS_DEFAULT_STOP_POLICY.preferred_max_connections
+    min_same_airport_connection_min: int = DEFAULT_MIN_SAME_AIRPORT_CONNECTION_MIN
+    min_cross_airport_connection_min: int = DEFAULT_MIN_CROSS_AIRPORT_CONNECTION_MIN
+    max_layover_min: int = DEFAULT_MAX_LAYOVER_MIN
+    preferred_layover_max_min: int = DEFAULT_PREFERRED_LAYOVER_MAX_MIN
+    max_gateway_alternatives: int = DEFAULT_GATEWAY_MAX_ALTERNATIVES
+    max_primary_gateway_options: int = DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS
+    max_options_per_first_carrier: int = DEFAULT_FIRST_CARRIER_MAX_OPTIONS
+    max_round_trip_pairs: int = DEFAULT_MAX_ROUND_TRIP_PAIRS
+    max_options: int | None = DEFAULT_FRONTIER_MAX_OPTIONS
 
 
 class DecisionScorer:
-    """Single owner for candidate evaluation and frontier selection.
+    """Compose candidate validation, scoring, and frontier selection once."""
 
-    The current ranker/frontier functions remain as adapters while the runtime
-    moves to one scoring entrypoint.
-    """
+    def __init__(self, options: DecisionScorerOptions) -> None:
+        self.options = options
 
-    def __init__(self, options: DecisionScorerOptions | None = None) -> None:
-        self.options = options or DecisionScorerOptions()
-
-    def score(
-        self,
-        candidate_envelope: dict[str, Any],
-        *,
-        controls: list[dict[str, Any]] | None = None,
-    ) -> dict[str, Any]:
+    def score(self, candidate_envelope: dict[str, Any]) -> dict[str, Any]:
         prepared_envelope = self._prepare_candidate_envelope(candidate_envelope)
-        ranking = rank_mixed_candidates(
+        validation = validate_candidate_envelope(
             prepared_envelope,
             max_connections_per_journey=self.options.max_connections_per_journey,
             max_connections_per_direction=self.options.max_connections_per_direction,
-            preferred_connections_per_journey=self.options.preferred_connections,
             min_same_airport_connection_min=(
                 self.options.min_same_airport_connection_min
             ),
             min_cross_airport_connection_min=(
                 self.options.min_cross_airport_connection_min
             ),
+            max_layover_min=self.options.max_layover_min,
+            preferred_layover_max_min=self.options.preferred_layover_max_min,
+        )
+        ranking = score_validated_candidates(
+            validation,
+            preferred_connections_per_journey=self.options.preferred_connections,
         )
         frontier = build_decision_frontier(
             ranking,
-            controls=controls,
             max_gateway_alternatives=self.options.max_gateway_alternatives,
             max_options=self.options.max_options,
             max_primary_gateway_options=self.options.max_primary_gateway_options,
             max_options_per_first_carrier=(self.options.max_options_per_first_carrier),
+            max_round_trip_pairs=self.options.max_round_trip_pairs,
+            preferred_connections_per_journey=self.options.preferred_connections,
             preferred_layover_max_min=self.options.preferred_layover_max_min,
         )
+        round_trip_pairing = prepared_envelope.get("round_trip_pairing")
+        if isinstance(round_trip_pairing, dict):
+            coverage = frontier.get("coverage_summary")
+            coverage = coverage if isinstance(coverage, dict) else {}
+            round_trip_pairing = {
+                **round_trip_pairing,
+                "one_way_pair_valid_count": int(
+                    coverage.get("acceptable_round_trip_pair_count") or 0
+                ),
+                "one_way_pair_candidate_count": int(
+                    coverage.get("eligible_round_trip_pair_count") or 0
+                ),
+                "one_way_pair_eligible_count": int(
+                    coverage.get("eligible_round_trip_pair_count") or 0
+                ),
+                "one_way_pair_selected_count": int(
+                    coverage.get("selected_round_trip_pair_count") or 0
+                ),
+            }
         return {
             "schema_version": DECISION_SCORER_SCHEMA_VERSION,
             "scorer": {
@@ -80,11 +113,18 @@ class DecisionScorer:
                 "preferred_connections": max(
                     0, int(self.options.preferred_connections)
                 ),
+                "min_same_airport_connection_min": max(
+                    0, int(self.options.min_same_airport_connection_min)
+                ),
+                "min_cross_airport_connection_min": max(
+                    0, int(self.options.min_cross_airport_connection_min)
+                ),
+                "max_layover_min": max(0, int(self.options.max_layover_min)),
                 "adapters": {
                     "candidate_ranking": "flight_mixed_candidate_ranking.v1",
                     "frontier": "flight_decision_frontier.v1",
                 },
-                "round_trip_pairing": prepared_envelope.get("round_trip_pairing"),
+                "round_trip_pairing": round_trip_pairing,
                 "max_options": self.options.max_options,
                 "max_gateway_alternatives": max(
                     0, int(self.options.max_gateway_alternatives)
@@ -98,6 +138,7 @@ class DecisionScorer:
                 "preferred_layover_max_min": max(
                     0, int(self.options.preferred_layover_max_min)
                 ),
+                "max_round_trip_pairs": max(0, int(self.options.max_round_trip_pairs)),
             },
             "mixed_candidate_ranking": ranking,
             "decision_frontier": frontier,
@@ -131,39 +172,31 @@ class DecisionScorer:
             if not _has_outbound_and_return(candidate)
             and _candidate_direction(candidate) == "return"
         ]
-        paired = _round_trip_one_way_pairs(
-            outbound,
-            returns,
-            max_pairs=self.options.max_round_trip_pairs,
+        pair_limit = max(0, int(self.options.max_round_trip_pairs))
+        pair_pool = (
+            _round_trip_one_way_pair_pool(outbound, returns) if pair_limit else []
         )
-        envelope["candidates"] = [*ready_round_trip, *paired]
+        envelope["candidates"] = [*ready_round_trip, *pair_pool]
         envelope["round_trip_pairing"] = {
             "input_candidate_count": len(candidates),
             "provider_round_trip_candidate_count": len(ready_round_trip),
             "outbound_one_way_candidate_count": len(outbound),
             "return_one_way_candidate_count": len(returns),
-            "one_way_pair_candidate_count": len(paired),
-            "max_round_trip_pairs": max(0, int(self.options.max_round_trip_pairs)),
+            "one_way_pair_pool_count": len(pair_pool),
+            "max_round_trip_pairs": pair_limit,
         }
         return envelope
 
 
-def _round_trip_one_way_pairs(
+def _round_trip_one_way_pair_pool(
     outbound_candidates: list[dict[str, Any]],
     return_candidates: list[dict[str, Any]],
-    *,
-    max_pairs: int,
 ) -> list[dict[str, Any]]:
-    pairs: list[dict[str, Any]] = []
-    cap = max(0, int(max_pairs))
-    if cap == 0:
-        return pairs
-    for outbound in outbound_candidates:
-        for inbound in return_candidates:
-            pairs.append(_one_way_sum_candidate(outbound, inbound))
-            if len(pairs) >= cap:
-                return pairs
-    return pairs
+    return [
+        _one_way_sum_candidate(outbound, inbound)
+        for outbound in outbound_candidates
+        for inbound in return_candidates
+    ]
 
 
 def _one_way_sum_candidate(
@@ -310,18 +343,6 @@ def _combined_detail_status(outbound: dict[str, Any], inbound: dict[str, Any]) -
     if "summary_only" in statuses:
         return "summary_only"
     return "full"
-
-
-def _ordered_unique(items: list[Any]) -> list[Any]:
-    values: list[Any] = []
-    seen: set[str] = set()
-    for item in items:
-        value = str(item or "").strip()
-        if not value or value in seen:
-            continue
-        seen.add(value)
-        values.append(item)
-    return values
 
 
 __all__ = [

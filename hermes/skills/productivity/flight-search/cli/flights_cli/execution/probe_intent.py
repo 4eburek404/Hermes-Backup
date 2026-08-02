@@ -8,8 +8,8 @@ from typing import Any, Mapping
 class ProbeIntent:
     """A provider/search probe the runtime actually intended to execute or skip.
 
-    Coverage diagnostics should project these runtime intents instead of rebuilding
-    planned/not_executed controls after the fact from route-level coverage wishes.
+    Diagnostics project these runtime intents instead of rebuilding probes after
+    the fact from route-level wishes.
     """
 
     probe_type: str
@@ -25,7 +25,7 @@ class ProbeIntent:
     filters: Mapping[str, Any] | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
-    def to_control(self) -> dict[str, Any]:
+    def to_probe(self) -> dict[str, Any]:
         item: dict[str, Any] = {
             "type": self.probe_type,
             "direction": self.direction,

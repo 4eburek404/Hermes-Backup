@@ -44,7 +44,7 @@ class DateValidationTests(unittest.TestCase):
 
     def test_json_cli_returns_validation_error_for_past_departure_date(self) -> None:
         request = {
-            "schema_version": "flight_search_request.v1",
+            "schema_version": "flight_search_request.v3",
             "origin": "SVX",
             "destination": "LON",
             "depart_date": "2000-09-17",

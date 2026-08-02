@@ -12,29 +12,38 @@ version parity, and generated-artifact state separately.
 
 ## Public boundaries
 
-- Input: `flight_search_request.v1`.
-- Output: `flight_search_result.v7`.
+- Input: `flight_search_request.v3`.
+- Output: `flight_search_result.v9`.
 - Canonical text: `data.answer.rendered_text`.
-- Diagnostic trace: `flight_route_trace_diagnostic.v2`.
+- Diagnostic trace: `flight_route_trace_diagnostic.v4`.
 
 JSON stdout is one envelope and one terminal newline. Text search stdout is the
 validated rendered text only. Successful commands leave stderr empty. The JSON
 serializer rejects non-finite numbers; the input reader rejects duplicate keys.
 
-Schema defaults are documentation only; Python applies defaults once in
-`SearchRequest.from_payload`. Use the packaged local schema registry for `$ref`
+Schema defaults are documentation only; Python normalizes and applies defaults
+once in `search_request_from_payload`. Use the packaged local schema registry for `$ref`
 resolution. Do not add public schemas for internal evidence, decision, cache, or
 CLI envelope types.
 
 ## Change ownership
 
 - Request/defaults: `pipeline/search_request.py`.
-- Planning: `orchestrators/search_plan_builder.py` and plan v2 schema.
-- Provider execution and ledger: `execution/`.
-- Graph/scoring/frontier: `pipeline/offer_graph.py`,
-  `pipeline/decision_scorer.py`, and `pipeline/candidate_ranker.py`.
+- Production composition root: `orchestrators/search_workflow.py`.
+- Planning: `orchestrators/search_plan_builder.py` and `pipeline/search_plan.py`
+  with the plan v5 schema.
+- Provider execution and lifecycle: `execution/search_executor.py` and
+  `execution/probe_ledger.py`.
+- Connection/stop policy: `domain/connection_policy.py` and
+  `domain/stop_policy.py`.
+- Graph construction/materialization/merge: dedicated
+  `pipeline/offer_graph_*` modules; `pipeline/offer_graph.py` is a façade.
+- Candidate validation/scoring/frontier: `pipeline/candidate_validation.py`,
+  `pipeline/candidate_scoring.py`, and `pipeline/frontier_selection.py`;
+  `pipeline/candidate_ranker.py` is a façade.
+- Coverage, catalog semantics/projection/rendering: their dedicated modules in
+  `reporting/`.
 - Result projection: `pipeline/result_builder.py`.
-- Structured answer/render: `reporting/user_answer*.py`.
 
 Projection and rendering cannot call providers, inspect cache/storage, rescore,
 or alter frontier order. A catalog segment freezes IATA, offset-aware times,

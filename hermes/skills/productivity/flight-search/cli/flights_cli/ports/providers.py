@@ -6,13 +6,12 @@ from typing import Any, Literal, Protocol, runtime_checkable
 from ..domain.immutable import freeze, thaw
 
 
-ProviderName = Literal["kupibilet", "fli", "tutu"]
+ProviderName = str
 ProbeType = Literal[
     "segment_direct",
     "segment_hub_leg",
     "full_route_aggregate",
     "carrier_aggregate",
-    "city_pair_direct",
 ]
 ExecutionState = Literal[
     "searched",
@@ -38,12 +37,9 @@ EvidenceType = Literal[
 class ProviderCapabilities:
     supports_ru_touching: bool = False
     supports_global: bool = False
-    supports_city_code: bool = False
     supports_direct_only: bool = False
     supports_carrier_filter: bool = False
     supports_full_route_aggregate: bool = False
-    supports_round_trip: bool = False
-    supports_cache: bool = False
     probe_types: frozenset[ProbeType] = frozenset()
 
 

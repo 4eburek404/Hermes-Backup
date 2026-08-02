@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 import unittest
+from copy import deepcopy
+from datetime import datetime, timedelta, timezone
+from itertools import permutations
+from unittest.mock import patch
 
 from flights_cli.domain.vocabulary import RouteFamily
 from flights_cli.pipeline.candidate_ranker import (
     build_decision_frontier,
     rank_mixed_candidates,
+)
+from flights_cli.pipeline.candidate_scoring import score_validated_candidates
+from flights_cli.pipeline.candidate_validation import (
+    validate_candidate_envelope as validate_candidates_impl,
 )
 from flights_cli.pipeline.decision_scorer import DecisionScorer, DecisionScorerOptions
 
@@ -41,6 +49,20 @@ def candidate(
     direction: str = "outbound",
     journey_scope: str = "one_way",
 ) -> dict:
+    normalized_segments = deepcopy(segments)
+    base = datetime(
+        2026,
+        7,
+        8 if direction == "return" else 1,
+        8,
+        tzinfo=timezone.utc,
+    )
+    for index, item in enumerate(normalized_segments):
+        if item.get("departure_at") or item.get("arrival_at"):
+            continue
+        departure = base + timedelta(hours=index * 4)
+        item["departure_at"] = departure.isoformat()
+        item["arrival_at"] = (departure + timedelta(hours=2)).isoformat()
     return {
         "id": candidate_id,
         "source_type": source_type,
@@ -58,14 +80,89 @@ def candidate(
         else "summed_live_leg_prices",
         "ticketing_model": ticketing_model,
         "detail_status": "full",
-        "journeys": [{"direction": direction, "segments": segments}],
+        "journeys": [{"direction": direction, "segments": normalized_segments}],
         "warnings": [],
         "elapsed_min": elapsed_min,
         "connection_risk_score": connection_risk_score,
     }
 
 
+def outbound_via_ist(
+    candidate_id: str,
+    *,
+    price: int,
+    layover_min: int,
+) -> dict:
+    first_departure = datetime(2026, 9, 20, 5, tzinfo=timezone.utc)
+    first_arrival = first_departure + timedelta(hours=3)
+    second_departure = first_arrival + timedelta(minutes=layover_min)
+    second_arrival = second_departure + timedelta(hours=3)
+    return candidate(
+        candidate_id,
+        source_type="provider_full_route",
+        price=price,
+        ticketing_model="provider_order_unverified",
+        segments=[
+            segment(
+                "SVX",
+                "IST",
+                depart=first_departure.isoformat(),
+                arrive=first_arrival.isoformat(),
+            ),
+            segment(
+                "IST",
+                "FRA",
+                depart=second_departure.isoformat(),
+                arrive=second_arrival.isoformat(),
+            ),
+        ],
+    )
+
+
+def return_from_fra(candidate_id: str, *, price: int, slot: int = 0) -> dict:
+    departure = datetime(2026, 9, 30, 6, tzinfo=timezone.utc) + timedelta(
+        minutes=30 * slot
+    )
+    return candidate(
+        candidate_id,
+        source_type="provider_full_route",
+        price=price,
+        ticketing_model="provider_order_unverified",
+        segments=[
+            segment(
+                "FRA",
+                "SVX",
+                depart=departure.isoformat(),
+                arrive=(departure + timedelta(hours=5)).isoformat(),
+            )
+        ],
+        direction="return",
+    )
+
+
 class CandidateRankerTests(unittest.TestCase):
+    def test_missing_arrival_time_is_authoritatively_invalid(self) -> None:
+        malformed = candidate(
+            "missing-arrival",
+            source_type="provider_full_route",
+            price=10_000,
+            ticketing_model="provider_order_unverified",
+            segments=[
+                segment(
+                    "SVX",
+                    "LED",
+                    depart="2026-08-01T08:00:00+05:00",
+                )
+            ],
+        )
+
+        ranking = rank_mixed_candidates({"candidates": [malformed]})
+        ranked = ranking["ranked_candidates"][0]
+
+        self.assertEqual(ranked["validation"]["status"], "invalid")
+        self.assertIn("missing_segment_time", ranked["validation"]["blocking_reasons"])
+        self.assertEqual(build_decision_frontier(ranking)["options"], [])
+
     def test_gateway_lower_price_can_beat_provider_full_route(self) -> None:
         provider = candidate(
             "provider",
@@ -443,7 +540,7 @@ class CandidateRankerTests(unittest.TestCase):
         self.assertIn("cheap", by_id)
         self.assertIn("cheapest_selected", by_id["cheap"]["selection_reasons"])
 
-    def test_frontier_keeps_safer_ticketing_and_direct_controls(self) -> None:
+    def test_frontier_keeps_safer_ticketing_and_direct_inventory(self) -> None:
         provider = candidate(
             "provider",
             source_type="provider_full_route",
@@ -470,6 +567,59 @@ class CandidateRankerTests(unittest.TestCase):
         self.assertEqual(
             frontier["coverage_summary"]["direct_option_count_by_direction"],
             {"outbound": 1},
+        )
+
+    def test_direct_inventory_respects_shared_output_limit_after_merge(self) -> None:
+        direct = [
+            candidate(
+                f"direct-{index}",
+                source_type=RouteFamily.DIRECT_INVENTORY,
+                price=10000 + index,
+                ticketing_model="provider_order_unverified",
+                segments=[segment("SVX", "AMS")],
+            )
+            for index in range(3)
+        ]
+
+        frontier = build_decision_frontier(
+            rank_mixed_candidates({"candidates": list(reversed(direct))}),
+            max_options=2,
+        )
+
+        self.assertEqual(
+            [option["id"] for option in frontier["options"]],
+            ["direct-0", "direct-1"],
+        )
+        self.assertEqual(frontier["coverage_summary"]["selected_count"], 2)
+        self.assertEqual(
+            frontier["coverage_summary"]["suppressed_by_output_limit_count"], 1
+        )
+
+    def test_direct_options_bypass_gateway_pareto_and_diversity(self) -> None:
+        better = candidate(
+            "direct-better",
+            source_type=RouteFamily.DIRECT_INVENTORY,
+            price=20_000,
+            ticketing_model="provider_order_unverified",
+            segments=[segment("SVX", "AMS", carrier="KL")],
+            elapsed_min=240,
+        )
+        dominated = candidate(
+            "direct-dominated",
+            source_type=RouteFamily.DIRECT_INVENTORY,
+            price=30_000,
+            ticketing_model="provider_order_unverified",
+            segments=[segment("SVX", "AMS", carrier="KL")],
+            elapsed_min=300,
+        )
+
+        frontier = build_decision_frontier(
+            rank_mixed_candidates({"candidates": [dominated, better]})
+        )
+
+        self.assertEqual(
+            [option["id"] for option in frontier["options"]],
+            ["direct-better", "direct-dominated"],
         )
 
     def test_frontier_keeps_gateway_alternatives(self) -> None:
@@ -540,7 +690,7 @@ class CandidateRankerTests(unittest.TestCase):
         self.assertEqual(summary["selected_count"], 1)
         self.assertEqual(summary["selection_roles"], ["best_viable"])
 
-    def test_output_limit_is_applied_by_decision_frontier(self) -> None:
+    def test_direct_output_limit_reports_suppressed_count(self) -> None:
         candidates = [
             candidate(
                 f"direct-{index}",
@@ -557,48 +707,14 @@ class CandidateRankerTests(unittest.TestCase):
             max_options=2,
         )
 
-        self.assertEqual(len(frontier["options"]), 1)
-        self.assertEqual(frontier["coverage_summary"]["selected_count"], 1)
         self.assertEqual(
-            frontier["coverage_summary"]["suppressed_by_output_limit_count"], 0
+            [option["id"] for option in frontier["options"]],
+            ["direct-0", "direct-1"],
         )
-
-    def test_frontier_exposes_controls_separately_from_route_options(self) -> None:
-        provider = candidate(
-            "provider",
-            source_type="provider_full_route",
-            price=50000,
-            ticketing_model="provider_order_unverified",
-            segments=[segment("SVX", "CDG")],
+        self.assertEqual(frontier["coverage_summary"]["selected_count"], 2)
+        self.assertEqual(
+            frontier["coverage_summary"]["suppressed_by_output_limit_count"], 1
         )
-        ranking = rank_mixed_candidates({"candidates": [provider]})
-
-        frontier = build_decision_frontier(
-            ranking,
-            controls=[
-                {
-                    "direction": "outbound",
-                    "origin": "SVX",
-                    "destination": "CDG",
-                    "date": "2026-08-16",
-                    "status": "graph_derived",
-                    "provider": "graph",
-                    "offer_count": 1,
-                    "raw_offer_count": 1,
-                    "cache_status": "graph",
-                    "top_offers": [{"id": "graph-offer"}],
-                    "source_type": "graph_derived_control",
-                    "source_providers": ["tutu"],
-                    "graph_derived": True,
-                }
-            ],
-        )
-
-        self.assertEqual([option["id"] for option in frontier["options"]], ["provider"])
-        self.assertEqual(len(frontier["controls"]), 1)
-        self.assertEqual(frontier["controls"][0]["provider"], "graph")
-        self.assertEqual(frontier["controls"][0]["top_offer_count"], 1)
-        self.assertEqual(frontier["coverage_summary"]["control_count"], 1)
 
     def test_invalid_chronology_is_rejected_before_frontier(self) -> None:
         viable = candidate(
@@ -661,6 +777,32 @@ class CandidateRankerTests(unittest.TestCase):
 
         frontier = build_decision_frontier(ranking)
         self.assertEqual([item["id"] for item in frontier["options"]], ["viable"])
+
+    def test_segment_arrival_before_departure_is_rejected_before_frontier(self) -> None:
+        impossible = candidate(
+            "impossible-segment",
+            source_type="provider_full_route",
+            price=10000,
+            ticketing_model="provider_order_unverified",
+            segments=[
+                segment(
+                    "NTE",
+                    "IST",
+                    depart="2026-07-09T17:20:00+02:00",
+                    arrive="2026-07-09T16:20:00+02:00",
+                )
+            ],
+        )
+
+        ranking = rank_mixed_candidates({"candidates": [impossible]})
+        ranked = ranking["ranked_candidates"][0]
+
+        self.assertEqual(ranked["candidate_status"], "impossible")
+        self.assertEqual(
+            ranked["chronology_violations"][0]["reason"],
+            "segment_arrival_before_departure",
+        )
+        self.assertEqual(build_decision_frontier(ranking)["options"], [])
 
     def test_provider_validated_short_connection_is_not_mct_rejected(self) -> None:
         provider = candidate(
@@ -863,6 +1005,47 @@ class CandidateRankerTests(unittest.TestCase):
             1,
         )
 
+    def test_round_trip_pair_pool_is_scored_only_in_the_final_candidate_pass(
+        self,
+    ) -> None:
+        outbound = [
+            outbound_via_ist("outbound-a", price=100, layover_min=240),
+            outbound_via_ist("outbound-b", price=200, layover_min=300),
+        ]
+        inbound = [
+            return_from_fra("return-a", price=100),
+            return_from_fra("return-b", price=200, slot=1),
+        ]
+
+        with (
+            patch(
+                "flights_cli.pipeline.decision_scorer.validate_candidate_envelope",
+                wraps=validate_candidates_impl,
+            ) as validation_pass,
+            patch(
+                "flights_cli.pipeline.decision_scorer.score_validated_candidates",
+                wraps=score_validated_candidates,
+            ) as final_score,
+        ):
+            DecisionScorer(
+                DecisionScorerOptions(round_trip=True, max_round_trip_pairs=2)
+            ).score({"candidates": [*outbound, *inbound]})
+
+        self.assertEqual(validation_pass.call_count, 1)
+        self.assertEqual(final_score.call_count, 1)
+        expected_ids = {
+            "round-trip-pair:outbound-a:return-a",
+            "round-trip-pair:outbound-a:return-b",
+            "round-trip-pair:outbound-b:return-a",
+            "round-trip-pair:outbound-b:return-b",
+        }
+        validation_ids = {
+            item["id"] for item in validation_pass.call_args.args[0]["candidates"]
+        }
+        final_ids = {item["id"] for item in final_score.call_args.args[0]["candidates"]}
+        self.assertEqual(validation_ids, expected_ids)
+        self.assertEqual(final_ids, expected_ids)
+
     def test_decision_scorer_keeps_provider_round_trip_price_atomic(self) -> None:
         provider_round_trip = {
             "id": "provider-round-trip",
@@ -954,6 +1137,294 @@ class CandidateRankerTests(unittest.TestCase):
             ],
             1,
         )
+
+    def test_round_trip_pair_limit_applies_after_full_pool_ranking(self) -> None:
+        outbound = [
+            candidate(
+                f"outbound-{index}",
+                source_type="provider_full_route",
+                price=price,
+                ticketing_model="provider_order_unverified",
+                segments=[segment("SVX", "IST")],
+            )
+            for index, price in enumerate((90_000, 80_000, 10_000))
+        ]
+        returns = [
+            candidate(
+                f"return-{index}",
+                source_type="provider_full_route",
+                price=price,
+                ticketing_model="provider_order_unverified",
+                segments=[segment("IST", "SVX")],
+                direction="return",
+            )
+            for index, price in enumerate((20_000, 30_000, 40_000))
+        ]
+
+        scored = DecisionScorer(
+            DecisionScorerOptions(
+                round_trip=True,
+                max_round_trip_pairs=2,
+                max_options=10,
+            )
+        ).score({"candidates": [*outbound, *returns]})
+        ranked_ids = [
+            item["id"]
+            for item in scored["mixed_candidate_ranking"]["ranked_candidates"]
+        ]
+        frontier_ids = [item["id"] for item in scored["decision_frontier"]["options"]]
+
+        self.assertEqual(len(ranked_ids), 9)
+        self.assertIn("round-trip-pair:outbound-0:return-2", ranked_ids)
+        self.assertEqual(
+            frontier_ids,
+            [
+                "round-trip-pair:outbound-2:return-0",
+                "round-trip-pair:outbound-2:return-1",
+            ],
+        )
+        self.assertEqual(
+            scored["scorer"]["round_trip_pairing"]["one_way_pair_pool_count"],
+            9,
+        )
+        self.assertEqual(
+            scored["scorer"]["round_trip_pairing"]["one_way_pair_candidate_count"],
+            2,
+        )
+        self.assertEqual(
+            scored["scorer"]["round_trip_pairing"]["one_way_pair_eligible_count"],
+            2,
+        )
+        self.assertEqual(
+            scored["decision_frontier"]["coverage_summary"][
+                "suppressed_by_round_trip_pair_limit_count"
+            ],
+            7,
+        )
+
+        output_limited = DecisionScorer(
+            DecisionScorerOptions(
+                round_trip=True,
+                max_round_trip_pairs=2,
+                max_options=1,
+            )
+        ).score({"candidates": [*outbound, *returns]})
+        output_coverage = output_limited["decision_frontier"]["coverage_summary"]
+        self.assertEqual(output_coverage["eligible_round_trip_pair_count"], 2)
+        self.assertEqual(output_coverage["selected_count"], 1)
+        self.assertEqual(
+            output_coverage["suppressed_by_round_trip_pair_limit_count"],
+            7,
+        )
+        self.assertEqual(output_coverage["suppressed_by_output_limit_count"], 1)
+
+    def test_round_trip_pair_limit_keeps_valid_pair_after_cheapest_invalid_outbound(
+        self,
+    ) -> None:
+        cheapest_invalid = outbound_via_ist(
+            "outbound-cheapest-invalid",
+            price=10_000,
+            layover_min=2_220,
+        )
+        valid = outbound_via_ist(
+            "outbound-valid",
+            price=20_000,
+            layover_min=240,
+        )
+        returns = [
+            return_from_fra(
+                f"return-{index:02d}",
+                price=30_000 + index,
+                slot=index,
+            )
+            for index in range(12)
+        ]
+
+        scored = DecisionScorer(
+            DecisionScorerOptions(
+                round_trip=True,
+                max_layover_min=1_440,
+                max_round_trip_pairs=12,
+                max_options=12,
+            )
+        ).score({"candidates": [cheapest_invalid, valid, *returns]})
+        ranked = {
+            item["id"]: item
+            for item in scored["mixed_candidate_ranking"]["ranked_candidates"]
+        }
+        invalid_pair_id = "round-trip-pair:outbound-cheapest-invalid:return-00"
+        valid_pair_id = "round-trip-pair:outbound-valid:return-00"
+        frontier_ids = [item["id"] for item in scored["decision_frontier"]["options"]]
+
+        self.assertEqual(
+            scored["scorer"]["round_trip_pairing"]["one_way_pair_pool_count"],
+            24,
+        )
+        self.assertEqual(ranked[invalid_pair_id]["validation"]["status"], "invalid")
+        self.assertEqual(
+            ranked[invalid_pair_id]["connection_assessment"]["connections"][0][
+                "actual_min"
+            ],
+            2_220,
+        )
+        self.assertEqual(ranked[valid_pair_id]["validation"]["status"], "valid")
+        self.assertIn(valid_pair_id, frontier_ids)
+        self.assertTrue(frontier_ids)
+        self.assertTrue(
+            all(":outbound-valid:" in candidate_id for candidate_id in frontier_ids)
+        )
+
+    def test_zero_round_trip_pair_limit_preserves_atomic_provider_offer(self) -> None:
+        provider_round_trip = candidate(
+            "provider-round-trip",
+            source_type="provider_full_route",
+            price=50_000,
+            ticketing_model="round_trip_single_ticket",
+            segments=[
+                segment(
+                    "SVX",
+                    "FRA",
+                    depart="2026-09-20T05:00:00+00:00",
+                    arrive="2026-09-20T10:00:00+00:00",
+                )
+            ],
+            journey_scope="round_trip",
+        )
+        provider_round_trip["journeys"].append(
+            {
+                "direction": "return",
+                "segments": [
+                    segment(
+                        "FRA",
+                        "SVX",
+                        depart="2026-09-30T06:00:00+00:00",
+                        arrive="2026-09-30T11:00:00+00:00",
+                    )
+                ],
+            }
+        )
+        outbound = outbound_via_ist("outbound", price=10_000, layover_min=240)
+        inbound = return_from_fra("return", price=20_000)
+
+        scored = DecisionScorer(
+            DecisionScorerOptions(
+                round_trip=True,
+                max_round_trip_pairs=0,
+                max_options=10,
+            )
+        ).score({"candidates": [outbound, inbound, provider_round_trip]})
+        ranked_ids = [
+            item["id"]
+            for item in scored["mixed_candidate_ranking"]["ranked_candidates"]
+        ]
+        frontier_ids = [item["id"] for item in scored["decision_frontier"]["options"]]
+
+        self.assertEqual(ranked_ids, ["provider-round-trip"])
+        self.assertEqual(frontier_ids, ["provider-round-trip"])
+        self.assertEqual(
+            scored["scorer"]["round_trip_pairing"]["one_way_pair_candidate_count"],
+            0,
+        )
+        self.assertFalse(
+            any(item.startswith("round-trip-pair:") for item in ranked_ids)
+        )
+
+    def test_round_trip_pairing_with_only_invalid_pairs_has_empty_frontier(
+        self,
+    ) -> None:
+        outbound = [
+            outbound_via_ist("outbound-invalid-a", price=10_000, layover_min=2_220),
+            outbound_via_ist("outbound-invalid-b", price=20_000, layover_min=2_280),
+        ]
+        inbound = [
+            return_from_fra("return-a", price=30_000),
+            return_from_fra("return-b", price=40_000, slot=1),
+        ]
+
+        scored = DecisionScorer(
+            DecisionScorerOptions(
+                round_trip=True,
+                max_layover_min=1_440,
+                max_round_trip_pairs=2,
+                max_options=10,
+            )
+        ).score({"candidates": [*outbound, *inbound]})
+        ranked = scored["mixed_candidate_ranking"]["ranked_candidates"]
+
+        self.assertEqual(
+            scored["scorer"]["round_trip_pairing"]["one_way_pair_pool_count"],
+            4,
+        )
+        self.assertTrue(ranked)
+        self.assertTrue(
+            all(item["validation"]["status"] == "invalid" for item in ranked)
+        )
+        self.assertEqual(scored["decision_frontier"]["options"], [])
+
+    def test_round_trip_pairing_order_is_invariant_under_input_permutations(
+        self,
+    ) -> None:
+        outbound = [
+            candidate(
+                candidate_id,
+                source_type="provider_full_route",
+                price=10_000,
+                ticketing_model="provider_order_unverified",
+                segments=[
+                    segment(
+                        "SVX",
+                        "FRA",
+                        depart="2026-09-20T05:00:00+00:00",
+                        arrive="2026-09-20T10:00:00+00:00",
+                    )
+                ],
+            )
+            for candidate_id in ("outbound-b", "outbound-a")
+        ]
+        inbound = [
+            candidate(
+                candidate_id,
+                source_type="provider_full_route",
+                price=20_000,
+                ticketing_model="provider_order_unverified",
+                segments=[
+                    segment(
+                        "FRA",
+                        "SVX",
+                        depart="2026-09-30T06:00:00+00:00",
+                        arrive="2026-09-30T11:00:00+00:00",
+                    )
+                ],
+                direction="return",
+            )
+            for candidate_id in ("return-b", "return-a")
+        ]
+        inputs = [*outbound, *inbound]
+        expected_ids = [
+            "round-trip-pair:outbound-a:return-a",
+            "round-trip-pair:outbound-a:return-b",
+            "round-trip-pair:outbound-b:return-a",
+            "round-trip-pair:outbound-b:return-b",
+        ]
+        scorer = DecisionScorer(
+            DecisionScorerOptions(
+                round_trip=True,
+                max_round_trip_pairs=4,
+                max_options=4,
+            )
+        )
+
+        for input_order in permutations(inputs):
+            scored = scorer.score({"candidates": list(input_order)})
+            ranked_ids = [
+                item["id"]
+                for item in scored["mixed_candidate_ranking"]["ranked_candidates"]
+            ]
+            frontier_ids = [
+                item["id"] for item in scored["decision_frontier"]["options"]
+            ]
+            self.assertEqual(ranked_ids, expected_ids)
+            self.assertEqual(frontier_ids, expected_ids)
 
     def test_decision_scorer_rejects_return_before_outbound_arrival(self) -> None:
         outbound = candidate(
@@ -1065,6 +1536,8 @@ class CandidateRankerTests(unittest.TestCase):
 
         self.assertEqual(ranked["connection_assessment"]["status"], "invalid")
         self.assertIn("airport_change_forbidden", ranked["ranking_reasons"])
+        self.assertNotIn("mct_violations", ranked)
+        self.assertNotIn("cross_ticket_mct_violation", ranked["ranking_reasons"])
         self.assertEqual(build_decision_frontier(ranking)["options"], [])
 
     def test_nine_hour_same_airport_layover_is_valid_but_long(self) -> None:

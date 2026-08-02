@@ -18,7 +18,7 @@ from flights_cli.command_surface import (
     CATALOG_READ_COMMANDS,
     CATALOG_REFRESH_COMMANDS,
 )
-from flights_cli.commands.common import validate_contract_payload
+from flights_cli.contracts.validation import validate_contract_payload
 from flights_cli.pipeline.search_request import SearchRequest
 from flights_cli.store import Store
 from helpers import parser_leaf_defaults
@@ -26,14 +26,13 @@ from test_result_contract import valid_result
 
 
 MINIMAL_SEARCH_REQUEST = {
-    "schema_version": "flight_search_request.v1",
+    "schema_version": "flight_search_request.v3",
     "origin": "SVX",
     "destination": "LON",
     "depart_date": "2026-07-20",
     "return_date": "2026-07-25",
     "currency": "RUB",
     "profile": "business",
-    "ticketing": "separate",
     "provider_policy": "auto",
 }
 
@@ -74,10 +73,10 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
 
         captured: dict[str, object] = {}
 
-        def fake_run(request: SearchRequest, store: Store) -> object:
+        def fake_run(request: SearchRequest) -> dict[str, str]:
             captured["origin"] = request.origin
             captured["destination"] = request.destination
-            return SimpleNamespace(projection_input={})
+            return {"schema_version": "flight_search_result.v9"}
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             request_path = Path(tmp_dir) / "request.json"
@@ -85,23 +84,12 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
                 json.dumps(MINIMAL_SEARCH_REQUEST), encoding="utf-8"
             )
             args = argparse.Namespace(request=str(request_path), command_name="search")
-            with (
-                patch(
-                    "flights_cli.commands.search.execute_search", side_effect=fake_run
-                ),
-                patch(
-                    "flights_cli.commands.search.build_result_projection",
-                    return_value={},
-                ),
-                patch(
-                    "flights_cli.commands.search.build_search_result",
-                    return_value={"schema_version": "flight_search_result.v7"},
-                ),
-            ):
+            with patch("flights_cli.commands.search.SearchWorkflow") as workflow:
+                workflow.return_value.run.side_effect = fake_run
                 result = command_search(args, Store())
 
         self.assertEqual(captured, {"origin": "SVX", "destination": "LON"})
-        self.assertEqual(result["schema_version"], "flight_search_result.v7")
+        self.assertEqual(result["schema_version"], "flight_search_result.v9")
 
     def test_diagnose_trace_serializes_existing_artifacts_once(self) -> None:
         from flights_cli.commands.diagnose import command_diagnose_trace
@@ -115,7 +103,12 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
         )
         artifacts = SimpleNamespace(
             request=MINIMAL_SEARCH_REQUEST,
-            execution=SimpleNamespace(plan={}, evidence=evidence, decision=decision),
+            execution=SimpleNamespace(
+                plan={},
+                evidence=evidence,
+                decision=decision,
+                projection_input={},
+            ),
             projection={"answer": {}},
         )
         args = argparse.Namespace(request="unused.json", command_name="diagnose trace")
@@ -131,7 +124,7 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
         ):
             result = command_diagnose_trace(args, Store())
 
-        self.assertEqual(result["schema_version"], "flight_route_trace_diagnostic.v2")
+        self.assertEqual(result["schema_version"], "flight_route_trace_diagnostic.v4")
         self.assertEqual(
             set(result),
             {"schema_version", "request", "plan", "evidence", "decision", "answer"},
@@ -142,7 +135,7 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             request_path = Path(tmp_dir) / "invalid-request.json"
             request_path.write_text(
-                json.dumps({"schema_version": "flight_search_request.v1"}),
+                json.dumps({"schema_version": "flight_search_request.v3"}),
                 encoding="utf-8",
             )
             proc = subprocess.run(

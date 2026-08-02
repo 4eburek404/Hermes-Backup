@@ -7,8 +7,11 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
-from flights_cli.adapters.providers.kupibilet_adapter import KupibiletProviderAdapter
-from flights_cli.execution.search_executor import execute_search
+from flights_cli.adapters.providers.kupibilet_adapter import (
+    KupibiletProviderAdapter,
+    kupibilet_aggregate_search_summary,
+)
+from flights_cli.orchestrators.search_workflow import SearchWorkflow
 from flights_cli.providers.kupibilet import (
     build_kupibilet_payload,
     cached_kupibilet_search,
@@ -21,14 +24,14 @@ from flights_cli.providers.live_cache import (
     read_live_cache,
     write_live_cache,
 )
-from flights_cli.pipeline.result_builder import build_result_projection
 from flights_cli.store import Store
 
 from helpers import CliSubprocessMixin, live_assembly_args
 
 
 def execute_projection(*args: object, **kwargs: object) -> dict:
-    return execute_search(*args, **kwargs).projection_input
+    request, store = args
+    return SearchWorkflow(store).run_artifacts(request).projection_input
 
 
 def airport_scope_raw(rows: list[tuple[str, str, str, int]]) -> dict:
@@ -58,6 +61,36 @@ def airport_scope_raw(rows: list[tuple[str, str, str, int]]) -> dict:
 
 
 class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
+    def test_adapter_does_not_repeat_parser_stop_filtering(self) -> None:
+        summary = kupibilet_aggregate_search_summary(
+            direction="outbound",
+            origin="SVX",
+            destination="AMS",
+            depart_date="2026-08-12",
+            carriers=[],
+            direct_only=False,
+            result={
+                "source": "test",
+                "raw_offer_count": 2,
+                "suppressed_three_plus_count": 1,
+                "suppressed_airport_change_count": 0,
+                "offers": [
+                    {
+                        "id": "parser-output",
+                        "price": 10_000,
+                        "currency": "RUB",
+                        "number_of_changes": 3,
+                        "segments": [],
+                    }
+                ],
+            },
+        )
+
+        self.assertEqual(summary["offer_count"], 1)
+        self.assertEqual(summary["raw_offer_count"], 2)
+        self.assertEqual(summary["suppressed_three_plus_count"], 1)
+        self.assertEqual(summary["top_offers"][0]["id"], "parser-output")
+
     def test_kupibilet_payload_uses_live_frontend_search_shape(self) -> None:
         payload = build_kupibilet_payload("SVX", "MOW", "2026-07-19", "RUB")
 
@@ -158,6 +191,33 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(all_out_of_scope["offers"], [])
         self.assertEqual(all_out_of_scope["skipped"]["destination_out_of_scope"], 4)
 
+    def test_parser_rejects_missing_and_reversed_segment_times(self) -> None:
+        raw = airport_scope_raw(
+            [
+                ("missing-departure", "AAA", "BBB", 1000),
+                ("missing-arrival", "AAA", "BBB", 2000),
+                ("reversed", "AAA", "BBB", 3000),
+                ("valid", "AAA", "BBB", 4000),
+            ]
+        )
+        raw["flights"]["flight-0"]["departure_datetime"] = ""
+        raw["flights"]["flight-1"]["arrival_datetime"] = ""
+        raw["flights"]["flight-2"]["departure_datetime"] = "2026-08-12T10:00:00+00:00"
+        raw["flights"]["flight-2"]["arrival_datetime"] = "2026-08-12T09:00:00+00:00"
+
+        result = parse_kupibilet_frontend_search(
+            raw,
+            origin="AAA",
+            destination="BBB",
+            depart_date="2026-08-12",
+            currency="RUB",
+        )
+
+        self.assertEqual([offer["id"] for offer in result["offers"]], ["valid"])
+        self.assertEqual(result["skipped"]["missing_segment_time"], 2)
+        self.assertEqual(result["skipped"]["segment_arrival_before_departure"], 1)
+        self.assertEqual(result["raw_offer_count"], 1)
+
     def test_kupibilet_adapter_forwards_airport_scopes_for_both_probe_types(
         self,
     ) -> None:
@@ -206,6 +266,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         aggregate = adapter.search_aggregate(query)
 
         self.assertEqual(len(calls), 2)
+        self.assertTrue(all(call["direct_only"] is True for call in calls))
         self.assertTrue(
             all(call["origin_airports"] == ["AAA", "AAB"] for call in calls)
         )
@@ -214,8 +275,10 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(segment.query["destination_airports"], ["BBB"])
         self.assertEqual(aggregate.query["origin_airports"], ["AAA", "AAB"])
         self.assertEqual(aggregate.query["destination_airports"], ["BBB"])
+        self.assertTrue(aggregate.query["direct_only"])
         self.assertEqual(aggregate.execution_state, "searched")
         self.assertEqual(aggregate.result_summary["status"], "ok")
+        self.assertTrue(aggregate.result_summary["filters"]["direct_only"])
         self.assertEqual(aggregate.result_summary["offer_count"], 0)
         self.assertEqual(
             aggregate.result_summary["skipped"], {"destination_out_of_scope": 1}
@@ -462,7 +525,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             [offer["id"] for offer in result["offers"]], ["fast-expensive"]
         )
 
-    def test_parse_kupibilet_filters_three_stop_and_airport_change_before_limit(
+    def test_parse_kupibilet_defers_stop_cap_but_filters_airport_change_before_limit(
         self,
     ) -> None:
         raw = {
@@ -577,8 +640,8 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         )
 
         self.assertEqual(result["raw_offer_count"], 3)
-        self.assertEqual(result["suppressed_three_plus_count"], 1)
         self.assertEqual(result["suppressed_airport_change_count"], 1)
+        self.assertEqual(result["unique_flight_count"], 2)
         self.assertEqual(result["offer_count"], 1)
         self.assertEqual(result["offers"][0]["id"], "good-one-stop")
 
@@ -667,11 +730,16 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
                 )
             return kb_result(origin, destination, depart_date)
 
-        with patch(
-            "flights_cli.execution.search_executor.fetch_kupibilet_search",
-            side_effect=fake_fetch,
-        ):
-            result = execute_projection(args, Store())
+        store = Store()
+        adapter = KupibiletProviderAdapter(store=store, fetcher=fake_fetch)
+        result = (
+            SearchWorkflow(
+                store,
+                adapter_resolver=lambda _name, **_kwargs: adapter,
+            )
+            .run_artifacts(args)
+            .projection_input
+        )
 
         direct_calls = {
             (origin, destination)
@@ -693,128 +761,6 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
                 for search in result["live_search"]["segment_searches"]
             )
         )
-
-    def test_explicit_carrier_aggregate_control_reports_through_fare_check(
-        self,
-    ) -> None:
-        class FixedDate(date):
-            @classmethod
-            def today(cls) -> date:
-                return cls(2026, 5, 1)
-
-        args = live_assembly_args(
-            origin="SVX",
-            destination="DEL",
-            depart_date="2026-06-01",
-            provider_policy="kupibilet",
-            aggregate_control_limit=10,
-            aggregate_control_carriers=["SU"],
-            no_live_cache=True,
-        )
-        calls: list[tuple[str, str, bool, tuple[str, ...]]] = []
-
-        def fake_fetch(
-            origin: str,
-            destination: str,
-            depart_date: object,
-            *,
-            direct_only: bool,
-            only_carriers: list[str],
-            **_: object,
-        ) -> dict:
-            calls.append((origin, destination, bool(direct_only), tuple(only_carriers)))
-            depart = (
-                depart_date.isoformat()
-                if hasattr(depart_date, "isoformat")
-                else str(depart_date)
-            )
-            offers = []
-            if (
-                origin == "SVX"
-                and destination == "DEL"
-                and not direct_only
-                and only_carriers == ["SU"]
-            ):
-                offers.append(
-                    {
-                        "id": "su-through-control",
-                        "price": 42000,
-                        "currency": "RUB",
-                        "number_of_changes": 1,
-                        "duration": 520,
-                        "flight_numbers": ["SU1419", "SU232"],
-                        "segments": [
-                            {
-                                "flight_number": "SU1419",
-                                "marketing_carrier": "SU",
-                                "operating_carrier": "SU",
-                                "origin": "SVX",
-                                "destination": "SVO",
-                                "departure_at": "2026-06-01T06:00:00+05:00",
-                                "arrival_at": "2026-06-01T06:40:00+03:00",
-                            },
-                            {
-                                "flight_number": "SU232",
-                                "marketing_carrier": "SU",
-                                "operating_carrier": "SU",
-                                "origin": "SVO",
-                                "destination": "DEL",
-                                "departure_at": "2026-06-01T10:30:00+03:00",
-                                "arrival_at": "2026-06-01T18:50:00+05:30",
-                            },
-                        ],
-                    }
-                )
-            return {
-                "origin": origin,
-                "destination": destination,
-                "depart_date": depart,
-                "currency": "RUB",
-                "source": "test",
-                "source_url": "test",
-                "raw_variant_count": len(offers),
-                "unique_flight_count": len(offers),
-                "http_status": 200,
-                "offers": offers,
-            }
-
-        with (
-            patch("flights_cli.domain.normalize.date", FixedDate),
-            patch(
-                "flights_cli.pipeline.evidence_plan.SYSTEM_CLOCK.today",
-                return_value=date(2026, 5, 1),
-            ),
-            patch(
-                "flights_cli.execution.search_executor.fetch_kupibilet_search",
-                side_effect=fake_fetch,
-            ),
-        ):
-            result = execute_projection(args, Store())
-
-        self.assertIn(("SVX", "DEL", False, ("SU",)), calls)
-        carrier_controls = [
-            control
-            for control in result["live_search"]["aggregate_controls"]
-            if control.get("filters", {}).get("only_carriers") == ["SU"]
-        ]
-        self.assertEqual(
-            carrier_controls[0]["top_offers"][0]["flight_numbers"], ["SU1419", "SU232"]
-        )
-        ledger = result["live_search"]["probe_ledger"]
-        planned_types = {item["type"] for item in ledger["planned_controls"]}
-        searched_types = {item["type"] for item in ledger["searched_controls"]}
-        self.assertIn("carrier_aggregate", planned_types)
-        self.assertIn("carrier_aggregate", searched_types)
-        self.assertEqual(ledger["not_executed_controls"], [])
-        self.assertEqual(
-            ledger["completeness"]["planned_count"],
-            ledger["completeness"]["terminal_count"],
-        )
-        report = build_result_projection(result, Store())
-        self.assertEqual(
-            report["evidence"]["coverage"]["counts"]["not_executed_controls"], 0
-        )
-        self.assertEqual(report["evidence"]["through_fare_checks"][0]["carrier"], "SU")
 
     def test_live_search_cache_round_trips_and_can_be_bypassed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
