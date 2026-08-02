@@ -483,8 +483,6 @@ class ArchitectureTests(unittest.TestCase):
     def test_compatibility_facades_contain_no_policy_logic(self) -> None:
         root = PROJECT / "flights_cli"
         facades = (
-            root / "domain" / "provider_offer_filter.py",
-            root / "pipeline" / "candidate_ranker.py",
             root / "pipeline" / "offer_graph.py",
         )
         for path in facades:
@@ -503,9 +501,6 @@ class ArchitectureTests(unittest.TestCase):
     def test_stop_policy_is_the_only_owner_of_stop_defaults_and_filtering(self) -> None:
         root = PROJECT / "flights_cli"
         stop_policy = (root / "domain" / "stop_policy.py").read_text(encoding="utf-8")
-        provider_filter = (root / "domain" / "provider_offer_filter.py").read_text(
-            encoding="utf-8"
-        )
         kupibilet_adapter = (
             root / "adapters" / "providers" / "kupibilet_adapter.py"
         ).read_text(encoding="utf-8")
@@ -515,9 +510,6 @@ class ArchitectureTests(unittest.TestCase):
 
         self.assertIn("def filter_provider_offers(", stop_policy)
         self.assertNotIn("connection_policy", stop_policy)
-        self.assertIn(
-            "from .stop_policy import filter_provider_offers", provider_filter
-        )
         self.assertNotIn("filter_provider_offers", kupibilet_adapter)
         self.assertIn("airport_mismatch_violations", kupibilet_parser)
         self.assertIn("chronology_violations", kupibilet_parser)
@@ -583,7 +575,9 @@ class ArchitectureTests(unittest.TestCase):
         for relative in (
             "commands/common.py",
             "contracts/schema_errors.py",
+            "domain/provider_offer_filter.py",
             "domain/stop_metrics.py",
+            "pipeline/candidate_ranker.py",
         ):
             self.assertFalse((root / relative).exists(), relative)
 

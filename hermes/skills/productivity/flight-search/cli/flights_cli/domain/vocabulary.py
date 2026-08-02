@@ -73,18 +73,6 @@ class RouteFamily(StrEnum):
 
 
 # ---------------------------------------------------------------------------
-# Absence taxonomy
-# ---------------------------------------------------------------------------
-
-
-class AbsenceReason(StrEnum):
-    PROVIDER_EMPTY = "provider_empty"
-    PROVIDER_COVERAGE_GAP = "provider_coverage_gap"
-    CONSTRAINT_MISMATCH = "constraint_mismatch"
-    RUNTIME_PROVIDER_FAILURE = "runtime_provider_failure"
-
-
-# ---------------------------------------------------------------------------
 # Probe execution state  (extends ExecutionState from ports/providers.py
 # with ledger-specific states like "searched", "not_executed", "planned")
 # ---------------------------------------------------------------------------
