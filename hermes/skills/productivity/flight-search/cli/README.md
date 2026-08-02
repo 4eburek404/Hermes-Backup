@@ -37,9 +37,9 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json maint doctor
 
 ## Dependencies
 
-Runtime dependencies are `jsonschema>=4.22,<5`, `mcp==2.0.0`, and
-`httpx2==2.9.1`, as declared in `pyproject.toml`. The package also uses Python
-standard-library modules and local CLI package modules.
+Runtime dependencies are `jsonschema>=4.22,<5`, `mcp==2.0.0`,
+`httpx2==2.9.1`, and `PyYAML>=6.0,<7`, as declared in `pyproject.toml`. The
+package also uses Python standard-library modules and local CLI package modules.
 
 ## JSON Envelope
 

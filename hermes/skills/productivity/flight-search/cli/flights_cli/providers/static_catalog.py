@@ -3,12 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
+
+import httpx2
 
 from .. import __version__
 from ..catalog_storage import CatalogStorage
@@ -108,23 +108,25 @@ def parse_ttl_seconds(value: str) -> int:
 
 
 def default_fetch_url(url: str, timeout: int) -> bytes:
-    request = urllib.request.Request(
-        url,
-        headers={
-            "Accept": "application/json",
-            "User-Agent": f"flights-cli/{__version__}",
-        },
-        method="GET",
-    )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            return response.read()
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")[:1000]
-        raise CliError(
-            f"static catalog HTTP {exc.code}: {body}", error_type="upstream_error"
-        ) from exc
-    except (urllib.error.URLError, TimeoutError) as exc:
+        with httpx2.Client(
+            timeout=timeout, follow_redirects=True, max_redirects=10
+        ) as client:
+            response = client.get(
+                url,
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": f"flights-cli/{__version__}",
+                },
+            )
+            if not response.is_success:
+                body = response.content.decode("utf-8", errors="replace")[:1000]
+                raise CliError(
+                    f"static catalog HTTP {response.status_code}: {body}",
+                    error_type="upstream_error",
+                )
+            return response.content
+    except (httpx2.RequestError, TimeoutError) as exc:
         raise CliError(
             f"static catalog request failed: {type(exc).__name__}",
             error_type="upstream_error",

@@ -23,7 +23,6 @@ from .live_cache import live_cache_key, read_live_cache, write_live_cache
 from .segment_normalization import provider_result_to_segment_result
 from .kupibilet_transport import (
     build_kupibilet_payload as build_kupibilet_payload,
-    decode_http_body as decode_http_body,
     post_kupibilet_search,
 )
 
@@ -164,7 +163,6 @@ def cached_kupibilet_search(
 __all__ = [
     "build_kupibilet_payload",
     "cached_kupibilet_search",
-    "decode_http_body",
     "fetch_kupibilet_search",
     "kupibilet_flight_carriers",
     "kupibilet_flight_number",

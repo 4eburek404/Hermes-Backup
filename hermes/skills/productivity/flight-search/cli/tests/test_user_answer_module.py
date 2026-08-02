@@ -3,12 +3,12 @@ from __future__ import annotations
 import unittest
 
 from flights_cli.contracts.registry import current_contract
+from flights_cli.contracts.validation import validate_user_answer
 from flights_cli.reporting.catalog_projection import catalog_item
 from flights_cli.reporting.catalog_rendering import answer_display_lines_for_item
 from flights_cli.reporting.user_answer import (
     build_user_answer,
     render_user_answer,
-    validate_user_answer,
 )
 from tests.fixtures.result_fixtures import (
     answer_input_from_fixture,
