@@ -1,0 +1,63 @@
+# Pattern overrides
+
+Overrides are user-confirmed **reusable pattern rules** for future similar rows.
+They are stored outside the code so mixed-service vendors are not hardcoded as always aviation, rail, or lodging.
+
+Use them when the script returns `Unknown` or `needs_review=true` and the user confirms a reusable rule such as:
+
+```text
+ВАЙТ ТРЕВЕЛ + маршрут Шэньчжэнь-Сиань → Авиа
+ВАЙТ ТРЕВЕЛ + маршрут Москва-Санкт-Петербург → ЖД
+```
+
+There are no row-hash overrides. The same exact row almost never appears in later monthly files, so point corrections by row fingerprint are intentionally removed.
+
+## Format
+
+```json
+{
+  "version": 2,
+  "pattern_overrides": [
+    {
+      "name": "white-travel-shenzhen-xian-air",
+      "carrier_contains": "ВАЙТ ТРЕВЕЛ",
+      "details_regex": "Шэньчжэнь\\s*[-–—]\\s*Сиань",
+      "category": "Авиа",
+      "reason": "Пользователь подтвердил: направление Шэньчжэнь-Сиань было авиаперелётом"
+    }
+  ]
+}
+```
+
+Supported conditions:
+
+```text
+carrier_contains — string or list of strings; all must be present in carrier
+carrier_regex    — regular expression against carrier
+details_contains — string or list of strings; all must be present in details
+details_regex    — regular expression against details
+```
+
+A rule matches only when **all specified conditions** are true.
+At least one `details_contains` or `details_regex` condition is required. This blocks broad rules like “entire vendor = category”.
+
+## Good rule
+
+```json
+{
+  "carrier_contains": "ВАЙТ ТРЕВЕЛ",
+  "details_regex": "Шэньчжэнь\\s*[-–—]\\s*Сиань",
+  "category": "Авиа"
+}
+```
+
+## Bad rule
+
+```json
+{
+  "carrier_contains": "ВАЙТ ТРЕВЕЛ",
+  "category": "Авиа"
+}
+```
+
+This is too broad because `ВАЙТ ТРЕВЕЛ` can sell aviation, rail, lodging, transfers, and other services.
