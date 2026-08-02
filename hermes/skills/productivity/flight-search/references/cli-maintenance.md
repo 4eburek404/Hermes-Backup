@@ -44,8 +44,11 @@ CLI envelope types.
   `execution/probe_ledger.py`.
 - Connection/stop policy: `domain/connection_policy.py` and
   `domain/stop_policy.py`.
-- Graph construction/materialization/merge: dedicated
-  `pipeline/offer_graph_*` modules; `pipeline/offer_graph.py` is a façade.
+- Graph model/construction/materialization/merge: owning modules
+  `pipeline/offer_graph_model.py`, `pipeline/offer_graph_builder.py`,
+  `pipeline/offer_graph_materializer.py`, and `pipeline/offer_graph_merge.py`.
+  Import graph symbols directly from their owning module; do not recreate a
+  re-export façade.
 - Candidate validation/scoring/frontier: `pipeline/candidate_validation.py`,
   `pipeline/candidate_scoring.py`, and `pipeline/frontier_selection.py`.
 - Coverage, catalog semantics/projection/rendering: their dedicated modules in

@@ -353,3 +353,44 @@ PYTHONDONTWRITEBYTECODE=1 /Users/home/.venvs/hermes-backup/bin/python -m pytest 
 - JSON mode содержит тот же текст по `data.answer.rendered_text`.
 
 Перед merge: `git diff --check`, package build/install smoke и проверка, что PR не содержит `.belief_map*`, `.bx-dev/`, caches или generated artifacts.
+
+## 10. Фактический результат PR0–PR6
+
+Срез `origin/dev` → `f1410fb` дал следующие изменения production-кода:
+
+- production-модули: **97 → 92** (−5);
+- физический production LOC: **19 371 → 18 805** (−566);
+- классы: **79 → 74**;
+- функции и методы: **719 → 698**;
+- прямые зависимости: **3 → 4** из-за явного объявления PyYAML;
+- consumers `urllib`: **2 → 0**;
+- импорты ручного gzip decoder: **1 → 0**;
+- production diff: **+205/−771**.
+
+Удалены пять модулей: `data/yaml_subset.py`,
+`domain/provider_offer_filter.py`, `pipeline/candidate_ranker.py`,
+`pipeline/offer_graph.py` и `reporting/user_answer_contracts.py`. Среди
+удалённых wrapper/lifecycle symbols: `AbsenceReason`, `PreparedSearchRequest`,
+`SearchArtifacts`, `build_search_artifacts()`, `YamlSubsetError`,
+`parse_yaml_subset()`, `decode_http_body()`, а также ручные MCP session-worker
+механизмы `_session_worker()`, `_await_response()`, `_drain_task()`,
+`_close_stack()`, `_reset_session()` и command queue.
+
+Итоговые gates: **459 passed, 1 skipped, 206 subtests passed**; Ruff, Vulture
+с `--min-confidence 80` и belief-map boundaries (**216**) чистые. Дополнительно
+пройдены import smoke, `maint doctor`, `maint check`, package build/install и
+offline lifecycle/terminal error cases; opt-in live Tutu acceptance покрыл initialize/playbook/search/close, cleanup session/client и отсутствие leaked tasks.
+
+Контрольный deletion pass не нашёл новых кандидатов категории `SAFE_NOW`.
+Сохранена намеренная сложность offer graph, connection/ticketing policy,
+provider parsing и error-contract boundaries: их удаление или объединение не
+подтверждено эквивалентным более простым решением.
+
+Установленный runtime остаётся устаревшим самостоятельным snapshot и в рамках
+этих PR не публиковался. Для обновления требуется полная замена дерева с
+удалением отсутствующих файлов и последующий `maint check`; overlay-copy
+запрещён.
+
+Несоответствие между заявленным `Python >=3.10` и использованием
+`enum.StrEnum` существовало до рефакторинга. Это отдельный follow-up вне scope:
+поддержка Python 3.10 не исправлена и не считается подтверждённой.
