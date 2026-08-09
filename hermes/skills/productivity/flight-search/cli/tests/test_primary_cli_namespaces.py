@@ -76,7 +76,7 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
         def fake_run(request: SearchRequest) -> dict[str, str]:
             captured["origin"] = request.origin
             captured["destination"] = request.destination
-            return {"schema_version": "flight_search_result.v9"}
+            return {"schema_version": "flight_search_result.v10"}
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             request_path = Path(tmp_dir) / "request.json"
@@ -89,7 +89,7 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
                 result = command_search(args, Store())
 
         self.assertEqual(captured, {"origin": "SVX", "destination": "LON"})
-        self.assertEqual(result["schema_version"], "flight_search_result.v9")
+        self.assertEqual(result["schema_version"], "flight_search_result.v10")
 
     def test_diagnose_trace_serializes_existing_artifacts_once(self) -> None:
         from flights_cli.commands.diagnose import command_diagnose_trace
@@ -100,6 +100,7 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
             offer_candidates={},
             scored_decisions={"scorer": {}},
             decision_frontier={},
+            research_status={"needed": False, "evidence_incomplete": False, "audit": []},
         )
         request = SimpleNamespace(to_payload=lambda: MINIMAL_SEARCH_REQUEST)
         execution = SimpleNamespace(
@@ -125,7 +126,7 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
             workflow.return_value.run_artifacts.return_value = execution
             result = command_diagnose_trace(args, Store())
 
-        self.assertEqual(result["schema_version"], "flight_route_trace_diagnostic.v4")
+        self.assertEqual(result["schema_version"], "flight_route_trace_diagnostic.v5")
         self.assertEqual(
             set(result),
             {"schema_version", "request", "plan", "evidence", "decision", "answer"},

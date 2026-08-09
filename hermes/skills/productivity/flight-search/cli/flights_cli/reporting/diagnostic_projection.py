@@ -102,6 +102,7 @@ def build_projection_input(
             "mixed_candidate_ranking": thaw(mixed_candidate_ranking),
             "stop_policy": thaw(decision.stop_policy),
             "stop_policy_status": thaw(decision.stop_policy_status),
+            "research_status": thaw(decision.research_status),
             "probe_ledger": thaw(evidence.probe_ledger),
             "direct_presence_gate": thaw(evidence.direct_presence_gate),
             "diagnostics": {

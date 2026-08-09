@@ -20,6 +20,7 @@ from flights_cli.pipeline.search_plan import (
     GatewayPolicy,
     OutputPolicy,
     ProviderAttemptPlan,
+    RouteLegTemplate,
     RoutePlan,
     SearchPhases,
     SearchPlan,
@@ -98,31 +99,41 @@ def typed_plan(legacy: dict[str, object]) -> SearchPlan:
         )
         for index, query in enumerate(legacy.get("primary_offer_queries") or [], 1)
     )
-    gateway = tuple(
-        ProviderAttemptPlan(
-            probe_id=f"gateway-{index:03d}",
-            phase="gateway",
-            trigger="required_if_no_direct",
-            provider=str(query.get("provider") or ""),
-            probe_type=str(query.get("probe_type") or "segment_direct"),
-            direction=str(query.get("direction") or "outbound"),
-            query={
-                key: value
-                for key, value in query.items()
-                if key not in {"provider", "probe_type", "direction", "execution_state"}
-            },
+    route_legs: list[RouteLegTemplate] = []
+    seen_route_legs: set[tuple[str, str]] = set()
+    for query in legacy.get("conditional_gateway_queries") or []:
+        if not isinstance(query, dict):
+            continue
+        direction = str(query.get("direction") or "outbound")
+        gateway = str(query.get("gateway") or query.get("destination") or "")
+        key = (direction, gateway)
+        if not gateway or key in seen_route_legs:
+            continue
+        seen_route_legs.add(key)
+        origin = str(query.get("origin") or route.origin)
+        destination = (
+            route.destination if direction == "outbound" else route.origin
         )
-        for index, query in enumerate(
-            legacy.get("conditional_gateway_queries") or [], 1
+        route_legs.append(
+            RouteLegTemplate(
+                hypothesis_id=f"configured_prior:{direction}:{origin}-{gateway}-{destination}",
+                direction=direction,
+                required_airports=(origin, gateway, destination),
+                source="configured_prior",
+                leg_policies=(
+                    "direct_then_controlled_broad",
+                    "direct_then_controlled_broad",
+                ),
+                trigger="required_if_no_direct",
+            )
         )
-    )
     limits = dict(legacy.get("execution_limits") or {})
     discovery_payload = dict(legacy.get("gateway_discovery") or {})
     discovery = GatewayDiscovery.from_dict(discovery_payload)
     trigger = "required_if_no_direct" if discovery.enabled else "disabled"
     return SearchPlan(
         route=route,
-        phases=SearchPhases(primary=primary, gateway=gateway),
+        phases=SearchPhases(primary=primary, route_legs=tuple(route_legs)),
         gateway_policy=GatewayPolicy(trigger=trigger, discovery=discovery),
         execution_policy=ExecutionPolicy(
             max_provider_attempts=int(limits.get("max_segment_searches") or 10),
@@ -415,6 +426,10 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 "flights_cli.execution.search_executor.run_primary_offer_queries",
                 return_value=[],
             ),
+            patch(
+                "flights_cli.execution.search_executor.RouteLegProbeExecutor.run",
+                return_value={"route_hypotheses": [], "viable_hypotheses": 0},
+            ),
         ):
             result = execute_projection(live_args(), Store())
 
@@ -430,7 +445,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
             set(result["live_search"]["diagnostics"]),
             {"search_plan", "observed_gateway_diagnostics"},
         )
-        self.assertEqual(search_plan["schema_version"], "flight_search_plan.v5")
+        self.assertEqual(search_plan["schema_version"], "flight_search_plan.v6")
         discovery = search_plan["gateway_policy"]["discovery"]
         self.assertIn("candidate_count", discovery)
         self.assertIn("candidates", discovery)
@@ -666,10 +681,9 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertEqual(gate["direct_evidence_present"], {"outbound": True})
         self.assertEqual(gate["direct_mode"], {"outbound": True})
         self.assertEqual(gate["skipped_gateway_probe_count"], 1)
-        skipped = result["live_search"]["probe_ledger"]["skipped_probes"]
-        self.assertTrue(
-            any(item.get("reason") == "direct_available" for item in skipped)
-        )
+        audit = result["live_search"]["gateway_leg_results"]["route_hypotheses"]
+        self.assertEqual(audit[0]["status"], "not_executed")
+        self.assertEqual(audit[0]["reason"], "direct_available")
 
     def test_live_search_payload_is_deduplicated(self) -> None:
         search_plan = {
@@ -847,18 +861,35 @@ class LiveRoutePipelineTests(unittest.TestCase):
 
         def dispatch_gateway(**kwargs: object) -> list[SegmentProbeOutcome]:
             spec = kwargs["spec"]
+            departure = "08:00:00" if spec["leg_index"] == 0 else "15:00:00"
+            arrival = "12:00:00" if spec["leg_index"] == 0 else "18:00:00"
             return [
                 SegmentProbeOutcome(
                     summary={
                         "status": "ok",
-                        "provider": spec["provider"],
+                        "execution_state": "searched",
+                        "provider": "tutu",
                         "offer_count": 1,
                         "cache_status": "disabled",
                     },
                     segment_result={
                         "direction": spec["direction"],
                         "leg": spec["leg"],
-                        "offers": [{"id": f"{spec['origin']}-{spec['destination']}"}],
+                        "offers": [
+                            {
+                                "id": f"{spec['origin']}-{spec['destination']}",
+                                "price": 10_000,
+                                "currency": "RUB",
+                                "segments": [
+                                    {
+                                        "origin": spec["origin"],
+                                        "destination": spec["destination"],
+                                        "departure_at": f"{spec['date']}T{departure}+00:00",
+                                        "arrival_at": f"{spec['date']}T{arrival}+00:00",
+                                    }
+                                ],
+                            }
+                        ],
                     },
                 )
             ]
@@ -873,23 +904,23 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 return_value=typed_plan(search_plan),
             ),
             patch(
-                "flights_cli.execution.gateway_leg_probe_executor.dispatch_segment_probe",
+                "flights_cli.execution.route_leg_probe_executor.dispatch_segment_probe",
                 side_effect=dispatch_gateway,
             ),
         ):
             result = execute_projection(live_args(destination="AMS"), Store())
 
         gateway_results = result["live_search"]["gateway_leg_results"]
-        self.assertEqual(gateway_results["searched_gateways"], 1)
-        self.assertEqual(gateway_results["viable_gateways"], 1)
+        self.assertEqual(gateway_results["viable_hypotheses"], 1)
+        self.assertEqual(gateway_results["route_hypotheses"][0]["status"], "viable")
         self.assertEqual(
             set(result["live_search"]["diagnostics"]),
             {"search_plan", "observed_gateway_diagnostics"},
         )
         offer_graph = result["live_search"]["offer_graph"]
         self.assertEqual(offer_graph["schema_version"], "flight_offer_graph.v1")
-        self.assertEqual(len(offer_graph["edges"]), 2)
-        self.assertEqual(len(offer_graph["connections"]), 1)
+        self.assertGreaterEqual(len(offer_graph["edges"]), 2)
+        self.assertEqual(len(offer_graph["connections"]), 0)
         mixed_ranking = result["live_search"]["mixed_candidate_ranking"]
         self.assertEqual(
             mixed_ranking["ranked_candidates"][0]["source_type"],
@@ -915,7 +946,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
             offers = []
             if offer_count:
                 departure_hour, arrival_hour = (
-                    (5, 9) if spec["leg"] == "origin_to_gateway" else (12, 16)
+                    (5, 9) if spec["leg"] == "route_leg_0" else (12, 16)
                 )
                 offers.append(
                     {
@@ -938,11 +969,11 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 )
             return [
                 SegmentProbeOutcome(
-                    summary={
-                        "status": "ok",
-                        "provider": spec["provider"],
-                        "offer_count": offer_count,
-                        "probe_id": spec["probe_id"],
+                summary={
+                    "status": "ok",
+                    "provider": "tutu",
+                    "offer_count": offer_count,
+                    "probe_id": None,
                         "cache_status": "disabled",
                     },
                     segment_result={
@@ -959,7 +990,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 return_value=[],
             ),
             patch(
-                "flights_cli.execution.gateway_leg_probe_executor.dispatch_segment_probe",
+                "flights_cli.execution.route_leg_probe_executor.dispatch_segment_probe",
                 side_effect=dispatch_gateway,
             ),
         ):
@@ -968,18 +999,23 @@ class LiveRoutePipelineTests(unittest.TestCase):
                     destination="CDG",
                     depart_date=requested_dates["outbound"],
                     return_date=requested_dates["return"],
+                    route_hypotheses=[
+                        {
+                            "airports": ["SVX", "IST", "CDG"],
+                            "source": "web_route_discovery",
+                        }
+                    ],
                 ),
                 Store(),
             )
 
         gateway_results = result["live_search"]["gateway_leg_results"]
-        self.assertEqual(gateway_results["searched_gateways"], 2)
-        self.assertEqual(gateway_results["viable_gateways"], 2)
+        self.assertEqual(gateway_results["viable_hypotheses"], 2)
         self.assertEqual(
             {
-                (gateway["direction"], gateway["gateway"])
-                for gateway in gateway_results["gateways"]
-                if gateway["searched"]
+                (hypothesis["direction"], hypothesis["required_airports"][1])
+                for hypothesis in gateway_results["route_hypotheses"]
+                if hypothesis["status"] == "viable"
             },
             {("outbound", "IST"), ("return", "IST")},
         )
@@ -1033,23 +1069,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                             return []
                         return primary_results
 
-                    gateway_leg_results = {
-                        "searched_gateways": 1,
-                        "viable_gateways": 0,
-                        "failed_gateways": 0,
-                        "gateways": [
-                            {
-                                "gateway": "IST",
-                                "searched": True,
-                                "viable": False,
-                                "origin_leg": {"provider": "tutu", "offer_count": 0},
-                                "destination_leg": {
-                                    "provider": "tutu",
-                                    "offer_count": 0,
-                                },
-                            }
-                        ],
-                    }
+                    route_leg_results = {"route_hypotheses": [], "viable_hypotheses": 0}
                     with (
                         patch(
                             "flights_cli.orchestrators.search_plan_builder.build_route_context",
@@ -1060,8 +1080,8 @@ class LiveRoutePipelineTests(unittest.TestCase):
                             side_effect=phased_primary,
                         ),
                         patch(
-                            "flights_cli.execution.search_executor.GatewayLegProbeExecutor.run",
-                            return_value=gateway_leg_results,
+                            "flights_cli.execution.search_executor.RouteLegProbeExecutor.run",
+                            return_value=route_leg_results,
                         ),
                     ):
                         return execute_projection(

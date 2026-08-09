@@ -4,27 +4,29 @@
 
 ```text
 raw JSON
-  -> search_request_from_payload -> SearchRequest v3
+  -> search_request_from_payload -> SearchRequest v4
   -> SearchPlanBuilder
-  -> SearchPlan v5
+  -> SearchPlan v6 (immutable route-leg templates)
   -> SearchExecutor.execute(plan) -> immutable SearchEvidence
   -> OfferGraph -> validation -> scoring -> frontier
   -> SearchDecision
-  -> result projection v9
+  -> result projection v10 + research_status
   -> flight_search_user_answer.v11
   -> pure renderer
   -> stdout
 ```
 
 `SearchWorkflow` is the only production composition root. Defaults and
-normalization are applied once at the request boundary. After `SearchPlan v5`
+normalization are applied once at the request boundary. After `SearchPlan v6`
 is built, execution reads only the plan. Planning is pure with respect to
-providers. Gateway priors may schedule probes; gateways observed live are
-evidence and never mutate the active plan.
+providers. Configured priors and explicit web hypotheses become immutable
+route-leg templates; live gateway signals remain discovery evidence and never
+mutate the active plan.
 
 Provider I/O belongs to execution. Direct-only primary probes run first for
-each direction. Broad primary and gateway probes are eligible only for
-directions with no direct result. At most one bounded broad phase may run.
+each direction. Broad primary probes are eligible only for directions with no
+direct result. Concrete route-leg probes are created only by the executor from
+immutable templates and their actual predecessor arrival time.
 `ProbeRunLedger` owns planned probes, claims, physical-query dedupe, failures,
 and terminal states. Before evidence is frozen, every planned probe must be
 `searched`, `failed`, `not_supported`, `skipped`, `not_executed`, or
@@ -57,9 +59,9 @@ otherwise low-ranked candidate into an early position.
 
 Provider routing is fixed in `SearchPlan`, per logical probe rather than per
 whole search. In `auto`, every compatible provider receives a planned primary
-attempt. Primary fanout executes all compatible providers; gateway fanout tries
-providers in plan order, continuing after failure, unsupported, or empty, and
-stopping after the first positive result. Every result enters one OfferGraph
+attempt. Route-leg dispatch tries providers in policy order, continuing after
+failure, unsupported, or empty, and stopping after the first positive result.
+Every result enters one OfferGraph
 and is deduplicated before the shared output limit, so one provider cannot hide
 a cheaper or otherwise distinct itinerary from another.
 
@@ -80,61 +82,50 @@ route-specific carrier mappings are not allowed.
 
 Direct-first is strict and directional. If any direct-only provider result
 contains a normalized valid direct flight within the active date, airport, and
-restrictive carrier filters, broad and gateway alternatives for that direction
+restrictive carrier filters, broad main-route alternatives for that direction
 are skipped. Missing/malformed times, impossible chronology, wrong endpoints,
 or an out-of-scope carrier cannot suppress fallback.
 `max_connections` is only a fallback ceiling and never disables this gate.
 Round-trip outbound and return directions are gated independently.
 
-The same rule applies inside gateway assembly per leg and date: execute the
+The same rule applies inside a route template per leg and date: execute the
 direct leg probe first, skip its broad variant when direct inventory exists,
-and permit intermediate hubs only after a direct-empty result. A provider
-failure is not proof that no direct flight exists; diagnostics record whether
-direct absence was confirmed by at least one completed source.
+and permit a configured-prior broad probe only after a direct-empty result. Web
+hypotheses use `exact_direct`; an explicit hypothesis is not cancelled by an
+unrelated main-route direct result. A provider failure is not proof that no
+direct flight exists; diagnostics record whether direct absence was confirmed
+by at least one completed source.
 
-After direct evidence is collected, the executor partitions planned
-gateway attempts by direction. Queries for a direction with
-direct evidence are recorded in `probe_ledger.skipped_probes` with
-`reason="direct_available"`; only directions without direct evidence enter the
-gateway batch executor. Gateway candidate limits, batches, direct-versus-broad
-leg suppression, viability, and stopping are evaluated independently for each
-direction.
+## Route hypotheses and assembly
 
-## Gateway discovery and assembly
+The active plan stores one trigger per configured-prior template; it is not a
+second runtime policy:
 
-The active plan stores one of three gateway triggers; it is not a second
-runtime policy:
-
-- `disabled` plans no gateway attempts.
-- `required_if_no_direct` applies to configured restricted-access RU markets. Gateway
-  fallback is mandatory when no direct flight exists, but direct evidence still
-  suppresses gateway probes for that direction.
+- `disabled` plans no configured-prior route templates.
+- `required_if_no_direct` applies to configured restricted-access RU markets.
+  Direct evidence suppresses configured-prior templates for that direction.
 - `on_primary_failure` applies to normal RU-touching and global
-  markets. Conditional gateway probes run only when primary evidence is
+  markets. Conditional configured-prior probes run only when primary evidence is
   unavailable, unsupported, failed, or unusable.
 
 `direct_only=true` is an absolute planning constraint: it creates neither broad
-nor gateway attempts.
+nor configured-prior templates.
 
-Round-trip plans mirror every gateway candidate. Outbound attempts search
-`ORIGIN -> GATEWAY -> DESTINATION` from the departure date; return attempts
-search `DESTINATION -> GATEWAY -> ORIGIN` from the return date. In both
-directions the continuation leg also checks the next day. Direction remains
-authoritative through execution, offer-graph construction, and candidate
-materialization, so legs from opposite directions cannot form one path.
+An explicit hypothesis is an ordered 3–5 airport chain supplied by web
+discovery, never invented by the CLI. Round-trip templates mirror its airport
+order and retain direction in the physical probe identity. The executor starts
+leg 0 on the requested date; each next leg searches only local calendar dates
+reachable from a real `arrival_at` through `max_layover_min`. It stops the
+chain immediately on a failed, missing, or not-executed leg. Every concrete
+provider call is ledger-owned and deduplicated by physical query, including
+date. The graph materializer permits only legs from the same hypothesis in its
+strict declared order.
 
-Gateway candidates come from configured priors and live provider signals; no
-route-specific hub belongs in agent logic. Continuation is not limited to a
-direct second leg: the planner searches the requested day and next day and may
-accept provider-returned intermediate hubs such as
-`GATEWAY -> HUB -> DESTINATION`. Valid overnight candidates remain eligible.
-
-The gateway executor owns continuation through `gateway_discovery_limit`,
-`gateway_probe_batch_size`, and `gateway_probe_max_batches`. It evaluates each
-completed batch and stops when a viable gateway is found or the batch budget is
-exhausted. Strict direct-only planning creates zero gateway probes; stop limits
-otherwise constrain reportable candidates and do not create a parallel gateway
-policy.
+Configured priors are also templates, with `direct_then_controlled_broad`
+policy. A hypothesis above the resolved StopPolicy is audited as
+`not_executed/hypothesis_exceeds_stop_policy`; it never raises the limit.
+Assembly needs a live price for every separate-ticket leg. Ticket protection is
+reported separately from connection feasibility.
 
 Candidate assembly requires airport continuity between every adjacent segment.
 An airport mismatch is rejected before ranking; same-city airports and a longer

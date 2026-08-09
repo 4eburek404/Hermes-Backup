@@ -31,13 +31,13 @@ HELP_GOLDENS = {
 
 options:
   -h, --help         show this help message and exit
-  --request REQUEST  flight_search_request.v3 JSON file, or - for stdin.
+  --request REQUEST  flight_search_request.v4 JSON file, or - for stdin.
 """,
     ("diagnose", "plan"): """usage: flights diagnose plan [-h] --request REQUEST
 
 options:
   -h, --help         show this help message and exit
-  --request REQUEST  flight_search_request.v3 JSON file, or - for stdin.
+  --request REQUEST  flight_search_request.v4 JSON file, or - for stdin.
 """,
     (
         "diagnose",
@@ -63,7 +63,7 @@ options:
 
 options:
   -h, --help         show this help message and exit
-  --request REQUEST  flight_search_request.v3 JSON file, or - for stdin.
+  --request REQUEST  flight_search_request.v4 JSON file, or - for stdin.
 """,
     (
         "maint",
@@ -539,12 +539,12 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(
             route["airport_scope"]["destination"]["excluded_by_default"], []
         )
-        self.assertEqual(data["schema_version"], "flight_search_plan.v5")
+        self.assertEqual(data["schema_version"], "flight_search_plan.v6")
 
     def test_diagnose_render_subprocess_success_json_boundary(self) -> None:
         answer = valid_report()["user_answer"]
         result = {
-            "schema_version": "flight_search_result.v9",
+            "schema_version": "flight_search_result.v10",
             "answer": answer,
         }
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -580,7 +580,7 @@ class CliContractTests(unittest.TestCase):
         )
         self.assertEqual(
             payload["data"]["search_result_schema_version"],
-            "flight_search_result.v9",
+            "flight_search_result.v10",
         )
         self.assertEqual(payload["data"]["validation"], {"ok": True, "errors": []})
         self.assertEqual(payload["data"]["user_answer"], answer)

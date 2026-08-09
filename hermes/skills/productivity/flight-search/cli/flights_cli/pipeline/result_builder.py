@@ -14,6 +14,7 @@ from .result_contract import (
     SEARCH_RESULT_SCHEMA_VERSION,
     validate_flight_search_result,
 )
+from .search_request import SearchRequest, normalize_search_request_payload
 
 
 def build_result_projection(data: dict[str, Any]) -> dict[str, Any]:
@@ -73,6 +74,7 @@ def build_result_projection(data: dict[str, Any]) -> dict[str, Any]:
         "evidence": evidence,
         "frontier": frontier_projection.result_contract,
         "answer": build_user_answer(answer_input),
+        "research_status": dict(live.get("research_status") or _empty_research_status()),
     }
 
 
@@ -81,7 +83,7 @@ def build_flight_search_result(
     projection: dict[str, Any],
     catalog_refresh: dict[str, Any] | None = None,
 ) -> FlightSearchResult:
-    """Bind the single result projection to the stable public v9 contract."""
+    """Bind the single result projection to the stable public v10 contract."""
 
     refresh = catalog_refresh if isinstance(catalog_refresh, dict) else {}
     checked = refresh.get("checked") if isinstance(refresh.get("checked"), dict) else {}
@@ -97,15 +99,35 @@ def build_flight_search_result(
     }
     result: FlightSearchResult = {
         "schema_version": SEARCH_RESULT_SCHEMA_VERSION,
-        "request": request,
+        "request": _canonical_request(request),
         "route": projection["route"],
         "evidence": evidence,
         "frontier": projection["frontier"],
         "answer": projection["answer"],
+        "research_status": dict(
+            projection.get("research_status") or _empty_research_status()
+        ),
     }
     validate_contract_payload("search_result", result)
     validate_flight_search_result(result)
     return result
+
+
+def _empty_research_status() -> dict[str, Any]:
+    return {
+        "needed": False,
+        "evidence_incomplete": False,
+        "eligible_direct": False,
+        "convenient_signature_count": 0,
+        "target_signature_count": 3,
+        "audit": [],
+    }
+
+
+def _canonical_request(request: dict[str, Any]) -> dict[str, Any]:
+    normalized = normalize_search_request_payload(request)
+    validate_contract_payload("search_request", normalized)
+    return SearchRequest._from_normalized_payload(normalized).to_payload()
 
 
 __all__ = [

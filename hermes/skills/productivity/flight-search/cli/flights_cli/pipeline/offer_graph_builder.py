@@ -406,6 +406,9 @@ class OfferGraphBuilder:
         self.coverage["provider_full_route_offer_count"] += 1
 
     def add_gateway_leg_results(self, results: dict[str, Any]) -> None:
+        if not isinstance(results, dict):
+            return
+        self._add_route_hypothesis_results(results.get("route_hypotheses"))
         gateways = results.get("gateways") if isinstance(results, dict) else None
         if not isinstance(gateways, list):
             return
@@ -484,6 +487,100 @@ class OfferGraphBuilder:
                 )
             )
             self.coverage["assembled_separate_ticket_candidate_count"] += 1
+
+    def _add_route_hypothesis_results(self, hypotheses: Any) -> None:
+        if not isinstance(hypotheses, list):
+            return
+        self.coverage["route_hypothesis_count"] = len(hypotheses)
+        for hypothesis_index, hypothesis in enumerate(hypotheses):
+            if not isinstance(hypothesis, dict):
+                self._skip("malformed_route_hypothesis")
+                continue
+            hypothesis_id = str(hypothesis.get("hypothesis_id") or "").strip()
+            required_airports = [
+                code
+                for code in (
+                    _normalize_code(value)
+                    for value in hypothesis.get("required_airports") or []
+                )
+                if code
+            ]
+            direction = _normalize_direction(hypothesis.get("direction")) or "outbound"
+            legs = hypothesis.get("legs")
+            if (
+                not hypothesis_id
+                or len(required_airports) < 3
+                or not isinstance(legs, list)
+            ):
+                self._skip("route_hypothesis_missing_identity")
+                continue
+            for leg in legs:
+                if not isinstance(leg, dict):
+                    self._skip("malformed_route_hypothesis_leg")
+                    continue
+                try:
+                    leg_index = int(leg.get("leg_index"))
+                except (TypeError, ValueError):
+                    self._skip("route_hypothesis_leg_missing_index")
+                    continue
+                if leg_index < 0 or leg_index >= len(required_airports) - 1:
+                    self._skip("route_hypothesis_leg_index_out_of_range")
+                    continue
+                attempts = leg.get("attempts")
+                if not isinstance(attempts, list):
+                    continue
+                for attempt in attempts:
+                    if not isinstance(attempt, dict):
+                        self._skip("malformed_route_hypothesis_attempt")
+                        continue
+                    offers = attempt.get("offers")
+                    if not isinstance(offers, list) or not offers:
+                        continue
+                    leg_result = {
+                        **attempt,
+                        "origin": required_airports[leg_index],
+                        "destination": required_airports[leg_index + 1],
+                        "direction": direction,
+                        "offer_count": len(offers),
+                    }
+                    added = self._add_gateway_leg_offers(
+                        leg_result,
+                        gateway=required_airports[leg_index + 1],
+                        leg_role=f"route_leg_{leg_index}",
+                        gateway_index=hypothesis_index,
+                        direction=direction,
+                    )
+                    for item in added:
+                        self._annotate_route_hypothesis_offer(
+                            str(item["offer_id"]),
+                            hypothesis_id=hypothesis_id,
+                            leg_index=leg_index,
+                            required_airports=required_airports,
+                            leg_policy=leg.get("policy"),
+                        )
+
+    def _annotate_route_hypothesis_offer(
+        self,
+        offer_id: str,
+        *,
+        hypothesis_id: str,
+        leg_index: int,
+        required_airports: list[str],
+        leg_policy: Any,
+    ) -> None:
+        for offer in reversed(self.offers):
+            if offer.get("id") == offer_id:
+                offer.update(
+                    _compact(
+                        {
+                            "hypothesis_id": hypothesis_id,
+                            "leg_index": leg_index,
+                            "required_airports": list(required_airports),
+                            "leg_policy": str(leg_policy or ""),
+                        }
+                    )
+                )
+                return
 
     def to_graph(self) -> OfferGraph:
         self.coverage.update(

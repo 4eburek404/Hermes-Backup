@@ -105,6 +105,12 @@ def _merge_duplicate_candidates(
     primary["edge_ids"] = _ordered_unique(
         [*(primary.get("edge_ids") or []), *(alternate.get("edge_ids") or [])]
     )
+    primary["hypothesis_ids"] = _ordered_unique(
+        [
+            *(primary.get("hypothesis_ids") or []),
+            *(alternate.get("hypothesis_ids") or []),
+        ]
+    )
     primary["warnings"] = _ordered_unique(
         [*(primary.get("warnings") or []), *(alternate.get("warnings") or [])]
     )
@@ -164,6 +170,7 @@ def _candidate_source_summary(candidate: dict[str, Any]) -> dict[str, Any]:
         "offer_ids",
         "edge_ids",
         "path_offer_count",
+        "hypothesis_ids",
         "warnings",
     )
     return {key: deepcopy(candidate.get(key)) for key in keys if key in candidate}

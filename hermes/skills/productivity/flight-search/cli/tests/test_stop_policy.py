@@ -40,6 +40,16 @@ class StopPolicyTests(unittest.TestCase):
         self.assertEqual(policy.tier2_max_connections, 3)
         self.assertFalse(policy.suppress_three_plus)
 
+    def test_stop_policy_clamps_programmatic_limits_to_three_connections(self) -> None:
+        policy = resolve_stop_policy(
+            max_connections=4,
+            tier2_max_connections=9,
+        )
+
+        self.assertEqual(policy.preferred_max_connections, 3)
+        self.assertEqual(policy.hard_max_connections, 3)
+        self.assertFalse(policy.suppress_three_plus)
+
     def test_stop_tier_metrics(self) -> None:
         self.assertEqual(stop_tier(0), "T0_DIRECT")
         self.assertEqual(stop_tier(1), "T1_ONE_STOP")

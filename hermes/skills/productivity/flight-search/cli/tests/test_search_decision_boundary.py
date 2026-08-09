@@ -71,7 +71,7 @@ def _evidence() -> SimpleNamespace:
     return SimpleNamespace(
         route_context=route,
         search_plan={
-            "schema_version": "flight_search_plan.v5",
+            "schema_version": "flight_search_plan.v6",
             "route": route,
             "gateway_policy": {"discovery": {}},
         },
@@ -103,6 +103,46 @@ def test_search_decision_builder_is_a_pure_evidence_projection() -> None:
     assert [option["id"] for option in decision.decision_frontier["options"]] == [
         "candidate:primary_offer:fake:fake-direct"
     ]
+    assert decision.research_status["needed"] is False
+    assert decision.research_status["audit"] == []
+
+
+def test_research_status_audits_hypotheses_without_a_second_decision_pipeline() -> None:
+    evidence = _evidence()
+    evidence.primary_offer_results = ()
+    evidence.direct_mode = {"outbound": False}
+    evidence.gateway_leg_results = {
+        "route_hypotheses": [
+            {
+                "hypothesis_id": "web_route_discovery:outbound:SVX-IST-LED",
+                "direction": "outbound",
+                "required_airports": ["SVX", "IST", "LED"],
+                "status": "excluded",
+                "reason": "route_leg_has_no_offers",
+                "legs": [],
+            },
+            {
+                "hypothesis_id": "web_route_discovery:outbound:SVX-DXB-LED",
+                "direction": "outbound",
+                "required_airports": ["SVX", "DXB", "LED"],
+                "status": "not_executed",
+                "reason": "provider_attempt_budget_exhausted",
+                "legs": [],
+            },
+        ]
+    }
+    evidence.probe_ledger["not_executed_probes"] = [
+        {"probe_id": "budget", "reason": "provider_attempt_budget_exhausted"}
+    ]
+
+    decision = SearchDecisionBuilder.build(_plan(), evidence)
+
+    assert [item["status"] for item in decision.research_status["audit"]] == [
+        "excluded",
+        "not_executed",
+    ]
+    assert decision.research_status["evidence_incomplete"] is True
+    assert decision.research_status["needed"] is False
 
 
 def test_search_decision_uses_plan_limits_when_request_limits_conflict() -> None:
@@ -192,7 +232,7 @@ def test_projection_input_binds_existing_decision_and_optional_inventory() -> No
     assert projection["live_search"]["date_window_inventory"] == inventory
     assert (
         projection["live_search"]["diagnostics"]["search_plan"]["schema_version"]
-        == "flight_search_plan.v5"
+        == "flight_search_plan.v6"
     )
     assert "failure_count" not in projection["live_search"]
     assert "failures" not in projection["live_search"]

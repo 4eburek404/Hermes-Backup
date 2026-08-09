@@ -20,10 +20,10 @@ source/runtime parity before making runtime claims.
 
 ## Public boundaries
 
-- Input: `flight_search_request.v3`.
-- Output: `flight_search_result.v9`.
+- Input: `flight_search_request.v4` (v3 normalizes at the input boundary).
+- Output: `flight_search_result.v10`.
 - Canonical text: `data.answer.rendered_text`.
-- Diagnostic trace: `flight_route_trace_diagnostic.v4`.
+- Diagnostic trace: `flight_route_trace_diagnostic.v5`.
 
 JSON stdout is one envelope and one terminal newline. Text search stdout is the
 validated rendered text only. Successful commands leave stderr empty. The JSON
@@ -39,7 +39,7 @@ CLI envelope types.
 - Request/defaults: `pipeline/search_request.py`.
 - Production composition root: `orchestrators/search_workflow.py`.
 - Planning: `orchestrators/search_plan_builder.py` and `pipeline/search_plan.py`
-  with the plan v5 schema.
+  with the plan v6 schema.
 - Provider execution and lifecycle: `execution/search_executor.py` and
   `execution/probe_ledger.py`.
 - Connection/stop policy: `domain/connection_policy.py` and

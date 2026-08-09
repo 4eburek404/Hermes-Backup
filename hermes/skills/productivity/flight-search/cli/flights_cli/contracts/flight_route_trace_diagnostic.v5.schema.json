@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermes.local/flights/flight_route_trace_diagnostic.v5.schema.json",
+  "title": "Flight Route Trace Diagnostic v5",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request", "plan", "evidence", "decision", "answer"],
+  "properties": {
+    "schema_version": {"const": "flight_route_trace_diagnostic.v5"},
+    "request": {"$ref": "flight_search_request.v4.schema.json"},
+    "plan": {"$ref": "flight_search_plan.v6.schema.json"},
+    "evidence": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "provider_policy",
+        "primary_offer_results",
+        "gateway_leg_results",
+        "observed_gateway_diagnostics",
+        "probe_ledger",
+        "failures",
+        "direct_mode",
+        "max_connections_by_direction",
+        "direct_presence_gate"
+      ]
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "offer_graph",
+        "candidate_envelope",
+        "scorer",
+        "frontier",
+        "research_status"
+      ],
+      "properties": {
+        "offer_graph": {"$ref": "flight_offer_graph.v1.schema.json"},
+        "candidate_envelope": {"type": "object"},
+        "scorer": {"type": "object"},
+        "frontier": {"type": "object"},
+        "research_status": {
+          "type": "object",
+          "required": ["needed", "evidence_incomplete", "audit"]
+        }
+      }
+    },
+    "answer": {"$ref": "flight_search_user_answer.v11.schema.json"}
+  }
+}

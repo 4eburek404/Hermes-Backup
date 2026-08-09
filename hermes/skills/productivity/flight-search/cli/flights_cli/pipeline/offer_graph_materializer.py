@@ -258,29 +258,69 @@ def _candidates_from_gateway_offer_paths(
         bucket.sort(key=lambda item: str(item.get("id") or ""))
 
     candidates: list[dict[str, Any]] = []
-    queue: list[tuple[list[dict[str, Any]], set[str]]] = []
+    queue: list[
+        tuple[
+            list[dict[str, Any]],
+            set[str],
+            str | None,
+            tuple[str, ...] | None,
+            int | None,
+        ]
+    ] = []
     for origin in sorted(origin_codes):
         for offer in by_origin.get(origin, []):
             offer_destination = _normalize_code(offer.get("destination"))
             if not offer_destination:
                 continue
-            queue.append(([offer], {origin, offer_destination}))
+            hypothesis_id, required_airports, leg_index = _route_hypothesis_fields(
+                offer
+            )
+            if hypothesis_id is not None:
+                if (
+                    leg_index != 0
+                    or required_airports is None
+                    or len(required_airports) < 3
+                    or required_airports[0] != origin
+                    or required_airports[1] != offer_destination
+                ):
+                    continue
+                queue.append(
+                    (
+                        [offer],
+                        {origin, offer_destination},
+                        hypothesis_id,
+                        required_airports,
+                        1,
+                    )
+                )
+                continue
+            queue.append(([offer], {origin, offer_destination}, None, None, None))
 
     while queue:
-        path, visited_airports = queue.pop(0)
+        path, visited_airports, hypothesis_id, required_airports, next_leg_index = (
+            queue.pop(0)
+        )
         last_destination = _normalize_code(path[-1].get("destination"))
-        if last_destination in destination_codes and len(path) >= 2:
-            candidates.append(
-                _candidate_from_offer_path(
-                    path,
-                    edges_by_id,
-                    direction=direction,
-                    requested_origin=requested_origin,
-                    requested_destination=requested_destination,
-                    requested_origin_airports=requested_origin_airports,
-                    requested_destination_airports=requested_destination_airports,
-                )
+        complete_hypothesis = (
+            hypothesis_id is not None
+            and required_airports is not None
+            and next_leg_index == len(required_airports) - 1
+            and len(path) == len(required_airports) - 1
+        )
+        if last_destination in destination_codes and (
+            complete_hypothesis or (hypothesis_id is None and len(path) >= 2)
+        ):
+            candidate = _candidate_from_offer_path(
+                path,
+                edges_by_id,
+                direction=direction,
+                requested_origin=requested_origin,
+                requested_destination=requested_destination,
+                requested_origin_airports=requested_origin_airports,
+                requested_destination_airports=requested_destination_airports,
             )
+            if candidate.get("price") is not None:
+                candidates.append(candidate)
             continue
         if len(path) >= max_offers:
             continue
@@ -292,6 +332,24 @@ def _candidates_from_gateway_offer_paths(
             next_destination = _normalize_code(next_offer.get("destination"))
             if not next_destination:
                 continue
+            (
+                next_hypothesis_id,
+                next_required_airports,
+                next_offer_leg_index,
+            ) = _route_hypothesis_fields(next_offer)
+            if hypothesis_id is not None:
+                if (
+                    next_hypothesis_id != hypothesis_id
+                    or next_required_airports != required_airports
+                    or next_offer_leg_index != next_leg_index
+                    or required_airports is None
+                    or next_leg_index is None
+                    or next_leg_index >= len(required_airports) - 1
+                    or next_destination != required_airports[next_leg_index + 1]
+                ):
+                    continue
+            elif next_hypothesis_id is not None:
+                continue
             if (
                 next_destination in visited_airports
                 and next_destination not in destination_codes
@@ -301,9 +359,30 @@ def _candidates_from_gateway_offer_paths(
                 (
                     [*path, next_offer],
                     {*visited_airports, next_destination},
+                    hypothesis_id,
+                    required_airports,
+                    next_leg_index + 1 if next_leg_index is not None else None,
                 )
             )
     return candidates
+
+
+def _route_hypothesis_fields(
+    offer: dict[str, Any],
+) -> tuple[str | None, tuple[str, ...] | None, int | None]:
+    hypothesis_id = str(offer.get("hypothesis_id") or "").strip() or None
+    if hypothesis_id is None:
+        return None, None, None
+    required_airports = tuple(
+        code
+        for code in (_normalize_code(value) for value in offer.get("required_airports") or [])
+        if code
+    )
+    try:
+        leg_index = int(offer.get("leg_index"))
+    except (TypeError, ValueError):
+        leg_index = None
+    return hypothesis_id, required_airports or None, leg_index
 
 
 def _candidate_from_offer_path(
@@ -376,6 +455,9 @@ def _candidate_from_offer_path(
         "offer_ids": offer_ids,
         "edge_ids": edge_ids,
         "path_offer_count": len(path),
+        "hypothesis_ids": _ordered_unique(
+            [offer.get("hypothesis_id") for offer in path]
+        ),
     }
 
 

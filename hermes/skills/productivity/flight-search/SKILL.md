@@ -22,7 +22,7 @@ variable exists.
 
 ## Golden Path
 
-Write a `flight_search_request.v3` JSON file. Resolve `cli/` from `<skill-root>`
+Write a `flight_search_request.v4` JSON file. Resolve `cli/` from `<skill-root>`
 and use it as the command's working directory, then run:
 
 ```bash
@@ -31,7 +31,10 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli search --request "$HOME/flight-
 
 For a normal traveler request, preserve the canonical CLI itinerary content, values, warnings, and option order. Do not manually assemble, supplement, remove, rerank, correct, or add advice.
 
-Search is strict direct-first for every requested direction and every gateway leg. If the CLI finds a direct flight within the active route, date, airport, and carrier filters, it suppresses connected alternatives for that direction regardless of price or duration. Connected and gateway fallback is eligible only when no direct flight was found; `max_connections` is a ceiling for fallback, not a request to prefer connections.
+Search is direct-first for the main route and configured-prior legs. An explicit
+`route_hypotheses` chain is never suppressed by an unrelated main-route direct
+result: every leg follows its declared policy. `max_connections` is a hard
+ceiling, not a request to prefer connections.
 
 Presentation depends on the chat surface:
 
@@ -48,7 +51,7 @@ This is presentation-only: preserve every source value and warning, and never ch
 Minimal request:
 
 ```json
-{"schema_version":"flight_search_request.v3","origin":"ORIGIN","destination":"DEST","depart_date":"YYYY-MM-DD","profile":"business"}
+{"schema_version":"flight_search_request.v4","origin":"ORIGIN","destination":"DEST","depart_date":"YYYY-MM-DD","profile":"business","route_hypotheses":[]}
 ```
 
 Common options:
@@ -58,6 +61,7 @@ Common options:
 - Return trip: `"return_date":"YYYY-MM-DD"`
 - Carrier filter: `"filters":{"only_carriers":["KL"]}`
 - Provider override only when needed: `"provider_policy":"tutu"` or `"kupibilet"`
+- Route hypothesis: `"route_hypotheses":[{"airports":["ORIGIN","HUB","DEST"],"source":"web_route_discovery"}]`; it has 3–5 exact IATA airports, no cycle, and is provider-validated leg by leg.
 
 Request shaping:
 
@@ -66,6 +70,16 @@ Request shaping:
 - Preserve an exact airport request. Use a city code only when the user asks for city scope; airports in the same city are not interchangeable for connection continuity.
 - Do not manually assemble, supplement, remove, rerank, or rewrite connected or gateway options. Same-day, overnight, and multi-hop gateway discovery belong to the CLI.
 - An adjacent cross-airport connection is invalid. If the CLI emits one, do not silently repair or present it as valid; run diagnostics and report the pipeline defect.
+
+## Bounded Agent Expansion
+
+Start with one `search --json` request and read only `data.research_status` and
+its audit. If `needed` is true, discover airport chains from web evidence and
+submit at most five new `web_route_discovery` hypotheses per round. Run at most
+two expansion rounds, ten cumulative hypotheses, and three searches total. Stop
+at target reached, `evidence_incomplete`, no new airport signatures, exhausted
+rounds, or provider budget. Telegram returns `data.answer.rendered_text`
+verbatim; never turn the audit into traveler control text.
 
 ## Failure and Diagnostics
 

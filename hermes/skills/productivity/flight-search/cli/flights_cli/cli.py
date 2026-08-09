@@ -82,7 +82,7 @@ def _register_primary_search_commands(
     search.add_argument(
         "--request",
         required=True,
-        help="flight_search_request.v3 JSON file, or - for stdin.",
+        help="flight_search_request.v4 JSON file, or - for stdin.",
     )
     _set_leaf_defaults(search, SEARCH_COMMAND, command_search)
 
@@ -102,7 +102,7 @@ def _register_diagnose_commands(sub, json_parent: argparse.ArgumentParser) -> No
     plan.add_argument(
         "--request",
         required=True,
-        help="flight_search_request.v3 JSON file, or - for stdin.",
+        help="flight_search_request.v4 JSON file, or - for stdin.",
     )
     _set_leaf_defaults(plan, DIAGNOSE_PLAN_COMMAND, command_diagnose_plan)
     probe = diagnose_sub.add_parser(
@@ -134,7 +134,7 @@ def _register_diagnose_commands(sub, json_parent: argparse.ArgumentParser) -> No
     trace.add_argument(
         "--request",
         required=True,
-        help="flight_search_request.v3 JSON file, or - for stdin.",
+        help="flight_search_request.v4 JSON file, or - for stdin.",
     )
     _set_leaf_defaults(trace, DIAGNOSE_TRACE_COMMAND, command_diagnose_trace)
 

@@ -6,9 +6,9 @@ from typing import Any
 from ..domain.gateway_discovery import GatewayDiscoveryService
 from ..domain.normalize import normalize_carrier_code
 from ..domain.vocabulary import Direction, Leg, RouteFamily
-from .gateway_leg_probe_executor import (
-    GatewayLegProbeExecutor,
-    GatewayLegProbeOptions,
+from .route_leg_probe_executor import (
+    RouteLegProbeExecutor,
+    RouteLegProbeOptions,
 )
 from .offer_query_runner import (
     PrimaryOfferQueryOptions,
@@ -18,7 +18,6 @@ from .probe_ledger import ProbeRunLedger
 from .search_evidence import SearchEvidence
 from ..pipeline.direct_gate import evaluate_direct_gate, normalize_direction
 from ..pipeline.search_plan import (
-    GATEWAY_TRIGGER_DISABLED,
     GATEWAY_TRIGGER_ON_PRIMARY_FAILURE,
     SearchPlan,
 )
@@ -35,7 +34,6 @@ class SearchExecutionState:
     direct_inventory_searches: list[dict[str, Any]] = field(default_factory=list)
     direct_inventory_results: list[dict[str, Any]] = field(default_factory=list)
     probe_ledger: ProbeRunLedger = field(default_factory=ProbeRunLedger)
-    planned_gateway_leg_queries: list[dict[str, Any]] = field(default_factory=list)
     direct_mode: dict[str, bool] = field(default_factory=dict)
     direct_presence_gate: dict[str, Any] = field(default_factory=dict)
 
@@ -124,30 +122,13 @@ def _primary_direct_inventory_results(
     return segment_results
 
 
-def _partition_gateway_queries(
-    queries: list[dict[str, Any]],
-    fallback_directions: list[str],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    fallback = set(fallback_directions)
-    kept: list[dict[str, Any]] = []
-    skipped: list[dict[str, Any]] = []
-    for query in queries:
-        if not isinstance(query, dict):
-            continue
-        target = (
-            kept if normalize_direction(query.get("direction")) in fallback else skipped
-        )
-        target.append(query)
-    return kept, skipped
-
-
 class SearchExecutor:
     """Execute an authoritative SearchPlan without consulting SearchRequest."""
 
     def __init__(self, store: Store, *, adapter_resolver: Any | None = None) -> None:
         self.store = store
         self.adapter_resolver = adapter_resolver
-        self.gateway_leg_probe_executor: GatewayLegProbeExecutor | None = None
+        self.route_leg_probe_executor: RouteLegProbeExecutor | None = None
 
     def execute(self, plan: SearchPlan) -> SearchEvidence:
         state = self.initialize_state(plan)
@@ -233,49 +214,63 @@ class SearchExecutor:
             for direction in state.direct_mode
         }
 
-        gateway_directions = list(fallback_directions)
-        trigger = plan.gateway_policy.trigger
-        if trigger == GATEWAY_TRIGGER_DISABLED:
-            gateway_directions = []
-        elif trigger == GATEWAY_TRIGGER_ON_PRIMARY_FAILURE:
-            gateway_directions = [
-                direction
-                for direction in gateway_directions
-                if gate.primary_failure.get(direction, False)
-            ]
-        gateway_queries, skipped_gateway_queries = _partition_gateway_queries(
-            list(state.planned_gateway_leg_queries), gateway_directions
-        )
-        state.direct_presence_gate["gateway_trigger"] = trigger
+        eligible_templates = []
+        skipped_templates = []
+        for template in plan.phases.route_legs:
+            direction = normalize_direction(template.direction)
+            if (
+                len(template.required_airports) - 2
+                > plan.decision_policy.max_connections_per_journey
+            ):
+                skipped_templates.append((template, "hypothesis_exceeds_stop_policy"))
+            elif template.trigger == "always":
+                eligible_templates.append(template)
+            elif direction not in fallback_directions:
+                skipped_templates.append((template, "direct_available"))
+            elif (
+                template.trigger == GATEWAY_TRIGGER_ON_PRIMARY_FAILURE
+                and not gate.primary_failure.get(direction, False)
+            ):
+                skipped_templates.append(
+                    (template, "gateway_trigger_not_satisfied")
+                )
+            else:
+                eligible_templates.append(template)
+        state.direct_presence_gate["gateway_trigger"] = plan.gateway_policy.trigger
         state.direct_presence_gate["skipped_gateway_probe_count"] = len(
-            skipped_gateway_queries
+            skipped_templates
         )
-        if gateway_queries and self.gateway_leg_probe_executor is not None:
-            state.gateway_leg_results = self.gateway_leg_probe_executor.run(
-                gateway_queries, state.route_context
+        if eligible_templates and self.route_leg_probe_executor is not None:
+            state.gateway_leg_results = self.route_leg_probe_executor.run(
+                eligible_templates, plan.to_dict()
             )
             fallback_status = "executed"
         else:
-            fallback_status = "no_gateway_leg_queries"
+            state.gateway_leg_results = {"route_hypotheses": []}
+            fallback_status = "no_route_leg_templates"
+        route_audit = state.gateway_leg_results.setdefault("route_hypotheses", [])
+        route_audit.extend(
+            {
+                **template.to_dict(),
+                "status": "not_executed",
+                "reason": reason,
+                "legs": [],
+            }
+            for template, reason in skipped_templates
+        )
         if fallback_directions:
             state.direct_presence_gate["fallback"] = {
                 "status": fallback_status,
                 "reason": "no_eligible_direct_evidence",
                 "directions": fallback_directions,
-                "gateway_directions": gateway_directions,
+                "gateway_directions": [
+                    normalize_direction(template.direction)
+                    for template in eligible_templates
+                ],
                 "max_connections_per_journey": (
                     plan.decision_policy.max_connections_per_journey
                 ),
             }
-        for query in skipped_gateway_queries:
-            reason = (
-                "direct_available"
-                if normalize_direction(query.get("direction"))
-                not in fallback_directions
-                else "gateway_trigger_not_satisfied"
-            )
-            state.probe_ledger.record_skipped(query, reason=reason)
-
         observed_gateway_diagnostics: dict[str, Any] = {}
         GatewayDiscoveryService(self.store).discover(
             gateway_discovery_market_key(state),
@@ -313,9 +308,6 @@ class SearchExecutor:
             probe_ledger=ProbeRunLedger(
                 max_physical_attempts=plan.execution_policy.max_provider_attempts
             ),
-            planned_gateway_leg_queries=[
-                item.to_execution_dict() for item in plan.phases.gateway
-            ],
         )
         state.probe_ledger.plan_probes(
             [attempt.to_execution_dict() for attempt in plan.all_attempts]
@@ -325,17 +317,11 @@ class SearchExecutor:
             normalize_carrier_code(code, "only-carrier")
             for code in policy.only_carriers
         ]
-        self.gateway_leg_probe_executor = GatewayLegProbeExecutor(
-            options=GatewayLegProbeOptions(
-                gateway_discovery_limit=policy.gateway_discovery_limit,
-                gateway_probe_batch_size=policy.gateway_probe_batch_size,
-                gateway_probe_max_batches=policy.gateway_probe_max_batches,
+        self.route_leg_probe_executor = RouteLegProbeExecutor(
+            options=RouteLegProbeOptions(
                 segment_limit=policy.segment_limit,
                 timeout=policy.timeout,
                 fail_fast=policy.fail_fast,
-                max_connections_per_journey=(
-                    plan.decision_policy.max_connections_per_journey
-                ),
             ),
             store=self.store,
             only_carriers=only_carriers,

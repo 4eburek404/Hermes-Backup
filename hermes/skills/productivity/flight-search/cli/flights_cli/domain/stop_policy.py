@@ -5,6 +5,11 @@ from typing import Any, Literal
 
 
 StopTier = Literal["T0_DIRECT", "T1_ONE_STOP", "T2_TWO_STOP", "T3_THREE_PLUS"]
+_MAX_SUPPORTED_CONNECTIONS = 3
+
+
+def _bounded_connections(value: int) -> int:
+    return min(_MAX_SUPPORTED_CONNECTIONS, max(0, int(value)))
 
 
 @dataclass(frozen=True)
@@ -31,10 +36,10 @@ def resolve_stop_policy(
     preferred = (
         BUSINESS_DEFAULT_STOP_POLICY.preferred_max_connections
         if max_connections is None
-        else max(0, int(max_connections))
+        else _bounded_connections(max_connections)
     )
     hard = (
-        max(0, int(tier2_max_connections))
+        _bounded_connections(tier2_max_connections)
         if tier2_max_connections is not None
         else preferred
         if max_connections is not None

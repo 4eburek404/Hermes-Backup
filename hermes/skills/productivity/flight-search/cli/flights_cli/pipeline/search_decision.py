@@ -8,6 +8,7 @@ from ..domain.stop_policy import (
     stop_policy_payload,
     stop_policy_status,
 )
+from .direct_gate import candidate_is_direct
 from .decision_scorer import DecisionScorer, DecisionScorerOptions
 from .offer_graph_builder import build_offer_graph
 from .offer_graph_materializer import materialize_offer_graph_candidates
@@ -39,6 +40,7 @@ class SearchDecision:
     scored_decisions: dict[str, Any]
     stop_policy: dict[str, Any]
     stop_policy_status: dict[str, Any]
+    research_status: dict[str, Any]
 
     @property
     def decision_frontier(self) -> dict[str, Any]:
@@ -52,6 +54,11 @@ class SearchDecisionBuilder:
     @staticmethod
     def build(plan: SearchPlan, evidence: SearchEvidenceView) -> SearchDecision:
         route = evidence.route_context
+        stop_policy = resolve_stop_policy(
+            max_connections=plan.decision_policy.preferred_connections,
+            tier2_max_connections=plan.decision_policy.max_connections_per_journey,
+            name="search_plan",
+        )
         offer_graph = build_offer_graph(
             primary_offer_results=list(evidence.primary_offer_results),
             gateway_leg_results=evidence.gateway_leg_results,
@@ -67,6 +74,7 @@ class SearchDecisionBuilder:
             requested_destination_airports=list(
                 route.get("destination_airports") or []
             ),
+            max_path_offers=stop_policy.hard_max_connections + 1,
         )
         scored_decisions = DecisionScorer(
             DecisionScorerOptions(
@@ -101,11 +109,6 @@ class SearchDecisionBuilder:
                 ),
             )
         ).score(offer_candidates)
-        stop_policy = resolve_stop_policy(
-            max_connections=plan.decision_policy.preferred_connections,
-            tier2_max_connections=plan.decision_policy.max_connections_per_journey,
-            name="search_plan",
-        )
         return SearchDecision(
             offer_graph=offer_graph,
             offer_candidates=offer_candidates,
@@ -119,7 +122,106 @@ class SearchDecisionBuilder:
                 ),
                 policy=stop_policy,
             ),
+            research_status=_research_status(
+                scored_decisions,
+                evidence.gateway_leg_results,
+                evidence.probe_ledger,
+            ),
         )
+
+
+def _research_status(
+    scored_decisions: dict[str, Any],
+    gateway_leg_results: dict[str, Any],
+    probe_ledger: dict[str, Any],
+) -> dict[str, Any]:
+    ranking = scored_decisions.get("mixed_candidate_ranking")
+    ranked = (
+        ranking.get("ranked_candidates") if isinstance(ranking, dict) else []
+    )
+    candidates = [item for item in ranked or [] if isinstance(item, dict)]
+    eligible_direct = any(
+        candidate_is_direct(candidate)
+        and (candidate.get("validation") or {}).get("status") == "valid"
+        for candidate in candidates
+    )
+    convenient_signatures = {
+        _airport_signature(candidate)
+        for candidate in candidates
+        if (candidate.get("validation") or {}).get("status") == "valid"
+        and str((candidate.get("connection_assessment") or {}).get("comfort"))
+        in {"comfortable", "acceptable"}
+        and _airport_signature(candidate)
+    }
+    audit = _route_hypothesis_audit(gateway_leg_results)
+    target_reached = eligible_direct or len(convenient_signatures) >= 3
+    incomplete_evidence = bool(
+        (probe_ledger.get("failed_probes") or [])
+        or (probe_ledger.get("not_executed_probes") or [])
+        or any(item["status"] == "not_executed" for item in audit)
+    )
+    evidence_incomplete = not target_reached and incomplete_evidence
+    return {
+        "needed": not target_reached and not evidence_incomplete,
+        "evidence_incomplete": evidence_incomplete,
+        "eligible_direct": eligible_direct,
+        "convenient_signature_count": len(convenient_signatures),
+        "target_signature_count": 3,
+        "audit": audit,
+    }
+
+
+def _airport_signature(candidate: dict[str, Any]) -> tuple[Any, ...] | None:
+    journeys = candidate.get("journeys")
+    if not isinstance(journeys, list):
+        return None
+    signature: list[tuple[str, tuple[str, ...]]] = []
+    for journey in journeys:
+        if not isinstance(journey, dict):
+            continue
+        airports: list[str] = []
+        for segment in journey.get("segments") or []:
+            if not isinstance(segment, dict):
+                continue
+            origin = str(segment.get("origin") or "").upper()
+            destination = str(segment.get("destination") or "").upper()
+            if origin and not airports:
+                airports.append(origin)
+            if destination:
+                airports.append(destination)
+        if airports:
+            signature.append((str(journey.get("direction") or "outbound"), tuple(airports)))
+    return tuple(signature) if signature else None
+
+
+def _route_hypothesis_audit(results: dict[str, Any]) -> list[dict[str, Any]]:
+    hypotheses = results.get("route_hypotheses") if isinstance(results, dict) else []
+    audit: list[dict[str, Any]] = []
+    for hypothesis in hypotheses or []:
+        if not isinstance(hypothesis, dict):
+            continue
+        status = str(hypothesis.get("status") or "excluded")
+        if status not in {"viable", "excluded", "not_executed"}:
+            status = "excluded"
+        audit.append(
+            {
+                "hypothesis_id": str(hypothesis.get("hypothesis_id") or ""),
+                "direction": str(hypothesis.get("direction") or "outbound"),
+                "required_airports": list(hypothesis.get("required_airports") or []),
+                "status": status,
+                "reason": str(
+                    hypothesis.get("reason")
+                    or (
+                        "route_hypothesis_viable"
+                        if status == "viable"
+                        else "route_hypothesis_not_executed"
+                        if status == "not_executed"
+                        else "route_hypothesis_excluded"
+                    )
+                ),
+            }
+        )
+    return audit
 
 
 __all__ = ["SearchDecision", "SearchDecisionBuilder", "SearchEvidenceView"]

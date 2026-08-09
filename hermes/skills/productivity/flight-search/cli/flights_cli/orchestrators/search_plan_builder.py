@@ -7,8 +7,6 @@ from typing import Any, Callable
 
 from ..adapters.providers.registry import (
     providers_for_offer_query,
-    providers_for_segment,
-    route_touches_ru,
 )
 from ..config import MAX_DATE_WINDOW_DAYS
 from ..domain.airports import airport_scope_summary, explicit_or_resolved_airports
@@ -41,6 +39,7 @@ from ..pipeline.search_plan import (
     GatewayPolicy,
     OutputPolicy,
     ProviderAttemptPlan,
+    RouteLegTemplate,
     RoutePlan,
     SearchPhases,
     SearchPlan,
@@ -224,8 +223,8 @@ class SearchPlanBuilder:
         primary_offer_queries = self._primary_offer_queries(flow, route_context)
         gateway_discovery = self._gateway_discovery(flow, route_context)
         gateway_trigger = self._gateway_trigger(flow, gateway_discovery)
-        gateway_queries = self._gateway_leg_queries(
-            flow, route_context, gateway_discovery
+        route_leg_templates = self._route_leg_templates(
+            flow, route_context, gateway_discovery, gateway_trigger
         )
         live_cache_enabled, live_cache_ttl_seconds = _live_cache_settings(flow)
         stop_policy = resolve_stop_policy(
@@ -240,11 +239,7 @@ class SearchPlanBuilder:
                     phase="primary",
                     conditional_trigger="no_direct",
                 ),
-                gateway=self._attempts(
-                    gateway_queries,
-                    phase="gateway",
-                    conditional_trigger=gateway_trigger,
-                ),
+                route_legs=route_leg_templates,
             ),
             gateway_policy=GatewayPolicy(
                 trigger=gateway_trigger,
@@ -291,6 +286,93 @@ class SearchPlanBuilder:
                 )
             ),
         )
+
+    def _route_leg_templates(
+        self,
+        flow: _PlanningState,
+        route_context: dict[str, Any],
+        gateway_discovery: GatewayDiscovery,
+        gateway_trigger: str,
+    ) -> tuple[RouteLegTemplate, ...]:
+        origin = str(route_context.get("origin") or flow.request.origin).upper()
+        destination = str(
+            route_context.get("destination") or flow.request.destination
+        ).upper()
+        templates: list[RouteLegTemplate] = []
+        signatures: set[tuple[str, tuple[str, ...]]] = set()
+
+        def add_template(
+            airports: tuple[str, ...],
+            *,
+            source: str,
+            policies: tuple[str, ...],
+            trigger: str,
+        ) -> None:
+            outbound_signature = (Direction.OUTBOUND, airports)
+            if outbound_signature in signatures:
+                return
+            signatures.add(outbound_signature)
+            templates.append(
+                RouteLegTemplate(
+                    hypothesis_id=f"{source}:outbound:{'-'.join(airports)}",
+                    direction=Direction.OUTBOUND,
+                    required_airports=airports,
+                    source=source,
+                    leg_policies=policies,
+                    trigger=trigger,
+                )
+            )
+            if flow.request.return_date:
+                mirrored = tuple(reversed(airports))
+                return_signature = (Direction.RETURN, mirrored)
+                if return_signature in signatures:
+                    return
+                signatures.add(return_signature)
+                templates.append(
+                    RouteLegTemplate(
+                        hypothesis_id=f"{source}:return:{'-'.join(mirrored)}",
+                        direction=Direction.RETURN,
+                        required_airports=mirrored,
+                        source=source,
+                        leg_policies=tuple(reversed(policies)),
+                        trigger=trigger,
+                    )
+                )
+
+        for hypothesis in flow.request.route_hypotheses:
+            add_template(
+                hypothesis.airports,
+                source=hypothesis.source,
+                policies=("exact_direct",) * (len(hypothesis.airports) - 1),
+                trigger="always",
+            )
+
+        if gateway_trigger == GATEWAY_TRIGGER_DISABLED:
+            return tuple(templates)
+        discovery_payload = gateway_discovery.to_dict()
+        candidates = [
+            item
+            for item in (discovery_payload.get("candidates") or [])[
+                : self._gateway_candidate_cap()
+            ]
+            if isinstance(item, dict) and item.get("code")
+        ]
+        seen_gateway_codes: set[str] = set()
+        for candidate in candidates:
+            gateway = str(candidate.get("code") or "").upper()
+            if not gateway or gateway in seen_gateway_codes:
+                continue
+            seen_gateway_codes.add(gateway)
+            add_template(
+                (origin, gateway, destination),
+                source="configured_prior",
+                policies=(
+                    "direct_then_controlled_broad",
+                    "direct_then_controlled_broad",
+                ),
+                trigger=gateway_trigger,
+            )
+        return tuple(templates)
 
     def _attempts(
         self,
@@ -430,89 +512,6 @@ class SearchPlanBuilder:
             )
         ]
 
-    def _gateway_leg_queries(
-        self,
-        flow: _PlanningState,
-        route_context: dict[str, Any],
-        gateway_discovery: GatewayDiscovery,
-    ) -> list[dict[str, Any]]:
-        discovery_payload = gateway_discovery.to_dict()
-        if not bool(discovery_payload.get("enabled")):
-            return []
-
-        candidates: list[dict[str, Any]] = []
-        candidate_cap = self._gateway_candidate_cap()
-        if candidate_cap > 0:
-            candidates.extend(
-                candidate
-                for candidate in (discovery_payload.get("candidates") or [])[
-                    :candidate_cap
-                ]
-                if isinstance(candidate, dict) and candidate.get("code")
-            )
-        if not candidates:
-            return []
-        candidates = self._dedupe_gateway_candidates(candidates)
-
-        origin = str(route_context.get("origin") or flow.request.origin).upper()
-        destination = str(
-            route_context.get("destination") or flow.request.destination
-        ).upper()
-        depart_date = str(
-            (route_context.get("dates") or {}).get("depart") or flow.request.depart_date
-        )
-        return_date = str(
-            (route_context.get("dates") or {}).get("return")
-            or flow.request.return_date
-            or ""
-        )
-        currency = str(route_context.get("currency") or flow.request.currency).upper()
-
-        routes = [
-            (Direction.OUTBOUND, origin, destination, depart_date),
-        ]
-        if return_date:
-            routes.append((Direction.RETURN, destination, origin, return_date))
-
-        queries: list[dict[str, Any]] = []
-        for direction, route_origin, route_destination, route_date in routes:
-            for rank, candidate in enumerate(candidates, start=1):
-                gateway = str(candidate.get("code") or "").upper()
-                if not gateway:
-                    continue
-                queries.extend(
-                    self._queries_for_gateway_candidate(
-                        flow,
-                        direction=direction,
-                        origin=route_origin,
-                        destination=route_destination,
-                        gateway=gateway,
-                        date_text=route_date,
-                        currency=currency,
-                        rank=rank,
-                        score=candidate.get("score"),
-                        route_access_profile=str(
-                            discovery_payload.get("route_access_profile") or ""
-                        ),
-                        gateway_discovery_mode=str(discovery_payload.get("mode") or ""),
-                        gateway_source=str(candidate.get("source") or ""),
-                    )
-                )
-        return queries
-
-    def _dedupe_gateway_candidates(
-        self, candidates: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
-        deduped: list[dict[str, Any]] = []
-        seen: set[str] = set()
-        for candidate in candidates:
-            code = str(candidate.get("code") or "").upper()
-            if not code or code in seen:
-                continue
-            seen.add(code)
-            deduped.append(candidate)
-        return deduped
-
     def _gateway_candidate_cap(self) -> int:
         configured_limit = max(0, int(self._options.route.gateway_discovery_limit))
         batch_size = max(0, int(self._options.route.gateway_probe_batch_size))
@@ -521,81 +520,6 @@ class SearchPlanBuilder:
         if batch_cap <= 0:
             return 0
         return min(configured_limit, batch_cap)
-
-    def _queries_for_gateway_candidate(
-        self,
-        flow: _PlanningState,
-        *,
-        direction: str,
-        origin: str,
-        destination: str,
-        gateway: str,
-        date_text: str,
-        currency: str,
-        rank: int,
-        score: Any,
-        route_access_profile: str,
-        gateway_discovery_mode: str,
-        gateway_source: str,
-    ) -> list[dict[str, Any]]:
-        legs = (
-            ("origin_to_gateway", origin, gateway),
-            ("gateway_to_destination", gateway, destination),
-        )
-        queries: list[dict[str, Any]] = []
-        for leg, leg_origin, leg_destination in legs:
-            touches_ru = route_touches_ru(leg_origin, leg_destination, self._store)
-            connection_layer = (
-                "restricted_ru_bridge_probe"
-                if touches_ru
-                else "restricted_non_ru_access"
-            )
-            leg_dates = [date_text]
-            if leg == "gateway_to_destination":
-                next_date = (
-                    date.fromisoformat(date_text) + timedelta(days=1)
-                ).isoformat()
-                if next_date not in leg_dates:
-                    leg_dates.append(next_date)
-            for leg_date in leg_dates:
-                for direct_only in (True, False):
-                    query = {
-                        "role": "gateway_leg_probe",
-                        "source_type": "gateway_discovery_candidate",
-                        "probe_type": "segment_direct"
-                        if direct_only
-                        else "segment_hub_leg",
-                        "direction": str(direction),
-                        "leg": leg,
-                        "origin": leg_origin,
-                        "destination": leg_destination,
-                        "origin_airports": [leg_origin],
-                        "destination_airports": [leg_destination],
-                        "date": leg_date,
-                        "currency": currency,
-                        "direct_only": direct_only,
-                        "gateway": gateway,
-                        "gateway_role": "bridge_gateway",
-                        "connection_layer": connection_layer,
-                        "allows_intermediate_hubs": not direct_only,
-                        "date_strategy": (
-                            "requested_day_and_next_day"
-                            if leg == "gateway_to_destination"
-                            else "requested_departure_date_only"
-                        ),
-                        "gateway_rank": rank,
-                        "gateway_source": gateway_source,
-                        "candidate_score": score,
-                        "route_access_profile": route_access_profile,
-                        "gateway_discovery_mode": gateway_discovery_mode,
-                    }
-                    self._apply_filters(query)
-                    providers = providers_for_segment(
-                        query, self._store, flow.request.provider_policy
-                    )
-                    for provider in providers:
-                        queries.append({**query, "provider": str(provider)})
-        return queries
 
     def _primary_offer_queries(
         self, flow: _PlanningState, route_context: dict[str, Any]

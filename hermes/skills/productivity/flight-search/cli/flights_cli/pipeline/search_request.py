@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Any
 
 from ..config import (
@@ -67,6 +68,24 @@ class OutputOptions:
 
 
 @dataclass(frozen=True, slots=True)
+class RouteHypothesisInput:
+    """A caller-supplied airport sequence, not provider evidence."""
+
+    airports: tuple[str, ...]
+    source: str
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> RouteHypothesisInput:
+        return cls(
+            airports=_str_tuple(payload.get("airports")),
+            source=str(payload.get("source") or ""),
+        )
+
+    def to_payload(self) -> dict[str, Any]:
+        return {"airports": list(self.airports), "source": self.source}
+
+
+@dataclass(frozen=True, slots=True)
 class SearchRequest:
     """Canonical immutable input consumed only by SearchPlanBuilder."""
 
@@ -76,6 +95,7 @@ class SearchRequest:
     output: OutputOptions
     profile: str
     currency: str
+    route_hypotheses: tuple[RouteHypothesisInput, ...] = ()
 
     @classmethod
     def _from_normalized_payload(cls, payload: dict[str, Any]) -> SearchRequest:
@@ -163,13 +183,18 @@ class SearchRequest:
             ),
             profile=str(payload.get("profile") or DEFAULT_PROFILE),
             currency=str(payload.get("currency") or DEFAULT_CURRENCY),
+            route_hypotheses=tuple(
+                RouteHypothesisInput.from_payload(item)
+                for item in payload.get("route_hypotheses") or []
+                if isinstance(item, dict)
+            ),
         )
 
     def to_payload(self) -> dict[str, Any]:
         """Return the canonical wire projection after Python defaults are applied."""
 
         return {
-            "schema_version": "flight_search_request.v3",
+            "schema_version": "flight_search_request.v4",
             "origin": self.route.origin,
             "destination": self.route.destination,
             "depart_date": self.route.depart_date,
@@ -207,6 +232,9 @@ class SearchRequest:
                 "catalog_limit": self.output.catalog_limit,
                 "direct_catalog_limit": self.output.direct_catalog_limit,
             },
+            "route_hypotheses": [
+                hypothesis.to_payload() for hypothesis in self.route_hypotheses
+            ],
         }
 
     def effective_only_carriers(self) -> tuple[str, ...]:
@@ -345,7 +373,9 @@ def normalize_search_request_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Canonical casing/default normalization for the public request payload."""
 
     normalized = dict(payload)
-    normalized.setdefault("schema_version", "flight_search_request.v3")
+    version = str(normalized.get("schema_version") or "flight_search_request.v3")
+    if version in {"flight_search_request.v3", "flight_search_request.v4"}:
+        normalized["schema_version"] = "flight_search_request.v4"
     for name in ("origin", "destination", "currency"):
         if name in normalized:
             normalized[name] = str(normalized[name]).upper()
@@ -368,6 +398,19 @@ def normalize_search_request_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 str(item).upper() for item in filters["only_carriers"]
             ]
         normalized["filters"] = filters
+    hypotheses = normalized.get("route_hypotheses")
+    if hypotheses is None:
+        normalized["route_hypotheses"] = []
+    elif isinstance(hypotheses, list):
+        normalized["route_hypotheses"] = [
+            {
+                **item,
+                "airports": [str(code).upper() for code in item.get("airports") or []],
+                "source": str(item.get("source") or "").lower(),
+            }
+            for item in hypotheses
+            if isinstance(item, dict)
+        ]
     return normalized
 
 
@@ -391,6 +434,22 @@ def validate_search_request_semantics(request: SearchRequest) -> None:
         and request.tier2_max_connections < request.max_connections
     ):
         raise ValueError("tier2-max-connections must not be below max-connections")
+    origin_scope = {request.origin, *request.origin_airports}
+    destination_scope = {request.destination, *request.destination_airports}
+    signatures: set[tuple[str, ...]] = set()
+    for hypothesis in request.route_hypotheses:
+        airports = hypothesis.airports
+        if not 3 <= len(airports) <= 5:
+            raise ValueError("route-hypothesis must contain 3 to 5 airports")
+        if any(not re.fullmatch(r"[A-Z]{3}", airport) for airport in airports):
+            raise ValueError("route-hypothesis airports must be exact IATA codes")
+        if len(set(airports)) != len(airports):
+            raise ValueError("route-hypothesis must not contain airport cycles")
+        if airports[0] not in origin_scope or airports[-1] not in destination_scope:
+            raise ValueError("route-hypothesis endpoints must be within route scope")
+        if airports in signatures:
+            raise ValueError("route-hypotheses must be unique")
+        signatures.add(airports)
 
 
 def search_request_from_payload(payload: dict[str, Any]) -> SearchRequest:

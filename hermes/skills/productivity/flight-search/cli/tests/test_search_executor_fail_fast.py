@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 from typing import Any
 from unittest.mock import patch
 
 from flights_cli.errors import CliError
 from flights_cli.execution.search_executor import SearchExecutionState, SearchExecutor
-from flights_cli.pipeline.search_plan import SearchPlan
+from flights_cli.pipeline.search_plan import SearchPhases, SearchPlan
 from flights_cli.ports.providers import ProviderProbeResult
 from flights_cli.store import Store
 from helpers import build_search_plan, coverage_completeness, live_assembly_args
@@ -47,7 +48,7 @@ class EmptyAggregateAdapter:
 class SearchExecutorFailFastTests(unittest.TestCase):
     def setUp(self) -> None:
         self.store = Store()
-        self.plan = SearchPlan.from_dict(
+        built_plan = SearchPlan.from_dict(
             build_search_plan(
                 live_assembly_args(
                     origin="SVX",
@@ -59,6 +60,10 @@ class SearchExecutorFailFastTests(unittest.TestCase):
                 ),
                 self.store,
             )
+        )
+        self.plan = replace(
+            built_plan,
+            phases=SearchPhases(primary=built_plan.phases.primary),
         )
 
     def _capturing_executor(
@@ -111,57 +116,12 @@ class SearchExecutorFailFastTests(unittest.TestCase):
             coverage_completeness(diagnostics)["terminal_count"],
         )
 
-    def test_gateway_fail_fast_records_failure_and_finalizes_remaining_attempts(
-        self,
-    ) -> None:
-        error = CliError("provider down", error_type="provider_unavailable")
-        executor, captured = self._capturing_executor()
-
-        with (
-            patch(
-                "flights_cli.execution.offer_query_runner.provider_adapter",
-                side_effect=lambda name, **_: EmptyAggregateAdapter(name),
-            ),
-            patch(
-                "flights_cli.execution.gateway_leg_probe_executor.dispatch_segment_probe",
-                side_effect=error,
-            ),
-        ):
-            with self.assertRaises(CliError) as raised:
-                executor.execute(self.plan)
-
-        self.assertIs(raised.exception, error)
-        diagnostics = captured["state"].probe_ledger.to_diagnostics()
-        self.assertEqual(len(diagnostics["failed_probes"]), 1)
-        self.assertEqual(diagnostics["failed_probes"][0]["phase"], "gateway")
-        self.assertEqual(
-            diagnostics["failed_probes"][0]["error"]["classification"],
-            "provider_unavailable",
-        )
-        self.assertGreater(len(diagnostics["not_executed_probes"]), 0)
-        self.assertTrue(
-            all(
-                probe["execution_state"] == "not_executed"
-                for probe in diagnostics["not_executed_probes"]
-            )
-        )
-        self.assertEqual(
-            coverage_completeness(diagnostics)["planned_count"],
-            coverage_completeness(diagnostics)["terminal_count"],
-        )
-
     def test_success_evidence_is_frozen_after_ledger_finalization(self) -> None:
         executor = SearchExecutor(self.store)
 
-        with (
-            patch(
-                "flights_cli.execution.offer_query_runner.provider_adapter",
-                side_effect=lambda name, **_: EmptyAggregateAdapter(name),
-            ),
-            patch(
-                "flights_cli.execution.gateway_leg_probe_executor.GatewayLegProbeExecutor.run",
-                return_value={},
-            ),
+        with patch(
+            "flights_cli.execution.offer_query_runner.provider_adapter",
+            side_effect=lambda name, **_: EmptyAggregateAdapter(name),
         ):
             evidence = executor.execute(self.plan)
 

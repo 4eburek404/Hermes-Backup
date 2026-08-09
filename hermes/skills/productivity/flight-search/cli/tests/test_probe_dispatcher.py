@@ -415,7 +415,7 @@ class ProbeDispatcherTests(unittest.TestCase):
         self.assertEqual(
             second[0].summary["original_probe_id"], first[0].summary["probe_id"]
         )
-        self.assertIsNone(second[0].segment_result)
+        self.assertEqual(second[0].segment_result, segment_result)
 
 
 if __name__ == "__main__":

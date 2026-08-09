@@ -9,6 +9,7 @@ from jsonschema import Draft202012Validator
 
 from flights_cli.contracts.registry import (
     CURRENT_CONTRACTS,
+    LEGACY_SCHEMA_RESOURCES,
     current_contract,
 )
 from flights_cli.contracts.validation import packaged_schema_registry
@@ -31,11 +32,11 @@ class ContractRegistryTest(unittest.TestCase):
         )
         self.assertEqual(
             current_contract("search_result")["schema_version"],
-            "flight_search_result.v9",
+            "flight_search_result.v10",
         )
         self.assertEqual(
             current_contract("route_trace")["schema_version"],
-            "flight_route_trace_diagnostic.v4",
+            "flight_route_trace_diagnostic.v5",
         )
         self.assertEqual(
             current_contract("user_answer")["schema_version"],
@@ -71,10 +72,13 @@ class ContractRegistryTest(unittest.TestCase):
         packaged_resources = {
             item.name for item in root.iterdir() if item.name.endswith(".schema.json")
         }
-        self.assertEqual(packaged_resources, active_resources)
+        self.assertEqual(
+            packaged_resources,
+            active_resources | set(LEGACY_SCHEMA_RESOURCES),
+        )
         schemas = [
             json.loads(root.joinpath(name).read_text(encoding="utf-8"))
-            for name in sorted(active_resources)
+            for name in sorted(packaged_resources)
         ]
         schema_ids = [schema["$id"] for schema in schemas]
         self.assertEqual(len(schema_ids), len(set(schema_ids)))
@@ -96,8 +100,9 @@ class ContractRegistryTest(unittest.TestCase):
                 if reference.startswith("#"):
                     continue
                 resolved = urljoin(schema["$id"], reference)
-                self.assertIn(resolved, schema_ids)
-                registry.get_or_retrieve(resolved)
+                resource_id = resolved.split("#", 1)[0]
+                self.assertIn(resource_id, schema_ids)
+                registry.get_or_retrieve(resource_id)
 
     def test_canonical_text_path_is_single_user_answer_path(self) -> None:
         user_answer = current_contract("user_answer")

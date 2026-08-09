@@ -55,7 +55,7 @@ class FlowDecisionContractTests(unittest.TestCase):
             "ru_touching_market_uses_ru_priority_probes", plan["planning_reasons"]
         )
 
-    def test_round_trip_gateway_plan_mirrors_routes_dates_and_directions(self) -> None:
+    def test_round_trip_route_templates_mirror_airports_and_direction(self) -> None:
         plan = self.plan_for(
             origin="SVX",
             destination="CDG",
@@ -63,7 +63,7 @@ class FlowDecisionContractTests(unittest.TestCase):
             return_date="2026-09-20",
         )
 
-        self.assertEqual(plan["schema_version"], "flight_search_plan.v5")
+        self.assertEqual(plan["schema_version"], "flight_search_plan.v6")
         self.assertEqual(
             set(plan),
             {
@@ -77,70 +77,38 @@ class FlowDecisionContractTests(unittest.TestCase):
                 "planning_reasons",
             },
         )
-        gateway_attempts = plan["phases"]["gateway"]
-        self.assertTrue(gateway_attempts)
+        route_templates = plan["phases"]["route_legs"]
+        self.assertTrue(route_templates)
         self.assertEqual(
-            {attempt["direction"] for attempt in gateway_attempts},
+            {template["direction"] for template in route_templates},
             {"outbound", "return"},
         )
         self.assertTrue(
             all(
-                set(attempt)
+                set(template)
                 == {
-                    "probe_id",
-                    "phase",
-                    "trigger",
-                    "provider",
-                    "probe_type",
+                    "hypothesis_id",
                     "direction",
-                    "query",
+                    "required_airports",
+                    "source",
+                    "leg_policies",
+                    "trigger",
                 }
-                for attempt in gateway_attempts
+                for template in route_templates
             )
         )
         self.assertEqual(
             {
                 (
-                    attempt["direction"],
-                    attempt["query"]["leg"],
-                    attempt["query"]["origin"],
-                    attempt["query"]["destination"],
-                    attempt["query"]["date"],
+                    template["direction"],
+                    tuple(template["required_airports"]),
                 )
-                for attempt in gateway_attempts
-                if attempt["query"]["gateway"] == "IST"
+                for template in route_templates
+                if "IST" in template["required_airports"]
             },
             {
-                ("outbound", "origin_to_gateway", "SVX", "IST", "2026-09-10"),
-                (
-                    "outbound",
-                    "gateway_to_destination",
-                    "IST",
-                    "CDG",
-                    "2026-09-10",
-                ),
-                (
-                    "outbound",
-                    "gateway_to_destination",
-                    "IST",
-                    "CDG",
-                    "2026-09-11",
-                ),
-                ("return", "origin_to_gateway", "CDG", "IST", "2026-09-20"),
-                (
-                    "return",
-                    "gateway_to_destination",
-                    "IST",
-                    "SVX",
-                    "2026-09-20",
-                ),
-                (
-                    "return",
-                    "gateway_to_destination",
-                    "IST",
-                    "SVX",
-                    "2026-09-21",
-                ),
+                ("outbound", ("SVX", "IST", "CDG")),
+                ("return", ("CDG", "IST", "SVX")),
             },
         )
 
