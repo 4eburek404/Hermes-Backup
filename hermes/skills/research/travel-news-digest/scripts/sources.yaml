@@ -1,0 +1,329 @@
+# Travel News Sources Configuration
+# Used by fetch_travel_news.py
+# fetch types: rss, curl_cffi, google_news, browser
+# region: ru, intl
+# priority: P1, P2, P3
+# topics: aviation, hotels, business_travel, mice, general
+
+sources:
+  # ═══════════════════════════════════════════
+  # РФ — P1 (обязательно)
+  # ═══════════════════════════════════════════
+
+  - name: BBT
+    url: https://buyingbusinesstravel.com.ru/news/
+    fetch: rss
+    rss: https://buyingbusinesstravel.com.ru/news/rss/
+    region: ru
+    priority: P1
+    topics: [business_travel, aviation, hotels, mice]
+
+  - name: RATA News
+    url: https://ratanews.ru/
+    fetch: rss
+    rss: https://ratanews.ru/rss.xml
+    region: ru
+    priority: P1
+    topics: [aviation, hotels, business_travel, general]
+
+  - name: АвиаПорт
+    url: https://www.aviaport.ru/news/
+    fetch: rss
+    rss: https://www.aviaport.ru/rss/
+    region: ru
+    priority: P1
+    topics: [aviation]
+
+  - name: Турдом
+    url: https://www.tourdom.ru/news
+    fetch: rss
+    rss: https://www.tourdom.ru/rss/
+    region: ru
+    priority: P1
+    topics: [aviation, hotels, general]
+
+  - name: Коммерсантъ
+    url: https://www.kommersant.ru/
+    fetch: rss
+    rss: https://www.kommersant.ru/rss/news.xml
+    region: ru
+    priority: P1
+    topics: [aviation, hotels, business_travel, general]
+
+  - name: Интерфакс
+    url: https://www.interfax.ru/
+    fetch: rss
+    rss: https://www.interfax.ru/rss.asp
+    region: ru
+    priority: P1
+    topics: [aviation, hotels, business_travel, general]
+
+  # ═══════════════════════════════════════════
+  # РФ — P2 (желательно)
+  # ═══════════════════════════════════════════
+
+  - name: Sostav.ru
+    url: https://www.sostav.ru/
+    fetch: rss
+    rss: https://www.sostav.ru/rss/
+    region: ru
+    priority: P2
+    topics: [business_travel, general]
+
+  - name: Ведомости
+    url: https://www.vedomosti.ru/
+    fetch: rss
+    rss: https://www.vedomosti.ru/rss/news
+    region: ru
+    priority: P2
+    topics: [aviation, hotels, business_travel, general]
+
+  - name: Lenta.ru
+    url: https://lenta.ru/
+    fetch: rss
+    rss: https://lenta.ru/rss
+    region: ru
+    priority: P3
+    topics: [aviation, hotels, business_travel, general]
+
+  - name: RB.ru
+    url: https://rb.ru/
+    fetch: rss
+    rss: https://rb.ru/rss/
+    region: ru
+    priority: P2
+    topics: [business_travel, general]
+
+  # ═══════════════════════════════════════════
+  # РФ — browser-only (не в скрипте, через агента)
+  # ═══════════════════════════════════════════
+  # АТОР — browser_navigate only, нет RSS
+  # Турпром — curl HTML, нет RSS (можно добавить как curl_cffi)
+
+  - name: Турпром
+    url: https://tourprom.ru/
+    fetch: curl_cffi
+    impersonate: safari
+    selector: "a[href*='/news/']"
+    text_min_length: 30
+    region: ru
+    priority: P2
+    topics: [aviation, hotels, general]
+
+  # ═══════════════════════════════════════════
+  # Зарубежье — P1 (обязательно)
+  # ═══════════════════════════════════════════
+
+  - name: Skift
+    url: https://skift.com/
+    fetch: rss
+    rss: https://skift.com/feed/
+    region: intl
+    priority: P1
+    topics: [aviation, hotels, business_travel, mice]
+
+  - name: Simple Flying
+    url: https://simpleflying.com/
+    fetch: rss
+    rss: https://simpleflying.com/feed/
+    region: intl
+    priority: P1
+    topics: [aviation]
+
+  - name: FlightGlobal
+    url: https://www.flightglobal.com/
+    fetch: rss
+    rss: https://www.flightglobal.com/feed
+    region: intl
+    priority: P1
+    topics: [aviation]
+
+  - name: The Points Guy
+    url: https://thepointsguy.com/
+    fetch: rss
+    rss: https://thepointsguy.com/feed/
+    region: intl
+    priority: P1
+    topics: [aviation, hotels]
+
+  - name: GBTA
+    url: https://www.gbta.org/
+    fetch: rss
+    rss: https://www.gbta.org/feed/
+    region: intl
+    priority: P1
+    topics: [business_travel]
+
+  - name: Travel Weekly
+    url: https://www.travelweekly.com/Travel-News
+    fetch: curl_cffi
+    impersonate: safari
+    selector: "a[href*='-News/']"
+    text_min_length: 20
+    retry: 3
+    region: intl
+    priority: P1
+    topics: [aviation, hotels, business_travel]
+
+  # ═══════════════════════════════════════════
+  # Зарубежье — P2 (желательно)
+  # ═══════════════════════════════════════════
+
+  - name: AeroTelegraph
+    url: https://www.aerotelegraph.com/
+    fetch: rss
+    rss: https://www.aerotelegraph.com/feed
+    region: intl
+    priority: P2
+    topics: [aviation]
+
+  - name: The Company Dime
+    url: https://www.thecompanydime.com/
+    fetch: rss
+    rss: https://www.thecompanydime.com/feed/
+    region: intl
+    priority: P2
+    topics: [business_travel]
+
+  - name: 4Hoteliers
+    url: https://www.4hoteliers.com/
+    fetch: rss
+    rss: https://www.4hoteliers.com/rss/
+    region: intl
+    priority: P2
+    topics: [hotels]
+
+  - name: Skift Meetings
+    url: https://skift.com/meetings/
+    fetch: rss
+    rss: https://skift.com/meetings/feed/
+    region: intl
+    priority: P2
+    topics: [mice]
+
+  - name: Airlive
+    url: https://airlive.net/
+    fetch: rss
+    rss: https://airlive.net/feed/
+    region: intl
+    priority: P2
+    topics: [aviation]
+
+  - name: View from the Wing
+    url: https://viewfromthewing.com/
+    fetch: rss
+    rss: https://viewfromthewing.com/feed/
+    region: intl
+    priority: P2
+    topics: [aviation]
+
+  - name: Cranky Flier
+    url: https://crankyflier.com/
+    fetch: rss
+    rss: https://crankyflier.com/feed/
+    region: intl
+    priority: P2
+    topics: [aviation]
+
+  - name: Business Traveller UK
+    url: https://www.businesstraveller.com/
+    fetch: rss
+    rss: https://www.businesstraveller.com/feed/
+    region: intl
+    priority: P2
+    topics: [business_travel, hotels]
+
+  - name: BTN
+    url: https://www.businesstravelnews.com/
+    fetch: curl_cffi
+    impersonate: safari
+    selector: "a[href*='/News/']"
+    text_min_length: 20
+    retry: 3
+    region: intl
+    priority: P2
+    topics: [business_travel]
+
+  - name: PhocusWire
+    url: https://www.phocuswire.com/
+    fetch: curl_cffi
+    impersonate: safari
+    selector: "a[href*='/']"
+    text_min_length: 25
+    retry: 3
+    region: intl
+    priority: P2
+    topics: [general]
+
+  # ═══════════════════════════════════════════
+  # Google News RSS (мета-агрегатор)
+  # ═══════════════════════════════════════════
+
+  - name: GN RU Aviation
+    fetch: google_news
+    query: "авиакомпании рейсы аэропорт 2026"
+    hl: ru
+    gl: RU
+    region: ru
+    priority: P1
+    topics: [aviation]
+
+  - name: GN RU Hotels
+    fetch: google_news
+    query: "отели гостиницы бронирование 2026"
+    hl: ru
+    gl: RU
+    region: ru
+    priority: P2
+    topics: [hotels]
+
+  - name: GN RU Business Travel
+    fetch: google_news
+    query: "командировки деловой туризм 2026"
+    hl: ru
+    gl: RU
+    region: ru
+    priority: P1
+    topics: [business_travel]
+
+  - name: GN EN Aviation
+    fetch: google_news
+    query: "airline aviation industry news 2026"
+    hl: en
+    gl: US
+    ceid: "US:en"
+    region: intl
+    priority: P2
+    topics: [aviation]
+
+  - name: GN EN Hotels
+    fetch: google_news
+    query: "hotel hospitality industry news 2026"
+    hl: en
+    gl: US
+    ceid: "US:en"
+    region: intl
+    priority: P2
+    topics: [hotels]
+
+  - name: GN EN Business Travel
+    fetch: google_news
+    query: "business travel corporate travel news 2026"
+    hl: en
+    gl: US
+    ceid: "US:en"
+    region: intl
+    priority: P2
+    topics: [business_travel]
+
+# Keyword dictionaries for classification
+keywords:
+  aviation:
+    ru: [авиа, рейс, перелёт, самолёт, аэропорт, авиакомпания, лоукост, борт, пилот, аэрофлот, s7,胜利, уральские, победа, авиалин, турбо, вертолёт, беспилот, воздушн, катастроф, тайфун, аэродром, диспетчер]
+    en: [airline, flight, aircraft, aviation, airport, Boeing, Airbus, pilot, jet, fleet, route, low-cost, carrier, ATR, turboprop, runway, airspace, FAA, EASA, IATA, ICAO]
+  hotels:
+    ru: [отель, гостиниц, проживание, бронирование, номер, ресепшн, люкс, апартамент, хостел, курорт, спа, ресторан, hoReCa, общепит]
+    en: [hotel, hospitality, resort, accommodation, booking, room, suite, Marriott, Hilton, Hyatt, IHG, Accor, Radisson, lodging, guesthouse, motel]
+  business_travel:
+    ru: [командир, деловой, бизнес-тревел, корпоративн, суточн, расход, поездка, MICE, мероприяти, конференц, форум, делегат, тревел-менеджмент, тревел-политик]
+    en: [business travel, corporate travel, TMC, MICE, meetings, incentive, conference, exhibition, travel management, travel policy, expense, per diem, GBTA, duty of care]
