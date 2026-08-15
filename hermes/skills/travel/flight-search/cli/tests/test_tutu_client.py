@@ -104,7 +104,9 @@ class FakeSdkClient:
         **kwargs: object,
     ) -> CallToolResult:
         self.calls.append((name, arguments, kwargs))
-        text = "# Tutu playbook" if name == "get_avia_instructions" else '{"offers": []}'
+        text = (
+            "# Tutu playbook" if name == "get_avia_instructions" else '{"offers": []}'
+        )
         return CallToolResult(content=[TextContent(type="text", text=text)])
 
 
@@ -301,7 +303,9 @@ class TutuMcpClientLifecycleTests(unittest.IsolatedAsyncioTestCase):
             sdk_clients.append(client)
             return client
 
-        with patch("flights_cli.providers.tutu_client.Client", side_effect=build_client):
+        with patch(
+            "flights_cli.providers.tutu_client.Client", side_effect=build_client
+        ):
             async with TutuMcpClient(
                 url="https://mcp.tutu.ru/mcp/",
                 deadline=time.monotonic() + 5,
@@ -309,7 +313,9 @@ class TutuMcpClientLifecycleTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(client.playbook, "# Tutu playbook")
                 self.assertEqual(client.protocol_version, "2025-11-25")
                 self.assertEqual(client.server_info, FakeSdkClient.server_info)
-                self.assertEqual(await client.search_avia({"origin": "SVX"}), {"offers": []})
+                self.assertEqual(
+                    await client.search_avia({"origin": "SVX"}), {"offers": []}
+                )
 
         self.assertEqual(len(sdk_clients), 1)
         sdk = sdk_clients[0]
@@ -464,8 +470,7 @@ class TutuMcpClientLifecycleTests(unittest.IsolatedAsyncioTestCase):
                 if name == "get_avia_instructions":
                     return await super().call_tool(name, arguments, **kwargs)
                 return CallToolResult(
-                    structuredContent=["not", "an", "object"],
-                    content=[],
+                    content=[TextContent(type="text", text='["not", "an", "object"]')],
                 )
 
         with (
