@@ -16,7 +16,11 @@ from .offer_query_runner import (
 )
 from .probe_ledger import ProbeRunLedger
 from .search_evidence import SearchEvidence
-from ..pipeline.direct_gate import evaluate_direct_gate, normalize_direction
+from ..pipeline.direct_gate import (
+    evaluate_direct_gate,
+    normalize_direction,
+    provider_result_has_eligible_path,
+)
 from ..pipeline.search_plan import (
     GATEWAY_TRIGGER_ON_PRIMARY_FAILURE,
     SearchPlan,
@@ -213,6 +217,29 @@ class SearchExecutor:
             direction: direction in successful_direct_directions
             for direction in state.direct_mode
         }
+        primary_path_present = {
+            direction: any(
+                normalize_direction(result.get("direction")) == direction
+                and provider_result_has_eligible_path(
+                    result,
+                    {
+                        **result,
+                        **(
+                            result.get("filters")
+                            if isinstance(result.get("filters"), dict)
+                            else {}
+                        ),
+                    },
+                    only_carriers=plan.execution_policy.only_carriers,
+                    max_connections_per_journey=(
+                        plan.decision_policy.max_connections_per_journey
+                    ),
+                )
+                for result in state.primary_offer_results
+                if isinstance(result, dict)
+            )
+            for direction in state.direct_mode
+        }
 
         eligible_templates = []
         skipped_templates = []
@@ -230,10 +257,9 @@ class SearchExecutor:
             elif (
                 template.trigger == GATEWAY_TRIGGER_ON_PRIMARY_FAILURE
                 and not gate.primary_failure.get(direction, False)
+                and primary_path_present.get(direction, False)
             ):
-                skipped_templates.append(
-                    (template, "gateway_trigger_not_satisfied")
-                )
+                skipped_templates.append((template, "gateway_trigger_not_satisfied"))
             else:
                 eligible_templates.append(template)
         state.direct_presence_gate["gateway_trigger"] = plan.gateway_policy.trigger

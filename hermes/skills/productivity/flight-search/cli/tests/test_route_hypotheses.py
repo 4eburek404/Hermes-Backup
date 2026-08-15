@@ -12,7 +12,9 @@ from flights_cli.execution.probe_dispatcher import SegmentProbeOutcome
 from flights_cli.execution.probe_ledger import ProbeRunLedger
 from flights_cli.execution.search_executor import SearchExecutor
 from flights_cli.pipeline.offer_graph_builder import build_offer_graph
-from flights_cli.pipeline.offer_graph_materializer import materialize_offer_graph_candidates
+from flights_cli.pipeline.offer_graph_materializer import (
+    materialize_offer_graph_candidates,
+)
 from flights_cli.store import Store
 
 
@@ -28,7 +30,9 @@ class RouteHypothesisRequestTests(unittest.TestCase):
         )
 
         self.assertEqual(request.route_hypotheses, ())
-        self.assertEqual(request.to_payload()["schema_version"], "flight_search_request.v4")
+        self.assertEqual(
+            request.to_payload()["schema_version"], "flight_search_request.v4"
+        )
 
     def test_v4_request_builds_immutable_route_leg_template(self) -> None:
         request = search_request_from_payload(
@@ -224,13 +228,17 @@ class RouteHypothesisRequestTests(unittest.TestCase):
                 },
             )
 
-        self.assertEqual([(item["leg_index"], item["date"]) for item in calls], [(0, "2026-10-01")])
+        self.assertEqual(
+            [(item["leg_index"], item["date"]) for item in calls], [(0, "2026-10-01")]
+        )
         self.assertEqual(
             result["route_hypotheses"][0]["reason"],
             "route_leg_arrival_time_missing",
         )
 
-    def test_search_executor_uses_route_leg_templates_without_mutating_plan(self) -> None:
+    def test_search_executor_uses_route_leg_templates_without_mutating_plan(
+        self,
+    ) -> None:
         request = search_request_from_payload(
             {
                 "schema_version": "flight_search_request.v4",
@@ -247,7 +255,9 @@ class RouteHypothesisRequestTests(unittest.TestCase):
         )
         plan = SearchPlanBuilder(Store()).build(request)
         original = plan.to_dict()
-        executor_module = importlib.import_module("flights_cli.execution.search_executor")
+        executor_module = importlib.import_module(
+            "flights_cli.execution.search_executor"
+        )
         self.assertTrue(hasattr(executor_module, "RouteLegProbeExecutor"))
         route_result = {
             "route_hypotheses": [
@@ -276,6 +286,149 @@ class RouteHypothesisRequestTests(unittest.TestCase):
         self.assertEqual(plan.to_dict(), original)
         run_route_legs.assert_called_once()
 
+    def test_empty_primary_results_trigger_configured_route_legs(self) -> None:
+        executor_module = importlib.import_module(
+            "flights_cli.execution.search_executor"
+        )
+
+        for provider_policy in ("tutu", "kupibilet", "auto"):
+            with self.subTest(provider_policy=provider_policy):
+                request = search_request_from_payload(
+                    {
+                        "schema_version": "flight_search_request.v4",
+                        "origin": "PUS",
+                        "destination": "SVX",
+                        "depart_date": "2026-09-10",
+                        "provider_policy": provider_policy,
+                        "route_hypotheses": [],
+                    }
+                )
+                plan = SearchPlanBuilder(Store()).build(request)
+
+                with (
+                    patch(
+                        "flights_cli.execution.search_executor.run_primary_offer_queries",
+                        return_value=[],
+                    ),
+                    patch.object(
+                        executor_module.RouteLegProbeExecutor,
+                        "run",
+                        return_value={"route_hypotheses": []},
+                    ) as run_route_legs,
+                ):
+                    SearchExecutor(Store()).execute(plan)
+
+                run_route_legs.assert_called_once()
+
+    def test_connected_primary_offer_suppresses_configured_route_legs(self) -> None:
+        request = search_request_from_payload(
+            {
+                "schema_version": "flight_search_request.v4",
+                "origin": "PUS",
+                "destination": "SVX",
+                "depart_date": "2026-09-10",
+                "provider_policy": "tutu",
+                "route_hypotheses": [],
+            }
+        )
+        plan = SearchPlanBuilder(Store()).build(request)
+        connected_result = {
+            "probe_id": "primary-002",
+            "provider": "tutu",
+            "direction": "outbound",
+            "origin": "PUS",
+            "destination": "SVX",
+            "date": "2026-09-10",
+            "status": "ok",
+            "execution_state": "searched",
+            "filters": {
+                "direct_only": False,
+                "origin_airports": ["PUS"],
+                "destination_airports": ["SVX"],
+                "only_carriers": [],
+            },
+            "top_offers": [
+                {
+                    "id": "connected-primary",
+                    "segments": [
+                        {
+                            "origin": "PUS",
+                            "destination": "IST",
+                            "departure_at": "2026-09-10T08:00:00+09:00",
+                            "arrival_at": "2026-09-10T14:00:00+03:00",
+                        },
+                        {
+                            "origin": "IST",
+                            "destination": "SVX",
+                            "departure_at": "2026-09-10T18:00:00+03:00",
+                            "arrival_at": "2026-09-11T01:00:00+05:00",
+                        },
+                    ],
+                }
+            ],
+        }
+        executor_module = importlib.import_module(
+            "flights_cli.execution.search_executor"
+        )
+
+        with (
+            patch(
+                "flights_cli.execution.search_executor.run_primary_offer_queries",
+                side_effect=[[], [connected_result]],
+            ),
+            patch.object(
+                executor_module.RouteLegProbeExecutor, "run"
+            ) as run_route_legs,
+        ):
+            evidence = SearchExecutor(Store()).execute(plan)
+
+        run_route_legs.assert_not_called()
+        self.assertEqual(
+            evidence.gateway_leg_results["route_hypotheses"][0]["reason"],
+            "gateway_trigger_not_satisfied",
+        )
+
+    def test_primary_failure_still_triggers_configured_route_legs(self) -> None:
+        request = search_request_from_payload(
+            {
+                "schema_version": "flight_search_request.v4",
+                "origin": "PUS",
+                "destination": "SVX",
+                "depart_date": "2026-09-10",
+                "provider_policy": "tutu",
+                "route_hypotheses": [],
+            }
+        )
+        plan = SearchPlanBuilder(Store()).build(request)
+        failed_result = {
+            "probe_id": "primary-001",
+            "provider": "tutu",
+            "direction": "outbound",
+            "origin": "PUS",
+            "destination": "SVX",
+            "date": "2026-09-10",
+            "status": "error",
+            "execution_state": "failed",
+        }
+        executor_module = importlib.import_module(
+            "flights_cli.execution.search_executor"
+        )
+
+        with (
+            patch(
+                "flights_cli.execution.search_executor.run_primary_offer_queries",
+                side_effect=[[failed_result], []],
+            ),
+            patch.object(
+                executor_module.RouteLegProbeExecutor,
+                "run",
+                return_value={"route_hypotheses": []},
+            ) as run_route_legs,
+        ):
+            SearchExecutor(Store()).execute(plan)
+
+        run_route_legs.assert_called_once()
+
     def test_hypothesis_over_stop_policy_is_audited_without_execution(self) -> None:
         request = search_request_from_payload(
             {
@@ -293,14 +446,18 @@ class RouteHypothesisRequestTests(unittest.TestCase):
             }
         )
         plan = SearchPlanBuilder(Store()).build(request)
-        executor_module = importlib.import_module("flights_cli.execution.search_executor")
+        executor_module = importlib.import_module(
+            "flights_cli.execution.search_executor"
+        )
 
         with (
             patch(
                 "flights_cli.execution.search_executor.run_primary_offer_queries",
                 return_value=[],
             ),
-            patch.object(executor_module.RouteLegProbeExecutor, "run") as run_route_legs,
+            patch.object(
+                executor_module.RouteLegProbeExecutor, "run"
+            ) as run_route_legs,
         ):
             evidence = SearchExecutor(Store()).execute(plan)
 
@@ -364,7 +521,9 @@ class RouteHypothesisRequestTests(unittest.TestCase):
 
         self.assertEqual(envelope["candidates"], [])
 
-    def test_route_hypothesis_evidence_materializes_only_its_declared_chain(self) -> None:
+    def test_route_hypothesis_evidence_materializes_only_its_declared_chain(
+        self,
+    ) -> None:
         graph = build_offer_graph(
             primary_offer_results=[],
             gateway_leg_results={
