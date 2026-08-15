@@ -1,6 +1,6 @@
 # Travel News Sources Configuration
 # Used by fetch_travel_news.py
-# fetch types: rss, curl_cffi, google_news, browser
+# fetch types: rss, google_news
 # region: ru, intl
 # priority: P1, P2, P3
 # topics: aviation, hotels, business_travel, mice, general
@@ -95,22 +95,6 @@ sources:
     topics: [business_travel, general]
 
   # ═══════════════════════════════════════════
-  # РФ — browser-only (не в скрипте, через агента)
-  # ═══════════════════════════════════════════
-  # АТОР — browser_navigate only, нет RSS
-  # Турпром — curl HTML, нет RSS (можно добавить как curl_cffi)
-
-  - name: Турпром
-    url: https://tourprom.ru/
-    fetch: curl_cffi
-    impersonate: safari
-    selector: "a[href*='/news/']"
-    text_min_length: 30
-    region: ru
-    priority: P2
-    topics: [aviation, hotels, general]
-
-  # ═══════════════════════════════════════════
   # Зарубежье — P1 (обязательно)
   # ═══════════════════════════════════════════
 
@@ -153,17 +137,6 @@ sources:
     region: intl
     priority: P1
     topics: [business_travel]
-
-  - name: Travel Weekly
-    url: https://www.travelweekly.com/Travel-News
-    fetch: curl_cffi
-    impersonate: safari
-    selector: "a[href*='-News/']"
-    text_min_length: 20
-    retry: 3
-    region: intl
-    priority: P1
-    topics: [aviation, hotels, business_travel]
 
   # ═══════════════════════════════════════════
   # Зарубежье — P2 (желательно)
@@ -232,28 +205,6 @@ sources:
     region: intl
     priority: P2
     topics: [business_travel, hotels]
-
-  - name: BTN
-    url: https://www.businesstravelnews.com/
-    fetch: curl_cffi
-    impersonate: safari
-    selector: "a[href*='/News/']"
-    text_min_length: 20
-    retry: 3
-    region: intl
-    priority: P2
-    topics: [business_travel]
-
-  - name: PhocusWire
-    url: https://www.phocuswire.com/
-    fetch: curl_cffi
-    impersonate: safari
-    selector: "a[href*='/']"
-    text_min_length: 25
-    retry: 3
-    region: intl
-    priority: P2
-    topics: [general]
 
   # ═══════════════════════════════════════════
   # Google News RSS (мета-агрегатор)
