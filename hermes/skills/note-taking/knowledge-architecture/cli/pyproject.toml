@@ -1,9 +1,0 @@
-[project]
-name = "knowledge-cli"
-version = "0.1.0"
-description = "Read-only knowledge architecture audit and candidate CLI for local Hermes"
-requires-python = ">=3.10"
-dependencies = []
-
-[project.scripts]
-knowledge = "knowledge_cli.__main__:main"
