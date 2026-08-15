@@ -22,7 +22,6 @@ class TestVocabularyWellFormed(unittest.TestCase):
             v.MarketClass,
             v.RoutingStrategy,
             v.RouteFamily,
-            v.AbsenceReason,
             v.ProbeStatus,
         ]
         for enum_cls in enums:
@@ -47,7 +46,6 @@ class TestVocabularyWellFormed(unittest.TestCase):
             v.MarketClass,
             v.RoutingStrategy,
             v.RouteFamily,
-            v.AbsenceReason,
             v.ProbeStatus,
         ]
         for enum_cls in enums:
@@ -69,7 +67,6 @@ class TestVocabularyWellFormed(unittest.TestCase):
             v.MarketClass,
             v.RoutingStrategy,
             v.RouteFamily,
-            v.AbsenceReason,
             v.ProbeStatus,
         ]
         for enum_cls in enums:
@@ -132,7 +129,6 @@ class TestVocabularyDriftLint(unittest.TestCase):
             "MarketClass": {m.value for m in v.MarketClass},
             "RoutingStrategy": {m.value for m in v.RoutingStrategy},
             "RouteFamily": {m.value for m in v.RouteFamily},
-            "AbsenceReason": {m.value for m in v.AbsenceReason},
         }
         return cls.VOCABULARY_FAMILIES
 

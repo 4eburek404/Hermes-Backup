@@ -104,7 +104,7 @@ markets:
 
         self.assertEqual(caught.exception.error_type, "configuration_error")
         self.assertIn("invalid gateway priors YAML", caught.exception.message)
-        self.assertIn("expected key: value", caught.exception.message)
+        self.assertIn(str(path), caught.exception.message)
 
     def test_store_lookup_normalizes_market_key(self) -> None:
         path = self.write_file("gateway_priors.yaml", VALID_GATEWAY_PRIORS_YAML)

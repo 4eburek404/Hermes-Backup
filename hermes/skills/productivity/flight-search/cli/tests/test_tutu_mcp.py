@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import gc
 import json
 import tempfile
 import threading
@@ -14,6 +13,11 @@ from unittest.mock import patch
 
 import anyio
 import httpx2
+try:
+    from builtins import ExceptionGroup
+except ImportError:  # pragma: no cover - Python 3.10 compatibility
+    from exceptiongroup import ExceptionGroup
+
 from mcp.shared.exceptions import MCPError
 from mcp.types import (
     CONNECTION_CLOSED,
@@ -558,16 +562,6 @@ class TutuMcpProviderTests(unittest.TestCase):
     def test_sdk_task_group_connect_timeout_retries_in_new_session(self) -> None:
         sessions = 0
 
-        class FakeHttpClient:
-            def __init__(self, **kwargs: object) -> None:
-                self.timeout = kwargs["timeout"]
-
-            async def __aenter__(self) -> "FakeHttpClient":
-                return self
-
-            async def __aexit__(self, *args: object) -> None:
-                return None
-
         class TaskGroupSdkClient:
             protocol_version = "2025-11-25"
             server_info = None
@@ -622,14 +616,6 @@ class TutuMcpProviderTests(unittest.TestCase):
             self.assertEqual(delay, 0.25)
 
         with (
-            patch(
-                "flights_cli.providers.tutu_client.httpx2.AsyncClient",
-                FakeHttpClient,
-            ),
-            patch(
-                "flights_cli.providers.tutu_client.streamable_http_client",
-                return_value=object(),
-            ),
             patch(
                 "flights_cli.providers.tutu_client.Client",
                 TaskGroupSdkClient,
@@ -718,6 +704,66 @@ class TutuMcpProviderTests(unittest.TestCase):
         self.assertEqual(sessions, 1)
         self.assertEqual(error.exception.error_type, "timeout")
         self.assertEqual(error.exception.details["operation"], "initialize")
+
+    def test_sdk_cleanup_failure_cannot_replace_deadline_timeout(self) -> None:
+        for operation in ("initialize", "search_avia"):
+            class DeadlineCleanupSdkClient:
+                protocol_version = "2025-11-25"
+                server_info = None
+
+                def __init__(self, server: object, **kwargs: object) -> None:
+                    del server, kwargs
+
+                async def __aenter__(self) -> DeadlineCleanupSdkClient:
+                    if operation == "initialize":
+                        try:
+                            await asyncio.Event().wait()
+                        except asyncio.CancelledError:
+                            raise httpx2.ReadError(
+                                "initialize cleanup failed"
+                            ) from None
+                    return self
+
+                async def __aexit__(self, *args: object) -> None:
+                    del args
+                    raise httpx2.ReadError("search cleanup failed")
+
+                async def call_tool(
+                    self,
+                    name: str,
+                    arguments: dict[str, object],
+                    **kwargs: object,
+                ) -> CallToolResult:
+                    del arguments, kwargs
+                    if name == "get_avia_instructions":
+                        return CallToolResult(
+                            content=[TextContent(type="text", text="# Playbook")]
+                        )
+                    await asyncio.Event().wait()
+                    raise AssertionError("unreachable")
+
+            with (
+                self.subTest(operation=operation),
+                patch(
+                    "flights_cli.providers.tutu_client.Client",
+                    DeadlineCleanupSdkClient,
+                ),
+                self.assertRaises(CliError) as error,
+            ):
+                fetch_tutu_avia_search(
+                    "SVX",
+                    "AMS",
+                    date(2026, 8, 15),
+                    currency="RUB",
+                    timeout=0.02,  # type: ignore[arg-type]
+                )
+
+            self.assertEqual(error.exception.error_type, "timeout")
+            self.assertEqual(error.exception.details["operation"], operation)
+            self.assertEqual(
+                error.exception.details["terminal_error_types"],
+                ["TimeoutError"],
+            )
 
     def test_search_timeout_keeps_tool_when_budget_prevents_retry(self) -> None:
         sessions = 0
@@ -895,17 +941,6 @@ class TutuMcpProviderTests(unittest.TestCase):
         sessions = 0
         events: list[str] = []
 
-        class FakeHttpClient:
-            def __init__(self, **kwargs: object) -> None:
-                self.timeout = kwargs["timeout"]
-
-            async def __aenter__(self) -> "FakeHttpClient":
-                events.append("http_enter")
-                return self
-
-            async def __aexit__(self, *args: object) -> None:
-                events.append("http_exit")
-
         class ToolErrorSdkClient:
             protocol_version = "2025-11-25"
             server_info = None
@@ -918,9 +953,16 @@ class TutuMcpProviderTests(unittest.TestCase):
                 events.append("sdk_enter")
                 return self
 
-            async def __aexit__(self, *args: object) -> None:
+            async def __aexit__(
+                self,
+                exc_type: type[BaseException] | None,
+                exc: BaseException | None,
+                traceback: object,
+            ) -> None:
+                del exc_type, traceback
                 events.append("sdk_exit")
-                raise httpx2.ReadError("close failed")
+                assert isinstance(exc, CliError)
+                raise ExceptionGroup("SDK teardown", [exc])
 
             async def call_tool(
                 self,
@@ -939,14 +981,6 @@ class TutuMcpProviderTests(unittest.TestCase):
 
         with (
             patch(
-                "flights_cli.providers.tutu_client.httpx2.AsyncClient",
-                FakeHttpClient,
-            ),
-            patch(
-                "flights_cli.providers.tutu_client.streamable_http_client",
-                return_value=object(),
-            ),
-            patch(
                 "flights_cli.providers.tutu_client.Client",
                 ToolErrorSdkClient,
             ),
@@ -963,10 +997,7 @@ class TutuMcpProviderTests(unittest.TestCase):
         self.assertEqual(sessions, 1)
         self.assertEqual(error.exception.details["tool"], "search_avia")
         self.assertIn("bad request", str(error.exception))
-        self.assertEqual(
-            events,
-            ["http_enter", "sdk_enter", "sdk_exit", "http_exit"],
-        )
+        self.assertEqual(events, ["sdk_enter", "sdk_exit"])
 
     def test_protocol_payload_failures_never_retry(self) -> None:
         failures = [
@@ -1134,43 +1165,48 @@ class TutuMcpSyncContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("active event loop", str(error.exception))
 
     async def test_parent_cancel_never_reaches_retry_classifier(self) -> None:
-        class CleanupError(Exception):
-            def __init__(self) -> None:
-                super().__init__("cleanup failed")
-                self.exceptions = (httpx2.ReadError("transport cleanup failed"),)
-
         for operation in ("initialize", "search_avia"):
             started = asyncio.Event()
+            cleanup_attempts: list[str] = []
             sessions = 0
-            cleanup_attempts = 0
 
-            class CancelledClient:
-                def __init__(self, **kwargs: object) -> None:
+            class CleanupFailingSdkClient:
+                protocol_version = "2025-11-25"
+                server_info = None
+
+                def __init__(self, server: object, **kwargs: object) -> None:
+                    del server, kwargs
                     nonlocal sessions
                     sessions += 1
 
-                async def __aenter__(self) -> "CancelledClient":
-                    nonlocal cleanup_attempts
-                    if sessions > 1:
-                        raise CliError(
-                            "caller cancellation reached retry",
-                            error_type="upstream_error",
-                        )
+                async def __aenter__(self) -> CleanupFailingSdkClient:
                     if operation == "initialize":
                         started.set()
                         try:
                             await asyncio.Event().wait()
-                        except BaseException:
-                            cleanup_attempts += 1
-                            raise CleanupError from None
+                        except asyncio.CancelledError:
+                            cleanup_attempts.append("initialize")
+                            raise httpx2.ReadError("initialize cleanup failed") from None
                     return self
 
                 async def __aexit__(self, *args: object) -> None:
-                    nonlocal cleanup_attempts
-                    cleanup_attempts += 1
-                    raise CleanupError
+                    del args
+                    cleanup_attempts.append("search_avia")
+                    raise httpx2.ReadError("search cleanup failed")
 
-                async def search_avia(self, arguments: dict) -> dict:
+                async def call_tool(
+                    self,
+                    name: str,
+                    arguments: dict[str, object],
+                    **kwargs: object,
+                ) -> CallToolResult:
+                    del arguments, kwargs
+                    if name == "get_avia_instructions":
+                        return CallToolResult(
+                            content=[
+                                TextContent(type="text", text="# Tutu playbook")
+                            ]
+                        )
                     started.set()
                     await asyncio.Event().wait()
                     raise AssertionError("unreachable")
@@ -1178,9 +1214,15 @@ class TutuMcpSyncContractTests(unittest.IsolatedAsyncioTestCase):
             with (
                 self.subTest(operation=operation),
                 patch(
-                    "flights_cli.providers.tutu_mcp.TutuMcpClient",
-                    CancelledClient,
+                    "flights_cli.providers.tutu_client.Client",
+                    CleanupFailingSdkClient,
                 ),
+                patch(
+                    "flights_cli.providers.tutu_mcp._is_retryable_transport_failure",
+                    side_effect=AssertionError(
+                        "parent cancellation reached retry classifier"
+                    ),
+                ) as retry_classifier,
             ):
                 task = asyncio.create_task(
                     tutu_mcp_module._fetch_tutu_avia_search_async(
@@ -1208,85 +1250,8 @@ class TutuMcpSyncContractTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(getattr(error.exception, "_tutu_operation", None))
             self.assertTrue(task.cancelled())
             self.assertEqual(sessions, 1)
-            self.assertEqual(cleanup_attempts, 1)
-
-    async def test_repeated_parent_cancel_drains_attempt_without_task_leak(
-        self,
-    ) -> None:
-        cleanup_started = asyncio.Event()
-        cleanup_release = asyncio.Event()
-        cleanup_finished = asyncio.Event()
-        loop_errors: list[dict[str, object]] = []
-
-        class CleanupError(Exception):
-            def __init__(self) -> None:
-                super().__init__("cleanup failed")
-                self.exceptions = (httpx2.ReadError("transport cleanup failed"),)
-
-        class CancelledClient:
-            def __init__(self, **kwargs: object) -> None:
-                pass
-
-            async def __aenter__(self) -> "CancelledClient":
-                return self
-
-            async def __aexit__(self, *args: object) -> None:
-                cleanup_started.set()
-                try:
-                    await cleanup_release.wait()
-                finally:
-                    cleanup_finished.set()
-                raise CleanupError
-
-            async def search_avia(self, arguments: dict) -> dict:
-                await asyncio.Event().wait()
-                raise AssertionError("unreachable")
-
-        loop = asyncio.get_running_loop()
-        previous_handler = loop.get_exception_handler()
-        loop.set_exception_handler(lambda _loop, context: loop_errors.append(context))
-        try:
-            with patch(
-                "flights_cli.providers.tutu_mcp.TutuMcpClient",
-                CancelledClient,
-            ):
-                task = asyncio.create_task(
-                    tutu_mcp_module._fetch_tutu_avia_search_async(
-                        "SVX",
-                        "AMS",
-                        date(2026, 8, 15),
-                        currency="RUB",
-                        only_carriers=None,
-                        direct_only=False,
-                        limit=20,
-                        timeout=5,
-                        mcp_url="https://mcp.tutu.ru/mcp",
-                        store=None,
-                        return_date=None,
-                        origin_airports=None,
-                        destination_airports=None,
-                        deadline=time.monotonic() + 5,
-                    )
-                )
-                await asyncio.sleep(0)
-                task.cancel()
-                await cleanup_started.wait()
-                task.cancel()
-                await asyncio.sleep(0)
-                parent_finished_before_cleanup = task.done()
-                cleanup_release.set()
-                with self.assertRaises(asyncio.CancelledError):
-                    await task
-                await asyncio.wait_for(cleanup_finished.wait(), timeout=1)
-                await asyncio.sleep(0)
-                gc.collect()
-                await asyncio.sleep(0)
-        finally:
-            cleanup_release.set()
-            loop.set_exception_handler(previous_handler)
-
-        self.assertFalse(parent_finished_before_cleanup)
-        self.assertEqual(loop_errors, [])
+            self.assertEqual(cleanup_attempts, [operation])
+            retry_classifier.assert_not_called()
 
     def test_parser_does_not_apply_tutu_direct_or_carrier_postfilters(self) -> None:
         store = store_with_tutu_catalog(self)

@@ -9,7 +9,8 @@ from ..domain.stop_policy import (
     stop_policy_status,
 )
 from .decision_scorer import DecisionScorer, DecisionScorerOptions
-from .offer_graph import build_offer_graph, materialize_offer_graph_candidates
+from .offer_graph_builder import build_offer_graph
+from .offer_graph_materializer import materialize_offer_graph_candidates
 from .search_plan import SearchPlan
 
 

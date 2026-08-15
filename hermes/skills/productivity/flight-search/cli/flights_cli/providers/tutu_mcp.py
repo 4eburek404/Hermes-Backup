@@ -73,21 +73,6 @@ def _has_timeout_leaf(exc: Exception) -> bool:
     )
 
 
-async def _cancel_and_drain_task(task: asyncio.Task[Any]) -> None:
-    task.cancel()
-    while not task.done():
-        try:
-            await asyncio.shield(task)
-        except asyncio.CancelledError:
-            continue
-        except BaseException:
-            break
-    try:
-        task.result()
-    except BaseException:
-        pass
-
-
 def _final_tutu_error(
     exc: Exception,
     *,
@@ -317,28 +302,21 @@ async def _fetch_tutu_avia_search_async(
                 timed_out=True,
             ) from timeout_error
         try:
-            attempt_task = asyncio.create_task(
-                _fetch_tutu_avia_search_attempt(
-                    origin,
-                    destination,
-                    depart_date,
-                    currency=currency,
-                    only_carriers=only_carriers,
-                    direct_only=direct_only,
-                    limit=limit,
-                    mcp_url=mcp_url,
-                    store=store,
-                    return_date=return_date,
-                    allowed_origins=allowed_origins,
-                    allowed_destinations=allowed_destinations,
-                    deadline=deadline,
-                )
+            return await _fetch_tutu_avia_search_attempt(
+                origin,
+                destination,
+                depart_date,
+                currency=currency,
+                only_carriers=only_carriers,
+                direct_only=direct_only,
+                limit=limit,
+                mcp_url=mcp_url,
+                store=store,
+                return_date=return_date,
+                allowed_origins=allowed_origins,
+                allowed_destinations=allowed_destinations,
+                deadline=deadline,
             )
-            try:
-                return await asyncio.shield(attempt_task)
-            except asyncio.CancelledError:
-                await _cancel_and_drain_task(attempt_task)
-                raise
         except Exception as exc:
             if isinstance(exc, CliError):
                 raise

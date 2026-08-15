@@ -6,9 +6,14 @@ import time
 import unittest
 from unittest.mock import patch
 
-import anyio
 import httpx2
-from mcp.types import CallToolResult, TextContent
+
+try:
+    from builtins import ExceptionGroup
+except ImportError:  # pragma: no cover - Python 3.10 compatibility
+    from exceptiongroup import ExceptionGroup
+
+from mcp.types import CallToolResult, Implementation, TextContent
 
 from flights_cli.errors import CliError
 from flights_cli.providers.tutu_client import (
@@ -76,45 +81,64 @@ class TutuMcpClientPayloadTests(unittest.TestCase):
         self.assertIn("bad request", str(error.exception))
 
 
-class TutuMcpClientLifecycleTests(unittest.IsolatedAsyncioTestCase):
-    async def test_internal_task_group_cancel_surfaces_transport_root_cause(
+class FakeSdkClient:
+    protocol_version = "2025-11-25"
+    server_info = Implementation(name="fake-tutu", version="1")
+
+    def __init__(self, server: object, **kwargs: object) -> None:
+        self.server = server
+        self.kwargs = kwargs
+        self.calls: list[tuple[str, dict[str, object], dict[str, object]]] = []
+        self.closed = False
+
+    async def __aenter__(self) -> FakeSdkClient:
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        self.closed = True
+
+    async def call_tool(
         self,
-    ) -> None:
-        events: list[str] = []
+        name: str,
+        arguments: dict[str, object],
+        **kwargs: object,
+    ) -> CallToolResult:
+        self.calls.append((name, arguments, kwargs))
+        text = "# Tutu playbook" if name == "get_avia_instructions" else '{"offers": []}'
+        return CallToolResult(content=[TextContent(type="text", text=text)])
 
-        class FakeHttpClient:
-            def __init__(self, **kwargs: object) -> None:
-                self.timeout = kwargs["timeout"]
 
-            async def __aenter__(self) -> "FakeHttpClient":
-                events.append("http_enter")
-                return self
+class TutuMcpClientLifecycleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_initialize_deadline_wins_over_sdk_cleanup_failure(self) -> None:
+        class FailingInitializeCleanupClient(FakeSdkClient):
+            async def __aenter__(self) -> FailingInitializeCleanupClient:
+                try:
+                    await asyncio.Event().wait()
+                except asyncio.CancelledError:
+                    raise httpx2.ReadError("initialize cleanup failed") from None
 
+        with (
+            patch(
+                "flights_cli.providers.tutu_client.Client",
+                FailingInitializeCleanupClient,
+            ),
+            self.assertRaises(TimeoutError) as error,
+        ):
+            await TutuMcpClient(
+                url="https://mcp.tutu.ru/mcp",
+                deadline=time.monotonic() + 0.02,
+            ).__aenter__()
+
+        self.assertEqual(
+            getattr(error.exception, "_tutu_operation", None),
+            "initialize",
+        )
+
+    async def test_search_deadline_wins_over_sdk_cleanup_failure(self) -> None:
+        class FailingSearchCleanupClient(FakeSdkClient):
             async def __aexit__(self, *args: object) -> None:
-                events.append("http_exit")
-
-        class FailingTaskGroupSdkClient:
-            protocol_version = "2025-11-25"
-            server_info = None
-
-            def __init__(self, server: object, **kwargs: object) -> None:
-                pass
-
-            async def __aenter__(self) -> "FailingTaskGroupSdkClient":
-                events.append("sdk_enter")
-                self.task_group = anyio.create_task_group()
-                await self.task_group.__aenter__()
-                return self
-
-            async def __aexit__(
-                self,
-                exc_type: type[BaseException] | None,
-                exc: BaseException | None,
-                traceback: object,
-            ) -> object:
-                events.append("sdk_exit")
-                self.task_group.cancel_scope.cancel()
-                return await self.task_group.__aexit__(exc_type, exc, traceback)
+                del args
+                raise httpx2.ReadError("search cleanup failed")
 
             async def call_tool(
                 self,
@@ -123,90 +147,74 @@ class TutuMcpClientLifecycleTests(unittest.IsolatedAsyncioTestCase):
                 **kwargs: object,
             ) -> CallToolResult:
                 if name == "get_avia_instructions":
-                    return CallToolResult(
-                        content=[TextContent(type="text", text="# Playbook")]
-                    )
-
-                async def fail_post() -> None:
-                    await anyio.sleep(0)
-                    raise httpx2.ConnectTimeout("POST connect timed out")
-
-                self.task_group.start_soon(fail_post)
-                await anyio.sleep_forever()
+                    return await super().call_tool(name, arguments, **kwargs)
+                await asyncio.Event().wait()
                 raise AssertionError("unreachable")
 
         with (
             patch(
-                "flights_cli.providers.tutu_client.httpx2.AsyncClient",
-                FakeHttpClient,
-            ),
-            patch(
-                "flights_cli.providers.tutu_client.streamable_http_client",
-                return_value=object(),
-            ),
-            patch(
                 "flights_cli.providers.tutu_client.Client",
-                FailingTaskGroupSdkClient,
+                FailingSearchCleanupClient,
             ),
-            patch(
-                "asyncio.current_task",
-                return_value=object(),
-            ),
-            self.assertRaises(Exception) as error,
+            self.assertRaises(TimeoutError) as error,
         ):
             async with TutuMcpClient(
                 url="https://mcp.tutu.ru/mcp",
-                deadline=time.monotonic() + 5,
+                deadline=time.monotonic() + 0.02,
             ) as client:
                 await client.search_avia({})
 
-        leaves = getattr(error.exception, "exceptions", (error.exception,))
-        self.assertTrue(any(isinstance(leaf, httpx2.ConnectTimeout) for leaf in leaves))
         self.assertEqual(
             getattr(error.exception, "_tutu_operation", None),
             "search_avia",
         )
-        self.assertEqual(
-            events,
-            ["http_enter", "sdk_enter", "sdk_exit", "http_exit"],
+
+    async def test_initialize_cancellation_wins_over_sdk_cleanup_failure(
+        self,
+    ) -> None:
+        started = asyncio.Event()
+        cleanup_attempts: list[str] = []
+
+        class FailingInitializeCleanupClient(FakeSdkClient):
+            async def __aenter__(self) -> FailingInitializeCleanupClient:
+                started.set()
+                try:
+                    await asyncio.Event().wait()
+                except asyncio.CancelledError:
+                    self.closed = True
+                    cleanup_attempts.append("initialize")
+                    raise httpx2.ReadError("initialize cleanup failed") from None
+
+        client = TutuMcpClient(
+            url="https://mcp.tutu.ru/mcp",
+            deadline=time.monotonic() + 5,
         )
+        with patch(
+            "flights_cli.providers.tutu_client.Client",
+            FailingInitializeCleanupClient,
+        ):
+            task = asyncio.create_task(client.__aenter__())
+            await started.wait()
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError) as error:
+                await task
 
-    async def test_own_deadline_converts_with_nested_sdk_task_group(self) -> None:
-        events: list[str] = []
+        self.assertIsNone(getattr(error.exception, "_tutu_operation", None))
+        self.assertTrue(task.cancelled())
+        self.assertEqual(cleanup_attempts, ["initialize"])
+        self.assertIsNone(client._session_context)
 
-        class FakeHttpClient:
-            def __init__(self, **kwargs: object) -> None:
-                self.timeout = kwargs["timeout"]
+    async def test_search_cancellation_wins_over_sdk_cleanup_failure(self) -> None:
+        started = asyncio.Event()
+        cleanup_attempts: list[str] = []
+        sdk_clients: list[FailingSearchCleanupClient] = []
 
-            async def __aenter__(self) -> "FakeHttpClient":
-                events.append("http_enter")
-                return self
-
+        class FailingSearchCleanupClient(FakeSdkClient):
             async def __aexit__(self, *args: object) -> None:
-                events.append("http_exit")
-
-        class SlowTaskGroupSdkClient:
-            protocol_version = "2025-11-25"
-            server_info = None
-
-            def __init__(self, server: object, **kwargs: object) -> None:
-                pass
-
-            async def __aenter__(self) -> "SlowTaskGroupSdkClient":
-                events.append("sdk_enter")
-                self.task_group = anyio.create_task_group()
-                await self.task_group.__aenter__()
-                return self
-
-            async def __aexit__(
-                self,
-                exc_type: type[BaseException] | None,
-                exc: BaseException | None,
-                traceback: object,
-            ) -> object:
-                events.append("sdk_exit")
-                self.task_group.cancel_scope.cancel()
-                return await self.task_group.__aexit__(exc_type, exc, traceback)
+                del args
+                self.closed = True
+                cleanup_attempts.append("search")
+                raise httpx2.ReadError("search cleanup failed")
 
             async def call_tool(
                 self,
@@ -214,45 +222,47 @@ class TutuMcpClientLifecycleTests(unittest.IsolatedAsyncioTestCase):
                 arguments: dict[str, object],
                 **kwargs: object,
             ) -> CallToolResult:
-                if name == "search_avia":
-                    await anyio.sleep_forever()
-                return CallToolResult(
-                    content=[TextContent(type="text", text="# Playbook")]
-                )
+                if name == "get_avia_instructions":
+                    return await super().call_tool(name, arguments, **kwargs)
+                started.set()
+                await asyncio.Event().wait()
+                raise AssertionError("unreachable")
 
-        with (
-            patch(
-                "flights_cli.providers.tutu_client.httpx2.AsyncClient",
-                FakeHttpClient,
-            ),
-            patch(
-                "flights_cli.providers.tutu_client.streamable_http_client",
-                return_value=object(),
-            ),
-            patch(
-                "flights_cli.providers.tutu_client.Client",
-                SlowTaskGroupSdkClient,
-            ),
-            self.assertRaises(TimeoutError) as error,
-        ):
-            async with TutuMcpClient(
-                url="https://mcp.tutu.ru/mcp",
-                deadline=time.monotonic() + 0.03,
-            ) as client:
+        def build_client(
+            server: object, **kwargs: object
+        ) -> FailingSearchCleanupClient:
+            sdk = FailingSearchCleanupClient(server, **kwargs)
+            sdk_clients.append(sdk)
+            return sdk
+
+        client = TutuMcpClient(
+            url="https://mcp.tutu.ru/mcp",
+            deadline=time.monotonic() + 5,
+        )
+
+        async def search() -> None:
+            async with client:
                 await client.search_avia({})
 
-        self.assertEqual(
-            getattr(error.exception, "_tutu_operation", None),
-            "search_avia",
-        )
-        self.assertEqual(
-            events,
-            ["http_enter", "sdk_enter", "sdk_exit", "http_exit"],
-        )
+        with patch(
+            "flights_cli.providers.tutu_client.Client",
+            side_effect=build_client,
+        ):
+            task = asyncio.create_task(search())
+            await started.wait()
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError) as error:
+                await task
+
+        self.assertIsNone(getattr(error.exception, "_tutu_operation", None))
+        self.assertTrue(task.cancelled())
+        self.assertEqual(cleanup_attempts, ["search"])
+        self.assertTrue(sdk_clients[0].closed)
+        self.assertIsNone(client._session_context)
 
     async def test_expired_deadline_before_initialize_retains_operation(self) -> None:
         with (
-            patch("flights_cli.providers.tutu_client.httpx2.AsyncClient") as http,
+            patch("flights_cli.providers.tutu_client.Client") as sdk_client,
             self.assertRaises(TimeoutError) as error,
         ):
             await TutuMcpClient(
@@ -260,45 +270,18 @@ class TutuMcpClientLifecycleTests(unittest.IsolatedAsyncioTestCase):
                 deadline=time.monotonic() - 1,
             ).__aenter__()
 
-        http.assert_not_called()
+        sdk_client.assert_not_called()
         self.assertEqual(
             getattr(error.exception, "_tutu_operation", None),
             "initialize",
         )
-
-    async def test_deadline_expiry_between_precheck_and_worker_is_reported(
-        self,
-    ) -> None:
-        client = TutuMcpClient(
-            url="https://mcp.tutu.ru/mcp",
-            deadline=time.monotonic() + 5,
-        )
-        with (
-            patch.object(
-                client,
-                "remaining_timeout",
-                side_effect=[1.0, TimeoutError("deadline exhausted")],
-            ),
-            self.assertRaises(TimeoutError) as error,
-        ):
-            await asyncio.wait_for(client.__aenter__(), timeout=0.2)
-
-        self.assertEqual(
-            getattr(error.exception, "_tutu_operation", None),
-            "initialize",
-        )
-        self.assertIsNone(client._session_task)
 
     async def test_expired_deadline_before_search_retains_tool_operation(self) -> None:
-        class UnexpectedSdkClient:
-            async def call_tool(self, *args: object, **kwargs: object) -> None:
-                self.fail("search_avia must not call the SDK after deadline expiry")
-
         client = TutuMcpClient(
             url="https://mcp.tutu.ru/mcp",
             deadline=time.monotonic() - 1,
         )
-        client._client = UnexpectedSdkClient()  # type: ignore[assignment]
+        client._client = FakeSdkClient("unused")  # type: ignore[assignment]
 
         with self.assertRaises(TimeoutError) as error:
             await client.search_avia({})
@@ -308,279 +291,42 @@ class TutuMcpClientLifecycleTests(unittest.IsolatedAsyncioTestCase):
             "search_avia",
         )
 
-    async def test_cancel_during_initialize_survives_sdk_close_failure(self) -> None:
-        events: list[str] = []
-        initialize_started = asyncio.Event()
-
-        class CleanupError(Exception):
-            def __init__(self) -> None:
-                super().__init__("cleanup failed")
-                self.exceptions = (httpx2.ReadError("close failed"),)
-
-        class FakeHttpClient:
-            def __init__(self, **kwargs: object) -> None:
-                self.timeout = kwargs["timeout"]
-
-            async def __aenter__(self) -> "FakeHttpClient":
-                events.append("http_enter")
-                return self
-
-            async def __aexit__(self, *args: object) -> None:
-                events.append("http_exit")
-
-        class CancelledSdkClient:
-            protocol_version = "2025-11-25"
-            server_info = None
-
-            def __init__(self, server: object, **kwargs: object) -> None:
-                pass
-
-            async def __aenter__(self) -> "CancelledSdkClient":
-                events.append("sdk_enter")
-                initialize_started.set()
-                await asyncio.Event().wait()
-                return self
-
-            async def __aexit__(self, *args: object) -> None:
-                events.append("sdk_exit")
-                raise CleanupError
-
-        with (
-            patch(
-                "flights_cli.providers.tutu_client.httpx2.AsyncClient",
-                FakeHttpClient,
-            ),
-            patch(
-                "flights_cli.providers.tutu_client.streamable_http_client",
-                return_value=object(),
-            ),
-            patch("flights_cli.providers.tutu_client.Client", CancelledSdkClient),
-        ):
-            task = asyncio.create_task(
-                TutuMcpClient(
-                    url="https://mcp.tutu.ru/mcp",
-                    deadline=time.monotonic() + 5,
-                ).__aenter__()
-            )
-            await initialize_started.wait()
-            task.cancel()
-            with self.assertRaises(asyncio.CancelledError) as error:
-                await task
-
-        self.assertIsNone(getattr(error.exception, "_tutu_operation", None))
-        self.assertTrue(task.cancelled())
-        self.assertEqual(
-            events,
-            ["http_enter", "sdk_enter", "sdk_exit", "http_exit"],
-        )
-
-    async def test_cancel_during_search_survives_sdk_close_failure(self) -> None:
-        events: list[str] = []
-        search_started = asyncio.Event()
-
-        class CleanupError(Exception):
-            def __init__(self) -> None:
-                super().__init__("cleanup failed")
-                self.exceptions = (httpx2.ReadError("close failed"),)
-
-        class FakeHttpClient:
-            def __init__(self, **kwargs: object) -> None:
-                self.timeout = kwargs["timeout"]
-
-            async def __aenter__(self) -> "FakeHttpClient":
-                events.append("http_enter")
-                return self
-
-            async def __aexit__(self, *args: object) -> None:
-                events.append("http_exit")
-
-        class CancelledSdkClient:
-            protocol_version = "2025-11-25"
-            server_info = None
-
-            def __init__(self, server: object, **kwargs: object) -> None:
-                pass
-
-            async def __aenter__(self) -> "CancelledSdkClient":
-                events.append("sdk_enter")
-                return self
-
-            async def __aexit__(self, *args: object) -> None:
-                events.append("sdk_exit")
-                raise CleanupError
-
-            async def call_tool(
-                self,
-                name: str,
-                arguments: dict[str, object],
-                **kwargs: object,
-            ) -> CallToolResult:
-                if name == "search_avia":
-                    search_started.set()
-                    await asyncio.Event().wait()
-                return CallToolResult(
-                    content=[TextContent(type="text", text="# Playbook")]
-                )
-
-        async def run_search() -> None:
-            async with TutuMcpClient(
-                url="https://mcp.tutu.ru/mcp",
-                deadline=time.monotonic() + 5,
-            ) as client:
-                await client.search_avia({})
-
-        with (
-            patch(
-                "flights_cli.providers.tutu_client.httpx2.AsyncClient",
-                FakeHttpClient,
-            ),
-            patch(
-                "flights_cli.providers.tutu_client.streamable_http_client",
-                return_value=object(),
-            ),
-            patch("flights_cli.providers.tutu_client.Client", CancelledSdkClient),
-        ):
-            task = asyncio.create_task(run_search())
-            await search_started.wait()
-            task.cancel()
-            with self.assertRaises(asyncio.CancelledError) as error:
-                await task
-
-        self.assertIsNone(getattr(error.exception, "_tutu_operation", None))
-        self.assertTrue(task.cancelled())
-        self.assertEqual(
-            events,
-            ["http_enter", "sdk_enter", "sdk_exit", "http_exit"],
-        )
-
-    async def test_worker_exit_between_precheck_and_enqueue_does_not_hang(
+    async def test_direct_sdk_context_configuration_and_playbook_preflight(
         self,
     ) -> None:
-        worker_exit = asyncio.Event()
-        transport_error = httpx2.ReadError("session worker failed")
+        sdk_clients: list[FakeSdkClient] = []
 
-        async def fail_worker() -> None:
-            await worker_exit.wait()
-            raise transport_error
+        def build_client(server: object, **kwargs: object) -> FakeSdkClient:
+            client = FakeSdkClient(server, **kwargs)
+            sdk_clients.append(client)
+            return client
 
-        class ExitWorkerQueue:
-            def put_nowait(self, item: object) -> None:
-                del item
-                worker_exit.set()
+        with patch("flights_cli.providers.tutu_client.Client", side_effect=build_client):
+            async with TutuMcpClient(
+                url="https://mcp.tutu.ru/mcp/",
+                deadline=time.monotonic() + 5,
+            ) as client:
+                self.assertEqual(client.playbook, "# Tutu playbook")
+                self.assertEqual(client.protocol_version, "2025-11-25")
+                self.assertEqual(client.server_info, FakeSdkClient.server_info)
+                self.assertEqual(await client.search_avia({"origin": "SVX"}), {"offers": []})
 
-        client = TutuMcpClient(
-            url="https://mcp.tutu.ru/mcp",
-            deadline=time.monotonic() + 5,
-        )
-        worker = asyncio.create_task(fail_worker())
-        client._session_task = worker
-        client._command_queue = ExitWorkerQueue()  # type: ignore[assignment]
-
-        with self.assertRaises(httpx2.ReadError) as error:
-            await asyncio.wait_for(client.search_avia({}), timeout=0.2)
-
-        self.assertIs(error.exception, transport_error)
-        self.assertTrue(worker.done())
-
-    async def test_caller_cancel_wins_when_response_completes_same_turn(self) -> None:
-        cleanup_finished = asyncio.Event()
-
-        async def session_worker() -> None:
-            try:
-                await asyncio.Event().wait()
-            finally:
-                await asyncio.sleep(0)
-                cleanup_finished.set()
-
-        class CompleteAndCancelQueue:
-            def put_nowait(
-                self,
-                item: tuple[
-                    str | None,
-                    dict[str, object],
-                    asyncio.Future[object],
-                ],
-            ) -> None:
-                response = item[2]
-                caller = asyncio.current_task()
-                assert caller is not None
-
-                def complete_and_cancel() -> None:
-                    response.set_result({"offers": []})
-                    caller.cancel()
-
-                asyncio.get_running_loop().call_soon(complete_and_cancel)
-
-        client = TutuMcpClient(
-            url="https://mcp.tutu.ru/mcp",
-            deadline=time.monotonic() + 5,
-        )
-        worker = asyncio.create_task(session_worker())
-        client._session_task = worker
-        client._command_queue = CompleteAndCancelQueue()  # type: ignore[assignment]
-        caller = asyncio.create_task(client.search_avia({}))
-        try:
-            with self.assertRaises(asyncio.CancelledError):
-                await caller
-        finally:
-            if not worker.done():
-                worker.cancel()
-                await asyncio.gather(worker, return_exceptions=True)
-
-        self.assertTrue(caller.cancelled())
-        self.assertTrue(worker.done())
-        self.assertTrue(cleanup_finished.is_set())
-
-    async def test_close_failure_is_tagged_with_close_operation(self) -> None:
-        class FakeHttpClient:
-            timeout: object | None = None
-
-        class FailingStack:
-            async def __aexit__(self, *args: object) -> None:
-                raise httpx2.ReadTimeout("close stalled")
-
-        client = TutuMcpClient(
-            url="https://mcp.tutu.ru/mcp",
-            deadline=time.monotonic() + 5,
-        )
-        client._http_client = FakeHttpClient()  # type: ignore[assignment]
-
-        with self.assertRaises(httpx2.ReadTimeout) as error:
-            await client._close_stack(FailingStack())  # type: ignore[arg-type]
-
+        self.assertEqual(len(sdk_clients), 1)
+        sdk = sdk_clients[0]
+        self.assertEqual(sdk.server, "https://mcp.tutu.ru/mcp")
+        self.assertEqual(sdk.kwargs["mode"], "legacy")
+        self.assertIsNone(sdk.kwargs["cache"])
+        self.assertGreater(float(sdk.kwargs["read_timeout_seconds"]), 0)
         self.assertEqual(
-            getattr(error.exception, "_tutu_operation", None),
-            "close",
+            [call[0] for call in sdk.calls],
+            ["get_avia_instructions", "search_avia"],
         )
+        self.assertTrue(sdk.closed)
+        self.assertIsNone(client.protocol_version)
+        self.assertIsNone(client.server_info)
 
     async def test_complete_tool_call_is_bounded_by_absolute_deadline(self) -> None:
-        events: list[str] = []
-
-        class FakeHttpClient:
-            def __init__(self, **kwargs: object) -> None:
-                self.timeout = kwargs["timeout"]
-
-            async def __aenter__(self) -> "FakeHttpClient":
-                events.append("http_enter")
-                return self
-
-            async def __aexit__(self, *args: object) -> None:
-                events.append("http_exit")
-
-        class SlowSdkClient:
-            protocol_version = "2025-11-25"
-            server_info = None
-
-            def __init__(self, server: object, **kwargs: object) -> None:
-                pass
-
-            async def __aenter__(self) -> "SlowSdkClient":
-                events.append("sdk_enter")
-                return self
-
-            async def __aexit__(self, *args: object) -> None:
-                events.append("sdk_exit")
-
+        class SlowSdkClient(FakeSdkClient):
             async def call_tool(
                 self,
                 name: str,
@@ -589,22 +335,9 @@ class TutuMcpClientLifecycleTests(unittest.IsolatedAsyncioTestCase):
             ) -> CallToolResult:
                 if name == "search_avia":
                     await asyncio.sleep(0.1)
-                    text = '{"offers": []}'
-                else:
-                    text = "# Playbook"
-                return CallToolResult(content=[TextContent(type="text", text=text)])
+                return await super().call_tool(name, arguments, **kwargs)
 
-        with (
-            patch(
-                "flights_cli.providers.tutu_client.httpx2.AsyncClient",
-                FakeHttpClient,
-            ),
-            patch(
-                "flights_cli.providers.tutu_client.streamable_http_client",
-                return_value=object(),
-            ),
-            patch("flights_cli.providers.tutu_client.Client", SlowSdkClient),
-        ):
+        with patch("flights_cli.providers.tutu_client.Client", SlowSdkClient):
             started = time.monotonic()
             with self.assertRaises(TimeoutError) as error:
                 async with TutuMcpClient(
@@ -612,248 +345,94 @@ class TutuMcpClientLifecycleTests(unittest.IsolatedAsyncioTestCase):
                     deadline=started + 0.03,
                 ) as client:
                     await client.search_avia({})
-            self.assertLess(time.monotonic() - started, 0.1)
-        self.assertEqual(
-            events,
-            ["http_enter", "sdk_enter", "sdk_exit", "http_exit"],
-        )
+
+        self.assertLess(time.monotonic() - started, 0.1)
         self.assertEqual(
             getattr(error.exception, "_tutu_operation", None),
             "search_avia",
         )
 
-    async def test_initialize_deadline_timeout_retains_operation(self) -> None:
-        events: list[str] = []
-
-        class FakeHttpClient:
-            def __init__(self, **kwargs: object) -> None:
-                self.timeout = kwargs["timeout"]
-
-            async def __aenter__(self) -> "FakeHttpClient":
-                events.append("http_enter")
-                return self
-
-            async def __aexit__(self, *args: object) -> None:
-                events.append("http_exit")
-
-        class SlowInitializeSdkClient:
-            protocol_version = "2025-11-25"
-            server_info = None
-
-            def __init__(self, server: object, **kwargs: object) -> None:
-                pass
-
-            async def __aenter__(self) -> "SlowInitializeSdkClient":
-                events.append("sdk_enter")
+    async def test_initialize_and_close_are_bounded_and_tagged(self) -> None:
+        class SlowInitializeSdkClient(FakeSdkClient):
+            async def __aenter__(self) -> SlowInitializeSdkClient:
                 await asyncio.sleep(0.1)
                 return self
 
-            async def __aexit__(self, *args: object) -> None:
-                events.append("sdk_exit")
-
         with (
-            patch(
-                "flights_cli.providers.tutu_client.httpx2.AsyncClient",
-                FakeHttpClient,
-            ),
-            patch(
-                "flights_cli.providers.tutu_client.streamable_http_client",
-                return_value=object(),
-            ),
-            patch(
-                "flights_cli.providers.tutu_client.Client",
-                SlowInitializeSdkClient,
-            ),
+            patch("flights_cli.providers.tutu_client.Client", SlowInitializeSdkClient),
+            self.assertRaises(TimeoutError) as initialize_error,
         ):
-            with self.assertRaises(TimeoutError) as error:
-                await TutuMcpClient(
-                    url="https://mcp.tutu.ru/mcp",
-                    deadline=time.monotonic() + 0.03,
-                ).__aenter__()
-
+            await TutuMcpClient(
+                url="https://mcp.tutu.ru/mcp",
+                deadline=time.monotonic() + 0.03,
+            ).__aenter__()
         self.assertEqual(
-            events,
-            ["http_enter", "sdk_enter", "sdk_exit", "http_exit"],
-        )
-        self.assertEqual(
-            getattr(error.exception, "_tutu_operation", None),
+            getattr(initialize_error.exception, "_tutu_operation", None),
             "initialize",
         )
 
-    async def test_client_and_transport_close_are_bounded_by_deadline(self) -> None:
-        class FakeHttpClient:
-            def __init__(self, **kwargs: object) -> None:
-                self.timeout = kwargs["timeout"]
-
-            async def __aenter__(self) -> "FakeHttpClient":
-                return self
-
+        class SlowCloseSdkClient(FakeSdkClient):
             async def __aexit__(self, *args: object) -> None:
-                return None
-
-        class SlowCloseSdkClient:
-            protocol_version = "2025-11-25"
-            server_info = None
-
-            def __init__(self, server: object, **kwargs: object) -> None:
-                pass
-
-            async def __aenter__(self) -> "SlowCloseSdkClient":
-                return self
-
-            async def __aexit__(self, *args: object) -> None:
-                await asyncio.sleep(0.12)
-
-            async def call_tool(
-                self,
-                name: str,
-                arguments: dict[str, object],
-                **kwargs: object,
-            ) -> CallToolResult:
-                return CallToolResult(
-                    content=[TextContent(type="text", text="# Playbook")]
-                )
+                await asyncio.sleep(0.1)
 
         with (
-            patch(
-                "flights_cli.providers.tutu_client.httpx2.AsyncClient",
-                FakeHttpClient,
-            ),
-            patch(
-                "flights_cli.providers.tutu_client.streamable_http_client",
-                return_value=object(),
-            ),
             patch("flights_cli.providers.tutu_client.Client", SlowCloseSdkClient),
-        ):
-            started = time.monotonic()
-            with self.assertRaises(TimeoutError):
-                async with TutuMcpClient(
-                    url="https://mcp.tutu.ru/mcp",
-                    deadline=started + 0.04,
-                ):
-                    pass
-            self.assertLess(time.monotonic() - started, 0.1)
-
-    async def test_uses_custom_http_transport_legacy_mode_and_loads_playbook_once(
-        self,
-    ) -> None:
-        events: list[object] = []
-        transport = object()
-
-        class FakeHttpClient:
-            def __init__(self, **kwargs: object) -> None:
-                events.append(("http_client", kwargs))
-
-            async def __aenter__(self) -> "FakeHttpClient":
-                return self
-
-            async def __aexit__(self, *args: object) -> None:
-                events.append("http_close")
-
-        class FakeSdkClient:
-            protocol_version = "2025-11-25"
-            server_info = None
-
-            def __init__(self, server: object, **kwargs: object) -> None:
-                events.append(("sdk_client", server, kwargs))
-
-            async def __aenter__(self) -> "FakeSdkClient":
-                events.append("initialize")
-                return self
-
-            async def __aexit__(self, *args: object) -> None:
-                events.append("sdk_close")
-
-            async def call_tool(
-                self,
-                name: str,
-                arguments: dict[str, object],
-                **kwargs: object,
-            ) -> CallToolResult:
-                events.append(("tool", name, arguments, kwargs))
-                text = (
-                    "# Tutu playbook"
-                    if name == "get_avia_instructions"
-                    else '{"offers": []}'
-                )
-                return CallToolResult(content=[TextContent(type="text", text=text)])
-
-        with (
-            patch(
-                "flights_cli.providers.tutu_client.httpx2.AsyncClient",
-                FakeHttpClient,
-            ),
-            patch(
-                "flights_cli.providers.tutu_client.streamable_http_client",
-                side_effect=lambda url, **kwargs: (
-                    events.append(("transport", url, kwargs)) or transport
-                ),
-            ),
-            patch("flights_cli.providers.tutu_client.Client", FakeSdkClient),
+            self.assertRaises(TimeoutError) as close_error,
         ):
             async with TutuMcpClient(
-                url="https://mcp.tutu.ru/mcp/",
-                deadline=time.monotonic() + 5,
-            ) as client:
-                self.assertEqual(client.playbook, "# Tutu playbook")
-                self.assertEqual(
-                    await client.search_avia({"origin": "SVX"}), {"offers": []}
+                url="https://mcp.tutu.ru/mcp",
+                deadline=time.monotonic() + 0.03,
+            ):
+                pass
+        self.assertEqual(
+            getattr(close_error.exception, "_tutu_operation", None),
+            "close",
+        )
+
+    async def test_sole_cli_error_leaf_survives_nested_sdk_teardown(self) -> None:
+        class WrappingSdkClient(FakeSdkClient):
+            async def __aexit__(
+                self,
+                exc_type: type[BaseException] | None,
+                exc: BaseException | None,
+                traceback: object,
+            ) -> None:
+                del exc_type, traceback
+                assert isinstance(exc, CliError)
+                raise ExceptionGroup("SDK teardown", [ExceptionGroup("tool", [exc])])
+
+            async def call_tool(
+                self,
+                name: str,
+                arguments: dict[str, object],
+                **kwargs: object,
+            ) -> CallToolResult:
+                if name == "get_avia_instructions":
+                    return await super().call_tool(name, arguments, **kwargs)
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type="text", text="bad request")],
                 )
 
-        tool_events = [
-            event for event in events if isinstance(event, tuple) and event[0] == "tool"
-        ]
+        with (
+            patch("flights_cli.providers.tutu_client.Client", WrappingSdkClient),
+            self.assertRaises(CliError) as error,
+        ):
+            async with TutuMcpClient(
+                url="https://mcp.tutu.ru/mcp",
+                deadline=time.monotonic() + 5,
+            ) as client:
+                await client.search_avia({})
+
+        self.assertEqual(error.exception.error_type, "upstream_error")
         self.assertEqual(
-            [event[1] for event in tool_events],
-            ["get_avia_instructions", "search_avia"],
+            error.exception.details,
+            {"provider": "tutu", "tool": "search_avia"},
         )
-        sdk_event = next(
-            event
-            for event in events
-            if isinstance(event, tuple) and event[0] == "sdk_client"
-        )
-        self.assertIs(sdk_event[1], transport)
-        self.assertEqual(sdk_event[2]["mode"], "legacy")
-        self.assertIsNone(sdk_event[2]["cache"])
-        transport_event = next(
-            event
-            for event in events
-            if isinstance(event, tuple) and event[0] == "transport"
-        )
-        self.assertTrue(transport_event[2]["terminate_on_close"])
-        self.assertIsInstance(transport_event[2]["http_client"], FakeHttpClient)
-        http_event = next(
-            event
-            for event in events
-            if isinstance(event, tuple) and event[0] == "http_client"
-        )
-        self.assertFalse(http_event[1]["http2"])
-        self.assertTrue(http_event[1]["follow_redirects"])
+        self.assertIn("bad request", str(error.exception))
 
     async def test_empty_playbook_is_rejected_without_search(self) -> None:
-        class FakeHttpClient:
-            def __init__(self, **kwargs: object) -> None:
-                pass
-
-            async def __aenter__(self) -> "FakeHttpClient":
-                return self
-
-            async def __aexit__(self, *args: object) -> None:
-                return None
-
-        class EmptyPlaybookSdkClient:
-            protocol_version = "2025-11-25"
-            server_info = None
-
-            def __init__(self, server: object, **kwargs: object) -> None:
-                pass
-
-            async def __aenter__(self) -> "EmptyPlaybookSdkClient":
-                return self
-
-            async def __aexit__(self, *args: object) -> None:
-                return None
-
+        class EmptyPlaybookSdkClient(FakeSdkClient):
             async def call_tool(
                 self,
                 name: str,
@@ -863,18 +442,7 @@ class TutuMcpClientLifecycleTests(unittest.IsolatedAsyncioTestCase):
                 return CallToolResult(content=[TextContent(type="text", text="   ")])
 
         with (
-            patch(
-                "flights_cli.providers.tutu_client.httpx2.AsyncClient",
-                FakeHttpClient,
-            ),
-            patch(
-                "flights_cli.providers.tutu_client.streamable_http_client",
-                return_value=object(),
-            ),
-            patch(
-                "flights_cli.providers.tutu_client.Client",
-                EmptyPlaybookSdkClient,
-            ),
+            patch("flights_cli.providers.tutu_client.Client", EmptyPlaybookSdkClient),
             self.assertRaises(CliError) as error,
         ):
             async with TutuMcpClient(
@@ -886,19 +454,29 @@ class TutuMcpClientLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(error.exception.details["tool"], "get_avia_instructions")
 
     async def test_search_requires_object_payload(self) -> None:
-        class FakeClient(TutuMcpClient):
-            async def _call_tool(  # type: ignore[override]
-                self, tool_name: str, arguments: dict[str, object]
-            ) -> list[object]:
-                return []
+        class NonObjectSearchSdkClient(FakeSdkClient):
+            async def call_tool(
+                self,
+                name: str,
+                arguments: dict[str, object],
+                **kwargs: object,
+            ) -> CallToolResult:
+                if name == "get_avia_instructions":
+                    return await super().call_tool(name, arguments, **kwargs)
+                return CallToolResult(
+                    structuredContent=["not", "an", "object"],
+                    content=[],
+                )
 
-        client = FakeClient(
-            url="https://mcp.tutu.ru/mcp",
-            deadline=time.monotonic() + 5,
-        )
-
-        with self.assertRaises(CliError) as error:
-            await client.search_avia({})
+        with (
+            patch("flights_cli.providers.tutu_client.Client", NonObjectSearchSdkClient),
+            self.assertRaises(CliError) as error,
+        ):
+            async with TutuMcpClient(
+                url="https://mcp.tutu.ru/mcp",
+                deadline=time.monotonic() + 5,
+            ) as client:
+                await client.search_avia({})
 
         self.assertEqual(error.exception.details["tool"], "search_avia")
         self.assertEqual(error.exception.details["payload_type"], "list")

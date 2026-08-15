@@ -3,11 +3,11 @@ from __future__ import annotations
 import unittest
 
 from flights_cli.contracts.validation import validate_contract_payload
-from flights_cli.pipeline.offer_graph import (
-    OFFER_GRAPH_SCHEMA_VERSION,
-    build_offer_graph,
+from flights_cli.pipeline.offer_graph_builder import build_offer_graph
+from flights_cli.pipeline.offer_graph_materializer import (
     materialize_offer_graph_candidates,
 )
+from flights_cli.pipeline.offer_graph_model import OFFER_GRAPH_SCHEMA_VERSION
 
 
 def gateway_leg_result(

@@ -7,15 +7,15 @@ from itertools import permutations
 from unittest.mock import patch
 
 from flights_cli.domain.vocabulary import RouteFamily
-from flights_cli.pipeline.candidate_ranker import (
-    build_decision_frontier,
+from flights_cli.pipeline.candidate_scoring import (
     rank_mixed_candidates,
+    score_validated_candidates,
 )
-from flights_cli.pipeline.candidate_scoring import score_validated_candidates
 from flights_cli.pipeline.candidate_validation import (
     validate_candidate_envelope as validate_candidates_impl,
 )
 from flights_cli.pipeline.decision_scorer import DecisionScorer, DecisionScorerOptions
+from flights_cli.pipeline.frontier_selection import build_decision_frontier
 
 
 def segment(
