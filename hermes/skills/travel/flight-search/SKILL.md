@@ -19,6 +19,9 @@ Treat the directory containing this `SKILL.md` as `<skill-root>`. Resolve every
 bundled path in this skill relative to that directory. Do not infer the location
 from a client-specific skills home or assume that a `SKILL_DIR` environment
 variable exists.
+Use `"${HERMES_SKILLS_PYTHON:-python3}"` as the Python interpreter for bundled
+commands. When `HERMES_SKILLS_PYTHON` is set, use that exact executable;
+otherwise use `python3`.
 
 ## Golden Path
 
@@ -26,7 +29,7 @@ Write a `flight_search_request.v4` JSON file. Resolve `cli/` from `<skill-root>`
 and use it as the command's working directory, then run:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli search --request "$HOME/flight-search-request.json"
+PYTHONDONTWRITEBYTECODE=1 "${HERMES_SKILLS_PYTHON:-python3}" -m flights_cli search --request "$HOME/flight-search-request.json"
 ```
 
 For a normal traveler request, preserve the canonical CLI itinerary content, values, warnings, and option order. Do not manually assemble, supplement, remove, rerank, correct, or add advice.

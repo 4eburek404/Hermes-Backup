@@ -13,18 +13,21 @@ Use the CLI first. It fetches, filters, deduplicates, and renders the digest wit
 
 Treat the directory containing this `SKILL.md` as `<skill-root>` and resolve
 every bundled path relative to it.
+Use `"${HERMES_SKILLS_PYTHON:-python3}"` as the Python interpreter for bundled
+commands. When `HERMES_SKILLS_PYTHON` is set, use that exact executable;
+otherwise use `python3`.
 
 ## Run
 
 ```bash
-python "<skill-root>/scripts/fetch_travel_news.py" digest --days 7 --output markdown
+"${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/fetch_travel_news.py" digest --days 7 --output markdown
 ```
 
 Optional filters: `--region ru|intl|all`, `--priority P1|P2|P3|all`.
 Use `health` only to diagnose sources:
 
 ```bash
-python "<skill-root>/scripts/fetch_travel_news.py" health
+"${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/fetch_travel_news.py" health
 ```
 
 ## Output Contract
@@ -47,8 +50,8 @@ If the user asks for details beyond a feed entry, use `../../research/web-conten
 ## Maintenance
 
 ```bash
-python -m pytest -q -p no:cacheprovider
-RUFF_CACHE_DIR=/tmp/travel-news-digest-ruff python -m ruff check scripts tests
+"${HERMES_SKILLS_PYTHON:-python3}" -m pytest -q -p no:cacheprovider
+RUFF_CACHE_DIR=/tmp/travel-news-digest-ruff "${HERMES_SKILLS_PYTHON:-python3}" -m ruff check scripts tests
 ```
 
 Keep feed access notes in `references/sources-and-access-notes.md`.
