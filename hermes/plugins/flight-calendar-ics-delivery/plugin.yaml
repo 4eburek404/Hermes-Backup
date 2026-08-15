@@ -1,9 +1,0 @@
-name: flight-calendar-ics-delivery
-version: 0.1.0
-description: "Automatically delivers flight-calendar-ics MEDIA handoffs and blocks post-delivery .ics inspection or edits."
-author: Hermes Agent
-kind: standalone
-hooks:
-  - pre_tool_call
-  - post_tool_call
-  - transform_tool_result
