@@ -6,12 +6,14 @@ import asyncio
 import json
 import os
 import time
-from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from contextlib import AbstractAsyncContextManager, AsyncExitStack, asynccontextmanager
+from datetime import timedelta
 from typing import Any, AsyncIterator, TypeAlias
 
 import httpx2
 from anyio import fail_after, get_cancelled_exc_class
-from mcp import Client
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
 from mcp.types import CallToolResult, Implementation, TextContent
 
 from .. import __version__
@@ -19,6 +21,86 @@ from ..config import TUTU_MCP_DEFAULT_URL
 from ..errors import CliError
 
 TutuToolPayload: TypeAlias = dict[str, Any] | list[Any] | str
+
+
+class Client:
+    """MCP 1.28 client with the small interface Flight Search needs."""
+
+    def __init__(
+        self,
+        server: str,
+        *,
+        mode: str,
+        client_info: Implementation,
+        read_timeout_seconds: float,
+        cache: None,
+    ) -> None:
+        del mode, cache
+        self.server = server
+        self.client_info = client_info
+        self.read_timeout_seconds = read_timeout_seconds
+        self.protocol_version: str | int | None = None
+        self.server_info: Implementation | None = None
+        self._stack: AsyncExitStack | None = None
+        self._session: ClientSession | None = None
+
+    async def __aenter__(self) -> Client:
+        stack = AsyncExitStack()
+        self._stack = stack
+        try:
+            read_stream, write_stream, _ = await stack.enter_async_context(
+                streamablehttp_client(
+                    self.server,
+                    timeout=self.read_timeout_seconds,
+                    sse_read_timeout=self.read_timeout_seconds,
+                )
+            )
+            session = await stack.enter_async_context(
+                ClientSession(
+                    read_stream,
+                    write_stream,
+                    read_timeout_seconds=timedelta(seconds=self.read_timeout_seconds),
+                    client_info=self.client_info,
+                )
+            )
+            initialized = await session.initialize()
+            self._session = session
+            self.protocol_version = initialized.protocolVersion
+            self.server_info = initialized.serverInfo
+        except BaseException:
+            await stack.aclose()
+            self._stack = None
+            raise
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: Any,
+    ) -> bool | None:
+        stack = self._stack
+        self._stack = None
+        self._session = None
+        if stack is None:
+            return None
+        return await stack.__aexit__(exc_type, exc, traceback)
+
+    async def call_tool(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        *,
+        read_timeout_seconds: float,
+    ) -> CallToolResult:
+        session = self._session
+        if session is None:
+            raise RuntimeError("MCP client must be entered before calling tools")
+        return await session.call_tool(
+            name,
+            arguments,
+            read_timeout_seconds=timedelta(seconds=read_timeout_seconds),
+        )
 
 
 def default_tutu_mcp_url() -> str:
@@ -76,7 +158,7 @@ def _decode_payload(value: str | dict[str, Any] | list[Any]) -> TutuToolPayload:
 
 
 def _extract_tool_payload(result: CallToolResult, tool_name: str) -> TutuToolPayload:
-    if result.is_error:
+    if result.isError:
         messages = [
             item.text
             for item in result.content
@@ -89,7 +171,7 @@ def _extract_tool_payload(result: CallToolResult, tool_name: str) -> TutuToolPay
             details={"provider": "tutu", "tool": tool_name},
         )
 
-    structured = _unwrap_payload(result.structured_content)
+    structured = _unwrap_payload(result.structuredContent)
     if structured is not None:
         return structured
 
@@ -194,9 +276,7 @@ class TutuMcpClient:
                 ) as client:
                     self._client = client
                     self._active_operation = None
-                    playbook = await self._call_tool(
-                        "get_avia_instructions", {}
-                    )
+                    playbook = await self._call_tool("get_avia_instructions", {})
                     if not isinstance(playbook, str) or not playbook.strip():
                         raise CliError(
                             "Tutu MCP get_avia_instructions returned an empty or unsupported playbook",

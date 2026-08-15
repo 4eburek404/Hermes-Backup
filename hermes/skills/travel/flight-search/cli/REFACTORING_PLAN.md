@@ -50,7 +50,7 @@ Runtime-зависимости из `pyproject.toml`:
 
 - `httpx2==2.9.1`;
 - `jsonschema>=4.22,<5`;
-- `mcp==2.0.0`.
+- `mcp==1.28.1`.
 
 В каноническом venv также установлены `PyYAML 6.0.3`, `anyio 4.14.2`, `pydantic 2.13.4`, `click 8.4.2`, `attrs 26.1.0`; они транзитивные и не являются разрешением использовать их без прямого объявления. Lock-файл рядом с CLI не найден.
 
@@ -89,12 +89,12 @@ Runtime-зависимости из `pyproject.toml`:
 - `data/yaml_subset.py` содержит 198 строк собственного YAML-парсера. `PyYAML` уже установлен транзитивно.
 - Сравнение текущего парсера и `yaml.safe_load()` совпало для `gateway_priors.yaml`, но не для `route_access_profiles.yaml`: некавыченный код страны `NO` PyYAML интерпретирует как `False`. Это обязательный migration case, а не теоретический риск.
 - `urllib.request` используется отдельно в `kupibilet_transport.py` и `static_catalog.py`, хотя `httpx2` уже является прямой runtime-зависимостью. В `kupibilet_transport.py` дополнительно вручную реализовано gzip-декодирование.
-- `TutuMcpClient` уже оборачивает официальный `mcp.Client`, но добавляет собственные task, queue, drain и cancellation lifecycle. Его нельзя объявить лишним без проверки таймаутов и отмены.
+- `TutuMcpClient` оборачивает официальные `ClientSession` и `streamablehttp_client`, сохраняя deadline и cancellation lifecycle.
 
 ### Требует проверки в реализации
 
 - Есть ли внешние импорты compatibility-модулей за пределами репозитория. До удаления нужен grep установленного skill/runtime и краткая запись о допустимости внутреннего breaking change.
-- Может ли `mcp==2.0.0` напрямую и корректно закрывать Streamable HTTP session при timeout/external cancellation без worker queue. Это отдельный spike.
+- Может ли `mcp==1.28.1` через `ClientSession` и `streamablehttp_client` корректно закрывать Streamable HTTP session при timeout/external cancellation без worker queue. Это отдельный spike.
 - Полная API-паритетность `httpx2==2.9.1` для нужных ошибок/декодирования должна проверяться тестами текущей pinned-версии; документация по более новой версии не является доказательством.
 
 ## 4. Матрица keep/delete/merge/replace
@@ -147,10 +147,10 @@ Runtime-зависимости из `pyproject.toml`:
 
 - Текущий код: `providers/tutu_client.py::TutuMcpClient`, `_session_worker`, `_await_response`, `_drain_task`, `_close_stack`; retry/cancel glue в `tutu_mcp.py`.
 - Ответственность: Streamable HTTP session, playbook preflight, tool calls, deadline refresh, cleanup under cancellation, error attribution.
-- Кандидат: уже pinned `mcp==2.0.0`; проект использует `mcp.Client` и `streamable_http_client`. MCP называет Python SDK официальным Tier 1 SDK: <https://modelcontextprotocol.io/docs/sdk> и <https://github.com/modelcontextprotocol/python-sdk>.
+- Кандидат: pinned `mcp==1.28.1`, общий с Hermes Agent; проект использует `ClientSession` и `streamablehttp_client`. MCP называет Python SDK официальным Tier 1 SDK: <https://modelcontextprotocol.io/docs/sdk> и <https://github.com/modelcontextprotocol/python-sdk>.
 - Contract fit: transport и tool invocation покрываются SDK.
 - Недостающие возможности: не доказано, что direct context manager сохраняет текущие гарантии cleanup при `asyncio.CancelledError`, timeout во время close и nested exception groups; playbook preflight остаётся domain/provider rule.
-- Миграция: сначала тестовый spike на pinned 2.0.0 с fake server/transport, затем минимальный direct wrapper. Retry pagination и Tutu payload normalization не переносить в SDK.
+- Миграция: тестовый spike на pinned 1.28.1 с fake server/transport, затем минимальный direct wrapper. Retry pagination и Tutu payload normalization не переносить в SDK.
 - Packaging/runtime: новых пакетов нет; upgrade MCP не входит в этот рефакторинг.
 - Вердикт: **spike**; при одном неснятом lifecycle regression — **keep custom**.
 
@@ -273,7 +273,7 @@ Rollback: оба transport change независимы; можно откати�
 
 Артефакт PR: тестовый harness и краткий verdict в PR description. Production code не переключать.
 
-Success gate: direct `mcp.Client` на **pinned 2.0.0** проходит всю матрицу с теми же `CliError.type/details` и без pending tasks.
+Success gate: `ClientSession` на **pinned 1.28.1** проходит всю матрицу с теми же `CliError.type/details` и без pending tasks.
 
 Rollback: удалить spike tests/harness.
 

@@ -5,11 +5,12 @@ from __future__ import annotations
 import asyncio
 import time
 from datetime import date
+from http import HTTPStatus
 from typing import Any
 
 import httpx2
-from mcp.shared.exceptions import MCPError
-from mcp.types import CONNECTION_CLOSED, REQUEST_TIMEOUT
+from mcp.shared.exceptions import McpError
+from mcp.types import CONNECTION_CLOSED
 
 from ..config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
 from ..errors import CliError
@@ -54,8 +55,8 @@ def _is_retryable_transport_failure(exc: Exception) -> bool:
             (httpx2.TransportError, TimeoutError, asyncio.TimeoutError),
         )
         or (
-            isinstance(leaf, MCPError)
-            and leaf.code in {CONNECTION_CLOSED, REQUEST_TIMEOUT}
+            isinstance(leaf, McpError)
+            and leaf.error.code in {CONNECTION_CLOSED, HTTPStatus.REQUEST_TIMEOUT}
         )
         for leaf in leaves
     )
@@ -68,7 +69,9 @@ def _terminal_error_types(exc: Exception) -> list[str]:
 def _has_timeout_leaf(exc: Exception) -> bool:
     return any(
         isinstance(leaf, (TimeoutError, asyncio.TimeoutError))
-        or (isinstance(leaf, MCPError) and leaf.code == REQUEST_TIMEOUT)
+        or (
+            isinstance(leaf, McpError) and leaf.error.code == HTTPStatus.REQUEST_TIMEOUT
+        )
         for leaf in _exception_leaves(exc)
     )
 

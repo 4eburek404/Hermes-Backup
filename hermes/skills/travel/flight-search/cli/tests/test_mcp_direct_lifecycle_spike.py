@@ -10,41 +10,62 @@ from typing import Any, Iterator
 from unittest.mock import patch
 
 import httpx2
+import anyio
 import pytest
+
 try:
     from builtins import ExceptionGroup
 except ImportError:  # pragma: no cover - Python 3.10 compatibility
     from exceptiongroup import ExceptionGroup
 
-from mcp import Client as OfficialClient
-from mcp.client._memory import InMemoryTransport
-from mcp.server.mcpserver import MCPServer
-from mcp.shared.exceptions import MCPError
-from mcp.types import INVALID_PARAMS
+from mcp.server.fastmcp import FastMCP
+from mcp.shared.exceptions import McpError
+from mcp.shared.memory import create_client_server_memory_streams
+from mcp.types import INVALID_PARAMS, ErrorData
 
 from flights_cli.errors import CliError
 from flights_cli.providers.tutu_client import TutuMcpClient
 from flights_cli.providers.tutu_mcp import _fetch_tutu_avia_search_async
 
+pytestmark = pytest.mark.filterwarnings(
+    "ignore::pydantic_settings.exceptions.IncompleteFieldDefinitionWarning"
+)
+
 
 class TrackingTransport:
     def __init__(
         self,
-        server: MCPServer[Any],
+        server: FastMCP,
         *,
         close_started: asyncio.Event | None = None,
         block_close: bool = False,
     ) -> None:
-        self._inner = InMemoryTransport(server)
+        self._server = server
         self._close_started = close_started
         self._block_close = block_close
         self.entered = False
         self.closed = False
+        self._streams: Any = None
+        self._task_group: Any = None
 
     async def __aenter__(self):  # type: ignore[no-untyped-def]
-        streams = await self._inner.__aenter__()
+        self._streams = create_client_server_memory_streams()
+        client_streams, server_streams = await self._streams.__aenter__()
+        server_read, server_write = server_streams
+        low_level_server = self._server._mcp_server
+        self._task_group = anyio.create_task_group()
+        await self._task_group.__aenter__()
+        self._task_group.start_soon(
+            lambda: low_level_server.run(
+                server_read,
+                server_write,
+                low_level_server.create_initialization_options(),
+                raise_exceptions=True,
+            )
+        )
         self.entered = True
-        return streams
+        client_read, client_write = client_streams
+        return client_read, client_write, lambda: None
 
     async def __aexit__(self, *args: object) -> None:
         if self._close_started is not None:
@@ -54,7 +75,11 @@ class TrackingTransport:
                 await asyncio.Event().wait()
         finally:
             try:
-                await self._inner.__aexit__(*args)  # type: ignore[arg-type]
+                if self._task_group is not None:
+                    self._task_group.cancel_scope.cancel()
+                    await self._task_group.__aexit__(*args)
+                if self._streams is not None:
+                    await self._streams.__aexit__(*args)
             finally:
                 self.closed = True
 
@@ -93,8 +118,8 @@ def tutu_server(
     playbook: object = "# Tutu playbook",
     search_started: asyncio.Event | None = None,
     block_search: bool = False,
-) -> MCPServer[Any]:
-    server = MCPServer("tutu-direct-lifecycle")
+) -> FastMCP:
+    server = FastMCP("tutu-direct-lifecycle")
 
     @server.tool(name="get_avia_instructions")
     async def get_avia_instructions() -> Any:
@@ -125,12 +150,16 @@ def tutu_server(
 def production_clients(transports: list[Any]) -> Iterator[None]:
     pending = iter(transports)
 
-    def build_client(server: object, **kwargs: object) -> OfficialClient:
-        if server != "https://mcp.tutu.ru/mcp":
-            raise AssertionError(f"unexpected MCP URL: {server!r}")
-        return OfficialClient(next(pending), **kwargs)
+    def build_transport(url: str, **kwargs: object) -> Any:
+        del kwargs
+        if url != "https://mcp.tutu.ru/mcp":
+            raise AssertionError(f"unexpected MCP URL: {url!r}")
+        return next(pending)
 
-    with patch("flights_cli.providers.tutu_client.Client", side_effect=build_client):
+    with patch(
+        "flights_cli.providers.tutu_client.streamablehttp_client",
+        side_effect=build_transport,
+    ):
         yield
 
 
@@ -201,7 +230,7 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_pinned_sdk_normal_initialize_playbook_search_close(self) -> None:
-        self.assertEqual(version("mcp"), "2.0.0")
+        self.assertEqual(version("mcp"), "1.28.1")
         transport = TrackingTransport(tutu_server())
 
         client, result = await production_client_search(transport)
@@ -255,9 +284,7 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
             leaked = {
                 task
                 for task in asyncio.all_tasks()
-                if task is not current
-                and task not in baseline
-                and not task.done()
+                if task is not current and task not in baseline and not task.done()
             }
             if not leaked:
                 break
@@ -270,9 +297,7 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
     async def test_empty_and_invalid_playbook_preserve_cli_error(self) -> None:
         for playbook in ("   ", {"not": "text"}):
             transport = TrackingTransport(tutu_server(playbook=playbook))
-            with self.subTest(playbook=playbook), self.assertRaises(
-                CliError
-            ) as error:
+            with self.subTest(playbook=playbook), self.assertRaises(CliError) as error:
                 await production_client_search(transport)
 
             self.assertEqual(error.exception.error_type, "upstream_error")
@@ -291,7 +316,9 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(error.exception.error_type, "timeout")
         self.assertEqual(error.exception.details["operation"], "initialize")
         self.assertEqual(error.exception.details["attempts"], 1)
-        self.assertEqual(error.exception.details["terminal_error_types"], ["TimeoutError"])
+        self.assertEqual(
+            error.exception.details["terminal_error_types"], ["TimeoutError"]
+        )
         self.assertTrue(transport.entered.is_set())
         self.assertTrue(transport.closed)
 
@@ -365,7 +392,9 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(error.exception.error_type, "upstream_error")
         self.assertEqual(error.exception.details["operation"], "initialize")
         self.assertEqual(error.exception.details["attempts"], 2)
-        self.assertEqual(error.exception.details["terminal_error_types"], ["ConnectError"])
+        self.assertEqual(
+            error.exception.details["terminal_error_types"], ["ConnectError"]
+        )
         self.assertEqual([transport.entered for transport in transports], [1, 1])
 
     async def test_first_nested_transport_failure_then_success_retries_once(
@@ -386,7 +415,9 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(success.closed)
 
     async def test_terminal_nonretryable_mcp_error_does_not_retry(self) -> None:
-        terminal = FailingTransport(MCPError(INVALID_PARAMS, "bad request"))
+        terminal = FailingTransport(
+            McpError(ErrorData(code=INVALID_PARAMS, message="bad request"))
+        )
         unused = TrackingTransport(tutu_server())
 
         with self.assertRaises(CliError) as error:
@@ -395,7 +426,7 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(error.exception.error_type, "upstream_error")
         self.assertEqual(error.exception.details["operation"], "initialize")
         self.assertEqual(error.exception.details["attempts"], 1)
-        self.assertEqual(error.exception.details["terminal_error_types"], ["MCPError"])
+        self.assertEqual(error.exception.details["terminal_error_types"], ["McpError"])
         self.assertEqual(terminal.entered, 1)
         self.assertFalse(unused.entered)
 

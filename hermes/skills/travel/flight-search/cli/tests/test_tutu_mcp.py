@@ -13,16 +13,18 @@ from unittest.mock import patch
 
 import anyio
 import httpx2
+
 try:
     from builtins import ExceptionGroup
 except ImportError:  # pragma: no cover - Python 3.10 compatibility
     from exceptiongroup import ExceptionGroup
 
-from mcp.shared.exceptions import MCPError
+from mcp.shared.exceptions import McpError
 from mcp.types import (
     CONNECTION_CLOSED,
     INVALID_PARAMS,
     CallToolResult,
+    ErrorData,
     TextContent,
 )
 
@@ -707,6 +709,7 @@ class TutuMcpProviderTests(unittest.TestCase):
 
     def test_sdk_cleanup_failure_cannot_replace_deadline_timeout(self) -> None:
         for operation in ("initialize", "search_avia"):
+
             class DeadlineCleanupSdkClient:
                 protocol_version = "2025-11-25"
                 server_info = None
@@ -1059,7 +1062,14 @@ class TutuMcpProviderTests(unittest.TestCase):
                 if transient_sessions == 1:
                     raise NestedError(
                         httpx2.ConnectError("offline"),
-                        NestedError(MCPError(CONNECTION_CLOSED, "connection closed")),
+                        NestedError(
+                            McpError(
+                                ErrorData(
+                                    code=CONNECTION_CLOSED,
+                                    message="connection closed",
+                                )
+                            )
+                        ),
                     )
                 return self
 
@@ -1089,7 +1099,7 @@ class TutuMcpProviderTests(unittest.TestCase):
                 application_sessions += 1
 
             async def __aenter__(self) -> "ApplicationErrorClient":
-                raise MCPError(INVALID_PARAMS, "invalid params")
+                raise McpError(ErrorData(code=INVALID_PARAMS, message="invalid params"))
 
             async def __aexit__(self, *args: object) -> None:
                 return None
@@ -1186,7 +1196,9 @@ class TutuMcpSyncContractTests(unittest.IsolatedAsyncioTestCase):
                             await asyncio.Event().wait()
                         except asyncio.CancelledError:
                             cleanup_attempts.append("initialize")
-                            raise httpx2.ReadError("initialize cleanup failed") from None
+                            raise httpx2.ReadError(
+                                "initialize cleanup failed"
+                            ) from None
                     return self
 
                 async def __aexit__(self, *args: object) -> None:
@@ -1203,9 +1215,7 @@ class TutuMcpSyncContractTests(unittest.IsolatedAsyncioTestCase):
                     del arguments, kwargs
                     if name == "get_avia_instructions":
                         return CallToolResult(
-                            content=[
-                                TextContent(type="text", text="# Tutu playbook")
-                            ]
+                            content=[TextContent(type="text", text="# Tutu playbook")]
                         )
                     started.set()
                     await asyncio.Event().wait()
