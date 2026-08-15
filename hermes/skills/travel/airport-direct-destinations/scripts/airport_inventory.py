@@ -46,7 +46,7 @@ def parse_inventory(content: str) -> tuple[list[tuple[str, str, int]], dict[str,
         metadata["last_updated"] = match.group(1)
 
     pattern = re.compile(
-        r"(?m)^\s*([^\n()]+?)\s*\(([A-Z]{3})\)(?:\\n|\n)\s*(\d+) flights? / month"
+        r"(?m)^\s*(.+?)\s+\(([A-Z]{3})\)(?:\\n|\n)\s*(\d+) flights? / month"
     )
     seen: dict[str, tuple[str, int]] = {}
     for match in pattern.finditer(content):

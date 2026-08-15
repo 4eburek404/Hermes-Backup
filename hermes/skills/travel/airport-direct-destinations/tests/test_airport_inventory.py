@@ -40,3 +40,11 @@ def test_parse_inventory_rejects_empty_route_content() -> None:
 
     with pytest.raises(ValueError, match="no direct destinations"):
         module["parse_inventory"]("Access denied")
+
+
+def test_parse_inventory_allows_parenthetical_city_qualifier() -> None:
+    module = runpy.run_path(str(SCRIPT), run_name="airport_inventory")
+
+    routes, _ = module["parse_inventory"]("Dubai (Jebel Ali) (DWC)\n0 flights / month")
+
+    assert routes == [("DWC", "Dubai (Jebel Ali)", 0)]
