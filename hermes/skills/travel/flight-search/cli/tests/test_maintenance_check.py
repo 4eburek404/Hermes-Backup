@@ -11,6 +11,30 @@ from helpers import PROJECT, TEST_ENV
 
 
 class MaintenanceCheckTests(unittest.TestCase):
+    def test_default_runtime_path_uses_travel_category(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            hermes_home = Path(tmp_dir) / "hermes-home"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "flights_cli",
+                    "--json",
+                    "maint",
+                    "check",
+                ],
+                cwd=PROJECT,
+                env={**TEST_ENV, "HERMES_HOME": str(hermes_home)},
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+        payload = json.loads(proc.stdout)
+        expected = hermes_home / "skills" / "travel" / "flight-search"
+        self.assertEqual(payload["data"]["runtime"]["skill_path"], str(expected))
+
     def test_json_maintenance_check_reports_provenance_and_runtime_status(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             missing_runtime = Path(tmp_dir) / "missing-runtime-flight-search"

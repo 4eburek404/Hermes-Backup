@@ -4,7 +4,7 @@ version: 0.13.0
 description: Use when finding, comparing, assembling, or diagnosing live flight options with the bundled flights CLI, including direct, round-trip, open-jaw leg, and RU-gateway searches; assumes one adult in economy and never books tickets.
 metadata:
   hermes:
-    category: productivity
+    category: travel
     tags: [flights, travel, routing]
     requires_toolsets: [terminal]
 ---

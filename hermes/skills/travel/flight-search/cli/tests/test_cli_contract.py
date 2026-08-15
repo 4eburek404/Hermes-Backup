@@ -74,8 +74,7 @@ options:
   -h, --help            show this help message and exit
   --runtime-path RUNTIME_PATH
                         Runtime flight-search skill path to compare against.
-                        Defaults to ~/.hermes/skills/productivity/flight-
-                        search.
+                        Defaults to ~/.hermes/skills/travel/flight-search.
 """,
     ("maint", "doctor"): """usage: flights maint doctor [-h]
 

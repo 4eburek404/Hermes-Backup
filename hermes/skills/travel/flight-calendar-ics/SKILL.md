@@ -2,9 +2,16 @@
 name: flight-calendar-ics
 description: Use when creating a compact importable .ics calendar file from a supported airline booking URL or a minimal flight itinerary JSON.
 version: 3.02
+metadata:
+  hermes:
+    category: travel
+    tags: [travel, flights, calendar, ics]
 ---
 
 # Flight Calendar ICS
+
+Treat the directory containing this `SKILL.md` as `<skill-root>` and resolve
+every bundled path relative to it.
 
 ## Goal
 Create one importable `.ics` file for flight calendar import using cli
@@ -12,9 +19,9 @@ Create one importable `.ics` file for flight calendar import using cli
 ## Steps
 1. Put the source in a private file: booking URL in a text file, or itinerary data in minimal JSON.
 2. For a booking URL, run:
-   `python "<skill_dir>/scripts/flight_calendar_ics.py" --json build --url-file <private-url-file>`
+   `python "<skill-root>/scripts/flight_calendar_ics.py" --json build --url-file <private-url-file>`
 3. For itinerary JSON, run:
-   `python "<skill_dir>/scripts/flight_calendar_ics.py" --json build --input <private-itinerary.json>`
+   `python "<skill-root>/scripts/flight_calendar_ics.py" --json build --input <private-itinerary.json>`
 4. If the result has `ok: true`, return the `media` value and a short success reply.
 
 ## Input
@@ -63,7 +70,7 @@ Do not run maintenance during normal calendar generation.
 If a Hermes runtime is missing `.ics` gateway delivery support after an upstream update, run:
 
 ```bash
-python "<skill_dir>/scripts/ensure_hermes_ics_delivery.py" --hermes-root "$HOME/.hermes/hermes-agent"
+python "<skill-root>/scripts/ensure_hermes_ics_delivery.py" --hermes-root "$HOME/.hermes/hermes-agent"
 ```
 
 The script patches Hermes core delivery allowlists, writes a focused gateway regression test, and runs that test.

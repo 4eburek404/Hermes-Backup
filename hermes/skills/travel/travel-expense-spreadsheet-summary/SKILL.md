@@ -8,7 +8,7 @@ platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [excel, spreadsheet, travel-expenses, aviation, rail, hotels, reporting, cli]
-    category: data-science
+    category: travel
 ---
 
 # Travel Expense Spreadsheet Summary
@@ -22,8 +22,11 @@ Use only for travel-expense category summaries, not as a generic Excel skill. Fi
 ## Run
 Prefer the bundled deterministic CLI:
 
+Treat the directory containing this `SKILL.md` as `<skill-root>` and resolve
+every bundled path relative to it.
+
 ```bash
-python3 hermes/skills/data-science/travel-expense-spreadsheet-summary/scripts/travel_expense_summary.py \
+python3 "<skill-root>/scripts/travel_expense_summary.py" \
   /path/to/report.xlsx \
   --format json
 ```
@@ -31,7 +34,7 @@ python3 hermes/skills/data-science/travel-expense-spreadsheet-summary/scripts/tr
 For a user-facing table:
 
 ```bash
-python3 hermes/skills/data-science/travel-expense-spreadsheet-summary/scripts/travel_expense_summary.py \
+python3 "<skill-root>/scripts/travel_expense_summary.py" \
   /path/to/report.xlsx \
   --format markdown \
   --show-review

@@ -1,23 +1,30 @@
 ---
 name: travel-news-digest
 description: Build a weekly aviation, hotel, and business-travel news digest from configured RSS and Google News feeds.
+metadata:
+  hermes:
+    category: travel
+    tags: [travel, news, aviation, hotels, business-travel]
 ---
 
 # Travel News Digest
 
 Use the CLI first. It fetches, filters, deduplicates, and renders the digest without an LLM.
 
+Treat the directory containing this `SKILL.md` as `<skill-root>` and resolve
+every bundled path relative to it.
+
 ## Run
 
 ```bash
-python scripts/fetch_travel_news.py digest --days 7 --output markdown
+python "<skill-root>/scripts/fetch_travel_news.py" digest --days 7 --output markdown
 ```
 
 Optional filters: `--region ru|intl|all`, `--priority P1|P2|P3|all`.
 Use `health` only to diagnose sources:
 
 ```bash
-python scripts/fetch_travel_news.py health
+python "<skill-root>/scripts/fetch_travel_news.py" health
 ```
 
 ## Output Contract
@@ -35,7 +42,7 @@ Runtime dependencies are pinned in `requirements.txt`.
 
 ## Follow-up
 
-If the user asks for details beyond a feed entry, use `../web-content-acquisition/SKILL.md` to resolve the direct publisher URL and extract that article. Keep article extraction, search services, browser automation, and research artifacts out of this CLI.
+If the user asks for details beyond a feed entry, use `../../research/web-content-acquisition/SKILL.md` to resolve the direct publisher URL and extract that article. Keep article extraction, search services, browser automation, and research artifacts out of this CLI.
 
 ## Maintenance
 

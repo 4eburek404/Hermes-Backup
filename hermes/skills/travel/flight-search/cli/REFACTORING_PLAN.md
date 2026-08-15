@@ -2,7 +2,7 @@
 
 Дата анализа: 2026-08-02
 База: ветка `dev`, commit `96835d479b523c5bf6d8945f67ce7a932d0e5749`
-Область: `hermes/skills/productivity/flight-search/cli`
+Область: `hermes/skills/travel/flight-search/cli`
 
 ## 1. Цель и критерий успеха
 
@@ -334,7 +334,7 @@ Success gate: документированный before/after и отсутст�
 
 ## 9. Обязательные команды-gates для каждого implementation PR
 
-Из `hermes/skills/productivity/flight-search/cli` с каноническим Python:
+Из `hermes/skills/travel/flight-search/cli` с каноническим Python:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 /Users/home/.venvs/hermes-backup/bin/python -m pytest tests -q -p no:cacheprovider

@@ -190,7 +190,7 @@ def command_maint_catalog_manifest(
 _GENERATED_DIR_NAMES = {"__pycache__", ".pytest_cache"}
 _GENERATED_SUFFIXES = (".pyc", ".pyo")
 _GENERATED_NAME_SUFFIXES = (".egg-info",)
-_SKILL_RELATIVE_PATH = Path("skills") / "productivity" / "flight-search"
+_SKILL_RELATIVE_PATH = Path("skills") / "travel" / "flight-search"
 
 
 def _source_skill_path() -> Path:
