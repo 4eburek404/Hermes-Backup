@@ -130,6 +130,13 @@ def test_filter_deduplicates_and_classifies():
             "published_at": "2099-08-15T10:00:00+00:00",
             "topics": ["aviation"],
         },
+        {
+            "title": "Airline opens route!",
+            "link": "https://e/2",
+            "summary": "",
+            "published_at": "2099-08-15T10:00:00+00:00",
+            "topics": ["aviation"],
+        },
     ]
     result = news.filter_and_classify(
         items,
