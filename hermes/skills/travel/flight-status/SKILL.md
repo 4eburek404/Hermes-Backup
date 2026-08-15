@@ -14,6 +14,10 @@ metadata:
 
 # Flight Status
 
+Use `"${HERMES_SKILLS_PYTHON:-python3}"` as the Python interpreter for bundled
+commands. When `HERMES_SKILLS_PYTHON` is set, use that exact executable;
+otherwise use `python3`.
+
 ## Goal
 
 Answer operational flight-status questions from current, source-labelled evidence. Keep this workflow separate from fare search: schedules, delays, gates, terminals, check-in desks, and actual movement are not ticket inventory.
@@ -33,8 +37,8 @@ For an exact flight and operating date at SVO, resolve `<skill-root>` as the
 directory containing this `SKILL.md` and run:
 
 ```bash
-python3 "<skill-root>/scripts/sheremetyevo.py" SU1404 --date 2026-07-16
-python3 "<skill-root>/scripts/sheremetyevo.py" "SU 1404" --date 2026-07-16 --json
+"${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/sheremetyevo.py" SU1404 --date 2026-07-16
+"${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/sheremetyevo.py" "SU 1404" --date 2026-07-16 --json
 ```
 
 The dependency-free CLI queries Sheremetyevo's official public JSON timetable,
@@ -56,8 +60,8 @@ For a current Trip.com airport-board fallback, resolve `<skill-root>` as the
 directory containing this `SKILL.md` and run the bundled read-only script:
 
 ```bash
-python3 "<skill-root>/scripts/trip_board.py" SVO --direction arrivals
-python3 "<skill-root>/scripts/trip_board.py" SVO --direction departures
+"${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/trip_board.py" SVO --direction arrivals
+"${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/trip_board.py" SVO --direction departures
 ```
 
 The same Python environment must provide `curl_cffi`; otherwise the script

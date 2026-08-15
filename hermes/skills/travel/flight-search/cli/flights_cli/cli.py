@@ -153,7 +153,7 @@ def _register_maint_commands(sub, json_parent: argparse.ArgumentParser) -> None:
     )
     check.add_argument(
         "--runtime-path",
-        help="Runtime flight-search skill path to compare against. Defaults to ~/.hermes/skills/productivity/flight-search.",
+        help="Runtime flight-search skill path to compare against. Defaults to ~/.hermes/skills/travel/flight-search.",
     )
     _set_leaf_defaults(check, MAINT_CHECK_COMMAND, command_maintenance_check)
     doctor = maint_sub.add_parser(

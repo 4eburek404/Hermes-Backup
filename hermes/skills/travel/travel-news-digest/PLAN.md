@@ -53,7 +53,7 @@ Final verification: `7 passed`; Ruff clean; belief-map boundaries clean for the 
    - https://feedparser.readthedocs.io/en/stable/http-etag.html
 6. **Declare dependencies explicitly.** This is a standalone script, so a two-line `requirements.txt` is smaller than packaging it as a project. Do not rely on comments claiming packages are already in the shared venv.
    - https://packaging.python.org/en/latest/specifications/pyproject-toml/
-7. **Reuse `web-content-acquisition` as a follow-up boundary, not as a runtime dependency.** Preserve its tested Google News edition parameters (`hl`, `gl`, `ceid`) and its evidence rule: a Google News wrapper is not proof that the publisher article was read. Keep the digest at feed-entry level. Only when the user explicitly asks for details, hand the selected item to `../web-content-acquisition/SKILL.md` to resolve and extract the direct publisher page. Do not import or spawn its CLI: the documented `md` and `article` commands are unavailable in the canonical environment, and SearXNG/browser/artifact workflows would turn this small scheduled digest into a research platform.
+7. **Reuse `web-content-acquisition` as a follow-up boundary, not as a runtime dependency.** Preserve its tested Google News edition parameters (`hl`, `gl`, `ceid`) and its evidence rule: a Google News wrapper is not proof that the publisher article was read. Keep the digest at feed-entry level. Only when the user explicitly asks for details, hand the selected item to `../../research/web-content-acquisition/SKILL.md` to resolve and extract the direct publisher page. Do not import or spawn its CLI: the documented `md` and `article` commands are unavailable in the canonical environment, and SearXNG/browser/artifact workflows would turn this small scheduled digest into a research platform.
    - `hermes/skills/research/web-content-acquisition/scripts/google_news_rss_titles.py`
    - `hermes/skills/research/web-content-acquisition/references/news-and-rss-followup.md`
 
@@ -130,10 +130,10 @@ python scripts/fetch_travel_news.py health --region all --priority all
 ### Task 1: Replace the Test Suite with the Minimal Offline Contract
 
 **Files:**
-- Modify: `hermes/skills/research/travel-news-digest/tests/test_fetch_travel_news.py`
-- Delete: `hermes/skills/research/travel-news-digest/tests/conftest.py`
-- Delete: `hermes/skills/research/travel-news-digest/tests/test_sources.yaml`
-- Delete: `hermes/skills/research/travel-news-digest/pytest.ini`
+- Modify: `hermes/skills/travel/travel-news-digest/tests/test_fetch_travel_news.py`
+- Delete: `hermes/skills/travel/travel-news-digest/tests/conftest.py`
+- Delete: `hermes/skills/travel/travel-news-digest/tests/test_sources.yaml`
+- Delete: `hermes/skills/travel/travel-news-digest/pytest.ini`
 
 - [ ] **Step 1: Replace shared fixtures and 35 characterization tests with local offline data**
 
@@ -292,7 +292,7 @@ def test_main_returns_one_when_every_source_fails(monkeypatch):
 Run:
 
 ```bash
-cd /Users/home/Documents/01_repo/Hermes-Backup/hermes/skills/research/travel-news-digest
+cd /Users/home/Documents/01_repo/Hermes-Backup/hermes/skills/travel/travel-news-digest
 PYTHONDONTWRITEBYTECODE=1 /Users/home/.venvs/hermes-backup/bin/python -m pytest -q -p no:cacheprovider
 ```
 
@@ -301,7 +301,7 @@ Expected: failures for missing `fetch_feed`, synchronous `fetch_all_sources`, `l
 - [ ] **Step 6: Commit the contract tests**
 
 ```bash
-git add hermes/skills/research/travel-news-digest/tests hermes/skills/research/travel-news-digest/pytest.ini
+git add hermes/skills/travel/travel-news-digest/tests hermes/skills/travel/travel-news-digest/pytest.ini
 git commit -m "test(travel-news): define minimal digest contract"
 ```
 
@@ -310,9 +310,9 @@ git commit -m "test(travel-news): define minimal digest contract"
 ### Task 2: Reduce Sources to Feed-Backed Inputs and Declare Dependencies
 
 **Files:**
-- Modify: `hermes/skills/research/travel-news-digest/scripts/sources.yaml`
-- Create: `hermes/skills/research/travel-news-digest/requirements.txt`
-- Delete: `hermes/skills/research/travel-news-digest/templates/sources.yaml`
+- Modify: `hermes/skills/travel/travel-news-digest/scripts/sources.yaml`
+- Create: `hermes/skills/travel/travel-news-digest/requirements.txt`
+- Delete: `hermes/skills/travel/travel-news-digest/templates/sources.yaml`
 
 - [ ] **Step 1: Remove the four `fetch: curl_cffi` source blocks**
 
@@ -342,7 +342,7 @@ retry:
 Run:
 
 ```bash
-rg -n 'curl_cffi|selector:|text_min_length:|impersonate:|retry:' hermes/skills/research/travel-news-digest/scripts/sources.yaml
+rg -n 'curl_cffi|selector:|text_min_length:|impersonate:|retry:' hermes/skills/travel/travel-news-digest/scripts/sources.yaml
 ```
 
 Expected: no output, exit code `1`.
@@ -365,7 +365,7 @@ Run:
 from pathlib import Path
 import yaml
 
-data = yaml.safe_load(Path("hermes/skills/research/travel-news-digest/scripts/sources.yaml").read_text())
+data = yaml.safe_load(Path("hermes/skills/travel/travel-news-digest/scripts/sources.yaml").read_text())
 assert len(data["sources"]) == 29
 assert {source["fetch"] for source in data["sources"]} == {"rss", "google_news"}
 print("29 feed-backed sources")
@@ -377,7 +377,7 @@ Expected: `29 feed-backed sources`.
 - [ ] **Step 5: Commit the dependency and source reduction**
 
 ```bash
-git add hermes/skills/research/travel-news-digest/scripts/sources.yaml hermes/skills/research/travel-news-digest/requirements.txt hermes/skills/research/travel-news-digest/templates/sources.yaml
+git add hermes/skills/travel/travel-news-digest/scripts/sources.yaml hermes/skills/travel/travel-news-digest/requirements.txt hermes/skills/travel/travel-news-digest/templates/sources.yaml
 git commit -m "refactor(travel-news): keep feed-backed sources only"
 ```
 
@@ -386,8 +386,8 @@ git commit -m "refactor(travel-news): keep feed-backed sources only"
 ### Task 3: Replace Three Fetchers with One Feed Fetcher
 
 **Files:**
-- Modify: `hermes/skills/research/travel-news-digest/scripts/fetch_travel_news.py`
-- Test: `hermes/skills/research/travel-news-digest/tests/test_fetch_travel_news.py`
+- Modify: `hermes/skills/travel/travel-news-digest/scripts/fetch_travel_news.py`
+- Test: `hermes/skills/travel/travel-news-digest/tests/test_fetch_travel_news.py`
 
 - [ ] **Step 1: Replace the import block and constants**
 
@@ -526,7 +526,7 @@ Delete constants `RETRY_DELAYS`, `CACHE_DIR`, `SEEN_DB`, `RAW_JSON`, `SKILL_DIR`
 Run:
 
 ```bash
-cd /Users/home/Documents/01_repo/Hermes-Backup/hermes/skills/research/travel-news-digest
+cd /Users/home/Documents/01_repo/Hermes-Backup/hermes/skills/travel/travel-news-digest
 PYTHONDONTWRITEBYTECODE=1 /Users/home/.venvs/hermes-backup/bin/python -m pytest -q -p no:cacheprovider tests/test_fetch_travel_news.py -k 'fetch_feed or fetch_all'
 ```
 
@@ -535,7 +535,7 @@ Expected: all selected tests pass.
 - [ ] **Step 7: Commit the unified fetcher**
 
 ```bash
-git add hermes/skills/research/travel-news-digest/scripts/fetch_travel_news.py hermes/skills/research/travel-news-digest/tests/test_fetch_travel_news.py
+git add hermes/skills/travel/travel-news-digest/scripts/fetch_travel_news.py hermes/skills/travel/travel-news-digest/tests/test_fetch_travel_news.py
 git commit -m "refactor(travel-news): unify feed collection"
 ```
 
@@ -544,8 +544,8 @@ git commit -m "refactor(travel-news): unify feed collection"
 ### Task 4: Collapse State, Filtering, Rendering, and CLI
 
 **Files:**
-- Modify: `hermes/skills/research/travel-news-digest/scripts/fetch_travel_news.py`
-- Test: `hermes/skills/research/travel-news-digest/tests/test_fetch_travel_news.py`
+- Modify: `hermes/skills/travel/travel-news-digest/scripts/fetch_travel_news.py`
+- Test: `hermes/skills/travel/travel-news-digest/tests/test_fetch_travel_news.py`
 
 - [ ] **Step 1: Delete persistent state**
 
@@ -693,7 +693,7 @@ if __name__ == "__main__":
 - [ ] **Step 6: Run the full offline suite and Ruff**
 
 ```bash
-cd /Users/home/Documents/01_repo/Hermes-Backup/hermes/skills/research/travel-news-digest
+cd /Users/home/Documents/01_repo/Hermes-Backup/hermes/skills/travel/travel-news-digest
 PYTHONDONTWRITEBYTECODE=1 /Users/home/.venvs/hermes-backup/bin/python -m pytest -q -p no:cacheprovider
 RUFF_CACHE_DIR=/tmp/travel-news-digest-ruff /Users/home/.venvs/hermes-backup/bin/python -m ruff check scripts tests
 ```
@@ -703,7 +703,7 @@ Expected: all tests pass; Ruff prints `All checks passed!`.
 - [ ] **Step 7: Commit the single-pass CLI**
 
 ```bash
-git add hermes/skills/research/travel-news-digest/scripts/fetch_travel_news.py hermes/skills/research/travel-news-digest/tests/test_fetch_travel_news.py
+git add hermes/skills/travel/travel-news-digest/scripts/fetch_travel_news.py hermes/skills/travel/travel-news-digest/tests/test_fetch_travel_news.py
 git commit -m "refactor(travel-news): collapse digest pipeline"
 ```
 
@@ -712,15 +712,15 @@ git commit -m "refactor(travel-news): collapse digest pipeline"
 ### Task 5: Delete Documentation Debris and Rewrite the Skill Contract
 
 **Files:**
-- Modify: `hermes/skills/research/travel-news-digest/SKILL.md`
-- Modify: `hermes/skills/research/travel-news-digest/references/sources-and-access-notes.md`
-- Delete: `hermes/skills/research/travel-news-digest/references/cli-automation-plan.md`
-- Delete: `hermes/skills/research/travel-news-digest/references/curl-cffi-cloudflare-bypass.md`
-- Delete: `hermes/skills/research/travel-news-digest/references/expanded-source-catalog.md`
-- Delete: `hermes/skills/research/travel-news-digest/references/source-catalog-87.md`
-- Delete: `hermes/skills/research/travel-news-digest/references/source-catalog-extended.md`
-- Delete: `hermes/skills/research/travel-news-digest/references/subagent-model-config.md`
-- Delete: `hermes/skills/research/travel-news-digest/references/subagent-review-results.md`
+- Modify: `hermes/skills/travel/travel-news-digest/SKILL.md`
+- Modify: `hermes/skills/travel/travel-news-digest/references/sources-and-access-notes.md`
+- Delete: `hermes/skills/travel/travel-news-digest/references/cli-automation-plan.md`
+- Delete: `hermes/skills/travel/travel-news-digest/references/curl-cffi-cloudflare-bypass.md`
+- Delete: `hermes/skills/travel/travel-news-digest/references/expanded-source-catalog.md`
+- Delete: `hermes/skills/travel/travel-news-digest/references/source-catalog-87.md`
+- Delete: `hermes/skills/travel/travel-news-digest/references/source-catalog-extended.md`
+- Delete: `hermes/skills/travel/travel-news-digest/references/subagent-model-config.md`
+- Delete: `hermes/skills/travel/travel-news-digest/references/subagent-review-results.md`
 
 - [ ] **Step 1: Replace `SKILL.md` with the runtime contract**
 
@@ -764,7 +764,7 @@ Runtime dependencies are pinned in `requirements.txt`.
 
 ## Follow-up
 
-If the user asks for details beyond a feed entry, use `../web-content-acquisition/SKILL.md` to resolve the direct publisher URL and extract that article. Keep article extraction, search services, browser automation, and research artifacts out of this CLI.
+If the user asks for details beyond a feed entry, use `../../research/web-content-acquisition/SKILL.md` to resolve the direct publisher URL and extract that article. Keep article extraction, search services, browser automation, and research artifacts out of this CLI.
 
 ## Maintenance
 
@@ -788,7 +788,7 @@ Keep only:
 - Google News RSS covers publishers without a stable public feed.
 - Preserve each query's `hl`, `gl`, and `ceid` edition settings.
 - A failed source is reported and does not fail the whole digest.
-- For requested article details, hand the selected link to `../web-content-acquisition/SKILL.md`; do not add extraction to this CLI.
+- For requested article details, hand the selected link to `../../../research/web-content-acquisition/SKILL.md`; do not add extraction to this CLI.
 - Reintroduce HTML fetching only after a named required publisher cannot be covered by RSS or Google News.
 ```
 
@@ -801,7 +801,7 @@ After deletion, `references/` must contain only `sources-and-access-notes.md`.
 Run:
 
 ```bash
-rg -n 'curl_cffi|BeautifulSoup|lxml|jinja2|httpx|SQLite|seen\.db|delegate_task|Ollama|browser_' hermes/skills/research/travel-news-digest
+rg -n 'curl_cffi|BeautifulSoup|lxml|jinja2|httpx|SQLite|seen\.db|delegate_task|Ollama|browser_' hermes/skills/travel/travel-news-digest
 ```
 
 Expected: no output except this `PLAN.md` while the plan remains in the branch.
@@ -809,7 +809,7 @@ Expected: no output except this `PLAN.md` while the plan remains in the branch.
 - [ ] **Step 5: Commit the documentation reduction**
 
 ```bash
-git add hermes/skills/research/travel-news-digest/SKILL.md hermes/skills/research/travel-news-digest/references
+git add hermes/skills/travel/travel-news-digest/SKILL.md hermes/skills/travel/travel-news-digest/references
 git commit -m "docs(travel-news): reduce skill to runtime contract"
 ```
 
@@ -823,7 +823,7 @@ git commit -m "docs(travel-news): reduce skill to runtime contract"
 - [ ] **Step 1: Run offline verification**
 
 ```bash
-cd /Users/home/Documents/01_repo/Hermes-Backup/hermes/skills/research/travel-news-digest
+cd /Users/home/Documents/01_repo/Hermes-Backup/hermes/skills/travel/travel-news-digest
 PYTHONDONTWRITEBYTECODE=1 /Users/home/.venvs/hermes-backup/bin/python -m pytest -q -p no:cacheprovider
 RUFF_CACHE_DIR=/tmp/travel-news-digest-ruff /Users/home/.venvs/hermes-backup/bin/python -m ruff check scripts tests
 ```
@@ -833,7 +833,7 @@ Expected: exit `0` from both commands.
 - [ ] **Step 2: Run one live JSON smoke test**
 
 ```bash
-cd /Users/home/Documents/01_repo/Hermes-Backup/hermes/skills/research/travel-news-digest
+cd /Users/home/Documents/01_repo/Hermes-Backup/hermes/skills/travel/travel-news-digest
 python scripts/fetch_travel_news.py digest --days 7 --output json > /tmp/travel-news-digest.json
 /Users/home/.venvs/hermes-backup/bin/python - <<'PY'
 import json
@@ -852,7 +852,7 @@ Expected: at least one item; source failures are allowed and counted.
 - [ ] **Step 3: Prove the dependency boundary**
 
 ```bash
-rg -n '^(import|from) ' hermes/skills/research/travel-news-digest/scripts/fetch_travel_news.py
+rg -n '^(import|from) ' hermes/skills/travel/travel-news-digest/scripts/fetch_travel_news.py
 ```
 
 Expected third-party imports only:
@@ -867,12 +867,12 @@ Do not uninstall `curl_cffi` from the shared Hermes venv; `flight-calendar-ics` 
 - [ ] **Step 4: Prove the size reduction**
 
 ```bash
-find hermes/skills/research/travel-news-digest -type f | sort
+find hermes/skills/travel/travel-news-digest -type f | sort
 wc -l \
-  hermes/skills/research/travel-news-digest/SKILL.md \
-  hermes/skills/research/travel-news-digest/scripts/fetch_travel_news.py \
-  hermes/skills/research/travel-news-digest/tests/test_fetch_travel_news.py \
-  hermes/skills/research/travel-news-digest/references/sources-and-access-notes.md
+  hermes/skills/travel/travel-news-digest/SKILL.md \
+  hermes/skills/travel/travel-news-digest/scripts/fetch_travel_news.py \
+  hermes/skills/travel/travel-news-digest/tests/test_fetch_travel_news.py \
+  hermes/skills/travel/travel-news-digest/references/sources-and-access-notes.md
 ```
 
 Acceptance limits:
