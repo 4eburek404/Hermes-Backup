@@ -173,14 +173,14 @@ class FlowDecisionContractTests(unittest.TestCase):
         request = live_assembly_args(
             origin="BER",
             destination="MAD",
-            depart_date="2026-08-12",
+            depart_date="2099-08-12",
             live_cache_ttl_seconds=1800,
             return_date=None,
         )
         flow = build_planning_state(
             request,
             self.store,
-            today_provider=lambda: date(2026, 8, 10),
+            today_provider=lambda: date(2099, 8, 10),
         )
         with patch(
             "flights_cli.orchestrators.search_plan_builder.build_planning_state",
@@ -188,7 +188,7 @@ class FlowDecisionContractTests(unittest.TestCase):
         ):
             plan = build_search_plan(request, self.store)
 
-        self.assertEqual(flow.today, date(2026, 8, 10))
+        self.assertEqual(flow.today, date(2099, 8, 10))
         self.assertFalse(plan["execution_policy"]["live_cache_enabled"])
         self.assertEqual(plan["execution_policy"]["live_cache_ttl_seconds"], 0)
 

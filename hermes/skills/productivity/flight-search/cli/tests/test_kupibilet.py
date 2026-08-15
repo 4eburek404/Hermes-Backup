@@ -245,7 +245,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             "destination": "DST",
             "origin_airports": [" aab ", "AAA", "aaa"],
             "destination_airports": ["bbb", ""],
-            "date": "2026-08-12",
+            "date": "2099-08-12",
             "currency": "RUB",
             "only_carriers": [],
             "direct_only": True,
@@ -642,7 +642,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         args = live_assembly_args(
             origin="SVX",
             destination="MUC",
-            depart_date="2026-08-12",
+            depart_date="2099-08-12",
             provider_policy="kupibilet",
             no_live_cache=True,
         )

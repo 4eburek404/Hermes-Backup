@@ -93,7 +93,7 @@ class SearchRequestTests(unittest.TestCase):
             "schema_version": "flight_search_request.v3",
             "origin": "nte",
             "destination": "svx",
-            "depart_date": "2026-08-09",
+            "depart_date": "2099-08-09",
             "filters": {"only_carriers": ["AF"]},
         }
         options = search_request_from_payload(request)

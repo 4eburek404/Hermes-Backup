@@ -87,7 +87,7 @@ class ProbeDispatcherTests(unittest.TestCase):
             "leg": "origin_to_hub",
             "origin": "SVX",
             "destination": "IST",
-            "date": "2026-08-12",
+            "date": "2099-08-12",
         }
         plan = {"currency": "RUB"}
         segment_result = {
@@ -134,7 +134,7 @@ class ProbeDispatcherTests(unittest.TestCase):
         self.assertEqual(outcomes[0].segment_result, segment_result)
         self.assertIsNone(outcomes[0].failure)
         call = search.call_args
-        self.assertEqual(call.args[:3], ("SVX", "IST", date(2026, 8, 12)))
+        self.assertEqual(call.args[:3], ("SVX", "IST", date(2099, 8, 12)))
         self.assertEqual(call.kwargs["only_carriers"], ["SU"])
         self.assertTrue(call.kwargs["direct_only"])
         self.assertTrue(call.kwargs["use_cache"])
@@ -358,7 +358,7 @@ class ProbeDispatcherTests(unittest.TestCase):
             "leg": "origin_to_hub",
             "origin": "SVX",
             "destination": "IST",
-            "date": "2026-08-12",
+            "date": "2099-08-12",
         }
         plan = {"currency": "RUB"}
         ledger = ProbeRunLedger()

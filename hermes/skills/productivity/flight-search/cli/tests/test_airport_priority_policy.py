@@ -17,7 +17,7 @@ def live_args(**overrides: object):
     defaults = {
         "origin": "IST",
         "destination": "LON",
-        "depart_date": "2026-08-12",
+        "depart_date": "2099-08-12",
         "return_date": None,
         "hub": None,
         "routing_strategy": "auto",
@@ -148,7 +148,7 @@ class AirportPriorityPolicyTests(unittest.TestCase):
                     live_args(
                         origin="AAA",
                         destination="BBB",
-                        return_date="2026-08-19",
+                        return_date="2099-08-19",
                         provider_policy=provider,
                     ),
                     store,
@@ -186,7 +186,7 @@ class AirportPriorityPolicyTests(unittest.TestCase):
             live_args(
                 origin="SVX",
                 destination="MOW",
-                return_date="2026-08-19",
+                return_date="2099-08-19",
                 destination_airports=["DME", "SVO", "VKO"],
             ),
             Store(),

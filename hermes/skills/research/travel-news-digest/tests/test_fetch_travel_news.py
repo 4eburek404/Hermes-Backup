@@ -6,17 +6,13 @@ All:  python -m pytest tests/ -v
 """
 from __future__ import annotations
 
-import json
-import sqlite3
-from datetime import datetime, timedelta, timezone
-from email.utils import format_datetime
-from unittest.mock import MagicMock, patch
+from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
 from fetch_travel_news import (
     classify_item,
-    clear_seen_db,
     fetch_with_retry,
     filter_and_classify,
     format_markdown,
@@ -443,7 +439,6 @@ class TestIntegration:
 
     def test_health_check_3_sources(self, tmp_path, monkeypatch):
         """Health check on test_sources.yaml → all sources return status."""
-        import yaml as yaml_mod
         test_yaml = Path(__file__).parent / "test_sources.yaml"
         monkeypatch.setattr("fetch_travel_news.SOURCES_YAML", test_yaml)
 
