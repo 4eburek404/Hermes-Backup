@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping
 
 
-SEARCH_PLAN_SCHEMA_VERSION = "flight_search_plan.v5"
+SEARCH_PLAN_SCHEMA_VERSION = "flight_search_plan.v6"
 SEARCH_PLAN_DIAGNOSTIC_SCHEMA_VERSION = "flight_search_plan_diagnostic.v2"
 
 GATEWAY_TRIGGER_DISABLED = "disabled"
@@ -185,9 +185,52 @@ class ProviderAttemptPlan:
 
 
 @dataclass(frozen=True, slots=True)
+class RouteLegTemplate:
+    """An immutable route shape; execution derives dated provider probes from it."""
+
+    hypothesis_id: str
+    direction: str
+    required_airports: tuple[str, ...]
+    source: str
+    leg_policies: tuple[str, ...]
+    trigger: str
+
+    def __post_init__(self) -> None:
+        if len(self.required_airports) < 3:
+            raise ValueError("route leg template needs at least two legs")
+        if len(self.leg_policies) != len(self.required_airports) - 1:
+            raise ValueError("route leg template policies must match legs")
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> RouteLegTemplate:
+        return cls(
+            hypothesis_id=str(payload.get("hypothesis_id") or ""),
+            direction=str(payload.get("direction") or ""),
+            required_airports=tuple(
+                str(item) for item in payload.get("required_airports") or []
+            ),
+            source=str(payload.get("source") or ""),
+            leg_policies=tuple(
+                str(item) for item in payload.get("leg_policies") or []
+            ),
+            trigger=str(payload.get("trigger") or "always"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "hypothesis_id": self.hypothesis_id,
+            "direction": self.direction,
+            "required_airports": list(self.required_airports),
+            "source": self.source,
+            "leg_policies": list(self.leg_policies),
+            "trigger": self.trigger,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class SearchPhases:
     primary: tuple[ProviderAttemptPlan, ...] = ()
-    gateway: tuple[ProviderAttemptPlan, ...] = ()
+    route_legs: tuple[RouteLegTemplate, ...] = ()
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> SearchPhases:
@@ -197,9 +240,9 @@ class SearchPhases:
                 for item in payload.get("primary") or []
                 if isinstance(item, Mapping)
             ),
-            gateway=tuple(
-                ProviderAttemptPlan.from_dict(item)
-                for item in payload.get("gateway") or []
+            route_legs=tuple(
+                RouteLegTemplate.from_dict(item)
+                for item in payload.get("route_legs") or []
                 if isinstance(item, Mapping)
             ),
         )
@@ -207,7 +250,7 @@ class SearchPhases:
     def to_dict(self) -> dict[str, Any]:
         return {
             "primary": [item.to_dict() for item in self.primary],
-            "gateway": [item.to_dict() for item in self.gateway],
+            "route_legs": [item.to_dict() for item in self.route_legs],
         }
 
 
@@ -486,7 +529,7 @@ class SearchPlan:
 
     @property
     def all_attempts(self) -> tuple[ProviderAttemptPlan, ...]:
-        return (*self.phases.primary, *self.phases.gateway)
+        return self.phases.primary
 
     def to_dict(self) -> dict[str, Any]:
         return {

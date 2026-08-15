@@ -175,7 +175,12 @@ def dispatch_segment_probe(
                         "original_probe_id": claim.original_probe_id,
                         "offer_count": 0,
                     },
-                    segment_result=None,
+                    segment_result=(
+                        dict(original.segment_result)
+                        if isinstance(original, SegmentProbeOutcome)
+                        and isinstance(original.segment_result, dict)
+                        else None
+                    ),
                     provider_result=(
                         original.provider_result
                         if isinstance(original, SegmentProbeOutcome)

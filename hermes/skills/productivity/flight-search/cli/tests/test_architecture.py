@@ -130,6 +130,24 @@ class ArchitectureTests(unittest.TestCase):
         self.assertTrue(callable(build_user_answer))
         self.assertTrue(callable(build_offer_graph))
 
+    def test_route_hypotheses_use_the_single_execution_and_decision_pipeline(self) -> None:
+        root = PROJECT / "flights_cli"
+        executor = (root / "execution" / "search_executor.py").read_text(
+            encoding="utf-8"
+        )
+        planner = (root / "orchestrators" / "search_plan_builder.py").read_text(
+            encoding="utf-8"
+        )
+        discovery = (root / "domain" / "gateway_discovery.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("RouteLegProbeExecutor", executor)
+        self.assertNotIn("GatewayLegProbeExecutor", executor)
+        self.assertNotIn("_gateway_leg_queries", planner)
+        self.assertNotIn("GatewayCandidate", discovery)
+        self.assertNotIn("HypothesisAssembler", executor + planner + discovery)
+
     def test_active_contract_schema_resources_match_registry_versions(self) -> None:
         contracts = PROJECT / "flights_cli" / "contracts"
         for contract_name in (

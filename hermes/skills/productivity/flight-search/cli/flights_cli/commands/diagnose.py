@@ -57,6 +57,7 @@ def command_diagnose_trace(args: argparse.Namespace, store: Store) -> dict[str, 
             "candidate_envelope": execution.decision.offer_candidates,
             "scorer": execution.decision.scored_decisions.get("scorer") or {},
             "frontier": execution.decision.decision_frontier,
+            "research_status": execution.decision.research_status,
         },
         "answer": execution.projection["answer"],
     }

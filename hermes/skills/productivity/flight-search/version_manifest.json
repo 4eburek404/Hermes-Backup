@@ -8,8 +8,8 @@
     "version": "0.10.0"
   },
   "contracts": {
-    "flight_search_request": "flight_search_request.v3",
-    "flight_search_result": "flight_search_result.v9",
+    "flight_search_request": "flight_search_request.v4",
+    "flight_search_result": "flight_search_result.v10",
     "user_answer": "flight_search_user_answer.v11"
   },
   "command_surface": {

@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermes.local/flights/flight_search_result.v10.schema.json",
+  "title": "Flight Search Result v10",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request",
+    "route",
+    "evidence",
+    "frontier",
+    "answer",
+    "research_status"
+  ],
+  "properties": {
+    "schema_version": {"const": "flight_search_result.v10"},
+    "request": {"$ref": "flight_search_request.v4.schema.json"},
+    "route": {"$ref": "flight_search_result.v9.schema.json#/$defs/route"},
+    "evidence": {"$ref": "flight_search_result.v9.schema.json#/$defs/evidence"},
+    "frontier": {"$ref": "flight_search_result.v9.schema.json#/$defs/frontier"},
+    "answer": {"$ref": "flight_search_user_answer.v11.schema.json"},
+    "research_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "needed",
+        "evidence_incomplete",
+        "eligible_direct",
+        "convenient_signature_count",
+        "target_signature_count",
+        "audit"
+      ],
+      "properties": {
+        "needed": {"type": "boolean"},
+        "evidence_incomplete": {"type": "boolean"},
+        "eligible_direct": {"type": "boolean"},
+        "convenient_signature_count": {"type": "integer", "minimum": 0},
+        "target_signature_count": {"const": 3},
+        "audit": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "hypothesis_id",
+              "direction",
+              "required_airports",
+              "status",
+              "reason"
+            ],
+            "properties": {
+              "hypothesis_id": {"type": "string", "minLength": 1},
+              "direction": {"enum": ["outbound", "return"]},
+              "required_airports": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 5,
+                "items": {"type": "string", "pattern": "^[A-Z]{3}$"}
+              },
+              "status": {"enum": ["viable", "excluded", "not_executed"]},
+              "reason": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    }
+  }
+}

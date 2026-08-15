@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermes.local/flights/flight_search_plan.v6.schema.json",
+  "title": "Flight Search Plan v6",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "route", "phases", "gateway_policy", "execution_policy", "decision_policy", "output_policy", "planning_reasons"],
+  "properties": {
+    "schema_version": {"const": "flight_search_plan.v6"},
+    "route": {"$ref": "https://hermes.local/flights/flight_search_plan.v5.schema.json#/$defs/route"},
+    "phases": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary", "route_legs"],
+      "properties": {
+        "primary": {"type": "array", "items": {"$ref": "https://hermes.local/flights/flight_search_plan.v5.schema.json#/$defs/attempt"}},
+        "route_legs": {"type": "array", "items": {"$ref": "#/$defs/route_leg"}}
+      }
+    },
+    "gateway_policy": {"$ref": "https://hermes.local/flights/flight_search_plan.v5.schema.json#/$defs/gateway_policy"},
+    "execution_policy": {"$ref": "https://hermes.local/flights/flight_search_plan.v5.schema.json#/$defs/execution_policy"},
+    "decision_policy": {"$ref": "https://hermes.local/flights/flight_search_plan.v5.schema.json#/$defs/decision_policy"},
+    "output_policy": {"$ref": "https://hermes.local/flights/flight_search_plan.v5.schema.json#/$defs/output_policy"},
+    "planning_reasons": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}
+  },
+  "$defs": {
+    "route_leg": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hypothesis_id", "direction", "required_airports", "source", "leg_policies", "trigger"],
+      "properties": {
+        "hypothesis_id": {"type": "string", "minLength": 1},
+        "direction": {"enum": ["outbound", "return"]},
+        "required_airports": {"type": "array", "minItems": 3, "maxItems": 5, "items": {"type": "string", "pattern": "^[A-Z]{3}$"}},
+        "source": {"type": "string", "minLength": 1},
+        "leg_policies": {"type": "array", "minItems": 2, "maxItems": 4, "items": {"enum": ["exact_direct", "direct_then_controlled_broad"]}},
+        "trigger": {"enum": ["always", "required_if_no_direct", "on_primary_failure"]}
+      }
+    }
+  }
+}

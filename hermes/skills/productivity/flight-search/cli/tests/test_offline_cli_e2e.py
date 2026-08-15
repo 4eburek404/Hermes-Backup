@@ -351,7 +351,7 @@ class OfflineCliE2ETests(unittest.TestCase):
                 )
         envelope = json.loads(json_proc.stdout)
         result = envelope["data"]
-        self.assertEqual(result["schema_version"], "flight_search_result.v9")
+        self.assertEqual(result["schema_version"], "flight_search_result.v10")
         self.assertEqual(text_proc.stdout, result["answer"]["rendered_text"] + "\n")
         self.assertIn("KL1424", text_proc.stdout)
         self.assertIn("KL1959", text_proc.stdout)
@@ -365,7 +365,7 @@ class OfflineCliE2ETests(unittest.TestCase):
    TK475 23.09 (IST)-(SVX) 2000 0245 (24.09) в пути 4:45
     40 000 рублей · Отдельные билеты: при задержке первого рейса следующий сегмент не защищён.
 
-Перед оплатой проверьте багаж, финальный тариф и правила обмена/возврата; результат не доказывает варианты вне границ источников.
+Перед оплатой проверьте багаж, финальный тариф и правила обмена/возврата; покрытие неполное: не все live-проверки выполнены; результат не доказывает варианты вне границ источников.
 """,
         )
 

@@ -117,6 +117,9 @@ def default_fetch_url(url: str, timeout: int) -> bytes:
                 headers={
                     "Accept": "application/json",
                     "User-Agent": f"flights-cli/{__version__}",
+                    # ponytail: httpx2 2.9.1 brotli decoder is broken (DecodingError
+                    # on travelpayouts responses); identity skips the broken path.
+                    "Accept-Encoding": "identity",
                 },
             )
             if not response.is_success:

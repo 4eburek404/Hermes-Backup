@@ -21,6 +21,7 @@ class FlightSearchResult(TypedDict):
     evidence: dict[str, Any]
     frontier: dict[str, Any]
     answer: dict[str, Any]
+    research_status: dict[str, Any]
 
 
 __all__ = [

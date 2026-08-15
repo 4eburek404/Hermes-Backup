@@ -187,6 +187,9 @@ def live_assembly_args(**overrides: Any) -> Any:
     return_date = values.pop("return_date", None)
     if return_date is not None:
         request["return_date"] = return_date
+    route_hypotheses = values.pop("route_hypotheses", None)
+    if route_hypotheses is not None:
+        request["route_hypotheses"] = route_hypotheses
 
     route_options: dict[str, Any] = {}
     evidence: dict[str, Any] = {}

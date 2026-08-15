@@ -121,7 +121,15 @@ class ResultContractTests(unittest.TestCase):
 
         self.assertEqual(
             set(result),
-            {"schema_version", "request", "route", "evidence", "frontier", "answer"},
+            {
+                "schema_version",
+                "request",
+                "route",
+                "evidence",
+                "frontier",
+                "answer",
+                "research_status",
+            },
         )
         self.assertEqual(
             result["answer"]["rendered_text"],

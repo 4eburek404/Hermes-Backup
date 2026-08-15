@@ -20,8 +20,8 @@ def _primary(plan: dict[str, object]) -> list[dict[str, object]]:
     return list(plan["phases"]["primary"])  # type: ignore[index]
 
 
-def _gateway(plan: dict[str, object]) -> list[dict[str, object]]:
-    return list(plan["phases"]["gateway"])  # type: ignore[index]
+def _route_legs(plan: dict[str, object]) -> list[dict[str, object]]:
+    return list(plan["phases"]["route_legs"])  # type: ignore[index]
 
 
 def _query(attempt: dict[str, object]) -> dict[str, object]:
@@ -29,7 +29,7 @@ def _query(attempt: dict[str, object]) -> dict[str, object]:
 
 
 class SearchPlanContractTests(unittest.TestCase):
-    def test_v5_round_trip_is_typed_and_contract_valid(self) -> None:
+    def test_v6_round_trip_is_typed_and_contract_valid(self) -> None:
         payload = build_search_plan(
             live_assembly_args(
                 origin="SVX",
@@ -44,7 +44,7 @@ class SearchPlanContractTests(unittest.TestCase):
         self.assertEqual(payload["schema_version"], SEARCH_PLAN_SCHEMA_VERSION)
         self.assertEqual(SearchPlan.from_dict(payload).to_dict(), payload)
         validate_contract_payload("search_plan", payload)
-        attempts = [*_primary(payload), *_gateway(payload)]
+        attempts = _primary(payload)
         self.assertTrue(attempts)
         self.assertTrue(
             all(
@@ -61,6 +61,20 @@ class SearchPlanContractTests(unittest.TestCase):
                 for attempt in attempts
             )
         )
+        self.assertTrue(
+            all(
+                set(template)
+                == {
+                    "hypothesis_id",
+                    "direction",
+                    "required_airports",
+                    "source",
+                    "leg_policies",
+                    "trigger",
+                }
+                for template in _route_legs(payload)
+            )
+        )
         self.assertEqual(
             {attempt["direction"] for attempt in _primary(payload)},
             {"outbound", "return"},
@@ -73,7 +87,7 @@ class SearchPlanContractTests(unittest.TestCase):
             12,
         )
 
-    def test_v5_rejects_flat_attempts_without_nested_query(self) -> None:
+    def test_v6_rejects_flat_attempts_without_nested_query(self) -> None:
         payload = build_search_plan(
             live_assembly_args(
                 origin="SVX",
@@ -92,7 +106,7 @@ class SearchPlanContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             SearchPlan.from_dict(flat)
 
-    def test_v5_rejects_runtime_state_inside_planned_attempt(self) -> None:
+    def test_v6_rejects_runtime_state_inside_planned_attempt(self) -> None:
         payload = build_search_plan(
             live_assembly_args(
                 origin="SVX",
@@ -128,7 +142,7 @@ class SearchPlanContractTests(unittest.TestCase):
         )
 
         primary = _primary(plan)
-        gateway = _gateway(plan)
+        route_legs = _route_legs(plan)
         self.assertEqual(
             [query["provider"] for query in primary],
             ["tutu", "kupibilet", "tutu", "kupibilet"],
@@ -141,14 +155,17 @@ class SearchPlanContractTests(unittest.TestCase):
             plan["gateway_policy"]["trigger"],  # type: ignore[index]
             GATEWAY_TRIGGER_REQUIRED_IF_NO_DIRECT,
         )
-        self.assertTrue(gateway)
+        self.assertTrue(route_legs)
         self.assertEqual(
-            {attempt["provider"] for attempt in gateway}, {"tutu", "kupibilet"}
+            {template["source"] for template in route_legs}, {"configured_prior"}
         )
-        probe_ids = [query["probe_id"] for query in [*primary, *gateway]]
-        self.assertEqual(len(probe_ids), len(set(probe_ids)))
         self.assertTrue(all(query["phase"] == "primary" for query in primary))
-        self.assertTrue(all(query["phase"] == "gateway" for query in gateway))
+        self.assertTrue(
+            all(
+                template["trigger"] == GATEWAY_TRIGGER_REQUIRED_IF_NO_DIRECT
+                for template in route_legs
+            )
+        )
 
     def test_direct_only_is_an_absolute_gateway_prohibition(self) -> None:
         plan = build_search_plan(
@@ -169,7 +186,7 @@ class SearchPlanContractTests(unittest.TestCase):
         self.assertTrue(
             all(_query(attempt)["direct_only"] for attempt in _primary(plan))
         )
-        self.assertEqual(_gateway(plan), [])
+        self.assertEqual(_route_legs(plan), [])
         self.assertEqual(
             plan["gateway_policy"]["trigger"],  # type: ignore[index]
             GATEWAY_TRIGGER_DISABLED,
@@ -195,11 +212,11 @@ class SearchPlanContractTests(unittest.TestCase):
             plan["gateway_policy"]["trigger"],  # type: ignore[index]
             GATEWAY_TRIGGER_ON_PRIMARY_FAILURE,
         )
-        self.assertTrue(_gateway(plan))
+        self.assertTrue(_route_legs(plan))
         self.assertTrue(
             all(
-                query["trigger"] == GATEWAY_TRIGGER_ON_PRIMARY_FAILURE
-                for query in _gateway(plan)
+                template["trigger"] == GATEWAY_TRIGGER_ON_PRIMARY_FAILURE
+                for template in _route_legs(plan)
             )
         )
 

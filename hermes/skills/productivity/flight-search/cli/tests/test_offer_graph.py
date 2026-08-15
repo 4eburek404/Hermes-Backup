@@ -1087,6 +1087,26 @@ class OfferGraphTests(unittest.TestCase):
             [("SVX", "IST"), ("IST", "AMS")],
         )
 
+    def test_assembled_route_without_live_price_is_not_a_candidate(self) -> None:
+        graph = self.graph_with_provider_and_gateway()
+        graph["offers"] = [
+            offer
+            for offer in graph["offers"]
+            if offer.get("source_type") == "gateway_leg"
+        ]
+        for offer in graph["offers"]:
+            if offer.get("origin") == "IST":
+                offer.pop("price", None)
+                offer.pop("currency", None)
+
+        envelope = materialize_offer_graph_candidates(
+            graph,
+            requested_origin="SVX",
+            requested_destination="AMS",
+        )
+
+        self.assertEqual(envelope["candidates"], [])
+
     def test_missing_gateway_leg_does_not_create_full_candidate(self) -> None:
         graph = build_offer_graph(
             primary_offer_results=[],
@@ -1434,8 +1454,20 @@ class OfferGraphTests(unittest.TestCase):
         self.assertIn("summary_only_offer_details", candidate["warnings"])
 
     def test_same_physical_itinerary_dedupes_with_alternate_sources(self) -> None:
+        graph = self.graph_with_provider_and_gateway()
+        for offer in graph["offers"]:
+            if offer.get("source_type") != "gateway_leg":
+                continue
+            origin = offer.get("origin")
+            offer.update(
+                {
+                    "hypothesis_id": "web_route_discovery:outbound:SVX-IST-AMS",
+                    "leg_index": 0 if origin == "SVX" else 1,
+                    "required_airports": ["SVX", "IST", "AMS"],
+                }
+            )
         envelope = materialize_offer_graph_candidates(
-            self.graph_with_provider_and_gateway(),
+            graph,
             requested_origin="SVX",
             requested_destination="AMS",
         )
@@ -1453,6 +1485,10 @@ class OfferGraphTests(unittest.TestCase):
         self.assertEqual(alternate["source_type"], "gateway_separate_ticket")
         self.assertEqual(alternate["price"], 40000)
         self.assertEqual(alternate["price_basis"], "summed_live_leg_prices")
+        self.assertEqual(
+            alternate["hypothesis_ids"],
+            ["web_route_discovery:outbound:SVX-IST-AMS"],
+        )
         self.assertEqual(
             candidate["price_comparison"],
             {

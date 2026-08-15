@@ -51,7 +51,7 @@ DIAGNOSE_PLAN_COMMAND = CommandSpec(
     path=("diagnose", "plan"),
     audience="diagnostic",
     help=(
-        "Render the route segment plan from a flight_search_request.v3 file "
+        "Render the route segment plan from a flight_search_request.v4 file "
         "without provider calls."
     ),
     catalog_access="auto_refresh",

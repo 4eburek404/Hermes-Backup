@@ -51,24 +51,33 @@ class GatewaySignal:
         return payload
 
 
-@dataclass(frozen=True, slots=True)
-class GatewayCandidate:
-    code: str
-    score: int | float
-    signals: tuple[GatewaySignal, ...]
-    risk_flags: tuple[str, ...] = ()
-    debug: dict[str, Any] = field(default_factory=dict)
+class _DiscoveredGateway(dict[str, Any]):
+    """Ephemeral discovery ordering record; it is never a route model."""
+
+    @property
+    def code(self) -> str:
+        return str(self["code"])
+
+    @property
+    def score(self) -> int | float:
+        return self["score"]
+
+    @property
+    def signals(self) -> tuple[GatewaySignal, ...]:
+        return tuple(self["signals"])
+
+    @property
+    def debug(self) -> dict[str, Any]:
+        return dict(self["debug"])
 
     def to_dict(self) -> dict[str, Any]:
-        payload: dict[str, Any] = {
+        return {
             "code": self.code,
             "score": self.score,
             "signals": [signal.to_dict() for signal in self.signals],
-            "risk_flags": list(self.risk_flags),
+            "risk_flags": list(self["risk_flags"]),
+            "debug": self.debug,
         }
-        if self.debug:
-            payload["debug"] = dict(self.debug)
-        return payload
 
 
 class GatewayDiscoveryService:
@@ -82,7 +91,7 @@ class GatewayDiscoveryService:
         primary_offer_results: list[dict[str, Any]] | None = None,
         provider_results: list[dict[str, Any]] | None = None,
         diagnostics: MutableMapping[str, Any] | None = None,
-    ) -> list[GatewayCandidate]:
+    ) -> list[_DiscoveredGateway]:
         market = normalize_market_key(market_key)
         state = _DiscoveryState(market=market)
         rejected: list[dict[str, Any]] = []
@@ -117,7 +126,7 @@ class GatewayDiscoveryService:
         for code, signal in extracted:
             state.add_signal(code, signal)
 
-        candidates = state.candidates()
+        candidates = state.ranked_signals()
         if diagnostics is not None:
             diagnostics["market"] = market
             diagnostics["candidate_count"] = len(candidates)
@@ -172,9 +181,9 @@ class _DiscoveryState:
         record["risk_flags"].update(risk_flags)
         self._sequence += 1
 
-    def candidates(self) -> list[GatewayCandidate]:
-        candidates = [
-            GatewayCandidate(
+    def ranked_signals(self) -> list[_DiscoveredGateway]:
+        signals = [
+            _DiscoveredGateway(
                 code=str(record["code"]),
                 score=sum(signal.weight for signal in record["signals"]),
                 signals=tuple(record["signals"]),
@@ -183,22 +192,22 @@ class _DiscoveryState:
             )
             for record in self._records.values()
         ]
-        return sorted(candidates, key=self._candidate_sort_key)
+        return sorted(signals, key=self._signal_sort_key)
 
-    def _candidate_sort_key(
-        self, candidate: GatewayCandidate
+    def _signal_sort_key(
+        self, gateway: _DiscoveredGateway
     ) -> tuple[int, int | float, int, str]:
-        record = self._records[candidate.code]
+        record = self._records[gateway.code]
         has_provider_signal = any(
-            signal.source == PROVIDER_RETURNED_ROUTE_SOURCE
-            for signal in candidate.signals
+            item.source == PROVIDER_RETURNED_ROUTE_SOURCE
+            for item in gateway.signals
         )
         provider_rank = 0 if has_provider_signal else 1
         return (
             provider_rank,
-            -candidate.score,
+            -gateway.score,
             int(record["first_seen"]),
-            candidate.code,
+            gateway.code,
         )
 
 
@@ -455,7 +464,6 @@ def _normalize_gateway_code(value: Any) -> str | None:
 
 
 __all__ = [
-    "GatewayCandidate",
     "GatewayDiscoveryService",
     "GatewaySignal",
     "PROVIDER_RETURNED_ROUTE_SOURCE",
