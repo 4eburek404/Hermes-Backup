@@ -84,6 +84,10 @@ at target reached, `evidence_incomplete`, no new airport signatures, exhausted
 rounds, or provider budget. Telegram returns `data.answer.rendered_text`
 verbatim; never turn the audit into traveler control text.
 
+For undated direct-network candidates, use
+`../airport-direct-destinations/SKILL.md`. Its output is hypothesis evidence,
+not a priced itinerary or proof of dated availability.
+
 ## Failure and Diagnostics
 
 If canonical search fails or produces no traveler answer, report that failure instead of fabricating or manually reconstructing an itinerary. Diagnostics may explain the failure, but diagnostic JSON and probe logs are not traveler-facing answers.

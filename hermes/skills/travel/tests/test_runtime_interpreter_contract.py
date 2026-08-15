@@ -3,6 +3,7 @@ from pathlib import Path
 
 TRAVEL_ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_SKILLS = (
+    "airport-direct-destinations",
     "flight-calendar-ics",
     "flight-search",
     "flight-status",

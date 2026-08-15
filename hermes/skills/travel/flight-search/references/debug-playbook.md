@@ -68,6 +68,9 @@ logs as a replacement traveler answer.
 With `provider_policy=auto`, Tutu and KupiBilet should have equivalent logical
 queries for every eligible direct or broad route probe. Check:
 
+- `option_id` and `total_price.source` identify the provider that returned an
+  offer, not every provider queried; use the plan and probe ledger for fanout;
+
 - both providers appear in `data.evidence.primary_offer_results` and the probe
   ledger unless a capability or market boundary explains otherwise;
 - `origin_airports` and `destination_airports` are normalized, preserved in
