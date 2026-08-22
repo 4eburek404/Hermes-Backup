@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 import importlib.util
+from datetime import timedelta
 from typing import Any
 from unittest.mock import patch
 
@@ -16,16 +17,18 @@ from flights_cli.pipeline.offer_graph_materializer import (
     materialize_offer_graph_candidates,
 )
 from flights_cli.store import Store
+from helpers import future_departure_date
 
 
 class RouteHypothesisRequestTests(unittest.TestCase):
     def test_v3_request_normalizes_to_empty_internal_route_hypotheses(self) -> None:
+        depart = future_departure_date()
         request = search_request_from_payload(
             {
                 "schema_version": "flight_search_request.v3",
                 "origin": "PUS",
                 "destination": "SVX",
-                "depart_date": "2026-10-01",
+                "depart_date": depart.isoformat(),
             }
         )
 
@@ -35,12 +38,13 @@ class RouteHypothesisRequestTests(unittest.TestCase):
         )
 
     def test_v4_request_builds_immutable_route_leg_template(self) -> None:
+        depart = future_departure_date()
         request = search_request_from_payload(
             {
                 "schema_version": "flight_search_request.v4",
                 "origin": "SVX",
                 "destination": "AMS",
-                "depart_date": "2026-10-01",
+                "depart_date": depart.isoformat(),
                 "route_hypotheses": [
                     {
                         "airports": ["SVX", "IST", "AMS"],
@@ -239,12 +243,13 @@ class RouteHypothesisRequestTests(unittest.TestCase):
     def test_search_executor_uses_route_leg_templates_without_mutating_plan(
         self,
     ) -> None:
+        depart = future_departure_date()
         request = search_request_from_payload(
             {
                 "schema_version": "flight_search_request.v4",
                 "origin": "SVX",
                 "destination": "AMS",
-                "depart_date": "2026-10-01",
+                "depart_date": depart.isoformat(),
                 "route_hypotheses": [
                     {
                         "airports": ["SVX", "IST", "AMS"],
@@ -287,6 +292,7 @@ class RouteHypothesisRequestTests(unittest.TestCase):
         run_route_legs.assert_called_once()
 
     def test_empty_primary_results_trigger_configured_route_legs(self) -> None:
+        depart = future_departure_date()
         executor_module = importlib.import_module(
             "flights_cli.execution.search_executor"
         )
@@ -298,7 +304,7 @@ class RouteHypothesisRequestTests(unittest.TestCase):
                         "schema_version": "flight_search_request.v4",
                         "origin": "PUS",
                         "destination": "SVX",
-                        "depart_date": "2026-09-10",
+                        "depart_date": depart.isoformat(),
                         "provider_policy": provider_policy,
                         "route_hypotheses": [],
                     }
@@ -321,12 +327,13 @@ class RouteHypothesisRequestTests(unittest.TestCase):
                 run_route_legs.assert_called_once()
 
     def test_connected_primary_offer_suppresses_configured_route_legs(self) -> None:
+        depart = future_departure_date()
         request = search_request_from_payload(
             {
                 "schema_version": "flight_search_request.v4",
                 "origin": "PUS",
                 "destination": "SVX",
-                "depart_date": "2026-09-10",
+                "depart_date": depart.isoformat(),
                 "provider_policy": "tutu",
                 "route_hypotheses": [],
             }
@@ -338,7 +345,7 @@ class RouteHypothesisRequestTests(unittest.TestCase):
             "direction": "outbound",
             "origin": "PUS",
             "destination": "SVX",
-            "date": "2026-09-10",
+            "date": depart.isoformat(),
             "status": "ok",
             "execution_state": "searched",
             "filters": {
@@ -354,14 +361,17 @@ class RouteHypothesisRequestTests(unittest.TestCase):
                         {
                             "origin": "PUS",
                             "destination": "IST",
-                            "departure_at": "2026-09-10T08:00:00+09:00",
-                            "arrival_at": "2026-09-10T14:00:00+03:00",
+                            "departure_at": f"{depart.isoformat()}T08:00:00+09:00",
+                            "arrival_at": f"{depart.isoformat()}T14:00:00+03:00",
                         },
                         {
                             "origin": "IST",
                             "destination": "SVX",
-                            "departure_at": "2026-09-10T18:00:00+03:00",
-                            "arrival_at": "2026-09-11T01:00:00+05:00",
+                            "departure_at": f"{depart.isoformat()}T18:00:00+03:00",
+                            "arrival_at": (
+                                f"{(depart + timedelta(days=1)).isoformat()}"
+                                "T01:00:00+05:00"
+                            ),
                         },
                     ],
                 }
@@ -389,12 +399,13 @@ class RouteHypothesisRequestTests(unittest.TestCase):
         )
 
     def test_primary_failure_still_triggers_configured_route_legs(self) -> None:
+        depart = future_departure_date()
         request = search_request_from_payload(
             {
                 "schema_version": "flight_search_request.v4",
                 "origin": "PUS",
                 "destination": "SVX",
-                "depart_date": "2026-09-10",
+                "depart_date": depart.isoformat(),
                 "provider_policy": "tutu",
                 "route_hypotheses": [],
             }
@@ -406,7 +417,7 @@ class RouteHypothesisRequestTests(unittest.TestCase):
             "direction": "outbound",
             "origin": "PUS",
             "destination": "SVX",
-            "date": "2026-09-10",
+            "date": depart.isoformat(),
             "status": "error",
             "execution_state": "failed",
         }
@@ -430,12 +441,13 @@ class RouteHypothesisRequestTests(unittest.TestCase):
         run_route_legs.assert_called_once()
 
     def test_hypothesis_over_stop_policy_is_audited_without_execution(self) -> None:
+        depart = future_departure_date()
         request = search_request_from_payload(
             {
                 "schema_version": "flight_search_request.v4",
                 "origin": "SVX",
                 "destination": "AMS",
-                "depart_date": "2026-10-01",
+                "depart_date": depart.isoformat(),
                 "route_options": {"max_connections": 0},
                 "route_hypotheses": [
                     {

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import unittest
-from datetime import date
 from unittest.mock import patch
 
 from flights_cli.errors import CliError
@@ -12,7 +11,7 @@ from flights_cli.execution.probe_dispatcher import (
 from flights_cli.execution.probe_ledger import ProbeRunLedger
 from flights_cli.ports.providers import ProviderCapabilities, ProviderProbeResult
 from flights_cli.store import Store
-from helpers import coverage_completeness
+from helpers import coverage_completeness, future_departure_date
 
 
 def dispatcher_options(**overrides: object) -> SegmentProbeOptions:
@@ -82,12 +81,13 @@ class FailingProviderAdapter(FakeProviderAdapter):
 
 class ProbeDispatcherTests(unittest.TestCase):
     def test_dispatches_kupibilet_segment_with_fake_provider_call(self) -> None:
+        depart = future_departure_date()
         spec = {
             "direction": "outbound",
             "leg": "origin_to_hub",
             "origin": "SVX",
             "destination": "IST",
-            "date": "2099-08-12",
+            "date": depart.isoformat(),
         }
         plan = {"currency": "RUB"}
         segment_result = {
@@ -134,7 +134,7 @@ class ProbeDispatcherTests(unittest.TestCase):
         self.assertEqual(outcomes[0].segment_result, segment_result)
         self.assertIsNone(outcomes[0].failure)
         call = search.call_args
-        self.assertEqual(call.args[:3], ("SVX", "IST", date(2099, 8, 12)))
+        self.assertEqual(call.args[:3], ("SVX", "IST", depart))
         self.assertEqual(call.kwargs["only_carriers"], ["SU"])
         self.assertTrue(call.kwargs["direct_only"])
         self.assertTrue(call.kwargs["use_cache"])
@@ -353,12 +353,13 @@ class ProbeDispatcherTests(unittest.TestCase):
     def test_duplicate_segment_probe_reuses_original_result_without_second_provider_call(
         self,
     ) -> None:
+        depart = future_departure_date()
         spec = {
             "direction": "outbound",
             "leg": "origin_to_hub",
             "origin": "SVX",
             "destination": "IST",
-            "date": "2099-08-12",
+            "date": depart.isoformat(),
         }
         plan = {"currency": "RUB"}
         ledger = ProbeRunLedger()

@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+from datetime import date, timedelta
 from unittest.mock import patch
 
 from flights_cli.cli import auto_refresh_catalog, build_parser
@@ -21,20 +22,21 @@ from flights_cli.command_surface import (
 from flights_cli.contracts.validation import validate_contract_payload
 from flights_cli.pipeline.search_request import SearchRequest
 from flights_cli.store import Store
-from helpers import parser_leaf_defaults
+from helpers import future_departure_date, parser_leaf_defaults
 from test_result_contract import valid_result
 
 
-MINIMAL_SEARCH_REQUEST = {
-    "schema_version": "flight_search_request.v3",
-    "origin": "SVX",
-    "destination": "LON",
-    "depart_date": "2099-07-20",
-    "return_date": "2099-07-25",
-    "currency": "RUB",
-    "profile": "business",
-    "provider_policy": "auto",
-}
+def minimal_search_request(depart: date) -> dict[str, object]:
+    return {
+        "schema_version": "flight_search_request.v3",
+        "origin": "SVX",
+        "destination": "LON",
+        "depart_date": depart.isoformat(),
+        "return_date": (depart + timedelta(days=5)).isoformat(),
+        "currency": "RUB",
+        "profile": "business",
+        "provider_policy": "auto",
+    }
 
 
 class PrimaryCliNamespaceTests(unittest.TestCase):
@@ -71,6 +73,8 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
     def test_search_command_adapts_to_typed_request(self) -> None:
         from flights_cli.commands.search import command_search
 
+        depart = future_departure_date()
+        request = minimal_search_request(depart)
         captured: dict[str, object] = {}
 
         def fake_run(request: SearchRequest) -> dict[str, str]:
@@ -80,9 +84,7 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             request_path = Path(tmp_dir) / "request.json"
-            request_path.write_text(
-                json.dumps(MINIMAL_SEARCH_REQUEST), encoding="utf-8"
-            )
+            request_path.write_text(json.dumps(request), encoding="utf-8")
             args = argparse.Namespace(request=str(request_path), command_name="search")
             with patch("flights_cli.commands.search.SearchWorkflow") as workflow:
                 workflow.return_value.run.side_effect = fake_run
@@ -94,15 +96,21 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
     def test_diagnose_trace_serializes_existing_artifacts_once(self) -> None:
         from flights_cli.commands.diagnose import command_diagnose_trace
 
+        depart = future_departure_date()
+        request_payload = minimal_search_request(depart)
         evidence = SimpleNamespace(to_trace_dict=lambda: {"provider_policy": "auto"})
         decision = SimpleNamespace(
             offer_graph={},
             offer_candidates={},
             scored_decisions={"scorer": {}},
             decision_frontier={},
-            research_status={"needed": False, "evidence_incomplete": False, "audit": []},
+            research_status={
+                "needed": False,
+                "evidence_incomplete": False,
+                "audit": [],
+            },
         )
-        request = SimpleNamespace(to_payload=lambda: MINIMAL_SEARCH_REQUEST)
+        request = SimpleNamespace(to_payload=lambda: request_payload)
         execution = SimpleNamespace(
             plan={},
             evidence=evidence,
@@ -116,9 +124,7 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
                 "flights_cli.commands.diagnose.prepare_search_request",
                 return_value=request,
             ),
-            patch(
-                "flights_cli.commands.diagnose.SearchWorkflow"
-            ) as workflow,
+            patch("flights_cli.commands.diagnose.SearchWorkflow") as workflow,
             patch(
                 "flights_cli.commands.diagnose.validate_contract_payload"
             ) as validate,

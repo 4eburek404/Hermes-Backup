@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 from copy import deepcopy
+from datetime import timedelta
 
 from flights_cli.contracts.validation import validate_contract_payload
 from flights_cli.errors import CliError
@@ -13,7 +14,7 @@ from flights_cli.pipeline.search_plan import (
     SearchPlan,
 )
 from flights_cli.store import Store
-from helpers import build_search_plan, live_assembly_args
+from helpers import build_search_plan, future_departure_date, live_assembly_args
 
 
 def _primary(plan: dict[str, object]) -> list[dict[str, object]]:
@@ -30,12 +31,13 @@ def _query(attempt: dict[str, object]) -> dict[str, object]:
 
 class SearchPlanContractTests(unittest.TestCase):
     def test_v6_round_trip_is_typed_and_contract_valid(self) -> None:
+        depart = future_departure_date()
         payload = build_search_plan(
             live_assembly_args(
                 origin="SVX",
                 destination="AMS",
-                depart_date="2026-08-15",
-                return_date="2026-08-22",
+                depart_date=depart.isoformat(),
+                return_date=(depart + timedelta(days=7)).isoformat(),
                 no_live_cache=True,
             ),
             Store(),
@@ -88,11 +90,12 @@ class SearchPlanContractTests(unittest.TestCase):
         )
 
     def test_v6_rejects_flat_attempts_without_nested_query(self) -> None:
+        depart = future_departure_date()
         payload = build_search_plan(
             live_assembly_args(
                 origin="SVX",
                 destination="AMS",
-                depart_date="2026-08-15",
+                depart_date=depart.isoformat(),
                 return_date=None,
                 provider_policy="tutu",
                 no_live_cache=True,
@@ -107,11 +110,12 @@ class SearchPlanContractTests(unittest.TestCase):
             SearchPlan.from_dict(flat)
 
     def test_v6_rejects_runtime_state_inside_planned_attempt(self) -> None:
+        depart = future_departure_date()
         payload = build_search_plan(
             live_assembly_args(
                 origin="SVX",
                 destination="AMS",
-                depart_date="2026-08-15",
+                depart_date=depart.isoformat(),
                 return_date=None,
                 provider_policy="tutu",
                 no_live_cache=True,
@@ -129,11 +133,12 @@ class SearchPlanContractTests(unittest.TestCase):
             validate_contract_payload("search_plan", with_runtime_state)
 
     def test_restricted_route_plans_explicit_provider_attempts(self) -> None:
+        depart = future_departure_date()
         plan = build_search_plan(
             live_assembly_args(
                 origin="SVX",
                 destination="AMS",
-                depart_date="2026-08-15",
+                depart_date=depart.isoformat(),
                 return_date=None,
                 provider_policy="auto",
                 no_live_cache=True,
@@ -168,11 +173,12 @@ class SearchPlanContractTests(unittest.TestCase):
         )
 
     def test_direct_only_is_an_absolute_gateway_prohibition(self) -> None:
+        depart = future_departure_date()
         plan = build_search_plan(
             live_assembly_args(
                 origin="SVX",
                 destination="AMS",
-                depart_date="2026-08-15",
+                depart_date=depart.isoformat(),
                 return_date=None,
                 max_connections=0,
                 tier2_max_connections=0,
@@ -196,11 +202,12 @@ class SearchPlanContractTests(unittest.TestCase):
         )
 
     def test_optional_gateway_policy_has_active_failure_trigger(self) -> None:
+        depart = future_departure_date()
         plan = build_search_plan(
             live_assembly_args(
                 origin="ALA",
                 destination="SVX",
-                depart_date="2026-09-17",
+                depart_date=depart.isoformat(),
                 return_date=None,
                 provider_policy="tutu",
                 no_live_cache=True,
@@ -221,6 +228,7 @@ class SearchPlanContractTests(unittest.TestCase):
         )
 
     def test_request_policies_are_resolved_into_plan(self) -> None:
+        depart = future_departure_date()
         plan = build_search_plan(
             live_assembly_args(
                 origin="MOW",
@@ -228,7 +236,7 @@ class SearchPlanContractTests(unittest.TestCase):
                 origin_airports=["SVO"],
                 destination_airports=["LHR", "LGW"],
                 only_carrier="KL",
-                depart_date="2026-08-15",
+                depart_date=depart.isoformat(),
                 return_date=None,
                 provider_policy="tutu",
                 no_live_cache=True,
@@ -247,14 +255,15 @@ class SearchPlanContractTests(unittest.TestCase):
         )
 
     def test_return_direct_inventory_swaps_airport_scope(self) -> None:
+        depart = future_departure_date()
         plan = build_search_plan(
             live_assembly_args(
                 origin="MOW",
                 destination="LON",
                 origin_airports=["SVO"],
                 destination_airports=["LHR"],
-                depart_date="2026-08-15",
-                return_date="2026-08-22",
+                depart_date=depart.isoformat(),
+                return_date=(depart + timedelta(days=7)).isoformat(),
                 max_connections=0,
                 tier2_max_connections=0,
                 provider_policy="tutu",

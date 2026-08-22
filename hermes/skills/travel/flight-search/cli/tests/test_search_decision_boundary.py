@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import date
 from types import SimpleNamespace
 from typing import Any
 
@@ -10,12 +11,12 @@ from flights_cli.pipeline.direct_gate import candidate_is_direct
 from flights_cli.pipeline.frontier_selection import build_decision_frontier
 from flights_cli.pipeline.search_decision import SearchDecisionBuilder
 from flights_cli.store import Store
-from helpers import live_assembly_args
+from helpers import future_departure_date, live_assembly_args
 
 
-def _plan() -> SimpleNamespace:
+def _plan(depart: date) -> SimpleNamespace:
     return SimpleNamespace(
-        route=SimpleNamespace(dates={"depart": "2099-08-01", "return": None}),
+        route=SimpleNamespace(dates={"depart": depart.isoformat(), "return": None}),
         decision_policy=SimpleNamespace(
             max_connections_per_journey=2,
             preferred_connections=1,
@@ -35,13 +36,13 @@ def _plan() -> SimpleNamespace:
     )
 
 
-def _evidence() -> SimpleNamespace:
+def _evidence(depart: date) -> SimpleNamespace:
     route = {
         "origin": "SVX",
         "destination": "LED",
         "origin_airports": ["SVX"],
         "destination_airports": ["LED"],
-        "dates": {"depart": "2099-08-01", "return": None},
+        "dates": {"depart": depart.isoformat(), "return": None},
         "currency": "RUB",
         "direct_only": False,
         "hubs": [],
@@ -61,8 +62,8 @@ def _evidence() -> SimpleNamespace:
                     {
                         "origin": "SVX",
                         "destination": "LED",
-                        "departure_at": "2099-08-01T08:00:00+05:00",
-                        "arrival_at": "2099-08-01T10:30:00+03:00",
+                        "departure_at": f"{depart.isoformat()}T08:00:00+05:00",
+                        "arrival_at": f"{depart.isoformat()}T10:30:00+03:00",
                     }
                 ],
             }
@@ -96,7 +97,8 @@ def _evidence() -> SimpleNamespace:
 
 
 def test_search_decision_builder_is_a_pure_evidence_projection() -> None:
-    decision = SearchDecisionBuilder.build(_plan(), _evidence())
+    depart = future_departure_date()
+    decision = SearchDecisionBuilder.build(_plan(depart), _evidence(depart))
 
     assert decision.offer_graph["coverage"]["offer_count"] == 1
     assert decision.offer_candidates["coverage"]["candidate_count"] == 1
@@ -108,7 +110,8 @@ def test_search_decision_builder_is_a_pure_evidence_projection() -> None:
 
 
 def test_research_status_audits_hypotheses_without_a_second_decision_pipeline() -> None:
-    evidence = _evidence()
+    depart = future_departure_date()
+    evidence = _evidence(depart)
     evidence.primary_offer_results = ()
     evidence.direct_mode = {"outbound": False}
     evidence.gateway_leg_results = {
@@ -135,7 +138,7 @@ def test_research_status_audits_hypotheses_without_a_second_decision_pipeline() 
         {"probe_id": "budget", "reason": "provider_attempt_budget_exhausted"}
     ]
 
-    decision = SearchDecisionBuilder.build(_plan(), evidence)
+    decision = SearchDecisionBuilder.build(_plan(depart), evidence)
 
     assert [item["status"] for item in decision.research_status["audit"]] == [
         "excluded",
@@ -146,10 +149,11 @@ def test_research_status_audits_hypotheses_without_a_second_decision_pipeline() 
 
 
 def test_search_decision_uses_plan_limits_when_request_limits_conflict() -> None:
+    depart = future_departure_date()
     request = live_assembly_args(
         origin="SVX",
         destination="LED",
-        depart_date="2099-08-01",
+        depart_date=depart.isoformat(),
         return_date=None,
     )
     built = SearchPlanBuilder(Store()).build(request)
@@ -173,7 +177,7 @@ def test_search_decision_uses_plan_limits_when_request_limits_conflict() -> None
     assert (
         request.output.direct_catalog_limit != plan.output_policy.direct_catalog_limit
     )
-    evidence = _evidence()
+    evidence = _evidence(depart)
     evidence.primary_offer_results[0]["top_offers"].append(
         {
             "id": "fake-direct-second",
@@ -183,8 +187,8 @@ def test_search_decision_uses_plan_limits_when_request_limits_conflict() -> None
                 {
                     "origin": "SVX",
                     "destination": "LED",
-                    "departure_at": "2099-08-01T11:00:00+05:00",
-                    "arrival_at": "2099-08-01T13:30:00+03:00",
+                    "departure_at": f"{depart.isoformat()}T11:00:00+05:00",
+                    "arrival_at": f"{depart.isoformat()}T13:30:00+03:00",
                 }
             ],
         }
@@ -206,8 +210,9 @@ def test_search_decision_uses_plan_limits_when_request_limits_conflict() -> None
 
 
 def test_projection_input_binds_existing_decision_and_optional_inventory() -> None:
-    plan = _plan()
-    evidence = _evidence()
+    depart = future_departure_date()
+    plan = _plan(depart)
+    evidence = _evidence(depart)
     evidence.probe_ledger["failed_probes"] = [
         {
             "probe_id": "provider-failure",

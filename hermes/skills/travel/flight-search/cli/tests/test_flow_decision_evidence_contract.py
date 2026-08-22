@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import timedelta
 import unittest
 from unittest.mock import patch
 
@@ -9,7 +9,11 @@ from flights_cli.orchestrators.search_plan_builder import (
     build_route_context,
 )
 from flights_cli.store import Store
-from tests.helpers import build_search_plan, live_assembly_args
+from tests.helpers import (
+    build_search_plan,
+    future_departure_date,
+    live_assembly_args,
+)
 
 
 class FlowDecisionContractTests(unittest.TestCase):
@@ -56,11 +60,12 @@ class FlowDecisionContractTests(unittest.TestCase):
         )
 
     def test_round_trip_route_templates_mirror_airports_and_direction(self) -> None:
+        depart = future_departure_date()
         plan = self.plan_for(
             origin="SVX",
             destination="CDG",
-            depart_date="2026-09-10",
-            return_date="2026-09-20",
+            depart_date=depart.isoformat(),
+            return_date=(depart + timedelta(days=10)).isoformat(),
         )
 
         self.assertEqual(plan["schema_version"], "flight_search_plan.v6")
@@ -170,17 +175,19 @@ class FlowDecisionContractTests(unittest.TestCase):
             self.assertEqual(plan["execution_policy"]["live_cache_ttl_seconds"], 0)
 
     def test_near_departure_uses_injected_today_and_disables_cache(self) -> None:
+        depart = future_departure_date()
+        injected_today = depart - timedelta(days=2)
         request = live_assembly_args(
             origin="BER",
             destination="MAD",
-            depart_date="2099-08-12",
+            depart_date=depart.isoformat(),
             live_cache_ttl_seconds=1800,
             return_date=None,
         )
         flow = build_planning_state(
             request,
             self.store,
-            today_provider=lambda: date(2099, 8, 10),
+            today_provider=lambda: injected_today,
         )
         with patch(
             "flights_cli.orchestrators.search_plan_builder.build_planning_state",
@@ -188,7 +195,7 @@ class FlowDecisionContractTests(unittest.TestCase):
         ):
             plan = build_search_plan(request, self.store)
 
-        self.assertEqual(flow.today, date(2099, 8, 10))
+        self.assertEqual(flow.today, injected_today)
         self.assertFalse(plan["execution_policy"]["live_cache_enabled"])
         self.assertEqual(plan["execution_policy"]["live_cache_ttl_seconds"], 0)
 
