@@ -6,7 +6,7 @@ from unittest.mock import patch
 from flights_cli.orchestrators.search_workflow import SearchWorkflow
 from flights_cli.ports.providers import ProviderCapabilities, ProviderProbeResult
 from flights_cli.store import Store
-from helpers import live_assembly_args
+from helpers import future_departure_date, live_assembly_args
 
 
 class FakeAggregateAdapter:
@@ -62,10 +62,11 @@ class ProviderPortDispatchTests(unittest.TestCase):
     def test_search_executor_dispatches_primary_offer_through_provider_port(
         self,
     ) -> None:
+        depart = future_departure_date()
         args = live_assembly_args(
             origin="SVX",
             destination="LON",
-            depart_date="2099-07-20",
+            depart_date=depart.isoformat(),
             provider_policy="kupibilet",
             max_segment_searches=40,
             no_live_cache=True,

@@ -4,7 +4,7 @@ import asyncio
 import time
 import unittest
 from contextlib import contextmanager
-from datetime import date, timedelta
+from datetime import date
 from importlib.metadata import version
 from typing import Any, Iterator
 from unittest.mock import patch
@@ -26,6 +26,7 @@ from mcp.types import INVALID_PARAMS, ErrorData
 from flights_cli.errors import CliError
 from flights_cli.providers.tutu_client import TutuMcpClient
 from flights_cli.providers.tutu_mcp import _fetch_tutu_avia_search_async
+from helpers import future_departure_date
 
 pytestmark = pytest.mark.filterwarnings(
     "ignore::pydantic_settings.exceptions.IncompleteFieldDefinitionWarning"
@@ -256,7 +257,7 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
             url=None,
             deadline=time.monotonic() + 60,
         )
-        departure_date = date.today() + timedelta(days=45)
+        departure_date = future_departure_date()
 
         async with client:
             self.assertIsInstance(client.playbook, str)

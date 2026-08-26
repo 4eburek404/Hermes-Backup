@@ -7,7 +7,7 @@ import threading
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -42,6 +42,7 @@ from flights_cli.providers.tutu_mcp import (
 )
 from flights_cli.providers.tutu_parser import parse_tutu_avia_search
 from flights_cli.store import Store
+from helpers import future_departure_date
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "providers"
 CATALOG_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "catalog"
@@ -1563,6 +1564,7 @@ class TutuMcpSyncContractTests(unittest.IsolatedAsyncioTestCase):
     def test_segment_adapter_passes_direct_only_without_return_date(self) -> None:
         store = store_with_tutu_catalog(self)
         calls: list[dict] = []
+        depart = future_departure_date()
 
         def fake_fetcher(
             origin: str, destination: str, depart_date: date, **kwargs: object
@@ -1594,7 +1596,7 @@ class TutuMcpSyncContractTests(unittest.IsolatedAsyncioTestCase):
                 "leg": "direct_destination_control",
                 "origin": "SVX",
                 "destination": "AMS",
-                "date": "2026-08-15",
+                "date": depart.isoformat(),
                 "currency": "RUB",
                 "only_carriers": ["SU"],
                 "origin_airports": [" svx ", "SVX"],
@@ -1617,6 +1619,8 @@ class TutuMcpSyncContractTests(unittest.IsolatedAsyncioTestCase):
     ) -> None:
         store = store_with_tutu_catalog(self)
         calls: list[dict] = []
+        depart = future_departure_date()
+        return_date = depart + timedelta(days=7)
 
         def fake_fetcher(
             origin: str, destination: str, depart_date: date, **kwargs: object
@@ -1647,8 +1651,8 @@ class TutuMcpSyncContractTests(unittest.IsolatedAsyncioTestCase):
                 "probe_id": "agg-1",
                 "origin": "SVX",
                 "destination": "AER",
-                "date": "2026-08-15",
-                "return_date": "2026-08-22",
+                "date": depart.isoformat(),
+                "return_date": return_date.isoformat(),
                 "currency": "RUB",
                 "only_carriers": ["SU"],
                 "origin_airports": ["svx"],
@@ -1659,10 +1663,10 @@ class TutuMcpSyncContractTests(unittest.IsolatedAsyncioTestCase):
             }
         )
 
-        self.assertEqual(calls[0]["return_date"], date(2026, 8, 22))
+        self.assertEqual(calls[0]["return_date"], return_date)
         self.assertTrue(calls[0]["direct_only"])
         self.assertEqual(calls[0]["limit"], 23)
-        self.assertEqual(result.query["return_date"], "2026-08-22")
+        self.assertEqual(result.query["return_date"], return_date.isoformat())
         self.assertEqual(result.query["origin_airports"], ["SVX"])
         self.assertEqual(result.query["destination_airports"], ["AER"])
 

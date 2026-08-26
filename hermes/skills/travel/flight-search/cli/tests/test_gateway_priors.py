@@ -8,7 +8,7 @@ from flights_cli.domain.gateway_priors import load_gateway_priors
 from flights_cli.errors import CliError
 from flights_cli.orchestrators.search_plan_builder import build_route_context
 from flights_cli.store import Store
-from helpers import live_assembly_args
+from helpers import future_departure_date, live_assembly_args
 
 
 VALID_GATEWAY_PRIORS_YAML = """
@@ -156,12 +156,13 @@ markets:
     def test_gateway_priors_do_not_leak_into_route_context(self) -> None:
         path = self.write_file("gateway_priors.yaml", VALID_GATEWAY_PRIORS_YAML)
         store = Store(gateway_priors_path=path)
+        depart = future_departure_date()
 
         plan = build_route_context(
             live_assembly_args(
                 origin="SVX",
                 destination="CDG",
-                depart_date="2026-08-15",
+                depart_date=depart.isoformat(),
                 return_date=None,
                 routing_strategy="ru-priority",
                 no_live_cache=True,

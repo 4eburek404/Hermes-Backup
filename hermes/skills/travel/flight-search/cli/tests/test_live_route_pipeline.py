@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import unittest
+from datetime import timedelta
 from unittest.mock import patch
 
 from flights_cli.config import DEFAULT_DIRECT_CATALOG_LIMIT
@@ -26,7 +27,7 @@ from flights_cli.pipeline.search_plan import (
     SearchPlan,
 )
 from flights_cli.store import Store
-from helpers import live_assembly_args
+from helpers import future_departure_date, live_assembly_args
 
 
 def execute_projection(*args: object, **kwargs: object) -> dict:
@@ -38,7 +39,6 @@ def live_args(**overrides: object):
     defaults = {
         "origin": "SVX",
         "destination": "CDG",
-        "depart_date": "2026-08-16",
         "return_date": None,
         "profile": "business",
         "provider_policy": "auto",
@@ -111,9 +111,7 @@ def typed_plan(legacy: dict[str, object]) -> SearchPlan:
             continue
         seen_route_legs.add(key)
         origin = str(query.get("origin") or route.origin)
-        destination = (
-            route.destination if direction == "outbound" else route.origin
-        )
+        destination = route.destination if direction == "outbound" else route.origin
         route_legs.append(
             RouteLegTemplate(
                 hypothesis_id=f"configured_prior:{direction}:{origin}-{gateway}-{destination}",
@@ -389,11 +387,12 @@ class LiveRoutePipelineTests(unittest.TestCase):
         )
 
     def test_live_route_args_adapt_to_typed_search_flow(self) -> None:
+        depart = future_departure_date()
         args = live_assembly_args(
             origin="SVX",
             destination="CDG",
-            depart_date="2026-08-16",
-            return_date="2026-08-20",
+            depart_date=depart.isoformat(),
+            return_date=(depart + timedelta(days=4)).isoformat(),
             profile="business",
             no_live_cache=True,
         )
@@ -402,8 +401,10 @@ class LiveRoutePipelineTests(unittest.TestCase):
 
         self.assertEqual(flow.request.origin, "SVX")
         self.assertEqual(flow.request.destination, "CDG")
-        self.assertEqual(flow.request.depart_date, "2026-08-16")
-        self.assertEqual(flow.request.return_date, "2026-08-20")
+        self.assertEqual(flow.request.depart_date, depart.isoformat())
+        self.assertEqual(
+            flow.request.return_date, (depart + timedelta(days=4)).isoformat()
+        )
         self.assertEqual(flow.request.currency, "RUB")
         self.assertEqual(flow.request.profile, "business")
         self.assertEqual(flow.request.provider_policy, "auto")
@@ -417,6 +418,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
     def test_search_executor_uses_typed_request(
         self,
     ) -> None:
+        depart = future_departure_date()
         with (
             patch(
                 "flights_cli.orchestrators.search_plan_builder.build_planning_state",
@@ -431,7 +433,9 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 return_value={"route_hypotheses": [], "viable_hypotheses": 0},
             ),
         ):
-            result = execute_projection(live_args(), Store())
+            result = execute_projection(
+                live_args(depart_date=depart.isoformat()), Store()
+            )
 
         self.assertEqual(build_flow.call_count, 1)
         self.assertIn("live_search", result)
@@ -439,7 +443,9 @@ class LiveRoutePipelineTests(unittest.TestCase):
         route_plan = result["live_search"]["plan"]
         self.assertEqual(route_plan["origin"], "SVX")
         self.assertEqual(route_plan["destination"], "CDG")
-        self.assertEqual(route_plan["dates"], {"depart": "2026-08-16", "return": None})
+        self.assertEqual(
+            route_plan["dates"], {"depart": depart.isoformat(), "return": None}
+        )
         search_plan = result["live_search"]["diagnostics"]["search_plan"]
         self.assertEqual(
             set(result["live_search"]["diagnostics"]),
@@ -932,9 +938,10 @@ class LiveRoutePipelineTests(unittest.TestCase):
         )
 
     def test_round_trip_gateway_flow_executes_and_pairs_both_directions(self) -> None:
+        depart = future_departure_date()
         requested_dates = {
-            "outbound": "2026-08-16",
-            "return": "2026-08-22",
+            "outbound": depart.isoformat(),
+            "return": (depart + timedelta(days=6)).isoformat(),
         }
 
         def dispatch_gateway(**kwargs: object) -> list[SegmentProbeOutcome]:
@@ -969,11 +976,11 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 )
             return [
                 SegmentProbeOutcome(
-                summary={
-                    "status": "ok",
-                    "provider": "tutu",
-                    "offer_count": offer_count,
-                    "probe_id": None,
+                    summary={
+                        "status": "ok",
+                        "provider": "tutu",
+                        "offer_count": offer_count,
+                        "probe_id": None,
                         "cache_status": "disabled",
                     },
                     segment_result={

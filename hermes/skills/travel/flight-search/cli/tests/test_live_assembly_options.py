@@ -1,71 +1,78 @@
 from __future__ import annotations
 
 import unittest
+from datetime import date, timedelta
 
 from flights_cli.config import DEFAULT_CATALOG_LIMIT, DEFAULT_DIRECT_CATALOG_LIMIT
 from flights_cli.errors import CliError
 from flights_cli.pipeline.search_request import search_request_from_payload
+from helpers import future_departure_date
 
 
-REQUEST = {
-    "schema_version": "flight_search_request.v3",
-    "origin": "svx",
-    "destination": "lon",
-    "depart_date": "2099-07-20",
-    "return_date": "2099-07-27",
-    "currency": "rub",
-    "profile": "business",
-    "provider_policy": "auto",
-    "route_options": {
-        "routing_strategy": "hub-list",
-        "hubs": ["IST", "DXB"],
-        "origin_airports": ["SVX"],
-        "destination_airports": ["LHR"],
-        "max_airports_per_city": 3,
-        "min_same_airport_min": 150,
-        "min_cross_airport_min": 360,
-        "max_connections": 0,
-        "tier2_max_connections": 0,
-        "gateway_discovery_limit": 5,
-        "gateway_probe_batch_size": 2,
-        "gateway_probe_max_batches": 3,
-    },
-    "filters": {
-        "only_carriers": ["SU"],
-    },
-    "evidence": {
-        "segment_limit": 11,
-        "timeout": 42,
-        "max_segment_searches": 99,
-        "fail_fast": True,
-        "live_cache_ttl_seconds": 123,
-        "no_live_cache": True,
-    },
-    "output": {
-        "catalog_limit": 12,
-        "direct_catalog_limit": 35,
-    },
-}
+def _request(depart: date) -> dict[str, object]:
+    return {
+        "schema_version": "flight_search_request.v3",
+        "origin": "svx",
+        "destination": "lon",
+        "depart_date": depart.isoformat(),
+        "return_date": (depart + timedelta(days=7)).isoformat(),
+        "currency": "rub",
+        "profile": "business",
+        "provider_policy": "auto",
+        "route_options": {
+            "routing_strategy": "hub-list",
+            "hubs": ["IST", "DXB"],
+            "origin_airports": ["SVX"],
+            "destination_airports": ["LHR"],
+            "max_airports_per_city": 3,
+            "min_same_airport_min": 150,
+            "min_cross_airport_min": 360,
+            "max_connections": 0,
+            "tier2_max_connections": 0,
+            "gateway_discovery_limit": 5,
+            "gateway_probe_batch_size": 2,
+            "gateway_probe_max_batches": 3,
+        },
+        "filters": {
+            "only_carriers": ["SU"],
+        },
+        "evidence": {
+            "segment_limit": 11,
+            "timeout": 42,
+            "max_segment_searches": 99,
+            "fail_fast": True,
+            "live_cache_ttl_seconds": 123,
+            "no_live_cache": True,
+        },
+        "output": {
+            "catalog_limit": 12,
+            "direct_catalog_limit": 35,
+        },
+    }
 
 
 class SearchRequestTests(unittest.TestCase):
     def test_provider_policy_schema_defers_nonempty_names_to_registry(self) -> None:
+        depart = future_departure_date()
+        request = _request(depart)
         options = search_request_from_payload(
-            {**REQUEST, "provider_policy": "future_provider"}
+            {**request, "provider_policy": "future_provider"}
         )
 
         self.assertEqual(options.provider_policy, "future_provider")
         with self.assertRaises(CliError):
-            search_request_from_payload({**REQUEST, "provider_policy": ""})
+            search_request_from_payload({**request, "provider_policy": ""})
 
     def test_search_request_maps_request_fields(self) -> None:
-        options = search_request_from_payload(REQUEST)
+        depart = future_departure_date()
+        request = _request(depart)
+        options = search_request_from_payload(request)
 
         expected = {
             "origin": "SVX",
             "destination": "LON",
-            "depart_date": "2099-07-20",
-            "return_date": "2099-07-27",
+            "depart_date": depart.isoformat(),
+            "return_date": (depart + timedelta(days=7)).isoformat(),
             "hubs": ("IST", "DXB"),
             "profile": "business",
             "only_carriers": ("SU",),
@@ -85,15 +92,18 @@ class SearchRequestTests(unittest.TestCase):
         self.assertEqual(options.output.direct_catalog_limit, 35)
 
     def test_search_app_rejects_non_business_profile(self) -> None:
+        depart = future_departure_date()
+        request = _request(depart)
         with self.assertRaises(CliError):
-            search_request_from_payload({**REQUEST, "profile": "safe"})
+            search_request_from_payload({**request, "profile": "safe"})
 
     def test_search_request_maps_carrier_filters(self) -> None:
+        depart = future_departure_date()
         request = {
             "schema_version": "flight_search_request.v3",
             "origin": "nte",
             "destination": "svx",
-            "depart_date": "2099-08-09",
+            "depart_date": depart.isoformat(),
             "filters": {"only_carriers": ["AF"]},
         }
         options = search_request_from_payload(request)
@@ -103,12 +113,13 @@ class SearchRequestTests(unittest.TestCase):
         self.assertEqual(search_request_from_payload(request), options)
 
     def test_search_request_defaults_are_explicit_in_typed_options(self) -> None:
+        depart = future_departure_date()
         options = search_request_from_payload(
             {
                 "schema_version": "flight_search_request.v3",
                 "origin": "svx",
                 "destination": "lon",
-                "depart_date": "2099-07-20",
+                "depart_date": depart.isoformat(),
             }
         )
 
@@ -126,12 +137,13 @@ class SearchRequestTests(unittest.TestCase):
         )
 
     def test_search_request_preserves_contract_allowed_zero_values(self) -> None:
+        depart = future_departure_date()
         options = search_request_from_payload(
             {
                 "schema_version": "flight_search_request.v3",
                 "origin": "svx",
                 "destination": "dme",
-                "depart_date": "2026-08-15",
+                "depart_date": depart.isoformat(),
                 "route_options": {
                     "min_same_airport_min": 0,
                     "min_cross_airport_min": 0,

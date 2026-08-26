@@ -23,7 +23,7 @@ from flights_cli.command_surface import (
 from flights_cli.config import DEFAULT_ROUTE_HUBS
 from tests.fixtures.result_fixtures import valid_report
 
-from helpers import PROJECT, TEST_ENV, parser_leaf_defaults
+from helpers import PROJECT, TEST_ENV, future_departure_date, parser_leaf_defaults
 
 
 HELP_GOLDENS = {
@@ -342,8 +342,11 @@ class CliContractTests(unittest.TestCase):
                     )
 
     def test_search_request_accepts_explicit_kupibilet_provider_policy(self) -> None:
+        depart = future_departure_date()
         args = live_search_args(
-            destination="LON", depart_date="2099-07-20", provider_policy="kupibilet"
+            destination="LON",
+            depart_date=depart.isoformat(),
+            provider_policy="kupibilet",
         )
 
         self.assertEqual(args.command_name, "search")
@@ -480,11 +483,12 @@ class CliContractTests(unittest.TestCase):
                 self.assertEqual(payload["error"]["type"], "validation_error")
 
     def test_json_diagnose_plan_envelope_and_repeatable_hubs(self) -> None:
+        depart = future_departure_date()
         request = {
             "schema_version": "flight_search_request.v3",
             "origin": "SVX",
             "destination": "LON",
-            "depart_date": "2099-07-20",
+            "depart_date": depart.isoformat(),
             "route_options": {
                 "hubs": ["IST", "DXB"],
                 "routing_strategy": "hub-list",

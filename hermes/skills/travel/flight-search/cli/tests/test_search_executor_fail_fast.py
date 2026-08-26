@@ -10,7 +10,12 @@ from flights_cli.execution.search_executor import SearchExecutionState, SearchEx
 from flights_cli.pipeline.search_plan import SearchPhases, SearchPlan
 from flights_cli.ports.providers import ProviderProbeResult
 from flights_cli.store import Store
-from helpers import build_search_plan, coverage_completeness, live_assembly_args
+from helpers import (
+    build_search_plan,
+    coverage_completeness,
+    future_departure_date,
+    live_assembly_args,
+)
 
 
 class FailingAggregateAdapter:
@@ -48,12 +53,13 @@ class EmptyAggregateAdapter:
 class SearchExecutorFailFastTests(unittest.TestCase):
     def setUp(self) -> None:
         self.store = Store()
+        depart = future_departure_date()
         built_plan = SearchPlan.from_dict(
             build_search_plan(
                 live_assembly_args(
                     origin="SVX",
                     destination="AMS",
-                    depart_date="2026-08-15",
+                    depart_date=depart.isoformat(),
                     return_date=None,
                     fail_fast=True,
                     no_live_cache=True,

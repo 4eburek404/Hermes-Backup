@@ -11,6 +11,9 @@ import sys
 import tempfile
 import threading
 import unittest
+from datetime import date, timedelta
+
+from helpers import future_departure_date
 
 
 CATALOG_FIXTURES = Path(__file__).parent / "fixtures" / "catalog"
@@ -36,7 +39,8 @@ def segment(
 
 
 class TutuStub:
-    def __init__(self) -> None:
+    def __init__(self, depart: date) -> None:
+        self.depart = depart
         self.tool_queries: list[tuple[str, str, str, bool]] = []
         self.method_counts: Counter[str] = Counter()
         self.method_order: list[str] = []
@@ -175,8 +179,9 @@ class TutuStub:
         self.thread.join(timeout=5)
         self.server.server_close()
 
-    @staticmethod
-    def search_payload(origin: str, destination: str) -> dict:
+    def search_payload(self, origin: str, destination: str) -> dict:
+        depart_text = self.depart.isoformat()
+        next_day_text = (self.depart + timedelta(days=1)).isoformat()
         offers: list[dict] = []
         if (origin, destination) == ("NTE", "IST"):
             offers = [
@@ -191,16 +196,16 @@ class TutuStub:
                                     "NTE",
                                     "AMS",
                                     "KL1424",
-                                    "2026-09-23T06:05:00+02:00",
-                                    "2026-09-23T07:45:00+02:00",
+                                    f"{depart_text}T06:05:00+02:00",
+                                    f"{depart_text}T07:45:00+02:00",
                                     100,
                                 ),
                                 segment(
                                     "AMS",
                                     "IST",
                                     "KL1959",
-                                    "2026-09-23T11:35:00+02:00",
-                                    "2026-09-23T16:05:00+03:00",
+                                    f"{depart_text}T11:35:00+02:00",
+                                    f"{depart_text}T16:05:00+03:00",
                                     210,
                                 ),
                             ]
@@ -221,8 +226,8 @@ class TutuStub:
                                     "IST",
                                     "SVX",
                                     "TK475",
-                                    "2026-09-23T20:00:00+03:00",
-                                    "2026-09-24T02:45:00+05:00",
+                                    f"{depart_text}T20:00:00+03:00",
+                                    f"{next_day_text}T02:45:00+05:00",
                                     285,
                                 )
                             ]
@@ -237,7 +242,8 @@ class OfflineCliE2ETests(unittest.TestCase):
     def test_real_subprocess_uses_each_logical_query_once_and_renders_same_text(
         self,
     ) -> None:
-        stub = TutuStub()
+        depart = future_departure_date()
+        stub = TutuStub(depart)
         stub.start()
         self.addCleanup(stub.close)
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -251,7 +257,7 @@ class OfflineCliE2ETests(unittest.TestCase):
                         "schema_version": "flight_search_request.v3",
                         "origin": "NTE",
                         "destination": "SVX",
-                        "depart_date": "2026-09-23",
+                        "depart_date": depart.isoformat(),
                         "return_date": None,
                         "currency": "RUB",
                         "profile": "business",
@@ -357,12 +363,12 @@ class OfflineCliE2ETests(unittest.TestCase):
         self.assertIn("KL1959", text_proc.stdout)
         self.assertEqual(
             text_proc.stdout,
-            """Нашёл варианты NTE→SVX.
-1. KL1424 23.09 NTE-(AMS) 0605 0745 в пути 1:40
+            f"""Нашёл варианты NTE→SVX.
+1. KL1424 {depart:%d.%m} NTE-(AMS) 0605 0745 в пути 1:40
     пересадка 3ч 50мин
-   KL1959 23.09 (AMS)-(IST) 1135 1605 в пути 3:30
+   KL1959 {depart:%d.%m} (AMS)-(IST) 1135 1605 в пути 3:30
     пересадка 3ч 55мин
-   TK475 23.09 (IST)-(SVX) 2000 0245 (24.09) в пути 4:45
+   TK475 {depart:%d.%m} (IST)-(SVX) 2000 0245 ({depart + timedelta(days=1):%d.%m}) в пути 4:45
     40 000 рублей · Отдельные билеты: при задержке первого рейса следующий сегмент не защищён.
 
 Перед оплатой проверьте багаж, финальный тариф и правила обмена/возврата; покрытие неполное: не все live-проверки выполнены; результат не доказывает варианты вне границ источников.

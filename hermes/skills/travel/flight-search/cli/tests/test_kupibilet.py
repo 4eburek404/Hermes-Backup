@@ -24,7 +24,7 @@ from flights_cli.providers.live_cache import (
 )
 from flights_cli.store import Store
 
-from helpers import CliSubprocessMixin, live_assembly_args
+from helpers import CliSubprocessMixin, future_departure_date, live_assembly_args
 
 
 def execute_projection(*args: object, **kwargs: object) -> dict:
@@ -214,6 +214,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
     def test_kupibilet_adapter_forwards_airport_scopes_for_both_probe_types(
         self,
     ) -> None:
+        depart = future_departure_date()
         calls: list[dict[str, object]] = []
 
         def fake_fetch(
@@ -245,7 +246,7 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
             "destination": "DST",
             "origin_airports": [" aab ", "AAA", "aaa"],
             "destination_airports": ["bbb", ""],
-            "date": "2099-08-12",
+            "date": depart.isoformat(),
             "currency": "RUB",
             "only_carriers": [],
             "direct_only": True,
@@ -639,10 +640,11 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(result["offers"][0]["id"], "good-one-stop")
 
     def test_ru_priority_skips_dxb_when_ist_pair_is_usable(self) -> None:
+        depart = future_departure_date()
         args = live_assembly_args(
             origin="SVX",
             destination="MUC",
-            depart_date="2099-08-12",
+            depart_date=depart.isoformat(),
             provider_policy="kupibilet",
             no_live_cache=True,
         )

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from datetime import timedelta
 from pathlib import Path
 
 from flights_cli.orchestrators.search_plan_builder import (
@@ -10,14 +11,13 @@ from flights_cli.orchestrators.search_plan_builder import (
 )
 from flights_cli.domain.airports import explicit_or_resolved_airports
 from flights_cli.store import Store
-from helpers import build_search_plan, live_assembly_args
+from helpers import build_search_plan, future_departure_date, live_assembly_args
 
 
 def live_args(**overrides: object):
     defaults = {
         "origin": "IST",
         "destination": "LON",
-        "depart_date": "2099-08-12",
         "return_date": None,
         "hub": None,
         "routing_strategy": "auto",
@@ -140,6 +140,7 @@ class AirportPriorityPolicyTests(unittest.TestCase):
         self,
     ) -> None:
         store = catalog_store(self)
+        depart = future_departure_date()
         expected_outbound = (["AAA", "AAB"], ["BBA", "BBB", "BBC"])
 
         for provider in ("tutu", "kupibilet"):
@@ -148,7 +149,8 @@ class AirportPriorityPolicyTests(unittest.TestCase):
                     live_args(
                         origin="AAA",
                         destination="BBB",
-                        return_date="2099-08-19",
+                        depart_date=depart.isoformat(),
+                        return_date=(depart + timedelta(days=7)).isoformat(),
                         provider_policy=provider,
                     ),
                     store,
@@ -182,11 +184,13 @@ class AirportPriorityPolicyTests(unittest.TestCase):
     def test_domestic_mow_round_trip_does_not_add_intra_moscow_hub_fallback(
         self,
     ) -> None:
+        depart = future_departure_date()
         plan = build_route_context(
             live_args(
                 origin="SVX",
                 destination="MOW",
-                return_date="2099-08-19",
+                depart_date=depart.isoformat(),
+                return_date=(depart + timedelta(days=7)).isoformat(),
                 destination_airports=["DME", "SVO", "VKO"],
             ),
             Store(),

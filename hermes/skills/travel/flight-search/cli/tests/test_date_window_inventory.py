@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import io
 import unittest
+from datetime import date, timedelta
 from unittest.mock import patch
 
 from flights_cli.cli import build_parser
@@ -14,7 +15,7 @@ from flights_cli.orchestrators.search_plan_builder import (
 )
 from flights_cli.pipeline.result_builder import build_result_projection
 from flights_cli.store import Store
-from helpers import build_search_plan, live_assembly_args
+from helpers import build_search_plan, future_departure_date, live_assembly_args
 
 
 def execute_projection(*args: object, **kwargs: object) -> dict:
@@ -22,12 +23,12 @@ def execute_projection(*args: object, **kwargs: object) -> dict:
     return SearchWorkflow(store).run_artifacts(request).projection_input
 
 
-def window_args(**overrides: object):
+def window_args(depart: date, **overrides: object):
     values: dict[str, object] = {
         "origin": "SVX",
         "destination": "LED",
-        "depart_date": "2026-08-16",
-        "date_window_end": "2026-08-18",
+        "depart_date": depart.isoformat(),
+        "date_window_end": (depart + timedelta(days=2)).isoformat(),
         "origin_airports": ["SVX"],
         "destination_airports": ["LED"],
         "max_connections": 0,
@@ -54,6 +55,11 @@ def _offer(date_text: str) -> dict[str, object]:
 def _primary_results_by_query(queries, *_args, **_kwargs):
     results = []
     emitted_offer_dates: set[str] = set()
+    ordered_dates = sorted({str(query.get("date")) for query in queries})
+    if not ordered_dates:
+        return results
+    first_date = ordered_dates[0]
+    second_date = ordered_dates[min(1, len(ordered_dates) - 1)]
     for query in queries:
         date_text = str(query.get("date"))
         provider = query.get("provider") or "tutu"
@@ -70,7 +76,7 @@ def _primary_results_by_query(queries, *_args, **_kwargs):
             "filters": {"direct_only": True, "only_carriers": []},
             "direct_only": True,
         }
-        if date_text == "2026-08-16" and date_text not in emitted_offer_dates:
+        if date_text == first_date and date_text not in emitted_offer_dates:
             emitted_offer_dates.add(date_text)
             results.append(
                 {
@@ -81,7 +87,7 @@ def _primary_results_by_query(queries, *_args, **_kwargs):
                 }
             )
             continue
-        if date_text in {"2026-08-16", "2026-08-17"}:
+        if date_text in {first_date, second_date}:
             results.append({**base, "status": "ok", "offer_count": 0, "top_offers": []})
             continue
         results.append(
@@ -95,51 +101,6 @@ def _primary_results_by_query(queries, *_args, **_kwargs):
             }
         )
     return results
-
-
-def _dispatch_by_date(spec, **_kwargs):
-    date_text = str(spec.get("date"))
-    base = {
-        "direction": spec.get("direction"),
-        "leg": spec.get("leg"),
-        "origin": spec.get("origin"),
-        "destination": spec.get("destination"),
-        "date": date_text,
-        "provider": "kupibilet",
-        "probe_id": f"probe-{date_text}",
-        "cache_status": "live",
-    }
-    if date_text == "2026-08-16":
-        summary = {**base, "status": "ok", "offer_count": 1}
-        segment_result = {
-            "direction": spec.get("direction"),
-            "leg": spec.get("leg"),
-            "origin": spec.get("origin"),
-            "destination": spec.get("destination"),
-            "date": date_text,
-            "offers": [_offer(date_text)],
-        }
-        return [{"summary": summary, "segment_result": segment_result}]
-    if date_text == "2026-08-17":
-        summary = {**base, "status": "ok", "offer_count": 0}
-        segment_result = {
-            "direction": spec.get("direction"),
-            "leg": spec.get("leg"),
-            "origin": spec.get("origin"),
-            "destination": spec.get("destination"),
-            "date": date_text,
-            "offers": [],
-        }
-        return [{"summary": summary, "segment_result": segment_result}]
-    summary = {**base, "status": "error", "offer_count": 0, "error": "upstream timeout"}
-    failure = {
-        "layer": "provider",
-        "origin": spec.get("origin"),
-        "destination": spec.get("destination"),
-        "date": date_text,
-        "error": "upstream timeout",
-    }
-    return [{"summary": summary, "segment_result": None, "failure": failure}]
 
 
 class DateWindowPlanTests(unittest.TestCase):
@@ -163,7 +124,8 @@ class DateWindowPlanTests(unittest.TestCase):
                     build_parser().parse_args(argv)
 
     def test_window_expands_into_per_date_direct_provider_queries(self) -> None:
-        args = window_args()
+        depart = future_departure_date()
+        args = window_args(depart)
         plan = build_route_context(args, Store())
         search_plan = build_search_plan(args, Store())
 
@@ -173,7 +135,10 @@ class DateWindowPlanTests(unittest.TestCase):
                 for attempt in search_plan["phases"]["primary"]
             }
         )
-        self.assertEqual(query_dates, ["2026-08-16", "2026-08-17", "2026-08-18"])
+        expected_dates = [
+            (depart + timedelta(days=offset)).isoformat() for offset in range(3)
+        ]
+        self.assertEqual(query_dates, expected_dates)
         self.assertTrue(
             all(
                 attempt["query"].get("direct_only")
@@ -186,34 +151,56 @@ class DateWindowPlanTests(unittest.TestCase):
                 for attempt in search_plan["phases"]["primary"]
             )
         )
-        self.assertEqual(plan["dates"].get("window_end"), "2026-08-18")
+        self.assertEqual(plan["dates"].get("window_end"), expected_dates[-1])
 
     def test_window_requires_direct_only_route_options(self) -> None:
+        depart = future_departure_date()
         with self.assertRaises(CliError):
             build_search_plan(
-                window_args(max_connections=None, tier2_max_connections=None), Store()
+                window_args(depart, max_connections=None, tier2_max_connections=None),
+                Store(),
             )
 
     def test_window_rejects_return_date(self) -> None:
+        depart = future_departure_date()
         with self.assertRaises(CliError):
-            build_search_plan(window_args(return_date="2026-08-20"), Store())
+            build_search_plan(
+                window_args(
+                    depart, return_date=(depart + timedelta(days=4)).isoformat()
+                ),
+                Store(),
+            )
 
     def test_window_end_must_not_precede_depart_date(self) -> None:
+        depart = future_departure_date()
         with self.assertRaises(CliError):
-            build_search_plan(window_args(date_window_end="2026-08-15"), Store())
+            build_search_plan(
+                window_args(
+                    depart, date_window_end=(depart - timedelta(days=1)).isoformat()
+                ),
+                Store(),
+            )
 
     def test_window_is_bounded(self) -> None:
+        depart = future_departure_date()
         with self.assertRaises(CliError):
-            build_search_plan(window_args(date_window_end="2026-09-30"), Store())
+            build_search_plan(
+                window_args(
+                    depart, date_window_end=(depart + timedelta(days=45)).isoformat()
+                ),
+                Store(),
+            )
 
     def test_date_window_uses_direct_inventory_route_mode(self) -> None:
-        flow = build_planning_state(window_args())
+        depart = future_departure_date()
+        flow = build_planning_state(window_args(depart))
         self.assertEqual(flow.flow_decision.route_mode, "direct_inventory")
 
 
 class DateWindowInventoryProjectionTests(unittest.TestCase):
     def test_runner_projects_per_date_inventory_into_report_evidence(self) -> None:
-        args = window_args()
+        depart = future_departure_date()
+        args = window_args(depart)
         with patch(
             "flights_cli.execution.search_executor.run_primary_offer_queries",
             side_effect=_primary_results_by_query,
@@ -223,15 +210,18 @@ class DateWindowInventoryProjectionTests(unittest.TestCase):
         inventory = result["live_search"].get("date_window_inventory")
         self.assertIsInstance(inventory, dict)
         entries = {entry["date"]: entry for entry in inventory["dates"]}
-        self.assertEqual(sorted(entries), ["2026-08-16", "2026-08-17", "2026-08-18"])
-        self.assertEqual(entries["2026-08-16"]["status"], "direct_offers")
-        self.assertEqual(entries["2026-08-16"]["offer_count"], 1)
-        first_offer = entries["2026-08-16"]["offers"][0]
+        expected_dates = [
+            (depart + timedelta(days=offset)).isoformat() for offset in range(3)
+        ]
+        self.assertEqual(sorted(entries), expected_dates)
+        self.assertEqual(entries[expected_dates[0]]["status"], "direct_offers")
+        self.assertEqual(entries[expected_dates[0]]["offer_count"], 1)
+        first_offer = entries[expected_dates[0]]["offers"][0]
         self.assertEqual(first_offer["carrier"], "SU")
         self.assertEqual(first_offer["flight_number"], "SU1407")
         self.assertEqual(first_offer["price"], 12345)
-        self.assertEqual(entries["2026-08-17"]["status"], "no_direct_offers")
-        self.assertEqual(entries["2026-08-18"]["status"], "probe_failed")
+        self.assertEqual(entries[expected_dates[1]]["status"], "no_direct_offers")
+        self.assertEqual(entries[expected_dates[2]]["status"], "probe_failed")
         self.assertEqual(inventory.get("boundary"), "provider_live_only")
 
         report = build_result_projection(result)
@@ -241,9 +231,7 @@ class DateWindowInventoryProjectionTests(unittest.TestCase):
             entry["date"]
             for entry in report["evidence"]["date_window_inventory"]["dates"]
         ]
-        self.assertEqual(
-            sorted(report_dates), ["2026-08-16", "2026-08-17", "2026-08-18"]
-        )
+        self.assertEqual(sorted(report_dates), expected_dates)
 
 
 if __name__ == "__main__":

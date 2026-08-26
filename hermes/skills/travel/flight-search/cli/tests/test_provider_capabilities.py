@@ -27,7 +27,12 @@ from flights_cli.ports.providers import (
 )
 from flights_cli.pipeline.search_request import search_request_from_payload
 from flights_cli.store import Store
-from helpers import coverage_completeness, live_assembly_args, make_test_store
+from helpers import (
+    coverage_completeness,
+    future_departure_date,
+    live_assembly_args,
+    make_test_store,
+)
 
 
 TEST_AIRPORTS = [
@@ -55,12 +60,13 @@ class RecordingProvider:
 
 class ProviderCapabilitiesTests(unittest.TestCase):
     def test_request_provider_name_is_validated_by_registry_at_runtime(self) -> None:
+        depart = future_departure_date()
         request = search_request_from_payload(
             {
                 "schema_version": "flight_search_request.v3",
                 "origin": "SVX",
                 "destination": "CDG",
-                "depart_date": "2026-08-15",
+                "depart_date": depart.isoformat(),
                 "provider_policy": "future_provider",
             }
         )
@@ -274,10 +280,11 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         PROVIDER_REGISTRY[provider.name] = provider
         try:
             store = Store()
+            depart = future_departure_date()
             request = live_assembly_args(
                 origin="SVX",
                 destination="CDG",
-                depart_date="2026-08-15",
+                depart_date=depart.isoformat(),
                 return_date=None,
                 provider_policy=provider.name,
                 max_connections=0,
@@ -302,6 +309,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         )
 
     def test_auto_plan_fans_out_to_registered_third_provider(self) -> None:
+        depart = future_departure_date()
         capabilities = ProviderCapabilities(
             supports_ru_touching=True,
             supports_global=True,
@@ -324,7 +332,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
                 live_assembly_args(
                     origin="SVX",
                     destination="CDG",
-                    depart_date="2026-08-15",
+                    depart_date=depart.isoformat(),
                     return_date=None,
                     provider_policy="auto",
                     max_connections=0,

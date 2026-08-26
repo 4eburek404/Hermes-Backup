@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,12 @@ TEST_ENV = {
     "FLIGHTS_CACHE_DIR": str(TEST_CACHE_DIR),
     "PYTHONDONTWRITEBYTECODE": "1",
 }
+
+
+def future_departure_date() -> date:
+    """Return a valid future departure outside the two-day freshness window."""
+
+    return date.today() + timedelta(days=3)
 
 
 def coverage_completeness(probe_ledger: dict[str, Any]) -> dict[str, Any]:
@@ -179,7 +186,7 @@ def live_assembly_args(**overrides: Any) -> Any:
         "schema_version": "flight_search_request.v3",
         "origin": values.pop("origin", "SVX"),
         "destination": values.pop("destination", "CDG"),
-        "depart_date": values.pop("depart_date", "2026-08-15"),
+        "depart_date": values.pop("depart_date", future_departure_date().isoformat()),
         "currency": values.pop("currency", "RUB"),
         "profile": values.pop("profile", "business"),
         "provider_policy": values.pop("provider_policy", "auto"),
