@@ -50,7 +50,7 @@ def command_diagnose_trace(args: argparse.Namespace, store: Store) -> dict[str, 
     result = {
         "schema_version": ROUTE_TRACE_SCHEMA_VERSION,
         "request": request.to_payload(),
-        "plan": execution.plan,
+        "plan": execution.plan.to_dict(),
         "evidence": evidence,
         "decision": {
             "offer_graph": execution.decision.offer_graph,

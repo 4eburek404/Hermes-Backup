@@ -902,8 +902,8 @@ class LiveRoutePipelineTests(unittest.TestCase):
 
         with (
             patch(
-                "flights_cli.orchestrators.search_plan_builder.build_route_context",
-                return_value=plan,
+                "flights_cli.orchestrators.search_plan_builder.build_route_plan",
+                return_value=RoutePlan.from_dict(plan),
             ),
             patch(
                 "flights_cli.orchestrators.search_workflow.SearchWorkflow.plan",
@@ -1079,8 +1079,8 @@ class LiveRoutePipelineTests(unittest.TestCase):
                     route_leg_results = {"route_hypotheses": [], "viable_hypotheses": 0}
                     with (
                         patch(
-                            "flights_cli.orchestrators.search_plan_builder.build_route_context",
-                            return_value=plan,
+                            "flights_cli.orchestrators.search_plan_builder.build_route_plan",
+                            return_value=RoutePlan.from_dict(plan),
                         ),
                         patch(
                             "flights_cli.execution.search_executor.run_primary_offer_queries",

@@ -14,7 +14,7 @@ from .result_contract import (
     SEARCH_RESULT_SCHEMA_VERSION,
     validate_flight_search_result,
 )
-from .search_request import SearchRequest, normalize_search_request_payload
+from .search_request import SearchRequest
 
 
 def build_result_projection(data: dict[str, Any]) -> dict[str, Any]:
@@ -79,7 +79,7 @@ def build_result_projection(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def build_flight_search_result(
-    request: dict[str, Any],
+    request: SearchRequest,
     projection: dict[str, Any],
     catalog_refresh: dict[str, Any] | None = None,
 ) -> FlightSearchResult:
@@ -99,7 +99,7 @@ def build_flight_search_result(
     }
     result: FlightSearchResult = {
         "schema_version": SEARCH_RESULT_SCHEMA_VERSION,
-        "request": _canonical_request(request),
+        "request": _request_echo(request),
         "route": projection["route"],
         "evidence": evidence,
         "frontier": projection["frontier"],
@@ -124,10 +124,17 @@ def _empty_research_status() -> dict[str, Any]:
     }
 
 
-def _canonical_request(request: dict[str, Any]) -> dict[str, Any]:
-    normalized = normalize_search_request_payload(request)
-    validate_contract_payload("search_request", normalized)
-    return SearchRequest._from_normalized_payload(normalized).to_payload()
+def _request_echo(request: SearchRequest) -> dict[str, Any]:
+    """Канонический повтор входа берётся у самого запроса.
+
+    Раньше сюда приезжал уже нормализованный словарь, который нормализовали
+    второй раз и прогоняли через приватный classmethod чужого модуля, чтобы
+    получить ровно то, что запрос и так умеет отдать сам.
+    """
+
+    payload = request.to_payload()
+    validate_contract_payload("search_request", payload)
+    return payload
 
 
 __all__ = [

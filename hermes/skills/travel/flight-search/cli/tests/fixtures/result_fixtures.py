@@ -1,7 +1,15 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 from flights_cli.reporting.coverage import CoverageSnapshot
 from flights_cli.reporting.user_answer import UserAnswerInput, build_user_answer
+
+
+# Дата фикстуры обязана быть будущей: канонический повтор входа теперь строит
+# сам SearchRequest, а он отвергает прошедшую дату вылета.
+DEPART = (date.today() + timedelta(days=3)).isoformat()
+NEXT_DAY = (date.today() + timedelta(days=4)).isoformat()
 
 
 def valid_option() -> dict:
@@ -29,8 +37,8 @@ def valid_option() -> dict:
                 "operating_carrier": "SU",
                 "origin": "SVX",
                 "destination": "SVO",
-                "departure_at": "2026-06-01T06:00:00+05:00",
-                "arrival_at": "2026-06-01T06:40:00+03:00",
+                "departure_at": f"{DEPART}T06:00:00+05:00",
+                "arrival_at": f"{DEPART}T06:40:00+03:00",
                 "aircraft_code": "738",
                 "duration_min": 160,
             },
@@ -42,8 +50,8 @@ def valid_option() -> dict:
                 "operating_carrier": "SU",
                 "origin": "SVO",
                 "destination": "DEL",
-                "departure_at": "2026-06-01T21:20:00+03:00",
-                "arrival_at": "2026-06-02T06:00:00+05:30",
+                "departure_at": f"{DEPART}T21:20:00+03:00",
+                "arrival_at": f"{NEXT_DAY}T06:00:00+05:30",
                 "aircraft_code": "333",
                 "duration_min": 370,
             },
@@ -60,7 +68,7 @@ def valid_report() -> dict:
             "destination": "DEL",
             "origin_airports": ["SVX"],
             "destination_airports": ["DEL"],
-            "dates": {"depart_date": "2026-06-01"},
+            "dates": {"depart_date": DEPART},
             "profile": "business",
             "routing_strategy": "ru-priority",
             "provider_policy": "kupibilet",
@@ -84,7 +92,7 @@ def valid_report() -> dict:
                     "direction": "outbound",
                     "origin": "SVX",
                     "destination": "DEL",
-                    "date": "2026-06-01",
+                    "date": DEPART,
                     "execution_state": "planned",
                     "probe_id": "probe-001",
                 }
@@ -99,7 +107,7 @@ def valid_report() -> dict:
                     "direction": "outbound",
                     "origin": "SVX",
                     "destination": "DEL",
-                    "date": "2026-06-01",
+                    "date": DEPART,
                     "execution_state": "not_executed",
                     "status": "not_executed",
                     "reason": "not_reached_by_current_live_execution",
@@ -159,7 +167,7 @@ def report_with_required_caveats() -> dict:
             "leg": "hub_to_destination",
             "origin": "IST",
             "destination": "LHR",
-            "date": "2026-06-01",
+            "date": DEPART,
             "provider": "tutu",
             "cache_status": "unknown",
             "probe_id": "probe-tutu-failure",

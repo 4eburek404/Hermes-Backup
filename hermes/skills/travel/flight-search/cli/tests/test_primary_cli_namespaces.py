@@ -117,7 +117,7 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
         )
         request = SimpleNamespace(to_payload=lambda: request_payload)
         execution = SimpleNamespace(
-            plan={},
+            plan=SimpleNamespace(to_dict=lambda: {}),
             evidence=evidence,
             decision=decision,
             projection_input={},

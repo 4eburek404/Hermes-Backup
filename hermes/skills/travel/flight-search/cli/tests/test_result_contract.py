@@ -8,8 +8,9 @@ from flights_cli.errors import CliError
 from flights_cli.execution.search_evidence import SearchEvidence
 from flights_cli.pipeline.result_builder import build_flight_search_result
 from flights_cli.pipeline.result_contract import validate_flight_search_result
+from flights_cli.pipeline.search_request import search_request_from_payload
 from flights_cli.reporting.user_answer import render_user_answer
-from tests.fixtures.result_fixtures import valid_report
+from tests.fixtures.result_fixtures import DEPART, valid_report
 
 
 def valid_result() -> dict:
@@ -22,7 +23,7 @@ def valid_result() -> dict:
             "destination": "DEL",
             "origin_airports": ["SVX"],
             "destination_airports": ["DEL"],
-            "dates": {"depart": "2026-06-01", "return": None},
+            "dates": {"depart": DEPART, "return": None},
             "profile": "business",
             "routing_strategy": "ru-priority",
             "provider_policy": "kupibilet",
@@ -63,16 +64,18 @@ def valid_result() -> dict:
         },
         "answer": answer,
     }
-    request = {
-        "schema_version": "flight_search_request.v3",
-        "origin": "SVX",
-        "destination": "DEL",
-        "depart_date": "2026-06-01",
-        "return_date": None,
-        "currency": "RUB",
-        "profile": "business",
-        "provider_policy": "kupibilet",
-    }
+    request = search_request_from_payload(
+        {
+            "schema_version": "flight_search_request.v3",
+            "origin": "SVX",
+            "destination": "DEL",
+            "depart_date": DEPART,
+            "return_date": None,
+            "currency": "RUB",
+            "profile": "business",
+            "provider_policy": "kupibilet",
+        }
+    )
     return build_flight_search_result(request, projection)
 
 
@@ -179,7 +182,7 @@ class ResultContractTests(unittest.TestCase):
         segment = result["answer"]["catalog"]["items"][0]["directions"]["outbound"][
             "segments"
         ][0]
-        segment["arrival_at"] = "2026-06-01T20:00:00+03:00"
+        segment["arrival_at"] = f"{DEPART}T20:00:00+03:00"
 
         with self.assertRaises(CliError):
             validate_flight_search_result(result)
@@ -243,7 +246,7 @@ class ResultContractTests(unittest.TestCase):
         segment = changed["answer"]["catalog"]["items"][0]["directions"]["outbound"][
             "segments"
         ][0]
-        segment["departure_at"] = "2026-06-01T21:20:00"
+        segment["departure_at"] = f"{DEPART}T21:20:00"
 
         with self.assertRaises(CliError):
             validate_flight_search_result(changed)

@@ -122,16 +122,21 @@ def direct_inventory_dates(options: SearchRequest, flow: _PlanningState) -> list
     ]
 
 
-def build_route_context(
+def build_route_plan(
     request: SearchRequest,
     store: Store | None = None,
     *,
     flow: _PlanningState | None = None,
-) -> dict[str, Any]:
-    planning = flow or build_planning_state(request, store)
-    options = request
-    flow = planning
-    window_end = options.route.date_window_end
+) -> RoutePlan:
+    """Собрать маршрутную часть плана сразу типизированной.
+
+    Раньше здесь строился словарь из пятнадцати ключей, который следующей же
+    строкой разбирался обратно в этот же датакласс с теми же именами полей.
+    Теперь источник истины — объект, а словарь получается из него.
+    """
+
+    flow = flow or build_planning_state(request, store)
+    window_end = request.route.date_window_end
     dates: dict[str, Any] = {
         "depart": flow.request.depart_date,
         "return": flow.request.return_date,
@@ -142,25 +147,36 @@ def build_route_context(
         flow.flow_decision.route_mode or flow.flow_decision.routing_strategy
     )
     origin_airports, destination_airports, airport_scope = _resolved_airport_scope(
-        options, flow, store
+        request, flow, store
     )
-    return {
-        "origin": flow.request.origin,
-        "destination": flow.request.destination,
-        "dates": dates,
-        "currency": flow.request.currency,
-        "profile": flow.request.profile,
-        "provider_policy": flow.request.provider_policy,
-        "routing_strategy": flow.flow_decision.routing_strategy,
-        "route_mode": flow.flow_decision.route_mode,
-        "market_class": flow.flow_decision.market_class,
-        "route_families": [{"id": route_family}],
-        "hubs": list(flow.request.hubs),
-        "origin_airports": origin_airports,
-        "destination_airports": destination_airports,
-        "airport_scope": airport_scope,
-        "direct_only": is_direct_only(flow.request),
-    }
+    return RoutePlan(
+        origin=flow.request.origin,
+        destination=flow.request.destination,
+        dates=dates,
+        currency=flow.request.currency,
+        profile=flow.request.profile,
+        provider_policy=flow.request.provider_policy,
+        routing_strategy=flow.flow_decision.routing_strategy,
+        route_mode=flow.flow_decision.route_mode,
+        market_class=flow.flow_decision.market_class,
+        route_families=({"id": route_family},),
+        hubs=tuple(flow.request.hubs),
+        origin_airports=tuple(origin_airports),
+        destination_airports=tuple(destination_airports),
+        airport_scope=airport_scope,
+        direct_only=is_direct_only(flow.request),
+    )
+
+
+def build_route_context(
+    request: SearchRequest,
+    store: Store | None = None,
+    *,
+    flow: _PlanningState | None = None,
+) -> dict[str, Any]:
+    """Словарное представление маршрутного плана для потребителей трассы."""
+
+    return build_route_plan(request, store, flow=flow).to_dict()
 
 
 def _resolved_airport_scope(
@@ -219,12 +235,12 @@ class SearchPlanBuilder:
     def build(self, request: SearchRequest) -> SearchPlan:
         self._options = request
         flow = build_planning_state(self._options, self._store)
-        route_context = build_route_context(self._options, self._store, flow=flow)
-        primary_offer_queries = self._primary_offer_queries(flow, route_context)
-        gateway_discovery = self._gateway_discovery(flow, route_context)
+        route = build_route_plan(self._options, self._store, flow=flow)
+        primary_offer_queries = self._primary_offer_queries(flow, route)
+        gateway_discovery = self._gateway_discovery(flow, route)
         gateway_trigger = self._gateway_trigger(flow, gateway_discovery)
         route_leg_templates = self._route_leg_templates(
-            flow, route_context, gateway_discovery, gateway_trigger
+            flow, route, gateway_discovery, gateway_trigger
         )
         live_cache_enabled, live_cache_ttl_seconds = _live_cache_settings(flow)
         stop_policy = resolve_stop_policy(
@@ -232,7 +248,7 @@ class SearchPlanBuilder:
             tier2_max_connections=self._options.route.tier2_max_connections,
         )
         return SearchPlan(
-            route=RoutePlan.from_dict(route_context),
+            route=route,
             phases=SearchPhases(
                 primary=self._attempts(
                     primary_offer_queries,
@@ -290,14 +306,12 @@ class SearchPlanBuilder:
     def _route_leg_templates(
         self,
         flow: _PlanningState,
-        route_context: dict[str, Any],
+        route: RoutePlan,
         gateway_discovery: GatewayDiscovery,
         gateway_trigger: str,
     ) -> tuple[RouteLegTemplate, ...]:
-        origin = str(route_context.get("origin") or flow.request.origin).upper()
-        destination = str(
-            route_context.get("destination") or flow.request.destination
-        ).upper()
+        origin = str(route.origin or flow.request.origin).upper()
+        destination = str(route.destination or flow.request.destination).upper()
         templates: list[RouteLegTemplate] = []
         signatures: set[tuple[str, tuple[str, ...]]] = set()
 
@@ -415,7 +429,7 @@ class SearchPlanBuilder:
         return GATEWAY_TRIGGER_ON_PRIMARY_FAILURE
 
     def _gateway_discovery(
-        self, flow: _PlanningState, route_context: dict[str, Any]
+        self, flow: _PlanningState, route: RoutePlan
     ) -> GatewayDiscovery:
         decision = flow.flow_decision
         mode = (
@@ -434,7 +448,7 @@ class SearchPlanBuilder:
         )
         diagnostics = self._gateway_discovery_diagnostics(
             str(decision.route_access_prior_set or ""),
-            route_context,
+            route,
             enabled=enabled,
         )
         return GatewayDiscovery(
@@ -466,11 +480,11 @@ class SearchPlanBuilder:
     def _gateway_discovery_diagnostics(
         self,
         prior_set: str,
-        route_context: dict[str, Any],
+        route: RoutePlan,
         *,
         enabled: bool,
     ) -> dict[str, Any]:
-        market_key = prior_set or self._fallback_market_key(route_context)
+        market_key = prior_set or self._fallback_market_key(route)
         if not enabled:
             return {
                 "market": market_key,
@@ -496,9 +510,9 @@ class SearchPlanBuilder:
         )
         return diagnostics
 
-    def _fallback_market_key(self, route_context: dict[str, Any]) -> str:
-        for family in route_context.get("route_families") or []:
-            if isinstance(family, dict) and family.get("id"):
+    def _fallback_market_key(self, route: RoutePlan) -> str:
+        for family in route.route_families:
+            if family.get("id"):
                 return str(family.get("id") or "")
         return ""
 
@@ -522,24 +536,20 @@ class SearchPlanBuilder:
         return min(configured_limit, batch_cap)
 
     def _primary_offer_queries(
-        self, flow: _PlanningState, route_context: dict[str, Any]
+        self, flow: _PlanningState, route: RoutePlan
     ) -> list[dict[str, Any]]:
-        origin = str(route_context.get("origin") or flow.request.origin).upper()
-        destination = str(
-            route_context.get("destination") or flow.request.destination
-        ).upper()
-        date_text = str(
-            (route_context.get("dates") or {}).get("depart") or flow.request.depart_date
-        )
-        currency = str(route_context.get("currency") or flow.request.currency).upper()
+        origin = str(route.origin or flow.request.origin).upper()
+        destination = str(route.destination or flow.request.destination).upper()
+        date_text = str(route.dates.get("depart") or flow.request.depart_date)
+        currency = str(route.currency or flow.request.currency).upper()
         origin_airports = [
             str(code).upper()
-            for code in route_context.get("origin_airports") or [origin]
+            for code in route.origin_airports or (origin,)
             if str(code).strip()
         ]
         destination_airports = [
             str(code).upper()
-            for code in route_context.get("destination_airports") or [destination]
+            for code in route.destination_airports or (destination,)
             if str(code).strip()
         ]
         access_profile = str(flow.flow_decision.route_access_profile or "")
@@ -560,45 +570,31 @@ class SearchPlanBuilder:
         if is_direct_only(flow.request) or flow.request.date_window_end:
             return direct_queries
 
-        route_query: dict[str, Any] = {
-            "probe_type": "full_route_aggregate",
-            "origin": origin,
-            "destination": destination,
-            "direct_only": False,
-        }
-        self._apply_filters(route_query)
+        # Оба плеча строит одна функция. До этого прямое собиралось здесь
+        # вручную, а обратное — вызовом ниже, и куски расходились по мелочам.
+        restricted = (
+            (access_profile, discovery_mode)
+            if access_profile == PROFILE_RESTRICTED_ACCESS
+            else None
+        )
         queries: list[dict[str, Any]] = list(direct_queries)
-        seen: set[str] = set()
-        for provider_name in self._provider_names_for_primary_offers(flow, route_query):
-            if not provider_name or provider_name in seen:
-                continue
-            seen.add(provider_name)
-            query: dict[str, Any] = {
-                "role": "primary_offer_collection",
-                "source_type": "provider_full_route",
-                "probe_type": "full_route_aggregate",
-                "provider": provider_name,
-                "direction": "outbound",
-                "origin": origin,
-                "destination": destination,
-                "origin_airports": origin_airports,
-                "destination_airports": destination_airports,
-                "date": date_text,
-                "currency": currency,
-                "direct_only": False,
-                "limit": flow.request.primary_offer_limit,
-            }
-            self._apply_filters(query)
-            if access_profile == PROFILE_RESTRICTED_ACCESS:
-                query["route_family"] = PROFILE_RESTRICTED_ACCESS
-                query["route_access_profile"] = access_profile
-                query["gateway_discovery_mode"] = discovery_mode
-                query["exhaustive"] = False
-                query["non_exhaustive_reason"] = (
-                    "restricted_access_market_requires_gateway_discovery"
-                )
-            queries.append(query)
+        queries.extend(
+            self._provider_offer_queries_for_route(
+                flow,
+                direction=Direction.OUTBOUND,
+                origin=origin,
+                destination=destination,
+                origin_airports=origin_airports,
+                destination_airports=destination_airports,
+                date_text=date_text,
+                currency=currency,
+                direct_only=False,
+                restricted_access=restricted,
+            )
+        )
         if flow.request.return_date:
+            # Обратное плечо украшения ограниченного доступа не получает —
+            # так было и раньше; асимметрия уходит вместе со шлюзовым слоем.
             queries.extend(
                 self._provider_offer_queries_for_route(
                     flow,
@@ -671,6 +667,7 @@ class SearchPlanBuilder:
         currency: str,
         direct_only: bool,
         route_family: str | None = None,
+        restricted_access: tuple[str, str] | None = None,
     ) -> list[dict[str, Any]]:
         route_query: dict[str, Any] = {
             "probe_type": "full_route_aggregate",
@@ -703,6 +700,15 @@ class SearchPlanBuilder:
             }
             if route_family:
                 query["route_family"] = route_family
+            if restricted_access is not None:
+                access_profile, discovery_mode = restricted_access
+                query["route_family"] = PROFILE_RESTRICTED_ACCESS
+                query["route_access_profile"] = access_profile
+                query["gateway_discovery_mode"] = discovery_mode
+                query["exhaustive"] = False
+                query["non_exhaustive_reason"] = (
+                    "restricted_access_market_requires_gateway_discovery"
+                )
             self._apply_filters(query)
             queries.append(query)
         return queries

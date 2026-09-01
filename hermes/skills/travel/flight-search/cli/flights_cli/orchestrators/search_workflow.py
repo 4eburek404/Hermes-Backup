@@ -21,7 +21,9 @@ from .search_plan_builder import SearchPlanBuilder
 
 @dataclass(frozen=True, slots=True)
 class SearchRunArtifacts:
-    plan: dict[str, Any]
+    # Типизированный план, а не словарь: сериализует его теперь тот, кому нужен
+    # словарь, — то есть diagnose, который уходит вместе с хабовым слоем.
+    plan: SearchPlan
     evidence: SearchEvidence
     decision: SearchDecision
     projection_input: dict[str, Any]
@@ -63,7 +65,7 @@ class SearchWorkflow:
             date_window_inventory=date_window_inventory,
         )
         return SearchRunArtifacts(
-            plan=plan.to_dict(),
+            plan=plan,
             evidence=evidence,
             decision=decision,
             projection_input=projection_input,
@@ -71,12 +73,11 @@ class SearchWorkflow:
         )
 
     def run(self, request: SearchRequest) -> FlightSearchResult:
-        # Capture the public request echo at the input boundary. Once planning
-        # starts, every runtime decision reads SearchPlan/Evidence only.
-        request_payload = request.to_payload()
+        # Публичное эхо входа отдаёт сам запрос. Планирование на него не влияет:
+        # начиная отсюда всё читает SearchPlan и Evidence.
         artifacts = self.run_artifacts(request)
         return build_flight_search_result(
-            request_payload,
+            request,
             artifacts.projection,
             self.catalog_refresh,
         )
