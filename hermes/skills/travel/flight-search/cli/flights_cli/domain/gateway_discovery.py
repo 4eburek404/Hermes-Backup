@@ -4,7 +4,11 @@ from dataclasses import dataclass, field
 import re
 from typing import Any, MutableMapping
 
-from .gateway_priors import normalize_market_key
+from .gateway_priors import (
+    GatewayPriorCatalog,
+    load_gateway_priors,
+    normalize_market_key,
+)
 from .offer_paths import (
     normalize_direction as _normalize_direction,
     offer_segment_paths,
@@ -83,6 +87,15 @@ class _DiscoveredGateway(dict[str, Any]):
 class GatewayDiscoveryService:
     def __init__(self, store: Any):
         self.store = store
+        self._prior_catalog: GatewayPriorCatalog | None = None
+
+    @property
+    def _gateway_priors(self) -> GatewayPriorCatalog:
+        if self._prior_catalog is None:
+            self._prior_catalog = load_gateway_priors(
+                getattr(self.store, "gateway_priors_path", None)
+            )
+        return self._prior_catalog
 
     def discover(
         self,
@@ -96,7 +109,7 @@ class GatewayDiscoveryService:
         state = _DiscoveryState(market=market)
         rejected: list[dict[str, Any]] = []
 
-        for prior in self.store.gateway_priors_for_market(market):
+        for prior in self._gateway_priors.for_market(market):
             code = _normalize_gateway_code(prior.get("code"))
             if not code:
                 continue

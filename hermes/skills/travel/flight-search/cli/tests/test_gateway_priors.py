@@ -80,12 +80,8 @@ class GatewayPriorsTests(unittest.TestCase):
         missing_path = Path(tmp_dir.name) / "missing_gateway_priors.yaml"
 
         catalog = load_gateway_priors(missing_path)
-        store = Store(gateway_priors_path=missing_path)
 
         self.assertEqual(catalog.for_market("ru_touching_western_europe"), [])
-        self.assertEqual(
-            store.gateway_priors_for_market("ru_touching_western_europe"), []
-        )
 
     def test_invalid_gateway_priors_yaml_raises_clear_configuration_error(self) -> None:
         path = self.write_file(
@@ -106,12 +102,11 @@ markets:
         self.assertIn("invalid gateway priors YAML", caught.exception.message)
         self.assertIn(str(path), caught.exception.message)
 
-    def test_store_lookup_normalizes_market_key(self) -> None:
+    def test_market_key_lookup_is_normalized(self) -> None:
         path = self.write_file("gateway_priors.yaml", VALID_GATEWAY_PRIORS_YAML)
-        store = Store(gateway_priors_path=path)
 
         self.assertEqual(
-            store.gateway_priors_for_market("RU-TOUCHING-WESTERN-EUROPE"),
+            load_gateway_priors(path).for_market("RU-TOUCHING-WESTERN-EUROPE"),
             [
                 {
                     "code": "IST",

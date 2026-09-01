@@ -6,7 +6,7 @@ from typing import Any
 from ..domain.vocabulary import MarketClass, RoutingStrategy, RouteFamily
 from ..domain.route_access_profiles import (
     RouteAccessDecision,
-    default_route_access_decision,
+    load_route_access_profiles,
 )
 from .search_request import SearchRequest
 from .direct_gate import is_direct_only
@@ -80,13 +80,14 @@ def route_access_decision_for_codes(
 ) -> RouteAccessDecision:
     origin_country = _location_country(store, origin)
     destination_country = _location_country(store, destination)
-    if hasattr(store, "route_access_profile_for_route"):
-        return store.route_access_profile_for_route(
-            market_class=market_class,
-            origin_country=origin_country,
-            destination_country=destination_country,
-        )
-    return default_route_access_decision(market_class)
+    catalog = load_route_access_profiles(
+        getattr(store, "route_access_profiles_path", None)
+    )
+    return catalog.decision_for_route(
+        market_class=market_class,
+        origin_country=origin_country,
+        destination_country=destination_country,
+    )
 
 
 def routing_strategy_for_market(request: SearchRequest, market_class: str) -> str:
