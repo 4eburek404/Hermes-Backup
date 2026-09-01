@@ -158,7 +158,6 @@ class TestVocabularyDriftLint(unittest.TestCase):
             "airports.py",  # airport priority "preferred" role — different domain
             "stop_policy.py",  # stop_policy payload key "suppressed" — display dict
             "probe_intent.py",  # probe_type — belongs to ports/providers.py
-            "diagnose.py",  # probe_type comparison — belongs to ports/providers.py
         }
 
         violations: list[str] = []

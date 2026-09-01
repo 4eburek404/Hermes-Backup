@@ -10,10 +10,6 @@ from . import __version__
 from .command_surface import (
     AIRPORTS_EXPLAIN_COMMAND,
     CITIES_SEARCH_COMMAND,
-    DIAGNOSE_PLAN_COMMAND,
-    DIAGNOSE_PROBE_COMMAND,
-    DIAGNOSE_RENDER_COMMAND,
-    DIAGNOSE_TRACE_COMMAND,
     MAINT_CATALOG_MANIFEST_COMMAND,
     MAINT_CATALOG_REFRESH_COMMAND,
     MAINT_CHECK_COMMAND,
@@ -26,12 +22,6 @@ from .commands.maint import (
     command_maint_catalog_refresh,
     command_maint_doctor,
     command_maintenance_check,
-)
-from .commands.diagnose import (
-    command_diagnose_plan,
-    command_diagnose_probe,
-    command_diagnose_render,
-    command_diagnose_trace,
 )
 from .commands.metadata import (
     command_airports_explain,
@@ -85,58 +75,6 @@ def _register_primary_search_commands(
         help="flight_search_request.v4 JSON file, or - for stdin.",
     )
     _set_leaf_defaults(search, SEARCH_COMMAND, command_search)
-
-
-def _register_diagnose_commands(sub, json_parent: argparse.ArgumentParser) -> None:
-    diagnose = sub.add_parser(
-        DIAGNOSE_PLAN_COMMAND.path[0],
-        parents=[json_parent],
-        help="Diagnostics for plan/probe/render/trace workflows.",
-    )
-    diagnose_sub = diagnose.add_subparsers(dest="diagnose_command", required=True)
-    plan = diagnose_sub.add_parser(
-        DIAGNOSE_PLAN_COMMAND.leaf,
-        parents=[json_parent],
-        help=DIAGNOSE_PLAN_COMMAND.help,
-    )
-    plan.add_argument(
-        "--request",
-        required=True,
-        help="flight_search_request.v4 JSON file, or - for stdin.",
-    )
-    _set_leaf_defaults(plan, DIAGNOSE_PLAN_COMMAND, command_diagnose_plan)
-    probe = diagnose_sub.add_parser(
-        DIAGNOSE_PROBE_COMMAND.leaf,
-        parents=[json_parent],
-        help=DIAGNOSE_PROBE_COMMAND.help,
-    )
-    probe.add_argument("--provider", required=True)
-    probe.add_argument(
-        "--request", required=True, help="Probe JSON file, or - for stdin."
-    )
-    _set_leaf_defaults(probe, DIAGNOSE_PROBE_COMMAND, command_diagnose_probe)
-    render = diagnose_sub.add_parser(
-        DIAGNOSE_RENDER_COMMAND.leaf,
-        parents=[json_parent],
-        help=DIAGNOSE_RENDER_COMMAND.help,
-    )
-    render.add_argument(
-        "--input",
-        required=True,
-        help="flight-search result JSON file, output envelope, or - for stdin.",
-    )
-    _set_leaf_defaults(render, DIAGNOSE_RENDER_COMMAND, command_diagnose_render)
-    trace = diagnose_sub.add_parser(
-        DIAGNOSE_TRACE_COMMAND.leaf,
-        parents=[json_parent],
-        help=DIAGNOSE_TRACE_COMMAND.help,
-    )
-    trace.add_argument(
-        "--request",
-        required=True,
-        help="flight_search_request.v4 JSON file, or - for stdin.",
-    )
-    _set_leaf_defaults(trace, DIAGNOSE_TRACE_COMMAND, command_diagnose_trace)
 
 
 def _register_maint_commands(sub, json_parent: argparse.ArgumentParser) -> None:
@@ -264,7 +202,6 @@ def build_parser() -> argparse.ArgumentParser:
     json_parent = _json_parent()
 
     _register_primary_search_commands(sub, json_parent)
-    _register_diagnose_commands(sub, json_parent)
     _register_maint_commands(sub, json_parent)
     _register_metadata_commands(sub, json_parent)
 

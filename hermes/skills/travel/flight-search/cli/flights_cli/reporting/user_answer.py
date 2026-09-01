@@ -13,11 +13,9 @@ from .catalog_semantics import route_requested_round_trip
 from .coverage import CoverageSnapshot
 
 USER_ANSWER_SCHEMA_VERSION = current_contract("user_answer")["schema_version"]
-USER_ANSWER_RENDER_DIAGNOSTIC_SCHEMA_VERSION = "flight_search_render_diagnostic.v1"
 
 __all__ = (
     "UserAnswerInput",
-    "USER_ANSWER_RENDER_DIAGNOSTIC_SCHEMA_VERSION",
     "build_user_answer",
     "render_user_answer",
 )

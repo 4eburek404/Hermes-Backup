@@ -9,7 +9,6 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from types import SimpleNamespace
 import unittest
 from datetime import date, timedelta
 from unittest.mock import patch
@@ -97,53 +96,6 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
 
         self.assertEqual(captured, {"origin": "SVX", "destination": "LON"})
         self.assertEqual(result["schema_version"], "flight_search_result.v10")
-
-    def test_diagnose_trace_serializes_existing_artifacts_once(self) -> None:
-        from flights_cli.commands.diagnose import command_diagnose_trace
-
-        depart = future_departure_date()
-        request_payload = minimal_search_request(depart)
-        evidence = SimpleNamespace(to_trace_dict=lambda: {"provider_policy": "auto"})
-        decision = SimpleNamespace(
-            offer_graph={},
-            offer_candidates={},
-            scored_decisions={"scorer": {}},
-            decision_frontier={},
-            research_status={
-                "needed": False,
-                "evidence_incomplete": False,
-                "audit": [],
-            },
-        )
-        request = SimpleNamespace(to_payload=lambda: request_payload)
-        execution = SimpleNamespace(
-            plan=SimpleNamespace(to_dict=lambda: {}),
-            evidence=evidence,
-            decision=decision,
-            projection_input={},
-            projection={"answer": {}},
-        )
-        args = argparse.Namespace(request="unused.json", command_name="diagnose trace")
-        with (
-            patch(
-                "flights_cli.commands.diagnose.prepare_search_request",
-                return_value=request,
-            ),
-            patch("flights_cli.commands.diagnose.SearchWorkflow") as workflow,
-            patch(
-                "flights_cli.commands.diagnose.validate_contract_payload"
-            ) as validate,
-        ):
-            workflow.return_value.run_artifacts.return_value = execution
-            result = command_diagnose_trace(args, Store())
-
-        self.assertEqual(result["schema_version"], "flight_route_trace_diagnostic.v5")
-        self.assertEqual(
-            set(result),
-            {"schema_version", "request", "plan", "evidence", "decision", "answer"},
-        )
-        workflow.return_value.run_artifacts.assert_called_once_with(request)
-        validate.assert_called_once_with("route_trace", result)
 
     def test_search_json_errors_are_machine_parseable_on_stdout(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

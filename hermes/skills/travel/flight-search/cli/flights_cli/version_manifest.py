@@ -8,7 +8,6 @@ from . import __skill_name__, __skill_version__, __version__
 from .command_surface import (
     AGENT_COMMANDS,
     COMMAND_SURFACE_VERSION,
-    DIAGNOSTIC_COMMANDS,
     PRIMARY_ROUTE_COMMAND,
 )
 from .contracts.registry import current_contract
@@ -37,7 +36,6 @@ def expected_command_surface() -> dict[str, Any]:
         "version": COMMAND_SURFACE_VERSION,
         "canonical_path": f"{PRIMARY_ROUTE_COMMAND} --request",
         "agent_commands": list(AGENT_COMMANDS),
-        "diagnostic_commands": list(DIAGNOSTIC_COMMANDS),
     }
 
 
@@ -84,8 +82,4 @@ def manifest_mismatches(manifest: dict[str, Any]) -> list[str]:
         expected_surface["agent_commands"]
     ):
         mismatches.append("command_surface.agent_commands")
-    if sorted(command_surface.get("diagnostic_commands") or []) != sorted(
-        expected_surface["diagnostic_commands"]
-    ):
-        mismatches.append("command_surface.diagnostic_commands")
     return mismatches

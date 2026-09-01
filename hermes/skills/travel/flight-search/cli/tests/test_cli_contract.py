@@ -4,9 +4,7 @@ import argparse
 import json
 import subprocess
 import sys
-import tempfile
 import unittest
-from pathlib import Path
 
 from flights_cli.cli import build_parser
 from flights_cli.commands import search as search_app
@@ -16,50 +14,15 @@ from flights_cli.command_surface import (
     CATALOG_READ_COMMANDS,
     CATALOG_REFRESH_COMMANDS,
     COMMAND_SPECS,
-    DIAGNOSTIC_COMMANDS,
-    DIAGNOSTIC_PROBE_COMMANDS,
     PRIMARY_ROUTE_COMMAND,
 )
 from flights_cli.config import DEFAULT_ROUTE_HUBS
-from tests.fixtures.result_fixtures import valid_report
 
 from helpers import PROJECT, TEST_ENV, future_departure_date, parser_leaf_defaults
 
 
 HELP_GOLDENS = {
     ("search",): """usage: flights search [-h] --request REQUEST
-
-options:
-  -h, --help         show this help message and exit
-  --request REQUEST  flight_search_request.v4 JSON file, or - for stdin.
-""",
-    ("diagnose", "plan"): """usage: flights diagnose plan [-h] --request REQUEST
-
-options:
-  -h, --help         show this help message and exit
-  --request REQUEST  flight_search_request.v4 JSON file, or - for stdin.
-""",
-    (
-        "diagnose",
-        "probe",
-    ): """usage: flights diagnose probe [-h] --provider PROVIDER --request REQUEST
-
-options:
-  -h, --help           show this help message and exit
-  --provider PROVIDER
-  --request REQUEST    Probe JSON file, or - for stdin.
-""",
-    (
-        "diagnose",
-        "render",
-    ): """usage: flights diagnose render [-h] --input INPUT
-
-options:
-  -h, --help     show this help message and exit
-  --input INPUT  flight-search result JSON file, output envelope, or - for
-                 stdin.
-""",
-    ("diagnose", "trace"): """usage: flights diagnose trace [-h] --request REQUEST
 
 options:
   -h, --help         show this help message and exit
@@ -171,11 +134,10 @@ class CliContractTests(unittest.TestCase):
     def test_active_command_surface_is_registered_with_leaf_dispatch(self) -> None:
         leaves = parser_leaf_defaults(build_parser())
         specs_by_name = {spec.name: spec for spec in COMMAND_SPECS}
-        self.assertEqual(len(COMMAND_SPECS), 11)
+        self.assertEqual(len(COMMAND_SPECS), 7)
         self.assertEqual(set(leaves), set(specs_by_name))
         policy_commands = (
             set(AGENT_COMMANDS)
-            | set(DIAGNOSTIC_COMMANDS)
             | set(CATALOG_READ_COMMANDS)
             | set(CATALOG_REFRESH_COMMANDS)
         )
@@ -199,36 +161,6 @@ class CliContractTests(unittest.TestCase):
                 "search",
                 "--request",
                 "/tmp/flight-search-request.json",
-            ],
-            "diagnose plan --request": [
-                "--json",
-                "diagnose",
-                "plan",
-                "--request",
-                "/tmp/flight-search-request.json",
-            ],
-            "diagnose probe --provider": [
-                "--json",
-                "diagnose",
-                "probe",
-                "--provider",
-                "tutu",
-                "--request",
-                "/tmp/probe.json",
-            ],
-            "diagnose trace --request": [
-                "--json",
-                "diagnose",
-                "trace",
-                "--request",
-                "/tmp/flight-search-request.json",
-            ],
-            "diagnose render --input": [
-                "--json",
-                "diagnose",
-                "render",
-                "--input",
-                "/tmp/flight-search-result.json",
             ],
             "maint doctor": ["--json", "maint", "doctor"],
             "maint check": ["--json", "maint", "check"],
@@ -278,19 +210,6 @@ class CliContractTests(unittest.TestCase):
                 self.assertEqual(proc.returncode, 0)
                 self.assertEqual(proc.stderr, "")
                 self.assertEqual(proc.stdout, expected)
-
-    def test_diagnostic_provider_is_registry_validated_after_parsing(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "diagnose",
-                "probe",
-                "--provider",
-                "future-provider",
-                "--request",
-                "/tmp/probe.json",
-            ]
-        )
-        self.assertEqual(args.provider, "future-provider")
 
     def test_catalog_refresh_surface_matches_registered_catalog_commands(self) -> None:
         leaves = parser_leaf_defaults(build_parser())
@@ -407,7 +326,6 @@ class CliContractTests(unittest.TestCase):
                 "agent_commands": list(AGENT_COMMANDS),
                 "primary_route_command": PRIMARY_ROUTE_COMMAND,
                 "canonical_path": f"{PRIMARY_ROUTE_COMMAND} --request",
-                "diagnostic_probe_commands": list(DIAGNOSTIC_PROBE_COMMANDS),
             },
         )
         self.assertEqual(
@@ -482,187 +400,12 @@ class CliContractTests(unittest.TestCase):
                 self.assertFalse(payload["ok"])
                 self.assertEqual(payload["error"]["type"], "validation_error")
 
-    def test_json_diagnose_plan_envelope_and_repeatable_hubs(self) -> None:
-        depart = future_departure_date()
-        request = {
-            "schema_version": "flight_search_request.v3",
-            "origin": "SVX",
-            "destination": "LON",
-            "depart_date": depart.isoformat(),
-            "route_options": {
-                "hubs": ["IST", "DXB"],
-                "routing_strategy": "hub-list",
-                "destination_airports": ["BBB", "BBA"],
-            },
-        }
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            request_path = Path(tmp_dir) / "flight-search-request.json"
-            request_path.write_text(json.dumps(request), encoding="utf-8")
-            proc = subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "flights_cli",
-                    "--json",
-                    "diagnose",
-                    "plan",
-                    "--request",
-                    str(request_path),
-                ],
-                cwd=PROJECT,
-                env=TEST_ENV,
-                check=True,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-        payload = json.loads(proc.stdout)
-        self.assertTrue(payload["ok"])
-        self.assertEqual(payload["command"], "diagnose plan")
-        self.assertEqual(
-            payload["data"]["schema_version"], "flight_search_plan_diagnostic.v2"
-        )
-        self.assert_metadata_only_evidence_scope(payload["data"]["evidence_scope"])
-        data = payload["data"]["plan"]
-        provider_queries = data["phases"]["primary"]
-        self.assertTrue(provider_queries)
-        first_attempt = provider_queries[0]
-        first_query = first_attempt["query"]
-        self.assertEqual(first_query["role"], "primary_offer_collection")
-        self.assertEqual(first_query["source_type"], "provider_full_route")
-        self.assertEqual(first_attempt["probe_type"], "full_route_aggregate")
-        self.assertEqual(first_query["currency"], "RUB")
-        self.assertNotIn("command", first_query)
-        route = data["route"]
-        self.assertEqual(route["hubs"], ["IST", "DXB"])
-        self.assertEqual(route["destination_airports"], ["BBA", "BBB"])
-        self.assertEqual(
-            route["airport_scope"]["destination"]["scope"], "explicit_airports"
-        )
-        self.assertEqual(
-            route["airport_scope"]["destination"]["excluded_by_default"], []
-        )
-        self.assertEqual(data["schema_version"], "flight_search_plan.v6")
-
-    def test_diagnose_render_subprocess_success_json_boundary(self) -> None:
-        answer = valid_report()["user_answer"]
-        result = {
-            "schema_version": "flight_search_result.v10",
-            "answer": answer,
-        }
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            result_path = Path(tmp_dir) / "flight-search-result.json"
-            result_path.write_text(json.dumps(result), encoding="utf-8")
-            proc = subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "flights_cli",
-                    "--json",
-                    "diagnose",
-                    "render",
-                    "--input",
-                    str(result_path),
-                ],
-                cwd=PROJECT,
-                env=TEST_ENV,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-
-        self.assertEqual(proc.returncode, 0)
-        self.assertEqual(proc.stderr, "")
-        payload = json.loads(proc.stdout)
-        self.assertTrue(payload["ok"])
-        self.assertEqual(payload["command"], "diagnose render")
-        self.assertEqual(payload["issues"], [])
-        self.assertEqual(
-            payload["data"]["schema_version"],
-            "flight_search_render_diagnostic.v1",
-        )
-        self.assertEqual(
-            payload["data"]["search_result_schema_version"],
-            "flight_search_result.v10",
-        )
-        self.assertEqual(payload["data"]["validation"], {"ok": True, "errors": []})
-        self.assertEqual(payload["data"]["user_answer"], answer)
-
-    def test_diagnose_probe_subprocess_registry_error_json_boundary(self) -> None:
-        request = {
-            "origin": "SVX",
-            "destination": "DME",
-            "date": "2026-08-15",
-        }
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            request_path = Path(tmp_dir) / "probe.json"
-            request_path.write_text(json.dumps(request), encoding="utf-8")
-            proc = subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "flights_cli",
-                    "--json",
-                    "diagnose",
-                    "probe",
-                    "--provider",
-                    "future-provider",
-                    "--request",
-                    str(request_path),
-                ],
-                cwd=PROJECT,
-                env=TEST_ENV,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-
-        self.assertEqual(proc.returncode, 1)
-        self.assertEqual(proc.stderr, "")
-        payload = json.loads(proc.stdout)
-        self.assertFalse(payload["ok"])
-        self.assertEqual(payload["error"]["type"], "validation_error")
-        self.assertIn("future-provider", payload["error"]["message"])
-        self.assertNotIn("Traceback", proc.stdout)
-
-    def test_diagnose_trace_subprocess_contract_error_json_boundary(self) -> None:
-        request = {"schema_version": "flight_search_request.v3"}
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            request_path = Path(tmp_dir) / "invalid-request.json"
-            request_path.write_text(json.dumps(request), encoding="utf-8")
-            proc = subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "flights_cli",
-                    "--json",
-                    "diagnose",
-                    "trace",
-                    "--request",
-                    str(request_path),
-                ],
-                cwd=PROJECT,
-                env=TEST_ENV,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-
-        self.assertEqual(proc.returncode, 1)
-        self.assertEqual(proc.stderr, "")
-        payload = json.loads(proc.stdout)
-        self.assertFalse(payload["ok"])
-        self.assertEqual(payload["error"]["type"], "validation_error")
-        self.assertNotIn("Traceback", proc.stdout)
-
     def test_leaf_json_flag_is_accepted_without_argv_rewrite(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(
-            ["diagnose", "plan", "--request", "request.json", "--json"]
-        )
+        args = parser.parse_args(["search", "--request", "request.json", "--json"])
 
         self.assertTrue(args.json)
-        self.assertEqual(args.command_name, "diagnose plan")
+        self.assertEqual(args.command_name, "search")
 
 
 if __name__ == "__main__":

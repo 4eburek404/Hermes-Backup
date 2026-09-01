@@ -107,14 +107,6 @@ class DateWindowPlanTests(unittest.TestCase):
     def test_date_window_end_is_request_only_not_cli_flag(self) -> None:
         for argv in (
             ["search", "--request", "request.json", "--date-window-end", "2026-08-18"],
-            [
-                "diagnose",
-                "plan",
-                "--request",
-                "request.json",
-                "--date-window-end",
-                "2026-08-18",
-            ],
         ):
             with self.subTest(argv=argv):
                 with (

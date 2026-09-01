@@ -22,12 +22,6 @@ _CURRENT_CONTRACTS: dict[str, dict[str, str]] = {
         "public_path": "data",
         "status": "current_public_contract",
     },
-    "route_trace": {
-        "schema_version": "flight_route_trace_diagnostic.v5",
-        "schema_resource": "flight_route_trace_diagnostic.v5.schema.json",
-        "public_path": "data.route_trace",
-        "status": "diagnostic_trace_contract",
-    },
     "search_plan": {
         "schema_version": "flight_search_plan.v6",
         "schema_resource": "flight_search_plan.v6.schema.json",
@@ -48,10 +42,8 @@ LEGACY_SCHEMA_RESOURCES = frozenset(
         "flight_search_request.v3.schema.json",
         "flight_search_plan.v5.schema.json",
         "flight_search_result.v9.schema.json",
-        "flight_route_trace_diagnostic.v4.schema.json",
     }
 )
-ROUTE_TRACE_SCHEMA_VERSION = _CURRENT_CONTRACTS["route_trace"]["schema_version"]
 
 
 def current_contract(name: str) -> dict[str, Any]:

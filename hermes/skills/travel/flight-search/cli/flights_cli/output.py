@@ -6,14 +6,12 @@ from typing import Any
 from .command_surface import (
     AIRPORTS_EXPLAIN_COMMAND,
     CITIES_SEARCH_COMMAND,
-    DIAGNOSE_PLAN_COMMAND,
     MAINT_CATALOG_MANIFEST_COMMAND,
     MAINT_CATALOG_REFRESH_COMMAND,
     MAINT_CHECK_COMMAND,
     MAINT_DOCTOR_COMMAND,
     SEARCH_COMMAND,
 )
-from .domain.vocabulary import RoutingStrategy
 from .errors import CliError
 
 
@@ -65,7 +63,6 @@ def render_user_text(command: str, data: Any) -> str:
                 f"catalog refresh: {policy['mode']} max_age={policy['max_age']} stale={staleness['stale_count']}/{staleness['checked_count']}",
                 f"default hubs: {', '.join(item['code'] for item in data.get('default_route_hubs', []))}",
                 f"agent path: {data['safety']['canonical_path']}",
-                f"diagnostic probe commands: {', '.join(data['safety']['diagnostic_probe_commands'])}",
             ]
         )
     if command == MAINT_CHECK_COMMAND.name:
@@ -149,37 +146,5 @@ def render_user_text(command: str, data: Any) -> str:
             )
             for note in airport.get("notes") or []:
                 lines.append(f"  - {note}")
-        return "\n".join(lines)
-    if command == DIAGNOSE_PLAN_COMMAND.name:
-        plan = data["plan"] if isinstance(data.get("plan"), dict) else data
-        route = plan["route"]
-        phases = plan.get("phases") if isinstance(plan.get("phases"), dict) else {}
-        primary = list(phases.get("primary") or [])
-        conditional = list(phases.get("gateway") or [])
-        lines = [
-            f"route: {','.join(route['origin_airports'])} -> {','.join(route['destination_airports'])}",
-            f"strategy: {route.get('routing_strategy', RoutingStrategy.HUB_LIST)}",
-            f"hubs: {', '.join(route['hubs'])}",
-            f"primary probes: {len(primary)}",
-            f"conditional probes: {len(conditional)}",
-            "first probes:",
-        ]
-        refresh = data.get("catalog_auto_refresh")
-        if refresh:
-            lines.insert(
-                2,
-                f"catalog refresh: {'updated' if refresh.get('refreshed') else refresh.get('reason')}",
-            )
-        probes = [*primary, *conditional]
-        for probe in probes[:8]:
-            query = probe.get("query") if isinstance(probe.get("query"), dict) else {}
-            lines.append(
-                f"  {query['origin']} -> {query['destination']} {query['date']} [{probe.get('provider') or 'none'}]"
-            )
-        if len(probes) > 8:
-            lines.append(f"  ... {len(probes) - 8} more")
-        if plan.get("planning_reasons"):
-            lines.append("planning reasons:")
-            lines.extend(f"  - {reason}" for reason in plan["planning_reasons"])
         return "\n".join(lines)
     return json.dumps(data, ensure_ascii=False, indent=2)

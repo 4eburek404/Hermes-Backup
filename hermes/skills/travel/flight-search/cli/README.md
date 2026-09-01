@@ -111,9 +111,9 @@ Return this text stdout verbatim. With `--json`, the canonical serialized paths 
 - `evidence.provider_failures`
 - `evidence.source_boundaries`
 
-Full graph/debug traces are excluded from default `search` output. Use
-`diagnose trace --request` and inspect `data.plan`, `data.evidence`, and
-`data.decision` when you need internal artifacts.
+Full graph/debug traces are excluded from default `search` output. When you
+need internal artifacts, read `data.plan` and `data.evidence` from the same
+`search --json` envelope.
 
 `search --request` searches and compares route options for the default scope of one adult in economy. It does not buy or book tickets, and final fare, baggage-through, refund/change conditions, disruption protection, and single-PNR claims require purchase-screen, airline/GDS, seller, or explicit upstream proof.
 
@@ -171,25 +171,8 @@ Default connection thresholds are maintained in `references/source-boundaries.md
 ## Targeted Debug Probes
 
 Use targeted probes only after the main assembled report leaves a specific uncertainty.
-They are debug inputs, not alternate answer paths for agents.
-
-Dry plan diagnostic:
-
-```bash
-python3 -m flights_cli --json diagnose plan --request /tmp/flight-search-request.json
-```
-
-Provider-port probe:
-
-```bash
-python3 -m flights_cli --json diagnose probe \
-  --provider tutu \
-  --request /tmp/probe.json
-```
-
-For source-boundary investigations, run `diagnose trace --request` and inspect
-`data.evidence` and `data.decision`; use `diagnose probe` only for one explicit
-provider probe. Keep ordinary search work on `search --request`.
+They are debug inputs, not alternate answer paths for agents. Every probe is a
+`search --request` run with a narrowed request; there is no separate probe command.
 
 Useful probe shapes:
 

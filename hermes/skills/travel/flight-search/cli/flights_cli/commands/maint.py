@@ -15,7 +15,6 @@ from ..command_surface import (
     CATALOG_AUTO_REFRESH_COMMANDS,
     CATALOG_READ_COMMANDS,
     CATALOG_REFRESH_COMMANDS,
-    DIAGNOSTIC_PROBE_COMMANDS,
     PRIMARY_ROUTE_COMMAND,
 )
 from ..config import (
@@ -144,7 +143,6 @@ def command_maint_doctor(args: argparse.Namespace, store: Store) -> dict[str, An
             "agent_commands": list(AGENT_COMMANDS),
             "primary_route_command": PRIMARY_ROUTE_COMMAND,
             "canonical_path": f"{PRIMARY_ROUTE_COMMAND} --request",
-            "diagnostic_probe_commands": list(DIAGNOSTIC_PROBE_COMMANDS),
         },
         "risk_profiles": {
             name: {

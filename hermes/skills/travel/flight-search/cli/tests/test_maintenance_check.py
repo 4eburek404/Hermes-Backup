@@ -84,7 +84,7 @@ class MaintenanceCheckTests(unittest.TestCase):
         )
         self.assertEqual(
             data["version_manifest"]["data"]["command_surface"]["version"],
-            "command_surface.v2",
+            "command_surface.v3",
         )
         self.assertEqual(data["source_runtime_parity"]["status"], "runtime_missing")
         workflow = data["branch_workflow"]
@@ -97,18 +97,12 @@ class MaintenanceCheckTests(unittest.TestCase):
         self.assertEqual(workflow["manifest"]["skill_version"], "0.13.0")
         self.assertEqual(workflow["manifest"]["cli_version"], "0.10.0")
         self.assertEqual(
-            workflow["manifest"]["command_surface_version"], "command_surface.v2"
+            workflow["manifest"]["command_surface_version"], "command_surface.v3"
         )
         self.assertEqual(workflow["manifest"]["mismatches"], [])
-        self.assertEqual(workflow["command_surface"]["version"], "command_surface.v2")
+        self.assertEqual(workflow["command_surface"]["version"], "command_surface.v3")
         self.assertEqual(
             workflow["command_surface"]["canonical_path"], "search --request"
-        )
-        self.assertIn(
-            "diagnose plan", workflow["command_surface"]["diagnostic_commands"]
-        )
-        self.assertIn(
-            "diagnose trace", workflow["command_surface"]["diagnostic_commands"]
         )
         self.assertEqual(workflow["parity"]["status"], "runtime_missing")
         self.assertFalse(workflow["parity"]["runtime_claims_allowed"])

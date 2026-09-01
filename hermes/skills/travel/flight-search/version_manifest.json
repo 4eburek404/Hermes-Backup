@@ -13,16 +13,10 @@
     "user_answer": "flight_search_user_answer.v11"
   },
   "command_surface": {
-    "version": "command_surface.v2",
+    "version": "command_surface.v3",
     "canonical_path": "search --request",
     "agent_commands": [
       "search"
-    ],
-    "diagnostic_commands": [
-      "diagnose plan",
-      "diagnose probe",
-      "diagnose render",
-      "diagnose trace"
     ]
   }
 }

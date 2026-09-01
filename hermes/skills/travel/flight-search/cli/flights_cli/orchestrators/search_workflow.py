@@ -21,8 +21,7 @@ from .search_plan_builder import SearchPlanBuilder
 
 @dataclass(frozen=True, slots=True)
 class SearchRunArtifacts:
-    # Типизированный план, а не словарь: сериализует его теперь тот, кому нужен
-    # словарь, — то есть diagnose, который уходит вместе с хабовым слоем.
+    # Типизированный план, а не словарь: сериализует его тот, кому нужен словарь.
     plan: SearchPlan
     evidence: SearchEvidence
     decision: SearchDecision

@@ -157,23 +157,6 @@ class TutuMcpProviderTests(unittest.TestCase):
     def test_tutu_mcp_reexports_canonical_parser(self) -> None:
         self.assertIs(compatibility_parse_tutu_avia_search, parse_tutu_avia_search)
 
-    def test_diagnose_probe_allows_tutu_provider(self) -> None:
-        from flights_cli.cli import build_parser
-
-        args = build_parser().parse_args(
-            [
-                "diagnose",
-                "probe",
-                "--provider",
-                "tutu",
-                "--request",
-                "probe.json",
-            ]
-        )
-
-        self.assertEqual(args.command_name, "diagnose probe")
-        self.assertEqual(args.provider, "tutu")
-
     def test_fetch_paginates_before_applying_display_limit(self) -> None:
         store = store_with_tutu_catalog(self)
         calls: list[dict] = []

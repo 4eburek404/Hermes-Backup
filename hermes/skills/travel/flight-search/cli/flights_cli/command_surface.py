@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-COMMAND_SURFACE_VERSION = "command_surface.v2"
+COMMAND_SURFACE_VERSION = "command_surface.v3"
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,17 +13,14 @@ class CommandSpec:
     audience: str
     help: str
     catalog_access: str | None = None
-    diagnostic_probe: bool = False
 
     def __post_init__(self) -> None:
         if not self.path or any(not part or " " in part for part in self.path):
             raise ValueError("command path must contain non-empty CLI path segments")
-        if self.audience not in {"agent", "diagnostic", "maintenance", "metadata"}:
+        if self.audience not in {"agent", "maintenance", "metadata"}:
             raise ValueError(f"unsupported command audience: {self.audience}")
         if self.catalog_access not in {None, "auto_refresh", "refresh_explicit"}:
             raise ValueError(f"unsupported catalog access: {self.catalog_access}")
-        if self.diagnostic_probe and self.audience != "diagnostic":
-            raise ValueError("diagnostic probes must have diagnostic audience")
 
     @property
     def name(self) -> str:
@@ -45,32 +42,6 @@ SEARCH_COMMAND = CommandSpec(
         "Primary request-file route search; JSON output keeps compact "
         "flight_search_result envelope."
     ),
-    catalog_access="auto_refresh",
-)
-DIAGNOSE_PLAN_COMMAND = CommandSpec(
-    path=("diagnose", "plan"),
-    audience="diagnostic",
-    help=(
-        "Render the route segment plan from a flight_search_request.v4 file "
-        "without provider calls."
-    ),
-    catalog_access="auto_refresh",
-)
-DIAGNOSE_PROBE_COMMAND = CommandSpec(
-    path=("diagnose", "probe"),
-    audience="diagnostic",
-    help="Run a single provider probe from a probe JSON file.",
-    diagnostic_probe=True,
-)
-DIAGNOSE_RENDER_COMMAND = CommandSpec(
-    path=("diagnose", "render"),
-    audience="diagnostic",
-    help="Validate and render answer from a flight-search result JSON file.",
-)
-DIAGNOSE_TRACE_COMMAND = CommandSpec(
-    path=("diagnose", "trace"),
-    audience="diagnostic",
-    help="Run search and return the full route/live diagnostic trace.",
     catalog_access="auto_refresh",
 )
 MAINT_CHECK_COMMAND = CommandSpec(
@@ -114,10 +85,6 @@ COMMAND_SPECS = (
     CITIES_SEARCH_COMMAND,
     AIRPORTS_EXPLAIN_COMMAND,
     SEARCH_COMMAND,
-    DIAGNOSE_PLAN_COMMAND,
-    DIAGNOSE_RENDER_COMMAND,
-    DIAGNOSE_TRACE_COMMAND,
-    DIAGNOSE_PROBE_COMMAND,
     MAINT_CHECK_COMMAND,
     MAINT_DOCTOR_COMMAND,
     MAINT_CATALOG_MANIFEST_COMMAND,
@@ -129,12 +96,6 @@ if len(_specs_by_name) != len(COMMAND_SPECS):
     raise RuntimeError("command surface contains duplicate leaf paths")
 PRIMARY_ROUTE_COMMAND = SEARCH_COMMAND.name
 AGENT_COMMANDS = tuple(spec.name for spec in COMMAND_SPECS if spec.audience == "agent")
-DIAGNOSTIC_COMMANDS = tuple(
-    spec.name for spec in COMMAND_SPECS if spec.audience == "diagnostic"
-)
-DIAGNOSTIC_PROBE_COMMANDS = tuple(
-    spec.name for spec in COMMAND_SPECS if spec.diagnostic_probe
-)
 CATALOG_READ_COMMANDS = tuple(
     spec.name for spec in COMMAND_SPECS if spec.requires_catalog
 )

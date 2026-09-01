@@ -92,7 +92,7 @@ not a priced itinerary or proof of dated availability.
 
 If canonical search fails or produces no traveler answer, report that failure instead of fabricating or manually reconstructing an itinerary. Diagnostics may explain the failure, but diagnostic JSON and probe logs are not traveler-facing answers.
 
-Read `references/debug-playbook.md` for `diagnose plan`, `probe`, `render`, and `trace` commands.
+Read `references/debug-playbook.md` for reading the `search --json` envelope when a report looks wrong.
 
 ## Reference Routing
 

@@ -1,8 +1,9 @@
 # Debug and Exception Probe Playbook
 
-Use diagnostics only when the Golden Path report is inconsistent, degraded, or
-too sparse for a decision-critical constraint. Diagnostics support
-`search --request`; they do not replace its canonical answer.
+Use this playbook when the Golden Path report is inconsistent, degraded, or
+too sparse for a decision-critical constraint. Everything below reads the
+`search --request` answer and its evidence; there is no separate diagnostic
+command surface.
 
 ## Runtime provenance
 
@@ -22,7 +23,7 @@ Record the request route, dates, exact-airport versus city scope, carrier
 filter, provider policy, direct-only setting, cache setting, source path,
 branch, and commit. `maint doctor` proves local readiness, not live inventory.
 
-## Diagnostic commands
+## Reading one run
 
 Main report:
 
@@ -30,37 +31,8 @@ Main report:
 PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json search --request request.json
 ```
 
-Plan without provider execution:
-
-```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose plan \
-  --request request.json
-```
-
-Full live trace:
-
-```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose trace \
-  --request request.json
-```
-
-One provider probe:
-
-```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose probe \
-  --provider tutu \
-  --request probe.json
-```
-
-Pure rendering check for an existing result:
-
-```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --json diagnose render \
-  --input flight-search-result.json
-```
-
-Read `data.answer` for traveler-facing output. In a trace, use `data.plan`,
-`data.evidence`, and `data.decision` only for diagnosis. Never expose raw probe
+Read `data.answer` for traveler-facing output. `data.evidence` and
+`data.plan` in the same envelope carry the diagnosis. Never expose raw probe
 logs as a replacement traveler answer.
 
 ## Provider fanout and airport scope
