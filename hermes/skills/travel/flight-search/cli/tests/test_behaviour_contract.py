@@ -9,8 +9,10 @@
 from __future__ import annotations
 
 import ast
+import json
+import tempfile
 import unittest
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from flights_cli.adapters.providers.registry import PROVIDER_REGISTRY
@@ -23,12 +25,17 @@ from flights_cli.pipeline.search_request import (
     normalize_search_request_payload,
     search_request_from_payload,
 )
-from flights_cli.store import Store
 from flights_cli.version_manifest import load_version_manifest, manifest_mismatches
 
-from helpers import build_search_plan, future_departure_date
+from provider_stub import TutuStub, run_search_cli, segment
 
 PROJECT = Path(__file__).resolve().parents[1]
+
+
+def future_departure_date() -> date:
+    """Локальная копия: сеть не должна зависеть от helpers, который тянет Store."""
+
+    return date.today() + timedelta(days=3)
 
 
 def _segment(flight: str, origin: str, destination: str, dep: str, arr: str) -> dict:
@@ -75,15 +82,6 @@ class RequestBoundary(unittest.TestCase):
         self.assertEqual(normalized["destination"], "SVO")
         self.assertTrue(str(normalized["schema_version"]).startswith("flight_search_request."))
 
-    def test_three_field_request_produces_provider_queries(self) -> None:
-        """Минимальный запрос доходит до плана и порождает вызовы провайдеров."""
-        request = search_request_from_payload(self._request())
-        plan = build_search_plan(request, Store())
-        attempts = plan["phases"]["primary"]
-        self.assertTrue(attempts, "план обязан содержать хотя бы одну пробу")
-        providers = {str(a["provider"]) for a in attempts}
-        self.assertTrue(providers <= set(PROVIDER_REGISTRY))
-
     def test_past_departure_is_rejected(self) -> None:
         past = future_departure_date() - timedelta(days=30)
         with self.assertRaises(CliError):
@@ -95,6 +93,172 @@ class RequestBoundary(unittest.TestCase):
             search_request_from_payload(
                 self._request(return_date=(depart - timedelta(days=1)).isoformat())
             )
+
+
+class ConnectingInventoryStub(TutuStub):
+    """Провайдер отдаёт собственный стыковочный оффер NTE→AMS→SVX.
+
+    Стыковка приходит внутри одного провайдерского оффера, а не склеивается
+    планировщиком через шлюз, — поэтому сценарий переживает резку хабового слоя.
+    """
+
+    def search_payload(self, origin: str, destination: str) -> dict:
+        if (origin, destination) != ("NTE", "SVX"):
+            return {"offers": [], "meta": {"has_more": False}}
+        depart = self.depart.isoformat()
+        return {
+            "offers": [
+                {
+                    "offer_id": "nte-ams-svx",
+                    "price": {"amount": 24300, "currency": "RUB"},
+                    "duration_min": 555,
+                    "legs": [
+                        {
+                            "segments": [
+                                segment(
+                                    "NTE",
+                                    "AMS",
+                                    "KL1424",
+                                    f"{depart}T06:05:00+02:00",
+                                    f"{depart}T07:45:00+02:00",
+                                    100,
+                                ),
+                                segment(
+                                    "AMS",
+                                    "SVX",
+                                    "KL1395",
+                                    f"{depart}T11:35:00+02:00",
+                                    f"{depart}T18:20:00+05:00",
+                                    345,
+                                ),
+                            ]
+                        }
+                    ],
+                }
+            ],
+            "meta": {"has_more": False},
+        }
+
+
+def minutes_between(earlier: str, later: str) -> int:
+    delta = datetime.fromisoformat(later) - datetime.fromisoformat(earlier)
+    return round(delta.total_seconds() / 60)
+
+
+class AnswerComposition(unittest.TestCase):
+    """Что обязано доехать до ответа, когда провайдер вернул стыковочный оффер.
+
+    Один прогон CLI на класс, против локального стаба. Тест говорит с границей
+    команды, а не с планировщиком: переписывание внутренностей его не ломает.
+    """
+
+    depart: date
+    queries: list[tuple[str, str, str, bool]]
+    answer: dict
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        depart = future_departure_date()
+        stub = ConnectingInventoryStub(depart)
+        stub.start()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                proc = run_search_cli(
+                    {
+                        "origin": "NTE",
+                        "destination": "SVX",
+                        "depart_date": depart.isoformat(),
+                        "provider_policy": "tutu",
+                    },
+                    stub_url=stub.url,
+                    work_dir=Path(tmp),
+                )
+            cls.queries = list(stub.tool_queries)
+        finally:
+            stub.close()
+        if proc.returncode != 0:
+            raise AssertionError(f"CLI не отработал: {proc.stderr}")
+        cls.depart = depart
+        cls.answer = json.loads(proc.stdout)["data"]["answer"]
+
+    # Читатели контракта. Единственное место, которое переезжает при переходе
+    # на .v1: там опции лежат в result["options"], цена — в option["price"],
+    # а стыковки — в option["directions"][<плечо>]["connections"].
+
+    @classmethod
+    def options(cls) -> list[dict]:
+        return list(cls.answer["catalog"]["items"])
+
+    @staticmethod
+    def leg(option: dict, direction: str = "outbound") -> dict:
+        return option["directions"].get(direction) or {}
+
+    @staticmethod
+    def assessed_connections(option: dict) -> list[dict]:
+        return list((option.get("connection_assessment") or {}).get("connections") or [])
+
+    def test_minimal_request_reaches_provider_queries(self) -> None:
+        """Запрос без ритуала доезжает до провайдерских вызовов.
+
+        Обязательный минимум — три поля; provider_policy пришпилен четвёртым
+        только потому, что по URL стабится один провайдер, а подпроцесс CLI
+        сетевой замок из conftest не покрывает.
+        """
+
+        asked = {(origin, destination, day) for origin, destination, day, _ in self.queries}
+        self.assertIn(("NTE", "SVX", self.depart.isoformat()), asked)
+
+    def test_provider_offer_reaches_the_answer_whole(self) -> None:
+        """Цена и оба сегмента приезжают от провайдера без потерь."""
+        options = self.options()
+        self.assertEqual(len(options), 1)
+        price = options[0]["total_price"]
+        self.assertEqual(price["amount"], 24300)
+        self.assertEqual(price["currency"], "RUB")
+        segments = self.leg(options[0])["segments"]
+        self.assertEqual(
+            [s["flight_number"] for s in segments], ["KL1424", "KL1395"]
+        )
+
+    def test_every_connection_is_measured_and_graded(self) -> None:
+        """Стыковка обязана быть посчитана, а не подменена дефолтом.
+
+        Когда производитель оценки уедет вместе с хабовым слоем, поле не
+        исчезнет: catalog_item подставит {status: unknown, comfort: unknown,
+        connections: []}, схема останется валидной, а текст ответа не
+        изменится. Тест ловит именно эту подмену — он сверяет обе записи
+        стыковки с промежутком, выведенным из времён сегментов.
+        """
+
+        option = self.options()[0]
+        leg = self.leg(option)
+        segments = leg["segments"]
+        expected = [
+            (
+                first["destination"],
+                minutes_between(first["arrival_at"], second["departure_at"]),
+            )
+            for first, second in zip(segments, segments[1:])
+        ]
+        self.assertTrue(expected, "сценарий обязан содержать стыковку")
+
+        with self.subTest(source="layovers"):
+            self.assertEqual(
+                [(x["airport"], x["duration_min"]) for x in leg.get("layovers") or []],
+                expected,
+            )
+
+        with self.subTest(source="connection_assessment"):
+            assessed = self.assessed_connections(option)
+            self.assertEqual(
+                [(x.get("airport"), x.get("actual_min")) for x in assessed], expected
+            )
+            for connection in assessed:
+                self.assertNotIn(connection.get("comfort"), (None, "", "unknown"))
+                self.assertIsInstance(connection.get("required_min"), int)
+            summary = option.get("connection_assessment") or {}
+            self.assertNotIn(summary.get("status"), (None, "", "unknown"))
+            self.assertNotIn(summary.get("comfort"), (None, "", "unknown"))
 
 
 class OfferInvariants(unittest.TestCase):
@@ -231,6 +395,51 @@ class StructuralFacts(unittest.TestCase):
                     [],
                     f"слой {source} не должен импортировать {forbidden}",
                 )
+
+    def test_text_layer_has_one_legitimate_consumer(self) -> None:
+        """Слой текста не должен иметь потребителей, кроме сборщика ответа.
+
+        Правило слоёв выше смотрит только межслойные рёбра, а главный разворот
+        зависимостей — внутрислойный: catalog_projection кладёт русский текст в
+        структурные поля. Здесь перечислен известный долг: тест не даёт списку
+        расти, но не мешает его сокращать, поэтому резку он не блокирует.
+        """
+
+        renderer = "flights_cli.reporting.catalog_rendering"
+        assembler = "flights_cli.reporting.user_answer"
+        known_debt = {
+            # C3: текстовые функции уезжают из проекции каталога
+            "flights_cli.reporting.catalog_projection",
+            # C4: оба модуля уходят вместе с диагностикой и фронтиром
+            "flights_cli.reporting.diagnostic_projection",
+            "flights_cli.reporting.frontier_projection",
+            # C3: сверка рендера с самим собой — под нож
+            "flights_cli.contracts.validation",
+            # C3: source_boundaries переезжает в сборку ответа
+            "flights_cli.pipeline.result_builder",
+        }
+
+        consumers: set[str] = set()
+        root = PROJECT / "flights_cli"
+        for path in root.rglob("*.py"):
+            name = path.relative_to(PROJECT).with_suffix("").as_posix().replace("/", ".")
+            if name.endswith(".__init__"):
+                name = name[: -len(".__init__")]
+            pkg = name if path.name == "__init__.py" else name.rsplit(".", 1)[0]
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if not isinstance(node, ast.ImportFrom) or not node.level:
+                    continue
+                base = pkg.split(".")
+                base = base[: len(base) - (node.level - 1)] if node.level > 1 else base
+                target = ".".join(base) + (f".{node.module}" if node.module else "")
+                if target == renderer and name != assembler:
+                    consumers.add(name)
+
+        self.assertLessEqual(
+            consumers,
+            known_debt,
+            f"новый потребитель рендера: {sorted(consumers - known_debt)}",
+        )
 
     def test_version_manifest_agrees_with_contract_registry(self) -> None:
         manifest = load_version_manifest()

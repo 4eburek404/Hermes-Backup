@@ -18,9 +18,27 @@ class FakeAggregateAdapter:
 
     def __init__(self) -> None:
         self.queries: list[dict[str, object]] = []
+        self.segment_queries: list[dict[str, object]] = []
 
     def search_segment(self, query: dict[str, object]) -> ProviderProbeResult:
-        raise AssertionError("not used by aggregate runner")
+        """Шлюзовое плечо ходит сюда, а не в агрегатный порт.
+
+        Раньше метод бросал исключение, а сам фейк подставлялся только в
+        offer_query_runner — поэтому плечо уходило в живой Kupibilet мимо него.
+        """
+
+        self.segment_queries.append(query)
+        return ProviderProbeResult(
+            probe_id=str(query.get("probe_id") or "segment-probe"),
+            probe_type="segment_direct",
+            provider="kupibilet",
+            query=dict(query),
+            execution_state="searched",
+            cache_status="disabled",
+            evidence_type="negative_provider_empty",
+            result_summary={"status": "ok", "provider": "kupibilet", "offer_count": 0},
+            offers=(),
+        )
 
     def search_aggregate(self, query: dict[str, object]) -> ProviderProbeResult:
         self.queries.append(query)
@@ -73,10 +91,17 @@ class ProviderPortDispatchTests(unittest.TestCase):
         )
         adapter = FakeAggregateAdapter()
 
-        with patch(
-            "flights_cli.execution.offer_query_runner.provider_adapter",
-            return_value=adapter,
-            create=True,
+        # Два независимых шва: агрегатный путь резолвит адаптер у себя, шлюзовое
+        # плечо — через реестр. Патчить надо оба, иначе тест уходит в живую сеть.
+        with (
+            patch(
+                "flights_cli.execution.offer_query_runner.provider_adapter",
+                return_value=adapter,
+            ),
+            patch(
+                "flights_cli.adapters.providers.registry.provider_adapter",
+                return_value=adapter,
+            ),
         ):
             result = SearchWorkflow(Store()).run_artifacts(args).projection_input
 

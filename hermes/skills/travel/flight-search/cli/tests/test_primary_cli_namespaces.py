@@ -4,6 +4,7 @@ import argparse
 import contextlib
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -43,6 +44,10 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
     def test_catalog_dependent_commands_auto_refresh_when_needed_and_refresh_is_explicit(
         self,
     ) -> None:
+        # Прогон офлайновый: conftest выключает обновление каталога через
+        # окружение. Здесь проверяется как раз политика по умолчанию, поэтому
+        # переменную нужно вернуть в "auto" явно.
+        self.enterContext(patch.dict(os.environ, {"FLIGHTS_CATALOG_REFRESH": "auto"}))
         parser = build_parser()
         leaves = parser_leaf_defaults(parser)
         self.assertEqual(set(CATALOG_AUTO_REFRESH_COMMANDS), set(CATALOG_READ_COMMANDS))
