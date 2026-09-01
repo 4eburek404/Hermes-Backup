@@ -6,6 +6,7 @@ import re
 from typing import Any
 
 from ..config import TUTU_MCP_DEFAULT_URL
+from ..domain.carriers import canonical_flight_number
 from ..domain.connection_policy import (
     airport_mismatch_violations,
     chronology_violations,
@@ -284,7 +285,7 @@ def normalize_tutu_segment(
 
     carrier_name = str(segment.get("carrier") or "")
     carrier_code = resolve_carrier_code(carrier_name, name_index=carrier_name_index)
-    voyage_no = str(segment.get("voyage_no") or "").strip()
+    voyage_no = canonical_flight_number(segment.get("voyage_no"))
     flight_number = voyage_no or None
     if (
         carrier_code

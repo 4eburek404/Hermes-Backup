@@ -5,7 +5,13 @@ from typing import Any
 from ..domain.immutable import thaw
 from ..pipeline.search_decision import SearchDecision, SearchEvidenceView
 from ..pipeline.search_plan import SearchPlan
-from .catalog_rendering import PROVIDER_SHOPPING_EVIDENCE_NOTE
+
+
+# Пояснение к трассе, а не текст для путешественника: рендер сюда не нужен.
+PROVIDER_SHOPPING_EVIDENCE_NOTE = (
+    "Выдача поставщика — свидетельство о наличии, а не о цене: финальный тариф, "
+    "багаж и защиту билета проверять на странице оплаты."
+)
 
 
 def _decision_options(decision_frontier: dict[str, Any]) -> list[dict[str, Any]]:

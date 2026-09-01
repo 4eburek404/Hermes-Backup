@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..config import DEFAULT_CURRENCY
-from ..domain.carriers import carrier_from_flight_number
+from ..domain.carriers import canonical_flight_number, carrier_from_flight_number
 from ..domain.normalize import price_value
 from ..domain.stop_policy import connection_count_for_segments
 
@@ -13,7 +13,7 @@ def normalize_segment_flight(flight: dict[str, Any]) -> dict[str, Any] | None:
     destination = str(flight.get("destination") or "").upper()
     if not origin or not destination:
         return None
-    flight_number = str(flight.get("flight_number") or "")
+    flight_number = canonical_flight_number(flight.get("flight_number")) or ""
     operating = str(flight.get("operating_carrier") or "").upper()
     marketing = str(flight.get("marketing_carrier") or "").upper()
     carrier = operating or marketing or carrier_from_flight_number(flight_number)

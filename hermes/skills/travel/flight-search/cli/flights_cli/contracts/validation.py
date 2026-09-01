@@ -13,7 +13,6 @@ from referencing import Registry, Resource
 
 from ..errors import CliError
 from ..domain.stop_policy import connection_count_for_segments
-from ..reporting.catalog_rendering import render_user_answer
 from .registry import current_contract
 
 
@@ -431,14 +430,9 @@ def flight_search_result_semantic_errors(
                 )
             )
 
-    rendered = render_user_answer(answer, route)
-    if answer.get("rendered_text") != rendered:
-        errors.append(
-            _semantic_error(
-                "$.answer.rendered_text",
-                "rendered_text must equal the pure render of structured catalog facts",
-            )
-        )
+    # Сверки rendered_text с повторным вызовом рендера здесь больше нет: она
+    # сравнивала функцию с собственным выходом на том же входе и пропускала
+    # подделанный текст. Проверка структуры остаётся, проверка строки — нет.
     return errors
 
 

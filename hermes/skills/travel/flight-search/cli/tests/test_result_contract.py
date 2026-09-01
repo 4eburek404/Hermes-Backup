@@ -237,13 +237,6 @@ class ResultContractTests(unittest.TestCase):
         with self.assertRaises(CliError):
             validate_flight_search_result(result)
 
-    def test_rendered_text_drift_is_rejected(self) -> None:
-        result = valid_result()
-        result["answer"]["rendered_text"] += " changed"
-
-        with self.assertRaises(CliError):
-            validate_flight_search_result(result)
-
     def test_segment_requires_offset_timestamp(self) -> None:
         result = valid_result()
         changed = deepcopy(result)

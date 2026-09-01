@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .catalog_rendering import FRONTIER_TICKETING_NOTE, minutes_label, price_label
+from .catalog_rendering import minutes_label, price_label
 
 
 def segment_summary(
@@ -164,7 +164,6 @@ def option_from_decision_frontier_item(item: dict[str, Any]) -> dict[str, Any]:
             if isinstance(connection, dict)
         ],
         "segments": segments,
-        "ticketing_note": FRONTIER_TICKETING_NOTE,
     }
     for key in (
         "source_type",

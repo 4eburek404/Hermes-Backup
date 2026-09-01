@@ -118,7 +118,7 @@ class ConnectingInventoryStub(TutuStub):
                                 segment(
                                     "NTE",
                                     "AMS",
-                                    "KL1424",
+                                    "KL-1424",  # провайдер пишет с дефисом
                                     f"{depart}T06:05:00+02:00",
                                     f"{depart}T07:45:00+02:00",
                                     100,
@@ -219,6 +219,24 @@ class AnswerComposition(unittest.TestCase):
         self.assertEqual(
             [s["flight_number"] for s in segments], ["KL1424", "KL1395"]
         )
+
+    def test_flight_numbers_have_one_spelling(self) -> None:
+        """Дефис от провайдера не доезжает до ответа.
+
+        Tutu пишет SU-1400, Kupibilet SU1400, и один рейс приезжал в двух
+        написаниях. Канон совпадает с формой, которую ждёт схема .v1.
+        """
+
+        numbers = [
+            segment["flight_number"]
+            for option in self.options()
+            for direction in ("outbound", "return")
+            for segment in (self.leg(option, direction).get("segments") or [])
+        ]
+        self.assertTrue(numbers)
+        for number in numbers:
+            with self.subTest(flight_number=number):
+                self.assertRegex(number, r"^[A-Z0-9]{2}[0-9]{1,4}$")
 
     def test_every_connection_is_measured_and_graded(self) -> None:
         """Стыковка обязана быть посчитана, а не подменена дефолтом.
@@ -408,14 +426,11 @@ class StructuralFacts(unittest.TestCase):
         renderer = "flights_cli.reporting.catalog_rendering"
         assembler = "flights_cli.reporting.user_answer"
         known_debt = {
-            # C3: текстовые функции уезжают из проекции каталога
+            # C5: display-зеркала обязательны по схеме, пока она не станет .v1
             "flights_cli.reporting.catalog_projection",
-            # C4: оба модуля уходят вместе с диагностикой и фронтиром
-            "flights_cli.reporting.diagnostic_projection",
+            # C4: уходит вместе с фронтиром
             "flights_cli.reporting.frontier_projection",
-            # C3: сверка рендера с самим собой — под нож
-            "flights_cli.contracts.validation",
-            # C3: source_boundaries переезжает в сборку ответа
+            # C3/C5: source_boundaries переезжает в сборку ответа
             "flights_cli.pipeline.result_builder",
         }
 

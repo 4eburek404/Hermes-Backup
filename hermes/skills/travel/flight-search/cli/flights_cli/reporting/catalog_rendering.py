@@ -16,14 +16,20 @@ from .time_utils import integer_or_none as int_or_none
 _SELF_TRANSFER_CAVEAT = (
     "Отдельные билеты: при задержке первого рейса следующий сегмент не защищён."
 )
-FRONTIER_TICKETING_NOTE = (
-    "Verify final fare, baggage, ticket protection, and purchase-screen rules "
-    "before booking."
-)
-PROVIDER_SHOPPING_EVIDENCE_NOTE = (
-    "Provider offers are shopping evidence; verify final fare, baggage, and "
-    "ticket protection on the booking screen."
-)
+
+# Предупреждения живут кодами, а текст к ним — только здесь. Дедупликация идёт
+# по коду, поэтому один и тот же смысл больше не может приехать дважды разными
+# словами. В .v1 сериализоваться будут сами коды, а не эти строки.
+CAVEAT_TEXTS: dict[str, str] = {
+    "single_pnr_unproven": (
+        "Единый PNR, сквозной багаж и защита пересадки не подтверждены."
+    ),
+    "baggage_unknown": "Багаж не подтверждён до проверки тарифа.",
+    "self_transfer": _SELF_TRANSFER_CAVEAT,
+    "verify_on_booking_screen": (
+        "Финальный тариф, багаж и правила обмена проверить на странице оплаты."
+    ),
+}
 
 
 def source_boundaries() -> list[str]:
@@ -38,34 +44,63 @@ def source_boundaries() -> list[str]:
     ]
 
 
+def duration_text(value: Any) -> str:
+    """Единственный формат длительности в продукте: «2 ч 45 мин»."""
+
+    minutes = int_or_none(value)
+    if minutes is None or minutes < 0:
+        return "н/д"
+    hours, mins = divmod(minutes, 60)
+    if hours and mins:
+        return f"{hours} ч {mins} мин"
+    if hours:
+        return f"{hours} ч"
+    return f"{mins} мин"
+
+
 def minutes_label(value: Any) -> str | None:
     if value is None:
         return None
-    try:
-        minutes = int(value)
-    except (TypeError, ValueError):
+    if int_or_none(value) is None:
         return None
-    hours, mins = divmod(max(0, minutes), 60)
-    if hours and mins:
-        return f"{hours}h{mins:02d}"
-    if hours:
-        return f"{hours}h"
-    return f"{mins}m"
+    return duration_text(value)
+
+
+def price_text(amount: Any, currency: Any) -> str:
+    """Единственный формат цены в продукте: «8 043 ₽»."""
+
+    number = numeric_or_none(amount)
+    if number is None:
+        return "цена н/д"
+    rendered = (
+        f"{int(number):,}".replace(",", " ")
+        if float(number).is_integer()
+        else str(number)
+    )
+    code = str(currency or "").upper()
+    if code == "RUB":
+        return f"{rendered} ₽"
+    return f"{rendered} {code}".strip()
 
 
 def price_label(amount: Any, currency: Any) -> str:
-    if amount is None:
-        return "price n/a"
-    try:
-        number = int(amount)
-    except (TypeError, ValueError):
-        return f"{amount} {currency or ''}".strip()
-    return f"{number:,} {currency or ''}".replace(",", " ").strip()
+    return price_text(amount, currency)
 
 
 def provider_label(option: dict[str, Any]) -> str:
-    providers = option_provider_labels(option)
-    return " + ".join(providers) if providers else "поставщика"
+    """Имя источника или пустая строка — заглушку в родительном падеже не даём."""
+
+    return " + ".join(option_provider_labels(option))
+
+
+def _provider_suffix(option: dict[str, Any]) -> str:
+    provider = provider_label(option)
+    return f" ({provider})" if provider else ""
+
+
+def _provider_from(option: dict[str, Any]) -> str:
+    provider = provider_label(option)
+    return f" от {provider}" if provider else ""
 
 
 def source_ticketing_note(
@@ -75,26 +110,28 @@ def source_ticketing_note(
     ticketing_model: str,
     max_connections: int,
 ) -> str:
+    """Откуда взялся вариант и на чём стоит цена.
+
+    Предупреждения об отсутствии единого PNR и о багаже сюда больше не входят:
+    они приезжают кодами и рендерятся один раз, иначе один и тот же смысл
+    повторяется в списке дважды разными словами.
+    """
+
     source_type = option_source_type(option)
     raw_ticketing = str(option.get("ticketing_model") or "").strip()
     price_basis = str(option.get("price_basis") or "").strip()
-    provider = provider_label(option)
     gateway = str(option.get("gateway") or "").strip()
 
     if ticketing_model == "single_ticket_proven":
-        return (
-            f"источник: единый защищённый билет от {provider}; "
-            "финальный тариф и условия багажа проверить на booking screen"
-        )
+        return f"источник: единый защищённый билет{_provider_from(option)}"
 
     if (
         journey_scope == "two_one_way_pair"
         or ticketing_model == "separate_one_way_offers"
     ):
         return (
-            "источник: две отдельные one-way выдачи; "
-            "цена - сумма отдельных one-way; "
-            "единый PNR, сквозной багаж и защищённый round-trip не подтверждены"
+            "источник: две отдельные односторонние выдачи — "
+            "цена равна сумме плеч"
         )
 
     if (
@@ -102,60 +139,39 @@ def source_ticketing_note(
         or raw_ticketing == "separate_ticket_sum"
     ):
         gateway_text = f" через {gateway}" if gateway else ""
-        provider_text = f" ({provider})"
         return (
-            f"источник: separate-ticket сборка{gateway_text}{provider_text}; "
-            "цена - сумма отдельных плеч; "
-            "единый PNR, сквозной багаж и защита пересадки не подтверждены"
+            f"источник: сборка из отдельных билетов{gateway_text}"
+            f"{_provider_suffix(option)} — цена равна сумме плеч"
         )
 
     if source_type == "provider_full_route" or is_provider_aggregate_option(option):
-        price_text = (
+        price_text_part = (
             "цена поставщика"
             if price_basis in ("", "provider_offer_price")
             else "цену проверить у поставщика"
         )
         return (
-            f"источник: полный маршрут от {provider}; {price_text}; "
-            "единый PNR, сквозной багаж и защита пересадки не подтверждены"
+            f"источник: полный маршрут{_provider_from(option)} — {price_text_part}"
         )
 
     if source_type == RouteFamily.DIRECT_INVENTORY or max_connections == 0:
-        return (
-            f"источник: прямой инвентарь ({provider}); "
-            "финальный тариф и багаж проверить на booking screen"
-        )
+        return f"источник: прямой инвентарь{_provider_suffix(option)}"
 
     if (
         source_type == "assembled_separate_ticket"
         or ticketing_model == "separate_segments"
     ):
-        return (
-            f"источник: сборка отдельных live-плеч ({provider}); "
-            "единый PNR, сквозной багаж и защита пересадки не подтверждены"
-        )
+        return f"источник: сборка отдельных живых плеч{_provider_suffix(option)}"
 
-    return (
-        f"источник: {provider}; "
-        "ticketing/protection, багаж и финальный тариф проверить на booking screen"
-    )
+    provider = provider_label(option)
+    return f"источник: {provider}" if provider else "источник не указан"
 
 
 def compact_price_text(option: dict[str, Any]) -> str:
     price = option.get("price") if isinstance(option.get("price"), dict) else {}
-    amount = numeric_or_none(price.get("amount"))
-    currency = str(price.get("currency") or "").upper()
-    if amount is not None:
-        rendered = (
-            f"{int(amount):,}".replace(",", " ")
-            if float(amount).is_integer()
-            else str(amount)
-        )
-        if currency == "RUB":
-            return f"{rendered} ₽"
-        if currency:
-            return f"{rendered} {currency}"
-        return rendered
+    amount = price.get("amount")
+    if numeric_or_none(amount) is not None:
+        return price_text(amount, price.get("currency"))
     raw = str(option.get("price_text") or "").strip()
     return re.sub(r"\bRUB\b", "₽", raw, flags=re.IGNORECASE) if raw else "цена н/д"
 
@@ -165,27 +181,36 @@ def baggage_piece_text(value: Any) -> str | None:
         return None
     parts: list[str] = []
     if value.get("count") is not None:
-        parts.append(f"{value.get('count')}pc")
+        parts.append(f"{value.get('count')} мест")
     if value.get("weight") is not None:
-        parts.append(f"{value.get('weight')}kg")
+        parts.append(f"{value.get('weight')} кг")
     if value.get("text"):
         parts.append(str(value.get("text")))
     return "/".join(parts) if parts else None
 
 
+def catalog_caveat_codes(option: dict[str, Any], *, badges: list[str]) -> list[str]:
+    """Коды предупреждений варианта. Порядок стабильный, дубликатов нет."""
+
+    codes: list[str] = []
+    for badge in ("single_pnr_unproven", "baggage_unknown", "self_transfer"):
+        if badge in badges:
+            codes.append(badge)
+    codes.append("verify_on_booking_screen")
+    return list(dict.fromkeys(codes))
+
+
 def catalog_caveats(option: dict[str, Any], *, badges: list[str]) -> list[str]:
-    caveats: list[str] = []
-    disclaimer = option.get("disclaimer") or option.get("ticketing_note")
-    if disclaimer:
-        caveats.append(str(disclaimer))
-    if "single_pnr_unproven" in badges:
-        caveats.append("single PNR/protection not proven; verify on booking screen")
-    if "baggage_unknown" in badges:
-        caveats.append("baggage unknown until fare/package verification")
-    if "self_transfer" in badges:
-        if option.get("self_transfer_note"):
-            caveats.append(str(option["self_transfer_note"]))
-        caveats.append(_SELF_TRANSFER_CAVEAT)
+    """Тексты предупреждений. Дедупликация идёт по коду, а не по строке."""
+
+    caveats = [
+        CAVEAT_TEXTS[code]
+        for code in catalog_caveat_codes(option, badges=badges)
+        if code in CAVEAT_TEXTS
+    ]
+    note = option.get("self_transfer_note")
+    if note and "self_transfer" in badges:
+        caveats.insert(0, str(note))
     return list(dict.fromkeys(caveats))
 
 
@@ -260,40 +285,20 @@ def _segment_duration_minutes(segment: dict[str, Any]) -> int | None:
 
 
 def segment_duration_clock_display(segment: dict[str, Any]) -> str:
-    value = _segment_duration_minutes(segment)
-    if value is None:
-        return "н/д"
-    return f"{value // 60}:{value % 60:02d}"
+    return duration_text(_segment_duration_minutes(segment))
 
 
 def layover_minutes_display(value: Any) -> str:
-    minutes = int_or_none(value)
-    if minutes is None or minutes < 0:
-        return "н/д"
-    hours, remainder = divmod(minutes, 60)
-    if hours and remainder:
-        return f"{hours}ч {remainder}мин"
-    if hours:
-        return f"{hours}ч"
-    return f"{remainder}мин"
+    return duration_text(value)
 
 
 def catalog_price_for_answer(price: dict[str, Any]) -> str:
-    amount = numeric_or_none(price.get("amount"))
-    currency = str(price.get("currency") or "").upper()
-    if amount is not None:
-        rendered = (
-            f"{int(amount):,}".replace(",", " ")
-            if float(amount).is_integer()
-            else str(amount)
-        )
-        if currency == "RUB":
-            return f"{rendered} рублей"
-        if currency:
-            return f"{rendered} {currency}"
-        return rendered
-    display = str(price.get("display") or "цена н/д")
-    return re.sub(r"\bруб\b", "рублей", display)
+    """Тот же формат, что и в структурном поле: одна цена — одно написание."""
+
+    amount = price.get("amount")
+    if numeric_or_none(amount) is not None:
+        return price_text(amount, price.get("currency"))
+    return str(price.get("display") or "цена н/д")
 
 
 def render_answer_display_segment(
@@ -485,20 +490,22 @@ def render_user_answer(answer: dict[str, Any], route: dict[str, Any]) -> str:
 
 
 __all__ = [
-    "FRONTIER_TICKETING_NOTE",
+    "CAVEAT_TEXTS",
     "answer_display_lines_for_item",
     "answer_endpoint_display_label",
     "baggage_piece_text",
     "catalog_arrival_date_suffix",
+    "catalog_caveat_codes",
     "catalog_caveats",
     "catalog_display_date",
     "catalog_display_time",
     "catalog_price_for_answer",
     "compact_price_text",
+    "duration_text",
     "layover_minutes_display",
     "minutes_label",
     "price_label",
-    "PROVIDER_SHOPPING_EVIDENCE_NOTE",
+    "price_text",
     "render_answer_display_segment",
     "render_catalog_answer",
     "render_user_answer",
