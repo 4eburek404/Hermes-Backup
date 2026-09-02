@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from ..domain.vocabulary import normalize_direction
 from ..domain.stop_policy import (
     resolve_stop_policy,
     stop_policy_payload,
@@ -67,6 +68,7 @@ class SearchDecisionBuilder:
             requested_destination_airports=list(
                 route.get("destination_airports") or []
             ),
+            requested_dates=_requested_dates(plan),
             max_path_offers=stop_policy.hard_max_connections + 1,
         )
         # Присутствие прямых считается по кандидатам и живёт в их конверте.
@@ -133,6 +135,20 @@ class SearchDecisionBuilder:
                 evidence.probe_ledger,
             ),
         )
+
+
+def _requested_dates(plan: SearchPlan) -> dict[str, set[str]]:
+    """Даты, которые действительно спрашивали у провайдера, по направлениям.
+
+    Источник — сам план, а не запрос: при переборе окна дат на одно
+    направление приходится несколько дат, и все они законны.
+    """
+    dates: dict[str, set[str]] = {}
+    for attempt in plan.phases.primary:
+        date = str(attempt.query.get("date") or "")
+        if date:
+            dates.setdefault(normalize_direction(attempt.direction), set()).add(date)
+    return dates
 
 
 def _research_status(

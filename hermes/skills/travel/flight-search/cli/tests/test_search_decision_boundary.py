@@ -17,6 +17,13 @@ from helpers import future_departure_date, live_assembly_args
 def _plan(depart: date) -> SimpleNamespace:
     return SimpleNamespace(
         route=SimpleNamespace(dates={"depart": depart.isoformat(), "return": None}),
+        phases=SimpleNamespace(
+            primary=(
+                SimpleNamespace(
+                    direction="outbound", query={"date": depart.isoformat()}
+                ),
+            )
+        ),
         decision_policy=SimpleNamespace(
             max_connections_per_journey=2,
             preferred_connections=1,

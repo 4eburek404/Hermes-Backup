@@ -1222,6 +1222,109 @@ class OfferGraphTests(unittest.TestCase):
             "direct_only_hard_constraint",
         )
 
+    def test_offer_departing_outside_requested_dates_is_rejected(self) -> None:
+        graph = build_offer_graph(
+            primary_offer_results=[
+                {
+                    "role": "primary_offer_collection",
+                    "source_type": "provider_full_route",
+                    "provider": "kupibilet",
+                    "direction": "outbound",
+                    "origin": "SVX",
+                    "destination": "AMS",
+                    "date": "2026-08-16",
+                    "top_offers": [
+                        {
+                            "id": "kb-right-day",
+                            "price": 42000,
+                            "currency": "RUB",
+                            "segments": [
+                                {
+                                    "origin": "SVX",
+                                    "destination": "AMS",
+                                    "departure_at": "2026-08-16T08:00:00+05:00",
+                                    "arrival_at": "2026-08-16T10:30:00+02:00",
+                                }
+                            ],
+                        },
+                        {
+                            "id": "kb-next-day",
+                            "price": 21000,
+                            "currency": "RUB",
+                            "segments": [
+                                {
+                                    "origin": "SVX",
+                                    "destination": "AMS",
+                                    "departure_at": "2026-08-17T08:00:00+05:00",
+                                    "arrival_at": "2026-08-17T10:30:00+02:00",
+                                }
+                            ],
+                        },
+                    ],
+                }
+            ],
+        )
+
+        envelope = materialize_offer_graph_candidates(
+            graph,
+            requested_origin="SVX",
+            requested_destination="AMS",
+            requested_dates={"outbound": {"2026-08-16"}},
+        )
+
+        # Дешевле — не значит «то, что просили»: вылет на сутки позже
+        # к путешественнику не едет.
+        self.assertEqual(
+            [candidate["id"] for candidate in envelope["candidates"]],
+            ["candidate:primary_offer:kupibilet:kb-right-day"],
+        )
+        self.assertEqual(
+            envelope["rejected"][0]["reason"], "departure_date_outside_request"
+        )
+
+    def test_date_window_keeps_every_probed_day(self) -> None:
+        graph = build_offer_graph(
+            primary_offer_results=[
+                {
+                    "role": "primary_offer_collection",
+                    "source_type": "provider_full_route",
+                    "provider": "kupibilet",
+                    "direction": "outbound",
+                    "origin": "SVX",
+                    "destination": "AMS",
+                    "date": date_iso,
+                    "top_offers": [
+                        {
+                            "id": f"kb-{date_iso}",
+                            "price": 42000,
+                            "currency": "RUB",
+                            "segments": [
+                                {
+                                    "origin": "SVX",
+                                    "destination": "AMS",
+                                    "departure_at": f"{date_iso}T08:00:00+05:00",
+                                    "arrival_at": f"{date_iso}T10:30:00+02:00",
+                                }
+                            ],
+                        }
+                    ],
+                }
+                for date_iso in ("2026-08-16", "2026-08-17", "2026-08-18")
+            ],
+        )
+
+        envelope = materialize_offer_graph_candidates(
+            graph,
+            requested_origin="SVX",
+            requested_destination="AMS",
+            requested_dates={
+                "outbound": {"2026-08-16", "2026-08-17", "2026-08-18"}
+            },
+        )
+
+        self.assertEqual(envelope["coverage"]["candidate_count"], 3)
+        self.assertEqual(envelope["rejected"], [])
+
     def test_direct_mode_gate_rejects_connected_primary_path_at_materialize(
         self,
     ) -> None:

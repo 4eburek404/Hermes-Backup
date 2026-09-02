@@ -61,6 +61,7 @@ def materialize_offer_graph_candidates(
     requested_destination: str | None = None,
     requested_origin_airports: list[str] | None = None,
     requested_destination_airports: list[str] | None = None,
+    requested_dates: Mapping[str, Any] | None = None,
     max_path_offers: int = 3,
 ) -> dict[str, Any]:
     """Project graph evidence into a unified, unranked candidate envelope."""
@@ -72,6 +73,10 @@ def materialize_offer_graph_candidates(
     edges_by_id = {str(edge.get("id") or ""): edge for edge in edges}
     candidates: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
+    allowed_dates = {
+        _direction_of(direction): {str(date) for date in dates or () if date}
+        for direction, dates in (requested_dates or {}).items()
+    }
 
     for offer in offers:
         source_type = str(offer.get("source_type") or "")
@@ -90,6 +95,7 @@ def materialize_offer_graph_candidates(
             candidates,
             rejected,
             direct_only=direct_only,
+            allowed_dates=allowed_dates,
         )
 
     for candidate in _candidates_from_gateway_offer_paths(
@@ -107,6 +113,7 @@ def materialize_offer_graph_candidates(
             candidates,
             rejected,
             direct_only=direct_only,
+            allowed_dates=allowed_dates,
         )
 
     if round_trip:
@@ -125,6 +132,7 @@ def materialize_offer_graph_candidates(
                 candidates,
                 rejected,
                 direct_only=direct_only,
+                allowed_dates=allowed_dates,
             )
 
     candidates, direct_mode = _hide_connections_where_direct_exists(
@@ -460,12 +468,39 @@ def _candidate_from_offer_path(
     }
 
 
+def _departure_date_outside_request(
+    candidate: dict[str, Any], allowed_dates: dict[str, set[str]]
+) -> bool:
+    """Вылет не в тот день, который спрашивали у провайдера."""
+    journeys = candidate.get("journeys")
+    if not isinstance(journeys, list):
+        return False
+    for journey in journeys:
+        if not isinstance(journey, Mapping):
+            continue
+        allowed = allowed_dates.get(_direction_of(journey.get("direction")))
+        if not allowed:
+            continue
+        segments = [
+            segment
+            for segment in journey.get("segments") or []
+            if isinstance(segment, Mapping)
+        ]
+        if not segments:
+            continue
+        departure_date = str(segments[0].get("departure_at") or "")[:10]
+        if departure_date and departure_date not in allowed:
+            return True
+    return False
+
+
 def _accept_or_reject_candidate(
     candidate: dict[str, Any],
     candidates: list[dict[str, Any]],
     rejected: list[dict[str, Any]],
     *,
     direct_only: bool,
+    allowed_dates: dict[str, set[str]] | None = None,
 ) -> None:
     if direct_only and not _candidate_is_direct(candidate):
         rejected.append(
@@ -473,6 +508,15 @@ def _accept_or_reject_candidate(
                 "candidate_id": candidate.get("id"),
                 "source_type": candidate.get("source_type"),
                 "reason": "direct_only_hard_constraint",
+            }
+        )
+        return
+    if allowed_dates and _departure_date_outside_request(candidate, allowed_dates):
+        rejected.append(
+            {
+                "candidate_id": candidate.get("id"),
+                "source_type": candidate.get("source_type"),
+                "reason": "departure_date_outside_request",
             }
         )
         return
