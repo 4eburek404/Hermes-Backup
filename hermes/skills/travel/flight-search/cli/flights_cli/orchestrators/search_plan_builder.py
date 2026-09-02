@@ -275,14 +275,7 @@ class SearchPlanBuilder:
                 max_options_per_first_carrier=DEFAULT_FIRST_CARRIER_MAX_OPTIONS,
                 max_round_trip_pairs=DEFAULT_MAX_ROUND_TRIP_PAIRS,
             ),
-            planning_reasons=tuple(
-                dict.fromkeys(
-                    [
-                        *flow.flow_decision.route_access_reasons,
-                        *flow.flow_decision.limitations,
-                    ]
-                )
-            ),
+            planning_reasons=tuple(dict.fromkeys(flow.flow_decision.limitations)),
         )
 
     def _attempts(
@@ -307,12 +300,6 @@ class SearchPlanBuilder:
                 )
             )
         return tuple(attempts)
-
-    def _fallback_market_key(self, route: RoutePlan) -> str:
-        for family in route.route_families:
-            if family.get("id"):
-                return str(family.get("id") or "")
-        return ""
 
     def _provider_names_for_primary_offers(
         self, flow: _PlanningState, query: dict[str, Any]

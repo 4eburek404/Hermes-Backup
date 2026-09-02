@@ -20,17 +20,9 @@ class Location:
 
 
 class Store:
-    def __init__(
-        self,
-        cache_dir: Path | None = None,
-        *,
-        route_access_profiles_path: Path | None = None,
-    ):
+    def __init__(self, cache_dir: Path | None = None):
         self.cache_dir = cache_dir or resolve_cache_dir()
         self.catalog_storage = CatalogStorage(self.cache_dir)
-        # Пути к шлюзовым конфигам: сами каталоги грузят потребители из
-        # хабового слоя, чтобы Store не зависел от того, что уходит под нож.
-        self.route_access_profiles_path = route_access_profiles_path
         self._countries: list[dict[str, Any]] | None = None
         self._cities: list[dict[str, Any]] | None = None
         self._airports: list[dict[str, Any]] | None = None

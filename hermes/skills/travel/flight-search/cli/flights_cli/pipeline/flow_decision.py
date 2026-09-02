@@ -4,10 +4,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..domain.vocabulary import MarketClass, RoutingStrategy, RouteFamily
-from ..domain.route_access_profiles import (
-    RouteAccessDecision,
-    load_route_access_profiles,
-)
 from .search_request import SearchRequest
 from .search_request import is_direct_only
 
@@ -19,11 +15,6 @@ class FlowDecision:
     market_class: str
     route_mode: str
     routing_strategy: str
-    route_access_profile: str
-    gateway_discovery_mode: str
-    route_access_reasons: tuple[str, ...] = ()
-    route_access_rule_id: str | None = None
-    route_access_prior_set: str | None = None
     limitations: tuple[str, ...] = ()
 
 
@@ -70,24 +61,6 @@ def _market_class_from_country_codes(
     if origin_country and destination_country:
         return MarketClass.GLOBAL_NON_RU
     return MarketClass.STRUCTURALLY_CONSTRAINED
-
-
-def route_access_decision_for_codes(
-    store: Any,
-    origin: str,
-    destination: str,
-    market_class: str,
-) -> RouteAccessDecision:
-    origin_country = _location_country(store, origin)
-    destination_country = _location_country(store, destination)
-    catalog = load_route_access_profiles(
-        getattr(store, "route_access_profiles_path", None)
-    )
-    return catalog.decision_for_route(
-        market_class=market_class,
-        origin_country=origin_country,
-        destination_country=destination_country,
-    )
 
 
 def routing_strategy_for_market(request: SearchRequest, market_class: str) -> str:
@@ -151,19 +124,11 @@ def decide_flow(request: SearchRequest, store: Any | None = None) -> FlowDecisio
         store = Store()
     direct_only = is_direct_only(request)
     market_class = market_class_for_codes(store, request.origin, request.destination)
-    route_access = route_access_decision_for_codes(
-        store, request.origin, request.destination, market_class
-    )
     routing_strategy = routing_strategy_for_market(request, market_class)
     route_mode = _route_mode(direct_only, market_class, routing_strategy)
     return FlowDecision(
         market_class=market_class,
         route_mode=route_mode,
         routing_strategy=routing_strategy,
-        route_access_profile=route_access.route_access_profile,
-        gateway_discovery_mode=route_access.gateway_discovery_mode,
-        route_access_reasons=route_access.route_access_reasons,
-        route_access_rule_id=route_access.matched_rule_id,
-        route_access_prior_set=route_access.prior_set,
         limitations=_limitations(request, direct_only, market_class, routing_strategy),
     )
