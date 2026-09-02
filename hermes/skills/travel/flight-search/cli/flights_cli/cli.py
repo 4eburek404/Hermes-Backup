@@ -72,7 +72,25 @@ def _register_primary_search_commands(
     search.add_argument(
         "--request",
         required=True,
-        help="flight_search_request.v4 JSON file, or - for stdin.",
+        help="flight_search_request.v1 JSON file, or - for stdin.",
+    )
+    # Бюджеты прогона. В запросе их нет: запрос описывает желание, а не то,
+    # сколько на него потратить.
+    search.add_argument("--timeout", type=int, help="Provider request timeout, seconds.")
+    search.add_argument(
+        "--max-searches", type=int, help="Maximum provider attempts for one search."
+    )
+    search.add_argument(
+        "--segment-limit", type=int, help="Maximum offers pulled from one probe."
+    )
+    search.add_argument(
+        "--live-cache-ttl", type=int, help="Live provider cache TTL, seconds."
+    )
+    search.add_argument(
+        "--no-live-cache", action="store_true", help="Bypass the live provider cache."
+    )
+    search.add_argument(
+        "--fail-fast", action="store_true", help="Stop on the first provider failure."
     )
     _set_leaf_defaults(search, SEARCH_COMMAND, command_search)
 

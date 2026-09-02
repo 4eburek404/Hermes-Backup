@@ -55,6 +55,18 @@ DEFAULT_GATEWAY_PROBE_MAX_BATCHES = 1
 
 DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS = 30 * 60
 
+# Бюджеты прогона. В публичном запросе их нет — их ставят ключи CLI.
+DEFAULT_MAX_SEGMENT_SEARCHES = 300
+
+DEFAULT_SEGMENT_LIMIT = 30
+
+DEFAULT_TIMEOUT_SECONDS = 60
+
+DEFAULT_FAIL_FAST = False
+
+# Ширина аэропортового охвата, когда вызывающий не назвал аэропорты сам.
+DEFAULT_MAX_AIRPORTS_PER_CITY = 6
+
 
 @dataclass(frozen=True, slots=True)
 class CatalogOutputLimits:

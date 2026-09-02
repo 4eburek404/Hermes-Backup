@@ -28,13 +28,12 @@ from test_result_contract import valid_result
 
 def minimal_search_request(depart: date) -> dict[str, object]:
     return {
-        "schema_version": "flight_search_request.v3",
+        "schema_version": "flight_search_request.v1",
         "origin": "SVX",
         "destination": "LON",
         "depart_date": depart.isoformat(),
         "return_date": (depart + timedelta(days=5)).isoformat(),
         "currency": "RUB",
-        "profile": "business",
         "provider_policy": "auto",
     }
 
@@ -101,7 +100,7 @@ class PrimaryCliNamespaceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             request_path = Path(tmp_dir) / "invalid-request.json"
             request_path.write_text(
-                json.dumps({"schema_version": "flight_search_request.v3"}),
+                json.dumps({"schema_version": "flight_search_request.v1"}),
                 encoding="utf-8",
             )
             proc = subprocess.run(

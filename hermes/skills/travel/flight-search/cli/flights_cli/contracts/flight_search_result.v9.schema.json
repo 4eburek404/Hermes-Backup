@@ -17,7 +17,7 @@
       "const": "flight_search_result.v9"
     },
     "request": {
-      "$ref": "flight_search_request.v3.schema.json"
+      "$ref": "flight_search_request.v1.schema.json"
     },
     "route": {
       "$ref": "#/$defs/route"

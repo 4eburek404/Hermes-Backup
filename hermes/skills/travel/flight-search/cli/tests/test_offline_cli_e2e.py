@@ -30,20 +30,13 @@ class OfflineCliE2ETests(unittest.TestCase):
             request_path.write_text(
                 json.dumps(
                     {
-                        "schema_version": "flight_search_request.v3",
+                        "schema_version": "flight_search_request.v1",
                         "origin": "NTE",
                         "destination": "SVX",
                         "depart_date": depart.isoformat(),
                         "return_date": None,
                         "currency": "RUB",
-                        "profile": "business",
                         "provider_policy": "tutu",
-                        "evidence": {
-                            "max_segment_searches": 20,
-                            "no_live_cache": True,
-                            "live_cache_ttl_seconds": 0,
-                            "timeout": 10,
-                        },
                     }
                 ),
                 encoding="utf-8",
@@ -63,6 +56,12 @@ class OfflineCliE2ETests(unittest.TestCase):
                 "search",
                 "--request",
                 str(request_path),
+                # Бюджеты прогона — ключи, а не поля запроса.
+                "--max-searches",
+                "20",
+                "--timeout",
+                "10",
+                "--no-live-cache",
             ]
             text_proc = subprocess.run(
                 base,

@@ -10,14 +10,22 @@ from ..adapters.providers.registry import (
 )
 from ..config import (
     DEFAULT_FIRST_CARRIER_MAX_OPTIONS,
+    DEFAULT_GATEWAY_DISCOVERY_LIMIT,
     DEFAULT_GATEWAY_MAX_ALTERNATIVES,
+    DEFAULT_GATEWAY_PROBE_BATCH_SIZE,
+    DEFAULT_GATEWAY_PROBE_MAX_BATCHES,
+    DEFAULT_MAX_AIRPORTS_PER_CITY,
     DEFAULT_MAX_ROUND_TRIP_PAIRS,
     DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS,
+    DEFAULT_PROFILE,
+    DEFAULT_ROUTING_STRATEGY,
     MAX_DATE_WINDOW_DAYS,
 )
 from ..domain.airports import airport_scope_summary, explicit_or_resolved_airports
 from ..domain.connection_policy import (
     DEFAULT_MAX_LAYOVER_MIN,
+    DEFAULT_MIN_CROSS_AIRPORT_CONNECTION_MIN,
+    DEFAULT_MIN_SAME_AIRPORT_CONNECTION_MIN,
     DEFAULT_PREFERRED_LAYOVER_MAX_MIN,
 )
 from ..domain.normalize import parse_iso_date
@@ -140,9 +148,9 @@ def build_route_plan(
         destination=flow.request.destination,
         dates=dates,
         currency=flow.request.currency,
-        profile=flow.request.profile,
+        profile=DEFAULT_PROFILE,
         provider_policy=flow.request.provider_policy,
-        routing_strategy=flow.request.routing_strategy,
+        routing_strategy=DEFAULT_ROUTING_STRATEGY,
         origin_airports=tuple(origin_airports),
         destination_airports=tuple(destination_airports),
         airport_scope=airport_scope,
@@ -179,13 +187,13 @@ def _resolved_airport_scope(
         origin_location,
         list(options.route.origin_airports),
         role="origin",
-        max_airports=options.route.max_airports_per_city,
+        max_airports=DEFAULT_MAX_AIRPORTS_PER_CITY,
     )
     destination_airports = explicit_or_resolved_airports(
         destination_location,
         list(options.route.destination_airports),
         role="destination",
-        max_airports=options.route.max_airports_per_city,
+        max_airports=DEFAULT_MAX_AIRPORTS_PER_CITY,
     )
     return (
         origin_airports,
@@ -221,8 +229,8 @@ class SearchPlanBuilder:
         primary_offer_queries = self._primary_offer_queries(flow, route)
         live_cache_enabled, live_cache_ttl_seconds = _live_cache_settings(flow)
         stop_policy = resolve_stop_policy(
-            max_connections=self._options.route.max_connections,
-            tier2_max_connections=self._options.route.tier2_max_connections,
+            max_connections=self._options.route.preferred_connections,
+            tier2_max_connections=self._options.route.max_connections,
         )
         return SearchPlan(
             route=route,
@@ -234,24 +242,24 @@ class SearchPlanBuilder:
             gateway_policy=GatewayPolicy(),
             execution_policy=ExecutionPolicy(
                 max_provider_attempts=flow.request.max_segment_searches,
-                segment_limit=self._options.evidence.segment_limit,
+                segment_limit=self._options.execution.segment_limit,
                 live_cache_ttl_seconds=live_cache_ttl_seconds,
                 live_cache_enabled=live_cache_enabled,
-                timeout=self._options.evidence.timeout,
-                fail_fast=self._options.evidence.fail_fast,
-                gateway_discovery_limit=self._options.route.gateway_discovery_limit,
-                gateway_probe_batch_size=self._options.route.gateway_probe_batch_size,
-                gateway_probe_max_batches=self._options.route.gateway_probe_max_batches,
+                timeout=self._options.execution.timeout,
+                fail_fast=self._options.execution.fail_fast,
+                gateway_discovery_limit=DEFAULT_GATEWAY_DISCOVERY_LIMIT,
+                gateway_probe_batch_size=DEFAULT_GATEWAY_PROBE_BATCH_SIZE,
+                gateway_probe_max_batches=DEFAULT_GATEWAY_PROBE_MAX_BATCHES,
                 only_carriers=self._options.effective_only_carriers(),
             ),
             decision_policy=DecisionPolicy(
                 max_connections_per_journey=stop_policy.hard_max_connections,
                 preferred_connections=stop_policy.preferred_max_connections,
                 min_same_airport_connection_min=(
-                    self._options.route.min_same_airport_min
+                    DEFAULT_MIN_SAME_AIRPORT_CONNECTION_MIN
                 ),
                 min_cross_airport_connection_min=(
-                    self._options.route.min_cross_airport_min
+                    DEFAULT_MIN_CROSS_AIRPORT_CONNECTION_MIN
                 ),
                 max_layover_min=DEFAULT_MAX_LAYOVER_MIN,
                 preferred_layover_max_min=DEFAULT_PREFERRED_LAYOVER_MAX_MIN,

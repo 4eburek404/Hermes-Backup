@@ -45,6 +45,9 @@ def resolve_stop_policy(
         if max_connections is not None
         else BUSINESS_DEFAULT_STOP_POLICY.hard_max_connections
     )
+    # Предпочтение не может быть шире допустимого: если вызывающий назвал
+    # только жёсткий потолок, умолчание предпочтения подтягивается к нему.
+    preferred = min(preferred, hard)
     return StopPolicy(
         name=name,
         preferred_max_connections=preferred,

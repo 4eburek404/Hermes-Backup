@@ -63,7 +63,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         depart = future_departure_date()
         request = search_request_from_payload(
             {
-                "schema_version": "flight_search_request.v3",
+                "schema_version": "flight_search_request.v1",
                 "origin": "SVX",
                 "destination": "CDG",
                 "depart_date": depart.isoformat(),
@@ -287,8 +287,8 @@ class ProviderCapabilitiesTests(unittest.TestCase):
                 depart_date=depart.isoformat(),
                 return_date=None,
                 provider_policy=provider.name,
+                preferred_connections=0,
                 max_connections=0,
-                tier2_max_connections=0,
                 no_live_cache=True,
             )
             plan = SearchPlanBuilder(store).build(request)
@@ -335,8 +335,8 @@ class ProviderCapabilitiesTests(unittest.TestCase):
                     depart_date=depart.isoformat(),
                     return_date=None,
                     provider_policy="auto",
+                    preferred_connections=0,
                     max_connections=0,
-                    tier2_max_connections=0,
                     no_live_cache=True,
                 )
             )

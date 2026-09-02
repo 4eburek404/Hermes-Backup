@@ -12,8 +12,8 @@ _CURRENT_CONTRACTS: dict[str, dict[str, str]] = {
         "status": "current_canonical_answer",
     },
     "search_request": {
-        "schema_version": "flight_search_request.v4",
-        "schema_resource": "flight_search_request.v4.schema.json",
+        "schema_version": "flight_search_request.v1",
+        "schema_resource": "flight_search_request.v1.schema.json",
         "status": "current_public_input",
     },
     "search_result": {
@@ -39,7 +39,6 @@ _CURRENT_CONTRACTS: dict[str, dict[str, str]] = {
 CURRENT_CONTRACTS = MappingProxyType(_CURRENT_CONTRACTS)
 LEGACY_SCHEMA_RESOURCES = frozenset(
     {
-        "flight_search_request.v3.schema.json",
         "flight_search_plan.v5.schema.json",
         "flight_search_result.v9.schema.json",
     }

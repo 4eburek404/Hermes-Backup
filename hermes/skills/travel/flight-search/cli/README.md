@@ -90,12 +90,11 @@ Primary agent command:
 ```bash
 cat > /tmp/flight-search-request.json <<'JSON'
 {
-  "schema_version": "flight_search_request.v3",
+  "schema_version": "flight_search_request.v1",
   "origin": "ORIGIN",
   "destination": "DEST",
   "depart_date": "YYYY-MM-DD",
   "currency": "RUB",
-  "profile": "business",
   "provider_policy": "auto"
 }
 JSON
@@ -120,12 +119,17 @@ need internal artifacts, read `data.plan` and `data.evidence` from the same
 Common request fields:
 
 - `return_date: "YYYY-MM-DD"`
-- `profile: "business"` is the only production search profile; omit it to use the default
 - `provider_policy: "auto"` or one registry-validated provider name (currently
   `tutu` and `kupibilet`)
-- `route_options.date_window_end: "YYYY-MM-DD"` for bounded one-way direct-only inventory; request-only, no CLI flag
-- `filters.only_carriers: ["CODE"]`
-- `evidence.no_live_cache: true` for a fresh live probe when appropriate
+- `date_window_end: "YYYY-MM-DD"` for bounded one-way direct-only inventory
+- `only_carriers: ["CODE"]`
+- `max_connections: 0` for direct only; `preferred_connections` is the softer ceiling
+- `origin_airports` / `destination_airports` to pin exact airports
+- `limit: N` for how many options to return
+
+Execution budgets are not request fields. They are CLI flags on `search`:
+`--timeout`, `--max-searches`, `--segment-limit`, `--live-cache-ttl`,
+`--no-live-cache`, `--fail-fast`.
 
 ## Ranking Profile
 

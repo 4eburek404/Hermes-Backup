@@ -1,6 +1,6 @@
 ---
 name: flight-search
-version: 0.13.0
+version: 0.14.0
 description: Use when finding, comparing, assembling, or diagnosing live flight options with the bundled flights CLI, including direct, round-trip, open-jaw leg, and RU-gateway searches; assumes one adult in economy and never books tickets.
 metadata:
   hermes:
@@ -25,7 +25,7 @@ otherwise use `python3`.
 
 ## Golden Path
 
-Write a `flight_search_request.v4` JSON file. Resolve `cli/` from `<skill-root>`
+Write a `flight_search_request.v1` JSON file. Resolve `cli/` from `<skill-root>`
 and use it as the command's working directory, then run:
 
 ```bash
@@ -54,17 +54,18 @@ This is presentation-only: preserve every source value and warning, and never ch
 Minimal request:
 
 ```json
-{"schema_version":"flight_search_request.v4","origin":"ORIGIN","destination":"DEST","depart_date":"YYYY-MM-DD","profile":"business","route_hypotheses":[]}
+{"schema_version":"flight_search_request.v1","origin":"ORIGIN","destination":"DEST","depart_date":"YYYY-MM-DD"}
 ```
 
 Common options:
 
-- Direct only: `"route_options":{"max_connections":0,"tier2_max_connections":0}`
-- Date window: add `"date_window_end":"YYYY-MM-DD"` inside `route_options`; omit `return_date`.
+- Direct only: `"max_connections":0`
+- Date window: `"date_window_end":"YYYY-MM-DD"`; omit `return_date`.
 - Return trip: `"return_date":"YYYY-MM-DD"`
-- Carrier filter: `"filters":{"only_carriers":["KL"]}`
+- Carrier filter: `"only_carriers":["KL"]`
 - Provider override only when needed: `"provider_policy":"tutu"` or `"kupibilet"`
-- Route hypothesis: `"route_hypotheses":[{"airports":["ORIGIN","HUB","DEST"],"source":"web_route_discovery"}]`; it has 3–5 exact IATA airports, no cycle, and is provider-validated leg by leg.
+- Exact airports: `"origin_airports":["SVO"]`, `"destination_airports":["CDG"]`
+- Option count: `"limit":5`
 
 Request shaping:
 

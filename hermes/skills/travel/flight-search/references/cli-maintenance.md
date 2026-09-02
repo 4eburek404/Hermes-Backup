@@ -20,7 +20,7 @@ source/runtime parity before making runtime claims.
 
 ## Public boundaries
 
-- Input: `flight_search_request.v4` (v3 normalizes at the input boundary).
+- Input: `flight_search_request.v1` (единственная принимаемая версия входа).
 - Output: `flight_search_result.v10`.
 - Canonical text: `data.answer.rendered_text`.
 - Diagnostic trace: `flight_route_trace_diagnostic.v5`.

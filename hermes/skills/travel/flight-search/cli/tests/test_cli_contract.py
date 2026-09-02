@@ -22,11 +22,24 @@ from helpers import PROJECT, TEST_ENV, future_departure_date, parser_leaf_defaul
 
 
 HELP_GOLDENS = {
-    ("search",): """usage: flights search [-h] --request REQUEST
+    ("search",): """usage: flights search [-h] --request REQUEST [--timeout TIMEOUT]
+                      [--max-searches MAX_SEARCHES]
+                      [--segment-limit SEGMENT_LIMIT]
+                      [--live-cache-ttl LIVE_CACHE_TTL] [--no-live-cache]
+                      [--fail-fast]
 
 options:
-  -h, --help         show this help message and exit
-  --request REQUEST  flight_search_request.v4 JSON file, or - for stdin.
+  -h, --help            show this help message and exit
+  --request REQUEST     flight_search_request.v1 JSON file, or - for stdin.
+  --timeout TIMEOUT     Provider request timeout, seconds.
+  --max-searches MAX_SEARCHES
+                        Maximum provider attempts for one search.
+  --segment-limit SEGMENT_LIMIT
+                        Maximum offers pulled from one probe.
+  --live-cache-ttl LIVE_CACHE_TTL
+                        Live provider cache TTL, seconds.
+  --no-live-cache       Bypass the live provider cache.
+  --fail-fast           Stop on the first provider failure.
 """,
     (
         "maint",
@@ -86,21 +99,19 @@ options:
 
 def live_search_args(**overrides: object) -> argparse.Namespace:
     request = {
-        "schema_version": "flight_search_request.v3",
+        "schema_version": "flight_search_request.v1",
         "origin": overrides.pop("origin", "SVX"),
         "destination": overrides.pop("destination", "DEL"),
         "depart_date": overrides.pop("depart_date", "2026-06-01"),
         "return_date": overrides.pop("return_date", None),
         "currency": overrides.pop("currency", "RUB"),
-        "profile": overrides.pop("profile", "business"),
         "provider_policy": overrides.pop("provider_policy", "kupibilet"),
-        "route_options": {
-            "max_connections": overrides.pop("max_connections", None),
-            "tier2_max_connections": overrides.pop("tier2_max_connections", None),
-        },
-        "output": {},
-        "evidence": {},
     }
+    for name in ("max_connections", "preferred_connections"):
+        if name in overrides:
+            value = overrides.pop(name)
+            if value is not None:
+                request[name] = value
     adapter = getattr(search_app, "search_request_from_payload", None)
     if not callable(adapter):
         raise AssertionError(
@@ -109,10 +120,9 @@ def live_search_args(**overrides: object) -> argparse.Namespace:
     options = adapter(request)
     args = argparse.Namespace(
         command_name="search",
-        provider_policy=options.evidence.provider_policy,
-        profile=options.profile,
+        provider_policy=options.provider_policy,
         max_connections=options.route.max_connections,
-        tier2_max_connections=options.route.tier2_max_connections,
+        preferred_connections=options.route.preferred_connections,
     )
     for key, value in overrides.items():
         setattr(args, key, value)
@@ -270,7 +280,6 @@ class CliContractTests(unittest.TestCase):
 
         self.assertEqual(args.command_name, "search")
         self.assertEqual(args.provider_policy, "kupibilet")
-        self.assertEqual(args.profile, "business")
 
     def test_subprocess_test_env_disables_bytecode_writes(self) -> None:
         self.assertEqual(TEST_ENV["PYTHONDONTWRITEBYTECODE"], "1")
@@ -294,7 +303,7 @@ class CliContractTests(unittest.TestCase):
             payload["data"]["cli"], {"name": "flights-cli", "version": "0.10.0"}
         )
         self.assertEqual(
-            payload["data"]["skill"], {"name": "flight-search", "version": "0.13.0"}
+            payload["data"]["skill"], {"name": "flight-search", "version": "0.14.0"}
         )
         self.assertEqual(
             set(payload["data"]),

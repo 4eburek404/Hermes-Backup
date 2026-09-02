@@ -66,13 +66,12 @@ def valid_result() -> dict:
     }
     request = search_request_from_payload(
         {
-            "schema_version": "flight_search_request.v3",
+            "schema_version": "flight_search_request.v1",
             "origin": "SVX",
             "destination": "DEL",
             "depart_date": DEPART,
             "return_date": None,
             "currency": "RUB",
-            "profile": "business",
             "provider_policy": "kupibilet",
         }
     )

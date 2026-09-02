@@ -138,7 +138,10 @@ def parser_leaf_defaults(parser: argparse.ArgumentParser) -> dict[str, dict[str,
 def live_assembly_args(**overrides: Any) -> Any:
     """Build the canonical typed search request used by pipeline tests."""
 
-    from flights_cli.pipeline.search_request import search_request_from_payload
+    from flights_cli.pipeline.search_request import (
+        ExecutionSettings,
+        search_request_from_payload,
+    )
 
     def as_list(value: Any) -> list[Any]:
         if value is None:
@@ -147,94 +150,56 @@ def live_assembly_args(**overrides: Any) -> Any:
             return value
         return [value]
 
-    route_option_keys = {
-        "hubs": "hubs",
-        "hub": "hubs",
-        "routing_strategy": "routing_strategy",
-        "origin_airports": "origin_airports",
-        "origin_airport": "origin_airports",
-        "destination_airports": "destination_airports",
-        "destination_airport": "destination_airports",
-        "max_airports_per_city": "max_airports_per_city",
-        "min_same_airport_min": "min_same_airport_min",
-        "min_cross_airport_min": "min_cross_airport_min",
-        "date_window_end": "date_window_end",
-        "max_connections": "max_connections",
-        "tier2_max_connections": "tier2_max_connections",
-        "gateway_discovery_limit": "gateway_discovery_limit",
-        "gateway_probe_batch_size": "gateway_probe_batch_size",
-        "gateway_probe_max_batches": "gateway_probe_max_batches",
-    }
-    evidence_keys = {
-        "segment_limit": "segment_limit",
-        "timeout": "timeout",
-        "max_segment_searches": "max_segment_searches",
-        "fail_fast": "fail_fast",
-        "live_cache_ttl_seconds": "live_cache_ttl_seconds",
-        "no_live_cache": "no_live_cache",
-    }
-    output_keys = {
-        "catalog_limit": "catalog_limit",
-        "direct_catalog_limit": "direct_catalog_limit",
-    }
-    filter_keys = {
-        "only_carriers": "only_carriers",
-        "only_carrier": "only_carriers",
-    }
     values = dict(overrides)
+    values.pop("profile", None)  # в .v1 профиля нет: он был константой
     request: dict[str, Any] = {
-        "schema_version": "flight_search_request.v3",
+        "schema_version": "flight_search_request.v1",
         "origin": values.pop("origin", "SVX"),
         "destination": values.pop("destination", "CDG"),
         "depart_date": values.pop("depart_date", future_departure_date().isoformat()),
         "currency": values.pop("currency", "RUB"),
-        "profile": values.pop("profile", "business"),
         "provider_policy": values.pop("provider_policy", "auto"),
     }
-    return_date = values.pop("return_date", None)
-    if return_date is not None:
-        request["return_date"] = return_date
-    route_hypotheses = values.pop("route_hypotheses", None)
-    if route_hypotheses is not None:
-        request["route_hypotheses"] = route_hypotheses
+    for name in (
+        "return_date",
+        "date_window_end",
+        "max_connections",
+        "preferred_connections",
+        "limit",
+    ):
+        if name in values:
+            value = values.pop(name)
+            if value is not None:
+                request[name] = value
+    list_keys = {
+        "origin_airports": "origin_airports",
+        "origin_airport": "origin_airports",
+        "destination_airports": "destination_airports",
+        "destination_airport": "destination_airports",
+        "only_carriers": "only_carriers",
+        "only_carrier": "only_carriers",
+    }
+    for key, target in list_keys.items():
+        if key in values:
+            request[target] = as_list(values.pop(key))
 
-    route_options: dict[str, Any] = {}
-    evidence: dict[str, Any] = {}
-    output: dict[str, Any] = {}
-    filters: dict[str, Any] = {}
-    for key, target in route_option_keys.items():
-        if key in values:
-            value = values.pop(key)
-            if target in {
-                "hubs",
-                "origin_airports",
-                "destination_airports",
-            }:
-                value = as_list(value)
-            route_options[target] = value
-    for key, target in evidence_keys.items():
-        if key in values:
-            value = values.pop(key)
-            evidence[target] = value
-    for key, target in output_keys.items():
-        if key in values:
-            output[target] = values.pop(key)
-    for key, target in filter_keys.items():
-        if key in values:
-            filters[target] = as_list(values.pop(key))
-    if route_options:
-        request["route_options"] = route_options
-    if evidence:
-        request["evidence"] = evidence
-    if output:
-        request["output"] = output
-    if filters:
-        request["filters"] = filters
-
+    execution_keys = (
+        "max_segment_searches",
+        "live_cache_ttl_seconds",
+        "no_live_cache",
+        "segment_limit",
+        "timeout",
+        "fail_fast",
+    )
+    execution_kwargs = {
+        key: values.pop(key) for key in execution_keys if key in values
+    }
     if values:
-        unknown = ", ".join(sorted(values))
-        raise AssertionError(f"unsupported live_assembly_args overrides: {unknown}")
-    return search_request_from_payload(request)
+        raise AssertionError(f"unknown request override: {sorted(values)}")
+    return search_request_from_payload(
+        request, ExecutionSettings(**execution_kwargs)
+    )
+
 
 
 class CliSubprocessMixin:

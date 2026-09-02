@@ -1,26 +1,24 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import re
 from typing import Any
 
 from ..config import (
+    DEFAULT_CATALOG_LIMIT,
     DEFAULT_CURRENCY,
-    DEFAULT_GATEWAY_DISCOVERY_LIMIT,
-    DEFAULT_GATEWAY_PROBE_BATCH_SIZE,
-    DEFAULT_GATEWAY_PROBE_MAX_BATCHES,
+    DEFAULT_DIRECT_CATALOG_LIMIT,
+    DEFAULT_FAIL_FAST,
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
-    DEFAULT_PROFILE,
-    DEFAULT_ROUTING_STRATEGY,
-    catalog_output_limits_from_mapping,
-)
-from ..domain.connection_policy import (
-    DEFAULT_MIN_CROSS_AIRPORT_CONNECTION_MIN,
-    DEFAULT_MIN_SAME_AIRPORT_CONNECTION_MIN,
+    DEFAULT_MAX_SEGMENT_SEARCHES,
+    DEFAULT_SEGMENT_LIMIT,
+    DEFAULT_TIMEOUT_SECONDS,
 )
 from ..domain.normalize import parse_iso_date
 from ..contracts.validation import validate_contract_payload
 from ..errors import CliError
+
+
+SEARCH_REQUEST_SCHEMA_VERSION = "flight_search_request.v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,19 +27,11 @@ class RouteOptions:
     destination: str
     depart_date: str
     return_date: str | None
-    routing_strategy: str
-    hubs: tuple[str, ...]
+    date_window_end: str | None
     origin_airports: tuple[str, ...]
     destination_airports: tuple[str, ...]
-    max_airports_per_city: int
     max_connections: int | None
-    tier2_max_connections: int | None
-    date_window_end: str | None
-    min_same_airport_min: int
-    min_cross_airport_min: int
-    gateway_discovery_limit: int
-    gateway_probe_batch_size: int
-    gateway_probe_max_batches: int
+    preferred_connections: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,62 +40,50 @@ class FilterOptions:
 
 
 @dataclass(frozen=True, slots=True)
-class EvidenceOptions:
-    provider_policy: str
-    primary_offer_limit: int
-    max_segment_searches: int
-    live_cache_ttl_seconds: int
-    no_live_cache: bool
-    segment_limit: int
-    timeout: int
-    fail_fast: bool
+class ExecutionSettings:
+    """Бюджеты прогона.
+
+    Это не то, что просит путешественник, поэтому в публичном запросе их нет:
+    значения приходят из конфигурации и ключей командной строки.
+    """
+
+    max_segment_searches: int = DEFAULT_MAX_SEGMENT_SEARCHES
+    live_cache_ttl_seconds: int = DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
+    no_live_cache: bool = False
+    segment_limit: int = DEFAULT_SEGMENT_LIMIT
+    timeout: int = DEFAULT_TIMEOUT_SECONDS
+    fail_fast: bool = DEFAULT_FAIL_FAST
 
 
 @dataclass(frozen=True, slots=True)
 class OutputOptions:
     catalog_limit: int
     direct_catalog_limit: int
-
-
-@dataclass(frozen=True, slots=True)
-class RouteHypothesisInput:
-    """A caller-supplied airport sequence, not provider evidence."""
-
-    airports: tuple[str, ...]
-    source: str
-
-    @classmethod
-    def from_payload(cls, payload: dict[str, Any]) -> RouteHypothesisInput:
-        return cls(
-            airports=_str_tuple(payload.get("airports")),
-            source=str(payload.get("source") or ""),
-        )
-
-    def to_payload(self) -> dict[str, Any]:
-        return {"airports": list(self.airports), "source": self.source}
+    requested_limit: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class SearchRequest:
-    """Canonical immutable input consumed only by SearchPlanBuilder."""
+    """Каноничный неизменяемый вход: что просят, а не как это исполнять."""
 
     route: RouteOptions
     filters: FilterOptions
-    evidence: EvidenceOptions
+    execution: ExecutionSettings
     output: OutputOptions
-    profile: str
+    provider_policy: str
     currency: str
-    route_hypotheses: tuple[RouteHypothesisInput, ...] = ()
 
     @classmethod
-    def _from_normalized_payload(cls, payload: dict[str, Any]) -> SearchRequest:
-        """Build from a payload already normalized at the input boundary."""
+    def from_payload(
+        cls, payload: dict[str, Any], execution: ExecutionSettings
+    ) -> SearchRequest:
+        """Собрать запрос из плоского payload `.v1` и бюджетов прогона."""
 
-        route = _mapping(payload.get("route_options"))
-        evidence = _mapping(payload.get("evidence"))
-        filters = _mapping(payload.get("filters"))
-        output = _mapping(payload.get("output"))
-        output_limits = catalog_output_limits_from_mapping(output)
+        limit = _optional_int(payload.get("limit"))
+        catalog_limit = DEFAULT_CATALOG_LIMIT
+        direct_catalog_limit = DEFAULT_DIRECT_CATALOG_LIMIT
+        if limit is not None:
+            catalog_limit = direct_catalog_limit = limit
         return cls(
             route=RouteOptions(
                 origin=str(payload.get("origin") or ""),
@@ -116,126 +94,57 @@ class SearchRequest:
                     if payload.get("return_date")
                     else None
                 ),
-                routing_strategy=str(
-                    route.get("routing_strategy") or DEFAULT_ROUTING_STRATEGY
-                ),
-                hubs=_str_tuple(route.get("hubs")),
-                origin_airports=_str_tuple(route.get("origin_airports")),
-                destination_airports=_str_tuple(route.get("destination_airports")),
-                max_airports_per_city=_int_option(route, "max_airports_per_city", 6),
-                max_connections=_optional_int_option(route, "max_connections"),
-                tier2_max_connections=_optional_int_option(
-                    route, "tier2_max_connections"
-                ),
                 date_window_end=(
-                    str(route.get("date_window_end"))
-                    if route.get("date_window_end")
+                    str(payload.get("date_window_end"))
+                    if payload.get("date_window_end")
                     else None
                 ),
-                min_same_airport_min=_int_option(
-                    route,
-                    "min_same_airport_min",
-                    DEFAULT_MIN_SAME_AIRPORT_CONNECTION_MIN,
-                ),
-                min_cross_airport_min=_int_option(
-                    route,
-                    "min_cross_airport_min",
-                    DEFAULT_MIN_CROSS_AIRPORT_CONNECTION_MIN,
-                ),
-                gateway_discovery_limit=_int_option(
-                    route,
-                    "gateway_discovery_limit",
-                    DEFAULT_GATEWAY_DISCOVERY_LIMIT,
-                ),
-                gateway_probe_batch_size=_int_option(
-                    route,
-                    "gateway_probe_batch_size",
-                    DEFAULT_GATEWAY_PROBE_BATCH_SIZE,
-                ),
-                gateway_probe_max_batches=_int_option(
-                    route,
-                    "gateway_probe_max_batches",
-                    DEFAULT_GATEWAY_PROBE_MAX_BATCHES,
+                origin_airports=_str_tuple(payload.get("origin_airports")),
+                destination_airports=_str_tuple(payload.get("destination_airports")),
+                max_connections=_optional_int(payload.get("max_connections")),
+                preferred_connections=_optional_int(
+                    payload.get("preferred_connections")
                 ),
             ),
             filters=FilterOptions(
-                only_carriers=_str_tuple(filters.get("only_carriers")),
+                only_carriers=_str_tuple(payload.get("only_carriers")),
             ),
-            evidence=EvidenceOptions(
-                provider_policy=str(payload.get("provider_policy") or "auto"),
-                primary_offer_limit=max(
-                    output_limits.catalog_limit, output_limits.direct_catalog_limit
-                ),
-                max_segment_searches=_int_option(evidence, "max_segment_searches", 300),
-                live_cache_ttl_seconds=_int_option(
-                    evidence,
-                    "live_cache_ttl_seconds",
-                    DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
-                ),
-                no_live_cache=_bool_option(evidence, "no_live_cache", False),
-                segment_limit=_int_option(evidence, "segment_limit", 30),
-                timeout=_int_option(evidence, "timeout", 60),
-                fail_fast=_bool_option(evidence, "fail_fast", False),
-            ),
+            execution=execution,
             output=OutputOptions(
-                catalog_limit=output_limits.catalog_limit,
-                direct_catalog_limit=output_limits.direct_catalog_limit,
+                catalog_limit=catalog_limit,
+                direct_catalog_limit=direct_catalog_limit,
+                requested_limit=limit,
             ),
-            profile=str(payload.get("profile") or DEFAULT_PROFILE),
+            provider_policy=str(payload.get("provider_policy") or "auto"),
             currency=str(payload.get("currency") or DEFAULT_CURRENCY),
-            route_hypotheses=tuple(
-                RouteHypothesisInput.from_payload(item)
-                for item in payload.get("route_hypotheses") or []
-                if isinstance(item, dict)
-            ),
         )
 
     def to_payload(self) -> dict[str, Any]:
-        """Return the canonical wire projection after Python defaults are applied."""
+        """Каноничный повтор входа после применения умолчаний."""
 
-        return {
-            "schema_version": "flight_search_request.v4",
+        payload: dict[str, Any] = {
+            "schema_version": SEARCH_REQUEST_SCHEMA_VERSION,
             "origin": self.route.origin,
             "destination": self.route.destination,
             "depart_date": self.route.depart_date,
             "return_date": self.route.return_date,
+            "date_window_end": self.route.date_window_end,
             "currency": self.currency,
-            "profile": self.profile,
-            "provider_policy": self.evidence.provider_policy,
-            "route_options": {
-                "routing_strategy": self.route.routing_strategy,
-                "hubs": list(self.route.hubs),
-                "origin_airports": list(self.route.origin_airports),
-                "destination_airports": list(self.route.destination_airports),
-                "max_airports_per_city": self.route.max_airports_per_city,
-                "max_connections": self.route.max_connections,
-                "tier2_max_connections": self.route.tier2_max_connections,
-                "date_window_end": self.route.date_window_end,
-                "min_same_airport_min": self.route.min_same_airport_min,
-                "min_cross_airport_min": self.route.min_cross_airport_min,
-                "gateway_discovery_limit": self.route.gateway_discovery_limit,
-                "gateway_probe_batch_size": self.route.gateway_probe_batch_size,
-                "gateway_probe_max_batches": self.route.gateway_probe_max_batches,
-            },
-            "filters": {
-                "only_carriers": list(self.filters.only_carriers),
-            },
-            "evidence": {
-                "segment_limit": self.evidence.segment_limit,
-                "timeout": self.evidence.timeout,
-                "max_segment_searches": self.evidence.max_segment_searches,
-                "fail_fast": self.evidence.fail_fast,
-                "live_cache_ttl_seconds": self.evidence.live_cache_ttl_seconds,
-                "no_live_cache": self.evidence.no_live_cache,
-            },
-            "output": {
-                "catalog_limit": self.output.catalog_limit,
-                "direct_catalog_limit": self.output.direct_catalog_limit,
-            },
-            "route_hypotheses": [
-                hypothesis.to_payload() for hypothesis in self.route_hypotheses
-            ],
+            "provider_policy": self.provider_policy,
+            "only_carriers": list(self.filters.only_carriers),
+            "origin_airports": list(self.route.origin_airports),
+            "destination_airports": list(self.route.destination_airports),
         }
+        # Эхо повторяет то, что просили. Умолчание не подставляем: без
+        # `limit` потолок выдачи зависит от того, нашлись ли прямые, и
+        # одним числом его честно не назвать.
+        if self.output.requested_limit is not None:
+            payload["limit"] = self.output.requested_limit
+        if self.route.max_connections is not None:
+            payload["max_connections"] = self.route.max_connections
+        if self.route.preferred_connections is not None:
+            payload["preferred_connections"] = self.route.preferred_connections
+        return payload
 
     def effective_only_carriers(self) -> tuple[str, ...]:
         return _unique_strs(self.filters.only_carriers)
@@ -257,20 +166,8 @@ class SearchRequest:
         return self.route.return_date
 
     @property
-    def provider_policy(self) -> str:
-        return self.evidence.provider_policy
-
-    @property
     def primary_offer_limit(self) -> int:
-        return self.evidence.primary_offer_limit
-
-    @property
-    def routing_strategy(self) -> str:
-        return self.route.routing_strategy
-
-    @property
-    def hubs(self) -> tuple[str, ...]:
-        return self.route.hubs
+        return max(self.output.catalog_limit, self.output.direct_catalog_limit)
 
     @property
     def origin_airports(self) -> tuple[str, ...]:
@@ -285,8 +182,8 @@ class SearchRequest:
         return self.route.max_connections
 
     @property
-    def tier2_max_connections(self) -> int | None:
-        return self.route.tier2_max_connections
+    def preferred_connections(self) -> int | None:
+        return self.route.preferred_connections
 
     @property
     def date_window_end(self) -> str | None:
@@ -294,27 +191,15 @@ class SearchRequest:
 
     @property
     def max_segment_searches(self) -> int:
-        return self.evidence.max_segment_searches
+        return self.execution.max_segment_searches
 
     @property
     def live_cache_ttl_seconds(self) -> int:
-        return self.evidence.live_cache_ttl_seconds
+        return self.execution.live_cache_ttl_seconds
 
     @property
     def no_live_cache(self) -> bool:
-        return self.evidence.no_live_cache
-
-    @property
-    def gateway_discovery_limit(self) -> int:
-        return self.route.gateway_discovery_limit
-
-    @property
-    def gateway_probe_batch_size(self) -> int:
-        return self.route.gateway_probe_batch_size
-
-    @property
-    def gateway_probe_max_batches(self) -> int:
-        return self.route.gateway_probe_max_batches
+        return self.execution.no_live_cache
 
     @property
     def only_carriers(self) -> tuple[str, ...]:
@@ -348,69 +233,23 @@ def _unique_strs(*values: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(result)
 
 
-def _int_option(container: dict[str, Any], name: str, default: int) -> int:
-    value = container.get(name)
-    return default if value is None else int(value)
-
-
-def _optional_int_option(
-    container: dict[str, Any], name: str, default: int | None = None
-) -> int | None:
-    value = container.get(name)
-    return default if value is None else int(value)
-
-
-def _bool_option(container: dict[str, Any], name: str, default: bool = False) -> bool:
-    value = container.get(name)
-    return default if value is None else bool(value)
-
-
-def _mapping(value: object) -> dict[str, Any]:
-    return value if isinstance(value, dict) else {}
+def _optional_int(value: object) -> int | None:
+    return None if value is None else int(value)
 
 
 def normalize_search_request_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    """Canonical casing/default normalization for the public request payload."""
+    """Каноничный регистр и умолчания на границе входа."""
 
     normalized = dict(payload)
-    version = str(normalized.get("schema_version") or "flight_search_request.v3")
-    if version in {"flight_search_request.v3", "flight_search_request.v4"}:
-        normalized["schema_version"] = "flight_search_request.v4"
+    normalized.setdefault("schema_version", SEARCH_REQUEST_SCHEMA_VERSION)
     for name in ("origin", "destination", "currency"):
         if name in normalized:
             normalized[name] = str(normalized[name]).upper()
     if "provider_policy" in normalized:
         normalized["provider_policy"] = str(normalized["provider_policy"]).lower()
-    route_value = normalized.get("route_options")
-    if isinstance(route_value, dict):
-        route = dict(route_value)
-        for name in ("hubs", "origin_airports", "destination_airports"):
-            if isinstance(route.get(name), list):
-                route[name] = [str(item).upper() for item in route[name]]
-        if "routing_strategy" in route:
-            route["routing_strategy"] = str(route["routing_strategy"]).lower()
-        normalized["route_options"] = route
-    filters_value = normalized.get("filters")
-    if isinstance(filters_value, dict):
-        filters = dict(filters_value)
-        if isinstance(filters.get("only_carriers"), list):
-            filters["only_carriers"] = [
-                str(item).upper() for item in filters["only_carriers"]
-            ]
-        normalized["filters"] = filters
-    hypotheses = normalized.get("route_hypotheses")
-    if hypotheses is None:
-        normalized["route_hypotheses"] = []
-    elif isinstance(hypotheses, list):
-        normalized["route_hypotheses"] = [
-            {
-                **item,
-                "airports": [str(code).upper() for code in item.get("airports") or []],
-                "source": str(item.get("source") or "").lower(),
-            }
-            for item in hypotheses
-            if isinstance(item, dict)
-        ]
+    for name in ("origin_airports", "destination_airports", "only_carriers"):
+        if isinstance(normalized.get(name), list):
+            normalized[name] = [str(item).upper() for item in normalized[name]]
     return normalized
 
 
@@ -430,39 +269,27 @@ def validate_search_request_semantics(request: SearchRequest) -> None:
             raise ValueError("date-window-end cannot be combined with return-date")
     if (
         request.max_connections is not None
-        and request.tier2_max_connections is not None
-        and request.tier2_max_connections < request.max_connections
+        and request.preferred_connections is not None
+        and request.preferred_connections > request.max_connections
     ):
-        raise ValueError("tier2-max-connections must not be below max-connections")
-    origin_scope = {request.origin, *request.origin_airports}
-    destination_scope = {request.destination, *request.destination_airports}
-    signatures: set[tuple[str, ...]] = set()
-    for hypothesis in request.route_hypotheses:
-        airports = hypothesis.airports
-        if not 3 <= len(airports) <= 5:
-            raise ValueError("route-hypothesis must contain 3 to 5 airports")
-        if any(not re.fullmatch(r"[A-Z]{3}", airport) for airport in airports):
-            raise ValueError("route-hypothesis airports must be exact IATA codes")
-        if len(set(airports)) != len(airports):
-            raise ValueError("route-hypothesis must not contain airport cycles")
-        if airports[0] not in origin_scope or airports[-1] not in destination_scope:
-            raise ValueError("route-hypothesis endpoints must be within route scope")
-        if airports in signatures:
-            raise ValueError("route-hypotheses must be unique")
-        signatures.add(airports)
+        raise ValueError("preferred-connections must not exceed max-connections")
 
 
 def is_direct_only(request: "SearchRequest") -> bool:
-    """Запрос «только прямые»: пересадки запрещены на обоих ярусах."""
-    return request.max_connections == 0 and request.tier2_max_connections == 0
+    """Запрос «только прямые»: жёсткий потолок пересадок равен нулю."""
+    return request.max_connections == 0
 
 
-def search_request_from_payload(payload: dict[str, Any]) -> SearchRequest:
+def search_request_from_payload(
+    payload: dict[str, Any], execution: ExecutionSettings | None = None
+) -> SearchRequest:
     normalized = normalize_search_request_payload(payload)
     validate_contract_payload(
         "search_request", normalized, error_type="validation_error"
     )
-    request = SearchRequest._from_normalized_payload(normalized)
+    request = SearchRequest.from_payload(
+        normalized, execution or ExecutionSettings()
+    )
     try:
         validate_search_request_semantics(request)
     except ValueError as exc:

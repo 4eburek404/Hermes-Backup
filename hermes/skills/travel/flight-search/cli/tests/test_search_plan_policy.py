@@ -64,8 +64,8 @@ class SearchPlanPolicyTests(unittest.TestCase):
         request = live_assembly_args(
             origin="SVX",
             destination="KUF",
+            preferred_connections=0,
             max_connections=0,
-            tier2_max_connections=0,
             return_date=None,
         )
         plan = build_search_plan(request, self.store)
@@ -86,8 +86,8 @@ class SearchPlanPolicyTests(unittest.TestCase):
 
     def test_direct_only_and_exact_scopes_disable_live_cache(self) -> None:
         direct_plan = self.plan_for(
+            preferred_connections=0,
             max_connections=0,
-            tier2_max_connections=0,
             return_date=None,
         )
         exact_plan = self.plan_for(origin_airport=["SVX"], return_date=None)

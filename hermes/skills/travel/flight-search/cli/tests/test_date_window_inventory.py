@@ -31,7 +31,6 @@ def window_args(depart: date, **overrides: object):
         "origin_airports": ["SVX"],
         "destination_airports": ["LED"],
         "max_connections": 0,
-        "tier2_max_connections": 0,
         "no_live_cache": True,
     }
     values.update(overrides)
@@ -148,7 +147,7 @@ class DateWindowPlanTests(unittest.TestCase):
         depart = future_departure_date()
         with self.assertRaises(CliError):
             build_search_plan(
-                window_args(depart, max_connections=None, tier2_max_connections=None),
+                window_args(depart, preferred_connections=None, max_connections=None),
                 Store(),
             )
 

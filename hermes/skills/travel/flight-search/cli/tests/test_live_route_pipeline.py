@@ -167,7 +167,6 @@ class LiveRoutePipelineTests(unittest.TestCase):
             destination="CDG",
             depart_date=depart.isoformat(),
             return_date=(depart + timedelta(days=4)).isoformat(),
-            profile="business",
             no_live_cache=True,
         )
 
@@ -180,7 +179,6 @@ class LiveRoutePipelineTests(unittest.TestCase):
             flow.request.return_date, (depart + timedelta(days=4)).isoformat()
         )
         self.assertEqual(flow.request.currency, "RUB")
-        self.assertEqual(flow.request.profile, "business")
         self.assertEqual(flow.request.provider_policy, "auto")
         self.assertIs(flow.request, args)
         with self.assertRaises(AttributeError):
@@ -386,8 +384,8 @@ class LiveRoutePipelineTests(unittest.TestCase):
             "route_context": build_route_context(
                 live_args(
                     provider_policy="kupibilet",
-                    max_connections=1,
-                    tier2_max_connections=2,
+                    preferred_connections=1,
+                    max_connections=2,
                 ),
                 Store(),
             ),
@@ -444,8 +442,8 @@ class LiveRoutePipelineTests(unittest.TestCase):
             result = execute_projection(
                 live_args(
                     provider_policy="kupibilet",
-                    max_connections=1,
-                    tier2_max_connections=2,
+                    preferred_connections=1,
+                    max_connections=2,
                 ),
                 Store(),
             )
