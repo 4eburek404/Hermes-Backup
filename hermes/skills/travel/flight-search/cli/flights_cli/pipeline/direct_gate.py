@@ -15,21 +15,8 @@ from ..domain.offer_paths import (
     segment_destination,
     segment_origin,
 )
-from ..domain.vocabulary import Direction
+from ..domain.vocabulary import Direction, normalize_direction
 from .candidate_validation import candidate_declared_blocking_reasons
-from .search_request import SearchRequest
-
-
-def is_direct_only(request: SearchRequest) -> bool:
-    return request.max_connections == 0 and request.tier2_max_connections == 0
-
-
-def normalize_direction(value: Any) -> str:
-    return (
-        Direction.RETURN
-        if str(value or Direction.OUTBOUND).strip().lower() == Direction.RETURN
-        else Direction.OUTBOUND
-    )
 
 
 def requested_directions(route: Mapping[str, Any]) -> tuple[str, ...]:

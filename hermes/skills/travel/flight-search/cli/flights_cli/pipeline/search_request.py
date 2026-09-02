@@ -452,6 +452,11 @@ def validate_search_request_semantics(request: SearchRequest) -> None:
         signatures.add(airports)
 
 
+def is_direct_only(request: "SearchRequest") -> bool:
+    """Запрос «только прямые»: пересадки запрещены на обоих ярусах."""
+    return request.max_connections == 0 and request.tier2_max_connections == 0
+
+
 def search_request_from_payload(payload: dict[str, Any]) -> SearchRequest:
     normalized = normalize_search_request_payload(payload)
     validate_contract_payload(

@@ -28,7 +28,7 @@ from ..pipeline.frontier_selection import (
 )
 from ..pipeline.flow_decision import FlowDecision, decide_flow
 from ..pipeline.search_request import SearchRequest
-from ..pipeline.direct_gate import is_direct_only
+from ..pipeline.search_request import is_direct_only
 from ..pipeline.search_plan import (
     GATEWAY_TRIGGER_DISABLED,
     GATEWAY_TRIGGER_ON_PRIMARY_FAILURE,

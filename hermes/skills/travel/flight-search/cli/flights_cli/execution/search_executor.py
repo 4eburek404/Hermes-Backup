@@ -5,7 +5,12 @@ from typing import Any
 
 from ..domain.gateway_discovery import GatewayDiscoveryService
 from ..domain.normalize import normalize_carrier_code
-from ..domain.vocabulary import Direction, Leg, RouteFamily
+from ..domain.vocabulary import (
+    Direction,
+    Leg,
+    RouteFamily,
+    normalize_direction,
+)
 from .route_leg_probe_executor import (
     RouteLegProbeExecutor,
     RouteLegProbeOptions,
@@ -18,7 +23,6 @@ from .probe_ledger import ProbeRunLedger
 from .search_evidence import SearchEvidence
 from ..pipeline.direct_gate import (
     evaluate_direct_gate,
-    normalize_direction,
     provider_result_has_eligible_path,
 )
 from ..pipeline.search_plan import (

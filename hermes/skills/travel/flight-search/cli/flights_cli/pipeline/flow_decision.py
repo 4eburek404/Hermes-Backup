@@ -9,7 +9,7 @@ from ..domain.route_access_profiles import (
     load_route_access_profiles,
 )
 from .search_request import SearchRequest
-from .direct_gate import is_direct_only
+from .search_request import is_direct_only
 
 
 @dataclass(frozen=True, slots=True)

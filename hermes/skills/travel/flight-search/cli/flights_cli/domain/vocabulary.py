@@ -15,6 +15,7 @@ reference those values, import from ``ports/providers``.
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Any
 
 
 # ---------------------------------------------------------------------------
@@ -35,6 +36,15 @@ class Leg(StrEnum):
 class Direction(StrEnum):
     OUTBOUND = "outbound"
     RETURN = "return"
+
+
+def normalize_direction(value: Any) -> str:
+    """Привести что угодно к направлению; всё неузнанное — outbound."""
+    return (
+        Direction.RETURN
+        if str(value or Direction.OUTBOUND).strip().lower() == Direction.RETURN
+        else Direction.OUTBOUND
+    )
 
 
 # ---------------------------------------------------------------------------
