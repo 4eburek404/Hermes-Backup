@@ -45,52 +45,6 @@ class ProbeIntent:
         }
 
 
-def probe_type_from_segment(spec: Mapping[str, Any]) -> str:
-    leg = str(spec.get("leg") or "")
-    return "segment_direct" if "direct" in leg else "segment_hub_leg"
-
-
-def intent_from_segment(
-    spec: Mapping[str, Any], *, provider: Any = None, probe_id: Any = None
-) -> ProbeIntent:
-    only_carriers = [
-        str(code).upper() for code in (spec.get("only_carriers") or []) if code
-    ]
-    carrier = only_carriers[0] if len(only_carriers) == 1 else None
-    return ProbeIntent(
-        probe_type=probe_type_from_segment(spec),
-        direction=str(spec.get("direction") or ""),
-        leg=str(spec.get("leg") or "") or None,
-        origin=str(spec.get("origin") or "").upper(),
-        destination=str(spec.get("destination") or "").upper(),
-        date=str(spec.get("date") or ""),
-        provider=str(provider or spec.get("provider") or "") or None,
-        carrier=carrier,
-        probe_id=str(probe_id or spec.get("probe_id") or "") or None,
-        negative_evidence=str(spec.get("negative_evidence") or "") or None,
-        filters={
-            "direct_only": bool(spec.get("direct_only", True)),
-            "only_carriers": only_carriers,
-        },
-        metadata={
-            key: value
-            for key, value in dict(spec).items()
-            if key
-            not in {
-                "direction",
-                "leg",
-                "origin",
-                "destination",
-                "date",
-                "provider",
-                "probe_id",
-                "negative_evidence",
-                "only_carriers",
-            }
-        },
-    )
-
-
 def intent_from_aggregate_query(
     query: Mapping[str, Any], *, provider: Any = None
 ) -> ProbeIntent:

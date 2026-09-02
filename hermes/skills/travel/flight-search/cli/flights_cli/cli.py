@@ -50,6 +50,20 @@ def _set_leaf_defaults(
     parser.set_defaults(**defaults)
 
 
+def _positive_int(value: str) -> int:
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be 1 or greater")
+    return number
+
+
+def _non_negative_int(value: str) -> int:
+    number = int(value)
+    if number < 0:
+        raise argparse.ArgumentTypeError("must be 0 or greater")
+    return number
+
+
 def _json_parent() -> argparse.ArgumentParser:
     parent = argparse.ArgumentParser(add_help=False)
     parent.add_argument(
@@ -75,16 +89,25 @@ def _register_primary_search_commands(
         help="flight_search_request.v1 JSON file, or - for stdin.",
     )
     # Бюджеты прогона. В запросе их нет: запрос описывает желание, а не то,
-    # сколько на него потратить.
-    search.add_argument("--timeout", type=int, help="Provider request timeout, seconds.")
+    # сколько на него потратить. Ноль отвергается, а не подменяется
+    # умолчанием: «ноль попыток» — это не «сколько получится».
     search.add_argument(
-        "--max-searches", type=int, help="Maximum provider attempts for one search."
+        "--timeout", type=_positive_int, help="Provider request timeout, seconds."
     )
     search.add_argument(
-        "--segment-limit", type=int, help="Maximum offers pulled from one probe."
+        "--max-searches",
+        type=_positive_int,
+        help="Maximum provider attempts for one search.",
     )
     search.add_argument(
-        "--live-cache-ttl", type=int, help="Live provider cache TTL, seconds."
+        "--segment-limit",
+        type=_positive_int,
+        help="Maximum offers pulled from one probe.",
+    )
+    search.add_argument(
+        "--live-cache-ttl",
+        type=_non_negative_int,
+        help="Live provider cache TTL, seconds. Zero disables reuse.",
     )
     search.add_argument(
         "--no-live-cache", action="store_true", help="Bypass the live provider cache."

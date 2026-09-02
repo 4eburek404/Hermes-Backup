@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
 import re
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 DEFAULT_CACHE_DIR = Path.home() / ".hermes" / "cache" / "flight-search"
 
@@ -66,34 +65,6 @@ DEFAULT_FAIL_FAST = False
 
 # Ширина аэропортового охвата, когда вызывающий не назвал аэропорты сам.
 DEFAULT_MAX_AIRPORTS_PER_CITY = 6
-
-
-@dataclass(frozen=True, slots=True)
-class CatalogOutputLimits:
-    catalog_limit: int = DEFAULT_CATALOG_LIMIT
-    direct_catalog_limit: int = DEFAULT_DIRECT_CATALOG_LIMIT
-
-
-def _positive_int(value: Any, default: int) -> int:
-    if value is None:
-        return default
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
-        return default
-    return max(1, parsed)
-
-
-def catalog_output_limits_from_mapping(
-    mapping: Mapping[str, Any] | None,
-) -> CatalogOutputLimits:
-    source = mapping or {}
-    return CatalogOutputLimits(
-        catalog_limit=_positive_int(source.get("catalog_limit"), DEFAULT_CATALOG_LIMIT),
-        direct_catalog_limit=_positive_int(
-            source.get("direct_catalog_limit"), DEFAULT_DIRECT_CATALOG_LIMIT
-        ),
-    )
 
 
 DEFAULT_ROUTE_HUBS = ("IST",)

@@ -228,14 +228,6 @@ class ProbeRunLedger:
         if not claim.is_duplicate:
             self._outcomes[claim.probe_id] = outcome
 
-    def has_terminal_state(self, probe: ProbeInput) -> bool:
-        item = _probe_dict(probe)
-        explicit_id = str(item.get("probe_id") or "")
-        if explicit_id:
-            return explicit_id in self._terminal_ids
-        original = self._logical_originals.get(logical_query_key(item))
-        return original is not None and original in self._terminal_ids
-
     def _resolve_probe_id(self, item: dict[str, Any]) -> str:
         explicit = str(item.get("probe_id") or "")
         if explicit in self._planned:

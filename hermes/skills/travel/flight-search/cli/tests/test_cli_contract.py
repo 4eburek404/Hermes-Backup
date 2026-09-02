@@ -37,7 +37,7 @@ options:
   --segment-limit SEGMENT_LIMIT
                         Maximum offers pulled from one probe.
   --live-cache-ttl LIVE_CACHE_TTL
-                        Live provider cache TTL, seconds.
+                        Live provider cache TTL, seconds. Zero disables reuse.
   --no-live-cache       Bypass the live provider cache.
   --fail-fast           Stop on the first provider failure.
 """,

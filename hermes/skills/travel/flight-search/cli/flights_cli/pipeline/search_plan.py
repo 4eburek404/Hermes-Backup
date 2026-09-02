@@ -8,8 +8,6 @@ from typing import Any, Mapping
 SEARCH_PLAN_SCHEMA_VERSION = "flight_search_plan.v6"
 
 GATEWAY_TRIGGER_DISABLED = "disabled"
-GATEWAY_TRIGGER_REQUIRED_IF_NO_DIRECT = "required_if_no_direct"
-GATEWAY_TRIGGER_ON_PRIMARY_FAILURE = "on_primary_failure"
 
 
 @dataclass(frozen=True, slots=True)
