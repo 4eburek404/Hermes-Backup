@@ -52,7 +52,6 @@ def _evidence(depart: date) -> SimpleNamespace:
         "dates": {"depart": depart.isoformat(), "return": None},
         "currency": "RUB",
         "direct_only": False,
-        "hubs": [],
     }
     primary_result: dict[str, Any] = {
         "provider": "fake",

@@ -24,7 +24,6 @@ from ..domain.normalize import parse_iso_date
 from ..domain.stop_policy import resolve_stop_policy
 from ..domain.vocabulary import Direction, RouteFamily
 from ..errors import CliError
-from ..pipeline.flow_decision import FlowDecision, decide_flow
 from ..pipeline.search_request import SearchRequest
 from ..pipeline.search_request import is_direct_only
 from ..pipeline.search_plan import (
@@ -43,7 +42,6 @@ from ..store import Store
 @dataclass(frozen=True, slots=True)
 class _PlanningState:
     request: SearchRequest
-    flow_decision: FlowDecision
     today: date
 
 
@@ -53,10 +51,8 @@ def build_planning_state(
     *,
     today_provider: Callable[[], date] | None = None,
 ) -> _PlanningState:
-    flow_decision = decide_flow(request, store)
     return _PlanningState(
         request=request,
-        flow_decision=flow_decision,
         today=today_provider() if today_provider is not None else date.today(),
     )
 
@@ -136,9 +132,6 @@ def build_route_plan(
     }
     if window_end:
         dates["window_end"] = str(window_end)
-    route_family = str(
-        flow.flow_decision.route_mode or flow.flow_decision.routing_strategy
-    )
     origin_airports, destination_airports, airport_scope = _resolved_airport_scope(
         request, flow, store
     )
@@ -149,11 +142,7 @@ def build_route_plan(
         currency=flow.request.currency,
         profile=flow.request.profile,
         provider_policy=flow.request.provider_policy,
-        routing_strategy=flow.flow_decision.routing_strategy,
-        route_mode=flow.flow_decision.route_mode,
-        market_class=flow.flow_decision.market_class,
-        route_families=({"id": route_family},),
-        hubs=tuple(flow.request.hubs),
+        routing_strategy=flow.request.routing_strategy,
         origin_airports=tuple(origin_airports),
         destination_airports=tuple(destination_airports),
         airport_scope=airport_scope,
@@ -275,7 +264,6 @@ class SearchPlanBuilder:
                 max_options_per_first_carrier=DEFAULT_FIRST_CARRIER_MAX_OPTIONS,
                 max_round_trip_pairs=DEFAULT_MAX_ROUND_TRIP_PAIRS,
             ),
-            planning_reasons=tuple(dict.fromkeys(flow.flow_decision.limitations)),
         )
 
     def _attempts(

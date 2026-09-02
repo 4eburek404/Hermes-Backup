@@ -19,8 +19,6 @@ class TestVocabularyWellFormed(unittest.TestCase):
         enums = [
             v.Leg,
             v.Direction,
-            v.MarketClass,
-            v.RoutingStrategy,
             v.RouteFamily,
             v.ProbeStatus,
         ]
@@ -43,8 +41,6 @@ class TestVocabularyWellFormed(unittest.TestCase):
         enums = [
             v.Leg,
             v.Direction,
-            v.MarketClass,
-            v.RoutingStrategy,
             v.RouteFamily,
             v.ProbeStatus,
         ]
@@ -64,8 +60,6 @@ class TestVocabularyWellFormed(unittest.TestCase):
         enums = [
             v.Leg,
             v.Direction,
-            v.MarketClass,
-            v.RoutingStrategy,
             v.RouteFamily,
             v.ProbeStatus,
         ]
@@ -126,8 +120,6 @@ class TestVocabularyDriftLint(unittest.TestCase):
         # they appear in error messages, CLI help, and unrelated dict keys.
         cls.VOCABULARY_FAMILIES = {
             "Leg": {m.value for m in v.Leg},
-            "MarketClass": {m.value for m in v.MarketClass},
-            "RoutingStrategy": {m.value for m in v.RoutingStrategy},
             "RouteFamily": {m.value for m in v.RouteFamily},
         }
         return cls.VOCABULARY_FAMILIES

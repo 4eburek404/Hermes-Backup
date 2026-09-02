@@ -21,10 +21,6 @@ class RoutePlan:
     profile: str
     provider_policy: str
     routing_strategy: str
-    route_mode: str
-    market_class: str
-    route_families: tuple[Mapping[str, Any], ...] = ()
-    hubs: tuple[str, ...] = ()
     origin_airports: tuple[str, ...] = ()
     destination_airports: tuple[str, ...] = ()
     airport_scope: Mapping[str, Any] | None = None
@@ -40,14 +36,6 @@ class RoutePlan:
             profile=str(payload.get("profile") or ""),
             provider_policy=str(payload.get("provider_policy") or "auto"),
             routing_strategy=str(payload.get("routing_strategy") or ""),
-            route_mode=str(payload.get("route_mode") or ""),
-            market_class=str(payload.get("market_class") or ""),
-            route_families=tuple(
-                dict(item)
-                for item in payload.get("route_families") or []
-                if isinstance(item, Mapping)
-            ),
-            hubs=tuple(str(item) for item in payload.get("hubs") or []),
             origin_airports=tuple(
                 str(item) for item in payload.get("origin_airports") or []
             ),
@@ -71,10 +59,6 @@ class RoutePlan:
             "profile": self.profile,
             "provider_policy": self.provider_policy,
             "routing_strategy": self.routing_strategy,
-            "route_mode": self.route_mode,
-            "market_class": self.market_class,
-            "route_families": [deepcopy(dict(item)) for item in self.route_families],
-            "hubs": list(self.hubs),
             "origin_airports": list(self.origin_airports),
             "destination_airports": list(self.destination_airports),
             "airport_scope": (
@@ -495,7 +479,6 @@ class SearchPlan:
     execution_policy: ExecutionPolicy
     decision_policy: DecisionPolicy
     output_policy: OutputPolicy
-    planning_reasons: tuple[str, ...] = ()
     schema_version: str = SEARCH_PLAN_SCHEMA_VERSION
 
     @classmethod
@@ -520,9 +503,6 @@ class SearchPlan:
             output_policy=OutputPolicy.from_dict(
                 dict(payload.get("output_policy") or {})
             ),
-            planning_reasons=tuple(
-                str(item) for item in payload.get("planning_reasons") or []
-            ),
             schema_version=version,
         )
 
@@ -539,5 +519,4 @@ class SearchPlan:
             "execution_policy": self.execution_policy.to_dict(),
             "decision_policy": self.decision_policy.to_dict(),
             "output_policy": self.output_policy.to_dict(),
-            "planning_reasons": list(self.planning_reasons),
         }

@@ -10,7 +10,6 @@ from flights_cli.cli import build_parser
 from flights_cli.errors import CliError
 from flights_cli.orchestrators.search_workflow import SearchWorkflow
 from flights_cli.orchestrators.search_plan_builder import (
-    build_planning_state,
     build_route_context,
 )
 from flights_cli.pipeline.result_builder import build_result_projection
@@ -182,11 +181,6 @@ class DateWindowPlanTests(unittest.TestCase):
                 ),
                 Store(),
             )
-
-    def test_date_window_uses_direct_inventory_route_mode(self) -> None:
-        depart = future_departure_date()
-        flow = build_planning_state(window_args(depart))
-        self.assertEqual(flow.flow_decision.route_mode, "direct_inventory")
 
 
 class DateWindowInventoryProjectionTests(unittest.TestCase):

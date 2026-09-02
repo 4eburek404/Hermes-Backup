@@ -48,38 +48,19 @@ def normalize_direction(value: Any) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Market classification
-# ---------------------------------------------------------------------------
-
-
-class MarketClass(StrEnum):
-    RU_DOMESTIC = "ru_domestic"
-    RU_TOUCHING_INTERNATIONAL = "ru_touching_international"
-    GLOBAL_NON_RU = "global_non_ru"
-    STRUCTURALLY_CONSTRAINED = "structurally_constrained"
-
-
-# ---------------------------------------------------------------------------
-# Routing strategy
-# ---------------------------------------------------------------------------
-
-
-class RoutingStrategy(StrEnum):
-    DOMESTIC_RU = "domestic-ru"
-    RU_PRIORITY = "ru-priority"
-    HUB_LIST = "hub-list"
-
-
-# ---------------------------------------------------------------------------
-# Route family (mirrors route_mode values, underscore form)
+# Route family
 # ---------------------------------------------------------------------------
 
 
 class RouteFamily(StrEnum):
+    """Осталось одно семейство: три остальных зеркалили `route_mode`.
+
+    `route_mode` был ярлыком классификации рынка и удалён вместе с ней
+    2 сентября. Имя `RouteFamily` при одном члене уже неточно — переезжает
+    вместе со словарём в .v1.
+    """
+
     DIRECT_INVENTORY = "direct_inventory"
-    DOMESTIC_RU = "domestic_ru"
-    RU_PRIORITY = "ru_priority"
-    HUB_LIST = "hub_list"
 
 
 # ---------------------------------------------------------------------------

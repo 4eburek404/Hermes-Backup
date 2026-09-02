@@ -54,10 +54,6 @@ def minimal_route_plan(destination: str) -> dict[str, object]:
         "profile": "business",
         "provider_policy": "auto",
         "routing_strategy": "auto",
-        "route_mode": "hub_list",
-        "market_class": "global_non_ru",
-        "hubs": [],
-        "route_families": [],
         "origin_airports": ["SVX"],
         "destination_airports": [destination],
         "airport_scope": None,
@@ -189,8 +185,6 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertIs(flow.request, args)
         with self.assertRaises(AttributeError):
             flow.request.route.origin = "LED"
-        self.assertEqual(flow.flow_decision.market_class, "ru_touching_international")
-        self.assertEqual(flow.flow_decision.routing_strategy, "ru-priority")
         self.assertEqual(flow.request.max_segment_searches, 300)
 
     def test_search_executor_uses_typed_request(
