@@ -250,11 +250,7 @@ class SearchPlanBuilder:
         return SearchPlan(
             route=route,
             phases=SearchPhases(
-                primary=self._attempts(
-                    primary_offer_queries,
-                    phase="primary",
-                    conditional_trigger="no_direct",
-                ),
+                primary=self._attempts(primary_offer_queries, phase="primary"),
                 route_legs=route_leg_templates,
             ),
             gateway_policy=GatewayPolicy(
@@ -389,19 +385,11 @@ class SearchPlanBuilder:
         return tuple(templates)
 
     def _attempts(
-        self,
-        queries: list[dict[str, Any]],
-        *,
-        phase: str,
-        conditional_trigger: str,
+        self, queries: list[dict[str, Any]], *, phase: str
     ) -> tuple[ProviderAttemptPlan, ...]:
         attempts: list[ProviderAttemptPlan] = []
         for index, query in enumerate(queries, start=1):
-            trigger = (
-                "always"
-                if phase == "primary" and bool(query.get("direct_only"))
-                else conditional_trigger
-            )
+            trigger = "always"
             execution_query = dict(query)
             provider = str(execution_query.pop("provider", "")).strip().lower()
             probe_type = str(execution_query.pop("probe_type", "")).strip()
@@ -555,19 +543,23 @@ class SearchPlanBuilder:
         access_profile = str(flow.flow_decision.route_access_profile or "")
         discovery_mode = str(flow.flow_decision.gateway_discovery_mode or "disabled")
 
-        direct_queries = self._direct_inventory_queries(
-            flow,
-            origin=origin,
-            destination=destination,
-            origin_airports=origin_airports,
-            destination_airports=destination_airports,
-            currency=currency,
-        )
-        if access_profile == PROFILE_RESTRICTED_ACCESS:
-            for query in direct_queries:
-                query["route_access_profile"] = access_profile
-                query["gateway_discovery_mode"] = discovery_mode
+        # Прицельная проба direct_only остаётся ровно для двух случаев, где она
+        # и есть искомое: запрос «только прямые» и перебор окна дат. Разведкой
+        # перед широкой пробой она больше не работает — широкая выдача содержит
+        # те же прямые рейсы, см. эталон direct-first-measurement.
         if is_direct_only(flow.request) or flow.request.date_window_end:
+            direct_queries = self._direct_inventory_queries(
+                flow,
+                origin=origin,
+                destination=destination,
+                origin_airports=origin_airports,
+                destination_airports=destination_airports,
+                currency=currency,
+            )
+            if access_profile == PROFILE_RESTRICTED_ACCESS:
+                for query in direct_queries:
+                    query["route_access_profile"] = access_profile
+                    query["gateway_discovery_mode"] = discovery_mode
             return direct_queries
 
         # Оба плеча строит одна функция. До этого прямое собиралось здесь
@@ -577,7 +569,7 @@ class SearchPlanBuilder:
             if access_profile == PROFILE_RESTRICTED_ACCESS
             else None
         )
-        queries: list[dict[str, Any]] = list(direct_queries)
+        queries: list[dict[str, Any]] = []
         queries.extend(
             self._provider_offer_queries_for_route(
                 flow,

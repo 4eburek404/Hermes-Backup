@@ -152,50 +152,19 @@ class SearchExecutor:
             timeout=policy.timeout,
             fail_fast=policy.fail_fast,
         )
-        direct_queries = [
-            query for query in planned_primary if bool(query.get("direct_only"))
-        ]
-        direct_results = (
-            run_primary_offer_queries(
-                direct_queries,
-                query_options,
-                store=self.store,
-                adapter_resolver=self.adapter_resolver,
-                probe_ledger=state.probe_ledger,
-            )
-            if direct_queries
-            else []
-        )
-        gate = evaluate_direct_gate(
-            state.route_context,
-            direct_results,
-            only_carriers=plan.execution_policy.only_carriers,
-        )
-        fallback_directions = [
-            direction
-            for direction, direct_present in gate.direct_mode.items()
-            if not direct_present
-        ]
-        fallback_queries = [
-            query
-            for query in planned_primary
-            if not bool(query.get("direct_only"))
-            and normalize_direction(query.get("direction")) in fallback_directions
-        ]
-        for query in planned_primary:
-            if bool(query.get("direct_only")):
-                continue
-            if normalize_direction(query.get("direction")) in fallback_directions:
-                continue
-            state.probe_ledger.record_skipped(query, reason="direct_available")
-        fallback_results = run_primary_offer_queries(
-            fallback_queries,
+        # Один проход. Раньше здесь было две фазы: прицельная проба
+        # direct_only, потом широкая — и только по тем направлениям, где прямых
+        # не нашлось. Разведка убрана: широкая выдача содержит те же прямые
+        # рейсы, поэтому вызовов столько же там, где прямые есть, и вдвое
+        # меньше там, где их нет. Присутствие прямых считается по результату,
+        # а не управляет тем, что спрашивать.
+        state.primary_offer_results = run_primary_offer_queries(
+            planned_primary,
             query_options,
             store=self.store,
             adapter_resolver=self.adapter_resolver,
             probe_ledger=state.probe_ledger,
         )
-        state.primary_offer_results = [*direct_results, *fallback_results]
         gate = evaluate_direct_gate(
             state.route_context,
             state.primary_offer_results,
@@ -203,20 +172,22 @@ class SearchExecutor:
         )
         state.direct_mode = dict(gate.direct_mode)
         state.direct_presence_gate = gate.to_dict()
+        successful_directions = {
+            normalize_direction(result.get("direction"))
+            for result in state.primary_offer_results
+            if str(result.get("execution_state") or "") == "searched"
+        }
+        state.direct_presence_gate["direct_search_confirmed"] = {
+            direction: direction in successful_directions
+            for direction in state.direct_mode
+        }
+        # Направления без прямых по-прежнему открывают шлюзовое плечо — это
+        # отдельное решение от того, что спрашивать у провайдера.
         fallback_directions = [
             direction
             for direction, direct_present in state.direct_mode.items()
             if not direct_present
         ]
-        successful_direct_directions = {
-            normalize_direction(result.get("direction"))
-            for result in direct_results
-            if str(result.get("execution_state") or "") == "searched"
-        }
-        state.direct_presence_gate["direct_search_confirmed"] = {
-            direction: direction in successful_direct_directions
-            for direction in state.direct_mode
-        }
         primary_path_present = {
             direction: any(
                 normalize_direction(result.get("direction")) == direction

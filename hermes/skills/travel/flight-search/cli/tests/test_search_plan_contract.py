@@ -148,13 +148,15 @@ class SearchPlanContractTests(unittest.TestCase):
 
         primary = _primary(plan)
         route_legs = _route_legs(plan)
+        # Одна широкая проба на провайдера и направление. Прицельной пробы
+        # direct_only здесь больше нет: разведка перед широкой убрана.
         self.assertEqual(
             [query["provider"] for query in primary],
-            ["tutu", "kupibilet", "tutu", "kupibilet"],
+            ["tutu", "kupibilet"],
         )
         self.assertEqual(
             [_query(attempt)["direct_only"] for attempt in primary],
-            [True, True, False, False],
+            [False, False],
         )
         self.assertEqual(
             plan["gateway_policy"]["trigger"],  # type: ignore[index]

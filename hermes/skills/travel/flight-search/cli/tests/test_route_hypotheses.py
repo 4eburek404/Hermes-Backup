@@ -384,7 +384,7 @@ class RouteHypothesisRequestTests(unittest.TestCase):
         with (
             patch(
                 "flights_cli.execution.search_executor.run_primary_offer_queries",
-                side_effect=[[], [connected_result]],
+                side_effect=[[connected_result]],
             ),
             patch.object(
                 executor_module.RouteLegProbeExecutor, "run"
