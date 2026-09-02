@@ -285,9 +285,6 @@ class SearchExecutor:
             state.primary_offer_results
         )
         state.probe_ledger.finalize_unexecuted()
-        max_connections_by_direction = gate.connection_caps(
-            plan.decision_policy.max_connections_per_journey
-        )
         evidence = SearchEvidence.freeze(
             search_plan=plan.to_dict(),
             provider_policy=plan.route.provider_policy,
@@ -295,8 +292,6 @@ class SearchExecutor:
             gateway_leg_results=state.gateway_leg_results,
             observed_gateway_diagnostics=observed_gateway_diagnostics,
             probe_ledger=state.probe_ledger.to_diagnostics(),
-            direct_mode=state.direct_mode,
-            max_connections_by_direction=max_connections_by_direction,
             direct_presence_gate=state.direct_presence_gate,
             direct_inventory_searches=state.direct_inventory_searches,
             direct_inventory_results=state.direct_inventory_results,

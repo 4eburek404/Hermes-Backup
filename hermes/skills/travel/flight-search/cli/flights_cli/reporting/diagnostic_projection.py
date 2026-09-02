@@ -80,7 +80,6 @@ def build_projection_input(
         "decision_frontier": thaw(decision_frontier),
         "assembly": {
             "source": "decision_frontier",
-            "direct_mode": dict(evidence.direct_mode),
             "candidate_count": int(coverage.get("candidate_count") or 0),
             "ranked_total_count": int(coverage.get("candidate_count") or 0),
             "ranked_output_count": len(decision_options),

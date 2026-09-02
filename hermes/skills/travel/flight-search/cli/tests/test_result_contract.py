@@ -102,8 +102,6 @@ class ResultContractTests(unittest.TestCase):
                     }
                 ]
             },
-            direct_mode={},
-            max_connections_by_direction={},
             direct_presence_gate={},
             direct_inventory_searches=[],
             direct_inventory_results=[],

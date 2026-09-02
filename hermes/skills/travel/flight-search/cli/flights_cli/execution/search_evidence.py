@@ -43,8 +43,6 @@ class SearchEvidence:
     gateway_leg_results: dict[str, Any]
     observed_gateway_diagnostics: dict[str, Any]
     probe_ledger: dict[str, Any]
-    direct_mode: dict[str, bool]
-    max_connections_by_direction: dict[str, int]
     direct_presence_gate: dict[str, Any]
     direct_inventory_searches: tuple[dict[str, Any], ...]
     direct_inventory_results: tuple[dict[str, Any], ...]
@@ -64,8 +62,6 @@ class SearchEvidence:
         gateway_leg_results: dict[str, Any],
         observed_gateway_diagnostics: dict[str, Any],
         probe_ledger: dict[str, Any],
-        direct_mode: dict[str, bool],
-        max_connections_by_direction: dict[str, int],
         direct_presence_gate: dict[str, Any],
         direct_inventory_searches: list[dict[str, Any]],
         direct_inventory_results: list[dict[str, Any]],
@@ -77,8 +73,6 @@ class SearchEvidence:
             gateway_leg_results=freeze(gateway_leg_results),
             observed_gateway_diagnostics=freeze(observed_gateway_diagnostics),
             probe_ledger=freeze(probe_ledger),
-            direct_mode=freeze(direct_mode),
-            max_connections_by_direction=freeze(max_connections_by_direction),
             direct_presence_gate=freeze(direct_presence_gate),
             direct_inventory_searches=tuple(freeze(direct_inventory_searches)),
             direct_inventory_results=tuple(freeze(direct_inventory_results)),
@@ -98,8 +92,6 @@ class SearchEvidence:
             "observed_gateway_diagnostics": thaw(self.observed_gateway_diagnostics),
             "probe_ledger": probe_ledger,
             "failures": failures,
-            "direct_mode": thaw(self.direct_mode),
-            "max_connections_by_direction": thaw(self.max_connections_by_direction),
             "direct_presence_gate": thaw(self.direct_presence_gate),
         }
         return _trace_safe(payload)

@@ -89,8 +89,6 @@ def _evidence(depart: date) -> SimpleNamespace:
             "not_executed_probes": [],
             "deduped_probes": [],
         },
-        direct_mode={"outbound": True},
-        max_connections_by_direction={"outbound": 0},
         direct_presence_gate={"direct_mode": {"outbound": True}},
         direct_inventory_searches=(),
     )
@@ -113,7 +111,6 @@ def test_research_status_audits_hypotheses_without_a_second_decision_pipeline() 
     depart = future_departure_date()
     evidence = _evidence(depart)
     evidence.primary_offer_results = ()
-    evidence.direct_mode = {"outbound": False}
     evidence.gateway_leg_results = {
         "route_hypotheses": [
             {

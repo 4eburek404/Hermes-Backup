@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Mapping
 
 from ..domain.normalize import (
     compact_mapping as _compact,
@@ -16,7 +16,7 @@ from ..domain.offer_paths import (
     segment_destination as _segment_destination,
     segment_origin as _segment_origin,
 )
-from ..domain.vocabulary import RouteFamily
+from ..domain.vocabulary import RouteFamily, normalize_direction as _direction_of
 from .direct_gate import (
     candidate_direct_mode_violation as _candidate_direct_mode_violation,
     candidate_is_direct as _candidate_is_direct,
@@ -57,7 +57,6 @@ def materialize_offer_graph_candidates(
     *,
     round_trip: bool = False,
     direct_only: bool = False,
-    direct_mode: dict[str, bool] | None = None,
     requested_origin: str | None = None,
     requested_destination: str | None = None,
     requested_origin_airports: list[str] | None = None,
@@ -91,7 +90,6 @@ def materialize_offer_graph_candidates(
             candidates,
             rejected,
             direct_only=direct_only,
-            direct_mode=direct_mode or {},
         )
 
     for candidate in _candidates_from_gateway_offer_paths(
@@ -109,7 +107,6 @@ def materialize_offer_graph_candidates(
             candidates,
             rejected,
             direct_only=direct_only,
-            direct_mode=direct_mode or {},
         )
 
     if round_trip:
@@ -128,9 +125,11 @@ def materialize_offer_graph_candidates(
                 candidates,
                 rejected,
                 direct_only=direct_only,
-                direct_mode=direct_mode or {},
             )
 
+    candidates, direct_mode = _hide_connections_where_direct_exists(
+        candidates, rejected
+    )
     candidates, deduped_count = _dedupe_candidates(candidates)
     return {
         "schema_version": OFFER_CANDIDATE_ENVELOPE_SCHEMA_VERSION,
@@ -143,7 +142,7 @@ def materialize_offer_graph_candidates(
             "direct_only": bool(direct_only),
             "direct_mode": {
                 str(direction): bool(enabled)
-                for direction, enabled in (direct_mode or {}).items()
+                for direction, enabled in direct_mode.items()
                 if enabled
             },
             "max_path_offers": max(1, int(max_path_offers)),
@@ -467,7 +466,6 @@ def _accept_or_reject_candidate(
     rejected: list[dict[str, Any]],
     *,
     direct_only: bool,
-    direct_mode: dict[str, bool],
 ) -> None:
     if direct_only and not _candidate_is_direct(candidate):
         rejected.append(
@@ -478,18 +476,59 @@ def _accept_or_reject_candidate(
             }
         )
         return
-    direct_mode_violation = _candidate_direct_mode_violation(candidate, direct_mode)
-    if direct_mode_violation is not None:
+    candidates.append(candidate)
+
+
+def _directions_with_direct(candidates: list[dict[str, Any]]) -> set[str]:
+    """Направления, на которых среди кандидатов есть прямой рейс."""
+    directions: set[str] = set()
+    for candidate in candidates:
+        if candidate.get("source_type") == "gateway_separate_ticket":
+            continue
+        journeys = candidate.get("journeys")
+        if not isinstance(journeys, list):
+            continue
+        for journey in journeys:
+            if not isinstance(journey, Mapping):
+                continue
+            segments = [
+                segment
+                for segment in journey.get("segments") or []
+                if isinstance(segment, Mapping)
+            ]
+            if len(segments) == 1:
+                directions.add(_direction_of(journey.get("direction")))
+    return directions
+
+
+def _hide_connections_where_direct_exists(
+    candidates: list[dict[str, Any]], rejected: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], dict[str, bool]]:
+    """Есть прямые на направлении — стыковочные варианты туда не показываем.
+
+    Раньше это решалось по сырым ответам провайдера, до того как кандидаты
+    построены: гейту надо было ответить рано, чтобы решить, слать ли вторую
+    пробу. Двухфазности больше нет, и вопрос задаётся там, где на него уже
+    есть ответ, — на самих кандидатах.
+    """
+    direct_mode = {direction: True for direction in _directions_with_direct(candidates)}
+    if not direct_mode:
+        return candidates, direct_mode
+    kept: list[dict[str, Any]] = []
+    for candidate in candidates:
+        violation = _candidate_direct_mode_violation(candidate, direct_mode)
+        if violation is None:
+            kept.append(candidate)
+            continue
         rejected.append(
             {
                 "candidate_id": candidate.get("id"),
                 "source_type": candidate.get("source_type"),
                 "reason": "direct_mode_gate",
-                "direction": direct_mode_violation,
+                "direction": violation,
             }
         )
-        return
-    candidates.append(candidate)
+    return kept, direct_mode
 
 
 def _segments_for_edge_ids(

@@ -22,8 +22,6 @@ class SearchEvidenceView(Protocol):
     gateway_leg_results: dict[str, Any]
     observed_gateway_diagnostics: dict[str, Any]
     probe_ledger: dict[str, Any]
-    direct_mode: dict[str, bool]
-    max_connections_by_direction: dict[str, int]
     direct_presence_gate: dict[str, Any]
     direct_inventory_searches: tuple[dict[str, Any], ...]
 
@@ -67,7 +65,6 @@ class SearchDecisionBuilder:
             offer_graph,
             round_trip=bool(plan.route.dates.get("return")),
             direct_only=bool(route.get("direct_only")),
-            direct_mode=evidence.direct_mode,
             requested_origin=str(route.get("origin") or ""),
             requested_destination=str(route.get("destination") or ""),
             requested_origin_airports=list(route.get("origin_airports") or []),
@@ -76,13 +73,26 @@ class SearchDecisionBuilder:
             ),
             max_path_offers=stop_policy.hard_max_connections + 1,
         )
+        # Присутствие прямых считается по кандидатам и живёт в их конверте.
+        # И лимит выдачи, и потолок пересадок по направлению читают оттуда, а
+        # не из отдельной копии, посчитанной исполнителем по сырым ответам.
+        direct_directions = {
+            str(direction)
+            for direction, enabled in (
+                (offer_candidates.get("coverage") or {}).get("direct_mode") or {}
+            ).items()
+            if enabled
+        }
+        max_connections_by_direction = {
+            direction: 0 for direction in direct_directions
+        }
         scored_decisions = DecisionScorer(
             DecisionScorerOptions(
                 round_trip=bool(plan.route.dates.get("return")),
                 max_connections_per_journey=(
                     plan.decision_policy.max_connections_per_journey
                 ),
-                max_connections_per_direction=evidence.max_connections_by_direction,
+                max_connections_per_direction=max_connections_by_direction,
                 preferred_connections=plan.decision_policy.preferred_connections,
                 min_same_airport_connection_min=(
                     plan.decision_policy.min_same_airport_connection_min
@@ -104,7 +114,7 @@ class SearchDecisionBuilder:
                 max_round_trip_pairs=plan.output_policy.max_round_trip_pairs,
                 max_options=(
                     plan.output_policy.direct_catalog_limit
-                    if any(bool(value) for value in evidence.direct_mode.values())
+                    if direct_directions
                     else plan.output_policy.catalog_limit
                 ),
             )

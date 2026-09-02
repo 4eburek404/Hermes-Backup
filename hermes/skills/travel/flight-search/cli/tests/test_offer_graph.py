@@ -61,7 +61,28 @@ class OfferGraphTests(unittest.TestCase):
         provider_second_flight_number: str | None = "TK 1953",
         gateway_first_flight_number: str | None = "U6123",
         gateway_second_flight_number: str | None = "TK1953",
+        with_direct_offer: bool = False,
     ) -> dict:
+        direct_offers = (
+            [
+                {
+                    "id": "kb-direct",
+                    "price": 52000,
+                    "currency": "RUB",
+                    "segments": [
+                        {
+                            "origin": "SVX",
+                            "destination": "AMS",
+                            "flight_number": "KL 1234",
+                            "departure_at": "2026-08-15T09:00:00+05:00",
+                            "arrival_at": "2026-08-15T12:00:00+02:00",
+                        }
+                    ],
+                }
+            ]
+            if with_direct_offer
+            else []
+        )
         return build_offer_graph(
             primary_offer_results=[
                 {
@@ -71,6 +92,7 @@ class OfferGraphTests(unittest.TestCase):
                     "origin": "SVX",
                     "destination": "AMS",
                     "top_offers": [
+                        *direct_offers,
                         {
                             "id": "kb-full-1",
                             "price": provider_price,
@@ -384,7 +406,6 @@ class OfferGraphTests(unittest.TestCase):
         )
         envelope = materialize_offer_graph_candidates(
             graph,
-            direct_mode={"outbound": True},
             requested_origin="SVX",
             requested_destination="IST",
         )
@@ -535,7 +556,6 @@ class OfferGraphTests(unittest.TestCase):
         )
         envelope = materialize_offer_graph_candidates(
             graph,
-            direct_mode={"outbound": True, "return": True},
             requested_origin="SVX",
             requested_destination="LED",
         )
@@ -1242,7 +1262,6 @@ class OfferGraphTests(unittest.TestCase):
         )
         envelope = materialize_offer_graph_candidates(
             graph,
-            direct_mode={"outbound": True},
             requested_origin="SVX",
             requested_destination="AMS",
         )
@@ -1255,6 +1274,8 @@ class OfferGraphTests(unittest.TestCase):
     def test_direct_mode_gate_rejects_atomic_round_trip_when_gated_journey_connected(
         self,
     ) -> None:
+        # Правило состава стоит на самих кандидатах: чтобы спрятать стыковку
+        # на туда-плече, прямой рейс туда должен в выдаче быть.
         graph = build_offer_graph(
             primary_offer_results=[
                 {
@@ -1265,6 +1286,12 @@ class OfferGraphTests(unittest.TestCase):
                     "origin": "SVX",
                     "destination": "LED",
                     "top_offers": [
+                        {
+                            "id": "tutu-direct-out",
+                            "price": 18000,
+                            "currency": "RUB",
+                            "segments": [{"origin": "SVX", "destination": "LED"}],
+                        },
                         {
                             "id": "tutu-rt-connected-out",
                             "price": 20441,
@@ -1296,16 +1323,18 @@ class OfferGraphTests(unittest.TestCase):
             gateway_leg_results={},
         )
 
-        self.assertEqual(len(graph["offers"]), 1)
-        self.assertEqual(len(graph["edges"]), 3)
+        self.assertEqual(len(graph["offers"]), 2)
         envelope = materialize_offer_graph_candidates(
             graph,
-            direct_mode={"outbound": True},
             requested_origin="SVX",
             requested_destination="LED",
         )
-        self.assertEqual(envelope["candidates"], [])
+        self.assertEqual(
+            [candidate["id"] for candidate in envelope["candidates"]],
+            ["candidate:primary_offer:tutu:tutu-direct-out"],
+        )
         self.assertEqual(envelope["rejected"][0]["reason"], "direct_mode_gate")
+        self.assertEqual(envelope["rejected"][0]["direction"], "outbound")
 
     def test_direct_mode_gate_allows_atomic_round_trip_connected_other_direction(
         self,
@@ -1352,7 +1381,6 @@ class OfferGraphTests(unittest.TestCase):
         self.assertEqual(len(graph["edges"]), 3)
         envelope = materialize_offer_graph_candidates(
             graph,
-            direct_mode={"outbound": True},
             requested_origin="SVX",
             requested_destination="LED",
         )
@@ -1387,7 +1415,6 @@ class OfferGraphTests(unittest.TestCase):
         self.assertEqual(len(graph["offers"]), 1)
         envelope = materialize_offer_graph_candidates(
             graph,
-            direct_mode={"outbound": True},
             requested_origin="AAA",
             requested_destination="BBB",
             requested_origin_airports=origin_airports,
@@ -1397,11 +1424,10 @@ class OfferGraphTests(unittest.TestCase):
         self.assertTrue(envelope["candidates"][0]["covers_requested_trip"])
 
     def test_direct_mode_gate_rejects_gateway_candidates_on_materialize(self) -> None:
-        graph = self.graph_with_provider_and_gateway()
+        graph = self.graph_with_provider_and_gateway(with_direct_offer=True)
 
         envelope = materialize_offer_graph_candidates(
             graph,
-            direct_mode={"outbound": True},
             requested_origin="SVX",
             requested_destination="AMS",
         )
