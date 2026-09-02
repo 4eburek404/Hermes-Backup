@@ -30,30 +30,6 @@ def _candidate_ids(candidate_envelope: dict[str, Any]) -> list[str]:
     ]
 
 
-def _hub_viability_summary(
-    plan: dict[str, Any],
-    searches: list[dict[str, Any]] | None = None,
-    gateway_leg_results: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    gateways = (
-        gateway_leg_results.get("gateways")
-        if isinstance(gateway_leg_results, dict)
-        else []
-    )
-    gateway_rows = [item for item in gateways or [] if isinstance(item, dict)]
-    return {
-        "hubs": list(plan.get("hubs") or []),
-        "searched_gateways": int(gateway_leg_results.get("searched_gateways") or 0)
-        if isinstance(gateway_leg_results, dict)
-        else 0,
-        "viable_gateways": int(gateway_leg_results.get("viable_gateways") or 0)
-        if isinstance(gateway_leg_results, dict)
-        else 0,
-        "gateway_count": len(gateway_rows),
-        "direct_inventory_probe_count": len(searches or []),
-    }
-
-
 def build_projection_input(
     plan: SearchPlan,
     evidence: SearchEvidenceView,
@@ -94,13 +70,7 @@ def build_projection_input(
                 "direct_catalog_limit": plan.output_policy.direct_catalog_limit,
             },
             "segment_searches": thaw(evidence.direct_inventory_searches),
-            "hub_viability": _hub_viability_summary(
-                evidence.route_context,
-                list(evidence.direct_inventory_searches),
-                evidence.gateway_leg_results,
-            ),
             "primary_offer_results": thaw(evidence.primary_offer_results),
-            "gateway_leg_results": thaw(evidence.gateway_leg_results),
             "offer_graph": thaw(decision.offer_graph),
             "candidate_input_ids": _candidate_ids(decision.offer_candidates),
             "decision_scorer": thaw(decision.scored_decisions["scorer"]),
@@ -109,12 +79,8 @@ def build_projection_input(
             "stop_policy_status": thaw(decision.stop_policy_status),
             "research_status": thaw(decision.research_status),
             "probe_ledger": thaw(evidence.probe_ledger),
-            "direct_presence_gate": thaw(evidence.direct_presence_gate),
             "diagnostics": {
                 "search_plan": thaw(evidence.search_plan),
-                "observed_gateway_diagnostics": thaw(
-                    evidence.observed_gateway_diagnostics
-                ),
             },
         },
     }

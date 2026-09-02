@@ -78,8 +78,6 @@ def _evidence(depart: date) -> SimpleNamespace:
         },
         provider_policy="all",
         primary_offer_results=(primary_result,),
-        gateway_leg_results={},
-        observed_gateway_diagnostics={},
         probe_ledger={
             "planned_probes": [],
             "searched_probes": [],
@@ -89,7 +87,6 @@ def _evidence(depart: date) -> SimpleNamespace:
             "not_executed_probes": [],
             "deduped_probes": [],
         },
-        direct_presence_gate={"direct_mode": {"outbound": True}},
         direct_inventory_searches=(),
     )
 
@@ -107,42 +104,22 @@ def test_search_decision_builder_is_a_pure_evidence_projection() -> None:
     assert decision.research_status["audit"] == []
 
 
-def test_research_status_audits_hypotheses_without_a_second_decision_pipeline() -> None:
+def test_research_status_marks_evidence_incomplete_from_the_probe_ledger() -> None:
     depart = future_departure_date()
     evidence = _evidence(depart)
     evidence.primary_offer_results = ()
-    evidence.gateway_leg_results = {
-        "route_hypotheses": [
-            {
-                "hypothesis_id": "web_route_discovery:outbound:SVX-IST-LED",
-                "direction": "outbound",
-                "required_airports": ["SVX", "IST", "LED"],
-                "status": "excluded",
-                "reason": "route_leg_has_no_offers",
-                "legs": [],
-            },
-            {
-                "hypothesis_id": "web_route_discovery:outbound:SVX-DXB-LED",
-                "direction": "outbound",
-                "required_airports": ["SVX", "DXB", "LED"],
-                "status": "not_executed",
-                "reason": "provider_attempt_budget_exhausted",
-                "legs": [],
-            },
-        ]
-    }
     evidence.probe_ledger["not_executed_probes"] = [
         {"probe_id": "budget", "reason": "provider_attempt_budget_exhausted"}
     ]
 
     decision = SearchDecisionBuilder.build(_plan(depart), evidence)
 
-    assert [item["status"] for item in decision.research_status["audit"]] == [
-        "excluded",
-        "not_executed",
-    ]
+    # Незавершённость доказательств теперь читается только по журналу проб.
+    # Раньше её вторым источником был аудит маршрутных гипотез — шлюзовых
+    # плеч, которых больше не существует.
     assert decision.research_status["evidence_incomplete"] is True
     assert decision.research_status["needed"] is False
+    assert decision.research_status["audit"] == []
 
 
 def test_search_decision_uses_plan_limits_when_request_limits_conflict() -> None:

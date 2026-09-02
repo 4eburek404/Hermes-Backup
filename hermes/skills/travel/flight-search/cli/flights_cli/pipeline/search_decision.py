@@ -19,10 +19,7 @@ class SearchEvidenceView(Protocol):
     search_plan: dict[str, Any]
     provider_policy: str
     primary_offer_results: tuple[dict[str, Any], ...]
-    gateway_leg_results: dict[str, Any]
-    observed_gateway_diagnostics: dict[str, Any]
     probe_ledger: dict[str, Any]
-    direct_presence_gate: dict[str, Any]
     direct_inventory_searches: tuple[dict[str, Any], ...]
 
     @property
@@ -59,7 +56,6 @@ class SearchDecisionBuilder:
         )
         offer_graph = build_offer_graph(
             primary_offer_results=list(evidence.primary_offer_results),
-            gateway_leg_results=evidence.gateway_leg_results,
         )
         offer_candidates = materialize_offer_graph_candidates(
             offer_graph,
@@ -134,7 +130,6 @@ class SearchDecisionBuilder:
             ),
             research_status=_research_status(
                 scored_decisions,
-                evidence.gateway_leg_results,
                 evidence.probe_ledger,
             ),
         )
@@ -142,7 +137,6 @@ class SearchDecisionBuilder:
 
 def _research_status(
     scored_decisions: dict[str, Any],
-    gateway_leg_results: dict[str, Any],
     probe_ledger: dict[str, Any],
 ) -> dict[str, Any]:
     ranking = scored_decisions.get("mixed_candidate_ranking")
@@ -163,12 +157,10 @@ def _research_status(
         in {"comfortable", "acceptable"}
         and _airport_signature(candidate)
     }
-    audit = _route_hypothesis_audit(gateway_leg_results)
     target_reached = eligible_direct or len(convenient_signatures) >= 3
     incomplete_evidence = bool(
         (probe_ledger.get("failed_probes") or [])
         or (probe_ledger.get("not_executed_probes") or [])
-        or any(item["status"] == "not_executed" for item in audit)
     )
     evidence_incomplete = not target_reached and incomplete_evidence
     return {
@@ -177,7 +169,10 @@ def _research_status(
         "eligible_direct": eligible_direct,
         "convenient_signature_count": len(convenient_signatures),
         "target_signature_count": 3,
-        "audit": audit,
+        # Ключ остаётся пустым только потому, что его требует
+        # flight_search_result.v10: аудит маршрутных гипотез описывал шлюзовые
+        # плечи, которых больше нет. Уйдёт вместе со схемой в .v1.
+        "audit": [],
     }
 
 
@@ -202,36 +197,6 @@ def _airport_signature(candidate: dict[str, Any]) -> tuple[Any, ...] | None:
         if airports:
             signature.append((str(journey.get("direction") or "outbound"), tuple(airports)))
     return tuple(signature) if signature else None
-
-
-def _route_hypothesis_audit(results: dict[str, Any]) -> list[dict[str, Any]]:
-    hypotheses = results.get("route_hypotheses") if isinstance(results, dict) else []
-    audit: list[dict[str, Any]] = []
-    for hypothesis in hypotheses or []:
-        if not isinstance(hypothesis, dict):
-            continue
-        status = str(hypothesis.get("status") or "excluded")
-        if status not in {"viable", "excluded", "not_executed"}:
-            status = "excluded"
-        audit.append(
-            {
-                "hypothesis_id": str(hypothesis.get("hypothesis_id") or ""),
-                "direction": str(hypothesis.get("direction") or "outbound"),
-                "required_airports": list(hypothesis.get("required_airports") or []),
-                "status": status,
-                "reason": str(
-                    hypothesis.get("reason")
-                    or (
-                        "route_hypothesis_viable"
-                        if status == "viable"
-                        else "route_hypothesis_not_executed"
-                        if status == "not_executed"
-                        else "route_hypothesis_excluded"
-                    )
-                ),
-            }
-        )
-    return audit
 
 
 __all__ = ["SearchDecision", "SearchDecisionBuilder", "SearchEvidenceView"]

@@ -80,19 +80,11 @@ def valid_result() -> dict:
 
 
 class ResultContractTests(unittest.TestCase):
-    def test_search_evidence_is_deeply_frozen_and_trace_is_defensive(self) -> None:
+    def test_search_evidence_is_deeply_frozen(self) -> None:
         evidence = SearchEvidence.freeze(
             search_plan={"route": {"origin": "SVX", "nested": {"items": [1]}}},
             provider_policy="tutu",
-            primary_offer_results=[
-                {
-                    "raw_payload": {"secret": True},
-                    "session_id": "provider-session",
-                    "offer_count": 0,
-                }
-            ],
-            gateway_leg_results={},
-            observed_gateway_diagnostics={},
+            primary_offer_results=[{"offer_count": 0}],
             probe_ledger={
                 "failed_probes": [
                     {
@@ -102,7 +94,6 @@ class ResultContractTests(unittest.TestCase):
                     }
                 ]
             },
-            direct_presence_gate={},
             direct_inventory_searches=[],
             direct_inventory_results=[],
         )
@@ -111,11 +102,8 @@ class ResultContractTests(unittest.TestCase):
             evidence.route_context["origin"] = "LED"
         with self.assertRaises(TypeError):
             evidence.route_context["nested"]["items"].append(2)
-        trace = evidence.to_trace_dict()
-        trace["provider_policy"] = "changed"
-        self.assertEqual(evidence.provider_policy, "tutu")
-        self.assertEqual(trace["primary_offer_results"], [{"offer_count": 0}])
-        self.assertEqual(trace["failures"], trace["probe_ledger"]["failed_probes"])
+        with self.assertRaises(TypeError):
+            evidence.probe_ledger["failed_probes"][0]["error"]["type"] = "other"
 
     def test_result_has_one_public_output_path(self) -> None:
         result = valid_result()
