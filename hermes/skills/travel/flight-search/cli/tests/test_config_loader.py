@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 from flights_cli.data.config_loader import load_yaml_mapping
-from flights_cli.domain.gateway_priors import DEFAULT_GATEWAY_PRIORS_PATH
 from flights_cli.domain.route_access_profiles import (
     DEFAULT_ROUTE_ACCESS_PROFILES_PATH,
 )
@@ -77,10 +76,6 @@ class ConfigLoaderTests(unittest.TestCase):
 
     def test_packaged_yaml_resources_preserve_expected_data(self) -> None:
         resources = {
-            DEFAULT_GATEWAY_PRIORS_PATH: (
-                "gateway priors",
-                "91e919b07008d095c9f197ecd4ecfb22588e1997a6a06aa3f763d80176c82ded",
-            ),
             DEFAULT_ROUTE_ACCESS_PROFILES_PATH: (
                 "route access profiles",
                 "89940ef6ae79f04592443ecbe39408ac93fa93ea20fff6edeb9d8c38f75c26cc",

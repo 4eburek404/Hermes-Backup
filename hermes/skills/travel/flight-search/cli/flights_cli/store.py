@@ -24,14 +24,12 @@ class Store:
         self,
         cache_dir: Path | None = None,
         *,
-        gateway_priors_path: Path | None = None,
         route_access_profiles_path: Path | None = None,
     ):
         self.cache_dir = cache_dir or resolve_cache_dir()
         self.catalog_storage = CatalogStorage(self.cache_dir)
         # Пути к шлюзовым конфигам: сами каталоги грузят потребители из
         # хабового слоя, чтобы Store не зависел от того, что уходит под нож.
-        self.gateway_priors_path = gateway_priors_path
         self.route_access_profiles_path = route_access_profiles_path
         self._countries: list[dict[str, Any]] | None = None
         self._cities: list[dict[str, Any]] | None = None
