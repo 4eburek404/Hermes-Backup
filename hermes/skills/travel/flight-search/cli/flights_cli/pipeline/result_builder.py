@@ -55,7 +55,7 @@ def build_result_projection(data: dict[str, Any]) -> dict[str, Any]:
     answer_input = UserAnswerInput(
         route=route,
         source_boundaries=source_boundaries(),
-        coverage_snapshot=coverage_snapshot,
+        evidence_status=coverage_snapshot.answer_evidence_status,
         primary_options=primary_options,
         alternative_options=alternative_options,
         stop_policy=dict(live.get("stop_policy") or {}),

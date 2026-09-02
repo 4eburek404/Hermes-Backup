@@ -10,7 +10,6 @@ from .catalog_projection import (
 )
 from .catalog_rendering import render_user_answer
 from .catalog_semantics import route_requested_round_trip
-from .coverage import CoverageSnapshot
 
 USER_ANSWER_SCHEMA_VERSION = current_contract("user_answer")["schema_version"]
 
@@ -25,7 +24,7 @@ __all__ = (
 class UserAnswerInput:
     route: dict[str, Any]
     source_boundaries: list[str]
-    coverage_snapshot: CoverageSnapshot
+    evidence_status: dict[str, Any]
     primary_options: list[dict[str, Any]]
     alternative_options: list[dict[str, Any]]
     stop_policy: dict[str, Any]
@@ -82,7 +81,7 @@ def build_user_answer(answer_input: UserAnswerInput) -> dict[str, Any]:
                 stop_diagnostics.get("garbage_options_hidden_from_answer")
             ),
         },
-        "evidence_status": dict(answer_input.coverage_snapshot.answer_evidence_status),
+        "evidence_status": dict(answer_input.evidence_status),
         "required_caveats": {
             "source_boundaries_included": True,
             "coverage_incompleteness_acknowledged": True,

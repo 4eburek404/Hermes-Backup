@@ -140,7 +140,9 @@ def answer_input_from_fixture(report: dict) -> UserAnswerInput:
     return UserAnswerInput(
         route=report["route"],
         source_boundaries=report["source_boundaries"],
-        coverage_snapshot=CoverageSnapshot.from_diagnostics(report["coverage_report"]),
+        evidence_status=CoverageSnapshot.from_diagnostics(
+            report["coverage_report"]
+        ).answer_evidence_status,
         primary_options=report["primary_options"],
         alternative_options=report["alternative_options"],
         stop_policy=report["stop_policy"],
