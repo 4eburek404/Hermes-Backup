@@ -3,6 +3,11 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+from ..config import (
+    DEFAULT_FIRST_CARRIER_MAX_OPTIONS,
+    DEFAULT_GATEWAY_MAX_ALTERNATIVES,
+    DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS,
+)
 from ..domain.connection_policy import (
     DEFAULT_PREFERRED_LAYOVER_MAX_MIN,
     candidate_segment_groups as _candidate_segment_groups,
@@ -21,10 +26,6 @@ from .direct_gate import candidate_is_direct
 DECISION_FRONTIER_SCHEMA_VERSION = "flight_decision_frontier.v1"
 PREFERRED_LAYOVER_MAX_MIN = DEFAULT_PREFERRED_LAYOVER_MAX_MIN
 DEFAULT_FRONTIER_MAX_OPTIONS = 6
-DEFAULT_GATEWAY_MAX_ALTERNATIVES = 2
-DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS = 4
-DEFAULT_FIRST_CARRIER_MAX_OPTIONS = 2
-DEFAULT_MAX_ROUND_TRIP_PAIRS = 12
 
 
 def build_decision_frontier(
@@ -605,10 +606,7 @@ def _direct_option_count_by_direction(
 
 
 __all__ = [
-    "DEFAULT_FIRST_CARRIER_MAX_OPTIONS",
     "DEFAULT_FRONTIER_MAX_OPTIONS",
-    "DEFAULT_GATEWAY_MAX_ALTERNATIVES",
-    "DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS",
     "DECISION_FRONTIER_SCHEMA_VERSION",
     "build_decision_frontier",
 ]

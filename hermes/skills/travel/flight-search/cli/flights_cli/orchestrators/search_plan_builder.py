@@ -8,7 +8,13 @@ from typing import Any, Callable
 from ..adapters.providers.registry import (
     providers_for_offer_query,
 )
-from ..config import MAX_DATE_WINDOW_DAYS
+from ..config import (
+    DEFAULT_FIRST_CARRIER_MAX_OPTIONS,
+    DEFAULT_GATEWAY_MAX_ALTERNATIVES,
+    DEFAULT_MAX_ROUND_TRIP_PAIRS,
+    DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS,
+    MAX_DATE_WINDOW_DAYS,
+)
 from ..domain.airports import airport_scope_summary, explicit_or_resolved_airports
 from ..domain.gateway_discovery import GatewayDiscoveryService
 from ..domain.connection_policy import (
@@ -20,12 +26,6 @@ from ..domain.route_access_profiles import MODE_REQUIRED, PROFILE_RESTRICTED_ACC
 from ..domain.stop_policy import resolve_stop_policy
 from ..domain.vocabulary import Direction, RouteFamily
 from ..errors import CliError
-from ..pipeline.frontier_selection import (
-    DEFAULT_FIRST_CARRIER_MAX_OPTIONS,
-    DEFAULT_GATEWAY_MAX_ALTERNATIVES,
-    DEFAULT_MAX_ROUND_TRIP_PAIRS,
-    DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS,
-)
 from ..pipeline.flow_decision import FlowDecision, decide_flow
 from ..pipeline.search_request import SearchRequest
 from ..pipeline.search_request import is_direct_only

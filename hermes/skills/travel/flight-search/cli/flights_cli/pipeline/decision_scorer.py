@@ -14,12 +14,14 @@ from ..domain.normalize import numeric_or_none, ordered_unique as _ordered_uniqu
 from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY
 from .candidate_scoring import score_validated_candidates
 from .candidate_validation import validate_candidate_envelope
-from .frontier_selection import (
+from ..config import (
     DEFAULT_FIRST_CARRIER_MAX_OPTIONS,
-    DEFAULT_FRONTIER_MAX_OPTIONS,
     DEFAULT_GATEWAY_MAX_ALTERNATIVES,
     DEFAULT_MAX_ROUND_TRIP_PAIRS,
     DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS,
+)
+from .frontier_selection import (
+    DEFAULT_FRONTIER_MAX_OPTIONS,
     build_decision_frontier,
 )
 
