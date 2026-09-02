@@ -9,7 +9,7 @@ from ..domain.stop_policy import (
     stop_policy_payload,
     stop_policy_status,
 )
-from .direct_gate import candidate_is_direct
+from .candidate_directness import candidate_is_direct
 from .decision_scorer import DecisionScorer, DecisionScorerOptions
 from .offer_graph_builder import build_offer_graph
 from .offer_graph_materializer import materialize_offer_graph_candidates

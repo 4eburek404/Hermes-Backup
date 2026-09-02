@@ -7,7 +7,7 @@ from typing import Any
 
 from flights_cli.orchestrators.search_plan_builder import SearchPlanBuilder
 from flights_cli.pipeline.result_builder import build_projection_input
-from flights_cli.pipeline.direct_gate import candidate_is_direct
+from flights_cli.pipeline.candidate_directness import candidate_is_direct
 from flights_cli.pipeline.frontier_selection import build_decision_frontier
 from flights_cli.pipeline.search_decision import SearchDecisionBuilder
 from flights_cli.store import Store

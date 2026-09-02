@@ -20,7 +20,7 @@ from ..domain.stop_policy import (
     stop_tier,
 )
 from .candidate_scoring import UNKNOWN_RANK_NUMERIC, rank_component
-from .direct_gate import candidate_is_direct
+from .candidate_directness import candidate_is_direct
 
 
 DECISION_FRONTIER_SCHEMA_VERSION = "flight_decision_frontier.v1"

@@ -17,7 +17,7 @@ from ..domain.offer_paths import (
     segment_origin as _segment_origin,
 )
 from ..domain.vocabulary import RouteFamily, normalize_direction as _direction_of
-from .direct_gate import (
+from .candidate_directness import (
     candidate_direct_mode_violation as _candidate_direct_mode_violation,
     candidate_is_direct as _candidate_is_direct,
     requested_airport_codes as _requested_codes,
