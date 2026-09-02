@@ -12,7 +12,7 @@ import ast
 import json
 import tempfile
 import unittest
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 
 from flights_cli.adapters.providers.registry import PROVIDER_REGISTRY
@@ -27,7 +27,7 @@ from flights_cli.pipeline.search_request import (
 )
 from flights_cli.version_manifest import load_version_manifest, manifest_mismatches
 
-from provider_stub import TutuStub, run_search_cli, segment
+from provider_stub import ConnectingInventoryStub, minutes_between, run_search_cli
 
 PROJECT = Path(__file__).resolve().parents[1]
 
@@ -93,56 +93,6 @@ class RequestBoundary(unittest.TestCase):
             search_request_from_payload(
                 self._request(return_date=(depart - timedelta(days=1)).isoformat())
             )
-
-
-class ConnectingInventoryStub(TutuStub):
-    """Провайдер отдаёт собственный стыковочный оффер NTE→AMS→SVX.
-
-    Стыковка приходит внутри одного провайдерского оффера, а не склеивается
-    планировщиком через шлюз, — поэтому сценарий переживает резку хабового слоя.
-    """
-
-    def search_payload(self, origin: str, destination: str) -> dict:
-        if (origin, destination) != ("NTE", "SVX"):
-            return {"offers": [], "meta": {"has_more": False}}
-        depart = self.depart.isoformat()
-        return {
-            "offers": [
-                {
-                    "offer_id": "nte-ams-svx",
-                    "price": {"amount": 24300, "currency": "RUB"},
-                    "duration_min": 555,
-                    "legs": [
-                        {
-                            "segments": [
-                                segment(
-                                    "NTE",
-                                    "AMS",
-                                    "KL-1424",  # провайдер пишет с дефисом
-                                    f"{depart}T06:05:00+02:00",
-                                    f"{depart}T07:45:00+02:00",
-                                    100,
-                                ),
-                                segment(
-                                    "AMS",
-                                    "SVX",
-                                    "KL1395",
-                                    f"{depart}T11:35:00+02:00",
-                                    f"{depart}T18:20:00+05:00",
-                                    345,
-                                ),
-                            ]
-                        }
-                    ],
-                }
-            ],
-            "meta": {"has_more": False},
-        }
-
-
-def minutes_between(earlier: str, later: str) -> int:
-    delta = datetime.fromisoformat(later) - datetime.fromisoformat(earlier)
-    return round(delta.total_seconds() / 60)
 
 
 class AnswerComposition(unittest.TestCase):

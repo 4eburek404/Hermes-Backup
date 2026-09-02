@@ -9,10 +9,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import timedelta
 
 from helpers import future_departure_date
-from provider_stub import CATALOG_FIXTURES, TutuStub
+from provider_stub import CATALOG_FIXTURES, ConnectingInventoryStub
 
 
 class OfflineCliE2ETests(unittest.TestCase):
@@ -20,7 +19,7 @@ class OfflineCliE2ETests(unittest.TestCase):
         self,
     ) -> None:
         depart = future_departure_date()
-        stub = TutuStub(depart)
+        stub = ConnectingInventoryStub(depart)
         stub.start()
         self.addCleanup(stub.close)
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -39,13 +38,6 @@ class OfflineCliE2ETests(unittest.TestCase):
                         "currency": "RUB",
                         "profile": "business",
                         "provider_policy": "tutu",
-                        "route_options": {
-                            "routing_strategy": "hub-list",
-                            "hubs": ["IST"],
-                            "gateway_discovery_limit": 1,
-                            "gateway_probe_batch_size": 1,
-                            "gateway_probe_max_batches": 1,
-                        },
                         "evidence": {
                             "max_segment_searches": 20,
                             "no_live_cache": True,
@@ -137,18 +129,16 @@ class OfflineCliE2ETests(unittest.TestCase):
         self.assertEqual(result["schema_version"], "flight_search_result.v10")
         self.assertEqual(text_proc.stdout, result["answer"]["rendered_text"] + "\n")
         self.assertIn("KL1424", text_proc.stdout)
-        self.assertIn("KL1959", text_proc.stdout)
+        self.assertIn("KL1395", text_proc.stdout)
         self.assertEqual(
             text_proc.stdout,
             f"""Нашёл варианты NTE→SVX.
 1. KL1424 {depart:%d.%m} NTE-(AMS) 0605 0745 в пути 1 ч 40 мин
     пересадка 3 ч 50 мин
-   KL1959 {depart:%d.%m} (AMS)-(IST) 1135 1605 в пути 3 ч 30 мин
-    пересадка 3 ч 55 мин
-   TK475 {depart:%d.%m} (IST)-(SVX) 2000 0245 ({depart + timedelta(days=1):%d.%m}) в пути 4 ч 45 мин
-    40 000 ₽ · Отдельные билеты: при задержке первого рейса следующий сегмент не защищён.
+   KL1395 {depart:%d.%m} (AMS)-(SVX) 1135 1820 в пути 3 ч 45 мин
+    24 300 ₽
 
-Перед оплатой проверьте багаж, финальный тариф и правила обмена/возврата; покрытие неполное: не все live-проверки выполнены; результат не доказывает варианты вне границ источников.
+Перед оплатой проверьте багаж, финальный тариф и правила обмена/возврата; результат не доказывает варианты вне границ источников.
 """,
         )
 

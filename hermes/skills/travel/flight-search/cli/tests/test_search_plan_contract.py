@@ -8,8 +8,6 @@ from flights_cli.contracts.validation import validate_contract_payload
 from flights_cli.errors import CliError
 from flights_cli.pipeline.search_plan import (
     GATEWAY_TRIGGER_DISABLED,
-    GATEWAY_TRIGGER_ON_PRIMARY_FAILURE,
-    GATEWAY_TRIGGER_REQUIRED_IF_NO_DIRECT,
     SEARCH_PLAN_SCHEMA_VERSION,
     SearchPlan,
 )
@@ -132,48 +130,6 @@ class SearchPlanContractTests(unittest.TestCase):
         with self.assertRaises(CliError):
             validate_contract_payload("search_plan", with_runtime_state)
 
-    def test_restricted_route_plans_explicit_provider_attempts(self) -> None:
-        depart = future_departure_date()
-        plan = build_search_plan(
-            live_assembly_args(
-                origin="SVX",
-                destination="AMS",
-                depart_date=depart.isoformat(),
-                return_date=None,
-                provider_policy="auto",
-                no_live_cache=True,
-            ),
-            Store(),
-        )
-
-        primary = _primary(plan)
-        route_legs = _route_legs(plan)
-        # Одна широкая проба на провайдера и направление. Прицельной пробы
-        # direct_only здесь больше нет: разведка перед широкой убрана.
-        self.assertEqual(
-            [query["provider"] for query in primary],
-            ["tutu", "kupibilet"],
-        )
-        self.assertEqual(
-            [_query(attempt)["direct_only"] for attempt in primary],
-            [False, False],
-        )
-        self.assertEqual(
-            plan["gateway_policy"]["trigger"],  # type: ignore[index]
-            GATEWAY_TRIGGER_REQUIRED_IF_NO_DIRECT,
-        )
-        self.assertTrue(route_legs)
-        self.assertEqual(
-            {template["source"] for template in route_legs}, {"configured_prior"}
-        )
-        self.assertTrue(all(query["phase"] == "primary" for query in primary))
-        self.assertTrue(
-            all(
-                template["trigger"] == GATEWAY_TRIGGER_REQUIRED_IF_NO_DIRECT
-                for template in route_legs
-            )
-        )
-
     def test_direct_only_is_an_absolute_gateway_prohibition(self) -> None:
         depart = future_departure_date()
         plan = build_search_plan(
@@ -201,32 +157,6 @@ class SearchPlanContractTests(unittest.TestCase):
         )
         self.assertFalse(
             plan["gateway_policy"]["discovery"]["enabled"]  # type: ignore[index]
-        )
-
-    def test_optional_gateway_policy_has_active_failure_trigger(self) -> None:
-        depart = future_departure_date()
-        plan = build_search_plan(
-            live_assembly_args(
-                origin="ALA",
-                destination="SVX",
-                depart_date=depart.isoformat(),
-                return_date=None,
-                provider_policy="tutu",
-                no_live_cache=True,
-            ),
-            Store(),
-        )
-
-        self.assertEqual(
-            plan["gateway_policy"]["trigger"],  # type: ignore[index]
-            GATEWAY_TRIGGER_ON_PRIMARY_FAILURE,
-        )
-        self.assertTrue(_route_legs(plan))
-        self.assertTrue(
-            all(
-                template["trigger"] == GATEWAY_TRIGGER_ON_PRIMARY_FAILURE
-                for template in _route_legs(plan)
-            )
         )
 
     def test_request_policies_are_resolved_into_plan(self) -> None:

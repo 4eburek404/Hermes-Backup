@@ -16,13 +16,11 @@ from ..config import (
     MAX_DATE_WINDOW_DAYS,
 )
 from ..domain.airports import airport_scope_summary, explicit_or_resolved_airports
-from ..domain.gateway_discovery import GatewayDiscoveryService
 from ..domain.connection_policy import (
     DEFAULT_MAX_LAYOVER_MIN,
     DEFAULT_PREFERRED_LAYOVER_MAX_MIN,
 )
 from ..domain.normalize import parse_iso_date
-from ..domain.route_access_profiles import MODE_REQUIRED, PROFILE_RESTRICTED_ACCESS
 from ..domain.stop_policy import resolve_stop_policy
 from ..domain.vocabulary import Direction, RouteFamily
 from ..errors import CliError
@@ -30,16 +28,11 @@ from ..pipeline.flow_decision import FlowDecision, decide_flow
 from ..pipeline.search_request import SearchRequest
 from ..pipeline.search_request import is_direct_only
 from ..pipeline.search_plan import (
-    GATEWAY_TRIGGER_DISABLED,
-    GATEWAY_TRIGGER_ON_PRIMARY_FAILURE,
-    GATEWAY_TRIGGER_REQUIRED_IF_NO_DIRECT,
     DecisionPolicy,
     ExecutionPolicy,
-    GatewayDiscovery,
     GatewayPolicy,
     OutputPolicy,
     ProviderAttemptPlan,
-    RouteLegTemplate,
     RoutePlan,
     SearchPhases,
     SearchPlan,
@@ -237,11 +230,6 @@ class SearchPlanBuilder:
         flow = build_planning_state(self._options, self._store)
         route = build_route_plan(self._options, self._store, flow=flow)
         primary_offer_queries = self._primary_offer_queries(flow, route)
-        gateway_discovery = self._gateway_discovery(flow, route)
-        gateway_trigger = self._gateway_trigger(flow, gateway_discovery)
-        route_leg_templates = self._route_leg_templates(
-            flow, route, gateway_discovery, gateway_trigger
-        )
         live_cache_enabled, live_cache_ttl_seconds = _live_cache_settings(flow)
         stop_policy = resolve_stop_policy(
             max_connections=self._options.route.max_connections,
@@ -251,12 +239,10 @@ class SearchPlanBuilder:
             route=route,
             phases=SearchPhases(
                 primary=self._attempts(primary_offer_queries, phase="primary"),
-                route_legs=route_leg_templates,
             ),
-            gateway_policy=GatewayPolicy(
-                trigger=gateway_trigger,
-                discovery=gateway_discovery,
-            ),
+            # Шлюзовой слой снят: обнаружения нет, маршрутных плеч нет.
+            # Поля остаются, пока их держит plan.v6, и уходят вместе с ним.
+            gateway_policy=GatewayPolicy(),
             execution_policy=ExecutionPolicy(
                 max_provider_attempts=flow.request.max_segment_searches,
                 segment_limit=self._options.evidence.segment_limit,
@@ -299,91 +285,6 @@ class SearchPlanBuilder:
             ),
         )
 
-    def _route_leg_templates(
-        self,
-        flow: _PlanningState,
-        route: RoutePlan,
-        gateway_discovery: GatewayDiscovery,
-        gateway_trigger: str,
-    ) -> tuple[RouteLegTemplate, ...]:
-        origin = str(route.origin or flow.request.origin).upper()
-        destination = str(route.destination or flow.request.destination).upper()
-        templates: list[RouteLegTemplate] = []
-        signatures: set[tuple[str, tuple[str, ...]]] = set()
-
-        def add_template(
-            airports: tuple[str, ...],
-            *,
-            source: str,
-            policies: tuple[str, ...],
-            trigger: str,
-        ) -> None:
-            outbound_signature = (Direction.OUTBOUND, airports)
-            if outbound_signature in signatures:
-                return
-            signatures.add(outbound_signature)
-            templates.append(
-                RouteLegTemplate(
-                    hypothesis_id=f"{source}:outbound:{'-'.join(airports)}",
-                    direction=Direction.OUTBOUND,
-                    required_airports=airports,
-                    source=source,
-                    leg_policies=policies,
-                    trigger=trigger,
-                )
-            )
-            if flow.request.return_date:
-                mirrored = tuple(reversed(airports))
-                return_signature = (Direction.RETURN, mirrored)
-                if return_signature in signatures:
-                    return
-                signatures.add(return_signature)
-                templates.append(
-                    RouteLegTemplate(
-                        hypothesis_id=f"{source}:return:{'-'.join(mirrored)}",
-                        direction=Direction.RETURN,
-                        required_airports=mirrored,
-                        source=source,
-                        leg_policies=tuple(reversed(policies)),
-                        trigger=trigger,
-                    )
-                )
-
-        for hypothesis in flow.request.route_hypotheses:
-            add_template(
-                hypothesis.airports,
-                source=hypothesis.source,
-                policies=("exact_direct",) * (len(hypothesis.airports) - 1),
-                trigger="always",
-            )
-
-        if gateway_trigger == GATEWAY_TRIGGER_DISABLED:
-            return tuple(templates)
-        discovery_payload = gateway_discovery.to_dict()
-        candidates = [
-            item
-            for item in (discovery_payload.get("candidates") or [])[
-                : self._gateway_candidate_cap()
-            ]
-            if isinstance(item, dict) and item.get("code")
-        ]
-        seen_gateway_codes: set[str] = set()
-        for candidate in candidates:
-            gateway = str(candidate.get("code") or "").upper()
-            if not gateway or gateway in seen_gateway_codes:
-                continue
-            seen_gateway_codes.add(gateway)
-            add_template(
-                (origin, gateway, destination),
-                source="configured_prior",
-                policies=(
-                    "direct_then_controlled_broad",
-                    "direct_then_controlled_broad",
-                ),
-                trigger=gateway_trigger,
-            )
-        return tuple(templates)
-
     def _attempts(
         self, queries: list[dict[str, Any]], *, phase: str
     ) -> tuple[ProviderAttemptPlan, ...]:
@@ -407,97 +308,6 @@ class SearchPlanBuilder:
             )
         return tuple(attempts)
 
-    def _gateway_trigger(
-        self, flow: _PlanningState, discovery: GatewayDiscovery
-    ) -> str:
-        if is_direct_only(flow.request) or not discovery.enabled:
-            return GATEWAY_TRIGGER_DISABLED
-        if discovery.mode in {MODE_REQUIRED, "diagnostic_required"}:
-            return GATEWAY_TRIGGER_REQUIRED_IF_NO_DIRECT
-        return GATEWAY_TRIGGER_ON_PRIMARY_FAILURE
-
-    def _gateway_discovery(
-        self, flow: _PlanningState, route: RoutePlan
-    ) -> GatewayDiscovery:
-        decision = flow.flow_decision
-        mode = (
-            "disabled"
-            if is_direct_only(flow.request)
-            else str(decision.gateway_discovery_mode or "disabled")
-        )
-        enabled = mode != "disabled"
-        reasons = list(decision.route_access_reasons or [])
-        reason = (
-            "route_access_profile_requires_gateway_discovery"
-            if mode == MODE_REQUIRED
-            else "route_access_profile_allows_gateway_discovery_after_provider_failure"
-            if enabled
-            else None
-        )
-        diagnostics = self._gateway_discovery_diagnostics(
-            str(decision.route_access_prior_set or ""),
-            route,
-            enabled=enabled,
-        )
-        return GatewayDiscovery(
-            enabled=enabled,
-            reason=reason,
-            mode=mode,
-            route_access_profile=decision.route_access_profile,
-            route_access_reasons=tuple(reasons),
-            candidate_count=int(diagnostics.get("candidate_count") or 0),
-            candidates=tuple(
-                dict(candidate)
-                for candidate in diagnostics.get("candidates") or []
-                if isinstance(candidate, dict)
-            ),
-            skipped_reasons=tuple(
-                str(item) for item in diagnostics.get("skipped_reasons") or [] if item
-            ),
-            empty_reason=diagnostics.get("empty_reason"),
-            prior_set=decision.route_access_prior_set,
-            matched_rule_id=decision.route_access_rule_id,
-            market=diagnostics.get("market"),
-            rejected_gateway_signals=tuple(
-                dict(item)
-                for item in diagnostics.get("rejected_gateway_signals") or []
-                if isinstance(item, dict)
-            ),
-        )
-
-    def _gateway_discovery_diagnostics(
-        self,
-        prior_set: str,
-        route: RoutePlan,
-        *,
-        enabled: bool,
-    ) -> dict[str, Any]:
-        market_key = prior_set or self._fallback_market_key(route)
-        if not enabled:
-            return {
-                "market": market_key,
-                "candidate_count": 0,
-                "candidates": [],
-                "skipped_reasons": ["gateway_discovery_disabled"],
-                "empty_reason": "gateway_discovery_disabled",
-                "rejected_gateway_signals": [],
-            }
-        if not market_key:
-            return {
-                "market": "",
-                "candidate_count": 0,
-                "candidates": [],
-                "skipped_reasons": ["no_gateway_discovery_market"],
-                "empty_reason": "no_gateway_discovery_market",
-                "rejected_gateway_signals": [],
-            }
-        diagnostics: dict[str, Any] = {}
-        GatewayDiscoveryService(self._store).discover(
-            market_key,
-            diagnostics=diagnostics,
-        )
-        return diagnostics
-
     def _fallback_market_key(self, route: RoutePlan) -> str:
         for family in route.route_families:
             if family.get("id"):
@@ -513,15 +323,6 @@ class SearchPlanBuilder:
                 query, self._store, flow.request.provider_policy
             )
         ]
-
-    def _gateway_candidate_cap(self) -> int:
-        configured_limit = max(0, int(self._options.route.gateway_discovery_limit))
-        batch_size = max(0, int(self._options.route.gateway_probe_batch_size))
-        max_batches = max(0, int(self._options.route.gateway_probe_max_batches))
-        batch_cap = batch_size * max_batches
-        if batch_cap <= 0:
-            return 0
-        return min(configured_limit, batch_cap)
 
     def _primary_offer_queries(
         self, flow: _PlanningState, route: RoutePlan
@@ -540,9 +341,6 @@ class SearchPlanBuilder:
             for code in route.destination_airports or (destination,)
             if str(code).strip()
         ]
-        access_profile = str(flow.flow_decision.route_access_profile or "")
-        discovery_mode = str(flow.flow_decision.gateway_discovery_mode or "disabled")
-
         # Прицельная проба direct_only остаётся ровно для двух случаев, где она
         # и есть искомое: запрос «только прямые» и перебор окна дат. Разведкой
         # перед широкой пробой она больше не работает — широкая выдача содержит
@@ -556,19 +354,10 @@ class SearchPlanBuilder:
                 destination_airports=destination_airports,
                 currency=currency,
             )
-            if access_profile == PROFILE_RESTRICTED_ACCESS:
-                for query in direct_queries:
-                    query["route_access_profile"] = access_profile
-                    query["gateway_discovery_mode"] = discovery_mode
             return direct_queries
 
         # Оба плеча строит одна функция. До этого прямое собиралось здесь
         # вручную, а обратное — вызовом ниже, и куски расходились по мелочам.
-        restricted = (
-            (access_profile, discovery_mode)
-            if access_profile == PROFILE_RESTRICTED_ACCESS
-            else None
-        )
         queries: list[dict[str, Any]] = []
         queries.extend(
             self._provider_offer_queries_for_route(
@@ -581,7 +370,6 @@ class SearchPlanBuilder:
                 date_text=date_text,
                 currency=currency,
                 direct_only=False,
-                restricted_access=restricted,
             )
         )
         if flow.request.return_date:
@@ -659,7 +447,6 @@ class SearchPlanBuilder:
         currency: str,
         direct_only: bool,
         route_family: str | None = None,
-        restricted_access: tuple[str, str] | None = None,
     ) -> list[dict[str, Any]]:
         route_query: dict[str, Any] = {
             "probe_type": "full_route_aggregate",
@@ -692,15 +479,6 @@ class SearchPlanBuilder:
             }
             if route_family:
                 query["route_family"] = route_family
-            if restricted_access is not None:
-                access_profile, discovery_mode = restricted_access
-                query["route_family"] = PROFILE_RESTRICTED_ACCESS
-                query["route_access_profile"] = access_profile
-                query["gateway_discovery_mode"] = discovery_mode
-                query["exhaustive"] = False
-                query["non_exhaustive_reason"] = (
-                    "restricted_access_market_requires_gateway_discovery"
-                )
             self._apply_filters(query)
             queries.append(query)
         return queries

@@ -59,7 +59,7 @@ class FlowDecisionContractTests(unittest.TestCase):
             "ru_touching_market_uses_ru_priority_probes", plan["planning_reasons"]
         )
 
-    def test_round_trip_route_templates_mirror_airports_and_direction(self) -> None:
+    def test_round_trip_plan_is_two_provider_directions_without_route_legs(self) -> None:
         depart = future_departure_date()
         plan = self.plan_for(
             origin="SVX",
@@ -82,39 +82,13 @@ class FlowDecisionContractTests(unittest.TestCase):
                 "planning_reasons",
             },
         )
-        route_templates = plan["phases"]["route_legs"]
-        self.assertTrue(route_templates)
+        # Шлюзового плеча больше нет: круговой маршрут — это два
+        # провайдерских запроса, а не зеркальные маршрутные шаблоны.
+        self.assertEqual(plan["phases"]["route_legs"], [])
+        self.assertEqual(plan["gateway_policy"]["trigger"], "disabled")
         self.assertEqual(
-            {template["direction"] for template in route_templates},
+            {attempt["direction"] for attempt in plan["phases"]["primary"]},
             {"outbound", "return"},
-        )
-        self.assertTrue(
-            all(
-                set(template)
-                == {
-                    "hypothesis_id",
-                    "direction",
-                    "required_airports",
-                    "source",
-                    "leg_policies",
-                    "trigger",
-                }
-                for template in route_templates
-            )
-        )
-        self.assertEqual(
-            {
-                (
-                    template["direction"],
-                    tuple(template["required_airports"]),
-                )
-                for template in route_templates
-                if "IST" in template["required_airports"]
-            },
-            {
-                ("outbound", ("SVX", "IST", "CDG")),
-                ("return", ("CDG", "IST", "SVX")),
-            },
         )
 
     def test_direct_inventory_is_expressed_by_route_and_provider_queries(self) -> None:

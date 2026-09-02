@@ -22,9 +22,8 @@ from flights_cli.providers.live_cache import (
     read_live_cache,
     write_live_cache,
 )
-from flights_cli.store import Store
 
-from helpers import CliSubprocessMixin, future_departure_date, live_assembly_args
+from helpers import CliSubprocessMixin, future_departure_date
 
 
 def execute_projection(*args: object, **kwargs: object) -> dict:
@@ -638,124 +637,6 @@ class KupibiletTests(CliSubprocessMixin, unittest.TestCase):
         self.assertEqual(result["unique_flight_count"], 2)
         self.assertEqual(result["offer_count"], 1)
         self.assertEqual(result["offers"][0]["id"], "good-one-stop")
-
-    def test_ru_priority_skips_dxb_when_ist_pair_is_usable(self) -> None:
-        depart = future_departure_date()
-        args = live_assembly_args(
-            origin="SVX",
-            destination="MUC",
-            depart_date=depart.isoformat(),
-            provider_policy="kupibilet",
-            no_live_cache=True,
-        )
-        calls: list[tuple[str, str]] = []
-
-        def kb_result(
-            origin: str,
-            destination: str,
-            depart_date: object,
-            dep: str | None = None,
-            arr: str | None = None,
-        ) -> dict:
-            depart = (
-                depart_date.isoformat()
-                if hasattr(depart_date, "isoformat")
-                else str(depart_date)
-            )
-            offers = []
-            if dep and arr:
-                offers.append(
-                    {
-                        "id": f"{origin}-{destination}-{depart}",
-                        "price": 10000,
-                        "currency": "RUB",
-                        "number_of_changes": 0,
-                        "duration": 180,
-                        "segments": [
-                            {
-                                "flight_number": f"TK{len(calls) + 100}",
-                                "marketing_carrier": "TK",
-                                "operating_carrier": "TK",
-                                "origin": origin,
-                                "destination": destination,
-                                "departure_at": dep,
-                                "arrival_at": arr,
-                                "aircraft": "320",
-                            }
-                        ],
-                    }
-                )
-            return {
-                "origin": origin,
-                "destination": destination,
-                "depart_date": depart,
-                "currency": "RUB",
-                "source": "test",
-                "source_url": "test",
-                "raw_variant_count": len(offers),
-                "unique_flight_count": len(offers),
-                "http_status": 200,
-                "offers": offers,
-            }
-
-        def fake_fetch(
-            origin: str, destination: str, depart_date: object, **kwargs: object
-        ) -> dict:
-            calls.append((origin, destination, bool(kwargs.get("direct_only", True))))
-            depart = (
-                depart_date.isoformat()
-                if hasattr(depart_date, "isoformat")
-                else str(depart_date)
-            )
-            if (origin, destination) == ("SVX", "IST"):
-                return kb_result(
-                    origin,
-                    destination,
-                    depart_date,
-                    f"{depart}T06:00:00+05:00",
-                    f"{depart}T09:00:00+03:00",
-                )
-            if (origin, destination) == ("IST", "MUC"):
-                return kb_result(
-                    origin,
-                    destination,
-                    depart_date,
-                    f"{depart}T14:00:00+03:00",
-                    f"{depart}T16:00:00+02:00",
-                )
-            return kb_result(origin, destination, depart_date)
-
-        store = Store()
-        adapter = KupibiletProviderAdapter(store=store, fetcher=fake_fetch)
-        result = (
-            SearchWorkflow(
-                store,
-                adapter_resolver=lambda _name, **_kwargs: adapter,
-            )
-            .run_artifacts(args)
-            .projection_input
-        )
-
-        direct_calls = {
-            (origin, destination)
-            for origin, destination, direct_only in calls
-            if direct_only
-        }
-        self.assertNotIn(("SVX", "DXB"), direct_calls)
-        self.assertNotIn(("DXB", "MUC"), direct_calls)
-        self.assertGreater(result["assembly"]["candidate_count"], 0)
-        priority_skips = [
-            search
-            for search in result["live_search"]["segment_searches"]
-            if search.get("reason") == "priority_route_viable"
-        ]
-        self.assertEqual(priority_skips, [])
-        self.assertFalse(
-            any(
-                "DXB" in {search.get("origin"), search.get("destination")}
-                for search in result["live_search"]["segment_searches"]
-            )
-        )
 
     def test_live_search_cache_round_trips_and_can_be_bypassed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
