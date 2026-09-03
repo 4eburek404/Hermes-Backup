@@ -23,9 +23,14 @@ Empty provider output is not proof of absence by itself. Use it to choose probes
 
 When a market is structurally constrained, do not phrase the answer as “the provider did not prove absence.” State the practical booking-channel conclusion, then show viable connecting options and purchase checks.
 
+To tell horizon from coverage, repeat the search on a nearby in-horizon date.
+An answer there and none on the requested date points at the horizon; nothing
+on either points at coverage. Label the second date as a comparison, never as
+evidence for the date the traveler asked about.
+
 ## Airport and City Boundaries
 
-Use airport codes, not city labels, when continuity matters. Airports within the same city are not interchangeable for itinerary continuity; dispatch policy and priority tiers live in `references/pipeline-reference.md`.
+Use airport codes, not city labels, when continuity matters. Airports within the same city are not interchangeable for itinerary continuity.
 
 Same-airport continuity is required for every adjacent itinerary segment.
 Reject cross-airport candidates; a longer layover or risk label cannot make an
@@ -38,7 +43,7 @@ City-scope boundary:
 - City scope may expand search endpoints, but it must not bridge adjacent
   segments through different airports.
 
-Provider-specific airport priority, city-code expansion, and dispatch semantics live in `references/pipeline-reference.md`; keep this file focused on confidence and caveat wording.
+The CLI resolves a city code into airports and holds that scope for every provider query; accepted offers are checked against their actual first and last segment airports. Keep this file focused on confidence and caveat wording.
 
 ## Connection Thresholds
 
@@ -49,8 +54,8 @@ Use exact Minimum Connection Time evidence before generic buffers when the conne
 3. the conservative generic thresholds below when exact data is unavailable or uncertain.
 
 These thresholds are fallback feasibility inputs, not a mapping from layover
-duration to `risk.grade`. Never assign `high` risk from one universal threshold
-such as four hours.
+duration to a verdict. Never call a connection dangerous on one universal
+threshold such as four hours.
 
 MCT is a technical/legal floor for a sellable connection and baggage transfer, not the recommended business buffer. A connection can be legal but still unattractive because of terminal size, passport/security, baggage, low-cost/remote gates, delays, or seller-side virtual/self-transfer construction.
 
@@ -62,23 +67,27 @@ Generic connection time thresholds:
 - Cross-airport or airport mismatch: invalid; reject before ranking regardless
   of layover duration.
 - Same-airport 90-119 min: label tight when ticketing/protection is not proven.
-- Overnight waits remain eligible when timestamps and airport continuity are
-  valid; expose hotel, visa, landside, and baggage implications when relevant.
-- Very long waits remain visible and may be demoted by the active business stop
-  policy, but duration alone is not a hard rejection reason.
 
-## Feasibility, Comfort, and Risk
+A long wait is not a rejection reason here. The frontier may still drop one in
+favour of a shorter option through the same airports; that is selection, not a
+feasibility verdict, and `report-contract.md` owns it.
+
+## Feasibility, Comfort, and Ticketing
 
 - Separate tickets, self-transfer, or an unproven single PNR require a clear
-  warning, but do not automatically make an otherwise feasible connection
-  `high risk`.
-- `risk.grade=unknown` means that available evidence does not support a numeric
-  grade; it does not mean `high`.
-- `long_wait` and `overnight_wait` are comfort and visibility labels, not
-  automatic rejection reasons.
-- Keep feasibility, comfort, and ticket protection separate. Use timestamps,
-  terminals, baggage and visa friction, ticketing evidence, and exact MCT when
-  available; do not infer risk from layover duration alone.
+  warning, but do not by themselves make an otherwise feasible connection a bad
+  one.
+- The contract keeps these three apart and so should the answer: `comfort`
+  describes the wait, `ticketing` describes what can come apart, and
+  `warnings` names what the traveler must check.
+- `comfort: unknown` means the available evidence does not support a judgement.
+  It does not mean `tight`.
+- `comfort: long` is a visibility label, not a rejection reason. An overnight
+  wait stays eligible when timestamps and airport continuity are valid; expose
+  hotel, visa, landside, and baggage implications when they matter.
+- Use timestamps, terminals, baggage and visa friction, ticketing evidence, and
+  exact MCT when available; do not infer a verdict from layover duration
+  alone.
 
 ## Ticketing Evidence Hierarchy
 
@@ -116,7 +125,7 @@ KupiBilet is useful as OTA discovery, price/checkout evidence, and smart-route d
 KupiBilet API evidence and KupiBilet website evidence can diverge on schedule times or whole offers. Treat this as a provider/source-boundary issue until proven otherwise, not as an immediate parser bug.
 
 When the user reports a website-visible flight that the CLI did not find or time-shifted:
-1. Reproduce with the narrow KupiBilet diagnostic or raw API check from `references/debug-playbook.md`.
+1. Reproduce with a narrowed `search --request`: same route, date, direct flag, carrier filter, and airport scope, with `provider_policy` pinned to `kupibilet`.
 2. If the API returns the same value the CLI normalized, report provider-side data drift or provider coverage gap.
 3. If website evidence is more current for planning, use it as user-observed evidence and label the discrepancy.
 
@@ -124,9 +133,8 @@ For non-RU or foreign-carrier routes, KupiBilet API gaps are a known source limi
 
 ### Live provider alternatives
 
-Provider dispatch and fallback ownership live in
-`references/pipeline-reference.md`. This file only classifies the evidentiary
-limits of the resulting provider offers.
+This file classifies the evidentiary limits of provider offers. How options
+are selected out of them belongs to `report-contract.md`.
 
 ### Terminal data availability
 
@@ -140,7 +148,7 @@ Distinguish:
 - missed-connection responsibility;
 - refund/exchange rules per ticket or per order.
 
-Smart routes can be cheaper but may require new check-in, baggage reclaim/recheck, passport/visa formalities, and independent fare rules. State those specific caveats without automatically assigning `high risk`, and never present the route as protected unless purchase-screen terms prove the protection.
+Smart routes can be cheaper but may require new check-in, baggage reclaim/recheck, passport/visa formalities, and independent fare rules. State those specific caveats without turning them into a blanket verdict, and never present the route as protected unless purchase-screen terms prove the protection.
 
 Decision-critical public help-page facts must be treated as current-source evidence, not durable guarantees. The currently verified smart-route help page says smart routes are split tickets in one KupiBilet order; if a flight is cancelled or delayed due to the airline and the passenger contacts KupiBilet instead of self-buying/exchanging elsewhere, KupiBilet may cover the missed part of the route. It also says passengers may need to re-check in, reclaim/recheck baggage, hold transit documents/visas, and accept separate refund/exchange conditions per ticket.
 

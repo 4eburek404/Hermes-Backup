@@ -1,18 +1,20 @@
 # flights CLI
 
-Concise manual for the flight-search skill-owned CLI. The skill's Golden Path is
-`search --request`; other commands support setup, metadata, or targeted
-diagnostics. Paths in this manual are relative to the skill root: the directory
-containing the parent `SKILL.md`.
+Concise manual for the flight-search skill-owned CLI. The skill's Golden Path
+is `search --request`; the other commands cover setup and metadata. Paths in
+this manual are relative to the skill root: the directory containing the parent
+`SKILL.md`.
 
 ## What It Automates
 
 - Route/date/IATA normalization and bounded provider execution.
 - Same-airport continuity checks; cross-airport connections are rejected.
 - Candidate generation, scoring, one decision frontier, and result projection.
-- Direct, carrier-filtered, aggregate, and gateway probes when the current route calls for them.
+- One broad provider query per compatible provider, narrowed to direct-only for
+  a direct-only request or a date window.
 - Static metadata lookup for city, airport, country/region, airline, alliance, and aircraft labels.
-- A compact `flight_search_result.v9` with `route`, `evidence`, `frontier`, and the canonical `answer`.
+- A `flight_search_result.v1` of six keys: `schema_version`, `request`,
+  `route`, `options`, `evidence`, `rendered_text`.
 
 The CLI does not book, buy, or write to agent runtime state.
 
@@ -88,31 +90,22 @@ Use these commands for normalization and airport/city boundaries, not for availa
 Primary agent command:
 
 ```bash
-cat > /tmp/flight-search-request.json <<'JSON'
-{
-  "schema_version": "flight_search_request.v1",
-  "origin": "ORIGIN",
-  "destination": "DEST",
-  "depart_date": "YYYY-MM-DD",
-  "currency": "RUB",
-  "provider_policy": "auto"
-}
-JSON
-python3 -m flights_cli search --request /tmp/flight-search-request.json
+echo '{"origin":"SVX","destination":"LED","depart_date":"2026-10-28"}' |
+  python3 -m flights_cli search --request -
 ```
 
-Return this text stdout verbatim. With `--json`, the canonical serialized paths are:
+Three fields are the whole request; `--request` also takes a file path, and
+`schema_version` is filled in when omitted.
 
-- `answer.rendered_text`
-- `answer.catalog.items`
-- `frontier.option_ids`
-- `evidence.coverage`
-- `evidence.provider_failures`
-- `evidence.source_boundaries`
+Return this text stdout verbatim. With `--json`, the whole answer is `data`,
+and the paths that matter are:
 
-Full graph/debug traces are excluded from default `search` output. When you
-need internal artifacts, read `data.plan` and `data.evidence` from the same
-`search --json` envelope.
+- `data.rendered_text` — the canonical text, identical to text-mode stdout;
+- `data.options` — one entry per buyable option, in answer order;
+- `data.evidence` — `providers_searched`, `provider_failures`, `complete`.
+
+There is no plan, decision, or trace in the envelope. Internal artifacts are
+not published: a narrowed `search --request` is the diagnostic.
 
 `search --request` searches and compares route options for the default scope of one adult in economy. It does not buy or book tickets, and final fare, baggage-through, refund/change conditions, disruption protection, and single-PNR claims require purchase-screen, airline/GDS, seller, or explicit upstream proof.
 
@@ -123,7 +116,7 @@ Common request fields:
   `tutu` and `kupibilet`)
 - `date_window_end: "YYYY-MM-DD"` for bounded one-way direct-only inventory
 - `only_carriers: ["CODE"]`
-- `max_connections: 0` for direct only; `preferred_connections` is the softer ceiling
+- `max_connections: 0` for direct only — a hard ceiling; `preferred_connections` is the softer one
 - `origin_airports` / `destination_airports` to pin exact airports
 - `limit: N` for how many options to return
 
@@ -131,29 +124,41 @@ Execution budgets are not request fields. They are CLI flags on `search`:
 `--timeout`, `--max-searches`, `--segment-limit`, `--live-cache-ttl`,
 `--no-live-cache`, `--fail-fast`.
 
-## Ranking Profile
+## Ranking and Stop Policy
 
-Production search uses one ranking profile: `business`. It prioritizes visible non-rejected options, requested-trip coverage, fewer connections, lower operational risk, shorter elapsed time, then price. Business output suppresses excessive connection waits unless they are late-arrival to next-morning overnight transfers. Unsafe transfers can still be rejected.
+Production search uses one ranking profile, `business`: valid options first,
+then trip coverage, fewer connections, connection comfort, ticketing risk,
+source confidence, elapsed time, and price. Each option's `rank_reason` names
+the first component that put it below the option above it.
 
-## Stop Policy and Reportability
+- A direct flight, when one exists, is the whole answer: connecting options are
+  not shown beside it.
+- Otherwise one-stop journeys are preferred; two-stop ones appear only when no
+  one-stop option is available.
+- Itineraries above `max_connections` are rejected before ranking.
 
-- Direct and one-stop journeys are preferred.
-- Two-stop journeys are fallback/reportable only when no viable direct/one-stop option exists or the report explicitly marks fallback/reportability.
-- Three-or-more-connection itineraries are suppressed from normal recommendations.
+What the frontier drops before the answer is described in
+`references/report-contract.md`.
 
 ## Provider Policy
 
 `search --request` chooses a live source mix through `provider_policy`:
 
-- `auto`: every compatible planned provider is queried for primary direct/broad evidence. Their offers enter one graph, dedupe, ranking, and shared output limit. Gateway probes try compatible providers in plan order until one returns a positive result.
-- any registered provider name: an explicit single-provider mode; unsupported
-  route/probe capability is recorded as `not_supported`, not silently dropped.
+- `auto`: every compatible provider is queried. Their offers enter one graph,
+  are deduplicated by physical itinerary, and then share one ranking and one
+  output limit, so no provider can hide another's cheaper itinerary.
+- any registered provider name: explicit single-provider mode.
 
-Read provider failures, coverage diagnostics, and source boundaries from `data.evidence`. Text-mode search stdout is already the validated answer and must be returned verbatim.
+A provider that cannot serve the query — a round trip for a provider without
+`supports_round_trip`, say — is left out of the plan, and `providers_searched`
+in the answer shows who was actually asked. Read failures from
+`data.evidence.provider_failures`. Text-mode stdout is already the validated
+answer and must be returned verbatim.
 
-Exact-airport propagation is documented in `references/pipeline-reference.md`. Both providers receive the same normalized airport scope, and accepted offers are checked against their actual first and last segment airports.
+Both providers receive the same normalized airport scope, and accepted offers
+are checked against their actual first and last segment airports.
 
-## Airport and Connection Risk
+## Airport and Connection Boundaries
 
 City codes and airport codes are not interchangeable evidence. Keep these boundaries explicit:
 
@@ -169,7 +174,7 @@ Default connection thresholds are maintained in `references/source-boundaries.md
 - protected/single-ticket international: MCT or at least 60 min, whichever is higher; label 60-89 min as tight unless airport evidence supports it;
 - same airport, separate/virtual/self-transfer without checked baggage: 120 min minimum;
 - same airport, separate/virtual/self-transfer with checked baggage: 180 min minimum, preferably 3-5h at high-friction airports;
-- cross-airport or airport mismatch: invalid and rejected before ranking; the compatible `min_cross_airport_min` request field does not enable a second transfer mechanism;
+- cross-airport or airport mismatch: invalid and rejected before ranking, whatever the layover;
 - protected ticket claims require ticketing/protection proof, not just segment timing.
 
 ## Targeted Debug Probes

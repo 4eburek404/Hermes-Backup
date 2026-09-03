@@ -20,10 +20,12 @@ source/runtime parity before making runtime claims.
 
 ## Public boundaries
 
-- Input: `flight_search_request.v1` (единственная принимаемая версия входа).
+- Input: `flight_search_request.v1` — the only accepted request version.
 - Output: `flight_search_result.v1`.
 - Canonical text: `data.rendered_text`.
-- Diagnostic trace: `flight_route_trace_diagnostic.v5`.
+
+There is no third public schema. The diagnostic trace and its schemas are gone:
+a narrowed `search --request` is the diagnostic now.
 
 JSON stdout is one envelope and one terminal newline. Text search stdout is the
 validated rendered text only. Successful commands leave stderr empty. The JSON
@@ -51,14 +53,15 @@ CLI envelope types.
   re-export façade.
 - Candidate validation/scoring/frontier: `pipeline/candidate_outcome.py`,
   `pipeline/candidate_scoring.py`, and `pipeline/frontier_selection.py`.
-- Coverage, catalog semantics/projection/rendering: their dedicated modules in
-  `reporting/`.
-- Result projection: `pipeline/result_builder.py`.
+- Public answer projection: `reporting/answer_options.py` (options),
+  `reporting/evidence.py` (evidence), `reporting/answer_text.py` (rendered
+  text), and `reporting/date_window_inventory.py` (per-date window status).
+- Result assembly: `pipeline/result_builder.py`, which takes the request, the
+  frontier options, and the probe ledger — and nothing else.
 
 Projection and rendering cannot call providers, inspect cache/storage, rescore,
-or alter frontier order. A catalog segment freezes IATA, offset-aware times,
-carrier, nullable flight number, terminals, equipment, duration, and layover
-facts before rendering.
+or alter frontier order. A segment carries IATA codes, offset-aware times,
+carrier, and a nullable flight number, frozen before rendering.
 
 ## Required validation
 
@@ -71,3 +74,16 @@ validators, and renderer against a local MCP stub.
 For live acceptance, disable stale live cache, run the source CLI in the
 canonical environment, inspect every probe terminal state and logical-query
 dedupe, and never assert fixed prices or flight inventory.
+
+## Runtime provenance
+
+Before attributing behaviour to a provider or to the skill, prove which code
+ran:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m flights_cli --version
+PYTHONDONTWRITEBYTECODE=1 python3 -c 'import flights_cli, pathlib; print(pathlib.Path(flights_cli.__file__).resolve())'
+```
+
+Record the source path, branch, and commit alongside the request that produced
+the behaviour. `maint doctor` proves local readiness, never live inventory.

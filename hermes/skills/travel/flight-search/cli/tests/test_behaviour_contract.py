@@ -81,7 +81,7 @@ class RequestBoundary(unittest.TestCase):
         return payload
 
     def test_request_of_three_fields_is_accepted(self) -> None:
-        """SKILL.md требует больше полей, чем код. Принимаемый минимум — три."""
+        """Принимаемый минимум — три поля; версию схемы дописывает нормализация."""
         normalized = normalize_search_request_payload(self._request())
         self.assertEqual(normalized["origin"], "SVX")
         self.assertEqual(normalized["destination"], "SVO")

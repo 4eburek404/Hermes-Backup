@@ -13,8 +13,8 @@ Tests should protect current behavior, not the history of deleted behavior.
 
 ## Answer tests
 
-- Prefer catalog items, prices, route fields, evidence status, caveat booleans, and
-  validation errors over exact rendered prose.
+- Prefer options, prices, route fields, ticketing and warning codes, evidence
+  fields, and validation errors over exact rendered prose.
 - Assert exact `rendered_text` only when the renderer grammar itself is the behavior
   under test. In those tests, keep the assertion local to the renderer contract.
 - Do not test that old wording, old debug labels, or old report fragments are absent

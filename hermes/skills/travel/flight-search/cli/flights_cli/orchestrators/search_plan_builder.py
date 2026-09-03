@@ -93,7 +93,7 @@ def direct_inventory_dates(options: SearchRequest, flow: _PlanningState) -> list
     depart = parse_iso_date(flow.request.depart_date, "depart-date")
     if not is_direct_only(flow.request):
         raise CliError(
-            "date_window_end requires direct-only route options: set route_options.max_connections=0 and route_options.tier2_max_connections=0",
+            "date_window_end scans direct inventory only: set max_connections to 0 or drop the window",
             error_type="validation_error",
         )
     if flow.request.return_date:

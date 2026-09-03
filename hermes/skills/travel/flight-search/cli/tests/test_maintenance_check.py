@@ -110,7 +110,13 @@ class MaintenanceCheckTests(unittest.TestCase):
             workflow["parity"]["claim_basis"], "source_only_not_runtime_proven"
         )
         self.assertEqual(data["doctor"]["status"], "ok")
-        self.assertGreaterEqual(data["references"]["source_count"], 5)
+        # Счётчик обязан считать то, что лежит на диске, а не быть
+        # храповиком «не меньше пяти файлов»: удаление устаревшего
+        # референса — нормальная работа, а не регрессия.
+        self.assertEqual(
+            data["references"]["source_count"],
+            len(list((PROJECT.parent / "references").glob("*.md"))),
+        )
         self.assertIn("runtime_count", data["references"])
         self.assertIn("source_count", data["generated_artifacts"])
         self.assertIn("runtime_count", data["generated_artifacts"])
