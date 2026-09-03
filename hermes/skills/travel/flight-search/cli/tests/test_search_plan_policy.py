@@ -29,7 +29,9 @@ class SearchPlanPolicyTests(unittest.TestCase):
         request = live_assembly_args(**overrides)
         return build_search_plan(request, self.store)
 
-    def test_round_trip_plan_is_two_provider_directions_without_route_legs(self) -> None:
+    def test_round_trip_plan_is_two_provider_directions_without_route_legs(
+        self,
+    ) -> None:
         depart = future_departure_date()
         plan = self.plan_for(
             origin="SVX",

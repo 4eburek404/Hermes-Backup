@@ -382,7 +382,9 @@ def _route_hypothesis_fields(
         return None, None, None
     required_airports = tuple(
         code
-        for code in (_normalize_code(value) for value in offer.get("required_airports") or [])
+        for code in (
+            _normalize_code(value) for value in offer.get("required_airports") or []
+        )
         if code
     )
     try:

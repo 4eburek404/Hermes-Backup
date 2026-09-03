@@ -81,9 +81,7 @@ class SearchDecisionBuilder:
             ).items()
             if enabled
         }
-        max_connections_by_direction = {
-            direction: 0 for direction in direct_directions
-        }
+        max_connections_by_direction = {direction: 0 for direction in direct_directions}
         scored_decisions = DecisionScorer(
             DecisionScorerOptions(
                 round_trip=bool(plan.route.dates.get("return")),
@@ -156,9 +154,7 @@ def _research_status(
     probe_ledger: dict[str, Any],
 ) -> dict[str, Any]:
     ranking = scored_decisions.get("mixed_candidate_ranking")
-    ranked = (
-        ranking.get("ranked_candidates") if isinstance(ranking, dict) else []
-    )
+    ranked = ranking.get("ranked_candidates") if isinstance(ranking, dict) else []
     candidates = [item for item in ranked or [] if isinstance(item, dict)]
     eligible_direct = any(
         candidate_is_direct(candidate)
@@ -211,7 +207,9 @@ def _airport_signature(candidate: dict[str, Any]) -> tuple[Any, ...] | None:
             if destination:
                 airports.append(destination)
         if airports:
-            signature.append((str(journey.get("direction") or "outbound"), tuple(airports)))
+            signature.append(
+                (str(journey.get("direction") or "outbound"), tuple(airports))
+            )
     return tuple(signature) if signature else None
 
 

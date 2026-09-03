@@ -287,9 +287,7 @@ def search_request_from_payload(
     validate_contract_payload(
         "search_request", normalized, error_type="validation_error"
     )
-    request = SearchRequest.from_payload(
-        normalized, execution or ExecutionSettings()
-    )
+    request = SearchRequest.from_payload(normalized, execution or ExecutionSettings())
     try:
         validate_search_request_semantics(request)
     except ValueError as exc:

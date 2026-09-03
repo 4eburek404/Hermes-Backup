@@ -191,9 +191,7 @@ class RouteLegTemplate:
                 str(item) for item in payload.get("required_airports") or []
             ),
             source=str(payload.get("source") or ""),
-            leg_policies=tuple(
-                str(item) for item in payload.get("leg_policies") or []
-            ),
+            leg_policies=tuple(str(item) for item in payload.get("leg_policies") or []),
             trigger=str(payload.get("trigger") or "always"),
         )
 

@@ -74,7 +74,9 @@ def build_result_projection(data: dict[str, Any]) -> dict[str, Any]:
         "evidence": evidence,
         "frontier": frontier_projection.result_contract,
         "answer": build_user_answer(answer_input),
-        "research_status": dict(live.get("research_status") or _empty_research_status()),
+        "research_status": dict(
+            live.get("research_status") or _empty_research_status()
+        ),
     }
 
 

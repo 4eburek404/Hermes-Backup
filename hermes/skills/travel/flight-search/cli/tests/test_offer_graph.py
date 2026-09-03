@@ -113,7 +113,7 @@ class OfferGraphTests(unittest.TestCase):
                                     "arrival_at": "2026-08-15T17:30:00+02:00",
                                 },
                             ],
-                        }
+                        },
                     ],
                 }
             ],
@@ -1317,9 +1317,7 @@ class OfferGraphTests(unittest.TestCase):
             graph,
             requested_origin="SVX",
             requested_destination="AMS",
-            requested_dates={
-                "outbound": {"2026-08-16", "2026-08-17", "2026-08-18"}
-            },
+            requested_dates={"outbound": {"2026-08-16", "2026-08-17", "2026-08-18"}},
         )
 
         self.assertEqual(envelope["coverage"]["candidate_count"], 3)
@@ -1419,7 +1417,7 @@ class OfferGraphTests(unittest.TestCase):
                                 },
                             ],
                             "journey_scope": "round_trip",
-                        }
+                        },
                     ],
                 }
             ],

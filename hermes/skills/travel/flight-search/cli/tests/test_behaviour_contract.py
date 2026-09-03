@@ -80,7 +80,9 @@ class RequestBoundary(unittest.TestCase):
         normalized = normalize_search_request_payload(self._request())
         self.assertEqual(normalized["origin"], "SVX")
         self.assertEqual(normalized["destination"], "SVO")
-        self.assertTrue(str(normalized["schema_version"]).startswith("flight_search_request."))
+        self.assertTrue(
+            str(normalized["schema_version"]).startswith("flight_search_request.")
+        )
 
     def test_past_departure_is_rejected(self) -> None:
         past = future_departure_date() - timedelta(days=30)
@@ -145,7 +147,9 @@ class AnswerComposition(unittest.TestCase):
 
     @staticmethod
     def assessed_connections(option: dict) -> list[dict]:
-        return list((option.get("connection_assessment") or {}).get("connections") or [])
+        return list(
+            (option.get("connection_assessment") or {}).get("connections") or []
+        )
 
     def test_minimal_request_reaches_provider_queries(self) -> None:
         """Запрос без ритуала доезжает до провайдерских вызовов.
@@ -155,7 +159,9 @@ class AnswerComposition(unittest.TestCase):
         сетевой замок из conftest не покрывает.
         """
 
-        asked = {(origin, destination, day) for origin, destination, day, _ in self.queries}
+        asked = {
+            (origin, destination, day) for origin, destination, day, _ in self.queries
+        }
         self.assertIn(("NTE", "SVX", self.depart.isoformat()), asked)
 
     def test_provider_offer_reaches_the_answer_whole(self) -> None:
@@ -166,9 +172,7 @@ class AnswerComposition(unittest.TestCase):
         self.assertEqual(price["amount"], 24300)
         self.assertEqual(price["currency"], "RUB")
         segments = self.leg(options[0])["segments"]
-        self.assertEqual(
-            [s["flight_number"] for s in segments], ["KL1424", "KL1395"]
-        )
+        self.assertEqual([s["flight_number"] for s in segments], ["KL1424", "KL1395"])
 
     def test_flight_numbers_have_one_spelling(self) -> None:
         """Дефис от провайдера не доезжает до ответа.
@@ -236,7 +240,10 @@ class OfferInvariants(unittest.TestCase):
         """Межпровайдерная дедупликация: иначе рейс попадёт в ответ дважды."""
         dep, arr = "2026-10-29T06:00:00+05:00", "2026-10-29T06:40:00+03:00"
         deduped, count = dedupe_candidates(
-            [_candidate("tutu", "SU1400", dep, arr), _candidate("kupibilet", "SU1400", dep, arr)]
+            [
+                _candidate("tutu", "SU1400", dep, arr),
+                _candidate("kupibilet", "SU1400", dep, arr),
+            ]
         )
         self.assertEqual(len(deduped), 1)
         self.assertEqual(count, 1)
@@ -247,8 +254,18 @@ class OfferInvariants(unittest.TestCase):
     def test_different_flights_are_not_merged(self) -> None:
         deduped, count = dedupe_candidates(
             [
-                _candidate("tutu", "SU1400", "2026-10-29T06:00:00+05:00", "2026-10-29T06:40:00+03:00"),
-                _candidate("tutu", "SU1402", "2026-10-29T09:00:00+05:00", "2026-10-29T09:40:00+03:00"),
+                _candidate(
+                    "tutu",
+                    "SU1400",
+                    "2026-10-29T06:00:00+05:00",
+                    "2026-10-29T06:40:00+03:00",
+                ),
+                _candidate(
+                    "tutu",
+                    "SU1402",
+                    "2026-10-29T09:00:00+05:00",
+                    "2026-10-29T09:40:00+03:00",
+                ),
             ]
         )
         self.assertEqual(len(deduped), 2)
@@ -258,10 +275,40 @@ class OfferInvariants(unittest.TestCase):
         """Обратное плечо живёт в journeys, не в плоском segments."""
         offer = {
             "journeys": [
-                {"direction": "outbound", "segments": [_segment("SU1403", "SVX", "SVO", "2026-10-29T19:05:00+05:00", "2026-10-29T19:40:00+03:00")]},
-                {"direction": "return", "segments": [_segment("SU1414", "SVO", "SVX", "2026-11-05T17:50:00+03:00", "2026-11-05T22:10:00+05:00")]},
+                {
+                    "direction": "outbound",
+                    "segments": [
+                        _segment(
+                            "SU1403",
+                            "SVX",
+                            "SVO",
+                            "2026-10-29T19:05:00+05:00",
+                            "2026-10-29T19:40:00+03:00",
+                        )
+                    ],
+                },
+                {
+                    "direction": "return",
+                    "segments": [
+                        _segment(
+                            "SU1414",
+                            "SVO",
+                            "SVX",
+                            "2026-11-05T17:50:00+03:00",
+                            "2026-11-05T22:10:00+05:00",
+                        )
+                    ],
+                },
             ],
-            "segments": [_segment("SU1403", "SVX", "SVO", "2026-10-29T19:05:00+05:00", "2026-10-29T19:40:00+03:00")],
+            "segments": [
+                _segment(
+                    "SU1403",
+                    "SVX",
+                    "SVO",
+                    "2026-10-29T19:05:00+05:00",
+                    "2026-10-29T19:40:00+03:00",
+                )
+            ],
         }
         paths = offer_segment_paths(offer, fallback_direction=None)
         self.assertEqual([p["direction"] for p in paths], ["outbound", "return"])
@@ -290,7 +337,9 @@ class StructuralFacts(unittest.TestCase):
         root = PROJECT / "flights_cli"
         graph: dict[str, set[str]] = {}
         for path in root.rglob("*.py"):
-            name = path.relative_to(PROJECT).with_suffix("").as_posix().replace("/", ".")
+            name = (
+                path.relative_to(PROJECT).with_suffix("").as_posix().replace("/", ".")
+            )
             if name.endswith(".__init__"):
                 name = name[: -len(".__init__")]
             pkg = name if path.name == "__init__.py" else name.rsplit(".", 1)[0]
@@ -298,7 +347,9 @@ class StructuralFacts(unittest.TestCase):
             for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
                 if isinstance(node, ast.ImportFrom) and node.level:
                     base = pkg.split(".")
-                    base = base[: len(base) - (node.level - 1)] if node.level > 1 else base
+                    base = (
+                        base[: len(base) - (node.level - 1)] if node.level > 1 else base
+                    )
                     target = ".".join(base) + (f".{node.module}" if node.module else "")
                     deps.add(target)
             graph[name] = deps
@@ -309,7 +360,7 @@ class StructuralFacts(unittest.TestCase):
             if colour.get(node) == 2:
                 return
             if colour.get(node) == 1:
-                cycles.append(" → ".join(trail[trail.index(node):] + [node]))
+                cycles.append(" → ".join(trail[trail.index(node) :] + [node]))
                 return
             colour[node] = 1
             for dep in sorted(graph.get(node, ())):
@@ -324,14 +375,28 @@ class StructuralFacts(unittest.TestCase):
     def test_layer_dependencies_point_one_way(self) -> None:
         """Слои не разворачиваются: перенесено из храповика, но по графу импортов."""
         layers = (
-            "domain", "providers", "adapters", "ports", "pipeline",
-            "execution", "reporting", "orchestrators", "contracts", "commands",
+            "domain",
+            "providers",
+            "adapters",
+            "ports",
+            "pipeline",
+            "execution",
+            "reporting",
+            "orchestrators",
+            "contracts",
+            "commands",
         )
         rules = {
             "domain": ("execution", "reporting", "orchestrators", "commands"),
             "reporting": ("orchestrators", "execution", "commands"),
             "execution": ("reporting", "commands", "orchestrators"),
-            "providers": ("pipeline", "execution", "reporting", "orchestrators", "commands"),
+            "providers": (
+                "pipeline",
+                "execution",
+                "reporting",
+                "orchestrators",
+                "commands",
+            ),
             "adapters": ("pipeline", "orchestrators", "reporting", "commands"),
             "contracts": ("pipeline", "execution", "orchestrators", "commands"),
         }
@@ -343,14 +408,18 @@ class StructuralFacts(unittest.TestCase):
         edges: dict[str, set[str]] = {}
         root = PROJECT / "flights_cli"
         for path in root.rglob("*.py"):
-            name = path.relative_to(PROJECT).with_suffix("").as_posix().replace("/", ".")
+            name = (
+                path.relative_to(PROJECT).with_suffix("").as_posix().replace("/", ".")
+            )
             if name.endswith(".__init__"):
                 name = name[: -len(".__init__")]
             pkg = name if path.name == "__init__.py" else name.rsplit(".", 1)[0]
             for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
                 if isinstance(node, ast.ImportFrom) and node.level:
                     base = pkg.split(".")
-                    base = base[: len(base) - (node.level - 1)] if node.level > 1 else base
+                    base = (
+                        base[: len(base) - (node.level - 1)] if node.level > 1 else base
+                    )
                     target = ".".join(base) + (f".{node.module}" if node.module else "")
                     source, sink = layer_of(name), layer_of(target)
                     if source != sink:
@@ -387,7 +456,9 @@ class StructuralFacts(unittest.TestCase):
         consumers: set[str] = set()
         root = PROJECT / "flights_cli"
         for path in root.rglob("*.py"):
-            name = path.relative_to(PROJECT).with_suffix("").as_posix().replace("/", ".")
+            name = (
+                path.relative_to(PROJECT).with_suffix("").as_posix().replace("/", ".")
+            )
             if name.endswith(".__init__"):
                 name = name[: -len(".__init__")]
             pkg = name if path.name == "__init__.py" else name.rsplit(".", 1)[0]

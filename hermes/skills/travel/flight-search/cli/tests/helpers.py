@@ -191,15 +191,10 @@ def live_assembly_args(**overrides: Any) -> Any:
         "timeout",
         "fail_fast",
     )
-    execution_kwargs = {
-        key: values.pop(key) for key in execution_keys if key in values
-    }
+    execution_kwargs = {key: values.pop(key) for key in execution_keys if key in values}
     if values:
         raise AssertionError(f"unknown request override: {sorted(values)}")
-    return search_request_from_payload(
-        request, ExecutionSettings(**execution_kwargs)
-    )
-
+    return search_request_from_payload(request, ExecutionSettings(**execution_kwargs))
 
 
 class CliSubprocessMixin:

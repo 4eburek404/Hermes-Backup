@@ -129,10 +129,7 @@ def source_ticketing_note(
         journey_scope == "two_one_way_pair"
         or ticketing_model == "separate_one_way_offers"
     ):
-        return (
-            "источник: две отдельные односторонние выдачи — "
-            "цена равна сумме плеч"
-        )
+        return "источник: две отдельные односторонние выдачи — цена равна сумме плеч"
 
     if (
         source_type == "gateway_separate_ticket"
@@ -150,9 +147,7 @@ def source_ticketing_note(
             if price_basis in ("", "provider_offer_price")
             else "цену проверить у поставщика"
         )
-        return (
-            f"источник: полный маршрут{_provider_from(option)} — {price_text_part}"
-        )
+        return f"источник: полный маршрут{_provider_from(option)} — {price_text_part}"
 
     if source_type == RouteFamily.DIRECT_INVENTORY or max_connections == 0:
         return f"источник: прямой инвентарь{_provider_suffix(option)}"

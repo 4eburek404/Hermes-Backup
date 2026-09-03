@@ -27,9 +27,7 @@ def execution_settings_from_args(args: argparse.Namespace) -> ExecutionSettings:
             else int(args.live_cache_ttl)
         ),
         no_live_cache=bool(getattr(args, "no_live_cache", False)),
-        segment_limit=(
-            getattr(args, "segment_limit", None) or defaults.segment_limit
-        ),
+        segment_limit=(getattr(args, "segment_limit", None) or defaults.segment_limit),
         timeout=getattr(args, "timeout", None) or defaults.timeout,
         fail_fast=bool(getattr(args, "fail_fast", False)),
     )
@@ -42,9 +40,7 @@ def prepare_search_request(
 
 
 def command_search(args: argparse.Namespace, store: Store) -> dict[str, Any]:
-    request = prepare_search_request(
-        args.request, execution_settings_from_args(args)
-    )
+    request = prepare_search_request(args.request, execution_settings_from_args(args))
     return SearchWorkflow(
         store,
         catalog_refresh=getattr(args, "catalog_refresh_metadata", None),
