@@ -6,11 +6,11 @@ from flights_cli.pipeline.result_builder import build_result_projection
 
 
 class ResultBuilderProjectionTests(unittest.TestCase):
-    def test_v5_route_and_frontier_are_projected_once(self) -> None:
+    def test_route_and_frontier_are_projected_once(self) -> None:
         data = {
             "live_search": {
                 "plan": {
-                    "schema_version": "flight_search_plan.v5",
+                    "schema_version": "flight_search_plan.v6",
                     "route": {
                         "origin": "SVX",
                         "destination": "AMS",

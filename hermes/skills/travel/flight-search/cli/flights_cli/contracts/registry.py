@@ -37,12 +37,7 @@ _CURRENT_CONTRACTS: dict[str, dict[str, str]] = {
 }
 
 CURRENT_CONTRACTS = MappingProxyType(_CURRENT_CONTRACTS)
-LEGACY_SCHEMA_RESOURCES = frozenset(
-    {
-        "flight_search_plan.v5.schema.json",
-        "flight_search_result.v9.schema.json",
-    }
-)
+LEGACY_SCHEMA_RESOURCES = frozenset({"flight_search_result.v9.schema.json"})
 
 
 def current_contract(name: str) -> dict[str, Any]:
