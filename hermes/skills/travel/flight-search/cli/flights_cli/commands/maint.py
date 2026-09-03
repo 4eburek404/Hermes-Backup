@@ -19,8 +19,6 @@ from ..command_surface import (
 )
 from ..config import (
     DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS,
-    DEFAULT_ROUTE_HUB_NOTES,
-    DEFAULT_ROUTE_HUBS,
     RISK_PROFILES,
 )
 from ..providers.static_catalog import (
@@ -133,10 +131,6 @@ def command_maint_doctor(args: argparse.Namespace, store: Store) -> dict[str, An
             },
             "live_network_checks_in_doctor": False,
         },
-        "default_route_hubs": [
-            {"code": hub, "note": DEFAULT_ROUTE_HUB_NOTES.get(hub)}
-            for hub in DEFAULT_ROUTE_HUBS
-        ],
         "safety": {
             "booking_or_purchase": False,
             "docker_touched": False,

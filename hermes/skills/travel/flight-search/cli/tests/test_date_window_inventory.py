@@ -10,7 +10,7 @@ from flights_cli.cli import build_parser
 from flights_cli.errors import CliError
 from flights_cli.orchestrators.search_workflow import SearchWorkflow
 from flights_cli.orchestrators.search_plan_builder import (
-    build_route_context,
+    build_route_plan,
 )
 from flights_cli.pipeline.result_builder import build_result_projection
 from flights_cli.store import Store
@@ -116,7 +116,7 @@ class DateWindowPlanTests(unittest.TestCase):
     def test_window_expands_into_per_date_direct_provider_queries(self) -> None:
         depart = future_departure_date()
         args = window_args(depart)
-        plan = build_route_context(args, Store())
+        plan = build_route_plan(args, Store()).to_dict()
         search_plan = build_search_plan(args, Store())
 
         query_dates = sorted(

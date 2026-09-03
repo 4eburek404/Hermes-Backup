@@ -6,9 +6,6 @@ import unittest
 from datetime import timedelta
 from pathlib import Path
 
-from flights_cli.orchestrators.search_plan_builder import (
-    build_route_context,
-)
 from flights_cli.domain.airports import explicit_or_resolved_airports
 from flights_cli.store import Store
 from helpers import build_search_plan, future_departure_date, live_assembly_args
@@ -174,23 +171,6 @@ class AirportPriorityPolicyTests(unittest.TestCase):
                     ),
                     tuple(reversed(expected_outbound)),
                 )
-
-    def test_domestic_mow_round_trip_does_not_add_intra_moscow_hub_fallback(
-        self,
-    ) -> None:
-        depart = future_departure_date()
-        plan = build_route_context(
-            live_args(
-                origin="SVX",
-                destination="MOW",
-                depart_date=depart.isoformat(),
-                return_date=(depart + timedelta(days=7)).isoformat(),
-                destination_airports=["DME", "SVO", "VKO"],
-            ),
-            Store(),
-        )
-
-        self.assertNotIn("segments", plan)
 
 
 if __name__ == "__main__":

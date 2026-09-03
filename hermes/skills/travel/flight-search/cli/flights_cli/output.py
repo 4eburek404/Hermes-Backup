@@ -61,7 +61,6 @@ def render_user_text(command: str, data: Any) -> str:
                     f"airlines={counts['airlines']} alliances={counts['alliances']} planes={counts['planes']}"
                 ),
                 f"catalog refresh: {policy['mode']} max_age={policy['max_age']} stale={staleness['stale_count']}/{staleness['checked_count']}",
-                f"default hubs: {', '.join(item['code'] for item in data.get('default_route_hubs', []))}",
                 f"agent path: {data['safety']['canonical_path']}",
             ]
         )

@@ -16,7 +16,6 @@ from flights_cli.command_surface import (
     COMMAND_SPECS,
     PRIMARY_ROUTE_COMMAND,
 )
-from flights_cli.config import DEFAULT_ROUTE_HUBS
 
 from helpers import PROJECT, TEST_ENV, future_departure_date, parser_leaf_defaults
 
@@ -315,7 +314,6 @@ class CliContractTests(unittest.TestCase):
                 "catalog_auto_refresh_policy",
                 "catalog_staleness",
                 "cli",
-                "default_route_hubs",
                 "offline_first",
                 "python",
                 "risk_profiles",
@@ -347,10 +345,6 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(
             payload["data"]["catalog_auto_refresh_policy"]["max_age_seconds"],
             14 * 24 * 60 * 60,
-        )
-        self.assertEqual(
-            [item["code"] for item in payload["data"]["default_route_hubs"]],
-            list(DEFAULT_ROUTE_HUBS),
         )
         self.assertEqual(
             set(payload["data"]["cache_counts"]),

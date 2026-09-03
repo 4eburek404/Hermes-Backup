@@ -67,13 +67,7 @@ DEFAULT_FAIL_FAST = False
 DEFAULT_MAX_AIRPORTS_PER_CITY = 6
 
 
-DEFAULT_ROUTE_HUBS = ("IST",)
-
 DEFAULT_ROUTING_STRATEGY = "auto"
-
-DEFAULT_ROUTE_HUB_NOTES = {
-    "IST": "Broadest Russia-origin hub.",
-}
 
 IATA_RE = re.compile(r"^[A-Z]{3}$")
 

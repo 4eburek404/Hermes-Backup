@@ -9,7 +9,7 @@ from flights_cli.config import DEFAULT_DIRECT_CATALOG_LIMIT
 from flights_cli.orchestrators.search_workflow import SearchWorkflow
 from flights_cli.orchestrators.search_plan_builder import (
     build_planning_state,
-    build_route_context,
+    build_route_plan,
 )
 from flights_cli.pipeline.search_plan import (
     DecisionPolicy,
@@ -381,14 +381,14 @@ class LiveRoutePipelineTests(unittest.TestCase):
     def test_route_connection_options_flow_into_decision_scorer(self) -> None:
         search_plan = {
             "execution_limits": execution_limits(),
-            "route_context": build_route_context(
+            "route_context": build_route_plan(
                 live_args(
                     provider_policy="kupibilet",
                     preferred_connections=1,
                     max_connections=2,
                 ),
                 Store(),
-            ),
+            ).to_dict(),
             "primary_offer_queries": [
                 {
                     "role": "primary_offer_collection",

@@ -158,17 +158,6 @@ def build_route_plan(
     )
 
 
-def build_route_context(
-    request: SearchRequest,
-    store: Store | None = None,
-    *,
-    flow: _PlanningState | None = None,
-) -> dict[str, Any]:
-    """Словарное представление маршрутного плана для потребителей трассы."""
-
-    return build_route_plan(request, store, flow=flow).to_dict()
-
-
 def _resolved_airport_scope(
     options: SearchRequest,
     flow: _PlanningState,
