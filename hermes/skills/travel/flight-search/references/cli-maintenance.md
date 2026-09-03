@@ -21,8 +21,8 @@ source/runtime parity before making runtime claims.
 ## Public boundaries
 
 - Input: `flight_search_request.v1` (единственная принимаемая версия входа).
-- Output: `flight_search_result.v10`.
-- Canonical text: `data.answer.rendered_text`.
+- Output: `flight_search_result.v1`.
+- Canonical text: `data.rendered_text`.
 - Diagnostic trace: `flight_route_trace_diagnostic.v5`.
 
 JSON stdout is one envelope and one terminal newline. Text search stdout is the

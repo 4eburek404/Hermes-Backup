@@ -39,9 +39,7 @@ def emit_json(data: Any) -> None:
 
 
 def render_search_user_text(result: dict[str, Any]) -> str:
-    raw_user_answer = result.get("answer")
-    user_answer = raw_user_answer if isinstance(raw_user_answer, dict) else {}
-    return str(user_answer["rendered_text"])
+    return str(result["rendered_text"])
 
 
 def render_user_text(command: str, data: Any) -> str:

@@ -6,10 +6,11 @@ from types import SimpleNamespace
 from typing import Any
 
 from flights_cli.orchestrators.search_plan_builder import SearchPlanBuilder
-from flights_cli.pipeline.result_builder import build_projection_input
+from flights_cli.pipeline.result_builder import build_flight_search_result
 from flights_cli.pipeline.candidate_directness import candidate_is_direct
 from flights_cli.pipeline.frontier_selection import build_decision_frontier
 from flights_cli.pipeline.search_decision import SearchDecisionBuilder
+from flights_cli.pipeline.search_request import search_request_from_payload
 from flights_cli.store import Store
 from helpers import future_departure_date, live_assembly_args
 
@@ -105,26 +106,6 @@ def test_search_decision_builder_is_a_pure_evidence_projection() -> None:
     assert [option["id"] for option in decision.decision_frontier["options"]] == [
         "candidate:primary_offer:fake:fake-direct"
     ]
-    assert decision.research_status["needed"] is False
-    assert decision.research_status["audit"] == []
-
-
-def test_research_status_marks_evidence_incomplete_from_the_probe_ledger() -> None:
-    depart = future_departure_date()
-    evidence = _evidence(depart)
-    evidence.primary_offer_results = ()
-    evidence.probe_ledger["not_executed_probes"] = [
-        {"probe_id": "budget", "reason": "provider_attempt_budget_exhausted"}
-    ]
-
-    decision = SearchDecisionBuilder.build(_plan(depart), evidence)
-
-    # Незавершённость доказательств теперь читается только по журналу проб.
-    # Раньше её вторым источником был аудит маршрутных гипотез — шлюзовых
-    # плеч, которых больше не существует.
-    assert decision.research_status["evidence_incomplete"] is True
-    assert decision.research_status["needed"] is False
-    assert decision.research_status["audit"] == []
 
 
 def test_search_decision_uses_plan_limits_when_request_limits_conflict() -> None:
@@ -186,7 +167,14 @@ def test_search_decision_uses_plan_limits_when_request_limits_conflict() -> None
     assert scorer["max_options_per_first_carrier"] == 1
 
 
-def test_projection_input_binds_existing_decision_and_optional_inventory() -> None:
+def test_result_is_built_from_artifacts_without_a_trace() -> None:
+    """Ответ собирается из плана, свидетельства и решения напрямую.
+
+    Раньше между ними стояла диагностическая трасса, и публичные поля
+    вычитывались обратно из неё. Здесь проверяется, что отказ провайдера
+    доезжает до ответа без этого посредника.
+    """
+
     depart = future_departure_date()
     plan = _plan(depart)
     evidence = _evidence(depart)
@@ -194,31 +182,43 @@ def test_projection_input_binds_existing_decision_and_optional_inventory() -> No
         {
             "probe_id": "provider-failure",
             "provider": "fake",
-            "error": {"type": "upstream_error", "message": "offline"},
+            "error": {
+                "type": "upstream_error",
+                "classification": "upstream_error",
+                "message": "offline",
+            },
         }
     ]
+    evidence.probe_ledger["planned_probes"].extend(
+        [{"probe_id": "provider-failure"}, {"probe_id": "provider-ok"}]
+    )
+    evidence.probe_ledger["searched_probes"] = [
+        {"probe_id": "provider-ok", "provider": "fake", "status": "ok"}
+    ]
     decision = SearchDecisionBuilder.build(plan, evidence)
-    inventory = {"schema_version": "flight_date_window_inventory.v1"}
 
-    projection = build_projection_input(
-        plan,
-        evidence,
-        decision,
-        date_window_inventory=inventory,
+    result = build_flight_search_result(
+        search_request_from_payload(
+            {
+                "schema_version": "flight_search_request.v1",
+                "origin": "SVX",
+                "destination": "LED",
+                "depart_date": depart.isoformat(),
+                "currency": "RUB",
+            }
+        ),
+        list(decision.decision_frontier.get("options") or []),
+        evidence.probe_ledger,
     )
 
-    assert projection["count"] == 1
-    assert projection["live_search"]["candidate_input_ids"] == [
+    assert result["schema_version"] == "flight_search_result.v1"
+    assert result["evidence"]["provider_failures"] == [
+        {"provider": "fake", "classification": "upstream_error", "retryable": None}
+    ]
+    assert result["evidence"]["complete"] is False
+    assert [option["id"] for option in result["options"]] == [
         "candidate:primary_offer:fake:fake-direct"
     ]
-    assert projection["live_search"]["date_window_inventory"] == inventory
-    assert (
-        projection["live_search"]["diagnostics"]["search_plan"]["schema_version"]
-        == "flight_search_plan.v6"
-    )
-    assert "failure_count" not in projection["live_search"]
-    assert "failures" not in projection["live_search"]
-    assert len(projection["live_search"]["probe_ledger"]["failed_probes"]) == 1
 
 
 def test_atomic_round_trip_uses_the_same_direct_predicate_in_frontier() -> None:

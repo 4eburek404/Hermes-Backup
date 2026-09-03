@@ -9,8 +9,7 @@
   },
   "contracts": {
     "flight_search_request": "flight_search_request.v1",
-    "flight_search_result": "flight_search_result.v10",
-    "user_answer": "flight_search_user_answer.v11"
+    "flight_search_result": "flight_search_result.v1"
   },
   "command_surface": {
     "version": "command_surface.v3",

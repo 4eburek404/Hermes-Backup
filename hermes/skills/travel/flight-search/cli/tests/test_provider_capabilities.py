@@ -26,9 +26,9 @@ from flights_cli.ports.providers import (
     ProviderProbeResult,
 )
 from flights_cli.pipeline.search_request import search_request_from_payload
+from flights_cli.reporting.evidence import all_planned_probes_are_terminal
 from flights_cli.store import Store
 from helpers import (
-    coverage_completeness,
     future_departure_date,
     live_assembly_args,
     make_test_store,
@@ -303,10 +303,7 @@ class ProviderCapabilitiesTests(unittest.TestCase):
         self.assertEqual(provider.calls, 0)
         self.assertEqual(len(ledger["unsupported_probes"]), 1)
         self.assertEqual(ledger["unsupported_probes"][0]["provider"], provider.name)
-        self.assertEqual(
-            coverage_completeness(ledger)["planned_count"],
-            coverage_completeness(ledger)["terminal_count"],
-        )
+        self.assertTrue(all_planned_probes_are_terminal(ledger))
 
     def test_auto_plan_fans_out_to_registered_third_provider(self) -> None:
         depart = future_departure_date()

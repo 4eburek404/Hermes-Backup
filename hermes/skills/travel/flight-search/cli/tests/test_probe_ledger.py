@@ -5,8 +5,10 @@ import unittest
 from flights_cli.execution.probe_intent import ProbeIntent
 from flights_cli.execution.probe_ledger import ProbeRunLedger
 from flights_cli.ports.providers import ProviderProbeResult
-from flights_cli.reporting.coverage import PROBE_BUCKETS
-from helpers import coverage_completeness
+from flights_cli.reporting.evidence import (
+    PROBE_BUCKETS,
+    all_planned_probes_are_terminal,
+)
 
 
 def probe(**overrides: object) -> dict:
@@ -113,9 +115,7 @@ class ProbeRunLedgerTests(unittest.TestCase):
         self.assertEqual(diagnostics["searched_probes"][0]["provider"], "kupibilet")
         self.assertEqual(diagnostics["searched_probes"][0]["offer_count"], 2)
         self.assertEqual(diagnostics["not_executed_probes"], [])
-        self.assertTrue(
-            coverage_completeness(diagnostics)["all_planned_probes_have_terminal_state"]
-        )
+        self.assertTrue(all_planned_probes_are_terminal(diagnostics))
 
     def test_provider_attempt_budget_marks_remaining_probe_not_executed(self) -> None:
         first = probe(probe_id="primary-001", provider="tutu")
@@ -153,9 +153,7 @@ class ProbeRunLedgerTests(unittest.TestCase):
             diagnostics["not_executed_probes"][0]["reason"],
             "provider_attempt_budget_exhausted",
         )
-        self.assertTrue(
-            coverage_completeness(diagnostics)["all_planned_probes_have_terminal_state"]
-        )
+        self.assertTrue(all_planned_probes_are_terminal(diagnostics))
 
     def test_probe_intent_records_not_supported_terminal_state(self) -> None:
         intent = ProbeIntent(
@@ -184,10 +182,7 @@ class ProbeRunLedgerTests(unittest.TestCase):
         )
         self.assertEqual(diagnostics["unsupported_probes"][0]["provider"], "tutu")
         self.assertEqual(diagnostics["not_executed_probes"], [])
-        self.assertEqual(
-            coverage_completeness(diagnostics)["planned_count"],
-            coverage_completeness(diagnostics)["terminal_count"],
-        )
+        self.assertTrue(all_planned_probes_are_terminal(diagnostics))
 
     def test_planned_probe_without_runtime_event_becomes_not_executed(self) -> None:
         ledger = ProbeRunLedger()
@@ -200,13 +195,8 @@ class ProbeRunLedgerTests(unittest.TestCase):
         self.assertEqual(
             diagnostics["not_executed_probes"][0]["execution_state"], "not_executed"
         )
-        self.assertEqual(
-            coverage_completeness(diagnostics)["planned_count"],
-            coverage_completeness(diagnostics)["terminal_count"],
-        )
-        self.assertTrue(
-            coverage_completeness(diagnostics)["all_planned_probes_have_terminal_state"]
-        )
+        self.assertTrue(all_planned_probes_are_terminal(diagnostics))
+        self.assertTrue(all_planned_probes_are_terminal(diagnostics))
 
     def test_failed_full_route_probe_appears_in_failed_probes(self) -> None:
         item = probe(type="full_route_aggregate", carrier=None)
@@ -225,10 +215,7 @@ class ProbeRunLedgerTests(unittest.TestCase):
         self.assertEqual(diagnostics["failed_probes"][0]["execution_state"], "failed")
         self.assertEqual(diagnostics["failed_probes"][0]["provider"], "kupibilet")
         self.assertEqual(diagnostics["not_executed_probes"], [])
-        self.assertEqual(
-            coverage_completeness(diagnostics)["planned_count"],
-            coverage_completeness(diagnostics)["terminal_count"],
-        )
+        self.assertTrue(all_planned_probes_are_terminal(diagnostics))
 
     def test_repeated_terminal_write_is_idempotent(self) -> None:
         item = probe()
@@ -242,12 +229,9 @@ class ProbeRunLedgerTests(unittest.TestCase):
 
         self.assertEqual(len(diagnostics["searched_probes"]), 1)
         self.assertEqual(diagnostics["deduped_probes"], [])
-        self.assertEqual(coverage_completeness(diagnostics)["planned_count"], 1)
+        self.assertEqual(len(diagnostics["planned_probes"]), 1)
         self.assertEqual(terminal_bucket_count(diagnostics), 1)
-        self.assertEqual(
-            coverage_completeness(diagnostics)["planned_count"],
-            coverage_completeness(diagnostics)["terminal_count"],
-        )
+        self.assertTrue(all_planned_probes_are_terminal(diagnostics))
 
     def test_real_duplicate_is_a_distinct_planned_terminal_probe(self) -> None:
         first = probe(probe_id="primary-001", provider="kupibilet")
@@ -286,9 +270,9 @@ class ProbeRunLedgerTests(unittest.TestCase):
                 }
             ],
         )
-        self.assertEqual(coverage_completeness(diagnostics)["planned_count"], 2)
+        self.assertEqual(len(diagnostics["planned_probes"]), 2)
         self.assertEqual(
-            coverage_completeness(diagnostics)["terminal_count"],
+            terminal_bucket_count(diagnostics),
             terminal_bucket_count(diagnostics),
         )
         self.assertEqual(terminal_bucket_count(diagnostics), 2)
@@ -320,12 +304,10 @@ class ProbeRunLedgerTests(unittest.TestCase):
             diagnostics["skipped_probes"][0]["probe_id"],
         )
         self.assertEqual(
-            coverage_completeness(diagnostics)["terminal_count"],
+            terminal_bucket_count(diagnostics),
             terminal_bucket_count(diagnostics),
         )
-        self.assertTrue(
-            coverage_completeness(diagnostics)["all_planned_probes_have_terminal_state"]
-        )
+        self.assertTrue(all_planned_probes_are_terminal(diagnostics))
 
     def test_terminal_not_executed_probe_cannot_be_reopened(self) -> None:
         item = probe(type="segment_hub_leg", leg="gateway_to_destination")
@@ -347,12 +329,10 @@ class ProbeRunLedgerTests(unittest.TestCase):
         self.assertEqual(len(diagnostics["not_executed_probes"]), 1)
         self.assertEqual(diagnostics["deduped_probes"], [])
         self.assertEqual(
-            coverage_completeness(diagnostics)["terminal_count"],
+            terminal_bucket_count(diagnostics),
             terminal_bucket_count(diagnostics),
         )
-        self.assertTrue(
-            coverage_completeness(diagnostics)["all_planned_probes_have_terminal_state"]
-        )
+        self.assertTrue(all_planned_probes_are_terminal(diagnostics))
 
     def test_role_and_gateway_metadata_do_not_create_a_second_physical_query(
         self,
@@ -393,14 +373,12 @@ class ProbeRunLedgerTests(unittest.TestCase):
         self.assertEqual(
             diagnostics["deduped_probes"][0]["original_probe_id"], "gateway-001"
         )
-        self.assertEqual(coverage_completeness(diagnostics)["planned_count"], 2)
+        self.assertEqual(len(diagnostics["planned_probes"]), 2)
         self.assertEqual(
-            coverage_completeness(diagnostics)["terminal_count"],
+            terminal_bucket_count(diagnostics),
             terminal_bucket_count(diagnostics),
         )
-        self.assertTrue(
-            coverage_completeness(diagnostics)["all_planned_probes_have_terminal_state"]
-        )
+        self.assertTrue(all_planned_probes_are_terminal(diagnostics))
 
 
 if __name__ == "__main__":

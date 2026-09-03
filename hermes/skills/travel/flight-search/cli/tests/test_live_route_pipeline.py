@@ -7,6 +7,8 @@ from unittest.mock import patch
 
 from flights_cli.config import DEFAULT_DIRECT_CATALOG_LIMIT
 from flights_cli.orchestrators.search_workflow import SearchWorkflow
+from flights_cli.pipeline.result_builder import build_flight_search_result
+from flights_cli.pipeline.search_request import search_request_from_payload
 from flights_cli.orchestrators.search_plan_builder import (
     build_planning_state,
     build_route_plan,
@@ -25,9 +27,9 @@ from flights_cli.store import Store
 from helpers import future_departure_date, live_assembly_args
 
 
-def execute_projection(*args: object, **kwargs: object) -> dict:
+def execute_artifacts(*args: object, **kwargs: object):
     request, store = args
-    return SearchWorkflow(store).run_artifacts(request).projection_input
+    return SearchWorkflow(store).run_artifacts(request)
 
 
 def live_args(**overrides: object):
@@ -198,27 +200,23 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 return_value=[],
             ),
         ):
-            result = execute_projection(
+            result = execute_artifacts(
                 live_args(depart_date=depart.isoformat()), Store()
             )
 
         self.assertEqual(build_flow.call_count, 1)
-        self.assertIn("live_search", result)
-        self.assertEqual(result["live_search"]["provider_policy"], "auto")
-        route_plan = result["live_search"]["plan"]
+        self.assertEqual(result.evidence.provider_policy, "auto")
+        route_plan = result.evidence.route_context
         self.assertEqual(route_plan["origin"], "SVX")
         self.assertEqual(route_plan["destination"], "CDG")
         self.assertEqual(
             route_plan["dates"], {"depart": depart.isoformat(), "return": None}
         )
-        search_plan = result["live_search"]["diagnostics"]["search_plan"]
-        self.assertEqual(set(result["live_search"]["diagnostics"]), {"search_plan"})
-        self.assertEqual(search_plan["schema_version"], "flight_search_plan.v6")
-        self.assertEqual(result["live_search"]["segment_searches"], [])
-        self.assertNotIn("flow_decision", result)
-        self.assertNotIn("search_request", result)
-        self.assertNotIn("flow_decision", result["live_search"])
-        self.assertNotIn("search_request", result["live_search"])
+        self.assertEqual(
+            result.evidence.search_plan["schema_version"], "flight_search_plan.v6"
+        )
+        self.assertEqual(result.evidence.direct_inventory_searches, ())
+        self.assertIsNone(result.date_window)
 
     def test_primary_offer_queries_execute_before_frontier_scoring(self) -> None:
         events: list[str] = []
@@ -289,26 +287,28 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 side_effect=run_primary,
             ),
         ):
-            result = execute_projection(live_args(provider_policy="kupibilet"), Store())
+            result = execute_artifacts(live_args(provider_policy="kupibilet"), Store())
 
         self.assertEqual(events, ["primary"])
-        self.assertEqual(
-            result["live_search"]["primary_offer_results"], primary_results
-        )
-        offer_graph = result["live_search"]["offer_graph"]
+        self.assertEqual(list(result.evidence.primary_offer_results), primary_results)
+        offer_graph = result.decision.offer_graph
         self.assertEqual(offer_graph["schema_version"], "flight_offer_graph.v1")
         self.assertEqual(
             [(edge["origin"], edge["destination"]) for edge in offer_graph["edges"]],
             [("SVX", "IST"), ("IST", "CDG")],
         )
-        mixed_ranking = result["live_search"]["mixed_candidate_ranking"]
+        mixed_ranking = result.decision.scored_decisions["mixed_candidate_ranking"]
         self.assertEqual(
             mixed_ranking["schema_version"],
             "flight_mixed_candidate_ranking.v1",
         )
         self.assertEqual(mixed_ranking["ranked_candidates"][0]["rank"], 1)
         self.assertEqual(
-            set(result["live_search"]["candidate_input_ids"]),
+            {
+                str(candidate["id"])
+                for candidate in result.decision.offer_candidates.get("candidates")
+                or []
+            },
             {candidate["id"] for candidate in mixed_ranking["ranked_candidates"]},
         )
         self.assertEqual(
@@ -320,16 +320,13 @@ class LiveRoutePipelineTests(unittest.TestCase):
         self.assertEqual(
             mixed_ranking["ranked_candidates"][0]["price_basis"], "unknown"
         )
-        frontier = result["decision_frontier"]
+        frontier = result.decision.decision_frontier
         self.assertEqual(frontier["schema_version"], "flight_decision_frontier.v1")
         self.assertNotIn("rank_components", frontier["options"][0])
         self.assertNotIn("rank_key", frontier["options"][0])
-        self.assertNotIn("decision_frontier", result["live_search"])
-        self.assertEqual(set(result["live_search"]["diagnostics"]), {"search_plan"})
-        self.assertEqual(
-            result["live_search"]["primary_offer_results"],
-            primary_results,
-        )
+        # Причина ранга уезжает прочтением ключа, а не самим ключом.
+        self.assertEqual(frontier["options"][0]["rank_reason"]["code"], "top_ranked")
+        self.assertEqual(list(result.evidence.primary_offer_results), primary_results)
 
     def test_live_search_payload_is_deduplicated(self) -> None:
         search_plan = {
@@ -365,17 +362,40 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 return_value=provider_returned_route("CDG"),
             ),
         ):
-            result = execute_projection(live_args(provider_policy="kupibilet"), Store())
+            result = execute_artifacts(live_args(provider_policy="kupibilet"), Store())
 
-        serialized = json.dumps(result, sort_keys=True, separators=(",", ":"))
-        self.assertLess(len(serialized.encode("utf-8")), 80_000)
-        self.assertEqual(
-            result["schema_version"], "flight_decision_projection_input.v1"
+        # Дублировать рубеж решения больше негде: между артефактами и
+        # ответом нет словаря-трассы, в который его клали дважды.
+        answer = build_flight_search_result(
+            search_request_from_payload(
+                {
+                    "schema_version": "flight_search_request.v1",
+                    "origin": "SVX",
+                    "destination": "CDG",
+                    "depart_date": future_departure_date().isoformat(),
+                    "currency": "RUB",
+                    "provider_policy": "kupibilet",
+                }
+            ),
+            list(result.decision.decision_frontier.get("options") or []),
+            result.evidence.probe_ledger,
         )
-        self.assertEqual(count_key(result, "decision_frontier"), 1)
-        self.assertIn("decision_frontier", result)
-        self.assertNotIn("decision_frontier", result["live_search"])
-        self.assertEqual(set(result["live_search"]["diagnostics"]), {"search_plan"})
+        serialized = json.dumps(answer, sort_keys=True, separators=(",", ":"))
+        self.assertLess(len(serialized.encode("utf-8")), 20_000)
+        self.assertEqual(
+            set(answer),
+            {
+                "schema_version",
+                "request",
+                "route",
+                "options",
+                "evidence",
+                "rendered_text",
+            },
+        )
+        self.assertEqual(count_key(answer, "decision_frontier"), 0)
+        self.assertEqual(count_key(answer, "rank_components"), 0)
+        self.assertEqual(count_key(answer, "probe_ledger"), 0)
 
     def test_route_connection_options_flow_into_decision_scorer(self) -> None:
         search_plan = {
@@ -438,7 +458,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 return_value=primary_results,
             ),
         ):
-            result = execute_projection(
+            result = execute_artifacts(
                 live_args(
                     provider_policy="kupibilet",
                     preferred_connections=1,
@@ -447,10 +467,9 @@ class LiveRoutePipelineTests(unittest.TestCase):
                 Store(),
             )
 
-        coverage = result["live_search"]["mixed_candidate_ranking"]["coverage"]
-        ranked = result["live_search"]["mixed_candidate_ranking"]["ranked_candidates"][
-            0
-        ]
+        ranking = result.decision.scored_decisions["mixed_candidate_ranking"]
+        coverage = ranking["coverage"]
+        ranked = ranking["ranked_candidates"][0]
         self.assertEqual(coverage["max_connections_per_journey"], 2)
         self.assertEqual(coverage["preferred_connections_per_journey"], 1)
         self.assertEqual(ranked["rank_components"]["max_connections_per_journey"], 0)

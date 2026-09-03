@@ -65,7 +65,6 @@ def manifest_mismatches(manifest: dict[str, Any]) -> list[str]:
         mismatches.append("cli.version")
 
     expected_contracts = {
-        "user_answer": current_contract("user_answer")["schema_version"],
         "flight_search_request": current_contract("search_request")["schema_version"],
         "flight_search_result": current_contract("search_result")["schema_version"],
     }

@@ -125,8 +125,8 @@ class OfflineCliE2ETests(unittest.TestCase):
                 )
         envelope = json.loads(json_proc.stdout)
         result = envelope["data"]
-        self.assertEqual(result["schema_version"], "flight_search_result.v10")
-        self.assertEqual(text_proc.stdout, result["answer"]["rendered_text"] + "\n")
+        self.assertEqual(result["schema_version"], "flight_search_result.v1")
+        self.assertEqual(text_proc.stdout, result["rendered_text"] + "\n")
         self.assertIn("KL1424", text_proc.stdout)
         self.assertIn("KL1395", text_proc.stdout)
         self.assertEqual(

@@ -9,7 +9,6 @@ from ..domain.stop_policy import (
     stop_policy_payload,
     stop_policy_status,
 )
-from .candidate_directness import candidate_is_direct
 from .decision_scorer import DecisionScorer, DecisionScorerOptions
 from .offer_graph_builder import build_offer_graph
 from .offer_graph_materializer import materialize_offer_graph_candidates
@@ -36,7 +35,6 @@ class SearchDecision:
     scored_decisions: dict[str, Any]
     stop_policy: dict[str, Any]
     stop_policy_status: dict[str, Any]
-    research_status: dict[str, Any]
 
     @property
     def decision_frontier(self) -> dict[str, Any]:
@@ -127,10 +125,6 @@ class SearchDecisionBuilder:
                 ),
                 policy=stop_policy,
             ),
-            research_status=_research_status(
-                scored_decisions,
-                evidence.probe_ledger,
-            ),
         )
 
 
@@ -146,70 +140,6 @@ def _requested_dates(plan: SearchPlan) -> dict[str, set[str]]:
         if date:
             dates.setdefault(normalize_direction(attempt.direction), set()).add(date)
     return dates
-
-
-def _research_status(
-    scored_decisions: dict[str, Any],
-    probe_ledger: dict[str, Any],
-) -> dict[str, Any]:
-    ranking = scored_decisions.get("mixed_candidate_ranking")
-    ranked = ranking.get("ranked_candidates") if isinstance(ranking, dict) else []
-    candidates = [item for item in ranked or [] if isinstance(item, dict)]
-    eligible_direct = any(
-        candidate_is_direct(candidate)
-        and (candidate.get("validation") or {}).get("status") == "valid"
-        for candidate in candidates
-    )
-    convenient_signatures = {
-        _airport_signature(candidate)
-        for candidate in candidates
-        if (candidate.get("validation") or {}).get("status") == "valid"
-        and str((candidate.get("connection_assessment") or {}).get("comfort"))
-        in {"comfortable", "acceptable"}
-        and _airport_signature(candidate)
-    }
-    target_reached = eligible_direct or len(convenient_signatures) >= 3
-    incomplete_evidence = bool(
-        (probe_ledger.get("failed_probes") or [])
-        or (probe_ledger.get("not_executed_probes") or [])
-    )
-    evidence_incomplete = not target_reached and incomplete_evidence
-    return {
-        "needed": not target_reached and not evidence_incomplete,
-        "evidence_incomplete": evidence_incomplete,
-        "eligible_direct": eligible_direct,
-        "convenient_signature_count": len(convenient_signatures),
-        "target_signature_count": 3,
-        # Ключ остаётся пустым только потому, что его требует
-        # flight_search_result.v10: аудит маршрутных гипотез описывал шлюзовые
-        # плечи, которых больше нет. Уйдёт вместе со схемой в .v1.
-        "audit": [],
-    }
-
-
-def _airport_signature(candidate: dict[str, Any]) -> tuple[Any, ...] | None:
-    journeys = candidate.get("journeys")
-    if not isinstance(journeys, list):
-        return None
-    signature: list[tuple[str, tuple[str, ...]]] = []
-    for journey in journeys:
-        if not isinstance(journey, dict):
-            continue
-        airports: list[str] = []
-        for segment in journey.get("segments") or []:
-            if not isinstance(segment, dict):
-                continue
-            origin = str(segment.get("origin") or "").upper()
-            destination = str(segment.get("destination") or "").upper()
-            if origin and not airports:
-                airports.append(origin)
-            if destination:
-                airports.append(destination)
-        if airports:
-            signature.append(
-                (str(journey.get("direction") or "outbound"), tuple(airports))
-            )
-    return tuple(signature) if signature else None
 
 
 __all__ = ["SearchDecision", "SearchDecisionBuilder", "SearchEvidenceView"]

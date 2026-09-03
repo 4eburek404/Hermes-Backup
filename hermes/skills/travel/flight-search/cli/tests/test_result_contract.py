@@ -6,76 +6,16 @@ import unittest
 from flights_cli.contracts.validation import validate_contract_payload
 from flights_cli.errors import CliError
 from flights_cli.execution.search_evidence import SearchEvidence
-from flights_cli.pipeline.result_builder import build_flight_search_result
 from flights_cli.pipeline.result_contract import validate_flight_search_result
-from flights_cli.pipeline.search_request import search_request_from_payload
-from flights_cli.reporting.user_answer import render_user_answer
-from tests.fixtures.result_fixtures import DEPART, valid_report
-
-
-def valid_result() -> dict:
-    fixture = valid_report()
-    answer = fixture["user_answer"]
-    option_ids = [item["option_id"] for item in answer["catalog"]["items"]]
-    projection = {
-        "route": {
-            "origin": "SVX",
-            "destination": "DEL",
-            "origin_airports": ["SVX"],
-            "destination_airports": ["DEL"],
-            "dates": {"depart": DEPART, "return": None},
-            "profile": "business",
-            "routing_strategy": "ru-priority",
-            "provider_policy": "kupibilet",
-        },
-        "evidence": {
-            "source_boundaries": [],
-            "coverage": {
-                "negative_evidence_type": "bounded_live_probes_only",
-                "coverage_warnings": ["segment_absence_is_not_route_absence"],
-                "counts": {
-                    "planned_probes": 1,
-                    "searched_probes": 0,
-                    "skipped_probes": 0,
-                    "failed_probes": 0,
-                    "unsupported_probes": 0,
-                    "not_executed_probes": 1,
-                    "deduped_probes": 0,
-                },
-                "completeness": {
-                    "planned_count": 1,
-                    "terminal_count": 1,
-                    "all_planned_probes_have_terminal_state": True,
-                },
-                "blocking_evidence": ["not_executed_probes"],
-                "non_blocking_boundaries": [],
-            },
-            "provider_failures": [],
-        },
-        "frontier": {
-            "schema_version": "flight_decision_frontier.result.v1",
-            "option_ids": option_ids,
-            "coverage_summary": {
-                "candidate_count": 1,
-                "acceptable_count": 1,
-                "selected_count": 1,
-                "rejected_count": 0,
-            },
-        },
-        "answer": answer,
-    }
-    request = search_request_from_payload(
-        {
-            "schema_version": "flight_search_request.v1",
-            "origin": "SVX",
-            "destination": "DEL",
-            "depart_date": DEPART,
-            "return_date": None,
-            "currency": "RUB",
-            "provider_policy": "kupibilet",
-        }
-    )
-    return build_flight_search_result(request, projection)
+from tests.fixtures.result_fixtures import (
+    DEPART,
+    NEXT_DAY,
+    connecting_option,
+    direct_option,
+    probe_ledger,
+    request_payload,
+    valid_result,
+)
 
 
 class ResultContractTests(unittest.TestCase):
@@ -113,23 +53,12 @@ class ResultContractTests(unittest.TestCase):
                 "schema_version",
                 "request",
                 "route",
+                "options",
                 "evidence",
-                "frontier",
-                "answer",
-                "research_status",
+                "rendered_text",
             },
         )
-        self.assertEqual(
-            result["answer"]["rendered_text"],
-            render_user_answer(result["answer"], result["route"]),
-        )
-
-    def test_catalog_order_must_equal_frontier_order(self) -> None:
-        result = valid_result()
-        result["frontier"]["option_ids"] = ["unknown"]
-
-        with self.assertRaises(CliError):
-            validate_flight_search_result(result)
+        self.assertEqual(result["schema_version"], "flight_search_result.v1")
 
     def test_unknown_result_property_is_rejected(self) -> None:
         result = valid_result()
@@ -138,115 +67,162 @@ class ResultContractTests(unittest.TestCase):
         with self.assertRaises(CliError):
             validate_contract_payload("search_result", result)
 
-    def test_segment_continuity_and_layover_drift_are_rejected(self) -> None:
+    def test_route_must_repeat_the_request(self) -> None:
         result = valid_result()
-        item = result["answer"]["catalog"]["items"][0]
-        first = item["directions"]["outbound"]["segments"][0]
-        second = deepcopy(first)
-        second.update(
-            {
-                "flight_number": "SU999",
-                "origin": "SVO",
-                "origin_label": "SVO",
-                "destination": "LED",
-                "destination_label": "LED",
-                "departure_at": "2026-06-02T09:00:00+03:00",
-                "arrival_at": "2026-06-02T10:30:00+03:00",
-            }
-        )
-        item["directions"]["outbound"]["segments"].append(second)
-        item["directions"]["outbound"]["layovers"].append(
-            {"airport": "SVO", "duration_min": 1}
-        )
+        result["route"]["destination"] = "LED"
+
+        with self.assertRaises(CliError):
+            validate_flight_search_result(result)
+
+    def test_option_cannot_come_from_an_unsearched_provider(self) -> None:
+        # Провайдер, отброшенный по возможностям, до пробы не доходит.
+        # Вариант «от него» означал бы, что источник в ответе выдуман.
+        with self.assertRaises(CliError):
+            valid_result(ledger=probe_ledger(searched=["tutu"]))
+
+    def test_connection_must_match_the_flights_around_it(self) -> None:
+        result = valid_result()
+        result["options"][0]["directions"]["outbound"]["connections"][0]["minutes"] += 5
+
+        with self.assertRaises(CliError):
+            validate_flight_search_result(result)
+
+    def test_connection_count_must_match_the_gaps_between_flights(self) -> None:
+        result = valid_result()
+        leg = result["options"][0]["directions"]["outbound"]
+        leg["connections"] = []
+
+        with self.assertRaises(CliError):
+            validate_flight_search_result(result)
+
+    def test_single_flight_leg_cannot_carry_a_connection(self) -> None:
+        result = valid_result([direct_option()])
+        result["options"][0]["directions"]["outbound"]["connections"] = [
+            {"airport": "SVO", "minutes": 60, "comfort": "comfortable"}
+        ]
+
+        with self.assertRaises(CliError):
+            validate_flight_search_result(result)
+
+    def test_segment_chain_must_be_continuous(self) -> None:
+        result = valid_result()
+        leg = result["options"][0]["directions"]["outbound"]
+        leg["segments"][1]["origin"] = "LED"
 
         with self.assertRaises(CliError):
             validate_flight_search_result(result)
 
     def test_arrival_before_departure_is_rejected(self) -> None:
         result = valid_result()
-        segment = result["answer"]["catalog"]["items"][0]["directions"]["outbound"][
-            "segments"
-        ][0]
-        segment["arrival_at"] = f"{DEPART}T20:00:00+03:00"
+        segment = result["options"][0]["directions"]["outbound"]["segments"][0]
+        segment["arrival_at"] = f"{DEPART}T00:00:00+03:00"
 
         with self.assertRaises(CliError):
             validate_flight_search_result(result)
 
-    def test_incomplete_visible_direction_is_rejected(self) -> None:
+    def test_empty_leg_is_rejected(self) -> None:
         result = valid_result()
-        direction = result["answer"]["catalog"]["items"][0]["directions"]["outbound"]
-        direction["segments"] = []
-        direction["layovers"] = []
-        direction["elapsed_min"] = None
+        result["options"][0]["directions"]["outbound"]["segments"] = []
+
+        with self.assertRaises(CliError):
+            validate_contract_payload("search_result", result)
+
+    def test_leg_endpoints_must_match_the_request(self) -> None:
+        result = valid_result()
+        result["options"][0]["directions"]["outbound"]["segments"][0]["origin"] = "LED"
 
         with self.assertRaises(CliError):
             validate_flight_search_result(result)
 
-    def test_direction_endpoints_must_match_request(self) -> None:
+    def test_segment_duration_must_match_timestamps(self) -> None:
         result = valid_result()
-        segment = result["answer"]["catalog"]["items"][0]["directions"]["outbound"][
-            "segments"
-        ][0]
-        segment["origin"] = "LED"
-        segment["origin_label"] = "LED"
+        result["options"][0]["directions"]["outbound"]["segments"][0][
+            "duration_min"
+        ] += 1
 
         with self.assertRaises(CliError):
             validate_flight_search_result(result)
 
-    def test_segment_and_elapsed_durations_must_match_timestamps(self) -> None:
-        result = valid_result()
-        direction = result["answer"]["catalog"]["items"][0]["directions"]["outbound"]
-        direction["segments"][0]["duration_min"] += 1
-        direction["elapsed_min"] += 1
+    def test_segment_requires_offset_timestamp(self) -> None:
+        result = deepcopy(valid_result())
+        result["options"][0]["directions"]["outbound"]["segments"][0][
+            "departure_at"
+        ] = f"{DEPART}T06:00:00"
 
         with self.assertRaises(CliError):
             validate_flight_search_result(result)
 
     def test_currency_mismatch_is_rejected(self) -> None:
         result = valid_result()
-        result["answer"]["catalog"]["items"][0]["total_price"]["currency"] = "EUR"
+        result["options"][0]["price"]["currency"] = "EUR"
 
         with self.assertRaises(CliError):
             validate_flight_search_result(result)
 
-    def test_evidence_count_and_required_caveat_drift_are_rejected(self) -> None:
-        result = valid_result()
-        result["answer"]["evidence_status"]["terminal_probe_count"] = 0
-        result["answer"]["required_caveats"]["source_boundaries_included"] = False
-
+    def test_round_trip_request_requires_both_legs(self) -> None:
         with self.assertRaises(CliError):
-            validate_flight_search_result(result)
+            valid_result(
+                request=request_payload(return_date=NEXT_DAY),
+            )
 
-    def test_round_trip_requires_return_direction(self) -> None:
+    def test_one_way_request_cannot_carry_a_return_leg(self) -> None:
         result = valid_result()
-        result["request"]["return_date"] = "2026-06-10"
-        result["route"]["dates"]["return"] = "2026-06-10"
-
-        with self.assertRaises(CliError):
-            validate_flight_search_result(result)
-
-    def test_segment_requires_offset_timestamp(self) -> None:
-        result = valid_result()
-        changed = deepcopy(result)
-        segment = changed["answer"]["catalog"]["items"][0]["directions"]["outbound"][
-            "segments"
-        ][0]
-        segment["departure_at"] = f"{DEPART}T21:20:00"
-
-        with self.assertRaises(CliError):
-            validate_flight_search_result(changed)
-
-    def test_missing_flight_number_is_allowed(self) -> None:
-        result = valid_result()
-        result["answer"]["catalog"]["items"][0]["directions"]["outbound"]["segments"][
-            0
-        ]["flight_number"] = None
-        result["answer"]["rendered_text"] = render_user_answer(
-            result["answer"], result["route"]
+        result["options"][0]["directions"]["return"] = deepcopy(
+            result["options"][0]["directions"]["outbound"]
         )
 
+        with self.assertRaises(CliError):
+            validate_flight_search_result(result)
+
+    def test_direct_option_states_no_ticket_protection(self) -> None:
+        # Прямой рейс единым билетом нечему распасться: раньше он получал
+        # single_pnr_unproven наравне со стыковочным.
+        result = valid_result([direct_option()])
+        option = result["options"][0]
+
+        self.assertEqual(option["ticketing"], {"model": "provider_order"})
+        self.assertEqual(
+            option["warnings"], ["baggage_unknown", "verify_on_booking_screen"]
+        )
+
+    def test_connecting_option_must_state_ticket_protection(self) -> None:
+        result = valid_result()
+        result["options"][0]["ticketing"].pop("single_pnr")
+
+        with self.assertRaises(CliError):
+            validate_flight_search_result(result)
+
+    def test_single_flight_option_must_not_state_ticket_protection(self) -> None:
+        result = valid_result([direct_option()])
+        result["options"][0]["ticketing"]["single_pnr"] = "unproven"
+
+        with self.assertRaises(CliError):
+            validate_flight_search_result(result)
+
+    def test_warnings_must_agree_with_ticketing(self) -> None:
+        result = valid_result()
+        result["options"][0]["warnings"].remove("single_pnr_unproven")
+
+        with self.assertRaises(CliError):
+            validate_flight_search_result(result)
+
+    def test_options_are_numbered_from_one_in_order(self) -> None:
+        result = valid_result([connecting_option(), direct_option()])
+
+        self.assertEqual([option["number"] for option in result["options"]], [1, 2])
+        result["options"][1]["number"] = 5
+        with self.assertRaises(CliError):
+            validate_flight_search_result(result)
+
+    def test_missing_flight_number_is_allowed(self) -> None:
+        option = direct_option()
+        segments = [dict(option["journeys"][0]["segments"][0], flight_number=None)]
+        option["journeys"] = [{"direction": "outbound", "segments": segments}]
+
+        result = valid_result([option])
+
         validate_flight_search_result(result)
-        self.assertIn("номер рейса не предоставлен", result["answer"]["rendered_text"])
+        self.assertIn("номер рейса не предоставлен", result["rendered_text"])
 
 
 if __name__ == "__main__":

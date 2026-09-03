@@ -9,17 +9,26 @@ from unittest.mock import patch
 from flights_cli.cli import build_parser
 from flights_cli.errors import CliError
 from flights_cli.orchestrators.search_workflow import SearchWorkflow
+from flights_cli.pipeline.result_builder import build_flight_search_result
 from flights_cli.orchestrators.search_plan_builder import (
     build_route_plan,
 )
-from flights_cli.pipeline.result_builder import build_result_projection
 from flights_cli.store import Store
 from helpers import build_search_plan, future_departure_date, live_assembly_args
 
 
-def execute_projection(*args: object, **kwargs: object) -> dict:
+def execute_window(*args: object, **kwargs: object) -> dict:
     request, store = args
-    return SearchWorkflow(store).run_artifacts(request).projection_input
+    artifacts = SearchWorkflow(store).run_artifacts(request)
+    return {
+        "date_window": artifacts.date_window,
+        "result": build_flight_search_result(
+            request,
+            list(artifacts.decision.decision_frontier.get("options") or []),
+            artifacts.evidence.probe_ledger,
+            date_window=artifacts.date_window,
+        ),
+    }
 
 
 def window_args(depart: date, **overrides: object):
@@ -190,33 +199,26 @@ class DateWindowInventoryProjectionTests(unittest.TestCase):
             "flights_cli.execution.search_executor.run_primary_offer_queries",
             side_effect=_primary_results_by_query,
         ):
-            result = execute_projection(args, Store())
+            result = execute_window(args, Store())
 
-        inventory = result["live_search"].get("date_window_inventory")
-        self.assertIsInstance(inventory, dict)
-        entries = {entry["date"]: entry for entry in inventory["dates"]}
+        window = result["date_window"]
+        self.assertIsInstance(window, dict)
+        entries = {entry["date"]: entry for entry in window["dates"]}
         expected_dates = [
             (depart + timedelta(days=offset)).isoformat() for offset in range(3)
         ]
         self.assertEqual(sorted(entries), expected_dates)
+        self.assertEqual(window["start"], expected_dates[0])
+        self.assertEqual(window["end"], expected_dates[-1])
         self.assertEqual(entries[expected_dates[0]]["status"], "direct_offers")
         self.assertEqual(entries[expected_dates[0]]["offer_count"], 1)
-        first_offer = entries[expected_dates[0]]["offers"][0]
-        self.assertEqual(first_offer["carrier"], "SU")
-        self.assertEqual(first_offer["flight_number"], "SU1407")
-        self.assertEqual(first_offer["price"], 12345)
         self.assertEqual(entries[expected_dates[1]]["status"], "no_direct_offers")
         self.assertEqual(entries[expected_dates[2]]["status"], "probe_failed")
-        self.assertEqual(inventory.get("boundary"), "provider_live_only")
+        # Сами предложения окно больше не копирует: они лежат в options,
+        # и до .v1 одно и то же приезжало в ответ дважды.
+        self.assertNotIn("offers", entries[expected_dates[0]])
 
-        report = build_result_projection(result)
-        self.assertIsInstance(report, dict)
-        self.assertIn("date_window_inventory", report["evidence"])
-        report_dates = [
-            entry["date"]
-            for entry in report["evidence"]["date_window_inventory"]["dates"]
-        ]
-        self.assertEqual(sorted(report_dates), expected_dates)
+        self.assertEqual(result["result"]["evidence"]["date_window"], window)
 
 
 if __name__ == "__main__":

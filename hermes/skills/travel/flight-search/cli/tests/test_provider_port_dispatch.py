@@ -103,11 +103,11 @@ class ProviderPortDispatchTests(unittest.TestCase):
                 return_value=adapter,
             ),
         ):
-            result = SearchWorkflow(Store()).run_artifacts(args).projection_input
+            result = SearchWorkflow(Store()).run_artifacts(args)
 
         self.assertGreaterEqual(len(adapter.queries), 1)
         self.assertEqual(
-            result["live_search"]["primary_offer_results"][0]["provider"], "kupibilet"
+            result.evidence.primary_offer_results[0]["provider"], "kupibilet"
         )
 
 

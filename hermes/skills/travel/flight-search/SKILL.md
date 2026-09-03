@@ -49,7 +49,7 @@ Presentation depends on the chat surface:
   - price and protection warning are separate nested items;
   - never put two flights, or a flight and its layover, in the same item.
 
-This is presentation-only: preserve every source value and warning, and never change option order or itinerary meaning. In JSON mode, use `data.answer.rendered_text` and the matching structured catalog item as the canonical sources.
+This is presentation-only: preserve every source value and warning, and never change option order or itinerary meaning. In JSON mode, use `data.rendered_text` and the matching entry in `data.options` as the canonical sources.
 
 Minimal request:
 
@@ -77,13 +77,11 @@ Request shaping:
 
 ## Bounded Agent Expansion
 
-Start with one `search --json` request and read only `data.research_status` and
-its audit. If `needed` is true, discover airport chains from web evidence and
-submit at most five new `web_route_discovery` hypotheses per round. Run at most
-two expansion rounds, ten cumulative hypotheses, and three searches total. Stop
-at target reached, `evidence_incomplete`, no new airport signatures, exhausted
-rounds, or provider budget. Telegram returns `data.answer.rendered_text`
-verbatim; never turn the audit into traveler control text.
+Run one `search --json` request and answer from it. Read `data.evidence`:
+`complete` false or a non-empty `provider_failures` means the search was
+bounded, not that the route is absent, and `providers_searched` names who was
+actually asked. Repeat the search at most once when that is what a failure
+calls for; never turn evidence fields into traveler control text.
 
 For undated direct-network candidates, use
 `../airport-direct-destinations/SKILL.md`. Its output is hypothesis evidence,

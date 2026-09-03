@@ -1,3 +1,10 @@
+"""Покрытие окна дат: что нашлось в каждый день окна.
+
+Сами предложения сюда больше не копируются — они лежат в `options`, и до
+`.v1` одно и то же приезжало в ответ дважды. Здесь остался счёт и причина,
+по которой день пуст: провайдер не нашёл, проба упала или до дня не дошли.
+"""
+
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -5,24 +12,9 @@ from typing import Any
 
 from ..domain.vocabulary import Leg
 
-_COMPACT_OFFER_FIELDS = (
-    "carrier",
-    "flight_number",
-    "origin",
-    "destination",
-    "departure_at",
-    "arrival_at",
-    "duration_min",
-    "price",
-    "currency",
-    "provider",
-)
 
-_DEFAULT_MAX_OFFERS_PER_DATE = 20
-
-
-def _window_dates(plan: dict[str, Any]) -> list[str]:
-    dates_meta = plan.get("dates") if isinstance(plan.get("dates"), dict) else {}
+def _window_dates(route: dict[str, Any]) -> list[str]:
+    dates_meta = route.get("dates") if isinstance(route.get("dates"), dict) else {}
     window_end_text = dates_meta.get("window_end")
     depart_text = dates_meta.get("depart")
     if not window_end_text or not depart_text:
@@ -38,14 +30,6 @@ def _window_dates(plan: dict[str, Any]) -> list[str]:
         (depart + timedelta(days=offset)).isoformat()
         for offset in range((window_end - depart).days + 1)
     ]
-
-
-def _compact_offer(offer: dict[str, Any]) -> dict[str, Any]:
-    return {
-        field: offer[field]
-        for field in _COMPACT_OFFER_FIELDS
-        if offer.get(field) is not None
-    }
 
 
 def _date_status(
@@ -70,90 +54,62 @@ def _date_status(
     return "not_probed"
 
 
-def build_date_window_inventory(
-    plan: dict[str, Any],
-    segment_searches: list[dict[str, Any]],
-    segment_results: list[dict[str, Any]],
-    *,
-    max_offers_per_date: int = _DEFAULT_MAX_OFFERS_PER_DATE,
+def build_date_window(
+    route: dict[str, Any],
+    direct_inventory_searches: list[dict[str, Any]],
+    direct_inventory_results: list[dict[str, Any]],
 ) -> dict[str, Any] | None:
-    """Project per-date direct inventory evidence for a bounded date window.
+    """Покрытие окна по дням, или ``None`` для обычного поиска на одну дату.
 
-    Returns ``None`` for ordinary single-date searches. The projection reads only
-    executed direct-leg evidence; empty provider output stays provider-empty
-    evidence, not structural route absence.
+    Читается только исполненное прямое свидетельство: пустая выдача
+    провайдера остаётся пустой выдачей, а не доказательством отсутствия
+    маршрута.
     """
 
-    window = _window_dates(plan)
+    window = _window_dates(route)
     if not window:
         return None
 
-    summaries_by_date: dict[str, list[dict[str, Any]]] = {
+    probes_by_date: dict[str, list[dict[str, Any]]] = {
         date_text: [] for date_text in window
     }
-    for item in segment_searches or []:
+    for item in direct_inventory_searches or []:
         if not isinstance(item, dict) or item.get("leg") != Leg.DIRECT_OUTBOUND:
             continue
         date_text = str(item.get("date") or "")
-        if date_text in summaries_by_date:
-            summaries_by_date[date_text].append(item)
+        if date_text in probes_by_date:
+            probes_by_date[date_text].append(item)
 
-    offers_by_date: dict[str, list[dict[str, Any]]] = {
-        date_text: [] for date_text in window
-    }
-    for result in segment_results or []:
+    offer_counts: dict[str, int] = {date_text: 0 for date_text in window}
+    for result in direct_inventory_results or []:
         if not isinstance(result, dict) or result.get("leg") != Leg.DIRECT_OUTBOUND:
             continue
         date_text = str(result.get("date") or "")
-        if date_text not in offers_by_date:
+        if date_text not in offer_counts:
             continue
-        for offer in result.get("offers") or []:
-            if isinstance(offer, dict):
-                offers_by_date[date_text].append(_compact_offer(offer))
-
-    entries: list[dict[str, Any]] = []
-    for date_text in window:
-        summaries = summaries_by_date[date_text]
-        ok_probes = [item for item in summaries if str(item.get("status")) == "ok"]
-        failed_probes = [
-            item for item in summaries if str(item.get("status")) in {"error", "failed"}
-        ]
-        skipped_probes = [
-            item for item in summaries if str(item.get("status")) == "skipped"
-        ]
-        offers = sorted(
-            offers_by_date[date_text],
-            key=lambda offer: str(offer.get("departure_at") or ""),
+        offer_counts[date_text] += sum(
+            1 for offer in result.get("offers") or [] if isinstance(offer, dict)
         )
-        omitted = max(0, len(offers) - max_offers_per_date)
-        entry: dict[str, Any] = {
-            "date": date_text,
-            "status": _date_status(
-                offer_count=len(offers),
-                ok_probe_count=len(ok_probes),
-                failed_probe_count=len(failed_probes),
-                skipped_probe_count=len(skipped_probes),
-            ),
-            "offer_count": len(offers),
-            "probe_count": len(summaries),
-            "failed_probe_count": len(failed_probes),
-            "offers": offers[:max_offers_per_date],
-        }
-        if omitted:
-            entry["omitted_offer_count"] = omitted
-        if skipped_probes:
-            entry["skip_reasons"] = sorted(
-                {
-                    str(item.get("reason"))
-                    for item in skipped_probes
-                    if item.get("reason")
-                }
-            )
-        entries.append(entry)
 
-    return {
-        "boundary": "provider_live_only",
-        "negative_evidence": "provider_empty_only_not_route_absence",
-        "window": {"start": window[0], "end": window[-1], "days": len(window)},
-        "dates": entries,
-    }
+    dates: list[dict[str, Any]] = []
+    for date_text in window:
+        probes = probes_by_date[date_text]
+        statuses = [str(item.get("status")) for item in probes]
+        dates.append(
+            {
+                "date": date_text,
+                "status": _date_status(
+                    offer_count=offer_counts[date_text],
+                    ok_probe_count=statuses.count("ok"),
+                    failed_probe_count=sum(
+                        1 for status in statuses if status in {"error", "failed"}
+                    ),
+                    skipped_probe_count=statuses.count("skipped"),
+                ),
+                "offer_count": offer_counts[date_text],
+            }
+        )
+    return {"start": window[0], "end": window[-1], "dates": dates}
+
+
+__all__ = ["build_date_window"]

@@ -29,14 +29,6 @@ def future_departure_date() -> date:
     return date.today() + timedelta(days=3)
 
 
-def coverage_completeness(probe_ledger: dict[str, Any]) -> dict[str, Any]:
-    """Project raw ledger facts through the production coverage owner."""
-
-    from flights_cli.reporting.coverage import CoverageSnapshot
-
-    return CoverageSnapshot.from_diagnostics(probe_ledger).summary["completeness"]
-
-
 def build_search_plan(request: Any, store: Store) -> dict[str, Any]:
     """Test-only adapter around the typed planning interface."""
 

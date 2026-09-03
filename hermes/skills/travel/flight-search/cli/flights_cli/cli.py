@@ -295,9 +295,9 @@ def main(argv: list[str] | None = None) -> int:
         validate_cli_config(args)
         store = Store()
         catalog_auto_refresh = auto_refresh_catalog(args, store)
-        if args.command_name == SEARCH_COMMAND.name:
-            args.catalog_refresh_metadata = catalog_auto_refresh
         data = args.func(args, store)
+        # Обслуживание каталога — не часть ответа путешественнику: в `.v1`
+        # его нет, и класть его в результат поиска больше нельзя.
         if (
             args.command_name != SEARCH_COMMAND.name
             and catalog_auto_refresh is not None

@@ -41,7 +41,4 @@ def prepare_search_request(
 
 def command_search(args: argparse.Namespace, store: Store) -> dict[str, Any]:
     request = prepare_search_request(args.request, execution_settings_from_args(args))
-    return SearchWorkflow(
-        store,
-        catalog_refresh=getattr(args, "catalog_refresh_metadata", None),
-    ).run(request)
+    return SearchWorkflow(store).run(request)

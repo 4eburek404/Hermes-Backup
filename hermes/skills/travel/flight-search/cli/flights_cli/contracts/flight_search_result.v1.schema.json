@@ -1,0 +1,472 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermes.local/flights/flight_search_result.v1.schema.json",
+  "title": "Flight Search Result v1",
+  "description": "Что навык отвечает путешественнику. Один вариант — один объект, один факт — одно поле. Диагностика прогона сюда не входит.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request",
+    "route",
+    "options",
+    "evidence",
+    "rendered_text"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "flight_search_result.v1"
+    },
+    "request": {
+      "$ref": "https://hermes.local/flights/flight_search_request.v1.schema.json"
+    },
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "destination",
+        "depart_date",
+        "return_date"
+      ],
+      "properties": {
+        "origin": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "destination": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "depart_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "return_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        }
+      }
+    },
+    "options": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/option"
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "providers_searched",
+        "provider_failures",
+        "complete"
+      ],
+      "properties": {
+        "providers_searched": {
+          "description": "Кого действительно спросили. Провайдер, не умеющий такой запрос, сюда не попадает — и это видно.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "provider_failures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/failure"
+          }
+        },
+        "complete": {
+          "description": "Все запланированные пробы дошли до терминального состояния и ни одна не упала.",
+          "type": "boolean"
+        },
+        "date_window": {
+          "description": "Только для поиска по окну дат: что нашлось в каждый день. Сами предложения лежат в options, здесь только счёт.",
+          "$ref": "#/$defs/date_window"
+        }
+      }
+    },
+    "rendered_text": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "connection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "airport",
+        "minutes",
+        "comfort"
+      ],
+      "properties": {
+        "airport": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "minutes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "required_min": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "comfort": {
+          "enum": [
+            "comfortable",
+            "acceptable",
+            "long",
+            "tight",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "date_window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end",
+        "dates"
+      ],
+      "properties": {
+        "start": {
+          "type": "string",
+          "format": "date"
+        },
+        "end": {
+          "type": "string",
+          "format": "date"
+        },
+        "dates": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/date_window_day"
+          }
+        }
+      }
+    },
+    "date_window_day": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "date",
+        "status",
+        "offer_count"
+      ],
+      "properties": {
+        "date": {
+          "type": "string",
+          "format": "date"
+        },
+        "status": {
+          "enum": [
+            "direct_offers",
+            "no_direct_offers",
+            "no_direct_offers_with_failures",
+            "probe_failed",
+            "not_probed"
+          ]
+        },
+        "offer_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "classification"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "classification": {
+          "type": "string",
+          "minLength": 1
+        },
+        "retryable": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "leg": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "segments",
+        "duration_min"
+      ],
+      "properties": {
+        "duration_min": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "segments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/segment"
+          }
+        },
+        "connections": {
+          "description": "Пересадки внутри плеча. У плеча из одного рейса ключа нет.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/connection"
+          }
+        }
+      }
+    },
+    "option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "id",
+        "providers",
+        "price",
+        "journey_scope",
+        "ticketing",
+        "directions",
+        "rank_reason",
+        "warnings"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "providers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "price": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "amount",
+            "currency"
+          ],
+          "properties": {
+            "amount": {
+              "type": "number",
+              "minimum": 0
+            },
+            "currency": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$"
+            }
+          }
+        },
+        "journey_scope": {
+          "enum": [
+            "one_way",
+            "round_trip"
+          ]
+        },
+        "ticketing": {
+          "description": "Три поля защиты появляются только там, где есть что защищать: у варианта больше одного рейса. У прямого перелёта единым билетом их нет, а не «не подтверждены».",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "model"
+          ],
+          "properties": {
+            "model": {
+              "description": "provider_order — один заказ провайдера; assembled — маршрут собран из отдельных предложений.",
+              "enum": [
+                "provider_order",
+                "assembled",
+                "unknown"
+              ]
+            },
+            "single_pnr": {
+              "enum": [
+                "proven",
+                "unproven"
+              ]
+            },
+            "through_baggage": {
+              "enum": [
+                "proven",
+                "unproven"
+              ]
+            },
+            "self_transfer": {
+              "enum": [
+                "no",
+                "yes",
+                "unknown"
+              ]
+            }
+          }
+        },
+        "directions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "outbound",
+            "return"
+          ],
+          "properties": {
+            "outbound": {
+              "$ref": "#/$defs/leg"
+            },
+            "return": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/leg"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "rank_reason": {
+          "description": "Почему вариант стоит здесь, а не выше. Считается сравнением ключа сортировки с предыдущим вариантом.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code"
+          ],
+          "properties": {
+            "code": {
+              "enum": [
+                "top_ranked",
+                "costlier",
+                "slower",
+                "more_connections",
+                "over_preferred_connections",
+                "connection_comfort",
+                "ticketing_risk",
+                "source_confidence",
+                "invalid_connection",
+                "does_not_cover_trip"
+              ]
+            },
+            "detail_min": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "single_pnr_unproven",
+              "through_baggage_unproven",
+              "self_transfer",
+              "tight_connection",
+              "baggage_unknown",
+              "verify_on_booking_screen"
+            ]
+          }
+        }
+      }
+    },
+    "segment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "flight_number",
+        "carrier",
+        "origin",
+        "destination",
+        "departure_at",
+        "arrival_at",
+        "duration_min"
+      ],
+      "properties": {
+        "flight_number": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Z0-9]{2}[0-9]{1,4}$"
+        },
+        "carrier": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Z0-9]{2}$"
+        },
+        "origin": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "destination": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "departure_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "arrival_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_min": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "departure_terminal": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "arrival_terminal": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

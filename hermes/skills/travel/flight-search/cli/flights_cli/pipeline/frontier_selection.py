@@ -407,19 +407,66 @@ def _select_diverse_frontier_candidates(
     return selected, reasons
 
 
+# Почему вариант стоит ниже предыдущего. Порядок обязан совпадать с rank_key
+# из candidate_scoring: индекс здесь — это позиция компонента там. Ключ
+# ранжирования наружу не уезжает, уезжает только его прочтение.
+RANK_REASON_BY_RANK_KEY_INDEX: tuple[str, ...] = (
+    "does_not_cover_trip",
+    "invalid_connection",
+    "more_connections",
+    "over_preferred_connections",
+    "connection_comfort",
+    "slower",
+    "ticketing_risk",
+    "source_confidence",
+    "costlier",
+    "slower",
+)
+_ELAPSED_RANK_KEY_INDEXES = frozenset({5, 9})
+
+
+def _rank_key(candidate: dict[str, Any]) -> list[float]:
+    raw = candidate.get("rank_key")
+    if not isinstance(raw, list):
+        return []
+    return [float(numeric_or_none(value) or 0) for value in raw]
+
+
+def _rank_reason(
+    candidate: dict[str, Any], previous: dict[str, Any] | None
+) -> dict[str, Any]:
+    if previous is None:
+        return {"code": "top_ranked", "detail_min": None}
+    current, earlier = _rank_key(candidate), _rank_key(previous)
+    for index, (mine, theirs) in enumerate(zip(current, earlier)):
+        if mine == theirs or index >= len(RANK_REASON_BY_RANK_KEY_INDEX):
+            continue
+        detail = None
+        if index in _ELAPSED_RANK_KEY_INDEXES:
+            mine_elapsed = numeric_or_none(candidate.get("elapsed_min"))
+            their_elapsed = numeric_or_none(previous.get("elapsed_min"))
+            if mine_elapsed is not None and their_elapsed is not None:
+                detail = int(mine_elapsed - their_elapsed)
+        return {"code": RANK_REASON_BY_RANK_KEY_INDEX[index], "detail_min": detail}
+    return {"code": "costlier", "detail_min": None}
+
+
 def _frontier_options_with_roles(
     candidates: list[dict[str, Any]],
     *,
     selection_reasons: dict[str, list[str]],
 ) -> list[dict[str, Any]]:
     options: list[dict[str, Any]] = []
+    previous: dict[str, Any] | None = None
     for candidate in candidates:
         roles = selection_reasons.get(str(candidate.get("id") or "")) or [
             "carrier_diversity"
         ]
         option = _frontier_option(candidate, roles[0])
         option["selection_reasons"] = _ordered_unique(roles)
+        option["rank_reason"] = _rank_reason(candidate, previous)
         options.append(option)
+        previous = candidate
     return options
 
 

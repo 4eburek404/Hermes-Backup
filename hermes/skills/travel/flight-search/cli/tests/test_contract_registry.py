@@ -22,7 +22,6 @@ class ContractRegistryTest(unittest.TestCase):
         self.assertEqual(
             set(CURRENT_CONTRACTS),
             {
-                "user_answer",
                 "search_request",
                 "search_result",
                 "search_plan",
@@ -31,11 +30,7 @@ class ContractRegistryTest(unittest.TestCase):
         )
         self.assertEqual(
             current_contract("search_result")["schema_version"],
-            "flight_search_result.v10",
-        )
-        self.assertEqual(
-            current_contract("user_answer")["schema_version"],
-            "flight_search_user_answer.v11",
+            "flight_search_result.v1",
         )
         self.assertEqual(
             current_contract("search_result")["status"], "current_public_contract"
@@ -99,13 +94,15 @@ class ContractRegistryTest(unittest.TestCase):
                 self.assertIn(resource_id, schema_ids)
                 registry.get_or_retrieve(resource_id)
 
-    def test_canonical_text_path_is_single_user_answer_path(self) -> None:
-        user_answer = current_contract("user_answer")
-        self.assertEqual(user_answer["public_path"], "data.answer")
-        self.assertEqual(
-            user_answer["canonical_text_path"],
-            "data.answer.rendered_text",
-        )
+    def test_canonical_text_path_lives_on_the_result_itself(self) -> None:
+        # Обёртки `answer` больше нет: текст лежит рядом с вариантами,
+        # а не в отдельной схеме под своей версией.
+        result = current_contract("search_result")
+        self.assertEqual(result["public_path"], "data")
+        self.assertEqual(result["canonical_text_path"], "data.rendered_text")
+
+    def test_no_current_schema_stands_on_a_retired_one(self) -> None:
+        self.assertEqual(LEGACY_SCHEMA_RESOURCES, frozenset())
 
 
 if __name__ == "__main__":

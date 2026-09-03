@@ -111,7 +111,7 @@ class AnswerComposition(unittest.TestCase):
 
     depart: date
     queries: list[tuple[str, str, str, bool]]
-    answer: dict
+    result: dict
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -136,25 +136,18 @@ class AnswerComposition(unittest.TestCase):
         if proc.returncode != 0:
             raise AssertionError(f"CLI не отработал: {proc.stderr}")
         cls.depart = depart
-        cls.answer = json.loads(proc.stdout)["data"]["answer"]
+        cls.result = json.loads(proc.stdout)["data"]
 
-    # Читатели контракта. Единственное место, которое переезжает при переходе
-    # на .v1: там опции лежат в result["options"], цена — в option["price"],
-    # а стыковки — в option["directions"][<плечо>]["connections"].
+    # Читатели контракта .v1: варианты лежат в result["options"], цена —
+    # в option["price"], стыковки — в плече, и только там.
 
     @classmethod
     def options(cls) -> list[dict]:
-        return list(cls.answer["catalog"]["items"])
+        return list(cls.result["options"])
 
     @staticmethod
     def leg(option: dict, direction: str = "outbound") -> dict:
         return option["directions"].get(direction) or {}
-
-    @staticmethod
-    def assessed_connections(option: dict) -> list[dict]:
-        return list(
-            (option.get("connection_assessment") or {}).get("connections") or []
-        )
 
     def test_minimal_request_reaches_provider_queries(self) -> None:
         """Запрос без ритуала доезжает до провайдерских вызовов.
@@ -173,7 +166,7 @@ class AnswerComposition(unittest.TestCase):
         """Цена и оба сегмента приезжают от провайдера без потерь."""
         options = self.options()
         self.assertEqual(len(options), 1)
-        price = options[0]["total_price"]
+        price = options[0]["price"]
         self.assertEqual(price["amount"], 24300)
         self.assertEqual(price["currency"], "RUB")
         segments = self.leg(options[0])["segments"]
@@ -201,10 +194,12 @@ class AnswerComposition(unittest.TestCase):
         """Стыковка обязана быть посчитана, а не подменена дефолтом.
 
         Когда производитель оценки уедет вместе с хабовым слоем, поле не
-        исчезнет: catalog_item подставит {status: unknown, comfort: unknown,
-        connections: []}, схема останется валидной, а текст ответа не
-        изменится. Тест ловит именно эту подмену — он сверяет обе записи
-        стыковки с промежутком, выведенным из времён сегментов.
+        исчезнет: приедет `comfort: unknown`, схема останется валидной, а
+        текст ответа не изменится. Тест ловит именно эту подмену — он сверяет
+        запись стыковки с промежутком, выведенным из времён сегментов.
+
+        Записей стало одна вместо двух: `.v1` описывает пересадку один раз,
+        и разойтись между собой им больше негде.
         """
 
         option = self.options()[0]
@@ -219,23 +214,11 @@ class AnswerComposition(unittest.TestCase):
         ]
         self.assertTrue(expected, "сценарий обязан содержать стыковку")
 
-        with self.subTest(source="layovers"):
-            self.assertEqual(
-                [(x["airport"], x["duration_min"]) for x in leg.get("layovers") or []],
-                expected,
-            )
-
-        with self.subTest(source="connection_assessment"):
-            assessed = self.assessed_connections(option)
-            self.assertEqual(
-                [(x.get("airport"), x.get("actual_min")) for x in assessed], expected
-            )
-            for connection in assessed:
-                self.assertNotIn(connection.get("comfort"), (None, "", "unknown"))
-                self.assertIsInstance(connection.get("required_min"), int)
-            summary = option.get("connection_assessment") or {}
-            self.assertNotIn(summary.get("status"), (None, "", "unknown"))
-            self.assertNotIn(summary.get("comfort"), (None, "", "unknown"))
+        connections = list(leg.get("connections") or [])
+        self.assertEqual([(x["airport"], x["minutes"]) for x in connections], expected)
+        for connection in connections:
+            self.assertNotIn(connection.get("comfort"), (None, "", "unknown"))
+            self.assertIsInstance(connection.get("required_min"), int)
 
 
 class OfferInvariants(unittest.TestCase):
@@ -439,24 +422,17 @@ class StructuralFacts(unittest.TestCase):
                 )
 
     def test_text_layer_has_one_legitimate_consumer(self) -> None:
-        """Слой текста не должен иметь потребителей, кроме сборщика ответа.
+        """У слоя текста ровно один потребитель — сборщик ответа.
 
         Правило слоёв выше смотрит только межслойные рёбра, а главный разворот
-        зависимостей — внутрислойный: catalog_projection кладёт русский текст в
-        структурные поля. Здесь перечислен известный долг: тест не даёт списку
-        расти, но не мешает его сокращать, поэтому резку он не блокирует.
+        зависимостей был внутрислойным: проекция каталога клала русский текст в
+        структурные поля. Список известного долга был пуст к .v1 и обязан
+        таким остаться: текст больше не приезжает в данные.
         """
 
-        renderer = "flights_cli.reporting.catalog_rendering"
-        assembler = "flights_cli.reporting.user_answer"
-        known_debt = {
-            # C5: display-зеркала обязательны по схеме, пока она не станет .v1
-            "flights_cli.reporting.catalog_projection",
-            # C4: уходит вместе с фронтиром
-            "flights_cli.reporting.frontier_projection",
-            # C3/C5: source_boundaries переезжает в сборку ответа
-            "flights_cli.pipeline.result_builder",
-        }
+        renderer = "flights_cli.reporting.answer_text"
+        assembler = "flights_cli.pipeline.result_builder"
+        known_debt: set[str] = set()
 
         consumers: set[str] = set()
         root = PROJECT / "flights_cli"
@@ -486,7 +462,7 @@ class StructuralFacts(unittest.TestCase):
         manifest = load_version_manifest()
         self.assertTrue(manifest, "манифест версий обязан существовать")
         self.assertEqual(manifest_mismatches(manifest), [])
-        for name in ("search_request", "search_result", "user_answer"):
+        for name in ("search_request", "search_result"):
             self.assertIn(name, CURRENT_CONTRACTS)
 
 
@@ -500,7 +476,7 @@ class RoundTripComposition(unittest.TestCase):
     depart: date
     return_date: date
     return_dates: list[str | None]
-    answer: dict
+    result: dict
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -528,14 +504,14 @@ class RoundTripComposition(unittest.TestCase):
             raise AssertionError(f"CLI не отработал: {proc.stderr}")
         cls.depart = depart
         cls.return_date = back
-        cls.answer = json.loads(proc.stdout)["data"]["answer"]
+        cls.result = json.loads(proc.stdout)["data"]
 
     def test_return_date_reaches_the_provider_once(self) -> None:
         """Обе даты уезжают одним запросом, а не двумя односторонними."""
         self.assertEqual(self.return_dates, [self.return_date.isoformat()])
 
     def test_round_trip_option_carries_both_legs_and_one_price(self) -> None:
-        options = list(self.answer["catalog"]["items"])
+        options = list(self.result["options"])
         self.assertEqual(len(options), 1)
         option = options[0]
         directions = option["directions"]
@@ -549,15 +525,15 @@ class RoundTripComposition(unittest.TestCase):
             ["SU2402"],
         )
         # Цена провайдерская и целая, а не сумма двух односторонних.
-        self.assertEqual(option["total_price"]["amount"], 41200)
+        self.assertEqual(option["price"]["amount"], 41200)
 
     def test_provider_round_trip_is_not_sold_as_separate_tickets(self) -> None:
         """Склейки нет — значит нет и оговорки про отдельные билеты."""
-        option = list(self.answer["catalog"]["items"])[0]
-        self.assertNotEqual(option.get("ticketing_model"), "separate_one_way_offers")
-        self.assertFalse(option.get("self_transfer"))
-        caveats = " ".join(str(item) for item in (option.get("caveats") or []))
-        self.assertNotIn("Отдельные билеты", caveats)
+        option = list(self.result["options"])[0]
+        self.assertEqual(option["ticketing"]["model"], "provider_order")
+        self.assertNotEqual(option["ticketing"]["self_transfer"], "yes")
+        self.assertNotIn("self_transfer", option["warnings"])
+        self.assertNotIn("Отдельные билеты", self.result["rendered_text"])
 
 
 if __name__ == "__main__":

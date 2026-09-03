@@ -1,4 +1,4 @@
-"""Public result type and compatibility exports for contract validation."""
+"""Публичный тип результата и точка входа в его проверку."""
 
 from __future__ import annotations
 
@@ -18,10 +18,9 @@ class FlightSearchResult(TypedDict):
     schema_version: str
     request: dict[str, Any]
     route: dict[str, Any]
+    options: list[dict[str, Any]]
     evidence: dict[str, Any]
-    frontier: dict[str, Any]
-    answer: dict[str, Any]
-    research_status: dict[str, Any]
+    rendered_text: str
 
 
 __all__ = [

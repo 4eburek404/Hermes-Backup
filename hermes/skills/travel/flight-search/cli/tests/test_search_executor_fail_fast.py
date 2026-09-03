@@ -9,10 +9,10 @@ from flights_cli.errors import CliError
 from flights_cli.execution.search_executor import SearchExecutionState, SearchExecutor
 from flights_cli.pipeline.search_plan import SearchPhases, SearchPlan
 from flights_cli.ports.providers import ProviderProbeResult
+from flights_cli.reporting.evidence import all_planned_probes_are_terminal
 from flights_cli.store import Store
 from helpers import (
     build_search_plan,
-    coverage_completeness,
     future_departure_date,
     live_assembly_args,
 )
@@ -117,10 +117,7 @@ class SearchExecutorFailFastTests(unittest.TestCase):
                 for probe in diagnostics["not_executed_probes"]
             )
         )
-        self.assertEqual(
-            coverage_completeness(diagnostics)["planned_count"],
-            coverage_completeness(diagnostics)["terminal_count"],
-        )
+        self.assertTrue(all_planned_probes_are_terminal(diagnostics))
 
     def test_success_evidence_is_frozen_after_ledger_finalization(self) -> None:
         executor = SearchExecutor(self.store)
@@ -131,9 +128,7 @@ class SearchExecutorFailFastTests(unittest.TestCase):
         ):
             evidence = executor.execute(self.plan)
 
-        completeness = coverage_completeness(evidence.probe_ledger)
-        self.assertEqual(completeness["planned_count"], completeness["terminal_count"])
-        self.assertTrue(completeness["all_planned_probes_have_terminal_state"])
+        self.assertTrue(all_planned_probes_are_terminal(evidence.probe_ledger))
 
 
 if __name__ == "__main__":
