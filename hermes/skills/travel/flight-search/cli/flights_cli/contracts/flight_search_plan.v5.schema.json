@@ -255,16 +255,14 @@
         "direct_catalog_limit",
         "max_gateway_alternatives",
         "max_primary_gateway_options",
-        "max_options_per_first_carrier",
-        "max_round_trip_pairs"
+        "max_options_per_first_carrier"
       ],
       "properties": {
         "catalog_limit": {"type": "integer", "minimum": 1},
         "direct_catalog_limit": {"type": "integer", "minimum": 1},
         "max_gateway_alternatives": {"type": "integer", "minimum": 0},
         "max_primary_gateway_options": {"type": "integer", "minimum": 0},
-        "max_options_per_first_carrier": {"type": "integer", "minimum": 1},
-        "max_round_trip_pairs": {"type": "integer", "minimum": 0}
+        "max_options_per_first_carrier": {"type": "integer", "minimum": 1}
       }
     }
   }

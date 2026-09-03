@@ -87,10 +87,6 @@ class SearchPlanContractTests(unittest.TestCase):
         self.assertTrue(
             all("execution_state" not in _query(attempt) for attempt in attempts)
         )
-        self.assertEqual(
-            payload["output_policy"]["max_round_trip_pairs"],  # type: ignore[index]
-            12,
-        )
 
     def test_v6_rejects_flat_attempts_without_nested_query(self) -> None:
         depart = future_departure_date()

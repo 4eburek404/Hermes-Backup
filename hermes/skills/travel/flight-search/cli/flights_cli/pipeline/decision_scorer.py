@@ -16,7 +16,6 @@ from .candidate_validation import validate_candidate_envelope
 from ..config import (
     DEFAULT_FIRST_CARRIER_MAX_OPTIONS,
     DEFAULT_GATEWAY_MAX_ALTERNATIVES,
-    DEFAULT_MAX_ROUND_TRIP_PAIRS,
     DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS,
 )
 from .frontier_selection import (
@@ -41,7 +40,6 @@ class DecisionScorerOptions:
     max_gateway_alternatives: int = DEFAULT_GATEWAY_MAX_ALTERNATIVES
     max_primary_gateway_options: int = DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS
     max_options_per_first_carrier: int = DEFAULT_FIRST_CARRIER_MAX_OPTIONS
-    max_round_trip_pairs: int = DEFAULT_MAX_ROUND_TRIP_PAIRS
     max_options: int | None = DEFAULT_FRONTIER_MAX_OPTIONS
 
 
@@ -76,7 +74,6 @@ class DecisionScorer:
             max_options=self.options.max_options,
             max_primary_gateway_options=self.options.max_primary_gateway_options,
             max_options_per_first_carrier=(self.options.max_options_per_first_carrier),
-            max_round_trip_pairs=self.options.max_round_trip_pairs,
             preferred_connections_per_journey=self.options.preferred_connections,
             preferred_layover_max_min=self.options.preferred_layover_max_min,
         )
@@ -119,7 +116,6 @@ class DecisionScorer:
                 "preferred_layover_max_min": max(
                     0, int(self.options.preferred_layover_max_min)
                 ),
-                "max_round_trip_pairs": max(0, int(self.options.max_round_trip_pairs)),
             },
             "mixed_candidate_ranking": ranking,
             "decision_frontier": frontier,

@@ -437,7 +437,6 @@ class OutputPolicy:
     max_gateway_alternatives: int
     max_primary_gateway_options: int
     max_options_per_first_carrier: int
-    max_round_trip_pairs: int
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> OutputPolicy:
@@ -451,7 +450,6 @@ class OutputPolicy:
             max_options_per_first_carrier=int(
                 payload.get("max_options_per_first_carrier") or 1
             ),
-            max_round_trip_pairs=int(payload.get("max_round_trip_pairs") or 0),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -461,7 +459,6 @@ class OutputPolicy:
             "max_gateway_alternatives": self.max_gateway_alternatives,
             "max_primary_gateway_options": self.max_primary_gateway_options,
             "max_options_per_first_carrier": self.max_options_per_first_carrier,
-            "max_round_trip_pairs": self.max_round_trip_pairs,
         }
 
 

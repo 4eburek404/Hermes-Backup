@@ -26,7 +26,7 @@ _PROVIDER_AGGREGATE_MODELS = frozenset(
         "round_trip_provider_order_unverified",
     }
 )
-_SEPARATE_ONE_WAY_MODELS = frozenset({"one_way_sum", "separate_one_way_offers"})
+_SEPARATE_ONE_WAY_MODELS = frozenset({"separate_one_way_offers"})
 _SEPARATE_SEGMENT_MODELS = frozenset(
     {"gateway_separate_ticket", "separate_segments", "separate_ticket_sum"}
 )

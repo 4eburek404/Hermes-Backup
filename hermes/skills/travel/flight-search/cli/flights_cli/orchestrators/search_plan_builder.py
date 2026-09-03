@@ -16,7 +16,6 @@ from ..config import (
     DEFAULT_GATEWAY_PROBE_BATCH_SIZE,
     DEFAULT_GATEWAY_PROBE_MAX_BATCHES,
     DEFAULT_MAX_AIRPORTS_PER_CITY,
-    DEFAULT_MAX_ROUND_TRIP_PAIRS,
     DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS,
     DEFAULT_PROFILE,
     DEFAULT_ROUTING_STRATEGY,
@@ -260,7 +259,6 @@ class SearchPlanBuilder:
                 max_gateway_alternatives=DEFAULT_GATEWAY_MAX_ALTERNATIVES,
                 max_primary_gateway_options=DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS,
                 max_options_per_first_carrier=DEFAULT_FIRST_CARRIER_MAX_OPTIONS,
-                max_round_trip_pairs=DEFAULT_MAX_ROUND_TRIP_PAIRS,
             ),
         )
 

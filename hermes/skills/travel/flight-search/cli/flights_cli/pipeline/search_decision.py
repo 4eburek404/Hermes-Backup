@@ -107,7 +107,6 @@ class SearchDecisionBuilder:
                 max_options_per_first_carrier=(
                     plan.output_policy.max_options_per_first_carrier
                 ),
-                max_round_trip_pairs=plan.output_policy.max_round_trip_pairs,
                 max_options=(
                     plan.output_policy.direct_catalog_limit
                     if direct_directions

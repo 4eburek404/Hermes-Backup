@@ -35,7 +35,6 @@ def build_decision_frontier(
     max_options: int | None = DEFAULT_FRONTIER_MAX_OPTIONS,
     max_primary_gateway_options: int = DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS,
     max_options_per_first_carrier: int = DEFAULT_FIRST_CARRIER_MAX_OPTIONS,
-    max_round_trip_pairs: int | None = None,
     preferred_connections_per_journey: int = (
         BUSINESS_DEFAULT_STOP_POLICY.preferred_max_connections
     ),
@@ -47,10 +46,6 @@ def build_decision_frontier(
         if isinstance(candidate, dict)
     ]
     acceptable = [candidate for candidate in ranked if _frontier_acceptable(candidate)]
-    eligible_acceptable, round_trip_pair_limit = _apply_round_trip_pair_limit(
-        acceptable,
-        max_round_trip_pairs=max_round_trip_pairs,
-    )
     direct_ranked = [
         candidate for candidate in ranked if candidate_is_direct(candidate)
     ]
@@ -58,7 +53,7 @@ def build_decision_frontier(
         candidate for candidate in acceptable if candidate_is_direct(candidate)
     ]
     eligible_direct = [
-        candidate for candidate in eligible_acceptable if candidate_is_direct(candidate)
+        candidate for candidate in acceptable if candidate_is_direct(candidate)
     ]
     if eligible_direct:
         selection_pool = eligible_direct
@@ -74,7 +69,7 @@ def build_decision_frontier(
         }
     else:
         selection_pool = _frontier_selection_pool(
-            eligible_acceptable,
+            acceptable,
             preferred_connections_per_journey=preferred_connections_per_journey,
             preferred_layover_max_min=preferred_layover_max_min,
         )
@@ -97,16 +92,6 @@ def build_decision_frontier(
             "candidate_count": len(ranked),
             "acceptable_count": len(acceptable),
             "selected_count": len(selected),
-            "acceptable_round_trip_pair_count": round_trip_pair_limit["acceptable"],
-            "eligible_round_trip_pair_count": round_trip_pair_limit["eligible"],
-            "suppressed_by_round_trip_pair_limit_count": round_trip_pair_limit[
-                "suppressed"
-            ],
-            "selected_round_trip_pair_count": sum(
-                1
-                for candidate in selected_candidates
-                if _is_synthesized_round_trip_pair(candidate)
-            ),
             "suppressed_by_output_limit_count": max(
                 0, len(selection_pool) - len(selected)
             ),
@@ -136,43 +121,6 @@ def build_decision_frontier(
             ),
         },
     }
-
-
-def _apply_round_trip_pair_limit(
-    acceptable: list[dict[str, Any]],
-    *,
-    max_round_trip_pairs: int | None,
-) -> tuple[list[dict[str, Any]], dict[str, int]]:
-    pair_count = sum(
-        1 for candidate in acceptable if _is_synthesized_round_trip_pair(candidate)
-    )
-    if max_round_trip_pairs is None:
-        return list(acceptable), {
-            "acceptable": pair_count,
-            "eligible": pair_count,
-            "suppressed": 0,
-        }
-
-    pair_limit = max(0, int(max_round_trip_pairs))
-    eligible: list[dict[str, Any]] = []
-    retained_pairs = 0
-    for candidate in acceptable:
-        if not _is_synthesized_round_trip_pair(candidate):
-            eligible.append(candidate)
-            continue
-        if retained_pairs >= pair_limit:
-            continue
-        retained_pairs += 1
-        eligible.append(candidate)
-    return eligible, {
-        "acceptable": pair_count,
-        "eligible": retained_pairs,
-        "suppressed": pair_count - retained_pairs,
-    }
-
-
-def _is_synthesized_round_trip_pair(candidate: dict[str, Any]) -> bool:
-    return isinstance(candidate.get("round_trip_pair"), dict)
 
 
 def _frontier_selection_pool(

@@ -38,7 +38,6 @@ def _plan(depart: date) -> SimpleNamespace:
             max_gateway_alternatives=2,
             max_primary_gateway_options=4,
             max_options_per_first_carrier=2,
-            max_round_trip_pairs=12,
         ),
     )
 
@@ -151,7 +150,6 @@ def test_search_decision_uses_plan_limits_when_request_limits_conflict() -> None
             max_gateway_alternatives=0,
             max_primary_gateway_options=1,
             max_options_per_first_carrier=1,
-            max_round_trip_pairs=2,
         ),
     )
     assert (
@@ -186,7 +184,6 @@ def test_search_decision_uses_plan_limits_when_request_limits_conflict() -> None
     assert scorer["max_gateway_alternatives"] == 0
     assert scorer["max_primary_gateway_options"] == 1
     assert scorer["max_options_per_first_carrier"] == 1
-    assert scorer["max_round_trip_pairs"] == 2
 
 
 def test_projection_input_binds_existing_decision_and_optional_inventory() -> None:

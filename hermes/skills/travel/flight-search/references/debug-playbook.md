@@ -105,15 +105,11 @@ date.
 
 ## Round-trip ordering
 
-For a round trip with `max_round_trip_pairs > 0`, verify every outbound/return
-one-way combination enters the single validation and scoring pass before the
-limit is applied. At `max_round_trip_pairs = 0`, synthesized pairs are not
-created.
-The frontier limits only valid, globally ranked synthesized pairs; provider
-round-trip offers remain atomic and do not consume that limit. The trace scorer
-metadata reports input counts, full pair-pool size, valid, eligible, and selected
-pair counts. Reordering equivalent provider inputs must not change the ranked
-or selected pair order.
+A round trip is one provider search carrying both dates, not two one-way
+searches glued together. Verify the plan holds a single probe with
+`return_date` set, and that the provider offer arrives with both legs in
+`journeys`. Providers without the `supports_round_trip` capability are refused
+at planning time; a one-way candidate never stands in for a round trip.
 
 ## KupiBilet API versus website
 

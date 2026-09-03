@@ -255,7 +255,7 @@ def _ticket_protection(candidate: dict[str, Any]) -> dict[str, Any]:
         "protected_provider_order",
         "round_trip_single_ticket",
     }
-    separate_models = {"separate_ticket_sum", "one_way_sum"}
+    separate_models = {"separate_ticket_sum"}
     if model in protected_models and _has_ticketing_proof(candidate):
         return {"status": "protected", "source": "provider_proof", "reasons": []}
     if (
@@ -305,8 +305,6 @@ def _round_trip_ticketing_model(candidate: dict[str, Any]) -> str:
     model = str(candidate.get("ticketing_model") or "").strip()
     if model == "round_trip_single_ticket":
         return "round_trip_single_ticket"
-    if model == "one_way_sum" or isinstance(candidate.get("round_trip_pair"), dict):
-        return "one_way_sum"
     if model == "separate_ticket_sum":
         return "one_way_sum"
     if model == "provider_order_unverified":

@@ -120,7 +120,6 @@ def typed_plan(legacy: dict[str, object]) -> SearchPlan:
             max_gateway_alternatives=2,
             max_primary_gateway_options=4,
             max_options_per_first_carrier=2,
-            max_round_trip_pairs=12,
         ),
     )
 
