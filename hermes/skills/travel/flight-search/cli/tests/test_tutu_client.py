@@ -45,7 +45,7 @@ class TutuMcpClientPayloadTests(unittest.TestCase):
     def test_extract_prefers_structured_content_and_unwraps_result(self) -> None:
         result = CallToolResult(
             content=[TextContent(type="text", text='{"ignored": true}')],
-            structuredContent={"result": {"offers": []}},
+            structured_content={"result": {"offers": []}},
         )
 
         self.assertEqual(_extract_tool_payload(result, "search_avia"), {"offers": []})
@@ -70,7 +70,7 @@ class TutuMcpClientPayloadTests(unittest.TestCase):
 
     def test_extract_tool_error_is_non_retryable_cli_error(self) -> None:
         result = CallToolResult(
-            isError=True,
+            is_error=True,
             content=[TextContent(type="text", text="bad request")],
         )
 
@@ -416,7 +416,7 @@ class TutuMcpClientLifecycleTests(unittest.IsolatedAsyncioTestCase):
                 if name == "get_avia_instructions":
                     return await super().call_tool(name, arguments, **kwargs)
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type="text", text="bad request")],
                 )
 

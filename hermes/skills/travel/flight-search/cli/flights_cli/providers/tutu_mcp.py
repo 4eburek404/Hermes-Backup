@@ -9,7 +9,7 @@ from http import HTTPStatus
 from typing import Any
 
 import httpx2
-from mcp.shared.exceptions import McpError
+from mcp.shared.exceptions import MCPError
 from mcp.types import CONNECTION_CLOSED
 
 from ..config import DEFAULT_LIVE_SEARCH_CACHE_TTL_SECONDS
@@ -55,7 +55,7 @@ def _is_retryable_transport_failure(exc: Exception) -> bool:
             (httpx2.TransportError, TimeoutError, asyncio.TimeoutError),
         )
         or (
-            isinstance(leaf, McpError)
+            isinstance(leaf, MCPError)
             and leaf.error.code in {CONNECTION_CLOSED, HTTPStatus.REQUEST_TIMEOUT}
         )
         for leaf in leaves
@@ -70,7 +70,7 @@ def _has_timeout_leaf(exc: Exception) -> bool:
     return any(
         isinstance(leaf, (TimeoutError, asyncio.TimeoutError))
         or (
-            isinstance(leaf, McpError) and leaf.error.code == HTTPStatus.REQUEST_TIMEOUT
+            isinstance(leaf, MCPError) and leaf.error.code == HTTPStatus.REQUEST_TIMEOUT
         )
         for leaf in _exception_leaves(exc)
     )

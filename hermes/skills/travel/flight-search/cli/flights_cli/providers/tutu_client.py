@@ -7,13 +7,13 @@ import json
 import os
 import time
 from contextlib import AbstractAsyncContextManager, AsyncExitStack, asynccontextmanager
-from datetime import timedelta
 from typing import Any, AsyncIterator, TypeAlias
 
 import httpx2
 from anyio import fail_after, get_cancelled_exc_class
 from mcp import ClientSession
-from mcp.client.streamable_http import streamablehttp_client
+from mcp.client.streamable_http import streamable_http_client
+from mcp.shared._httpx_utils import create_mcp_http_client
 from mcp.types import CallToolResult, Implementation, TextContent
 
 from .. import __version__
@@ -24,7 +24,7 @@ TutuToolPayload: TypeAlias = dict[str, Any] | list[Any] | str
 
 
 class Client:
-    """MCP 1.28 client with the small interface Flight Search needs."""
+    """MCP 2.0 client with the small interface Flight Search needs."""
 
     def __init__(
         self,
@@ -48,25 +48,29 @@ class Client:
         stack = AsyncExitStack()
         self._stack = stack
         try:
-            read_stream, write_stream, _ = await stack.enter_async_context(
-                streamablehttp_client(
-                    self.server,
-                    timeout=self.read_timeout_seconds,
-                    sse_read_timeout=self.read_timeout_seconds,
+            http_client = await stack.enter_async_context(
+                create_mcp_http_client(
+                    timeout=httpx2.Timeout(
+                        self.read_timeout_seconds,
+                        read=self.read_timeout_seconds,
+                    )
                 )
+            )
+            read_stream, write_stream = await stack.enter_async_context(
+                streamable_http_client(self.server, http_client=http_client)
             )
             session = await stack.enter_async_context(
                 ClientSession(
                     read_stream,
                     write_stream,
-                    read_timeout_seconds=timedelta(seconds=self.read_timeout_seconds),
+                    read_timeout_seconds=self.read_timeout_seconds,
                     client_info=self.client_info,
                 )
             )
             initialized = await session.initialize()
             self._session = session
-            self.protocol_version = initialized.protocolVersion
-            self.server_info = initialized.serverInfo
+            self.protocol_version = initialized.protocol_version
+            self.server_info = initialized.server_info
         except BaseException:
             await stack.aclose()
             self._stack = None
@@ -99,7 +103,7 @@ class Client:
         return await session.call_tool(
             name,
             arguments,
-            read_timeout_seconds=timedelta(seconds=read_timeout_seconds),
+            read_timeout_seconds=read_timeout_seconds,
         )
 
 
@@ -158,7 +162,7 @@ def _decode_payload(value: str | dict[str, Any] | list[Any]) -> TutuToolPayload:
 
 
 def _extract_tool_payload(result: CallToolResult, tool_name: str) -> TutuToolPayload:
-    if result.isError:
+    if result.is_error:
         messages = [
             item.text
             for item in result.content
@@ -171,7 +175,7 @@ def _extract_tool_payload(result: CallToolResult, tool_name: str) -> TutuToolPay
             details={"provider": "tutu", "tool": tool_name},
         )
 
-    structured = _unwrap_payload(result.structuredContent)
+    structured = _unwrap_payload(result.structured_content)
     if structured is not None:
         return structured
 

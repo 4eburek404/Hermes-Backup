@@ -18,25 +18,21 @@ try:
 except ImportError:  # pragma: no cover - Python 3.10 compatibility
     from exceptiongroup import ExceptionGroup
 
-from mcp.server.fastmcp import FastMCP
-from mcp.shared.exceptions import McpError
+from mcp.server.mcpserver import MCPServer
+from mcp.shared.exceptions import MCPError
 from mcp.shared.memory import create_client_server_memory_streams
-from mcp.types import INVALID_PARAMS, ErrorData
+from mcp.types import INVALID_PARAMS
 
 from flights_cli.errors import CliError
 from flights_cli.providers.tutu_client import TutuMcpClient
 from flights_cli.providers.tutu_mcp import _fetch_tutu_avia_search_async
 from helpers import future_departure_date
 
-pytestmark = pytest.mark.filterwarnings(
-    "ignore::pydantic_settings.exceptions.IncompleteFieldDefinitionWarning"
-)
-
 
 class TrackingTransport:
     def __init__(
         self,
-        server: FastMCP,
+        server: MCPServer,
         *,
         close_started: asyncio.Event | None = None,
         block_close: bool = False,
@@ -53,7 +49,7 @@ class TrackingTransport:
         self._streams = create_client_server_memory_streams()
         client_streams, server_streams = await self._streams.__aenter__()
         server_read, server_write = server_streams
-        low_level_server = self._server._mcp_server
+        low_level_server = self._server._lowlevel_server
         self._task_group = anyio.create_task_group()
         await self._task_group.__aenter__()
         self._task_group.start_soon(
@@ -66,7 +62,7 @@ class TrackingTransport:
         )
         self.entered = True
         client_read, client_write = client_streams
-        return client_read, client_write, lambda: None
+        return client_read, client_write
 
     async def __aexit__(self, *args: object) -> None:
         if self._close_started is not None:
@@ -119,8 +115,8 @@ def tutu_server(
     playbook: object = "# Tutu playbook",
     search_started: asyncio.Event | None = None,
     block_search: bool = False,
-) -> FastMCP:
-    server = FastMCP("tutu-direct-lifecycle")
+) -> MCPServer:
+    server = MCPServer("tutu-direct-lifecycle")
 
     @server.tool(name="get_avia_instructions")
     async def get_avia_instructions() -> Any:
@@ -158,7 +154,7 @@ def production_clients(transports: list[Any]) -> Iterator[None]:
         return next(pending)
 
     with patch(
-        "flights_cli.providers.tutu_client.streamablehttp_client",
+        "flights_cli.providers.tutu_client.streamable_http_client",
         side_effect=build_transport,
     ):
         yield
@@ -231,7 +227,7 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_pinned_sdk_normal_initialize_playbook_search_close(self) -> None:
-        self.assertEqual(version("mcp"), "1.28.1")
+        self.assertEqual(version("mcp"), "2.0.0")
         transport = TrackingTransport(tutu_server())
 
         client, result = await production_client_search(transport)
@@ -417,7 +413,7 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_terminal_nonretryable_mcp_error_does_not_retry(self) -> None:
         terminal = FailingTransport(
-            McpError(ErrorData(code=INVALID_PARAMS, message="bad request"))
+            MCPError(INVALID_PARAMS, "bad request")
         )
         unused = TrackingTransport(tutu_server())
 
@@ -427,7 +423,7 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(error.exception.error_type, "upstream_error")
         self.assertEqual(error.exception.details["operation"], "initialize")
         self.assertEqual(error.exception.details["attempts"], 1)
-        self.assertEqual(error.exception.details["terminal_error_types"], ["McpError"])
+        self.assertEqual(error.exception.details["terminal_error_types"], ["MCPError"])
         self.assertEqual(terminal.entered, 1)
         self.assertFalse(unused.entered)
 

@@ -19,12 +19,11 @@ try:
 except ImportError:  # pragma: no cover - Python 3.10 compatibility
     from exceptiongroup import ExceptionGroup
 
-from mcp.shared.exceptions import McpError
+from mcp.shared.exceptions import MCPError
 from mcp.types import (
     CONNECTION_CLOSED,
     INVALID_PARAMS,
     CallToolResult,
-    ErrorData,
     TextContent,
 )
 
@@ -962,7 +961,7 @@ class TutuMcpProviderTests(unittest.TestCase):
                         content=[TextContent(type="text", text="# Playbook")]
                     )
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type="text", text="bad request")],
                 )
 
@@ -1047,11 +1046,9 @@ class TutuMcpProviderTests(unittest.TestCase):
                     raise NestedError(
                         httpx2.ConnectError("offline"),
                         NestedError(
-                            McpError(
-                                ErrorData(
-                                    code=CONNECTION_CLOSED,
-                                    message="connection closed",
-                                )
+                            MCPError(
+                                CONNECTION_CLOSED,
+                                "connection closed",
                             )
                         ),
                     )
@@ -1083,7 +1080,7 @@ class TutuMcpProviderTests(unittest.TestCase):
                 application_sessions += 1
 
             async def __aenter__(self) -> "ApplicationErrorClient":
-                raise McpError(ErrorData(code=INVALID_PARAMS, message="invalid params"))
+                raise MCPError(INVALID_PARAMS, "invalid params")
 
             async def __aexit__(self, *args: object) -> None:
                 return None
