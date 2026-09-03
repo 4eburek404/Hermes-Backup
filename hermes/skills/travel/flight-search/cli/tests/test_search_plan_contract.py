@@ -75,9 +75,14 @@ class SearchPlanContractTests(unittest.TestCase):
                 for template in _route_legs(payload)
             )
         )
+        # Круговой — одна проба на провайдера, обе даты в одном запросе.
+        # Отдельного обратного плеча нет: склейку пар заменил провайдерский
+        # круговой поиск, доступный по возможности supports_round_trip.
         self.assertEqual(
-            {attempt["direction"] for attempt in _primary(payload)},
-            {"outbound", "return"},
+            {attempt["direction"] for attempt in _primary(payload)}, {"outbound"}
+        )
+        self.assertTrue(
+            all(_query(attempt).get("return_date") for attempt in _primary(payload))
         )
         self.assertTrue(
             all("execution_state" not in _query(attempt) for attempt in attempts)
@@ -204,16 +209,15 @@ class SearchPlanContractTests(unittest.TestCase):
             Store(),
         )
 
-        outbound = next(
-            attempt for attempt in _primary(plan) if attempt["direction"] == "outbound"
-        )
-        inbound = next(
-            attempt for attempt in _primary(plan) if attempt["direction"] == "return"
-        )
-        self.assertEqual(_query(outbound)["origin_airports"], ["SVO"])
-        self.assertEqual(_query(outbound)["destination_airports"], ["LHR"])
-        self.assertEqual(_query(inbound)["origin_airports"], ["LHR"])
-        self.assertEqual(_query(inbound)["destination_airports"], ["SVO"])
+        attempts = _primary(plan)
+        self.assertEqual(len(attempts), 1)
+        query = _query(attempts[0])
+        self.assertEqual(attempts[0]["direction"], "outbound")
+        self.assertEqual(query["origin_airports"], ["SVO"])
+        self.assertEqual(query["destination_airports"], ["LHR"])
+        # Обратное плечо больше не отдельная проба с зеркальным охватом:
+        # провайдер получает обе даты и сам возвращает круговой вариант.
+        self.assertEqual(query["return_date"], plan["route"]["dates"]["return"])
 
 
 if __name__ == "__main__":

@@ -27,7 +27,12 @@ from flights_cli.pipeline.search_request import (
 )
 from flights_cli.version_manifest import load_version_manifest, manifest_mismatches
 
-from provider_stub import ConnectingInventoryStub, minutes_between, run_search_cli
+from provider_stub import (
+    ConnectingInventoryStub,
+    RoundTripInventoryStub,
+    minutes_between,
+    run_search_cli,
+)
 
 PROJECT = Path(__file__).resolve().parents[1]
 
@@ -483,6 +488,76 @@ class StructuralFacts(unittest.TestCase):
         self.assertEqual(manifest_mismatches(manifest), [])
         for name in ("search_request", "search_result", "user_answer"):
             self.assertIn(name, CURRENT_CONTRACTS)
+
+
+class RoundTripComposition(unittest.TestCase):
+    """Круговой запрос доезжает до ответа одним провайдерским вариантом.
+
+    Это шов, который переживает резку синтеза пар: тест говорит с границей
+    CLI и спрашивает, что видит путешественник, а не как собран план.
+    """
+
+    depart: date
+    return_date: date
+    return_dates: list[str | None]
+    answer: dict
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        depart = future_departure_date()
+        back = depart + timedelta(days=7)
+        stub = RoundTripInventoryStub(depart)
+        stub.start()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                proc = run_search_cli(
+                    {
+                        "origin": "NTE",
+                        "destination": "SVX",
+                        "depart_date": depart.isoformat(),
+                        "return_date": back.isoformat(),
+                        "provider_policy": "tutu",
+                    },
+                    stub_url=stub.url,
+                    work_dir=Path(tmp),
+                )
+            cls.return_dates = list(stub.return_dates)
+        finally:
+            stub.close()
+        if proc.returncode != 0:
+            raise AssertionError(f"CLI не отработал: {proc.stderr}")
+        cls.depart = depart
+        cls.return_date = back
+        cls.answer = json.loads(proc.stdout)["data"]["answer"]
+
+    def test_return_date_reaches_the_provider_once(self) -> None:
+        """Обе даты уезжают одним запросом, а не двумя односторонними."""
+        self.assertEqual(self.return_dates, [self.return_date.isoformat()])
+
+    def test_round_trip_option_carries_both_legs_and_one_price(self) -> None:
+        options = list(self.answer["catalog"]["items"])
+        self.assertEqual(len(options), 1)
+        option = options[0]
+        directions = option["directions"]
+        self.assertEqual(set(directions), {"outbound", "return"})
+        self.assertEqual(
+            [s["flight_number"] for s in directions["outbound"]["segments"]],
+            ["SU2401"],
+        )
+        self.assertEqual(
+            [s["flight_number"] for s in directions["return"]["segments"]],
+            ["SU2402"],
+        )
+        # Цена провайдерская и целая, а не сумма двух односторонних.
+        self.assertEqual(option["total_price"]["amount"], 41200)
+
+    def test_provider_round_trip_is_not_sold_as_separate_tickets(self) -> None:
+        """Склейки нет — значит нет и оговорки про отдельные билеты."""
+        option = list(self.answer["catalog"]["items"])[0]
+        self.assertNotEqual(option.get("ticketing_model"), "separate_one_way_offers")
+        self.assertFalse(option.get("self_transfer"))
+        caveats = " ".join(str(item) for item in (option.get("caveats") or []))
+        self.assertNotIn("Отдельные билеты", caveats)
 
 
 if __name__ == "__main__":

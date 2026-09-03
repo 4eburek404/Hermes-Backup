@@ -35,7 +35,7 @@ def segment(
     return {
         "from": f"Airport ({origin})",
         "to": f"Airport ({destination})",
-        "carrier": "KL" if flight_number.startswith("KL") else "TK",
+        "carrier": flight_number[:2],
         "voyage_no": flight_number,
         "departure_at": departure_at,
         "arrival_at": arrival_at,
@@ -47,6 +47,7 @@ class TutuStub:
     def __init__(self, depart: date) -> None:
         self.depart = depart
         self.tool_queries: list[tuple[str, str, str, bool]] = []
+        self.return_dates: list[str | None] = []
         self.method_counts: Counter[str] = Counter()
         self.method_order: list[str] = []
         self.session_method_order: dict[str, list[str]] = {}
@@ -148,10 +149,14 @@ class TutuStub:
                     origin = str(arguments.get("origin") or "").upper()
                     destination = str(arguments.get("destination") or "").upper()
                     date = str(arguments.get("departure_date") or "")
+                    return_date = str(arguments.get("return_date") or "") or None
                     owner.tool_queries.append(
                         (origin, destination, date, bool(arguments.get("direct_only")))
                     )
-                    payload = owner.search_payload(origin, destination)
+                    owner.return_dates.append(return_date)
+                    payload = owner.search_payload(
+                        origin, destination, return_date=return_date
+                    )
                     response["result"] = {
                         "content": [{"type": "text", "text": json.dumps(payload)}]
                     }
@@ -184,7 +189,9 @@ class TutuStub:
         self.thread.join(timeout=5)
         self.server.server_close()
 
-    def search_payload(self, origin: str, destination: str) -> dict:
+    def search_payload(
+        self, origin: str, destination: str, *, return_date: str | None = None
+    ) -> dict:
         depart_text = self.depart.isoformat()
         next_day_text = (self.depart + timedelta(days=1)).isoformat()
         offers: list[dict] = []
@@ -250,7 +257,9 @@ class ConnectingInventoryStub(TutuStub):
     планировщиком через шлюз, — поэтому сценарий переживает резку хабового слоя.
     """
 
-    def search_payload(self, origin: str, destination: str) -> dict:
+    def search_payload(
+        self, origin: str, destination: str, *, return_date: str | None = None
+    ) -> dict:
         if (origin, destination) != ("NTE", "SVX"):
             return {"offers": [], "meta": {"has_more": False}}
         depart = self.depart.isoformat()
@@ -281,6 +290,59 @@ class ConnectingInventoryStub(TutuStub):
                                 ),
                             ]
                         }
+                    ],
+                }
+            ],
+            "meta": {"has_more": False},
+        }
+
+
+class RoundTripInventoryStub(TutuStub):
+    """Провайдер отдаёт собственный круговой оффер NTE ⇄ SVX.
+
+    Одна цена и два плеча в одном оффере — то, ради чего склейку пар из
+    двух односторонних поисков заменили провайдерским круговым запросом.
+    Без return_date в запросе круговой выдачи нет: это возможность провайдера,
+    а не сборка на нашей стороне.
+    """
+
+    def search_payload(
+        self, origin: str, destination: str, *, return_date: str | None = None
+    ) -> dict:
+        if (origin, destination) != ("NTE", "SVX") or not return_date:
+            return {"offers": [], "meta": {"has_more": False}}
+        depart = self.depart.isoformat()
+        return {
+            "offers": [
+                {
+                    "offer_id": "nte-svx-round-trip",
+                    "price": {"amount": 41200, "currency": "RUB"},
+                    "duration_min": 555,
+                    "legs": [
+                        {
+                            "segments": [
+                                segment(
+                                    "NTE",
+                                    "SVX",
+                                    "SU2401",
+                                    f"{depart}T06:05:00+02:00",
+                                    f"{depart}T15:20:00+05:00",
+                                    375,
+                                )
+                            ]
+                        },
+                        {
+                            "segments": [
+                                segment(
+                                    "SVX",
+                                    "NTE",
+                                    "SU2402",
+                                    f"{return_date}T16:40:00+05:00",
+                                    f"{return_date}T19:55:00+02:00",
+                                    375,
+                                )
+                            ]
+                        },
                     ],
                 }
             ],

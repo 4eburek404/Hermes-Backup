@@ -87,6 +87,8 @@ def provider_supports_offer_query(
         return False
     if bool(query.get("direct_only")) and not capabilities.supports_direct_only:
         return False
+    if query.get("return_date") and not capabilities.supports_round_trip:
+        return False
     return _provider_supports_offer_market(capabilities, query, store)
 
 

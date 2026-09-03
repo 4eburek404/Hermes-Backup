@@ -40,6 +40,7 @@ class ProviderCapabilities:
     supports_direct_only: bool = False
     supports_carrier_filter: bool = False
     supports_full_route_aggregate: bool = False
+    supports_round_trip: bool = False
     probe_types: frozenset[ProbeType] = frozenset()
 
 

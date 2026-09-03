@@ -29,7 +29,7 @@ class SearchPlanPolicyTests(unittest.TestCase):
         request = live_assembly_args(**overrides)
         return build_search_plan(request, self.store)
 
-    def test_round_trip_plan_is_two_provider_directions_without_route_legs(
+    def test_round_trip_plan_is_one_provider_probe_carrying_both_dates(
         self,
     ) -> None:
         depart = future_departure_date()
@@ -53,13 +53,19 @@ class SearchPlanPolicyTests(unittest.TestCase):
                 "output_policy",
             },
         )
-        # Шлюзового плеча больше нет: круговой маршрут — это два
-        # провайдерских запроса, а не зеркальные маршрутные шаблоны.
+        # Шлюзового плеча больше нет, и обратного тоже: круговой маршрут —
+        # один провайдерский запрос с обеими датами.
         self.assertEqual(plan["phases"]["route_legs"], [])
         self.assertEqual(plan["gateway_policy"]["trigger"], "disabled")
         self.assertEqual(
             {attempt["direction"] for attempt in plan["phases"]["primary"]},
-            {"outbound", "return"},
+            {"outbound"},
+        )
+        self.assertTrue(
+            all(
+                attempt["query"]["return_date"] == plan["route"]["dates"]["return"]
+                for attempt in plan["phases"]["primary"]
+            )
         )
 
     def test_direct_inventory_is_expressed_by_route_and_provider_queries(self) -> None:

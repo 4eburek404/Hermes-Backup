@@ -30,6 +30,7 @@ TUTU_CAPABILITIES = ProviderCapabilities(
     supports_direct_only=True,
     supports_carrier_filter=True,
     supports_full_route_aggregate=True,
+    supports_round_trip=True,
     probe_types=frozenset(
         {
             "segment_direct",

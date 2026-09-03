@@ -7,6 +7,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from flights_cli.domain.airports import explicit_or_resolved_airports
+from flights_cli.errors import CliError
 from flights_cli.store import Store
 from helpers import build_search_plan, future_departure_date, live_assembly_args
 
@@ -127,12 +128,10 @@ class AirportPriorityPolicyTests(unittest.TestCase):
         self.assertEqual(location.airports, ["AAA", "AAB"])
         self.assertEqual(airports, ["AAA"])
 
-    def test_aggregate_provider_plans_preserve_city_scope_in_both_directions(
-        self,
-    ) -> None:
+    def test_aggregate_provider_plans_preserve_city_scope(self) -> None:
         store = catalog_store(self)
         depart = future_departure_date()
-        expected_outbound = (["AAA", "AAB"], ["BBA", "BBB", "BBC"])
+        expected = (["AAA", "AAB"], ["BBA", "BBB", "BBC"])
 
         for provider in ("tutu", "kupibilet"):
             with self.subTest(provider=provider):
@@ -141,7 +140,6 @@ class AirportPriorityPolicyTests(unittest.TestCase):
                         origin="AAA",
                         destination="BBB",
                         depart_date=depart.isoformat(),
-                        return_date=(depart + timedelta(days=7)).isoformat(),
                         provider_policy=provider,
                     ),
                     store,
@@ -151,26 +149,58 @@ class AirportPriorityPolicyTests(unittest.TestCase):
                     for query in plan["phases"]["primary"]
                     if query["provider"] == provider
                 ]
-                outbound = next(
-                    query for query in queries if query["direction"] == "outbound"
-                )
-                inbound = next(
-                    query for query in queries if query["direction"] == "return"
-                )
+                self.assertEqual(len(queries), 1)
                 self.assertEqual(
                     (
-                        outbound["query"]["origin_airports"],
-                        outbound["query"]["destination_airports"],
+                        queries[0]["query"]["origin_airports"],
+                        queries[0]["query"]["destination_airports"],
                     ),
-                    expected_outbound,
+                    expected,
                 )
-                self.assertEqual(
-                    (
-                        inbound["query"]["origin_airports"],
-                        inbound["query"]["destination_airports"],
-                    ),
-                    tuple(reversed(expected_outbound)),
-                )
+
+    def test_round_trip_keeps_outbound_scope_on_the_single_probe(self) -> None:
+        store = catalog_store(self)
+        depart = future_departure_date()
+        return_date = (depart + timedelta(days=7)).isoformat()
+
+        plan = build_search_plan(
+            live_args(
+                origin="AAA",
+                destination="BBB",
+                depart_date=depart.isoformat(),
+                return_date=return_date,
+                provider_policy="tutu",
+            ),
+            store,
+        )
+
+        attempts = plan["phases"]["primary"]
+        self.assertEqual(len(attempts), 1)
+        self.assertEqual(attempts[0]["direction"], "outbound")
+        self.assertEqual(attempts[0]["query"]["origin_airports"], ["AAA", "AAB"])
+        self.assertEqual(
+            attempts[0]["query"]["destination_airports"], ["BBA", "BBB", "BBC"]
+        )
+        self.assertEqual(attempts[0]["query"]["return_date"], return_date)
+
+    def test_round_trip_is_refused_for_a_provider_without_the_capability(self) -> None:
+        store = catalog_store(self)
+        depart = future_departure_date()
+
+        with self.assertRaises(CliError) as raised:
+            build_search_plan(
+                live_args(
+                    origin="AAA",
+                    destination="BBB",
+                    depart_date=depart.isoformat(),
+                    return_date=(depart + timedelta(days=7)).isoformat(),
+                    provider_policy="kupibilet",
+                ),
+                store,
+            )
+
+        self.assertEqual(raised.exception.error_type, "validation_error")
+        self.assertIn("round-trip", str(raised.exception))
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ from datetime import timedelta
 from typing import Any, Callable
 
 from ..adapters.providers.registry import (
+    provider_supports_offer_query,
     providers_for_offer_query,
 )
 from ..config import (
@@ -328,39 +329,21 @@ class SearchPlanBuilder:
             )
             return direct_queries
 
-        # Оба плеча строит одна функция. До этого прямое собиралось здесь
-        # вручную, а обратное — вызовом ниже, и куски расходились по мелочам.
-        queries: list[dict[str, Any]] = []
-        queries.extend(
-            self._provider_offer_queries_for_route(
-                flow,
-                direction=Direction.OUTBOUND,
-                origin=origin,
-                destination=destination,
-                origin_airports=origin_airports,
-                destination_airports=destination_airports,
-                date_text=date_text,
-                currency=currency,
-                direct_only=False,
-            )
+        # Круговой маршрут — одна проба с обеими датами, а не два
+        # односторонних поиска со склейкой пар. Провайдера, который кругового
+        # не умеет, отбраковывает гейт возможностей, а не эта функция.
+        return self._provider_offer_queries_for_route(
+            flow,
+            direction=Direction.OUTBOUND,
+            origin=origin,
+            destination=destination,
+            origin_airports=origin_airports,
+            destination_airports=destination_airports,
+            date_text=date_text,
+            currency=currency,
+            direct_only=False,
+            return_date=flow.request.return_date or None,
         )
-        if flow.request.return_date:
-            # Обратное плечо украшения ограниченного доступа не получает —
-            # так было и раньше; асимметрия уходит вместе со шлюзовым слоем.
-            queries.extend(
-                self._provider_offer_queries_for_route(
-                    flow,
-                    direction=Direction.RETURN,
-                    origin=destination,
-                    destination=origin,
-                    origin_airports=destination_airports,
-                    destination_airports=origin_airports,
-                    date_text=flow.request.return_date,
-                    currency=currency,
-                    direct_only=False,
-                )
-            )
-        return queries
 
     def _direct_inventory_queries(
         self,
@@ -374,6 +357,8 @@ class SearchPlanBuilder:
     ) -> list[dict[str, Any]]:
         queries: list[dict[str, Any]] = []
         outbound_dates = direct_inventory_dates(self._options, flow)
+        # Окно дат и return_date несовместимы (проверено выше), поэтому при
+        # круговом запросе здесь ровно одна дата и ровно одна проба.
         for date_text in outbound_dates:
             queries.extend(
                 self._provider_offer_queries_for_route(
@@ -387,21 +372,7 @@ class SearchPlanBuilder:
                     currency=currency,
                     direct_only=True,
                     route_family=RouteFamily.DIRECT_INVENTORY,
-                )
-            )
-        if flow.request.return_date:
-            queries.extend(
-                self._provider_offer_queries_for_route(
-                    flow,
-                    direction=Direction.RETURN,
-                    origin=destination,
-                    destination=origin,
-                    origin_airports=destination_airports,
-                    destination_airports=origin_airports,
-                    date_text=flow.request.return_date,
-                    currency=currency,
-                    direct_only=True,
-                    route_family=RouteFamily.DIRECT_INVENTORY,
+                    return_date=flow.request.return_date or None,
                 )
             )
         return queries
@@ -419,6 +390,7 @@ class SearchPlanBuilder:
         currency: str,
         direct_only: bool,
         route_family: str | None = None,
+        return_date: str | None = None,
     ) -> list[dict[str, Any]]:
         route_query: dict[str, Any] = {
             "probe_type": "full_route_aggregate",
@@ -426,10 +398,23 @@ class SearchPlanBuilder:
             "destination": destination,
             "direct_only": direct_only,
         }
+        if return_date:
+            route_query["return_date"] = return_date
         self._apply_filters(route_query)
+        provider_names = self._provider_names_for_primary_offers(flow, route_query)
+        if return_date:
+            # Явно названный провайдер обходит отбор по возможностям — это
+            # старое поведение и оно остаётся. Но круговой поиск обойти нельзя:
+            # провайдер, который его не умеет, вернёт односторонние офферы и
+            # выдача молча опустеет. Лучше сказать это вслух.
+            provider_names = [
+                name
+                for name in provider_names
+                if provider_supports_offer_query(name, route_query, self._store)
+            ]
         queries: list[dict[str, Any]] = []
         seen: set[str] = set()
-        for provider_name in self._provider_names_for_primary_offers(flow, route_query):
+        for provider_name in provider_names:
             if not provider_name or provider_name in seen:
                 continue
             seen.add(provider_name)
@@ -449,10 +434,21 @@ class SearchPlanBuilder:
                 "limit": flow.request.primary_offer_limit,
                 "exhaustive": direct_only,
             }
+            if return_date:
+                query["return_date"] = return_date
             if route_family:
                 query["route_family"] = route_family
             self._apply_filters(query)
             queries.append(query)
+        if return_date and not queries:
+            # Круговой поиск — возможность провайдера. Если её нет ни у кого из
+            # выбранных, честнее сказать это, чем отдать пустую выдачу.
+            raise CliError(
+                "round-trip search is not supported by the selected providers; "
+                "drop return_date or choose a provider that supports it",
+                error_type="validation_error",
+                details={"origin": origin, "destination": destination},
+            )
         return queries
 
     def _apply_filters(self, query: dict[str, Any]) -> None:
