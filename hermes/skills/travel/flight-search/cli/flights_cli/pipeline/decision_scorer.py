@@ -12,7 +12,7 @@ from ..domain.connection_policy import (
 )
 from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY
 from .candidate_scoring import score_validated_candidates
-from .candidate_validation import validate_candidate_envelope
+from .candidate_outcome import validate_candidate_envelope
 from ..config import (
     DEFAULT_FIRST_CARRIER_MAX_OPTIONS,
     DEFAULT_GATEWAY_MAX_ALTERNATIVES,

@@ -49,7 +49,7 @@ CLI envelope types.
   `pipeline/offer_graph_materializer.py`, and `pipeline/offer_graph_merge.py`.
   Import graph symbols directly from their owning module; do not recreate a
   re-export façade.
-- Candidate validation/scoring/frontier: `pipeline/candidate_validation.py`,
+- Candidate validation/scoring/frontier: `pipeline/candidate_outcome.py`,
   `pipeline/candidate_scoring.py`, and `pipeline/frontier_selection.py`.
 - Coverage, catalog semantics/projection/rendering: their dedicated modules in
   `reporting/`.

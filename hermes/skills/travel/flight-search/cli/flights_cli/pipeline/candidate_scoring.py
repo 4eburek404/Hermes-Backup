@@ -14,7 +14,7 @@ from ..domain.normalize import numeric_or_none
 from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY
 from ..domain.time import minutes_between
 from ..domain.vocabulary import RouteFamily
-from .candidate_validation import validate_candidate_envelope
+from .candidate_outcome import validate_candidate_envelope
 
 
 MIXED_CANDIDATE_RANKING_SCHEMA_VERSION = "flight_mixed_candidate_ranking.v1"

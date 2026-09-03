@@ -1,3 +1,13 @@
+"""Единственный проход валидации кандидата и его авторитетный исход.
+
+Модуль звался `candidate_validation` и стоял в списке на удаление: имя
+обещало фронтир, а содержимое производит поля ответа —
+`connection_assessment`, `ticket_protection`, `journey_pairing_model` и
+`validation.blocking_reasons`, по которым фронтир решает, что показывать.
+Переехал под своё имя целиком: из 324 строк мёртвым оказался только
+`__all__`, перечислявший приватные имена, которых никто не импортировал.
+"""
+
 from __future__ import annotations
 
 from copy import deepcopy
@@ -314,11 +324,5 @@ def _round_trip_ticketing_model(candidate: dict[str, Any]) -> str:
 
 __all__ = [
     "CANDIDATE_VALIDATION_SCHEMA_VERSION",
-    "_candidate_segment_groups",
-    "_normalize_candidate",
-    "_normalize_connection_caps",
-    "_normalized_direction",
-    "_ticket_protection",
-    "candidate_declared_blocking_reasons",
     "validate_candidate_envelope",
 ]
