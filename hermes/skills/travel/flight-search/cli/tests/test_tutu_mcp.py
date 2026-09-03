@@ -8,6 +8,7 @@ import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
+from http import HTTPStatus
 from pathlib import Path
 from unittest.mock import patch
 
@@ -1099,6 +1100,58 @@ class TutuMcpProviderTests(unittest.TestCase):
                 currency="RUB",
             )
         self.assertEqual(application_sessions, 1)
+
+    def test_mcp_request_timeout_is_retryable_and_reported_as_a_timeout(self) -> None:
+        """A 408 MCPError is both retryable and a timeout leaf.
+
+        ``_is_retryable_transport_failure`` and ``_has_timeout_leaf`` overlap
+        but are not the same predicate: CONNECTION_CLOSED is retryable without
+        being a timeout, so only the 408 arm may flip the final CliError from
+        ``upstream_error`` to ``timeout``.
+        """
+        request_timeout = MCPError(HTTPStatus.REQUEST_TIMEOUT, "request timed out")
+        connection_closed = MCPError(CONNECTION_CLOSED, "connection closed")
+
+        self.assertTrue(
+            tutu_mcp_module._is_retryable_transport_failure(request_timeout)
+        )
+        self.assertTrue(tutu_mcp_module._has_timeout_leaf(request_timeout))
+        self.assertTrue(
+            tutu_mcp_module._is_retryable_transport_failure(connection_closed)
+        )
+        self.assertFalse(tutu_mcp_module._has_timeout_leaf(connection_closed))
+
+        sessions = 0
+
+        class TimingOutClient:
+            def __init__(self, **kwargs: object) -> None:
+                nonlocal sessions
+                sessions += 1
+
+            async def __aenter__(self) -> "TimingOutClient":
+                raise MCPError(HTTPStatus.REQUEST_TIMEOUT, "request timed out")
+
+            async def __aexit__(self, *args: object) -> None:
+                return None
+
+        async def no_wait(delay: float) -> None:
+            return None
+
+        with (
+            patch("flights_cli.providers.tutu_mcp.TutuMcpClient", TimingOutClient),
+            patch("flights_cli.providers.tutu_mcp.asyncio.sleep", no_wait),
+            self.assertRaises(CliError) as error,
+        ):
+            fetch_tutu_avia_search(
+                "SVX",
+                "AMS",
+                date(2026, 8, 15),
+                currency="RUB",
+            )
+
+        self.assertEqual(sessions, tutu_mcp_module.TUTU_MAX_ATTEMPTS)
+        self.assertEqual(error.exception.error_type, "timeout")
+        self.assertEqual(error.exception.details["terminal_error_types"], ["MCPError"])
 
     def test_parallel_sync_calls_use_independent_event_loops_and_sessions(self) -> None:
         barrier = threading.Barrier(2)
