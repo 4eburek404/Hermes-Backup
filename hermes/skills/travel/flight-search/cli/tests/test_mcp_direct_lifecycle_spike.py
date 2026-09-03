@@ -42,6 +42,7 @@ class TrackingTransport:
         self._block_close = block_close
         self.entered = False
         self.closed = False
+        self.transport_kwargs: dict[str, Any] = {}
         self._streams: Any = None
         self._task_group: Any = None
 
@@ -148,10 +149,11 @@ def production_clients(transports: list[Any]) -> Iterator[None]:
     pending = iter(transports)
 
     def build_transport(url: str, **kwargs: object) -> Any:
-        del kwargs
         if url != "https://mcp.tutu.ru/mcp":
             raise AssertionError(f"unexpected MCP URL: {url!r}")
-        return next(pending)
+        transport = next(pending)
+        transport.transport_kwargs = dict(kwargs)
+        return transport
 
     with patch(
         "flights_cli.providers.tutu_client.streamable_http_client",
@@ -225,6 +227,30 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
             [(task.get_name(), repr(task.get_coro())) for task in leaked],
             [],
         )
+
+    async def test_transport_gets_an_http_client_bound_to_the_remaining_deadline(
+        self,
+    ) -> None:
+        """The SDK's own timeouts must never outlive the caller's deadline.
+
+        Since mcp 2.0.0 the transport no longer takes ``timeout``/
+        ``sse_read_timeout``; they live on the ``httpx2.AsyncClient`` handed to
+        ``streamable_http_client``. Dropping that client silently restores the
+        SDK defaults (30s connect, 300s SSE read), so pin it here.
+        """
+        transport = TrackingTransport(tutu_server())
+
+        await production_client_search(transport, timeout=7.0)
+
+        http_client = transport.transport_kwargs["http_client"]
+        self.assertIsInstance(http_client, httpx2.AsyncClient)
+        timeout = http_client.timeout
+        for field in ("connect", "read", "write", "pool"):
+            with self.subTest(field=field):
+                value = getattr(timeout, field)
+                self.assertIsNotNone(value)
+                self.assertGreater(value, 0)
+                self.assertLessEqual(value, 7.0)
 
     async def test_pinned_sdk_normal_initialize_playbook_search_close(self) -> None:
         self.assertEqual(version("mcp"), "2.0.0")
@@ -412,9 +438,7 @@ class DirectMcpLifecycleSpikeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(success.closed)
 
     async def test_terminal_nonretryable_mcp_error_does_not_retry(self) -> None:
-        terminal = FailingTransport(
-            MCPError(INVALID_PARAMS, "bad request")
-        )
+        terminal = FailingTransport(MCPError(INVALID_PARAMS, "bad request"))
         unused = TrackingTransport(tutu_server())
 
         with self.assertRaises(CliError) as error:
