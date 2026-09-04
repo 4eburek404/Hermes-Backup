@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Mapping
 
 
 SEARCH_PLAN_SCHEMA_VERSION = "flight_search_plan.v6"
-
-GATEWAY_TRIGGER_DISABLED = "disabled"
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,50 +164,8 @@ class ProviderAttemptPlan:
 
 
 @dataclass(frozen=True, slots=True)
-class RouteLegTemplate:
-    """An immutable route shape; execution derives dated provider probes from it."""
-
-    hypothesis_id: str
-    direction: str
-    required_airports: tuple[str, ...]
-    source: str
-    leg_policies: tuple[str, ...]
-    trigger: str
-
-    def __post_init__(self) -> None:
-        if len(self.required_airports) < 3:
-            raise ValueError("route leg template needs at least two legs")
-        if len(self.leg_policies) != len(self.required_airports) - 1:
-            raise ValueError("route leg template policies must match legs")
-
-    @classmethod
-    def from_dict(cls, payload: Mapping[str, Any]) -> RouteLegTemplate:
-        return cls(
-            hypothesis_id=str(payload.get("hypothesis_id") or ""),
-            direction=str(payload.get("direction") or ""),
-            required_airports=tuple(
-                str(item) for item in payload.get("required_airports") or []
-            ),
-            source=str(payload.get("source") or ""),
-            leg_policies=tuple(str(item) for item in payload.get("leg_policies") or []),
-            trigger=str(payload.get("trigger") or "always"),
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "hypothesis_id": self.hypothesis_id,
-            "direction": self.direction,
-            "required_airports": list(self.required_airports),
-            "source": self.source,
-            "leg_policies": list(self.leg_policies),
-            "trigger": self.trigger,
-        }
-
-
-@dataclass(frozen=True, slots=True)
 class SearchPhases:
     primary: tuple[ProviderAttemptPlan, ...] = ()
-    route_legs: tuple[RouteLegTemplate, ...] = ()
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> SearchPhases:
@@ -219,129 +175,12 @@ class SearchPhases:
                 for item in payload.get("primary") or []
                 if isinstance(item, Mapping)
             ),
-            route_legs=tuple(
-                RouteLegTemplate.from_dict(item)
-                for item in payload.get("route_legs") or []
-                if isinstance(item, Mapping)
-            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "primary": [item.to_dict() for item in self.primary],
-            "route_legs": [item.to_dict() for item in self.route_legs],
         }
-
-
-@dataclass(frozen=True, slots=True)
-class GatewayDiscovery:
-    enabled: bool = False
-    reason: str | None = None
-    mode: str = "disabled"
-    route_access_profile: str | None = None
-    route_access_reasons: tuple[str, ...] = ()
-    candidate_count: int = 0
-    candidates: tuple[dict[str, Any], ...] = ()
-    skipped_reasons: tuple[str, ...] = ()
-    empty_reason: str | None = None
-    prior_set: str | None = None
-    matched_rule_id: str | None = None
-    market: str | None = None
-    rejected_gateway_signals: tuple[dict[str, Any], ...] = ()
-
-    @classmethod
-    def from_dict(cls, payload: Mapping[str, Any]) -> GatewayDiscovery:
-        return cls(
-            enabled=bool(payload.get("enabled")),
-            reason=str(payload["reason"]) if payload.get("reason") else None,
-            mode=str(payload.get("mode") or "disabled"),
-            route_access_profile=(
-                str(payload["route_access_profile"])
-                if payload.get("route_access_profile")
-                else None
-            ),
-            route_access_reasons=tuple(
-                str(item) for item in payload.get("route_access_reasons") or []
-            ),
-            candidate_count=int(payload.get("candidate_count") or 0),
-            candidates=tuple(
-                dict(item)
-                for item in payload.get("candidates") or []
-                if isinstance(item, Mapping)
-            ),
-            skipped_reasons=tuple(
-                str(item) for item in payload.get("skipped_reasons") or []
-            ),
-            empty_reason=(
-                str(payload["empty_reason"]) if payload.get("empty_reason") else None
-            ),
-            prior_set=str(payload["prior_set"]) if payload.get("prior_set") else None,
-            matched_rule_id=(
-                str(payload["matched_rule_id"])
-                if payload.get("matched_rule_id")
-                else None
-            ),
-            market=str(payload["market"]) if payload.get("market") else None,
-            rejected_gateway_signals=tuple(
-                dict(item)
-                for item in payload.get("rejected_gateway_signals") or []
-                if isinstance(item, Mapping)
-            ),
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        candidate_count = max(0, int(self.candidate_count))
-        empty_reason = self.empty_reason
-        if candidate_count == 0 and not empty_reason:
-            empty_reason = (
-                "gateway_discovery_disabled"
-                if not self.enabled
-                else "no_gateway_candidates_discovered"
-            )
-        skipped_reasons = list(self.skipped_reasons)
-        if candidate_count == 0 and empty_reason and not skipped_reasons:
-            skipped_reasons = [empty_reason]
-        payload: dict[str, Any] = {
-            "enabled": bool(self.enabled),
-            "reason": self.reason,
-            "mode": self.mode,
-            "route_access_profile": self.route_access_profile,
-            "route_access_reasons": list(self.route_access_reasons),
-            "candidate_count": candidate_count,
-            "candidates": [deepcopy(item) for item in self.candidates],
-            "skipped_reasons": skipped_reasons,
-            "empty_reason": empty_reason,
-        }
-        if self.prior_set:
-            payload["prior_set"] = self.prior_set
-        if self.matched_rule_id:
-            payload["matched_rule_id"] = self.matched_rule_id
-        if self.market:
-            payload["market"] = self.market
-        if self.rejected_gateway_signals:
-            payload["rejected_gateway_signals"] = [
-                deepcopy(item) for item in self.rejected_gateway_signals
-            ]
-        return payload
-
-
-@dataclass(frozen=True, slots=True)
-class GatewayPolicy:
-    trigger: str = GATEWAY_TRIGGER_DISABLED
-    discovery: GatewayDiscovery = field(default_factory=GatewayDiscovery)
-
-    @classmethod
-    def from_dict(cls, payload: Mapping[str, Any]) -> GatewayPolicy:
-        discovery = payload.get("discovery")
-        return cls(
-            trigger=str(payload.get("trigger") or GATEWAY_TRIGGER_DISABLED),
-            discovery=GatewayDiscovery.from_dict(
-                discovery if isinstance(discovery, Mapping) else {}
-            ),
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        return {"trigger": self.trigger, "discovery": self.discovery.to_dict()}
 
 
 @dataclass(frozen=True, slots=True)
@@ -352,9 +191,6 @@ class ExecutionPolicy:
     live_cache_enabled: bool
     timeout: int
     fail_fast: bool
-    gateway_discovery_limit: int
-    gateway_probe_batch_size: int
-    gateway_probe_max_batches: int
     only_carriers: tuple[str, ...] = ()
 
     @classmethod
@@ -366,11 +202,6 @@ class ExecutionPolicy:
             live_cache_enabled=bool(payload.get("live_cache_enabled")),
             timeout=int(payload.get("timeout") or 1),
             fail_fast=bool(payload.get("fail_fast")),
-            gateway_discovery_limit=int(payload.get("gateway_discovery_limit") or 0),
-            gateway_probe_batch_size=int(payload.get("gateway_probe_batch_size") or 0),
-            gateway_probe_max_batches=int(
-                payload.get("gateway_probe_max_batches") or 0
-            ),
             only_carriers=tuple(
                 str(item) for item in payload.get("only_carriers") or []
             ),
@@ -384,9 +215,6 @@ class ExecutionPolicy:
             "live_cache_enabled": self.live_cache_enabled,
             "timeout": self.timeout,
             "fail_fast": self.fail_fast,
-            "gateway_discovery_limit": self.gateway_discovery_limit,
-            "gateway_probe_batch_size": self.gateway_probe_batch_size,
-            "gateway_probe_max_batches": self.gateway_probe_max_batches,
             "only_carriers": list(self.only_carriers),
         }
 
@@ -468,7 +296,6 @@ class SearchPlan:
 
     route: RoutePlan
     phases: SearchPhases
-    gateway_policy: GatewayPolicy
     execution_policy: ExecutionPolicy
     decision_policy: DecisionPolicy
     output_policy: OutputPolicy
@@ -484,9 +311,6 @@ class SearchPlan:
         return cls(
             route=RoutePlan.from_dict(dict(payload.get("route") or {})),
             phases=SearchPhases.from_dict(dict(payload.get("phases") or {})),
-            gateway_policy=GatewayPolicy.from_dict(
-                dict(payload.get("gateway_policy") or {})
-            ),
             execution_policy=ExecutionPolicy.from_dict(
                 dict(payload.get("execution_policy") or {})
             ),
@@ -508,7 +332,6 @@ class SearchPlan:
             "schema_version": self.schema_version,
             "route": self.route.to_dict(),
             "phases": self.phases.to_dict(),
-            "gateway_policy": self.gateway_policy.to_dict(),
             "execution_policy": self.execution_policy.to_dict(),
             "decision_policy": self.decision_policy.to_dict(),
             "output_policy": self.output_policy.to_dict(),

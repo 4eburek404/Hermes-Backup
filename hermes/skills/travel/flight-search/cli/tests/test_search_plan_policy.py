@@ -47,16 +47,13 @@ class SearchPlanPolicyTests(unittest.TestCase):
                 "schema_version",
                 "route",
                 "phases",
-                "gateway_policy",
                 "execution_policy",
                 "decision_policy",
                 "output_policy",
             },
         )
-        # Шлюзового плеча больше нет, и обратного тоже: круговой маршрут —
-        # один провайдерский запрос с обеими датами.
-        self.assertEqual(plan["phases"]["route_legs"], [])
-        self.assertEqual(plan["gateway_policy"]["trigger"], "disabled")
+        # Обратного плеча нет: круговой маршрут — один провайдерский запрос
+        # с обеими датами.
         self.assertEqual(
             {attempt["direction"] for attempt in plan["phases"]["primary"]},
             {"outbound"},

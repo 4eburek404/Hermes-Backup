@@ -80,7 +80,6 @@ def _evidence(depart: date) -> SimpleNamespace:
         search_plan={
             "schema_version": "flight_search_plan.v6",
             "route": route,
-            "gateway_policy": {"discovery": {}},
         },
         provider_policy="all",
         primary_offer_results=(primary_result,),

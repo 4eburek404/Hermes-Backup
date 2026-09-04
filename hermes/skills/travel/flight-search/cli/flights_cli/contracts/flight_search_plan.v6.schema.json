@@ -8,7 +8,6 @@
     "schema_version",
     "route",
     "phases",
-    "gateway_policy",
     "execution_policy",
     "decision_policy",
     "output_policy"
@@ -24,8 +23,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "primary",
-        "route_legs"
+        "primary"
       ],
       "properties": {
         "primary": {
@@ -33,17 +31,8 @@
           "items": {
             "$ref": "#/$defs/attempt"
           }
-        },
-        "route_legs": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/route_leg"
-          }
         }
       }
-    },
-    "gateway_policy": {
-      "$ref": "#/$defs/gateway_policy"
     },
     "execution_policy": {
       "$ref": "#/$defs/execution_policy"
@@ -75,17 +64,12 @@
         },
         "phase": {
           "enum": [
-            "primary",
-            "gateway"
+            "primary"
           ]
         },
         "trigger": {
           "enum": [
-            "always",
-            "no_direct",
-            "disabled",
-            "required_if_no_direct",
-            "on_primary_failure"
+            "always"
           ]
         },
         "provider": {
@@ -210,9 +194,6 @@
         "live_cache_enabled",
         "timeout",
         "fail_fast",
-        "gateway_discovery_limit",
-        "gateway_probe_batch_size",
-        "gateway_probe_max_batches",
         "only_carriers"
       ],
       "properties": {
@@ -238,101 +219,10 @@
         "fail_fast": {
           "type": "boolean"
         },
-        "gateway_discovery_limit": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "gateway_probe_batch_size": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "gateway_probe_max_batches": {
-          "type": "integer",
-          "minimum": 0
-        },
         "only_carriers": {
           "type": "array",
           "items": {
             "type": "string"
-          }
-        }
-      }
-    },
-    "gateway_policy": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "trigger",
-        "discovery"
-      ],
-      "properties": {
-        "trigger": {
-          "enum": [
-            "disabled",
-            "required_if_no_direct",
-            "on_primary_failure"
-          ]
-        },
-        "discovery": {
-          "type": "object",
-          "required": [
-            "enabled",
-            "reason",
-            "mode",
-            "route_access_profile",
-            "route_access_reasons",
-            "candidate_count",
-            "candidates",
-            "skipped_reasons",
-            "empty_reason"
-          ],
-          "properties": {
-            "enabled": {
-              "type": "boolean"
-            },
-            "reason": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "mode": {
-              "type": "string"
-            },
-            "route_access_profile": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "route_access_reasons": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "candidate_count": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "candidates": {
-              "type": "array",
-              "items": {
-                "type": "object"
-              }
-            },
-            "skipped_reasons": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "empty_reason": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
           }
         }
       }
@@ -456,61 +346,6 @@
         },
         "direct_only": {
           "type": "boolean"
-        }
-      }
-    },
-    "route_leg": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "hypothesis_id",
-        "direction",
-        "required_airports",
-        "source",
-        "leg_policies",
-        "trigger"
-      ],
-      "properties": {
-        "hypothesis_id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "direction": {
-          "enum": [
-            "outbound",
-            "return"
-          ]
-        },
-        "required_airports": {
-          "type": "array",
-          "minItems": 3,
-          "maxItems": 5,
-          "items": {
-            "type": "string",
-            "pattern": "^[A-Z]{3}$"
-          }
-        },
-        "source": {
-          "type": "string",
-          "minLength": 1
-        },
-        "leg_policies": {
-          "type": "array",
-          "minItems": 2,
-          "maxItems": 4,
-          "items": {
-            "enum": [
-              "exact_direct",
-              "direct_then_controlled_broad"
-            ]
-          }
-        },
-        "trigger": {
-          "enum": [
-            "always",
-            "required_if_no_direct",
-            "on_primary_failure"
-          ]
         }
       }
     }

@@ -11,10 +11,7 @@ from ..adapters.providers.registry import (
 )
 from ..config import (
     DEFAULT_FIRST_CARRIER_MAX_OPTIONS,
-    DEFAULT_GATEWAY_DISCOVERY_LIMIT,
     DEFAULT_GATEWAY_MAX_ALTERNATIVES,
-    DEFAULT_GATEWAY_PROBE_BATCH_SIZE,
-    DEFAULT_GATEWAY_PROBE_MAX_BATCHES,
     DEFAULT_MAX_AIRPORTS_PER_CITY,
     DEFAULT_PRIMARY_GATEWAY_MAX_OPTIONS,
     DEFAULT_PROFILE,
@@ -37,7 +34,6 @@ from ..pipeline.search_request import is_direct_only
 from ..pipeline.search_plan import (
     DecisionPolicy,
     ExecutionPolicy,
-    GatewayPolicy,
     OutputPolicy,
     ProviderAttemptPlan,
     RoutePlan,
@@ -226,9 +222,6 @@ class SearchPlanBuilder:
             phases=SearchPhases(
                 primary=self._attempts(primary_offer_queries, phase="primary"),
             ),
-            # Шлюзовой слой снят: обнаружения нет, маршрутных плеч нет.
-            # Поля остаются, пока их держит plan.v6, и уходят вместе с ним.
-            gateway_policy=GatewayPolicy(),
             execution_policy=ExecutionPolicy(
                 max_provider_attempts=flow.request.max_segment_searches,
                 segment_limit=self._options.execution.segment_limit,
@@ -236,9 +229,6 @@ class SearchPlanBuilder:
                 live_cache_enabled=live_cache_enabled,
                 timeout=self._options.execution.timeout,
                 fail_fast=self._options.execution.fail_fast,
-                gateway_discovery_limit=DEFAULT_GATEWAY_DISCOVERY_LIMIT,
-                gateway_probe_batch_size=DEFAULT_GATEWAY_PROBE_BATCH_SIZE,
-                gateway_probe_max_batches=DEFAULT_GATEWAY_PROBE_MAX_BATCHES,
                 only_carriers=self._options.effective_only_carriers(),
             ),
             decision_policy=DecisionPolicy(

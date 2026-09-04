@@ -16,7 +16,6 @@ from flights_cli.orchestrators.search_plan_builder import (
 from flights_cli.pipeline.search_plan import (
     DecisionPolicy,
     ExecutionPolicy,
-    GatewayPolicy,
     OutputPolicy,
     ProviderAttemptPlan,
     RoutePlan,
@@ -80,7 +79,7 @@ def typed_plan(legacy: dict[str, object]) -> SearchPlan:
         ProviderAttemptPlan(
             probe_id=f"primary-{index:03d}",
             phase="primary",
-            trigger="always" if query.get("direct_only") else "no_direct",
+            trigger="always",
             provider=str(query.get("provider") or ""),
             probe_type=str(query.get("probe_type") or "full_route_aggregate"),
             direction=str(query.get("direction") or "outbound"),
@@ -96,7 +95,6 @@ def typed_plan(legacy: dict[str, object]) -> SearchPlan:
     return SearchPlan(
         route=route,
         phases=SearchPhases(primary=primary),
-        gateway_policy=GatewayPolicy(),
         execution_policy=ExecutionPolicy(
             max_provider_attempts=int(limits.get("max_segment_searches") or 10),
             segment_limit=int(limits.get("segment_limit") or 30),
@@ -104,9 +102,6 @@ def typed_plan(legacy: dict[str, object]) -> SearchPlan:
             live_cache_enabled=bool(limits.get("live_cache_enabled")),
             timeout=int(limits.get("timeout") or 60),
             fail_fast=bool(limits.get("fail_fast")),
-            gateway_discovery_limit=10,
-            gateway_probe_batch_size=10,
-            gateway_probe_max_batches=1,
         ),
         decision_policy=DecisionPolicy(
             max_connections_per_journey=2,

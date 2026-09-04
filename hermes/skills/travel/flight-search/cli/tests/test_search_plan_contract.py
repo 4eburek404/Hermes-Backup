@@ -7,7 +7,6 @@ from datetime import timedelta
 from flights_cli.contracts.validation import validate_contract_payload
 from flights_cli.errors import CliError
 from flights_cli.pipeline.search_plan import (
-    GATEWAY_TRIGGER_DISABLED,
     SEARCH_PLAN_SCHEMA_VERSION,
     SearchPlan,
 )
@@ -17,10 +16,6 @@ from helpers import build_search_plan, future_departure_date, live_assembly_args
 
 def _primary(plan: dict[str, object]) -> list[dict[str, object]]:
     return list(plan["phases"]["primary"])  # type: ignore[index]
-
-
-def _route_legs(plan: dict[str, object]) -> list[dict[str, object]]:
-    return list(plan["phases"]["route_legs"])  # type: ignore[index]
 
 
 def _query(attempt: dict[str, object]) -> dict[str, object]:
@@ -59,20 +54,6 @@ class SearchPlanContractTests(unittest.TestCase):
                     "query",
                 }
                 for attempt in attempts
-            )
-        )
-        self.assertTrue(
-            all(
-                set(template)
-                == {
-                    "hypothesis_id",
-                    "direction",
-                    "required_airports",
-                    "source",
-                    "leg_policies",
-                    "trigger",
-                }
-                for template in _route_legs(payload)
             )
         )
         # Круговой — одна проба на провайдера, обе даты в одном запросе.
@@ -131,7 +112,7 @@ class SearchPlanContractTests(unittest.TestCase):
         with self.assertRaises(CliError):
             validate_contract_payload("search_plan", with_runtime_state)
 
-    def test_direct_only_is_an_absolute_gateway_prohibition(self) -> None:
+    def test_direct_only_reaches_every_planned_attempt(self) -> None:
         depart = future_departure_date()
         plan = build_search_plan(
             live_assembly_args(
@@ -150,14 +131,6 @@ class SearchPlanContractTests(unittest.TestCase):
         self.assertTrue(_primary(plan))
         self.assertTrue(
             all(_query(attempt)["direct_only"] for attempt in _primary(plan))
-        )
-        self.assertEqual(_route_legs(plan), [])
-        self.assertEqual(
-            plan["gateway_policy"]["trigger"],  # type: ignore[index]
-            GATEWAY_TRIGGER_DISABLED,
-        )
-        self.assertFalse(
-            plan["gateway_policy"]["discovery"]["enabled"]  # type: ignore[index]
         )
 
     def test_request_policies_are_resolved_into_plan(self) -> None:
