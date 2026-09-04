@@ -9,14 +9,13 @@ from jsonschema import Draft202012Validator
 
 from flights_cli.contracts.registry import (
     CURRENT_CONTRACTS,
-    LEGACY_SCHEMA_RESOURCES,
     current_contract,
 )
 from flights_cli.contracts.validation import packaged_schema_registry
 
 
 class ContractRegistryTest(unittest.TestCase):
-    def test_registry_declares_current_public_and_route_diagnostic_contracts(
+    def test_registry_declares_two_public_contracts_and_two_internal_ones(
         self,
     ) -> None:
         self.assertEqual(
@@ -35,14 +34,18 @@ class ContractRegistryTest(unittest.TestCase):
         self.assertEqual(
             current_contract("search_result")["status"], "current_public_contract"
         )
+        # Путь в конверте есть только у публичного ответа. План и граф ходят
+        # между слоями пайплайна и в конверт не попадают.
         self.assertEqual(
-            current_contract("search_plan")["public_path"],
-            "data.plan",
+            {
+                name
+                for name in CURRENT_CONTRACTS
+                if "public_path" in current_contract(name)
+            },
+            {"search_result"},
         )
-        self.assertEqual(
-            current_contract("offer_graph")["public_path"],
-            "data.decision.offer_graph",
-        )
+        for name in ("search_plan", "offer_graph"):
+            self.assertEqual(current_contract(name)["status"], "internal_invariant")
 
     def test_current_schema_resources_are_packaged(self) -> None:
         for name in CURRENT_CONTRACTS:
@@ -62,10 +65,7 @@ class ContractRegistryTest(unittest.TestCase):
         packaged_resources = {
             item.name for item in root.iterdir() if item.name.endswith(".schema.json")
         }
-        self.assertEqual(
-            packaged_resources,
-            active_resources | set(LEGACY_SCHEMA_RESOURCES),
-        )
+        self.assertEqual(packaged_resources, active_resources)
         schemas = [
             json.loads(root.joinpath(name).read_text(encoding="utf-8"))
             for name in sorted(packaged_resources)
@@ -100,9 +100,6 @@ class ContractRegistryTest(unittest.TestCase):
         result = current_contract("search_result")
         self.assertEqual(result["public_path"], "data")
         self.assertEqual(result["canonical_text_path"], "data.rendered_text")
-
-    def test_no_current_schema_stands_on_a_retired_one(self) -> None:
-        self.assertEqual(LEGACY_SCHEMA_RESOURCES, frozenset())
 
 
 if __name__ == "__main__":
