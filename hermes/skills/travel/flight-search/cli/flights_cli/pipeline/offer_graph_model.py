@@ -13,7 +13,6 @@ OFFER_CANDIDATE_ENVELOPE_SCHEMA_VERSION = "flight_offer_candidate_envelope.v1"
 class OfferGraph:
     edges: list[dict[str, Any]] = field(default_factory=list)
     offers: list[dict[str, Any]] = field(default_factory=list)
-    connections: list[dict[str, Any]] = field(default_factory=list)
     coverage: dict[str, Any] = field(default_factory=dict)
     schema_version: str = OFFER_GRAPH_SCHEMA_VERSION
 
@@ -22,7 +21,6 @@ class OfferGraph:
             "schema_version": self.schema_version,
             "edges": deepcopy(self.edges),
             "offers": deepcopy(self.offers),
-            "connections": deepcopy(self.connections),
             "coverage": deepcopy(self.coverage),
         }
 

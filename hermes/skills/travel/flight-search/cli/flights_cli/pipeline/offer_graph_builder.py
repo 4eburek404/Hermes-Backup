@@ -150,11 +150,9 @@ def _route_from_paths(paths: list[dict[str, Any]]) -> list[str]:
 def build_offer_graph(
     *,
     primary_offer_results: list[dict[str, Any]] | None = None,
-    gateway_leg_results: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     builder = OfferGraphBuilder()
     builder.add_primary_offer_results(primary_offer_results or [])
-    builder.add_gateway_leg_results(gateway_leg_results or {})
     return builder.to_graph().to_dict()
 
 
@@ -162,15 +160,11 @@ class OfferGraphBuilder:
     def __init__(self) -> None:
         self.edges: list[dict[str, Any]] = []
         self.offers: list[dict[str, Any]] = []
-        self.connections: list[dict[str, Any]] = []
         self._offer_ids: set[str] = set()
         self._edge_ids: set[str] = set()
         self.coverage: dict[str, Any] = {
             "primary_offer_result_count": 0,
-            "gateway_count": 0,
             "provider_full_route_offer_count": 0,
-            "gateway_leg_offer_count": 0,
-            "assembled_separate_ticket_candidate_count": 0,
             "skipped_offer_count": 0,
             "skipped_reasons": [],
         }
@@ -405,189 +399,11 @@ class OfferGraphBuilder:
         )
         self.coverage["provider_full_route_offer_count"] += 1
 
-    def add_gateway_leg_results(self, results: dict[str, Any]) -> None:
-        if not isinstance(results, dict):
-            return
-        self._add_route_hypothesis_results(results.get("route_hypotheses"))
-        gateways = results.get("gateways") if isinstance(results, dict) else None
-        if not isinstance(gateways, list):
-            return
-        self.coverage["gateway_count"] = len(gateways)
-        self.coverage["searched_gateways"] = int(results.get("searched_gateways") or 0)
-        self.coverage["viable_gateways"] = int(results.get("viable_gateways") or 0)
-        self.coverage["not_searched_budget"] = int(
-            results.get("not_searched_budget") or 0
-        )
-        for gateway_index, gateway_result in enumerate(gateways):
-            if not isinstance(gateway_result, dict):
-                self._skip("malformed_gateway_result")
-                continue
-            gateway = str(gateway_result.get("gateway") or "").upper()
-            origin_leg_result = gateway_result.get("origin_leg")
-            destination_leg_result = gateway_result.get("destination_leg")
-            direction = (
-                _normalize_direction(gateway_result.get("direction"))
-                or _normalize_direction(
-                    origin_leg_result.get("direction")
-                    if isinstance(origin_leg_result, dict)
-                    else None
-                )
-                or _normalize_direction(
-                    destination_leg_result.get("direction")
-                    if isinstance(destination_leg_result, dict)
-                    else None
-                )
-                or "outbound"
-            )
-            origin_leg = self._add_gateway_leg_offers(
-                origin_leg_result,
-                gateway=gateway,
-                leg_role="origin_leg",
-                gateway_index=gateway_index,
-                direction=direction,
-            )
-            destination_leg = self._add_gateway_leg_offers(
-                destination_leg_result,
-                gateway=gateway,
-                leg_role="destination_leg",
-                gateway_index=gateway_index,
-                direction=direction,
-            )
-            if not origin_leg or not destination_leg:
-                continue
-            origin_edge_ids = [
-                edge_id for item in origin_leg for edge_id in item.get("edge_ids", [])
-            ]
-            destination_edge_ids = [
-                edge_id
-                for item in destination_leg
-                for edge_id in item.get("edge_ids", [])
-            ]
-            self.connections.append(
-                _compact(
-                    {
-                        "id": _stable_id(
-                            "connection",
-                            direction,
-                            gateway or str(gateway_index + 1),
-                        ),
-                        "source_type": "gateway_leg_pair",
-                        "gateway": gateway,
-                        "direction": direction,
-                        "ticketing_boundary": "separate_ticket_candidate",
-                        "candidate_status": "complete_gateway_legs_unranked",
-                        "origin_leg_offer_ids": [
-                            item["offer_id"] for item in origin_leg
-                        ],
-                        "destination_leg_offer_ids": [
-                            item["offer_id"] for item in destination_leg
-                        ],
-                        "edge_ids": [*origin_edge_ids, *destination_edge_ids],
-                    }
-                )
-            )
-            self.coverage["assembled_separate_ticket_candidate_count"] += 1
-
-    def _add_route_hypothesis_results(self, hypotheses: Any) -> None:
-        if not isinstance(hypotheses, list):
-            return
-        self.coverage["route_hypothesis_count"] = len(hypotheses)
-        for hypothesis_index, hypothesis in enumerate(hypotheses):
-            if not isinstance(hypothesis, dict):
-                self._skip("malformed_route_hypothesis")
-                continue
-            hypothesis_id = str(hypothesis.get("hypothesis_id") or "").strip()
-            required_airports = [
-                code
-                for code in (
-                    _normalize_code(value)
-                    for value in hypothesis.get("required_airports") or []
-                )
-                if code
-            ]
-            direction = _normalize_direction(hypothesis.get("direction")) or "outbound"
-            legs = hypothesis.get("legs")
-            if (
-                not hypothesis_id
-                or len(required_airports) < 3
-                or not isinstance(legs, list)
-            ):
-                self._skip("route_hypothesis_missing_identity")
-                continue
-            for leg in legs:
-                if not isinstance(leg, dict):
-                    self._skip("malformed_route_hypothesis_leg")
-                    continue
-                try:
-                    leg_index = int(leg.get("leg_index"))
-                except (TypeError, ValueError):
-                    self._skip("route_hypothesis_leg_missing_index")
-                    continue
-                if leg_index < 0 or leg_index >= len(required_airports) - 1:
-                    self._skip("route_hypothesis_leg_index_out_of_range")
-                    continue
-                attempts = leg.get("attempts")
-                if not isinstance(attempts, list):
-                    continue
-                for attempt in attempts:
-                    if not isinstance(attempt, dict):
-                        self._skip("malformed_route_hypothesis_attempt")
-                        continue
-                    offers = attempt.get("offers")
-                    if not isinstance(offers, list) or not offers:
-                        continue
-                    leg_result = {
-                        **attempt,
-                        "origin": required_airports[leg_index],
-                        "destination": required_airports[leg_index + 1],
-                        "direction": direction,
-                        "offer_count": len(offers),
-                    }
-                    added = self._add_gateway_leg_offers(
-                        leg_result,
-                        gateway=required_airports[leg_index + 1],
-                        leg_role=f"route_leg_{leg_index}",
-                        gateway_index=hypothesis_index,
-                        direction=direction,
-                    )
-                    for item in added:
-                        self._annotate_route_hypothesis_offer(
-                            str(item["offer_id"]),
-                            hypothesis_id=hypothesis_id,
-                            leg_index=leg_index,
-                            required_airports=required_airports,
-                            leg_policy=leg.get("policy"),
-                        )
-
-    def _annotate_route_hypothesis_offer(
-        self,
-        offer_id: str,
-        *,
-        hypothesis_id: str,
-        leg_index: int,
-        required_airports: list[str],
-        leg_policy: Any,
-    ) -> None:
-        for offer in reversed(self.offers):
-            if offer.get("id") == offer_id:
-                offer.update(
-                    _compact(
-                        {
-                            "hypothesis_id": hypothesis_id,
-                            "leg_index": leg_index,
-                            "required_airports": list(required_airports),
-                            "leg_policy": str(leg_policy or ""),
-                        }
-                    )
-                )
-                return
-
     def to_graph(self) -> OfferGraph:
         self.coverage.update(
             {
                 "offer_count": len(self.offers),
                 "edge_count": len(self.edges),
-                "connection_count": len(self.connections),
                 "source_types": sorted(
                     {
                         str(offer.get("source_type"))
@@ -600,215 +416,10 @@ class OfferGraphBuilder:
         return OfferGraph(
             edges=self.edges,
             offers=self.offers,
-            connections=self.connections,
             coverage={
                 key: value for key, value in self.coverage.items() if value != []
             },
         )
-
-    def _add_gateway_leg_offers(
-        self,
-        leg_result: Any,
-        *,
-        gateway: str,
-        leg_role: str,
-        gateway_index: int,
-        direction: str,
-    ) -> list[dict[str, Any]]:
-        if not isinstance(leg_result, dict):
-            return []
-        if int(leg_result.get("offer_count") or 0) <= 0:
-            return []
-        offers = leg_result.get("offers")
-        if not isinstance(offers, list) or not offers:
-            return []
-        provider = _provider(leg_result)
-        collected: list[dict[str, Any]] = []
-        for offer_index, offer in enumerate(offers):
-            if not isinstance(offer, dict):
-                self._skip("malformed_gateway_leg_offer")
-                continue
-            paths = _offer_segment_paths(
-                offer,
-                fallback_direction=_normalize_direction(leg_result.get("direction")),
-            )
-            if paths:
-                for path_index, path in enumerate(paths):
-                    path["direction"] = direction
-                    segments = path["segments"]
-                    if not segments:
-                        continue
-                    offer_id = self._unique_offer_id(
-                        "gateway_leg",
-                        provider,
-                        gateway or f"gateway{gateway_index + 1}",
-                        leg_role,
-                        _offer_id(offer) or f"offer{offer_index + 1}",
-                        suffix=f"path{path_index + 1}" if len(paths) > 1 else None,
-                    )
-                    edge_ids = self._add_route_edges(
-                        offer_id=offer_id,
-                        provider=provider,
-                        source_type="gateway_leg",
-                        ticketing_boundary="separate_ticket_leg",
-                        segments=segments,
-                        direction=path.get("direction"),
-                        source_debug={
-                            "gateway_index": gateway_index,
-                            "gateway": gateway,
-                            "leg_role": leg_role,
-                            "provider_offer_id": _offer_id(offer),
-                            **(path.get("debug") or {}),
-                        },
-                    )
-                    if not edge_ids:
-                        self._skip("gateway_leg_offer_no_valid_edges")
-                        continue
-                    self.offers.append(
-                        _compact(
-                            {
-                                "id": offer_id,
-                                "source_type": "gateway_leg",
-                                "provider": provider,
-                                "ticketing_boundary": "separate_ticket_leg",
-                                "ticketing_model": _ticketing_model_for_boundary(
-                                    "separate_ticket_leg"
-                                ),
-                                "origin": _normalize_code(_segment_origin(segments[0])),
-                                "destination": _normalize_code(
-                                    _segment_destination(segments[-1])
-                                ),
-                                "gateway": gateway,
-                                "leg_role": leg_role,
-                                "direction": path.get("direction"),
-                                "edge_ids": edge_ids,
-                                "route": _route_from_segments(segments),
-                                "price": _price_amount(offer, leg_result),
-                                "currency": _currency(offer, leg_result),
-                                "detail_status": _detail_status(
-                                    offer,
-                                    has_edges=bool(edge_ids),
-                                ),
-                                "warnings": _warnings(offer),
-                                **_self_transfer_fields(offer),
-                                "source_ref": {
-                                    "gateway_index": gateway_index,
-                                    "leg_role": leg_role,
-                                    "provider_offer_id": _offer_id(offer),
-                                    "probe_id": leg_result.get("probe_id"),
-                                },
-                            }
-                        )
-                    )
-                    self.coverage["gateway_leg_offer_count"] += 1
-                    collected.append({"offer_id": offer_id, "edge_ids": edge_ids})
-                continue
-            origin = _normalize_code(
-                offer.get("origin")
-                or offer.get("departure_airport")
-                or leg_result.get("origin")
-            )
-            destination = _normalize_code(
-                offer.get("destination")
-                or offer.get("arrival_airport")
-                or leg_result.get("destination")
-            )
-            if not origin or not destination:
-                self._skip("gateway_leg_offer_missing_airports")
-                continue
-            offer_id = self._unique_offer_id(
-                "gateway_leg",
-                provider,
-                gateway or f"gateway{gateway_index + 1}",
-                leg_role,
-                _offer_id(offer) or f"offer{offer_index + 1}",
-            )
-            edge_id = self._unique_edge_id(offer_id, "0")
-            self.edges.append(
-                _compact(
-                    {
-                        "id": edge_id,
-                        "offer_id": offer_id,
-                        "source_type": "gateway_leg",
-                        "provider": provider,
-                        "ticketing_boundary": "separate_ticket_leg",
-                        "ticketing_model": _ticketing_model_for_boundary(
-                            "separate_ticket_leg"
-                        ),
-                        "origin": origin,
-                        "destination": destination,
-                        "gateway": gateway,
-                        "leg_role": leg_role,
-                        "direction": direction,
-                        "sequence": 0,
-                        "flight_number": _flight_number(offer, leg_result),
-                        "marketing_carrier": _carrier_value(
-                            offer,
-                            leg_result,
-                            keys=("marketing_carrier",),
-                        ),
-                        "operating_carrier": _carrier_value(
-                            offer,
-                            leg_result,
-                            keys=("operating_carrier",),
-                        ),
-                        "carrier": _carrier_value(
-                            offer,
-                            leg_result,
-                            keys=("carrier", "airline", "main_airline"),
-                        ),
-                        "carrier_name": _carrier_value(
-                            offer,
-                            leg_result,
-                            keys=("carrier_name", "airline_name"),
-                        ),
-                        "departure_at": _time_value(
-                            offer,
-                            leg_result,
-                            prefix="departure",
-                        ),
-                        "arrival_at": _time_value(
-                            offer,
-                            leg_result,
-                            prefix="arrival",
-                        ),
-                    }
-                )
-            )
-            self.offers.append(
-                _compact(
-                    {
-                        "id": offer_id,
-                        "source_type": "gateway_leg",
-                        "provider": provider,
-                        "ticketing_boundary": "separate_ticket_leg",
-                        "ticketing_model": _ticketing_model_for_boundary(
-                            "separate_ticket_leg"
-                        ),
-                        "origin": origin,
-                        "destination": destination,
-                        "gateway": gateway,
-                        "leg_role": leg_role,
-                        "direction": direction,
-                        "edge_ids": [edge_id],
-                        "route": [origin, destination],
-                        "price": _price_amount(offer, leg_result),
-                        "currency": _currency(offer, leg_result),
-                        "detail_status": _detail_status(offer, has_edges=True),
-                        "warnings": _warnings(offer),
-                        **_self_transfer_fields(offer),
-                        "source_ref": {
-                            "gateway_index": gateway_index,
-                            "leg_role": leg_role,
-                            "provider_offer_id": _offer_id(offer),
-                            "probe_id": leg_result.get("probe_id"),
-                        },
-                    }
-                )
-            )
-            self.coverage["gateway_leg_offer_count"] += 1
-            collected.append({"offer_id": offer_id, "edge_ids": [edge_id]})
-        return collected
 
     def _add_route_edges(
         self,
@@ -845,8 +456,6 @@ class OfferGraphBuilder:
                         ),
                         "origin": origin,
                         "destination": destination,
-                        "gateway": source_debug.get("gateway"),
-                        "leg_role": source_debug.get("leg_role"),
                         "direction": direction,
                         "sequence": index,
                         "flight_number": _flight_number(segment),

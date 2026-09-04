@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from ..domain.vocabulary import normalize_direction
-from ..domain.stop_policy import resolve_stop_policy
 from .decision_scorer import DecisionScorer, DecisionScorerOptions
 from .offer_graph_builder import build_offer_graph
 from .offer_graph_materializer import materialize_offer_graph_candidates
@@ -37,11 +36,6 @@ class SearchDecisionBuilder:
     @staticmethod
     def build(plan: SearchPlan, evidence: SearchEvidenceView) -> SearchDecision:
         route = plan.route
-        stop_policy = resolve_stop_policy(
-            max_connections=plan.decision_policy.preferred_connections,
-            tier2_max_connections=plan.decision_policy.max_connections_per_journey,
-            name="search_plan",
-        )
         offer_graph = build_offer_graph(
             primary_offer_results=list(evidence.primary_offer_results),
         )
@@ -54,7 +48,6 @@ class SearchDecisionBuilder:
             requested_origin_airports=list(route.origin_airports),
             requested_destination_airports=list(route.destination_airports),
             requested_dates=_requested_dates(plan),
-            max_path_offers=stop_policy.hard_max_connections + 1,
         )
         # Присутствие прямых считается по кандидатам и живёт в их конверте.
         # И лимит выдачи, и потолок пересадок по направлению читают оттуда, а

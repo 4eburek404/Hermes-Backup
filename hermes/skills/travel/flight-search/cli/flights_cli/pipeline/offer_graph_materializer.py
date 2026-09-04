@@ -62,7 +62,6 @@ def materialize_offer_graph_candidates(
     requested_origin_airports: list[str] | None = None,
     requested_destination_airports: list[str] | None = None,
     requested_dates: Mapping[str, Any] | None = None,
-    max_path_offers: int = 3,
 ) -> dict[str, Any]:
     """Project graph evidence into a unified, unranked candidate envelope."""
 
@@ -79,9 +78,6 @@ def materialize_offer_graph_candidates(
     }
 
     for offer in offers:
-        source_type = str(offer.get("source_type") or "")
-        if source_type == "gateway_leg":
-            continue
         candidate = _candidate_from_offer(
             offer,
             edges_by_id,
@@ -97,43 +93,6 @@ def materialize_offer_graph_candidates(
             direct_only=direct_only,
             allowed_dates=allowed_dates,
         )
-
-    for candidate in _candidates_from_gateway_offer_paths(
-        offers,
-        edges_by_id,
-        direction="outbound",
-        requested_origin=requested_origin,
-        requested_destination=requested_destination,
-        requested_origin_airports=requested_origin_airports,
-        requested_destination_airports=requested_destination_airports,
-        max_path_offers=max_path_offers,
-    ):
-        _accept_or_reject_candidate(
-            candidate,
-            candidates,
-            rejected,
-            direct_only=direct_only,
-            allowed_dates=allowed_dates,
-        )
-
-    if round_trip:
-        for candidate in _candidates_from_gateway_offer_paths(
-            offers,
-            edges_by_id,
-            direction="return",
-            requested_origin=requested_origin,
-            requested_destination=requested_destination,
-            requested_origin_airports=requested_origin_airports,
-            requested_destination_airports=requested_destination_airports,
-            max_path_offers=max_path_offers,
-        ):
-            _accept_or_reject_candidate(
-                candidate,
-                candidates,
-                rejected,
-                direct_only=direct_only,
-                allowed_dates=allowed_dates,
-            )
 
     candidates, direct_mode = _hide_connections_where_direct_exists(
         candidates, rejected
@@ -153,7 +112,6 @@ def materialize_offer_graph_candidates(
                 for direction, enabled in direct_mode.items()
                 if enabled
             },
-            "max_path_offers": max(1, int(max_path_offers)),
             "source_types": sorted(
                 {
                     str(candidate.get("source_type"))
@@ -195,7 +153,6 @@ def _candidate_from_offer(
         "source_type": candidate_source_type,
         "provider": offer.get("provider"),
         "source_providers": _ordered_unique([offer.get("provider")]),
-        "gateway": offer.get("gateway"),
         "covers_requested_trip": _covers_requested_trip(
             segments,
             offer,
@@ -219,252 +176,6 @@ def _candidate_from_offer(
         "warnings": warnings,
         "offer_ids": [offer.get("id")],
         "edge_ids": edge_ids,
-    }
-
-
-def _candidates_from_gateway_offer_paths(
-    offers: list[dict[str, Any]],
-    edges_by_id: dict[str, dict[str, Any]],
-    *,
-    direction: str,
-    requested_origin: str | None,
-    requested_destination: str | None,
-    requested_origin_airports: list[str] | None,
-    requested_destination_airports: list[str] | None,
-    max_path_offers: int,
-) -> list[dict[str, Any]]:
-    if direction == "return":
-        origin_codes = _requested_codes(
-            requested_destination, requested_destination_airports
-        )
-        destination_codes = _requested_codes(
-            requested_origin, requested_origin_airports
-        )
-    else:
-        origin_codes = _requested_codes(requested_origin, requested_origin_airports)
-        destination_codes = _requested_codes(
-            requested_destination, requested_destination_airports
-        )
-    if not origin_codes or not destination_codes:
-        return []
-    max_offers = max(1, int(max_path_offers))
-    gateway_offers = [
-        offer
-        for offer in offers
-        if str(offer.get("source_type") or "") == "gateway_leg"
-        and (_normalize_direction(offer.get("direction")) or "outbound") == direction
-        and _normalize_code(offer.get("origin"))
-        and _normalize_code(offer.get("destination"))
-    ]
-    by_origin: dict[str, list[dict[str, Any]]] = {}
-    for offer in gateway_offers:
-        by_origin.setdefault(_normalize_code(offer.get("origin")), []).append(offer)
-    for bucket in by_origin.values():
-        bucket.sort(key=lambda item: str(item.get("id") or ""))
-
-    candidates: list[dict[str, Any]] = []
-    queue: list[
-        tuple[
-            list[dict[str, Any]],
-            set[str],
-            str | None,
-            tuple[str, ...] | None,
-            int | None,
-        ]
-    ] = []
-    for origin in sorted(origin_codes):
-        for offer in by_origin.get(origin, []):
-            offer_destination = _normalize_code(offer.get("destination"))
-            if not offer_destination:
-                continue
-            hypothesis_id, required_airports, leg_index = _route_hypothesis_fields(
-                offer
-            )
-            if hypothesis_id is not None:
-                if (
-                    leg_index != 0
-                    or required_airports is None
-                    or len(required_airports) < 3
-                    or required_airports[0] != origin
-                    or required_airports[1] != offer_destination
-                ):
-                    continue
-                queue.append(
-                    (
-                        [offer],
-                        {origin, offer_destination},
-                        hypothesis_id,
-                        required_airports,
-                        1,
-                    )
-                )
-                continue
-            queue.append(([offer], {origin, offer_destination}, None, None, None))
-
-    while queue:
-        path, visited_airports, hypothesis_id, required_airports, next_leg_index = (
-            queue.pop(0)
-        )
-        last_destination = _normalize_code(path[-1].get("destination"))
-        complete_hypothesis = (
-            hypothesis_id is not None
-            and required_airports is not None
-            and next_leg_index == len(required_airports) - 1
-            and len(path) == len(required_airports) - 1
-        )
-        if last_destination in destination_codes and (
-            complete_hypothesis or (hypothesis_id is None and len(path) >= 2)
-        ):
-            candidate = _candidate_from_offer_path(
-                path,
-                edges_by_id,
-                direction=direction,
-                requested_origin=requested_origin,
-                requested_destination=requested_destination,
-                requested_origin_airports=requested_origin_airports,
-                requested_destination_airports=requested_destination_airports,
-            )
-            if candidate.get("price") is not None:
-                candidates.append(candidate)
-            continue
-        if len(path) >= max_offers:
-            continue
-        used_offer_ids = {str(offer.get("id") or "") for offer in path}
-        for next_offer in by_origin.get(last_destination, []):
-            next_offer_id = str(next_offer.get("id") or "")
-            if next_offer_id in used_offer_ids:
-                continue
-            next_destination = _normalize_code(next_offer.get("destination"))
-            if not next_destination:
-                continue
-            (
-                next_hypothesis_id,
-                next_required_airports,
-                next_offer_leg_index,
-            ) = _route_hypothesis_fields(next_offer)
-            if hypothesis_id is not None:
-                if (
-                    next_hypothesis_id != hypothesis_id
-                    or next_required_airports != required_airports
-                    or next_offer_leg_index != next_leg_index
-                    or required_airports is None
-                    or next_leg_index is None
-                    or next_leg_index >= len(required_airports) - 1
-                    or next_destination != required_airports[next_leg_index + 1]
-                ):
-                    continue
-            elif next_hypothesis_id is not None:
-                continue
-            if (
-                next_destination in visited_airports
-                and next_destination not in destination_codes
-            ):
-                continue
-            queue.append(
-                (
-                    [*path, next_offer],
-                    {*visited_airports, next_destination},
-                    hypothesis_id,
-                    required_airports,
-                    next_leg_index + 1 if next_leg_index is not None else None,
-                )
-            )
-    return candidates
-
-
-def _route_hypothesis_fields(
-    offer: dict[str, Any],
-) -> tuple[str | None, tuple[str, ...] | None, int | None]:
-    hypothesis_id = str(offer.get("hypothesis_id") or "").strip() or None
-    if hypothesis_id is None:
-        return None, None, None
-    required_airports = tuple(
-        code
-        for code in (
-            _normalize_code(value) for value in offer.get("required_airports") or []
-        )
-        if code
-    )
-    try:
-        leg_index = int(offer.get("leg_index"))
-    except (TypeError, ValueError):
-        leg_index = None
-    return hypothesis_id, required_airports or None, leg_index
-
-
-def _candidate_from_offer_path(
-    path: list[dict[str, Any]],
-    edges_by_id: dict[str, dict[str, Any]],
-    *,
-    direction: str,
-    requested_origin: str | None,
-    requested_destination: str | None,
-    requested_origin_airports: list[str] | None,
-    requested_destination_airports: list[str] | None,
-) -> dict[str, Any]:
-    edge_ids = [
-        str(edge_id)
-        for offer in path
-        for edge_id in offer.get("edge_ids") or []
-        if str(edge_id)
-    ]
-    offer_ids = [offer.get("id") for offer in path]
-    segments = _segments_for_edge_ids(edge_ids, edges_by_id)
-    price, currency, price_basis, price_warnings = _summed_leg_price(path)
-    detail_status = _combined_detail_status(path)
-    route = _route_from_segments(segments)
-    gateways = _ordered_unique([offer.get("gateway") for offer in path])
-    journeys = _journeys_from_segments(segments, direction=direction)
-    if not gateways and len(route) > 2:
-        gateways = route[1:-1]
-    warnings = [
-        "separate_ticket_connection_unverified",
-        *price_warnings,
-        *_candidate_warnings(
-            {
-                "warnings": [
-                    warning
-                    for offer in path
-                    for warning in (offer.get("warnings") or [])
-                ]
-            },
-            detail_status=detail_status,
-        ),
-    ]
-    return {
-        "id": _stable_id("candidate", "path", *offer_ids),
-        "source_type": "gateway_separate_ticket",
-        "provider": None,
-        "source_providers": _ordered_unique([offer.get("provider") for offer in path]),
-        "gateway": gateways[0] if len(gateways) == 1 else None,
-        "gateways": gateways,
-        "covers_requested_trip": _covers_requested_trip(
-            segments,
-            {},
-            journeys=journeys,
-            requested_origin=requested_origin,
-            requested_destination=requested_destination,
-            requested_origin_airports=requested_origin_airports,
-            requested_destination_airports=requested_destination_airports,
-            detail_status=detail_status,
-        ),
-        "journey_scope": "one_way",
-        "price": price,
-        "currency": currency,
-        "price_basis": price_basis,
-        "ticketing_model": "separate_ticket_sum",
-        "ticketing_boundaries": _ordered_unique(
-            [offer.get("ticketing_boundary") for offer in path]
-        ),
-        "detail_status": detail_status,
-        "journeys": journeys,
-        "warnings": _ordered_unique(warnings),
-        "offer_ids": offer_ids,
-        "edge_ids": edge_ids,
-        "path_offer_count": len(path),
-        "hypothesis_ids": _ordered_unique(
-            [offer.get("hypothesis_id") for offer in path]
-        ),
     }
 
 
@@ -527,8 +238,6 @@ def _directions_with_direct(candidates: list[dict[str, Any]]) -> set[str]:
     """Направления, на которых среди кандидатов есть прямой рейс."""
     directions: set[str] = set()
     for candidate in candidates:
-        if candidate.get("source_type") == "gateway_separate_ticket":
-            continue
         journeys = candidate.get("journeys")
         if not isinstance(journeys, list):
             continue
@@ -592,8 +301,6 @@ def _segments_for_edge_ids(
                     "offer_id": edge.get("offer_id"),
                     "edge_id": edge.get("id"),
                     "sequence": edge.get("sequence", index),
-                    "gateway": edge.get("gateway"),
-                    "leg_role": edge.get("leg_role"),
                     "source_type": edge.get("source_type"),
                     "ticketing_boundary": edge.get("ticketing_boundary"),
                     "ticketing_model": edge.get("ticketing_model"),
@@ -650,15 +357,6 @@ def _candidate_detail_status(
     if explicit in {"full", "summary_only", "missing"}:
         return explicit
     return "full" if segments else "summary_only"
-
-
-def _combined_detail_status(offers: list[dict[str, Any]]) -> str:
-    statuses = [_candidate_detail_status(offer, []) for offer in offers]
-    if any(status == "missing" for status in statuses):
-        return "missing"
-    if any(status == "summary_only" for status in statuses):
-        return "summary_only"
-    return "full"
 
 
 def _candidate_warnings(offer: dict[str, Any], *, detail_status: str) -> list[str]:
@@ -727,29 +425,6 @@ def _covers_requested_trip(
     if destination_codes and route_destination not in destination_codes:
         return False
     return bool(route_origin and route_destination)
-
-
-def _summed_leg_price(
-    offers: list[dict[str, Any]],
-) -> tuple[int | float | None, str | None, str, list[str]]:
-    amounts = [_price_amount(offer) for offer in offers]
-    currencies = [_currency(offer) for offer in offers]
-    warnings: list[str] = []
-    if any(amount is None for amount in amounts):
-        warnings.append("leg_price_missing")
-        return None, None, "unknown", warnings
-    normalized_currencies = [currency for currency in currencies if currency]
-    if len(set(normalized_currencies)) != 1 or len(normalized_currencies) != len(
-        offers
-    ):
-        warnings.append("leg_currency_mismatch")
-        return None, None, "unknown", warnings
-    return (
-        sum(amount for amount in amounts if amount is not None),
-        normalized_currencies[0],
-        "summed_live_leg_prices",
-        warnings,
-    )
 
 
 __all__ = ["materialize_offer_graph_candidates"]
