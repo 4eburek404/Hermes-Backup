@@ -17,7 +17,6 @@ from ..domain.normalize import numeric_or_none, ordered_unique as _ordered_uniqu
 from ..domain.stop_policy import (
     BUSINESS_DEFAULT_STOP_POLICY,
     select_best_stop_tier,
-    stop_tier,
 )
 from .candidate_scoring import UNKNOWN_RANK_NUMERIC, rank_component
 from .candidate_directness import candidate_is_direct
@@ -45,12 +44,6 @@ def build_decision_frontier(
         if isinstance(candidate, dict)
     ]
     acceptable = [candidate for candidate in ranked if _frontier_acceptable(candidate)]
-    direct_ranked = [
-        candidate for candidate in ranked if candidate_is_direct(candidate)
-    ]
-    direct_acceptable = [
-        candidate for candidate in acceptable if candidate_is_direct(candidate)
-    ]
     eligible_direct = [
         candidate for candidate in acceptable if candidate_is_direct(candidate)
     ]
@@ -84,41 +77,7 @@ def build_decision_frontier(
         selection_reasons=selection_reasons,
     )
 
-    return {
-        "options": selected,
-        "coverage_summary": {
-            "candidate_count": len(ranked),
-            "acceptable_count": len(acceptable),
-            "selected_count": len(selected),
-            "suppressed_by_output_limit_count": max(
-                0, len(selection_pool) - len(selected)
-            ),
-            "rejected_count": len(mixed_candidate_ranking.get("rejected") or []),
-            "direct_option_count": len(direct_ranked),
-            "acceptable_direct_option_count": len(direct_acceptable),
-            "direct_option_count_by_direction": _direct_option_count_by_direction(
-                direct_ranked
-            ),
-            "acceptable_direct_option_count_by_direction": (
-                _direct_option_count_by_direction(direct_acceptable)
-            ),
-            "gateway_alternative_count": _gateway_alternative_count(selection_pool),
-            "source_types": sorted(
-                {
-                    str(candidate.get("source_type"))
-                    for candidate in ranked
-                    if candidate.get("source_type")
-                }
-            ),
-            "selection_roles": sorted(
-                {
-                    role
-                    for option in selected
-                    for role in option.get("selection_reasons") or []
-                }
-            ),
-        },
-    }
+    return {"options": selected}
 
 
 def _frontier_selection_pool(
@@ -466,90 +425,29 @@ def _frontier_options_with_roles(
     return options
 
 
-def _gateway_alternative_count(candidates: list[dict[str, Any]]) -> int:
-    if not candidates:
-        return 0
-    primary = _gateway_signature(candidates[0])
-    return len(
-        {
-            _gateway_signature(candidate)
-            for candidate in candidates
-            if _gateway_signature(candidate) != primary
-        }
-    )
-
-
 def _frontier_acceptable(candidate: dict[str, Any]) -> bool:
     validation = candidate.get("validation")
     return isinstance(validation, dict) and validation.get("status") == "valid"
 
 
 def _frontier_option(candidate: dict[str, Any], role: str) -> dict[str, Any]:
+    # Ровно то, что читает единственный потребитель — `answer_options`;
+    # `rank_reason` дописывает `_frontier_options_with_roles`.
     allowed = (
         "id",
-        "rank",
-        "source_type",
         "provider",
         "source_providers",
-        "covers_requested_trip",
-        "journey_scope",
         "price",
         "currency",
-        "price_basis",
         "ticketing_model",
         "self_transfer",
-        "self_transfer_note",
-        "self_transfer_source",
-        "journey_pairing_model",
-        "direction_pairing",
-        "detail_status",
         "journeys",
-        "warnings",
-        "elapsed_min",
-        "duration_min",
-        "total_duration_min",
-        "connection_risk_score",
         "connection_assessment",
         "ticket_protection",
     )
     option = {key: deepcopy(candidate.get(key)) for key in allowed if key in candidate}
     option["selection_reasons"] = [role]
-    max_connections = _scored_max_connections(candidate)
-    option["connection_count"] = max_connections
-    option["max_connections_per_journey"] = max_connections
-    option["stop_tier"] = stop_tier(max_connections)
-    sources = _evidence_sources(candidate)
-    if sources:
-        option["evidence_sources"] = sources
     return option
-
-
-def _evidence_sources(candidate: dict[str, Any]) -> list[dict[str, Any]]:
-    sources = [_evidence_source(candidate)]
-    for source in candidate.get("alternate_sources") or []:
-        if isinstance(source, dict):
-            sources.append(_evidence_source(source))
-    return [
-        source
-        for source in sources
-        if source.get("source_type") or source.get("source_providers")
-    ]
-
-
-def _evidence_source(candidate: dict[str, Any]) -> dict[str, Any]:
-    return {
-        key: deepcopy(candidate.get(key))
-        for key in (
-            "source_type",
-            "provider",
-            "source_providers",
-            "price",
-            "currency",
-            "price_basis",
-            "ticketing_model",
-        )
-        if key in candidate
-    }
 
 
 def _min_finite(
@@ -572,25 +470,6 @@ def _min_finite(
 def _scored_max_connections(candidate: dict[str, Any]) -> int:
     value = numeric_or_none(candidate.get("max_connections_per_journey"))
     return max(0, int(value)) if value is not None else 0
-
-
-def _direct_option_count_by_direction(
-    candidates: list[dict[str, Any]],
-) -> dict[str, int]:
-    counts: dict[str, int] = {}
-    for candidate in candidates:
-        if not candidate_is_direct(candidate):
-            continue
-        groups = _candidate_segment_groups(candidate)
-        if not groups:
-            counts["itinerary"] = counts.get("itinerary", 0) + 1
-            continue
-        for _, direction, segments in groups:
-            if len(segments) != 1:
-                continue
-            key = str(direction or "itinerary")
-            counts[key] = counts.get(key, 0) + 1
-    return counts
 
 
 __all__ = [

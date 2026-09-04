@@ -10,47 +10,6 @@ from flights_cli.pipeline.offer_graph_materializer import (
 from flights_cli.pipeline.offer_graph_model import OFFER_GRAPH_SCHEMA_VERSION
 
 
-def gateway_leg_result(
-    *,
-    leg: str,
-    origin: str,
-    destination: str,
-    offer_id: str,
-    departure_at: str,
-    arrival_at: str,
-) -> dict:
-    return {
-        "leg": leg,
-        "origin": origin,
-        "destination": destination,
-        "provider": "tutu",
-        "status": "ok",
-        "execution_state": "searched",
-        "offer_count": 1,
-        "offers": [
-            {
-                "id": offer_id,
-                "price": 10000,
-                "currency": "RUB",
-                "journeys": [
-                    {
-                        # A one-way provider labels every standalone query outbound.
-                        "direction": "outbound",
-                        "segments": [
-                            {
-                                "origin": origin,
-                                "destination": destination,
-                                "departure_at": departure_at,
-                                "arrival_at": arrival_at,
-                            }
-                        ],
-                    }
-                ],
-            }
-        ],
-    }
-
-
 class OfferGraphTests(unittest.TestCase):
     def graph_with_two_provider_sources(
         self,

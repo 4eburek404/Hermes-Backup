@@ -123,59 +123,6 @@ def round_trip_candidate(
     }
 
 
-def outbound_via_ist(
-    candidate_id: str,
-    *,
-    price: int,
-    layover_min: int,
-) -> dict:
-    first_departure = datetime(2026, 9, 20, 5, tzinfo=timezone.utc)
-    first_arrival = first_departure + timedelta(hours=3)
-    second_departure = first_arrival + timedelta(minutes=layover_min)
-    second_arrival = second_departure + timedelta(hours=3)
-    return candidate(
-        candidate_id,
-        source_type="provider_full_route",
-        price=price,
-        ticketing_model="provider_order_unverified",
-        segments=[
-            segment(
-                "SVX",
-                "IST",
-                depart=first_departure.isoformat(),
-                arrive=first_arrival.isoformat(),
-            ),
-            segment(
-                "IST",
-                "FRA",
-                depart=second_departure.isoformat(),
-                arrive=second_arrival.isoformat(),
-            ),
-        ],
-    )
-
-
-def return_from_fra(candidate_id: str, *, price: int, slot: int = 0) -> dict:
-    departure = datetime(2026, 9, 30, 6, tzinfo=timezone.utc) + timedelta(
-        minutes=30 * slot
-    )
-    return candidate(
-        candidate_id,
-        source_type="provider_full_route",
-        price=price,
-        ticketing_model="provider_order_unverified",
-        segments=[
-            segment(
-                "FRA",
-                "SVX",
-                depart=departure.isoformat(),
-                arrive=(departure + timedelta(hours=5)).isoformat(),
-            )
-        ],
-        direction="return",
-    )
-
-
 class CandidateRankerTests(unittest.TestCase):
     def test_missing_arrival_time_is_authoritatively_invalid(self) -> None:
         malformed = candidate(
@@ -547,10 +494,6 @@ class CandidateRankerTests(unittest.TestCase):
         self.assertIn("direct", by_id)
         self.assertIn("best_viable", by_id["direct"]["selection_reasons"])
         self.assertEqual(by_id["direct"]["selection_reasons"], ["best_viable"])
-        self.assertEqual(
-            frontier["coverage_summary"]["direct_option_count_by_direction"],
-            {"outbound": 1},
-        )
 
     def test_direct_inventory_respects_shared_output_limit_after_merge(self) -> None:
         direct = [
@@ -572,10 +515,6 @@ class CandidateRankerTests(unittest.TestCase):
         self.assertEqual(
             [option["id"] for option in frontier["options"]],
             ["direct-0", "direct-1"],
-        )
-        self.assertEqual(frontier["coverage_summary"]["selected_count"], 2)
-        self.assertEqual(
-            frontier["coverage_summary"]["suppressed_by_output_limit_count"], 1
         )
 
     def test_direct_options_bypass_gateway_pareto_and_diversity(self) -> None:
@@ -646,7 +585,7 @@ class CandidateRankerTests(unittest.TestCase):
             by_id["gateway-dxb"]["selection_reasons"],
         )
 
-    def test_frontier_coverage_summary_counts_representatives(self) -> None:
+    def test_frontier_drops_candidate_that_does_not_cover_the_trip(self) -> None:
         provider = candidate(
             "provider",
             source_type="provider_full_route",
@@ -667,37 +606,8 @@ class CandidateRankerTests(unittest.TestCase):
             rank_mixed_candidates({"candidates": [impossible, provider]})
         )
 
-        summary = frontier["coverage_summary"]
-        self.assertEqual(summary["candidate_count"], 2)
-        self.assertEqual(summary["acceptable_count"], 1)
-        self.assertEqual(summary["selected_count"], 1)
-        self.assertEqual(summary["selection_roles"], ["best_viable"])
-
-    def test_direct_output_limit_reports_suppressed_count(self) -> None:
-        candidates = [
-            candidate(
-                f"direct-{index}",
-                source_type="direct_inventory",
-                price=50_000 + index,
-                ticketing_model="provider_order_unverified",
-                segments=[segment("SVX", "CDG")],
-            )
-            for index in range(3)
-        ]
-
-        frontier = build_decision_frontier(
-            rank_mixed_candidates({"candidates": candidates}),
-            max_options=2,
-        )
-
-        self.assertEqual(
-            [option["id"] for option in frontier["options"]],
-            ["direct-0", "direct-1"],
-        )
-        self.assertEqual(frontier["coverage_summary"]["selected_count"], 2)
-        self.assertEqual(
-            frontier["coverage_summary"]["suppressed_by_output_limit_count"], 1
-        )
+        self.assertEqual([option["id"] for option in frontier["options"]], ["provider"])
+        self.assertEqual(frontier["options"][0]["selection_reasons"], ["best_viable"])
 
     def test_invalid_chronology_is_rejected_before_frontier(self) -> None:
         viable = candidate(
