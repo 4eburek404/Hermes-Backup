@@ -31,10 +31,13 @@ Each connection is described once: airport, minutes, comfort, and the required
 minimum where the policy knows it.
 
 `ticketing.model` says whether this is one provider order or a route assembled
-from separate offers. The three protection fields — `single_pnr`,
-`through_baggage`, `self_transfer` — appear **only when the option has more
-than one flight**. A single direct flight has nothing to come apart, so it
-states no protection at all rather than reporting it unproven.
+from separate offers. The protection fields appear only where there is
+something to protect. `through_baggage` and `self_transfer` are properties of a
+transfer: without a connection inside a leg they are absent, not "unproven" —
+nothing is carried through and there is no connection to miss. Counting flights
+is not the test: an outbound and a return are two flights but not a connection.
+`single_pnr` appears where there is a connection, and on an assembled route,
+where the order really does come apart into several.
 
 `rank_reason.code` says why the option sits where it does: it is read off the
 ranking key by comparing the option with the one above it. The ranking key

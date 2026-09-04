@@ -6,10 +6,13 @@
 раз: `layovers` и `connection_assessment.connections` были двумя записями
 одного и того же.
 
-Два поля исчезли не как «неизвестные», а как неприменимые. У прямого
-перелёта единым билетом нечего защищать, поэтому `single_pnr`,
-`through_baggage` и `self_transfer` там просто отсутствуют — раньше он
-получал `single_pnr_unproven` наравне со стыковочным. А `baggage` не
+Два поля исчезли не как «неизвестные», а как неприменимые. Защищать нечего
+там, где нет пересадки, поэтому `through_baggage` и `self_transfer`
+отсутствуют у маршрута без стыка — раньше прямой перелёт получал
+`through_baggage_unproven` наравне со стыковочным. Считать при этом рейсы
+целиком нельзя: туда и обратно — два рейса, но не стык. `single_pnr`
+переживает отсутствие пересадки только у собранного маршрута: там заказов
+действительно несколько. А `baggage` не
 производит никто: ни один парсер провайдера не читает багаж, и объект из
 четырёх полей всегда собирался из умолчаний. Осталось предупреждение
 `baggage_unknown` — это правда, а не подстановка.
@@ -71,8 +74,7 @@ def _option(source: dict[str, Any], *, number: int, round_trip: bool) -> dict[st
     outbound = _leg(source, "outbound", assessment)
     inbound = _leg(source, "return", assessment)
     legs = [leg for leg in (outbound, inbound) if leg]
-    flight_count = sum(len(leg["segments"]) for leg in legs)
-    ticketing = _ticketing(source, flight_count=flight_count)
+    ticketing = _ticketing(source, has_transfer=_has_transfer(legs))
     price = source.get("price")
     return {
         "number": number,
@@ -195,7 +197,18 @@ def _connections(
     return connections
 
 
-def _ticketing(source: dict[str, Any], *, flight_count: int) -> dict[str, Any]:
+def _has_transfer(legs: list[dict[str, Any]]) -> bool:
+    """Есть ли в маршруте пересадка — то есть стык внутри одного плеча.
+
+    Считать рейсы целиком нельзя: туда и обратно — это два рейса, но не стык.
+    Между ними проходят сутки, багаж между ними никто не везёт, и опоздать
+    с одного на другой невозможно.
+    """
+
+    return any(len(leg["segments"]) > 1 for leg in legs)
+
+
+def _ticketing(source: dict[str, Any], *, has_transfer: bool) -> dict[str, Any]:
     raw = str(source.get("ticketing_model") or "").strip()
     upstream = (
         source.get("ticket_protection")
@@ -215,10 +228,15 @@ def _ticketing(source: dict[str, Any], *, flight_count: int) -> dict[str, Any]:
     else:
         model = "unknown"
     ticketing: dict[str, Any] = {"model": model}
-    if flight_count < 2:
-        # Защищать нечего: один рейс не может распасться на два билета.
+    # Единый PNR — вопрос про то, один это заказ или несколько. Он осмыслен
+    # там, где есть стык, и там, где маршрут собран из отдельных предложений.
+    if has_transfer or model == "assembled":
+        ticketing["single_pnr"] = "proven" if status == "protected" else "unproven"
+    if not has_transfer:
+        # Сквозной багаж и срыв стыка — свойства пересадки. Без неё нечего
+        # везти насквозь и не с чего опаздывать, поэтому полей нет, а не
+        # «не подтверждены».
         return ticketing
-    ticketing["single_pnr"] = "proven" if status == "protected" else "unproven"
     ticketing["through_baggage"] = "proven" if status == "protected" else "unproven"
     if status == "unprotected":
         ticketing["self_transfer"] = "yes"

@@ -120,6 +120,38 @@ def direct_option(**overrides: Any) -> dict[str, Any]:
     return option
 
 
+RETURN_SEGMENT = {
+    "flight_number": "SU235",
+    "carrier": "SU",
+    "marketing_carrier": "SU",
+    "operating_carrier": "SU",
+    "origin": "DEL",
+    "destination": "SVX",
+    "departure_at": f"{NEXT_DAY}T14:00:00+05:30",
+    "arrival_at": f"{NEXT_DAY}T19:30:00+05:00",
+    "duration_min": 360,
+}
+
+
+def non_stop_round_trip_option(**overrides: Any) -> dict[str, Any]:
+    """Туда и обратно одним заказом, оба плеча без пересадок.
+
+    Два рейса, но ни одного стыка: считать рейсы целиком здесь нельзя.
+    """
+
+    option = direct_option(
+        id="candidate:primary_offer:tutu:svx-del-round-trip",
+        journey_scope="round_trip",
+        ticketing_model="round_trip_provider_order_unverified",
+        journeys=[
+            {"direction": "outbound", "segments": [DIRECT_SEGMENT]},
+            {"direction": "return", "segments": [RETURN_SEGMENT]},
+        ],
+    )
+    option.update(overrides)
+    return option
+
+
 def probe_ledger(
     *,
     searched: list[str] | None = None,
@@ -187,8 +219,10 @@ __all__ = [
     "NEXT_DAY",
     "DIRECT_SEGMENT",
     "OUTBOUND_SEGMENTS",
+    "RETURN_SEGMENT",
     "connecting_option",
     "direct_option",
+    "non_stop_round_trip_option",
     "probe_ledger",
     "request_payload",
     "valid_result",

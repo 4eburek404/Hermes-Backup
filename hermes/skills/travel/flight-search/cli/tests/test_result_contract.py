@@ -12,6 +12,7 @@ from tests.fixtures.result_fixtures import (
     NEXT_DAY,
     connecting_option,
     direct_option,
+    non_stop_round_trip_option,
     probe_ledger,
     request_payload,
     valid_result,
@@ -198,6 +199,55 @@ class ResultContractTests(unittest.TestCase):
 
         with self.assertRaises(CliError):
             validate_flight_search_result(result)
+
+    def test_non_stop_round_trip_states_no_transfer_protection(self) -> None:
+        # Туда и обратно — два рейса, но не стык. Счёт рейсов целиком давал
+        # здесь 1 + 1 = 2 и требовал оговорок, которых маршруту не с чего иметь.
+        result = valid_result(
+            [non_stop_round_trip_option()],
+            request=request_payload(return_date=NEXT_DAY),
+        )
+        option = result["options"][0]
+
+        self.assertEqual(option["ticketing"], {"model": "provider_order"})
+        self.assertEqual(
+            option["warnings"], ["baggage_unknown", "verify_on_booking_screen"]
+        )
+
+    def test_non_stop_round_trip_cannot_claim_a_transfer_to_protect(self) -> None:
+        result = valid_result(
+            [non_stop_round_trip_option()],
+            request=request_payload(return_date=NEXT_DAY),
+        )
+        result["options"][0]["ticketing"]["through_baggage"] = "unproven"
+        result["options"][0]["warnings"].append("through_baggage_unproven")
+
+        with self.assertRaises(CliError):
+            validate_flight_search_result(result)
+
+    def test_assembled_route_states_single_pnr_without_a_connection(self) -> None:
+        # Единый PNR — вопрос про число заказов: у собранного маршрута он
+        # осмыслен и там, где пересадки нет.
+        result = valid_result(
+            [
+                non_stop_round_trip_option(
+                    ticketing_model="separate_ticket_sum",
+                    ticket_protection={
+                        "status": "unprotected",
+                        "source": "separate_ticket_boundary",
+                        "reasons": ["separate_tickets"],
+                    },
+                )
+            ],
+            request=request_payload(return_date=NEXT_DAY),
+        )
+        option = result["options"][0]
+
+        self.assertEqual(
+            option["ticketing"], {"model": "assembled", "single_pnr": "unproven"}
+        )
+        self.assertNotIn("through_baggage_unproven", option["warnings"])
+        self.assertIn("single_pnr_unproven", option["warnings"])
 
     def test_warnings_must_agree_with_ticketing(self) -> None:
         result = valid_result()

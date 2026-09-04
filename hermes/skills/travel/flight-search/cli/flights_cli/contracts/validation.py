@@ -215,6 +215,8 @@ def _leg_errors(
 
 
 _PROTECTION_FIELDS = ("single_pnr", "through_baggage", "self_transfer")
+# Свойства пересадки: без стыка внутри плеча их не существует.
+_TRANSFER_FIELDS = ("through_baggage", "self_transfer")
 
 
 def flight_search_result_semantic_errors(
@@ -310,7 +312,7 @@ def flight_search_result_semantic_errors(
                 )
             )
 
-        flight_count = 0
+        has_transfer = False
         for direction, expected_from, expected_to in (
             ("outbound", origin_codes, destination_codes),
             ("return", destination_codes, origin_codes),
@@ -332,24 +334,37 @@ def flight_search_result_semantic_errors(
                 expected_destinations=expected_to,
             )
             errors.extend(leg_errors)
-            flight_count += segment_count
+            has_transfer = has_transfer or segment_count > 1
 
         ticketing = (
             option.get("ticketing") if isinstance(option.get("ticketing"), dict) else {}
         )
-        stated = [field for field in _PROTECTION_FIELDS if field in ticketing]
-        if flight_count > 1 and len(stated) != len(_PROTECTION_FIELDS):
+        # Туда и обратно — два рейса, но не стык: везти багаж насквозь и
+        # опаздывать на пересадку там негде.
+        stated_transfer = [field for field in _TRANSFER_FIELDS if field in ticketing]
+        if has_transfer and len(stated_transfer) != len(_TRANSFER_FIELDS):
             errors.append(
                 _semantic_error(
                     f"{path}.ticketing",
-                    "an option with more than one flight must state ticket protection",
+                    "an option with a connection must state transfer protection",
                 )
             )
-        if flight_count <= 1 and stated:
+        if not has_transfer and stated_transfer:
             errors.append(
                 _semantic_error(
                     f"{path}.ticketing",
-                    "a single-flight option has no ticket protection to state",
+                    "an option without a connection has no transfer to protect",
+                )
+            )
+        # Единый PNR — вопрос про число заказов, а не про стык: у собранного
+        # маршрута он осмыслен и без пересадки.
+        assembled = str(ticketing.get("model") or "") == "assembled"
+        if (has_transfer or assembled) != ("single_pnr" in ticketing):
+            errors.append(
+                _semantic_error(
+                    f"{path}.ticketing",
+                    "single_pnr belongs to an option with a connection or "
+                    "assembled from separate offers",
                 )
             )
 

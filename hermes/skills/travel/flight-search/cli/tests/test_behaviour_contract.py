@@ -531,9 +531,25 @@ class RoundTripComposition(unittest.TestCase):
         """Склейки нет — значит нет и оговорки про отдельные билеты."""
         option = list(self.result["options"])[0]
         self.assertEqual(option["ticketing"]["model"], "provider_order")
-        self.assertNotEqual(option["ticketing"]["self_transfer"], "yes")
+        self.assertNotIn("self_transfer", option["ticketing"])
         self.assertNotIn("self_transfer", option["warnings"])
         self.assertNotIn("Отдельные билеты", self.result["rendered_text"])
+
+    def test_non_stop_round_trip_states_no_transfer_protection(self) -> None:
+        """Туда и обратно — два рейса, но не стык.
+
+        Плечи летят без пересадок и в разные дни: везти багаж насквозь
+        негде и опаздывать не с чего. Раньше счёт рейсов целиком давал
+        здесь 1 + 1 = 2 и включал оговорки про единый PNR и сквозной багаж.
+        """
+        option = list(self.result["options"])[0]
+        for direction in ("outbound", "return"):
+            self.assertEqual(len(option["directions"][direction]["segments"]), 1)
+
+        self.assertEqual(option["ticketing"], {"model": "provider_order"})
+        self.assertEqual(
+            option["warnings"], ["baggage_unknown", "verify_on_booking_screen"]
+        )
 
 
 if __name__ == "__main__":
