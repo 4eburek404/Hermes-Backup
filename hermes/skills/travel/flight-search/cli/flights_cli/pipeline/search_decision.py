@@ -4,11 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from ..domain.vocabulary import normalize_direction
-from ..domain.stop_policy import (
-    resolve_stop_policy,
-    stop_policy_payload,
-    stop_policy_status,
-)
+from ..domain.stop_policy import resolve_stop_policy
 from .decision_scorer import DecisionScorer, DecisionScorerOptions
 from .offer_graph_builder import build_offer_graph
 from .offer_graph_materializer import materialize_offer_graph_candidates
@@ -28,8 +24,6 @@ class SearchDecision:
     offer_graph: dict[str, Any]
     offer_candidates: dict[str, Any]
     scored_decisions: dict[str, Any]
-    stop_policy: dict[str, Any]
-    stop_policy_status: dict[str, Any]
 
     @property
     def decision_frontier(self) -> dict[str, Any]:
@@ -109,15 +103,6 @@ class SearchDecisionBuilder:
             offer_graph=offer_graph,
             offer_candidates=offer_candidates,
             scored_decisions=scored_decisions,
-            stop_policy=stop_policy_payload(stop_policy),
-            stop_policy_status=stop_policy_status(
-                list(scored_decisions["decision_frontier"].get("options") or []),
-                ranked_candidates=list(
-                    scored_decisions["mixed_candidate_ranking"].get("ranked_candidates")
-                    or []
-                ),
-                policy=stop_policy,
-            ),
         )
 
 

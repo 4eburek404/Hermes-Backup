@@ -242,49 +242,6 @@ def select_best_stop_tier(
     ]
 
 
-def stop_policy_status(
-    options: list[dict[str, Any]],
-    *,
-    ranked_candidates: list[dict[str, Any]] | None = None,
-    policy: StopPolicy = BUSINESS_DEFAULT_STOP_POLICY,
-) -> dict[str, Any]:
-    connection_counts = [candidate_max_connections(option) for option in options]
-    used_two_stop_tier = (
-        policy.tier2_max_connections > policy.preferred_max_connections
-        and any(
-            policy.preferred_max_connections < count <= policy.tier2_max_connections
-            for count in connection_counts
-        )
-    )
-    suppressed_count = sum(
-        1
-        for candidate in ranked_candidates or []
-        if candidate_max_connections(candidate) > policy.hard_max_connections
-    )
-    return {
-        "policy": policy.name,
-        "max_reported_connections": (
-            policy.tier2_max_connections
-            if used_two_stop_tier
-            else policy.preferred_max_connections
-        ),
-        "used_two_stop_tier": used_two_stop_tier,
-        "three_plus_suppressed_count": suppressed_count,
-        "garbage_options_hidden_from_answer": suppressed_count > 0,
-    }
-
-
-def stop_policy_payload(policy: StopPolicy) -> dict[str, Any]:
-    return {
-        "name": policy.name,
-        "preferred_max_connections": policy.preferred_max_connections,
-        "tier2_max_connections": policy.tier2_max_connections,
-        "hard_max_connections": policy.hard_max_connections,
-        "two_stop_allowed_only_if_no_preferred": policy.allow_two_stop_tier,
-        "three_plus_reportable": not policy.suppress_three_plus,
-    }
-
-
 __all__ = [
     "BUSINESS_DEFAULT_STOP_POLICY",
     "StopPolicy",
@@ -299,7 +256,5 @@ __all__ = [
     "select_best_stop_tier",
     "stop_metrics_from_connection_counts",
     "stop_metrics_from_segments",
-    "stop_policy_payload",
-    "stop_policy_status",
     "stop_tier",
 ]

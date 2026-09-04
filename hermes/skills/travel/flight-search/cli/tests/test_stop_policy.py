@@ -9,7 +9,6 @@ from flights_cli.domain.stop_policy import (
     offer_stop_metrics,
     resolve_stop_policy,
     select_best_stop_tier,
-    stop_policy_status,
     stop_tier,
 )
 
@@ -21,13 +20,10 @@ class StopPolicyTests(unittest.TestCase):
             tier2_max_connections=0,
         )
 
-        status = stop_policy_status(
-            [{"id": "direct", "max_connections_per_journey": 0}],
-            policy=policy,
-        )
-
-        self.assertFalse(status["used_two_stop_tier"])
-        self.assertEqual(status["max_reported_connections"], 0)
+        self.assertFalse(policy.allow_two_stop_tier)
+        self.assertEqual(policy.preferred_max_connections, 0)
+        self.assertEqual(policy.tier2_max_connections, 0)
+        self.assertEqual(policy.hard_max_connections, 0)
 
     def test_request_limits_resolve_once_without_default_policy_override(self) -> None:
         policy = resolve_stop_policy(
@@ -55,22 +51,6 @@ class StopPolicyTests(unittest.TestCase):
         self.assertEqual(stop_tier(1), "T1_ONE_STOP")
         self.assertEqual(stop_tier(2), "T2_TWO_STOP")
         self.assertEqual(stop_tier(3), "T3_THREE_PLUS")
-
-    def test_status_counts_candidates_suppressed_by_hard_cap(self) -> None:
-        status = stop_policy_status(
-            [{"id": "selected", "max_connections_per_journey": 1}],
-            ranked_candidates=[
-                {"id": "selected", "max_connections_per_journey": 1},
-                {
-                    "id": "suppressed",
-                    "journeys": [{"segments": [{}, {}, {}, {}]}],
-                },
-            ],
-        )
-
-        self.assertEqual(status["three_plus_suppressed_count"], 1)
-        self.assertTrue(status["garbage_options_hidden_from_answer"])
-        self.assertEqual(status["max_reported_connections"], 1)
 
     def test_stop_policy_selects_preferred_tier_before_frontier(self) -> None:
         one_stop = {"id": "one", "journeys": [{"segments": [{}, {}]}]}

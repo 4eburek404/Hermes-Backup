@@ -4,8 +4,10 @@ from dataclasses import replace
 from datetime import date
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import patch
 
 from flights_cli.orchestrators.search_plan_builder import SearchPlanBuilder
+from flights_cli.pipeline.decision_scorer import DecisionScorer, DecisionScorerOptions
 from flights_cli.pipeline.result_builder import build_flight_search_result
 from flights_cli.pipeline.candidate_directness import candidate_is_direct
 from flights_cli.pipeline.frontier_selection import build_decision_frontier
@@ -146,17 +148,27 @@ def test_search_decision_uses_plan_limits_when_request_limits_conflict() -> None
     )
     evidence.primary_offer_results[0]["offer_count"] = 2
 
-    decision = SearchDecisionBuilder.build(plan, evidence)
-    scorer = decision.scored_decisions["scorer"]
+    # Пределы читаются у настоящего объекта опций, а не у самоописания,
+    # которое скорер раньше складывал в свой же ответ.
+    captured: list[DecisionScorerOptions] = []
+
+    class _RecordingScorer(DecisionScorer):
+        def __init__(self, options: DecisionScorerOptions) -> None:
+            captured.append(options)
+            super().__init__(options)
+
+    with patch("flights_cli.pipeline.search_decision.DecisionScorer", _RecordingScorer):
+        decision = SearchDecisionBuilder.build(plan, evidence)
 
     assert len(decision.decision_frontier["options"]) == 1
-    assert scorer["max_options"] == 1
-    assert scorer["min_same_airport_connection_min"] == 777
-    assert scorer["max_layover_min"] == 888
-    assert scorer["preferred_layover_max_min"] == 333
-    assert scorer["max_gateway_alternatives"] == 0
-    assert scorer["max_primary_gateway_options"] == 1
-    assert scorer["max_options_per_first_carrier"] == 1
+    (scorer_options,) = captured
+    assert scorer_options.max_options == 1
+    assert scorer_options.min_same_airport_connection_min == 777
+    assert scorer_options.max_layover_min == 888
+    assert scorer_options.preferred_layover_max_min == 333
+    assert scorer_options.max_gateway_alternatives == 0
+    assert scorer_options.max_primary_gateway_options == 1
+    assert scorer_options.max_options_per_first_carrier == 1
 
 
 def test_result_is_built_from_artifacts_without_a_trace() -> None:

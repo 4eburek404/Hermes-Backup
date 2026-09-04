@@ -10,7 +10,6 @@ from flights_cli.adapters.providers.kupibilet_adapter import (
     KupibiletProviderAdapter,
     kupibilet_aggregate_search_summary,
 )
-from flights_cli.orchestrators.search_workflow import SearchWorkflow
 from flights_cli.providers.kupibilet import (
     build_kupibilet_payload,
     cached_kupibilet_search,
@@ -24,11 +23,6 @@ from flights_cli.providers.live_cache import (
 )
 
 from helpers import CliSubprocessMixin, future_departure_date
-
-
-def execute_projection(*args: object, **kwargs: object) -> dict:
-    request, store = args
-    return SearchWorkflow(store).run_artifacts(request).projection_input
 
 
 def airport_scope_raw(rows: list[tuple[str, str, str, int]]) -> dict:

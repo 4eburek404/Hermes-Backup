@@ -79,44 +79,6 @@ class DecisionScorer:
         )
         return {
             "schema_version": DECISION_SCORER_SCHEMA_VERSION,
-            "scorer": {
-                "name": "DecisionScorer",
-                "schema_version": DECISION_SCORER_SCHEMA_VERSION,
-                "round_trip": bool(self.options.round_trip),
-                "max_connections_per_journey": max(
-                    0, int(self.options.max_connections_per_journey)
-                ),
-                "max_connections_per_direction": dict(
-                    self.options.max_connections_per_direction
-                ),
-                "preferred_connections": max(
-                    0, int(self.options.preferred_connections)
-                ),
-                "min_same_airport_connection_min": max(
-                    0, int(self.options.min_same_airport_connection_min)
-                ),
-                "min_cross_airport_connection_min": max(
-                    0, int(self.options.min_cross_airport_connection_min)
-                ),
-                "max_layover_min": max(0, int(self.options.max_layover_min)),
-                "adapters": {
-                    "candidate_ranking": "flight_mixed_candidate_ranking.v1",
-                    "frontier": "flight_decision_frontier.v1",
-                },
-                "max_options": self.options.max_options,
-                "max_gateway_alternatives": max(
-                    0, int(self.options.max_gateway_alternatives)
-                ),
-                "max_primary_gateway_options": max(
-                    0, int(self.options.max_primary_gateway_options)
-                ),
-                "max_options_per_first_carrier": max(
-                    1, int(self.options.max_options_per_first_carrier)
-                ),
-                "preferred_layover_max_min": max(
-                    0, int(self.options.preferred_layover_max_min)
-                ),
-            },
             "mixed_candidate_ranking": ranking,
             "decision_frontier": frontier,
         }
