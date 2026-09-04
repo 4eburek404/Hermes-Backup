@@ -24,9 +24,6 @@ from .frontier_selection import (
 )
 
 
-DECISION_SCORER_SCHEMA_VERSION = "flight_decision_scorer.v1"
-
-
 @dataclass(frozen=True, slots=True)
 class DecisionScorerOptions:
     round_trip: bool = False
@@ -78,7 +75,6 @@ class DecisionScorer:
             preferred_layover_max_min=self.options.preferred_layover_max_min,
         )
         return {
-            "schema_version": DECISION_SCORER_SCHEMA_VERSION,
             "mixed_candidate_ranking": ranking,
             "decision_frontier": frontier,
         }
@@ -123,7 +119,6 @@ def _journeys(candidate: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 __all__ = [
-    "DECISION_SCORER_SCHEMA_VERSION",
     "DecisionScorer",
     "DecisionScorerOptions",
 ]

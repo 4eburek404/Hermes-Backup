@@ -16,7 +16,6 @@ from ..domain.time import minutes_between
 from .candidate_outcome import validate_candidate_envelope
 
 
-MIXED_CANDIDATE_RANKING_SCHEMA_VERSION = "flight_mixed_candidate_ranking.v1"
 UNKNOWN_RANK_NUMERIC = 999_999_999
 MATERIAL_ELAPSED_DELTA_MIN = 60
 
@@ -78,7 +77,6 @@ def score_validated_candidates(
     for index, candidate in enumerate(ranked, start=1):
         candidate["rank"] = index
     return {
-        "schema_version": MIXED_CANDIDATE_RANKING_SCHEMA_VERSION,
         "ranked_candidates": ranked,
         "rejected": deepcopy(validation_envelope.get("rejected") or []),
         "coverage": {
@@ -301,7 +299,6 @@ def rank_component(candidate: dict[str, Any], key: str) -> int | float:
 
 
 __all__ = [
-    "MIXED_CANDIDATE_RANKING_SCHEMA_VERSION",
     "UNKNOWN_RANK_NUMERIC",
     "rank_component",
     "rank_mixed_candidates",

@@ -293,10 +293,6 @@ class LiveRoutePipelineTests(unittest.TestCase):
             [("SVX", "IST"), ("IST", "CDG")],
         )
         mixed_ranking = result.decision.scored_decisions["mixed_candidate_ranking"]
-        self.assertEqual(
-            mixed_ranking["schema_version"],
-            "flight_mixed_candidate_ranking.v1",
-        )
         self.assertEqual(mixed_ranking["ranked_candidates"][0]["rank"], 1)
         self.assertEqual(
             {
@@ -316,7 +312,6 @@ class LiveRoutePipelineTests(unittest.TestCase):
             mixed_ranking["ranked_candidates"][0]["price_basis"], "unknown"
         )
         frontier = result.decision.decision_frontier
-        self.assertEqual(frontier["schema_version"], "flight_decision_frontier.v1")
         self.assertNotIn("rank_components", frontier["options"][0])
         self.assertNotIn("rank_key", frontier["options"][0])
         # Причина ранга уезжает прочтением ключа, а не самим ключом.

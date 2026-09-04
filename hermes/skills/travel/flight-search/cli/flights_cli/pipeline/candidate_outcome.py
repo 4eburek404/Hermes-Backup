@@ -35,9 +35,6 @@ from ..domain.stop_policy import (
 )
 
 
-CANDIDATE_VALIDATION_SCHEMA_VERSION = "flight_candidate_validation.v1"
-
-
 def validate_candidate_envelope(
     candidate_envelope: dict[str, Any],
     *,
@@ -70,7 +67,6 @@ def validate_candidate_envelope(
         if isinstance(candidate, dict)
     ]
     return {
-        "schema_version": CANDIDATE_VALIDATION_SCHEMA_VERSION,
         "candidates": candidates,
         "rejected": deepcopy(candidate_envelope.get("rejected") or []),
         "coverage": {
@@ -171,7 +167,6 @@ def _validate_candidate(
     item["connection_assessment"] = assessment
     item["ticket_protection"] = _ticket_protection(candidate)
     item["validation"] = {
-        "schema_version": CANDIDATE_VALIDATION_SCHEMA_VERSION,
         "status": "invalid" if blocking_reasons else "valid",
         "blocking_reasons": blocking_reasons,
         "connections_over_limit": connections_over_limit,
@@ -318,6 +313,5 @@ def _round_trip_ticketing_model(candidate: dict[str, Any]) -> str:
 
 
 __all__ = [
-    "CANDIDATE_VALIDATION_SCHEMA_VERSION",
     "validate_candidate_envelope",
 ]

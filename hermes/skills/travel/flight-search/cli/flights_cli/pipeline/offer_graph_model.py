@@ -6,7 +6,6 @@ from typing import Any
 
 
 OFFER_GRAPH_SCHEMA_VERSION = "flight_offer_graph.v1"
-OFFER_CANDIDATE_ENVELOPE_SCHEMA_VERSION = "flight_offer_candidate_envelope.v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,7 +25,6 @@ class OfferGraph:
 
 
 __all__ = [
-    "OFFER_CANDIDATE_ENVELOPE_SCHEMA_VERSION",
     "OFFER_GRAPH_SCHEMA_VERSION",
     "OfferGraph",
 ]

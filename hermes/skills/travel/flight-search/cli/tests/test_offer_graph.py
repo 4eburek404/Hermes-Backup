@@ -234,9 +234,6 @@ class OfferGraphTests(unittest.TestCase):
             requested_destination="AMS",
         )
 
-        self.assertEqual(
-            envelope["schema_version"], "flight_offer_candidate_envelope.v1"
-        )
         self.assertEqual(len(envelope["candidates"]), 1)
         candidate = envelope["candidates"][0]
         self.assertEqual(candidate["source_type"], "provider_full_route")

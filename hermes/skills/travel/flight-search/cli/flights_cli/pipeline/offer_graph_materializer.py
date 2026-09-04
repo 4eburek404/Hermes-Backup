@@ -23,7 +23,6 @@ from .candidate_directness import (
     requested_airport_codes as _requested_codes,
 )
 from .offer_graph_merge import dedupe_candidates as _dedupe_candidates
-from .offer_graph_model import OFFER_CANDIDATE_ENVELOPE_SCHEMA_VERSION
 
 
 def _route_from_segments(segments: list[Any]) -> list[str]:
@@ -99,7 +98,6 @@ def materialize_offer_graph_candidates(
     )
     candidates, deduped_count = _dedupe_candidates(candidates)
     return {
-        "schema_version": OFFER_CANDIDATE_ENVELOPE_SCHEMA_VERSION,
         "candidates": candidates,
         "rejected": rejected,
         "coverage": {

@@ -92,7 +92,6 @@ def decision_frontier_from_details(
             {key: value for key, value in option.items() if value is not None}
         )
     return {
-        "schema_version": "flight_decision_frontier.v1",
         "options": options,
         "coverage_summary": {
             "candidate_count": len(options),

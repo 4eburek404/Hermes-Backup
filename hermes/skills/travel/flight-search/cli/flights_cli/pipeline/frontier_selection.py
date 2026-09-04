@@ -23,7 +23,6 @@ from .candidate_scoring import UNKNOWN_RANK_NUMERIC, rank_component
 from .candidate_directness import candidate_is_direct
 
 
-DECISION_FRONTIER_SCHEMA_VERSION = "flight_decision_frontier.v1"
 PREFERRED_LAYOVER_MAX_MIN = DEFAULT_PREFERRED_LAYOVER_MAX_MIN
 DEFAULT_FRONTIER_MAX_OPTIONS = 6
 
@@ -86,7 +85,6 @@ def build_decision_frontier(
     )
 
     return {
-        "schema_version": DECISION_FRONTIER_SCHEMA_VERSION,
         "options": selected,
         "coverage_summary": {
             "candidate_count": len(ranked),
@@ -597,6 +595,5 @@ def _direct_option_count_by_direction(
 
 __all__ = [
     "DEFAULT_FRONTIER_MAX_OPTIONS",
-    "DECISION_FRONTIER_SCHEMA_VERSION",
     "build_decision_frontier",
 ]

@@ -464,7 +464,6 @@ class CandidateRankerTests(unittest.TestCase):
             rank_mixed_candidates({"candidates": [provider]})
         )
 
-        self.assertEqual(frontier["schema_version"], "flight_decision_frontier.v1")
         self.assertEqual(frontier["options"][0]["id"], "provider")
         self.assertEqual(frontier["options"][0]["selection_reasons"], ["best_viable"])
         self.assertNotIn("rank_key", frontier["options"][0])
