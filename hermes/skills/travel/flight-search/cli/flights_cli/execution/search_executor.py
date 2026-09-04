@@ -20,17 +20,12 @@ from ..store import Store
 
 @dataclass
 class SearchExecutionState:
-    """Mutable state for one live search run."""
+    """Mutable state for one live search run: what the providers produced."""
 
-    search_plan: SearchPlan
     primary_offer_results: list[dict[str, Any]] = field(default_factory=list)
     direct_inventory_searches: list[dict[str, Any]] = field(default_factory=list)
     direct_inventory_results: list[dict[str, Any]] = field(default_factory=list)
     probe_ledger: ProbeRunLedger = field(default_factory=ProbeRunLedger)
-
-    @property
-    def route_context(self) -> dict[str, Any]:
-        return self.search_plan.route.to_dict()
 
 
 def _direct_leg_for_direction(direction: Any) -> str:
@@ -145,8 +140,6 @@ class SearchExecutor:
         )
         state.probe_ledger.finalize_unexecuted()
         evidence = SearchEvidence.freeze(
-            search_plan=plan.to_dict(),
-            provider_policy=plan.route.provider_policy,
             primary_offer_results=state.primary_offer_results,
             probe_ledger=state.probe_ledger.to_diagnostics(),
             direct_inventory_searches=state.direct_inventory_searches,
@@ -156,7 +149,6 @@ class SearchExecutor:
 
     def initialize_state(self, plan: SearchPlan) -> SearchExecutionState:
         state = SearchExecutionState(
-            search_plan=plan,
             probe_ledger=ProbeRunLedger(
                 max_physical_attempts=plan.execution_policy.max_provider_attempts
             ),

@@ -200,16 +200,16 @@ class LiveRoutePipelineTests(unittest.TestCase):
             )
 
         self.assertEqual(build_flow.call_count, 1)
-        self.assertEqual(result.evidence.provider_policy, "auto")
-        route_plan = result.evidence.route_context
-        self.assertEqual(route_plan["origin"], "SVX")
-        self.assertEqual(route_plan["destination"], "CDG")
+        # Маршрут читается у плана: свидетельство возит только то, что
+        # произвели провайдеры.
+        route_plan = result.plan.route
+        self.assertEqual(route_plan.provider_policy, "auto")
+        self.assertEqual(route_plan.origin, "SVX")
+        self.assertEqual(route_plan.destination, "CDG")
         self.assertEqual(
-            route_plan["dates"], {"depart": depart.isoformat(), "return": None}
+            dict(route_plan.dates), {"depart": depart.isoformat(), "return": None}
         )
-        self.assertEqual(
-            result.evidence.search_plan["schema_version"], "flight_search_plan.v6"
-        )
+        self.assertEqual(result.plan.schema_version, "flight_search_plan.v6")
         self.assertEqual(result.evidence.direct_inventory_searches, ())
         self.assertIsNone(result.date_window)
 

@@ -16,14 +16,9 @@ from .search_plan import SearchPlan
 
 
 class SearchEvidenceView(Protocol):
-    search_plan: dict[str, Any]
-    provider_policy: str
-    primary_offer_results: tuple[dict[str, Any], ...]
-    probe_ledger: dict[str, Any]
-    direct_inventory_searches: tuple[dict[str, Any], ...]
+    """То, что решение действительно читает у свидетельства, и только это."""
 
-    @property
-    def route_context(self) -> dict[str, Any]: ...
+    primary_offer_results: tuple[dict[str, Any], ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,7 +42,7 @@ class SearchDecisionBuilder:
 
     @staticmethod
     def build(plan: SearchPlan, evidence: SearchEvidenceView) -> SearchDecision:
-        route = evidence.route_context
+        route = plan.route
         stop_policy = resolve_stop_policy(
             max_connections=plan.decision_policy.preferred_connections,
             tier2_max_connections=plan.decision_policy.max_connections_per_journey,
@@ -58,14 +53,12 @@ class SearchDecisionBuilder:
         )
         offer_candidates = materialize_offer_graph_candidates(
             offer_graph,
-            round_trip=bool(plan.route.dates.get("return")),
-            direct_only=bool(route.get("direct_only")),
-            requested_origin=str(route.get("origin") or ""),
-            requested_destination=str(route.get("destination") or ""),
-            requested_origin_airports=list(route.get("origin_airports") or []),
-            requested_destination_airports=list(
-                route.get("destination_airports") or []
-            ),
+            round_trip=bool(route.dates.get("return")),
+            direct_only=route.direct_only,
+            requested_origin=route.origin,
+            requested_destination=route.destination,
+            requested_origin_airports=list(route.origin_airports),
+            requested_destination_airports=list(route.destination_airports),
             requested_dates=_requested_dates(plan),
             max_path_offers=stop_policy.hard_max_connections + 1,
         )
@@ -82,7 +75,7 @@ class SearchDecisionBuilder:
         max_connections_by_direction = {direction: 0 for direction in direct_directions}
         scored_decisions = DecisionScorer(
             DecisionScorerOptions(
-                round_trip=bool(plan.route.dates.get("return")),
+                round_trip=bool(route.dates.get("return")),
                 max_connections_per_journey=(
                     plan.decision_policy.max_connections_per_journey
                 ),

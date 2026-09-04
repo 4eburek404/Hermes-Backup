@@ -22,9 +22,9 @@ from tests.fixtures.result_fixtures import (
 class ResultContractTests(unittest.TestCase):
     def test_search_evidence_is_deeply_frozen(self) -> None:
         evidence = SearchEvidence.freeze(
-            search_plan={"route": {"origin": "SVX", "nested": {"items": [1]}}},
-            provider_policy="tutu",
-            primary_offer_results=[{"offer_count": 0}],
+            primary_offer_results=[
+                {"offer_count": 0, "top_offers": [{"id": "offer-1", "legs": [1]}]}
+            ],
             probe_ledger={
                 "failed_probes": [
                     {
@@ -39,9 +39,9 @@ class ResultContractTests(unittest.TestCase):
         )
 
         with self.assertRaises(TypeError):
-            evidence.route_context["origin"] = "LED"
+            evidence.primary_offer_results[0]["offer_count"] = 1
         with self.assertRaises(TypeError):
-            evidence.route_context["nested"]["items"].append(2)
+            evidence.primary_offer_results[0]["top_offers"][0]["legs"].append(2)
         with self.assertRaises(TypeError):
             evidence.probe_ledger["failed_probes"][0]["error"]["type"] = "other"
 

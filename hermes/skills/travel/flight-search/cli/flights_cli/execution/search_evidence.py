@@ -1,3 +1,11 @@
+"""Свидетельство одного прогона: только то, что произвели провайдеры.
+
+Здесь лежал ещё и сериализованный план — весь `plan.to_dict()`, замороженный
+целиком ради одного ключа `route`. План типизирован и неизменяем сам по себе,
+и до решения он доезжает объектом; второй, словарный, экземпляр того же
+маршрута был копией, способной разойтись с оригиналом.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -10,32 +18,21 @@ from ..domain.immutable import freeze
 class SearchEvidence:
     """Frozen snapshot of all provider execution used by one decision pass."""
 
-    search_plan: dict[str, Any]
-    provider_policy: str
     primary_offer_results: tuple[dict[str, Any], ...]
     probe_ledger: dict[str, Any]
     direct_inventory_searches: tuple[dict[str, Any], ...]
     direct_inventory_results: tuple[dict[str, Any], ...]
 
-    @property
-    def route_context(self) -> dict[str, Any]:
-        context = self.search_plan.get("route")
-        return context if isinstance(context, dict) else {}
-
     @classmethod
     def freeze(
         cls,
         *,
-        search_plan: dict[str, Any],
-        provider_policy: str,
         primary_offer_results: list[dict[str, Any]],
         probe_ledger: dict[str, Any],
         direct_inventory_searches: list[dict[str, Any]],
         direct_inventory_results: list[dict[str, Any]],
     ) -> SearchEvidence:
         return cls(
-            search_plan=freeze(search_plan),
-            provider_policy=str(provider_policy),
             primary_offer_results=tuple(freeze(primary_offer_results)),
             probe_ledger=freeze(probe_ledger),
             direct_inventory_searches=tuple(freeze(direct_inventory_searches)),

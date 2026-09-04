@@ -13,10 +13,7 @@ from typing import Any
 from ..domain.vocabulary import Leg
 
 
-def _window_dates(route: dict[str, Any]) -> list[str]:
-    dates_meta = route.get("dates") if isinstance(route.get("dates"), dict) else {}
-    window_end_text = dates_meta.get("window_end")
-    depart_text = dates_meta.get("depart")
+def _window_dates(depart_text: str | None, window_end_text: str | None) -> list[str]:
     if not window_end_text or not depart_text:
         return []
     try:
@@ -55,7 +52,8 @@ def _date_status(
 
 
 def build_date_window(
-    route: dict[str, Any],
+    depart: str | None,
+    window_end: str | None,
     direct_inventory_searches: list[dict[str, Any]],
     direct_inventory_results: list[dict[str, Any]],
 ) -> dict[str, Any] | None:
@@ -66,7 +64,7 @@ def build_date_window(
     маршрута.
     """
 
-    window = _window_dates(route)
+    window = _window_dates(depart, window_end)
     if not window:
         return None
 

@@ -45,7 +45,8 @@ class SearchWorkflow:
             evidence=evidence,
             decision=decision,
             date_window=build_date_window(
-                evidence.route_context,
+                plan.route.dates.get("depart"),
+                plan.route.dates.get("window_end"),
                 list(evidence.direct_inventory_searches),
                 list(evidence.direct_inventory_results),
             ),

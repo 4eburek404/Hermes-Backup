@@ -17,7 +17,15 @@ from helpers import future_departure_date, live_assembly_args
 
 def _plan(depart: date) -> SimpleNamespace:
     return SimpleNamespace(
-        route=SimpleNamespace(dates={"depart": depart.isoformat(), "return": None}),
+        route=SimpleNamespace(
+            origin="SVX",
+            destination="LED",
+            origin_airports=("SVX",),
+            destination_airports=("LED",),
+            dates={"depart": depart.isoformat(), "return": None},
+            currency="RUB",
+            direct_only=False,
+        ),
         phases=SimpleNamespace(
             primary=(
                 SimpleNamespace(
@@ -44,15 +52,6 @@ def _plan(depart: date) -> SimpleNamespace:
 
 
 def _evidence(depart: date) -> SimpleNamespace:
-    route = {
-        "origin": "SVX",
-        "destination": "LED",
-        "origin_airports": ["SVX"],
-        "destination_airports": ["LED"],
-        "dates": {"depart": depart.isoformat(), "return": None},
-        "currency": "RUB",
-        "direct_only": False,
-    }
     primary_result: dict[str, Any] = {
         "provider": "fake",
         "source_type": "provider_full_route",
@@ -76,12 +75,6 @@ def _evidence(depart: date) -> SimpleNamespace:
         ],
     }
     return SimpleNamespace(
-        route_context=route,
-        search_plan={
-            "schema_version": "flight_search_plan.v6",
-            "route": route,
-        },
-        provider_policy="all",
         primary_offer_results=(primary_result,),
         probe_ledger={
             "planned_probes": [],
