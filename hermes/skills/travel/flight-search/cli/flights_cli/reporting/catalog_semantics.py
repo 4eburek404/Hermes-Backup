@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from ..domain.stop_policy import stop_tier
+from ..domain.stop_policy import stop_metrics_from_segments, stop_tier
 
 _PROVEN_TICKETING_MODELS = frozenset(
     {
@@ -30,6 +30,12 @@ _SEPARATE_ONE_WAY_MODELS = frozenset({"one_way_sum", "separate_one_way_offers"})
 _SEPARATE_SEGMENT_MODELS = frozenset(
     {"gateway_separate_ticket", "separate_segments", "separate_ticket_sum"}
 )
+_UNSETTLED_PROTECTION_STATUSES = frozenset({"unproven", "unknown"})
+_UNKNOWN_TRANSFER_TOPOLOGY = {
+    "proven": False,
+    "max_connections": None,
+    "journey_count": None,
+}
 
 
 def route_requested_round_trip(route: Mapping[str, Any] | None) -> bool:
@@ -76,6 +82,41 @@ def direction_segments(
     ]
 
 
+def option_transfer_topology(option: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Report what the itinerary itself proves about its transfer boundaries.
+
+    Single PNR, through baggage, and missed-connection protection are transfer
+    questions: they only exist where a journey changes planes. ``proven`` stays
+    False whenever the projected detail is too thin to rule a transfer out, so
+    a thin option keeps the conservative protection wording.
+    """
+
+    option_map = option if isinstance(option, Mapping) else {}
+    segments = [
+        segment
+        for segment in option_map.get("segments") or []
+        if isinstance(segment, dict)
+    ]
+    detail_status = str(option_map.get("detail_status") or "").strip().lower()
+    if not segments or detail_status not in ("", "full"):
+        return dict(_UNKNOWN_TRANSFER_TOPOLOGY)
+    metrics = stop_metrics_from_segments(segments)
+    return {
+        "proven": True,
+        "max_connections": int(metrics["max_connections_per_journey"]),
+        "journey_count": len(metrics["connection_counts_by_journey"]),
+    }
+
+
+def option_has_transfer(topology: Mapping[str, Any] | None) -> bool | None:
+    """Return True/False when the topology is proven, else None for unknown."""
+
+    topology_map = topology if isinstance(topology, Mapping) else {}
+    if not topology_map.get("proven"):
+        return None
+    return int(topology_map.get("max_connections") or 0) > 0
+
+
 def is_provider_aggregate_option(option: dict[str, Any]) -> bool:
     return str(option.get("category") or "") == "provider_aggregate_candidate" or str(
         option.get("id") or ""
@@ -103,7 +144,10 @@ def option_provider_labels(option: dict[str, Any]) -> list[str]:
 
 
 def resolve_ticket_semantics(
-    option: dict[str, Any], *, provider_aggregate: bool
+    option: dict[str, Any],
+    *,
+    provider_aggregate: bool,
+    transfer_topology: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Resolve catalog ticketing, protection, and self-transfer exactly once."""
 
@@ -177,6 +221,13 @@ def resolve_ticket_semantics(
             "purchase_screen_verification_required": True,
         }
 
+    topology = (
+        transfer_topology
+        if isinstance(transfer_topology, Mapping)
+        else option_transfer_topology(option)
+    )
+    _narrow_protection_to_transfer_topology(protection, topology)
+
     return {
         "ticketing_model": ticketing_model,
         "ticket_protection": {
@@ -186,6 +237,24 @@ def resolve_ticket_semantics(
         },
         "protection": protection,
     }
+
+
+def _narrow_protection_to_transfer_topology(
+    protection: dict[str, Any], topology: Mapping[str, Any]
+) -> None:
+    """Mark transfer-only protection facts not applicable on non-stop journeys.
+
+    Nothing is checked through and no connection can be missed when every
+    journey flies non-stop, so answering those questions with "unproven" would
+    report a gap the itinerary does not have.
+    """
+
+    if option_has_transfer(topology) is not False:
+        return
+    protection["through_baggage_status"] = "not_applicable"
+    protection["self_transfer"] = False
+    if int(topology.get("journey_count") or 1) <= 1:
+        protection["single_pnr_status"] = "not_applicable"
 
 
 def infer_journey_scope(option: dict[str, Any], *, is_round_trip_request: bool) -> str:
@@ -216,9 +285,9 @@ def risk_badges(
         badges.append("separate_one_way_offers")
     if ticketing_model == "separate_segments":
         badges.append("separate_segments")
-    if protection.get("single_pnr_status") != "proven":
+    if protection.get("single_pnr_status") in _UNSETTLED_PROTECTION_STATUSES:
         badges.append("single_pnr_unproven")
-    if protection.get("through_baggage_status") != "proven":
+    if protection.get("through_baggage_status") in _UNSETTLED_PROTECTION_STATUSES:
         badges.append("through_baggage_unproven")
     if protection.get("self_transfer") is True:
         badges.append("self_transfer")
@@ -241,8 +310,10 @@ __all__ = [
     "infer_journey_scope",
     "is_provider_aggregate_option",
     "option_direction",
+    "option_has_transfer",
     "option_provider_labels",
     "option_source_type",
+    "option_transfer_topology",
     "resolve_ticket_semantics",
     "risk_badges",
     "route_requested_round_trip",

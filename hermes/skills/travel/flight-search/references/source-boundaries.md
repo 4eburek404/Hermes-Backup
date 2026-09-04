@@ -96,6 +96,28 @@ Hierarchy:
 
 Before presenting a ticketing claim as firm, verify it on the purchase screen or state exactly which tier the report supports. Baggage, recheck, refund, and disruption protection depend on ticketing proof, not only segment timing.
 
+### Transfer scope of the protection claims
+
+Single PNR, through baggage, and missed-connection protection are **transfer**
+claims. They only exist where a journey changes planes, so do not raise them on
+an itinerary that flies non-stop:
+
+- Every journey non-stop: through baggage and connection protection are
+  `not_applicable`, not `unproven`. Nothing is checked through and no
+  connection can be missed. The report omits their risk badges.
+- A single non-stop journey: `single_pnr_status` is `not_applicable` too — one
+  flight is one booking.
+- Round trip summed from two one-way offers, both legs non-stop: the split
+  ticket is still worth stating, but as what it is — separate orders with
+  exchange/refund counted per ticket — not as unproven through baggage or an
+  unprotected connection.
+- Itinerary detail too thin to see the segments: keep the conservative
+  `unproven`/`unknown` wording; absence of visible segments is not proof of a
+  non-stop flight.
+
+The checked-baggage **allowance** is a separate question and stays unknown
+until fare verification, non-stop or not.
+
 Carrier-specific round trips need extra care:
 
 - Direct one-way offers in both directions do **not** prove a round-trip ticket exists on that carrier.
@@ -105,7 +127,9 @@ Carrier-specific round trips need extra care:
 Useful wording:
 
 - `U6 есть на обе стороны, но one-ticket round-trip не подтверждён.`
-- `single PNR/багаж не доказаны — проверить на booking screen.`
+- `single PNR/багаж не доказаны — проверить на booking screen.` (only where a
+  transfer exists; on non-stop legs say `плечи оформляются разными билетами —
+  обмен и возврат по каждому свой` instead)
 
 ## KupiBilet Operational Semantics
 

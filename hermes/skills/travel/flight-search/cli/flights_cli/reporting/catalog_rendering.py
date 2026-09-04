@@ -16,6 +16,7 @@ from .time_utils import integer_or_none as int_or_none
 _SELF_TRANSFER_CAVEAT = (
     "Отдельные билеты: при задержке первого рейса следующий сегмент не защищён."
 )
+_NO_TRANSFER_CLAUSE = "пересадок нет - сквозной багаж и защита стыка неприменимы"
 FRONTIER_TICKETING_NOTE = (
     "Verify final fare, baggage, ticket protection, and purchase-screen rules "
     "before booking."
@@ -74,12 +75,14 @@ def source_ticketing_note(
     journey_scope: str,
     ticketing_model: str,
     max_connections: int,
+    has_transfer: bool | None = None,
 ) -> str:
     source_type = option_source_type(option)
     raw_ticketing = str(option.get("ticketing_model") or "").strip()
     price_basis = str(option.get("price_basis") or "").strip()
     provider = provider_label(option)
     gateway = str(option.get("gateway") or "").strip()
+    non_stop = has_transfer is False
 
     if ticketing_model == "single_ticket_proven":
         return (
@@ -91,6 +94,15 @@ def source_ticketing_note(
         journey_scope == "two_one_way_pair"
         or ticketing_model == "separate_one_way_offers"
     ):
+        if non_stop:
+            return (
+                "источник: две отдельные one-way выдачи; "
+                "цена - сумма отдельных one-way; "
+                "плечи оформляются разными билетами - обмен и возврат "
+                "считаются по каждому отдельно; "
+                f"{_NO_TRANSFER_CLAUSE}; "
+                "норму багажа и финальный тариф проверить на booking screen"
+            )
         return (
             "источник: две отдельные one-way выдачи; "
             "цена - сумма отдельных one-way; "
@@ -115,12 +127,18 @@ def source_ticketing_note(
             if price_basis in ("", "provider_offer_price")
             else "цену проверить у поставщика"
         )
+        if non_stop:
+            return (
+                f"источник: полный маршрут от {provider}; {price_text}; "
+                f"{_NO_TRANSFER_CLAUSE}; "
+                "норму багажа и финальный тариф проверить на booking screen"
+            )
         return (
             f"источник: полный маршрут от {provider}; {price_text}; "
             "единый PNR, сквозной багаж и защита пересадки не подтверждены"
         )
 
-    if source_type == RouteFamily.DIRECT_INVENTORY or max_connections == 0:
+    if source_type == RouteFamily.DIRECT_INVENTORY or non_stop or max_connections == 0:
         return (
             f"источник: прямой инвентарь ({provider}); "
             "финальный тариф и багаж проверить на booking screen"

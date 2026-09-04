@@ -9,6 +9,8 @@ from .catalog_semantics import (
     infer_journey_scope,
     is_provider_aggregate_option,
     option_direction,
+    option_has_transfer,
+    option_transfer_topology,
     resolve_ticket_semantics,
     risk_badges,
 )
@@ -158,8 +160,11 @@ def catalog_item(
         option, is_round_trip_request=is_round_trip_request
     )
     provider_aggregate = is_provider_aggregate_option(option)
+    transfer_topology = option_transfer_topology(option)
     ticket_semantics = resolve_ticket_semantics(
-        option, provider_aggregate=provider_aggregate
+        option,
+        provider_aggregate=provider_aggregate,
+        transfer_topology=transfer_topology,
     )
     ticketing_model = str(ticket_semantics["ticketing_model"])
     ticket_protection = dict(ticket_semantics["ticket_protection"])
@@ -177,6 +182,7 @@ def catalog_item(
         journey_scope=journey_scope,
         ticketing_model=ticketing_model,
         max_connections=max_connections,
+        has_transfer=option_has_transfer(transfer_topology),
     )
     if source_note:
         caveats = list(dict.fromkeys([source_note, *caveats]))

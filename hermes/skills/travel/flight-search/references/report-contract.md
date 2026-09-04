@@ -17,6 +17,16 @@ research_status
 newline. Catalog items contain structured segments, layovers, price, baggage,
 protection, risk, and caveat facts. They do not serialize display mirrors.
 
+Single PNR, through baggage, and missed-connection protection are transfer
+facts. When the projected itinerary proves every journey is non-stop, those
+statuses are `not_applicable` and their risk badges are omitted: a non-stop
+flight has no transfer to protect, so reporting the gap as `unproven` would
+invent a caveat. Statuses stay `unproven`/`unknown` whenever a connection
+exists or the itinerary detail is too thin to rule one out. A round trip summed
+from two one-way offers still reports `single_pnr_status: unproven` — the legs
+are separate orders — while its `through_baggage_status` is `not_applicable`
+when both legs fly non-stop.
+
 `frontier.option_ids` is the decision order. Catalog IDs must match it exactly;
 projection and rendering cannot create, drop, or reorder options.
 
