@@ -93,9 +93,7 @@ def is_cross_ticket_boundary(
         str(previous.get("ticketing_boundary") or ""),
         str(current.get("ticketing_boundary") or ""),
     }
-    if any("separate_ticket" in boundary for boundary in boundaries):
-        return True
-    return str(candidate.get("source_type") or "") == "gateway_separate_ticket"
+    return any("separate_ticket" in boundary for boundary in boundaries)
 
 
 def missing_segment_time_violations(

@@ -27,10 +27,6 @@ def _provider(result: dict[str, Any]) -> str:
 def _ticketing_model_for_boundary(ticketing_boundary: str) -> str:
     if ticketing_boundary == "provider_protected_full_route":
         return "provider_order_unverified"
-    if ticketing_boundary == "separate_ticket_leg":
-        return "separate_ticket_leg"
-    if ticketing_boundary == "separate_ticket_candidate":
-        return "separate_ticket_sum"
     return "unknown"
 
 

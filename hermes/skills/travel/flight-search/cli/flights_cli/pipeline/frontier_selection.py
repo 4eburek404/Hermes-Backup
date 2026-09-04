@@ -516,7 +516,6 @@ def _frontier_option(candidate: dict[str, Any], role: str) -> dict[str, Any]:
         "connection_risk_score",
         "connection_assessment",
         "ticket_protection",
-        "price_comparison",
     )
     option = {key: deepcopy(candidate.get(key)) for key in allowed if key in candidate}
     option["selection_reasons"] = [role]

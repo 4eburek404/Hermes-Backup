@@ -28,8 +28,6 @@ def candidate_is_direct(candidate: Mapping[str, Any]) -> bool:
     journeys = candidate.get("journeys")
     if not isinstance(journeys, list) or not journeys:
         return False
-    if candidate.get("source_type") == "gateway_separate_ticket":
-        return False
     return all(
         isinstance(journey, Mapping)
         and isinstance(journey.get("segments"), list)
@@ -63,10 +61,7 @@ def candidate_direct_mode_violation(
             for segment in journey.get("segments") or []
             if isinstance(segment, Mapping)
         ]
-        if (
-            len(segments) != 1
-            or candidate.get("source_type") == "gateway_separate_ticket"
-        ):
+        if len(segments) != 1:
             return direction
     return None
 

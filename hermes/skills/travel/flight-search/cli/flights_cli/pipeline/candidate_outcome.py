@@ -258,7 +258,6 @@ def candidate_declared_blocking_reasons(candidate: Mapping[str, Any]) -> list[st
 
 def _ticket_protection(candidate: dict[str, Any]) -> dict[str, Any]:
     model = str(candidate.get("ticketing_model") or "unknown")
-    source_type = str(candidate.get("source_type") or "")
     protected_models = {
         "single_pnr_proven",
         "single_ticket_proven",
@@ -268,11 +267,7 @@ def _ticket_protection(candidate: dict[str, Any]) -> dict[str, Any]:
     separate_models = {"separate_ticket_sum"}
     if model in protected_models and _has_ticketing_proof(candidate):
         return {"status": "protected", "source": "provider_proof", "reasons": []}
-    if (
-        candidate.get("self_transfer") is True
-        or model in separate_models
-        or source_type == "gateway_separate_ticket"
-    ):
+    if candidate.get("self_transfer") is True or model in separate_models:
         return {
             "status": "unprotected",
             "source": "separate_ticket_boundary",

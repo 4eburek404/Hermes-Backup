@@ -4,12 +4,10 @@ from copy import deepcopy
 from typing import Any
 
 from ..domain.normalize import (
-    currency_value as _currency,
     normalize_code as _normalize_code,
     normalize_token as _normalize_token,
     numeric_or_none,
     ordered_unique as _ordered_unique,
-    price_amount as _price_amount,
 )
 from ..domain.offer_paths import normalize_direction as _normalize_direction
 
@@ -105,19 +103,12 @@ def _merge_duplicate_candidates(
     primary["edge_ids"] = _ordered_unique(
         [*(primary.get("edge_ids") or []), *(alternate.get("edge_ids") or [])]
     )
-    primary["hypothesis_ids"] = _ordered_unique(
-        [
-            *(primary.get("hypothesis_ids") or []),
-            *(alternate.get("hypothesis_ids") or []),
-        ]
-    )
     primary["warnings"] = _ordered_unique(
         [*(primary.get("warnings") or []), *(alternate.get("warnings") or [])]
     )
     primary["covers_requested_trip"] = bool(
         primary.get("covers_requested_trip") or alternate.get("covers_requested_trip")
     )
-    _attach_price_comparison(primary)
     return primary
 
 
@@ -157,8 +148,6 @@ def _candidate_source_summary(candidate: dict[str, Any]) -> dict[str, Any]:
         "source_type",
         "provider",
         "source_providers",
-        "gateway",
-        "gateways",
         "price",
         "currency",
         "price_basis",
@@ -169,8 +158,6 @@ def _candidate_source_summary(candidate: dict[str, Any]) -> dict[str, Any]:
         "covers_requested_trip",
         "offer_ids",
         "edge_ids",
-        "path_offer_count",
-        "hypothesis_ids",
         "warnings",
     )
     return {key: deepcopy(candidate.get(key)) for key in keys if key in candidate}
@@ -191,53 +178,6 @@ def _dedupe_source_summaries(
         seen.add(key)
         deduped.append(source)
     return deduped
-
-
-def _attach_price_comparison(candidate: dict[str, Any]) -> None:
-    provider_price = _candidate_price_for_basis(candidate, "provider_offer_price")
-    summed_price = _candidate_price_for_basis(candidate, "summed_live_leg_prices")
-    if provider_price is None or summed_price is None:
-        candidate.pop("price_comparison", None)
-        return
-    provider_amount, provider_currency = provider_price
-    summed_amount, summed_currency = summed_price
-    if provider_currency != summed_currency or provider_amount == summed_amount:
-        candidate.pop("price_comparison", None)
-        return
-    candidate["price_comparison"] = {
-        "provider_offer_price": {
-            "amount": provider_amount,
-            "currency": provider_currency,
-        },
-        "summed_live_leg_prices": {
-            "amount": summed_amount,
-            "currency": summed_currency,
-        },
-        "difference": summed_amount - provider_amount,
-        "currency": provider_currency,
-    }
-
-
-def _candidate_price_for_basis(
-    candidate: dict[str, Any],
-    basis: str,
-) -> tuple[int | float, str] | None:
-    sources = [
-        candidate,
-        *[
-            source
-            for source in candidate.get("alternate_sources") or []
-            if isinstance(source, dict)
-        ],
-    ]
-    for source in sources:
-        if source.get("price_basis") != basis:
-            continue
-        amount = _price_amount(source)
-        currency = _currency(source)
-        if amount is not None and currency:
-            return amount, currency
-    return None
 
 
 __all__ = ["dedupe_candidates"]

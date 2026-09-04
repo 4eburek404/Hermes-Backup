@@ -208,8 +208,6 @@ def _source_confidence_penalty(candidate: dict[str, Any]) -> int:
     source_type = str(candidate.get("source_type") or "")
     if source_type in {"provider_full_route", RouteFamily.DIRECT_INVENTORY}:
         return 0
-    if source_type == "gateway_separate_ticket":
-        return 30
     return 50
 
 
