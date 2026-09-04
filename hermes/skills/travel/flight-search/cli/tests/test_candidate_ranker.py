@@ -4,7 +4,6 @@ import unittest
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 
-from flights_cli.domain.vocabulary import RouteFamily
 from flights_cli.pipeline.candidate_scoring import (
     rank_mixed_candidates,
 )
@@ -200,7 +199,9 @@ class CandidateRankerTests(unittest.TestCase):
         self.assertIn("missing_segment_time", ranked["validation"]["blocking_reasons"])
         self.assertEqual(build_decision_frontier(ranking)["options"], [])
 
-    def test_gateway_lower_price_can_beat_provider_full_route(self) -> None:
+    def test_separate_tickets_rank_below_provider_order_even_when_cheaper(
+        self,
+    ) -> None:
         provider = candidate(
             "provider",
             source_type="provider_full_route",
@@ -208,27 +209,23 @@ class CandidateRankerTests(unittest.TestCase):
             ticketing_model="provider_order_unverified",
             segments=[segment("SVX", "IST"), segment("IST", "AMS")],
         )
-        gateway = candidate(
-            "gateway",
-            source_type="gateway_separate_ticket",
+        separate = candidate(
+            "separate",
+            source_type="provider_full_route",
             price=30000,
             ticketing_model="separate_ticket_sum",
             segments=[segment("SVX", "IST"), segment("IST", "AMS")],
         )
 
-        ranking = rank_mixed_candidates({"candidates": [gateway, provider]})
+        ranking = rank_mixed_candidates({"candidates": [separate, provider]})
 
         self.assertEqual(
             [item["id"] for item in ranking["ranked_candidates"]],
-            ["provider", "gateway"],
+            ["provider", "separate"],
         )
         self.assertLess(
-            ranking["ranked_candidates"][0]["rank_components"][
-                "source_confidence_penalty"
-            ],
-            ranking["ranked_candidates"][1]["rank_components"][
-                "source_confidence_penalty"
-            ],
+            ranking["ranked_candidates"][0]["rank_components"]["ticketing_risk_tier"],
+            ranking["ranked_candidates"][1]["rank_components"]["ticketing_risk_tier"],
         )
 
     def test_provider_full_route_does_not_claim_single_pnr_without_proof(self) -> None:
@@ -283,7 +280,7 @@ class CandidateRankerTests(unittest.TestCase):
     def test_direct_inventory_provider_and_gateway_are_all_visible(self) -> None:
         direct = candidate(
             "direct",
-            source_type=RouteFamily.DIRECT_INVENTORY,
+            source_type="provider_full_route",
             price=70000,
             ticketing_model="unknown",
             segments=[segment("SVX", "AMS")],
@@ -537,7 +534,7 @@ class CandidateRankerTests(unittest.TestCase):
         )
         direct = candidate(
             "direct",
-            source_type=RouteFamily.DIRECT_INVENTORY,
+            source_type="provider_full_route",
             price=90000,
             ticketing_model="unknown",
             segments=[segment("SVX", "AMS")],
@@ -560,7 +557,7 @@ class CandidateRankerTests(unittest.TestCase):
         direct = [
             candidate(
                 f"direct-{index}",
-                source_type=RouteFamily.DIRECT_INVENTORY,
+                source_type="provider_full_route",
                 price=10000 + index,
                 ticketing_model="provider_order_unverified",
                 segments=[segment("SVX", "AMS")],
@@ -585,7 +582,7 @@ class CandidateRankerTests(unittest.TestCase):
     def test_direct_options_bypass_gateway_pareto_and_diversity(self) -> None:
         better = candidate(
             "direct-better",
-            source_type=RouteFamily.DIRECT_INVENTORY,
+            source_type="provider_full_route",
             price=20_000,
             ticketing_model="provider_order_unverified",
             segments=[segment("SVX", "AMS", carrier="KL")],
@@ -593,7 +590,7 @@ class CandidateRankerTests(unittest.TestCase):
         )
         dominated = candidate(
             "direct-dominated",
-            source_type=RouteFamily.DIRECT_INVENTORY,
+            source_type="provider_full_route",
             price=30_000,
             ticketing_model="provider_order_unverified",
             segments=[segment("SVX", "AMS", carrier="KL")],

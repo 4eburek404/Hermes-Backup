@@ -112,9 +112,8 @@ def _merge_duplicate_candidates(
     return primary
 
 
-def _candidate_preference(candidate: dict[str, Any]) -> tuple[int, int, int]:
+def _candidate_preference(candidate: dict[str, Any]) -> tuple[int, int]:
     return (
-        1 if candidate.get("source_type") == "provider_full_route" else 0,
         1 if candidate.get("price_basis") == "provider_offer_price" else 0,
         1 if candidate.get("price") is not None else 0,
     )
@@ -152,7 +151,6 @@ def _candidate_source_summary(candidate: dict[str, Any]) -> dict[str, Any]:
         "currency",
         "price_basis",
         "ticketing_model",
-        "ticketing_boundaries",
         "detail_status",
         "journey_scope",
         "covers_requested_trip",

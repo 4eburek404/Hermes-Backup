@@ -221,7 +221,6 @@ def _dominance_values(candidate: dict[str, Any]) -> tuple[int | float, ...]:
     return (
         rank_component(candidate, "connection_risk_score"),
         rank_component(candidate, "ticketing_risk_tier"),
-        rank_component(candidate, "source_confidence_penalty"),
         rank_component(candidate, "price"),
         rank_component(candidate, "elapsed_time"),
     )
@@ -418,11 +417,10 @@ RANK_REASON_BY_RANK_KEY_INDEX: tuple[str, ...] = (
     "connection_comfort",
     "slower",
     "ticketing_risk",
-    "source_confidence",
     "costlier",
     "slower",
 )
-_ELAPSED_RANK_KEY_INDEXES = frozenset({5, 9})
+_ELAPSED_RANK_KEY_INDEXES = frozenset({5, 8})
 
 
 def _rank_key(candidate: dict[str, Any]) -> list[float]:
@@ -495,7 +493,6 @@ def _frontier_option(candidate: dict[str, Any], role: str) -> dict[str, Any]:
         "source_type",
         "provider",
         "source_providers",
-        "gateway",
         "covers_requested_trip",
         "journey_scope",
         "price",
@@ -548,7 +545,6 @@ def _evidence_source(candidate: dict[str, Any]) -> dict[str, Any]:
             "source_type",
             "provider",
             "source_providers",
-            "gateway",
             "price",
             "currency",
             "price_basis",

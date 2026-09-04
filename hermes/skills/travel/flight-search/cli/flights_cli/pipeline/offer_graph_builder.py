@@ -24,12 +24,6 @@ def _provider(result: dict[str, Any]) -> str:
     return str(result.get("provider") or "unknown").strip().lower() or "unknown"
 
 
-def _ticketing_model_for_boundary(ticketing_boundary: str) -> str:
-    if ticketing_boundary == "provider_protected_full_route":
-        return "provider_order_unverified"
-    return "unknown"
-
-
 def _detail_status(offer: dict[str, Any], *, has_edges: bool) -> str:
     explicit = str(offer.get("detail_status") or "").strip().lower()
     if explicit in {"full", "summary_only", "missing"}:
@@ -172,9 +166,6 @@ class OfferGraphBuilder:
                 self._skip("malformed_primary_offer_result")
                 continue
             provider = _provider(result)
-            source_type = str(result.get("source_type") or "provider_full_route")
-            if source_type != "provider_full_route":
-                source_type = "provider_full_route"
             offers = _provider_result_offers(result)
             if offers is None:
                 self._skip("primary_offer_result_missing_offers")
@@ -214,8 +205,6 @@ class OfferGraphBuilder:
                             self._add_route_edges(
                                 offer_id=offer_id,
                                 provider=provider,
-                                source_type=source_type,
-                                ticketing_boundary="provider_protected_full_route",
                                 segments=path["segments"],
                                 direction=path.get("direction"),
                                 source_debug={
@@ -234,14 +223,12 @@ class OfferGraphBuilder:
                         _compact(
                             {
                                 "id": offer_id,
-                                "source_type": source_type,
+                                "source_type": "provider_full_route",
                                 "provider": provider,
                                 "ticketing_boundary": "provider_protected_full_route",
                                 "ticketing_model": str(
                                     offer.get("ticketing_model")
-                                    or _ticketing_model_for_boundary(
-                                        "provider_protected_full_route"
-                                    )
+                                    or "provider_order_unverified"
                                 ),
                                 "origin": _normalize_code(
                                     _segment_origin(first_segments[0])
@@ -293,8 +280,6 @@ class OfferGraphBuilder:
                     edge_ids = self._add_route_edges(
                         offer_id=offer_id,
                         provider=provider,
-                        source_type=source_type,
-                        ticketing_boundary="provider_protected_full_route",
                         segments=segments,
                         direction=path.get("direction"),
                         source_debug={
@@ -310,12 +295,10 @@ class OfferGraphBuilder:
                         _compact(
                             {
                                 "id": offer_id,
-                                "source_type": source_type,
+                                "source_type": "provider_full_route",
                                 "provider": provider,
                                 "ticketing_boundary": "provider_protected_full_route",
-                                "ticketing_model": _ticketing_model_for_boundary(
-                                    "provider_protected_full_route"
-                                ),
+                                "ticketing_model": "provider_order_unverified",
                                 "origin": _normalize_code(_segment_origin(segments[0])),
                                 "destination": _normalize_code(
                                     _segment_destination(segments[-1])
@@ -369,9 +352,7 @@ class OfferGraphBuilder:
                     "source_type": "provider_full_route",
                     "provider": provider,
                     "ticketing_boundary": "provider_protected_full_route",
-                    "ticketing_model": _ticketing_model_for_boundary(
-                        "provider_protected_full_route"
-                    ),
+                    "ticketing_model": "provider_order_unverified",
                     "origin": origin,
                     "destination": destination,
                     "direction": direction,
@@ -422,8 +403,6 @@ class OfferGraphBuilder:
         *,
         offer_id: str,
         provider: str,
-        source_type: str,
-        ticketing_boundary: str,
         segments: list[Any],
         direction: str | None,
         source_debug: dict[str, Any],
@@ -444,12 +423,10 @@ class OfferGraphBuilder:
                     {
                         "id": edge_id,
                         "offer_id": offer_id,
-                        "source_type": source_type,
+                        "source_type": "provider_full_route",
                         "provider": provider,
-                        "ticketing_boundary": ticketing_boundary,
-                        "ticketing_model": _ticketing_model_for_boundary(
-                            ticketing_boundary
-                        ),
+                        "ticketing_boundary": "provider_protected_full_route",
+                        "ticketing_model": "provider_order_unverified",
                         "origin": origin,
                         "destination": destination,
                         "direction": direction,

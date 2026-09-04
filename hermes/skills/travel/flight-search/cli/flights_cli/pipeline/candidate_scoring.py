@@ -13,7 +13,6 @@ from ..domain.connection_policy import (
 from ..domain.normalize import numeric_or_none
 from ..domain.stop_policy import BUSINESS_DEFAULT_STOP_POLICY
 from ..domain.time import minutes_between
-from ..domain.vocabulary import RouteFamily
 from .candidate_outcome import validate_candidate_envelope
 
 
@@ -166,22 +165,10 @@ def _candidate_with_rank_diagnostics(
         "connection_risk_score": _connection_risk_score(
             candidate, connection_assessment
         ),
-        "source_confidence_penalty": _source_confidence_penalty(candidate),
         "price": _price_for_rank(candidate),
         "elapsed_time": _elapsed_time_for_rank(candidate),
     }
     item["rank_components"] = rank_components
-    item["rank_key"] = [
-        rank_components["not_covers_requested_trip"],
-        rank_components["rejected_or_impossible_connection"],
-        rank_components["max_connections_per_journey"],
-        rank_components["connection_risk_score"],
-        rank_components["preferred_connections_per_journey"],
-        rank_components["elapsed_time"],
-        rank_components["price"],
-        rank_components["ticketing_risk_tier"],
-        rank_components["source_confidence_penalty"],
-    ]
     item["ranking_reasons"] = _ranking_reasons(
         item,
         rank_components,
@@ -202,13 +189,6 @@ def _connection_risk_score(
         "unknown": 30,
         "invalid": 100,
     }.get(str(payload.get("comfort") or "unknown"), 30)
-
-
-def _source_confidence_penalty(candidate: dict[str, Any]) -> int:
-    source_type = str(candidate.get("source_type") or "")
-    if source_type in {"provider_full_route", RouteFamily.DIRECT_INVENTORY}:
-        return 0
-    return 50
 
 
 def _price_for_rank(candidate: dict[str, Any]) -> int | float:
@@ -287,7 +267,6 @@ def _quality_ranked_candidates(
             *prefix,
             elapsed_band,
             rank_component(candidate, "ticketing_risk_tier"),
-            rank_component(candidate, "source_confidence_penalty"),
             rank_component(candidate, "price"),
             elapsed,
         ]

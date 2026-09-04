@@ -16,7 +16,7 @@ from ..domain.offer_paths import (
     segment_destination as _segment_destination,
     segment_origin as _segment_origin,
 )
-from ..domain.vocabulary import RouteFamily, normalize_direction as _direction_of
+from ..domain.vocabulary import normalize_direction as _direction_of
 from .candidate_directness import (
     candidate_direct_mode_violation as _candidate_direct_mode_violation,
     candidate_is_direct as _candidate_is_direct,
@@ -132,12 +132,6 @@ def _candidate_from_offer(
     requested_origin_airports: list[str] | None,
     requested_destination_airports: list[str] | None,
 ) -> dict[str, Any]:
-    source_type = str(offer.get("source_type") or "provider_full_route")
-    candidate_source_type = source_type
-    if source_type == RouteFamily.DIRECT_INVENTORY:
-        candidate_source_type = RouteFamily.DIRECT_INVENTORY
-    elif source_type != "provider_full_route":
-        candidate_source_type = "provider_full_route"
     edge_ids = [str(edge_id) for edge_id in offer.get("edge_ids") or []]
     segments = _segments_for_edge_ids(edge_ids, edges_by_id)
     journeys = _journeys_from_segments_by_direction(
@@ -150,7 +144,7 @@ def _candidate_from_offer(
     warnings = _candidate_warnings(offer, detail_status=detail_status)
     return {
         "id": _stable_id("candidate", offer.get("id")),
-        "source_type": candidate_source_type,
+        "source_type": "provider_full_route",
         "provider": offer.get("provider"),
         "source_providers": _ordered_unique([offer.get("provider")]),
         "covers_requested_trip": _covers_requested_trip(
