@@ -87,7 +87,6 @@ def _evidence(depart: date) -> SimpleNamespace:
             "not_executed_probes": [],
             "deduped_probes": [],
         },
-        direct_inventory_searches=(),
     )
 
 

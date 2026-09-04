@@ -7,9 +7,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date, timedelta
 from typing import Any
 
+from ..domain.direct_inventory import DirectInventoryProbe
 from ..domain.vocabulary import Leg
 
 
@@ -54,8 +56,7 @@ def _date_status(
 def build_date_window(
     depart: str | None,
     window_end: str | None,
-    direct_inventory_searches: list[dict[str, Any]],
-    direct_inventory_results: list[dict[str, Any]],
+    direct_inventory: Sequence[DirectInventoryProbe],
 ) -> dict[str, Any] | None:
     """Покрытие окна по дням, или ``None`` для обычного поиска на одну дату.
 
@@ -68,43 +69,32 @@ def build_date_window(
     if not window:
         return None
 
-    probes_by_date: dict[str, list[dict[str, Any]]] = {
+    probes_by_date: dict[str, list[DirectInventoryProbe]] = {
         date_text: [] for date_text in window
     }
-    for item in direct_inventory_searches or []:
-        if not isinstance(item, dict) or item.get("leg") != Leg.DIRECT_OUTBOUND:
+    for probe in direct_inventory:
+        if probe.leg != Leg.DIRECT_OUTBOUND:
             continue
-        date_text = str(item.get("date") or "")
-        if date_text in probes_by_date:
-            probes_by_date[date_text].append(item)
-
-    offer_counts: dict[str, int] = {date_text: 0 for date_text in window}
-    for result in direct_inventory_results or []:
-        if not isinstance(result, dict) or result.get("leg") != Leg.DIRECT_OUTBOUND:
-            continue
-        date_text = str(result.get("date") or "")
-        if date_text not in offer_counts:
-            continue
-        offer_counts[date_text] += sum(
-            1 for offer in result.get("offers") or [] if isinstance(offer, dict)
-        )
+        if probe.date in probes_by_date:
+            probes_by_date[probe.date].append(probe)
 
     dates: list[dict[str, Any]] = []
     for date_text in window:
         probes = probes_by_date[date_text]
-        statuses = [str(item.get("status")) for item in probes]
+        statuses = [probe.status for probe in probes]
+        offer_count = sum(probe.offer_count for probe in probes)
         dates.append(
             {
                 "date": date_text,
                 "status": _date_status(
-                    offer_count=offer_counts[date_text],
+                    offer_count=offer_count,
                     ok_probe_count=statuses.count("ok"),
                     failed_probe_count=sum(
                         1 for status in statuses if status in {"error", "failed"}
                     ),
                     skipped_probe_count=statuses.count("skipped"),
                 ),
-                "offer_count": offer_counts[date_text],
+                "offer_count": offer_count,
             }
         )
     return {"start": window[0], "end": window[-1], "dates": dates}

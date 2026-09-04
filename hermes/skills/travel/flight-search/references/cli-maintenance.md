@@ -57,7 +57,7 @@ CLI envelope types.
   `reporting/evidence.py` (evidence), `reporting/answer_text.py` (rendered
   text), and `reporting/date_window_inventory.py` (per-date window status).
 - Result assembly: `pipeline/result_builder.py`, which takes the request, the
-  frontier options, and the probe ledger — and nothing else.
+  frontier options, the probe ledger, and the date window — and nothing else.
 
 Projection and rendering cannot call providers, inspect cache/storage, rescore,
 or alter frontier order. A segment carries IATA codes, offset-aware times,

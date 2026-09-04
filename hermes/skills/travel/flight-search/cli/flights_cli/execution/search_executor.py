@@ -3,11 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..domain.vocabulary import (
-    Direction,
-    Leg,
-    RouteFamily,
-)
+from ..domain.direct_inventory import DirectInventoryProbe
+from ..domain.vocabulary import Direction, Leg
 from .offer_query_runner import (
     PrimaryOfferQueryOptions,
     run_primary_offer_queries,
@@ -23,8 +20,7 @@ class SearchExecutionState:
     """Mutable state for one live search run: what the providers produced."""
 
     primary_offer_results: list[dict[str, Any]] = field(default_factory=list)
-    direct_inventory_searches: list[dict[str, Any]] = field(default_factory=list)
-    direct_inventory_results: list[dict[str, Any]] = field(default_factory=list)
+    direct_inventory: list[DirectInventoryProbe] = field(default_factory=list)
     probe_ledger: ProbeRunLedger = field(default_factory=ProbeRunLedger)
 
 
@@ -34,10 +30,12 @@ def _direct_leg_for_direction(direction: Any) -> str:
     )
 
 
-def _primary_direct_inventory_searches(
+def _direct_inventory(
     primary_offer_results: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    searches: list[dict[str, Any]] = []
+) -> list[DirectInventoryProbe]:
+    """Прямые пробы прогона, по одной записи на запрос."""
+
+    probes: list[DirectInventoryProbe] = []
     for result in primary_offer_results:
         if not isinstance(result, dict):
             continue
@@ -46,53 +44,19 @@ def _primary_direct_inventory_searches(
         )
         if not bool(filters.get("direct_only")) and not bool(result.get("direct_only")):
             continue
-        searches.append(
-            {
-                "role": RouteFamily.DIRECT_INVENTORY,
-                "leg": _direct_leg_for_direction(result.get("direction")),
-                "direction": result.get("direction") or Direction.OUTBOUND,
-                "origin": result.get("origin"),
-                "destination": result.get("destination"),
-                "date": result.get("date"),
-                "provider": result.get("provider"),
-                "status": result.get("status") or result.get("execution_state"),
-                "offer_count": int(result.get("offer_count") or 0),
-                "raw_offer_count": result.get("raw_offer_count"),
-                "cache_status": result.get("cache_status"),
-                "probe_id": result.get("probe_id"),
-            }
+        probes.append(
+            DirectInventoryProbe(
+                leg=_direct_leg_for_direction(result.get("direction")),
+                date=str(result.get("date") or ""),
+                status=str(result.get("status") or result.get("execution_state") or ""),
+                offer_count=sum(
+                    1
+                    for offer in result.get("top_offers") or []
+                    if isinstance(offer, dict)
+                ),
+            )
         )
-    return searches
-
-
-def _primary_direct_inventory_results(
-    primary_offer_results: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    segment_results: list[dict[str, Any]] = []
-    for result in primary_offer_results:
-        if not isinstance(result, dict):
-            continue
-        filters = (
-            result.get("filters") if isinstance(result.get("filters"), dict) else {}
-        )
-        if not bool(filters.get("direct_only")) and not bool(result.get("direct_only")):
-            continue
-        offers = [
-            offer for offer in result.get("top_offers") or [] if isinstance(offer, dict)
-        ]
-        segment_results.append(
-            {
-                "role": RouteFamily.DIRECT_INVENTORY,
-                "leg": _direct_leg_for_direction(result.get("direction")),
-                "direction": result.get("direction") or Direction.OUTBOUND,
-                "origin": result.get("origin"),
-                "destination": result.get("destination"),
-                "date": result.get("date"),
-                "provider": result.get("provider"),
-                "offers": offers,
-            }
-        )
-    return segment_results
+    return probes
 
 
 class SearchExecutor:
@@ -132,18 +96,12 @@ class SearchExecutor:
             adapter_resolver=self.adapter_resolver,
             probe_ledger=state.probe_ledger,
         )
-        state.direct_inventory_searches = _primary_direct_inventory_searches(
-            state.primary_offer_results
-        )
-        state.direct_inventory_results = _primary_direct_inventory_results(
-            state.primary_offer_results
-        )
+        state.direct_inventory = _direct_inventory(state.primary_offer_results)
         state.probe_ledger.finalize_unexecuted()
         evidence = SearchEvidence.freeze(
             primary_offer_results=state.primary_offer_results,
             probe_ledger=state.probe_ledger.to_diagnostics(),
-            direct_inventory_searches=state.direct_inventory_searches,
-            direct_inventory_results=state.direct_inventory_results,
+            direct_inventory=state.direct_inventory,
         )
         return evidence
 

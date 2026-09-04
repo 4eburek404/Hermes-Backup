@@ -210,7 +210,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
             dict(route_plan.dates), {"depart": depart.isoformat(), "return": None}
         )
         self.assertEqual(result.plan.schema_version, "flight_search_plan.v6")
-        self.assertEqual(result.evidence.direct_inventory_searches, ())
+        self.assertEqual(result.evidence.direct_inventory, ())
         self.assertIsNone(result.date_window)
 
     def test_primary_offer_queries_execute_before_frontier_scoring(self) -> None:

@@ -34,8 +34,7 @@ class ResultContractTests(unittest.TestCase):
                     }
                 ]
             },
-            direct_inventory_searches=[],
-            direct_inventory_results=[],
+            direct_inventory=[],
         )
 
         with self.assertRaises(TypeError):
