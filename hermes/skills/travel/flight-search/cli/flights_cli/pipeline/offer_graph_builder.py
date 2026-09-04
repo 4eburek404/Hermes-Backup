@@ -152,15 +152,9 @@ class OfferGraphBuilder:
         self.offers: list[dict[str, Any]] = []
         self._offer_ids: set[str] = set()
         self._edge_ids: set[str] = set()
-        self.coverage: dict[str, Any] = {
-            "primary_offer_result_count": 0,
-            "provider_full_route_offer_count": 0,
-            "skipped_offer_count": 0,
-            "skipped_reasons": [],
-        }
+        self.coverage: dict[str, Any] = {"skipped_reasons": []}
 
     def add_primary_offer_results(self, results: list[dict[str, Any]]) -> None:
-        self.coverage["primary_offer_result_count"] = len(results)
         for result_index, result in enumerate(results):
             if not isinstance(result, dict):
                 self._skip("malformed_primary_offer_result")
@@ -257,7 +251,6 @@ class OfferGraphBuilder:
                             }
                         )
                     )
-                    self.coverage["provider_full_route_offer_count"] += 1
                     continue
                 for path_index, path in enumerate(paths):
                     segments = path["segments"]
@@ -322,7 +315,6 @@ class OfferGraphBuilder:
                             }
                         )
                     )
-                    self.coverage["provider_full_route_offer_count"] += 1
 
     def _add_primary_summary_offer(
         self,
@@ -374,22 +366,8 @@ class OfferGraphBuilder:
                 }
             )
         )
-        self.coverage["provider_full_route_offer_count"] += 1
 
     def to_graph(self) -> OfferGraph:
-        self.coverage.update(
-            {
-                "offer_count": len(self.offers),
-                "edge_count": len(self.edges),
-                "source_types": sorted(
-                    {
-                        str(offer.get("source_type"))
-                        for offer in self.offers
-                        if offer.get("source_type")
-                    }
-                ),
-            }
-        )
         return OfferGraph(
             edges=self.edges,
             offers=self.offers,
@@ -478,7 +456,6 @@ class OfferGraphBuilder:
         return candidate
 
     def _skip(self, reason: str) -> None:
-        self.coverage["skipped_offer_count"] += 1
         reasons = self.coverage["skipped_reasons"]
         if reason not in reasons:
             reasons.append(reason)

@@ -94,8 +94,8 @@ def test_search_decision_builder_is_a_pure_evidence_projection() -> None:
     depart = future_departure_date()
     decision = SearchDecisionBuilder.build(_plan(depart), _evidence(depart))
 
-    assert decision.offer_graph["coverage"]["offer_count"] == 1
-    assert decision.offer_candidates["coverage"]["candidate_count"] == 1
+    assert len(decision.offer_graph["offers"]) == 1
+    assert len(decision.offer_candidates["candidates"]) == 1
     assert [option["id"] for option in decision.decision_frontier["options"]] == [
         "candidate:primary_offer:fake:fake-direct"
     ]

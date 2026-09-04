@@ -458,10 +458,7 @@ class LiveRoutePipelineTests(unittest.TestCase):
             )
 
         ranking = result.decision.scored_decisions["mixed_candidate_ranking"]
-        coverage = ranking["coverage"]
         ranked = ranking["ranked_candidates"][0]
-        self.assertEqual(coverage["max_connections_per_journey"], 2)
-        self.assertEqual(coverage["preferred_connections_per_journey"], 1)
         self.assertEqual(ranked["rank_components"]["max_connections_per_journey"], 0)
         self.assertEqual(
             ranked["rank_components"]["preferred_connections_per_journey"], 1

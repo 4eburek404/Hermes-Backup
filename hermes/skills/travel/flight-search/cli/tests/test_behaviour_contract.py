@@ -227,20 +227,19 @@ class OfferInvariants(unittest.TestCase):
     def test_same_physical_flight_from_two_providers_becomes_one_option(self) -> None:
         """Межпровайдерная дедупликация: иначе рейс попадёт в ответ дважды."""
         dep, arr = "2026-10-29T06:00:00+05:00", "2026-10-29T06:40:00+03:00"
-        deduped, count = dedupe_candidates(
+        deduped = dedupe_candidates(
             [
                 _candidate("tutu", "SU1400", dep, arr),
                 _candidate("kupibilet", "SU1400", dep, arr),
             ]
         )
         self.assertEqual(len(deduped), 1)
-        self.assertEqual(count, 1)
         self.assertEqual(
             set(deduped[0].get("source_providers") or []), {"tutu", "kupibilet"}
         )
 
     def test_different_flights_are_not_merged(self) -> None:
-        deduped, count = dedupe_candidates(
+        deduped = dedupe_candidates(
             [
                 _candidate(
                     "tutu",
@@ -257,7 +256,6 @@ class OfferInvariants(unittest.TestCase):
             ]
         )
         self.assertEqual(len(deduped), 2)
-        self.assertEqual(count, 0)
 
     def test_provider_round_trip_offer_exposes_both_legs(self) -> None:
         """Обратное плечо живёт в journeys, не в плоском segments."""

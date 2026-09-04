@@ -79,33 +79,6 @@ def score_validated_candidates(
     return {
         "ranked_candidates": ranked,
         "rejected": deepcopy(validation_envelope.get("rejected") or []),
-        "coverage": {
-            "candidate_count": len(ranked),
-            "rejected_count": len(validation_envelope.get("rejected") or []),
-            "max_connections_per_journey": int(
-                (validation_envelope.get("coverage") or {}).get(
-                    "max_connections_per_journey", 0
-                )
-            ),
-            "max_connections_per_direction": dict(
-                (validation_envelope.get("coverage") or {}).get(
-                    "max_connections_per_direction", {}
-                )
-            ),
-            "preferred_connections_per_journey": max(
-                0, int(preferred_connections_per_journey)
-            ),
-            "mct_settings": dict(
-                (validation_envelope.get("coverage") or {}).get("mct_settings", {})
-            ),
-            "source_types": sorted(
-                {
-                    str(candidate.get("source_type"))
-                    for candidate in ranked
-                    if candidate.get("source_type")
-                }
-            ),
-        },
     }
 
 

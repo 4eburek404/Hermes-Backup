@@ -96,27 +96,16 @@ def materialize_offer_graph_candidates(
     candidates, direct_mode = _hide_connections_where_direct_exists(
         candidates, rejected
     )
-    candidates, deduped_count = _dedupe_candidates(candidates)
+    candidates = _dedupe_candidates(candidates)
     return {
         "candidates": candidates,
         "rejected": rejected,
         "coverage": {
-            "candidate_count": len(candidates),
-            "rejected_count": len(rejected),
-            "deduped_count": deduped_count,
-            "direct_only": bool(direct_only),
             "direct_mode": {
                 str(direction): bool(enabled)
                 for direction, enabled in direct_mode.items()
                 if enabled
             },
-            "source_types": sorted(
-                {
-                    str(candidate.get("source_type"))
-                    for candidate in candidates
-                    if candidate.get("source_type")
-                }
-            ),
         },
     }
 

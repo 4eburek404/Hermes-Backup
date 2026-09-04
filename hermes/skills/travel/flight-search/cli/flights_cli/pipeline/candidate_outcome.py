@@ -69,29 +69,6 @@ def validate_candidate_envelope(
     return {
         "candidates": candidates,
         "rejected": deepcopy(candidate_envelope.get("rejected") or []),
-        "coverage": {
-            "candidate_count": len(candidates),
-            "valid_count": sum(
-                1
-                for candidate in candidates
-                if (candidate.get("validation") or {}).get("status") == "valid"
-            ),
-            "invalid_count": sum(
-                1
-                for candidate in candidates
-                if (candidate.get("validation") or {}).get("status") == "invalid"
-            ),
-            "max_connections_per_journey": max(0, int(max_connections_per_journey)),
-            "max_connections_per_direction": directional_caps,
-            "mct_settings": {
-                "min_same_airport_min": connection_policy.min_same_airport_min,
-                "min_cross_airport_min": connection_policy.min_cross_airport_min,
-                "max_layover_min": connection_policy.max_layover_min,
-                "preferred_layover_max_min": (
-                    connection_policy.preferred_layover_max_min
-                ),
-            },
-        },
     }
 
 

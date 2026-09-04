@@ -255,7 +255,7 @@ class CandidateRankerTests(unittest.TestCase):
             [item["id"] for item in ranking["ranked_candidates"]],
             ["direct", "provider", "gateway"],
         )
-        self.assertEqual(ranking["coverage"]["candidate_count"], 3)
+        self.assertEqual(len(ranking["ranked_candidates"]), 3)
 
     def test_impossible_connection_and_connection_limit_are_penalized(self) -> None:
         normal = candidate(
@@ -1355,12 +1355,6 @@ class CandidateRankerTests(unittest.TestCase):
                 "max_connections_per_journey"
             ],
             0,
-        )
-        self.assertEqual(
-            scored["mixed_candidate_ranking"]["coverage"][
-                "max_connections_per_direction"
-            ],
-            {"outbound": 1},
         )
         self.assertIn("provider-round-trip", frontier_ids)
 

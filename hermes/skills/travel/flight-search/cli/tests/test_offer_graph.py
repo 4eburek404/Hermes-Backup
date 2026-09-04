@@ -158,7 +158,7 @@ class OfferGraphTests(unittest.TestCase):
             [(edge["origin"], edge["destination"]) for edge in graph["edges"]],
             [("SVX", "IST"), ("IST", "AMS")],
         )
-        self.assertEqual(graph["coverage"]["provider_full_route_offer_count"], 1)
+        self.assertEqual(len(graph["offers"]), 1)
 
     def test_provider_full_route_materializes_with_provider_price(self) -> None:
         graph = build_offer_graph(
@@ -430,14 +430,14 @@ class OfferGraphTests(unittest.TestCase):
             ],
             [("SVX", "LED", "outbound"), ("LED", "SVX", "return")],
         )
-        self.assertEqual(graph["coverage"]["provider_full_route_offer_count"], 1)
+        self.assertEqual(len(graph["offers"]), 1)
 
         envelope = materialize_offer_graph_candidates(
             graph,
             requested_origin="SVX",
             requested_destination="LED",
         )
-        self.assertEqual(envelope["coverage"]["candidate_count"], 1)
+        self.assertEqual(len(envelope["candidates"]), 1)
         candidate = envelope["candidates"][0]
         self.assertTrue(candidate["covers_requested_trip"])
         self.assertEqual(candidate["journey_scope"], "round_trip")
@@ -496,7 +496,7 @@ class OfferGraphTests(unittest.TestCase):
             requested_origin="SVX",
             requested_destination="LED",
         )
-        self.assertEqual(envelope["coverage"]["candidate_count"], 1)
+        self.assertEqual(len(envelope["candidates"]), 1)
 
     def test_edges_preserve_ticketing_and_carrier_metadata(self) -> None:
         graph = build_offer_graph(
@@ -579,7 +579,7 @@ class OfferGraphTests(unittest.TestCase):
         )
 
         self.assertEqual(envelope["candidates"], [])
-        self.assertEqual(envelope["coverage"]["rejected_count"], 1)
+        self.assertEqual(len(envelope["rejected"]), 1)
         self.assertEqual(
             envelope["rejected"][0]["reason"],
             "direct_only_hard_constraint",
@@ -683,7 +683,7 @@ class OfferGraphTests(unittest.TestCase):
             requested_dates={"outbound": {"2026-08-16", "2026-08-17", "2026-08-18"}},
         )
 
-        self.assertEqual(envelope["coverage"]["candidate_count"], 3)
+        self.assertEqual(len(envelope["candidates"]), 3)
         self.assertEqual(envelope["rejected"], [])
 
     def test_direct_mode_gate_rejects_connected_primary_path_at_materialize(
@@ -929,8 +929,7 @@ class OfferGraphTests(unittest.TestCase):
 
         # Дешёвый вариант выигрывает, дорогой остаётся альтернативным
         # источником: ни один провайдер не прячет предложение другого.
-        self.assertEqual(envelope["coverage"]["candidate_count"], 1)
-        self.assertEqual(envelope["coverage"]["deduped_count"], 1)
+        self.assertEqual(len(envelope["candidates"]), 1)
         candidate = envelope["candidates"][0]
         self.assertEqual(candidate["source_type"], "provider_full_route")
         self.assertEqual(candidate["price"], 39000)
@@ -981,8 +980,7 @@ class OfferGraphTests(unittest.TestCase):
             requested_destination="AMS",
         )
 
-        self.assertEqual(envelope["coverage"]["candidate_count"], 1)
-        self.assertEqual(envelope["coverage"]["deduped_count"], 1)
+        self.assertEqual(len(envelope["candidates"]), 1)
         candidate = envelope["candidates"][0]
         self.assertEqual(candidate["provider"], "kupibilet")
         self.assertEqual(candidate["price"], 39000)
@@ -998,8 +996,7 @@ class OfferGraphTests(unittest.TestCase):
             requested_destination="AMS",
         )
 
-        self.assertEqual(envelope["coverage"]["candidate_count"], 2)
-        self.assertEqual(envelope["coverage"]["deduped_count"], 0)
+        self.assertEqual(len(envelope["candidates"]), 2)
         self.assertEqual(
             [candidate["source_type"] for candidate in envelope["candidates"]],
             ["provider_full_route", "provider_full_route"],
@@ -1017,8 +1014,7 @@ class OfferGraphTests(unittest.TestCase):
             requested_destination="AMS",
         )
 
-        self.assertEqual(envelope["coverage"]["candidate_count"], 1)
-        self.assertEqual(envelope["coverage"]["deduped_count"], 1)
+        self.assertEqual(len(envelope["candidates"]), 1)
         candidate = envelope["candidates"][0]
         self.assertEqual(candidate["source_type"], "provider_full_route")
         self.assertEqual(len(candidate["alternate_sources"]), 1)
@@ -1041,8 +1037,7 @@ class OfferGraphTests(unittest.TestCase):
             requested_destination="AMS",
         )
 
-        self.assertEqual(envelope["coverage"]["candidate_count"], 1)
-        self.assertEqual(envelope["coverage"]["deduped_count"], 1)
+        self.assertEqual(len(envelope["candidates"]), 1)
         candidate = envelope["candidates"][0]
         self.assertEqual(candidate["source_type"], "provider_full_route")
         self.assertEqual(candidate["price_basis"], "provider_offer_price")

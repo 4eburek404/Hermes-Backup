@@ -14,10 +14,9 @@ from ..domain.offer_paths import normalize_direction as _normalize_direction
 
 def dedupe_candidates(
     candidates: list[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], int]:
+) -> list[dict[str, Any]]:
     deduped: list[dict[str, Any]] = []
     signature_index: dict[tuple[tuple[str, ...], ...], int] = {}
-    deduped_count = 0
     for candidate in candidates:
         signature = _candidate_signature(candidate)
         if signature is None:
@@ -32,8 +31,7 @@ def dedupe_candidates(
             deduped[existing_index],
             candidate,
         )
-        deduped_count += 1
-    return deduped, deduped_count
+    return deduped
 
 
 def _candidate_signature(
