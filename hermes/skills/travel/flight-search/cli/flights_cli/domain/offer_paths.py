@@ -56,7 +56,7 @@ def offer_segment_paths(
     journeys = offer.get("journeys")
     paths: list[dict[str, Any]] = []
     if isinstance(journeys, list):
-        for journey_index, journey in enumerate(journeys):
+        for journey in journeys:
             if not isinstance(journey, dict):
                 continue
             segments = segment_dicts(journey.get("segments"))
@@ -67,10 +67,6 @@ def offer_segment_paths(
                     "segments": segments,
                     "direction": normalize_direction(journey.get("direction"))
                     or fallback_direction,
-                    "debug": {
-                        "source_path": "journeys",
-                        "journey_index": journey_index,
-                    },
                 }
             )
     if paths:
@@ -83,6 +79,5 @@ def offer_segment_paths(
             "segments": segments,
             "direction": normalize_direction(offer.get("direction"))
             or fallback_direction,
-            "debug": {"source_path": "segments"},
         }
     ]

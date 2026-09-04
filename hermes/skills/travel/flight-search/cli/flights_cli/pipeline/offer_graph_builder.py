@@ -201,12 +201,6 @@ class OfferGraphBuilder:
                                 provider=provider,
                                 segments=path["segments"],
                                 direction=path.get("direction"),
-                                source_debug={
-                                    "result_index": result_index,
-                                    "offer_index": offer_index,
-                                    **(path.get("debug") or {}),
-                                    "path_index": path_index,
-                                },
                             )
                         )
                     if not edge_ids:
@@ -243,11 +237,6 @@ class OfferGraphBuilder:
                                 ),
                                 "warnings": _warnings(offer),
                                 **_self_transfer_fields(offer),
-                                "source_ref": {
-                                    "result_index": result_index,
-                                    "offer_index": offer_index,
-                                    "provider_offer_id": _offer_id(offer),
-                                },
                             }
                         )
                     )
@@ -275,11 +264,6 @@ class OfferGraphBuilder:
                         provider=provider,
                         segments=segments,
                         direction=path.get("direction"),
-                        source_debug={
-                            "result_index": result_index,
-                            "offer_index": offer_index,
-                            **(path.get("debug") or {}),
-                        },
                     )
                     if not edge_ids:
                         self._skip("primary_offer_no_valid_edges")
@@ -307,11 +291,6 @@ class OfferGraphBuilder:
                                 ),
                                 "warnings": _warnings(offer),
                                 **_self_transfer_fields(offer),
-                                "source_ref": {
-                                    "result_index": result_index,
-                                    "offer_index": offer_index,
-                                    "provider_offer_id": _offer_id(offer),
-                                },
                             }
                         )
                     )
@@ -358,11 +337,6 @@ class OfferGraphBuilder:
                         "summary_only_offer_details",
                     ],
                     **_self_transfer_fields(offer),
-                    "source_ref": {
-                        "result_index": result_index,
-                        "offer_index": offer_index,
-                        "provider_offer_id": _offer_id(offer),
-                    },
                 }
             )
         )
@@ -383,7 +357,6 @@ class OfferGraphBuilder:
         provider: str,
         segments: list[Any],
         direction: str | None,
-        source_debug: dict[str, Any],
     ) -> list[str]:
         edge_ids: list[str] = []
         for index, segment in enumerate(segments):
@@ -428,7 +401,6 @@ class OfferGraphBuilder:
                         ),
                         "departure_at": _time_value(segment, prefix="departure"),
                         "arrival_at": _time_value(segment, prefix="arrival"),
-                        "source_debug": source_debug,
                     }
                 )
             )

@@ -233,7 +233,6 @@ def _quality_ranked_candidates(
             if elapsed >= UNKNOWN_RANK_NUMERIC or fastest >= UNKNOWN_RANK_NUMERIC
             else max(0, int(elapsed - fastest) // MATERIAL_ELAPSED_DELTA_MIN)
         )
-        components["elapsed_time_band"] = elapsed_band
         candidate["rank_key"] = [
             *prefix,
             elapsed_band,

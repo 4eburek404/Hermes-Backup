@@ -214,7 +214,6 @@ def _leg_errors(
     return errors, len(segments)
 
 
-_PROTECTION_FIELDS = ("single_pnr", "through_baggage", "self_transfer")
 # Свойства пересадки: без стыка внутри плеча их не существует.
 _TRANSFER_FIELDS = ("through_baggage", "self_transfer")
 

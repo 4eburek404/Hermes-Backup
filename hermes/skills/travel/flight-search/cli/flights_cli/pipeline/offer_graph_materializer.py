@@ -280,7 +280,6 @@ def _segments_for_edge_ids(
                     "destination": _normalize_code(edge.get("destination")),
                     "provider": edge.get("provider"),
                     "offer_id": edge.get("offer_id"),
-                    "edge_id": edge.get("id"),
                     "sequence": edge.get("sequence", index),
                     "source_type": edge.get("source_type"),
                     "ticketing_boundary": edge.get("ticketing_boundary"),
@@ -297,14 +296,6 @@ def _segments_for_edge_ids(
             )
         )
     return segments
-
-
-def _journeys_from_segments(
-    segments: list[dict[str, Any]], *, direction: str
-) -> list[dict[str, Any]]:
-    if not segments:
-        return []
-    return [{"direction": direction, "segments": segments}]
 
 
 def _journeys_from_segments_by_direction(
