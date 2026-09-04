@@ -271,7 +271,7 @@ def _ticket_protection(candidate: dict[str, Any]) -> dict[str, Any]:
     if (
         candidate.get("self_transfer") is True
         or model in separate_models
-        or source_type in {"gateway_separate_ticket", "assembled_separate_ticket"}
+        or source_type == "gateway_separate_ticket"
     ):
         return {
             "status": "unprotected",

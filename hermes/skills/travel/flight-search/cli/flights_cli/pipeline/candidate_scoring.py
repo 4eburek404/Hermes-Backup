@@ -210,8 +210,6 @@ def _source_confidence_penalty(candidate: dict[str, Any]) -> int:
         return 0
     if source_type == "gateway_separate_ticket":
         return 30
-    if source_type == "assembled_separate_ticket":
-        return 40
     return 50
 
 

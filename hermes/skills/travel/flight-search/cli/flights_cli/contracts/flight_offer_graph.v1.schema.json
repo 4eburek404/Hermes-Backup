@@ -44,8 +44,7 @@
           "enum": [
             "provider_full_route",
             "gateway_leg",
-            "direct_inventory",
-            "assembled_separate_ticket"
+            "direct_inventory"
           ]
         },
         "provider": {"type": "string", "minLength": 1},
@@ -70,8 +69,7 @@
           "enum": [
             "provider_full_route",
             "gateway_leg",
-            "direct_inventory",
-            "assembled_separate_ticket"
+            "direct_inventory"
           ]
         },
         "provider": {"type": "string", "minLength": 1},

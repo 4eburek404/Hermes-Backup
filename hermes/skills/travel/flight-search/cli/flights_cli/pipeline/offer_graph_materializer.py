@@ -176,9 +176,7 @@ def _candidate_from_offer(
 ) -> dict[str, Any]:
     source_type = str(offer.get("source_type") or "provider_full_route")
     candidate_source_type = source_type
-    if source_type == "assembled_separate_ticket":
-        candidate_source_type = "assembled_separate_ticket"
-    elif source_type == RouteFamily.DIRECT_INVENTORY:
+    if source_type == RouteFamily.DIRECT_INVENTORY:
         candidate_source_type = RouteFamily.DIRECT_INVENTORY
     elif source_type != "provider_full_route":
         candidate_source_type = "provider_full_route"
