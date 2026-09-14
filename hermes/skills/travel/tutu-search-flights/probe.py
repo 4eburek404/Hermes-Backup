@@ -168,9 +168,40 @@ def разведать_авиа() -> list[dict]:
     return записи
 
 
+def обновить_манифест(группа: str, записи: list[dict]) -> Path:
+    """Заменить в манифесте записи этой группы, остальные оставить как есть.
+
+    Манифест один на весь набор: `tests/test_harness.py` сверяет его с файлами
+    на диске, и отдельные `manifest-<группа>.json` оставили бы общий манифест
+    протухшим после каждой пересъёмки.
+    """
+    путь = ФИКСТУРЫ / "manifest.json"
+    прежние = json.loads(путь.read_text(encoding="utf-8"))["entries"] if путь.exists() else []
+    чужие = [з for з in прежние if группа_записи(з) != группа]
+    все = sorted(чужие + записи, key=lambda з: з["file"])
+    путь.write_text(
+        json.dumps(
+            {
+                "recorded_at": max(з["recorded_at"] for з in все),
+                "source": "tutu",
+                "url": URL,
+                "entries": все,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return путь
+
+
+def группа_записи(запись: dict) -> str:
+    return запись["file"].split("/", 1)[0]
+
+
 if __name__ == "__main__":
     что = sys.argv[1] if len(sys.argv) > 1 else "meta"
     записи = разведать_мета() if что == "meta" else разведать_авиа()
-    путь = КОРЕНЬ / f"manifest-{что}.json"
-    путь.write_text(json.dumps({"entries": записи}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"\nзаписей: {len(записи)} → {путь.name}")
+    путь = обновить_манифест(что, записи)
+    print(f"\nзаписей в группе {что}: {len(записи)} → {путь.relative_to(КОРЕНЬ)}")

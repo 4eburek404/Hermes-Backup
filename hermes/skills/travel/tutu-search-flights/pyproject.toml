@@ -1,0 +1,42 @@
+[project]
+name = "tutu-search-flights"
+version = "0.1.0"
+description = "Flight search over Tutu MCP: a CLI the Hermes agent calls, not an MCP server itself"
+requires-python = ">=3.11"
+# Runtime dependencies are added in the same change that starts using them.
+# An unused dependency is a defect here, not a spare part.
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.11,<2",
+  "pytest>=8.0,<10",
+  "ruff>=0.6,<0.16",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["tutu_search_flights*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+addopts = "-q --strict-markers"
+markers = [
+  "live: calls the live Tutu MCP server; opt-in, never part of the gate",
+]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "DTZ", "RUF"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src"]
