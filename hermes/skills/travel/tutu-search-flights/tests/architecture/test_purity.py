@@ -17,13 +17,31 @@ from pathlib import Path
 ЯДРО = Path(__file__).resolve().parents[2] / "src" / "tutu_search_flights" / "core"
 
 ЗАПРЕЩЁННЫЕ_ИМПОРТЫ = {
-    "socket", "urllib", "http", "requests", "httpx", "random", "os", "pathlib", "mcp",
+    "socket",
+    "urllib",
+    "http",
+    "requests",
+    "httpx",
+    "random",
+    "os",
+    "pathlib",
+    "mcp",
 }
 # Полные имена вызовов, которые делают ответ зависящим от окружения.
 ЗАПРЕЩЁННЫЕ_ВЫЗОВЫ = {
-    "print", "open", "input",
-    "datetime.now", "datetime.utcnow", "date.today", "time.time", "time.monotonic",
-    "os.environ", "os.getenv", "random.random", "random.choice", "uuid.uuid4",
+    "print",
+    "open",
+    "input",
+    "datetime.now",
+    "datetime.utcnow",
+    "date.today",
+    "time.time",
+    "time.monotonic",
+    "os.environ",
+    "os.getenv",
+    "random.random",
+    "random.choice",
+    "uuid.uuid4",
 }
 
 

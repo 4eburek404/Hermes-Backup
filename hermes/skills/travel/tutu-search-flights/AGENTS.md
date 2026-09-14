@@ -14,7 +14,7 @@
 | [`docs/mcp-notes.md`](docs/mcp-notes.md) | фактическая спецификация Tutu MCP: форма ответа, четыре вида отказа, ловушки |
 | [`fixtures/README.md`](fixtures/README.md) | записанные ответы: конверт, что доказывает каждый файл |
 | [`docs/decisions.md`](docs/decisions.md) | принятые решения: контекст, решение, следствие, статус |
-| `PROJECT_RULES.md` (проект Claude) | правила разработки и их машинные проверки |
+| [`PROJECT_RULES.md`](PROJECT_RULES.md) | правила разработки и их машинные проверки |
 
 ## Команды
 
