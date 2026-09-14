@@ -1,0 +1,32 @@
+{
+  "recorded_at": "2026-09-14T03:43:43+00:00",
+  "source": "tutu",
+  "method": "tools/call",
+  "tool": "search_avia",
+  "arguments": {
+    "origin": "Урюпинск",
+    "destination": "Певек",
+    "departure_date": "2026-10-15",
+    "page_size": 3
+  },
+  "note": "пустая выдача: что в meta, объясняет ли сервер причину",
+  "volatile": [],
+  "response": {
+    "envelope": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Error executing tool search_avia: avia cannot search origin='Урюпинск': it resolved to «Урюпинск» (Волгоградская область), which has no avia_id in Tutu's index — Tutu's avia index answers this wording with «Воронеж» (VOZ); search that city explicitly if the user agrees."
+          }
+        ],
+        "isError": true
+      }
+    },
+    "payload": {
+      "_text": "Error executing tool search_avia: avia cannot search origin='Урюпинск': it resolved to «Урюпинск» (Волгоградская область), which has no avia_id in Tutu's index — Tutu's avia index answers this wording with «Воронеж» (VOZ); search that city explicitly if the user agrees."
+    }
+  }
+}

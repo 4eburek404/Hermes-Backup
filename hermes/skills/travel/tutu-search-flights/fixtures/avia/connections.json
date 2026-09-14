@@ -1,0 +1,456 @@
+{
+  "recorded_at": "2026-09-14T03:43:39+00:00",
+  "source": "tutu",
+  "method": "tools/call",
+  "tool": "search_avia",
+  "arguments": {
+    "origin": "Калининград",
+    "destination": "Владивосток",
+    "departure_date": "2026-10-15",
+    "page_size": 2
+  },
+  "note": "пересадки: форма legs[].segments[], номер рейса, аэропорт и терминал",
+  "volatile": [
+    "offers[].price",
+    "offers[].checkout_ref",
+    "meta.search_id"
+  ],
+  "response": {
+    "envelope": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"offers\":[{\"offer_id\":\"f52c3fdda2882d2d9faf7f8d1614225c+cb0b47f3602c4c8bab0aef11716e23da\",\"transport\":\"avia\",\"price\":{\"amount\":26788.0,\"currency\":\"RUB\"},\"duration_min\":655,\"carriers\":[\"Аэрофлот\"],\"search_results_url\":\"https://avia.tutu.ru/f/Kaliningrad/Vladivostok/?class=Y&travelers=1&route[0]=34-15102026-21\",\"segments_count\":2,\"departure_at\":\"2026-10-15T11:35:00+02:00\",\"arrival_at\":\"2026-10-16T09:45:00+10:00\",\"has_self_transfer\":true,\"is_multi_pnr\":true,\"multi_pnr_note\":\"Separate tickets (self-transfer): at least one connection is on a separate booking, so the passenger re-claims then re-drops baggage between flights and the layover is not a protected connection — allow extra self-transfer time and tell the user before checkout. A purchase LINK for this trip is one link per ticket — 2 carts and 2 payments, not one.\",\"legs\":[{\"label\":\"outbound\",\"from\":\"Калининград — Храброво (KGD)\",\"to\":\"Владивосток — Кневичи (VVO)\",\"departure_at\":\"2026-10-15T11:35:00+02:00\",\"arrival_at\":\"2026-10-16T09:45:00+10:00\",\"duration_min\":655,\"segments\":[{\"from\":\"Калининград — Храброво (KGD)\",\"to\":\"Москва — Шереметьево (SVO), терм. B\",\"departure_at\":\"2026-10-15T11:35:00+02:00\",\"arrival_at\":\"2026-10-15T15:10:00+03:00\",\"duration_min\":155,\"carrier\":\"Аэрофлот\",\"voyage_no\":\"SU-1017\",\"from_geo_point_id\":2718724,\"to_geo_point_id\":2719726,\"review_summary\":{\"rating\":9.3,\"review_count\":22937,\"label\":\"⭐ 9.3/10 · 22 937 отзывов\",\"source\":\"offers-api.feedback\",\"scope\":\"carrier\",\"subject\":\"Аэрофлот\",\"scale\":10,\"feedback_key\":\"1062\"}},{\"from\":\"Москва — Шереметьево (SVO), терм. B\",\"to\":\"Владивосток — Кневичи (VVO)\",\"departure_at\":\"2026-10-15T18:25:00+03:00\",\"arrival_at\":\"2026-10-16T09:45:00+10:00\",\"duration_min\":500,\"carrier\":\"Аэрофлот\",\"voyage_no\":\"SU-5804\",\"from_geo_point_id\":2719726,\"to_geo_point_id\":2718712,\"review_summary\":{\"rating\":9.3,\"review_count\":22937,\"label\":\"⭐ 9.3/10 · 22 937 отзывов\",\"source\":\"offers-api.feedback\",\"scope\":\"carrier\",\"subject\":\"Аэрофлот\",\"scale\":10,\"feedback_key\":\"1062\"}}]}],\"variants\":[{\"variant_id\":\"c0a92a679944859c059e599bd6a15d30+7c6dc65c4b7394974291fcd2472b979f:e17195945116eee5cc4360dcb82da5f9\",\"offer_hash\":\"{\\\"Price\\\":26788,\\\"OriginalHash\\\":\\\"[{\\\\\\\"offerVariantHash\\\\\\\":\\\\\\\"ebbd7c737530a829d8173ba0249f010c\\\\\\\",\\\\\\\"variantConditionsHash\\\\\\\":\\\\\\\"f52c3fdda2882d2d9faf7f8d1614225c:33666b60b1531a0ba1f2f3822c1c0a68\\\\\\\",\\\\\\\"pricingVariantHash\\\\\\\":\\\\\\\"883b9d6ab52c870ea8658c01cf872466\\\\\\\"},{\\\\\\\"offerVariantHash\\\\\\\":\\\\\\\"5a82274ef31c5e38451849d45f0a4580\\\\\\\",\\\\\\\"variantConditionsHash\\\\\\\":\\\\\\\"cb0b47f3602c4c8bab0aef11716e23da:33666b60b1531a0ba1f2f3822c1c0a68\\\\\\\",\\\\\\\"pricingVariantHash\\\\\\\":\\\\\\\"e3e9ae3a3668f01c7cdc80fc411ab8ee\\\\\\\"}]\\\"}\",\"price\":{\"amount\":26788.0,\"currency\":\"RUB\"},\"conditions\":{\"fare_family\":\"Эконом Плоский\",\"baggage\":{\"kg\":23,\"pieces\":1},\"cabin_baggage\":{\"kg\":10,\"pieces\":1,\"dimensions\":\"55 × 40 × 25\"},\"refundable\":true,\"changeable\":true,\"seat_selection\":\"available_paid\",\"boarding_privileges\":\"unavailable\",\"exchange\":{\"available\":true,\"deadline_hours\":1}},\"service_class\":\"ECONOMIC\"},{\"variant_id\":\"c0a92a679944859c059e599bd6a15d30+7c6dc65c4b7394974291fcd2472b979f:06dd44ad3a22ddcce66412f835719a8b\",\"offer_hash\":\"{\\\"Price\\\":32741,\\\"OriginalHash\\\":\\\"[{\\\\\\\"offerVariantHash\\\\\\\":\\\\\\\"ebbd7c737530a829d8173ba0249f010c\\\\\\\",\\\\\\\"variantConditionsHash\\\\\\\":\\\\\\\"f52c3fdda2882d2d9faf7f8d1614225c:33666b60b1531a0ba1f2f3822c1c0a68\\\\\\\",\\\\\\\"pricingVariantHash\\\\\\\":\\\\\\\"883b9d6ab52c870ea8658c01cf872466\\\\\\\"},{\\\\\\\"offerVariantHash\\\\\\\":\\\\\\\"62c4516f4d39d260c44bff0f33a15f6f\\\\\\\",\\\\\\\"variantConditionsHash\\\\\\\":\\\\\\\"cb0b47f3602c4c8bab0aef11716e23da:4a15ebaf82f14491e2bac3a776e17da0\\\\\\\",\\\\\\\"pricingVariantHash\\\\\\\":\\\\\\\"1a164e7acb6352bb26274aa0364703d9\\\\\\\"}]\\\"}\",\"price\":{\"amount\":32741.0,\"currency\":\"RUB\"},\"conditions\":{\"fare_family\":\"Эконом Плоский\",\"baggage\":{\"kg\":23,\"pieces\":1},\"cabin_baggage\":{\"kg\":10,\"pieces\":1,\"dimensions\":\"55 × 40 × 25\"},\"refundable\":true,\"changeable\":true,\"seat_selection\":\"available_paid\",\"boarding_privileges\":\"unavailable\",\"exchange\":{\"available\":true,\"deadline_hours\":1}},\"service_class\":\"ECONOMIC\"}],\"checkout_ref\":{\"transport\":\"avia\",\"is_round_trip\":false,\"search_results_url\":\"https://avia.tutu.ru/f/Kaliningrad/Vladivostok/?class=Y&travelers=1&route[0]=34-15102026-21\",\"offer_hash\":\"{\\\"Price\\\":26788,\\\"OriginalHash\\\":\\\"[{\\\\\\\"offerVariantHash\\\\\\\":\\\\\\\"ebbd7c737530a829d8173ba0249f010c\\\\\\\",\\\\\\\"variantConditionsHash\\\\\\\":\\\\\\\"f52c3fdda2882d2d9faf7f8d1614225c:33666b60b1531a0ba1f2f3822c1c0a68\\\\\\\",\\\\\\\"pricingVariantHash\\\\\\\":\\\\\\\"883b9d6ab52c870ea8658c01cf872466\\\\\\\"},{\\\\\\\"offerVariantHash\\\\\\\":\\\\\\\"5a82274ef31c5e38451849d45f0a4580\\\\\\\",\\\\\\\"variantConditionsHash\\\\\\\":\\\\\\\"cb0b47f3602c4c8bab0aef11716e23da:33666b60b1531a0ba1f2f3822c1c0a68\\\\\\\",\\\\\\\"pricingVariantHash\\\\\\\":\\\\\\\"e3e9ae3a3668f01c7cdc80fc411ab8ee\\\\\\\"}]\\\"}\",\"departure_geo_city_id\":2656874,\"arrival_geo_city_id\":2656861,\"departure_at\":\"2026-10-15T11:35:00+02:00\",\"service_class\":\"ECONOMIC\",\"departure_avia_id\":\"34\",\"arrival_avia_id\":\"21\",\"checkout_parts\":[{\"departure_geo_city_id\":2656874,\"arrival_geo_city_id\":2657260,\"departure_at\":\"2026-10-15T11:35:00+02:00\",\"from\":\"KGD\",\"to\":\"SVO\",\"flights\":[\"SU-1017\"]},{\"departure_geo_city_id\":2657260,\"arrival_geo_city_id\":2656861,\"departure_at\":\"2026-10-15T18:25:00+03:00\",\"from\":\"SVO\",\"to\":\"VVO\",\"flights\":[\"SU-5804\"]}],\"passengers_full\":1,\"passengers_child\":0,\"passengers_infant\":0},\"review_summary\":{\"rating\":9.3,\"review_count\":22937,\"label\":\"⭐ 9.3/10 · 22 937 отзывов\",\"source\":\"offers-api.feedback\",\"scope\":\"carrier\",\"subject\":\"Аэрофлот\",\"scale\":10,\"feedback_key\":\"1062\"}},{\"offer_id\":\"8d29c51b0c0b3d79a89a89b2ae9b4c09+cb0b47f3602c4c8bab0aef11716e23da\",\"transport\":\"avia\",\"price\":{\"amount\":26788.0,\"currency\":\"RUB\"},\"duration_min\":655,\"carriers\":[\"Аэрофлот\"],\"search_results_url\":\"https://avia.tutu.ru/f/Kaliningrad/Vladivostok/?class=Y&travelers=1&route[0]=34-15102026-21\",\"segments_count\":2,\"departure_at\":\"2026-10-15T10:35:00+02:00\",\"arrival_at\":\"2026-10-16T09:45:00+10:00\",\"has_self_transfer\":true,\"is_multi_pnr\":true,\"multi_pnr_note\":\"Separate tickets (self-transfer): at least one connection is on a separate booking, so the passenger re-claims then re-drops baggage between flights and the layover is not a protected connection — allow extra self-transfer time and tell the user before checkout. A purchase LINK for this trip is one link per ticket — 2 carts and 2 payments, not one.\",\"legs\":[{\"label\":\"outbound\",\"from\":\"Калининград — Храброво (KGD)\",\"to\":\"Владивосток — Кневичи (VVO)\",\"departure_at\":\"2026-10-15T10:35:00+02:00\",\"arrival_at\":\"2026-10-16T09:45:00+10:00\",\"duration_min\":655,\"segments\":[{\"from\":\"Калининград — Храброво (KGD)\",\"to\":\"Москва — Шереметьево (SVO), терм. B\",\"departure_at\":\"2026-10-15T10:35:00+02:00\",\"arrival_at\":\"2026-10-15T14:10:00+03:00\",\"duration_min\":155,\"carrier\":\"Аэрофлот\",\"voyage_no\":\"SU-1015\",\"from_geo_point_id\":2718724,\"to_geo_point_id\":2719726,\"review_summary\":{\"rating\":9.3,\"review_count\":22937,\"label\":\"⭐ 9.3/10 · 22 937 отзывов\",\"source\":\"offers-api.feedback\",\"scope\":\"carrier\",\"subject\":\"Аэрофлот\",\"scale\":10,\"feedback_key\":\"1062\"}},{\"from\":\"Москва — Шереметьево (SVO), терм. B\",\"to\":\"Владивосток — Кневичи (VVO)\",\"departure_at\":\"2026-10-15T18:25:00+03:00\",\"arrival_at\":\"2026-10-16T09:45:00+10:00\",\"duration_min\":500,\"carrier\":\"Аэрофлот\",\"voyage_no\":\"SU-5804\",\"from_geo_point_id\":2719726,\"to_geo_point_id\":2718712,\"review_summary\":{\"rating\":9.3,\"review_count\":22937,\"label\":\"⭐ 9.3/10 · 22 937 отзывов\",\"source\":\"offers-api.feedback\",\"scope\":\"carrier\",\"subject\":\"Аэрофлот\",\"scale\":10,\"feedback_key\":\"1062\"}}]}],\"variants\":[{\"variant_id\":\"b923ab138594eac1867b7e2fdf4f614b+7c6dc65c4b7394974291fcd2472b979f:e17195945116eee5cc4360dcb82da5f9\",\"offer_hash\":\"{\\\"Price\\\":26788,\\\"OriginalHash\\\":\\\"[{\\\\\\\"offerVariantHash\\\\\\\":\\\\\\\"a4254db680e98d5840703a20c2aeddf7\\\\\\\",\\\\\\\"variantConditionsHash\\\\\\\":\\\\\\\"8d29c51b0c0b3d79a89a89b2ae9b4c09:33666b60b1531a0ba1f2f3822c1c0a68\\\\\\\",\\\\\\\"pricingVariantHash\\\\\\\":\\\\\\\"512c5faed982f37719a4accc716542f5\\\\\\\"},{\\\\\\\"offerVariantHash\\\\\\\":\\\\\\\"5a82274ef31c5e38451849d45f0a4580\\\\\\\",\\\\\\\"variantConditionsHash\\\\\\\":\\\\\\\"cb0b47f3602c4c8bab0aef11716e23da:33666b60b1531a0ba1f2f3822c1c0a68\\\\\\\",\\\\\\\"pricingVariantHash\\\\\\\":\\\\\\\"e3e9ae3a3668f01c7cdc80fc411ab8ee\\\\\\\"}]\\\"}\",\"price\":{\"amount\":26788.0,\"currency\":\"RUB\"},\"conditions\":{\"fare_family\":\"Эконом Плоский\",\"baggage\":{\"kg\":23,\"pieces\":1},\"cabin_baggage\":{\"kg\":10,\"pieces\":1,\"dimensions\":\"55 × 40 × 25\"},\"refundable\":true,\"changeable\":true,\"seat_selection\":\"available_paid\",\"boarding_privileges\":\"unavailable\",\"exchange\":{\"available\":true,\"deadline_hours\":1}},\"service_class\":\"ECONOMIC\"},{\"variant_id\":\"b923ab138594eac1867b7e2fdf4f614b+7c6dc65c4b7394974291fcd2472b979f:06dd44ad3a22ddcce66412f835719a8b\",\"offer_hash\":\"{\\\"Price\\\":32741,\\\"OriginalHash\\\":\\\"[{\\\\\\\"offerVariantHash\\\\\\\":\\\\\\\"a4254db680e98d5840703a20c2aeddf7\\\\\\\",\\\\\\\"variantConditionsHash\\\\\\\":\\\\\\\"8d29c51b0c0b3d79a89a89b2ae9b4c09:33666b60b1531a0ba1f2f3822c1c0a68\\\\\\\",\\\\\\\"pricingVariantHash\\\\\\\":\\\\\\\"512c5faed982f37719a4accc716542f5\\\\\\\"},{\\\\\\\"offerVariantHash\\\\\\\":\\\\\\\"62c4516f4d39d260c44bff0f33a15f6f\\\\\\\",\\\\\\\"variantConditionsHash\\\\\\\":\\\\\\\"cb0b47f3602c4c8bab0aef11716e23da:4a15ebaf82f14491e2bac3a776e17da0\\\\\\\",\\\\\\\"pricingVariantHash\\\\\\\":\\\\\\\"1a164e7acb6352bb26274aa0364703d9\\\\\\\"}]\\\"}\",\"price\":{\"amount\":32741.0,\"currency\":\"RUB\"},\"conditions\":{\"fare_family\":\"Эконом Плоский\",\"baggage\":{\"kg\":23,\"pieces\":1},\"cabin_baggage\":{\"kg\":10,\"pieces\":1,\"dimensions\":\"55 × 40 × 25\"},\"refundable\":true,\"changeable\":true,\"seat_selection\":\"available_paid\",\"boarding_privileges\":\"unavailable\",\"exchange\":{\"available\":true,\"deadline_hours\":1}},\"service_class\":\"ECONOMIC\"}],\"checkout_ref\":{\"transport\":\"avia\",\"is_round_trip\":false,\"search_results_url\":\"https://avia.tutu.ru/f/Kaliningrad/Vladivostok/?class=Y&travelers=1&route[0]=34-15102026-21\",\"offer_hash\":\"{\\\"Price\\\":26788,\\\"OriginalHash\\\":\\\"[{\\\\\\\"offerVariantHash\\\\\\\":\\\\\\\"a4254db680e98d5840703a20c2aeddf7\\\\\\\",\\\\\\\"variantConditionsHash\\\\\\\":\\\\\\\"8d29c51b0c0b3d79a89a89b2ae9b4c09:33666b60b1531a0ba1f2f3822c1c0a68\\\\\\\",\\\\\\\"pricingVariantHash\\\\\\\":\\\\\\\"512c5faed982f37719a4accc716542f5\\\\\\\"},{\\\\\\\"offerVariantHash\\\\\\\":\\\\\\\"5a82274ef31c5e38451849d45f0a4580\\\\\\\",\\\\\\\"variantConditionsHash\\\\\\\":\\\\\\\"cb0b47f3602c4c8bab0aef11716e23da:33666b60b1531a0ba1f2f3822c1c0a68\\\\\\\",\\\\\\\"pricingVariantHash\\\\\\\":\\\\\\\"e3e9ae3a3668f01c7cdc80fc411ab8ee\\\\\\\"}]\\\"}\",\"departure_geo_city_id\":2656874,\"arrival_geo_city_id\":2656861,\"departure_at\":\"2026-10-15T10:35:00+02:00\",\"service_class\":\"ECONOMIC\",\"departure_avia_id\":\"34\",\"arrival_avia_id\":\"21\",\"checkout_parts\":[{\"departure_geo_city_id\":2656874,\"arrival_geo_city_id\":2657260,\"departure_at\":\"2026-10-15T10:35:00+02:00\",\"from\":\"KGD\",\"to\":\"SVO\",\"flights\":[\"SU-1015\"]},{\"departure_geo_city_id\":2657260,\"arrival_geo_city_id\":2656861,\"departure_at\":\"2026-10-15T18:25:00+03:00\",\"from\":\"SVO\",\"to\":\"VVO\",\"flights\":[\"SU-5804\"]}],\"passengers_full\":1,\"passengers_child\":0,\"passengers_infant\":0},\"review_summary\":{\"rating\":9.3,\"review_count\":22937,\"label\":\"⭐ 9.3/10 · 22 937 отзывов\",\"source\":\"offers-api.feedback\",\"scope\":\"carrier\",\"subject\":\"Аэрофлот\",\"scale\":10,\"feedback_key\":\"1062\"}}],\"meta\":{\"transport\":\"avia\",\"checkout_hint\":\"When the user picks an offer — in any wording («беру», «самый быстрый», «оформи», «забронируй») — the normal hand-over is `create_checkout_link` with that offer's `checkout_ref`; put the returned link in your reply. This payload deliberately carries no ready checkout link: the link comes from that tool, never from URL parts you assemble yourself.\",\"pricing\":{\"basis\":\"party_total\",\"passengers\":{\"full\":1},\"note\":\"Prices on this page already cover the WHOLE searched party — never multiply them by the passenger count.\"},\"from\":{\"name\":\"Калининград\",\"geo_id\":\"2656874\",\"region\":\"городской округ Калининград, Калининградская область\",\"iata\":\"KGD\"},\"to\":{\"name\":\"Владивосток\",\"geo_id\":\"2656861\",\"region\":\"Владивостокский городской округ, Приморский край\",\"iata\":\"VVO\"},\"round_trip\":false,\"return_date\":null,\"sort\":\"price_asc\",\"page\":1,\"page_size\":2,\"total_returned\":2,\"total_matched\":18,\"total_matched_exact\":true,\"has_more\":true,\"post_filter_dropped_over_cap\":0,\"post_filter_dropped_not_direct\":0,\"post_filter_dropped_wrong_carrier\":0,\"post_filter_dropped_wrong_flight_number\":0,\"carriers_available\":[{\"name\":\"Аэрофлот\",\"offers_count\":8,\"price_from\":26788.0},{\"name\":\"Nordwind Airlines\",\"offers_count\":1,\"price_from\":27179.0},{\"name\":\"Уральские авиалинии\",\"offers_count\":3,\"price_from\":27179.0},{\"name\":\"S7 Airlines\",\"offers_count\":7,\"price_from\":33743.0}],\"upstream_note\":null}}"
+          }
+        ],
+        "isError": false
+      }
+    },
+    "payload": {
+      "offers": [
+        {
+          "offer_id": "f52c3fdda2882d2d9faf7f8d1614225c+cb0b47f3602c4c8bab0aef11716e23da",
+          "transport": "avia",
+          "price": {
+            "amount": 26788.0,
+            "currency": "RUB"
+          },
+          "duration_min": 655,
+          "carriers": [
+            "Аэрофлот"
+          ],
+          "search_results_url": "https://avia.tutu.ru/f/Kaliningrad/Vladivostok/?class=Y&travelers=1&route[0]=34-15102026-21",
+          "segments_count": 2,
+          "departure_at": "2026-10-15T11:35:00+02:00",
+          "arrival_at": "2026-10-16T09:45:00+10:00",
+          "has_self_transfer": true,
+          "is_multi_pnr": true,
+          "multi_pnr_note": "Separate tickets (self-transfer): at least one connection is on a separate booking, so the passenger re-claims then re-drops baggage between flights and the layover is not a protected connection — allow extra self-transfer time and tell the user before checkout. A purchase LINK for this trip is one link per ticket — 2 carts and 2 payments, not one.",
+          "legs": [
+            {
+              "label": "outbound",
+              "from": "Калининград — Храброво (KGD)",
+              "to": "Владивосток — Кневичи (VVO)",
+              "departure_at": "2026-10-15T11:35:00+02:00",
+              "arrival_at": "2026-10-16T09:45:00+10:00",
+              "duration_min": 655,
+              "segments": [
+                {
+                  "from": "Калининград — Храброво (KGD)",
+                  "to": "Москва — Шереметьево (SVO), терм. B",
+                  "departure_at": "2026-10-15T11:35:00+02:00",
+                  "arrival_at": "2026-10-15T15:10:00+03:00",
+                  "duration_min": 155,
+                  "carrier": "Аэрофлот",
+                  "voyage_no": "SU-1017",
+                  "from_geo_point_id": 2718724,
+                  "to_geo_point_id": 2719726,
+                  "review_summary": {
+                    "rating": 9.3,
+                    "review_count": 22937,
+                    "label": "⭐ 9.3/10 · 22 937 отзывов",
+                    "source": "offers-api.feedback",
+                    "scope": "carrier",
+                    "subject": "Аэрофлот",
+                    "scale": 10,
+                    "feedback_key": "1062"
+                  }
+                },
+                {
+                  "from": "Москва — Шереметьево (SVO), терм. B",
+                  "to": "Владивосток — Кневичи (VVO)",
+                  "departure_at": "2026-10-15T18:25:00+03:00",
+                  "arrival_at": "2026-10-16T09:45:00+10:00",
+                  "duration_min": 500,
+                  "carrier": "Аэрофлот",
+                  "voyage_no": "SU-5804",
+                  "from_geo_point_id": 2719726,
+                  "to_geo_point_id": 2718712,
+                  "review_summary": {
+                    "rating": 9.3,
+                    "review_count": 22937,
+                    "label": "⭐ 9.3/10 · 22 937 отзывов",
+                    "source": "offers-api.feedback",
+                    "scope": "carrier",
+                    "subject": "Аэрофлот",
+                    "scale": 10,
+                    "feedback_key": "1062"
+                  }
+                }
+              ]
+            }
+          ],
+          "variants": [
+            {
+              "variant_id": "c0a92a679944859c059e599bd6a15d30+7c6dc65c4b7394974291fcd2472b979f:e17195945116eee5cc4360dcb82da5f9",
+              "offer_hash": "{\"Price\":26788,\"OriginalHash\":\"[{\\\"offerVariantHash\\\":\\\"ebbd7c737530a829d8173ba0249f010c\\\",\\\"variantConditionsHash\\\":\\\"f52c3fdda2882d2d9faf7f8d1614225c:33666b60b1531a0ba1f2f3822c1c0a68\\\",\\\"pricingVariantHash\\\":\\\"883b9d6ab52c870ea8658c01cf872466\\\"},{\\\"offerVariantHash\\\":\\\"5a82274ef31c5e38451849d45f0a4580\\\",\\\"variantConditionsHash\\\":\\\"cb0b47f3602c4c8bab0aef11716e23da:33666b60b1531a0ba1f2f3822c1c0a68\\\",\\\"pricingVariantHash\\\":\\\"e3e9ae3a3668f01c7cdc80fc411ab8ee\\\"}]\"}",
+              "price": {
+                "amount": 26788.0,
+                "currency": "RUB"
+              },
+              "conditions": {
+                "fare_family": "Эконом Плоский",
+                "baggage": {
+                  "kg": 23,
+                  "pieces": 1
+                },
+                "cabin_baggage": {
+                  "kg": 10,
+                  "pieces": 1,
+                  "dimensions": "55 × 40 × 25"
+                },
+                "refundable": true,
+                "changeable": true,
+                "seat_selection": "available_paid",
+                "boarding_privileges": "unavailable",
+                "exchange": {
+                  "available": true,
+                  "deadline_hours": 1
+                }
+              },
+              "service_class": "ECONOMIC"
+            },
+            {
+              "variant_id": "c0a92a679944859c059e599bd6a15d30+7c6dc65c4b7394974291fcd2472b979f:06dd44ad3a22ddcce66412f835719a8b",
+              "offer_hash": "{\"Price\":32741,\"OriginalHash\":\"[{\\\"offerVariantHash\\\":\\\"ebbd7c737530a829d8173ba0249f010c\\\",\\\"variantConditionsHash\\\":\\\"f52c3fdda2882d2d9faf7f8d1614225c:33666b60b1531a0ba1f2f3822c1c0a68\\\",\\\"pricingVariantHash\\\":\\\"883b9d6ab52c870ea8658c01cf872466\\\"},{\\\"offerVariantHash\\\":\\\"62c4516f4d39d260c44bff0f33a15f6f\\\",\\\"variantConditionsHash\\\":\\\"cb0b47f3602c4c8bab0aef11716e23da:4a15ebaf82f14491e2bac3a776e17da0\\\",\\\"pricingVariantHash\\\":\\\"1a164e7acb6352bb26274aa0364703d9\\\"}]\"}",
+              "price": {
+                "amount": 32741.0,
+                "currency": "RUB"
+              },
+              "conditions": {
+                "fare_family": "Эконом Плоский",
+                "baggage": {
+                  "kg": 23,
+                  "pieces": 1
+                },
+                "cabin_baggage": {
+                  "kg": 10,
+                  "pieces": 1,
+                  "dimensions": "55 × 40 × 25"
+                },
+                "refundable": true,
+                "changeable": true,
+                "seat_selection": "available_paid",
+                "boarding_privileges": "unavailable",
+                "exchange": {
+                  "available": true,
+                  "deadline_hours": 1
+                }
+              },
+              "service_class": "ECONOMIC"
+            }
+          ],
+          "checkout_ref": {
+            "transport": "avia",
+            "is_round_trip": false,
+            "search_results_url": "https://avia.tutu.ru/f/Kaliningrad/Vladivostok/?class=Y&travelers=1&route[0]=34-15102026-21",
+            "offer_hash": "{\"Price\":26788,\"OriginalHash\":\"[{\\\"offerVariantHash\\\":\\\"ebbd7c737530a829d8173ba0249f010c\\\",\\\"variantConditionsHash\\\":\\\"f52c3fdda2882d2d9faf7f8d1614225c:33666b60b1531a0ba1f2f3822c1c0a68\\\",\\\"pricingVariantHash\\\":\\\"883b9d6ab52c870ea8658c01cf872466\\\"},{\\\"offerVariantHash\\\":\\\"5a82274ef31c5e38451849d45f0a4580\\\",\\\"variantConditionsHash\\\":\\\"cb0b47f3602c4c8bab0aef11716e23da:33666b60b1531a0ba1f2f3822c1c0a68\\\",\\\"pricingVariantHash\\\":\\\"e3e9ae3a3668f01c7cdc80fc411ab8ee\\\"}]\"}",
+            "departure_geo_city_id": 2656874,
+            "arrival_geo_city_id": 2656861,
+            "departure_at": "2026-10-15T11:35:00+02:00",
+            "service_class": "ECONOMIC",
+            "departure_avia_id": "34",
+            "arrival_avia_id": "21",
+            "checkout_parts": [
+              {
+                "departure_geo_city_id": 2656874,
+                "arrival_geo_city_id": 2657260,
+                "departure_at": "2026-10-15T11:35:00+02:00",
+                "from": "KGD",
+                "to": "SVO",
+                "flights": [
+                  "SU-1017"
+                ]
+              },
+              {
+                "departure_geo_city_id": 2657260,
+                "arrival_geo_city_id": 2656861,
+                "departure_at": "2026-10-15T18:25:00+03:00",
+                "from": "SVO",
+                "to": "VVO",
+                "flights": [
+                  "SU-5804"
+                ]
+              }
+            ],
+            "passengers_full": 1,
+            "passengers_child": 0,
+            "passengers_infant": 0
+          },
+          "review_summary": {
+            "rating": 9.3,
+            "review_count": 22937,
+            "label": "⭐ 9.3/10 · 22 937 отзывов",
+            "source": "offers-api.feedback",
+            "scope": "carrier",
+            "subject": "Аэрофлот",
+            "scale": 10,
+            "feedback_key": "1062"
+          }
+        },
+        {
+          "offer_id": "8d29c51b0c0b3d79a89a89b2ae9b4c09+cb0b47f3602c4c8bab0aef11716e23da",
+          "transport": "avia",
+          "price": {
+            "amount": 26788.0,
+            "currency": "RUB"
+          },
+          "duration_min": 655,
+          "carriers": [
+            "Аэрофлот"
+          ],
+          "search_results_url": "https://avia.tutu.ru/f/Kaliningrad/Vladivostok/?class=Y&travelers=1&route[0]=34-15102026-21",
+          "segments_count": 2,
+          "departure_at": "2026-10-15T10:35:00+02:00",
+          "arrival_at": "2026-10-16T09:45:00+10:00",
+          "has_self_transfer": true,
+          "is_multi_pnr": true,
+          "multi_pnr_note": "Separate tickets (self-transfer): at least one connection is on a separate booking, so the passenger re-claims then re-drops baggage between flights and the layover is not a protected connection — allow extra self-transfer time and tell the user before checkout. A purchase LINK for this trip is one link per ticket — 2 carts and 2 payments, not one.",
+          "legs": [
+            {
+              "label": "outbound",
+              "from": "Калининград — Храброво (KGD)",
+              "to": "Владивосток — Кневичи (VVO)",
+              "departure_at": "2026-10-15T10:35:00+02:00",
+              "arrival_at": "2026-10-16T09:45:00+10:00",
+              "duration_min": 655,
+              "segments": [
+                {
+                  "from": "Калининград — Храброво (KGD)",
+                  "to": "Москва — Шереметьево (SVO), терм. B",
+                  "departure_at": "2026-10-15T10:35:00+02:00",
+                  "arrival_at": "2026-10-15T14:10:00+03:00",
+                  "duration_min": 155,
+                  "carrier": "Аэрофлот",
+                  "voyage_no": "SU-1015",
+                  "from_geo_point_id": 2718724,
+                  "to_geo_point_id": 2719726,
+                  "review_summary": {
+                    "rating": 9.3,
+                    "review_count": 22937,
+                    "label": "⭐ 9.3/10 · 22 937 отзывов",
+                    "source": "offers-api.feedback",
+                    "scope": "carrier",
+                    "subject": "Аэрофлот",
+                    "scale": 10,
+                    "feedback_key": "1062"
+                  }
+                },
+                {
+                  "from": "Москва — Шереметьево (SVO), терм. B",
+                  "to": "Владивосток — Кневичи (VVO)",
+                  "departure_at": "2026-10-15T18:25:00+03:00",
+                  "arrival_at": "2026-10-16T09:45:00+10:00",
+                  "duration_min": 500,
+                  "carrier": "Аэрофлот",
+                  "voyage_no": "SU-5804",
+                  "from_geo_point_id": 2719726,
+                  "to_geo_point_id": 2718712,
+                  "review_summary": {
+                    "rating": 9.3,
+                    "review_count": 22937,
+                    "label": "⭐ 9.3/10 · 22 937 отзывов",
+                    "source": "offers-api.feedback",
+                    "scope": "carrier",
+                    "subject": "Аэрофлот",
+                    "scale": 10,
+                    "feedback_key": "1062"
+                  }
+                }
+              ]
+            }
+          ],
+          "variants": [
+            {
+              "variant_id": "b923ab138594eac1867b7e2fdf4f614b+7c6dc65c4b7394974291fcd2472b979f:e17195945116eee5cc4360dcb82da5f9",
+              "offer_hash": "{\"Price\":26788,\"OriginalHash\":\"[{\\\"offerVariantHash\\\":\\\"a4254db680e98d5840703a20c2aeddf7\\\",\\\"variantConditionsHash\\\":\\\"8d29c51b0c0b3d79a89a89b2ae9b4c09:33666b60b1531a0ba1f2f3822c1c0a68\\\",\\\"pricingVariantHash\\\":\\\"512c5faed982f37719a4accc716542f5\\\"},{\\\"offerVariantHash\\\":\\\"5a82274ef31c5e38451849d45f0a4580\\\",\\\"variantConditionsHash\\\":\\\"cb0b47f3602c4c8bab0aef11716e23da:33666b60b1531a0ba1f2f3822c1c0a68\\\",\\\"pricingVariantHash\\\":\\\"e3e9ae3a3668f01c7cdc80fc411ab8ee\\\"}]\"}",
+              "price": {
+                "amount": 26788.0,
+                "currency": "RUB"
+              },
+              "conditions": {
+                "fare_family": "Эконом Плоский",
+                "baggage": {
+                  "kg": 23,
+                  "pieces": 1
+                },
+                "cabin_baggage": {
+                  "kg": 10,
+                  "pieces": 1,
+                  "dimensions": "55 × 40 × 25"
+                },
+                "refundable": true,
+                "changeable": true,
+                "seat_selection": "available_paid",
+                "boarding_privileges": "unavailable",
+                "exchange": {
+                  "available": true,
+                  "deadline_hours": 1
+                }
+              },
+              "service_class": "ECONOMIC"
+            },
+            {
+              "variant_id": "b923ab138594eac1867b7e2fdf4f614b+7c6dc65c4b7394974291fcd2472b979f:06dd44ad3a22ddcce66412f835719a8b",
+              "offer_hash": "{\"Price\":32741,\"OriginalHash\":\"[{\\\"offerVariantHash\\\":\\\"a4254db680e98d5840703a20c2aeddf7\\\",\\\"variantConditionsHash\\\":\\\"8d29c51b0c0b3d79a89a89b2ae9b4c09:33666b60b1531a0ba1f2f3822c1c0a68\\\",\\\"pricingVariantHash\\\":\\\"512c5faed982f37719a4accc716542f5\\\"},{\\\"offerVariantHash\\\":\\\"62c4516f4d39d260c44bff0f33a15f6f\\\",\\\"variantConditionsHash\\\":\\\"cb0b47f3602c4c8bab0aef11716e23da:4a15ebaf82f14491e2bac3a776e17da0\\\",\\\"pricingVariantHash\\\":\\\"1a164e7acb6352bb26274aa0364703d9\\\"}]\"}",
+              "price": {
+                "amount": 32741.0,
+                "currency": "RUB"
+              },
+              "conditions": {
+                "fare_family": "Эконом Плоский",
+                "baggage": {
+                  "kg": 23,
+                  "pieces": 1
+                },
+                "cabin_baggage": {
+                  "kg": 10,
+                  "pieces": 1,
+                  "dimensions": "55 × 40 × 25"
+                },
+                "refundable": true,
+                "changeable": true,
+                "seat_selection": "available_paid",
+                "boarding_privileges": "unavailable",
+                "exchange": {
+                  "available": true,
+                  "deadline_hours": 1
+                }
+              },
+              "service_class": "ECONOMIC"
+            }
+          ],
+          "checkout_ref": {
+            "transport": "avia",
+            "is_round_trip": false,
+            "search_results_url": "https://avia.tutu.ru/f/Kaliningrad/Vladivostok/?class=Y&travelers=1&route[0]=34-15102026-21",
+            "offer_hash": "{\"Price\":26788,\"OriginalHash\":\"[{\\\"offerVariantHash\\\":\\\"a4254db680e98d5840703a20c2aeddf7\\\",\\\"variantConditionsHash\\\":\\\"8d29c51b0c0b3d79a89a89b2ae9b4c09:33666b60b1531a0ba1f2f3822c1c0a68\\\",\\\"pricingVariantHash\\\":\\\"512c5faed982f37719a4accc716542f5\\\"},{\\\"offerVariantHash\\\":\\\"5a82274ef31c5e38451849d45f0a4580\\\",\\\"variantConditionsHash\\\":\\\"cb0b47f3602c4c8bab0aef11716e23da:33666b60b1531a0ba1f2f3822c1c0a68\\\",\\\"pricingVariantHash\\\":\\\"e3e9ae3a3668f01c7cdc80fc411ab8ee\\\"}]\"}",
+            "departure_geo_city_id": 2656874,
+            "arrival_geo_city_id": 2656861,
+            "departure_at": "2026-10-15T10:35:00+02:00",
+            "service_class": "ECONOMIC",
+            "departure_avia_id": "34",
+            "arrival_avia_id": "21",
+            "checkout_parts": [
+              {
+                "departure_geo_city_id": 2656874,
+                "arrival_geo_city_id": 2657260,
+                "departure_at": "2026-10-15T10:35:00+02:00",
+                "from": "KGD",
+                "to": "SVO",
+                "flights": [
+                  "SU-1015"
+                ]
+              },
+              {
+                "departure_geo_city_id": 2657260,
+                "arrival_geo_city_id": 2656861,
+                "departure_at": "2026-10-15T18:25:00+03:00",
+                "from": "SVO",
+                "to": "VVO",
+                "flights": [
+                  "SU-5804"
+                ]
+              }
+            ],
+            "passengers_full": 1,
+            "passengers_child": 0,
+            "passengers_infant": 0
+          },
+          "review_summary": {
+            "rating": 9.3,
+            "review_count": 22937,
+            "label": "⭐ 9.3/10 · 22 937 отзывов",
+            "source": "offers-api.feedback",
+            "scope": "carrier",
+            "subject": "Аэрофлот",
+            "scale": 10,
+            "feedback_key": "1062"
+          }
+        }
+      ],
+      "meta": {
+        "transport": "avia",
+        "checkout_hint": "When the user picks an offer — in any wording («беру», «самый быстрый», «оформи», «забронируй») — the normal hand-over is `create_checkout_link` with that offer's `checkout_ref`; put the returned link in your reply. This payload deliberately carries no ready checkout link: the link comes from that tool, never from URL parts you assemble yourself.",
+        "pricing": {
+          "basis": "party_total",
+          "passengers": {
+            "full": 1
+          },
+          "note": "Prices on this page already cover the WHOLE searched party — never multiply them by the passenger count."
+        },
+        "from": {
+          "name": "Калининград",
+          "geo_id": "2656874",
+          "region": "городской округ Калининград, Калининградская область",
+          "iata": "KGD"
+        },
+        "to": {
+          "name": "Владивосток",
+          "geo_id": "2656861",
+          "region": "Владивостокский городской округ, Приморский край",
+          "iata": "VVO"
+        },
+        "round_trip": false,
+        "return_date": null,
+        "sort": "price_asc",
+        "page": 1,
+        "page_size": 2,
+        "total_returned": 2,
+        "total_matched": 18,
+        "total_matched_exact": true,
+        "has_more": true,
+        "post_filter_dropped_over_cap": 0,
+        "post_filter_dropped_not_direct": 0,
+        "post_filter_dropped_wrong_carrier": 0,
+        "post_filter_dropped_wrong_flight_number": 0,
+        "carriers_available": [
+          {
+            "name": "Аэрофлот",
+            "offers_count": 8,
+            "price_from": 26788.0
+          },
+          {
+            "name": "Nordwind Airlines",
+            "offers_count": 1,
+            "price_from": 27179.0
+          },
+          {
+            "name": "Уральские авиалинии",
+            "offers_count": 3,
+            "price_from": 27179.0
+          },
+          {
+            "name": "S7 Airlines",
+            "offers_count": 7,
+            "price_from": 33743.0
+          }
+        ],
+        "upstream_note": null
+      }
+    }
+  }
+}

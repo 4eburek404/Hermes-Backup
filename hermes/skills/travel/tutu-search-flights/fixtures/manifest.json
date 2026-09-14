@@ -1,0 +1,295 @@
+{
+  "recorded_at": "2026-09-14T03:43:46+00:00",
+  "source": "tutu",
+  "url": "https://mcp.tutu.ru/mcp",
+  "server_version": "0.51.0",
+  "entries": [
+    {
+      "file": "meta/initialize.json",
+      "recorded_at": "2026-09-14T03:42:57+00:00",
+      "method": "initialize",
+      "tool": "initialize",
+      "arguments": {},
+      "note": "serverInfo, capabilities и блок instructions — как Туту сами видят флоу",
+      "volatile": []
+    },
+    {
+      "file": "meta/tools-list.json",
+      "recorded_at": "2026-09-14T03:42:59+00:00",
+      "method": "tools/list",
+      "tool": "tools/list",
+      "arguments": {},
+      "note": "фактическая спецификация инструментов: имена, описания, inputSchema",
+      "volatile": []
+    },
+    {
+      "file": "meta/avia-instructions.json",
+      "recorded_at": "2026-09-14T03:43:00+00:00",
+      "method": "tools/call",
+      "tool": "get_avia_instructions",
+      "arguments": {},
+      "note": "плейбук по авиа от самих Туту — читать до написания первой строки",
+      "volatile": []
+    },
+    {
+      "file": "meta/resource-help.json",
+      "recorded_at": "2026-09-14T03:43:01+00:00",
+      "method": "tools/call",
+      "tool": "fetch_resource",
+      "arguments": {
+        "uri": "tutu://help/overview"
+      },
+      "note": "общая справка сервера",
+      "volatile": []
+    },
+    {
+      "file": "meta/resource-status.json",
+      "recorded_at": "2026-09-14T03:43:03+00:00",
+      "method": "tools/call",
+      "tool": "fetch_resource",
+      "arguments": {
+        "uri": "tutu://status"
+      },
+      "note": "здоровье апстримов: источник факта «не смогли узнать»",
+      "volatile": []
+    },
+    {
+      "file": "meta/resource-geo.json",
+      "recorded_at": "2026-09-14T03:43:03+00:00",
+      "method": "tools/call",
+      "tool": "fetch_resource",
+      "arguments": {
+        "uri": "tutu://geo"
+      },
+      "note": "справочник городов — вместо своего хардкода",
+      "volatile": []
+    },
+    {
+      "file": "avia/baseline.json",
+      "recorded_at": "2026-09-14T03:43:09+00:00",
+      "method": "tools/call",
+      "tool": "search_avia",
+      "arguments": {
+        "origin": "Москва",
+        "destination": "Сочи",
+        "departure_date": "2026-10-15",
+        "page_size": 3
+      },
+      "note": "базовая форма ответа: что приходит всегда",
+      "volatile": [
+        "offers[].price",
+        "offers[].checkout_ref",
+        "meta.search_id"
+      ]
+    },
+    {
+      "file": "avia/view-full.json",
+      "recorded_at": "2026-09-14T03:43:10+00:00",
+      "method": "tools/call",
+      "tool": "search_avia",
+      "arguments": {
+        "origin": "Москва",
+        "destination": "Сочи",
+        "departure_date": "2026-10-15",
+        "page_size": 2,
+        "view": "full"
+      },
+      "note": "что скрыто в компактном виде и стоит ли оно лишних байтов",
+      "volatile": [
+        "offers[].price",
+        "offers[].checkout_ref",
+        "meta.search_id"
+      ]
+    },
+    {
+      "file": "avia/direct-only.json",
+      "recorded_at": "2026-09-14T03:43:11+00:00",
+      "method": "tools/call",
+      "tool": "search_avia",
+      "arguments": {
+        "origin": "Москва",
+        "destination": "Сочи",
+        "departure_date": "2026-10-15",
+        "page_size": 3,
+        "direct_only": true
+      },
+      "note": "post_filter_dropped_not_direct: сервер сам отдаёт свидетельство отбора",
+      "volatile": [
+        "offers[].price",
+        "offers[].checkout_ref",
+        "meta.search_id"
+      ]
+    },
+    {
+      "file": "avia/round-trip.json",
+      "recorded_at": "2026-09-14T03:43:28+00:00",
+      "method": "tools/call",
+      "tool": "search_avia",
+      "arguments": {
+        "origin": "Москва",
+        "destination": "Сочи",
+        "departure_date": "2026-10-15",
+        "page_size": 2,
+        "return_date": "2026-10-22"
+      },
+      "note": "форма round-trip: одно предложение на оба плеча или два",
+      "volatile": [
+        "offers[].price",
+        "offers[].checkout_ref",
+        "meta.search_id"
+      ]
+    },
+    {
+      "file": "avia/party-2a-1c.json",
+      "recorded_at": "2026-09-14T03:43:34+00:00",
+      "method": "tools/call",
+      "tool": "search_avia",
+      "arguments": {
+        "origin": "Москва",
+        "destination": "Сочи",
+        "departure_date": "2026-10-15",
+        "page_size": 2,
+        "adults": 2,
+        "children": 1
+      },
+      "note": "за кого цена: basis типа Price. Сравнивать с baseline",
+      "volatile": [
+        "offers[].price",
+        "offers[].checkout_ref",
+        "meta.search_id"
+      ]
+    },
+    {
+      "file": "avia/connections.json",
+      "recorded_at": "2026-09-14T03:43:39+00:00",
+      "method": "tools/call",
+      "tool": "search_avia",
+      "arguments": {
+        "origin": "Калининград",
+        "destination": "Владивосток",
+        "departure_date": "2026-10-15",
+        "page_size": 2
+      },
+      "note": "пересадки: форма legs[].segments[], номер рейса, аэропорт и терминал",
+      "volatile": [
+        "offers[].price",
+        "offers[].checkout_ref",
+        "meta.search_id"
+      ]
+    },
+    {
+      "file": "avia/overnight.json",
+      "recorded_at": "2026-09-14T03:43:40+00:00",
+      "method": "tools/call",
+      "tool": "search_avia",
+      "arguments": {
+        "origin": "Москва",
+        "destination": "Сочи",
+        "departure_date": "2026-10-15",
+        "page_size": 5,
+        "sort": "duration_asc"
+      },
+      "note": "рейсы через полночь: как записан прилёт следующего дня и пояс",
+      "volatile": [
+        "offers[].price",
+        "offers[].checkout_ref",
+        "meta.search_id"
+      ]
+    },
+    {
+      "file": "avia/page-2.json",
+      "recorded_at": "2026-09-14T03:43:42+00:00",
+      "method": "tools/call",
+      "tool": "search_avia",
+      "arguments": {
+        "origin": "Москва",
+        "destination": "Сочи",
+        "departure_date": "2026-10-15",
+        "page_size": 2,
+        "page": 2
+      },
+      "note": "пагинация: has_more, total_matched, total_matched_exact",
+      "volatile": [
+        "offers[].price",
+        "offers[].checkout_ref",
+        "meta.search_id"
+      ]
+    },
+    {
+      "file": "avia/iata-airport.json",
+      "recorded_at": "2026-09-14T03:43:43+00:00",
+      "method": "tools/call",
+      "tool": "search_avia",
+      "arguments": {
+        "origin": "SVO",
+        "destination": "AER",
+        "departure_date": "2026-10-15",
+        "page_size": 2
+      },
+      "note": "IATA сужает до аэропорта: post_filter_dropped_wrong_airport, airport_note",
+      "volatile": [
+        "offers[].price",
+        "offers[].checkout_ref",
+        "meta.search_id"
+      ]
+    },
+    {
+      "file": "avia/empty-route.json",
+      "recorded_at": "2026-09-14T03:43:43+00:00",
+      "method": "tools/call",
+      "tool": "search_avia",
+      "arguments": {
+        "origin": "Урюпинск",
+        "destination": "Певек",
+        "departure_date": "2026-10-15",
+        "page_size": 3
+      },
+      "note": "пустая выдача: что в meta, объясняет ли сервер причину",
+      "volatile": []
+    },
+    {
+      "file": "avia/past-date.json",
+      "recorded_at": "2026-09-14T03:43:44+00:00",
+      "method": "tools/call",
+      "tool": "search_avia",
+      "arguments": {
+        "origin": "Москва",
+        "destination": "Сочи",
+        "departure_date": "2020-01-01",
+        "page_size": 2
+      },
+      "note": "дата в прошлом: форма отказа",
+      "volatile": []
+    },
+    {
+      "file": "avia/bad-input.json",
+      "recorded_at": "2026-09-14T03:43:45+00:00",
+      "method": "tools/call",
+      "tool": "search_avia",
+      "arguments": {
+        "origin": "Москва",
+        "destination": "Сочи",
+        "departure_date": "вчера"
+      },
+      "note": "невалидный ввод: форма ошибки, которую придётся разбирать",
+      "volatile": []
+    },
+    {
+      "file": "avia/unknown-carrier.json",
+      "recorded_at": "2026-09-14T03:43:46+00:00",
+      "method": "tools/call",
+      "tool": "search_avia",
+      "arguments": {
+        "origin": "Москва",
+        "destination": "Сочи",
+        "departure_date": "2026-10-15",
+        "page_size": 3,
+        "carriers": [
+          "aeroflot"
+        ]
+      },
+      "note": "фильтр по имени латиницей: молча ли отбрасывает всё",
+      "volatile": []
+    }
+  ]
+}

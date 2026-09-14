@@ -1,0 +1,70 @@
+{
+  "recorded_at": "2026-09-14T03:43:44+00:00",
+  "source": "tutu",
+  "method": "tools/call",
+  "tool": "search_avia",
+  "arguments": {
+    "origin": "Москва",
+    "destination": "Сочи",
+    "departure_date": "2020-01-01",
+    "page_size": 2
+  },
+  "note": "дата в прошлом: форма отказа",
+  "volatile": [],
+  "response": {
+    "envelope": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"offers\":[],\"meta\":{\"transport\":\"avia\",\"checkout_hint\":\"When the user picks an offer — in any wording («беру», «самый быстрый», «оформи», «забронируй») — the normal hand-over is `create_checkout_link` with that offer's `checkout_ref`; put the returned link in your reply. This payload deliberately carries no ready checkout link: the link comes from that tool, never from URL parts you assemble yourself.\",\"pricing\":{\"basis\":\"party_total\",\"passengers\":{\"full\":1},\"note\":\"Prices on this page already cover the WHOLE searched party — never multiply them by the passenger count.\"},\"from\":{\"name\":\"Москва\",\"geo_id\":\"2657260\",\"region\":\"Москва город федерального значения\",\"iata\":\"MOW\"},\"to\":{\"name\":\"Сочи\",\"geo_id\":\"2656918\",\"region\":\"городской округ Сочи, Краснодарский край\",\"iata\":\"AER\"},\"round_trip\":false,\"return_date\":null,\"sort\":\"price_asc\",\"page\":1,\"page_size\":2,\"total_returned\":0,\"total_matched\":0,\"total_matched_exact\":true,\"has_more\":false,\"post_filter_dropped_over_cap\":0,\"post_filter_dropped_not_direct\":0,\"post_filter_dropped_wrong_carrier\":0,\"post_filter_dropped_wrong_flight_number\":0,\"carriers_available\":[],\"upstream_note\":\"upstream returned no offers for this one-way route and date. If you have a return date, retry with `return_date=` — some long-haul routes (e.g. Tokyo→Moscow) are sold only as round-trip packages on far-future dates.\"}}"
+          }
+        ],
+        "isError": false
+      }
+    },
+    "payload": {
+      "offers": [],
+      "meta": {
+        "transport": "avia",
+        "checkout_hint": "When the user picks an offer — in any wording («беру», «самый быстрый», «оформи», «забронируй») — the normal hand-over is `create_checkout_link` with that offer's `checkout_ref`; put the returned link in your reply. This payload deliberately carries no ready checkout link: the link comes from that tool, never from URL parts you assemble yourself.",
+        "pricing": {
+          "basis": "party_total",
+          "passengers": {
+            "full": 1
+          },
+          "note": "Prices on this page already cover the WHOLE searched party — never multiply them by the passenger count."
+        },
+        "from": {
+          "name": "Москва",
+          "geo_id": "2657260",
+          "region": "Москва город федерального значения",
+          "iata": "MOW"
+        },
+        "to": {
+          "name": "Сочи",
+          "geo_id": "2656918",
+          "region": "городской округ Сочи, Краснодарский край",
+          "iata": "AER"
+        },
+        "round_trip": false,
+        "return_date": null,
+        "sort": "price_asc",
+        "page": 1,
+        "page_size": 2,
+        "total_returned": 0,
+        "total_matched": 0,
+        "total_matched_exact": true,
+        "has_more": false,
+        "post_filter_dropped_over_cap": 0,
+        "post_filter_dropped_not_direct": 0,
+        "post_filter_dropped_wrong_carrier": 0,
+        "post_filter_dropped_wrong_flight_number": 0,
+        "carriers_available": [],
+        "upstream_note": "upstream returned no offers for this one-way route and date. If you have a return date, retry with `return_date=` — some long-haul routes (e.g. Tokyo→Moscow) are sold only as round-trip packages on far-future dates."
+      }
+    }
+  }
+}

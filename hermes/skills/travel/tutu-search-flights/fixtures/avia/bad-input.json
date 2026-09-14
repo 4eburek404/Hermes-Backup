@@ -1,0 +1,31 @@
+{
+  "recorded_at": "2026-09-14T03:43:45+00:00",
+  "source": "tutu",
+  "method": "tools/call",
+  "tool": "search_avia",
+  "arguments": {
+    "origin": "Москва",
+    "destination": "Сочи",
+    "departure_date": "вчера"
+  },
+  "note": "невалидный ввод: форма ошибки, которую придётся разбирать",
+  "volatile": [],
+  "response": {
+    "envelope": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Error executing tool search_avia: 1 validation error for search_aviaArguments\ndeparture_date\n  Input should be a valid date or datetime, invalid character in year [type=date_from_datetime_parsing, input_value='вчера', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.12/v/date_from_datetime_parsing"
+          }
+        ],
+        "isError": true
+      }
+    },
+    "payload": {
+      "_text": "Error executing tool search_avia: 1 validation error for search_aviaArguments\ndeparture_date\n  Input should be a valid date or datetime, invalid character in year [type=date_from_datetime_parsing, input_value='вчера', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.12/v/date_from_datetime_parsing"
+    }
+  }
+}
