@@ -20,6 +20,7 @@ otherwise use `python3`.
 Create one importable `.ics` file for flight calendar import using cli
 
 ## Steps
+0. Before touching any tool, pick the fast path: the CLI `build` command below is the default first action for every source and needs no browser. A booking URL is stored in a private file and read with `--url-file` (the CLI resolves carrier redirects itself); a PDF or itinerary is normalized to minimal JSON and read with `--input`. Read `references/carriers.md` first for URL sources, `templates/itinerary.example.json` first for PDF/JSON sources.
 1. Put the source in a private file: booking URL in a text file, or itinerary data in minimal JSON.
 2. For a booking URL, run:
    `"${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/flight_calendar_ics.py" --json build --url-file <private-url-file>`
