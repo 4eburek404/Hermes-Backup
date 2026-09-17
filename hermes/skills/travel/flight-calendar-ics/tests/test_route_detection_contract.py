@@ -14,6 +14,21 @@ sys.path.insert(0, str(SCRIPTS))
 
 
 class RouteDetectionContractTests(unittest.TestCase):
+    def test_s7_manage_order_with_required_params_detects_s7(self) -> None:
+        from flight_calendar.route_detection import infer_build_route
+
+        args = argparse.Namespace(
+            url=None,
+            url_file=None,
+        )
+
+        route = infer_build_route(
+            args,
+            url_override="https://myb.s7.ru/myb/manage-order?bookingId=ABC123&passengerId=ivanov",
+        )
+
+        self.assertEqual(route["route"], "s7")
+
     def test_s7_manage_order_without_required_params_is_insufficient_and_redacted(
         self,
     ) -> None:
