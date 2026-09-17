@@ -82,8 +82,12 @@ def fixture_http_response(observed: list[dict[str, Any]]):
             }
         )
         if url == UTAIR_OAUTH_ENDPOINT:
-            return 200, "application/json; charset=utf-8", json.dumps(
-                {"access_token": SYNTHETIC_ACCESS_TOKEN, "token_type": "Bearer"}
+            return (
+                200,
+                "application/json; charset=utf-8",
+                json.dumps(
+                    {"access_token": SYNTHETIC_ACCESS_TOKEN, "token_type": "Bearer"}
+                ),
             )
         if url.startswith(UTAIR_ORDERS_ENDPOINT + "?"):
             return 200, "application/json; charset=utf-8", UTAIR_FIXTURE_TEXT
@@ -203,9 +207,7 @@ class UtairCarrierSpecification(unittest.TestCase):
         self.assertEqual(orders["method"], "GET")
         order_query = parse_qs(urlparse(str(orders["url"])).query)
         self.assertEqual(order_query["filters[locator]"], [EXPECTED_LOCATOR])
-        self.assertEqual(
-            order_query["filters[passenger_lastname]"], [EXPECTED_SURNAME]
-        )
+        self.assertEqual(order_query["filters[passenger_lastname]"], [EXPECTED_SURNAME])
         order_headers = orders["headers"]
         self.assertIsInstance(order_headers, dict)
         self.assertEqual(
@@ -226,7 +228,9 @@ class UtairCarrierSpecification(unittest.TestCase):
 
         itinerary_contract.validate_itinerary_schema(itinerary)
         itinerary_contract.validate_itinerary_semantics(itinerary)
-        self.assertEqual(itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
+        self.assertEqual(
+            itinerary["schema_version"], "flight-calendar-ics-itinerary.v1"
+        )
         self.assertEqual(itinerary["pnr"], EXPECTED_LOCATOR)
         self.assertEqual(itinerary["passengers"], ["EXAMPLE TEST"])
         self.assertEqual(itinerary["ticket_number"], "0000000000000")

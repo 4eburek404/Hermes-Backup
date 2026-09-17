@@ -40,8 +40,7 @@ AEROFLOT_PNR_API = AEROFLOT_BASE + "/se/api/app/pnr/view/v3"
 SYNTHETIC_KEY = "0" * 64
 EXPECTED_LOCATOR = "ABC123"
 AEROFLOT_SPA_URL = (
-    f"{AEROFLOT_APP_URL}#/pnr?pnr_key={SYNTHETIC_KEY}"
-    f"&pnr_locator={EXPECTED_LOCATOR}"
+    f"{AEROFLOT_APP_URL}#/pnr?pnr_key={SYNTHETIC_KEY}&pnr_locator={EXPECTED_LOCATOR}"
 )
 AEROFLOT_QUERY_URL = (
     f"{AEROFLOT_APP_URL}?pnrKey={SYNTHETIC_KEY}"
@@ -163,7 +162,9 @@ class AeroflotCarrierSpecification(unittest.TestCase):
 
         itinerary_contract.validate_itinerary_schema(itinerary)
         itinerary_contract.validate_itinerary_semantics(itinerary)
-        self.assertEqual(itinerary["schema_version"], "flight-calendar-ics-itinerary.v1")
+        self.assertEqual(
+            itinerary["schema_version"], "flight-calendar-ics-itinerary.v1"
+        )
         self.assertEqual(itinerary["pnr"], EXPECTED_LOCATOR)
         self.assertEqual(itinerary["passengers"], ["Example Alex", "Test Maria"])
         self.assertEqual(itinerary["ticket_number"], "000000")

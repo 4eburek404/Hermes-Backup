@@ -42,9 +42,7 @@ sys.path.insert(0, str(SCRIPTS))
 # the carrier's protocol or credential field names.
 REPRESENTATIVE_BOOKING_URL = (
     "https://www.aeroflot.ru/sb/pnr/app/ru-ru"
-    "#/pnr?pnr_key="
-    + "0" * 64
-    + "&pnr_locator=ABC123"
+    "#/pnr?pnr_key=" + "0" * 64 + "&pnr_locator=ABC123"
 )
 REPRESENTATIVE_FIXTURE_TEXT = FIXTURE_PATH.read_text(encoding="utf-8")
 RAW_REDIRECT_URL = "https://click.mail.utair.io/private-token?x=secret"
@@ -122,16 +120,16 @@ class BookingUrlProcessSpecification(unittest.TestCase):
             ics_render.validate_ics_text(
                 ics_text, expected_events=payload["segments_count"]
             )
-            self.assertEqual(
-                ics_text.count("BEGIN:VEVENT"), payload["segments_count"]
-            )
+            self.assertEqual(ics_text.count("BEGIN:VEVENT"), payload["segments_count"])
 
             emitted = stdout + stderr
             self.assertNotIn(REPRESENTATIVE_BOOKING_URL, emitted)
             self.assertNotIn("ABC123", emitted)
             self.assertNotIn("0" * 64, emitted)
 
-    def test_unknown_booking_url_returns_structured_json_error_without_leak(self) -> None:
+    def test_unknown_booking_url_returns_structured_json_error_without_leak(
+        self,
+    ) -> None:
         """An unsupported URL fails as machine-readable JSON, not a traceback."""
         unknown_url = "https://unknown.example/private-booking?token=secret"
         code, stdout, stderr = run_cli(unknown_url)
@@ -146,7 +144,9 @@ class BookingUrlProcessSpecification(unittest.TestCase):
         self.assertNotIn("unknown.example", emitted)
         self.assertNotIn("secret", emitted)
 
-    def test_untrusted_known_redirect_fails_closed_without_fallback_or_leak(self) -> None:
+    def test_untrusted_known_redirect_fails_closed_without_fallback_or_leak(
+        self,
+    ) -> None:
         """A known redirect wrapper cannot continue to an untrusted target."""
         from flight_calendar import carrier_http
 

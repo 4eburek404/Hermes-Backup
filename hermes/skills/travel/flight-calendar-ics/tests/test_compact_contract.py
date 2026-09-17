@@ -17,6 +17,7 @@ SCRIPTS = ROOT / "scripts"
 CLI = SCRIPTS / "flight_calendar_ics.py"
 TEMPLATE = ROOT / "templates" / "itinerary.example.json"
 
+
 def minimal_itinerary() -> dict[str, object]:
     return {
         "schema_version": "flight-calendar-ics-itinerary.v1",
@@ -215,6 +216,7 @@ class CompactContractTests(unittest.TestCase):
                     },
                 },
             )
+
 
 if __name__ == "__main__":
     unittest.main()

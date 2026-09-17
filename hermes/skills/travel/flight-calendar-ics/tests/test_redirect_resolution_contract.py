@@ -108,7 +108,6 @@ class RedirectResolutionContractTests(unittest.TestCase):
         self.assertEqual(cli_ctx.exception.code, "redirect_resolution_failed")
         assert_private_tokens_redacted(self, str(cli_ctx.exception))
 
-
     def test_cli_success_stdout_does_not_expose_raw_or_resolved_private_url(
         self,
     ) -> None:
@@ -126,8 +125,12 @@ class RedirectResolutionContractTests(unittest.TestCase):
         ) -> tuple[int, str, str]:
             del method, headers, body, timeout, label, sleep
             if url == UTAIR_OAUTH_ENDPOINT:
-                return 200, "application/json; charset=utf-8", json.dumps(
-                    {"access_token": SYNTHETIC_ACCESS_TOKEN, "token_type": "Bearer"}
+                return (
+                    200,
+                    "application/json; charset=utf-8",
+                    json.dumps(
+                        {"access_token": SYNTHETIC_ACCESS_TOKEN, "token_type": "Bearer"}
+                    ),
                 )
             if url.startswith(UTAIR_ORDERS_ENDPOINT + "?"):
                 return 200, "application/json; charset=utf-8", UTAIR_FIXTURE_TEXT
