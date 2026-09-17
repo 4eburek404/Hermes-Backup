@@ -20,9 +20,8 @@ TEMPLATE = ROOT / "templates" / "itinerary.example.json"
 
 def minimal_itinerary() -> dict[str, object]:
     return {
-        "schema_version": "flight-calendar-ics-itinerary.v1",
+        "passenger": "KONSTANTIN ORLOV",
         "pnr": "ABC123",
-        "passengers": ["KONSTANTIN ORLOV"],
         "ticket_number": "5552400000000",
         "booking_url": "https://carrier.example/manage",
         "flights": [
@@ -32,16 +31,13 @@ def minimal_itinerary() -> dict[str, object]:
                     "airport": "SVO",
                     "city": "Москва",
                     "local": "2026-06-01T09:15",
-                    "tz": "Europe/Moscow",
                 },
                 "arrival": {
                     "airport": "SVX",
                     "city": "Екатеринбург",
                     "local": "2026-06-01T13:45",
-                    "tz": "Asia/Yekaterinburg",
                 },
                 "aircraft": "Boeing 737",
-                "status": "confirmed",
             }
         ],
     }
@@ -67,7 +63,10 @@ class CompactContractTests(unittest.TestCase):
 
         itinerary = minimal_itinerary()
         itinerary_contract.validate_itinerary_schema(itinerary)
-        itinerary_contract.validate_itinerary_semantics(itinerary)
+        enriched = itinerary_contract.enrich_itinerary_timezones(
+            itinerary, {"SVO": "Europe/Moscow", "SVX": "Asia/Yekaterinburg"}
+        )
+        itinerary_contract.validate_itinerary_semantics(enriched)
 
         unknown_fields = []
         root_payload = copy.deepcopy(itinerary)
@@ -100,11 +99,12 @@ class CompactContractTests(unittest.TestCase):
 
     def test_renderer_keeps_compact_russian_calendar_entry(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
-        from flight_calendar import ics_render
+        from flight_calendar import ics_render, itinerary_contract
 
-        ics_text, summaries = ics_render.build_calendar(
-            minimal_itinerary(), no_alarms=True
+        enriched = itinerary_contract.enrich_itinerary_timezones(
+            minimal_itinerary(), {"SVO": "Europe/Moscow", "SVX": "Asia/Yekaterinburg"}
         )
+        ics_text, summaries = ics_render.build_calendar(enriched, no_alarms=True)
         unfolded = ics_text.replace("\r\n ", "").replace("\n ", "")
         self.assertEqual(len(summaries), 1)
         self.assertIn(

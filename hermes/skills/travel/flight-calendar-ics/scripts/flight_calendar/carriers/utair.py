@@ -249,7 +249,7 @@ def status_text(seg: dict[str, Any], order: dict[str, Any]) -> str:
 
 
 def convert_to_itinerary(
-    data: dict[str, Any], tz_map: dict[str, str], booking_url: str | None = None
+    data: dict[str, Any], booking_url: str | None = None
 ) -> dict[str, Any]:
     if not isinstance(data, dict):
         die("Utair orders API response is not a JSON object")
@@ -258,7 +258,6 @@ def convert_to_itinerary(
     passengers: list[str] = []
     all_tickets: list[str] = []
     pnr: str | None = None
-    missing_tz: set[str] = set()
 
     orders = collect_orders(data)
     if not orders:
@@ -286,11 +285,6 @@ def convert_to_itinerary(
                 continue
             dep_code = airport_code(seg, "departure")
             arr_code = airport_code(seg, "arrival")
-            for code in [dep_code, arr_code]:
-                if code and code not in tz_map:
-                    missing_tz.add(code)
-            if missing_tz:
-                continue
             dep_local = segment_local(seg, "departure")
             arr_local = segment_local(seg, "arrival")
             if not dep_code or not arr_code or not dep_local or not arr_local:
@@ -299,7 +293,6 @@ def convert_to_itinerary(
             departure: dict[str, Any] = {
                 "airport": dep_code,
                 "local": dep_local,
-                "tz": tz_map[dep_code],
             }
             dep_city = city_name(seg, "departure")
             if dep_city:
@@ -307,7 +300,6 @@ def convert_to_itinerary(
             arrival: dict[str, Any] = {
                 "airport": arr_code,
                 "local": arr_local,
-                "tz": tz_map[arr_code],
             }
             arr_city = city_name(seg, "arrival")
             if arr_city:
@@ -316,7 +308,6 @@ def convert_to_itinerary(
                 "flight_number": flight_number(seg),
                 "departure": departure,
                 "arrival": arrival,
-                "status": status_text(seg, order),
             }
             aircraft = first_value(
                 seg,
@@ -332,20 +323,16 @@ def convert_to_itinerary(
                 flight["aircraft"] = str(aircraft).strip()
             flights.append(flight)
 
-    if missing_tz:
-        codes = ", ".join(sorted(missing_tz))
-        die(f"missing timezone for airport(s): {codes}; rerun with --tz CODE=Area/City")
     if not flights:
         die("no flight segments found in Utair response")
 
     itinerary: dict[str, Any] = {
-        "schema_version": "flight-calendar-ics-itinerary.v1",
         "flights": flights,
     }
     if pnr:
         itinerary["pnr"] = pnr
     if passengers:
-        itinerary["passengers"] = passengers
+        itinerary["passenger"] = passengers[0]
     if all_tickets:
         itinerary["ticket_number"] = ", ".join(all_tickets)
     if booking_url:

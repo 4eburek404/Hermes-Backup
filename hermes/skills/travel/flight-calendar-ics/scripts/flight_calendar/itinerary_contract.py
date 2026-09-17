@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any, Iterable
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-SCHEMA_VERSION = "flight-calendar-ics-itinerary.v1"
 SCHEMA_PATH = (
     Path(__file__).resolve().parents[2] / "schemas" / "itinerary.v1.schema.json"
 )
@@ -53,11 +52,25 @@ def _validator() -> Any:
     )
 
 
-def normalize_legacy_itinerary(data: dict[str, Any]) -> dict[str, Any]:
-    """Return a defensive copy without accepting legacy aliases or defaults."""
-    if not isinstance(data, dict):
-        raise ValueError("input JSON root must be an object")
-    return copy.deepcopy(data)
+def enrich_itinerary_timezones(
+    data: dict[str, Any], timezone_map: dict[str, str]
+) -> dict[str, Any]:
+    """Attach catalog-resolved timezones to a renderer-only itinerary copy."""
+    enriched = copy.deepcopy(data)
+    missing: set[str] = set()
+    for flight in enriched.get("flights") or []:
+        for endpoint_name in ("departure", "arrival"):
+            endpoint = flight[endpoint_name]
+            airport = str(endpoint.get("airport") or "").strip().upper()
+            timezone = timezone_map.get(airport)
+            if timezone is None:
+                missing.add(airport)
+            else:
+                endpoint["tz"] = timezone
+    if missing:
+        codes = ", ".join(sorted(code for code in missing if code))
+        raise ValueError(f"missing timezone for airport(s): {codes}")
+    return enriched
 
 
 def _format_path(parts: Iterable[Any]) -> str:

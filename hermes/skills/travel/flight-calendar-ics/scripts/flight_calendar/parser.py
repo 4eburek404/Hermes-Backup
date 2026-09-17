@@ -61,16 +61,18 @@ def build_timezone_map(overrides: dict[str, str] | None = None) -> dict[str, str
     return timezone_catalog.build_timezone_map(overrides)
 
 
-def validate_itinerary_contract(itinerary: dict[str, Any]) -> dict[str, Any]:
-    normalized = itinerary_contract.normalize_legacy_itinerary(itinerary)
-    itinerary_contract.validate_itinerary_schema(normalized)
-    itinerary_contract.validate_itinerary_semantics(normalized)
-    return normalized
+def validate_itinerary_contract(
+    itinerary: dict[str, Any], timezone_map: dict[str, str]
+) -> dict[str, Any]:
+    itinerary_contract.validate_itinerary_schema(itinerary)
+    enriched = itinerary_contract.enrich_itinerary_timezones(itinerary, timezone_map)
+    itinerary_contract.validate_itinerary_semantics(enriched)
+    return enriched
 
 
 def _load_input_itinerary(input_path: Path) -> dict[str, Any]:
     data = ics_render.load_input(input_path)
-    return validate_itinerary_contract(data)
+    return validate_itinerary_contract(data, build_timezone_map())
 
 
 def _source_args_for_url_file(url_file: Path) -> argparse.Namespace:
@@ -94,7 +96,6 @@ def _build_itinerary_from_url_file(
         )
         itinerary = aeroflot.convert_to_itinerary(
             aeroflot.fetch_aeroflot_pnr(locator, key),
-            tz_map,
             booking_url=normalized_url,
         )
     elif route == "ural":
@@ -103,7 +104,6 @@ def _build_itinerary_from_url_file(
         )
         itinerary = ural.convert_to_itinerary(
             ural.fetch_ural_reservation(locator, last_name, booking_url=normalized_url),
-            tz_map,
             booking_url=normalized_url,
         )
     elif route == "utair":
@@ -113,7 +113,6 @@ def _build_itinerary_from_url_file(
         token = utair.fetch_utair_token()
         itinerary = utair.convert_to_itinerary(
             utair.fetch_utair_orders(locator, last_name, token=token),
-            tz_map,
             booking_url=normalized_url,
         )
     elif route == "redwings":
@@ -122,7 +121,6 @@ def _build_itinerary_from_url_file(
         )
         itinerary = redwings.convert_to_itinerary(
             redwings.fetch_redwings_order(locator, access_code),
-            tz_map,
             booking_url=normalized_url,
         )
     elif route == "s7":
@@ -131,12 +129,11 @@ def _build_itinerary_from_url_file(
         )
         itinerary = s7.convert_to_itinerary(
             s7.fetch_s7_order(normalized_url),
-            tz_map,
             booking_url=normalized_url,
         )
     else:
         raise CliFailure("unsupported booking URL route", code="route_unknown")
-    return validate_itinerary_contract(itinerary)
+    return validate_itinerary_contract(itinerary, tz_map)
 
 
 def _default_output_path() -> Path:

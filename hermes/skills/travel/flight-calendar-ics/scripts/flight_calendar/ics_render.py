@@ -92,8 +92,10 @@ def segment_route_time_label(
     return f"{dep_dt:%d.%m} {dep_city} {separator} {arr_city} {dep_dt:%H:%M} {arr_dt:%H:%M}"
 
 
-def primary_passenger_label(passengers: list[str]) -> str:
-    return display_passenger_name(passengers[0]) if passengers else ""
+def primary_passenger_label(passenger: Any) -> str:
+    if itinerary_contract.is_placeholder(passenger):
+        return ""
+    return display_passenger_name(str(passenger).strip())
 
 
 def format_ticket_number(value: Any) -> str:
@@ -173,7 +175,6 @@ def build_event(
         die(str(exc))
 
     pnr = calendar.get("pnr")
-    passengers = normalize_list(calendar.get("passengers"))
     booking_url = (
         None
         if itinerary_contract.is_placeholder(calendar.get("booking_url"))
@@ -188,7 +189,7 @@ def build_event(
     description_route = segment_route_time_label(
         dep_dt, arr_dt, dep_city, arr_city, separator="->"
     )
-    passenger = primary_passenger_label(passengers)
+    passenger = primary_passenger_label(calendar.get("passenger"))
     summary = " ".join(part for part in [passenger, title_route] if part)
     location = f"{dep_city} → {arr_city}"
 
@@ -205,15 +206,6 @@ def build_event(
         desc_lines.append(f"Бронирование: {booking_url}")
     description = "\n".join(desc_lines)
 
-    raw_status = str(flight.get("status") or "confirmed").strip().lower()
-    status_map = {
-        "confirmed": "CONFIRMED",
-        "cancelled": "CANCELLED",
-        "canceled": "CANCELLED",
-        "tentative": "TENTATIVE",
-    }
-    ical_status = status_map.get(raw_status, "CONFIRMED")
-
     uid = stable_uid(flight, str(calendar.get("pnr") or ""))
 
     # Build Event using icalendar modern API
@@ -227,7 +219,7 @@ def build_event(
         "stamp": now_utc,
         "created": now_utc,
         "last_modified": now_utc,
-        "status": ical_status,
+        "status": "CONFIRMED",
         "transparency": "OPAQUE",
         "categories": ["Travel", "Flight"],
     }

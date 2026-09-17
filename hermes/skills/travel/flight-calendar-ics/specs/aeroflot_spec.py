@@ -156,17 +156,16 @@ class AeroflotCarrierSpecification(unittest.TestCase):
         data = aeroflot.require_success_data(api_response)
         itinerary = aeroflot.convert_to_itinerary(
             data,
-            {"SVX": "Asia/Yekaterinburg", "SVO": "Europe/Moscow"},
             booking_url=AEROFLOT_SPA_URL,
         )
 
         itinerary_contract.validate_itinerary_schema(itinerary)
-        itinerary_contract.validate_itinerary_semantics(itinerary)
-        self.assertEqual(
-            itinerary["schema_version"], "flight-calendar-ics-itinerary.v1"
+        enriched = itinerary_contract.enrich_itinerary_timezones(
+            itinerary, {"SVX": "Asia/Yekaterinburg", "SVO": "Europe/Moscow"}
         )
+        itinerary_contract.validate_itinerary_semantics(enriched)
         self.assertEqual(itinerary["pnr"], EXPECTED_LOCATOR)
-        self.assertEqual(itinerary["passengers"], ["Example Alex", "Test Maria"])
+        self.assertEqual(itinerary["passenger"], "Example Alex")
         self.assertEqual(itinerary["ticket_number"], "000000")
         self.assertEqual(itinerary["booking_url"], AEROFLOT_SPA_URL)
 
@@ -181,15 +180,12 @@ class AeroflotCarrierSpecification(unittest.TestCase):
                         "airport": "SVX",
                         "city": "Екатеринбург",
                         "local": "2037-09-23T13:30",
-                        "tz": "Asia/Yekaterinburg",
                     },
                     "arrival": {
                         "airport": "SVO",
                         "city": "Москва",
                         "local": "2037-09-23T13:50",
-                        "tz": "Europe/Moscow",
                     },
-                    "status": "confirmed",
                     "aircraft": "Airbus A330-300",
                 },
                 {
@@ -198,15 +194,12 @@ class AeroflotCarrierSpecification(unittest.TestCase):
                         "airport": "SVO",
                         "city": "Москва",
                         "local": "2037-09-25T15:25",
-                        "tz": "Europe/Moscow",
                     },
                     "arrival": {
                         "airport": "SVX",
                         "city": "Екатеринбург",
                         "local": "2037-09-25T19:50",
-                        "tz": "Asia/Yekaterinburg",
                     },
-                    "status": "confirmed",
                     "aircraft": "Boeing 737-800",
                 },
             ],

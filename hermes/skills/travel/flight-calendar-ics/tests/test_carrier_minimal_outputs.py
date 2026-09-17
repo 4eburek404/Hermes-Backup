@@ -11,6 +11,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
+TIMEZONES = {
+    "DME": "Europe/Moscow",
+    "KUF": "Europe/Samara",
+    "SVO": "Europe/Moscow",
+    "SVX": "Asia/Yekaterinburg",
+    "VKO": "Europe/Moscow",
+}
 
 
 class CarrierMinimalOutputTests(unittest.TestCase):
@@ -20,7 +27,8 @@ class CarrierMinimalOutputTests(unittest.TestCase):
         from flight_calendar import itinerary_contract
 
         itinerary_contract.validate_itinerary_schema(itinerary)
-        itinerary_contract.validate_itinerary_semantics(itinerary)
+        enriched = itinerary_contract.enrich_itinerary_timezones(itinerary, TIMEZONES)
+        itinerary_contract.validate_itinerary_semantics(enriched)
         self.assertIn("pnr", itinerary)
         self.assertIn("booking_url", itinerary)
         self.assertIn("flights", itinerary)
@@ -70,13 +78,12 @@ class CarrierMinimalOutputTests(unittest.TestCase):
 
         itinerary = aeroflot.convert_to_itinerary(
             data,
-            {"SVO": "Europe/Moscow", "SVX": "Asia/Yekaterinburg"},
             booking_url="https://carrier.example/aero",
         )
 
         self.assert_minimal_itinerary(itinerary)
         self.assertEqual(itinerary["pnr"], "ABC123")
-        self.assertEqual(itinerary["passengers"], ["ORLOV KONSTANTIN"])
+        self.assertEqual(itinerary["passenger"], "ORLOV KONSTANTIN")
         self.assertEqual(itinerary["ticket_number"], "5552400000000")
 
     def test_ural_converter_emits_minimal_itinerary(self) -> None:
@@ -109,7 +116,6 @@ class CarrierMinimalOutputTests(unittest.TestCase):
 
         itinerary = ural.convert_to_itinerary(
             response,
-            {"SVO": "Europe/Moscow", "SVX": "Asia/Yekaterinburg"},
             booking_url="https://carrier.example/ural",
         )
 
@@ -154,7 +160,6 @@ class CarrierMinimalOutputTests(unittest.TestCase):
 
         itinerary = utair.convert_to_itinerary(
             data,
-            {"VKO": "Europe/Moscow", "SVX": "Asia/Yekaterinburg"},
             booking_url="https://carrier.example/utair",
         )
 
@@ -237,7 +242,6 @@ class CarrierMinimalOutputTests(unittest.TestCase):
 
         itinerary = redwings.convert_to_itinerary(
             data,
-            {"SVO": "Europe/Moscow", "SVX": "Asia/Yekaterinburg"},
             booking_url="https://carrier.example/redwings",
         )
 
@@ -304,12 +308,12 @@ class CarrierMinimalOutputTests(unittest.TestCase):
         ]
 
         itinerary = s7.convert_to_itinerary(
-            data, {}, booking_url="https://carrier.example/s7"
+            data, booking_url="https://carrier.example/s7"
         )
 
         self.assert_minimal_itinerary(itinerary)
         self.assertEqual(itinerary["pnr"], "ABC123")
-        self.assertEqual(itinerary["passengers"], ["ORLOV KONSTANTIN"])
+        self.assertEqual(itinerary["passenger"], "ORLOV KONSTANTIN")
         self.assertEqual(itinerary["ticket_number"], "4212400000000")
         serialized = json.dumps(itinerary, ensure_ascii=False)
         self.assertNotIn("must not leak", serialized)

@@ -222,17 +222,16 @@ class UtairCarrierSpecification(unittest.TestCase):
         api_response = json.loads(UTAIR_FIXTURE_TEXT)
         itinerary = utair.convert_to_itinerary(
             api_response,
-            {"SVX": "Asia/Yekaterinburg", "KUF": "Europe/Samara"},
             booking_url=UTAIR_DIRECT_URL,
         )
 
         itinerary_contract.validate_itinerary_schema(itinerary)
-        itinerary_contract.validate_itinerary_semantics(itinerary)
-        self.assertEqual(
-            itinerary["schema_version"], "flight-calendar-ics-itinerary.v1"
+        enriched = itinerary_contract.enrich_itinerary_timezones(
+            itinerary, {"SVX": "Asia/Yekaterinburg", "KUF": "Europe/Samara"}
         )
+        itinerary_contract.validate_itinerary_semantics(enriched)
         self.assertEqual(itinerary["pnr"], EXPECTED_LOCATOR)
-        self.assertEqual(itinerary["passengers"], ["EXAMPLE TEST"])
+        self.assertEqual(itinerary["passenger"], "EXAMPLE TEST")
         self.assertEqual(itinerary["ticket_number"], "0000000000000")
         self.assertEqual(itinerary["booking_url"], UTAIR_DIRECT_URL)
 
@@ -245,15 +244,12 @@ class UtairCarrierSpecification(unittest.TestCase):
                         "airport": "SVX",
                         "city": "Екатеринбург",
                         "local": "2037-09-21T11:50",
-                        "tz": "Asia/Yekaterinburg",
                     },
                     "arrival": {
                         "airport": "KUF",
                         "city": "Самара",
                         "local": "2037-09-21T13:10",
-                        "tz": "Europe/Samara",
                     },
-                    "status": "confirmed (HK)",
                     "aircraft": "ATR 72",
                 }
             ],

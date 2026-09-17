@@ -163,13 +163,10 @@ def clean(value: Any) -> Any:
     return None if value in (None, "", []) else value
 
 
-def _endpoint(
-    location: dict[str, Any], *, airport: str, local: Any, tz: str
-) -> dict[str, Any]:
+def _endpoint(location: dict[str, Any], *, airport: str, local: Any) -> dict[str, Any]:
     endpoint: dict[str, Any] = {
         "airport": airport,
         "local": str(local or "").replace(" ", "T"),
-        "tz": tz,
     }
     city = clean(location.get("city_name"))
     if city:
@@ -178,11 +175,10 @@ def _endpoint(
 
 
 def convert_to_itinerary(
-    data: dict[str, Any], tz_map: dict[str, str], booking_url: str | None = None
+    data: dict[str, Any], booking_url: str | None = None
 ) -> dict[str, Any]:
     ticket_number = first_ticket_number(data)
     flights: list[dict[str, Any]] = []
-    missing_tz: set[str] = set()
 
     for leg in data.get("legs") or []:
         for seg in leg.get("segments") or []:
@@ -190,11 +186,6 @@ def convert_to_itinerary(
             arr = seg.get("destination") or {}
             dep_code = str(dep.get("airport_code") or "").upper()
             arr_code = str(arr.get("airport_code") or "").upper()
-            for code in [dep_code, arr_code]:
-                if code and code not in tz_map:
-                    missing_tz.add(code)
-            if missing_tz:
-                continue
 
             airline_code = seg.get("airline_code") or "SU"
             flight_number = f"{airline_code}{seg.get('flight_number')}"
@@ -204,28 +195,18 @@ def convert_to_itinerary(
                     dep,
                     airport=dep_code,
                     local=seg.get("departure"),
-                    tz=tz_map[dep_code],
                 ),
-                "arrival": _endpoint(
-                    arr, airport=arr_code, local=seg.get("arrival"), tz=tz_map[arr_code]
-                ),
-                "status": "confirmed"
-                if seg.get("status_code") == "HK"
-                else (seg.get("status_name") or "confirmed"),
+                "arrival": _endpoint(arr, airport=arr_code, local=seg.get("arrival")),
             }
             aircraft = clean(seg.get("aircraft_type_name"))
             if aircraft:
                 flight["aircraft"] = str(aircraft)
             flights.append(flight)
 
-    if missing_tz:
-        codes = ", ".join(sorted(missing_tz))
-        die(f"missing timezone for airport(s): {codes}; rerun with --tz CODE=Area/City")
     if not flights:
         die("no flight segments found in Aeroflot response")
 
     itinerary: dict[str, Any] = {
-        "schema_version": "flight-calendar-ics-itinerary.v1",
         "flights": flights,
     }
     pnr = clean(data.get("pnr_locator"))
@@ -233,7 +214,7 @@ def convert_to_itinerary(
     if pnr:
         itinerary["pnr"] = str(pnr)
     if passengers:
-        itinerary["passengers"] = passengers
+        itinerary["passenger"] = passengers[0]
     if ticket_number:
         itinerary["ticket_number"] = ticket_number
     if booking_url:

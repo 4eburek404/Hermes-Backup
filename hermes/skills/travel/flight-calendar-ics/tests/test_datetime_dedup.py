@@ -21,10 +21,9 @@ sys.path.insert(0, str(SCRIPTS))
 
 def _valid_itinerary() -> dict[str, object]:
     """Return a minimal valid itinerary (SVO→SVX, 09:15→13:45 local)."""
-    return {
-        "schema_version": "flight-calendar-ics-itinerary.v1",
+    itinerary = {
+        "passenger": "KONSTANTIN ORLOV",
         "pnr": "ABC123",
-        "passengers": ["KONSTANTIN ORLOV"],
         "ticket_number": "5552400000000",
         "booking_url": "https://carrier.example/manage",
         "flights": [
@@ -34,19 +33,21 @@ def _valid_itinerary() -> dict[str, object]:
                     "airport": "SVO",
                     "city": "Москва",
                     "local": "2026-06-01T09:15",
-                    "tz": "Europe/Moscow",
                 },
                 "arrival": {
                     "airport": "SVX",
                     "city": "Екатеринбург",
                     "local": "2026-06-01T13:45",
-                    "tz": "Asia/Yekaterinburg",
                 },
                 "aircraft": "Boeing 737",
-                "status": "confirmed",
             }
         ],
     }
+    from flight_calendar import itinerary_contract
+
+    return itinerary_contract.enrich_itinerary_timezones(
+        itinerary, {"SVO": "Europe/Moscow", "SVX": "Asia/Yekaterinburg"}
+    )
 
 
 def _assert_build_calendar_error(

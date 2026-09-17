@@ -317,15 +317,6 @@ def local_datetime(value: Any) -> str:
     return text[:16]
 
 
-def timezone_for(
-    segment: dict[str, Any], field: str, airport: str, tz_map: dict[str, str]
-) -> str | None:
-    value = str(segment.get(field) or "").strip()
-    if "/" in value:
-        return value
-    return tz_map.get(airport)
-
-
 def airline_code(airline: dict[str, Any]) -> str:
     return (
         str(first_value(airline, ["displayCode", "code", "iata"]) or "S7")
@@ -371,25 +362,15 @@ def status_text(segment: dict[str, Any], air: dict[str, Any]) -> str:
     return " / ".join(parts) if parts else "confirmed"
 
 
-def convert_to_itinerary(
-    data: Any, tz_map: dict[str, str], booking_url: str | None = None
-) -> dict[str, Any]:
+def convert_to_itinerary(data: Any, booking_url: str | None = None) -> dict[str, Any]:
     air = _air_from_payload(data)
     flights: list[dict[str, Any]] = []
-    missing_tz: set[str] = set()
 
     for segment in collect_segments(air):
         dep_point = as_dict(segment.get("departureAirport"))
         arr_point = as_dict(segment.get("arrivalAirport"))
         dep_code = airport_code(dep_point)
         arr_code = airport_code(arr_point)
-        dep_tz = timezone_for(segment, "departureTimeZone", dep_code, tz_map)
-        arr_tz = timezone_for(segment, "arrivalTimeZone", arr_code, tz_map)
-        for code, tzid in ((dep_code, dep_tz), (arr_code, arr_tz)):
-            if code and not tzid:
-                missing_tz.add(code)
-        if missing_tz:
-            continue
 
         dep_local = local_datetime(segment.get("departureDate"))
         arr_local = local_datetime(segment.get("arrivalDate"))
@@ -399,7 +380,6 @@ def convert_to_itinerary(
         departure: dict[str, Any] = {
             "airport": dep_code,
             "local": dep_local,
-            "tz": dep_tz,
         }
         dep_city = airport_city(dep_point)
         if dep_city:
@@ -407,7 +387,6 @@ def convert_to_itinerary(
         arrival: dict[str, Any] = {
             "airport": arr_code,
             "local": arr_local,
-            "tz": arr_tz,
         }
         arr_city = airport_city(arr_point)
         if arr_city:
@@ -417,7 +396,6 @@ def convert_to_itinerary(
             "flight_number": flight_number(segment),
             "departure": departure,
             "arrival": arrival,
-            "status": status_text(segment, air),
         }
         aircraft_name = first_value(
             as_dict(segment.get("aircraft")), ["name", "title", "code"]
@@ -426,14 +404,10 @@ def convert_to_itinerary(
             flight["aircraft"] = str(aircraft_name).strip()
         flights.append(flight)
 
-    if missing_tz:
-        codes = ", ".join(sorted(missing_tz))
-        die(f"missing timezone for airport(s): {codes}; rerun with --tz CODE=Area/City")
     if not flights:
         die("no flight segments found in S7 response")
 
     itinerary: dict[str, Any] = {
-        "schema_version": "flight-calendar-ics-itinerary.v1",
         "flights": flights,
     }
     pnr = str(first_value(air, ["pnr", "orderNumber", "code"]) or "").strip().upper()
@@ -441,7 +415,7 @@ def convert_to_itinerary(
         itinerary["pnr"] = pnr
     passengers = passenger_names(air)
     if passengers:
-        itinerary["passengers"] = passengers
+        itinerary["passenger"] = passengers[0]
     tickets = ticket_numbers(air)
     if tickets:
         itinerary["ticket_number"] = ", ".join(tickets)

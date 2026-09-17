@@ -359,7 +359,6 @@ def status_text(statuses: Any) -> str | None:
 
 def convert_to_itinerary(
     data_or_response: dict[str, Any],
-    tz_map: dict[str, str],
     booking_url: str | None = None,
 ) -> dict[str, Any]:
     if data_or_response.get("success") is False:
@@ -374,7 +373,6 @@ def convert_to_itinerary(
 
     journey = data.get("journey") or {}
     flights: list[dict[str, Any]] = []
-    missing_tz: set[str] = set()
     flight_groups = [
         ("outbound", journey.get("outboundFlights") or []),
         ("return", journey.get("returnFlights") or []),
@@ -385,11 +383,6 @@ def convert_to_itinerary(
         for seg in group_flights:
             dep_code = str(seg.get("origin") or "").upper()
             arr_code = str(seg.get("destination") or "").upper()
-            for code in [dep_code, arr_code]:
-                if code and code not in tz_map:
-                    missing_tz.add(code)
-            if missing_tz:
-                continue
 
             marketing = str(
                 seg.get("marketingCarrier") or seg.get("operatingCarrier") or "U6"
@@ -401,28 +394,21 @@ def convert_to_itinerary(
                 "departure": {
                     "airport": dep_code,
                     "local": local_datetime(seg.get("departureDate")),
-                    "tz": tz_map[dep_code],
                 },
                 "arrival": {
                     "airport": arr_code,
                     "local": local_datetime(seg.get("arrivalDate")),
-                    "tz": tz_map[arr_code],
                 },
-                "status": status_text(seg.get("statuses")),
             }
             aircraft = clean(seg.get("aircraft"))
             if aircraft:
                 flight["aircraft"] = str(aircraft)
             flights.append(flight)
 
-    if missing_tz:
-        codes = ", ".join(sorted(missing_tz))
-        die(f"missing timezone for airport(s): {codes}; rerun with --tz CODE=Area/City")
     if not flights:
         die("no flight segments found in Ural Airlines response")
 
     itinerary: dict[str, Any] = {
-        "schema_version": "flight-calendar-ics-itinerary.v1",
         "flights": flights,
     }
     pnr = clean(data.get("number"))
@@ -431,7 +417,7 @@ def convert_to_itinerary(
     if pnr:
         itinerary["pnr"] = str(pnr)
     if passengers:
-        itinerary["passengers"] = passengers
+        itinerary["passenger"] = passengers[0]
     if tickets:
         itinerary["ticket_number"] = ", ".join(tickets)
     if booking_url:

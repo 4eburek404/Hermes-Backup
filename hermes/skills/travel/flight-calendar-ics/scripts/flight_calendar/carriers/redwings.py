@@ -365,7 +365,7 @@ def status_text(segment: dict[str, Any], order: dict[str, Any]) -> str:
 
 
 def convert_to_itinerary(
-    data: dict[str, Any], tz_map: dict[str, str], booking_url: str | None = None
+    data: dict[str, Any], booking_url: str | None = None
 ) -> dict[str, Any]:
     order = find_order(data)
     if not order:
@@ -378,18 +378,12 @@ def convert_to_itinerary(
     )
     passengers = passenger_names(order)
     flights: list[dict[str, Any]] = []
-    missing_tz: set[str] = set()
 
     for seg, _group in collect_segments(order):
         dep = as_dict(seg.get("departure"))
         arr = as_dict(seg.get("arrival"))
         dep_code = point_airport(dep)
         arr_code = point_airport(arr)
-        for code in (dep_code, arr_code):
-            if code and code not in tz_map:
-                missing_tz.add(code)
-        if missing_tz:
-            continue
         dep_local = point_local(dep)
         arr_local = point_local(arr)
         if not dep_code or not arr_code or not dep_local or not arr_local:
@@ -398,7 +392,6 @@ def convert_to_itinerary(
         departure: dict[str, Any] = {
             "airport": dep_code,
             "local": dep_local,
-            "tz": tz_map[dep_code],
         }
         dep_city = point_city(dep)
         if dep_city:
@@ -406,7 +399,6 @@ def convert_to_itinerary(
         arrival: dict[str, Any] = {
             "airport": arr_code,
             "local": arr_local,
-            "tz": tz_map[arr_code],
         }
         arr_city = point_city(arr)
         if arr_city:
@@ -415,7 +407,6 @@ def convert_to_itinerary(
             "flight_number": flight_number(seg),
             "departure": departure,
             "arrival": arrival,
-            "status": status_text(seg, order),
         }
         aircraft = as_dict(seg.get("aircraft"))
         aircraft_name = first_value(aircraft, ["name", "title"])
@@ -423,21 +414,17 @@ def convert_to_itinerary(
             flight["aircraft"] = str(aircraft_name).strip()
         flights.append(flight)
 
-    if missing_tz:
-        codes = ", ".join(sorted(missing_tz))
-        die(f"missing timezone for airport(s): {codes}; rerun with --tz CODE=Area/City")
     if not flights:
         die("no flight segments found in Red Wings response")
 
     itinerary: dict[str, Any] = {
-        "schema_version": "flight-calendar-ics-itinerary.v1",
         "flights": flights,
     }
     tickets = ticket_numbers(order)
     if pnr:
         itinerary["pnr"] = pnr
     if passengers:
-        itinerary["passengers"] = passengers
+        itinerary["passenger"] = passengers[0]
     if tickets:
         itinerary["ticket_number"] = ", ".join(tickets)
     if booking_url:
