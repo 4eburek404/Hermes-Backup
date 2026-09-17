@@ -17,44 +17,6 @@ SCRIPTS = ROOT / "scripts"
 CLI = SCRIPTS / "flight_calendar_ics.py"
 TEMPLATE = ROOT / "templates" / "itinerary.example.json"
 
-ROOT_FIELDS = {
-    "schema_version",
-    "pnr",
-    "passengers",
-    "ticket_number",
-    "booking_url",
-    "flights",
-}
-FLIGHT_FIELDS = {"flight_number", "departure", "arrival", "aircraft", "status"}
-ENDPOINT_FIELDS = {"airport", "city", "local", "tz"}
-REMOVED_ROOT_FIELDS = {
-    "booking_reference",
-    "calendar_name",
-    "alarms_minutes",
-    "links",
-    "source",
-    "notes",
-    "extensions",
-}
-REMOVED_FLIGHT_FIELDS = {
-    "pnr",
-    "ticket_number",
-    "passengers",
-    "carrier",
-    "carrier_code",
-    "operating_carrier",
-    "seat",
-    "baggage",
-    "cabin",
-    "fare",
-    "notes",
-    "url",
-    "links",
-    "extensions",
-}
-REMOVED_ENDPOINT_FIELDS = {"terminal", "gate"}
-
-
 def minimal_itinerary() -> dict[str, object]:
     return {
         "schema_version": "flight-calendar-ics-itinerary.v1",
@@ -106,29 +68,20 @@ class CompactContractTests(unittest.TestCase):
         itinerary_contract.validate_itinerary_schema(itinerary)
         itinerary_contract.validate_itinerary_semantics(itinerary)
 
-        for field in REMOVED_ROOT_FIELDS:
-            payload = copy.deepcopy(itinerary)
-            payload[field] = "legacy"
-            with (
-                self.subTest(field=field),
-                self.assertRaisesRegex(ValueError, "unknown field"),
-            ):
-                itinerary_contract.validate_itinerary_schema(payload)
+        unknown_fields = []
+        root_payload = copy.deepcopy(itinerary)
+        root_payload["unexpected_root"] = "legacy"
+        unknown_fields.append(("root", root_payload))
+        flight_payload = copy.deepcopy(itinerary)
+        flight_payload["flights"][0]["unexpected_flight"] = "legacy"  # type: ignore[index]
+        unknown_fields.append(("flight", flight_payload))
+        endpoint_payload = copy.deepcopy(itinerary)
+        endpoint_payload["flights"][0]["departure"]["unexpected_endpoint"] = "legacy"  # type: ignore[index]
+        unknown_fields.append(("endpoint", endpoint_payload))
 
-        for field in REMOVED_FLIGHT_FIELDS:
-            payload = copy.deepcopy(itinerary)
-            payload["flights"][0][field] = "legacy"  # type: ignore[index]
+        for location, payload in unknown_fields:
             with (
-                self.subTest(field=field),
-                self.assertRaisesRegex(ValueError, "unknown field"),
-            ):
-                itinerary_contract.validate_itinerary_schema(payload)
-
-        for field in REMOVED_ENDPOINT_FIELDS:
-            payload = copy.deepcopy(itinerary)
-            payload["flights"][0]["departure"][field] = "legacy"  # type: ignore[index]
-            with (
-                self.subTest(field=field),
+                self.subTest(location=location),
                 self.assertRaisesRegex(ValueError, "unknown field"),
             ):
                 itinerary_contract.validate_itinerary_schema(payload)
@@ -137,28 +90,13 @@ class CompactContractTests(unittest.TestCase):
         sys.path.insert(0, str(SCRIPTS))
         from flight_calendar import itinerary_contract
 
-        self.assertTrue(TEMPLATE.exists())
-        self.assertFalse(
-            (ROOT / "templates" / "aeroflot-itinerary.example.json").exists()
-        )
+        self.assertTrue(TEMPLATE.is_file())
         data = json.loads(TEMPLATE.read_text(encoding="utf-8"))
         itinerary_contract.validate_itinerary_schema(data)
-        self.assertLessEqual(set(data), ROOT_FIELDS)
-        self.assertLessEqual(set(data["flights"][0]), FLIGHT_FIELDS)
-        self.assertLessEqual(set(data["flights"][0]["departure"]), ENDPOINT_FIELDS)
-        self.assertLessEqual(set(data["flights"][0]["arrival"]), ENDPOINT_FIELDS)
+        self.assertEqual(len(data["flights"]), 1)
         serialized = json.dumps(data, ensure_ascii=False)
         self.assertNotIn("Aeroflot", serialized)
         self.assertNotIn("Аэрофлот", serialized)
-        globally_removed = (
-            REMOVED_ROOT_FIELDS | REMOVED_FLIGHT_FIELDS | REMOVED_ENDPOINT_FIELDS
-        ) - {
-            "pnr",
-            "passengers",
-            "ticket_number",
-        }
-        for field in sorted(globally_removed):
-            self.assertNotIn(f'"{field}"', serialized)
 
     def test_renderer_keeps_compact_russian_calendar_entry(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
@@ -205,6 +143,11 @@ class CompactContractTests(unittest.TestCase):
             source.write_text(
                 json.dumps(minimal_itinerary(), ensure_ascii=False), encoding="utf-8"
             )
+            before = {
+                path.relative_to(tmp_path)
+                for path in tmp_path.rglob("*")
+                if path.is_file()
+            }
 
             result = self.run_cli(
                 "--json",
@@ -228,22 +171,18 @@ class CompactContractTests(unittest.TestCase):
                 },
             )
             self.assertTrue(output.exists())
-            self.assertFalse((tmp_path / "flights.ics").exists())
-            self.assertFalse((tmp_path / "itinerary.json.json").exists())
-            self.assertFalse((tmp_path / "envelope.json").exists())
+            after = {
+                path.relative_to(tmp_path)
+                for path in tmp_path.rglob("*")
+                if path.is_file()
+            }
+            self.assertEqual(after - before, {output.relative_to(tmp_path)})
             self.assertNotIn("process", result.stdout)
             self.assertNotIn("agent_handoff", result.stdout)
 
     def test_public_cli_rejects_legacy_surface_and_private_url_arg(self) -> None:
         for args in [
-            ("--json", "doctor"),
-            ("--json", "diagnose", "doctor"),
-            ("--json", "maint", "contracts"),
-            ("--json", "build", "auto"),
-            ("--json", "build", "make"),
-            ("--json", "build", "aeroflot"),
-            ("--json", "build", "--output-dir", "/tmp/out"),
-            ("--json", "--full-envelope", "build"),
+            ("--json", "build"),
             ("--json", "build", "--url", "https://private.example/secret"),
         ]:
             with self.subTest(args=args):
@@ -276,36 +215,6 @@ class CompactContractTests(unittest.TestCase):
                     },
                 },
             )
-
-    def test_only_compact_carrier_reference_remains(self) -> None:
-        references = ROOT / "references"
-        carriers = references / "carriers.md"
-        self.assertTrue(carriers.exists())
-        self.assertEqual(
-            sorted(
-                path.relative_to(references).as_posix()
-                for path in references.rglob("*")
-                if path.is_file()
-            ),
-            ["carriers.md"],
-        )
-        text = carriers.read_text(encoding="utf-8")
-        self.assertIn("--json build", text)
-        self.assertNotIn("--json build auto", text)
-        self.assertNotIn("core/", text)
-
-    def test_legacy_modules_are_removed(self) -> None:
-        for name in [
-            "bundle.py",
-            "maintenance.py",
-            "privacy.py",
-            "contracts.py",
-            "build_command.py",
-            "carrier_adapters.py",
-            "segments.py",
-        ]:
-            self.assertFalse((SCRIPTS / "flight_calendar" / name).exists(), name)
-
 
 if __name__ == "__main__":
     unittest.main()

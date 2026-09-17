@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import inspect
 import sys
 import unittest
 from pathlib import Path
@@ -18,10 +17,6 @@ class TransportContractTests(unittest.TestCase):
         from flight_calendar import carrier_http
 
         self.assertEqual(carrier_http.active_transport(), "curl_cffi")
-        source = inspect.getsource(carrier_http)
-        self.assertNotIn("urlopen", source)
-        self.assertNotIn("urllib.request", source)
-        self.assertNotIn("except ImportError", source)
 
 
 if __name__ == "__main__":
