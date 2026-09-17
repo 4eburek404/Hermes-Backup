@@ -240,17 +240,17 @@ class UtairCarrierSpecification(unittest.TestCase):
             itinerary["flights"],
             [
                 {
-                    "flight_number": "UT281",
+                    "flight_number": "UT9999",
                     "departure": {
                         "airport": "SVX",
                         "city": "Екатеринбург",
-                        "local": "2026-09-21T11:50",
+                        "local": "2037-09-21T11:50",
                         "tz": "Asia/Yekaterinburg",
                     },
                     "arrival": {
                         "airport": "KUF",
                         "city": "Самара",
-                        "local": "2026-09-21T13:10",
+                        "local": "2037-09-21T13:10",
                         "tz": "Europe/Samara",
                     },
                     "status": "confirmed (HK)",

@@ -8,7 +8,7 @@
       "status": "T",
       "group": false,
       "group_passengers_count": 0,
-      "first_segment_booking_time": 1780000000,
+      "first_segment_booking_time": 2135394000,
       "passengers": [
         {
           "passenger_id": "passenger-1",
@@ -48,16 +48,16 @@
           "oak_full_name": "ЮТэйр",
           "arrival_airport_code": "KUF",
           "arrival_city": "Самара",
-          "arrival_local_iso": "2026-09-21T13:10:00",
-          "arrival_timestamp": 1789981800,
+          "arrival_local_iso": "2037-09-21T13:10:00",
+          "arrival_timestamp": 2137137000,
           "departure_airport_code": "SVX",
           "departure_city": "Екатеринбург",
-          "flight_number": "281",
+          "flight_number": "9999",
           "plane_type": "AT7",
           "plane_type_name": "ATR 72",
           "status_visual": "active",
-          "departure_timestamp": 1789973400,
-          "departure_local_iso": "2026-09-21T11:50:00",
+          "departure_timestamp": 2137128600,
+          "departure_local_iso": "2037-09-21T11:50:00",
           "status": "HK",
           "layover_time": 0,
           "segment_actions": {
@@ -76,8 +76,8 @@
           "description": "ПРЕДВАРИТЕЛЬНЫЙ ВЫБОР МЕСТА",
           "count": 1,
           "segment_id": "segment-1",
-          "text": "8A",
-          "seat_number": "8A",
+          "text": "12C",
+          "seat_number": "12C",
           "name": {
             "ru": "Предварительный выбор места",
             "en": "Pre reserved seat assignment"

@@ -176,34 +176,34 @@ class AeroflotCarrierSpecification(unittest.TestCase):
             flights,
             [
                 {
-                    "flight_number": "SU1411",
+                    "flight_number": "SU9001",
                     "departure": {
                         "airport": "SVX",
                         "city": "Екатеринбург",
-                        "local": "2026-09-23T13:30",
+                        "local": "2037-09-23T13:30",
                         "tz": "Asia/Yekaterinburg",
                     },
                     "arrival": {
                         "airport": "SVO",
                         "city": "Москва",
-                        "local": "2026-09-23T13:50",
+                        "local": "2037-09-23T13:50",
                         "tz": "Europe/Moscow",
                     },
                     "status": "confirmed",
                     "aircraft": "Airbus A330-300",
                 },
                 {
-                    "flight_number": "SU1404",
+                    "flight_number": "SU9002",
                     "departure": {
                         "airport": "SVO",
                         "city": "Москва",
-                        "local": "2026-09-25T15:25",
+                        "local": "2037-09-25T15:25",
                         "tz": "Europe/Moscow",
                     },
                     "arrival": {
                         "airport": "SVX",
                         "city": "Екатеринбург",
-                        "local": "2026-09-25T19:50",
+                        "local": "2037-09-25T19:50",
                         "tz": "Asia/Yekaterinburg",
                     },
                     "status": "confirmed",
