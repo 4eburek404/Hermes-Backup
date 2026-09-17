@@ -16,7 +16,6 @@ from typing import Any
 from icalendar import Alarm, Calendar, Event, vText
 
 from flight_calendar import itinerary_contract
-from flight_calendar.errors import raise_validation_error
 from flight_calendar.passenger_display import display_passenger_name
 
 UTC = dt.timezone.utc
@@ -25,21 +24,20 @@ UTC = dt.timezone.utc
 def require_text(obj: dict[str, Any], key: str, context: str) -> str:
     value = obj.get(key)
     if itinerary_contract.is_placeholder(value):
-        raise_validation_error(f"missing required field: {context}.{key}")
+        raise ValueError(f"missing required field: {context}.{key}")
     return str(value).strip()
 
 
 def parse_local(value: str, tzid: str | None, context: str) -> dt.datetime:
     """Delegate to the contract's canonical datetime parser.
 
-    Converts ``ValueError`` from the contract helper into ``raise_validation_error()``
-    so that renderer-level errors surface as CLI failures with the
-    same messaging users already see.
+    Re-raises contract ``ValueError`` instances so renderer-level errors keep
+    the same CLI boundary and messaging users already see.
     """
     try:
         return itinerary_contract.parse_local_datetime(value, tzid, context)
     except ValueError as exc:
-        raise_validation_error(str(exc))
+        raise ValueError(str(exc))
 
 
 def normalize_list(value: Any) -> list[str]:
@@ -119,11 +117,11 @@ def parse_alarm_minutes(value: Any, *, no_alarms: bool = False) -> list[int]:
         try:
             minutes = int(item)
         except (TypeError, ValueError):
-            raise_validation_error(
+            raise ValueError(
                 f"invalid alarm minutes value at alarm[{idx}]: {item!r}; use positive integers"
             )
         if minutes <= 0:
-            raise_validation_error(f"alarm minutes must be positive at alarm[{idx}], got {minutes}")
+            raise ValueError(f"alarm minutes must be positive at alarm[{idx}], got {minutes}")
         alarms.append(minutes)
     return alarms
 
@@ -140,7 +138,7 @@ def build_event(
     dep = flight.get("departure") or {}
     arr = flight.get("arrival") or {}
     if not isinstance(dep, dict) or not isinstance(arr, dict):
-        raise_validation_error(f"flight {flight_number}: departure and arrival must be objects")
+        raise ValueError(f"flight {flight_number}: departure and arrival must be objects")
 
     dep_airport = require_text(
         dep, "airport", f"flight {flight_number}.departure"
@@ -167,7 +165,7 @@ def build_event(
             dep_dt, arr_dt, f"flight {flight_number}"
         )
     except ValueError as exc:
-        raise_validation_error(str(exc))
+        raise ValueError(str(exc))
 
     pnr = calendar.get("pnr")
     booking_url = (
@@ -252,10 +250,10 @@ def build_calendar(
     """
     flights = data.get("flights")
     if not isinstance(flights, list) or not flights:
-        raise_validation_error("input JSON must contain a non-empty flights array")
+        raise ValueError("input JSON must contain a non-empty flights array")
     for idx, flight in enumerate(flights, start=1):
         if not isinstance(flight, dict):
-            raise_validation_error(f"flights[{idx}] must be an object")
+            raise ValueError(f"flights[{idx}] must be an object")
 
     calendar_name = "Flights"
     alarms_minutes = parse_alarm_minutes(None, no_alarms=no_alarms)
@@ -290,31 +288,31 @@ def build_calendar(
 def validate_ics_text(text: str, expected_events: int) -> None:
     """Validate generated ICS text for structural correctness."""
     if "BEGIN:VCALENDAR" not in text or "END:VCALENDAR" not in text:
-        raise_validation_error("generated text is not a VCALENDAR")
+        raise ValueError("generated text is not a VCALENDAR")
 
     # Parse with icalendar for deep validation
     try:
         Calendar.from_ical(text)
     except Exception as exc:
-        raise_validation_error(f"generated ICS is not valid RFC 5545: {exc}")
+        raise ValueError(f"generated ICS is not valid RFC 5545: {exc}")
 
     event_count = text.count("BEGIN:VEVENT")
     if event_count != expected_events:
-        raise_validation_error(f"VEVENT count mismatch: expected {expected_events}, got {event_count}")
+        raise ValueError(f"VEVENT count mismatch: expected {expected_events}, got {event_count}")
 
     # Check for placeholder-like text in the output
     bad = [word for word in ("TBD", "UNKNOWN", "None", "null") if word in text]
     if bad:
-        raise_validation_error(f"generated ICS contains placeholder-like text: {', '.join(bad)}")
+        raise ValueError(f"generated ICS contains placeholder-like text: {', '.join(bad)}")
 
 
 def load_input(path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        raise_validation_error(f"input file not found: {path}")
+        raise ValueError(f"input file not found: {path}")
     except json.JSONDecodeError as exc:
-        raise_validation_error(f"invalid JSON in {path}: {exc}")
+        raise ValueError(f"invalid JSON in {path}: {exc}")
     if not isinstance(data, dict):
-        raise_validation_error("input JSON root must be an object")
+        raise ValueError("input JSON root must be an object")
     return data

@@ -165,9 +165,10 @@ class ItineraryInputSpecification(unittest.TestCase):
             output = Path(tmp) / "unknown.ics"
             result, _source = run_cli(itinerary, output)
 
-            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.returncode, 2)
             payload = json.loads(result.stdout)
             self.assertFalse(payload["ok"])
+            self.assertEqual(payload["error"]["code"], "validation_error")
             self.assertIn("missing timezone", payload["error"]["message"])
             self.assertIn("ZZZ", payload["error"]["message"])
             self.assertFalse(output.exists())

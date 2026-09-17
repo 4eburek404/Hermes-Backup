@@ -229,23 +229,13 @@ def _route_input_insufficient(route: str, message: str | None = None) -> CliFail
     return CliFailure(
         message or default_message,
         code="route_input_insufficient",
-        details={
-            "route": route,
-            "required_disambiguation": ["provide a carrier booking URL via --url-file"],
-        },
     )
 
 
-def _route_ambiguous(
-    routes: list[str], *, required: str = "explicit route or carrier URL"
-) -> CliFailure:
+def _route_ambiguous() -> CliFailure:
     return CliFailure(
         "source matches multiple route signatures",
         code="route_ambiguous",
-        details={
-            "safe_candidates": sorted(set(routes)),
-            "required_disambiguation": [required],
-        },
     )
 
 
@@ -322,7 +312,7 @@ def infer_build_route(
             redwings_order_routes.add("redwings")
 
     if len(known_host_evidence) > 1:
-        raise _route_ambiguous(list(known_host_evidence), required="single carrier URL")
+        raise _route_ambiguous()
 
     if len(known_host_evidence) == 1:
         route = next(iter(known_host_evidence))
@@ -344,7 +334,7 @@ def infer_build_route(
         route, evidence = next(iter(candidates.items()))
         return _detection(route, 0.9, evidence)
     if len(candidates) > 1:
-        raise _route_ambiguous(list(candidates))
+        raise _route_ambiguous()
 
     if any(item.get("redwings_order_page") for item in fingerprints):
         raise _route_input_insufficient(
@@ -354,9 +344,4 @@ def infer_build_route(
     raise CliFailure(
         "could not infer carrier route from safe source fingerprint",
         code="route_unknown",
-        details={
-            "required_disambiguation": [
-                "provide a supported carrier booking URL via --url-file"
-            ]
-        },
     )

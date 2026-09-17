@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import copy
+import contextlib
+import io
 import json
 import os
 import subprocess
@@ -10,6 +12,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -208,6 +211,31 @@ class CompactContractTests(unittest.TestCase):
             self.assertIn(
                 "--tz is only supported with --url-file", payload["error"]["message"]
             )
+
+    def test_unexpected_exception_returns_internal_error_and_exit_one(self) -> None:
+        sys.path.insert(0, str(SCRIPTS))
+        from flight_calendar import parser
+
+        stdout = io.StringIO()
+        with (
+            mock.patch.object(
+                parser, "command_build", side_effect=RuntimeError("synthetic failure")
+            ),
+            contextlib.redirect_stdout(stdout),
+        ):
+            code = parser.main(["--json", "build", "--input", "itinerary.json"])
+
+        self.assertEqual(code, 1)
+        self.assertEqual(
+            json.loads(stdout.getvalue()),
+            {
+                "ok": False,
+                "error": {
+                    "code": "internal_error",
+                    "message": "RuntimeError: synthetic failure",
+                },
+            },
+        )
 
 if __name__ == "__main__":
     unittest.main()

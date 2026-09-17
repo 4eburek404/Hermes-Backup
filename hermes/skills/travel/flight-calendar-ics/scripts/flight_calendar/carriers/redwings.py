@@ -14,7 +14,7 @@ from typing import Any
 from urllib.parse import quote, unquote, urlparse
 
 from flight_calendar import carrier_http
-from flight_calendar.errors import raise_validation_error
+
 
 
 REDWINGS_BOOKING_BASE = "https://flyredwings.com/booking/"
@@ -111,21 +111,21 @@ def parse_redwings_source(
             pnr = pnr or parts[1]
             finder_code = finder_code or parts[2]
         elif lower_parts[:1] == ["booking"]:
-            raise_validation_error(
+            raise ValueError(
                 "Red Wings order page URL is not enough; provide a direct email/manage link shaped #/find/<PNR>/<ACCESS_KEY>/Submit"
             )
 
     if not pnr or not finder_code:
-        raise_validation_error(
+        raise ValueError(
             "provide --url shaped #/find/<PNR>/<ACCESS_KEY>/Submit or both --pnr and --access-key"
         )
 
     locator = str(pnr).strip().upper()
     code = str(finder_code).strip()
     if not re.fullmatch(r"[A-Z0-9]{5,8}", locator):
-        raise_validation_error("Red Wings PNR format looks invalid")
+        raise ValueError("Red Wings PNR format looks invalid")
     if not re.fullmatch(r"[^\s/]{2,256}", code):
-        raise_validation_error("Red Wings access key format looks invalid")
+        raise ValueError("Red Wings access key format looks invalid")
     if not booking_url:
         booking_url = (
             REDWINGS_BOOKING_BASE + f"#/find/{locator}/{quote(code, safe='')}/Submit"
@@ -171,7 +171,7 @@ def fetch_redwings_order(
     }
     data = post_json(endpoint, body, timeout=timeout)
     if not isinstance(data, dict):
-        raise_validation_error("Red Wings GraphQL response is not a JSON object")
+        raise ValueError("Red Wings GraphQL response is not a JSON object")
     errors = data.get("errors")
     if errors:
         messages = []
@@ -179,12 +179,12 @@ def fetch_redwings_order(
             for item in errors[:3]:
                 if isinstance(item, dict) and item.get("message"):
                     messages.append(str(item["message"]))
-        raise_validation_error(
+        raise ValueError(
             "Red Wings GraphQL returned errors"
             + (": " + "; ".join(messages) if messages else "")
         )
     if not find_order(data):
-        raise_validation_error("no Red Wings order found")
+        raise ValueError("no Red Wings order found")
     return data
 
 
@@ -220,7 +220,7 @@ def flight_number(segment: dict[str, Any]) -> str:
         .upper()
     )
     if not raw:
-        raise_validation_error("Red Wings segment has no flight number")
+        raise ValueError("Red Wings segment has no flight number")
     carrier = (
         str(
             first_value(airline(segment, "marketingAirline"), ["iata", "code"])
@@ -353,7 +353,7 @@ def convert_to_itinerary(
 ) -> dict[str, Any]:
     order = find_order(data)
     if not order:
-        raise_validation_error("no Red Wings order found")
+        raise ValueError("no Red Wings order found")
     assert order is not None
 
     pnr = (
@@ -371,7 +371,7 @@ def convert_to_itinerary(
         dep_local = point_local(dep)
         arr_local = point_local(arr)
         if not dep_code or not arr_code or not dep_local or not arr_local:
-            raise_validation_error("Red Wings segment is missing route or local time fields")
+            raise ValueError("Red Wings segment is missing route or local time fields")
 
         departure: dict[str, Any] = {
             "airport": dep_code,
@@ -399,7 +399,7 @@ def convert_to_itinerary(
         flights.append(flight)
 
     if not flights:
-        raise_validation_error("no flight segments found in Red Wings response")
+        raise ValueError("no flight segments found in Red Wings response")
 
     itinerary: dict[str, Any] = {
         "flights": flights,

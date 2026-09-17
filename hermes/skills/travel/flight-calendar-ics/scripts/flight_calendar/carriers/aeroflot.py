@@ -16,7 +16,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
 
 from flight_calendar import carrier_http
-from flight_calendar.errors import raise_validation_error
+
 
 
 AEROFLOT_BASE = "https://www.aeroflot.ru"
@@ -37,19 +37,19 @@ def pnr_query_params_from_url(booking_url: str) -> dict[str, list[str]]:
 
 def normalize_locator(locator: str | None) -> str:
     if not locator:
-        raise_validation_error("PNR locator is required")
+        raise ValueError("PNR locator is required")
     locator = locator.strip().upper()
     if not re.fullmatch(r"[A-Z0-9]{5,8}", locator):
-        raise_validation_error("PNR locator format looks invalid")
+        raise ValueError("PNR locator format looks invalid")
     return locator
 
 
 def normalize_pnr_key(key: str | None) -> str:
     if not key:
-        raise_validation_error("PNR key is required")
+        raise ValueError("PNR key is required")
     key = key.strip()
     if not re.fullmatch(r"[0-9a-fA-F]{64,256}", key):
-        raise_validation_error("PNR key format looks invalid")
+        raise ValueError("PNR key format looks invalid")
     return key
 
 
@@ -72,7 +72,7 @@ def parse_pnr_source(
         )
         key = key or (qs.get("pnrKey") or qs.get("pnr_key") or [None])[0]
     if not locator or not key:
-        raise_validation_error(
+        raise ValueError(
             "provide --url containing pnrKey/pnrLocator or both --pnr-locator and --pnr-key"
         )
     locator = normalize_locator(locator)
@@ -101,16 +101,16 @@ def post_aeroflot_pnr_json(
     )
     if "text/html" in content_type or text.lstrip().startswith("<!"):
         if "ngenix" in text.lower() or "проверка вашего веб-браузера" in text.lower():
-            raise_validation_error(
+            raise ValueError(
                 "Aeroflot returned an Ngenix browser-check page; retry later or fetch via a browser session"
             )
-        raise_validation_error(f"Aeroflot returned HTML instead of JSON (HTTP {status})")
+        raise ValueError(f"Aeroflot returned HTML instead of JSON (HTTP {status})")
     try:
         obj = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise_validation_error(f"Aeroflot returned non-JSON response (HTTP {status}): {exc}")
+        raise ValueError(f"Aeroflot returned non-JSON response (HTTP {status}): {exc}")
     if not isinstance(obj, dict):
-        raise_validation_error(f"Aeroflot returned non-object JSON response (HTTP {status})")
+        raise ValueError(f"Aeroflot returned non-object JSON response (HTTP {status})")
     return obj
 
 
@@ -123,10 +123,10 @@ def pnr_api_error_type(obj: dict[str, Any]) -> str:
 
 def require_success_data(obj: dict[str, Any]) -> dict[str, Any]:
     if not obj.get("success"):
-        raise_validation_error(f"Aeroflot PNR API returned success=false: {pnr_api_error_type(obj)}")
+        raise ValueError(f"Aeroflot PNR API returned success=false: {pnr_api_error_type(obj)}")
     data = obj.get("data")
     if not isinstance(data, dict):
-        raise_validation_error("Aeroflot PNR API response has no data object")
+        raise ValueError("Aeroflot PNR API response has no data object")
     return data
 
 
@@ -204,7 +204,7 @@ def convert_to_itinerary(
             flights.append(flight)
 
     if not flights:
-        raise_validation_error("no flight segments found in Aeroflot response")
+        raise ValueError("no flight segments found in Aeroflot response")
 
     itinerary: dict[str, Any] = {
         "flights": flights,

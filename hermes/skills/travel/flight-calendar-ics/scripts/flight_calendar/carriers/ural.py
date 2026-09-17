@@ -19,7 +19,7 @@ from typing import Any, NamedTuple
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 
 from flight_calendar import carrier_http
-from flight_calendar.errors import raise_validation_error
+
 
 
 URAL_SERVICE_BASE = "https://service.uralairlines.ru/"
@@ -94,13 +94,13 @@ def parse_ural_source(
             )[0]
         )
     if not pnr or not last_name:
-        raise_validation_error("provide --url containing pnr/lastName or both --pnr and --last-name")
+        raise ValueError("provide --url containing pnr/lastName or both --pnr and --last-name")
     locator = pnr.strip().upper()
     surname = last_name.strip().upper()
     if not re.fullmatch(r"[A-Z0-9]{5,8}", locator):
-        raise_validation_error("Ural Airlines PNR format looks invalid")
+        raise ValueError("Ural Airlines PNR format looks invalid")
     if not re.fullmatch(r"[A-ZА-ЯЁ' -]{2,80}", surname, flags=re.IGNORECASE):
-        raise_validation_error("Ural Airlines last name format looks invalid")
+        raise ValueError("Ural Airlines last name format looks invalid")
     if not booking_url:
         booking_url = (
             URAL_SERVICE_BASE + "?" + urlencode({"pnr": locator, "lastName": surname})
@@ -134,7 +134,7 @@ def discover_frontend_assets(
     if not app_path:
         app_path = f"/{version}/js/app.js"
     if not helper_path:
-        raise_validation_error("could not find Ural Airlines frontend API-key helper script in shell HTML")
+        raise ValueError("could not find Ural Airlines frontend API-key helper script in shell HTML")
 
     return FrontendAssets(
         env_url=urljoin(base, f"/{version}/env/env.json"),
@@ -148,7 +148,7 @@ def parse_api_key_methods(app_js: str) -> list[str]:
         r'window\["([0-9a-f]{32})"\]\(t,e\.getters,u\.default\)', app_js
     )
     if not methods:
-        raise_validation_error("could not find Ural Airlines API-key helper calls in frontend bundle")
+        raise ValueError("could not find Ural Airlines API-key helper calls in frontend bundle")
     # Keep order from the axios interceptor: the first helper may be a no-op, the second sets X-Api-Key.
     deduped: list[str] = []
     for name in methods:
@@ -223,7 +223,7 @@ process.stdout.write(String(value));
                 timeout=15,
             )
         except FileNotFoundError:
-            raise_validation_error(
+            raise ValueError(
                 "Node.js is required to execute the current Ural Airlines frontend API-key helper"
             )
         if result.returncode != 0:
@@ -232,10 +232,10 @@ process.stdout.write(String(value));
                 .strip()
                 .splitlines()[-1]
             )
-            raise_validation_error(f"Ural Airlines API-key helper failed: {message}")
+            raise ValueError(f"Ural Airlines API-key helper failed: {message}")
         value = result.stdout.strip()
         if not value or "undefined" in value:
-            raise_validation_error("Ural Airlines API-key helper produced an invalid header")
+            raise ValueError("Ural Airlines API-key helper produced an invalid header")
         return value
     finally:
         try:
@@ -277,12 +277,12 @@ def fetch_ural_reservation(
     assets = discover_frontend_assets(frontend_base, timeout=timeout)
     env = http_json(assets.env_url, timeout=timeout)
     if not isinstance(env, dict):
-        raise_validation_error("Ural Airlines env.json is not a JSON object")
+        raise ValueError("Ural Airlines env.json is not a JSON object")
     api_url = str(env.get("API_URL") or "").rstrip("/") + "/"
     if not api_url.startswith("http"):
-        raise_validation_error("Ural Airlines env.json has no usable API_URL")
+        raise ValueError("Ural Airlines env.json has no usable API_URL")
     if not env.get("API_KEY"):
-        raise_validation_error("Ural Airlines env.json has no API_KEY")
+        raise ValueError("Ural Airlines env.json has no API_KEY")
     env = dict(env)
     env["timestampDiff"] = compute_timestamp_diff(api_url, timeout=timeout)
     app_js = http_text(assets.app_js_url, timeout=timeout)
@@ -301,7 +301,7 @@ def fetch_ural_reservation(
             else None
         )
     if not session_key:
-        raise_validation_error("Ural Airlines Session response has no sessionKey")
+        raise ValueError("Ural Airlines Session response has no sessionKey")
 
     query = urlencode({"pnrNumber": locator, "lastName": last_name})
     reservation = http_json(
@@ -310,9 +310,9 @@ def fetch_ural_reservation(
         headers=api_headers(api_key_header, session_key=session_key),
     )
     if not isinstance(reservation, dict):
-        raise_validation_error("Ural Airlines Reservation response is not a JSON object")
+        raise ValueError("Ural Airlines Reservation response is not a JSON object")
     if reservation.get("success") is False:
-        raise_validation_error("Ural Airlines Reservation API returned success=false")
+        raise ValueError("Ural Airlines Reservation API returned success=false")
     return reservation
 
 
@@ -353,14 +353,14 @@ def convert_to_itinerary(
     booking_url: str | None = None,
 ) -> dict[str, Any]:
     if data_or_response.get("success") is False:
-        raise_validation_error("Ural Airlines Reservation API returned success=false")
+        raise ValueError("Ural Airlines Reservation API returned success=false")
     data = (
         data_or_response.get("data")
         if isinstance(data_or_response.get("data"), dict)
         else data_or_response
     )
     if not isinstance(data, dict):
-        raise_validation_error("Ural Airlines Reservation response has no data object")
+        raise ValueError("Ural Airlines Reservation response has no data object")
 
     journey = data.get("journey") or {}
     flights: list[dict[str, Any]] = []
@@ -397,7 +397,7 @@ def convert_to_itinerary(
             flights.append(flight)
 
     if not flights:
-        raise_validation_error("no flight segments found in Ural Airlines response")
+        raise ValueError("no flight segments found in Ural Airlines response")
 
     itinerary: dict[str, Any] = {
         "flights": flights,

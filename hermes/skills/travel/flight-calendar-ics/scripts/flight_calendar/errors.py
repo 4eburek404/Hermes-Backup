@@ -2,12 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any, NoReturn
-
-
-def raise_validation_error(message: str) -> NoReturn:
-    """Raise an expected internal validation failure for the CLI boundary."""
-    raise ValueError(message)
 
 
 class CliFailure(Exception):
@@ -17,11 +11,7 @@ class CliFailure(Exception):
         self,
         message: str,
         *,
-        code: str = "validation_error",
-        exit_code: int = 2,
-        details: dict[str, Any] | None = None,
+        code: str,
     ) -> None:
         super().__init__(message)
         self.code = code
-        self.exit_code = exit_code
-        self.details = details or {}

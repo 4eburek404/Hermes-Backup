@@ -227,7 +227,7 @@ def main(argv: list[str] | None = None) -> int:
             _emit_json(payload)
         else:
             _emit_human_error(str(exc))
-        return exc.exit_code
+        return 2
     except ValueError as exc:
         payload = {
             "ok": False,

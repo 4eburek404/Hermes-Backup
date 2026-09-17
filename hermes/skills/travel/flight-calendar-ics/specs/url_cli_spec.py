@@ -138,7 +138,7 @@ class BookingUrlProcessSpecification(unittest.TestCase):
         unknown_url = "https://unknown.example/private-booking?token=secret"
         code, stdout, stderr = run_cli(unknown_url)
 
-        self.assertNotEqual(code, 0)
+        self.assertEqual(code, 2)
         payload = json.loads(stdout)
         self.assertIs(payload["ok"], False)
         self.assertEqual(payload["error"]["code"], "route_unknown")
