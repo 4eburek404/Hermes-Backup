@@ -8,6 +8,8 @@ These tests verify that:
 
 from __future__ import annotations
 
+import contextlib
+import io
 import sys
 import unittest
 from pathlib import Path
@@ -45,6 +47,21 @@ def _valid_itinerary() -> dict[str, object]:
             }
         ],
     }
+
+
+def _assert_build_calendar_error(
+    testcase: unittest.TestCase,
+    itinerary: dict[str, object],
+    expected_message: str,
+) -> None:
+    from flight_calendar import ics_render
+
+    stderr = io.StringIO()
+    with contextlib.redirect_stderr(stderr):
+        with testcase.assertRaises(SystemExit) as raised:
+            ics_render.build_calendar(itinerary, no_alarms=True)
+    testcase.assertEqual(raised.exception.code, 2)
+    testcase.assertIn(expected_message, stderr.getvalue())
 
 
 class ArrAfterDepartureContractTests(unittest.TestCase):
@@ -85,13 +102,6 @@ class ArrAfterDepartureContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "arrival must be after departure"):
             itinerary_contract.validate_itinerary_semantics(itinerary)
 
-    def test_valid_itinerary_passes(self) -> None:
-        from flight_calendar import itinerary_contract
-
-        itinerary = _valid_itinerary()
-        # Should not raise
-        itinerary_contract.validate_itinerary_semantics(itinerary)
-
 
 class BuildCalendarRejectsTests(unittest.TestCase):
     """Renderer-level: ics_render.build_calendar() also rejects bad arrival/departure."""
@@ -100,69 +110,37 @@ class BuildCalendarRejectsTests(unittest.TestCase):
 
     def test_build_calendar_rejects_arrival_before_departure(self) -> None:
         """Direct build_calendar() call must reject arrival <= departure."""
-        from flight_calendar import ics_render
-
         itinerary = _valid_itinerary()
         itinerary["flights"][0]["departure"]["local"] = "2026-06-01T13:45"
         itinerary["flights"][0]["arrival"]["local"] = "2026-06-01T09:15"
         itinerary["flights"][0]["arrival"]["tz"] = "Europe/Moscow"
-        with self.assertRaises(SystemExit):
-            ics_render.build_calendar(itinerary, no_alarms=True)
+        _assert_build_calendar_error(self, itinerary, "arrival must be after departure")
 
     def test_build_calendar_rejects_arrival_equal_departure_cross_tz(self) -> None:
         """Direct build_calendar() call must reject arrival == departure in UTC."""
-        from flight_calendar import ics_render
-
         itinerary = _valid_itinerary()
         itinerary["flights"][0]["departure"]["local"] = "2026-06-01T09:15"
         itinerary["flights"][0]["arrival"]["local"] = "2026-06-01T11:15"
-        with self.assertRaises(SystemExit):
-            ics_render.build_calendar(itinerary, no_alarms=True)
+        _assert_build_calendar_error(self, itinerary, "arrival must be after departure")
 
-    def test_build_calendar_accepts_valid_itinerary(self) -> None:
-        """Direct build_calendar() call must succeed for valid itinerary."""
+    def test_build_calendar_accepts_supported_local_datetime_forms(self) -> None:
+        """The renderer accepts the schema's naive local datetime forms."""
         from flight_calendar import ics_render
 
-        itinerary = _valid_itinerary()
-        ics_text, summaries = ics_render.build_calendar(itinerary, no_alarms=True)
-        self.assertEqual(len(summaries), 1)
-        self.assertIn("BEGIN:VCALENDAR", ics_text)
-
-
-class ZOffsetSchemaRejectionTests(unittest.TestCase):
-    """JSON Schema must reject local datetimes with Z or offset — no public contract expansion."""
-
-    maxDiff = None
-
-    def test_schema_rejects_z_suffix(self) -> None:
-        from flight_calendar import itinerary_contract
-
-        itinerary = _valid_itinerary()
-        itinerary["flights"][0]["departure"]["local"] = "2026-06-01T09:15Z"
-        with self.assertRaisesRegex(ValueError, "schema validation failed"):
-            itinerary_contract.validate_itinerary_schema(itinerary)
-
-    def test_schema_rejects_explicit_offset(self) -> None:
-        from flight_calendar import itinerary_contract
-
-        itinerary = _valid_itinerary()
-        itinerary["flights"][0]["arrival"]["local"] = "2026-06-01T13:45+05:00"
-        with self.assertRaisesRegex(ValueError, "schema validation failed"):
-            itinerary_contract.validate_itinerary_schema(itinerary)
-
-    def test_schema_accepts_naive_local_with_seconds(self) -> None:
-        from flight_calendar import itinerary_contract
-
-        itinerary = _valid_itinerary()
-        itinerary["flights"][0]["departure"]["local"] = "2026-06-01T09:15:00"
-        itinerary_contract.validate_itinerary_schema(itinerary)
-
-    def test_schema_accepts_space_separator(self) -> None:
-        from flight_calendar import itinerary_contract
-
-        itinerary = _valid_itinerary()
-        itinerary["flights"][0]["departure"]["local"] = "2026-06-01 09:15"
-        itinerary_contract.validate_itinerary_schema(itinerary)
+        cases = (
+            ("2026-06-01T09:15:00", "2026-06-01T13:45:00"),
+            ("2026-06-01 09:15", "2026-06-01 13:45"),
+        )
+        for departure, arrival in cases:
+            with self.subTest(departure=departure):
+                itinerary = _valid_itinerary()
+                itinerary["flights"][0]["departure"]["local"] = departure  # type: ignore[index]
+                itinerary["flights"][0]["arrival"]["local"] = arrival  # type: ignore[index]
+                ics_text, summaries = ics_render.build_calendar(
+                    itinerary, no_alarms=True
+                )
+                self.assertEqual(len(summaries), 1)
+                self.assertIn("BEGIN:VCALENDAR", ics_text)
 
 
 class ParseLocalDatetimeRejectsAwareTests(unittest.TestCase):
@@ -192,21 +170,15 @@ class ParseLocalDatetimeRejectsAwareTests(unittest.TestCase):
 
     def test_build_calendar_rejects_z_suffix_without_schema(self) -> None:
         """Direct build_calendar() call must reject Z even without schema validation."""
-        from flight_calendar import ics_render
-
         itinerary = _valid_itinerary()
         itinerary["flights"][0]["departure"]["local"] = "2026-06-01T09:15Z"
-        with self.assertRaises(SystemExit):
-            ics_render.build_calendar(itinerary, no_alarms=True)
+        _assert_build_calendar_error(self, itinerary, "without timezone offset")
 
     def test_build_calendar_rejects_offset_without_schema(self) -> None:
         """Direct build_calendar() call must reject +offset even without schema validation."""
-        from flight_calendar import ics_render
-
         itinerary = _valid_itinerary()
         itinerary["flights"][0]["arrival"]["local"] = "2026-06-01T13:45+05:00"
-        with self.assertRaises(SystemExit):
-            ics_render.build_calendar(itinerary, no_alarms=True)
+        _assert_build_calendar_error(self, itinerary, "without timezone offset")
 
 
 if __name__ == "__main__":

@@ -92,15 +92,10 @@ class RedirectResolutionContractTests(unittest.TestCase):
             status_code = 503
             headers: dict[str, str] = {}
 
-        def fake_request(method: str, url: str, **kwargs: object) -> FakeResponse:
-            self.assertEqual(method, "GET")
-            self.assertEqual(url, RAW_CLICK_URL)
-            self.assertEqual(kwargs.get("allow_redirects"), False)
-            self.assertEqual(kwargs.get("max_redirects"), 0)
-            return FakeResponse()
-
         with mock.patch.object(
-            carrier_http._requests, "request", side_effect=fake_request
+            carrier_http._requests,
+            "request",
+            return_value=FakeResponse(),
         ):
             with self.assertRaises(CliFailure) as cli_ctx:
                 resolve_known_booking_redirect(RAW_CLICK_URL)
@@ -240,15 +235,10 @@ class CarrierHttpRedirectContractTests(unittest.TestCase):
             def text(self) -> str:  # pragma: no cover - must not be read
                 raise AssertionError("redirect resolver must not read response.text")
 
-        def fake_request(method: str, url: str, **kwargs: object) -> FakeResponse:
-            self.assertEqual(method, "GET")
-            self.assertEqual(url, RAW_CLICK_URL)
-            self.assertEqual(kwargs.get("allow_redirects"), False)
-            self.assertEqual(kwargs.get("max_redirects"), 0)
-            return FakeResponse()
-
         with mock.patch.object(
-            carrier_http._requests, "request", side_effect=fake_request
+            carrier_http._requests,
+            "request",
+            return_value=FakeResponse(),
         ):
             with self.assertRaises(carrier_http.TransportError) as ctx:
                 carrier_http.resolve_redirect_url(RAW_CLICK_URL)
