@@ -173,6 +173,41 @@ class ItineraryInputSpecification(unittest.TestCase):
             self.assertIn("ZZZ", payload["error"]["message"])
             self.assertFalse(output.exists())
 
+    def test_arrival_not_after_departure_fails_through_public_cli(self) -> None:
+        itinerary = minimal_itinerary()
+        itinerary["flights"][0]["departure"]["local"] = "2026-06-01T13:45"  # type: ignore[index]
+        itinerary["flights"][0]["arrival"]["local"] = "2026-06-01T09:15"  # type: ignore[index]
+
+        with tempfile.TemporaryDirectory(prefix="flight-itinerary-spec.") as tmp:
+            output = Path(tmp) / "invalid-order.ics"
+            result, _source = run_cli(itinerary, output)
+
+            self.assertEqual(result.returncode, 2)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["error"]["code"], "validation_error")
+            self.assertIn("arrival must be after departure", payload["error"]["message"])
+            self.assertFalse(output.exists())
+
+    def test_lexically_valid_impossible_local_datetime_fails_through_public_cli(
+        self,
+    ) -> None:
+        itinerary = minimal_itinerary()
+        itinerary["flights"][0]["departure"]["local"] = "2026-02-30T09:15"  # type: ignore[index]
+
+        with tempfile.TemporaryDirectory(prefix="flight-itinerary-spec.") as tmp:
+            output = Path(tmp) / "impossible-date.ics"
+            result, _source = run_cli(itinerary, output)
+
+            self.assertEqual(result.returncode, 2)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["error"]["code"], "validation_error")
+            message = payload["error"]["message"]
+            self.assertIn("local datetime", message)
+            self.assertNotIn("canonical pattern", message)
+            self.assertFalse(output.exists())
+
     def test_removed_fields_are_rejected_as_unknown(self) -> None:
         cases: dict[str, dict[str, Any]] = {}
 
