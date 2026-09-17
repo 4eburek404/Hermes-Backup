@@ -18,7 +18,7 @@ from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 from curl_cffi import requests as curl_requests
 
 from flight_calendar import carrier_http
-from flight_calendar.common import die
+from flight_calendar.errors import raise_validation_error
 
 S7_MANAGE_ORDER_BASE = "https://myb.s7.ru/myb/manage-order"
 
@@ -59,14 +59,14 @@ def parse_s7_source(
             or (qs.get("passengerId") or qs.get("passenger_id") or [None])[0]
         )
     if not booking_id or not passenger_id:
-        die("provide S7 manage-order URL containing bookingId and passengerId")
+        raise_validation_error("provide S7 manage-order URL containing bookingId and passengerId")
 
     booking = str(booking_id).strip().upper()
     passenger = str(passenger_id).strip()
     if not re.fullmatch(r"[A-Z0-9]{5,8}", booking):
-        die("S7 bookingId format looks invalid")
+        raise_validation_error("S7 bookingId format looks invalid")
     if not re.fullmatch(r"[^\s/?#&=]{2,128}", passenger):
-        die("S7 passengerId format looks invalid")
+        raise_validation_error("S7 passengerId format looks invalid")
     if not booking_url:
         booking_url = (
             S7_MANAGE_ORDER_BASE
@@ -116,10 +116,10 @@ def _first_form(html_text: str) -> tuple[str, dict[str, str]]:
         flags=re.IGNORECASE | re.DOTALL,
     )
     if not form_match:
-        die("S7 manage-order response did not contain an auto-submit form")
+        raise_validation_error("S7 manage-order response did not contain an auto-submit form")
     action = _attr(form_match.group("tag"), "action")
     if not action:
-        die("S7 manage-order form has no action")
+        raise_validation_error("S7 manage-order form has no action")
     fields: dict[str, str] = {}
     for input_match in re.finditer(
         r"<input\b[^>]*>", form_match.group("body"), flags=re.IGNORECASE | re.DOTALL
@@ -136,11 +136,11 @@ def _extract_js_array(html_text: str, var_name: str) -> list[Any]:
     marker = f"var {var_name}"
     start = html_text.find(marker)
     if start < 0:
-        die(f"S7 manage-order page has no {var_name} payload")
+        raise_validation_error(f"S7 manage-order page has no {var_name} payload")
     eq = html_text.find("=", start)
     array_start = html_text.find("[", eq)
     if eq < 0 or array_start < 0:
-        die(f"S7 manage-order {var_name} payload is malformed")
+        raise_validation_error(f"S7 manage-order {var_name} payload is malformed")
 
     depth = 0
     quote: str | None = None
@@ -166,7 +166,7 @@ def _extract_js_array(html_text: str, var_name: str) -> list[Any]:
                 array_end = index + 1
                 break
     if array_end is None:
-        die(f"S7 manage-order {var_name} payload is unterminated")
+        raise_validation_error(f"S7 manage-order {var_name} payload is unterminated")
 
     raw = html_text[array_start:array_end]
     try:
@@ -176,7 +176,7 @@ def _extract_js_array(html_text: str, var_name: str) -> list[Any]:
             f"S7 manage-order {var_name} payload is not valid JSON"
         ) from exc
     if not isinstance(data, list):
-        die(f"S7 manage-order {var_name} payload is not a list")
+        raise_validation_error(f"S7 manage-order {var_name} payload is not a list")
     return data
 
 
@@ -233,7 +233,7 @@ def _air_from_payload(data: Any) -> dict[str, Any]:
         for item in data:
             if isinstance(item, dict) and isinstance(item.get("air"), dict):
                 return item["air"]
-    die("no S7 air order found")
+    raise_validation_error("no S7 air order found")
 
 
 def passenger_name(passenger: dict[str, Any]) -> str | None:
@@ -340,7 +340,7 @@ def flight_number(segment: dict[str, Any]) -> str:
         .replace(" ", "")
     )
     if not raw:
-        die("S7 segment has no flight number")
+        raise_validation_error("S7 segment has no flight number")
     if re.match(r"^[A-Z0-9]{2}\d+", raw):
         return raw
     return f"{airline_code(marketing or operating)}{raw}"
@@ -359,7 +359,7 @@ def convert_to_itinerary(data: Any, booking_url: str | None = None) -> dict[str,
         dep_local = local_datetime(segment.get("departureDate"))
         arr_local = local_datetime(segment.get("arrivalDate"))
         if not dep_code or not arr_code or not dep_local or not arr_local:
-            die("S7 segment is missing route or local time fields")
+            raise_validation_error("S7 segment is missing route or local time fields")
 
         departure: dict[str, Any] = {
             "airport": dep_code,
@@ -389,7 +389,7 @@ def convert_to_itinerary(data: Any, booking_url: str | None = None) -> dict[str,
         flights.append(flight)
 
     if not flights:
-        die("no flight segments found in S7 response")
+        raise_validation_error("no flight segments found in S7 response")
 
     itinerary: dict[str, Any] = {
         "flights": flights,

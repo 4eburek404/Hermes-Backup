@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, NoReturn
+
+
+def raise_validation_error(message: str) -> NoReturn:
+    """Raise an expected internal validation failure for the CLI boundary."""
+    raise ValueError(message)
 
 
 class CliFailure(Exception):

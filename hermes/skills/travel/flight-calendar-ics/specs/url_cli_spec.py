@@ -51,7 +51,9 @@ UNTRUSTED_REDIRECT_URL = (
 )
 
 
-def run_cli(url: str, output: Path | None = None) -> tuple[int, str, str]:
+def run_cli(
+    url: str, output: Path | None = None, tz: str | None = None
+) -> tuple[int, str, str]:
     from flight_calendar import parser
 
     with tempfile.NamedTemporaryFile("w", encoding="utf-8") as source:
@@ -60,6 +62,8 @@ def run_cli(url: str, output: Path | None = None) -> tuple[int, str, str]:
         argv = ["--json", "build", "--url-file", source.name]
         if output is not None:
             argv.extend(["--output", str(output), "--no-alarms"])
+        if tz is not None:
+            argv.extend(["--tz", tz])
 
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -171,6 +175,18 @@ class BookingUrlProcessSpecification(unittest.TestCase):
             "evil.example",
         ):
             self.assertNotIn(private_value, emitted)
+
+    def test_malformed_timezone_override_returns_usage_error(self) -> None:
+        """The public URL CLI maps malformed --tz input to usage_error."""
+        url = "https://www.utair.ru/order-manage?rloc=ABC123&last_name=EXAMPLE"
+        code, stdout, stderr = run_cli(url, tz="broken")
+
+        self.assertEqual(code, 2)
+        payload = json.loads(stdout)
+        self.assertIs(payload["ok"], False)
+        self.assertEqual(payload["error"]["code"], "usage_error")
+        self.assertIn("use CODE=Area/City", payload["error"]["message"])
+        self.assertEqual(stderr, "")
 
 
 if __name__ == "__main__":

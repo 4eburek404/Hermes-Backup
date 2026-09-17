@@ -8,8 +8,6 @@ These tests verify that:
 
 from __future__ import annotations
 
-import contextlib
-import io
 import sys
 import unittest
 from pathlib import Path
@@ -57,12 +55,8 @@ def _assert_build_calendar_error(
 ) -> None:
     from flight_calendar import ics_render
 
-    stderr = io.StringIO()
-    with contextlib.redirect_stderr(stderr):
-        with testcase.assertRaises(SystemExit) as raised:
-            ics_render.build_calendar(itinerary, no_alarms=True)
-    testcase.assertEqual(raised.exception.code, 2)
-    testcase.assertIn(expected_message, stderr.getvalue())
+    with testcase.assertRaisesRegex(ValueError, expected_message):
+        ics_render.build_calendar(itinerary, no_alarms=True)
 
 
 class ArrAfterDepartureContractTests(unittest.TestCase):

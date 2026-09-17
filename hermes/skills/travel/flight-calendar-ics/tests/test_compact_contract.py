@@ -209,6 +209,5 @@ class CompactContractTests(unittest.TestCase):
                 "--tz is only supported with --url-file", payload["error"]["message"]
             )
 
-
 if __name__ == "__main__":
     unittest.main()

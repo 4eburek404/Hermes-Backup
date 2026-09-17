@@ -7,6 +7,7 @@ import argparse
 import contextlib
 import io
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -14,7 +15,6 @@ from typing import Any
 
 from flight_calendar import ics_render, itinerary_contract, timezone_catalog
 from flight_calendar.carriers import aeroflot, redwings, s7, ural, utair
-from flight_calendar.common import parse_tz_overrides, secure_write_text
 from flight_calendar.errors import CliFailure
 from flight_calendar.redirect_resolution import resolve_known_booking_redirect
 from flight_calendar.route_detection import first_url_from_args, infer_build_route
@@ -49,12 +49,11 @@ def _reject_removed_options(argv: list[str]) -> None:
                 raise CliFailure(message, code="usage_error")
 
 
-def _fail_usage(message: str) -> None:
-    raise CliFailure(message, code="usage_error")
-
-
 def parse_cli_tz_overrides(items: list[str]) -> dict[str, str]:
-    return parse_tz_overrides(items, fail=_fail_usage)
+    try:
+        return timezone_catalog.parse_tz_overrides(items)
+    except ValueError as exc:
+        raise CliFailure(str(exc), code="usage_error") from exc
 
 
 def build_timezone_map(overrides: dict[str, str] | None = None) -> dict[str, str]:
@@ -152,7 +151,9 @@ def command_build(args: argparse.Namespace) -> dict[str, Any]:
     ics_text, summaries = ics_render.build_calendar(itinerary, no_alarms=args.no_alarms)
     ics_render.validate_ics_text(ics_text, len(summaries))
     output_path = args.output or _default_output_path()
-    secure_write_text(output_path, ics_text)
+    output_path.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+    output_path.write_text(ics_text, encoding="utf-8", newline="")
+    os.chmod(output_path, 0o644)
     return {
         "ok": True,
         "media": f"MEDIA:{output_path}",

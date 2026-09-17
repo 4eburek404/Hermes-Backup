@@ -14,7 +14,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
 
 from flight_calendar import carrier_http
-from flight_calendar.common import die
+from flight_calendar.errors import raise_validation_error
 
 
 UTAIR_WEB_BASE = "https://www.utair.ru/"
@@ -60,14 +60,14 @@ def parse_utair_source(
             )[0]
         )
     if not rloc or not last_name:
-        die("provide --url containing rloc/last_name or both --rloc and --last-name")
+        raise_validation_error("provide --url containing rloc/last_name or both --rloc and --last-name")
 
     locator = rloc.strip().upper()
     surname = last_name.strip().upper()
     if not re.fullmatch(r"[A-Z0-9]{5,8}", locator):
-        die("Utair booking locator format looks invalid")
+        raise_validation_error("Utair booking locator format looks invalid")
     if not re.fullmatch(r"[A-ZА-ЯЁ' -]{2,80}", surname, flags=re.IGNORECASE):
-        die("Utair last name format looks invalid")
+        raise_validation_error("Utair last name format looks invalid")
     if not booking_url:
         booking_url = (
             UTAIR_WEB_BASE.rstrip("/")
@@ -86,10 +86,10 @@ def fetch_utair_token(timeout: int = 45) -> str:
         label="Utair OAuth",
     )
     if not isinstance(data, dict):
-        die("Utair OAuth response is not a JSON object")
+        raise_validation_error("Utair OAuth response is not a JSON object")
     token = data.get("access_token")
     if not isinstance(token, str) or not token.strip():
-        die("Utair OAuth response has no access_token")
+        raise_validation_error("Utair OAuth response has no access_token")
     return token.strip()
 
 
@@ -107,9 +107,9 @@ def fetch_utair_orders(
         label="Utair orders API",
     )
     if not isinstance(data, dict):
-        die("Utair orders API response is not a JSON object")
+        raise_validation_error("Utair orders API response is not a JSON object")
     if not collect_orders(data):
-        die("no Utair orders found")
+        raise_validation_error("no Utair orders found")
     return data
 
 
@@ -197,7 +197,7 @@ def flight_number(seg: dict[str, Any]) -> str:
         .replace(" ", "")
     )
     if not number:
-        die("Utair segment has no flight number")
+        raise_validation_error("Utair segment has no flight number")
     if number.startswith(carrier):
         return number
     return f"{carrier}{number}"
@@ -240,7 +240,7 @@ def convert_to_itinerary(
     data: dict[str, Any], booking_url: str | None = None
 ) -> dict[str, Any]:
     if not isinstance(data, dict):
-        die("Utair orders API response is not a JSON object")
+        raise_validation_error("Utair orders API response is not a JSON object")
 
     flights: list[dict[str, Any]] = []
     passengers: list[str] = []
@@ -249,7 +249,7 @@ def convert_to_itinerary(
 
     orders = collect_orders(data)
     if not orders:
-        die("no Utair orders found")
+        raise_validation_error("no Utair orders found")
 
     for order in orders:
         if pnr is None:
@@ -276,7 +276,7 @@ def convert_to_itinerary(
             dep_local = segment_local(seg, "departure")
             arr_local = segment_local(seg, "arrival")
             if not dep_code or not arr_code or not dep_local or not arr_local:
-                die("Utair segment is missing route or local time fields")
+                raise_validation_error("Utair segment is missing route or local time fields")
 
             departure: dict[str, Any] = {
                 "airport": dep_code,
@@ -312,7 +312,7 @@ def convert_to_itinerary(
             flights.append(flight)
 
     if not flights:
-        die("no flight segments found in Utair response")
+        raise_validation_error("no flight segments found in Utair response")
 
     itinerary: dict[str, Any] = {
         "flights": flights,

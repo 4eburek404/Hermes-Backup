@@ -13,13 +13,32 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 SCHEMA_VERSION = "airport-timezones.v1"
 RAW_AIRPORT_FILENAMES = ("airports_en.json", "airports_ru.json", "airports.json")
 SKILL_DIR = Path(__file__).resolve().parents[2]
 CATALOG_PATH = SKILL_DIR / "data" / "airport-timezones.json"
 IATA_RE = re.compile(r"^[A-Z0-9]{3}$")
+
+
+def parse_tz_overrides(items: list[str]) -> dict[str, str]:
+    """Parse repeated CODE=Area/City timezone overrides."""
+    out: dict[str, str] = {}
+    for item in items:
+        if "=" not in item:
+            _reject_timezone_override(item)
+        code, tzid = item.split("=", 1)
+        code = code.strip().upper()
+        tzid = tzid.strip()
+        if not code or not tzid:
+            _reject_timezone_override(item)
+        out[code] = tzid
+    return out
+
+
+def _reject_timezone_override(item: str) -> NoReturn:
+    raise ValueError(f"bad --tz value {item!r}; use CODE=Area/City")
 
 
 def _normalize_code(value: Any) -> str:
