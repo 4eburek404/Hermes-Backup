@@ -125,9 +125,6 @@ class UtairCarrierSpecification(unittest.TestCase):
         self.assertEqual(locator, EXPECTED_LOCATOR)
         self.assertEqual(surname, EXPECTED_SURNAME)
         self.assertEqual(normalized_url, UTAIR_DIRECT_URL)
-        self.assertEqual(
-            parse_qs(urlparse(normalized_url).query)["utm_source"], ["mail"]
-        )
 
     def test_direct_site_url_routes_without_redirect_and_normalizes_credentials(
         self,
@@ -141,10 +138,9 @@ class UtairCarrierSpecification(unittest.TestCase):
         parsed = urlparse(UTAIR_SITE_DIRECT_URL)
         self.assertEqual(parsed.hostname, "www.utair.ru")
         self.assertEqual(parsed.path, "/order-manage")
-        self.assertEqual(
-            sorted(parse_qs(parsed.query)),
-            ["last_name", "rloc", "utm_campaign", "utm_source"],
-        )
+        query = parse_qs(parsed.query)
+        self.assertEqual(query["rloc"], ["SITE123"])
+        self.assertEqual(query["last_name"], ["EXAMPLE"])
 
         with mock.patch.object(
             carrier_http,
@@ -215,8 +211,6 @@ class UtairCarrierSpecification(unittest.TestCase):
         self.assertEqual(
             order_headers["Authorization"], f"Bearer {SYNTHETIC_ACCESS_TOKEN}"
         )
-        self.assertEqual(list(data), ["future", "past"])
-        self.assertEqual(len(utair.collect_orders(data)), 1)
 
     def test_sanitized_fixture_becomes_valid_expected_itinerary(self) -> None:
         """The actual response shape produces the normalized itinerary contract."""

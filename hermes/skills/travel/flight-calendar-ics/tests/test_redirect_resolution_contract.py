@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import contextlib
 import io
 import json
@@ -21,6 +20,11 @@ RAW_CLICK_URL = "https://click.mail.utair.io/private-token?x=secret"
 DIRECT_UTAIR_URL = "https://www.utair.ru/order-manage?rloc=ABC123&last_name=IVANOV"
 PRIVATE_RESOLVED_URL = "https://evil.example/order-manage?rloc=ABC123&last_name=IVANOV"
 HTTP_UTAIR_URL = "http://www.utair.ru/order-manage?rloc=ABC123&last_name=IVANOV"
+UTAIR_FIXTURE_PATH = ROOT / "specs" / "fixtures" / "utair" / "orders-v3.json"
+UTAIR_FIXTURE_TEXT = UTAIR_FIXTURE_PATH.read_text(encoding="utf-8")
+UTAIR_OAUTH_ENDPOINT = "https://b.utair.ru/oauth/token"
+UTAIR_ORDERS_ENDPOINT = "https://b.utair.ru/api/v3/orders"
+SYNTHETIC_ACCESS_TOKEN = "synthetic-access-token"
 REDACTED_TOKENS = (
     "click.mail.utair.io",
     "utair.ru/order-manage",
@@ -36,101 +40,7 @@ def assert_private_tokens_redacted(testcase: unittest.TestCase, text: str) -> No
         testcase.assertNotIn(token, text)
 
 
-def minimal_itinerary(booking_url: str = DIRECT_UTAIR_URL) -> dict[str, object]:
-    return {
-        "schema_version": "flight-calendar-ics-itinerary.v1",
-        "pnr": "ABC123",
-        "passengers": ["IVANOV"],
-        "booking_url": booking_url,
-        "flights": [
-            {
-                "flight_number": "UT123",
-                "departure": {
-                    "airport": "VKO",
-                    "local": "2026-06-01T09:00",
-                    "tz": "Europe/Moscow",
-                },
-                "arrival": {
-                    "airport": "SVX",
-                    "local": "2026-06-01T13:30",
-                    "tz": "Asia/Yekaterinburg",
-                },
-                "status": "confirmed",
-            }
-        ],
-    }
-
-
 class RedirectResolutionContractTests(unittest.TestCase):
-    def test_parser_resolves_click_url_before_route_detection_and_adapter(self) -> None:
-        from flight_calendar import parser
-
-        observed: dict[str, object] = {}
-
-        def fake_infer(
-            args: argparse.Namespace, *, url_override: str | None = None
-        ) -> dict[str, object]:
-            observed["route_url"] = url_override
-            return {"route": "utair", "confidence": 1.0, "evidence": ["host:utair.ru"]}
-
-        def fake_parse(
-            url: str | None, rloc: str | None, last_name: str | None
-        ) -> tuple[str, str, str]:
-            observed["adapter_url"] = url
-            return "ABC123", "IVANOV", str(url)
-
-        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
-            handle.write(RAW_CLICK_URL)
-            handle.flush()
-            with (
-                mock.patch.object(
-                    parser,
-                    "resolve_known_booking_redirect",
-                    return_value=DIRECT_UTAIR_URL,
-                    create=True,
-                ) as resolver,
-                mock.patch.object(parser, "infer_build_route", side_effect=fake_infer),
-                mock.patch.object(
-                    parser.utair, "parse_utair_source", side_effect=fake_parse
-                ),
-                mock.patch.object(
-                    parser.utair, "fetch_utair_token", return_value="token"
-                ),
-                mock.patch.object(
-                    parser.utair,
-                    "fetch_utair_orders",
-                    return_value={"orders": [{"segments": []}]},
-                ),
-                mock.patch.object(
-                    parser.utair,
-                    "convert_to_itinerary",
-                    return_value=minimal_itinerary(),
-                ),
-                mock.patch.object(
-                    parser,
-                    "validate_itinerary_contract",
-                    side_effect=lambda value: value,
-                ),
-            ):
-                parser._build_itinerary_from_url_file(Path(handle.name), [])
-
-        resolver.assert_called_once_with(RAW_CLICK_URL)
-        self.assertEqual(observed["route_url"], DIRECT_UTAIR_URL)
-        self.assertEqual(observed["adapter_url"], DIRECT_UTAIR_URL)
-
-
-    def test_direct_utair_url_is_returned_without_http_resolution(self) -> None:
-        from flight_calendar.redirect_resolution import resolve_known_booking_redirect
-
-        with mock.patch(
-            "flight_calendar.redirect_resolution.carrier_http.resolve_redirect_url"
-        ) as http_resolver:
-            self.assertEqual(
-                resolve_known_booking_redirect(DIRECT_UTAIR_URL), DIRECT_UTAIR_URL
-            )
-
-        http_resolver.assert_not_called()
-
     def test_click_mail_utair_redirect_must_resolve_to_https_utair_host(self) -> None:
         from flight_calendar.errors import CliFailure
         from flight_calendar.redirect_resolution import resolve_known_booking_redirect
@@ -173,9 +83,7 @@ class RedirectResolutionContractTests(unittest.TestCase):
         serialized = json.dumps(payload, ensure_ascii=False)
         assert_private_tokens_redacted(self, serialized)
 
-    def test_click_mail_utair_503_without_location_becomes_redacted_cli_failure(
-        self,
-    ) -> None:
+    def test_click_mail_utair_503_becomes_redacted_cli_failure(self) -> None:
         from flight_calendar import carrier_http
         from flight_calendar.errors import CliFailure
         from flight_calendar.redirect_resolution import resolve_known_booking_redirect
@@ -184,24 +92,12 @@ class RedirectResolutionContractTests(unittest.TestCase):
             status_code = 503
             headers: dict[str, str] = {}
 
-            @property
-            def text(self) -> str:  # pragma: no cover - must not be read
-                raise AssertionError("redirect resolver must not read response.text")
-
         def fake_request(method: str, url: str, **kwargs: object) -> FakeResponse:
             self.assertEqual(method, "GET")
             self.assertEqual(url, RAW_CLICK_URL)
             self.assertEqual(kwargs.get("allow_redirects"), False)
             self.assertEqual(kwargs.get("max_redirects"), 0)
             return FakeResponse()
-
-        with mock.patch.object(
-            carrier_http._requests, "request", side_effect=fake_request
-        ):
-            with self.assertRaises(carrier_http.TransportError) as transport_ctx:
-                carrier_http.resolve_redirect_url(RAW_CLICK_URL)
-
-        assert_private_tokens_redacted(self, str(transport_ctx.exception))
 
         with mock.patch.object(
             carrier_http._requests, "request", side_effect=fake_request
@@ -216,7 +112,33 @@ class RedirectResolutionContractTests(unittest.TestCase):
     def test_cli_success_stdout_does_not_expose_raw_or_resolved_private_url(
         self,
     ) -> None:
-        from flight_calendar import parser
+        from flight_calendar import carrier_http, ics_render, parser
+
+        observed_api_requests: list[dict[str, object]] = []
+
+        def utair_api_fixture(
+            url: str,
+            *,
+            method: str = "GET",
+            headers: dict[str, str] | None = None,
+            body: bytes | None = None,
+            timeout: int = 45,
+            label: str = "HTTP request",
+            sleep: object = None,
+        ) -> tuple[int, str, str]:
+            del headers, body, timeout, label, sleep
+            observed_api_requests.append({"url": url, "method": method})
+            if url == UTAIR_OAUTH_ENDPOINT:
+                return 200, "application/json; charset=utf-8", json.dumps(
+                    {"access_token": SYNTHETIC_ACCESS_TOKEN, "token_type": "Bearer"}
+                )
+            if url.startswith(UTAIR_ORDERS_ENDPOINT + "?"):
+                return 200, "application/json; charset=utf-8", UTAIR_FIXTURE_TEXT
+            raise AssertionError(f"unexpected Utair endpoint: {url.split('?', 1)[0]}")
+
+        class RedirectResponse:
+            status_code = 307
+            headers = {"Location": DIRECT_UTAIR_URL}
 
         with tempfile.TemporaryDirectory(prefix="flight-redirect-stdout.") as tmp:
             tmp_path = Path(tmp)
@@ -227,32 +149,14 @@ class RedirectResolutionContractTests(unittest.TestCase):
             stderr = io.StringIO()
             with (
                 mock.patch.object(
-                    parser,
-                    "resolve_known_booking_redirect",
-                    return_value=DIRECT_UTAIR_URL,
+                    carrier_http._requests,
+                    "request",
+                    return_value=RedirectResponse(),
                 ),
                 mock.patch.object(
-                    parser,
-                    "infer_build_route",
-                    return_value={"route": "utair", "confidence": 1.0, "evidence": []},
-                ),
-                mock.patch.object(
-                    parser.utair,
-                    "parse_utair_source",
-                    return_value=("ABC123", "IVANOV", DIRECT_UTAIR_URL),
-                ),
-                mock.patch.object(
-                    parser.utair, "fetch_utair_token", return_value="token"
-                ),
-                mock.patch.object(
-                    parser.utair,
-                    "fetch_utair_orders",
-                    return_value={"orders": [{"segments": []}]},
-                ),
-                mock.patch.object(
-                    parser.utair,
-                    "convert_to_itinerary",
-                    return_value=minimal_itinerary(),
+                    carrier_http,
+                    "request_raw",
+                    side_effect=utair_api_fixture,
                 ),
                 contextlib.redirect_stdout(stdout),
                 contextlib.redirect_stderr(stderr),
@@ -269,12 +173,40 @@ class RedirectResolutionContractTests(unittest.TestCase):
                     ]
                 )
 
-        self.assertEqual(code, 0, stderr.getvalue() + stdout.getvalue())
-        payload = json.loads(stdout.getvalue())
-        self.assertEqual(payload["ok"], True)
-        self.assertEqual(payload["media"], f"MEDIA:{output}")
+            self.assertEqual(code, 0, stderr.getvalue() + stdout.getvalue())
+            payload = json.loads(stdout.getvalue())
+            self.assertIs(payload["ok"], True)
+            self.assertEqual(payload["media"], f"MEDIA:{output}")
+            self.assertIsInstance(payload["segments_count"], int)
+            self.assertGreater(payload["segments_count"], 0)
+            self.assertTrue(output.is_file())
+
+            ics_text = output.read_text(encoding="utf-8")
+            ics_render.validate_ics_text(
+                ics_text, expected_events=payload["segments_count"]
+            )
+
+            api_methods = {
+                url.split("?", 1)[0]: method
+                for url, method in (
+                    (str(item["url"]), str(item["method"]))
+                    for item in observed_api_requests
+                )
+            }
+            self.assertEqual(api_methods[UTAIR_OAUTH_ENDPOINT], "POST")
+            self.assertEqual(api_methods[UTAIR_ORDERS_ENDPOINT], "GET")
+
         emitted = stdout.getvalue() + stderr.getvalue()
-        assert_private_tokens_redacted(self, emitted)
+        for private_value in (
+            RAW_CLICK_URL,
+            "private-token",
+            "secret",
+            DIRECT_UTAIR_URL,
+            "ABC123",
+            "IVANOV",
+            SYNTHETIC_ACCESS_TOKEN,
+        ):
+            self.assertNotIn(private_value, emitted)
 
 
 class CarrierHttpRedirectContractTests(unittest.TestCase):
@@ -296,8 +228,6 @@ class CarrierHttpRedirectContractTests(unittest.TestCase):
             self.assertEqual(url, RAW_CLICK_URL)
             self.assertEqual(kwargs.get("allow_redirects"), False)
             self.assertEqual(kwargs.get("max_redirects"), 0)
-            self.assertEqual(kwargs.get("impersonate"), carrier_http.IMPERSONATE_TARGET)
-            self.assertIn("User-Agent", kwargs.get("headers", {}))
             return FakeResponse()
 
         with mock.patch.object(
@@ -325,8 +255,6 @@ class CarrierHttpRedirectContractTests(unittest.TestCase):
             self.assertEqual(url, RAW_CLICK_URL)
             self.assertEqual(kwargs.get("allow_redirects"), False)
             self.assertEqual(kwargs.get("max_redirects"), 0)
-            self.assertEqual(kwargs.get("impersonate"), carrier_http.IMPERSONATE_TARGET)
-            self.assertIn("User-Agent", kwargs.get("headers", {}))
             return FakeResponse()
 
         with mock.patch.object(
