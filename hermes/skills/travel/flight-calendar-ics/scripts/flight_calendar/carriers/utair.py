@@ -318,7 +318,16 @@ def convert_to_itinerary(
                 "arrival": arrival,
                 "status": status_text(seg, order),
             }
-            aircraft = first_value(seg, ["aircraft", "aircraft_name", "aircraftName"])
+            aircraft = first_value(
+                seg,
+                [
+                    "aircraft",
+                    "aircraft_name",
+                    "aircraftName",
+                    "plane_type_name",
+                    "plane_type",
+                ],
+            )
             if clean(aircraft):
                 flight["aircraft"] = str(aircraft).strip()
             flights.append(flight)
