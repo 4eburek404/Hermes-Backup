@@ -1,10 +1,4 @@
-"""Regression tests for deduplicated datetime parsing and arrival/departure validation.
-
-These tests verify that:
-1. arrival <= departure after timezone conversion is rejected by contract validation
-2. direct ics_render.build_calendar() call also rejects such an itinerary
-3. local datetime with Z/offset is not accepted by the public JSON Schema contract
-"""
+"""Contract and renderer tests for canonical datetime handling."""
 
 from __future__ import annotations
 
@@ -48,17 +42,6 @@ def _valid_itinerary() -> dict[str, object]:
     )
 
 
-def _assert_build_calendar_error(
-    testcase: unittest.TestCase,
-    itinerary: dict[str, object],
-    expected_message: str,
-) -> None:
-    from flight_calendar import ics_render
-
-    with testcase.assertRaisesRegex(ValueError, expected_message):
-        ics_render.build_calendar(itinerary, no_alarms=True)
-
-
 class ArrAfterDepartureContractTests(unittest.TestCase):
     """Contract-level: validate_itinerary_semantics rejects arrival <= departure."""
 
@@ -98,25 +81,10 @@ class ArrAfterDepartureContractTests(unittest.TestCase):
             itinerary_contract.validate_itinerary_semantics(itinerary)
 
 
-class BuildCalendarRejectsTests(unittest.TestCase):
-    """Renderer-level: ics_render.build_calendar() also rejects bad arrival/departure."""
+class RendererDatetimeTests(unittest.TestCase):
+    """Renderer-level datetime conversion for validated, enriched input."""
 
     maxDiff = None
-
-    def test_build_calendar_rejects_arrival_before_departure(self) -> None:
-        """Direct build_calendar() call must reject arrival <= departure."""
-        itinerary = _valid_itinerary()
-        itinerary["flights"][0]["departure"]["local"] = "2026-06-01T13:45"
-        itinerary["flights"][0]["arrival"]["local"] = "2026-06-01T09:15"
-        itinerary["flights"][0]["arrival"]["tz"] = "Europe/Moscow"
-        _assert_build_calendar_error(self, itinerary, "arrival must be after departure")
-
-    def test_build_calendar_rejects_arrival_equal_departure_cross_tz(self) -> None:
-        """Direct build_calendar() call must reject arrival == departure in UTC."""
-        itinerary = _valid_itinerary()
-        itinerary["flights"][0]["departure"]["local"] = "2026-06-01T09:15"
-        itinerary["flights"][0]["arrival"]["local"] = "2026-06-01T11:15"
-        _assert_build_calendar_error(self, itinerary, "arrival must be after departure")
 
     def test_build_calendar_accepts_supported_local_datetime_forms(self) -> None:
         """The renderer accepts the schema's naive local datetime forms."""
@@ -162,19 +130,6 @@ class ParseLocalDatetimeRejectsAwareTests(unittest.TestCase):
                 "Europe/Moscow",
                 "flights[0].departure",
             )
-
-    def test_build_calendar_rejects_z_suffix_without_schema(self) -> None:
-        """Direct build_calendar() call must reject Z even without schema validation."""
-        itinerary = _valid_itinerary()
-        itinerary["flights"][0]["departure"]["local"] = "2026-06-01T09:15Z"
-        _assert_build_calendar_error(self, itinerary, "without timezone offset")
-
-    def test_build_calendar_rejects_offset_without_schema(self) -> None:
-        """Direct build_calendar() call must reject +offset even without schema validation."""
-        itinerary = _valid_itinerary()
-        itinerary["flights"][0]["arrival"]["local"] = "2026-06-01T13:45+05:00"
-        _assert_build_calendar_error(self, itinerary, "without timezone offset")
-
 
 if __name__ == "__main__":
     unittest.main()

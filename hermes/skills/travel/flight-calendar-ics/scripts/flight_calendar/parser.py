@@ -69,8 +69,20 @@ def validate_itinerary_contract(
     return enriched
 
 
+def load_input(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise ValueError(f"input file not found: {path}")
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid JSON in {path}: {exc}")
+    if not isinstance(data, dict):
+        raise ValueError("input JSON root must be an object")
+    return data
+
+
 def _load_input_itinerary(input_path: Path) -> dict[str, Any]:
-    data = ics_render.load_input(input_path)
+    data = load_input(input_path)
     return validate_itinerary_contract(data, build_timezone_map())
 
 
