@@ -43,6 +43,12 @@ UTAIR_DIRECT_URL = (
     + "/order-manage?rloc=ABC123&last_name=EXAMPLE"
     + "&utm_source=mail&utm_campaign=booking"
 )
+# Sanitized shape observed in the second, direct-from-site URL.
+UTAIR_SITE_DIRECT_URL = (
+    UTAIR_WEB_BASE
+    + "/order-manage?rloc=SITE123&last_name=EXAMPLE"
+    + "&utm_source=booking_success&utm_campaign=mail_link"
+)
 UTAIR_OAUTH_ENDPOINT = "https://b.utair.ru/oauth/token"
 UTAIR_ORDERS_ENDPOINT = "https://b.utair.ru/api/v3/orders"
 EXPECTED_LOCATOR = "ABC123"
@@ -122,6 +128,42 @@ class UtairCarrierSpecification(unittest.TestCase):
         self.assertEqual(
             parse_qs(urlparse(normalized_url).query)["utm_source"], ["mail"]
         )
+
+    def test_direct_site_url_routes_without_redirect_and_normalizes_credentials(
+        self,
+    ) -> None:
+        """The observed site URL is already a carrier booking URL."""
+        from flight_calendar import carrier_http
+        from flight_calendar.carriers import utair
+        from flight_calendar.route_detection import infer_build_route
+        from flight_calendar.redirect_resolution import resolve_known_booking_redirect
+
+        parsed = urlparse(UTAIR_SITE_DIRECT_URL)
+        self.assertEqual(parsed.hostname, "www.utair.ru")
+        self.assertEqual(parsed.path, "/order-manage")
+        self.assertEqual(
+            sorted(parse_qs(parsed.query)),
+            ["last_name", "rloc", "utm_campaign", "utm_source"],
+        )
+
+        with mock.patch.object(
+            carrier_http,
+            "resolve_redirect_url",
+            side_effect=AssertionError("direct Utair URL must not be fetched"),
+        ):
+            resolved_url = resolve_known_booking_redirect(UTAIR_SITE_DIRECT_URL)
+
+        self.assertEqual(resolved_url, UTAIR_SITE_DIRECT_URL)
+        route = infer_build_route(
+            argparse.Namespace(url=None, url_file=None), url_override=resolved_url
+        )
+        self.assertEqual(route["route"], "utair")
+        locator, surname, normalized_url = utair.parse_utair_source(
+            resolved_url, None, None
+        )
+        self.assertEqual(locator, "SITE123")
+        self.assertEqual(surname, "EXAMPLE")
+        self.assertEqual(normalized_url, UTAIR_SITE_DIRECT_URL)
 
     def test_oauth_and_orders_requests_follow_the_real_api_contract(self) -> None:
         """Production request construction uses the observed OAuth and orders API."""
