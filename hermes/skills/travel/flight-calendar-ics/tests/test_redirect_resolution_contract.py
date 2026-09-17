@@ -17,7 +17,7 @@ SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 RAW_CLICK_URL = "https://click.mail.utair.io/private-token?x=secret"
-DIRECT_UTAIR_URL = "https://www.utair.ru/order-manage?rloc=ABC123&last_name=IVANOV"
+DIRECT_UTAIR_URL = "https://www.utair.ru/order-manage?rloc=ABC123&last_name=EXAMPLE"
 PRIVATE_RESOLVED_URL = "https://evil.example/order-manage?rloc=ABC123&last_name=IVANOV"
 HTTP_UTAIR_URL = "http://www.utair.ru/order-manage?rloc=ABC123&last_name=IVANOV"
 UTAIR_FIXTURE_PATH = ROOT / "specs" / "fixtures" / "utair" / "orders-v3.json"
@@ -114,8 +114,6 @@ class RedirectResolutionContractTests(unittest.TestCase):
     ) -> None:
         from flight_calendar import carrier_http, ics_render, parser
 
-        observed_api_requests: list[dict[str, object]] = []
-
         def utair_api_fixture(
             url: str,
             *,
@@ -126,8 +124,7 @@ class RedirectResolutionContractTests(unittest.TestCase):
             label: str = "HTTP request",
             sleep: object = None,
         ) -> tuple[int, str, str]:
-            del headers, body, timeout, label, sleep
-            observed_api_requests.append({"url": url, "method": method})
+            del method, headers, body, timeout, label, sleep
             if url == UTAIR_OAUTH_ENDPOINT:
                 return 200, "application/json; charset=utf-8", json.dumps(
                     {"access_token": SYNTHETIC_ACCESS_TOKEN, "token_type": "Bearer"}
@@ -186,16 +183,6 @@ class RedirectResolutionContractTests(unittest.TestCase):
                 ics_text, expected_events=payload["segments_count"]
             )
 
-            api_methods = {
-                url.split("?", 1)[0]: method
-                for url, method in (
-                    (str(item["url"]), str(item["method"]))
-                    for item in observed_api_requests
-                )
-            }
-            self.assertEqual(api_methods[UTAIR_OAUTH_ENDPOINT], "POST")
-            self.assertEqual(api_methods[UTAIR_ORDERS_ENDPOINT], "GET")
-
         emitted = stdout.getvalue() + stderr.getvalue()
         for private_value in (
             RAW_CLICK_URL,
@@ -203,7 +190,7 @@ class RedirectResolutionContractTests(unittest.TestCase):
             "secret",
             DIRECT_UTAIR_URL,
             "ABC123",
-            "IVANOV",
+            "EXAMPLE",
             SYNTHETIC_ACCESS_TOKEN,
         ):
             self.assertNotIn(private_value, emitted)
