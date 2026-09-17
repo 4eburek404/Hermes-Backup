@@ -19,17 +19,12 @@ BACKOFF_SECONDS = (0.5, 2.0)
 IMPERSONATE_TARGET = "chrome"
 _NETWORK_ERRORS: tuple[type[BaseException], ...] = (
     getattr(_requests, "RequestsError", OSError),
-    TimeoutError,
     OSError,
 )
 
 
 class TransportError(ValueError):
     """Carrier HTTP failure with a redaction-safe message."""
-
-
-def active_transport() -> str:
-    return "curl_cffi"
 
 
 def browser_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
@@ -62,18 +57,15 @@ def resolve_redirect_url(
     *,
     timeout: int = 30,
     label: str = "redirect resolution",
-    max_redirects: int = 0,
 ) -> str:
     """Read a single redirect Location with curl_cffi and return its URL.
 
     The input URL may contain credentials; failures intentionally mention only
     the caller-provided label and exception/status class, never the URL.
 
-    ``max_redirects`` remains in the signature for compatibility only. This
-    resolver must not follow redirects automatically; it always requests the
-    wrapper URL with ``allow_redirects=False`` and ``max_redirects=0``.
+    This resolver must not follow redirects automatically; it always requests
+    the wrapper URL with ``allow_redirects=False`` and ``max_redirects=0``.
     """
-    _ = max_redirects
     request_headers = browser_headers(
         {"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
     )
