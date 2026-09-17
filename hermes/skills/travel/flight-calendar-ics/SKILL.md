@@ -1,86 +1,94 @@
 ---
 name: flight-calendar-ics
-description: Use when creating a compact importable .ics calendar file from a supported airline booking URL or a minimal flight itinerary JSON.
-version: 3.03
+description: Create an importable .ics calendar file from a supported airline booking URL or a flight ticket PDF.
+version: 3.04
 metadata:
-  hermes:
-    category: travel
-    tags: [travel, flights, calendar, ics]
----
-
+hermes:
+category: travel
+tags: [travel, flights, calendar, ics]
+--------------------------------------
 # Flight Calendar ICS
 
-Treat the directory containing this `SKILL.md` as `<skill-root>` and resolve
-every bundled path relative to it.
-Use `"${HERMES_SKILLS_PYTHON:-python3}"` as the Python interpreter for bundled
-commands. When `HERMES_SKILLS_PYTHON` is set, use that exact executable;
-otherwise use `python3`.
+Create one importable `.ics` file from a booking URL or flight ticket PDF.
 
-## Goal
-Create one importable `.ics` file for flight calendar import using cli
+Treat the directory containing this file as `<skill-root>`.
+Use `"${HERMES_SKILLS_PYTHON:-python3}"` for bundled Python commands.
 
-## Steps
-0. Before touching any tool, choose the source path: the CLI `build` command below is the default first action for booking URLs and needs no browser. A booking URL is stored in a private file and read with `--url-file` (the CLI resolves carrier redirects itself). For a PDF, first convert it with `anydoc` to Markdown; if the PDF is scanned or `anydoc` returns no usable text, render its pages with PyMuPDF and run Tesseract OCR, then build the minimal itinerary JSON from the extracted text and read it with `--input`. Read `references/carriers.md` first for URL sources and `templates/itinerary.example.json` first for PDF/JSON sources.
-1. Put the source in a private file: booking URL in a text file, or minimal itinerary JSON produced from the PDF's AnyDoc text or OCR text.
-2. For a booking URL, run:
-   `"${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/flight_calendar_ics.py" --json build --url-file <private-url-file>`
-3. For a PDF source, use this extraction order:
-   - First run `npx -y @firecrawl/anydoc <file.pdf> -o <private-markdown-file>`.
-   - If the output is empty, unsupported, or the pages are image-only, render the pages with PyMuPDF and OCR each rendered page with Tesseract (`rus+eng` for Russian tickets and Latin airport/flight codes).
-   - Map the resulting text into the minimal JSON shape in `templates/itinerary.example.json`; do not send raw Markdown or raw OCR directly to the calendar CLI.
-4. For itinerary JSON, run:
-   `"${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/flight_calendar_ics.py" --json build --input <private-itinerary.json>`
-5. If the result has `ok: true`, return the `media` value and a short success reply.
+## Workflow
 
-## Input
-- Required: exactly one source, either `--url-file` or `--input`.
-- Optional: `--output <path>`, `--no-alarms`, `--tz CODE=Area/City` with `--url-file` only.
-- For manual JSON, use `templates/itinerary.example.json`.
+Choose the route from the user's source - Booking URL or PDF itinerary.
 
-## Output
-- The `.ics` artifact from the CLI `media` value.
-- Short user-facing reply, for example: `Готово: прикрепил .ics для импорта в календарь.`
+### Booking URL
 
-## Check
-- CLI output is JSON with `ok: true`.
-- CLI output includes `media`.
-- For live carrier smoke tests, wrap the run so stdout/stderr are summarized into redacted fields only (`ok`, `segments_count`, `media`, sanitized error code/message) and explicitly check that private query keys or credential-bearing URL fragments did not print.
-- Do not paste booking URLs, PNRs, passenger names, ticket numbers, raw JSON, private paths, or `.ics` contents into chat.
-
-## Code-quality / maintenance checks
-When modifying this skill's Python code or tests, do not treat `ruff check` as "all linters" by itself. Run and report all three checks explicitly:
+1. Store the URL in a private file.
+2. Run:
 
 ```bash
-uvx ruff check .
-uvx ruff format --check .
-"${HERMES_SKILLS_PYTHON:-python3}" -m pytest tests -q
+"${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/flight_calendar_ics.py" \
+  --json build \
+  --url-file <private-url-file>
 ```
 
-If `ruff check` reports dead code such as `F401` unused imports or `F841` unused assignments, remove it without asking for separate approval. If `ruff format --check` fails, expect a potentially large formatter-only diff; ask before applying broad formatting unless the user already requested all lint/format gates to pass.
+3. If the CLI returns `ok: true`, return the `media` artifact and stop.
+4. If the booking route fails or is ambiguous, read `references/carriers.md`.
 
-## Stop
-- Stop if the source is missing required flight data.
-- Stop after success; do not open, inspect, validate, rewrite, or rebuild the generated `.ics`.
+Do not open the booking URL in a browser before trying the CLI.
+
+### PDF
+
+1. Convert the PDF to Markdown:
+
+```bash
+npx -y @firecrawl/anydoc <file.pdf> -o <private-markdown-file>
+```
+
+2. If AnyDoc returns usable text, extract the flight facts from it.
+3. If the PDF is image-only or AnyDoc returns no usable text:
+
+   * render the PDF pages with PyMuPDF;
+   * run Tesseract OCR on the rendered pages;
+   * extract the flight facts from the OCR text.
+4. Map the extracted facts to the structure in `templates/itinerary.example.json`.
+5. Do not invent missing flight data.
+6. Save the itinerary as a private temporary JSON file.
+7. Run:
+
+```bash
+"${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/flight_calendar_ics.py" \
+  --json build \
+  --input <private-itinerary.json>
+```
+
+8. If the CLI returns `ok: true`, return the `media` artifact and stop.
+
+The JSON file is an internal intermediate format. It is not a user input.
+
+Do not pass raw Markdown or OCR text directly to the calendar CLI.
+
+## Success
+
+Success requires:
+
+* `ok: true`
+* `media`
+
+Return the generated `.ics` artifact with a short confirmation.
+
+After success, stop. Do not reopen, rewrite, validate, or rebuild the generated `.ics`.
+
+## Failure
+
+If required flight data cannot be extracted or validated:
+
+* do not invent missing values;
+* do not generate an `.ics` from uncertain data;
+* report what required data is missing or unusable.
+
+## Privacy
+
+Do not expose booking URLs, booking credentials, PNRs, passenger names, ticket numbers, temporary JSON, private paths, or `.ics` contents in chat.
 
 ## References
-- `templates/itinerary.example.json` — open when converting tickets, PDFs, emails, screenshots, or manual segments to canonical itinerary JSON.
-- `references/carriers.md` — open when checking supported booking URL routes, carrier notes, or transport dependencies.
 
-## Dependencies
-- PDF-to-Markdown conversion requires Node.js 20+ and `npx`; `anydoc` does not perform OCR.
-- OCR fallback requires PyMuPDF for PDF page rendering and the Tesseract executable with the needed language packs (normally `rus` and `eng`).
-- If the CLI fails with ModuleNotFoundError, install dependencies into the same Python interpreter used for the CLI:
-
-"${HERMES_SKILLS_PYTHON:-python3}" -m pip install icalendar jsonschema curl_cffi
-Use the selected interpreter with `-m pip`, not bare `pip`.
-
-## Maintenance
-Do not run maintenance during normal calendar generation.
-
-If a Hermes runtime is missing `.ics` gateway delivery support after an upstream update, run:
-
-```bash
-"${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/ensure_hermes_ics_delivery.py" --hermes-root "$HOME/.hermes/hermes-agent"
-```
-
-The script patches Hermes core delivery allowlists, writes a focused gateway regression test, and runs that test.
+* `templates/itinerary.example.json` — itinerary structure used for the PDF route.
+* `references/carriers.md` — carrier-specific troubleshooting for booking URL failures.
