@@ -348,15 +348,6 @@ def ticket_numbers(data: dict[str, Any]) -> list[str]:
     return sorted(dict.fromkeys(numbers))
 
 
-def status_text(statuses: Any) -> str | None:
-    if isinstance(statuses, list) and statuses:
-        joined = ", ".join(str(item) for item in statuses)
-        return f"confirmed ({joined})" if "HK" in statuses else joined
-    if clean(statuses):
-        return str(statuses)
-    return "confirmed"
-
-
 def convert_to_itinerary(
     data_or_response: dict[str, Any],
     booking_url: str | None = None,

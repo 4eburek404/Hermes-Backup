@@ -236,18 +236,6 @@ def ticket_numbers(order: dict[str, Any]) -> list[str]:
     return sorted(dict.fromkeys(numbers))
 
 
-def status_text(seg: dict[str, Any], order: dict[str, Any]) -> str:
-    raw = first_value(
-        seg, ["status", "status_code", "statusCode", "status_visual", "statusVisual"]
-    ) or order.get("status")
-    if not clean(raw):
-        return "confirmed"
-    text = str(raw).strip()
-    if text.upper() in {"HK", "T", "CONFIRMED", "ACTIVE"}:
-        return f"confirmed ({text})"
-    return text
-
-
 def convert_to_itinerary(
     data: dict[str, Any], booking_url: str | None = None
 ) -> dict[str, Any]:

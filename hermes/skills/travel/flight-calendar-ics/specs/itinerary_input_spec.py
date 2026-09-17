@@ -173,36 +173,30 @@ class ItineraryInputSpecification(unittest.TestCase):
             self.assertFalse(output.exists())
 
     def test_removed_fields_are_rejected_as_unknown(self) -> None:
-        cases: list[tuple[str, tuple[str, ...]]] = []
+        cases: dict[str, dict[str, Any]] = {}
 
         schema_version = minimal_itinerary()
         schema_version["schema_version"] = "flight-calendar-ics-itinerary.v1"
-        cases.append(("schema_version", ("schema_version",)))
+        cases["schema_version"] = schema_version
 
         status = minimal_itinerary()
         status["flights"][0]["status"] = "confirmed"  # type: ignore[index]
-        cases.append(("status", ("status",)))
+        cases["status"] = status
 
         tz = minimal_itinerary()
         tz["flights"][0]["departure"]["tz"] = "Europe/Moscow"  # type: ignore[index]
-        cases.append(("tz", ("tz",)))
+        cases["tz"] = tz
 
         passengers = minimal_itinerary()
         passengers["passengers"] = ["KONSTANTIN ORLOV"]
-        cases.append(("passengers", ("passengers",)))
+        cases["passengers"] = passengers
 
-        for name, _expected in cases:
+        for name, candidate in cases.items():
             with (
                 self.subTest(field=name),
                 tempfile.TemporaryDirectory(prefix="flight-itinerary-spec.") as tmp,
             ):
                 output = Path(tmp) / "rejected.ics"
-                candidate = {
-                    "schema_version": schema_version,
-                    "status": status,
-                    "tz": tz,
-                    "passengers": passengers,
-                }[name]
                 result, _source = run_cli(copy.deepcopy(candidate), output)
                 self.assertNotEqual(result.returncode, 0)
                 payload = json.loads(result.stdout)

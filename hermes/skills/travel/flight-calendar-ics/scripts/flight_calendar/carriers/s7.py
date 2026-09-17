@@ -346,22 +346,6 @@ def flight_number(segment: dict[str, Any]) -> str:
     return f"{airline_code(marketing or operating)}{raw}"
 
 
-def status_text(segment: dict[str, Any], air: dict[str, Any]) -> str:
-    parts: list[str] = []
-    for value in [
-        segment.get("status"),
-        segment.get("supplierStatus"),
-        air.get("status"),
-    ]:
-        if clean(value):
-            text = str(value).strip()
-            if text not in parts:
-                parts.append(text)
-    if not parts and segment.get("confirmed") is True:
-        return "confirmed"
-    return " / ".join(parts) if parts else "confirmed"
-
-
 def convert_to_itinerary(data: Any, booking_url: str | None = None) -> dict[str, Any]:
     air = _air_from_payload(data)
     flights: list[dict[str, Any]] = []

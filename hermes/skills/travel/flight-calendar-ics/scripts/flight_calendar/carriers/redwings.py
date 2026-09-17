@@ -348,22 +348,6 @@ def ticket_numbers(order: dict[str, Any]) -> list[str]:
     return sorted(dict.fromkeys(numbers))
 
 
-def status_text(segment: dict[str, Any], order: dict[str, Any]) -> str:
-    parts: list[str] = []
-    for value in [
-        segment.get("status"),
-        order.get("status"),
-        order.get("paymentStatus"),
-    ]:
-        if clean(value):
-            text = str(value).strip()
-            if text not in parts:
-                parts.append(text)
-    if not parts:
-        return "confirmed"
-    return " / ".join(parts)
-
-
 def convert_to_itinerary(
     data: dict[str, Any], booking_url: str | None = None
 ) -> dict[str, Any]:
