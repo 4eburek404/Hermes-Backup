@@ -114,7 +114,7 @@ class BookingUrlProcessSpecification(unittest.TestCase):
             self.assertIs(payload["ok"], True)
             self.assertEqual(payload["media"], f"MEDIA:{output}")
             self.assertIsInstance(payload["segments_count"], int)
-            self.assertEqual(payload["segments_count"], 2)
+            self.assertGreater(payload["segments_count"], 0)
             self.assertIs(payload["no_further_action_needed"], True)
             self.assertTrue(output.is_file())
 

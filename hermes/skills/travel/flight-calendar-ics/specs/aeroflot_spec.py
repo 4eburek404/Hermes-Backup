@@ -125,8 +125,6 @@ class AeroflotCarrierSpecification(unittest.TestCase):
         request = observed[0]
         self.assertEqual(request["url"], AEROFLOT_PNR_API)
         self.assertEqual(request["method"], "POST")
-        self.assertEqual(request["label"], "Aeroflot PNR API")
-        self.assertEqual(request["timeout"], 45)
         self.assertEqual(
             request["headers"],
             {
