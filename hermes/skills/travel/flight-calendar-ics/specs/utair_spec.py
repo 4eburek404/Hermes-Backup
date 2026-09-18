@@ -44,6 +44,7 @@ from cli_envelope import assert_valid_cli_envelope
 
 UTAIR_WEB_BASE = "https://www.utair.ru"
 UTAIR_REDIRECT_URL = "https://click.mail.utair.io/z9suvw/fixture-token"
+UTAIR_HTTP_REDIRECT_URL = "http://click.mail.utair.io/private-http-token?secret=private"
 UTAIR_DIRECT_URL = (
     UTAIR_WEB_BASE
     + "/order-manage?rloc=ABC123&last_name=EXAMPLE"
@@ -200,6 +201,49 @@ class UtairCarrierSpecification(unittest.TestCase):
             "ABC123",
             "EXAMPLE",
             SYNTHETIC_ACCESS_TOKEN,
+        ):
+            self.assertNotIn(private_value, emitted)
+
+    def test_http_redirect_wrapper_fails_closed_before_transport(self) -> None:
+        """HTTP Utair wrappers fail before private booking data reaches transport."""
+        from flight_calendar import carrier_http, parser
+
+        with tempfile.TemporaryDirectory(prefix="flight-http-redirect-stdout.") as tmp:
+            url_file = Path(tmp) / "url.txt"
+            url_file.write_text(UTAIR_HTTP_REDIRECT_URL, encoding="utf-8")
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            transport_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+            def fail_transport(*args: object, **kwargs: object) -> None:
+                transport_calls.append((args, kwargs))
+                raise AssertionError("wrapper transport must not be called")
+
+            with (
+                mock.patch.object(
+                    carrier_http._requests,
+                    "request",
+                    side_effect=fail_transport,
+                ),
+                contextlib.redirect_stdout(stdout),
+                contextlib.redirect_stderr(stderr),
+            ):
+                code = parser.main(
+                    ["--json", "build", "--url-file", str(url_file)]
+                )
+
+        self.assertEqual(code, 2, f"transport_calls={len(transport_calls)}")
+        self.assertEqual(transport_calls, [])
+        payload = json.loads(stdout.getvalue())
+        assert_valid_cli_envelope(self, payload)
+        self.assertIs(payload["ok"], False)
+        self.assertEqual(payload["error"]["code"], "redirect_resolution_failed")
+        emitted = stdout.getvalue() + stderr.getvalue()
+        for private_value in (
+            UTAIR_HTTP_REDIRECT_URL,
+            "private-http-token",
+            "secret=private",
         ):
             self.assertNotIn(private_value, emitted)
 

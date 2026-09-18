@@ -35,6 +35,11 @@ def resolve_utair_booking_redirect(raw_url: str) -> str:
     host = _hostname(raw_url)
     if host not in UTAIR_REDIRECT_HOSTS:
         return raw_url
+    if urlparse(raw_url).scheme.lower() != "https":
+        raise CliFailure(
+            "known booking redirect must use HTTPS; provide the direct carrier booking URL",
+            code="redirect_resolution_failed",
+        )
 
     try:
         final_url = carrier_http.resolve_redirect_url(
