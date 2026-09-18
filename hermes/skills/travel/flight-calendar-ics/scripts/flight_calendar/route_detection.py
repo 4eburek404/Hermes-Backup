@@ -206,7 +206,7 @@ def _route_url_credential_evidence(
 
 def _url_fingerprints(raw_url: str) -> list[dict[str, Any]]:
     fingerprints: list[dict[str, Any]] = []
-    for related_url in _related_urls(raw_url):
+    for related_url in (raw_url,):
         parsed = urlparse(related_url)
         host = (parsed.hostname or "").lower()
         fragment = parsed.fragment or ""
@@ -329,18 +329,6 @@ def infer_build_route(
             )
         raise _route_input_insufficient(route)
 
-    candidates = _global_url_route_evidence(fingerprints)
-    if len(candidates) == 1:
-        route, evidence = next(iter(candidates.items()))
-        return _detection(route, 0.9, evidence)
-    if len(candidates) > 1:
-        raise _route_ambiguous()
-
-    if any(item.get("redwings_order_page") for item in fingerprints):
-        raise _route_input_insufficient(
-            "redwings",
-            "Red Wings order page URL is not enough; provide the direct find link shaped #/find/<PNR>/<ACCESS_KEY>/Submit.",
-        )
     raise CliFailure(
         "could not infer carrier route from safe source fingerprint",
         code="route_unknown",

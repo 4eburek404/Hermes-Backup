@@ -139,6 +139,79 @@ class BookingUrlProcessSpecification(unittest.TestCase):
             self.assertNotIn("ABC123", emitted)
             self.assertNotIn("0" * 64, emitted)
 
+    def test_unknown_source_fails_closed_without_carrier_dispatch(self) -> None:
+        """Unknown sources stop before any carrier adapter or network boundary."""
+        from flight_calendar import carrier_http
+        from flight_calendar.carriers import aeroflot, redwings, s7, ural, utair
+
+        unknown_url = (
+            "https://evil.example/manage-order"
+            "?bookingId=ABC123&passengerId=ivanov"
+        )
+        adapter_calls: list[str] = []
+        network_calls: list[str] = []
+
+        def adapter_called(name: str):
+            def record_and_stop(*args: Any, **kwargs: Any) -> None:
+                del args, kwargs
+                adapter_calls.append(name)
+                raise RuntimeError("carrier adapter dispatch reached")
+
+            return record_and_stop
+
+        def network_called(*args: Any, **kwargs: Any) -> None:
+            del args, kwargs
+            network_calls.append("carrier_http")
+            raise RuntimeError("network boundary reached")
+
+        adapter_targets = (
+            (aeroflot, "fetch_aeroflot_pnr", "aeroflot"),
+            (ural, "fetch_ural_reservation", "ural"),
+            (utair, "fetch_utair_token", "utair_token"),
+            (utair, "fetch_utair_orders", "utair"),
+            (redwings, "fetch_redwings_order", "redwings"),
+            (s7, "fetch_s7_order", "s7"),
+        )
+        with contextlib.ExitStack() as stack:
+            for module, function_name, route in adapter_targets:
+                stack.enter_context(
+                    mock.patch.object(
+                        module,
+                        function_name,
+                        side_effect=adapter_called(route),
+                    )
+                )
+            stack.enter_context(
+                mock.patch.object(
+                    carrier_http,
+                    "request_raw",
+                    side_effect=network_called,
+                )
+            )
+            code, stdout, stderr = run_cli(unknown_url)
+
+        self.assertEqual(
+            code,
+            2,
+            f"adapter_calls={adapter_calls!r}; network_calls={network_calls!r}; "
+            f"stdout={stdout!r}; stderr={stderr!r}",
+        )
+        payload = json.loads(stdout)
+        assert_valid_cli_envelope(self, payload)
+        self.assertIs(payload["ok"], False)
+        self.assertEqual(payload["error"]["code"], "route_unknown")
+        self.assertEqual(adapter_calls, [])
+        self.assertEqual(network_calls, [])
+        emitted = stdout + stderr
+        for private_value in (
+            "evil.example",
+            "ABC123",
+            "ivanov",
+            "bookingId=",
+            "passengerId=",
+        ):
+            self.assertNotIn(private_value, emitted)
+
     def test_url_sources_are_mutually_exclusive(self) -> None:
         from flight_calendar import parser
 
