@@ -58,23 +58,25 @@ def minimal_itinerary() -> dict[str, Any]:
 
 
 def run_cli(
-    itinerary: dict[str, object], output: Path
+    itinerary: dict[str, object], output: Path, *, no_alarms: bool = True
 ) -> tuple[subprocess.CompletedProcess[str], Path]:
     source = output.with_suffix(".json")
     source.write_text(json.dumps(itinerary, ensure_ascii=False), encoding="utf-8")
     env = {**os.environ, "PYTHONPATH": str(SCRIPTS)}
+    argv = [
+        sys.executable,
+        str(CLI),
+        "--json",
+        "build",
+        "--input",
+        str(source),
+        "--output",
+        str(output),
+    ]
+    if no_alarms:
+        argv.append("--no-alarms")
     result = subprocess.run(
-        [
-            sys.executable,
-            str(CLI),
-            "--json",
-            "build",
-            "--input",
-            str(source),
-            "--output",
-            str(output),
-            "--no-alarms",
-        ],
+        argv,
         cwd=ROOT,
         text=True,
         capture_output=True,
@@ -88,7 +90,7 @@ class ItineraryInputSpecification(unittest.TestCase):
     def test_minimal_itinerary_builds_one_utc_event_and_keeps_data(self) -> None:
         with tempfile.TemporaryDirectory(prefix="flight-itinerary-spec.") as tmp:
             output = Path(tmp) / "trip.ics"
-            result, _source = run_cli(minimal_itinerary(), output)
+            result, _source = run_cli(minimal_itinerary(), output, no_alarms=False)
 
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             payload = json.loads(result.stdout)
@@ -98,15 +100,42 @@ class ItineraryInputSpecification(unittest.TestCase):
             self.assertTrue(output.is_file())
 
             calendar = Calendar.from_ical(output.read_bytes())
+            self.assertEqual(set(calendar.keys()), {"VERSION", "PRODID"})
+            self.assertEqual(str(calendar["VERSION"]), "2.0")
+            self.assertEqual(str(calendar["PRODID"]), "-//Flight Calendar//EN")
             events = calendar.walk("VEVENT")
             self.assertEqual(len(events), 1)
             event = events[0]
             self.assertEqual(
-                event.decoded("DTSTART").strftime("%Y%m%dT%H%M%SZ"), "20260601T061500Z"
+                set(event.keys()),
+                {"DTSTART", "DTEND", "SUMMARY", "UID", "DESCRIPTION"},
+            )
+            self.assertEqual(len(event.subcomponents), 0)
+            dtstart_ical = event["DTSTART"].to_ical()
+            if isinstance(dtstart_ical, bytes):
+                dtstart_ical = dtstart_ical.decode("ascii")
+            dtend_ical = event["DTEND"].to_ical()
+            if isinstance(dtend_ical, bytes):
+                dtend_ical = dtend_ical.decode("ascii")
+            self.assertEqual(
+                dtstart_ical, "20260601T061500Z"
             )
             self.assertEqual(
-                event.decoded("DTEND").strftime("%Y%m%dT%H%M%SZ"), "20260601T084500Z"
+                dtend_ical, "20260601T084500Z"
             )
+            self.assertEqual(
+                str(event["SUMMARY"]),
+                "Константин Орлов 01.06 Москва - Екатеринбург 09:15 13:45",
+            )
+            uid = str(event["UID"])
+            self.assertTrue(uid.startswith("flight-"))
+            self.assertTrue(uid.endswith("@hermes-agent.local"))
+            description = str(event["DESCRIPTION"])
+            self.assertIn("Код брони: ABC123", description)
+            self.assertIn("Билет: 555 2400000000", description)
+            self.assertIn("01.06 Москва -> Екатеринбург 09:15 13:45", description)
+            self.assertIn("Самолет: Boeing 737", description)
+            self.assertIn("Бронирование: https://carrier.example/manage", description)
             rendered = (
                 output.read_text(encoding="utf-8")
                 .replace("\r\n ", "")
@@ -117,9 +146,17 @@ class ItineraryInputSpecification(unittest.TestCase):
                 "Код брони: ABC123",
                 "Билет: 555 2400000000",
                 "Бронирование: https://carrier.example/manage",
-                "Москва → Екатеринбург",
+                "01.06 Москва -> Екатеринбург 09:15 13:45",
             ):
                 self.assertIn(value, rendered.replace("\r\n ", ""))
+
+            second_output = Path(tmp) / "trip-again.ics"
+            second_result, _source = run_cli(
+                minimal_itinerary(), second_output, no_alarms=False
+            )
+            self.assertEqual(second_result.returncode, 0, second_result.stdout + second_result.stderr)
+            second_event = Calendar.from_ical(second_output.read_bytes()).walk("VEVENT")[0]
+            self.assertEqual(str(second_event["UID"]), uid)
 
     def test_relative_output_returns_absolute_created_artifact_media(self) -> None:
         with tempfile.TemporaryDirectory(prefix="flight-itinerary-relative-spec.") as tmp:
@@ -192,7 +229,7 @@ class ItineraryInputSpecification(unittest.TestCase):
             self.assertEqual(payload["segments_count"], 2)
             calendar = Calendar.from_ical(output.read_bytes())
             events = calendar.walk("VEVENT")
-            self.assertEqual(len(events), 2)
+            self.assertEqual(len(events), len(itinerary["flights"]))
             self.assertEqual(
                 {
                     event.decoded("DTSTART").strftime("%Y%m%dT%H%M%SZ")

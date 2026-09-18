@@ -103,30 +103,6 @@ class CompactContractTests(unittest.TestCase):
         self.assertNotIn("Aeroflot", serialized)
         self.assertNotIn("Аэрофлот", serialized)
 
-    def test_renderer_keeps_compact_russian_calendar_entry(self) -> None:
-        sys.path.insert(0, str(SCRIPTS))
-        from flight_calendar import ics_render, itinerary_contract
-
-        enriched = itinerary_contract.enrich_itinerary_timezones(
-            minimal_itinerary(), {"SVO": "Europe/Moscow", "SVX": "Asia/Yekaterinburg"}
-        )
-        ics_text, summaries = ics_render.build_calendar(enriched, no_alarms=True)
-        unfolded = ics_text.replace("\r\n ", "").replace("\n ", "")
-        self.assertEqual(len(summaries), 1)
-        self.assertIn(
-            "SUMMARY:Константин Орлов 01.06 Москва - Екатеринбург 09:15 13:45", unfolded
-        )
-        self.assertIn("DESCRIPTION:Код брони: ABC123\\nБилет: 555 2400000000", unfolded)
-        self.assertIn("01.06 Москва -> Екатеринбург 09:15 13:45", unfolded)
-        self.assertIn("Самолет: Boeing 737", unfolded)
-        self.assertIn("Бронирование: https://carrier.example/manage", unfolded)
-        self.assertIn("LOCATION:Москва → Екатеринбург", unfolded)
-        self.assertIn("DTSTART:20260601T061500Z", unfolded)
-        self.assertIn("DTEND:20260601T084500Z", unfolded)
-        self.assertNotIn("PNR:", unfolded)
-        self.assertNotIn("Seat", unfolded)
-        self.assertNotIn("Baggage", unfolded)
-        self.assertNotIn("Терминал", unfolded)
 
     def test_passenger_display_normalizes_latin_names_to_cyrillic(self) -> None:
         sys.path.insert(0, str(SCRIPTS))

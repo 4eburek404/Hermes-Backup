@@ -11,7 +11,7 @@ import datetime as dt
 import hashlib
 from typing import Any
 
-from icalendar import Alarm, Calendar, Event, vText
+from icalendar import Calendar, Event
 
 from flight_calendar import itinerary_contract
 from flight_calendar.passenger_display import display_passenger_name
@@ -88,29 +88,10 @@ def format_ticket_number(value: Any) -> str:
     return ", ".join(formatted)
 
 
-def parse_alarm_minutes(value: Any, *, no_alarms: bool = False) -> list[int]:
-    """Normalize VALARM offsets with clean validation errors."""
-    raw_alarms = [] if no_alarms else (value if value is not None else [1440, 180])
-    alarms: list[int] = []
-    for idx, item in enumerate(normalize_list(raw_alarms), start=1):
-        try:
-            minutes = int(item)
-        except (TypeError, ValueError):
-            raise ValueError(
-                f"invalid alarm minutes value at alarm[{idx}]: {item!r}; use positive integers"
-            )
-        if minutes <= 0:
-            raise ValueError(f"alarm minutes must be positive at alarm[{idx}], got {minutes}")
-        alarms.append(minutes)
-    return alarms
-
-
 def build_event(
     flight: dict[str, Any],
     *,
     calendar: dict[str, Any],
-    now_utc: dt.datetime,
-    alarms_minutes: list[int],
 ) -> tuple[Event, dict[str, Any]]:
     """Build a single VEVENT as an icalendar Event object + summary dict."""
     flight_number = flight["flight_number"]
@@ -146,8 +127,6 @@ def build_event(
     )
     passenger = primary_passenger_label(calendar.get("passenger"))
     summary = " ".join(part for part in [passenger, title_route] if part)
-    location = f"{dep_city} → {arr_city}"
-
     # Build description
     desc_lines: list[str] = []
     if not itinerary_contract.is_placeholder(pnr):
@@ -163,33 +142,12 @@ def build_event(
 
     uid = stable_uid(flight, str(calendar.get("pnr") or ""))
 
-    # Build Event using icalendar modern API
-    event_kwargs: dict[str, Any] = {
-        "summary": summary,
-        "start": dep_dt.astimezone(UTC),
-        "end": arr_dt.astimezone(UTC),
-        "location": location,
-        "description": description,
-        "uid": uid,
-        "stamp": now_utc,
-        "created": now_utc,
-        "last_modified": now_utc,
-        "status": "CONFIRMED",
-        "transparency": "OPAQUE",
-        "categories": ["Travel", "Flight"],
-    }
-    if booking_url:
-        event_kwargs["url"] = booking_url
-
-    event = Event.new(**event_kwargs)
-
-    # Add VALARM subcomponents
-    for minutes in alarms_minutes:
-        alarm = Alarm()
-        alarm.add("action", "DISPLAY")
-        alarm.add("trigger", dt.timedelta(minutes=-minutes))
-        alarm.add("description", f"Flight {flight_number} {dep_city}→{arr_city}")
-        event.add_component(alarm)
+    event = Event()
+    event.add("summary", summary)
+    event.add("dtstart", dep_dt.astimezone(UTC))
+    event.add("dtend", arr_dt.astimezone(UTC))
+    event.add("uid", uid)
+    event.add("description", description)
 
     summary_info = {
         "flight_number": flight_number,
@@ -212,31 +170,21 @@ def build_calendar(
     """
     flights = data["flights"]
 
-    calendar_name = "Flights"
-    alarms_minutes = parse_alarm_minutes(None, no_alarms=no_alarms)
-
-    now_utc = dt.datetime.now(tz=UTC).replace(microsecond=0)
-
     events: list[Event] = []
     summaries: list[dict[str, Any]] = []
     for flight in flights:
         event, info = build_event(
             flight,
             calendar=data,
-            now_utc=now_utc,
-            alarms_minutes=alarms_minutes,
         )
         events.append(event)
         summaries.append(info)
 
-    cal = Calendar.new(
-        subcomponents=events,
-        prodid="-//Hermes Agent//Flight Calendar ICS//EN",
-    )
-    cal["x-wr-calname"] = vText(calendar_name)
-    cal["x-wr-timezone"] = vText("UTC")
-    cal["method"] = vText("PUBLISH")
-    cal["calscale"] = vText("GREGORIAN")
+    cal = Calendar()
+    cal.add("version", "2.0")
+    cal.add("prodid", "-//Flight Calendar//EN")
+    for event in events:
+        cal.add_component(event)
 
     ics_text = cal.to_ical().decode("utf-8")
     return ics_text, summaries
