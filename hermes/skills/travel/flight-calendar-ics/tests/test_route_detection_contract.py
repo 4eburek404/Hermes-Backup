@@ -82,6 +82,161 @@ class RouteDetectionContractTests(unittest.TestCase):
             with self.subTest(url=url.split("?", 1)[0]):
                 self._assert_route_unknown(url)
 
+    def test_aeroflot_adapter_aliases_are_complete_in_query_and_spa(self) -> None:
+        from flight_calendar.route_detection import infer_build_route
+
+        key = "0" * 64
+        alias_pairs = (
+            ("pnrKey", "pnrLocator"),
+            ("pnrKey", "pnr_locator"),
+            ("pnr_key", "pnrLocator"),
+            ("pnr_key", "pnr_locator"),
+        )
+        for fragment in ("", "#/pnr?"):
+            for key_name, locator_name in alias_pairs:
+                with self.subTest(fragment=fragment, key=key_name, locator=locator_name):
+                    separator = "" if fragment else "?"
+                    url = (
+                        "https://www.aeroflot.ru/sb/pnr/app/ru-ru"
+                        + fragment
+                        + separator
+                        + f"{key_name}={key}&{locator_name}=ABC123"
+                    )
+                    route = infer_build_route(
+                        argparse.Namespace(url=None, url_file=None),
+                        url_override=url,
+                    )
+                    self.assertEqual(route["route"], "aeroflot")
+
+    def test_aeroflot_unsupported_case_variant_is_input_insufficient(self) -> None:
+        from flight_calendar.errors import CliFailure
+        from flight_calendar.route_detection import infer_build_route
+
+        with self.assertRaises(CliFailure) as ctx:
+            infer_build_route(
+                argparse.Namespace(url=None, url_file=None),
+                url_override=(
+                    "https://www.aeroflot.ru/sb/pnr/app/ru-ru"
+                    "?PNRKEY=" + "0" * 64 + "&pnrLocator=ABC123"
+                ),
+            )
+
+        self.assertEqual(ctx.exception.code, "route_input_insufficient")
+
+    def test_ural_adapter_aliases_are_complete(self) -> None:
+        from flight_calendar.route_detection import infer_build_route
+
+        cases = (
+            ("pnr", "lastName"),
+            ("pnrNumber", "lastName"),
+            ("pnrnumber", "lastName"),
+            ("pnr", "lastname"),
+            ("pnr", "surname"),
+        )
+        for locator_name, surname_name in cases:
+            with self.subTest(locator=locator_name, surname=surname_name):
+                route = infer_build_route(
+                    argparse.Namespace(url=None, url_file=None),
+                    url_override=(
+                        "https://service.uralairlines.ru/?"
+                        f"{locator_name}=ABC123&{surname_name}=IVANOV"
+                    ),
+                )
+                self.assertEqual(route["route"], "ural")
+
+    def test_ural_unsupported_case_variant_is_input_insufficient(self) -> None:
+        from flight_calendar.errors import CliFailure
+        from flight_calendar.route_detection import infer_build_route
+
+        with self.assertRaises(CliFailure) as ctx:
+            infer_build_route(
+                argparse.Namespace(url=None, url_file=None),
+                url_override="https://service.uralairlines.ru/?PNR=ABC123&lastName=IVANOV",
+            )
+
+        self.assertEqual(ctx.exception.code, "route_input_insufficient")
+
+    def test_utair_adapter_aliases_are_complete(self) -> None:
+        from flight_calendar.route_detection import infer_build_route
+
+        cases = (
+            ("rloc", "last_name"),
+            ("RLOC", "last_name"),
+            ("pnr", "last_name"),
+            ("rloc", "lastName"),
+            ("rloc", "lastname"),
+            ("rloc", "surname"),
+        )
+        for locator_name, surname_name in cases:
+            with self.subTest(locator=locator_name, surname=surname_name):
+                route = infer_build_route(
+                    argparse.Namespace(url=None, url_file=None),
+                    url_override=(
+                        "https://www.utair.ru/order-manage?"
+                        f"{locator_name}=ABC123&{surname_name}=IVANOV"
+                    ),
+                )
+                self.assertEqual(route["route"], "utair")
+
+    def test_utair_unsupported_case_variant_is_input_insufficient(self) -> None:
+        from flight_calendar.errors import CliFailure
+        from flight_calendar.route_detection import infer_build_route
+
+        with self.assertRaises(CliFailure) as ctx:
+            infer_build_route(
+                argparse.Namespace(url=None, url_file=None),
+                url_override="https://www.utair.ru/order-manage?Rloc=ABC123&last_name=IVANOV",
+            )
+
+        self.assertEqual(ctx.exception.code, "route_input_insufficient")
+
+    def test_s7_adapter_aliases_are_complete_independently(self) -> None:
+        from flight_calendar.route_detection import infer_build_route
+
+        cases = (
+            ("bookingId", "passengerId"),
+            ("bookingId", "passenger_id"),
+            ("booking_id", "passengerId"),
+            ("booking_id", "passenger_id"),
+        )
+        for booking_name, passenger_name in cases:
+            with self.subTest(booking=booking_name, passenger=passenger_name):
+                route = infer_build_route(
+                    argparse.Namespace(url=None, url_file=None),
+                    url_override=(
+                        "https://myb.s7.ru/myb/manage-order?"
+                        f"{booking_name}=ABC123&{passenger_name}=ivanov"
+                    ),
+                )
+                self.assertEqual(route["route"], "s7")
+
+    def test_s7_unsupported_case_variant_is_input_insufficient(self) -> None:
+        from flight_calendar.errors import CliFailure
+        from flight_calendar.route_detection import infer_build_route
+
+        with self.assertRaises(CliFailure) as ctx:
+            infer_build_route(
+                argparse.Namespace(url=None, url_file=None),
+                url_override=(
+                    "https://myb.s7.ru/myb/manage-order?"
+                    "BookingId=ABC123&passengerId=ivanov"
+                ),
+            )
+
+        self.assertEqual(ctx.exception.code, "route_input_insufficient")
+
+    def test_redwings_find_fragment_without_submit_is_input_insufficient(self) -> None:
+        from flight_calendar.errors import CliFailure
+        from flight_calendar.route_detection import infer_build_route
+
+        with self.assertRaises(CliFailure) as ctx:
+            infer_build_route(
+                argparse.Namespace(url=None, url_file=None),
+                url_override="https://flyredwings.com/booking/#/find/ABC123/ACCESS_KEY",
+            )
+
+        self.assertEqual(ctx.exception.code, "route_input_insufficient")
+
     def test_ural_canonical_source_remains_ural(self) -> None:
         from flight_calendar.route_detection import infer_build_route
 

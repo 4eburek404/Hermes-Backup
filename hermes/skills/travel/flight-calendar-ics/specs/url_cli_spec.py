@@ -266,6 +266,42 @@ class BookingUrlProcessSpecification(unittest.TestCase):
         ):
             self.assertNotIn(private_value, emitted)
 
+    def test_present_invalid_aeroflot_value_is_validation_error_before_network(
+        self,
+    ) -> None:
+        """Trusted fields route first; Aeroflot validates values before transport."""
+        from flight_calendar import carrier_http
+
+        invalid_value = "BAD_KEY_VALUE"
+        invalid_url = (
+            "https://www.aeroflot.ru/sb/pnr/app/ru-ru"
+            f"?pnrKey={invalid_value}&pnrLocator=ABC123"
+        )
+        network_calls: list[str] = []
+
+        def network_called(*args: Any, **kwargs: Any) -> None:
+            del args, kwargs
+            network_calls.append("carrier_http.request_raw")
+            raise AssertionError("network boundary reached")
+
+        with mock.patch.object(
+            carrier_http,
+            "request_raw",
+            side_effect=network_called,
+        ):
+            code, stdout, stderr = run_cli(invalid_url)
+
+        self.assertEqual(code, 2, stdout + stderr)
+        payload = json.loads(stdout)
+        assert_valid_cli_envelope(self, payload)
+        self.assertIs(payload["ok"], False)
+        self.assertEqual(payload["error"]["code"], "validation_error")
+        self.assertEqual(network_calls, [])
+        emitted = stdout + stderr
+        self.assertNotIn(invalid_url, emitted)
+        self.assertNotIn(invalid_value, emitted)
+        self.assertNotIn("ABC123", emitted)
+
     def test_url_sources_are_mutually_exclusive(self) -> None:
         from flight_calendar import parser
 

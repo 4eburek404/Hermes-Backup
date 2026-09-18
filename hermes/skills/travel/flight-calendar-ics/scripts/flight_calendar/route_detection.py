@@ -40,8 +40,7 @@ def _query_field_names(parsed: Any) -> list[str]:
 
 
 def _field_present(field_names: list[str], aliases: set[str]) -> bool:
-    lower_names = {name.lower() for name in field_names}
-    return any(alias.lower() in lower_names for alias in aliases)
+    return any(alias in field_names for alias in aliases)
 
 
 def _trusted_route(parsed: Any) -> str | None:
@@ -74,12 +73,8 @@ def _redwings_order_fragment(fragment: str) -> bool:
 
 
 def _aeroflot_has_required_credentials(field_names: list[str]) -> bool:
-    return (
-        _field_present(field_names, {"pnrKey"})
-        and _field_present(field_names, {"pnrLocator"})
-    ) or (
-        _field_present(field_names, {"pnr_key"})
-        and _field_present(field_names, {"pnr_locator"})
+    return _field_present(field_names, {"pnrKey", "pnr_key"}) and _field_present(
+        field_names, {"pnrLocator", "pnr_locator"}
     )
 
 
@@ -90,7 +85,7 @@ def _ural_has_required_credentials(field_names: list[str]) -> bool:
 
 
 def _utair_has_required_credentials(field_names: list[str]) -> bool:
-    locator_aliases = {"rloc", "pnr"}
+    locator_aliases = {"rloc", "RLOC", "pnr"}
     surname_aliases = {"last_name", "lastName", "lastname", "surname"}
     return _field_present(field_names, locator_aliases) and _field_present(
         field_names, surname_aliases
