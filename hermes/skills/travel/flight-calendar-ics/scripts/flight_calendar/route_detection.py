@@ -6,7 +6,7 @@ import argparse
 import re
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, urlparse
 
 from flight_calendar.errors import CliFailure
 
@@ -91,32 +91,6 @@ def _merge_evidence(
     existing[route] = _unique(
         [*existing.get(route, []), *[item for item in evidence if item]]
     )
-
-
-def _related_urls(raw_url: str) -> list[str]:
-    urls: list[str] = []
-    seen: set[str] = set()
-
-    def add(value: str | None) -> None:
-        if not value:
-            return
-        candidate = value.strip()
-        if not candidate or candidate in seen:
-            return
-        seen.add(candidate)
-        urls.append(candidate)
-
-    add(raw_url)
-    index = 0
-    while index < len(urls) and len(urls) < 6:
-        parsed = urlparse(urls[index])
-        for values in parse_qs(parsed.query, keep_blank_values=True).values():
-            for value in values:
-                decoded = unquote(value).strip()
-                if decoded.startswith(("http://", "https://")):
-                    add(decoded)
-        index += 1
-    return urls
 
 
 def _known_host_route(host: str) -> str | None:
@@ -246,40 +220,6 @@ def _detection(route: str, confidence: float, evidence: list[str]) -> dict[str, 
         "confidence": confidence,
         "evidence": _unique(evidence),
     }
-
-
-def _global_url_route_evidence(
-    fingerprints: list[dict[str, Any]],
-) -> dict[str, list[str]]:
-    candidates: dict[str, list[str]] = {}
-    for item in fingerprints:
-        field_names = list(item["field_names"])
-        fragment = str(item["fragment"])
-        aeroflot_evidence = _aeroflot_field_evidence(field_names)
-        if aeroflot_evidence:
-            _merge_evidence(candidates, "aeroflot", aeroflot_evidence)
-        if _redwings_find_fragment(fragment):
-            _merge_evidence(candidates, "redwings", ["fragment_route:redwings_find"])
-        ural_evidence = _ural_field_evidence(field_names)
-        if ural_evidence:
-            _merge_evidence(candidates, "ural", ural_evidence)
-        if _field_present(field_names, {"pnr"}) and _field_present(
-            field_names, {"lastName", "lastname", "surname"}
-        ):
-            _merge_evidence(
-                candidates,
-                "utair",
-                _field_evidence(
-                    field_names, {"pnr", "lastName", "lastname", "surname"}
-                ),
-            )
-        utair_evidence = _utair_field_evidence(field_names, host_bound=False)
-        if utair_evidence:
-            _merge_evidence(candidates, "utair", utair_evidence)
-        s7_evidence = _s7_field_evidence(field_names)
-        if s7_evidence:
-            _merge_evidence(candidates, "s7", s7_evidence)
-    return candidates
 
 
 def infer_build_route(
