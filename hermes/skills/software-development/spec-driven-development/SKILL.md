@@ -7,7 +7,7 @@ license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    category: development
+    category: software-development
     tags: [specification, development, behavior, contract, testing]
 ---
 
