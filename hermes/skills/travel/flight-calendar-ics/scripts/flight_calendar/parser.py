@@ -16,7 +16,7 @@ from typing import Any
 from flight_calendar import ics_render, itinerary_contract, timezone_catalog
 from flight_calendar.carriers import aeroflot, redwings, s7, ural, utair
 from flight_calendar.errors import CliFailure
-from flight_calendar.redirect_resolution import resolve_known_booking_redirect
+from flight_calendar.utair_redirect import resolve_utair_booking_redirect
 from flight_calendar.route_detection import first_url_from_args, infer_build_route
 
 
@@ -97,7 +97,7 @@ def _build_itinerary_from_url_file(
     raw_url = first_url_from_args(source_args)
     if not raw_url:
         raise CliFailure("url file is empty", code="usage_error")
-    booking_url = resolve_known_booking_redirect(raw_url)
+    booking_url = resolve_utair_booking_redirect(raw_url)
     route = str(infer_build_route(source_args, url_override=booking_url)["route"])
 
     tz_map = build_timezone_map(parse_cli_tz_overrides(tz_items))

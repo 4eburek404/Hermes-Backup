@@ -7,8 +7,8 @@ This file specifies only the Utair carrier contract:
 
     Utair URL -> route/credentials -> Utair API -> normalized itinerary
 
-The general URL process, ICS rendering, artifact validation, and CLI success
- envelope are specified in ``specs/url_cli_spec.py`` and are not repeated here.
+The general URL process remains specified in ``specs/url_cli_spec.py``. This
+spec also owns the Utair-specific public redirect-to-ICS scenario.
 
 Run from the skill root::
 
@@ -22,8 +22,11 @@ conversion, and itinerary validation remain real.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
@@ -35,6 +38,9 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 FIXTURE_PATH = ROOT / "specs" / "fixtures" / "utair" / "orders-v3.json"
 sys.path.insert(0, str(SCRIPTS))
+sys.path.insert(0, str(ROOT / "specs"))
+
+from cli_envelope import assert_valid_cli_envelope
 
 UTAIR_WEB_BASE = "https://www.utair.ru"
 UTAIR_REDIRECT_URL = "https://click.mail.utair.io/z9suvw/fixture-token"
@@ -101,7 +107,7 @@ class UtairCarrierSpecification(unittest.TestCase):
 
     def test_redirect_url_routes_and_normalizes_credentials(self) -> None:
         """The real click-mail shape resolves to the Utair manage URL contract."""
-        from flight_calendar.redirect_resolution import resolve_known_booking_redirect
+        from flight_calendar.utair_redirect import resolve_utair_booking_redirect
         from flight_calendar.route_detection import infer_build_route
         from flight_calendar import carrier_http
         from flight_calendar.carriers import utair
@@ -115,7 +121,7 @@ class UtairCarrierSpecification(unittest.TestCase):
             "request",
             return_value=FakeResponse(),
         ):
-            resolved_url = resolve_known_booking_redirect(UTAIR_REDIRECT_URL)
+            resolved_url = resolve_utair_booking_redirect(UTAIR_REDIRECT_URL)
 
         self.assertEqual(urlparse(resolved_url).hostname, "www.utair.ru")
         route = infer_build_route(
@@ -130,6 +136,73 @@ class UtairCarrierSpecification(unittest.TestCase):
         self.assertEqual(surname, EXPECTED_SURNAME)
         self.assertEqual(normalized_url, UTAIR_DIRECT_URL)
 
+    def test_public_redirect_url_builds_valid_ics_without_private_output(self) -> None:
+        """The public CLI completes the real redirect-to-ICS Utair flow."""
+        from flight_calendar import carrier_http, ics_render, parser
+
+        class RedirectResponse:
+            status_code = 307
+            headers = {"Location": UTAIR_DIRECT_URL}
+
+        with tempfile.TemporaryDirectory(prefix="flight-redirect-stdout.") as tmp:
+            tmp_path = Path(tmp)
+            url_file = tmp_path / "url.txt"
+            output = tmp_path / "trip.ics"
+            url_file.write_text(UTAIR_REDIRECT_URL, encoding="utf-8")
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with (
+                mock.patch.object(
+                    carrier_http._requests,
+                    "request",
+                    return_value=RedirectResponse(),
+                ),
+                mock.patch.object(
+                    carrier_http,
+                    "request_raw",
+                    side_effect=fixture_http_response([]),
+                ),
+                contextlib.redirect_stdout(stdout),
+                contextlib.redirect_stderr(stderr),
+            ):
+                code = parser.main(
+                    [
+                        "--json",
+                        "build",
+                        "--url-file",
+                        str(url_file),
+                        "--output",
+                        str(output),
+                        "--no-alarms",
+                    ]
+                )
+
+            self.assertEqual(code, 0, stderr.getvalue() + stdout.getvalue())
+            payload = json.loads(stdout.getvalue())
+            assert_valid_cli_envelope(self, payload)
+            self.assertIs(payload["ok"], True)
+            self.assertEqual(payload["media"], f"MEDIA:{output}")
+            self.assertIsInstance(payload["segments_count"], int)
+            self.assertGreater(payload["segments_count"], 0)
+            self.assertTrue(output.is_file())
+
+            ics_text = output.read_text(encoding="utf-8")
+            ics_render.validate_ics_text(
+                ics_text, expected_events=payload["segments_count"]
+            )
+            self.assertEqual(ics_text.count("BEGIN:VEVENT"), payload["segments_count"])
+
+        emitted = stdout.getvalue() + stderr.getvalue()
+        for private_value in (
+            UTAIR_REDIRECT_URL,
+            "fixture-token",
+            UTAIR_DIRECT_URL,
+            "ABC123",
+            "EXAMPLE",
+            SYNTHETIC_ACCESS_TOKEN,
+        ):
+            self.assertNotIn(private_value, emitted)
+
     def test_direct_site_url_routes_without_redirect_and_normalizes_credentials(
         self,
     ) -> None:
@@ -137,7 +210,7 @@ class UtairCarrierSpecification(unittest.TestCase):
         from flight_calendar import carrier_http
         from flight_calendar.carriers import utair
         from flight_calendar.route_detection import infer_build_route
-        from flight_calendar.redirect_resolution import resolve_known_booking_redirect
+        from flight_calendar.utair_redirect import resolve_utair_booking_redirect
 
         parsed = urlparse(UTAIR_SITE_DIRECT_URL)
         self.assertEqual(parsed.hostname, "www.utair.ru")
@@ -151,7 +224,7 @@ class UtairCarrierSpecification(unittest.TestCase):
             "resolve_redirect_url",
             side_effect=AssertionError("direct Utair URL must not be fetched"),
         ):
-            resolved_url = resolve_known_booking_redirect(UTAIR_SITE_DIRECT_URL)
+            resolved_url = resolve_utair_booking_redirect(UTAIR_SITE_DIRECT_URL)
 
         self.assertEqual(resolved_url, UTAIR_SITE_DIRECT_URL)
         route = infer_build_route(

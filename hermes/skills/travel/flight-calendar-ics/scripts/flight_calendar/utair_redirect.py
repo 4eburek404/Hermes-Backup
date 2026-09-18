@@ -1,4 +1,4 @@
-"""Safe redirect resolution for known carrier booking-link wrappers."""
+"""Safe redirect resolution for Utair booking-link wrappers."""
 
 from __future__ import annotations
 
@@ -25,8 +25,8 @@ def _is_utair_carrier_host(url: str) -> bool:
     return parsed.scheme.lower() == "https" and _host_matches(host, UTAIR_CARRIER_HOST)
 
 
-def resolve_known_booking_redirect(raw_url: str) -> str:
-    """Resolve allowlisted booking redirect links and validate the carrier host.
+def resolve_utair_booking_redirect(raw_url: str) -> str:
+    """Resolve the allowlisted Utair redirect and validate the carrier host.
 
     Unknown hosts are not fetched: they remain ordinary carrier URLs for route
     detection. Known Utair mail-click links must resolve to ``utair.ru`` or a
