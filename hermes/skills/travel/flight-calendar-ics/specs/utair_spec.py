@@ -174,7 +174,6 @@ class UtairCarrierSpecification(unittest.TestCase):
                         str(url_file),
                         "--output",
                         str(output),
-                        "--no-alarms",
                     ]
                 )
 

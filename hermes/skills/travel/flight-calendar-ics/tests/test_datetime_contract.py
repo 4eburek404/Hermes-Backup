@@ -88,9 +88,7 @@ class RendererDatetimeTests(unittest.TestCase):
                 itinerary = _valid_itinerary()
                 itinerary["flights"][0]["departure"]["local"] = departure  # type: ignore[index]
                 itinerary["flights"][0]["arrival"]["local"] = arrival  # type: ignore[index]
-                ics_text, summaries = ics_render.build_calendar(
-                    itinerary, no_alarms=True
-                )
+                ics_text, summaries = ics_render.build_calendar(itinerary)
                 self.assertEqual(len(summaries), 1)
                 self.assertIn("BEGIN:VCALENDAR", ics_text)
 

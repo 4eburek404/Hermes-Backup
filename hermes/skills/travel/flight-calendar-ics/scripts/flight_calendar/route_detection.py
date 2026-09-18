@@ -22,7 +22,7 @@ def first_url_from_args(args: argparse.Namespace) -> str | None:
     url = getattr(args, "url", None)
     url_file = getattr(args, "url_file", None)
     if url:
-        raise CliFailure("--url is not supported; use --url-file", code="usage_error")
+        return url
     if url_file:
         text = read_private_text(url_file)
         if not text:

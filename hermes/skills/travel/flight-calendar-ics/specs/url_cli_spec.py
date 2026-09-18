@@ -15,9 +15,9 @@ Run from the skill root:
 
     python3 specs/url_cli_spec.py
 
-The scenarios call the documented ``--json build --url-file`` argv contract
-through the public parser entry point.  Only the external HTTP transport is
-replaced, so route detection, adapter parsing, itinerary conversion,
+The scenarios call the documented ``--json build --url <booking-url>``
+contract through the public parser entry point. Only the external HTTP transport
+is replaced, so route detection, adapter parsing, itinerary conversion,
 validation, rendering, and artifact validation remain real.
 """
 
@@ -30,6 +30,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 from cli_envelope import assert_valid_cli_envelope
@@ -54,27 +55,30 @@ UNTRUSTED_REDIRECT_URL = (
 
 
 def run_cli(
-    url: str, output: Path | None = None, tz: str | None = None
+    url: str,
+    output: Path | None = None,
+    tz: str | None = None,
 ) -> tuple[int, str, str]:
     from flight_calendar import parser
 
-    with tempfile.NamedTemporaryFile("w", encoding="utf-8") as source:
-        source.write(url)
-        source.flush()
-        argv = ["--json", "build", "--url-file", source.name]
-        if output is not None:
-            argv.extend(["--output", str(output), "--no-alarms"])
-        if tz is not None:
-            argv.extend(["--tz", tz])
+    return _run_parser(parser, ["--json", "build", "--url", url], output, tz)
 
-        stdout = io.StringIO()
-        stderr = io.StringIO()
-        with (
-            contextlib.redirect_stdout(stdout),
-            contextlib.redirect_stderr(stderr),
-        ):
-            code = parser.main(argv)
 
+def _run_parser(
+    parser: Any,
+    argv: list[str],
+    output: Path | None,
+    tz: str | None,
+) -> tuple[int, str, str]:
+    if output is not None:
+        argv.extend(["--output", str(output)])
+    if tz is not None:
+        argv.extend(["--tz", tz])
+
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+        code = parser.main(argv)
     return code, stdout.getvalue(), stderr.getvalue()
 
 
@@ -123,9 +127,10 @@ class BookingUrlProcessSpecification(unittest.TestCase):
             self.assertIs(payload["no_further_action_needed"], True)
             self.assertTrue(output.is_file())
 
-            ics_text = output.read_text(encoding="utf-8")
+            ics_text = output.read_text(encoding="utf-8").replace("\n ", "")
+            self.assertIn(f"Бронирование: {REPRESENTATIVE_BOOKING_URL}", ics_text)
             ics_render.validate_ics_text(
-                ics_text, expected_events=payload["segments_count"]
+                output.read_text(encoding="utf-8"), expected_events=payload["segments_count"]
             )
             self.assertEqual(ics_text.count("BEGIN:VEVENT"), payload["segments_count"])
 
@@ -133,6 +138,44 @@ class BookingUrlProcessSpecification(unittest.TestCase):
             self.assertNotIn(REPRESENTATIVE_BOOKING_URL, emitted)
             self.assertNotIn("ABC123", emitted)
             self.assertNotIn("0" * 64, emitted)
+
+    def test_url_sources_are_mutually_exclusive(self) -> None:
+        from flight_calendar import parser
+
+        with tempfile.TemporaryDirectory(prefix="flight-calendar-sources.") as tmp:
+            url_file = Path(tmp) / "booking-url.txt"
+            input_file = Path(tmp) / "itinerary.json"
+            url_file.write_text(
+                "https://unknown.example/private-booking?token=secret",
+                encoding="utf-8",
+            )
+            input_file.write_text("{}", encoding="utf-8")
+            cases = (
+                [
+                    "--url",
+                    "https://unknown.example/private-booking?token=secret",
+                    "--url-file",
+                    str(url_file),
+                ],
+                [
+                    "--url",
+                    "https://unknown.example/private-booking?token=secret",
+                    "--input",
+                    str(input_file),
+                ],
+                ["--url-file", str(url_file), "--input", str(input_file)],
+            )
+            for source_args in cases:
+                with self.subTest(source_args=source_args):
+                    code, stdout, stderr = _run_parser(
+                        parser, ["--json", "build", *source_args], None, None
+                    )
+                    self.assertEqual(code, 2)
+                    payload = json.loads(stdout)
+                    assert_valid_cli_envelope(self, payload)
+                    self.assertEqual(payload["error"]["code"], "usage_error")
+                    self.assertNotIn("unknown.example", stdout + stderr)
+                    self.assertNotIn("secret", payload["error"]["message"])
 
     def test_unknown_booking_url_returns_structured_json_error_without_leak(
         self,
@@ -193,6 +236,29 @@ class BookingUrlProcessSpecification(unittest.TestCase):
         self.assertEqual(payload["error"]["code"], "usage_error")
         self.assertIn("use CODE=Area/City", payload["error"]["message"])
         self.assertEqual(stderr, "")
+
+    def test_supported_booking_url_honors_timezone_override(self) -> None:
+        from flight_calendar import carrier_http
+
+        with tempfile.TemporaryDirectory(prefix="flight-calendar-tz.") as tmp:
+            output = Path(tmp) / "timezone-trip.ics"
+            with mock.patch.object(
+                carrier_http,
+                "request_raw",
+                side_effect=fixture_http_response(),
+            ):
+                code, stdout, stderr = run_cli(
+                    REPRESENTATIVE_BOOKING_URL,
+                    output,
+                    tz="SVO=Asia/Yekaterinburg",
+                )
+
+            self.assertEqual(code, 0, stdout + stderr)
+            self.assertEqual(stderr, "")
+            self.assertIn(
+                "DTEND:20370923T085000Z",
+                output.read_text(encoding="utf-8"),
+            )
 
 
 if __name__ == "__main__":

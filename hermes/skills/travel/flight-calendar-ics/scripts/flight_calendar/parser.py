@@ -20,18 +20,17 @@ from flight_calendar.utair_redirect import resolve_utair_booking_redirect
 from flight_calendar.route_detection import first_url_from_args, infer_build_route
 
 
-PUBLIC_USAGE = "use --json build with exactly one source: --url-file or --input"
+PUBLIC_USAGE = "use --json build with exactly one source: --url, --url-file, or --input"
 BLOCKED_OPTIONS = {
-    "--url": "--url is not supported; use --url-file",
     "--output-dir": "--output-dir was removed; use --output for the .ics path",
     "--full-envelope": "--full-envelope was removed",
-    "--pnr": "explicit carrier credential flags were removed; use --url-file",
-    "--rloc": "explicit carrier credential flags were removed; use --url-file",
-    "--pnr-locator": "explicit carrier credential flags were removed; use --url-file",
-    "--pnr-key": "explicit carrier credential flags were removed; use --url-file",
-    "--last-name": "explicit carrier credential flags were removed; use --url-file",
-    "--first-name": "explicit carrier credential flags were removed; use --url-file",
-    "--access-key": "explicit carrier credential flags were removed; use --url-file",
+    "--pnr": "explicit carrier credential flags were removed; use --url or --url-file",
+    "--rloc": "explicit carrier credential flags were removed; use --url or --url-file",
+    "--pnr-locator": "explicit carrier credential flags were removed; use --url or --url-file",
+    "--pnr-key": "explicit carrier credential flags were removed; use --url or --url-file",
+    "--last-name": "explicit carrier credential flags were removed; use --url or --url-file",
+    "--first-name": "explicit carrier credential flags were removed; use --url or --url-file",
+    "--access-key": "explicit carrier credential flags were removed; use --url or --url-file",
     "--frontend-base": "diagnostic carrier overrides were removed",
     "--graphql-endpoint": "diagnostic carrier overrides were removed",
 }
@@ -90,15 +89,12 @@ def _source_args_for_url_file(url_file: Path) -> argparse.Namespace:
     return argparse.Namespace(url=None, url_file=url_file)
 
 
-def _build_itinerary_from_url_file(
-    url_file: Path, tz_items: list[str]
+def _build_itinerary_from_url(
+    raw_url: str, tz_items: list[str]
 ) -> dict[str, Any]:
-    source_args = _source_args_for_url_file(url_file)
-    raw_url = first_url_from_args(source_args)
-    if not raw_url:
-        raise CliFailure("url file is empty", code="usage_error")
     booking_url = resolve_utair_booking_redirect(raw_url)
-    route = str(infer_build_route(source_args, url_override=booking_url)["route"])
+    source_args = argparse.Namespace(url=booking_url, url_file=None)
+    route = str(infer_build_route(source_args)["route"])
 
     tz_map = build_timezone_map(parse_cli_tz_overrides(tz_items))
     if route == "aeroflot":
@@ -147,16 +143,30 @@ def _build_itinerary_from_url_file(
     return validate_itinerary_contract(itinerary, tz_map)
 
 
+def _build_itinerary_from_url_file(
+    url_file: Path, tz_items: list[str]
+) -> dict[str, Any]:
+    raw_url = first_url_from_args(_source_args_for_url_file(url_file))
+    if not raw_url:
+        raise CliFailure("url file is empty", code="usage_error")
+    return _build_itinerary_from_url(raw_url, tz_items)
+
+
 def _default_output_path() -> Path:
     return Path(tempfile.mkdtemp(prefix="flight-ics.")) / "flights.ics"
 
 
 def command_build(args: argparse.Namespace) -> dict[str, Any]:
     if args.input is not None and args.tz:
-        raise CliFailure("--tz is only supported with --url-file", code="usage_error")
+        raise CliFailure(
+            "--tz is only supported with --url or --url-file",
+            code="usage_error",
+        )
 
     if args.input is not None:
         itinerary = _load_input_itinerary(args.input)
+    elif args.url is not None:
+        itinerary = _build_itinerary_from_url(args.url, args.tz)
     else:
         itinerary = _build_itinerary_from_url_file(args.url_file, args.tz)
 
@@ -188,10 +198,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     build = sub.add_parser(
         "build",
-        help="Create one .ics file from a booking URL file or itinerary JSON",
+        help="Create one .ics file from a booking URL or itinerary JSON",
         allow_abbrev=False,
     )
     source = build.add_mutually_exclusive_group(required=True)
+    source.add_argument("--url", help="One carrier booking URL")
     source.add_argument(
         "--url-file", type=Path, help="Private file containing one carrier booking URL"
     )

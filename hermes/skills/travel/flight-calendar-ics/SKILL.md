@@ -1,7 +1,7 @@
 ---
 name: flight-calendar-ics
 description: Create an importable .ics calendar file from a supported airline booking URL or a flight ticket PDF.
-version: 3.04
+version: 3.05
 metadata:
   hermes:
     category: travel
@@ -20,19 +20,23 @@ Choose the route from the user's source - Booking URL or PDF itinerary.
 
 ### Booking URL
 
-1. Store the URL in a private file.
-2. Run:
+1. Run the CLI once with the booking URL as one shell-quoted argument:
 
 ```bash
 "${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/flight_calendar_ics.py" \
   --json build \
-  --url-file <private-url-file>
+  --url '<booking-url>'
 ```
 
-3. If the CLI returns `ok: true`, return the `media` artifact and stop.
-4. If the booking route fails or is ambiguous, read `references/carriers.md`.
+2. If the CLI returns `ok: true`, return the `media` artifact and stop.
+3. If the booking route fails or is ambiguous, read `references/carriers.md`.
 
 Do not open the booking URL in a browser before trying the CLI.
+Do not create a temporary URL file or use `write_file`, `mktemp`, `--url-file`,
+`--url-stdin`, `echo URL |`, or `printf URL |` for the main agent workflow.
+Quote the placeholder as shown because booking URLs may contain `&`, `?`, `#`,
+and `=`. The CLI receives the already prepared argv value; do not implement
+shell escaping in Python.
 
 ### PDF
 
@@ -86,7 +90,11 @@ If required flight data cannot be extracted or validated:
 
 ## Privacy
 
-Do not expose booking URLs, booking credentials, PNRs, passenger names, ticket numbers, temporary JSON, private paths, or `.ics` contents in chat.
+Do not expose booking URLs or booking credentials in the user response,
+diagnostic text, CLI stdout/stderr, or structured error messages. Do not expose
+PNRs, passenger names, ticket numbers, temporary JSON, private paths, or `.ics`
+contents in chat. This skill does not claim to hide booking URLs from platform
+observability or Hermes tool traces.
 
 ## References
 

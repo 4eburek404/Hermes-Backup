@@ -160,11 +160,8 @@ class CompactContractTests(unittest.TestCase):
             }
             self.assertEqual(after - before, {output.relative_to(tmp_path)})
 
-    def test_public_cli_rejects_legacy_surface_and_private_url_arg(self) -> None:
-        for args in [
-            ("--json", "build"),
-            ("--json", "build", "--url", "https://private.example/secret"),
-        ]:
+    def test_public_cli_rejects_legacy_surface_without_source(self) -> None:
+        for args in [("--json", "build")]:
             with self.subTest(args=args):
                 result = self.run_cli(*args)
                 self.assertNotEqual(result.returncode, 0)
@@ -190,7 +187,7 @@ class CompactContractTests(unittest.TestCase):
             self.assertFalse(payload["ok"])
             self.assertEqual(payload["error"]["code"], "usage_error")
             self.assertIn(
-                "--tz is only supported with --url-file", payload["error"]["message"]
+                "--tz is only supported with --url or --url-file", payload["error"]["message"]
             )
 
     def test_unexpected_exception_returns_internal_error_and_exit_one(self) -> None:
