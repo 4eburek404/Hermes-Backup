@@ -31,36 +31,8 @@ def first_url_from_args(args: argparse.Namespace) -> str | None:
     return url
 
 
-def _unique(items: list[str]) -> list[str]:
-    seen: set[str] = set()
-    out: list[str] = []
-    for item in items:
-        if item not in seen:
-            seen.add(item)
-            out.append(item)
-    return out
-
-
 def _host_matches(host: str, suffix: str) -> bool:
     return host == suffix or host.endswith(f".{suffix}")
-
-
-def _safe_host_evidence(host: str) -> str | None:
-    if _host_matches(host, "aeroflot.ru"):
-        return "host:aeroflot.ru"
-    if host == "service.uralairlines.ru":
-        return "host:service.uralairlines.ru"
-    if _host_matches(host, "uralairlines.ru"):
-        return "host:uralairlines.ru"
-    if _host_matches(host, "utair.ru"):
-        return "host:utair.ru"
-    if _host_matches(host, "flyredwings.com"):
-        return "host:flyredwings.com"
-    if _host_matches(host, "webskyx.com"):
-        return "host:webskyx.com"
-    if _host_matches(host, "s7.ru"):
-        return "host:myb.s7.ru" if host == "myb.s7.ru" else "host:s7.ru"
-    return None
 
 
 def _query_field_names(parsed: Any) -> list[str]:
@@ -68,29 +40,12 @@ def _query_field_names(parsed: Any) -> list[str]:
     fragment = parsed.fragment or ""
     if "?" in fragment:
         names.extend(parse_qs(fragment.split("?", 1)[1], keep_blank_values=True).keys())
-    return _unique(names)
+    return list(dict.fromkeys(names))
 
 
 def _field_present(field_names: list[str], aliases: set[str]) -> bool:
     lower_names = {name.lower() for name in field_names}
     return any(alias.lower() in lower_names for alias in aliases)
-
-
-def _field_evidence(field_names: list[str], aliases: set[str]) -> list[str]:
-    out: list[str] = []
-    alias_lowers = {alias.lower() for alias in aliases}
-    for name in field_names:
-        if name.lower() in alias_lowers:
-            out.append(f"query_field:{name}")
-    return out
-
-
-def _merge_evidence(
-    existing: dict[str, list[str]], route: str, evidence: list[str]
-) -> None:
-    existing[route] = _unique(
-        [*existing.get(route, []), *[item for item in evidence if item]]
-    )
 
 
 def _known_host_route(host: str) -> str | None:
@@ -117,85 +72,52 @@ def _redwings_order_fragment(fragment: str) -> bool:
     return bool(re.match(r"^/?booking/[^/]+/order/?$", fragment, flags=re.IGNORECASE))
 
 
-def _aeroflot_field_evidence(field_names: list[str]) -> list[str]:
-    if (
+def _aeroflot_has_required_credentials(field_names: list[str]) -> bool:
+    return (
         _field_present(field_names, {"pnrKey"})
         and _field_present(field_names, {"pnrLocator"})
     ) or (
         _field_present(field_names, {"pnr_key"})
         and _field_present(field_names, {"pnr_locator"})
-    ):
-        return _field_evidence(
-            field_names, {"pnrKey", "pnr_key", "pnrLocator", "pnr_locator"}
-        )
-    return []
+    )
 
 
-def _ural_field_evidence(field_names: list[str]) -> list[str]:
-    if _field_present(
+def _ural_has_required_credentials(field_names: list[str]) -> bool:
+    return _field_present(
         field_names, {"pnr", "pnrNumber", "pnrnumber"}
-    ) and _field_present(field_names, {"lastName", "lastname", "surname"}):
-        return _field_evidence(
-            field_names,
-            {"pnr", "pnrNumber", "pnrnumber", "lastName", "lastname", "surname"},
-        )
-    return []
+    ) and _field_present(field_names, {"lastName", "lastname", "surname"})
 
 
-def _utair_field_evidence(field_names: list[str], *, host_bound: bool) -> list[str]:
-    locator_aliases = {"rloc", "RLOC", "pnr"} if host_bound else {"rloc", "RLOC"}
+def _utair_has_required_credentials(
+    field_names: list[str], *, host_bound: bool
+) -> bool:
+    locator_aliases = {"rloc", "pnr"} if host_bound else {"rloc"}
     surname_aliases = {"last_name", "lastName", "lastname", "surname"}
-    if _field_present(field_names, locator_aliases) and _field_present(
+    return _field_present(field_names, locator_aliases) and _field_present(
         field_names, surname_aliases
-    ):
-        return _field_evidence(field_names, locator_aliases | surname_aliases)
-    return []
+    )
 
 
-def _s7_field_evidence(field_names: list[str]) -> list[str]:
-    if _field_present(field_names, {"bookingId", "booking_id"}) and _field_present(
-        field_names, {"passengerId", "passenger_id"}
-    ):
-        return _field_evidence(
-            field_names, {"bookingId", "booking_id", "passengerId", "passenger_id"}
-        )
-    return []
+def _s7_has_required_credentials(field_names: list[str]) -> bool:
+    return _field_present(
+        field_names, {"bookingId", "booking_id"}
+    ) and _field_present(field_names, {"passengerId", "passenger_id"})
 
 
-def _route_url_credential_evidence(
-    route: str, field_names: list[str], fragment: str, *, host_bound: bool
-) -> list[str]:
+def _route_has_required_credentials(
+    route: str, field_names: list[str], fragment: str
+) -> bool:
     if route == "aeroflot":
-        return _aeroflot_field_evidence(field_names)
+        return _aeroflot_has_required_credentials(field_names)
     if route == "ural":
-        return _ural_field_evidence(field_names)
+        return _ural_has_required_credentials(field_names)
     if route == "utair":
-        return _utair_field_evidence(field_names, host_bound=host_bound)
-    if route == "redwings" and _redwings_find_fragment(fragment):
-        return ["fragment_route:redwings_find"]
+        return _utair_has_required_credentials(field_names, host_bound=True)
+    if route == "redwings":
+        return _redwings_find_fragment(fragment)
     if route == "s7":
-        return _s7_field_evidence(field_names)
-    return []
-
-
-def _url_fingerprints(raw_url: str) -> list[dict[str, Any]]:
-    fingerprints: list[dict[str, Any]] = []
-    for related_url in (raw_url,):
-        parsed = urlparse(related_url)
-        host = (parsed.hostname or "").lower()
-        fragment = parsed.fragment or ""
-        field_names = _query_field_names(parsed)
-        host_evidence = _safe_host_evidence(host)
-        fingerprints.append(
-            {
-                "known_host_route": _known_host_route(host),
-                "host_evidence": host_evidence,
-                "field_names": field_names,
-                "fragment": fragment,
-                "redwings_order_page": _redwings_order_fragment(fragment),
-            }
-        )
-    return fingerprints
+        return _s7_has_required_credentials(field_names)
+    return False
 
 
 def _route_input_insufficient(route: str, message: str | None = None) -> CliFailure:
@@ -206,70 +128,33 @@ def _route_input_insufficient(route: str, message: str | None = None) -> CliFail
     )
 
 
-def _route_ambiguous() -> CliFailure:
-    return CliFailure(
-        "source matches multiple route signatures",
-        code="route_ambiguous",
-    )
-
-
-def _detection(route: str, confidence: float, evidence: list[str]) -> dict[str, Any]:
-    return {
-        "mode": "auto",
-        "route": route,
-        "confidence": confidence,
-        "evidence": _unique(evidence),
-    }
-
-
 def infer_build_route(
     args: argparse.Namespace, *, url_override: str | None = None
-) -> dict[str, Any]:
+) -> dict[str, str]:
     url = url_override if url_override is not None else first_url_from_args(args)
-    fingerprints = _url_fingerprints(url) if url else []
-    known_host_evidence: dict[str, list[str]] = {}
-    known_complete: dict[str, list[str]] = {}
-    redwings_order_routes: set[str] = set()
-    for item in fingerprints:
-        route = item.get("known_host_route")
-        if not route:
-            continue
-        host_evidence = (
-            [str(item["host_evidence"])] if item.get("host_evidence") else []
+    if not url:
+        raise CliFailure(
+            "could not infer carrier route from safe source fingerprint",
+            code="route_unknown",
         )
-        _merge_evidence(known_host_evidence, str(route), host_evidence)
-        credential_evidence = _route_url_credential_evidence(
-            str(route),
-            list(item["field_names"]),
-            str(item["fragment"]),
-            host_bound=True,
+
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    route = _known_host_route(host)
+    if route is None:
+        raise CliFailure(
+            "could not infer carrier route from safe source fingerprint",
+            code="route_unknown",
         )
-        if credential_evidence:
-            _merge_evidence(
-                known_complete, str(route), [*host_evidence, *credential_evidence]
-            )
-        if route == "redwings" and item.get("redwings_order_page"):
-            redwings_order_routes.add("redwings")
 
-    if len(known_host_evidence) > 1:
-        raise _route_ambiguous()
+    field_names = _query_field_names(parsed)
+    fragment = parsed.fragment or ""
+    if _route_has_required_credentials(route, field_names, fragment):
+        return {"route": route}
 
-    if len(known_host_evidence) == 1:
-        route = next(iter(known_host_evidence))
-        if route in known_complete:
-            evidence = [
-                *known_host_evidence[route],
-                *known_complete.get(route, []),
-            ]
-            return _detection(route, 1.0, evidence)
-        if route == "redwings" and route in redwings_order_routes:
-            raise _route_input_insufficient(
-                route,
-                "Red Wings order page URL is not enough; provide the direct find link shaped #/find/<PNR>/<ACCESS_KEY>/Submit.",
-            )
-        raise _route_input_insufficient(route)
-
-    raise CliFailure(
-        "could not infer carrier route from safe source fingerprint",
-        code="route_unknown",
-    )
+    if route == "redwings" and _redwings_order_fragment(fragment):
+        raise _route_input_insufficient(
+            route,
+            "Red Wings order page URL is not enough; provide the direct find link shaped #/find/<PNR>/<ACCESS_KEY>/Submit.",
+        )
+    raise _route_input_insufficient(route)
