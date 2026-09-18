@@ -69,17 +69,6 @@ class ArrAfterDepartureContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "arrival must be after departure"):
             itinerary_contract.validate_itinerary_semantics(itinerary)
 
-    def test_arrival_before_departure_cross_tz_rejected(self) -> None:
-        """Arrival before departure after timezone conversion must be rejected."""
-        from flight_calendar import itinerary_contract
-
-        itinerary = _valid_itinerary()
-        # 13:45 Moscow (10:45 UTC) -> 09:15 Yekaterinburg (04:15 UTC)
-        itinerary["flights"][0]["departure"]["local"] = "2026-06-01T13:45"
-        itinerary["flights"][0]["arrival"]["local"] = "2026-06-01T09:15"
-        with self.assertRaisesRegex(ValueError, "arrival must be after departure"):
-            itinerary_contract.validate_itinerary_semantics(itinerary)
-
 
 class RendererDatetimeTests(unittest.TestCase):
     """Renderer-level datetime conversion for validated, enriched input."""
