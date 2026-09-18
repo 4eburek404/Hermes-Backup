@@ -3,6 +3,16 @@
 
 The specification exercises the public ``--json build --input`` CLI and reads
 SUMMARY from the VEVENT in the generated .ics artifact.
+
+Maintenance rule:
+
+Given a real booking that produces an incorrect Russian passenger name in SUMMARY,
+when support for that name form is added,
+then first reproduce the observed input and expected SUMMARY here as a failing
+scenario, and only after that make the minimal production change required to
+make the scenario pass.
+
+Do not add speculative name mappings without an observed failing case.
 """
 
 from __future__ import annotations
