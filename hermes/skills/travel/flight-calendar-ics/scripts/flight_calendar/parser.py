@@ -160,7 +160,7 @@ def command_build(args: argparse.Namespace) -> dict[str, Any]:
     else:
         itinerary = _build_itinerary_from_url_file(args.url_file, args.tz)
 
-    ics_text, summaries = ics_render.build_calendar(itinerary, no_alarms=args.no_alarms)
+    ics_text, summaries = ics_render.build_calendar(itinerary)
     ics_render.validate_ics_text(ics_text, len(summaries))
     output_path = args.output or _default_output_path()
     output_path.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
@@ -200,9 +200,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         type=Path,
         help="Output .ics path; defaults to a temporary flights.ics",
-    )
-    build.add_argument(
-        "--no-alarms", action="store_true", help="Do not add VALARM reminders"
     )
     build.add_argument(
         "--tz",
