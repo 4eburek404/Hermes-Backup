@@ -22,6 +22,12 @@ from cli_envelope import assert_valid_cli_envelope
 RAW_CLICK_URL = "https://click.mail.utair.io/private-token?x=secret"
 DIRECT_UTAIR_URL = "https://www.utair.ru/order-manage?rloc=ABC123&last_name=EXAMPLE"
 PRIVATE_RESOLVED_URL = "https://evil.example/order-manage?rloc=ABC123&last_name=IVANOV"
+UTAIR_SUFFIX_RESOLVED_URL = (
+    "https://foo.utair.ru/order-manage?rloc=ABC123&last_name=IVANOV"
+)
+UTAIR_WRONG_PATH_RESOLVED_URL = (
+    "https://www.utair.ru/random?rloc=ABC123&last_name=IVANOV"
+)
 HTTP_UTAIR_URL = "http://www.utair.ru/order-manage?rloc=ABC123&last_name=IVANOV"
 REDACTED_TOKENS = (
     "click.mail.utair.io",
@@ -43,7 +49,12 @@ class RedirectResolutionContractTests(unittest.TestCase):
         from flight_calendar.errors import CliFailure
         from flight_calendar.utair_redirect import resolve_utair_booking_redirect
 
-        for resolved_url in (PRIVATE_RESOLVED_URL, HTTP_UTAIR_URL):
+        for resolved_url in (
+            PRIVATE_RESOLVED_URL,
+            UTAIR_SUFFIX_RESOLVED_URL,
+            UTAIR_WRONG_PATH_RESOLVED_URL,
+            HTTP_UTAIR_URL,
+        ):
             with self.subTest(resolved_url=resolved_url):
                 with mock.patch(
                     "flight_calendar.utair_redirect.carrier_http.resolve_redirect_url",

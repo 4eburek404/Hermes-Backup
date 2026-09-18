@@ -52,6 +52,9 @@ RAW_REDIRECT_URL = "https://click.mail.utair.io/private-token?x=secret"
 UNTRUSTED_REDIRECT_URL = (
     "https://evil.example/order-manage?rloc=ABC123&last_name=IVANOV"
 )
+S7_UNTRUSTED_PATH_URL = (
+    "https://myb.s7.ru/random?bookingId=ABC123&passengerId=ivanov"
+)
 
 
 def run_cli(
@@ -205,6 +208,57 @@ class BookingUrlProcessSpecification(unittest.TestCase):
         emitted = stdout + stderr
         for private_value in (
             "evil.example",
+            "ABC123",
+            "ivanov",
+            "bookingId=",
+            "passengerId=",
+        ):
+            self.assertNotIn(private_value, emitted)
+
+    def test_known_host_untrusted_shape_fails_before_adapter_or_network(self) -> None:
+        """A known carrier host is not enough without a trusted source shape."""
+        from flight_calendar.carriers import s7
+        from flight_calendar.errors import CliFailure
+
+        adapter_calls: list[str] = []
+        network_calls: list[str] = []
+
+        real_parse_s7_source = s7.parse_s7_source
+
+        def adapter_parse_called(*args: Any, **kwargs: Any) -> tuple[str, str, str]:
+            adapter_calls.append("s7.parse_s7_source")
+            return real_parse_s7_source(*args, **kwargs)
+
+        def adapter_fetch_called(*args: Any, **kwargs: Any) -> None:
+            del args, kwargs
+            adapter_calls.append("s7.fetch_s7_order")
+            raise CliFailure("test adapter dispatch reached", code="route_unknown")
+
+        def network_called(*args: Any, **kwargs: Any) -> None:
+            del args, kwargs
+            network_calls.append("s7.Session")
+            raise AssertionError("network boundary reached")
+
+        with (
+            mock.patch.object(
+                s7, "parse_s7_source", side_effect=adapter_parse_called
+            ),
+            mock.patch.object(s7, "fetch_s7_order", side_effect=adapter_fetch_called),
+            mock.patch.object(s7.curl_requests, "Session", side_effect=network_called),
+        ):
+            code, stdout, stderr = run_cli(S7_UNTRUSTED_PATH_URL)
+
+        self.assertEqual(code, 2, stdout + stderr)
+        payload = json.loads(stdout)
+        assert_valid_cli_envelope(self, payload)
+        self.assertIs(payload["ok"], False)
+        self.assertEqual(payload["error"]["code"], "route_unknown")
+        self.assertEqual(adapter_calls, [])
+        self.assertEqual(network_calls, [])
+        emitted = stdout + stderr
+        for private_value in (
+            S7_UNTRUSTED_PATH_URL,
+            "myb.s7.ru",
             "ABC123",
             "ivanov",
             "bookingId=",

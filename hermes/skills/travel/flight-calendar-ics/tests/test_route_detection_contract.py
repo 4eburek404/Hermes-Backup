@@ -15,6 +15,111 @@ sys.path.insert(0, str(SCRIPTS))
 
 
 class RouteDetectionContractTests(unittest.TestCase):
+    def _assert_route_unknown(self, url: str) -> None:
+        from flight_calendar.errors import CliFailure
+        from flight_calendar.route_detection import infer_build_route
+
+        with self.assertRaises(CliFailure) as ctx:
+            infer_build_route(
+                argparse.Namespace(url=None, url_file=None),
+                url_override=url,
+            )
+
+        self.assertEqual(ctx.exception.code, "route_unknown")
+
+    def test_aeroflot_requires_https_exact_host_and_app_path(self) -> None:
+        key = "0" * 64
+        cases = (
+            "http://www.aeroflot.ru/sb/pnr/app/ru-ru"
+            f"?pnr_key={key}&pnr_locator=ABC123",
+            "https://foo.aeroflot.ru/sb/pnr/app/ru-ru"
+            f"?pnr_key={key}&pnr_locator=ABC123",
+            "https://www.aeroflot.ru/random"
+            f"?pnr_key={key}&pnr_locator=ABC123",
+        )
+        for url in cases:
+            with self.subTest(url=url.split("?", 1)[0]):
+                self._assert_route_unknown(url)
+
+    def test_ural_requires_https_exact_service_host(self) -> None:
+        cases = (
+            "http://service.uralairlines.ru/?pnr=ABC123&lastName=IVANOV",
+            "https://foo.uralairlines.ru/?pnr=ABC123&lastName=IVANOV",
+        )
+        for url in cases:
+            with self.subTest(url=url.split("?", 1)[0]):
+                self._assert_route_unknown(url)
+
+    def test_utair_direct_requires_https_exact_host_and_manage_path(self) -> None:
+        cases = (
+            "http://www.utair.ru/order-manage?rloc=ABC123&last_name=IVANOV",
+            "https://foo.utair.ru/order-manage?rloc=ABC123&last_name=IVANOV",
+            "https://www.utair.ru/random-path?rloc=ABC123&last_name=IVANOV",
+        )
+        for url in cases:
+            with self.subTest(url=url.split("?", 1)[0]):
+                self._assert_route_unknown(url)
+
+    def test_redwings_requires_https_exact_host_and_booking_path(self) -> None:
+        cases = (
+            "http://flyredwings.com/booking/#/find/ABC123/ACCESS_KEY/Submit",
+            "https://foo.flyredwings.com/booking/#/find/ABC123/ACCESS_KEY/Submit",
+            "https://wz.webskyx.com/booking/#/find/ABC123/ACCESS_KEY/Submit",
+            "https://flyredwings.com/random#/find/ABC123/ACCESS_KEY/Submit",
+        )
+        for url in cases:
+            with self.subTest(url=url.split("#", 1)[0]):
+                self._assert_route_unknown(url)
+
+    def test_s7_requires_https_exact_host_and_manage_order_path(self) -> None:
+        cases = (
+            "http://myb.s7.ru/myb/manage-order?bookingId=ABC123&passengerId=ivanov",
+            "https://www.s7.ru/myb/manage-order?bookingId=ABC123&passengerId=ivanov",
+            "https://foo.s7.ru/myb/manage-order?bookingId=ABC123&passengerId=ivanov",
+            "https://myb.s7.ru/random?bookingId=ABC123&passengerId=ivanov",
+        )
+        for url in cases:
+            with self.subTest(url=url.split("?", 1)[0]):
+                self._assert_route_unknown(url)
+
+    def test_ural_canonical_source_remains_ural(self) -> None:
+        from flight_calendar.route_detection import infer_build_route
+
+        route = infer_build_route(
+            argparse.Namespace(url=None, url_file=None),
+            url_override=(
+                "https://service.uralairlines.ru/"
+                "?pnr=ABC123&lastName=IVANOV"
+            ),
+        )
+
+        self.assertEqual(route["route"], "ural")
+
+    def test_redwings_canonical_find_source_remains_redwings(self) -> None:
+        from flight_calendar.route_detection import infer_build_route
+
+        route = infer_build_route(
+            argparse.Namespace(url=None, url_file=None),
+            url_override=(
+                "https://flyredwings.com/booking/"
+                "#/find/ABC123/ACCESS_KEY/Submit"
+            ),
+        )
+
+        self.assertEqual(route["route"], "redwings")
+
+    def test_redwings_order_page_remains_input_insufficient(self) -> None:
+        from flight_calendar.errors import CliFailure
+        from flight_calendar.route_detection import infer_build_route
+
+        with self.assertRaises(CliFailure) as ctx:
+            infer_build_route(
+                argparse.Namespace(url=None, url_file=None),
+                url_override="https://flyredwings.com/booking/#/booking/ORDER123/order",
+            )
+
+        self.assertEqual(ctx.exception.code, "route_input_insufficient")
+
     def test_s7_manage_order_with_required_params_detects_s7(self) -> None:
         from flight_calendar.route_detection import infer_build_route
 

@@ -8,21 +8,21 @@ from flight_calendar import carrier_http
 from flight_calendar.errors import CliFailure
 
 UTAIR_REDIRECT_HOSTS = {"click.mail.utair.io"}
-UTAIR_CARRIER_HOST = "utair.ru"
-
-
-def _host_matches(host: str, suffix: str) -> bool:
-    return host == suffix or host.endswith(f".{suffix}")
+UTAIR_CARRIER_HOST = "www.utair.ru"
+UTAIR_CARRIER_PATH = "/order-manage"
 
 
 def _hostname(url: str) -> str:
     return (urlparse(url).hostname or "").lower()
 
 
-def _is_utair_carrier_host(url: str) -> bool:
+def _is_utair_carrier_url(url: str) -> bool:
     parsed = urlparse(url)
-    host = (parsed.hostname or "").lower()
-    return parsed.scheme.lower() == "https" and _host_matches(host, UTAIR_CARRIER_HOST)
+    return (
+        parsed.scheme.lower() == "https"
+        and (parsed.hostname or "").lower() == UTAIR_CARRIER_HOST
+        and parsed.path == UTAIR_CARRIER_PATH
+    )
 
 
 def resolve_utair_booking_redirect(raw_url: str) -> str:
@@ -51,7 +51,7 @@ def resolve_utair_booking_redirect(raw_url: str) -> str:
             code="redirect_resolution_failed",
         ) from exc
 
-    if not _is_utair_carrier_host(final_url):
+    if not _is_utair_carrier_url(final_url):
         raise CliFailure(
             "known booking redirect resolved to an unsupported carrier host; provide the direct carrier booking URL",
             code="redirect_resolution_failed",

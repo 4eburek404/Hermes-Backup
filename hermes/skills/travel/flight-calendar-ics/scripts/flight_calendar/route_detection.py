@@ -31,10 +31,6 @@ def first_url_from_args(args: argparse.Namespace) -> str | None:
     return url
 
 
-def _host_matches(host: str, suffix: str) -> bool:
-    return host == suffix or host.endswith(f".{suffix}")
-
-
 def _query_field_names(parsed: Any) -> list[str]:
     names = list(parse_qs(parsed.query, keep_blank_values=True).keys())
     fragment = parsed.fragment or ""
@@ -48,16 +44,21 @@ def _field_present(field_names: list[str], aliases: set[str]) -> bool:
     return any(alias.lower() in lower_names for alias in aliases)
 
 
-def _known_host_route(host: str) -> str | None:
-    if _host_matches(host, "aeroflot.ru"):
+def _trusted_route(parsed: Any) -> str | None:
+    if parsed.scheme.lower() != "https":
+        return None
+
+    host = (parsed.hostname or "").lower()
+    path = parsed.path
+    if host == "www.aeroflot.ru" and path == "/sb/pnr/app/ru-ru":
         return "aeroflot"
-    if _host_matches(host, "uralairlines.ru"):
+    if host == "service.uralairlines.ru":
         return "ural"
-    if _host_matches(host, "utair.ru"):
+    if host == "www.utair.ru" and path == "/order-manage":
         return "utair"
-    if _host_matches(host, "flyredwings.com") or _host_matches(host, "webskyx.com"):
+    if host == "flyredwings.com" and path == "/booking/":
         return "redwings"
-    if _host_matches(host, "s7.ru"):
+    if host == "myb.s7.ru" and path == "/myb/manage-order":
         return "s7"
     return None
 
@@ -88,10 +89,8 @@ def _ural_has_required_credentials(field_names: list[str]) -> bool:
     ) and _field_present(field_names, {"lastName", "lastname", "surname"})
 
 
-def _utair_has_required_credentials(
-    field_names: list[str], *, host_bound: bool
-) -> bool:
-    locator_aliases = {"rloc", "pnr"} if host_bound else {"rloc"}
+def _utair_has_required_credentials(field_names: list[str]) -> bool:
+    locator_aliases = {"rloc", "pnr"}
     surname_aliases = {"last_name", "lastName", "lastname", "surname"}
     return _field_present(field_names, locator_aliases) and _field_present(
         field_names, surname_aliases
@@ -112,7 +111,7 @@ def _route_has_required_credentials(
     if route == "ural":
         return _ural_has_required_credentials(field_names)
     if route == "utair":
-        return _utair_has_required_credentials(field_names, host_bound=True)
+        return _utair_has_required_credentials(field_names)
     if route == "redwings":
         return _redwings_find_fragment(fragment)
     if route == "s7":
@@ -139,8 +138,7 @@ def infer_build_route(
         )
 
     parsed = urlparse(url)
-    host = (parsed.hostname or "").lower()
-    route = _known_host_route(host)
+    route = _trusted_route(parsed)
     if route is None:
         raise CliFailure(
             "could not infer carrier route from safe source fingerprint",
