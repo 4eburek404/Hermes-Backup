@@ -19,6 +19,9 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 CLI = SCRIPTS / "flight_calendar_ics.py"
 TEMPLATE = ROOT / "templates" / "itinerary.example.json"
+sys.path.insert(0, str(ROOT / "specs"))
+
+from cli_envelope import assert_valid_cli_envelope
 
 
 def minimal_itinerary() -> dict[str, object]:
@@ -164,6 +167,7 @@ class CompactContractTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
             payload = json.loads(result.stdout)
+            assert_valid_cli_envelope(self, payload)
             self.assertEqual(
                 payload,
                 {
@@ -190,6 +194,7 @@ class CompactContractTests(unittest.TestCase):
                 result = self.run_cli(*args)
                 self.assertNotEqual(result.returncode, 0)
                 payload = json.loads(result.stdout)
+                assert_valid_cli_envelope(self, payload)
                 self.assertFalse(payload["ok"])
                 self.assertEqual(payload["error"]["code"], "usage_error")
                 self.assertNotIn("private.example", result.stdout)
@@ -206,6 +211,7 @@ class CompactContractTests(unittest.TestCase):
             )
             self.assertNotEqual(result.returncode, 0)
             payload = json.loads(result.stdout)
+            assert_valid_cli_envelope(self, payload)
             self.assertFalse(payload["ok"])
             self.assertEqual(payload["error"]["code"], "usage_error")
             self.assertIn(
@@ -226,8 +232,10 @@ class CompactContractTests(unittest.TestCase):
             code = parser.main(["--json", "build", "--input", "itinerary.json"])
 
         self.assertEqual(code, 1)
+        payload = json.loads(stdout.getvalue())
+        assert_valid_cli_envelope(self, payload)
         self.assertEqual(
-            json.loads(stdout.getvalue()),
+            payload,
             {
                 "ok": False,
                 "error": {

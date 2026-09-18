@@ -15,6 +15,9 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
+sys.path.insert(0, str(ROOT / "specs"))
+
+from cli_envelope import assert_valid_cli_envelope
 
 RAW_CLICK_URL = "https://click.mail.utair.io/private-token?x=secret"
 DIRECT_UTAIR_URL = "https://www.utair.ru/order-manage?rloc=ABC123&last_name=EXAMPLE"
@@ -78,6 +81,7 @@ class RedirectResolutionContractTests(unittest.TestCase):
                 code = parser.main(["--json", "build", "--url-file", handle.name])
 
         payload = json.loads(stdout.getvalue())
+        assert_valid_cli_envelope(self, payload)
         self.assertEqual(code, 2)
         self.assertEqual(payload["error"]["code"], "redirect_resolution_failed")
         serialized = json.dumps(payload, ensure_ascii=False)
@@ -170,6 +174,7 @@ class RedirectResolutionContractTests(unittest.TestCase):
 
             self.assertEqual(code, 0, stderr.getvalue() + stdout.getvalue())
             payload = json.loads(stdout.getvalue())
+            assert_valid_cli_envelope(self, payload)
             self.assertIs(payload["ok"], True)
             self.assertEqual(payload["media"], f"MEDIA:{output}")
             self.assertIsInstance(payload["segments_count"], int)

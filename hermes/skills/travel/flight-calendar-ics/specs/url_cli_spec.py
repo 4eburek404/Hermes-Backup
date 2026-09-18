@@ -32,6 +32,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from cli_envelope import assert_valid_cli_envelope
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
@@ -113,6 +115,7 @@ class BookingUrlProcessSpecification(unittest.TestCase):
 
             self.assertEqual(code, 0, stdout + stderr)
             payload = json.loads(stdout)
+            assert_valid_cli_envelope(self, payload)
             self.assertIs(payload["ok"], True)
             self.assertEqual(payload["media"], f"MEDIA:{output}")
             self.assertIsInstance(payload["segments_count"], int)
@@ -140,6 +143,7 @@ class BookingUrlProcessSpecification(unittest.TestCase):
 
         self.assertEqual(code, 2)
         payload = json.loads(stdout)
+        assert_valid_cli_envelope(self, payload)
         self.assertIs(payload["ok"], False)
         self.assertEqual(payload["error"]["code"], "route_unknown")
         self.assertEqual(stderr, "")
@@ -163,6 +167,7 @@ class BookingUrlProcessSpecification(unittest.TestCase):
 
         self.assertNotEqual(code, 0)
         payload = json.loads(stdout)
+        assert_valid_cli_envelope(self, payload)
         self.assertIs(payload["ok"], False)
         self.assertEqual(payload["error"]["code"], "redirect_resolution_failed")
         emitted = stdout + stderr
@@ -183,6 +188,7 @@ class BookingUrlProcessSpecification(unittest.TestCase):
 
         self.assertEqual(code, 2)
         payload = json.loads(stdout)
+        assert_valid_cli_envelope(self, payload)
         self.assertIs(payload["ok"], False)
         self.assertEqual(payload["error"]["code"], "usage_error")
         self.assertIn("use CODE=Area/City", payload["error"]["message"])
