@@ -1,6 +1,6 @@
 ---
 name: spec-driven-development
-description: Use when a feature, bug, contract, or refactor changes.
+description: Use for features, bug fixes, contract changes, or refactors.
 version: 1.0.0
 author: Konstantin Orlov + Hermes Agent
 license: MIT
