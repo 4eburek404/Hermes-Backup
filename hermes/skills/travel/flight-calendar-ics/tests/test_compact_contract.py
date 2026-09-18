@@ -138,7 +138,6 @@ class CompactContractTests(unittest.TestCase):
                 str(source),
                 "--output",
                 str(output),
-                "--no-alarms",
             )
 
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
