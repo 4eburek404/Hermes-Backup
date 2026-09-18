@@ -1,8 +1,8 @@
 # Carrier Notes
 
-Open this file only when a carrier `build` fails or the source evidence is ambiguous. The normal path stays one command: `--json build --url '<booking-url>'`. `--url-file` remains an optional backward-compatible source, and `--input` is the PDF itinerary source. Endpoints, payloads, headers, retries, and response mapping are code-owned by `flight_calendar/carriers/` and `flight_calendar/carrier_http.py`.
+Open this file only for troubleshooting a recognized carrier source: `route_input_insufficient` or another carrier-specific build/redirect failure. Do not open it as a fallback for `route_unknown`; the normal path stays one command: `--json build --url '<booking-url>'`. `--url-file` remains an optional backward-compatible source, and `--input` is the PDF itinerary source. Endpoints, payloads, headers, retries, and response mapping are code-owned by `flight_calendar/carriers/` and `flight_calendar/carrier_http.py`.
 
-Common to all carriers: keep credential-bearing URLs private and never expose them in chat, diagnostics, CLI stdout/stderr, or structured errors; manage-booking pages are JavaScript SPAs, so never scrape page HTML for itinerary data; if no live lookup is possible, normalize visible flight facts into minimal itinerary JSON using `templates/itinerary.example.json` and state any limitation (for example, a missing reopen link). The compact public CLI accepts `--url`, `--url-file`, or `--input`; do not use carrier-specific argv. A `route_unknown` error means the source fingerprint was not recognized; it does not prove the carrier is unsupported.
+Common to all carriers: keep credential-bearing URLs private and never expose them in chat, diagnostics, CLI stdout/stderr, or structured errors; manage-booking pages are JavaScript SPAs, so never scrape page HTML for itinerary data; if no live lookup is possible, normalize visible flight facts into minimal itinerary JSON using `templates/itinerary.example.json` and state any limitation (for example, a missing reopen link). The compact public CLI accepts `--url`, `--url-file`, or `--input`; do not use carrier-specific argv. A `route_unknown` error means that the URL source is not a supported trusted booking source; it does not prove that the airline itself is unsupported. Do not guess the carrier from an unknown source. Suggest a PDF itinerary as the fallback.
 
 ## Aeroflot
 
@@ -20,7 +20,8 @@ Common to all carriers: keep credential-bearing URLs private and never expose th
 
 ## Ural Airlines
 
-- Tracker-wrapped links (`u=` / `url=` query parameters) are decoded by the adapter; provide them through the public `--url` source or the backward-compatible `--url-file` source.
+- Use a trusted direct Ural booking source for live lookup. Generic wrappers from an unknown host with `u=` or `url=` are not supported sources; a nested `service.uralairlines.ru` URL does not make the outer wrapper trusted.
+- If a direct supported Ural booking URL is unavailable, use the PDF/minimal-itinerary flow instead.
 - A link carrying only `pnrOrTicket=` is a form-prefill signal, not sufficient evidence: the live lookup also needs the passenger surname in the URL. A missing-surname error here is the correct outcome, not a generator failure; use a complete manage-booking URL or minimal itinerary JSON.
 - Node.js is required at runtime: the adapter executes the carrier's frontend API-key helper in a sandboxed Node VM. Generated API keys and session keys are credentials.
 - Do not hand the adapter local `.env`/`env.json` copies; the normal path reads live frontend config.
@@ -35,6 +36,6 @@ Common to all carriers: keep credential-bearing URLs private and never expose th
 ## Utair
 
 - Evidence is `rloc` (locator) plus `last_name` from the order-manage URL; Cyrillic surnames and URL-encoding are handled, `utm_*` parameters are ignored. In the compact public CLI, pass the full URL through `--url` or `--url-file`, or use minimal itinerary JSON with `--input`.
-- Utair mail redirect links like `click.mail.utair.io/...` must resolve to `utair.ru/order-manage?...`; the CLI handles known Utair redirects automatically. If redirect resolution fails, provide the direct Utair `order-manage` URL.
+- The carrier-specific known redirect form at `click.mail.utair.io/...` is resolved and validated to `utair.ru/order-manage?...`; the CLI handles this known Utair redirect automatically. This is not a generic redirect or nested-URL fallback. If redirect resolution fails, provide the direct Utair `order-manage` URL.
 - A smoke run with a fake locator/surname is a safe reachability check: token success plus a redacted "no orders found" confirms the flow without real booking data.
 - Baggage is included only when explicit in booking data; it is never inferred from the fare brand.

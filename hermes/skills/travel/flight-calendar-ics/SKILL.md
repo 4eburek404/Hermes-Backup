@@ -28,8 +28,23 @@ Choose the route from the user's source - Booking URL or PDF itinerary.
   --url '<booking-url>'
 ```
 
-2. If the CLI returns `ok: true`, return the `media` artifact and stop.
-3. If the booking route fails or is ambiguous, read `references/carriers.md`.
+2. Handle the result by its error code:
+
+   * `ok: true`: return the `media` artifact and stop.
+   * `route_unknown`: stop. Do not guess the carrier, inspect query or fragment
+     fields for carrier fingerprints, open the URL in a browser as a fallback,
+     rewrite the URL, create carrier-specific argv, or use a nested URL from an
+     unknown wrapper. Tell the user that this booking-link type is not
+     supported and suggest sending the PDF itinerary; do not claim that the
+     airline itself is unsupported.
+   * `route_input_insufficient`: the carrier source was recognized, but the URL
+     lacks data required for the live lookup. Carrier-specific guidance in
+     `references/carriers.md` may be useful here.
+   * Other failures from an already recognized supported source: read
+     `references/carriers.md` if carrier-specific troubleshooting is needed.
+
+   `references/carriers.md` is troubleshooting guidance, not a mandatory step
+   in the normal URL workflow.
 
 Do not open the booking URL in a browser before trying the CLI.
 Do not create a temporary URL file or use `write_file`, `mktemp`, `--url-file`,
