@@ -58,7 +58,7 @@ def minimal_itinerary() -> dict[str, Any]:
 
 
 def run_cli(
-    itinerary: dict[str, object], output: Path, *, no_alarms: bool = True
+    itinerary: dict[str, object], output: Path
 ) -> tuple[subprocess.CompletedProcess[str], Path]:
     source = output.with_suffix(".json")
     source.write_text(json.dumps(itinerary, ensure_ascii=False), encoding="utf-8")
@@ -73,8 +73,6 @@ def run_cli(
         "--output",
         str(output),
     ]
-    if no_alarms:
-        argv.append("--no-alarms")
     result = subprocess.run(
         argv,
         cwd=ROOT,
@@ -90,7 +88,7 @@ class ItineraryInputSpecification(unittest.TestCase):
     def test_minimal_itinerary_builds_one_utc_event_and_keeps_data(self) -> None:
         with tempfile.TemporaryDirectory(prefix="flight-itinerary-spec.") as tmp:
             output = Path(tmp) / "trip.ics"
-            result, _source = run_cli(minimal_itinerary(), output, no_alarms=False)
+            result, _source = run_cli(minimal_itinerary(), output)
 
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             payload = json.loads(result.stdout)
@@ -151,9 +149,7 @@ class ItineraryInputSpecification(unittest.TestCase):
                 self.assertIn(value, rendered.replace("\r\n ", ""))
 
             second_output = Path(tmp) / "trip-again.ics"
-            second_result, _source = run_cli(
-                minimal_itinerary(), second_output, no_alarms=False
-            )
+            second_result, _source = run_cli(minimal_itinerary(), second_output)
             self.assertEqual(second_result.returncode, 0, second_result.stdout + second_result.stderr)
             second_event = Calendar.from_ical(second_output.read_bytes()).walk("VEVENT")[0]
             self.assertEqual(str(second_event["UID"]), uid)
@@ -175,7 +171,6 @@ class ItineraryInputSpecification(unittest.TestCase):
                     str(source),
                     "--output",
                     "relative.ics",
-                    "--no-alarms",
                 ],
                 cwd=cwd,
                 text=True,
