@@ -160,9 +160,7 @@ def build_event(
     return event, summary_info
 
 
-def build_calendar(
-    data: dict[str, Any], *, no_alarms: bool = False
-) -> tuple[str, list[dict[str, Any]]]:
+def build_calendar(data: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
     """Build a complete VCALENDAR string.
 
     Returns (ics_text, summaries) where ics_text is a valid RFC 5545 string
