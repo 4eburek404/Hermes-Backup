@@ -23,11 +23,13 @@ import unittest
 from pathlib import Path
 
 from icalendar import Calendar
+from jsonschema import Draft202012Validator
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 CLI = SCRIPTS / "flight_calendar_ics.py"
+CLI_ENVELOPE_SCHEMA = ROOT / "schemas" / "cli-envelope.v1.schema.json"
 
 
 def minimal_itinerary() -> dict[str, Any]:
@@ -82,6 +84,12 @@ def run_cli(
     return result, source
 
 
+def assert_valid_cli_envelope(test: unittest.TestCase, payload: dict[str, Any]) -> None:
+    schema = json.loads(CLI_ENVELOPE_SCHEMA.read_text(encoding="utf-8"))
+    errors = list(Draft202012Validator(schema).iter_errors(payload))
+    test.assertEqual(errors, [], "CLI envelope failed tracked schema validation")
+
+
 class ItineraryInputSpecification(unittest.TestCase):
     def test_minimal_itinerary_builds_one_utc_event_and_keeps_data(self) -> None:
         with tempfile.TemporaryDirectory(prefix="flight-itinerary-spec.") as tmp:
@@ -117,6 +125,45 @@ class ItineraryInputSpecification(unittest.TestCase):
                 "Москва → Екатеринбург",
             ):
                 self.assertIn(value, rendered.replace("\r\n ", ""))
+
+    def test_relative_output_returns_absolute_created_artifact_media(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="flight-itinerary-relative-spec.") as tmp:
+            cwd = Path(tmp)
+            source = cwd / "itinerary.json"
+            output = cwd / "relative.ics"
+            source.write_text(json.dumps(minimal_itinerary(), ensure_ascii=False), encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "--json",
+                    "build",
+                    "--input",
+                    str(source),
+                    "--output",
+                    "relative.ics",
+                    "--no-alarms",
+                ],
+                cwd=cwd,
+                text=True,
+                capture_output=True,
+                env={**os.environ, "PYTHONPATH": str(SCRIPTS)},
+                timeout=30,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(result.stderr, "")
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["ok"], True)
+            self.assertEqual(payload["segments_count"], 1)
+            self.assertEqual(payload["no_further_action_needed"], True)
+
+            media_path = Path(payload["media"][len("MEDIA:"):])
+            self.assertTrue(media_path.is_absolute())
+            self.assertEqual(media_path, output.resolve())
+            self.assertTrue(media_path.is_file())
+            assert_valid_cli_envelope(self, payload)
 
     def test_multiple_segments_build_multiple_events_with_catalog_timezones(
         self,

@@ -168,7 +168,7 @@ def command_build(args: argparse.Namespace) -> dict[str, Any]:
     os.chmod(output_path, 0o644)
     return {
         "ok": True,
-        "media": f"MEDIA:{output_path}",
+        "media": f"MEDIA:{output_path.resolve()}",
         "segments_count": len(summaries),
         "no_further_action_needed": True,
     }
