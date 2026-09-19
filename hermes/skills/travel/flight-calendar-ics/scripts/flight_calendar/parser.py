@@ -98,9 +98,7 @@ def _build_itinerary_from_url(
 
     tz_map = build_timezone_map(parse_cli_tz_overrides(tz_items))
     if route == "aeroflot":
-        locator, key, normalized_url = aeroflot.parse_pnr_source(
-            booking_url, None, None
-        )
+        locator, key, normalized_url = aeroflot.parse_pnr_source(booking_url)
         itinerary = aeroflot.convert_to_itinerary(
             aeroflot.fetch_aeroflot_pnr(locator, key),
             booking_url=normalized_url,

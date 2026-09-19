@@ -82,33 +82,19 @@ class RouteDetectionContractTests(unittest.TestCase):
             with self.subTest(url=url.split("?", 1)[0]):
                 self._assert_route_unknown(url)
 
-    def test_aeroflot_adapter_aliases_are_complete_in_query_and_spa(self) -> None:
+    def test_aeroflot_fingerprint_routes_without_credentials(self) -> None:
         from flight_calendar.route_detection import infer_build_route
 
-        key = "0" * 64
-        alias_pairs = (
-            ("pnrKey", "pnrLocator"),
-            ("pnrKey", "pnr_locator"),
-            ("pnr_key", "pnrLocator"),
-            ("pnr_key", "pnr_locator"),
-        )
-        for fragment in ("", "#/pnr?"):
-            for key_name, locator_name in alias_pairs:
-                with self.subTest(fragment=fragment, key=key_name, locator=locator_name):
-                    separator = "" if fragment else "?"
-                    url = (
-                        "https://www.aeroflot.ru/sb/pnr/app/ru-ru"
-                        + fragment
-                        + separator
-                        + f"{key_name}={key}&{locator_name}=ABC123"
-                    )
-                    route = infer_build_route(
-                        argparse.Namespace(url=None, url_file=None),
-                        url_override=url,
-                    )
-                    self.assertEqual(route["route"], "aeroflot")
+        base = "https://www.aeroflot.ru/sb/pnr/app/ru-ru"
+        for url in (base, base + "?tracking=campaign", base + "#/pnr"):
+            with self.subTest(url=url):
+                route = infer_build_route(
+                    argparse.Namespace(url=None, url_file=None),
+                    url_override=url,
+                )
+                self.assertEqual(route["route"], "aeroflot")
 
-    def test_aeroflot_unsupported_case_variant_is_input_insufficient(self) -> None:
+    def test_aeroflot_wrong_path_remains_unknown_without_credentials(self) -> None:
         from flight_calendar.errors import CliFailure
         from flight_calendar.route_detection import infer_build_route
 
@@ -116,12 +102,11 @@ class RouteDetectionContractTests(unittest.TestCase):
             infer_build_route(
                 argparse.Namespace(url=None, url_file=None),
                 url_override=(
-                    "https://www.aeroflot.ru/sb/pnr/app/ru-ru"
-                    "?PNRKEY=" + "0" * 64 + "&pnrLocator=ABC123"
+                    "https://www.aeroflot.ru/random"
                 ),
             )
 
-        self.assertEqual(ctx.exception.code, "route_input_insufficient")
+        self.assertEqual(ctx.exception.code, "route_unknown")
 
     def test_ural_adapter_aliases_are_complete(self) -> None:
         from flight_calendar.route_detection import infer_build_route

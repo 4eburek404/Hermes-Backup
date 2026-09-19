@@ -1,21 +1,15 @@
 #!/usr/bin/env python3
-"""Fetch Aeroflot manage-booking data and convert it to flight-calendar-ics JSON.
-
-Input can be a direct/manage URL containing pnrKey/pnrLocator or those two
-values passed explicitly by internal callers. The script does not print PNR,
-passenger names, ticket numbers, or full source URLs. It always writes the
-Aeroflot booking URL into the requested JSON/ICS output so imported calendar
-events retain a direct booking link on any device.
-"""
+"""Fetch Aeroflot manage-booking data and convert it to flight-calendar-ics JSON."""
 
 from __future__ import annotations
 
 import json
 import re
 from typing import Any
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import parse_qs, urlparse
 
 from flight_calendar import carrier_http
+from flight_calendar.errors import CliFailure
 
 
 
@@ -53,38 +47,23 @@ def normalize_pnr_key(key: str | None) -> str:
     return key
 
 
-def build_aeroflot_booking_url(locator: str, key: str) -> str:
-    return (
-        AEROFLOT_APP_URL
-        + "#/pnr?"
-        + urlencode({"pnr_key": key, "pnr_locator": locator})
-    )
-
-
-def parse_pnr_source(
-    url: str | None, locator: str | None, key: str | None
-) -> tuple[str, str, str]:
-    booking_url = url.strip() if url else None
-    if booking_url:
-        qs = pnr_query_params_from_url(booking_url)
-        locator = (
-            locator or (qs.get("pnrLocator") or qs.get("pnr_locator") or [None])[0]
-        )
-        key = key or (qs.get("pnrKey") or qs.get("pnr_key") or [None])[0]
+def parse_pnr_source(booking_url: str) -> tuple[str, str, str]:
+    booking_url = booking_url.strip()
+    qs = pnr_query_params_from_url(booking_url)
+    locator = (qs.get("pnrLocator") or qs.get("pnr_locator") or [None])[0]
+    key = (qs.get("pnrKey") or qs.get("pnr_key") or [None])[0]
     if not locator or not key:
-        raise ValueError(
-            "provide --url containing pnrKey/pnrLocator or both --pnr-locator and --pnr-key"
+        raise CliFailure(
+            "Aeroflot booking URL is missing required PNR credentials",
+            code="route_input_insufficient",
         )
     locator = normalize_locator(locator)
     key = normalize_pnr_key(key)
-    if not booking_url:
-        booking_url = build_aeroflot_booking_url(locator, key)
     return locator, key, booking_url
 
 
-def post_aeroflot_pnr_json(
-    payload: dict[str, Any], *, timeout: int = 45, referer: str | None = None
-) -> dict[str, Any]:
+def fetch_aeroflot_pnr(locator: str, key: str, *, timeout: int = 45) -> dict[str, Any]:
+    payload = {"pnr_locator": locator, "pnr_key": key, "lang": "ru", "country": "ru"}
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     status, content_type, text = carrier_http.request_raw(
         AEROFLOT_PNR_API,
@@ -93,7 +72,7 @@ def post_aeroflot_pnr_json(
             "Content-Type": "application/json",
             "X-App-Identity": "0",
             "Origin": AEROFLOT_BASE,
-            "Referer": referer or AEROFLOT_APP_URL,
+            "Referer": AEROFLOT_APP_URL,
         },
         body=body,
         timeout=timeout,
@@ -111,32 +90,17 @@ def post_aeroflot_pnr_json(
         raise ValueError(f"Aeroflot returned non-JSON response (HTTP {status}): {exc}")
     if not isinstance(obj, dict):
         raise ValueError(f"Aeroflot returned non-object JSON response (HTTP {status})")
-    return obj
-
-
-def pnr_api_error_type(obj: dict[str, Any]) -> str:
-    err = obj.get("error") or {}
-    if isinstance(err, dict):
-        return str(err.get("type") or err.get("value") or "unknown error")
-    return str(err or "unknown error")
-
-
-def require_success_data(obj: dict[str, Any]) -> dict[str, Any]:
     if not obj.get("success"):
-        raise ValueError(f"Aeroflot PNR API returned success=false: {pnr_api_error_type(obj)}")
+        err = obj.get("error") or {}
+        if isinstance(err, dict):
+            error_type = str(err.get("type") or err.get("value") or "unknown error")
+        else:
+            error_type = str(err or "unknown error")
+        raise ValueError(f"Aeroflot PNR API returned success=false: {error_type}")
     data = obj.get("data")
     if not isinstance(data, dict):
         raise ValueError("Aeroflot PNR API response has no data object")
     return data
-
-
-def fetch_aeroflot_pnr(locator: str, key: str, *, timeout: int = 45) -> dict[str, Any]:
-    obj = post_aeroflot_pnr_json(
-        {"pnr_locator": locator, "pnr_key": key, "lang": "ru", "country": "ru"},
-        timeout=timeout,
-        referer=AEROFLOT_APP_URL,
-    )
-    return require_success_data(obj)
 
 
 def first_ticket_number(data: dict[str, Any]) -> str | None:

@@ -72,12 +72,6 @@ def _redwings_order_fragment(fragment: str) -> bool:
     return bool(re.match(r"^/?booking/[^/]+/order/?$", fragment, flags=re.IGNORECASE))
 
 
-def _aeroflot_has_required_credentials(field_names: list[str]) -> bool:
-    return _field_present(field_names, {"pnrKey", "pnr_key"}) and _field_present(
-        field_names, {"pnrLocator", "pnr_locator"}
-    )
-
-
 def _ural_has_required_credentials(field_names: list[str]) -> bool:
     return _field_present(
         field_names, {"pnr", "pnrNumber", "pnrnumber"}
@@ -101,8 +95,6 @@ def _s7_has_required_credentials(field_names: list[str]) -> bool:
 def _route_has_required_credentials(
     route: str, field_names: list[str], fragment: str
 ) -> bool:
-    if route == "aeroflot":
-        return _aeroflot_has_required_credentials(field_names)
     if route == "ural":
         return _ural_has_required_credentials(field_names)
     if route == "utair":
@@ -139,6 +131,9 @@ def infer_build_route(
             "could not infer carrier route from safe source fingerprint",
             code="route_unknown",
         )
+
+    if route == "aeroflot":
+        return {"route": route}
 
     field_names = _query_field_names(parsed)
     fragment = parsed.fragment or ""

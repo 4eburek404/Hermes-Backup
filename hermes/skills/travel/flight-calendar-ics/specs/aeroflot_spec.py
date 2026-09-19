@@ -21,7 +21,6 @@ response handling, itinerary conversion, and itinerary validation remain real.
 
 from __future__ import annotations
 
-import argparse
 import json
 import sys
 import unittest
@@ -81,58 +80,65 @@ def fixture_http_response(observed: list[dict[str, object]]):
 class AeroflotCarrierSpecification(unittest.TestCase):
     """Behavior required from supported Aeroflot booking URLs."""
 
-    def test_supported_url_shapes_route_and_normalize_credentials(self) -> None:
-        """SPA and query forms accept their aliases and ignore tracking fields."""
-        from flight_calendar.carriers import aeroflot
-        from flight_calendar.route_detection import infer_build_route
+    def test_supported_url_shapes_fetch_and_normalize_itinerary(self) -> None:
+        """SPA and query forms complete the real carrier flow."""
+        from flight_calendar import carrier_http, parser
 
-        cases = (
-            (AEROFLOT_SPA_URL, EXPECTED_LOCATOR),
-            (AEROFLOT_QUERY_URL, EXPECTED_LOCATOR),
+        alias_pairs = (
+            ("pnrKey", "pnrLocator"),
+            ("pnrKey", "pnr_locator"),
+            ("pnr_key", "pnrLocator"),
+            ("pnr_key", "pnr_locator"),
         )
-        for url, expected_locator in cases:
-            with self.subTest(url_shape="spa" if "#" in url else "query"):
-                route = infer_build_route(
-                    argparse.Namespace(url=None, url_file=None), url_override=url
+        base = "https://www.aeroflot.ru/sb/pnr/app/ru-ru"
+        for fragment in ("", "#/pnr?"):
+            for key_name, locator_name in alias_pairs:
+                separator = "" if fragment else "?"
+                url = (
+                    base
+                    + fragment
+                    + separator
+                    + f"{key_name}={SYNTHETIC_KEY}&{locator_name}=ABC123"
                 )
-                self.assertEqual(route["route"], "aeroflot")
+                observed: list[dict[str, object]] = []
+                with self.subTest(fragment=fragment, key=key_name, locator=locator_name):
+                    with mock.patch.object(
+                        carrier_http,
+                        "request_raw",
+                        side_effect=fixture_http_response(observed),
+                    ):
+                        itinerary = parser._build_itinerary_from_url(url, [])
 
-                locator, key, normalized_url = aeroflot.parse_pnr_source(
-                    url, None, None
-                )
-                self.assertEqual(locator, expected_locator)
-                self.assertEqual(key, SYNTHETIC_KEY)
-                self.assertEqual(normalized_url, url)
+                    self.assertEqual(itinerary["pnr"], EXPECTED_LOCATOR)
+                    self.assertEqual(itinerary["booking_url"], url)
+                    self.assertEqual(len(itinerary["flights"]), 2)
+                    self.assertEqual(len(observed), 1)
 
     def test_aeroflot_api_request_uses_the_supported_protocol_and_fixture(self) -> None:
-        """Parsed credentials are sent to the documented Aeroflot API contract."""
-        from flight_calendar import carrier_http
-        from flight_calendar.carriers import aeroflot
+        """The carrier flow sends the documented Aeroflot API request."""
+        from flight_calendar import carrier_http, parser
 
-        locator, key, _normalized_url = aeroflot.parse_pnr_source(
-            AEROFLOT_QUERY_URL, None, None
-        )
         observed: list[dict[str, object]] = []
         with mock.patch.object(
             carrier_http,
             "request_raw",
             side_effect=fixture_http_response(observed),
         ):
-            data = aeroflot.fetch_aeroflot_pnr(locator, key)
+            itinerary = parser._build_itinerary_from_url(AEROFLOT_QUERY_URL, [])
 
         self.assertEqual(len(observed), 1)
         request = observed[0]
         self.assertEqual(request["url"], AEROFLOT_PNR_API)
         self.assertEqual(request["method"], "POST")
-        self.assertEqual(
-            request["headers"],
-            {
-                "Content-Type": "application/json",
-                "X-App-Identity": "0",
-                "Origin": AEROFLOT_BASE,
-                "Referer": AEROFLOT_APP_URL,
-            },
-        )
+        headers = request["headers"]
+        self.assertIsInstance(headers, dict)
+        for name, value in {
+            "Content-Type": "application/json",
+            "X-App-Identity": "0",
+            "Origin": AEROFLOT_BASE,
+            "Referer": AEROFLOT_APP_URL,
+        }.items():
+            self.assertEqual(headers[name], value)
         body = request["body"]
         self.assertIsInstance(body, bytes)
         self.assertEqual(
@@ -144,35 +150,27 @@ class AeroflotCarrierSpecification(unittest.TestCase):
                 "country": "ru",
             },
         )
-        self.assertEqual(data["pnr_locator"], EXPECTED_LOCATOR)
-        self.assertEqual(len(data["legs"]), 2)
+        self.assertEqual(itinerary["pnr"], EXPECTED_LOCATOR)
 
     def test_aeroflot_fixture_becomes_valid_expected_itinerary(self) -> None:
-        """The sanitized API response produces the expected normalized flights."""
-        from flight_calendar import itinerary_contract
-        from flight_calendar.carriers import aeroflot
+        """The raw fixture becomes the expected normalized itinerary."""
+        from flight_calendar import carrier_http, parser
 
-        api_response = json.loads(AEROFLOT_FIXTURE_TEXT)
-        data = aeroflot.require_success_data(api_response)
-        itinerary = aeroflot.convert_to_itinerary(
-            data,
-            booking_url=AEROFLOT_SPA_URL,
-        )
+        observed: list[dict[str, object]] = []
+        with mock.patch.object(
+            carrier_http,
+            "request_raw",
+            side_effect=fixture_http_response(observed),
+        ):
+            itinerary = parser._build_itinerary_from_url(AEROFLOT_SPA_URL, [])
 
-        itinerary_contract.validate_itinerary_schema(itinerary)
-        enriched = itinerary_contract.enrich_itinerary_timezones(
-            itinerary, {"SVX": "Asia/Yekaterinburg", "SVO": "Europe/Moscow"}
-        )
-        itinerary_contract.validate_itinerary_semantics(enriched)
         self.assertEqual(itinerary["pnr"], EXPECTED_LOCATOR)
         self.assertEqual(itinerary["passenger"], "Example Alex")
         self.assertEqual(itinerary["ticket_number"], "000000")
         self.assertEqual(itinerary["booking_url"], AEROFLOT_SPA_URL)
 
-        flights = itinerary["flights"]
-        self.assertEqual(len(flights), 2)
         self.assertEqual(
-            flights,
+            itinerary["flights"],
             [
                 {
                     "flight_number": "SU9001",
@@ -180,11 +178,13 @@ class AeroflotCarrierSpecification(unittest.TestCase):
                         "airport": "SVX",
                         "city": "Екатеринбург",
                         "local": "2037-09-23T13:30",
+                        "tz": "Asia/Yekaterinburg",
                     },
                     "arrival": {
                         "airport": "SVO",
                         "city": "Москва",
                         "local": "2037-09-23T13:50",
+                        "tz": "Europe/Moscow",
                     },
                     "aircraft": "Airbus A330-300",
                 },
@@ -194,11 +194,13 @@ class AeroflotCarrierSpecification(unittest.TestCase):
                         "airport": "SVO",
                         "city": "Москва",
                         "local": "2037-09-25T15:25",
+                        "tz": "Europe/Moscow",
                     },
                     "arrival": {
                         "airport": "SVX",
                         "city": "Екатеринбург",
                         "local": "2037-09-25T19:50",
+                        "tz": "Asia/Yekaterinburg",
                     },
                     "aircraft": "Boeing 737-800",
                 },

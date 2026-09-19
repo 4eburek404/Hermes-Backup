@@ -266,6 +266,36 @@ class BookingUrlProcessSpecification(unittest.TestCase):
         ):
             self.assertNotIn(private_value, emitted)
 
+    def test_trusted_aeroflot_without_credentials_is_insufficient_before_network(
+        self,
+    ) -> None:
+        """A trusted Aeroflot shape delegates credential completeness to the adapter."""
+        from flight_calendar import carrier_http
+
+        network_calls: list[str] = []
+
+        def network_called(*args: Any, **kwargs: Any) -> None:
+            del args, kwargs
+            network_calls.append("carrier_http.request_raw")
+            raise AssertionError("network boundary reached")
+
+        with mock.patch.object(
+            carrier_http,
+            "request_raw",
+            side_effect=network_called,
+        ):
+            code, stdout, stderr = run_cli(
+                "https://www.aeroflot.ru/sb/pnr/app/ru-ru"
+            )
+
+        self.assertEqual(code, 2, stdout + stderr)
+        payload = json.loads(stdout)
+        assert_valid_cli_envelope(self, payload)
+        self.assertIs(payload["ok"], False)
+        self.assertEqual(payload["error"]["code"], "route_input_insufficient")
+        self.assertEqual(network_calls, [])
+        self.assertEqual(stderr, "")
+
     def test_present_invalid_aeroflot_value_is_validation_error_before_network(
         self,
     ) -> None:
