@@ -1,7 +1,8 @@
 ---
 name: test-driven-development
 description: >-
-  Test-driven development for NON-TRIVIAL behavior — write a failing test FIRST,
+  Test-driven development for NON-TRIVIAL behavior — after target behavior and
+  sufficient diagnostic evidence, write or adopt a regression-capable check,
   watch it fail, then write minimal code to pass; the suite is a LIVING SPEC you
   EDIT/MERGE/DELETE as the target changes. Use when implementing real logic, fixing
   a bug, or changing tested behavior. Do NOT use for trivial edits or prototypes.
@@ -11,10 +12,16 @@ description: >-
 
 ## What this is
 
-The test suite is a **living spec** of the current target's behavior. TDD keeps
-the spec and the code in sync: adjust the test **first**, watch it fail, write
-the minimal code to pass. When the target changes, you **update the spec** —
-edit, merge, or delete tests — you do **not** pile new tests on top of stale ones.
+The test suite is a **living spec** of the current target's behavior. Once target
+behavior is known and the diagnostic stage has enough evidence, TDD keeps the
+spec and the code in sync: choose or adopt a regression-capable check, adjust it
+first, watch it fail, then write the minimal code to pass. When the target
+changes, you **update the spec** — edit, merge, or delete tests — you do **not**
+pile new tests on top of stale ones.
+
+TDD owns regression protection, not exploratory debugging. `systematic-debugging`
+owns diagnostic reproduction, boundary/data-flow investigation, hypotheses, and
+root-cause confirmation.
 
 Guard against **both** failure modes, equally:
 
@@ -28,12 +35,14 @@ stance is failure mode (b) — don't.
 
 ## When to engage — the right-size gate (preflight, ~3 seconds)
 
-Classify the change first. **ENGAGE** (write/update a failing test first) when it is:
+Classify the change first. **ENGAGE** (choose or update a regression check and
+observe RED before production implementation) when it is:
 
 - **New logic** — a function / method / endpoint / component with branching,
   edge cases, state, or a contract worth pinning down.
-- **A bug fix** — reproduce the defect with a failing test first; it stays as a
-  regression guard.
+- **A bug fix** — once target behavior and sufficient diagnostic evidence exist,
+  choose or adopt a regression-capable executable check, observe RED, and keep it
+  as the regression guard. A diagnostic-only reproducer may precede this gate.
 - **A behavior change to already-tested code** — update the existing tests to the
   new target (this is MODIFY MODE, below).
 
@@ -56,6 +65,19 @@ conflict: **"could this break in a way a test would catch?"** Yes → engage; no
 skip, state the one-line reason, move on. Don't rationalize in *either* direction —
 not "skip TDD just this once" on real logic, not "better add a test" on a rename.
 
+### Diagnostic reproducer versus regression check
+
+A diagnostic reproducer makes the defect observable and helps establish its cause.
+It may be a test, command, request, fixture, replay, trace, or temporary harness;
+it need not be permanent or express the final target behavior. A regression check
+is permanent executable protection for the required behavior. It must be RED
+before the production fix, GREEN after it, and RED again when the fix is reverted.
+
+If the diagnostic reproducer already asserts the target behavior at the right
+boundary, adopt it as the regression check. Otherwise, create or update the
+regression check after the diagnostic handoff. Do not add a duplicate artifact
+only because diagnosis and TDD are separate stages.
+
 ### Two special cases: refactoring & untested code
 
 Behavior-preserving work doesn't fit "write a failing test first":
@@ -77,8 +99,9 @@ one cycle per group:
 2. **Decide the mode** — covered already? → **modify**. Target changed, test now
    wrong? → **update/delete**. Genuinely new? → **add ONE** group test. See
    [modify mode](references/modify-mode.md).
-3. **RED** — write or extend the one group test (table-driven / parametrized for
-   its edges). **Watch it fail once** for the group — mandatory, never skipped.
+3. **RED** — write, extend, or adopt the one regression check (table-driven /
+   parametrized for its edges). **Watch it fail once** for the group — mandatory,
+   never skipped.
    *Delegate* the targeted run + failure-parse to a subagent.
 4. **GREEN** — minimal code to pass the whole group. Batch red→green per group,
    not per assertion. No features, options, or "improvements" beyond the test
@@ -124,7 +147,7 @@ skill exists to replace.
 ## Watch it fail — the irreducible core (with EVIDENCE)
 
 ```
-NO production code for a behavior without first seeing its test FAIL — once per feature-group.
+NO production code for a behavior without first seeing its regression check FAIL — once per feature-group.
 NO "red/green/done" claim without the actual command + its output + exit status.
 ```
 
@@ -132,7 +155,7 @@ NO "red/green/done" claim without the actual command + its output + exit status.
 
 For broad refactors that will inline, delete, or rewrite large files after a RED test, keep the GREEN step reviewable: prefer targeted patches or small scripted transformations with clear file lists. If the tool/runtime asks for explicit confirmation before a mass write/delete, pause and ask the user rather than retrying through a different mechanism. The RED evidence remains useful; resume from that point after confirmation.
 
-If you didn't watch it fail, you don't know the test tests the right thing. For
+If you didn't watch the regression check fail, you don't know it tests the right thing. For
 *new or changed* behavior, a test that passes the moment you write it is testing
 existing behavior or nothing — so it must fail first. (The sole exception is a
 deliberate **characterization** test pinning existing behavior before a refactor;
@@ -153,7 +176,7 @@ A passing regression test is worthless if it would pass *without* the fix. For
 every **bug fix**, after green, prove the test is real:
 
 ```
-write failing test → watch it RED (right reason) → fix → GREEN
+write or adopt regression check → watch it RED (right reason) → fix → GREEN
 → REVERT the fix → re-run: the test MUST go RED again → restore the fix → GREEN
 ```
 

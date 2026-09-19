@@ -32,10 +32,16 @@ fail (or that everything passes) without running it. Evidence kills that.
 
 ## 2. Revert-to-red gate (every bug fix)
 
-A regression test that would pass *without* the fix is worthless. Prove it isn't:
+A regression test that would pass *without* the fix is worthless. A diagnostic
+reproducer may have existed earlier, but production implementation is forbidden
+until a regression-capable check has been observed RED. If that diagnostic
+reproducer already asserts the target behavior at the right boundary, adopt it;
+otherwise create or update the regression check after the diagnostic handoff.
+Do not create a duplicate artifact only because diagnosis and TDD are separate
+stages. Then prove the regression check is real:
 
 ```
-1. Write the failing test that reproduces the bug.
+1. Write or adopt the regression-capable check.
 2. Run it → RED. Confirm it fails for the RIGHT reason (the bug), not a typo/import error.
 3. Apply the fix.
 4. Run it → GREEN.

@@ -31,13 +31,15 @@ If you haven't completed Phase 1, you cannot propose fixes.
 
 ## The Feedback Loop Rule
 
-The feedback loop is the debugging work. Before reading code to build a theory, create or identify a **tight** command that can go red on the user's exact symptom and green when the bug is fixed. A tight loop is fast, deterministic, agent-runnable, and specific enough to catch this bug — not merely "doesn't crash".
+The feedback loop is the debugging work. Before reading code to build a theory, create or identify a **tight diagnostic reproducer** for the user's exact symptom. It may be a test, CLI invocation, HTTP request, fixture, replay, trace, or temporary harness. It does not have to be a permanent regression test or express the final target behavior. A tight loop is fast, deterministic, agent-runnable, and specific enough to catch this bug — not merely "doesn't crash".
+
+If the diagnostic reproducer already asserts the required target behavior, hand it to `test-driven-development` for reuse as regression protection. Otherwise, TDD chooses or creates the regression representation after diagnosis. Do not create a second artifact only because diagnosis and regression are separate stages.
 
 When a clean repro is hard, spend disproportionate effort building the loop. Guessing without a red-capable loop is the failure mode this skill exists to prevent.
 
 ## When to Use
 
-Use for ANY technical issue:
+Use for ANY technical issue with a defect, symptom, or unexplained failure:
 - Test failures
 - Bugs in production
 - Unexpected behavior
@@ -57,9 +59,19 @@ Use for ANY technical issue:
 - You're in a hurry (rushing guarantees rework)
 - Someone wants it fixed NOW (systematic is faster than thrashing)
 
+Do not apply this debugging workflow to a trivial/mechanical non-bug change. For a
+behavioral bug, keep root-cause evidence mandatory but right-size the depth:
+
+- **Obvious behavioral bug** → focused evidence that confirms the root cause.
+- **Unclear or integration bug** → full boundary, data-flow, and hypothesis investigation.
+
 ## The Four Phases
 
-You MUST complete each phase before proceeding to the next.
+Use the phases as a diagnostic structure, but keep their depth proportional to
+uncertainty. Do not skip root-cause evidence: an obvious behavioral bug may need
+only focused evidence and hypothesis confirmation, while an unclear or
+integration bug requires the full pattern, boundary, data-flow, and hypothesis
+investigation before handoff.
 
 ---
 
@@ -176,7 +188,7 @@ search_files("variable_name\\s*=", path="src/", file_glob="*.py")
 
 - [ ] Error messages fully read and understood
 - [ ] A tight loop command exists and has been run at least once
-- [ ] Loop is red-capable: it asserts the user's exact symptom, not a nearby failure
+- [ ] Loop is red-capable for the exact symptom, not a nearby failure; it need not be a permanent regression test
 - [ ] Loop is deterministic, or a flaky bug has a high enough reproduction rate to debug
 - [ ] Recent changes identified and reviewed
 - [ ] Evidence gathered (logs, state, data flow)
@@ -226,6 +238,12 @@ search_files("similar_pattern", path="src/", file_glob="*.py")
 - What settings, config, environment?
 - What assumptions does it make?
 
+### 5. Inspect Sibling Paths and Bug Class
+
+- Find sibling callers, adapters, routes, or implementations that share the failing boundary.
+- Check whether the root cause affects only the reported path or a broader class of bugs.
+- Include the affected siblings and class-of-bug conclusion in the root-cause handoff.
+
 ---
 
 ## Phase 3: Hypothesis and Testing
@@ -264,57 +282,26 @@ If the user is present, show the ranked list before testing. They may have domai
 
 ---
 
-## Phase 4: Implementation
+## Phase 4: Root-Cause Handoff
 
-**Fix the root cause, not the symptom:**
+**Fix the root cause, not the symptom — but do not implement the production fix in this skill.**
 
-### 1. Create Failing Test Case
+Complete diagnosis with a handoff containing:
 
-- Simplest possible reproduction
-- Automated test if possible
-- MUST have before fixing
-- Use the `test-driven-development` skill
+- confirmed root cause and the evidence that supports it;
+- affected component and public boundary;
+- sibling-path and class-of-bug findings;
+- the diagnostic reproducer and its observed failure;
+- constraints and invariants the fix must preserve.
 
-### 2. Implement Single Fix
+Then hand off to `test-driven-development`. TDD must choose or adopt a
+regression-capable executable check, observe RED, and own production
+implementation, GREEN, REFACTOR, and revert-to-red. Use the proportional
+verification selected by SDD/TDD; a full suite is appropriate only when its scope
+or risk justifies it.
 
-- Address the root cause identified
-- ONE change at a time
-- No "while I'm here" improvements
-- No bundled refactoring
-
-### 3. Verify Fix
-
-```bash
-# Run the specific regression test
-pytest tests/test_module.py::test_regression -v
-
-# Run full suite — no regressions
-pytest tests/ -q
-```
-
-### 4. If Fix Doesn't Work — The Rule of Three
-
-- **STOP.**
-- Count: How many fixes have you tried?
-- If < 3: Return to Phase 1, re-analyze with new information
-- **If ≥ 3: STOP and question the architecture (step 5 below)**
-- DON'T attempt Fix #4 without architectural discussion
-
-### 5. If 3+ Fixes Failed: Question Architecture
-
-**Pattern indicating an architectural problem:**
-- Each fix reveals new shared state/coupling in a different place
-- Fixes require "massive refactoring" to implement
-- Each fix creates new symptoms elsewhere
-
-**STOP and question fundamentals:**
-- Is this pattern fundamentally sound?
-- Are we "sticking with it through sheer inertia"?
-- Should we refactor the architecture vs. continue fixing symptoms?
-
-**Discuss with the user before attempting more fixes.**
-
-This is NOT a failed hypothesis — this is a wrong architecture.
+If new evidence contradicts the handoff, stop and return to Phase 1. Do not stack
+production fixes on an unconfirmed diagnosis.
 
 ---
 
@@ -324,7 +311,7 @@ If you catch yourself thinking:
 - "Quick fix for now, investigate later"
 - "Just try changing X and see if it works"
 - "Add multiple changes, run tests"
-- "Skip the test, I'll manually verify"
+- "Skip the diagnostic loop, I'll manually verify"
 - "It's probably X, let me fix that"
 - "I don't fully understand but this might work"
 - "Pattern says X but I'll adapt it differently"
@@ -344,7 +331,7 @@ If you catch yourself thinking:
 | "Issue is simple, don't need process" | Simple issues have root causes too. Process is fast for simple bugs. |
 | "Emergency, no time for process" | Systematic debugging is FASTER than guess-and-check thrashing. |
 | "Just try this first, then investigate" | First fix sets the pattern. Do it right from the start. |
-| "I'll write test after confirming fix works" | Untested fixes don't stick. Test first proves it. |
+| "I'll fix first and add regression protection later" | Production implementation waits for TDD RED. |
 | "Multiple fixes at once saves time" | Can't isolate what worked. Causes new bugs. |
 | "Reference too long, I'll adapt the pattern" | Partial understanding guarantees bugs. Read it completely. |
 | "I see the problem, let me fix it" | Seeing symptoms ≠ understanding root cause. |
@@ -357,7 +344,7 @@ If you catch yourself thinking:
 | **1. Root Cause** | Read errors, reproduce, check changes, gather evidence, trace data flow | Understand WHAT and WHY |
 | **2. Pattern** | Find working examples, compare, identify differences | Know what's different |
 | **3. Hypothesis** | Form theory, test minimally, one variable at a time | Confirmed or new hypothesis |
-| **4. Implementation** | Create regression test, fix root cause, verify | Bug resolved, all tests pass |
+| **4. Handoff** | Package confirmed root cause, evidence, boundaries, and sibling/class findings | TDD can start regression RED |
 
 ## Hermes Agent Integration
 
@@ -394,11 +381,17 @@ delegate_task(
 
 ### With test-driven-development
 
-When fixing bugs:
-1. Write a test that reproduces the bug (RED)
-2. Debug systematically to find root cause
-3. Fix the root cause (GREEN)
-4. The test proves the fix and prevents regression
+Compose the skills in this order:
+
+1. SDD defines the target behavior.
+2. Create or identify a diagnostic reproducer.
+3. Investigate the root cause with this skill, with depth proportional to uncertainty.
+4. Hand off the confirmed root cause and evidence to TDD.
+5. TDD creates or adopts a regression-capable check and observes RED.
+6. TDD owns production implementation, GREEN, REFACTOR, and revert-to-red.
+
+If the diagnostic reproducer already is a suitable regression check, TDD reuses
+it; no duplicate artifact is required.
 
 ## Real-World Impact
 
