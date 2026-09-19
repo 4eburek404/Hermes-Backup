@@ -175,11 +175,18 @@ def _load_runtime_catalog(
         cached = _load_catalog_map(cache_path)
     except (OSError, ValueError, TypeError, KeyError):
         cached = None
+    try:
+        bundled = _load_catalog_map(bundled_catalog_path)
+    except (OSError, ValueError, TypeError, KeyError):
+        bundled = None
 
-    if _attempt_is_fresh(state_path, now):
+    if (cached is not None or bundled is not None) and _attempt_is_fresh(
+        state_path, now
+    ):
         if cached is not None:
             return cached
-        return _try_load_fallback(cache_path, bundled_catalog_path)
+        assert bundled is not None
+        return bundled
 
     try:
         with _refresh_critical_section(runtime_cache_dir):
@@ -187,10 +194,17 @@ def _load_runtime_catalog(
                 cached = _load_catalog_map(cache_path)
             except (OSError, ValueError, TypeError, KeyError):
                 cached = None
-            if _attempt_is_fresh(state_path, now):
+            try:
+                bundled = _load_catalog_map(bundled_catalog_path)
+            except (OSError, ValueError, TypeError, KeyError):
+                bundled = None
+            if (cached is not None or bundled is not None) and _attempt_is_fresh(
+                state_path, now
+            ):
                 if cached is not None:
                     return cached
-                return _try_load_fallback(cache_path, bundled_catalog_path)
+                assert bundled is not None
+                return bundled
 
             _write_attempt_state(state_path, now)
             raw = fetch_source(CANONICAL_SOURCE_URL)

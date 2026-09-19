@@ -37,7 +37,28 @@ def airport_payload() -> bytes:
     )
 
 
-def _concurrent_worker(runtime_dir: str, fetch_log: str) -> None:
+def write_state(runtime_dir: Path, when: datetime) -> None:
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    (runtime_dir / timezone_catalog.REFRESH_STATE_FILENAME).write_text(
+        json.dumps({"last_attempt": when.isoformat()}), encoding="utf-8"
+    )
+
+
+def write_catalog(path: Path, *, timezone_value: str = "Europe/Moscow") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": timezone_catalog.SCHEMA_VERSION,
+                "source": "test",
+                "timezones": {"SVO": timezone_value},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _concurrent_worker(runtime_dir: str, bundled_path: str, fetch_log: str) -> None:
     def fetch(_url: str) -> bytes:
         with Path(fetch_log).open("a", encoding="utf-8") as handle:
             handle.write("fetch\n")
@@ -46,6 +67,7 @@ def _concurrent_worker(runtime_dir: str, fetch_log: str) -> None:
 
     timezone_catalog.load_airport_timezones(
         runtime_cache_dir=Path(runtime_dir),
+        bundled_catalog_path=Path(bundled_path),
         fetch_source=fetch,
         now=datetime(2026, 1, 1, tzinfo=UTC),
     )
@@ -219,9 +241,10 @@ class RuntimeTimezoneRefreshContractTests(unittest.TestCase):
         with TemporaryDirectory(prefix="timezone-runtime.") as tmp:
             runtime_dir = Path(tmp) / "cache"
             fetch_log = Path(tmp) / "fetch.log"
+            write_state(runtime_dir, datetime(2025, 12, 31, tzinfo=UTC))
             context = multiprocessing.get_context("fork")
             processes = [
-                context.Process(target=_concurrent_worker, args=(str(runtime_dir), str(fetch_log)))
+                context.Process(target=_concurrent_worker, args=(str(runtime_dir), str(Path(tmp) / "missing-bundled.json"), str(fetch_log)))
                 for _ in range(2)
             ]
             for process in processes:
@@ -233,6 +256,186 @@ class RuntimeTimezoneRefreshContractTests(unittest.TestCase):
             self.assertEqual(fetch_log.read_text(encoding="utf-8").splitlines(), ["fetch"])
             cached = json.loads((runtime_dir / "airport-timezones.json").read_text())
             self.assertEqual(cached["timezones"]["SVO"], "Europe/Moscow")
+
+    def test_recovery_missing_everything_bootstraps_cache(self) -> None:
+        with TemporaryDirectory(prefix="timezone-recovery.") as tmp:
+            runtime_dir = Path(tmp) / "cache"
+            bundled = Path(tmp) / "missing-bundled.json"
+            calls: list[str] = []
+
+            def fetch(url: str) -> bytes:
+                calls.append(url)
+                return airport_payload()
+
+            result = timezone_catalog.load_airport_timezones(
+                runtime_cache_dir=runtime_dir,
+                bundled_catalog_path=bundled,
+                fetch_source=fetch,
+                now=datetime(2026, 1, 1, tzinfo=UTC),
+            )
+
+            self.assertEqual(calls, [timezone_catalog.CANONICAL_SOURCE_URL])
+            self.assertEqual(result["SVO"], "Europe/Moscow")
+            self.assertTrue((runtime_dir / timezone_catalog.RUNTIME_CACHE_FILENAME).exists())
+
+    def test_recovery_ignores_fresh_failed_state_when_everything_is_missing(self) -> None:
+        with TemporaryDirectory(prefix="timezone-recovery.") as tmp:
+            runtime_dir = Path(tmp) / "cache"
+            bundled = Path(tmp) / "missing-bundled.json"
+            now = datetime(2026, 1, 2, tzinfo=UTC)
+            write_state(runtime_dir, now - timedelta(days=1))
+            calls: list[str] = []
+
+            def fetch(url: str) -> bytes:
+                calls.append(url)
+                return airport_payload()
+
+            result = timezone_catalog.load_airport_timezones(
+                runtime_cache_dir=runtime_dir,
+                bundled_catalog_path=bundled,
+                fetch_source=fetch,
+                now=now,
+            )
+
+            self.assertEqual(calls, [timezone_catalog.CANONICAL_SOURCE_URL])
+            self.assertEqual(result["SVO"], "Europe/Moscow")
+
+    def test_recovery_ignores_fresh_state_when_both_catalogs_are_corrupt(self) -> None:
+        with TemporaryDirectory(prefix="timezone-recovery.") as tmp:
+            runtime_dir = Path(tmp) / "cache"
+            runtime_dir.mkdir()
+            cache = runtime_dir / timezone_catalog.RUNTIME_CACHE_FILENAME
+            bundled = Path(tmp) / "bundled.json"
+            cache.write_bytes(b"not-json")
+            bundled.write_bytes(b"{}")
+            now = datetime(2026, 1, 2, tzinfo=UTC)
+            write_state(runtime_dir, now - timedelta(days=1))
+            calls = 0
+
+            def fetch(_url: str) -> bytes:
+                nonlocal calls
+                calls += 1
+                return airport_payload()
+
+            result = timezone_catalog.load_airport_timezones(
+                runtime_cache_dir=runtime_dir,
+                bundled_catalog_path=bundled,
+                fetch_source=fetch,
+                now=now,
+            )
+
+            self.assertEqual(calls, 1)
+            self.assertEqual(result["KUF"], "Europe/Samara")
+
+    def test_failed_recovery_fails_closed_without_partial_cache(self) -> None:
+        with TemporaryDirectory(prefix="timezone-recovery.") as tmp:
+            runtime_dir = Path(tmp) / "cache"
+            bundled = Path(tmp) / "missing-bundled.json"
+            now = datetime(2026, 1, 2, tzinfo=UTC)
+            write_state(runtime_dir, now - timedelta(days=1))
+            calls = 0
+
+            def fail(_url: str) -> bytes:
+                nonlocal calls
+                calls += 1
+                raise OSError("Travelpayouts unavailable")
+
+            with self.assertRaises(ValueError):
+                timezone_catalog.load_airport_timezones(
+                    runtime_cache_dir=runtime_dir,
+                    bundled_catalog_path=bundled,
+                    fetch_source=fail,
+                    now=now,
+                )
+
+            self.assertEqual(calls, 1)
+            self.assertFalse((runtime_dir / timezone_catalog.RUNTIME_CACHE_FILENAME).exists())
+
+    def test_failed_recovery_can_retry_inside_ttl_and_self_heal(self) -> None:
+        with TemporaryDirectory(prefix="timezone-recovery.") as tmp:
+            runtime_dir = Path(tmp) / "cache"
+            bundled = Path(tmp) / "missing-bundled.json"
+            first = datetime(2026, 1, 2, tzinfo=UTC)
+            write_state(runtime_dir, first - timedelta(days=1))
+            calls = 0
+
+            def fail(_url: str) -> bytes:
+                nonlocal calls
+                calls += 1
+                raise OSError("temporary upstream failure")
+
+            with self.assertRaises(ValueError):
+                timezone_catalog.load_airport_timezones(
+                    runtime_cache_dir=runtime_dir,
+                    bundled_catalog_path=bundled,
+                    fetch_source=fail,
+                    now=first,
+                )
+
+            def recover(_url: str) -> bytes:
+                nonlocal calls
+                calls += 1
+                return airport_payload()
+
+            result = timezone_catalog.load_airport_timezones(
+                runtime_cache_dir=runtime_dir,
+                bundled_catalog_path=bundled,
+                fetch_source=recover,
+                now=first + timedelta(days=1),
+            )
+
+            self.assertEqual(calls, 2)
+            self.assertEqual(result["SVO"], "Europe/Moscow")
+
+    def test_fresh_state_throttles_when_bundled_fallback_is_valid(self) -> None:
+        with TemporaryDirectory(prefix="timezone-recovery.") as tmp:
+            runtime_dir = Path(tmp) / "cache"
+            bundled = Path(tmp) / "bundled.json"
+            now = datetime(2026, 1, 2, tzinfo=UTC)
+            write_state(runtime_dir, now - timedelta(days=1))
+            write_catalog(bundled)
+            calls = 0
+
+            def unexpected(_url: str) -> bytes:
+                nonlocal calls
+                calls += 1
+                raise AssertionError("network must be suppressed")
+
+            result = timezone_catalog.load_airport_timezones(
+                runtime_cache_dir=runtime_dir,
+                bundled_catalog_path=bundled,
+                fetch_source=unexpected,
+                now=now,
+            )
+
+            self.assertEqual(calls, 0)
+            self.assertEqual(result, {"SVO": "Europe/Moscow"})
+
+    def test_fresh_state_uses_valid_cache_when_bundled_is_corrupt(self) -> None:
+        with TemporaryDirectory(prefix="timezone-recovery.") as tmp:
+            runtime_dir = Path(tmp) / "cache"
+            cache = runtime_dir / timezone_catalog.RUNTIME_CACHE_FILENAME
+            bundled = Path(tmp) / "bundled.json"
+            now = datetime(2026, 1, 2, tzinfo=UTC)
+            write_state(runtime_dir, now - timedelta(days=1))
+            write_catalog(cache, timezone_value="Asia/Yekaterinburg")
+            bundled.write_bytes(b"not-json")
+            calls = 0
+
+            def unexpected(_url: str) -> bytes:
+                nonlocal calls
+                calls += 1
+                raise AssertionError("network must be suppressed")
+
+            result = timezone_catalog.load_airport_timezones(
+                runtime_cache_dir=runtime_dir,
+                bundled_catalog_path=bundled,
+                fetch_source=unexpected,
+                now=now,
+            )
+
+            self.assertEqual(calls, 0)
+            self.assertEqual(result, {"SVO": "Asia/Yekaterinburg"})
 
 
 if __name__ == "__main__":
