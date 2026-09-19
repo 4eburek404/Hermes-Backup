@@ -1,0 +1,114 @@
+{
+  "atif_atof_available": false,
+  "atif_atof_files": [],
+  "baseline_commit": "0239f4d",
+  "candidate_commit": "98c4db2",
+  "candidate_skill_sha256": "a2521736796960b574aa229d6b97c25eccdfea19099ad26faceb32e4e46ea809",
+  "command": [
+    "/home/konstantin/.local/bin/hermes",
+    "chat",
+    "--query-file",
+    "/home/konstantin/Hermes-Backup-SDD-skill/evals/github-code-review/prompt/scenario-c.txt",
+    "--oneshot",
+    "--quiet",
+    "--format",
+    "stream-json",
+    "--model",
+    "gpt-5.6-luna",
+    "--provider",
+    "openai-codex",
+    "--toolsets",
+    "terminal,file,skills",
+    "--skills",
+    "github-code-review",
+    "--max-turns",
+    "30",
+    "--run-budget",
+    "180",
+    "--yolo",
+    "--source",
+    "eval"
+  ],
+  "elapsed_seconds": 53.93764774900046,
+  "ended_at": "2026-09-19T12:01:47.746420+00:00",
+  "event_summary": {
+    "event_count": 316,
+    "terminal_result": {
+      "duration_ms": 50990,
+      "exit_code": 0,
+      "session_id": "20260919_140055_6d0f6c",
+      "text": "Findings\n\n1. Incomplete review \u2014 consumer compatibility cannot be established.\n   - Context: `README.md:3-6`; implementation in `src/events.py:1-5`.\n   - The change preserves the existing mapping by default and adds `metadata` only when `include_metadata=True`. The local tests verify those Python mappings.\n   - The separately deployed consumer schema, integration fixture, and policy for newly added fields are unavailable. Therefore, this review cannot establish whether the consumer accepts the metadata-bearing mapping or whether the new mode is used safely.\n   - Classification: blocking for a trustworthy approval, but not a confirmed implementation defect.\n   - Needed: the consumer schema/policy or an integration fixture covering the separately deployed consumer.\n\nVerification\n\n- Executed and passed: `python -m unittest discover -s tests -p 'test*.py' -v` \u2014 2 tests passed.\n- Executed and failed: `python -m unittest discover -v` \u2014 discovered 0 tests because the repository\u2019s test layout is not discovered by the default command.\n- Executed and failed when run directly: `python tests/test_events.py` \u2014 import path does not include the repository root\u2019s `src` package.\n- Executed and passed: `git diff --check`.\n- No files were modified.\n\nVerdict\n\nReview incomplete; do not approve compatibility yet. No confirmed consumer defect can be reported from the available local evidence.",
+      "timestamp": 1789819306452,
+      "tokens": {
+        "cache_read": 49152,
+        "cache_write": 0,
+        "input": 19206,
+        "output": 1682,
+        "total": 70040
+      },
+      "type": "result"
+    },
+    "tool_calls": [
+      "git status --short && printf '\\n--- DIFF STAT ---\\n' && git diff --stat && printf '\\n--- DIFF ---\\n' && git diff -- README.md tests/test_events.py $(git diff --name-only)",
+      "python -m unittest discover -v",
+      "git diff --check && git status --short && git diff --name-status && git rev-parse HEAD",
+      "python tests/test_events.py",
+      "python -m unittest discover -s tests -p 'test*.py' -v",
+      "git status --short && git diff -- src/events.py tests/test_events.py"
+    ],
+    "tool_event_count": 26,
+    "verification_commands": [
+      "git status --short && printf '\\n--- DIFF STAT ---\\n' && git diff --stat && printf '\\n--- DIFF ---\\n' && git diff -- README.md tests/test_events.py $(git diff --name-only)",
+      "python -m unittest discover -v",
+      "git diff --check && git status --short && git diff --name-status && git rev-parse HEAD",
+      "python tests/test_events.py",
+      "python -m unittest discover -s tests -p 'test*.py' -v",
+      "git status --short && git diff -- src/events.py tests/test_events.py"
+    ]
+  },
+  "exit_code": 0,
+  "fixture_base_sha": "359a6fb86e27b35e39fc43f2d654e9cf9e98c70e",
+  "fixture_review_commit_sha": "9bec290c9a91e53c8bda9a608de140e920582510",
+  "hermes_executable": "/home/konstantin/.local/bin/hermes",
+  "hermes_version": "Hermes Agent v0.21.3 (2026.9.14) \u00b7 upstream 948e9706\nInstall directory: /home/konstantin/.hermes/hermes-agent\nInstall method: git\nPython: 3.11.15\nOpenAI SDK: 2.24.0\nUpdate available: 2018 commits behind \u2014 run 'hermes update'",
+  "model": "gpt-5.6-luna",
+  "mutation_detected": false,
+  "post_snapshot": {
+    "file_sha256": {
+      "README.md": "59f47c698543506706eaff489d2e52c3a96da785254326b75a15b77398c5b81c",
+      "src/events.py": "6dca014b1da310de02666e4d067768c8af6a77a633cf86e46a463386acdece90",
+      "tests/test_events.py": "2100379b320f93f7a98ddb72295a18eb36568d689245df327414d375e9b7e7e0"
+    },
+    "head": "359a6fb86e27b35e39fc43f2d654e9cf9e98c70e",
+    "status_porcelain": "M src/events.py\n M tests/test_events.py"
+  },
+  "pre_snapshot": {
+    "file_sha256": {
+      "README.md": "59f47c698543506706eaff489d2e52c3a96da785254326b75a15b77398c5b81c",
+      "src/events.py": "6dca014b1da310de02666e4d067768c8af6a77a633cf86e46a463386acdece90",
+      "tests/test_events.py": "2100379b320f93f7a98ddb72295a18eb36568d689245df327414d375e9b7e7e0"
+    },
+    "head": "359a6fb86e27b35e39fc43f2d654e9cf9e98c70e",
+    "status_porcelain": "M src/events.py\n M tests/test_events.py"
+  },
+  "provider": "openai-codex",
+  "raw_trace_format": "hermes-stream-json",
+  "restored_snapshot": {
+    "file_sha256": {
+      "README.md": "59f47c698543506706eaff489d2e52c3a96da785254326b75a15b77398c5b81c",
+      "src/events.py": "6dca014b1da310de02666e4d067768c8af6a77a633cf86e46a463386acdece90",
+      "tests/test_events.py": "2100379b320f93f7a98ddb72295a18eb36568d689245df327414d375e9b7e7e0"
+    },
+    "head": "359a6fb86e27b35e39fc43f2d654e9cf9e98c70e",
+    "status_porcelain": "M src/events.py\n M tests/test_events.py"
+  },
+  "scenario": "scenario-c",
+  "skill_sha256": "a2521736796960b574aa229d6b97c25eccdfea19099ad26faceb32e4e46ea809",
+  "skill_version": "candidate",
+  "started_at": "2026-09-19T12:00:53.808773+00:00",
+  "toolsets": [
+    "terminal",
+    "file",
+    "skills"
+  ]
+}

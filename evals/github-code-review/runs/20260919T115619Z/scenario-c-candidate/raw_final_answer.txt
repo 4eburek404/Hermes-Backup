@@ -1,0 +1,20 @@
+Findings
+
+1. Incomplete review — consumer compatibility cannot be established.
+   - Context: `README.md:3-6`; implementation in `src/events.py:1-5`.
+   - The change preserves the existing mapping by default and adds `metadata` only when `include_metadata=True`. The local tests verify those Python mappings.
+   - The separately deployed consumer schema, integration fixture, and policy for newly added fields are unavailable. Therefore, this review cannot establish whether the consumer accepts the metadata-bearing mapping or whether the new mode is used safely.
+   - Classification: blocking for a trustworthy approval, but not a confirmed implementation defect.
+   - Needed: the consumer schema/policy or an integration fixture covering the separately deployed consumer.
+
+Verification
+
+- Executed and passed: `python -m unittest discover -s tests -p 'test*.py' -v` — 2 tests passed.
+- Executed and failed: `python -m unittest discover -v` — discovered 0 tests because the repository’s test layout is not discovered by the default command.
+- Executed and failed when run directly: `python tests/test_events.py` — import path does not include the repository root’s `src` package.
+- Executed and passed: `git diff --check`.
+- No files were modified.
+
+Verdict
+
+Review incomplete; do not approve compatibility yet. No confirmed consumer defect can be reported from the available local evidence.

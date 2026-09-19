@@ -1,0 +1,22 @@
+Findings
+
+1. Blocking — `src/allocation.py:2-4`
+   The validation allows `buckets == 0` because it checks `buckets < 0` instead of rejecting non-positive counts. `allocate(1, 0)` raises `ZeroDivisionError`, violating the required `ValueError` contract. Restore validation for all `buckets <= 0` inputs.
+
+2. Blocking — `src/allocation.py:4`
+   The implementation discards remainder cents by returning only the quotient. For example, `allocate(10, 3)` returns `[3, 3, 3]` instead of `[4, 3, 3]`, and the shares sum to 9 rather than `total_cents`. The remainder must be assigned one each to the leading shares.
+
+Verification
+
+- Explicit unittest run: failed — 1 failure and 1 error, covering both findings.
+- Direct behavior probes confirmed:
+  - `allocate(10, 3)` → `[3, 3, 3]`
+  - `allocate(1, 0)` → `ZeroDivisionError`
+  - Negative inputs still raise `ValueError`.
+- `git diff --check`: passed.
+- `python -m unittest discover -v`: ran 0 tests because the repository’s tests are not discovered by default.
+- `pytest -q tests/test_allocation.py`: collection failed due to `src` import-path configuration; the explicit unittest invocation provided executable evidence.
+
+Verdict
+
+Request changes. The current change violates two required public-contract behaviors. No implementation was modified.

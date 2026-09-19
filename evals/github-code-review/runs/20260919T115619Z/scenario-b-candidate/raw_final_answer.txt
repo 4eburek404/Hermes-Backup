@@ -1,0 +1,18 @@
+Findings
+
+No material findings. The implementation:
+- strips surrounding whitespace and removes blank labels;
+- preserves input order by default;
+- sorts cleaned labels case-insensitively when `sort=True`;
+- returns the expected comma-separated string for empty and mixed-case inputs.
+
+Verification
+
+- `python -m unittest -v tests/test_labels.py`: 3 tests passed.
+- Additional manual cases for default order, sorting, empty input, and whitespace-only input passed.
+- `git diff --check`: passed.
+- Generic `unittest discover` collected 0 tests, so the direct test-module result is the applicable evidence.
+
+Verdict
+
+No material findings; approve. Review was not published.

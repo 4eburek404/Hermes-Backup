@@ -1,0 +1,120 @@
+{
+  "atif_atof_available": false,
+  "atif_atof_files": [],
+  "baseline_commit": "0239f4d",
+  "candidate_commit": "98c4db2",
+  "candidate_skill_sha256": "a2521736796960b574aa229d6b97c25eccdfea19099ad26faceb32e4e46ea809",
+  "command": [
+    "/home/konstantin/.local/bin/hermes",
+    "chat",
+    "--query-file",
+    "/home/konstantin/Hermes-Backup-SDD-skill/evals/github-code-review/prompt/scenario-b.txt",
+    "--oneshot",
+    "--quiet",
+    "--format",
+    "stream-json",
+    "--model",
+    "gpt-5.6-luna",
+    "--provider",
+    "openai-codex",
+    "--toolsets",
+    "terminal,file,skills",
+    "--skills",
+    "github-code-review",
+    "--max-turns",
+    "30",
+    "--run-budget",
+    "180",
+    "--yolo",
+    "--source",
+    "eval"
+  ],
+  "elapsed_seconds": 58.3233973489987,
+  "ended_at": "2026-09-19T11:58:06.265528+00:00",
+  "event_summary": {
+    "event_count": 225,
+    "terminal_result": {
+      "duration_ms": 55620,
+      "exit_code": 0,
+      "session_id": "20260919_135709_775472",
+      "text": "## Code Review Summary\n\nVerdict: Approve\n\n### Critical\n- None.\n\n### Warnings\n- None.\n\n### Suggestions\n- None required for the target behavior.\n\n### Looks Good\n- `src/labels.py:1-5` removes blank labels, strips whitespace, preserves order by default, and conditionally sorts using `str.casefold`.\n- `tests/test_labels.py:7-14` covers default ordering, case-insensitive sorting, and empty output.\n- The implementation returns the expected comma-separated string for empty and mixed-case inputs.\n\nVerification:\n- `PYTHONPATH=. pytest -q` \u2014 3 passed.\n- `PYTHONPATH=. python tests/test_labels.py -v` \u2014 3 passed.\n- `git diff --check` \u2014 clean.\n\nNote: test commands without `PYTHONPATH=.` fail because the repository\u2019s existing `src` import setup is not automatically discoverable; the change itself does not introduce that issue.",
+      "timestamp": 1789819085045,
+      "tokens": {
+        "cache_read": 42496,
+        "cache_write": 0,
+        "input": 35331,
+        "output": 1889,
+        "total": 79716
+      },
+      "type": "result"
+    },
+    "tool_calls": [
+      "git status --short && git diff --stat && git diff",
+      "python -m unittest discover -v && python - <<'PY'\nfrom src.labels import format_labels\ncases = [\n    ([], False),\n    ([\" \", \"\\t\", \"Alpha\"], False),\n    ([\" beta \", \"Alpha\", \"charlie\"], True),\n    ([\"Zoo\", \"apple\", \"BANANA\"], True),\n]\nfor labels, sort in cases:\n    print(labels, sort, '=>', repr(format_labels(labels, sort=sort)))\nPY",
+      "git diff --check && git status --short",
+      "python tests/test_labels.py -v",
+      "if command -v pytest >/dev/null 2>&1; then pytest -q; else echo 'pytest not installed'; fi",
+      "git diff --unified=80 -- src/labels.py tests/test_labels.py && git diff --check",
+      "PYTHONPATH=. python tests/test_labels.py -v",
+      "PYTHONPATH=. pytest -q",
+      "git status --short && git diff --name-only"
+    ],
+    "tool_event_count": 28,
+    "verification_commands": [
+      "git status --short && git diff --stat && git diff",
+      "python -m unittest discover -v && python - <<'PY'\nfrom src.labels import format_labels\ncases = [\n    ([], False),\n    ([\" \", \"\\t\", \"Alpha\"], False),\n    ([\" beta \", \"Alpha\", \"charlie\"], True),\n    ([\"Zoo\", \"apple\", \"BANANA\"], True),\n]\nfor labels, sort in cases:\n    print(labels, sort, '=>', repr(format_labels(labels, sort=sort)))\nPY",
+      "git diff --check && git status --short",
+      "python tests/test_labels.py -v",
+      "if command -v pytest >/dev/null 2>&1; then pytest -q; else echo 'pytest not installed'; fi",
+      "git diff --unified=80 -- src/labels.py tests/test_labels.py && git diff --check",
+      "PYTHONPATH=. python tests/test_labels.py -v",
+      "PYTHONPATH=. pytest -q",
+      "git status --short && git diff --name-only"
+    ]
+  },
+  "exit_code": 0,
+  "fixture_base_sha": "459d3911bd84207986c7cb0e1afe9d371b7c26c1",
+  "fixture_review_commit_sha": "f3851db6df6543a46e67c23a6fa0f0da100474cc",
+  "hermes_executable": "/home/konstantin/.local/bin/hermes",
+  "hermes_version": "Hermes Agent v0.21.3 (2026.9.14) \u00b7 upstream 948e9706\nInstall directory: /home/konstantin/.hermes/hermes-agent\nInstall method: git\nPython: 3.11.15\nOpenAI SDK: 2.24.0\nUpdate available: 2018 commits behind \u2014 run 'hermes update'",
+  "model": "gpt-5.6-luna",
+  "mutation_detected": false,
+  "post_snapshot": {
+    "file_sha256": {
+      "README.md": "9de44d664d88794932bf45ea89e044d4b11c688944ca0363fec56c5eb6d44295",
+      "src/labels.py": "694295a28a7012969c117e2c172b33f4b3495f19b7923d815f724d200e5c6b51",
+      "tests/test_labels.py": "b99c5c6f45c7d1e923837b77ca04048db518b4b5e708ba91f97ec1a5ab015607"
+    },
+    "head": "459d3911bd84207986c7cb0e1afe9d371b7c26c1",
+    "status_porcelain": "M src/labels.py\n M tests/test_labels.py"
+  },
+  "pre_snapshot": {
+    "file_sha256": {
+      "README.md": "9de44d664d88794932bf45ea89e044d4b11c688944ca0363fec56c5eb6d44295",
+      "src/labels.py": "694295a28a7012969c117e2c172b33f4b3495f19b7923d815f724d200e5c6b51",
+      "tests/test_labels.py": "b99c5c6f45c7d1e923837b77ca04048db518b4b5e708ba91f97ec1a5ab015607"
+    },
+    "head": "459d3911bd84207986c7cb0e1afe9d371b7c26c1",
+    "status_porcelain": "M src/labels.py\n M tests/test_labels.py"
+  },
+  "provider": "openai-codex",
+  "raw_trace_format": "hermes-stream-json",
+  "restored_snapshot": {
+    "file_sha256": {
+      "README.md": "9de44d664d88794932bf45ea89e044d4b11c688944ca0363fec56c5eb6d44295",
+      "src/labels.py": "694295a28a7012969c117e2c172b33f4b3495f19b7923d815f724d200e5c6b51",
+      "tests/test_labels.py": "b99c5c6f45c7d1e923837b77ca04048db518b4b5e708ba91f97ec1a5ab015607"
+    },
+    "head": "459d3911bd84207986c7cb0e1afe9d371b7c26c1",
+    "status_porcelain": "M src/labels.py\n M tests/test_labels.py"
+  },
+  "scenario": "scenario-b",
+  "skill_sha256": "012786e73250043c702144c6d2dcc7a636c86d908c329eb6988f3601fc2536df",
+  "skill_version": "baseline",
+  "started_at": "2026-09-19T11:57:07.942135+00:00",
+  "toolsets": [
+    "terminal",
+    "file",
+    "skills"
+  ]
+}

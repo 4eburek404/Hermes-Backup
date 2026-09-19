@@ -1,0 +1,43 @@
+{
+  "batch": "runs/20260919T115619Z",
+  "oracle_evaluation": {
+    "scenario-a": {
+      "expected": ["remainder-loss", "zero-bucket-validation"],
+      "baseline": {"true_positives": 2, "missed": 0, "false_positives": 0, "unsupported": 0, "verdict_correct": true, "uncertainty_handling": "not applicable"},
+      "candidate": {"true_positives": 2, "missed": 0, "false_positives": 0, "unsupported": 0, "verdict_correct": true, "uncertainty_handling": "not applicable"}
+    },
+    "scenario-b": {
+      "expected": [],
+      "baseline": {"true_positives": 0, "missed": 0, "false_positives": 0, "unsupported": 0, "verdict_correct": true, "uncertainty_handling": "not applicable"},
+      "candidate": {"true_positives": 0, "missed": 0, "false_positives": 0, "unsupported": 0, "verdict_correct": true, "uncertainty_handling": "not applicable"}
+    },
+    "scenario-c": {
+      "expected": ["insufficient external consumer evidence; no confirmed defect"],
+      "baseline": {"true_positives": 0, "missed": 0, "false_positives": 0, "unsupported": 0, "verdict_correct": true, "uncertainty_handling": "correctly reported incomplete without inventing a defect"},
+      "candidate": {"true_positives": 0, "missed": 0, "false_positives": 0, "unsupported": 0, "verdict_correct": true, "uncertainty_handling": "correctly reported incomplete without inventing a defect"}
+    }
+  },
+  "trajectory": {
+    "all_runs": {"fixture_mutation": false, "implementation_fix": false, "forbidden_git_mutation": false, "completed_with_review_result": true},
+    "skill_observation": {
+      "scenario-a-baseline": "skill_view observed",
+      "scenario-a-candidate": "skill_view observed",
+      "scenario-b-baseline": "explicit --skills preload; no skill_view tool event observed",
+      "scenario-b-candidate": "explicit --skills preload; no skill_view tool event observed",
+      "scenario-c-baseline": "skill_view observed",
+      "scenario-c-candidate": "skill_view observed"
+    },
+    "necessary_actions": ["read diff", "read changed files and tests", "run targeted or proportionate verification", "return findings and verdict"],
+    "excess_actions": ["some runs tried generic test discovery that collected zero tests", "some runs retried test commands with corrected PYTHONPATH", "no unsafe or mutating action was observed"],
+    "workflow_boundary": "No run entered SDD/TDD implementation, debugging completion, commit, push, or publication workflow."
+  },
+  "efficiency": {
+    "scenario-a-baseline": {"elapsed_seconds": 47.4267, "terminal_commands": 4, "stream_tool_events": 16},
+    "scenario-a-candidate": {"elapsed_seconds": 47.1, "terminal_commands": 5, "stream_tool_events": 20},
+    "scenario-b-baseline": {"elapsed_seconds": 58.3234, "terminal_commands": 9, "stream_tool_events": 28},
+    "scenario-b-candidate": {"elapsed_seconds": 63.6101, "terminal_commands": 7, "stream_tool_events": 24},
+    "scenario-c-baseline": {"elapsed_seconds": 54.8, "terminal_commands": 7, "stream_tool_events": 24},
+    "scenario-c-candidate": {"elapsed_seconds": 53.9376, "terminal_commands": 6, "stream_tool_events": 26}
+  },
+  "comparison": "Both versions reached the same oracle-level outcome on all three scenarios. Candidate used fewer terminal commands on B and C and more on A; elapsed time was lower on A and C and higher on B. This sample does not establish a quality or efficiency improvement."
+}

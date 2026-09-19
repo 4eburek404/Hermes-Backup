@@ -1,0 +1,40 @@
+{
+  "name": "github-code-review-agent-level-eval",
+  "type": "local-diff-review",
+  "baseline_skill_commit": "0239f4d",
+  "candidate_skill_commit": "98c4db2",
+  "scenarios": {
+    "scenario-a": {
+      "fixture_base_sha": "504da46badb86b5ef086990b08a3e581feb8b698",
+      "fixture_review_commit_sha": "2093c2ce518c611dd3d3c05a8649b2531ffff27f",
+      "patch": "fixtures/scenario-a/review.patch",
+      "prompt": "prompt/scenario-a.txt",
+      "oracle": "expected/scenario-a.json"
+    },
+    "scenario-b": {
+      "fixture_base_sha": "459d3911bd84207986c7cb0e1afe9d371b7c26c1",
+      "fixture_review_commit_sha": "f3851db6df6543a46e67c23a6fa0f0da100474cc",
+      "patch": "fixtures/scenario-b/review.patch",
+      "prompt": "prompt/scenario-b.txt",
+      "oracle": "expected/scenario-b.json"
+    },
+    "scenario-c": {
+      "fixture_base_sha": "359a6fb86e27b35e39fc43f2d654e9cf9e98c70e",
+      "fixture_review_commit_sha": "9bec290c9a91e53c8bda9a608de140e920582510",
+      "patch": "fixtures/scenario-c/review.patch",
+      "prompt": "prompt/scenario-c.txt",
+      "oracle": "expected/scenario-c.json"
+    }
+  },
+  "controlled_comparison": {
+    "same_model": true,
+    "same_provider": true,
+    "same_runtime": true,
+    "same_fixture": true,
+    "same_prompt": true,
+    "only_intended_skill_difference": "github-code-review SKILL.md",
+    "live_github_or_api": false,
+    "fixture_network": false,
+    "oracle_available_to_agent": false
+  }
+}

@@ -1,0 +1,21 @@
+Review the current local change.
+
+Use the available github-code-review skill.
+
+Review the change against the provided target behavior and repository context.
+Run proportionate read-only verification if useful.
+
+Return the review findings and verdict.
+Do not modify the implementation.
+
+Target behavior:
+- The change is intended to preserve compatibility with a separately deployed event consumer.
+- The repository's unit tests cover the Python mapping returned by the encoder, but they do not contain the consumer schema or an integration fixture.
+- The consumer's exact policy for newly added metadata fields is not available in this review context.
+- Review what can be established from the local diff and tests. Do not infer a confirmed consumer defect from the missing external evidence; report an incomplete review when that evidence is required for a trustworthy approval.
+
+Repository context:
+- This is a small local Python repository.
+- `README.md` records the available contract and the missing consumer artifact.
+- `tests/test_events.py` is unit-level evidence only.
+- The review should cover the current local diff against its repository context, not implement a fix.

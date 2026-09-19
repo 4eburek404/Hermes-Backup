@@ -1,0 +1,24 @@
+## Code Review Summary
+
+### Critical
+
+- `src/allocation.py:2` — Zero bucket counts are not rejected. The condition uses `buckets < 0`, so `allocate(1, 0)` reaches the division and raises `ZeroDivisionError` instead of the required `ValueError`. Use a non-positive check.
+- `src/allocation.py:4` — Remainder cents are discarded. `allocate(10, 3)` returns `[3, 3, 3]`, summing to 9 rather than 10, and does not produce the required `[4, 3, 3]`.
+
+### Warnings
+
+- The changed implementation fails the repository’s executable tests:
+  - `test_remainder_is_distributed_from_the_front` fails.
+  - `test_invalid_inputs_raise_value_error` errors for `(1, 0)`.
+- `python -m unittest discover` finds no tests in this repository; running the provided test file with `PYTHONPATH=.` executes the intended tests.
+
+### Suggestions
+
+None beyond correcting the two contract violations.
+
+### Looks Good
+
+- Negative totals and negative bucket counts continue to raise `ValueError`.
+- The implementation remains small and returns integer shares for positive bucket counts.
+
+Verdict: Request changes.

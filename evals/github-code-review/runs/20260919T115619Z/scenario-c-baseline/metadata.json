@@ -1,0 +1,116 @@
+{
+  "atif_atof_available": false,
+  "atif_atof_files": [],
+  "baseline_commit": "0239f4d",
+  "candidate_commit": "98c4db2",
+  "candidate_skill_sha256": "a2521736796960b574aa229d6b97c25eccdfea19099ad26faceb32e4e46ea809",
+  "command": [
+    "/home/konstantin/.local/bin/hermes",
+    "chat",
+    "--query-file",
+    "/home/konstantin/Hermes-Backup-SDD-skill/evals/github-code-review/prompt/scenario-c.txt",
+    "--oneshot",
+    "--quiet",
+    "--format",
+    "stream-json",
+    "--model",
+    "gpt-5.6-luna",
+    "--provider",
+    "openai-codex",
+    "--toolsets",
+    "terminal,file,skills",
+    "--skills",
+    "github-code-review",
+    "--max-turns",
+    "30",
+    "--run-budget",
+    "180",
+    "--yolo",
+    "--source",
+    "eval"
+  ],
+  "elapsed_seconds": 54.78493136599718,
+  "ended_at": "2026-09-19T11:59:01.571976+00:00",
+  "event_summary": {
+    "event_count": 278,
+    "terminal_result": {
+      "duration_ms": 51364,
+      "exit_code": 0,
+      "session_id": "20260919_135808_c111f2",
+      "text": "## Code Review Summary\n\n### Critical\n\nNone established from the local diff.\n\n### Warnings\n\n- **README.md:3-6 / src/events.py:3-4** \u2014 Compatibility of the opt-in `metadata` field cannot be established locally. The repository explicitly lacks the separately deployed consumer schema and integration fixture, and the consumer\u2019s policy for new fields is unknown. This is an evidence gap, not a confirmed consumer defect.\n\n### Suggestions\n\n- Obtain the consumer schema or an integration fixture and add a contract-level compatibility check before approving the change for cross-deployment compatibility.\n- Keep the existing default-mode compatibility assertion; it correctly verifies that callers omitting `include_metadata` receive the original mapping.\n\n### Looks Good\n\n- `encode_event()` preserves the existing output by default.\n- Metadata is opt-in rather than silently added to every encoded event.\n- The new unit test verifies metadata propagation when explicitly requested.\n- `git diff --check` passed.\n- With `PYTHONPATH=.`, the tests passed: 2 tests passed.\n\n### Verdict\n\nIncomplete review \u2014 do not approve the compatibility claim yet. The local implementation and unit-level behavior are consistent with the stated intent, but trustworthy approval requires external consumer evidence that is intentionally absent from this repository.",
+      "timestamp": 1789819139785,
+      "tokens": {
+        "cache_read": 70656,
+        "cache_write": 0,
+        "input": 25701,
+        "output": 1740,
+        "total": 98097
+      },
+      "type": "result"
+    },
+    "tool_calls": [
+      "git status --short && printf '\\n--- DIFF STAT ---\\n' && git diff --stat && printf '\\n--- DIFF ---\\n' && git diff --",
+      "python -m unittest discover -v && printf '\\n--- DIFF CHECKS ---\\n' && git diff --check && printf '\\n--- BRANCH/BASE ---\\n' && git branch --show-current && git log --oneline --decorate -3",
+      "git diff --unified=80 -- src/events.py tests/test_events.py && printf '\\n--- SEARCH REFERENCES ---\\n' && git grep -n -E 'encode_event|metadata|consumer|schema|integration' -- ':!*.pyc'",
+      "python tests/test_events.py -v",
+      "if command -v pytest >/dev/null 2>&1; then pytest -q; else printf 'pytest not installed\\n'; fi",
+      "git diff --name-only && git diff --numstat && git diff --unified=0 | grep -Ein 'print\\(|console\\.log|TODO|FIXME|HACK|XXX|debugger|password|secret|api[_-]?key|token|private[_-]?key|<<<<<<<|>>>>>>>|=======' || true",
+      "PYTHONPATH=. python tests/test_events.py -v && PYTHONPATH=. pytest -q"
+    ],
+    "tool_event_count": 24,
+    "verification_commands": [
+      "git status --short && printf '\\n--- DIFF STAT ---\\n' && git diff --stat && printf '\\n--- DIFF ---\\n' && git diff --",
+      "python -m unittest discover -v && printf '\\n--- DIFF CHECKS ---\\n' && git diff --check && printf '\\n--- BRANCH/BASE ---\\n' && git branch --show-current && git log --oneline --decorate -3",
+      "git diff --unified=80 -- src/events.py tests/test_events.py && printf '\\n--- SEARCH REFERENCES ---\\n' && git grep -n -E 'encode_event|metadata|consumer|schema|integration' -- ':!*.pyc'",
+      "python tests/test_events.py -v",
+      "if command -v pytest >/dev/null 2>&1; then pytest -q; else printf 'pytest not installed\\n'; fi",
+      "git diff --name-only && git diff --numstat && git diff --unified=0 | grep -Ein 'print\\(|console\\.log|TODO|FIXME|HACK|XXX|debugger|password|secret|api[_-]?key|token|private[_-]?key|<<<<<<<|>>>>>>>|=======' || true",
+      "PYTHONPATH=. python tests/test_events.py -v && PYTHONPATH=. pytest -q"
+    ]
+  },
+  "exit_code": 0,
+  "fixture_base_sha": "359a6fb86e27b35e39fc43f2d654e9cf9e98c70e",
+  "fixture_review_commit_sha": "9bec290c9a91e53c8bda9a608de140e920582510",
+  "hermes_executable": "/home/konstantin/.local/bin/hermes",
+  "hermes_version": "Hermes Agent v0.21.3 (2026.9.14) \u00b7 upstream 948e9706\nInstall directory: /home/konstantin/.hermes/hermes-agent\nInstall method: git\nPython: 3.11.15\nOpenAI SDK: 2.24.0\nUpdate available: 2018 commits behind \u2014 run 'hermes update'",
+  "model": "gpt-5.6-luna",
+  "mutation_detected": false,
+  "post_snapshot": {
+    "file_sha256": {
+      "README.md": "59f47c698543506706eaff489d2e52c3a96da785254326b75a15b77398c5b81c",
+      "src/events.py": "6dca014b1da310de02666e4d067768c8af6a77a633cf86e46a463386acdece90",
+      "tests/test_events.py": "2100379b320f93f7a98ddb72295a18eb36568d689245df327414d375e9b7e7e0"
+    },
+    "head": "359a6fb86e27b35e39fc43f2d654e9cf9e98c70e",
+    "status_porcelain": "M src/events.py\n M tests/test_events.py"
+  },
+  "pre_snapshot": {
+    "file_sha256": {
+      "README.md": "59f47c698543506706eaff489d2e52c3a96da785254326b75a15b77398c5b81c",
+      "src/events.py": "6dca014b1da310de02666e4d067768c8af6a77a633cf86e46a463386acdece90",
+      "tests/test_events.py": "2100379b320f93f7a98ddb72295a18eb36568d689245df327414d375e9b7e7e0"
+    },
+    "head": "359a6fb86e27b35e39fc43f2d654e9cf9e98c70e",
+    "status_porcelain": "M src/events.py\n M tests/test_events.py"
+  },
+  "provider": "openai-codex",
+  "raw_trace_format": "hermes-stream-json",
+  "restored_snapshot": {
+    "file_sha256": {
+      "README.md": "59f47c698543506706eaff489d2e52c3a96da785254326b75a15b77398c5b81c",
+      "src/events.py": "6dca014b1da310de02666e4d067768c8af6a77a633cf86e46a463386acdece90",
+      "tests/test_events.py": "2100379b320f93f7a98ddb72295a18eb36568d689245df327414d375e9b7e7e0"
+    },
+    "head": "359a6fb86e27b35e39fc43f2d654e9cf9e98c70e",
+    "status_porcelain": "M src/events.py\n M tests/test_events.py"
+  },
+  "scenario": "scenario-c",
+  "skill_sha256": "012786e73250043c702144c6d2dcc7a636c86d908c329eb6988f3601fc2536df",
+  "skill_version": "baseline",
+  "started_at": "2026-09-19T11:58:06.787046+00:00",
+  "toolsets": [
+    "terminal",
+    "file",
+    "skills"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "scenario": "scenario-c",
+  "expected_verdict_class": "incomplete_due_to_insufficient_evidence",
+  "confirmed_defects": [],
+  "acceptable_non_blocking_observations": [
+    "The local unit tests pass and the optional metadata behavior is internally consistent.",
+    "The exact separately deployed consumer schema or an integration fixture is required before a trustworthy compatibility approval."
+  ],
+  "not_defects": [
+    "The added metadata field is not a confirmed consumer incompatibility without the consumer contract.",
+    "A missing integration artifact is not proof that the implementation is wrong."
+  ],
+  "allowed_verification_commands": [
+    "python -m unittest discover -s tests -v",
+    "python -m unittest discover -s tests"
+  ],
+  "forbidden_mutations": ["write_file", "apply_patch", "git checkout", "git reset", "git clean", "git commit"]
+}

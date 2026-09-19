@@ -1,0 +1,112 @@
+{
+  "atif_atof_available": false,
+  "atif_atof_files": [],
+  "baseline_commit": "0239f4d",
+  "candidate_commit": "98c4db2",
+  "candidate_skill_sha256": "a2521736796960b574aa229d6b97c25eccdfea19099ad26faceb32e4e46ea809",
+  "command": [
+    "/home/konstantin/.local/bin/hermes",
+    "chat",
+    "--query-file",
+    "/home/konstantin/Hermes-Backup-SDD-skill/evals/github-code-review/prompt/scenario-a.txt",
+    "--oneshot",
+    "--quiet",
+    "--format",
+    "stream-json",
+    "--model",
+    "gpt-5.6-luna",
+    "--provider",
+    "openai-codex",
+    "--toolsets",
+    "terminal,file,skills",
+    "--skills",
+    "github-code-review",
+    "--max-turns",
+    "30",
+    "--run-budget",
+    "180",
+    "--yolo",
+    "--source",
+    "eval"
+  ],
+  "elapsed_seconds": 47.08119181499933,
+  "ended_at": "2026-09-19T11:59:49.183067+00:00",
+  "event_summary": {
+    "event_count": 268,
+    "terminal_result": {
+      "duration_ms": 44011,
+      "exit_code": 0,
+      "session_id": "20260919_135903_c3fb21",
+      "text": "Findings\n\n1. Blocking \u2014 `src/allocation.py:2`\n   `buckets == 0` is accepted by the guard, then reaches integer division at line 4 and raises `ZeroDivisionError` instead of the required `ValueError`. The guard must reject all non-positive bucket counts.\n\n2. Blocking \u2014 `src/allocation.py:4`\n   The implementation returns equal quotient shares and discards the remainder. For example, `allocate(10, 3)` returns `[3, 3, 3]` with sum `9`, violating both the exact-sum contract and the required `[4, 3, 3]` distribution. Remainder cents must be assigned to the first shares.\n\nVerification\n\n- Reviewed the working-tree diff against `HEAD`/`master`; only `src/allocation.py` is modified.\n- `PYTHONPATH=. pytest -q`: failed, 2 failed and 1 passed.\n  - Remainder distribution test failed.\n  - Zero-bucket validation raised `ZeroDivisionError`.\n- Direct checks confirmed the same failures.\n- No files were modified.\n\nVerdict: blocking problems exist; changes should not be accepted in the current state.",
+      "timestamp": 1789819187810,
+      "tokens": {
+        "cache_read": 21504,
+        "cache_write": 0,
+        "input": 32611,
+        "output": 1368,
+        "total": 55483
+      },
+      "type": "result"
+    },
+    "tool_calls": [
+      "git status --short && git diff --stat && git diff -- README.md tests/test_allocation.py && git diff",
+      "pytest -q",
+      "PYTHONPATH=. pytest -q",
+      "PYTHONPATH=. python - <<'PY'\nfrom src.allocation import allocate\ncases = [(10, 3), (0, 3), (1, 2), (1, 0), (1, -1), (-1, 2)]\nfor case in cases:\n    try:\n        print(case, allocate(*case))\n    except Exception as exc:\n        print(case, type(exc).__name__, str(exc))\nPY",
+      "git status --short && git diff --check && git diff --name-status"
+    ],
+    "tool_event_count": 20,
+    "verification_commands": [
+      "git status --short && git diff --stat && git diff -- README.md tests/test_allocation.py && git diff",
+      "pytest -q",
+      "PYTHONPATH=. pytest -q",
+      "PYTHONPATH=. python - <<'PY'\nfrom src.allocation import allocate\ncases = [(10, 3), (0, 3), (1, 2), (1, 0), (1, -1), (-1, 2)]\nfor case in cases:\n    try:\n        print(case, allocate(*case))\n    except Exception as exc:\n        print(case, type(exc).__name__, str(exc))\nPY",
+      "git status --short && git diff --check && git diff --name-status"
+    ]
+  },
+  "exit_code": 0,
+  "fixture_base_sha": "504da46badb86b5ef086990b08a3e581feb8b698",
+  "fixture_review_commit_sha": "2093c2ce518c611dd3d3c05a8649b2531ffff27f",
+  "hermes_executable": "/home/konstantin/.local/bin/hermes",
+  "hermes_version": "Hermes Agent v0.21.3 (2026.9.14) \u00b7 upstream 948e9706\nInstall directory: /home/konstantin/.hermes/hermes-agent\nInstall method: git\nPython: 3.11.15\nOpenAI SDK: 2.24.0\nUpdate available: 2018 commits behind \u2014 run 'hermes update'",
+  "model": "gpt-5.6-luna",
+  "mutation_detected": false,
+  "post_snapshot": {
+    "file_sha256": {
+      "README.md": "caa4f5bbf35928b4dc24b8c75207f4a63bc046347c2852bab6e36533af38f0e8",
+      "src/allocation.py": "41d789be68785342853327e637fbef6e0a6587c35802d33b5711a9f7d1a98c25",
+      "tests/test_allocation.py": "e291e678ede7d3067da3a42638797291661d7819e72433a2368d8805389a52f7"
+    },
+    "head": "504da46badb86b5ef086990b08a3e581feb8b698",
+    "status_porcelain": "M src/allocation.py"
+  },
+  "pre_snapshot": {
+    "file_sha256": {
+      "README.md": "caa4f5bbf35928b4dc24b8c75207f4a63bc046347c2852bab6e36533af38f0e8",
+      "src/allocation.py": "41d789be68785342853327e637fbef6e0a6587c35802d33b5711a9f7d1a98c25",
+      "tests/test_allocation.py": "e291e678ede7d3067da3a42638797291661d7819e72433a2368d8805389a52f7"
+    },
+    "head": "504da46badb86b5ef086990b08a3e581feb8b698",
+    "status_porcelain": "M src/allocation.py"
+  },
+  "provider": "openai-codex",
+  "raw_trace_format": "hermes-stream-json",
+  "restored_snapshot": {
+    "file_sha256": {
+      "README.md": "caa4f5bbf35928b4dc24b8c75207f4a63bc046347c2852bab6e36533af38f0e8",
+      "src/allocation.py": "41d789be68785342853327e637fbef6e0a6587c35802d33b5711a9f7d1a98c25",
+      "tests/test_allocation.py": "e291e678ede7d3067da3a42638797291661d7819e72433a2368d8805389a52f7"
+    },
+    "head": "504da46badb86b5ef086990b08a3e581feb8b698",
+    "status_porcelain": "M src/allocation.py"
+  },
+  "scenario": "scenario-a",
+  "skill_sha256": "a2521736796960b574aa229d6b97c25eccdfea19099ad26faceb32e4e46ea809",
+  "skill_version": "candidate",
+  "started_at": "2026-09-19T11:59:02.101878+00:00",
+  "toolsets": [
+    "terminal",
+    "file",
+    "skills"
+  ]
+}

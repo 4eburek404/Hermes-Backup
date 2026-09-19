@@ -1,0 +1,18 @@
+Findings
+
+1. Blocking — `src/allocation.py:2`
+   `buckets == 0` is accepted by the guard, then reaches integer division at line 4 and raises `ZeroDivisionError` instead of the required `ValueError`. The guard must reject all non-positive bucket counts.
+
+2. Blocking — `src/allocation.py:4`
+   The implementation returns equal quotient shares and discards the remainder. For example, `allocate(10, 3)` returns `[3, 3, 3]` with sum `9`, violating both the exact-sum contract and the required `[4, 3, 3]` distribution. Remainder cents must be assigned to the first shares.
+
+Verification
+
+- Reviewed the working-tree diff against `HEAD`/`master`; only `src/allocation.py` is modified.
+- `PYTHONPATH=. pytest -q`: failed, 2 failed and 1 passed.
+  - Remainder distribution test failed.
+  - Zero-bucket validation raised `ZeroDivisionError`.
+- Direct checks confirmed the same failures.
+- No files were modified.
+
+Verdict: blocking problems exist; changes should not be accepted in the current state.

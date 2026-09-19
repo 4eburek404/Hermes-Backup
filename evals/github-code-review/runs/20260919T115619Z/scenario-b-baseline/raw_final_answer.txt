@@ -1,0 +1,24 @@
+## Code Review Summary
+
+Verdict: Approve
+
+### Critical
+- None.
+
+### Warnings
+- None.
+
+### Suggestions
+- None required for the target behavior.
+
+### Looks Good
+- `src/labels.py:1-5` removes blank labels, strips whitespace, preserves order by default, and conditionally sorts using `str.casefold`.
+- `tests/test_labels.py:7-14` covers default ordering, case-insensitive sorting, and empty output.
+- The implementation returns the expected comma-separated string for empty and mixed-case inputs.
+
+Verification:
+- `PYTHONPATH=. pytest -q` — 3 passed.
+- `PYTHONPATH=. python tests/test_labels.py -v` — 3 passed.
+- `git diff --check` — clean.
+
+Note: test commands without `PYTHONPATH=.` fail because the repository’s existing `src` import setup is not automatically discoverable; the change itself does not introduce that issue.

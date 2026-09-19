@@ -1,0 +1,18 @@
+Findings
+
+1. Blocking — `src/allocation.py:2`
+   The validation changed from `buckets <= 0` to `buckets < 0`, so `allocate(1, 0)` raises `ZeroDivisionError` instead of the required `ValueError`. This is confirmed by the executable test failure. Non-positive bucket counts must be rejected before division.
+
+2. Blocking — `src/allocation.py:4`
+   The implementation returns equal floor-quotient shares and discards the remainder. For example, `allocate(10, 3)` returns `[3, 3, 3]` with sum `9`, rather than `[4, 3, 3]` with sum `10`. Remainder cents must be assigned to the first shares.
+
+Verification
+
+- Reviewed the local `master` working-tree diff: only `src/allocation.py` is modified.
+- `python -m unittest discover -s tests -v`: failed with 1 failure and 1 error.
+- Manual checks confirmed the incorrect `[3, 3, 3]` result and `ZeroDivisionError` for zero buckets.
+- `git diff --check`: passed.
+
+Verdict
+
+Blocking problems exist. The change does not satisfy the target behavior. No implementation changes were made.

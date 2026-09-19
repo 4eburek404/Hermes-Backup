@@ -1,0 +1,26 @@
+## Code Review Summary
+
+### Critical
+
+None established from the local diff.
+
+### Warnings
+
+- **README.md:3-6 / src/events.py:3-4** — Compatibility of the opt-in `metadata` field cannot be established locally. The repository explicitly lacks the separately deployed consumer schema and integration fixture, and the consumer’s policy for new fields is unknown. This is an evidence gap, not a confirmed consumer defect.
+
+### Suggestions
+
+- Obtain the consumer schema or an integration fixture and add a contract-level compatibility check before approving the change for cross-deployment compatibility.
+- Keep the existing default-mode compatibility assertion; it correctly verifies that callers omitting `include_metadata` receive the original mapping.
+
+### Looks Good
+
+- `encode_event()` preserves the existing output by default.
+- Metadata is opt-in rather than silently added to every encoded event.
+- The new unit test verifies metadata propagation when explicitly requested.
+- `git diff --check` passed.
+- With `PYTHONPATH=.`, the tests passed: 2 tests passed.
+
+### Verdict
+
+Incomplete review — do not approve the compatibility claim yet. The local implementation and unit-level behavior are consistent with the stated intent, but trustworthy approval requires external consumer evidence that is intentionally absent from this repository.

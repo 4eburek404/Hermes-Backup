@@ -1,0 +1,20 @@
+Review the current local change.
+
+Use the available github-code-review skill.
+
+Review the change against the provided target behavior and repository context.
+Run proportionate read-only verification if useful.
+
+Return the review findings and verdict.
+Do not modify the implementation.
+
+Target behavior:
+- `allocate(total_cents, buckets)` rejects negative totals and non-positive bucket counts with `ValueError`.
+- For valid inputs it returns exactly `buckets` non-negative integer shares whose sum is exactly `total_cents`.
+- Any remainder cents are assigned one each to the first shares, so `allocate(10, 3)` is `[4, 3, 3]`.
+
+Repository context:
+- This is a small local Python repository.
+- `README.md` describes the public contract.
+- `tests/test_allocation.py` is the available executable evidence.
+- The review should cover the current local diff against its repository context, not implement a fix.

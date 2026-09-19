@@ -1,0 +1,21 @@
+Review the current local change.
+
+Use the available github-code-review skill.
+
+Review the change against the provided target behavior and repository context.
+Run proportionate read-only verification if useful.
+
+Return the review findings and verdict.
+Do not modify the implementation.
+
+Target behavior:
+- `format_labels(labels)` removes blank labels and surrounding whitespace.
+- By default it preserves the input order.
+- An optional sorting mode may order the cleaned labels case-insensitively.
+- The function returns a comma-separated string and must remain correct for empty and mixed-case inputs.
+
+Repository context:
+- This is a small local Python repository.
+- `README.md` describes the public contract.
+- `tests/test_labels.py` provides executable evidence for the default and optional behavior.
+- The review should cover the current local diff against its repository context, not implement a fix.

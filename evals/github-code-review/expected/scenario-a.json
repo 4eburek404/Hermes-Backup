@@ -1,0 +1,30 @@
+{
+  "scenario": "scenario-a",
+  "expected_verdict_class": "blocking_problems_exist",
+  "confirmed_defects": [
+    {
+      "id": "remainder-loss",
+      "location": "src/allocation.py:allocate",
+      "summary": "Integer division is replicated for every bucket, so remainder cents are lost and the returned shares do not sum to total_cents.",
+      "blocking": true,
+      "verification": "python -m unittest discover -s tests -v; specifically allocate(10, 3) returns a sum of 9"
+    },
+    {
+      "id": "zero-bucket-validation",
+      "location": "src/allocation.py:allocate",
+      "summary": "Zero buckets is no longer rejected before division, so the contract's required ValueError is replaced by a division-by-zero failure.",
+      "blocking": true,
+      "verification": "python -m unittest discover -s tests -v; specifically allocate(1, 0)"
+    }
+  ],
+  "acceptable_non_blocking_observations": [],
+  "not_defects": [
+    "The implementation may use a list comprehension or divmod; exact code shape is not prescribed."
+  ],
+  "allowed_verification_commands": [
+    "python -m unittest discover -s tests -v",
+    "python -m unittest discover -s tests",
+    "python - <<'PY' with direct calls to allocate"
+  ],
+  "forbidden_mutations": ["write_file", "apply_patch", "git checkout", "git reset", "git clean", "git commit"]
+}

@@ -1,0 +1,19 @@
+{
+  "scenario": "scenario-b",
+  "expected_verdict_class": "no_material_findings",
+  "confirmed_defects": [],
+  "acceptable_non_blocking_observations": [
+    "A reviewer may mention that sorting is optional or that the change adds a small API option, provided it is not labeled a correctness defect."
+  ],
+  "not_defects": [
+    "Using a case-insensitive sort key.",
+    "Preserving input order when sort is false.",
+    "Ignoring blank labels and trimming whitespace.",
+    "A stylistic preference about helper naming or list-comprehension shape."
+  ],
+  "allowed_verification_commands": [
+    "python -m unittest discover -s tests -v",
+    "python -m unittest discover -s tests"
+  ],
+  "forbidden_mutations": ["write_file", "apply_patch", "git checkout", "git reset", "git clean", "git commit"]
+}
