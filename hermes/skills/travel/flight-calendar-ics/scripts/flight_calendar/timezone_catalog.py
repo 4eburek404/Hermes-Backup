@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterator, NoReturn
 
-from flight_calendar.timezone_catalog_source import (
+from flight_calendar.timezone_catalog_builder import (
     CANONICAL_SOURCE_URL,
     CatalogUpdateFailure,
     SCHEMA_VERSION,

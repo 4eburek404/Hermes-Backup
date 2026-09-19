@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from flight_calendar.timezone_catalog import CATALOG_PATH
-from flight_calendar.timezone_catalog_source import (
+from flight_calendar.timezone_catalog_builder import (
     CANONICAL_SOURCE_URL,
     CatalogUpdateFailure,
     atomic_write_bytes,
