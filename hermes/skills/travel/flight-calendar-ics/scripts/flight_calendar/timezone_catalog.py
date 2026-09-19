@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Runtime timezone catalog loading with opportunistic weekly refresh."""
+"""Runtime timezone catalog loading with synchronous 15-day refresh."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ DEFAULT_RUNTIME_CACHE_DIR = Path.home() / ".hermes" / "cache" / "flight-calendar
 RUNTIME_CACHE_FILENAME = "airport-timezones.json"
 REFRESH_STATE_FILENAME = "refresh-state.json"
 REFRESH_LOCK_FILENAME = "refresh.lock"
-REFRESH_INTERVAL = timedelta(days=7)
+REFRESH_INTERVAL = timedelta(days=15)
 IATA_RE = re.compile(r"^[A-Z]{3}$")
 FetchSource = Callable[[str], bytes]
 
@@ -111,29 +111,29 @@ def _parse_timestamp(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
-def _read_last_attempt(path: Path) -> datetime | None:
+def _read_last_success(path: Path) -> datetime | None:
     try:
         state = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     if not isinstance(state, dict):
         return None
-    return _parse_timestamp(state.get("last_attempt"))
+    return _parse_timestamp(state.get("last_success"))
 
 
-def _attempt_is_fresh(path: Path, now: datetime) -> bool:
-    last_attempt = _read_last_attempt(path)
-    if last_attempt is None:
+def _catalog_is_fresh(path: Path, now: datetime) -> bool:
+    last_success = _read_last_success(path)
+    if last_success is None:
         return False
-    return now.astimezone(timezone.utc) - last_attempt < REFRESH_INTERVAL
+    return now.astimezone(timezone.utc) - last_success < REFRESH_INTERVAL
 
 
-def _write_attempt_state(path: Path, now: datetime) -> None:
+def _write_success_state(path: Path, now: datetime) -> None:
     atomic_write_bytes(
         path,
         (
             json.dumps(
-                {"last_attempt": now.astimezone(timezone.utc).isoformat()},
+                {"last_success": now.astimezone(timezone.utc).isoformat()},
                 sort_keys=True,
             )
             + "\n"
@@ -180,13 +180,10 @@ def _load_runtime_catalog(
     except (OSError, ValueError, TypeError, KeyError):
         bundled = None
 
-    if (cached is not None or bundled is not None) and _attempt_is_fresh(
-        state_path, now
-    ):
-        if cached is not None:
-            return cached
-        assert bundled is not None
+    if cached is None and bundled is not None:
         return bundled
+    if cached is not None and _catalog_is_fresh(state_path, now):
+        return cached
 
     try:
         with _refresh_critical_section(runtime_cache_dir):
@@ -198,19 +195,16 @@ def _load_runtime_catalog(
                 bundled = _load_catalog_map(bundled_catalog_path)
             except (OSError, ValueError, TypeError, KeyError):
                 bundled = None
-            if (cached is not None or bundled is not None) and _attempt_is_fresh(
-                state_path, now
-            ):
-                if cached is not None:
-                    return cached
-                assert bundled is not None
+            if cached is None and bundled is not None:
                 return bundled
+            if cached is not None and _catalog_is_fresh(state_path, now):
+                return cached
 
-            _write_attempt_state(state_path, now)
             raw = fetch_source(CANONICAL_SOURCE_URL)
             document = build_catalog_document(raw, url=CANONICAL_SOURCE_URL)
             candidate_bytes = serialize_catalog(document)
             atomic_write_bytes(cache_path, candidate_bytes)
+            _write_success_state(state_path, now)
             return {
                 code: timezone_value
                 for code, timezone_value in document["timezones"].items()

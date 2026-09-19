@@ -48,14 +48,18 @@ writable directory:
 ~/.hermes/cache/flight-calendar-ics/refresh.lock
 ```
 
-The refresh interval is seven days and is measured from the last attempt,
-including a failed attempt. A fresh valid cache is used without network access.
-When state is missing or due, runtime makes at most one fetch of the canonical
-source. A successful candidate is validated and atomically written to the
-runtime cache. A failed attempt leaves the previous cache untouched and falls
-back first to that cache, then to the bundled snapshot. The state file is also
-written atomically so a failed upstream request is not retried on every ticket.
+The refresh age is fifteen days and is measured from the last successful
+catalog update, not from a failed attempt. A valid runtime cache younger than
+fifteen days is used without network access. If the runtime cache is absent,
+the valid bundled snapshot is used as the current checked-in baseline. When the
+runtime cache is fifteen days old or older, runtime makes at most one
+synchronous fetch of the canonical source. A successful candidate is validated,
+atomically written to the runtime cache, and records `last_success`. A failed
+attempt leaves the previous cache untouched and falls back first to that cache,
+then to the bundled snapshot. If neither local catalog is valid, runtime
+performs synchronous recovery and fails closed when recovery fails. The state
+file and catalog are written atomically.
 
-The lock protects the check/recheck, attempt-state write, download, and cache
-replacement critical section across concurrent processes. There is no scheduler
+The lock protects the check/recheck, refresh, success-state write, download, and
+cache replacement critical section across concurrent processes. There is no scheduler
 or systemd/cron dependency.

@@ -15,7 +15,7 @@ def isolate_runtime_timezone_refresh():
     with TemporaryDirectory(prefix="flight-calendar-test-cache.") as tmp:
         cache_dir = Path(tmp)
         (cache_dir / "refresh-state.json").write_text(
-            json.dumps({"last_attempt": datetime.now(timezone.utc).isoformat()}),
+            json.dumps({"last_success": datetime.now(timezone.utc).isoformat()}),
             encoding="utf-8",
         )
         patch.setenv("FLIGHT_CALENDAR_CACHE_DIR", str(cache_dir))

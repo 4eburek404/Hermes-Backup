@@ -29,6 +29,7 @@ from cli_envelope import assert_valid_cli_envelope
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
+SPECS = ROOT / "specs"
 CLI = SCRIPTS / "flight_calendar_ics.py"
 
 
@@ -62,7 +63,10 @@ def run_cli(
 ) -> tuple[subprocess.CompletedProcess[str], Path]:
     source = output.with_suffix(".json")
     source.write_text(json.dumps(itinerary, ensure_ascii=False), encoding="utf-8")
-    env = {**os.environ, "PYTHONPATH": str(SCRIPTS)}
+    env = {
+        **os.environ,
+        "PYTHONPATH": os.pathsep.join((str(SPECS), str(SCRIPTS))),
+    }
     argv = [
         sys.executable,
         str(CLI),
@@ -175,7 +179,10 @@ class ItineraryInputSpecification(unittest.TestCase):
                 cwd=cwd,
                 text=True,
                 capture_output=True,
-                env={**os.environ, "PYTHONPATH": str(SCRIPTS)},
+                env={
+                    **os.environ,
+                    "PYTHONPATH": os.pathsep.join((str(SPECS), str(SCRIPTS))),
+                },
                 timeout=30,
             )
 
