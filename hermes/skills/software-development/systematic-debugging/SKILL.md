@@ -322,7 +322,7 @@ If you catch yourself thinking:
 
 **ALL of these mean: STOP. Return to Phase 1.**
 
-**If 3+ fixes failed:** Question the architecture (Phase 4 step 5).
+**If 3+ fix attempts have failed:** Stop and reassess the root-cause model, assumptions, system boundary, and architecture before another implementation attempt.
 
 ## Common Rationalizations
 
