@@ -108,119 +108,22 @@ class RouteDetectionContractTests(unittest.TestCase):
 
         self.assertEqual(ctx.exception.code, "route_unknown")
 
-    def test_ural_adapter_aliases_are_complete(self) -> None:
+    def test_trusted_fingerprints_route_without_source_data(self) -> None:
         from flight_calendar.route_detection import infer_build_route
 
         cases = (
-            ("pnr", "lastName"),
-            ("pnrNumber", "lastName"),
-            ("pnrnumber", "lastName"),
-            ("pnr", "lastname"),
-            ("pnr", "surname"),
+            ("https://service.uralairlines.ru/", "ural"),
+            ("https://www.utair.ru/order-manage", "utair"),
+            ("https://flyredwings.com/booking/", "redwings"),
+            ("https://myb.s7.ru/myb/manage-order", "s7"),
         )
-        for locator_name, surname_name in cases:
-            with self.subTest(locator=locator_name, surname=surname_name):
+        for url, expected_route in cases:
+            with self.subTest(url=url):
                 route = infer_build_route(
                     argparse.Namespace(url=None, url_file=None),
-                    url_override=(
-                        "https://service.uralairlines.ru/?"
-                        f"{locator_name}=ABC123&{surname_name}=IVANOV"
-                    ),
+                    url_override=url,
                 )
-                self.assertEqual(route["route"], "ural")
-
-    def test_ural_unsupported_case_variant_is_input_insufficient(self) -> None:
-        from flight_calendar.errors import CliFailure
-        from flight_calendar.route_detection import infer_build_route
-
-        with self.assertRaises(CliFailure) as ctx:
-            infer_build_route(
-                argparse.Namespace(url=None, url_file=None),
-                url_override="https://service.uralairlines.ru/?PNR=ABC123&lastName=IVANOV",
-            )
-
-        self.assertEqual(ctx.exception.code, "route_input_insufficient")
-
-    def test_utair_adapter_aliases_are_complete(self) -> None:
-        from flight_calendar.route_detection import infer_build_route
-
-        cases = (
-            ("rloc", "last_name"),
-            ("RLOC", "last_name"),
-            ("pnr", "last_name"),
-            ("rloc", "lastName"),
-            ("rloc", "lastname"),
-            ("rloc", "surname"),
-        )
-        for locator_name, surname_name in cases:
-            with self.subTest(locator=locator_name, surname=surname_name):
-                route = infer_build_route(
-                    argparse.Namespace(url=None, url_file=None),
-                    url_override=(
-                        "https://www.utair.ru/order-manage?"
-                        f"{locator_name}=ABC123&{surname_name}=IVANOV"
-                    ),
-                )
-                self.assertEqual(route["route"], "utair")
-
-    def test_utair_unsupported_case_variant_is_input_insufficient(self) -> None:
-        from flight_calendar.errors import CliFailure
-        from flight_calendar.route_detection import infer_build_route
-
-        with self.assertRaises(CliFailure) as ctx:
-            infer_build_route(
-                argparse.Namespace(url=None, url_file=None),
-                url_override="https://www.utair.ru/order-manage?Rloc=ABC123&last_name=IVANOV",
-            )
-
-        self.assertEqual(ctx.exception.code, "route_input_insufficient")
-
-    def test_s7_adapter_aliases_are_complete_independently(self) -> None:
-        from flight_calendar.route_detection import infer_build_route
-
-        cases = (
-            ("bookingId", "passengerId"),
-            ("bookingId", "passenger_id"),
-            ("booking_id", "passengerId"),
-            ("booking_id", "passenger_id"),
-        )
-        for booking_name, passenger_name in cases:
-            with self.subTest(booking=booking_name, passenger=passenger_name):
-                route = infer_build_route(
-                    argparse.Namespace(url=None, url_file=None),
-                    url_override=(
-                        "https://myb.s7.ru/myb/manage-order?"
-                        f"{booking_name}=ABC123&{passenger_name}=ivanov"
-                    ),
-                )
-                self.assertEqual(route["route"], "s7")
-
-    def test_s7_unsupported_case_variant_is_input_insufficient(self) -> None:
-        from flight_calendar.errors import CliFailure
-        from flight_calendar.route_detection import infer_build_route
-
-        with self.assertRaises(CliFailure) as ctx:
-            infer_build_route(
-                argparse.Namespace(url=None, url_file=None),
-                url_override=(
-                    "https://myb.s7.ru/myb/manage-order?"
-                    "BookingId=ABC123&passengerId=ivanov"
-                ),
-            )
-
-        self.assertEqual(ctx.exception.code, "route_input_insufficient")
-
-    def test_redwings_find_fragment_without_submit_is_input_insufficient(self) -> None:
-        from flight_calendar.errors import CliFailure
-        from flight_calendar.route_detection import infer_build_route
-
-        with self.assertRaises(CliFailure) as ctx:
-            infer_build_route(
-                argparse.Namespace(url=None, url_file=None),
-                url_override="https://flyredwings.com/booking/#/find/ABC123/ACCESS_KEY",
-            )
-
-        self.assertEqual(ctx.exception.code, "route_input_insufficient")
+                self.assertEqual(route["route"], expected_route)
 
     def test_ural_canonical_source_remains_ural(self) -> None:
         from flight_calendar.route_detection import infer_build_route
@@ -248,19 +151,17 @@ class RouteDetectionContractTests(unittest.TestCase):
 
         self.assertEqual(route["route"], "redwings")
 
-    def test_redwings_order_page_remains_input_insufficient(self) -> None:
-        from flight_calendar.errors import CliFailure
+    def test_redwings_order_fragment_still_routes_to_adapter(self) -> None:
         from flight_calendar.route_detection import infer_build_route
 
-        with self.assertRaises(CliFailure) as ctx:
-            infer_build_route(
-                argparse.Namespace(url=None, url_file=None),
-                url_override="https://flyredwings.com/booking/#/booking/ORDER123/order",
-            )
+        route = infer_build_route(
+            argparse.Namespace(url=None, url_file=None),
+            url_override="https://flyredwings.com/booking/#/booking/ORDER123/order",
+        )
 
-        self.assertEqual(ctx.exception.code, "route_input_insufficient")
+        self.assertEqual(route["route"], "redwings")
 
-    def test_s7_manage_order_with_required_params_detects_s7(self) -> None:
+    def test_s7_manage_order_fingerprint_detects_s7(self) -> None:
         from flight_calendar.route_detection import infer_build_route
 
         args = argparse.Namespace(
@@ -412,21 +313,15 @@ class RouteDetectionContractTests(unittest.TestCase):
         self.assertNotIn("ABC123", str(ctx.exception))
         self.assertNotIn("0" * 64, str(ctx.exception))
 
-    def test_s7_manage_order_without_required_params_is_insufficient_and_redacted(
-        self,
-    ) -> None:
-        from flight_calendar.errors import CliFailure
+    def test_s7_manage_order_without_required_params_still_detects_s7(self) -> None:
         from flight_calendar.route_detection import infer_build_route
 
-        with self.assertRaises(CliFailure) as ctx:
-            infer_build_route(
-                argparse.Namespace(url=None, url_file=None),
-                url_override="https://myb.s7.ru/myb/manage-order?bookingId=ABC123",
-            )
+        route = infer_build_route(
+            argparse.Namespace(url=None, url_file=None),
+            url_override="https://myb.s7.ru/myb/manage-order?bookingId=ABC123",
+        )
 
-        self.assertEqual(ctx.exception.code, "route_input_insufficient")
-        self.assertNotIn("ABC123", str(ctx.exception))
-        self.assertNotIn("bookingId=", str(ctx.exception))
+        self.assertEqual(route["route"], "s7")
 
 
 if __name__ == "__main__":

@@ -130,9 +130,7 @@ class UtairCarrierSpecification(unittest.TestCase):
         )
         self.assertEqual(route["route"], "utair")
 
-        locator, surname, normalized_url = utair.parse_utair_source(
-            resolved_url, None, None
-        )
+        locator, surname, normalized_url = utair.parse_utair_source(resolved_url)
         self.assertEqual(locator, EXPECTED_LOCATOR)
         self.assertEqual(surname, EXPECTED_SURNAME)
         self.assertEqual(normalized_url, UTAIR_DIRECT_URL)
@@ -274,9 +272,7 @@ class UtairCarrierSpecification(unittest.TestCase):
             argparse.Namespace(url=None, url_file=None), url_override=resolved_url
         )
         self.assertEqual(route["route"], "utair")
-        locator, surname, normalized_url = utair.parse_utair_source(
-            resolved_url, None, None
-        )
+        locator, surname, normalized_url = utair.parse_utair_source(resolved_url)
         self.assertEqual(locator, "SITE123")
         self.assertEqual(surname, "EXAMPLE")
         self.assertEqual(normalized_url, UTAIR_SITE_DIRECT_URL)

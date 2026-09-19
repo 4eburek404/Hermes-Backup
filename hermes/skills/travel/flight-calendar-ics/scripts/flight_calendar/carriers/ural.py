@@ -19,7 +19,7 @@ from typing import Any, NamedTuple
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 
 from flight_calendar import carrier_http
-
+from flight_calendar.errors import CliFailure
 
 
 URAL_SERVICE_BASE = "https://service.uralairlines.ru/"
@@ -69,42 +69,25 @@ def post_json(
     )
 
 
-def parse_ural_source(
-    url: str | None, pnr: str | None, last_name: str | None
-) -> tuple[str, str, str]:
-    booking_url = url.strip() if url else None
-    if booking_url:
-        parsed = urlparse(booking_url)
-        qs = parse_qs(parsed.query)
-        redirect_target = (qs.get("u") or qs.get("url") or [None])[0]
-        if redirect_target and "service.uralairlines.ru" in redirect_target:
-            booking_url = redirect_target
-            parsed = urlparse(booking_url)
-            qs = parse_qs(parsed.query)
-        pnr = (
-            pnr
-            or (qs.get("pnr") or qs.get("pnrNumber") or qs.get("pnrnumber") or [None])[
-                0
-            ]
-        )
-        last_name = (
-            last_name
-            or (
-                qs.get("lastName") or qs.get("lastname") or qs.get("surname") or [None]
-            )[0]
-        )
+def parse_ural_source(url: str) -> tuple[str, str, str]:
+    booking_url = url.strip()
+    parsed = urlparse(booking_url)
+    qs = parse_qs(parsed.query)
+    pnr = (qs.get("pnr") or qs.get("pnrNumber") or qs.get("pnrnumber") or [None])[0]
+    last_name = (
+        qs.get("lastName") or qs.get("lastname") or qs.get("surname") or [None]
+    )[0]
     if not pnr or not last_name:
-        raise ValueError("provide --url containing pnr/lastName or both --pnr and --last-name")
+        raise CliFailure(
+            "Ural Airlines booking URL is missing required credentials",
+            code="route_input_insufficient",
+        )
     locator = pnr.strip().upper()
     surname = last_name.strip().upper()
     if not re.fullmatch(r"[A-Z0-9]{5,8}", locator):
         raise ValueError("Ural Airlines PNR format looks invalid")
     if not re.fullmatch(r"[A-ZА-ЯЁ' -]{2,80}", surname, flags=re.IGNORECASE):
         raise ValueError("Ural Airlines last name format looks invalid")
-    if not booking_url:
-        booking_url = (
-            URAL_SERVICE_BASE + "?" + urlencode({"pnr": locator, "lastName": surname})
-        )
     return locator, surname, booking_url
 
 
@@ -314,6 +297,14 @@ def fetch_ural_reservation(
     if reservation.get("success") is False:
         raise ValueError("Ural Airlines Reservation API returned success=false")
     return reservation
+
+
+def build_itinerary(booking_url: str) -> dict[str, Any]:
+    locator, last_name, normalized_url = parse_ural_source(booking_url)
+    return convert_to_itinerary(
+        fetch_ural_reservation(locator, last_name, booking_url=normalized_url),
+        booking_url=normalized_url,
+    )
 
 
 def clean(value: Any) -> Any:

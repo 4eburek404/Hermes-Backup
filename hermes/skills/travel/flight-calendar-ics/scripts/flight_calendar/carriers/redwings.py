@@ -11,10 +11,10 @@ from __future__ import annotations
 
 import re
 from typing import Any
-from urllib.parse import quote, unquote, urlparse
+from urllib.parse import unquote, urlparse
 
 from flight_calendar import carrier_http
-
+from flight_calendar.errors import CliFailure
 
 
 REDWINGS_BOOKING_BASE = "https://flyredwings.com/booking/"
@@ -92,32 +92,25 @@ def first_value(obj: dict[str, Any], keys: list[str]) -> Any:
     return None
 
 
-def parse_redwings_source(
-    url: str | None, pnr: str | None, finder_code: str | None
-) -> tuple[str, str, str]:
-    """Parse Red Wings ``#/find/<PNR>/<ACCESS_KEY>/Submit`` or explicit values.
-
-    The access key is a private Websky/email-link credential. Do not infer it
-    from passenger surname, PNR, ticket, or ``#/booking/<ORDER_ID>/order`` links.
-    """
-    booking_url = url.strip() if url else None
-    if booking_url:
-        parsed = urlparse(booking_url)
-        route = parsed.fragment or parsed.path
-        route = unquote(route).strip()
-        parts = [part for part in route.strip("/").split("/") if part]
-        lower_parts = [part.lower() for part in parts]
-        if lower_parts[:1] == ["find"] and len(parts) >= 3:
-            pnr = pnr or parts[1]
-            finder_code = finder_code or parts[2]
-        elif lower_parts[:1] == ["booking"]:
-            raise ValueError(
-                "Red Wings order page URL is not enough; provide a direct email/manage link shaped #/find/<PNR>/<ACCESS_KEY>/Submit"
-            )
-
-    if not pnr or not finder_code:
-        raise ValueError(
-            "provide --url shaped #/find/<PNR>/<ACCESS_KEY>/Submit or both --pnr and --access-key"
+def parse_redwings_source(url: str) -> tuple[str, str, str]:
+    """Parse and validate Red Wings' direct find fragment."""
+    booking_url = url.strip()
+    parsed = urlparse(booking_url)
+    route = unquote(parsed.fragment or parsed.path).strip()
+    parts = [part for part in route.strip("/").split("/") if part]
+    lower_parts = [part.lower() for part in parts]
+    if lower_parts[:1] == ["find"] and len(parts) >= 4 and lower_parts[3] == "submit":
+        pnr = parts[1]
+        finder_code = parts[2]
+    elif lower_parts[:1] == ["booking"]:
+        raise CliFailure(
+            "Red Wings order page URL is not enough; provide the direct find link",
+            code="route_input_insufficient",
+        )
+    else:
+        raise CliFailure(
+            "Red Wings booking URL is missing required credentials",
+            code="route_input_insufficient",
         )
 
     locator = str(pnr).strip().upper()
@@ -126,11 +119,15 @@ def parse_redwings_source(
         raise ValueError("Red Wings PNR format looks invalid")
     if not re.fullmatch(r"[^\s/]{2,256}", code):
         raise ValueError("Red Wings access key format looks invalid")
-    if not booking_url:
-        booking_url = (
-            REDWINGS_BOOKING_BASE + f"#/find/{locator}/{quote(code, safe='')}/Submit"
-        )
     return locator, code, booking_url
+
+
+def build_itinerary(booking_url: str) -> dict[str, Any]:
+    locator, access_code, normalized_url = parse_redwings_source(booking_url)
+    return convert_to_itinerary(
+        fetch_redwings_order(locator, access_code),
+        booking_url=normalized_url,
+    )
 
 
 def browser_headers(extra: dict[str, str] | None = None) -> dict[str, str]:

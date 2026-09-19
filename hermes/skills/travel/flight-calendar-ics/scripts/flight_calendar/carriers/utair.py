@@ -14,7 +14,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
 
 from flight_calendar import carrier_http
-
+from flight_calendar.errors import CliFailure
 
 
 UTAIR_WEB_BASE = "https://www.utair.ru/"
@@ -36,31 +36,24 @@ def browser_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
     )
 
 
-def parse_utair_source(
-    url: str | None, rloc: str | None, last_name: str | None
-) -> tuple[str, str, str]:
-    """Parse a Utair order-manage URL or explicit locator/surname values.
-
-    The returned booking URL may contain private parameters; callers must keep it
-    inside private artifacts and never echo it to chat/log summaries.
-    """
-    booking_url = url.strip() if url else None
-    if booking_url:
-        parsed = urlparse(booking_url)
-        qs = parse_qs(parsed.query, keep_blank_values=False)
-        rloc = rloc or (qs.get("rloc") or qs.get("RLOC") or qs.get("pnr") or [None])[0]
-        last_name = (
-            last_name
-            or (
-                qs.get("last_name")
-                or qs.get("lastName")
-                or qs.get("lastname")
-                or qs.get("surname")
-                or [None]
-            )[0]
-        )
+def parse_utair_source(url: str) -> tuple[str, str, str]:
+    """Parse and validate the Utair order-manage URL contract."""
+    booking_url = url.strip()
+    parsed = urlparse(booking_url)
+    qs = parse_qs(parsed.query, keep_blank_values=False)
+    rloc = (qs.get("rloc") or qs.get("RLOC") or qs.get("pnr") or [None])[0]
+    last_name = (
+        qs.get("last_name")
+        or qs.get("lastName")
+        or qs.get("lastname")
+        or qs.get("surname")
+        or [None]
+    )[0]
     if not rloc or not last_name:
-        raise ValueError("provide --url containing rloc/last_name or both --rloc and --last-name")
+        raise CliFailure(
+            "Utair booking URL is missing required credentials",
+            code="route_input_insufficient",
+        )
 
     locator = rloc.strip().upper()
     surname = last_name.strip().upper()
@@ -68,13 +61,16 @@ def parse_utair_source(
         raise ValueError("Utair booking locator format looks invalid")
     if not re.fullmatch(r"[A-ZА-ЯЁ' -]{2,80}", surname, flags=re.IGNORECASE):
         raise ValueError("Utair last name format looks invalid")
-    if not booking_url:
-        booking_url = (
-            UTAIR_WEB_BASE.rstrip("/")
-            + "/order-manage?"
-            + urlencode({"rloc": locator, "last_name": surname})
-        )
     return locator, surname, booking_url
+
+
+def build_itinerary(booking_url: str) -> dict[str, Any]:
+    locator, last_name, normalized_url = parse_utair_source(booking_url)
+    token = fetch_utair_token()
+    return convert_to_itinerary(
+        fetch_utair_orders(locator, last_name, token=token),
+        booking_url=normalized_url,
+    )
 
 
 def fetch_utair_token(timeout: int = 45) -> str:

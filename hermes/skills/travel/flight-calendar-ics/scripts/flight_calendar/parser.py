@@ -98,44 +98,15 @@ def _build_itinerary_from_url(
 
     tz_map = build_timezone_map(parse_cli_tz_overrides(tz_items))
     if route == "aeroflot":
-        locator, key, normalized_url = aeroflot.parse_pnr_source(booking_url)
-        itinerary = aeroflot.convert_to_itinerary(
-            aeroflot.fetch_aeroflot_pnr(locator, key),
-            booking_url=normalized_url,
-        )
+        itinerary = aeroflot.build_itinerary(booking_url)
     elif route == "ural":
-        locator, last_name, normalized_url = ural.parse_ural_source(
-            booking_url, None, None
-        )
-        itinerary = ural.convert_to_itinerary(
-            ural.fetch_ural_reservation(locator, last_name, booking_url=normalized_url),
-            booking_url=normalized_url,
-        )
+        itinerary = ural.build_itinerary(booking_url)
     elif route == "utair":
-        locator, last_name, normalized_url = utair.parse_utair_source(
-            booking_url, None, None
-        )
-        token = utair.fetch_utair_token()
-        itinerary = utair.convert_to_itinerary(
-            utair.fetch_utair_orders(locator, last_name, token=token),
-            booking_url=normalized_url,
-        )
+        itinerary = utair.build_itinerary(booking_url)
     elif route == "redwings":
-        locator, access_code, normalized_url = redwings.parse_redwings_source(
-            booking_url, None, None
-        )
-        itinerary = redwings.convert_to_itinerary(
-            redwings.fetch_redwings_order(locator, access_code),
-            booking_url=normalized_url,
-        )
+        itinerary = redwings.build_itinerary(booking_url)
     elif route == "s7":
-        _booking_id, _passenger_id, normalized_url = s7.parse_s7_source(
-            booking_url, None, None
-        )
-        itinerary = s7.convert_to_itinerary(
-            s7.fetch_s7_order(normalized_url),
-            booking_url=normalized_url,
-        )
+        itinerary = s7.build_itinerary(booking_url)
     else:
         raise CliFailure("unsupported booking URL route", code="route_unknown")
     return validate_itinerary_contract(itinerary, tz_map)

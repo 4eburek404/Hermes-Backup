@@ -13,11 +13,12 @@ import html
 import json
 import re
 from typing import Any
-from urllib.parse import parse_qs, urlencode, urljoin, urlparse
+from urllib.parse import parse_qs, urljoin, urlparse
 
 from curl_cffi import requests as curl_requests
 
 from flight_calendar import carrier_http
+from flight_calendar.errors import CliFailure
 
 
 S7_MANAGE_ORDER_BASE = "https://myb.s7.ru/myb/manage-order"
@@ -39,27 +40,18 @@ def first_value(obj: dict[str, Any], keys: list[str]) -> Any:
     return None
 
 
-def parse_s7_source(
-    url: str | None, booking_id: str | None, passenger_id: str | None
-) -> tuple[str, str, str]:
-    """Parse an S7 manage-order URL or explicit values.
-
-    ``bookingId`` and ``passengerId`` are private booking credentials; errors
-    intentionally describe only missing/invalid fields, never the submitted URL.
-    """
-    booking_url = url.strip() if url else None
-    if booking_url:
-        parsed = urlparse(booking_url)
-        qs = parse_qs(parsed.query, keep_blank_values=True)
-        booking_id = (
-            booking_id or (qs.get("bookingId") or qs.get("booking_id") or [None])[0]
-        )
-        passenger_id = (
-            passenger_id
-            or (qs.get("passengerId") or qs.get("passenger_id") or [None])[0]
-        )
+def parse_s7_source(url: str) -> tuple[str, str, str]:
+    """Parse and validate the S7 manage-order URL contract."""
+    booking_url = url.strip()
+    parsed = urlparse(booking_url)
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+    booking_id = (qs.get("bookingId") or qs.get("booking_id") or [None])[0]
+    passenger_id = (qs.get("passengerId") or qs.get("passenger_id") or [None])[0]
     if not booking_id or not passenger_id:
-        raise ValueError("provide S7 manage-order URL containing bookingId and passengerId")
+        raise CliFailure(
+            "S7 manage-order URL is missing required credentials",
+            code="route_input_insufficient",
+        )
 
     booking = str(booking_id).strip().upper()
     passenger = str(passenger_id).strip()
@@ -67,13 +59,15 @@ def parse_s7_source(
         raise ValueError("S7 bookingId format looks invalid")
     if not re.fullmatch(r"[^\s/?#&=]{2,128}", passenger):
         raise ValueError("S7 passengerId format looks invalid")
-    if not booking_url:
-        booking_url = (
-            S7_MANAGE_ORDER_BASE
-            + "?"
-            + urlencode({"bookingId": booking, "passengerId": passenger})
-        )
     return booking, passenger, booking_url
+
+
+def build_itinerary(booking_url: str) -> dict[str, Any]:
+    _booking_id, _passenger_id, normalized_url = parse_s7_source(booking_url)
+    return convert_to_itinerary(
+        fetch_s7_order(normalized_url),
+        booking_url=normalized_url,
+    )
 
 
 def browser_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
@@ -185,12 +179,7 @@ def extract_airs_data(html_text: str) -> list[Any]:
 
 
 def fetch_s7_order(booking_url: str, *, timeout: int = 60) -> list[Any]:
-    """Fetch S7 manage-order HTML and return its embedded ``__r_airs_data``.
-
-    Network and HTTP errors are redaction-safe: messages identify only the S7
-    flow and status/exception class, not the private URL or query values.
-    """
-    parse_s7_source(booking_url, None, None)
+    """Fetch already-validated S7 manage-order HTML."""
     session = curl_requests.Session(impersonate=carrier_http.IMPERSONATE_TARGET)
     headers = browser_headers()
     try:

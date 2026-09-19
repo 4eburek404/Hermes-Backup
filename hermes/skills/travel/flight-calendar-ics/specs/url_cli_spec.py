@@ -332,6 +332,91 @@ class BookingUrlProcessSpecification(unittest.TestCase):
         self.assertNotIn(invalid_value, emitted)
         self.assertNotIn("ABC123", emitted)
 
+    def test_trusted_sources_dispatch_to_adapter_validation_before_network(self) -> None:
+        """Every trusted fingerprint reaches its adapter before any transport."""
+        from flight_calendar import carrier_http
+        from flight_calendar.carriers import redwings, s7, ural, utair
+
+        cases = (
+            (
+                ural,
+                "parse_ural_source",
+                "https://service.uralairlines.ru/",
+                "route_input_insufficient",
+            ),
+            (
+                ural,
+                "parse_ural_source",
+                "https://service.uralairlines.ru/?pnr=BAD&lastName=IVANOV",
+                "validation_error",
+            ),
+            (
+                utair,
+                "parse_utair_source",
+                "https://www.utair.ru/order-manage",
+                "route_input_insufficient",
+            ),
+            (
+                utair,
+                "parse_utair_source",
+                "https://www.utair.ru/order-manage?rloc=BAD&last_name=IVANOV",
+                "validation_error",
+            ),
+            (
+                redwings,
+                "parse_redwings_source",
+                "https://flyredwings.com/booking/",
+                "route_input_insufficient",
+            ),
+            (
+                redwings,
+                "parse_redwings_source",
+                "https://flyredwings.com/booking/#/find/BAD/X/Submit",
+                "validation_error",
+            ),
+            (
+                s7,
+                "parse_s7_source",
+                "https://myb.s7.ru/myb/manage-order",
+                "route_input_insufficient",
+            ),
+            (
+                s7,
+                "parse_s7_source",
+                "https://myb.s7.ru/myb/manage-order?bookingId=BAD&passengerId=ivanov",
+                "validation_error",
+            ),
+        )
+
+        for module, parser_name, url, expected_code in cases:
+            with self.subTest(url=url):
+                adapter_calls: list[str] = []
+                network_calls: list[str] = []
+                parser_function = getattr(module, parser_name)
+
+                def record_parse(*args: Any, _parser=parser_function, **kwargs: Any):
+                    adapter_calls.append(parser_name)
+                    return _parser(*args, **kwargs)
+
+                def fail_network(*args: Any, **kwargs: Any) -> None:
+                    del args, kwargs
+                    network_calls.append("carrier_http.request_raw")
+                    raise AssertionError("network boundary reached")
+
+                with mock.patch.object(module, parser_name, side_effect=record_parse):
+                    with mock.patch.object(
+                        carrier_http, "request_raw", side_effect=fail_network
+                    ):
+                        code, stdout, stderr = run_cli(url)
+
+                self.assertEqual(code, 2, stdout + stderr)
+                payload = json.loads(stdout)
+                assert_valid_cli_envelope(self, payload)
+                self.assertEqual(payload["error"]["code"], expected_code)
+                self.assertEqual(adapter_calls, [parser_name])
+                self.assertEqual(network_calls, [])
+                self.assertEqual(stderr, "")
+
     def test_url_sources_are_mutually_exclusive(self) -> None:
         from flight_calendar import parser
 

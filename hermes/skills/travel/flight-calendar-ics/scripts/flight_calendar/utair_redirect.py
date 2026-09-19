@@ -6,10 +6,9 @@ from urllib.parse import urlparse
 
 from flight_calendar import carrier_http
 from flight_calendar.errors import CliFailure
+from flight_calendar.route_detection import trusted_route
 
 UTAIR_REDIRECT_HOSTS = {"click.mail.utair.io"}
-UTAIR_CARRIER_HOST = "www.utair.ru"
-UTAIR_CARRIER_PATH = "/order-manage"
 
 
 def _hostname(url: str) -> str:
@@ -17,12 +16,7 @@ def _hostname(url: str) -> str:
 
 
 def _is_utair_carrier_url(url: str) -> bool:
-    parsed = urlparse(url)
-    return (
-        parsed.scheme.lower() == "https"
-        and (parsed.hostname or "").lower() == UTAIR_CARRIER_HOST
-        and parsed.path == UTAIR_CARRIER_PATH
-    )
+    return trusted_route(url) == "utair"
 
 
 def resolve_utair_booking_redirect(raw_url: str) -> str:

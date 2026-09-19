@@ -62,6 +62,14 @@ def parse_pnr_source(booking_url: str) -> tuple[str, str, str]:
     return locator, key, booking_url
 
 
+def build_itinerary(booking_url: str) -> dict[str, Any]:
+    locator, key, normalized_url = parse_pnr_source(booking_url)
+    return convert_to_itinerary(
+        fetch_aeroflot_pnr(locator, key),
+        booking_url=normalized_url,
+    )
+
+
 def fetch_aeroflot_pnr(locator: str, key: str, *, timeout: int = 45) -> dict[str, Any]:
     payload = {"pnr_locator": locator, "pnr_key": key, "lang": "ru", "country": "ru"}
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")

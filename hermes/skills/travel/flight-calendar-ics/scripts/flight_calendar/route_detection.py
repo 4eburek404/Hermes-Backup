@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import argparse
-import re
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
 from flight_calendar.errors import CliFailure
 
@@ -31,19 +30,9 @@ def first_url_from_args(args: argparse.Namespace) -> str | None:
     return url
 
 
-def _query_field_names(parsed: Any) -> list[str]:
-    names = list(parse_qs(parsed.query, keep_blank_values=True).keys())
-    fragment = parsed.fragment or ""
-    if "?" in fragment:
-        names.extend(parse_qs(fragment.split("?", 1)[1], keep_blank_values=True).keys())
-    return list(dict.fromkeys(names))
-
-
-def _field_present(field_names: list[str], aliases: set[str]) -> bool:
-    return any(alias in field_names for alias in aliases)
-
-
-def _trusted_route(parsed: Any) -> str | None:
+def trusted_route(url: str) -> str | None:
+    """Return the carrier for a trusted scheme/host/path fingerprint only."""
+    parsed = urlparse(url)
     if parsed.scheme.lower() != "https":
         return None
 
@@ -62,58 +51,6 @@ def _trusted_route(parsed: Any) -> str | None:
     return None
 
 
-def _redwings_find_fragment(fragment: str) -> bool:
-    return bool(
-        re.match(r"^/?find/[^/]+/[^/]+/Submit/?$", fragment, flags=re.IGNORECASE)
-    )
-
-
-def _redwings_order_fragment(fragment: str) -> bool:
-    return bool(re.match(r"^/?booking/[^/]+/order/?$", fragment, flags=re.IGNORECASE))
-
-
-def _ural_has_required_credentials(field_names: list[str]) -> bool:
-    return _field_present(
-        field_names, {"pnr", "pnrNumber", "pnrnumber"}
-    ) and _field_present(field_names, {"lastName", "lastname", "surname"})
-
-
-def _utair_has_required_credentials(field_names: list[str]) -> bool:
-    locator_aliases = {"rloc", "RLOC", "pnr"}
-    surname_aliases = {"last_name", "lastName", "lastname", "surname"}
-    return _field_present(field_names, locator_aliases) and _field_present(
-        field_names, surname_aliases
-    )
-
-
-def _s7_has_required_credentials(field_names: list[str]) -> bool:
-    return _field_present(
-        field_names, {"bookingId", "booking_id"}
-    ) and _field_present(field_names, {"passengerId", "passenger_id"})
-
-
-def _route_has_required_credentials(
-    route: str, field_names: list[str], fragment: str
-) -> bool:
-    if route == "ural":
-        return _ural_has_required_credentials(field_names)
-    if route == "utair":
-        return _utair_has_required_credentials(field_names)
-    if route == "redwings":
-        return _redwings_find_fragment(fragment)
-    if route == "s7":
-        return _s7_has_required_credentials(field_names)
-    return False
-
-
-def _route_input_insufficient(route: str, message: str | None = None) -> CliFailure:
-    default_message = f"{route} source fingerprint is known, but required route-specific credentials are missing"
-    return CliFailure(
-        message or default_message,
-        code="route_input_insufficient",
-    )
-
-
 def infer_build_route(
     args: argparse.Namespace, *, url_override: str | None = None
 ) -> dict[str, str]:
@@ -123,26 +60,10 @@ def infer_build_route(
             "could not infer carrier route from safe source fingerprint",
             code="route_unknown",
         )
-
-    parsed = urlparse(url)
-    route = _trusted_route(parsed)
+    route = trusted_route(url)
     if route is None:
         raise CliFailure(
             "could not infer carrier route from safe source fingerprint",
             code="route_unknown",
         )
-
-    if route == "aeroflot":
-        return {"route": route}
-
-    field_names = _query_field_names(parsed)
-    fragment = parsed.fragment or ""
-    if _route_has_required_credentials(route, field_names, fragment):
-        return {"route": route}
-
-    if route == "redwings" and _redwings_order_fragment(fragment):
-        raise _route_input_insufficient(
-            route,
-            "Red Wings order page URL is not enough; provide the direct find link shaped #/find/<PNR>/<ACCESS_KEY>/Submit.",
-        )
-    raise _route_input_insufficient(route)
+    return {"route": route}
