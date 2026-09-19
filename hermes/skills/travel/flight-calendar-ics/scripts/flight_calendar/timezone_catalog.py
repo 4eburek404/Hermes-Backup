@@ -180,8 +180,6 @@ def _load_runtime_catalog(
     except (OSError, ValueError, TypeError, KeyError):
         bundled = None
 
-    if cached is None and bundled is not None:
-        return bundled
     if cached is not None and _catalog_is_fresh(state_path, now):
         return cached
 
@@ -195,8 +193,6 @@ def _load_runtime_catalog(
                 bundled = _load_catalog_map(bundled_catalog_path)
             except (OSError, ValueError, TypeError, KeyError):
                 bundled = None
-            if cached is None and bundled is not None:
-                return bundled
             if cached is not None and _catalog_is_fresh(state_path, now):
                 return cached
 

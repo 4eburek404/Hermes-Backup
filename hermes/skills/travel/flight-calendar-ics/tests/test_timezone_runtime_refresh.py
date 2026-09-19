@@ -407,6 +407,90 @@ class RuntimeTimezoneRefreshContractTests(unittest.TestCase):
             self.assertEqual(result["SVO"], "Europe/Moscow")
             self.assertTrue((runtime_dir / timezone_catalog.RUNTIME_CACHE_FILENAME).exists())
 
+    def test_missing_cache_refreshes_before_valid_bundled_fallback(self) -> None:
+        with TemporaryDirectory(prefix="timezone-recovery.") as tmp:
+            runtime_dir = Path(tmp) / "cache"
+            bundled = Path(tmp) / "bundled.json"
+            write_catalog(bundled, timezone_value="Asia/Yekaterinburg")
+            calls: list[str] = []
+
+            def fetch(url: str) -> bytes:
+                calls.append(url)
+                return airport_payload()
+
+            result = timezone_catalog.load_airport_timezones(
+                runtime_cache_dir=runtime_dir,
+                bundled_catalog_path=bundled,
+                fetch_source=fetch,
+                now=datetime(2026, 1, 1, tzinfo=UTC),
+            )
+
+            self.assertEqual(calls, [timezone_catalog.CANONICAL_SOURCE_URL])
+            self.assertEqual(result["KUF"], "Europe/Samara")
+            self.assertEqual(
+                json.loads(
+                    (runtime_dir / timezone_catalog.RUNTIME_CACHE_FILENAME).read_text(
+                        encoding="utf-8"
+                    )
+                )["timezones"]["SVO"],
+                "Europe/Moscow",
+            )
+            state = json.loads(
+                (runtime_dir / timezone_catalog.REFRESH_STATE_FILENAME).read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(state["last_success"], "2026-01-01T00:00:00+00:00")
+
+    def test_missing_cache_failed_refresh_uses_valid_bundled_fallback(self) -> None:
+        with TemporaryDirectory(prefix="timezone-recovery.") as tmp:
+            runtime_dir = Path(tmp) / "cache"
+            bundled = Path(tmp) / "bundled.json"
+            write_catalog(bundled, timezone_value="Asia/Yekaterinburg")
+            calls = 0
+
+            def fail(_url: str) -> bytes:
+                nonlocal calls
+                calls += 1
+                raise OSError("Travelpayouts unavailable")
+
+            result = timezone_catalog.load_airport_timezones(
+                runtime_cache_dir=runtime_dir,
+                bundled_catalog_path=bundled,
+                fetch_source=fail,
+                now=datetime(2026, 1, 1, tzinfo=UTC),
+            )
+
+            self.assertEqual(calls, 1)
+            self.assertEqual(result, {"SVO": "Asia/Yekaterinburg"})
+            self.assertFalse((runtime_dir / timezone_catalog.RUNTIME_CACHE_FILENAME).exists())
+
+    def test_corrupted_cache_failed_refresh_uses_valid_bundled_fallback(self) -> None:
+        with TemporaryDirectory(prefix="timezone-recovery.") as tmp:
+            runtime_dir = Path(tmp) / "cache"
+            bundled = Path(tmp) / "bundled.json"
+            cache = runtime_dir / timezone_catalog.RUNTIME_CACHE_FILENAME
+            cache.parent.mkdir(parents=True)
+            cache.write_bytes(b"not-json")
+            write_catalog(bundled, timezone_value="Asia/Yekaterinburg")
+            calls = 0
+
+            def fail(_url: str) -> bytes:
+                nonlocal calls
+                calls += 1
+                raise OSError("Travelpayouts unavailable")
+
+            result = timezone_catalog.load_airport_timezones(
+                runtime_cache_dir=runtime_dir,
+                bundled_catalog_path=bundled,
+                fetch_source=fail,
+                now=datetime(2026, 1, 1, tzinfo=UTC),
+            )
+
+            self.assertEqual(calls, 1)
+            self.assertEqual(result, {"SVO": "Asia/Yekaterinburg"})
+            self.assertEqual(cache.read_bytes(), b"not-json")
+
     def test_recovery_ignores_fresh_failed_state_when_everything_is_missing(self) -> None:
         with TemporaryDirectory(prefix="timezone-recovery.") as tmp:
             runtime_dir = Path(tmp) / "cache"
@@ -516,7 +600,7 @@ class RuntimeTimezoneRefreshContractTests(unittest.TestCase):
             self.assertEqual(calls, 2)
             self.assertEqual(result["SVO"], "Europe/Moscow")
 
-    def test_fresh_state_throttles_when_bundled_fallback_is_valid(self) -> None:
+    def test_fresh_state_does_not_block_bootstrap_refresh_when_cache_is_missing(self) -> None:
         with TemporaryDirectory(prefix="timezone-recovery.") as tmp:
             runtime_dir = Path(tmp) / "cache"
             bundled = Path(tmp) / "bundled.json"
@@ -525,20 +609,20 @@ class RuntimeTimezoneRefreshContractTests(unittest.TestCase):
             write_catalog(bundled)
             calls = 0
 
-            def unexpected(_url: str) -> bytes:
+            def fetch(_url: str) -> bytes:
                 nonlocal calls
                 calls += 1
-                raise AssertionError("network must be suppressed")
+                return airport_payload()
 
             result = timezone_catalog.load_airport_timezones(
                 runtime_cache_dir=runtime_dir,
                 bundled_catalog_path=bundled,
-                fetch_source=unexpected,
+                fetch_source=fetch,
                 now=now,
             )
 
-            self.assertEqual(calls, 0)
-            self.assertEqual(result, {"SVO": "Europe/Moscow"})
+            self.assertEqual(calls, 1)
+            self.assertEqual(result["KUF"], "Europe/Samara")
 
     def test_fresh_state_uses_valid_cache_when_bundled_is_corrupt(self) -> None:
         with TemporaryDirectory(prefix="timezone-recovery.") as tmp:

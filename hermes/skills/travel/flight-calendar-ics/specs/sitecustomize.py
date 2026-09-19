@@ -12,6 +12,8 @@ from urllib import request
 
 _RUNTIME_DIR = tempfile.TemporaryDirectory(prefix="flight-calendar-standalone.")
 _CACHE_DIR = Path(_RUNTIME_DIR.name)
+_BUNDLED_CATALOG = Path(__file__).resolve().parents[1] / "data" / "airport-timezones.json"
+(_CACHE_DIR / "airport-timezones.json").write_bytes(_BUNDLED_CATALOG.read_bytes())
 (_CACHE_DIR / "refresh-state.json").write_text(
     json.dumps({"last_success": datetime.now(timezone.utc).isoformat()}),
     encoding="utf-8",
