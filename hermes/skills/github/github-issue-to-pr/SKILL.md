@@ -8,70 +8,154 @@ platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [GitHub, Issues, Coding, Pull-Requests, CI]
-    related_skills: [github-issues, github-pr-workflow, systematic-debugging, test-driven-development, requesting-code-review]
+    related_skills: [github-issues, github-pr-workflow, github-code-review, spec-driven-development, systematic-debugging, test-driven-development, ponytail]
 ---
 
 # GitHub Issue to Pull Request
 
-Turn a GitHub issue into a tested, verified PR. This skill owns the end-to-end discipline — premise validation, duplicate sweeps, class-level fixes, and honest CI reporting; the sibling GitHub and development skills own their own mechanics.
+Turn a GitHub issue into a verified delivery while keeping ownership explicit.
+This skill is the orchestrator: it gathers live state, classifies the issue,
+selects the development route, coordinates specialist handoffs, and reports the
+fresh delivery state. It does not reproduce the internal procedures owned by
+SDD, debugging, TDD, Ponytail, review, or PR delivery skills.
 
 ## When to Use
 
-- "Fix issue #123 and open a PR."
-- "Implement this GitHub feature request."
-- "Take this bug from issue to green CI."
+- "Carry issue #123 through the route."
+- "Implement an active GitHub feature request."
+- "Take a bug to an honest delivery state."
 
-Don't use for: reviewing an existing PR, or answering a code question with no requested change.
+Don't use for reviewing an existing PR or answering a code question with no
+requested change.
 
 ## Procedure
 
-### 1. Read the live issue — body AND full thread
+### 1. Read live issue and repository state
 
-Use `terminal` to run `gh issue view <N> --comments`. The body is a snapshot from filing time; the newest comments carry the live state: partial fixes already merged, new root-cause analyses, maintainer decisions, or questions directed at you that change the task. Also read repository instructions (`AGENTS.md`, contribution docs) with `read_file`. Done when the currently requested behavior, non-goals, and any unanswered thread questions are known.
+Read the live issue identity, full body, and complete comment thread. Latest
+comments are the current state: they may record a partial fix, a maintainer
+decision, a new constraint, or a question that changes the task. Read
+repository instructions such as `AGENTS.md` and contribution documentation
+before routing work.
 
-### 2. Sweep for existing and duplicate work
+Determine the current default branch and inspect the current code state there.
+Keep issue prose, thread state, repository instructions, and current-code
+observations separate from assumptions.
 
-Before writing anything, run `gh pr list --search "#<N>" --state all` plus at least two keyword/synonym variants of the symptom (`gh pr list --search "<subsystem> <symptom>" --state open`). Popular issues attract multiple independent fixes; building a duplicate wastes the work and the credit. Also check whether a recent commit already fixed it: `git log --oneline -20 -- <relevant files>`. Done when you know every open PR and recent commit touching this issue, or that none exist.
+### 2. Classify the issue before development
 
-### 3. Validate the premise against current code — and against design intent
+Classify the live issue result as `active`, `duplicate`, `stale`, or `resolved`.
+Record the disposition and pass only `active` issues to the development
+pipeline. For `duplicate`, `stale`, and `resolved` results, stop before tests,
+branch creation, or a pull request; do not start unnecessary development.
 
-Reproduce the bug or demonstrate the missing behavior on the current default branch with a failing test or fixture, using `search_files` and `read_file` to trace the reported path. Then check the second question: is the "bug" actually deliberate design? Run `git log -p -S "<symbol>"` on the code the issue wants changed and read the original commit's intent — a missing link or restriction is often the feature. Challenge stale or flawed issue prose instead of implementing it blindly. Done when the root cause or feature gap is demonstrated in current code AND the change doesn't fight an intentional design.
+### 3. Sweep for existing work
 
-### 4. Define acceptance and risk
+Search for existing work before implementation: issue-linked PRs, open and
+closed duplicates using symptom synonyms, and recent commits touching the
+relevant files. Include the full issue number search, bounded keyword variants,
+and recent commit history. Preserve any existing PR, partial fix, or already
+resolved state in the disposition.
 
-List acceptance criteria, interfaces, migrations/state changes, compatibility, security/privacy, rollout, and rollback. Map every criterion to a test or explicit verification. Done when review has a finite contract.
+### 4. Establish the current premise
 
-### 5. Implement the smallest complete change — and fix the class
+On the current default branch, establish whether the reported mismatch is
+observed and whether the premise is still current. Check current code and
+history for design intent so that stale issue prose or deliberate behavior is
+not treated as a defect. The orchestrator may state that a mismatch is
+observed, the premise is current, and the cause is known or unknown; it does
+not diagnose an unknown cause.
 
-Work on an isolated branch or worktree, loading `systematic-debugging` or `test-driven-development` when the bug class calls for them. Add regression tests first, then implement. When the fix is in hand, `search_files` for the same bug shape at sibling call sites and fix the whole class in this PR — an incomplete fix that leaves known siblings broken is worse than none. Every changed line must trace to the issue; no drive-by cleanup. Done when targeted tests pass, the original failure no longer reproduces, and sibling sites are fixed or explicitly ruled out.
+When a bug needs diagnosis, route the observed symptom and mismatch to
+`systematic-debugging`; that owner handles diagnosis, root cause, data flow,
+hypotheses, instrumentation, and the diagnostic handoff. The orchestrator
+returns with the resulting constraints and sibling/class findings rather than
+performing that work itself.
 
-### 6. Prove the regression test bites (sabotage run)
+### 5. Route the target specification
 
-Temporarily restore the old behavior of the exact function under test, run the new test, and confirm it FAILS; then restore the fix and confirm it passes. A regression test that passes with and without the fix proves nothing. Done when the test demonstrably fails on pre-fix code.
+For an active development issue, send a factual packet to
+`spec-driven-development`: the live issue and thread, target behavior,
+non-goals, current-state evidence, relevant constraints, design-intent findings,
+and any debugging handoff. `spec-driven-development` owns the target
+specification, public contract, edge cases, requirement/check mapping,
+proportional mode, baseline, and safeguards. Issue-to-PR supplies facts and does
+not set the target contract.
 
-### 7. Run repository quality gates, then open the PR immediately
+Engaged development follows this ownership chain:
+`spec-driven-development` target -> when diagnosis is needed,
+`systematic-debugging` -> `test-driven-development` preflight / regression
+check / RED -> `ponytail` implementation-shape constraints ->
+`test-driven-development` implementation / GREEN / REFACTOR / regression
+proof.
 
-Run the formatter, lint, typecheck, and the repo's canonical test entrypoint on affected areas; use `requesting-code-review` on the diff. Then push and open the PR right away — the PR is what dispatches CI, and CI latency is the long pole; do not sit on finished work. Load `github-pr-workflow` for PR mechanics: conventional branch/commit, body linking the issue with problem, approach, tests, risk, and exclusions. Read the PR back and verify head SHA, base, title, and files. Done when the PR exists with the intended diff and CI is running.
+### 6. Compose TDD and implementation constraints
 
-### 8. Shepherd CI honestly and close the loop
+`test-driven-development` owns the right-size decision: for trivial or
+mechanical work it may skip full TDD or adopt an existing check under its
+contract. TDD owns RED, GREEN, and regression proof for engaged work; the
+orchestrator does not impose a universal ceremony. `systematic-debugging` is
+optional for trivial or mechanical work and is not required unless there is a
+diagnostic problem.
 
-Inspect live checks and failure logs via `gh pr checks` / `gh run view --log-failed`. Distinguish failures introduced by your diff from pre-existing baseline or infrastructure failures — reproduce on the default branch when unsure, and rerun once only for genuine infra flakes. Never say "green," "merged," or "released" without live evidence of that exact state. When the PR lands, comment on the issue with the PR link and a one-line explanation so the reporter gets a traceable resolution. Done when CI state, remaining blockers, and the issue thread all reflect reality.
+Mechanical or trivial work does not require sabotage or revert-to-red; without
+a diagnostic problem, no artificial RED/GREEN ceremony is added.
 
-## Pitfalls
+`ponytail` supplies implementation shape constraints: reuse existing
+mechanisms, choose the smallest sufficient change, decide shared mechanism
+versus local patch, touch the fewest necessary files, and preserve safeguards.
+When TDD skips full ceremony for trivial or mechanical work, apply Ponytail's
+minimal implementation scope without artificial ceremony.
 
-- Coding before reading issue comments, sweeping for duplicate PRs, or reading current code.
-- "Fixing" behavior that the original commit shows is intentional design.
-- Fixing a symptom at one call site while sibling sites keep the same bug.
-- Shipping a regression test that also passes without the fix.
-- Opening a PR with unrun tests or unrelated formatting churn.
-- Claiming the issue is delivered because a PR exists.
+Sibling and class findings from `systematic-debugging` inform the scope
+decision. SDD and Ponytail determine whether a sibling belongs in the current
+change; a sibling is not automatically included merely because it was found.
+
+### 7. Route review and delivery
+
+Pass the current diff and development evidence to `github-code-review`, which
+owns review. If the diff changes after findings, route the fresh diff and fresh
+development evidence back for a new review of the actual change.
+
+`github-pr-workflow` owns branch, commit, pull-request, and CI delivery
+mechanics. Hand off the reviewed change, issue linkage, verification evidence,
+and the required delivery intent to that owner.
+
+The orchestrator delegates branch, commit, push, pull-request submission, body,
+and CI command instructions to the delivery owner.
+
+Require a fresh delivery-state report after handoff: the pull request is present,
+head/base/title/files are correct, CI state is current, merge state is explicit,
+and issue linkage is present. Do not collapse PR identity, CI, merge, and release
+into one claim.
+
+### 8. Return from CI failures
+
+A code-caused CI failure follows this ownership transition:
+delivery state -> development pipeline -> review -> delivery state. Return to
+SDD/TDD/Ponytail as applicable, use `systematic-debugging` when the cause is
+unknown, then pass the changed diff through `github-code-review` and back to
+`github-pr-workflow` for fresh CI verification.
+
+An infrastructure or baseline failure remains a delivery state problem. The
+orchestrator does not execute a `fix -> patch -> commit -> push` loop; it routes
+the failure to the owner that can establish the next delivery state.
+
+### 9. Report honest final status
+
+Report only fresh evidence: active or terminal issue disposition, development
+verification, pull-request existence and identity, CI pending/pass/fail,
+merge state, release state, remaining blockers, and issue linkage. A PR is not
+proof of green CI; green CI is not proof of merge; merge is not proof of
+release.
 
 ## Verification
 
-- [ ] Full issue thread read; newest comment state reflected in the plan.
-- [ ] Duplicate-PR sweep run with issue number + 2 keyword variants.
-- [ ] Premise reproduced on current code; design intent checked via git history.
-- [ ] Regression test proven to fail without the fix.
-- [ ] Sibling call sites fixed or explicitly ruled out.
-- [ ] Every changed line traces to the issue.
-- [ ] CI state reported from live evidence only; issue commented with the PR link.
+- [ ] Full issue body and complete thread were read; latest state is reflected.
+- [ ] Repository instructions and current default branch were inspected.
+- [ ] Duplicate/existing-work sweep and recent-commit check were performed.
+- [ ] The issue was classified as active, duplicate, stale, or resolved before development.
+- [ ] The current premise and design intent were checked.
+- [ ] Active work received an SDD factual packet; debugging was used only when diagnosis was needed.
+- [ ] Specialist owners supplied implementation, review, and delivery evidence.
+- [ ] Fresh PR, CI, merge, release, and issue-linkage state was reported separately.
