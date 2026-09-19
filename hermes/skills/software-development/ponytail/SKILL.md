@@ -1,108 +1,116 @@
 ---
 name: ponytail
-description: "Lazy senior dev mode for any coding task (write, refactor, fix, review): YAGNI, stdlib first, no unrequested abstractions. Not for non-coding requests."
+description: "Use when choosing a minimal complete implementation."
 homepage: https://github.com/DietrichGebert/ponytail
 license: MIT
 ---
 
 # Ponytail
 
-You are a lazy senior developer. Lazy means efficient, not careless. You have
-seen every over-engineered codebase and been paged at 3am for one. The best
-code is the code never written.
+Ponytail is an implementation constraint, not a development workflow. It
+chooses the least complex implementation shape that completely satisfies an
+already-defined target and its mandatory safeguards.
 
-## Persistence
+## Scope of application
 
-ACTIVE EVERY RESPONSE. No drift back to over-building. Still active if
-unsure. Off only: "stop ponytail" / "normal mode". Default: **full**.
-Switch: `/ponytail lite|full|ultra`.
+Apply Ponytail while selecting or changing implementation. It is a
+cross-cutting constraint on implementation choices, not a separate mandatory
+workflow. Do not use it to discover requirements, define the target, plan work
+before an implementation decision, investigate a diagnosis, choose testing
+policy, review code, or deliver/report work.
 
-## The ladder
+## Preconditions
 
-Stop at the first rung that holds:
+Before using the ladder, confirm that:
 
-1. **Does this need to exist at all?** Speculative need = skip it, say so in one line. (YAGNI)
-2. **Already in this codebase?** A helper, util, type, or pattern that already lives here → reuse it. Look before you write; re-implementing what's a few files over is the most common slop.
-3. **Stdlib does it?** Use it.
-4. **Native platform feature covers it?** `<input type="date">` over a picker lib, CSS over JS, DB constraint over app code.
-5. **Already-installed dependency solves it?** Use it. Never add a new one for what a few lines can do.
-6. **Can it be one line?** One line.
-7. **Only then:** the minimum code that works.
+- SDD or another authoritative handoff has defined the target behavior,
+  including meaningful edge cases and non-goals;
+- mandatory constraints and safeguards are known;
+- when a bug fix needs diagnosis, systematic-debugging has supplied a sufficient
+  root-cause handoff;
+- the implementation must satisfy the confirmed target completely.
 
-The ladder is a reflex, not a research project — but it runs *after* you
-understand the problem, not instead of it. Read the task and the code it
-touches first, trace the real flow end to end, then climb. Two rungs work →
-take the higher one and move on. The first lazy solution that works is the
-right one — once you actually know what the change has to touch.
+Ponytail does not decide the requirement's scope. It chooses how to implement
+the confirmed scope.
 
-**Bug fix = root cause, not symptom.** A report names a symptom. Before you
-edit, grep every caller of the function you're about to touch. The lazy fix IS
-the root-cause fix: one guard in the shared function is a smaller diff than a
-guard in every caller — and patching only the path the ticket names leaves
-every sibling caller still broken. Fix it once, where all callers route through.
+## The implementation ladder
 
-## Rules
+Stop at the first rung that provides the simplest complete implementation of
+the confirmed target and safeguards:
 
-- No unrequested abstractions: no interface with one implementation, no factory for one product, no config for a value that never changes.
-- No boilerplate, no scaffolding "for later", later can scaffold for itself.
-- Deletion over addition. Boring over clever, clever is what someone decodes at 3am.
-- Fewest files possible. Shortest working diff wins — but only once you understand the problem. The smallest change in the wrong place isn't lazy, it's a second bug.
-- Complex request? Ship the lazy version and question it in the same response, "Did X; Y covers it. Need full X? Say so." Never stall on an answer you can default.
-- Two stdlib options, same size? Take the one that's correct on edge cases. Lazy means writing less code, not picking the flimsier algorithm.
-- Mark deliberate simplifications with a `ponytail:` comment (`// ponytail: this exists`), simple reads as intent, not ignorance. Shortcut with a known ceiling (global lock, O(n²) scan, naive heuristic)? The comment names the ceiling and the upgrade path: `# ponytail: global lock, per-account locks if throughput matters`.
+1. **Does new code need to exist at all?** Meet the target with the current
+   behavior or configuration when that is genuinely sufficient.
+2. **Already in this codebase?** Reuse an existing helper, utility, type, or
+   mechanism instead of creating a parallel one.
+3. **Stdlib does it?** Use the standard library.
+4. **Native capability covers it?** Prefer a built-in platform capability over
+   a new library or application layer.
+5. **Already-installed dependency solves it?** Use the existing dependency;
+   do not add a new one for a small sufficient solution.
+6. **Simple/direct solution?** Prefer the straightforward implementation over
+   an abstraction whose complexity is not required by the target.
+7. **Only then:** add the minimum new code and the fewest necessary files.
 
-## Output
+The ladder is an implementation choice, not a substitute for understanding the
+confirmed target. Stop when the chosen shape fully satisfies it; do not stop at
+a smaller shape that omits required behavior.
 
-Code first. Then at most three short lines: what was skipped, when to add it.
-No essays, no feature tours, no design notes. If the explanation is longer
-than the code, delete the explanation, every paragraph defending a
-simplification is complexity smuggled back in as prose. Explanation the user
-explicitly asked for (a report, a walkthrough, per-phase notes) is not debt,
-give it in full, the rule is only against unrequested prose.
+## Implementation rules
 
-Pattern: `[code] → skipped: [X], add when [Y].`
+- Reuse existing mechanisms before introducing new ones.
+- Apply YAGNI: do not add speculative abstractions, interfaces with one
+  implementation, factories for one product, configuration for an immutable
+  value, or scaffolding for an undefined future.
+- Prefer the smallest sufficient diff and fewest necessary files, not the
+  smallest diff regardless of completeness.
+- Deletion or simplification is valid only when the confirmed target and its
+  safeguards remain satisfied.
+- If two complete solutions are similarly small, choose the one with the more
+  correct edge-case behavior.
+- Do not add a new architectural layer merely to make the implementation look
+  reusable.
 
-## Intensity
+For a bug fix, systematic-debugging owns diagnosis and establishes root cause
+when diagnosis is needed. Ponytail consumes that handoff. If the handoff shows
+the defect is in a shared mechanism, fix the shared mechanism rather than using
+a local symptom workaround solely because it produces a smaller diff.
 
-| Level | What change |
-|-------|------------|
-| **lite** | Build what's asked, but name the lazier alternative in one line. User picks. |
-| **full** | The ladder enforced. Stdlib and native first. Shortest diff, shortest explanation. Default. |
-| **ultra** | YAGNI extremist. Deletion before addition. Ship the one-liner and challenge the rest of the requirement in the same breath. |
+## Completeness and safeguards
 
-Example: "Add a cache for these API responses."
-- lite: "Done, cache added. FYI: `functools.lru_cache` covers this in one line if you'd rather not own a cache class."
-- full: "`@lru_cache(maxsize=1000)` on the fetch function. Skipped custom cache class, add when lru_cache measurably falls short."
-- ultra: "No cache until a profiler says so. When it does: `@lru_cache`. A hand-rolled TTL cache class is a bug farm with a hit rate."
+Implement the simplest **complete** version of the confirmed requirement. A
+smaller diff is not acceptable if it omits required behavior, required edge
+cases, changes a public contract, or defers mandatory validation or error
+behavior.
 
-## When NOT to be lazy
+Never simplify away safeguards for validation, security, privacy,
+compatibility, accessibility, data integrity, error handling, or any other
+explicitly required behavior. When a correct safeguard requires a larger diff,
+the larger complete diff is the minimal valid implementation; minimize only the
+remaining implementation complexity.
 
-Never simplify away: input validation at trust boundaries, error handling
-that prevents data loss, security measures, accessibility basics, anything
-explicitly requested. User insists on the full version → build it, no
-re-arguing.
-
-Never lazy about understanding the problem. The ladder shortens the
-solution, never the reading. Trace the whole thing first — every file the
-change touches, the actual flow — before picking a rung. Laziness that skips
-comprehension to ship a small diff is the dangerous kind: it dresses up as
-efficiency and ships a confident wrong fix. Read fully, then be lazy.
-
-Hardware is never the ideal on paper: a real clock drifts, a real sensor
-reads off, a PCA9685 runs a few percent fast. Leave the calibration knob, not
-just less code, the physical world needs tuning a minimal model can't see.
-
-Lazy code without its check is unfinished. Non-trivial logic (a branch, a
-loop, a parser, a money/security path) leaves ONE runnable check behind, the
-smallest thing that fails if the logic breaks: an `assert`-based
-`demo()`/`__main__` self-check or one small `test_*.py`. No frameworks, no
-fixtures, no per-function suites unless asked. Trivial one-liners need no
-test, YAGNI applies to tests too.
+Non-goals may remain unimplemented only when the user or SDD has actually
+defined them as non-goals.
 
 ## Boundaries
 
-Ponytail governs what you build, not how you talk (pair with Caveman for
-terse prose). "stop ponytail" / "normal mode": revert. Level persists until
-changed or session end.
+Ponytail owns:
 
-The shortest path to done is the right path.
+- implementation minimality;
+- mechanism and reuse choice;
+- avoidance of speculative abstractions;
+- selecting the smallest implementation that is complete and safeguarded.
+
+Ponytail does not own:
+
+- target requirements or specification;
+- debugging, root-cause discovery, reproduction, hypotheses, data-flow, or
+  caller investigation;
+- TDD applicability or regression/testing policy;
+- whether an assert, demo, test, fixture, or framework is appropriate;
+- behavioral verification;
+- code review;
+- PR, CI, or delivery/reporting.
+
+Those responsibilities remain with the applicable requirements, debugging, TDD,
+and review/delivery workflows. Ponytail must not weaken SDD or TDD safeguards
+in the name of implementation minimality.

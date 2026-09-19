@@ -1,5 +1,5 @@
 ## Description: <br>
-Ponytail steers coding agents toward small, practical changes for write, refactor, fix, and review tasks, emphasizing YAGNI, standard library use, and no unrequested abstractions. <br>
+Ponytail steers coding agents toward minimal complete implementation choices while selecting or changing implementation, emphasizing YAGNI, existing mechanisms, and standard/native capabilities. <br>
 
 This skill is ready for commercial/non-commercial use. <br>
 
@@ -11,14 +11,14 @@ MIT-0 <br>
 
 
 ## Use Case: <br>
-Developers and coding agents use Ponytail to keep coding work focused on minimal, practical diffs, reuse existing code and platform features, and avoid speculative abstractions. <br>
+Developers and coding agents use Ponytail to choose minimal complete implementation shapes, reuse existing mechanisms and platform features, and avoid speculative abstractions; it does not define requirements, debugging, testing, review, or delivery. <br>
 
 ### Deployment Geography for Use: <br>
 Global <br>
 
 ## Known Risks and Mitigations: <br>
-Risk: The persistent minimalist coding posture can be a poor fit when the user wants fuller design exploration or a less opinionated approach. <br>
-Mitigation: Use "stop ponytail" or "normal mode" to disable the posture, or choose a lighter intensity before asking for broader design work. <br>
+Risk: The implementation-minimality constraint can be a poor fit when the task needs broader design exploration before an implementation decision. <br>
+Mitigation: Apply Ponytail only while choosing or changing implementation; keep requirement discovery, diagnosis, testing policy, review, and delivery with their owning workflows. <br>
 
 
 ## Reference(s): <br>
@@ -30,7 +30,7 @@ Mitigation: Use "stop ponytail" or "normal mode" to disable the posture, or choo
 **Output Type(s):** [Guidance, Text, Markdown, Code, Shell commands] <br>
 **Output Format:** [Agent responses, code edits, and concise Markdown explanations] <br>
 **Output Parameters:** [1D] <br>
-**Other Properties Related to Output:** [Persistent coding posture with lite, full, and ultra intensity modes; no executable files or tool calls are included in the artifact.] <br>
+**Other Properties Related to Output:** [Scoped implementation constraint; no executable files or tool calls are included in the artifact.] <br>
 
 ## Skill Version(s): <br>
 4.8.4 (source: server release metadata) <br>
