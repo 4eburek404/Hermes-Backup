@@ -72,9 +72,9 @@ def load_input(path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        raise ValueError(f"input file not found: {path}")
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"invalid JSON in {path}: {exc}")
+        raise ValueError("input file not found")
+    except json.JSONDecodeError:
+        raise ValueError("invalid JSON input")
     if not isinstance(data, dict):
         raise ValueError("input JSON root must be an object")
     return data

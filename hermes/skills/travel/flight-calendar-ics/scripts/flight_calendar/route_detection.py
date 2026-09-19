@@ -14,7 +14,7 @@ def read_private_text(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8").strip()
     except FileNotFoundError as exc:
-        raise CliFailure(f"input file not found: {path}", code="usage_error") from exc
+        raise CliFailure("input file not found", code="usage_error") from exc
 
 
 def first_url_from_args(args: argparse.Namespace) -> str | None:
@@ -25,7 +25,7 @@ def first_url_from_args(args: argparse.Namespace) -> str | None:
     if url_file:
         text = read_private_text(url_file)
         if not text:
-            raise CliFailure(f"url file is empty: {url_file}", code="usage_error")
+            raise CliFailure("url file is empty", code="usage_error")
         return text.splitlines()[0].strip()
     return url
 

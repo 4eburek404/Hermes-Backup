@@ -190,7 +190,29 @@ class CompactContractTests(unittest.TestCase):
                 "--tz is only supported with --url or --url-file", payload["error"]["message"]
             )
 
-    def test_unexpected_exception_returns_internal_error_and_exit_one(self) -> None:
+    def test_private_source_paths_are_redacted_from_errors(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="flight-private-sources.") as tmp:
+            tmp_path = Path(tmp)
+            missing_url = tmp_path / "missing-private-booking-url.txt"
+            empty_url = tmp_path / "empty-private-booking-url.txt"
+            invalid_input = tmp_path / "invalid-private-itinerary.json"
+            empty_url.write_text("", encoding="utf-8")
+            invalid_input.write_text("not-json", encoding="utf-8")
+
+            cases = (
+                ("--url-file", missing_url, "usage_error"),
+                ("--url-file", empty_url, "usage_error"),
+                ("--input", invalid_input, "validation_error"),
+            )
+            for option, path, expected_code in cases:
+                with self.subTest(option=option, path=path.name):
+                    result = self.run_cli("--json", "build", option, str(path))
+                    self.assertEqual(result.returncode, 2)
+                    payload = json.loads(result.stdout)
+                    assert_valid_cli_envelope(self, payload)
+                    self.assertEqual(payload["error"]["code"], expected_code)
+                    self.assertNotIn(str(path), result.stdout + result.stderr)
+
         sys.path.insert(0, str(SCRIPTS))
         from flight_calendar import parser
 
