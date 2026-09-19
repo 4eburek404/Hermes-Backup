@@ -84,22 +84,6 @@ The JSON file is an internal intermediate format. It is not a user input.
 
 Do not pass raw Markdown or OCR text directly to the calendar CLI.
 
-## Maintenance (operator-only)
-
-The runtime timezone module only reads `data/airport-timezones.json`. To refresh
-that asset from the public Travelpayouts airport catalogs, run from `<skill-root>`:
-
-```bash
-"${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/update_airport_timezones.py"
-```
-
-The updater downloads all three sources into a temporary directory, validates the
-JSON arrays and every retained timezone with Python `zoneinfo`, then atomically
-replaces the checked-in asset only when the deterministic candidate differs. Raw
-upstream catalogs are not stored in the repository. Its stdout is a short JSON
-result containing `ok`, `changed`, `timezone_count`, source hashes, and diff
-counts.
-
 ## Success
 
 Success requires:

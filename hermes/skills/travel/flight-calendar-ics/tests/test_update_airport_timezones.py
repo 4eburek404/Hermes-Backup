@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import hashlib
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -13,133 +13,84 @@ from typing import Any
 from unittest import mock
 from urllib.error import URLError
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-try:
-    import update_airport_timezones  # noqa: E402
-except ModuleNotFoundError:  # RED until the maintenance script exists
-    update_airport_timezones = None  # type: ignore[assignment]
+import update_airport_timezones  # noqa: E402
 
 
-SOURCE_URLS = (
-    "https://api.travelpayouts.com/data/en/airports.json",
-    "https://api.travelpayouts.com/data/ru/airports.json",
-    "https://api.travelpayouts.com/data/airports.json",
-)
+SOURCE_URL = "https://api.travelpayouts.com/data/en/airports.json"
 
 
 def source_payload(records: list[dict[str, object]]) -> bytes:
     return json.dumps(records, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
-class FakeResponse:
-    def __init__(self, body: bytes, *, content_type: str = "application/json") -> None:
-        self.body = body
-        self.status = 200
-        self.headers = {"Content-Type": content_type}
-
-    def read(self) -> bytes:
-        return self.body
-
-    def __enter__(self) -> "FakeResponse":
-        return self
-
-    def __exit__(self, *args: object) -> None:
-        return None
-
-
 class UpdateAirportTimezonesContractTests(unittest.TestCase):
     def run_update(
         self,
         output: Path,
-        responses: dict[str, bytes | Exception],
+        response: bytes | Exception,
     ) -> tuple[int, dict[str, Any]]:
-        if update_airport_timezones is None:
-            self.fail("update_airport_timezones.py is not implemented")
-
-        def urlopen(request: object, timeout: int = 0) -> FakeResponse:
-            del timeout
-            url = request.full_url  # type: ignore[attr-defined]
-            response = responses[url]
+        def fetch(url: str) -> bytes:
+            self.assertEqual(url, SOURCE_URL)
             if isinstance(response, Exception):
                 raise response
-            return FakeResponse(response)
+            return response
 
         stdout = io.StringIO()
         with (
-            mock.patch.object(
-                update_airport_timezones.urllib.request,
-                "urlopen",
-                side_effect=urlopen,
-            ),
+            mock.patch.object(update_airport_timezones, "fetch_source", side_effect=fetch),
             contextlib.redirect_stdout(stdout),
         ):
             code = update_airport_timezones.main(["--output", str(output)])
         return code, json.loads(stdout.getvalue())
 
-    def valid_responses(self) -> dict[str, bytes | Exception]:
-        return {
-            SOURCE_URLS[0]: source_payload(
-                [
-                    {"code": "svo", "time_zone": "Europe/Moscow"},
-                    {"code": "SVX", "time_zone": "Asia/Yekaterinburg"},
-                ]
-            ),
-            SOURCE_URLS[1]: source_payload(
-                [
-                    {"code": "SVO", "time_zone": "Asia/Yekaterinburg"},
-                    {"code": "LED", "time_zone": "Europe/Moscow"},
-                ]
-            ),
-            SOURCE_URLS[2]: source_payload(
-                [
-                    {"code": "SVO", "time_zone": "Europe/London"},
-                    {"code": "KUF", "time_zone": "Europe/Samara"},
-                ]
-            ),
-        }
+    def valid_response(self) -> bytes:
+        return source_payload(
+            [
+                {"code": "svo", "time_zone": "Europe/Moscow", "iata_type": "airport", "flightable": True},
+                {"code": "KUF", "time_zone": "Europe/Samara", "iata_type": "airport", "flightable": False},
+                {"code": "BUS", "time_zone": "Europe/Moscow", "iata_type": "bus", "flightable": True},
+                {"code": "RWA", "time_zone": "Europe/Moscow", "iata_type": "railway", "flightable": True},
+                {"code": "HEL", "time_zone": "Europe/Moscow", "iata_type": "heliport", "flightable": True},
+            ]
+        )
 
-    def test_success_precedence_zoneinfo_and_provenance(self) -> None:
+    def test_success_airports_only_zoneinfo_and_provenance(self) -> None:
         with TemporaryDirectory(prefix="airport-timezones-contract.") as tmp:
             output = Path(tmp) / "airport-timezones.json"
-            code, result = self.run_update(output, self.valid_responses())
+            code, result = self.run_update(output, self.valid_response())
 
             self.assertEqual(code, 0)
             self.assertEqual(result["ok"], True)
             self.assertEqual(result["changed"], True)
-            self.assertEqual(result["timezone_count"], 4)
-            self.assertEqual(result["added"], 4)
+            self.assertEqual(result["timezone_count"], 2)
+            self.assertEqual(result["added"], 2)
             self.assertEqual(result["removed"], 0)
             self.assertEqual(result["timezone_changed"], 0)
 
             document = json.loads(output.read_text(encoding="utf-8"))
-            self.assertEqual(document["timezones"]["SVO"], "Europe/London")
-            self.assertEqual(document["timezones"]["SVX"], "Asia/Yekaterinburg")
+            self.assertEqual(document["timezones"], {"KUF": "Europe/Samara", "SVO": "Europe/Moscow"})
             self.assertEqual(document["schema_version"], "airport-timezones.v1")
+            self.assertEqual(document["source_files"][0]["url"], SOURCE_URL)
+            self.assertEqual(document["source_files"][0]["records"], 5)
+            self.assertEqual(document["source_files"][0]["airports_retained"], 2)
+            self.assertNotIn("timezone_updates", document["source_files"][0])
             self.assertEqual(
-                [item["url"] for item in document["source_files"]], list(SOURCE_URLS)
+                document["source_files"][0]["sha256"],
+                hashlib.sha256(self.valid_response()).hexdigest(),
             )
-            for item, url in zip(document["source_files"], SOURCE_URLS):
-                payload = self.valid_responses()[url]
-                if not isinstance(payload, bytes):
-                    self.fail("test fixture payload must be bytes")
-                self.assertEqual(item["sha256"], hashlib.sha256(payload).hexdigest())
-                self.assertIn("records", item)
-                self.assertIn("timezone_updates", item)
 
     def test_download_failure_leaves_existing_asset_untouched(self) -> None:
         with TemporaryDirectory(prefix="airport-timezones-contract.") as tmp:
             output = Path(tmp) / "airport-timezones.json"
             original = b'{"existing": "asset"}\n'
             output.write_bytes(original)
-            responses = self.valid_responses()
-            responses[SOURCE_URLS[1]] = URLError("offline")
 
-            code, result = self.run_update(output, responses)
+            code, result = self.run_update(output, URLError("offline"))
 
             self.assertNotEqual(code, 0)
             self.assertEqual(result["ok"], False)
@@ -150,10 +101,8 @@ class UpdateAirportTimezonesContractTests(unittest.TestCase):
             output = Path(tmp) / "airport-timezones.json"
             original = b"not-json\n"
             output.write_bytes(original)
-            responses = self.valid_responses()
-            responses[SOURCE_URLS[0]] = b"["
 
-            code, result = self.run_update(output, responses)
+            code, result = self.run_update(output, b"[")
 
             self.assertNotEqual(code, 0)
             self.assertEqual(result["ok"], False)
@@ -164,10 +113,8 @@ class UpdateAirportTimezonesContractTests(unittest.TestCase):
             output = Path(tmp) / "airport-timezones.json"
             original = b'{"existing": "asset"}\n'
             output.write_bytes(original)
-            responses = self.valid_responses()
-            responses[SOURCE_URLS[0]] = b"{}"
 
-            code, result = self.run_update(output, responses)
+            code, result = self.run_update(output, b"{}")
 
             self.assertNotEqual(code, 0)
             self.assertEqual(result["ok"], False)
@@ -179,12 +126,11 @@ class UpdateAirportTimezonesContractTests(unittest.TestCase):
             output = Path(tmp) / "airport-timezones.json"
             original = b'{"existing": "asset"}\n'
             output.write_bytes(original)
-            responses = self.valid_responses()
-            responses[SOURCE_URLS[2]] = source_payload(
-                [{"code": "SVO", "time_zone": "Foo/Bar"}]
+            response = source_payload(
+                [{"code": "SVO", "time_zone": "Foo/Bar", "iata_type": "airport"}]
             )
 
-            code, result = self.run_update(output, responses)
+            code, result = self.run_update(output, response)
 
             self.assertNotEqual(code, 0)
             self.assertEqual(result["ok"], False)
@@ -194,14 +140,14 @@ class UpdateAirportTimezonesContractTests(unittest.TestCase):
     def test_identical_input_is_deterministic_and_does_not_rewrite(self) -> None:
         with TemporaryDirectory(prefix="airport-timezones-contract.") as tmp:
             output = Path(tmp) / "airport-timezones.json"
-            responses = self.valid_responses()
-            first_code, first_result = self.run_update(output, responses)
+            response = self.valid_response()
+            first_code, first_result = self.run_update(output, response)
             first_bytes = output.read_bytes()
             first_mtime = output.stat().st_mtime_ns
             os.utime(output, ns=(first_mtime - 1_000_000_000, first_mtime - 1_000_000_000))
             preserved_mtime = output.stat().st_mtime_ns
 
-            second_code, second_result = self.run_update(output, responses)
+            second_code, second_result = self.run_update(output, response)
 
             self.assertEqual(first_code, 0)
             self.assertEqual(second_code, 0)
