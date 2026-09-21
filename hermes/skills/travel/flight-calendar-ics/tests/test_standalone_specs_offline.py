@@ -16,6 +16,7 @@ SPEC_FILES = (
     "aeroflot_spec.py",
     "utair_spec.py",
     "passenger_display_spec.py",
+    "ural_spec.py",
 )
 
 

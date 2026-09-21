@@ -1,21 +1,17 @@
 #!/usr/bin/env python3
-"""Fetch Ural Airlines manage-booking data and convert it to itinerary JSON.
-
-The Ural Airlines manage-booking frontend is a JavaScript SPA. The public
-configuration needed for Reservation lookup is loaded from the current frontend
-(`/<version>/env/env.json`) at runtime; no local `.env` or cached private config
-file is required for the normal flow.
-"""
+"""Fetch Ural Airlines manage-booking data and convert it to itinerary JSON."""
 
 from __future__ import annotations
 
+import base64
 import json
+import math
 import os
 import re
-import subprocess
-import tempfile
 import time
-from typing import Any, NamedTuple
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 
 from flight_calendar import carrier_http
@@ -23,12 +19,17 @@ from flight_calendar.errors import CliFailure
 
 
 URAL_SERVICE_BASE = "https://service.uralairlines.ru/"
+URAL_CONFIG_FILENAME = "ural-deployment.json"
+URAL_CONFIG_CACHE_DIR = Path.home() / ".hermes" / "cache" / "flight-calendar-ics"
+TIME_BUCKET_MS = 60_000
+TIME_SEED_PREFIX = "dkhm83gfnm"
 
 
-class FrontendAssets(NamedTuple):
-    env_url: str
-    helper_js_url: str
-    app_js_url: str
+@dataclass(frozen=True)
+class DeploymentConfig:
+    version: str
+    api_url: str
+    api_key: str
 
 
 def http_text(
@@ -43,26 +44,15 @@ def http_text(
 
 
 def http_json(
-    url: str, *, timeout: int = 45, headers: dict[str, str] | None = None
-) -> Any:
-    return carrier_http.request_json(
-        url,
-        headers={"Accept": "application/json", **(headers or {})},
-        timeout=timeout,
-        label="Ural Airlines API",
-    )
-
-
-def post_json(
     url: str,
-    body: dict[str, Any],
     *,
+    method: str = "GET",
     timeout: int = 45,
     headers: dict[str, str] | None = None,
 ) -> Any:
     return carrier_http.request_json(
         url,
-        json_body=body,
+        method=method,
         headers={"Accept": "application/json", **(headers or {})},
         timeout=timeout,
         label="Ural Airlines API",
@@ -91,56 +81,115 @@ def parse_ural_source(url: str) -> tuple[str, str, str]:
     return locator, surname, booking_url
 
 
-def discover_frontend_assets(
-    frontend_base: str | None = None, *, timeout: int = 45
-) -> FrontendAssets:
-    base = (frontend_base or URAL_SERVICE_BASE).rstrip("/") + "/"
-    html = http_text(base, timeout=timeout, headers={"Accept": "text/html"})
+def _config_cache_path() -> Path:
+    override = os.environ.get("FLIGHT_CALENDAR_CACHE_DIR")
+    cache_dir = Path(override).expanduser() if override and override.strip() else URAL_CONFIG_CACHE_DIR
+    return cache_dir / URAL_CONFIG_FILENAME
+
+
+def _valid_config(version: Any, api_url: Any, api_key: Any) -> DeploymentConfig:
+    if (
+        not isinstance(version, str)
+        or not re.fullmatch(r"\d+", version)
+        or not isinstance(api_url, str)
+        or not isinstance(api_key, str)
+        or not api_key
+    ):
+        raise ValueError("Ural Airlines deployment configuration is invalid")
+    parsed = urlparse(api_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("Ural Airlines deployment configuration is invalid")
+    return DeploymentConfig(version, api_url.rstrip("/") + "/", api_key)
+
+
+def _load_cached_config() -> DeploymentConfig | None:
+    try:
+        path = _config_cache_path()
+        document = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(document, dict):
+            return None
+        config = _valid_config(
+            document.get("version"), document.get("API_URL"), document.get("API_KEY")
+        )
+        _secure_cache_permissions(path)
+        return config
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
+        return None
+
+
+def _secure_cache_permissions(path: Path) -> None:
+    try:
+        os.chmod(path.parent, 0o700)
+        os.chmod(path, 0o600)
+    except OSError as exc:
+        raise ValueError("Ural Airlines deployment configuration is unavailable") from exc
+
+
+def _save_config(config: DeploymentConfig) -> None:
+    path = _config_cache_path()
+    temporary = path.with_name(f".{path.name}.tmp")
+    try:
+        path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+        os.chmod(path.parent, 0o700)
+        temporary.write_text(
+            json.dumps(
+                {
+                    "version": config.version,
+                    "API_URL": config.api_url,
+                    "API_KEY": config.api_key,
+                },
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, path)
+        _secure_cache_permissions(path)
+    except OSError as exc:
+        raise ValueError("Ural Airlines deployment configuration is unavailable") from exc
+
+
+def _deployment_version(html: str) -> str:
     asset_paths = re.findall(r"(?:src|href)=[\"']?([^\"'\s>]+)", html)
-
-    app_path = next(
-        (p for p in asset_paths if re.search(r"/js/app\.[^/]+\.js(?:\?.*)?$", p)), None
-    )
-    helper_path = next(
-        (p for p in asset_paths if re.search(r"/\d+/[0-9a-f]{32}\.js(?:\?.*)?$", p)),
-        None,
-    )
-
-    version = None
     for path in asset_paths:
-        match = re.search(r"/(\d+)/(?:js/|css/|env/|[0-9a-f]{32}\.js)", path)
+        match = re.search(r"/(\d+)/(?:js/|css/|env/|[^/]+)", path)
         if match:
-            version = match.group(1)
-            break
-    if not version:
-        version = "37898"
-    if not app_path:
-        app_path = f"/{version}/js/app.js"
-    if not helper_path:
-        raise ValueError("could not find Ural Airlines frontend API-key helper script in shell HTML")
+            return match.group(1)
+    raise ValueError("Ural Airlines deployment configuration is invalid")
 
-    return FrontendAssets(
-        env_url=urljoin(base, f"/{version}/env/env.json"),
-        helper_js_url=urljoin(base, helper_path.split("?", 1)[0]),
-        app_js_url=urljoin(base, app_path.split("?", 1)[0]),
+
+def _discover_config(frontend_base: str, *, timeout: int) -> DeploymentConfig:
+    base = frontend_base.rstrip("/") + "/"
+    version = _deployment_version(http_text(base, timeout=timeout, headers={"Accept": "text/html"}))
+    env = http_json(
+        urljoin(base, f"/{version}/env/env.json"),
+        timeout=timeout,
     )
+    if not isinstance(env, dict):
+        raise ValueError("Ural Airlines deployment configuration is invalid")
+    return _valid_config(version, env.get("API_URL"), env.get("API_KEY"))
 
 
-def parse_api_key_methods(app_js: str) -> list[str]:
-    methods = re.findall(
-        r'window\["([0-9a-f]{32})"\]\(t,e\.getters,u\.default\)', app_js
-    )
-    if not methods:
-        raise ValueError("could not find Ural Airlines API-key helper calls in frontend bundle")
-    # Keep order from the axios interceptor: the first helper may be a no-op, the second sets X-Api-Key.
-    deduped: list[str] = []
-    for name in methods:
-        if name not in deduped:
-            deduped.append(name)
-    return deduped
+def load_deployment_config(
+    frontend_base: str | None = None,
+    *,
+    timeout: int = 45,
+    refresh: bool = False,
+) -> DeploymentConfig:
+    """Return cached deployment config, refreshing only on miss or explicit request."""
+    if not refresh:
+        cached = _load_cached_config()
+        if cached is not None:
+            return cached
+    base = frontend_base or URAL_SERVICE_BASE
+    config = _discover_config(base, timeout=timeout)
+    _save_config(config)
+    return config
 
 
 def compute_timestamp_diff(api_url: str, *, timeout: int = 45) -> int:
+    """Synchronize the local clock against the carrier server in milliseconds."""
     try:
         server_seconds = http_json(
             urljoin(api_url.rstrip("/") + "/", "settings/CurrentDateUtc"),
@@ -148,89 +197,41 @@ def compute_timestamp_diff(api_url: str, *, timeout: int = 45) -> int:
         )
         return int(float(server_seconds) * 1000 - time.time() * 1000)
     except Exception:
-        # The header generator only needs a numeric timestampDiff. Zero is safer than letting
-        # the obfuscated helper produce an "undefined"-interleaved header.
         return 0
 
 
+def _base64(data: bytes) -> str:
+    return base64.b64encode(data).decode("ascii")
+
+
 def generate_api_key_header(
-    helper_js: str, env: dict[str, Any], methods: list[str]
+    api_key: str, timestamp_ms: int, timestamp_diff_ms: int = 0
 ) -> str:
-    fd, helper_path = tempfile.mkstemp(prefix="ural-api-helper-", suffix=".js")
+    """Generate the deterministic public Ural X-Api-Key value locally."""
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(helper_js)
-        os.chmod(helper_path, 0o600)
-        node_program = r"""
-const fs = require('fs');
-const vm = require('vm');
-const payload = JSON.parse(fs.readFileSync(0, 'utf8'));
-const code = fs.readFileSync(payload.helperPath, 'utf8');
-const env = payload.env || {};
-if (typeof env.timestampDiff === 'undefined') env.timestampDiff = 0;
-const sandbox = {
-  window: {},
-  console: {log: () => {}, error: () => {}},
-  Date: Date,
-  Math: Math,
-  setTimeout: setTimeout,
-  clearTimeout: clearTimeout,
-  btoa: (s) => Buffer.from(String(s), 'binary').toString('base64')
-};
-sandbox.global = sandbox;
-sandbox.globalThis = sandbox;
-vm.runInNewContext(code, sandbox, {timeout: 5000});
-const cfg = {headers: {common: {}}, apiKeyType: 'default'};
-const getters = {
-  'API_MODULE/GET_API_KEY': (type) => (type === 'checkIn' && env.API_KEY_CHECK_IN) ? env.API_KEY_CHECK_IN : env.API_KEY
-};
-for (const name of payload.methods || []) {
-  const fn = sandbox.window[name] || sandbox[name];
-  if (typeof fn === 'function') fn(cfg, getters, env);
-}
-const value = cfg.headers.common['X-Api-Key'];
-if (!value) throw new Error('X-Api-Key was not generated');
-if (String(value).includes('undefined')) throw new Error('X-Api-Key contains undefined');
-process.stdout.write(String(value));
-"""
-        payload = json.dumps(
-            {"helperPath": helper_path, "env": env, "methods": methods},
-            ensure_ascii=False,
-        )
-        try:
-            result = subprocess.run(
-                ["node", "-e", node_program],
-                input=payload,
-                text=True,
-                capture_output=True,
-                timeout=15,
-            )
-        except FileNotFoundError:
-            raise ValueError(
-                "Node.js is required to execute the current Ural Airlines frontend API-key helper"
-            )
-        if result.returncode != 0:
-            message = (
-                (result.stderr or result.stdout or "unknown Node.js error")
-                .strip()
-                .splitlines()[-1]
-            )
-            raise ValueError(f"Ural Airlines API-key helper failed: {message}")
-        value = result.stdout.strip()
-        if not value or "undefined" in value:
-            raise ValueError("Ural Airlines API-key helper produced an invalid header")
-        return value
-    finally:
-        try:
-            os.unlink(helper_path)
-        except FileNotFoundError:
-            pass
+        key = api_key.encode("latin-1")
+    except UnicodeEncodeError as exc:
+        raise ValueError("Ural Airlines deployment configuration is invalid") from exc
+    if not key:
+        raise ValueError("Ural Airlines deployment configuration is invalid")
+
+    corrected_ms = int(timestamp_ms) + int(timestamp_diff_ms)
+    minute_index = math.floor(corrected_ms / TIME_BUCKET_MS)
+    time_unit = f"{TIME_SEED_PREFIX}{minute_index}".encode("ascii")
+    repeat_count = 5 + (minute_index % 5)
+    time_b64 = _base64(time_unit * repeat_count)
+
+    output_len = len(_base64(key))
+    if len(time_b64) < output_len:
+        time_b64 += "Z" * (output_len - len(time_b64))
+    mask = time_b64[: len(key)].encode("ascii")
+    transformed = bytes(value ^ mask[index] for index, value in enumerate(key))
+    key_b64 = _base64(transformed)
+    return "".join(key_b64[index] + time_b64[index] for index in range(output_len))
 
 
-def api_headers(
-    api_key_header: str, *, session_key: str | None = None
-) -> dict[str, str]:
-    headers = {
+def api_headers(api_key_header: str) -> dict[str, str]:
+    return {
         "User-Agent": "Mozilla/5.0",
         "Accept": "application/json",
         "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
@@ -240,9 +241,6 @@ def api_headers(
         "Cache-Control": "no-cache",
         "X-Api-Key": api_key_header,
     }
-    if session_key:
-        headers["X-Session"] = session_key
-    return headers
 
 
 def fetch_ural_reservation(
@@ -257,40 +255,17 @@ def fetch_ural_reservation(
         parsed = urlparse(booking_url)
         if parsed.scheme and parsed.netloc:
             frontend_base = f"{parsed.scheme}://{parsed.netloc}/"
-    assets = discover_frontend_assets(frontend_base, timeout=timeout)
-    env = http_json(assets.env_url, timeout=timeout)
-    if not isinstance(env, dict):
-        raise ValueError("Ural Airlines env.json is not a JSON object")
-    api_url = str(env.get("API_URL") or "").rstrip("/") + "/"
-    if not api_url.startswith("http"):
-        raise ValueError("Ural Airlines env.json has no usable API_URL")
-    if not env.get("API_KEY"):
-        raise ValueError("Ural Airlines env.json has no API_KEY")
-    env = dict(env)
-    env["timestampDiff"] = compute_timestamp_diff(api_url, timeout=timeout)
-    app_js = http_text(assets.app_js_url, timeout=timeout)
-    methods = parse_api_key_methods(app_js)
-    helper_js = http_text(assets.helper_js_url, timeout=timeout)
-    api_key_header = generate_api_key_header(helper_js, env, methods)
-
-    session = post_json(
-        api_url + "Session", {}, timeout=timeout, headers=api_headers(api_key_header)
+    config = load_deployment_config(frontend_base, timeout=timeout)
+    timestamp_diff = compute_timestamp_diff(config.api_url, timeout=timeout)
+    api_key_header = generate_api_key_header(
+        config.api_key, int(time.time() * 1000), timestamp_diff
     )
-    session_key = None
-    if isinstance(session, dict):
-        session_key = session.get("sessionKey") or (
-            (session.get("data") or {}).get("sessionKey")
-            if isinstance(session.get("data"), dict)
-            else None
-        )
-    if not session_key:
-        raise ValueError("Ural Airlines Session response has no sessionKey")
-
     query = urlencode({"pnrNumber": locator, "lastName": last_name})
     reservation = http_json(
-        api_url + "Reservation?" + query,
+        config.api_url + "Reservation?" + query,
+        method="GET",
         timeout=timeout,
-        headers=api_headers(api_key_header, session_key=session_key),
+        headers=api_headers(api_key_header),
     )
     if not isinstance(reservation, dict):
         raise ValueError("Ural Airlines Reservation response is not a JSON object")

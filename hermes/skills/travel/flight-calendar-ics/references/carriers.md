@@ -23,8 +23,8 @@ Common to all carriers: keep credential-bearing URLs private and never expose th
 - Use a trusted direct Ural booking source for live lookup. Generic wrappers from an unknown host with `u=` or `url=` are not supported sources; a nested `service.uralairlines.ru` URL does not make the outer wrapper trusted.
 - If a direct supported Ural booking URL is unavailable, use the PDF/minimal-itinerary flow instead.
 - A link carrying only `pnrOrTicket=` is a form-prefill signal, not sufficient evidence: the live lookup also needs the passenger surname in the URL. A missing-surname error here is the correct outcome, not a generator failure; use a complete manage-booking URL or minimal itinerary JSON.
-- Node.js is required at runtime: the adapter executes the carrier's frontend API-key helper in a sandboxed Node VM. Generated API keys and session keys are credentials.
-- Do not hand the adapter local `.env`/`env.json` copies; the normal path reads live frontend config.
+- The adapter keeps only deployment configuration (`version`, `API_URL`, and `API_KEY`) in the runtime cache. A cache miss reads the trusted frontend root and its versioned `env/env.json`; a cache hit skips both. No undocumented cache TTL is assumed; explicit refresh is available to the adapter, while auth-triggered refresh remains deferred until the API error contract is reliable.
+- The Reservation request uses the locally generated time-bucketed `X-Api-Key` and direct `GET Reservation`; it does not download app/helper JavaScript, invoke Node.js, create a Session, or send `X-Session`. Generated keys and booking credentials remain private.
 
 ## S7 Airlines
 
