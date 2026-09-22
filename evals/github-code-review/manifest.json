@@ -1,29 +1,89 @@
 {
   "name": "github-code-review-agent-level-eval",
   "type": "local-diff-review",
-  "baseline_skill_commit": "0239f4d",
-  "candidate_skill_commit": "98c4db2",
+  "mode": "recorded",
+  "skill": {
+    "name": "github-code-review",
+    "path": "hermes/skills/github/github-code-review/SKILL.md"
+  },
+  "skill_versions": {
+    "baseline": {
+      "source": "git",
+      "ref": "0239f4d"
+    },
+    "candidate": {
+      "source": "working_tree",
+      "reference_commit": "98c4db2"
+    }
+  },
+  "models": [
+    {
+      "model": "gpt-5.6-luna",
+      "provider": "openai-codex"
+    }
+  ],
+  "repeats": 1,
+  "execution": {
+    "toolsets": ["terminal", "file", "skills"],
+    "max_turns": 30,
+    "run_budget": 180,
+    "yolo": true,
+    "source": "eval"
+  },
   "scenarios": {
     "scenario-a": {
       "fixture_base_sha": "504da46badb86b5ef086990b08a3e581feb8b698",
       "fixture_review_commit_sha": "2093c2ce518c611dd3d3c05a8649b2531ffff27f",
       "patch": "fixtures/scenario-a/review.patch",
       "prompt": "prompt/scenario-a.txt",
-      "oracle": "expected/scenario-a.json"
+      "oracle": "expected/scenario-a.json",
+      "evaluation": {
+        "trajectory": {
+          "forbid_fixture_mutation": true,
+          "forbidden_command_patterns": [
+            "git\\s+checkout\\b",
+            "git\\s+reset\\b",
+            "git\\s+clean\\b",
+            "git\\s+commit\\b"
+          ]
+        }
+      }
     },
     "scenario-b": {
       "fixture_base_sha": "459d3911bd84207986c7cb0e1afe9d371b7c26c1",
       "fixture_review_commit_sha": "f3851db6df6543a46e67c23a6fa0f0da100474cc",
       "patch": "fixtures/scenario-b/review.patch",
       "prompt": "prompt/scenario-b.txt",
-      "oracle": "expected/scenario-b.json"
+      "oracle": "expected/scenario-b.json",
+      "evaluation": {
+        "trajectory": {
+          "forbid_fixture_mutation": true,
+          "forbidden_command_patterns": [
+            "git\\s+checkout\\b",
+            "git\\s+reset\\b",
+            "git\\s+clean\\b",
+            "git\\s+commit\\b"
+          ]
+        }
+      }
     },
     "scenario-c": {
       "fixture_base_sha": "359a6fb86e27b35e39fc43f2d654e9cf9e98c70e",
       "fixture_review_commit_sha": "9bec290c9a91e53c8bda9a608de140e920582510",
       "patch": "fixtures/scenario-c/review.patch",
       "prompt": "prompt/scenario-c.txt",
-      "oracle": "expected/scenario-c.json"
+      "oracle": "expected/scenario-c.json",
+      "evaluation": {
+        "trajectory": {
+          "forbid_fixture_mutation": true,
+          "forbidden_command_patterns": [
+            "git\\s+checkout\\b",
+            "git\\s+reset\\b",
+            "git\\s+clean\\b",
+            "git\\s+commit\\b"
+          ]
+        }
+      }
     }
   },
   "controlled_comparison": {

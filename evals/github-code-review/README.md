@@ -1,42 +1,61 @@
 # github-code-review agent-level evaluation
 
-This is an offline, local-diff behavioral evaluation of `github-code-review`.
-It compares the historical skill at `0239f4d` with the candidate at `98c4db2`
-without checking out the repository or changing Hermes core.
+This evaluation is now a consumer of the common harness in `evals/harness/`.
+
+It remains an offline, local-diff behavioral evaluation of `github-code-review`.
+The fixture repositories and review tools have no network path; the model provider
+call is the only expected network dependency during a real run.
 
 ## Layout
 
 - `prompt/` — exact prompts passed to every run.
-- `fixtures/` — versioned source snapshots and fixed patches for three local git repositories.
-- `expected/` — evaluator-side oracle; never copied into a run repository.
-- `runs/` — immutable per-run prompt, metadata, snapshots, raw stream-json trace, stderr, final answer, and derived analysis.
-- `run_eval.py` — deterministic materialization, execution, evidence capture, and baseline/candidate orchestration.
-- `manifest.json` — scenario, fixture, version, and controlled-comparison metadata.
+- `fixtures/` — versioned source snapshots and fixed patches.
+- `expected/` — evaluator-side oracle; never copied into the agent fixture/home.
+- `manifest.json` — models, skill versions, scenarios, fixture identities and execution settings.
+- `consumer.py` — github-code-review-specific fixture/runtime/evidence behavior.
+- `run_eval.py` — thin CLI that builds a data-driven case and delegates orchestration to `evals/harness/core.py`.
+- `runs/` — immutable run evidence and derived scores.
 
 ## Run
 
-From this repository worktree:
-
 ```bash
-python evals/github-code-review/run_eval.py --runs 3
+python evals/github-code-review/run_eval.py
 ```
 
-The runner uses the installed Hermes executable (`hermes --version`), the same
-model/provider for all runs, an isolated `HERMES_HOME`, a copied skill tree with
-only `github-code-review` replaced, and a fresh local fixture repository for
-each run. It enables only `terminal,file,skills` toolsets. The model provider
-call is the only expected network dependency; fixtures and review tools have no
-network path.
+The default matrix comes from `manifest.json`.
 
-`--runs 3` means candidate plus controlled baseline for each scenario. Use
-`--version candidate` or `--version baseline` for a single side when needed.
+Useful subsets:
 
-The raw stdout is Hermes `--format stream-json` output: init, text, tool-use,
-tool-result, and terminal result records. Stderr, exact command, runtime
-settings, skill hashes, prompt, pre/post git snapshots, and any mutation diff
-are saved alongside it. If ATIF/ATOF exporters are not available in the runtime,
-`metadata.json` records that fact rather than synthesizing a trace.
+```bash
+python evals/github-code-review/run_eval.py --version candidate
+python evals/github-code-review/run_eval.py --runs 1
+python evals/github-code-review/run_eval.py --repeat 3
+python evals/github-code-review/run_eval.py --model MODEL --provider PROVIDER
+python evals/github-code-review/run_eval.py --prepare-only
+```
 
-The oracle is never placed under the fixture repository or the isolated Hermes
-home. Derived classification belongs in `analysis.json`/`report.md`, separate
-from raw execution evidence.
+## Evidence
+
+The migrated consumer preserves the previous raw evidence contract:
+
+- exact prompt copy;
+- `raw_stream.jsonl`;
+- `raw_stderr.txt`;
+- `raw_final_answer.txt`;
+- `metadata.json`;
+- fixture pre/post/restored snapshots;
+- mutation evidence;
+- skill/model/provider/runtime identity.
+
+The common harness additionally writes:
+
+- `evidence.json`;
+- `score.json`;
+- batch expected/executed run identities;
+- explicit baseline/candidate comparability data.
+
+Outcome scoring for this review consumer is intentionally still `UNDEFINED`:
+the historical review oracle requires semantic judgment and has not been replaced
+with a brittle keyword approximation. Trajectory is deterministic for the
+currently defined mutation/forbidden-command rules. Flight-calendar evaluation
+can use deterministic artifact semantics for Outcome.
