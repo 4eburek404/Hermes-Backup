@@ -8,11 +8,14 @@ This migration moves orchestration from the one-off
 The github-code-review consumer retains only domain-specific behavior:
 
 - materializing the local Git fixture;
-- selecting the requested skill version;
 - constructing the isolated Hermes home;
 - invoking Hermes;
 - capturing review-specific raw evidence;
 - deterministic trajectory evaluation.
+
+Skill-source materialization is now common harness behavior in
+`evals/harness/skill_source.py`. The consumer supplies the configured skill
+path and version source but does not implement Git-ref/working-tree selection.
 
 ## Preserved evidence
 
@@ -50,6 +53,7 @@ The common harness adds:
 - H10 baseline/candidate comparison — common harness verifies controlled material conditions.
 - H11 evaluator failure — represented as ERROR/UNDEFINED independently of agent execution.
 - H12 new consumer — orchestration is no longer specific to github-code-review.
+- H13 skill source — full skill directories can come from a Git ref or working tree without changing the harness checkout; source identity records the resolved commit and content digest.
 
 ## Deterministic migration check
 
@@ -64,7 +68,12 @@ The common harness adds:
 It checks:
 
 1. preservation of the raw evidence contract;
-2. separation and controlled comparison of baseline/candidate runs.
+2. separation and controlled comparison of baseline/candidate runs;
+3. propagation of common skill-source identity into run metadata.
+
+`tests/contract/test_eval_harness_skill_source_contract.py` independently
+checks Git-ref and working-tree materialization, complete-skill copying, and
+checkout preservation.
 
 ## Deliberate limitation
 

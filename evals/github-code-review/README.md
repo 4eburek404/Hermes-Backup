@@ -13,6 +13,7 @@ call is the only expected network dependency during a real run.
 - `expected/` — evaluator-side oracle; never copied into the agent fixture/home.
 - `manifest.json` — models, skill versions, scenarios, fixture identities and execution settings.
 - `consumer.py` — github-code-review-specific fixture/runtime/evidence behavior.
+- `../harness/skill_source.py` — common complete-skill materialization from a Git ref or the working tree.
 - `run_eval.py` — thin CLI that builds a data-driven case and delegates orchestration to `evals/harness/core.py`.
 - `runs/` — immutable run evidence and derived scores.
 
@@ -45,7 +46,8 @@ The migrated consumer preserves the previous raw evidence contract:
 - `metadata.json`;
 - fixture pre/post/restored snapshots;
 - mutation evidence;
-- skill/model/provider/runtime identity.
+- skill/model/provider/runtime identity;
+- requested skill source, resolved commit, and complete-skill content digest.
 
 The common harness additionally writes:
 
