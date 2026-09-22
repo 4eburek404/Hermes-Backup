@@ -66,8 +66,12 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 def build_matrix(case: dict[str, Any]) -> list[RunSpec]:
     specs: list[RunSpec] = []
+    scenario_metadata = case.get("scenario_metadata", {})
     for skill_version in case["skill_versions"]:
         for scenario in case["scenarios"]:
+            scenario_meta = scenario_metadata.get(scenario, {})
+            fixture_version = scenario_meta.get("fixture_version", case["fixture_version"])
+            prompt_version = scenario_meta.get("prompt_version", case["prompt_version"])
             for model_entry in case["models"]:
                 for repeat in range(1, int(case["repeats"]) + 1):
                     specs.append(
@@ -77,8 +81,8 @@ def build_matrix(case: dict[str, Any]) -> list[RunSpec]:
                             provider=model_entry["provider"],
                             skill_version=skill_version,
                             repeat=repeat,
-                            fixture_version=case["fixture_version"],
-                            prompt_version=case["prompt_version"],
+                            fixture_version=fixture_version,
+                            prompt_version=prompt_version,
                             runtime_version=case["runtime_version"],
                             mode=case["mode"],
                         )
