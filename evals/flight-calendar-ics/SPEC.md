@@ -51,9 +51,9 @@ Hermes executes the task with `flight-calendar-ics`.
 - one generated `.ics` artifact is retained as run evidence;
 - the artifact is parseable as iCalendar;
 - it contains exactly 2 `VEVENT` components;
-- the events contain the expected fixture flights:
-  - `SU 9001`, SVX → SVO, 2037-09-23 13:30 → 13:50 local;
-  - `SU 9002`, SVO → SVX, 2037-09-25 15:25 → 19:50 local;
+- the events contain the expected fixture routes and times:
+  - SVX → SVO, 2037-09-23 13:30 → 13:50 local, Airbus A330-300;
+  - SVO → SVX, 2037-09-25 15:25 → 19:50 local, Boeing 737-800;
 - the final agent answer returns the generated `.ics` artifact.
 
 Outcome checks the resulting artifact, not the internal carrier parser
@@ -69,9 +69,11 @@ The agent must:
 3. invoke that build CLI exactly once;
 4. stop after the successful CLI result.
 
+The first fast eval exposes only the `terminal`, `file`, and `skills`
+toolsets. Browser/web fallback is deliberately not exercised yet.
+
 The run fails Trajectory if the agent:
 
-- opens the booking URL with browser/web tooling;
 - creates a temporary URL file;
 - uses `--url-file` or `--url-stdin`;
 - uses `mktemp`, `echo`, or `printf` to move the URL through another input;

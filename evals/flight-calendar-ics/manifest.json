@@ -10,5 +10,64 @@
       "source": "git",
       "ref": "update/flight-calendar-ics"
     }
+  },
+  "models": [
+    {
+      "model": "gpt-5.6-luna",
+      "provider": "openai-codex"
+    },
+    {
+      "model": "deepseek-v4-pro",
+      "provider": "deepseek"
+    },
+    {
+      "model": "glm-5.1",
+      "provider": "zai"
+    }
+  ],
+  "repeats": 1,
+  "execution": {
+    "toolsets": [
+      "terminal",
+      "file",
+      "skills"
+    ],
+    "max_turns": 10,
+    "run_budget": 90,
+    "yolo": true,
+    "source": "eval"
+  },
+  "scenarios": {
+    "url-success": {
+      "prompt": "prompt/url-success.txt",
+      "fixture": "fixtures/aeroflot-pnr-view-v3.json",
+      "oracle": "expected/url-success.json",
+      "evaluation": {
+        "trajectory": {
+          "required_cli_fragments": [
+            "flight_calendar_ics.py",
+            "--json",
+            "build",
+            "--url"
+          ],
+          "forbidden_command_patterns": [
+            "--url-file",
+            "--url-stdin",
+            "\\bmktemp\\b",
+            "\\becho\\b",
+            "\\bprintf\\b"
+          ],
+          "forbidden_tool_names": [
+            "write_file",
+            "patch",
+            "browser_navigate",
+            "web_search",
+            "web_extract"
+          ],
+          "require_single_terminal_call": true,
+          "stop_after_cli": true
+        }
+      }
+    }
   }
 }
