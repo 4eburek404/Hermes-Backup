@@ -26,6 +26,10 @@ _NETWORK_ERRORS: tuple[type[BaseException], ...] = (
 class TransportError(ValueError):
     """Carrier HTTP failure with a redaction-safe message."""
 
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
 
 def browser_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
     headers = {
@@ -86,7 +90,10 @@ def resolve_redirect_url(
 
     status_code = int(getattr(response, "status_code", 0) or 0)
     if status_code not in {301, 302, 303, 307, 308}:
-        raise TransportError(f"{label} failed: non-redirect HTTP {status_code}")
+        raise TransportError(
+            f"{label} failed: non-redirect HTTP {status_code}",
+            status_code=status_code,
+        )
 
     headers = getattr(response, "headers", {}) or {}
     location = headers.get("Location") or headers.get("location")
@@ -149,7 +156,10 @@ def request_text(
         sleep=sleep,
     )
     if status >= 400:
-        raise TransportError(f"{label} returned HTTP {status} ({content_type})")
+        raise TransportError(
+            f"{label} returned HTTP {status} ({content_type})",
+            status_code=status,
+        )
     return text
 
 

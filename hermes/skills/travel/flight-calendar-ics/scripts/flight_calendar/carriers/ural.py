@@ -30,6 +30,7 @@ class DeploymentConfig:
     version: str
     api_url: str
     api_key: str
+    from_cache: bool = False
 
 
 def http_text(
@@ -112,7 +113,7 @@ def _load_cached_config() -> DeploymentConfig | None:
             document.get("version"), document.get("API_URL"), document.get("API_KEY")
         )
         _secure_cache_permissions(path)
-        return config
+        return DeploymentConfig(config.version, config.api_url, config.api_key, from_cache=True)
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
         return None
 
@@ -256,17 +257,27 @@ def fetch_ural_reservation(
         if parsed.scheme and parsed.netloc:
             frontend_base = f"{parsed.scheme}://{parsed.netloc}/"
     config = load_deployment_config(frontend_base, timeout=timeout)
-    timestamp_diff = compute_timestamp_diff(config.api_url, timeout=timeout)
-    api_key_header = generate_api_key_header(
-        config.api_key, int(time.time() * 1000), timestamp_diff
-    )
     query = urlencode({"pnrNumber": locator, "lastName": last_name})
-    reservation = http_json(
-        config.api_url + "Reservation?" + query,
-        method="GET",
-        timeout=timeout,
-        headers=api_headers(api_key_header),
-    )
+
+    def request_reservation(current_config: DeploymentConfig) -> Any:
+        timestamp_diff = compute_timestamp_diff(current_config.api_url, timeout=timeout)
+        api_key_header = generate_api_key_header(
+            current_config.api_key, int(time.time() * 1000), timestamp_diff
+        )
+        return http_json(
+            current_config.api_url + "Reservation?" + query,
+            method="GET",
+            timeout=timeout,
+            headers=api_headers(api_key_header),
+        )
+
+    try:
+        reservation = request_reservation(config)
+    except carrier_http.TransportError as exc:
+        if not config.from_cache or exc.status_code != 401:
+            raise
+        config = load_deployment_config(frontend_base, timeout=timeout, refresh=True)
+        reservation = request_reservation(config)
     return _accept_reservation(reservation)
 
 
