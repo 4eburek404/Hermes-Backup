@@ -41,6 +41,7 @@ evaluation rules are identical across the three runs.
 
 - the user supplies one supported Aeroflot manage-booking URL;
 - the URL contains synthetic booking credentials;
+- the synthetic `pnr_key` is exactly 64 lowercase hex characters derived as SHA-256 of the public fixed seed `flight-calendar-ics-eval-synthetic-pnr-key-v1`; it is deterministic test data, not a live credential, and avoids pathological repeated-character placeholders;
 - external carrier HTTP is replaced by one checked-in recorded response;
 - no live airline request is allowed;
 - the recorded response describes two flight segments.
