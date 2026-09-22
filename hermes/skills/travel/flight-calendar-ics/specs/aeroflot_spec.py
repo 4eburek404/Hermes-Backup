@@ -36,7 +36,7 @@ sys.path.insert(0, str(SCRIPTS))
 AEROFLOT_BASE = "https://www.aeroflot.ru"
 AEROFLOT_APP_URL = AEROFLOT_BASE + "/sb/pnr/app/ru-ru"
 AEROFLOT_PNR_API = AEROFLOT_BASE + "/se/api/app/pnr/view/v3"
-SYNTHETIC_KEY = "0" * 64
+SYNTHETIC_KEY = "5da7002148b11050a6a14aaf19c109248a0dd95cb94d03a91a1fb124765b00d7"
 EXPECTED_LOCATOR = "ABC123"
 AEROFLOT_SPA_URL = (
     f"{AEROFLOT_APP_URL}#/pnr?pnr_key={SYNTHETIC_KEY}&pnr_locator={EXPECTED_LOCATOR}"
