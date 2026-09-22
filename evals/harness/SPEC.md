@@ -58,6 +58,33 @@ The harness must be able to run the full configured matrix or an explicitly sele
 
 For every batch it must be possible to determine which runs were expected and which runs actually executed.
 
+## 4.1 Skill version sources
+
+Each evaluated skill version must identify the source of the complete skill content used by the agent.
+
+The common harness must support at least:
+
+- `working_tree` — materialize the configured skill directory from the current repository working tree;
+- `git` — materialize the configured skill directory from a supplied Git ref.
+
+The source applies to the whole skill directory, including `SKILL.md`, scripts, references, schemas, templates, and other files under that directory. The harness must not combine `SKILL.md` from one version with supporting files from another version.
+
+For a Git source:
+
+- the requested ref must be resolved to an exact commit;
+- the evaluated content must be materialized from that resolved commit;
+- the source repository checkout and working-tree state must not be changed by checkout, merge, reset, clean, or equivalent mutation;
+- evidence must identify the requested ref, resolved commit, configured skill path, and a deterministic content digest.
+
+For a working-tree source:
+
+- the evaluated content must reflect the current filesystem state of the configured skill directory, including local changes that have not been committed;
+- evidence must identify the repository HEAD, whether the skill directory differs from committed state, the configured skill path, and a deterministic content digest.
+
+An invalid source type, missing Git ref, unresolved ref, or missing skill path is a setup failure. The agent must not start with silently substituted skill content.
+
+A candidate stored on another branch or ref must be evaluable while the harness remains on its own branch. No branch merge is required to compare or execute that candidate.
+
 ## 5. Run isolation
 
 Every run must be independent.
@@ -412,6 +439,28 @@ Given the common harness exists.
 When a new skill supplies its own scenarios, fixtures, and evaluator rules.
 
 Then adding that skill does not require changing the general orchestration logic used by existing evaluations.
+
+### H13 — Skill source is explicit and checkout-independent
+
+Given:
+
+- the harness repository is checked out on one branch;
+- a candidate skill exists on another Git ref;
+- the skill contains supporting files in addition to `SKILL.md`.
+
+When the candidate is materialized from that Git ref.
+
+Then:
+
+- the complete skill directory comes from the requested ref;
+- the requested ref is resolved to an exact commit and recorded with a content digest;
+- the harness repository HEAD, active checkout, and pre-existing working-tree state remain unchanged.
+
+Given a working-tree source with local skill changes.
+
+When that source is materialized.
+
+Then the local skill content is used and its dirty state and content digest are recorded.
 
 ## 21. Harness readiness criteria
 
