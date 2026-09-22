@@ -267,19 +267,66 @@ def fetch_ural_reservation(
         timeout=timeout,
         headers=api_headers(api_key_header),
     )
-    if not isinstance(reservation, dict):
-        raise ValueError("Ural Airlines Reservation response is not a JSON object")
-    if reservation.get("success") is False:
-        raise ValueError("Ural Airlines Reservation API returned success=false")
-    return reservation
+    return _accept_reservation(reservation)
+
+
+def _accept_reservation(response: Any) -> dict[str, Any]:
+    if not isinstance(response, dict) or response.get("success") is not True:
+        raise ValueError("Ural Airlines Reservation response was not successful")
+
+    data = response.get("data")
+    if not isinstance(data, dict):
+        raise ValueError("Ural Airlines Reservation response is invalid")
+
+    journey = data.get("journey")
+    if not isinstance(journey, dict):
+        raise ValueError("Ural Airlines Reservation response is invalid")
+
+    groups = ("outboundFlights", "returnFlights", "separateFlights")
+    segments: list[dict[str, Any]] = []
+    for group in groups:
+        if group not in journey:
+            continue
+        group_segments = journey[group]
+        if not isinstance(group_segments, list):
+            raise ValueError("Ural Airlines Reservation response is invalid")
+        for segment in group_segments:
+            if not isinstance(segment, dict):
+                raise ValueError("Ural Airlines Reservation response is invalid")
+            segments.append(segment)
+
+    required_fields = ("origin", "destination", "departureDate", "arrivalDate", "flightNumber")
+    for segment in segments:
+        if any(
+            not isinstance(segment.get(field), str) or not segment[field].strip()
+            for field in required_fields
+        ):
+            raise ValueError("Ural Airlines Reservation response is invalid")
+        if not any(
+            isinstance(segment.get(field), str) and segment[field].strip()
+            for field in ("marketingCarrier", "operatingCarrier")
+        ):
+            raise ValueError("Ural Airlines Reservation response is invalid")
+
+    if not segments:
+        raise ValueError("Ural Airlines Reservation response is invalid")
+
+    for field in ("passengers", "tickets"):
+        if field not in data:
+            continue
+        collection = data[field]
+        if not isinstance(collection, list) or any(
+            not isinstance(item, dict) for item in collection
+        ):
+            raise ValueError("Ural Airlines Reservation response is invalid")
+
+    return response
 
 
 def build_itinerary(booking_url: str) -> dict[str, Any]:
     locator, last_name, normalized_url = parse_ural_source(booking_url)
-    return convert_to_itinerary(
-        fetch_ural_reservation(locator, last_name, booking_url=normalized_url),
-        booking_url=normalized_url,
-    )
+    reservation = fetch_ural_reservation(locator, last_name, booking_url=normalized_url)
+    return convert_to_itinerary(reservation["data"], booking_url=normalized_url)
 
 
 def clean(value: Any) -> Any:
@@ -315,21 +362,11 @@ def ticket_numbers(data: dict[str, Any]) -> list[str]:
 
 
 def convert_to_itinerary(
-    data_or_response: dict[str, Any],
+    data: dict[str, Any],
     booking_url: str | None = None,
 ) -> dict[str, Any]:
-    if data_or_response.get("success") is False:
-        raise ValueError("Ural Airlines Reservation API returned success=false")
-    data = (
-        data_or_response.get("data")
-        if isinstance(data_or_response.get("data"), dict)
-        else data_or_response
-    )
-    if not isinstance(data, dict):
-        raise ValueError("Ural Airlines Reservation response has no data object")
-
-    journey = data.get("journey") or {}
     flights: list[dict[str, Any]] = []
+    journey = data["journey"]
     flight_groups = [
         ("outbound", journey.get("outboundFlights") or []),
         ("return", journey.get("returnFlights") or []),

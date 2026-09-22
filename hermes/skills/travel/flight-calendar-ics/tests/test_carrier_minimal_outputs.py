@@ -115,7 +115,7 @@ class CarrierMinimalOutputTests(unittest.TestCase):
         }
 
         itinerary = ural.convert_to_itinerary(
-            response,
+            response["data"],
             booking_url="https://carrier.example/ural",
         )
 

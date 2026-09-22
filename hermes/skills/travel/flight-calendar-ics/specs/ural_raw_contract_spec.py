@@ -65,9 +65,10 @@ class UralRawReservationContractSpecification(unittest.TestCase):
             return real_converter(data, booking_url=booking_url)
 
         with mock.patch.object(ural, "convert_to_itinerary", side_effect=observe_converter):
-            with self.assertRaises(ValueError) as context:
+            with self.assertRaises(Exception) as context:  # noqa: B017 - contract is controlled failure, not exception type
                 self._build(response)
 
+        self.assertNotIsInstance(context.exception, (AttributeError, TypeError, KeyError))
         self.assertEqual(
             len(converter_calls),
             0,

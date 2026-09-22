@@ -522,7 +522,7 @@ class UralConversionSpecification(unittest.TestCase):
 
         raw = json.loads(RESERVATION_TEXT)
         itinerary = ural.convert_to_itinerary(
-            raw, booking_url="https://service.uralairlines.ru/"
+            raw["data"], booking_url="https://service.uralairlines.ru/"
         )
         self.assertEqual(len(itinerary["flights"]), 2)
         first, second = itinerary["flights"]
