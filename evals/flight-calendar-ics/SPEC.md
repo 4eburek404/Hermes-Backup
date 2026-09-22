@@ -1,33 +1,142 @@
-# flight-calendar-ics minimal eval specification
+# flight-calendar-ics — Minimal Agent Eval Specification
 
-## Target
+## Purpose
 
-The eval is a configuration-only, minimal agent-level check for the
-`flight-calendar-ics` skill. It has one scenario, `url-success`, and exercises
-three real Hermes runtime provider/model pairs.
+Provide a fast first agent-level evaluation of the current
+`flight-calendar-ics` skill.
 
-## Runtime matrix
+This eval deliberately covers one normal successful booking-URL workflow only.
+It is not a complete behavioral suite. Additional scenarios are added only when
+there is a concrete defect, behavior change, or comparison need.
 
-The manifest stores technical runtime identifiers, not display-name guesses:
+## Evaluated skill
 
-- **GPT-5.6 Luna** — provider `openai-codex`, model `gpt-5.6-luna`.
-- **Neural Deep — Qwen 3.8 27B** — provider `custom:neuraldeep`, model
-  `qwen3.8-27b`.
-- **Ollama Cloud — Nemotron 3 Super** — provider `ollama-cloud`, model
-  `nemotron-3-super`.
+The candidate is the complete skill directory from Git ref:
+
+`update/flight-calendar-ics`
+
+The common eval harness resolves the ref to an exact commit and materializes the
+skill without merging or checking out that branch.
+
+## Evaluation matrix
+
+One scenario is executed once on each of three real Hermes runtime
+provider/model pairs:
+
+- GPT-5.6 Luna: `gpt-5.6-luna` / `openai-codex`
+- Neural Deep — Qwen 3.8 27B: `qwen3.8-27b` / `custom:neuraldeep`
+- Ollama Cloud — Nemotron 3 Super: `nemotron-3-super` / `ollama-cloud`
 
 The order is contractual: GPT-5.6 Luna is first, Qwen 3.8 27B through Neural
 Deep is second, and Nemotron 3 Super through Ollama Cloud is third.
 
-## Run shape
+Therefore the first batch contains exactly 3 agent runs.
 
-- One scenario: `url-success`.
-- Three models.
-- One repeat.
-- Three agent runs in total (`3 models × 1 scenario × 1 repeat`).
+The scenario, prompt, recorded external response, evaluated skill source, and
+evaluation rules are identical across the three runs.
 
-## Non-goals
+## M1 — supported booking URL succeeds
 
-This minimal eval does not add scenarios, PDF/OCR processing,
-baseline/candidate comparison, or other harness functionality. Live LLM runs
-are separate from this configuration change.
+### Given
+
+- the user supplies one supported Aeroflot manage-booking URL;
+- the URL contains synthetic booking credentials;
+- external carrier HTTP is replaced by one checked-in recorded response;
+- no live airline request is allowed;
+- the recorded response describes two flight segments.
+
+### When
+
+Hermes executes the task with `flight-calendar-ics`.
+
+### Then — Outcome
+
+- the task completes successfully;
+- one generated `.ics` artifact is retained as run evidence;
+- the artifact is parseable as iCalendar;
+- it contains exactly 2 `VEVENT` components;
+- the events contain the expected fixture routes and times:
+  - SVX → SVO, 2037-09-23 13:30 → 13:50 local, Airbus A330-300;
+  - SVO → SVX, 2037-09-25 15:25 → 19:50 local, Boeing 737-800;
+- the final agent answer returns the generated `.ics` artifact.
+
+Outcome checks the resulting artifact, not the internal carrier parser
+implementation.
+
+### Then — Trajectory
+
+The agent must:
+
+1. use the booking-URL workflow;
+2. invoke the bundled `flight_calendar_ics.py` CLI with
+   `--json build --url <booking-url>`;
+3. invoke that build CLI exactly once;
+4. stop after the successful CLI result.
+
+The first fast eval exposes only the `terminal`, `file`, and `skills`
+toolsets. Browser/web fallback is deliberately not exercised yet.
+
+The run fails Trajectory if the agent:
+
+- creates a temporary URL file;
+- uses `--url-file` or `--url-stdin`;
+- uses `mktemp`, `echo`, or `printf` to move the URL through another input;
+- independently rewrites or parses the booking URL instead of giving it to the
+  CLI;
+- invokes the build CLI again after success;
+- performs additional tool actions after the successful build instead of
+  returning the artifact.
+
+Skill loading itself is allowed and is not counted as an extra booking action.
+
+### Then — Privacy
+
+The user-visible final answer must not contain:
+
+- the booking URL;
+- the synthetic PNR;
+- the synthetic booking key;
+- passenger names;
+- ticket numbers;
+- raw `.ics` contents.
+
+The booking URL is allowed in the terminal tool input because the skill must pass
+it to the CLI. Its presence there is not a Privacy failure.
+
+The retained `.ics` artifact may contain booking data by design and is not
+scanned as a forbidden user-visible channel.
+
+### Then — Efficiency
+
+Record factual metrics only:
+
+- tool-call count;
+- CLI build-call count;
+- agent turns/events when available;
+- token/usage metrics when available;
+- duration.
+
+No efficiency PASS/FAIL threshold is defined in this first eval.
+
+## Recorded fixture rule
+
+The external carrier response is fixed test data and is not fetched live during
+agent evaluation.
+
+The evaluator oracle is separate from the prompt and is not exposed to the
+agent.
+
+## Explicitly out of scope for the first eval
+
+Not evaluated yet:
+
+- `route_unknown`;
+- `route_input_insufficient`;
+- PDF input;
+- OCR fallback;
+- carrier-specific failure recovery;
+- separate Aeroflot/Ural/Utair/S7/Red Wings coverage;
+- baseline-versus-candidate comparison;
+- repeated stochastic runs.
+
+These can be added later without changing the common harness.

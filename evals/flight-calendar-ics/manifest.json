@@ -1,26 +1,73 @@
 {
-  "name": "flight-calendar-ics-minimal-eval",
-  "type": "skill-agent-eval",
+  "name": "flight-calendar-ics-agent-level-eval",
+  "mode": "recorded",
+  "skill": {
+    "name": "flight-calendar-ics",
+    "path": "hermes/skills/travel/flight-calendar-ics/SKILL.md"
+  },
+  "skill_versions": {
+    "candidate": {
+      "source": "git",
+      "ref": "update/flight-calendar-ics"
+    }
+  },
   "models": [
     {
-      "label": "GPT-5.6 Luna",
       "model": "gpt-5.6-luna",
       "provider": "openai-codex"
     },
     {
-      "label": "Neural Deep — Qwen 3.8 27B",
       "model": "qwen3.8-27b",
       "provider": "custom:neuraldeep"
     },
     {
-      "label": "Ollama Cloud — Nemotron 3 Super",
       "model": "nemotron-3-super",
       "provider": "ollama-cloud"
     }
   ],
-  "scenarios": [
-    "url-success"
-  ],
   "repeats": 1,
-  "expected_agent_runs": 3
+  "execution": {
+    "toolsets": [
+      "terminal",
+      "file",
+      "skills"
+    ],
+    "max_turns": 10,
+    "run_budget": 90,
+    "yolo": true,
+    "source": "eval"
+  },
+  "scenarios": {
+    "url-success": {
+      "prompt": "prompt/url-success.txt",
+      "fixture": "fixtures/aeroflot-pnr-view-v3.json",
+      "oracle": "expected/url-success.json",
+      "evaluation": {
+        "trajectory": {
+          "required_cli_fragments": [
+            "flight_calendar_ics.py",
+            "--json",
+            "build",
+            "--url"
+          ],
+          "forbidden_command_patterns": [
+            "--url-file",
+            "--url-stdin",
+            "\\bmktemp\\b",
+            "\\becho\\b",
+            "\\bprintf\\b"
+          ],
+          "forbidden_tool_names": [
+            "write_file",
+            "patch",
+            "browser_navigate",
+            "web_search",
+            "web_extract"
+          ],
+          "require_single_terminal_call": true,
+          "stop_after_cli": true
+        }
+      }
+    }
+  }
 }

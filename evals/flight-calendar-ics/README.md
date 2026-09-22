@@ -1,29 +1,75 @@
-# flight-calendar-ics minimal eval
+# flight-calendar-ics agent eval
 
-This directory defines the smallest useful agent-level matrix for the
-`flight-calendar-ics` skill. The harness consumes the technical identifiers in
-`manifest.json`; the labels below are only human-readable names.
-
-## Matrix
-
-1. **GPT-5.6 Luna** — provider `openai-codex`, model `gpt-5.6-luna`.
-2. **Neural Deep — Qwen 3.8 27B** — provider `custom:neuraldeep`, model
-   `qwen3.8-27b`.
-3. **Ollama Cloud — Nemotron 3 Super** — provider `ollama-cloud`, model
-   `nemotron-3-super`.
+Fast first agent-level evaluation of `flight-calendar-ics`.
 
 ## Scope
 
-The eval has one scenario (`url-success`), one repeat, and three agent runs in
-total. No extra scenarios, PDF/OCR, baseline/candidate comparison, or other
-functionality is included.
+The first batch is intentionally small:
 
-The executable contract is:
+- one scenario: `url-success`;
+- one recorded Aeroflot response;
+- one candidate skill source: `update/flight-calendar-ics`;
+- one repeat;
+- three models on three distinct Hermes providers.
+
+Matrix:
+
+1. GPT-5.6 Luna — `gpt-5.6-luna` / `openai-codex`;
+2. Neural Deep — Qwen 3.8 27B — `qwen3.8-27b` / `custom:neuraldeep`;
+3. Ollama Cloud — Nemotron 3 Super — `nemotron-3-super` / `ollama-cloud`.
+
+The order is contractual. Total: **3 agent runs**.
+
+See `SPEC.md` for the behavioral contract.
+
+## Recorded execution
+
+The user prompt contains a synthetic supported booking URL.
+
+During the run the agent still executes the candidate skill and its real public
+CLI. Only the shared carrier HTTP module in the isolated materialized copy is
+overlaid with `replay/carrier_http.py`. For the Aeroflot success path that
+module returns the checked-in response from
+`fixtures/aeroflot-pnr-view-v3.json`.
+
+The source branch is not modified. Because the replay is inside the isolated
+skill copy, the run stays offline even if a model invokes `python3` directly
+instead of using `HERMES_SKILLS_PYTHON`.
+
+The evaluator independently checks:
+
+- Outcome — retained `.ics`, two expected VEVENTs, expected route/time data,
+  and artifact returned in the final answer;
+- Trajectory — one direct `--json build --url` CLI call, no URL-file detour,
+  and stop after success;
+- Privacy — fixture booking markers are absent from the final answer;
+- Efficiency — factual metrics are recorded but not scored.
+
+## Run
+
+From the repository root:
 
 ```bash
-python3 tests/contract/test_flight_calendar_ics_eval_consumer.py
+python3 evals/flight-calendar-ics/run_eval.py
 ```
 
-It checks the manifest's three distinct provider/model pairs, the scenario and
-repeat counts, the total run count, and consistency between this README,
-`SPEC.md`, and `manifest.json`. It does not launch live LLM runs.
+The runner executes the whole configured matrix. There are deliberately no
+scenario/model-selection flags in this first version.
+
+Provider credentials/OAuth must already be configured in the Hermes runtime.
+
+## Candidate isolation
+
+The candidate is materialized by the common harness from:
+
+```json
+{"source": "git", "ref": "update/flight-calendar-ics"}
+```
+
+The `SDD-skill` checkout is not switched or merged. Each run records the exact
+resolved candidate commit and complete-skill content digest.
+
+## Not included yet
+
+PDF/OCR, failure paths, carrier-specific failure handling, repeated stochastic
+runs, and baseline/candidate comparison are intentionally deferred.
